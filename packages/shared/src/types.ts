@@ -100,7 +100,10 @@ export const MODEL_ALIASES = ['fable', 'opus', 'sonnet', 'haiku'] as const;
 export interface ModelOption {
   /** What the flag takes: an alias (`opus`) or a model's full name (`claude-fable-5-1[1m]`) */
   value: string;
-  /** What the CLI calls it, where it says so */
+  /**
+   * What the CLI calls it, where it says so; for an alias, the name of the model a chat started on
+   * it reported in its `system/init` event ("Sonnet 5" for `claude-sonnet-5`), once one has
+   */
   label?: string;
   /** The line the CLI shows under it */
   description?: string;

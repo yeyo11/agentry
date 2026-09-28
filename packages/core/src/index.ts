@@ -757,7 +757,7 @@ export class Core {
   private withUptime(value: Omit<SystemInfo, 'uptimeSec' | 'models'>): SystemInfo {
     // Read here rather than with the rest: the rest costs two `claude` processes and is kept for
     // half a minute, while this is a file the CLI writes, cached by its own mtime
-    return { ...value, models: modelOptions(this.config.globalConfigFile), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
+    return { ...value, models: modelOptions(this.config.globalConfigFile, this.runtime.modelIds.get()), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
   }
 
   private readSystem(join = true): Promise<Omit<SystemInfo, 'uptimeSec' | 'models'>> {

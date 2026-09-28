@@ -53,8 +53,9 @@ export function ModelTag({ model }: { model: string }) {
 }
 
 /**
- * The CLI's own name for a model alias ("Sonnet 5" for `sonnet`), which the member page writes after
- * the alias as the reference does; nothing for a model the CLI does not list, or names as typed.
+ * The name of the model an alias stands for ("Sonnet 5" for `sonnet`), which the member page writes
+ * after the alias as the reference does. The core names an alias after the model id a chat on it
+ * reported, or takes the CLI's own label; nothing until then, or for a name that is only the value.
  */
 export function ModelName({ model }: { model: string }) {
   const models = useOverview().data?.system.models;

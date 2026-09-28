@@ -40,6 +40,7 @@ import type { RunDefaults } from './app-settings.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
 import { runningCommands, type ToolCall, type Trace } from './health.ts';
+import { ModelAliasIds } from './models.ts';
 import { cliProcessOf, commandRoots, drivesSession, processTable, streamJsonProcesses, terminateTree } from './processes.ts';
 import type { SessionStore } from './sessions.ts';
 import { composeContent, type UploadStore } from './uploads.ts';
@@ -646,6 +647,9 @@ export class ChatManager extends EventEmitter {
 
   private readonly file: string;
 
+  /** The model id each alias last ran as, which names the aliases in the model picker */
+  readonly modelIds: ModelAliasIds;
+
   /**
    * CLI processes found at start still working on a restored chat's session, by chat id: a previous
    * wrapper went away without them (a crash, or `tsx watch` killing it mid-shutdown). Nothing here
@@ -660,6 +664,7 @@ export class ChatManager extends EventEmitter {
     super();
     this.defaults = config;
     this.file = join(config.dataDir, 'runs.json');
+    this.modelIds = new ModelAliasIds(config.dataDir);
     for (const env of db.loadEnvironments()) this.environments.set(env.cwd, env);
   }
 
@@ -1775,6 +1780,13 @@ export class ChatManager extends EventEmitter {
       // chat would be one row on disk and another here, so say so where the person can see it
       if (typeof raw.session_id === 'string' && raw.session_id !== chat.id) {
         chat.push({ kind: 'notice', type: 'notice', text: `The CLI reported session ${raw.session_id} for the chat ${chat.id}; its transcript is not where this chat expects it.` });
+      }
+      // What the alias this process was started with stands for now: the CLI's cache of models
+      // labels none of the aliases, and this is the one place it says which model one is
+      try {
+        this.modelIds.record(chat.opts.model, raw.model);
+      } catch {
+        // the picker only goes on showing the alias alone
       }
       chat.setSettings({
         ...(typeof raw.permissionMode === 'string' ? { permissionMode: reportedMode(raw.permissionMode) } : {}),

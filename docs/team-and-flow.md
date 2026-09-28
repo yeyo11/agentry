@@ -611,19 +611,24 @@ Since orchestration 6 the phone screens follow their references more closely:
 ## Known gaps
 
 Orchestration 6 (`ecosystem-gaps`, 2026-09-28) closed every gap this section listed; each is
-described above where it now lives. One detail is only partly closed:
+described above where it now lives. The last detail, the model's name, was closed after it:
 
-- **The member's model reads "sonnet · Sonnet 5" only when the CLI names the alias.** The member
-  page writes, after the model, the label the CLI gives it in the overview's `system.models`
-  (`ModelName` in `pages/team/RoleAvatar.tsx`). Those options come from the file the CLI writes
-  (`additionalModelOptionsCache` in `.claude.json`, read by `packages/core/src/models.ts`), which
-  lists only the models an account adds beyond the aliases, and the aliases themselves (`sonnet`,
-  `opus`…) carry no label. So with today's CLI a member on `sonnet` shows the alias alone, as before;
-  a model the CLI does list with a label (such as `claude-fable-5-1[1m]`, "Fable") shows it. Writing
-  "Sonnet 5" for `sonnet` would need a list of Agentry's own, which `models.ts` gave up on because it
-  went stale with every CLI release, and the one rule forbids asking Anthropic. The nearest faithful
-  source is the model a run's `system/init` event reports (`claude-sonnet-5`), which would name only
-  what a member has already run on; it is not built.
+- **The member's model reads "sonnet · Sonnet 5" once a chat has run on the alias.** The member
+  page writes, after the model, the label the overview's `system.models` gives it (`ModelName` in
+  `pages/team/RoleAvatar.tsx`), and the model pickers list the same labels. The CLI's own list
+  (`additionalModelOptionsCache` in `.claude.json`, read by `packages/core/src/models.ts`) labels
+  only the models an account adds beyond the aliases, never `sonnet`, `opus`… So the name of an
+  alias is learned from the CLI's stream instead (option A, the owner's choice on 2026-09-28): each
+  chat's `system/init` event reports the model id its process runs, and when the chat was started
+  with an alias (`--model sonnet`) that id is kept for it (`ModelAliasIds` in `models.ts`, the
+  document `model-aliases.json` in the data dir, rewritten only when an alias moves to another
+  model). The name comes from the id by rule (`modelDisplayName`): drop `claude-`, a trailing
+  release date and a `[…]` variant, then the family capitalised and the version's digits joined
+  with dots, with the variant after it: `claude-sonnet-5` is "Sonnet 5", `claude-opus-5-5`
+  "Opus 5.5", `claude-haiku-4-5-20251001` "Haiku 4.5", `claude-fable-5-1[1m]` "Fable 5.1 (1M)". A
+  label the CLI gives wins over the derived one. Until a chat has run on an alias it shows alone,
+  and an id off that scheme is left unnamed rather than guessed. No list of Agentry's own and no
+  call to Anthropic: only what the CLI reported.
 
 ## Related
 

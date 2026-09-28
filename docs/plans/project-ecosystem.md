@@ -155,6 +155,15 @@ They were agreed with the project's owner on 2026-09-26 and 2026-09-27.
 | 3 | `ecosystem-team` | Team, flow by column, journal and memory proposals, documents, core and web |
 | 4 | `ecosystem-assistant` | The project assistant, suggested work items, resources with AI |
 
+41. **A model alias is named after the model a chat reported it as** (the owner chose option A on
+    2026-09-28, closing the last detail of gap 23). The CLI's model cache labels none of the
+    aliases, so the picker showed `sonnet` alone. Each chat's `system/init` event reports the model
+    id its process runs; the id a chat started on an alias reported is kept per alias in
+    `model-aliases.json` in the data dir, and the name is derived from the id by rule
+    (`claude-sonnet-5` is "Sonnet 5", `claude-opus-5-5` "Opus 5.5", `claude-haiku-4-5-20251001`
+    "Haiku 4.5", a `[1m]` variant "(1M)"). An alias no chat has run on yet shows alone. Rejected: a
+    list of Agentry's own (stale with every CLI release) and asking Anthropic (the one rule).
+
 ## Not in orchestration 1
 
 - Any file under `apps/web/src`. The web is orchestration 2, after the prototypes are validated.

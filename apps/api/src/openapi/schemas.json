@@ -151,7 +151,7 @@
       },
       "label": {
         "type": "string",
-        "description": "What the CLI calls it, where it says so"
+        "description": "What the CLI calls it, where it says so; for an alias, the name of the model a chat started on it reported in its `system/init` event (\"Sonnet 5\" for `claude-sonnet-5`), once one has"
       },
       "description": {
         "type": "string",

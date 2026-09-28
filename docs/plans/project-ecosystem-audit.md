@@ -653,16 +653,20 @@ line in the team's activity (6), and the phone document editor's bar mid-screen 
 | 20 | Cards without descriptions; Done and the lists paged | Closed | `683e8f5`, `07aa24a`; work-items tests, `tasks-board.spec.mjs` |
 | 21 | Phone detail screens head themselves | Closed | `972bca7`, `0dd17b6`; `shell-live.test.ts`, `team.spec.mjs`, `documents.spec.mjs` |
 | 22 | "Proyectos" and "Más" marked on a project | Closed | `8432874`; `shell-nav.test.ts` |
-| 23 | Small differences from the references | Closed but one detail | `08121bd`, `0ac4b91`, `8b8ada3`, `8402280`, `1847725`, `e9d7fe1`, `6f11b55`; `team-screens.test.tsx`, `documents.spec.mjs` |
+| 23 | Small differences from the references | Closed | `08121bd`, `0ac4b91`, `8b8ada3`, `8402280`, `1847725`, `e9d7fe1`, `6f11b55`, and the model's name after the ecosystem-gaps pass; `team-screens.test.tsx`, `documents.spec.mjs`, `models.test.ts`, `chats.test.ts` |
 | 24 | Web files over 400 lines split | Closed | `ca8253c`, `3e52e86`, `335c2cc` |
 
-**The one detail left, in gap 23:** the member page writes the CLI's own name after the model
-("sonnet · Sonnet 5") only when the CLI's model list labels it. That list is the
-`additionalModelOptionsCache` the CLI writes in `.claude.json`, which lists only the models an
-account adds beyond the aliases; the aliases carry no label. So with today's CLI a member on
-`sonnet` shows the alias alone. Naming it otherwise needs a list of Agentry's own, which went stale
-with every CLI release, or reading the model a run's `system/init` event reports, which is not
-built. It is kept in [team-and-flow.md](../team-and-flow.md#known-gaps).
+**The one detail that was left in gap 23, closed afterwards:** the member page writes the CLI's
+own name after the model ("sonnet · Sonnet 5") only when the CLI's model list labels it, and the
+list the CLI writes (`additionalModelOptionsCache` in `.claude.json`) labels none of the aliases, so
+with the real CLI a member on `sonnet` showed the alias alone; the test passed only because it
+injected the label. The owner chose option A on 2026-09-28 (decision 41 of the
+[plan](project-ecosystem.md)): the model id a chat's `system/init` event reports is kept per alias
+the chat was started with (`ModelAliasIds`, `model-aliases.json` in the data dir, recorded in
+`chats.ts`), and `modelOptions` labels each alias with a name derived from that id by rule
+(`modelDisplayName`: "Sonnet 5", "Opus 5.5", "Haiku 4.5"). Until a chat has run on an alias, it
+shows alone. Tested in `models.test.ts` (the rule, the document) and `chats.test.ts` (recorded from
+`system/init`). Described in [team-and-flow.md](../team-and-flow.md#known-gaps).
 
 `pnpm typecheck` and `pnpm test` pass on the integrated branch; `pnpm build` and `pnpm e2e` run in
 the verification phase, on the merged branch.
