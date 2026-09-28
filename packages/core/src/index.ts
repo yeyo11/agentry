@@ -166,7 +166,7 @@ export {
   type WorkItemProject,
   type WorkItemServiceDeps,
 } from './work-items.ts';
-export { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentServiceDeps, type DocumentsPlace, type TieOptions } from './documents.ts';
+export { DEFAULT_DOCUMENTS_PATH, DOCUMENT_CONTENT_MAX, DocumentError, DocumentService, type DocumentServiceDeps, type DocumentsPlace, type TieOptions } from './documents.ts';
 export { DocumentPathError } from './document-paths.ts';
 export { orchestrationDraft, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt, type WorkItemAutomationDeps } from './work-links.ts';
 export { AuthStore } from './security/auth.ts';
