@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import type { AgentryEvent, Orchestration, OrchestrationTaskStatus, RunStatus, WorkItemHistoryEntry, WorkItemStatus } from '@agentry/shared';
 import { Db } from '../src/db.ts';
-import { mainTopLevel } from '../src/git.ts';
+import { mainCheckout } from '../src/git.ts';
 import { itemWorktree, orchestrationDraft, titleFromMessage, WorkItemAutomation, workItemPrompt } from '../src/work-links.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { tempConfig } from './helpers.ts';
@@ -370,7 +370,7 @@ test("a submodule's item worktree hangs off the submodule's checkout, not its gi
   const place = itemWorktree(project, { key: 'AGN-1', worktree: null, branch: null });
   assert.ok(place);
   assert.equal(place.worktree, join(project, '.claude', 'worktrees', 'task-agn-1'));
-  assert.equal(mainTopLevel(place.worktree), project, 'and its own linked worktrees find the submodule again');
+  assert.equal(mainCheckout(place.worktree), project, 'and its own linked worktrees find the submodule again');
 });
 
 test('"Work on it" after a node never works in the node\'s worktree, so retrying the node clean loses nothing of it', () => {

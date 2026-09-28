@@ -17,7 +17,7 @@ import {
   type WorkItemRef,
   type WorkItemStatus,
 } from '@agentry/shared';
-import { addWorktree, branchExists, git, headCommit, isGitRepo, isIgnored, lockWorktree, mainTopLevel, topLevel, worktrees } from './git.ts';
+import { addWorktree, branchExists, git, headCommit, isGitRepo, isIgnored, lockWorktree, mainCheckout, topLevel, worktrees } from './git.ts';
 import { WorkItemError } from './work-item-validation.ts';
 import type { WorkItemService } from './work-items.ts';
 
@@ -166,7 +166,7 @@ const LOCK_REASON = 'agentry work item ';
 export function itemWorktree(projectPath: string, item: Pick<WorkItem, 'key' | 'worktree' | 'branch'> & { projectId?: string }): ItemPlace | null {
   if (!canBranch(projectPath)) return null;
   const root = topLevel(projectPath);
-  const home = mainTopLevel(projectPath);
+  const home = mainCheckout(projectPath);
   const sub = relative(root, realpathSync(projectPath));
   // An ignored directory is missing from a fresh worktree: work at its top instead, as a node does
   const subdir = sub && !isIgnored(root, sub) ? sub : '';

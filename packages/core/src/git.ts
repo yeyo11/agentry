@@ -50,6 +50,16 @@ export function topLevel(dir: string): string {
  * worktree, but the CLI keeps the checkouts it makes for `--worktree` under the main one.
  */
 export function mainTopLevel(dir: string): string {
+  return dirname(git(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir'], 10_000));
+}
+
+/**
+ * The main checkout's top level as a person sees it, which `mainTopLevel` is not for a submodule: its
+ * git directory lives under the superproject's `.git/modules/`, and a directory next to that is no
+ * checkout at all. Only for worktrees Agentry makes and opens itself; a `--worktree` the CLI adopts
+ * stays where `mainTopLevel` says, which is where the CLI looks.
+ */
+export function mainCheckout(dir: string): string {
   const common = git(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir'], 10_000);
   // In the main checkout its own top level is the answer, and the only right one for a submodule,
   // whose git directory lives under the superproject's `.git/modules/`

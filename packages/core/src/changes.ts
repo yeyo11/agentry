@@ -26,6 +26,7 @@ import {
   isGitRepo,
   isUntracked,
   lineCount,
+  mainCheckout,
   mainTopLevel,
   mergeBase,
   parentOf,
@@ -291,7 +292,7 @@ export class Changes {
     const live = place.worktree && existsSync(place.worktree) && isGitRepo(place.worktree) ? place.worktree : null;
     const from = live ?? (existsSync(projectPath) && isGitRepo(projectPath) ? projectPath : null);
     if (!from) return null;
-    const repo = mainTopLevel(from);
+    const repo = mainCheckout(from);
     if (!live && !(place.branch && branchExists(repo, place.branch))) return null;
     const tip = tipOf(projectPath) ?? headCommit(repo);
     const base = live ? mergeBase(live, 'HEAD', tip) : mergeBase(repo, place.branch ?? 'HEAD', tip);
