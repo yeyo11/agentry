@@ -926,6 +926,59 @@ thing that moves; a finished one is still.
 As in orchestration 3; `docs-4` also writes `docs/assistant.md` and closes this plan's Outcome and
 `docs/status.md` for the whole ecosystem.
 
+## Orchestration 5: `ecosystem-review-fixes`
+
+Fixes everything the section "Review of the whole feature before the pull request" of
+[the audit](project-ecosystem-audit.md) lists, on `feat/project-ecosystem` after main was merged
+into it (`e466c3f`). The owner asked on 2026-09-28 to fix it all before the pull request. The rules
+of orchestrations 1 to 4 apply, the web ones included. The numbers below are the review's.
+
+### Decisions taken for the findings that needed one
+
+- **Flow runs are bounded**: per-stage tool sets (refine: read tools plus writes under
+  `documents.path`; work: the member's `writes` plus `documents.path`; verify: read tools, the test
+  commands the project declares, and writes under `documents.path`); `Bash(git push *)` and
+  `Bash(git push)` always denied; `WebFetch`/`WebSearch` only for the work stage; a per-run budget,
+  `flow.maxCostUsd` (default 2 USD), passed as `--max-budget-usd`; at most 2 restarts per run.
+- **A restarted run with no chat to resume fails** with a comment on the item, rather than starting
+  a fresh chat without context.
+- **A member never takes over a person's chat.** The Developer works in its own chat on the item's
+  worktree; a person's "Work on it" chat is never resumed by the flow.
+- **QA checks each criterion**: the verify result carries `criteria: [{ id, met, note }]`; each met
+  criterion is checked as the agent; `pass` is derived from all met.
+- **The assistant is read-only for real**: `--tools Read,Grep,Glob`, setting sources restricted to
+  none, git facts handed in the prompt, reads of `.env*`, key and credential files denied, and no
+  uploads directory.
+- **"Work on it" always works in its own `task/<key>` worktree**, branched from the project's HEAD
+  (or from the node's branch when a node worked on the item); nothing removes a worktree an item
+  holds.
+- **Chats Agentry starts on its own are titled in the person's language**: the first line of their
+  prompt is a short Spanish or English title ("Asistente de <project>", "<KEY> · <title>"), since a
+  chat's title is its first prompt.
+- **Documents' size limit is 1 MiB**, the API's body limit, everywhere (core, docs, UI).
+- **Two routes that tie a document stay**, the `/links` one documented as the general form and
+  `/documents` as its shorthand; nothing is removed from the API.
+- **Improvements included**: a warning when "Mover a Hecho" leaves criteria unchecked, and when
+  deleting an item a chat works on; "Crear las seleccionadas" says how many runs the flow will
+  queue; board and list payloads leave descriptions out; `changes` is not refetched on every run
+  event; agent-file frontmatter is validated before saving; "Crear con IA" proposes a free name;
+  the Done column shows no limit control. Paging the Done column and the lists is left out.
+
+### File ownership
+
+| Task | Owns | Findings |
+|---|---|---|
+| `fix-flow` | `packages/core/src/flow.ts`, `team.ts`, `chats.ts` and `chat-service.ts` (resume options), the flow parts of `core/src/index.ts`, `apps/api/src/routes/flow.ts` and `team.ts`, their tests | 1, 2, 7, 10, 13 (core), 14 (core), the flow items of the MINOR list (system prompt snapshot, agents file fields, rate-limit replay, removed item, transactional cap, `started_at` after restart, one worktree per refine), `docs/team-and-flow.md` |
+| `fix-assistant` | `packages/core/src/assistant*.ts`, the assistant parts of `core/src/index.ts`, `apps/api/src/routes/assistant.ts`, their tests | 3, 9, 25 (core titles and prompts), member caps on accept, `docs/assistant.md` |
+| `fix-core-data` | `packages/core/src/db.ts`, `events.ts`, `work-items*.ts`, `project-settings.ts`, `project-templates.ts`, `documents*.ts`, `journal.ts`, `memory*.ts`, their tests | 4, 8, 11 (core), 12, 16 (core), 27 (core validation and caps), the settings partial-write bug, the re-import comment, memory frontmatter quoting, proposal de-duplication, NFC paths, journal `documentPath` check |
+| `fix-links-api` | `packages/core/src/work-links.ts`, `changes.ts`, `git.ts`, the work-item and project parts of `core/src/index.ts`, `apps/api/src/routes/{work-items,projects,documents,journal,chats,orchestrations}.ts`, `openapi/routes.ts`, README tables, their tests | 5, 6, 11 (All projects count), 16 (body limit), 27 (API 500s), 28, launch checks equal to "Work on it", link target validation, "Work on it" stuck in `in_progress` when the chat fails to start, `project.created`/`project.removed`, status code consistency, the chat count of a project, docs drift in `docs/work-items.md` and `docs/projects.md` |
+| `fix-web-tasks` | `apps/web/src/components/Dialog.tsx`, `pages/tasks/**`, `pages/documents/**`, `lib/work-items.ts`, `lib/project-scope.tsx`, `styles/work-item.css` and `board.css`, `locales/*/{tasks,workItem,documents}.json`, e2e specs for these | 17, 18, 19, 21, 22, 23, 24, 29, 30, the List view's semantics and J/K, the relate dialog's Enter, focus after creating, the item page's dirty guard, the key-rename redirect, the improvements that live on these screens |
+| `fix-web-team` | `pages/team/**`, `pages/assistant/**`, `pages/projects/**`, `pages/home/**`, `pages/config/ResourcesTab.tsx`, `lib/events.ts`, `locales/*/{team,assistant,projects,home,config}.json`, `i18n/GLOSSARY.md`, e2e specs for these | 13 (UI), 14 (UI), 15, 20, 26, the glossary and copy items, the event refetch improvement, the wizard details, the member editor going stale |
+| `review-5` | any file, for cross-task fixes, after all six | re-run every reproduction of the review; the Spanish copy end to end |
+| `docs-5` | `docs/**` except `docs/design-system/reference/**`, `README.md`, `ROADMAP.md` | the audit's status per finding, the plan's Outcome |
+
+Two tasks that need the same file touch only their own lines and say so in their result.
+
 ## Parked: a knowledge base and integrations
 
 Raised by the owner on 2026-09-27 after the four orchestrations, and parked the same day: the
