@@ -76,7 +76,7 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---- a member's page follows what is saved elsewhere while nothing is typed in it ----
     await page.click('.member-card[data-agent="architect"] .member-head-link', undefined, 1200);
-    await page.waitFor(`return new URLSearchParams(location.search).get('member') === 'architect' && !!document.querySelector('.member-model input')`, { label: "the architect's page" });
+    await page.waitFor(`return new URLSearchParams(location.search).get('member') === 'architect' && !!document.querySelector('.member-model-pick')`, { label: "the architect's page" });
     await api.request('PUT', `/projects/${project.id}/team/architect`, { role: 'architect', model: 'haiku', responsibility: 'Decides the shape of the code' });
     await page.waitFor(`return document.querySelector('.member-textarea')?.value === 'Decides the shape of the code'`, { label: 'a save made elsewhere shows on the open page' });
     check(!(await page.eval(`return !!document.querySelector('.member-page-head .badge-warn')`)), 'and is not taken for an unsaved change');
@@ -187,7 +187,7 @@ export default async ({ page, api, check, dirs }) => {
       .run('e2e-failed-run', bare.id, failItem.id, 'the account hit its rate limit', now, now, now);
     failDb.close();
     await page.goto(`/?project=${bare.id}&view=team`, 1500);
-    await page.waitFor(`return document.querySelector('.team-activity')?.textContent.includes('the account hit its rate limit')`, { label: 'the reason a run failed' });
+    await page.waitFor(`return document.querySelector('.team-activity')?.textContent.includes('the account reached its limit')`, { label: 'the reason a run failed' });
     check(await page.eval(`return !!document.querySelector('.team-activity .text-err')`), 'a failed run says so in the bad colour, beside its word');
   } finally {
     await page.viewport(1440, 900).catch(() => {});
