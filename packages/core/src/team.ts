@@ -446,6 +446,14 @@ export class TeamService {
    * person's choice.
    */
   async fromTemplate(projectId: string, input: unknown): Promise<Team> {
+    return (await this.addFromTemplate(projectId, input)).team;
+  }
+
+  /**
+   * `fromTemplate`, and the members it added: `POST /projects/:id/team/from-template` answers 201
+   * when it added any and 200 when every role was already on the team, like the other creating routes.
+   */
+  async addFromTemplate(projectId: string, input: unknown): Promise<{ team: Team; added: string[] }> {
     return this.serialized(async () => {
       const project = await this.deps.project(projectId);
       this.requireEnabled(project);
@@ -468,7 +476,7 @@ export class TeamService {
         members.push(member);
         added.push(member);
       }
-      if (!added.length) return this.view(project);
+      if (!added.length) return { team: this.view(project), added: [] };
 
       const flow: ProjectFlowSettings = project.settings.flow ?? { enabled: false, columns: {}, maxBounces: DEFAULT_MAX_BOUNCES };
       const columns = { ...flow.columns };
@@ -477,7 +485,7 @@ export class TeamService {
       const saved = { ...project, settings };
       for (const member of added) await this.writeFile(saved, member, true);
       this.emit(saved, 'template', added.map((m) => m.agent), `${project.name}: ${added.length} team members from the template`);
-      return this.view(saved);
+      return { team: this.view(saved), added: added.map((m) => m.agent) };
     });
   }
 
@@ -523,6 +531,23 @@ export class TeamService {
       await this.deps.saveSettings(project.id, { ...project.settings, team: { members: members.filter((m) => m !== member) } });
       this.emit(project, 'removed', [agent], `${project.name}: ${roleTitle(member.role)} left the team`);
     });
+  }
+
+  /**
+   * An agent file of the project saved or deleted outside the team's own routes (the resources
+   * editor, the assistant): announced as `file` when it is a member's, whose file state and drift
+   * change with it, or while the Team module is on, whose unassigned agents it is. Never throws.
+   */
+  async agentFileChanged(projectId: string, agent: string, action: 'saved' | 'removed'): Promise<void> {
+    try {
+      const project = await this.deps.project(projectId);
+      const member = project.settings.team?.members.find((m) => m.agent === agent);
+      if (!member && !project.settings.modules.includes('team')) return;
+      const what = member ? `${roleTitle(member.role)}'s agent file` : `agent file ${agent}`;
+      this.emit(project, 'file', [agent], `${project.name}: ${what} ${action === 'saved' ? 'saved' : 'deleted'}`);
+    } catch {
+      // the project went away meanwhile: nobody is left to tell
+    }
   }
 
   private serialized<T>(fn: () => Promise<T>): Promise<T> {

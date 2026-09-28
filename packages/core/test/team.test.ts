@@ -107,6 +107,50 @@ test('roles are accepted one by one, and a role the template does not offer is r
   });
 });
 
+test('adding from the template says which members it added, and nothing when every role is there', async () => {
+  await withCore(async (core) => {
+    const p = await project(core);
+    const first = await core.team.addFromTemplate(p.id, { roles: ['developer', 'qa'] });
+    assert.deepEqual(first.added, ['developer', 'qa']);
+    const again = await core.team.addFromTemplate(p.id, { roles: ['developer', 'qa'] });
+    assert.deepEqual(again.added, []);
+    assert.deepEqual(again.team.members.map((m) => m.agent), ['developer', 'qa']);
+  });
+});
+
+test("an agent file saved or deleted through the resources is announced as the team's file change", async () => {
+  await withCore(async (core) => {
+    const p = await project(core);
+    await core.team.fromTemplate(p.id, { roles: ['qa'] });
+    const scope = await core.resolveScope(p.id);
+    const settle = () => new Promise((r) => setTimeout(r, 50));
+    const fileEvents = (events: AgentryEvent[]) => events.filter((e) => e.type === 'team.changed' && e.action === 'file');
+
+    const saved = await feed(core, async () => {
+      await core.resources.save(scope, 'agents', 'qa', '---\nname: qa\ndescription: Mine\n---\nMine.\n');
+      await settle();
+    });
+    assert.deepEqual(
+      fileEvents(saved).map((e) => (e.type === 'team.changed' ? [e.projectId, e.agents] : null)),
+      [[p.id, ['qa']]],
+    );
+    // An agent nobody on the team is yet, while the module is on: its unassigned agents changed
+    const other = await feed(core, async () => {
+      await core.resources.save(scope, 'agents', 'helper', '---\nname: helper\ndescription: Helps\n---\n');
+      await core.resources.remove(scope, 'agents', 'helper');
+      await settle();
+    });
+    assert.equal(fileEvents(other).length, 2);
+    // Another kind of resource, or the user's own agents, are not the team's
+    const unrelated = await feed(core, async () => {
+      await core.resources.save(scope, 'commands', 'qa', 'Run the tests.\n');
+      await core.resources.save(await core.resolveScope(), 'agents', 'qa', '---\nname: qa\ndescription: Mine\n---\n');
+      await settle();
+    });
+    assert.equal(fileEvents(unrelated).length, 0);
+  });
+});
+
 test('an agent file that already exists is kept as it is, and reported when it disagrees', async () => {
   await withCore(async (core) => {
     const p = await project(core);

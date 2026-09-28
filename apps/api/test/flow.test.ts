@@ -83,7 +83,7 @@ before(async () => {
   assert.equal(res.statusCode, 201, res.body);
   project = res.json<Project>();
   const team = await app.inject({ method: 'POST', url: `/api/projects/${project.id}/team/from-template`, ...json({ roles: ['developer', 'qa'] }) });
-  assert.equal(team.statusCode, 200, team.body);
+  assert.equal(team.statusCode, 201, team.body);
   const qa = await app.inject({
     method: 'PUT',
     url: `/api/projects/${project.id}/team/qa`,

@@ -44,7 +44,7 @@ test('a team is built from the template, edited member by member and read back',
   assert.deepEqual(empty.json<Team>().members, []);
 
   const built = await app.inject({ method: 'POST', url: `/api/projects/${p.id}/team/from-template`, ...json({ roles: ['developer', 'qa'] }) });
-  assert.equal(built.statusCode, 200, built.body);
+  assert.equal(built.statusCode, 201, built.body);
   assert.deepEqual(
     built.json<Team>().members.map((m) => [m.agent, m.file.state]),
     [
@@ -52,6 +52,11 @@ test('a team is built from the template, edited member by member and read back',
       ['qa', 'ok'],
     ],
   );
+
+  // Asked again, it adds nothing: the same team, as a 200
+  const again = await app.inject({ method: 'POST', url: `/api/projects/${p.id}/team/from-template`, ...json({ roles: ['developer', 'qa'] }) });
+  assert.equal(again.statusCode, 200, again.body);
+  assert.deepEqual(again.json<Team>().members.map((m) => m.agent), ['developer', 'qa']);
 
   const put = await app.inject({
     method: 'PUT',

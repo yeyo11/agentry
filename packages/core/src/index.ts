@@ -579,7 +579,12 @@ export class Core {
       void this.sessions.listSessions().catch(() => undefined);
     });
     this.connectors = new Connectors(config);
-    this.resources = new ConfigResources();
+    // A project's agent file is also a team member's: the team announces it, however it was written
+    this.resources = new ConfigResources((change) => {
+      if (change.kind !== 'agents' || change.scope.kind !== 'project') return;
+      const path = change.scope.projectPath;
+      for (const project of this.projectStore.list().filter((p) => p.path === path)) void this.team.agentFileChanged(project.id, change.name, change.action);
+    });
     this.accounts = new AccountManager(config, this.db);
     this.runtime.accounts = this.accounts;
     this.accounts.projectOf = (cwd) => this.attach(cwd)?.project.id ?? null;
