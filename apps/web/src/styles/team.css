@@ -937,6 +937,15 @@ a.member-run:hover {
   color: var(--fg-3);
 }
 
+/* Why a run failed, or what it did: one line, the rest on hover */
+.member-run-note {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
 .member-run-time {
   flex-shrink: 0;
   font-family: var(--mono);

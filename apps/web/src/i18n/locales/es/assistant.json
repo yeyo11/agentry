@@ -47,8 +47,7 @@
   "failed": {
     "title": "No ha podido terminar",
     "stopped": "Detenido",
-    "stoppedBody": "Lo has detenido antes de que respondiera: no ha propuesto nada.",
-    "retry": "Volver a sugerir"
+    "stoppedBody": "Lo has detenido antes de que respondiera: no ha propuesto nada."
   },
   "empty": {
     "region": "Nada que leer",
@@ -87,7 +86,7 @@
     "theTemplate": "el de {{name}}",
     "outside": "fuera de la plantilla",
     "writes": "escribe:",
-    "writesNothing": "nada, solo tareas",
+    "writesNothing": "solo documentos",
     "added": "añadido",
     "addedWhere": "añadido · .claude/agents/"
   },
@@ -118,7 +117,7 @@
     "acceptNamed": "Aceptar {{name}}",
     "discard": "Descartar",
     "discardNamed": "Descartar {{name}}",
-    "discarded": "Descartada",
+    "discarded": "Propuesta descartada",
     "undo": "Deshacer",
     "undoNamed": "Recuperar {{name}}",
     "failed": "No se ha podido hacer"

@@ -47,8 +47,7 @@
   "failed": {
     "title": "It could not finish",
     "stopped": "Stopped",
-    "stoppedBody": "You stopped it before it answered: it proposed nothing.",
-    "retry": "Suggest again"
+    "stoppedBody": "You stopped it before it answered: it proposed nothing."
   },
   "empty": {
     "region": "Nothing to read",
@@ -87,7 +86,7 @@
     "theTemplate": "the {{name}} one",
     "outside": "outside the template",
     "writes": "writes:",
-    "writesNothing": "nothing, only tasks",
+    "writesNothing": "only documents",
     "added": "added",
     "addedWhere": "added · .claude/agents/"
   },

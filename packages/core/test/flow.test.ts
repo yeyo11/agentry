@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
+import { Worker } from 'node:worker_threads';
 import type { AgentryEvent, FlowRunDocument, FlowMemoryProposal, ProjectModule, ProjectSettings, WorkItemStatus } from '@agentry/shared';
 import { Db, FLOW_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import { EventBus } from '../src/events.ts';
-import { flowResultSchema, FlowService, parseResult, writeRules, type FlowLaunch } from '../src/flow.ts';
+import { flowResultSchema, FlowService, parseResult, stageRules, testCommandRules, type FlowChatResult, type FlowLaunch } from '../src/flow.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -45,7 +47,8 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean } 
   const ties: FlowRunDocument[] = [];
   const stopped: string[] = [];
   const busy = new Set<string>();
-  const failNext: { message: string | null } = { message: null };
+  /** `resume`: only continuing a chat fails; `started`: the chat to continue is told of, then it fails */
+  const failNext: { message: string | null; when?: 'resume' | 'started' } = { message: null };
   let chats = 0;
   const flow = new FlowService({
     db,
@@ -54,10 +57,18 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean } 
     handoff: () => '# Project journal',
     propose: (_id, proposal) => void proposals.push(proposal),
     tie: async (_item, doc) => void ties.push(doc),
+    // As the core does: a chat to continue is told first, and one that cannot be continued fails
+    // a run a restart cut off, or gives way to a chat of its own
     launch: async (launch, onStart) => {
-      if (failNext.message) throw new Error(failNext.message);
+      if (failNext.message && !failNext.when) throw new Error(failNext.message);
       launches.push(launch);
-      onStart(launch.resumeChatId ?? `chat-${++chats}`);
+      if (launch.resumeChatId) {
+        onStart(launch.resumeChatId);
+        if (failNext.message && failNext.when === 'started') throw new Error(failNext.message);
+        if (!failNext.message) return;
+        if (launch.continuing) throw new Error(failNext.message);
+      }
+      onStart(`chat-${++chats}`);
     },
     chatBusy: (id) => busy.has(id),
     stop: (id) => void stopped.push(id),
@@ -71,16 +82,16 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean } 
     return run.chatId;
   };
   /** Answers the item's running run with a structured result and lets the flow act on it. */
-  const answer = async (itemId: string, output: Record<string, unknown>, isError = false) => {
+  const answer = async (itemId: string, output: Record<string, unknown>, isError = false, extra: Partial<FlowChatResult> = {}) => {
     await flow.settled();
-    await flow.chatResult(chatOf(itemId), { isError, result: isError ? 'it broke' : '', structuredOutput: output });
+    await flow.chatResult(chatOf(itemId), { isError, result: isError ? 'it broke' : '', structuredOutput: output, ...extra });
     await flow.settled();
   };
   const setModules = (modules: ProjectModule[]) => {
     state.settings = { ...state.settings, modules };
     bus.emit({ type: 'project.updated', title: '', projectId: 'p1', projectName: 'p', changes: ['modules'], modules });
   };
-  return { db, bus, events, state, items, flow, launches, proposals, ties, stopped, busy, failNext, answer, chatOf, setModules };
+  return { db, file: join(config.dataDir, 'wrapper.db'), bus, events, state, items, flow, launches, proposals, ties, stopped, busy, failNext, answer, chatOf, setModules };
 }
 
 type Setup = ReturnType<typeof setup>;
@@ -109,7 +120,14 @@ test('a card a person puts on the board starts the role of its column, with the 
   assert.equal(launch.appendSystemPrompt, '# Project journal');
   assert.deepEqual(launch.jsonSchema, flowResultSchema('refine'));
   assert.match(launch.prompt, /AGN-1: Fix the cart/);
-  assert.equal(launch.permissionMode, 'acceptEdits');
+  // Refining reads, writes only in the documents folder, pushes nothing, and has no budget unless one is set
+  assert.equal(launch.permissionMode, 'dontAsk');
+  assert.ok(launch.allowedTools.includes('Write(docs/**)'));
+  assert.ok(!launch.allowedTools.includes('Bash') && !launch.allowedTools.includes('WebFetch'));
+  assert.ok(launch.disallowedTools.includes('Bash(git push *)'));
+  assert.equal(launch.maxBudgetUsd, null);
+  assert.equal(launch.inWorktree, false);
+  assert.equal(launch.continuing, false);
   assert.equal(running(s)[0]?.itemId, it.id);
   assert.deepEqual(
     s.events.filter((e) => e.type === 'flow.run').map((e) => (e.type === 'flow.run' ? e.action : '')),
@@ -150,9 +168,10 @@ test('a developer run that ends well moves the item to review, and QA passing le
   await s.answer(it.id, ok('Implemented'));
   assert.equal(s.items.find(it.id)?.status, 'in_review');
   assert.equal(s.launches.at(-1)?.run.stage, 'verify');
-  // QA writes only its reports: the rest is denied, not asked
+  // QA writes only in the documents folder: the rest is denied, not asked
   assert.equal(s.launches.at(-1)?.permissionMode, 'dontAsk');
-  assert.ok(s.launches.at(-1)?.allowedTools.includes('Edit(docs/reports/**)'));
+  assert.ok(s.launches.at(-1)?.allowedTools.includes('Edit(docs/**)'));
+  assert.ok(!s.launches.at(-1)?.allowedTools.includes('Edit'));
   await s.answer(it.id, ok('All criteria met', { verdict: 'pass' }));
   const waiting = s.items.find(it.id);
   assert.equal(waiting?.status, 'in_review');
@@ -415,14 +434,215 @@ test('the work-links automation leaves a running flow chat to the flow', async (
   assert.equal(s.flow.ownsChat(chat), false);
 });
 
-test('write rules: no writes accepts edits; writes allow only their paths, and a path that cannot be a rule is left out', () => {
-  assert.deepEqual(writeRules(undefined).permissionMode, 'acceptEdits');
-  assert.ok(writeRules(undefined).allowedTools.includes('Edit'));
-  const rules = writeRules(['docs/', './src/**/*.ts', 'a,b', '../up', 'x (y)']);
-  assert.equal(rules.permissionMode, 'dontAsk');
-  assert.ok(!rules.allowedTools.includes('Edit'));
-  for (const rule of ['Edit(docs)', 'Edit(docs/**)', 'Write(docs/**)', 'Edit(src/**/*.ts)']) assert.ok(rules.allowedTools.includes(rule), rule);
-  assert.ok(!rules.allowedTools.some((r) => r.includes('a,b') || r.includes('..') || r.includes('(y)')));
+test('each stage gets only its tools: refining and verifying write only documents, the web is for working, and git push never', () => {
+  const extra = { documentsPath: 'docs', testCommands: ['Bash(pnpm run test)'] };
+  const refine = stageRules('refine', undefined, extra);
+  assert.equal(refine.permissionMode, 'dontAsk');
+  assert.deepEqual(refine.allowedTools, ['Read', 'Glob', 'Grep', 'Edit(docs)', 'Write(docs)', 'NotebookEdit(docs)', 'Edit(docs/**)', 'Write(docs/**)', 'NotebookEdit(docs/**)']);
+
+  const verify = stageRules('verify', ['src/'], extra);
+  assert.equal(verify.permissionMode, 'dontAsk');
+  for (const rule of ['Bash(git diff *)', 'Bash(pnpm run test)', 'Write(docs/**)']) assert.ok(verify.allowedTools.includes(rule), rule);
+  // QA's writes are not a Developer's: it never edits the code it verifies
+  assert.ok(!verify.allowedTools.some((r) => r.includes('src') || r === 'Bash' || r.startsWith('Web')));
+  assert.ok(verify.disallowedTools.includes('Bash(git diff *--output*)'));
+
+  const free = stageRules('work', undefined, extra);
+  assert.equal(free.permissionMode, 'acceptEdits');
+  for (const tool of ['Edit', 'Bash', 'WebFetch', 'WebSearch']) assert.ok(free.allowedTools.includes(tool), tool);
+
+  const bounded = stageRules('work', ['docs/', './src/**/*.ts', 'a,b', '../up', 'x (y)'], { ...extra, documentsPath: 'notes' });
+  assert.equal(bounded.permissionMode, 'dontAsk');
+  assert.ok(!bounded.allowedTools.includes('Edit'));
+  for (const rule of ['Edit(docs)', 'Edit(docs/**)', 'Write(docs/**)', 'Edit(src/**/*.ts)', 'Write(notes/**)']) assert.ok(bounded.allowedTools.includes(rule), rule);
+  assert.ok(!bounded.allowedTools.some((r) => r.includes('a,b') || r.includes('..') || r.includes('(y)')));
+
+  // A Product Owner who writes nothing still writes its specification, and nothing else
+  const nothing = stageRules('work', [], extra);
+  assert.deepEqual(nothing.allowedTools.filter((r) => r.startsWith('Edit')), ['Edit(docs)', 'Edit(docs/**)']);
+
+  for (const rules of [refine, verify, free, bounded, nothing]) {
+    assert.ok(rules.disallowedTools.includes('Bash(git push)') && rules.disallowedTools.includes('Bash(git push *)'));
+  }
+});
+
+test('the test commands a project declares are the only commands verifying may run', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'agentry-flow-tests-'));
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'node --test', 'test:unit': 'x', typecheck: 'tsc', deploy: 'rm -rf /', 'bad name': 'x', build: 'tsc' } }));
+  writeFileSync(join(dir, 'pnpm-lock.yaml'), '');
+  writeFileSync(join(dir, 'Makefile'), 'build:\n\ttrue\ntest:\n\ttrue\n');
+  const rules = testCommandRules(dir);
+  for (const rule of ['Bash(pnpm run test)', 'Bash(pnpm test)', 'Bash(pnpm run test:unit *)', 'Bash(pnpm run typecheck)', 'Bash(make test)']) assert.ok(rules.includes(rule), rule);
+  assert.ok(!rules.some((r) => r.includes('deploy') || r.includes('build') || r.includes('bad')));
+  assert.deepEqual(testCommandRules(join(dir, 'missing')), []);
+});
+
+test('every run is held to the budget the project sets, when it sets one', async () => {
+  const s = setup({ settings: { ...settingsWith(), flow: { ...settingsWith().flow!, maxCostUsd: 0.5 } } });
+  const it = await item(s, 'in_progress');
+  assert.equal(s.launches[0]?.maxBudgetUsd, 0.5);
+  assert.equal(s.launches[0]?.inWorktree, true);
+  await s.answer(it.id, {}, true, { cause: 'budget', result: 'budget reached' });
+  assert.match(flowRuns(s).at(-1)?.error ?? '', /budget of 0.5 USD/);
+});
+
+test("a Developer's run never continues a person's own work chat, only the Developer's chat of an earlier round", async () => {
+  const s = setup();
+  const it = s.items.create('p1', { title: 'Mine', status: 'todo' });
+  // The person's "Work on it" chat, idle now
+  s.items.link(it.id, { kind: 'chat', role: 'work', chatId: 'person-chat' });
+  s.items.move(it.id, { status: 'in_progress' }, person);
+  await s.flow.settled();
+  assert.equal(s.launches.at(-1)?.resumeChatId, null);
+  const own = s.chatOf(it.id);
+  assert.notEqual(own, 'person-chat');
+  await s.answer(it.id, ok('Implemented'));
+  await s.answer(it.id, ok('Missing a test', { verdict: 'fail' }));
+  assert.equal(s.launches.at(-1)?.resumeChatId, own);
+});
+
+test('a failed run says why on its item, as its member', async () => {
+  const s = setup();
+  const it = await item(s, 'in_progress');
+  await s.answer(it.id, {}, true);
+  const comment = s.items.comments(it.id).at(-1);
+  assert.deepEqual(comment?.author, { kind: 'agent', role: 'developer' });
+  assert.match(comment?.body ?? '', /work run failed and moved nothing: it broke/);
+  assert.equal(flowRuns(s).at(-1)?.error, 'it broke');
+  // A cancelled run is a person's doing, not a failure: nothing is written
+  s.items.move(it.id, { status: 'todo' }, person);
+  await s.flow.settled();
+  const before = s.items.comments(it.id).length;
+  s.items.move(it.id, { status: 'in_review' }, person);
+  s.items.move(it.id, { status: 'in_progress' }, person);
+  await s.flow.settled();
+  assert.equal(s.items.comments(it.id).length, before);
+});
+
+test('removing an item stops the run working on it', async () => {
+  const s = setup();
+  const it = await item(s, 'in_progress');
+  const chat = s.chatOf(it.id);
+  s.items.remove(it.id, person);
+  await s.flow.settled();
+  assert.deepEqual(s.stopped, [chat]);
+  assert.equal(flowRuns(s).at(-1)?.outcome, 'cancelled');
+});
+
+test('QA judges each criterion: a met one is checked as QA, and one left unmet sends the item back whatever the verdict', async () => {
+  const s = setup();
+  const it = s.items.create('p1', { title: 'Cart', status: 'todo', acceptanceCriteria: [{ text: 'Lines survive a reload' }, { text: 'Totals in cents' }] });
+  const [first, second] = it.acceptanceCriteria;
+  assert.ok(first && second);
+  s.items.move(it.id, { status: 'in_progress' }, person);
+  await s.flow.settled();
+  await s.answer(it.id, ok('Implemented'));
+  const prompt = s.launches.at(-1)?.prompt ?? '';
+  assert.match(prompt, new RegExp(`\`${first.id}\`: Lines survive a reload`));
+  assert.deepEqual(s.launches.at(-1)?.jsonSchema, flowResultSchema('verify'));
+
+  await s.answer(it.id, ok('All good', { verdict: 'pass', criteria: [{ id: first.id, met: true, note: 'reloaded twice' }] }));
+  const back = s.items.find(it.id);
+  assert.equal(back?.status, 'in_progress');
+  assert.equal(flowRuns(s).filter((r) => r.stage === 'verify').at(-1)?.outcome, 'rejected');
+  assert.deepEqual(back?.acceptanceCriteria.map((c) => [c.checked, c.checkedBy]), [
+    [true, { kind: 'agent', role: 'qa' }],
+    [false, null],
+  ]);
+  const comment = s.items.comments(it.id).find((c) => c.author.role === 'qa');
+  assert.match(comment?.body ?? '', /- \[x\] Lines survive a reload — reloaded twice\n- \[ \] Totals in cents — not judged/);
+
+  await s.answer(it.id, ok('Fixed'));
+  await s.answer(it.id, ok('Both hold', { verdict: 'pass', criteria: [{ id: first.id, met: true, note: '' }, { id: second.id, met: true, note: 'checked' }] }));
+  const passed = s.items.find(it.id);
+  assert.equal(passed?.waiting, 'approval');
+  assert.ok(passed?.acceptanceCriteria.every((c) => c.checked && c.checkedBy?.role === 'qa'));
+});
+
+test('a restart continues a cut-off run in its own chat at most twice, keeping when it started, and a chat that cannot be continued fails it', async () => {
+  const first = setup();
+  const it = await item(first, 'in_progress');
+  const chat = first.chatOf(it.id);
+  const startedAt = flowRuns(first)[0]?.startedAt;
+  let db = first.db;
+  for (const restart of [1, 2]) {
+    const next = setup({ db, settings: first.state.settings, recover: false });
+    await new Promise((r) => setTimeout(r, 5));
+    next.flow.recover();
+    await next.flow.settled();
+    const run = flowRuns(next)[0];
+    assert.equal(run?.restarts, restart);
+    assert.equal(run?.startedAt, startedAt);
+    assert.equal(next.launches[0]?.continuing, true);
+    assert.equal(next.launches[0]?.resumeChatId, chat);
+    db = next.db;
+  }
+  const third = setup({ db, settings: first.state.settings, recover: false });
+  third.flow.recover();
+  await third.flow.settled();
+  assert.equal(third.launches.length, 0);
+  assert.equal(flowRuns(third)[0]?.outcome, 'failed');
+  assert.match(third.items.comments(it.id).at(-1)?.body ?? '', /restarted 3 times/);
+
+  // Cut off once more, and its chat is gone: the run fails, and no chat without context starts
+  const other = setup();
+  const lost = await item(other, 'in_progress');
+  const again = setup({ db: other.db, settings: other.state.settings, recover: false });
+  again.failNext.message = 'chat not found';
+  again.failNext.when = 'resume';
+  again.flow.recover();
+  await again.flow.settled();
+  assert.equal(again.launches.length, 1);
+  assert.equal(flowRuns(again)[0]?.outcome, 'failed');
+  assert.match(flowRuns(again)[0]?.error ?? '', /could not be continued after a restart: chat not found/);
+  assert.match(again.items.comments(lost.id).at(-1)?.body ?? '', /could not be continued after a restart/);
+});
+
+test('a run held back by the runtime limit while continuing a chat keeps the chat it had', async () => {
+  const s = setup();
+  const it = await item(s, 'in_progress');
+  await s.answer(it.id, ok('Implemented'));
+  s.failNext.message = 'Concurrent run limit reached (8)';
+  s.failNext.when = 'started';
+  await s.answer(it.id, ok('No', { verdict: 'fail' }));
+  // The Developer's resume hit the limit: queued again, with no chat, so it starts afresh later
+  const waiting = queued(s)[0];
+  assert.equal(waiting?.chatId, null);
+  assert.equal(waiting?.startedAt, null);
+  s.failNext.message = null;
+  s.failNext.when = undefined;
+  s.flow.dispatch();
+  await s.flow.settled();
+  assert.equal(s.launches.at(-1)?.continuing, false);
+  assert.match(s.launches.at(-1)?.prompt ?? '', /Verification sent it back/);
+});
+
+test('the cap holds against another process claiming at the same moment', async () => {
+  // Queued before the other process takes the lock, and dispatched while it holds it
+  const s = setup({ settings: { ...settingsWith(), flow: { ...settingsWith().flow!, maxParallel: 1 } }, recover: false });
+  await item(s, 'in_progress');
+  const { file } = s;
+  // Another process takes the last place: its claim is written, but not committed yet
+  const signal = new Int32Array(new SharedArrayBuffer(4));
+  const worker = new Worker(
+    `const { workerData } = require('node:worker_threads');
+     const { DatabaseSync } = require('node:sqlite');
+     const db = new DatabaseSync(workerData.file);
+     db.exec('BEGIN IMMEDIATE');
+     db.prepare("INSERT INTO flow_runs (id, project_id, item_id, role, agent, model, stage, column_name, state, queued_at, started_at) VALUES ('other', 'p1', 'elsewhere', 'developer', 'developer', 'sonnet', 'work', 'in_progress', 'running', '2026-09-28T00:00:00Z', '2026-09-28T00:00:00Z')").run();
+     Atomics.store(workerData.signal, 0, 1);
+     Atomics.notify(workerData.signal, 0);
+     Atomics.wait(workerData.signal, 0, 1, 300);
+     db.exec('COMMIT');
+     db.close();`,
+    { eval: true, workerData: { file, signal } },
+  );
+  Atomics.wait(signal, 0, 0, 5000);
+  s.flow.recover();
+  await s.flow.settled();
+  await new Promise((r) => worker.once('exit', r));
+  assert.equal(running(s).length, 1, 'two runs hold one place');
+  assert.equal(queued(s).length, 1);
 });
 
 test('a result is read defensively', () => {
@@ -441,6 +661,7 @@ test('a result is read defensively', () => {
   assert.deepEqual(parsed, {
     summary: 'ok',
     verdict: null,
+    criteria: [],
     memoryProposals: [{ target: { kind: 'memory', file: 'a.md', section: null }, text: 'y', reason: '' }],
     documents: [{ path: 'docs/a.md', kind: 'doc' }],
     description: null,

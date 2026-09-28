@@ -10,7 +10,7 @@ import type {
   WorkItemUpdatedEvent,
 } from '@agentry/shared';
 import { keys } from '../src/api';
-import { targetsFor } from '../src/lib/events';
+import { targetMatches, targetsFor } from '../src/lib/events';
 
 // An open board shows what an agent moved without a reload, and nothing else is read for it: each
 // work item event reaches exactly the cached queries that show what it changed, by key prefix.
@@ -39,13 +39,11 @@ const CACHE: Record<string, QueryKey> = {
   chats: keys.chats,
 };
 
-const startsWith = (key: QueryKey, prefix: QueryKey) => prefix.every((part, i) => JSON.stringify(part) === JSON.stringify(key[i]));
-
 /** The names of the cached reads an event refetches */
 function refetched(event: AgentryEvent): string[] {
-  const targets = targetsFor(event).map(([key]) => key);
+  const targets = targetsFor(event);
   return Object.entries(CACHE)
-    .filter(([, key]) => targets.some((prefix) => startsWith(key, prefix)))
+    .filter(([, key]) => targets.some((target) => targetMatches(target, key)))
     .map(([name]) => name)
     .sort();
 }

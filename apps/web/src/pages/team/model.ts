@@ -1,4 +1,4 @@
-import type { FlowRun, FlowStage, ProjectFlowSettings, ProjectSettings, TeamMember, WorkItemStatus } from '@agentry/shared';
+import type { FlowRun, FlowStage, ProjectFlowSettings, ProjectSettings, PutTeamMemberRequest, TeamMember, WorkItemStatus } from '@agentry/shared';
 import { WORK_ITEM_STATUSES } from '@agentry/shared';
 
 /**
@@ -57,11 +57,25 @@ export const DEFAULT_MAX_BOUNCES = 3;
 export const MAX_BOUNCES = 20;
 
 /**
- * The flow as the Flow screen starts editing it: the saved one, or, for a project that never saved
- * one, off, with each column given to the template role that answers for it when the team has it.
+ * The flow a project has: the saved one, or, for a project that never saved one, the template's
+ * proposal (off, so nothing acts on it). The board reads this; the Team screens tell the two apart
+ * with `savedFlow` and `proposedFlow`, since a proposal answers for no column until it is saved.
  */
 export function flowOf(settings: Pick<ProjectSettings, 'flow'> | undefined, members: readonly Pick<TeamMember, 'role'>[]): ProjectFlowSettings {
-  if (settings?.flow) return { ...settings.flow, columns: { ...settings.flow.columns } };
+  return settings?.flow ? savedFlow(settings) : proposedFlow(members);
+}
+
+/** No flow at all: what a project that never saved one has, whatever its template would propose. */
+export const NO_FLOW: ProjectFlowSettings = { enabled: false, columns: {}, maxBounces: DEFAULT_MAX_BOUNCES };
+
+/** The flow as saved, or none: the columns a member really answers for, as the server reads them. */
+export function savedFlow(settings: Pick<ProjectSettings, 'flow'> | undefined): ProjectFlowSettings {
+  const flow = settings?.flow ?? NO_FLOW;
+  return { ...flow, columns: { ...flow.columns } };
+}
+
+/** Each column given to the template role that answers for it, when the team has that role; off. */
+export function proposedFlow(members: readonly Pick<TeamMember, 'role'>[]): ProjectFlowSettings {
   const has = (role: string) => members.some((member) => member.role === role);
   const columns: ProjectFlowSettings['columns'] = {};
   if (has('product-owner')) {
@@ -108,6 +122,16 @@ export function teamActivity(members: readonly TeamMember[], limit = 6): FlowRun
   return runs.sort((a, b) => at(b).localeCompare(at(a))).slice(0, limit);
 }
 
+/**
+ * What a run that ended has to say beside its outcome: why it failed, or the summary it wrote. A
+ * failed run moved nothing, so its reason is the one thing that explains the item where it is.
+ */
+export function runNote(run: Pick<FlowRun, 'state' | 'outcome' | 'error' | 'summary'>): string | null {
+  if (run.state !== 'ended') return null;
+  if (run.outcome === 'failed' || run.outcome === 'cancelled') return run.error?.trim() || null;
+  return run.summary?.trim() || null;
+}
+
 /** Two members may not share a role (the flow hands a column to one), and an agent file name is the CLI's. */
 export const AGENT_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 
@@ -131,6 +155,11 @@ export function cleanWrites(paths: readonly string[]): string[] {
   return [...new Set(paths.map((path) => path.trim()).filter(Boolean))];
 }
 
+/** Two `writes` alike: absent (anywhere) is not the same as empty (only the documents folder). */
+export function sameWrites(a: readonly string[] | undefined, b: readonly string[] | undefined): boolean {
+  return a === undefined || b === undefined ? a === b : sameList(a, b);
+}
+
 export function sameList(a: readonly string[] | undefined, b: readonly string[] | undefined): boolean {
   const x = a ?? [];
   const y = b ?? [];
@@ -152,4 +181,39 @@ export function teamSearch(params: URLSearchParams, next: { section?: TeamSectio
     else query.delete('member');
   }
   return `?${query.toString()}`;
+}
+
+/**
+ * Where a member may write, as its `writes` says it and the flow enforces it (`stageRules` in
+ * packages/core/src/flow.ts): absent is no limit of Agentry's own, `[]` is nothing of the project
+ * but the documents folder, and a list is those paths plus the documents folder.
+ */
+export type WriteScope = 'anywhere' | 'documents' | 'paths';
+
+export function writeScope(writes: readonly string[] | undefined): WriteScope {
+  if (!writes) return 'anywhere';
+  return writes.length > 0 ? 'paths' : 'documents';
+}
+
+/** `writes` as the team route takes it for a scope: absent for anywhere, so the absence is what is saved. */
+export function writesFor(scope: WriteScope, paths: readonly string[]): string[] | undefined {
+  if (scope === 'anywhere') return undefined;
+  return scope === 'documents' ? [] : cleanWrites(paths);
+}
+
+/**
+ * The body that saves a member with only `patch` changed. `writes` stays absent when it was: sending
+ * `[]` in its place would take a member that may write anywhere down to the documents folder.
+ */
+export function memberBody(
+  member: Pick<TeamMember, 'role' | 'model' | 'responsibility' | 'writes'>,
+  patch: Partial<Pick<TeamMember, 'model' | 'responsibility'>> & { writes?: string[] | null } = {},
+): PutTeamMemberRequest {
+  const writes = patch.writes === undefined ? member.writes : (patch.writes ?? undefined);
+  return {
+    role: member.role,
+    model: patch.model ?? member.model,
+    responsibility: patch.responsibility ?? member.responsibility,
+    ...(writes ? { writes: [...writes] } : {}),
+  };
 }

@@ -428,6 +428,9 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      created_at       TEXT NOT NULL
    );
    CREATE INDEX assistant_proposals_run ON assistant_proposals (run_id, kind, position);`,
+  // How many times a restart cut a flow run off: a run goes on in its chat at most twice, so a
+  // run that keeps dying with the wrapper does not keep spending
+  `ALTER TABLE flow_runs ADD COLUMN restarts INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 /**

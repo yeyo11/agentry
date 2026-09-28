@@ -41,17 +41,21 @@ import {
 import {
   assistantPrompt,
   assistantSchema,
+  CONTENT_MAX,
+  DESCRIPTION_MAX as MEMBER_DESCRIPTION_MAX,
   parseAnswer,
   RESOURCE_NAME,
   RESUME_PROMPT,
   type AssistantAnswer,
   type AssistantBrief,
+  type AssistantGit,
+  type AssistantLanguage,
 } from './assistant-answer.ts';
 import { addReads, initialSources, NO_READS, projectIsEmpty, projectPath, sameReads, sourcesOf, type AssistantFacts, type AssistantReads, type ReadingNow } from './assistant-sources.ts';
 import type { Db } from './db.ts';
 import type { AgentryEventInput } from './events.ts';
 import { projectTemplate } from './project-templates.ts';
-import { agentFileContent, roleTitle, templateTeam } from './team.ts';
+import { agentFileContent, MAX_SHORT as MEMBER_SHORT_MAX, MAX_TEXT as MEMBER_TEXT_MAX, MAX_WRITES as MEMBER_WRITES_MAX, roleTitle, templateTeam } from './team.ts';
 import type { WorkItemService } from './work-items.ts';
 
 /**
@@ -61,10 +65,12 @@ import type { WorkItemService } from './work-items.ts';
  *
  * What it will not do matters as much as what it does:
  *
- * - A run writes nothing. Its chat has the read tools only (`Read`, `Grep`, `Glob`, `LS`, and `Bash`
- *   for `git log`, `git status` and `ls`) in `dontAsk`, which denies whatever is not allowed, and no
- *   MCP server. Everything it proposes is written by Agentry, through the service that owns it,
- *   when the person accepts that one proposal.
+ * - A run writes nothing. Its chat has three tools at all (`Read`, `Grep`, `Glob`), confined to the
+ *   project's directory, with no shell, no MCP server, no settings file of the person's (whose rules
+ *   would add to its own) and no uploads directory, in `dontAsk`, which denies whatever is not
+ *   allowed. Secrets are denied even inside the project. What it would have run git for, Agentry
+ *   reads and hands it in the prompt. Everything it proposes is written by Agentry, through the
+ *   service that owns it, when the person accepts that one proposal.
  * - It runs on demand only, never on a schedule, and one run at a time per project and kind.
  * - A new run leaves the previous one's pending proposals alone unless the person asks to suggest
  *   again, and then they are set aside (`superseded`), never deleted.
@@ -99,6 +105,10 @@ export interface AssistantKnown {
   chats: string[];
   /** The project's own resources, by kind */
   resources: Record<AssistantResourceKind, string[]>;
+  /** The project's CLAUDE.md, which a chat loading no settings source may not be handed by the CLI */
+  instructions: string | null;
+  /** What the run would have asked git; null outside a repository */
+  git: AssistantGit | null;
 }
 
 /** Everything a run's chat is started with. */
@@ -110,6 +120,8 @@ export interface AssistantLaunch {
   appendSystemPrompt: string;
   jsonSchema: Record<string, unknown>;
   permissionMode: PermissionMode;
+  /** The only tools the chat has (`--tools`); it loads no settings source and no uploads directory */
+  tools: string[];
   allowedTools: string[];
   disallowedTools: string[];
   /** A run cut off by a restart continues in its own chat */
@@ -148,10 +160,42 @@ export interface AssistantChatResult {
   cause?: 'budget' | 'rate-limit' | 'stopped';
 }
 
-/** The tools a run may use: reading, and the three shell commands that only look. */
-export const READ_ONLY_TOOLS = ['Read', 'Grep', 'Glob', 'LS', 'Bash(git log *)', 'Bash(git status *)', 'Bash(ls *)'];
-/** Denied outright as well, so a CLI whose mode let something through still cannot write or delegate. */
-export const DENIED_TOOLS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Task', 'Agent', 'WebFetch', 'WebSearch'];
+/**
+ * The tools a run has, and may use: reading. No shell, since no allow rule for one can be told apart
+ * from a write (`git log --output=<file>` writes); git's answers are handed in the prompt instead.
+ */
+export const READ_ONLY_TOOLS = ['Read', 'Grep', 'Glob'];
+/**
+ * What a run may not read even inside the project: secrets, keys and credentials, and git's own
+ * directory, whose config may hold a remote's token. Read rules rule on `Grep` and `Glob` as well.
+ */
+export const DENIED_READS = [
+  'Read(./**/.env)',
+  'Read(./**/.env.*)',
+  'Read(./**/*.env)',
+  'Read(./**/.envrc)',
+  'Read(./**/*.pem)',
+  'Read(./**/*.key)',
+  'Read(./**/*.p12)',
+  'Read(./**/*.pfx)',
+  'Read(./**/*.jks)',
+  'Read(./**/*.keystore)',
+  'Read(./**/id_rsa*)',
+  'Read(./**/id_ecdsa*)',
+  'Read(./**/id_ed25519*)',
+  'Read(./**/.ssh/**)',
+  'Read(./**/.aws/**)',
+  'Read(./**/.npmrc)',
+  'Read(./**/.pypirc)',
+  'Read(./**/.netrc)',
+  'Read(./**/.git-credentials)',
+  'Read(./**/credentials*)',
+  'Read(./**/secrets/**)',
+  'Read(./**/settings.local.json)',
+  'Read(./.git/**)',
+];
+/** Denied outright as well, so a CLI that let another tool through still could not run, write or delegate. */
+export const DENIED_TOOLS = ['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Task', 'Agent', 'WebFetch', 'WebSearch', ...DENIED_READS];
 
 const RUNS_LISTED = 50;
 const DESCRIPTION_MAX = 4000;
@@ -294,15 +338,10 @@ export class AssistantService {
     return this.proposalOf(row);
   }
 
-  /** A running run's chat is the assistant's: read-only, and nobody else's to move cards for. */
-  ownsChat(chatId: string): boolean {
-    return !!this.sql.prepare("SELECT 1 FROM assistant_runs WHERE chat_id = ? AND status = 'running' LIMIT 1").get(chatId);
-  }
-
   // ---------- starting ----------
 
-  /** `POST /projects/:id/assistant/runs`. */
-  async start(projectId: string, input: unknown): Promise<AssistantRunDetail> {
+  /** `POST /projects/:id/assistant/runs`. `language` is the person's, which the chat's title is written in. */
+  async start(projectId: string, input: unknown, language: AssistantLanguage = 'en'): Promise<AssistantRunDetail> {
     const request = this.parseStart(input);
     const project = await this.deps.project(projectId);
     const modules = project.settings.modules;
@@ -327,8 +366,10 @@ export class AssistantService {
         throw new AssistantError(`a ${request.kind} run is already running in this project: stop it or wait for it to end`, 409);
       }
       if (request.supersede) {
+        // The latest run that proposed anything: one that failed or was stopped since proposed nothing,
+        // and suggesting again after it still means setting the last proposals aside
         const previous = this.sql
-          .prepare("SELECT id FROM assistant_runs WHERE project_id = ? AND kind = ? AND status != 'running' ORDER BY seq DESC LIMIT 1")
+          .prepare("SELECT id FROM assistant_runs WHERE project_id = ? AND kind = ? AND status = 'completed' ORDER BY seq DESC LIMIT 1")
           .get(projectId, request.kind) as { id: string } | undefined;
         if (previous) {
           superseded = previous.id;
@@ -369,9 +410,9 @@ export class AssistantService {
       this.announce(id, 'ended');
       return this.run(id);
     }
-    const brief = this.brief(project, known, request, proposes, empty, offered);
+    const brief = this.brief(project, known, request, proposes, empty, offered, language);
     this.remember(id, project, known);
-    await this.track(this.launch(this.mustRow(id), project, brief, known.journal, null));
+    await this.track(this.launch(this.mustRow(id), project, brief, known, null));
     return this.run(id);
   }
 
@@ -416,6 +457,7 @@ export class AssistantService {
     proposes: AssistantProposalKind[],
     empty: boolean,
     offered: { template: ProjectTemplateId; team: ProjectTemplateTeam },
+    language: AssistantLanguage,
   ): AssistantBrief {
     const items = this.deps.items.list({ projectId: project.id });
     const listed = [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, WORK_ITEMS_LISTED);
@@ -434,19 +476,22 @@ export class AssistantService {
       moreWorkItems: items.length - listed.length,
       milestones: known.facts.milestones,
       chats: known.chats.slice(0, CHATS_LISTED),
+      git: known.git,
+      language,
     };
   }
 
   /** Starts the run's chat; a run whose chat could not start has failed. */
-  private async launch(row: RunRow, project: AssistantProject, brief: AssistantBrief, journal: string, resumeChatId: string | null): Promise<void> {
+  private async launch(row: RunRow, project: AssistantProject, brief: AssistantBrief, known: Pick<AssistantKnown, 'journal' | 'instructions'>, resumeChatId: string | null): Promise<void> {
     const launch: AssistantLaunch = {
       run: this.runOf(row),
       cwd: project.path,
       model: row.model,
       prompt: resumeChatId ? RESUME_PROMPT : assistantPrompt(brief),
-      appendSystemPrompt: journal,
+      appendSystemPrompt: systemPrompt(known.journal, known.instructions),
       jsonSchema: assistantSchema(brief),
       permissionMode: 'dontAsk',
+      tools: [...READ_ONLY_TOOLS],
       allowedTools: [...READ_ONLY_TOOLS],
       disallowedTools: [...DENIED_TOOLS],
       resumeChatId,
@@ -550,7 +595,6 @@ export class AssistantService {
 
   private readOf(row: RunRow, activity: ChatActivity): Partial<AssistantReads> | null {
     const target = activity.target ?? '';
-    if (activity.tool === 'Bash') return /\bgit\b|commit|history/i.test(target) ? { git: true } : null;
     const project = this.projectDir(row);
     const path = project ? projectPath(project, target) : null;
     if (!path) return null;
@@ -721,9 +765,11 @@ export class AssistantService {
           proposes,
           row.empty === 1,
           templateOffered(project.settings),
+          // Only a run that never got a chat is asked again from its start; its language was not kept
+          'en',
         );
         this.remember(row.id, project, known);
-        await this.track(this.launch(this.mustRow(row.id), project, brief, known.journal, row.chat_id));
+        await this.track(this.launch(this.mustRow(row.id), project, brief, known, row.chat_id));
       } catch (err) {
         this.end(row.id, 'failed', localized(ASSISTANT_ERRORS.restart, `The assistant could not go on after a restart: ${err instanceof Error ? err.message : String(err)}`));
       }
@@ -856,10 +902,20 @@ export class AssistantService {
   private end(runId: string, status: Exclude<AssistantRunStatus, 'running' | 'completed'>, error: Localized | null, cost: number | null = null): boolean {
     const row = this.row(runId);
     const live = row?.chat_id && this.deps.cost ? this.deps.cost(row.chat_id) : null;
-    const r = this.sql
-      .prepare("UPDATE assistant_runs SET status = ?, error = ?, cost_usd = COALESCE(?, ?, cost_usd), ended_at = ? WHERE id = ? AND status = 'running'")
-      .run(status, error ? JSON.stringify(error) : null, cost, live, new Date().toISOString(), runId);
-    if (r.changes !== 1) return false;
+    let changed = false;
+    this.write(() => {
+      const r = this.sql
+        .prepare("UPDATE assistant_runs SET status = ?, error = ?, cost_usd = COALESCE(?, ?, cost_usd), ended_at = ? WHERE id = ? AND status = 'running'")
+        .run(status, error ? JSON.stringify(error) : null, cost, live, new Date().toISOString(), runId);
+      changed = r.changes === 1;
+      // A run that ends with nothing to propose replaces nothing: what it set aside waits for the
+      // person again, as it did before they asked to suggest again
+      if (changed && row?.supersedes) {
+        const back = this.sql.prepare('UPDATE assistant_runs SET superseded_by = NULL WHERE id = ? AND superseded_by = ?').run(row.supersedes, runId);
+        if (back.changes === 1) this.sql.prepare("UPDATE assistant_proposals SET status = 'pending' WHERE run_id = ? AND status = 'superseded'").run(row.supersedes);
+      }
+    });
+    if (!changed) return false;
     this.ended(runId);
     return true;
   }
@@ -944,10 +1000,7 @@ export class AssistantService {
     const activity = running && row.chat_id && this.deps.activity ? this.deps.activity(row.chat_id) : null;
     const dir = this.dirs.get(row.id);
     let now: ReadingNow | null = null;
-    if (activity?.kind === 'tool' && activity.target) {
-      if (activity.tool === 'Bash') now = { path: null, git: /\bgit\b|commit|history/i.test(activity.target) };
-      else if (dir) now = { path: projectPath(dir, activity.target), git: false };
-    }
+    if (activity?.kind === 'tool' && activity.target && dir) now = { path: projectPath(dir, activity.target), git: false };
     const sources: AssistantSource[] = sourcesOf(parseJson<AssistantSource[]>(row.base_sources, []), parseJson<AssistantReads>(row.reads, NO_READS), !running, now);
     const liveCost = running && row.chat_id && this.deps.cost ? this.deps.cost(row.chat_id) : null;
     return {
@@ -1081,6 +1134,26 @@ function templateOffered(settings: ProjectSettings): { template: ProjectTemplate
   return { template: own.length && settings.template ? settings.template : 'software', team: templateTeam(settings) };
 }
 
+/** CLAUDE.md past this is cut, and the run told to read the rest */
+const INSTRUCTIONS_MAX = 40_000;
+
+/** What a run's chat has appended to its system prompt: the journal, and the project's CLAUDE.md. */
+function systemPrompt(journal: string, instructions: string | null): string {
+  const parts = journal.trim() ? [journal] : [];
+  if (instructions?.trim()) {
+    const cut = instructions.length > INSTRUCTIONS_MAX;
+    parts.push(
+      [
+        "# The project's CLAUDE.md",
+        '',
+        cut ? instructions.slice(0, INSTRUCTIONS_MAX) : instructions,
+        ...(cut ? ['', `[cut at ${String(INSTRUCTIONS_MAX)} characters: read CLAUDE.md for the rest]`] : []),
+      ].join('\n'),
+    );
+  }
+  return parts.join('\n\n');
+}
+
 function emptyCounts(): Record<AssistantProposalKind, AssistantProposalCount> {
   const zero = (): AssistantProposalCount => ({ total: 0, pending: 0, accepted: 0, discarded: 0, superseded: 0 });
   return { 'team-member': zero(), resource: zero(), 'work-item': zero() };
@@ -1134,14 +1207,17 @@ function parseEdits(input: unknown): Edits {
     if (typeof v !== 'object' || Array.isArray(v)) throw new AssistantError(`${field} must be an object`, 400);
     return v as Record<string, unknown>;
   };
-  const text = (v: unknown, field: string): string | undefined => {
+  const text = (v: unknown, field: string, max = Infinity): string | undefined => {
     if (v === undefined) return undefined;
     if (typeof v !== 'string') throw new AssistantError(`${field} must be a string`, 400);
+    if (v.length > max) throw new AssistantError(`${field} is longer than ${String(max)} characters`, 400);
     return v;
   };
-  const texts = (v: unknown, field: string): string[] | undefined => {
+  const texts = (v: unknown, field: string, max = Infinity, each = Infinity): string[] | undefined => {
     if (v === undefined) return undefined;
     if (!Array.isArray(v) || v.some((x) => typeof x !== 'string')) throw new AssistantError(`${field} must be an array of strings`, 400);
+    if (v.length > max) throw new AssistantError(`${field} lists more than ${String(max)}`, 400);
+    if (v.some((x: string) => x.length > each)) throw new AssistantError(`an entry of ${field} is longer than ${String(each)} characters`, 400);
     return v as string[];
   };
   const member = obj(body.member, 'member');
@@ -1149,18 +1225,19 @@ function parseEdits(input: unknown): Edits {
     const set = <K extends keyof Edits['member']>(key: K, value: Edits['member'][K] | undefined) => {
       if (value !== undefined) edits.member[key] = value;
     };
-    set('role', text(member.role, 'member.role'));
-    set('agent', text(member.agent, 'member.agent'));
-    set('model', text(member.model, 'member.model'));
-    set('responsibility', text(member.responsibility, 'member.responsibility'));
-    set('description', text(member.description, 'member.description'));
-    set('instructions', text(member.instructions, 'member.instructions'));
-    set('writes', texts(member.writes, 'member.writes'));
+    // The team's limits, checked before the agent file is written rather than by the team after it
+    set('role', text(member.role, 'member.role', MEMBER_SHORT_MAX));
+    set('agent', text(member.agent, 'member.agent', 64));
+    set('model', text(member.model, 'member.model', MEMBER_SHORT_MAX));
+    set('responsibility', text(member.responsibility, 'member.responsibility', MEMBER_TEXT_MAX));
+    set('description', text(member.description, 'member.description', MEMBER_DESCRIPTION_MAX));
+    set('instructions', text(member.instructions, 'member.instructions', CONTENT_MAX));
+    set('writes', texts(member.writes, 'member.writes', MEMBER_WRITES_MAX, MEMBER_TEXT_MAX));
   }
   const resource = obj(body.resource, 'resource');
   if (resource) {
     const name = text(resource.name, 'resource.name');
-    const content = text(resource.content, 'resource.content');
+    const content = text(resource.content, 'resource.content', CONTENT_MAX);
     if (name !== undefined) edits.resource.name = name.trim();
     if (content !== undefined) edits.resource.content = content;
     if (resource.scope !== undefined) {

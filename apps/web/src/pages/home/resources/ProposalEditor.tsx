@@ -13,7 +13,10 @@ import { Segmented, Tag } from '../../../components/ui';
 import { useDirty } from '../../../lib/dirty';
 import { NARROW, useMediaQuery } from '../../../lib/media';
 import { shortcut } from '../../../lib/shortcut';
+import { frontmatterProblem } from '../../config/frontmatter';
+import { RESOURCE_NAME } from '../../config/ResourcesTab';
 import { savePath, shownName } from './model';
+import { freeName, renamedContent, useTakenNames } from './names';
 
 /**
  * A proposed resource opened in the editor before it exists (decision 37): its content as the
@@ -46,7 +49,12 @@ export function ProposalEditor({
   const [content, setContent] = useState(resource.content);
   const [scope, setScope] = useState<ConfigScopeKind>(initialScope ?? resource.scope);
   const pending = proposal.status === 'pending';
-  const name = shownName(resource.kind, resource.name);
+  const taken = useTakenNames(projectId, resource.kind, scope);
+  // Until the person types one, the name follows the scope: the proposed one, or the first free after it
+  const [typed, setTyped] = useState<string | null>(null);
+  const fileName = pending ? (typed ?? freeName(resource.name, taken)) : resource.name;
+  const nameProblem = !pending ? null : !RESOURCE_NAME.test(fileName) ? 'nameRule' : taken.has(fileName) ? 'exists' : null;
+  const name = shownName(resource.kind, fileName);
   // Only what the person typed is lost by leaving: the proposal itself stays, pending
   useDirty(`proposal:${proposal.id}`, pending && content !== resource.content);
 
@@ -55,12 +63,15 @@ export function ProposalEditor({
     void queryClient.invalidateQueries({ queryKey: keys.assistantRunsOf(projectId) });
   };
   const save = useMutation({
-    mutationFn: () => api.acceptAssistantProposal(proposal.id, { resource: { content, scope } }),
+    mutationFn: () =>
+      api.acceptAssistantProposal(proposal.id, {
+        resource: { ...(fileName !== resource.name ? { name: fileName } : {}), content: renamedContent(content, resource.name, fileName), scope },
+      }),
     onSuccess: () => {
       refresh();
       void queryClient.invalidateQueries({ queryKey: keys.resources(scope === 'project' ? { projectId } : {}, resource.kind) });
-      toast.success(t(`resources.kinds.${resource.kind}.saved`, { name: resource.name }), savePath(resource.kind, resource.name, scope));
-      onSaved(resource.name);
+      toast.success(t(`resources.kinds.${resource.kind}.saved`, { name: fileName }), savePath(resource.kind, fileName, scope));
+      onSaved(fileName);
     },
     onError: (err) => toast.error(t(`resources.kinds.${resource.kind}.saveFailed`), err),
   });
@@ -72,15 +83,27 @@ export function ProposalEditor({
     },
     onError: (err) => toast.error(t('resourcesAi.decideFailed'), err),
   });
-  const trySave = () => pending && !save.isPending && save.mutate();
+  const problem = pending ? frontmatterProblem(resource.kind, content) : null;
+  const blocked = problem !== null || nameProblem !== null;
+  const trySave = () => pending && !blocked && !save.isPending && save.mutate();
 
   return (
     <div className={`form resource-proposal-editor${phone ? ' is-phone' : ''}`}>
       <div className="editor-meta">
-        <strong className="mono resource-proposal-name">{name}</strong>
+        {pending ? (
+          <input
+            className={`mono resource-proposal-name-input ${nameProblem ? 'is-invalid' : ''}`.trim()}
+            value={fileName}
+            aria-label={t(`resources.kinds.${resource.kind}.nameLabel`)}
+            aria-invalid={nameProblem !== null}
+            onChange={(e) => setTyped(e.target.value.trim())}
+          />
+        ) : (
+          <strong className="mono resource-proposal-name">{name}</strong>
+        )}
         <Tag>{t(`resourcesAi.kind.${resource.kind}`)}</Tag>
         {pending && <Tag tone="warn">{t('resources.notSavedYet')}</Tag>}
-        <span className="path grow">{t(scope === 'project' ? 'resourcesAi.willSave' : 'resourcesAi.willSaveUser', { path: savePath(resource.kind, resource.name, scope) })}</span>
+        <span className="path grow">{t(scope === 'project' ? 'resourcesAi.willSave' : 'resourcesAi.willSaveUser', { path: savePath(resource.kind, fileName, scope) })}</span>
         {pending && (
           <Segmented
             label={t('resourcesAi.where')}
@@ -110,6 +133,12 @@ export function ProposalEditor({
         )}
       </div>
 
+      {nameProblem && (
+        <span className="field-error" role="alert">
+          {t(`resources.${nameProblem}`)}
+        </span>
+      )}
+
       {proposal.reason && (
         <div className="resource-proposal-why">
           <AssistantMark small />
@@ -130,11 +159,16 @@ export function ProposalEditor({
         onSave={trySave}
         readOnly={!pending}
       />
+      {problem && (
+        <span className="field-error" role="alert">
+          {t(`resources.frontmatter.${problem}`)}
+        </span>
+      )}
 
       <div className="form-actions resource-proposal-actions">
         {pending ? (
           <>
-            <button type="button" className="btn btn-primary" disabled={save.isPending} onClick={() => save.mutate()}>
+            <button type="button" className="btn btn-primary" disabled={save.isPending || blocked} onClick={() => save.mutate()}>
               <Check {...ICON_SM} />
               {save.isPending ? t('shared.saving') : t(`resources.kinds.${resource.kind}.create`)}
             </button>

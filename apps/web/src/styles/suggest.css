@@ -232,6 +232,11 @@
   gap: 8px;
 }
 
+/* "Suggesting…" is the assistant at work: the live colour beside its verb */
+.resources-suggest-spin {
+  color: var(--live);
+}
+
 .resources-toolbar-end {
   display: flex;
   align-items: center;
@@ -478,6 +483,18 @@
 .resource-proposal-name {
   font-size: 15px;
   font-weight: 600;
+}
+
+/* The name it will be saved under, editable until it is: a free one when the proposed is taken */
+.resource-proposal-name-input {
+  flex: 0 1 240px;
+  min-width: 120px;
+  font-weight: 600;
+}
+
+.resource-proposal-editor.is-phone .resource-proposal-name-input {
+  flex-basis: 100%;
+  font-size: 16px;
 }
 
 .resource-proposal-editor .editor-meta .path {

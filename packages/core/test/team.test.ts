@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import type { AgentryEvent, FlowRun, Project, ProjectModule, ProjectSettings, ProjectTemplateId } from '@agentry/shared';
 import { Core } from '../src/index.ts';
-import { agentFileContent, readFrontmatter, templateTeam, TeamError } from '../src/team.ts';
+import { agentFileContent, readFrontmatter, readFrontmatterList, templateTeam, TeamError } from '../src/team.ts';
 import { tempConfig } from './helpers.ts';
 
 // Nothing here reaches the CLI: the team is files and settings, over scratch directories.
@@ -256,6 +256,8 @@ test("a member's flow runs come from the flow: running, queued and the last one 
       chatId: null,
       outcome: null,
       summary: null,
+      error: null,
+      restarts: 0,
       queuedAt: '2026-09-27T10:00:00Z',
       startedAt: null,
       endedAt: null,
@@ -288,4 +290,25 @@ test('the starting file quotes what YAML would misread, and reads back the same'
   assert.match(content, /Agentry sets no limit of its own/);
   assert.deepEqual(readFrontmatter("---\ndescription: 'it''s mine'\n---\n"), { description: "it's mine" });
   assert.deepEqual(readFrontmatter('no frontmatter'), {});
+});
+
+test('a member that writes nothing is told so, not told it has no limit; one with no writes has none', () => {
+  const nothing = agentFileContent({ agent: 'po', role: 'product-owner', model: 'opus', responsibility: 'Refines', writes: [] });
+  assert.match(nothing, /You write none of the project's files: only documents in the documents folder/);
+  assert.doesNotMatch(nothing, /no limit/);
+  const free = agentFileContent({ agent: 'dev', role: 'developer', model: 'sonnet', responsibility: 'Implements' });
+  assert.match(free, /Agentry sets no limit of its own/);
+  const some = agentFileContent({ agent: 'qa', role: 'qa', model: 'sonnet', responsibility: 'Verifies', writes: ['docs/reports'] });
+  assert.match(some, /You may write only these paths, relative to the project, and the documents folder:\n\n- `docs\/reports`/);
+  assert.match(some, /`criteria`: when you verify the item/);
+});
+
+test('a list field of an agent file reads in every form the CLI takes', () => {
+  const file = (fields: string) => `---\nname: qa\n${fields}\n---\nBody\n`;
+  assert.deepEqual(readFrontmatterList(file('tools: Read, Grep'), 'tools'), ['Read', 'Grep']);
+  assert.deepEqual(readFrontmatterList(file('tools: [Read, "Grep"]'), 'tools'), ['Read', 'Grep']);
+  assert.deepEqual(readFrontmatterList(file('tools:\n  - Read\n  - Grep\nmodel: opus'), 'tools'), ['Read', 'Grep']);
+  assert.deepEqual(readFrontmatterList(file('disallowedTools:\n  - WebFetch'), 'disallowedTools'), ['WebFetch']);
+  assert.equal(readFrontmatterList(file('model: opus'), 'tools'), null);
+  assert.equal(readFrontmatterList('no frontmatter', 'tools'), null);
 });

@@ -14,24 +14,14 @@
   "page": {
     "subtitle_one": "{{n}} directory imported. Its worktrees belong to it.",
     "subtitle_other": "{{n}} directories imported. Their worktrees belong to them.",
-    "importDirectory": "Import directory",
     "emptyHint": "Import a directory to make it a project, or create one in the workspace."
   },
   "importForm": {
-    "directory": "Directory",
-    "directoryHint": "An absolute path. Every chat that ran under it becomes part of the project. A git worktree is refused: import its repository.",
     "candidateHint_one": "{{n}} chat · {{path}}",
     "candidateHint_other": "{{n}} chats · {{path}}",
-    "nameOptional": "Name (optional)",
-    "nameOptionalHint": "Defaults to the directory's name.",
-    "failed": "Could not import the directory",
-    "importing": "Importing…",
     "import": "Import"
   },
   "candidates": {
-    "imported": "Imported {{name}}",
-    "adopted_one": "{{n}} chat adopted",
-    "adopted_other": "{{n}} chats adopted",
     "chats_one": "{{n}} chat",
     "chats_other": "{{n}} chats",
     "last": " · last {{ago}}",
@@ -169,6 +159,9 @@
     "modulesHintPhone": "{{template}} preselected these. Change them now or later in the project's settings.",
     "name": "Name",
     "namePlaceholder": "my-project",
+    "folderHint": "Folder: <mono>{{folder}}</mono>",
+    "folderEmpty": "The name needs a letter or a digit: the new folder is named after it.",
+    "folderTaken": "The workspace already has a folder called {{folder}}. Pick another name, or import that folder as a directory.",
     "directory": "Directory",
     "directoryPlaceholder": "/home/you/code/my-project",
     "source": "Where the project comes from",
@@ -197,6 +190,7 @@
     "create": "Create project",
     "created": "Created {{name}}",
     "keyFailed": "The project was created, but its key prefix could not be set",
+    "renameFailed": "The project was created, but it could not be renamed",
     "next": "Next",
     "back": "Back"
   },
