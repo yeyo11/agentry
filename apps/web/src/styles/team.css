@@ -475,6 +475,15 @@
   font-size: 13px;
 }
 
+/* One slot for the avatar or the running ring, so a live row's text starts where the others' does */
+.team-activity-who {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  min-width: 34px;
+  min-height: 22px;
+}
+
 .team-activity-text {
   flex: 1 1 auto;
   display: flex;

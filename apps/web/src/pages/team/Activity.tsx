@@ -33,7 +33,7 @@ function ActivityRow({ run }: { run: FlowRun }) {
   const note = runNote(run);
   return (
     <li className={`team-activity-row team-log-row ${live ? 'live-rail' : ''}`.trim()} data-status={flowRunStatus(run)}>
-      {live ? <Spinner variant="ring" className="member-run-spin" /> : <RoleAvatar role={run.role} size="sm" />}
+      <span className="team-activity-who">{live ? <Spinner variant="ring" className="member-run-spin" /> : <RoleAvatar role={run.role} size="sm" />}</span>
       <span className="team-activity-text">
         <span className="team-log-line">
           {run.item ? (
