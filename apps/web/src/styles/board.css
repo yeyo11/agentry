@@ -572,7 +572,13 @@ button.workitem-mrow-more-link {
   font-size: 12px;
 }
 
+/* The stage's verb ("Refinando…", "Nodo 2 de 5") gives way in an ellipsis on a narrow column, as the
+   ticker's verb does, rather than pushing past the card's edge */
 .workitem-live-verb {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--live);
   white-space: nowrap;
   font-size: 12px;

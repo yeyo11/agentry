@@ -538,7 +538,8 @@ On one project's board with the Team module on:
   links as it counts `work` ones, so the card carries the live rail and the ring spinner, and its live
   line says "Refinando" or "Verificando" until the chat reports an activity. Origin and reference
   chats and document ties never make a card live. On a narrow column the verb gives way in an
-  ellipsis and the time stays beside it;
+  ellipsis and the time stays beside it, both the stage's verb and the ticker's
+  (`board-live-verb.test.ts` checks the rules in `board.css`);
 - a card that QA sent back shows "rebote 1 de 3", neutral while it has bounces left;
 - an item waiting for the person says why, with "Aprobar y pasar a Hecho" when verification passed
   it.
