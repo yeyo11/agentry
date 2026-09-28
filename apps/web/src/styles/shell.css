@@ -1497,3 +1497,74 @@ a.statusbar-item:focus-visible {
   font-size: 12px;
   text-align: center;
 }
+
+/* A phone screen's own header (components/shell/PhoneHeader.tsx), drawn where the route is marked
+   `phoneHeader: 'page'` and the top bar is hidden: Night Shift's `.m-head`. The back arrow sits 4 px
+   from the screen's edge and the header is 60 px tall, so it pulls itself out of the page's padding. */
+.phone-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 60px;
+  margin: calc(8px - var(--main-pad-top, 16px)) -8px 0 calc(4px - var(--main-pad-x, 16px));
+}
+
+.phone-head .phone-head-back,
+.phone-head .phone-head-more,
+.phone-head-actions .icon-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
+  color: var(--text);
+}
+
+.phone-head-cancel {
+  min-height: 44px;
+  padding: 0 10px;
+  border-color: transparent;
+  background: none;
+  font-size: 15px;
+}
+
+.phone-head-lead {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding-right: 6px;
+}
+
+.phone-head-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.phone-head h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+/* A modal flow names itself, centred and smaller, between its way out and what it creates */
+.phone-head.is-modal h1 {
+  font-size: 17px;
+  text-align: center;
+}
+
+.phone-head-sub {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.phone-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}

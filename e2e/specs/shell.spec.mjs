@@ -203,13 +203,20 @@ export default async ({ page, api, check, dirs }) => {
       check(!(await page.eval(topBarShown)), `[390px ${path}] no top bar over a screen that heads itself`);
       const back = await page.eval(`const b = [...document.querySelectorAll('main button, main a')].find((e) => e.getAttribute('aria-label') && e.querySelector(':scope > svg.lucide-chevron-left')); if (!b) return null; const r = b.getBoundingClientRect(); return { top: r.top, h: r.height }`);
       check(back !== null && back.top < 80 && back.h >= 44, `[390px ${path}] its header leads back, at the top, as a 44 px target (${JSON.stringify(back)})`);
+      check((await page.eval(`return document.querySelector('.shell')?.dataset.phoneHeader`)) === 'page', `[390px ${path}] the shell marks the route phoneHeader: 'page'`);
     }
+    // The new project wizard is a modal flow: no top bar either, and a ✕ in place of the arrow
+    await page.goto('/projects/new', 1200);
+    await page.waitFor(`return !!document.querySelector('main h1')`, { label: '[390px /projects/new] the wizard' });
+    check(!(await page.eval(topBarShown)), '[390px /projects/new] no top bar over the wizard, which heads itself');
+    check(await page.eval(`const b = document.querySelector('main a[href="/projects"] svg.lucide-x, main button svg.lucide-x'); return !!b && b.closest('a, button').getBoundingClientRect().top < 80`), '[390px /projects/new] its header closes it, at the top');
     // Tasks keeps the project scope, in its own header
     await page.goto('/tasks', 1200);
     check(await page.eval(`return !!document.querySelector('main .workitem-mhead .project-selector')?.getClientRects().length`), '[390px /tasks] the project scope is in the header');
     for (const path of ['/chats', '/orchestration', '/projects', '/?project=all']) {
       await page.goto(path, 1200);
       check(await page.eval(topBarShown), `[390px ${path}] the top bar stays`);
+      check((await page.eval(`return document.querySelector('.shell')?.dataset.phoneHeader`)) === 'app', `[390px ${path}] the route keeps the app's header`);
     }
     await page.goto(`/?project=${projectId}`, 900);
     await page.goto('/tasks', 900);
