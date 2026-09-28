@@ -946,6 +946,14 @@ a.member-run:hover {
   color: var(--fg-3);
 }
 
+.member-run-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .member-run-time {
   flex-shrink: 0;
   font-family: var(--mono);
@@ -1301,6 +1309,44 @@ a.member-run:hover {
 
 .flow-models {
   gap: 12px;
+}
+
+.flow-limits {
+  gap: 12px;
+}
+
+.flow-limit-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.flow-limit-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.flow-limit-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.flow-limit-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.flow-limit-unit {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
 }
 
 .flow-model-rows {

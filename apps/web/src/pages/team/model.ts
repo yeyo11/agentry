@@ -1,5 +1,5 @@
 import type { FlowRun, FlowStage, ProjectFlowSettings, ProjectSettings, PutTeamMemberRequest, TeamMember, WorkItemStatus, WorkItemType } from '@agentry/shared';
-import { DEFAULT_FLOW_MAX_PARALLEL, WORK_ITEM_STATUSES } from '@agentry/shared';
+import { DEFAULT_FLOW_MAX_PARALLEL, isTeamCommandPattern, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, WORK_ITEM_STATUSES } from '@agentry/shared';
 
 /**
  * The Team tab's pure model: role names and initials, the flow as the screens edit it, and what the
@@ -92,9 +92,37 @@ export function sameFlow(a: ProjectFlowSettings, b: ProjectFlowSettings): boolea
     a.enabled === b.enabled &&
     a.maxBounces === b.maxBounces &&
     (a.maxParallel ?? null) === (b.maxParallel ?? null) &&
+    (a.maxCostUsd ?? null) === (b.maxCostUsd ?? null) &&
     FLOW_COLUMNS.every((status) => (a.columns[status] ?? '') === (b.columns[status] ?? ''))
   );
 }
+
+/**
+ * Runs of the project at once, as the Flow screen's stepper sets it: whole, between 1 and
+ * `MAX_FLOW_PARALLEL`. The default drops the key, so a project that never chose keeps following it.
+ */
+export function setMaxParallel(flow: ProjectFlowSettings, value: number | undefined): ProjectFlowSettings {
+  const next = { ...flow };
+  const parallel = value === undefined ? DEFAULT_FLOW_MAX_PARALLEL : Math.min(MAX_FLOW_PARALLEL, Math.max(1, Math.round(value)));
+  if (parallel === DEFAULT_FLOW_MAX_PARALLEL) delete next.maxParallel;
+  else next.maxParallel = parallel;
+  return next;
+}
+
+/**
+ * What one run may spend, in USD. Unlimited is the owner's default, so an empty field, or zero,
+ * drops the key rather than saving a limit nobody chose; the rest is rounded to cents and capped.
+ */
+export function setMaxCost(flow: ProjectFlowSettings, value: number | undefined): ProjectFlowSettings {
+  const next = { ...flow };
+  const cost = value === undefined || !Number.isFinite(value) ? 0 : Math.min(MAX_FLOW_COST_USD, Math.round(value * 100) / 100);
+  if (cost <= 0) delete next.maxCostUsd;
+  else next.maxCostUsd = cost;
+  return next;
+}
+
+/** The flow as it is saved: the limits as typed rounded, capped, or dropped back to their default. */
+export const settledFlow = (flow: ProjectFlowSettings): ProjectFlowSettings => setMaxCost(setMaxParallel(flow, flow.maxParallel), flow.maxCostUsd);
 
 /** A column given to nobody drops its key, so the document the API gets has no empty roles. */
 export function setColumnRole(flow: ProjectFlowSettings, status: WorkItemStatus, role: string): ProjectFlowSettings {
@@ -145,6 +173,19 @@ export function teamActivity(members: readonly TeamMember[], limit = 6): FlowRun
   const runs = members.flatMap((member) => (member.running.length > 0 ? member.running : member.lastRun ? [member.lastRun] : []));
   const at = (run: FlowRun) => run.endedAt ?? run.startedAt ?? run.queuedAt;
   return runs.sort((a, b) => at(b).localeCompare(at(a))).slice(0, limit);
+}
+
+/**
+ * A member's "now and before": the runs going now, then the ones that ended, newest first, queued
+ * ones left to the line that counts them; and how many tasks those runs worked on. `page` is the
+ * member's page of the team's activity; without it the team's snapshot (what runs now, and the last
+ * run) stands in.
+ */
+export function memberRuns(member: Pick<TeamMember, 'running' | 'lastRun'>, page?: readonly FlowRun[]): { runs: FlowRun[]; tasks: number } {
+  const all = page ?? [...member.running, ...(member.lastRun ? [member.lastRun] : [])];
+  const running = all.filter((run) => run.state === 'running');
+  const ended = all.filter((run) => run.state === 'ended');
+  return { runs: [...running, ...ended], tasks: new Set(all.map((run) => run.itemId)).size };
 }
 
 /**
@@ -227,18 +268,84 @@ export function writesFor(scope: WriteScope, paths: readonly string[]): string[]
 }
 
 /**
- * The body that saves a member with only `patch` changed. `writes` stays absent when it was: sending
- * `[]` in its place would take a member that may write anywhere down to the documents folder.
+ * The body that saves a member with only `patch` changed. `writes` and `commands` stay absent when
+ * they were: sending `[]` in place of `writes` would take a member that may write anywhere down to
+ * the documents folder, and leaving `commands` out would lift the member's shell list, since the
+ * route reads an absent list as unrestricted.
  */
 export function memberBody(
-  member: Pick<TeamMember, 'role' | 'model' | 'responsibility' | 'writes'>,
-  patch: Partial<Pick<TeamMember, 'model' | 'responsibility'>> & { writes?: string[] | null } = {},
+  member: Pick<TeamMember, 'role' | 'model' | 'responsibility' | 'writes' | 'commands'>,
+  patch: Partial<Pick<TeamMember, 'model' | 'responsibility'>> & { writes?: string[] | null; commands?: string[] | null } = {},
 ): PutTeamMemberRequest {
   const writes = patch.writes === undefined ? member.writes : (patch.writes ?? undefined);
+  const commands = patch.commands === undefined ? member.commands : (patch.commands ?? undefined);
   return {
     role: member.role,
     model: patch.model ?? member.model,
     responsibility: patch.responsibility ?? member.responsibility,
     ...(writes ? { writes: [...writes] } : {}),
+    ...(commands ? { commands: [...commands] } : {}),
   };
+}
+
+/**
+ * The shell a member has in the flow's work stage, as `commands` says it (`stageRules` in
+ * packages/core/src/flow.ts): absent is `Bash` unrestricted, `[]` is no shell at all, and a list is
+ * only those commands. Refine and verify keep their own tool sets whatever it says.
+ */
+export type CommandScope = 'any' | 'none' | 'listed';
+
+export function commandScope(commands: readonly string[] | undefined): CommandScope {
+  if (!commands) return 'any';
+  return commands.length > 0 ? 'listed' : 'none';
+}
+
+/** `commands` as the team route takes it for a scope: null for any, so the absence is what is saved. */
+export function commandsFor(scope: CommandScope, patterns: readonly string[]): string[] | null {
+  if (scope === 'any') return null;
+  return scope === 'none' ? [] : cleanWrites(patterns);
+}
+
+/**
+ * Why a command pattern cannot be saved, or null. The route refuses the same: a pattern the CLI's
+ * `Bash(<pattern>)` rule cannot hold (`isTeamCommandPattern`), and a comma, which would split the
+ * rule list the CLI is handed in two.
+ */
+export function commandProblem(pattern: string): 'invalid' | 'comma' | null {
+  if (pattern.includes(',')) return 'comma';
+  return isTeamCommandPattern(pattern) ? null : 'invalid';
+}
+
+/** The first problem of a list of patterns, the count included: what keeps the member's Save off. */
+export function commandsProblem(patterns: readonly string[]): 'invalid' | 'comma' | 'tooMany' | null {
+  if (patterns.length > MAX_TEAM_COMMANDS) return 'tooMany';
+  for (const pattern of patterns) {
+    const problem = commandProblem(pattern);
+    if (problem) return problem;
+  }
+  return null;
+}
+
+/** Two `commands` alike: absent (any command) is not the same as empty (none). */
+export const sameCommands = sameWrites;
+
+/**
+ * The responsibility each role of the built-in templates starts with, as core writes it into the
+ * metadata and the agent file (`packages/core/src/project-templates.ts`), in English because Claude
+ * reads it. The web shows one still as the template wrote it in the person's language, by role; an
+ * edited one is shown as written.
+ */
+export const TEMPLATE_RESPONSIBILITIES: Readonly<Record<KnownRole, string>> = {
+  'product-owner': 'Refines the backlog and writes acceptance criteria',
+  architect: 'Decides the design and reviews it against the codebase',
+  developer: 'Implements work items in their own worktree',
+  qa: 'Verifies each item against its acceptance criteria',
+  researcher: 'Reads the sources and sets out what is known',
+  writer: 'Turns findings into documents',
+  reviewer: 'Checks documents for accuracy and clarity',
+};
+
+/** The role whose template responsibility this still is, word for word, or null once someone edited it. */
+export function templateResponsibilityRole(member: Pick<TeamMember, 'role' | 'responsibility'>): KnownRole | null {
+  return isKnownRole(member.role) && member.responsibility.trim() === TEMPLATE_RESPONSIBILITIES[member.role] ? member.role : null;
 }

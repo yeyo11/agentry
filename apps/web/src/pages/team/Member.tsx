@@ -1,6 +1,6 @@
-import type { FlowRun, Project, TeamMember } from '@agentry/shared';
+import type { Project, TeamMember } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookText, Check, ChevronLeft, ChevronRight, FileWarning, MessageCircle, Pencil, Undo2, UserMinus } from 'lucide-react';
+import { BookText, Check, ChevronLeft, ChevronRight, FileWarning, Pencil, Undo2, UserMinus } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
@@ -8,26 +8,38 @@ import { api, keys, useMemoryProposals } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
 import { MoreActions } from '../../components/controls';
 import { useConfirm } from '../../components/Dialog';
-import { StringListEditor } from '../../components/editors';
-import { ICON, ICON_SM, WorkItemKey } from '../../components/icons';
-import { Spinner } from '../../components/Spinner';
+import { ICON, ICON_SM } from '../../components/icons';
 import { useToast } from '../../components/Toast';
-import { ErrorBox, ModelCombobox, Segmented, Skeleton, Tag } from '../../components/ui';
+import { ErrorBox, ModelCombobox, Skeleton, Tag } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
 import { timeAgo } from '../../lib/format';
 import { NARROW, useMediaQuery } from '../../lib/media';
-import { taskPath } from '../../lib/work-items';
 import { AnswersFor, FileState } from './Members';
 import { frontmatterProblem } from '../config/frontmatter';
-import { memberBody, runNote, sameWrites, stageOf, writeScope, writesFor, type WriteScope } from './model';
-import { RunOutcome, RunTicker, runTime } from './parts';
-import { RoleAvatar, useRoleName } from './RoleAvatar';
+import {
+  commandScope,
+  commandsFor,
+  commandsProblem,
+  memberBody,
+  sameCommands,
+  sameWrites,
+  stageOf,
+  writeScope,
+  writesFor,
+  type CommandScope,
+  type WriteScope,
+} from './model';
+import { CommandsField, WritesField } from './MemberFields';
+import { NowAndBefore, RunRow } from './MemberRuns';
+import { RoleAvatar, useResponsibility, useRoleName } from './RoleAvatar';
 
 interface Draft {
   responsibility: string;
   model: string;
   scope: WriteScope;
   paths: string[];
+  commandScope: CommandScope;
+  commands: string[];
   content: string;
 }
 
@@ -42,41 +54,6 @@ function useAgentFile(projectId: string, member: TeamMember) {
     enabled: member.file.state !== 'missing',
     retry: false,
   });
-}
-
-/** A line of "now and before": a run going now (live), queued, or ended, leading to its item. */
-function RunRow({ run }: { run: FlowRun }) {
-  const { t } = useTranslation('team');
-  const live = run.state === 'running';
-  const note = runNote(run);
-  const body = (
-    <>
-      {live ? <Spinner variant="ring" className="member-run-spin" /> : <MessageCircle {...ICON_SM} className="member-run-icon" />}
-      <span className="member-run-text">
-        <span className="member-run-title">
-          {run.item && <WorkItemKey value={run.item.key} />}
-          <span className="ellipsis">{run.item?.title ?? t('member.itemGone')}</span>
-        </span>
-        <span className="member-run-state">
-          {live ? <RunTicker run={run} showTime={false} /> : run.state === 'queued' ? t('outcome.queued') : <RunOutcome run={run} />}
-        </span>
-        {note && (
-          <span className="member-run-note" title={note}>
-            {note}
-          </span>
-        )}
-      </span>
-      {!live && <time className="member-run-time">{timeAgo(runTime(run))}</time>}
-    </>
-  );
-  const className = `member-run ${live ? 'live-rail' : ''}`.trim();
-  return run.item ? (
-    <Link to={taskPath(run.item.key)} className={className}>
-      {body}
-    </Link>
-  ) : (
-    <div className={className}>{body}</div>
-  );
 }
 
 /**
@@ -98,12 +75,17 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
   const proposals = useMemoryProposals(memoryOn ? project.id : null, 'pending');
   const mine = (proposals.data ?? []).filter((proposal) => proposal.proposedBy.role === member.role);
   const [editing, setEditing] = useState(false);
+  // A responsibility still the template's is shown, and edited, in the person's language; left as
+  // shown, it is saved as core wrote it, in the English Claude reads
+  const shownResponsibility = useResponsibility()(member);
 
   const saved: Draft = {
-    responsibility: member.responsibility,
+    responsibility: shownResponsibility,
     model: member.model,
     scope: writeScope(member.writes),
     paths: member.writes ?? [],
+    commandScope: commandScope(member.commands),
+    commands: member.commands ?? [],
     content: file.data?.content ?? '',
   };
   // Only the fields the person touched: the rest follows what is saved, so a model changed on the
@@ -111,7 +93,11 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
   const [draft, setDraft] = useState<Partial<Draft>>({});
   const now: Draft = { ...saved, ...draft };
   const writes = writesFor(now.scope, now.paths);
-  const metaChanged = now.responsibility.trim() !== saved.responsibility || now.model.trim() !== saved.model || !sameWrites(writes, member.writes);
+  const commands = commandsFor(now.commandScope, now.commands);
+  const responsibility = now.responsibility.trim() === shownResponsibility.trim() ? member.responsibility : now.responsibility.trim();
+  const metaChanged =
+    responsibility !== member.responsibility || now.model.trim() !== saved.model || !sameWrites(writes, member.writes) || !sameCommands(commands ?? undefined, member.commands);
+  const commandsBad = commands !== null && commandsProblem(commands) !== null;
   const fileChanged = member.file.state !== 'missing' && draft.content !== undefined && draft.content !== saved.content;
   const dirty = metaChanged || fileChanged;
   useDirty(`member:${member.agent}`, dirty);
@@ -129,7 +115,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
       // The metadata first: Agentry may rewrite a file it wrote itself to follow it, and the person's
       // own edit to the file must be the last word
       if (metaChanged)
-        await api.putTeamMember(project.id, member.agent, memberBody(member, { model: now.model.trim(), responsibility: now.responsibility.trim(), writes: writes ?? null }));
+        await api.putTeamMember(project.id, member.agent, memberBody(member, { model: now.model.trim(), responsibility, writes: writes ?? null, commands }));
       if (fileChanged) await api.putResource({ projectId: project.id }, AGENTS, member.agent, now.content);
     },
     onSuccess: async () => {
@@ -163,7 +149,6 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
     );
 
   const stage = member.columns[0] ? stageOf(member.columns[0]) : null;
-  const runs = [...member.running, ...(member.lastRun ? [member.lastRun] : [])];
   const unsaved = dirty && (
     <Tag tone="warn">
       <span className="member-unsaved">{t('config:shared.unsaved')}</span>
@@ -175,7 +160,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
         <Undo2 {...ICON_SM} />
         {t('config:shared.discard')}
       </button>
-      <button type="button" className="btn btn-primary" disabled={!dirty || save.isPending || !now.model.trim() || frontmatter !== null} onClick={() => save.mutate()}>
+      <button type="button" className="btn btn-primary" disabled={!dirty || save.isPending || !now.model.trim() || frontmatter !== null || commandsBad} onClick={() => save.mutate()}>
         <Check {...ICON_SM} />
         {t('config:shared.save')}
       </button>
@@ -226,7 +211,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
           language="markdown"
           ariaLabel={t('member.fileContent')}
           minHeight={phone ? '280px' : '420px'}
-          onSave={() => dirty && frontmatter === null && save.mutate()}
+          onSave={() => dirty && frontmatter === null && !commandsBad && save.mutate()}
         />
         {frontmatter && (
           <span className="field-error" role="alert">
@@ -257,7 +242,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
     </header>
   );
 
-  const responsibility = (
+  const responsibilityField = (
     <label className="member-field">
       <span className="section-label">{t('member.responsibility')}</span>
       <textarea className="member-textarea" rows={3} value={now.responsibility} onChange={(event) => set({ responsibility: event.target.value })} />
@@ -265,28 +250,10 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
     </label>
   );
   const writesField = (
-    <div className="member-field">
-      <span className="member-field-head">
-        <span className="section-label">{t('member.writes')}</span>
-        {phone && unsaved}
-      </span>
-      <Segmented<WriteScope>
-        label={t('member.writes')}
-        value={now.scope}
-        onChange={(scope) => set({ scope })}
-        options={[
-          { value: 'anywhere', label: t('member.scope.anywhere') },
-          { value: 'documents', label: t('member.scope.documents') },
-          { value: 'paths', label: t('member.scope.paths') },
-        ]}
-      />
-      {now.scope === 'paths' && (
-        <div className="member-writes">
-          <StringListEditor values={now.paths} onChange={(paths) => set({ paths })} placeholder={t('member.addPath')} label={t('member.addPath')} emptyText={t('member.writesNone')} />
-        </div>
-      )}
-      <span className="field-hint">{t(`member.scopeHint.${now.scope}`)}</span>
-    </div>
+    <WritesField scope={now.scope} paths={now.paths} onChange={(patch) => set(patch)} badge={phone ? unsaved : undefined} />
+  );
+  const commandsField = (
+    <CommandsField scope={now.commandScope} commands={now.commands} onChange={(patch) => set({ ...(patch.scope ? { commandScope: patch.scope } : {}), ...(patch.commands ? { commands: patch.commands } : {}) })} />
   );
 
   const running = member.running[0];
@@ -336,13 +303,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
   const aside = (
     <aside className="member-aside" aria-label={t('member.properties')}>
       {props}
-      <section className="member-aside-section">
-        <div className="member-aside-head">
-          <span className="section-label">{t('member.nowAndBefore')}</span>
-        </div>
-        {runs.length === 0 ? <p className="team-muted">{t('member.noRuns')}</p> : runs.map((run) => <RunRow key={run.id} run={run} />)}
-        {member.queued > 0 && <p className="team-muted">{t('member.queued', { count: member.queued })}</p>}
-      </section>
+      <NowAndBefore projectId={project.id} member={member} />
       {memoryOn && (
         <section className="member-aside-section">
           <span className="section-label">{t('member.memory')}</span>
@@ -371,8 +332,9 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
         {running && <RunRow run={running} />}
         <div className="card member-phone-props">{props}</div>
         {fileNotice}
-        {responsibility}
+        {responsibilityField}
         {writesField}
+        {commandsField}
         {member.file.state !== 'missing' && (
           <div className="member-field">
             <span className="member-field-head">
@@ -397,8 +359,9 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
         {head}
         {fileNotice}
         <div className="member-form">
-          {responsibility}
+          {responsibilityField}
           {writesField}
+          {commandsField}
         </div>
         {member.file.state !== 'missing' && (
           <section className="member-file-section">

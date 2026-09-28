@@ -71,6 +71,24 @@
       "documents": "Ningún archivo del proyecto: solo documentos en la carpeta de documentos, donde van las especificaciones y los informes. Desde la terminal solo cuenta lo que dice su archivo de agente.",
       "paths": "Fuera de estas rutas y de la carpeta de documentos, los chats que Agentry le abre no pueden editar. Desde la terminal solo cuenta lo que dice su archivo de agente."
     },
+    "commands": "Comandos de shell",
+    "commandScope": {
+      "any": "Cualquiera",
+      "none": "Ninguno",
+      "listed": "Estos comandos"
+    },
+    "commandHint": {
+      "any": "Cuando trabaja en una tarea, Agentry no pone ningún límite propio a la shell. Al refinar y al verificar tiene sus propias herramientas.",
+      "none": "Cuando trabaja en una tarea, no ejecuta ningún comando de shell. Al refinar y al verificar tiene sus propias herramientas.",
+      "listed": "Cuando trabaja en una tarea, solo ejecuta estos comandos; un * vale por el resto de la línea (pnpm *). Al refinar y al verificar tiene sus propias herramientas."
+    },
+    "addCommand": "Añadir un comando…",
+    "commandsNone": "Ningún comando: sin shell",
+    "commandProblem": {
+      "comma": "Un comando no puede llevar comas: el CLI lee sus reglas como una lista separada por comas.",
+      "invalid": "Un comando es una sola línea, sin paréntesis y no solo un *: para permitir cualquiera, elige Cualquiera.",
+      "tooMany": "Como máximo 50 comandos."
+    },
     "addPath": "Añadir una ruta…",
     "responsibility": "Responsabilidad",
     "responsibilityHint": "Va al principio de cada prompt que recibe el rol.",
@@ -86,6 +104,10 @@
     "more_one": "y {{count}} más",
     "more_other": "y {{count}} más",
     "nowAndBefore": "Ahora y antes",
+    "tasks_one": "{{n}} tarea",
+    "tasks_other": "{{n}} tareas",
+    "tasksMore_one": "más de {{n}} tarea",
+    "tasksMore_other": "más de {{n}} tareas",
     "noRuns": "Aún no ha trabajado en ninguna tarea.",
     "itemGone": "Tarea eliminada",
     "memory": "Memoria",
@@ -209,7 +231,17 @@
     "saved": "Flujo guardado",
     "saveFailed": "No se ha podido guardar el flujo",
     "changes_one": "{{count}} cambio sin guardar",
-    "changes_other": "{{count}} cambios sin guardar"
+    "changes_other": "{{count}} cambios sin guardar",
+    "limitsTitle": "Límites",
+    "limitsBody": "Cuántas ejecuciones del proyecto van a la vez y cuánto puede gastar cada una. Las demás esperan su turno, en orden.",
+    "parallel": "Ejecuciones a la vez",
+    "parallelHint_one": "{{count}} si no eliges otra cifra",
+    "parallelHint_other": "{{count}} si no eliges otra cifra",
+    "cost": "Gasto por ejecución",
+    "costLabel": "Gasto por ejecución, en US$",
+    "costHint": "El CLI detiene la ejecución que lo alcance. Vacío: sin límite.",
+    "noLimit": "Sin límite",
+    "usd": "US$"
   },
   "activity": {
     "title": "Actividad del equipo",
@@ -231,5 +263,14 @@
     "sentBackAnon_one": "Devuelta {{count}} vez",
     "sentBackAnon_other": "Devuelta {{count}} veces",
     "approve": "Aprobar y pasar a Hecho"
+  },
+  "responsibilities": {
+    "product-owner": "Refina el backlog y escribe los criterios de aceptación",
+    "architect": "Decide el diseño y lo revisa contra el código",
+    "developer": "Implementa las tareas en su propio worktree",
+    "qa": "Verifica cada tarea contra sus criterios de aceptación",
+    "researcher": "Lee las fuentes y expone lo que se sabe",
+    "writer": "Convierte los hallazgos en documentos",
+    "reviewer": "Revisa que los documentos sean exactos y claros"
   }
 }

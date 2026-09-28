@@ -71,6 +71,24 @@
       "documents": "None of the project's files: only documents in the documents folder, where specifications and reports go. From a terminal it is only what its agent file says.",
       "paths": "Outside these paths and the documents folder, the chats Agentry starts for it may not edit. From a terminal it is only what its agent file says."
     },
+    "commands": "Shell commands",
+    "commandScope": {
+      "any": "Any",
+      "none": "None",
+      "listed": "These commands"
+    },
+    "commandHint": {
+      "any": "When it works on a task, the shell has no limit of Agentry's own. Refining and verifying keep their own tools.",
+      "none": "When it works on a task, it runs no shell command at all. Refining and verifying keep their own tools.",
+      "listed": "When it works on a task, it runs only these commands; a * stands for the rest of the line (pnpm *). Refining and verifying keep their own tools."
+    },
+    "addCommand": "Add a command…",
+    "commandsNone": "No command: no shell at all",
+    "commandProblem": {
+      "comma": "A command cannot hold a comma: the CLI reads its rules as a comma-separated list.",
+      "invalid": "A command is one line, without parentheses, and not only a *: leave the list out for any command.",
+      "tooMany": "At most 50 commands."
+    },
     "addPath": "Add a path…",
     "responsibility": "Responsibility",
     "responsibilityHint": "Goes at the start of every prompt the role gets.",
@@ -86,6 +104,10 @@
     "more_one": "and {{count}} more",
     "more_other": "and {{count}} more",
     "nowAndBefore": "Now and before",
+    "tasks_one": "{{n}} task",
+    "tasks_other": "{{n}} tasks",
+    "tasksMore_one": "over {{n}} task",
+    "tasksMore_other": "over {{n}} tasks",
     "noRuns": "It has not worked on a task yet.",
     "itemGone": "Task deleted",
     "memory": "Memory",
@@ -209,7 +231,17 @@
     "saved": "Flow saved",
     "saveFailed": "Could not save the flow",
     "changes_one": "{{count}} unsaved change",
-    "changes_other": "{{count}} unsaved changes"
+    "changes_other": "{{count}} unsaved changes",
+    "limitsTitle": "Limits",
+    "limitsBody": "How many runs of the project go at once, and what one run may spend. The rest wait their turn, in order.",
+    "parallel": "Runs at once",
+    "parallelHint_one": "{{count}} unless you choose",
+    "parallelHint_other": "{{count}} unless you choose",
+    "cost": "Spend per run",
+    "costLabel": "Spend per run, in USD",
+    "costHint": "The CLI stops a run that reaches it. Empty: no limit.",
+    "noLimit": "No limit",
+    "usd": "USD"
   },
   "activity": {
     "title": "Team activity",
@@ -231,5 +263,14 @@
     "sentBackAnon_one": "Sent back {{count}} time",
     "sentBackAnon_other": "Sent back {{count}} times",
     "approve": "Approve and move to Done"
+  },
+  "responsibilities": {
+    "product-owner": "Refines the backlog and writes acceptance criteria",
+    "architect": "Decides the design and reviews it against the codebase",
+    "developer": "Implements work items in their own worktree",
+    "qa": "Verifies each item against its acceptance criteria",
+    "researcher": "Reads the sources and sets out what is known",
+    "writer": "Turns findings into documents",
+    "reviewer": "Checks documents for accuracy and clarity"
   }
 }

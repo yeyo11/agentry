@@ -2,12 +2,28 @@ import type { CSSProperties } from 'react';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { nameHue } from '../../components/icons';
-import { isKnownRole, roleFallbackName, roleInitials } from './model';
+import type { TeamMember } from '@agentry/shared';
+import { isKnownRole, roleFallbackName, roleInitials, templateResponsibilityRole } from './model';
 
 /** A role's name in the interface language: the template's roles are translated, any other is shown as written. */
 export function useRoleName(): (role: string) => string {
   const { t } = useTranslation('team');
   return useCallback((role: string) => (isKnownRole(role) ? t(`roles.${role}`) : roleFallbackName(role)), [t]);
+}
+
+/**
+ * A member's responsibility as the interface shows it: the template's own in the person's language,
+ * by role, since core keeps it in English for Claude; one someone edited, as it was written.
+ */
+export function useResponsibility(): (member: Pick<TeamMember, 'role' | 'responsibility'>) => string {
+  const { t } = useTranslation('team');
+  return useCallback(
+    (member: Pick<TeamMember, 'role' | 'responsibility'>) => {
+      const role = templateResponsibilityRole(member);
+      return role ? t(`responsibilities.${role}`) : member.responsibility;
+    },
+    [t],
+  );
 }
 
 /**

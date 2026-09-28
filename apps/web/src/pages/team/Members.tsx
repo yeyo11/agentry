@@ -13,7 +13,7 @@ import { columnMeta } from '../../lib/work-items';
 import { assistantPath } from '../assistant/model';
 import { writeScope } from './model';
 import { MemberNow } from './parts';
-import { ModelTag, RoleAvatar, useRoleName } from './RoleAvatar';
+import { ModelTag, RoleAvatar, useResponsibility, useRoleName } from './RoleAvatar';
 
 /** "Answers for": the member's columns with their glyphs, or that it is only consulted. */
 export function AnswersFor({ columns }: { columns: WorkItemStatus[] }) {
@@ -95,6 +95,7 @@ function MemberCard({ member, href, onRemove }: { member: TeamMember; href: stri
   const { t } = useTranslation('team');
   const navigate = useNavigate();
   const name = useRoleName()(member.role);
+  const responsibility = useResponsibility()(member);
   const live = member.running.length > 0;
   return (
     <article className={`member-card ${live ? 'live-rail' : ''}`.trim()} aria-label={name} data-agent={member.agent}>
@@ -116,7 +117,7 @@ function MemberCard({ member, href, onRemove }: { member: TeamMember; href: stri
           ]}
         />
       </div>
-      {member.responsibility && <p className="member-desc">{member.responsibility}</p>}
+      {responsibility && <p className="member-desc">{responsibility}</p>}
       <div className="member-facts-list">
         <div className="member-facts">
           <span className="section-label">{t('member.answersFor')}</span>

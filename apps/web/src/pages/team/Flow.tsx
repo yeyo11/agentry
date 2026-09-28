@@ -1,4 +1,5 @@
 import type { Project, ProjectFlowSettings, Team, WorkItem, WorkItemStatus } from '@agentry/shared';
+import { DEFAULT_FLOW_MAX_PARALLEL, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, CornerDownLeft, Info, Lock, Undo2 } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -12,11 +13,19 @@ import { ModelCombobox, Tag } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
 import { NARROW, useMediaQuery } from '../../lib/media';
 import { columnMeta, taskPath } from '../../lib/work-items';
-import { FLOW_COLUMNS, MAX_BOUNCES, memberBody, sameFlow, setColumnRole } from './model';
+import { FLOW_COLUMNS, MAX_BOUNCES, memberBody, sameFlow, setColumnRole, settledFlow } from './model';
 import { PersonMark } from './parts';
 import { RoleAvatar, useRoleName } from './RoleAvatar';
 
 const NOBODY = '';
+
+/** The cost as typed, kept raw until it is settled; an emptied field takes the key away. */
+function withCost(flow: ProjectFlowSettings, value: number | undefined): ProjectFlowSettings {
+  const next = { ...flow };
+  if (value === undefined) delete next.maxCostUsd;
+  else next.maxCostUsd = value;
+  return next;
+}
 
 /** What the role of a column does there, and when it moves the card on: the Flow rows' two lines. */
 function useColumnWords(): (status: WorkItemStatus) => { does: string; then: string } {
@@ -63,14 +72,16 @@ export function FlowEditor({
   const [draft, setDraft] = useState<ProjectFlowSettings | null>(null);
   const [models, setModels] = useState<Record<string, string>>({});
   const baseline = proposal ?? saved;
+  // The draft keeps the limits as typed, so "0." on the way to "0.5" is not wiped; what is compared and saved is settled
   const flow = draft ?? baseline;
+  const next = settledFlow(flow);
   const board = useWorkItemBoard(project.id, {}, project.modules.includes('board'));
   const items = useMemo(() => bounced((board.data?.columns ?? []).flatMap((column) => column.items)), [board.data]);
 
   const modelChanges = team.members.filter((member) => models[member.agent] !== undefined && models[member.agent]?.trim() !== member.model);
   // What saving would write, the proposal included; leaving only warns about what the person edited
-  const flowChanged = !sameFlow(flow, saved);
-  const edited = (draft !== null && !sameFlow(draft, baseline)) || modelChanges.length > 0;
+  const flowChanged = !sameFlow(next, saved);
+  const edited = (draft !== null && !sameFlow(next, baseline)) || modelChanges.length > 0;
   const dirty = flowChanged || modelChanges.length > 0;
   useDirty('flow', edited);
   const changes = (flowChanged ? 1 : 0) + modelChanges.length;
@@ -86,7 +97,7 @@ export function FlowEditor({
       if (flowChanged) {
         // Read again right before writing: the settings are replaced whole, and another tab may have changed them
         const fresh = await api.projectSettings(project.id);
-        await api.putProjectSettings(project.id, { ...fresh, flow });
+        await api.putProjectSettings(project.id, { ...fresh, flow: next });
       }
       for (const member of modelChanges)
         await api.putTeamMember(project.id, member.agent, memberBody(member, { model: (models[member.agent] ?? member.model).trim() }));
@@ -273,6 +284,47 @@ export function FlowEditor({
     </section>
   );
 
+  const limitsCard = (
+    <section className="card flow-limits" aria-labelledby="flow-limits-title">
+      <div className="flow-auto-text">
+        <h2 id="flow-limits-title">{t('flow.limitsTitle')}</h2>
+        {!phone && <p>{t('flow.limitsBody')}</p>}
+      </div>
+      <div className="flow-limit-row">
+        <span className="flow-limit-text">
+          <span className="flow-limit-name">{t('flow.parallel')}</span>
+          <span className="field-hint">{t('flow.parallelHint', { count: DEFAULT_FLOW_MAX_PARALLEL })}</span>
+        </span>
+        <NumberInput
+          value={flow.maxParallel ?? DEFAULT_FLOW_MAX_PARALLEL}
+          min={1}
+          max={MAX_FLOW_PARALLEL}
+          onChange={(value) => edit({ ...flow, maxParallel: value ?? DEFAULT_FLOW_MAX_PARALLEL })}
+          aria-label={t('flow.parallel')}
+        />
+      </div>
+      <div className="flow-limit-row">
+        <span className="flow-limit-text">
+          <span className="flow-limit-name">{t('flow.cost')}</span>
+          <span className="field-hint">{t('flow.costHint')}</span>
+        </span>
+        <span className="flow-limit-cost">
+          <NumberInput
+            value={flow.maxCostUsd}
+            min={0}
+            max={MAX_FLOW_COST_USD}
+            step={0.5}
+            decimal
+            placeholder={t('flow.noLimit')}
+            onChange={(value) => edit(withCost(flow, value))}
+            aria-label={t('flow.costLabel')}
+          />
+          <span className="flow-limit-unit">{t('flow.usd')}</span>
+        </span>
+      </div>
+    </section>
+  );
+
   const modelCard = !phone && team.members.length > 0 && (
     <section className="card flow-models" aria-labelledby="flow-models-title">
       <h2 id="flow-models-title">{t('flow.modelsTitle')}</h2>
@@ -301,6 +353,7 @@ export function FlowEditor({
         {autoCard}
         {rows}
         {bounceCard}
+        {limitsCard}
         <div className="member-phone-foot">{actions}</div>
       </div>
     );
@@ -320,6 +373,7 @@ export function FlowEditor({
         </div>
         <div className="team-side">
           {bounceCard}
+          {limitsCard}
           {modelCard}
         </div>
       </div>
