@@ -550,14 +550,21 @@ export class ChatService {
    * Continues a chat in a copy, which is a new chat that records where it came from. The copy runs
    * with the source's tools and servers unless the request picks others: it carries on the same
    * work, and a fork that quietly gained tools the source was denied would be a way around them.
+   * The rules of a flow or assistant run were never the person's, though: a copy of such a chat is
+   * handed back as `resume` hands it back, with the mode and tools a new chat gets.
    */
   async fork(id: string, request: ForkChatRequest): Promise<ChatSummary> {
     const chat = await this.summaryOf(id);
     if (!chat) throw new Error('chat not found');
     if (chat.origin === 'internal') throw new ChatConflictError('This chat is housekeeping and keeps no transcript to fork.', null);
     const adoption = await this.adoptionOf(chat);
-    const chosen = await this.deps.tools.resolve(request, adoption.cwd, this.deps.runtime.get(id)?.tools ?? null, { fresh: true });
-    const forked = this.deps.runtime.fork(id, { ...request, ...chosen }, adoption);
+    const handBack = this.deps.memberChat?.(id) ?? false;
+    const fallback = handBack && request.toolPreset === undefined && request.allowedTools === undefined ? this.deps.tools.presets.defaultPreset() : null;
+    const picked = fallback ? { ...request, toolPreset: fallback.id } : request;
+    const chosen = handBack
+      ? await this.deps.tools.resolve(picked, adoption.cwd, null)
+      : await this.deps.tools.resolve(request, adoption.cwd, this.deps.runtime.get(id)?.tools ?? null, { fresh: true });
+    const forked = this.deps.runtime.fork(id, { ...request, ...chosen, ...(handBack ? { handBack } : {}) }, adoption);
     return this.require(forked.id);
   }
 

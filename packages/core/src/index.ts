@@ -1218,8 +1218,8 @@ export class Core {
   /**
    * Starts an assistant run's chat in the project's directory: confined to the read tools (the only
    * ones it has, kept to the directory) in `dontAsk`, with no settings source, MCP server, preset or
-   * uploads directory, the journal and CLAUDE.md appended, the result held to the run's schema, and
-   * one turn. A run a restart cut off continues in its own chat, confined again.
+   * uploads directory, the journal and CLAUDE.md appended but never recorded, the result held to the
+   * run's schema, and one turn. A run a restart cut off continues in its own chat, confined again.
    */
   private async launchAssistantRun(launch: AssistantLaunch, onStart: (chatId: string) => void): Promise<void> {
     const options = {
@@ -1233,12 +1233,15 @@ export class Core {
       permissionPrompts: 'none' as const,
     };
     const confine: ChatConfinement = { tools: launch.tools, settingSources: [] };
+    // Not recorded, as for a member's run: the CLI would otherwise send the run's prompt, rendered
+    // for a confined session, to a person who continues the chat after the run
+    const extras = { jsonSchema: launch.jsonSchema, keepAlive: false, confine, systemPromptSnapshot: 'off' as const };
     if (launch.resumeChatId) {
       onStart(launch.resumeChatId);
-      await this.chats.resume(launch.resumeChatId, { ...options, prompt: launch.prompt }, { jsonSchema: launch.jsonSchema, keepAlive: false, confine });
+      await this.chats.resume(launch.resumeChatId, { ...options, prompt: launch.prompt }, extras);
       return;
     }
-    await this.chats.create({ ...options, prompt: launch.prompt, cwd: launch.cwd, jsonSchema: launch.jsonSchema, keepAlive: false, confine }, (started) => onStart(started.id));
+    await this.chats.create({ ...options, ...extras, prompt: launch.prompt, cwd: launch.cwd }, (started) => onStart(started.id));
   }
 
   /**

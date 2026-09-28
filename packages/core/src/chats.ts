@@ -979,7 +979,7 @@ export class ChatManager extends EventEmitter {
    * The copy's id is chosen here and imposed on the CLI (`--session-id` beside `--fork-session`), so
    * the chat exists under its final id from the first instant and no other row can stand for it.
    */
-  fork(sourceId: string, request: ResumeChatRequest & ResolvedTools, source: AdoptedChat): ChatRuntime {
+  fork(sourceId: string, request: ResumeChatRequest & ResolvedTools & Pick<ExecutionExtras, 'handBack'>, source: AdoptedChat): ChatRuntime {
     if (!request.prompt?.trim() && !request.attachments?.length) throw new Error('prompt is required');
     this.admit(request);
     const attachments = this.resolveAttachments(request.attachments);

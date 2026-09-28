@@ -208,6 +208,95 @@ test('a confined chat is confined again when it is continued, and a continuation
   }
 });
 
+/** Every spawn's argv as the fake logged it; an argument can hold newlines, so entries split on the next `<pid> ` */
+function spawnsOf(file: string): string[] {
+  return existsSync(file) ? readFileSync(file, 'utf8').split(/\n(?=\d+ )/).filter((l) => l.trim() && !/^\d+ (agents|--version|auth)/.test(l)) : [];
+}
+
+async function spawned(file: string, match: (argv: string) => boolean, what: string): Promise<string> {
+  for (let i = 0; i < 400; i++) {
+    const found = spawnsOf(file).filter(match).at(-1);
+    if (found) return found;
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  throw new Error(`timed out waiting for ${what}`);
+}
+
+// The flow's hand-back and the assistant's confinement meet in ChatService.resume: an assistant
+// chat is one of Agentry's runs, so a person continuing it is handed it back, and the run's own
+// continuation after a restart must still come back confined through that same path.
+test('a person who continues an assistant chat through the core gets an ordinary chat, with no rule or recorded prompt of the run', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  mkdirSync(config.dataDir, { recursive: true });
+  const spawns = join(config.dataDir, 'spawns.log');
+  process.env.FAKE_CLAUDE_SPAWNS = spawns;
+  const core = new Core(config);
+  try {
+    const dir = repo();
+    const project = await core.importProject({ path: dir, name: 'pagos-api', template: 'software', modules: ['board', 'team'] });
+    const started = await core.assistant.start(project.id, { kind: 'project', description: `FAKE-RESULT-ASSISTANT ${JSON.stringify(ANSWER)}` });
+    const run = await until(core, started.id);
+    assert.equal(run.status, 'completed', JSON.stringify(run.error));
+    const chatId = run.chatId ?? '';
+    const first = await spawned(spawns, (l) => l.includes(chatId) && l.includes('--json-schema'), 'the run to spawn');
+    assertConfined(first);
+    // The run's prompt (the journal and CLAUDE.md, rendered for a confined session) is never
+    // recorded, so it cannot outlive the run into the person's chat
+    assert.match(first, /--system-prompt-snapshot off/);
+    for (let i = 0; i < 200 && core.runtime.get(chatId)?.pid; i++) await new Promise((r) => setTimeout(r, 25));
+
+    // A copy is the person's too: the run's read-only rules were never theirs to carry over
+    const copy = await core.chats.fork(chatId, { prompt: 'try it another way' });
+    const forked = await spawned(spawns, (l) => l.includes(`--fork-session --session-id ${copy.id}`), 'the copy to spawn');
+    for (const kept of ['--restricted', '--permission-mode dontAsk', '--allowedTools=Read,Grep,Glob', '--disallowedTools=Bash', '--json-schema']) {
+      assert.ok(!forked.includes(kept), `the person's copy still carries ${kept}: ${forked}`);
+    }
+
+    await core.chats.resume(chatId, { prompt: 'thanks, now fix the README' });
+    const theirs = await spawned(spawns, (l) => l.includes(`--resume ${chatId}`), 'the person to continue the chat');
+    for (const kept of ['--restricted', '--tools=', '--setting-sources', '--permission-mode dontAsk', '--append-system-prompt', '--json-schema', '--allowedTools=Read,Grep,Glob', '--system-prompt-snapshot']) {
+      assert.ok(!theirs.includes(kept), `the person's continuation still carries ${kept}: ${theirs}`);
+    }
+    assert.match(theirs, /--add-dir/, 'their uploads are readable again');
+    assert.match(theirs, /--allow-dangerously-skip-permissions/);
+    assert.equal(core.runtime.heldToSchema(chatId), false);
+  } finally {
+    delete process.env.FAKE_CLAUDE_SPAWNS;
+    core.shutdown();
+  }
+});
+
+test('an assistant run a restart cut off continues through the core confined again, not handed back', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  mkdirSync(config.dataDir, { recursive: true });
+  const spawns = join(config.dataDir, 'spawns.log');
+  process.env.FAKE_CLAUDE_SPAWNS = spawns;
+  const dir = repo();
+  let core = new Core(config);
+  let chatId = '';
+  let runId = '';
+  try {
+    const project = await core.importProject({ path: dir, name: 'pagos-api', template: 'software', modules: ['board', 'team'] });
+    const started = await core.assistant.start(project.id, { kind: 'project', description: 'FAKE-HANG' });
+    runId = started.id;
+    for (let i = 0; i < 200 && !core.runtime.get(core.assistant.run(runId).chatId ?? '')?.pid; i++) await new Promise((r) => setTimeout(r, 25));
+    chatId = core.assistant.run(runId).chatId ?? '';
+    assert.ok(chatId);
+  } finally {
+    core.shutdown();
+  }
+  core = new Core(config);
+  try {
+    const resumed = await spawned(spawns, (l) => l.includes(`--resume ${chatId}`), 'the cut run to continue');
+    assertConfined(resumed);
+    assert.match(resumed, /--json-schema/);
+    assert.match(resumed, /--system-prompt-snapshot off/);
+  } finally {
+    delete process.env.FAKE_CLAUDE_SPAWNS;
+    core.shutdown();
+  }
+});
+
 test('a member proposed past the team limits is held to them, so accepting it as proposed goes through the real team', async () => {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const core = new Core(config);
