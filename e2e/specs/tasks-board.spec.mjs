@@ -189,6 +189,37 @@ export default async ({ page, api, check, dirs }) => {
     check(drawn === `${empty.key}-1`, `the empty board draws the project's own first key (${drawn}, ${empty.key})`);
     check((await page.text('.workitem-empty .btn-primary')).trim() === 'Create the first task', 'it offers to create the first task');
 
+    // ---- Done and the list are paged: cards carry no description (gap 20) ----
+    const pagedDir = join(dirs.workspaceDir, 'e2e-board-paged');
+    mkdirSync(pagedDir, { recursive: true });
+    const paged = (await api.post('/projects/import', { path: pagedDir, name: 'e2e-board-paged', template: 'software' })).body;
+    made.push(paged.id);
+    for (let i = 0; i < 105; i++) await api.post(`/projects/${paged.id}/work-items`, { title: `Open ${i}`, description: 'A description the board does not carry' });
+    for (let i = 0; i < 25; i++) await api.post(`/projects/${paged.id}/work-items`, { title: `Closed ${i}`, status: 'done' });
+    const pagedBoard = (await api.get(`/projects/${paged.id}/work-items/board`)).body;
+    const pagedDone = pagedBoard.columns.find((c) => c.status === 'done');
+    check(pagedDone.items.length === 20 && pagedDone.more === 5 && pagedDone.count === 25, `the board holds the newest 20 done items and counts the rest (${pagedDone.items.length}, ${pagedDone.more})`);
+    check(pagedBoard.columns[0].items.every((i) => i.description === '' && i.hasDescription === true), 'cards leave their description out and say they have one');
+    await page.goto(`/tasks?project=${paged.id}`, 1500);
+    const doneCards = `document.querySelectorAll('.workitem-col[data-status="done"] [data-item-id]').length`;
+    const doneMore = `(document.querySelector('.workitem-col[data-status="done"] .is-more')?.textContent.trim() ?? null)`;
+    await page.waitFor(`return ${doneCards} === 3 && ${doneMore} === 'and 22 more'`, { label: 'Done draws its first three and counts every other one, loaded or not' });
+    check((await page.eval(`return document.querySelector('.workitem-col[data-status="done"] .is-more').tagName`)) === 'BUTTON', '"and N more" is a button that stays on the board');
+    await page.click('.workitem-col[data-status="done"] .is-more', undefined, 600);
+    await page.waitFor(`return ${doneCards} === 20 && ${doneMore} === 'and 5 more'`, { label: 'the page the board holds, then what the server left out' });
+    await page.click('.workitem-col[data-status="done"] .is-more', undefined, 1200);
+    await page.waitFor(`return ${doneCards} === 25 && ${doneMore} === null`, { label: 'the next page, asked of the server' });
+    check((await page.eval(`return location.pathname + location.search`)) === `/tasks?project=${paged.id}`, 'and the board stays where it is');
+    await page.goto(`/tasks?project=${paged.id}&view=list`, 1500);
+    await page.waitFor(`return document.querySelectorAll('.workitem-row').length === 100 && !!document.querySelector('.workitem-list-load')`, { label: 'the list reads its first 100 rows' });
+    check((await page.eval(`return document.querySelector('.workitem-list-group .workitem-col-count')?.textContent`)) === '105', 'a group counts every row it has, read or not');
+    await page.eval(`document.querySelector('.workitem-list-load').scrollIntoView(); return true`);
+    await page.waitFor(`return document.querySelectorAll('.workitem-row').length === 108 && !document.querySelector('.workitem-list-load')`, {
+      label: 'the next page loads at the end of the list: every open row and the first three done',
+    });
+    await page.click('.workitem-list-more', undefined, 600);
+    await page.waitFor(`return document.querySelectorAll('.workitem-row').length === 130`, { label: 'Done unfolds whole' });
+
     // ---- a phone: no horizontal board ----
     await page.viewport(390, 844);
     await page.goto(`/tasks?project=${project.id}`, 1400);
