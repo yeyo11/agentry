@@ -11,6 +11,8 @@
 //   FAKE-FAIL-ALWAYS <message>    fails like that, and so does every later turn of the session: a
 //                                 fault a retry cannot mend, which the resumed prompt no longer names
 //   FAKE-BUDGET                   ends the turn as the CLI does when --max-budget-usd ran out
+//   FAKE-LIMIT-ONCE               the session's first turn dies against the rate limit (a 429), and
+//                                 the same prompt sent again (the rotation's replay) goes on as usual
 //
 //   FAKE-RESULT-<STAGE> <json>    with --json-schema, ends with that structured output; the stage
 //                                 (REFINE, WORK, VERIFY) is read off the schema as a flow run's
@@ -97,6 +99,12 @@ lines.on('line', (line) => {
   if (/^FAKE-HANG$/m.test(prompt)) return;
   if (/^FAKE-BUDGET$/m.test(prompt)) {
     out({ type: 'result', subtype: 'error_max_budget_usd', is_error: true, num_turns: 1, total_cost_usd: 0.01, result: 'budget reached' });
+    return;
+  }
+  const limited = join(tmpdir(), `fake-claude-limit-${sessionId}`);
+  if (/^FAKE-LIMIT-ONCE$/m.test(prompt) && !existsSync(limited)) {
+    writeFileSync(limited, '1');
+    out({ type: 'result', subtype: 'error_during_execution', is_error: true, api_error_status: 429, num_turns: 1, total_cost_usd: 0.01, result: "You've hit your usage limit" });
     return;
   }
   // What a session was told to keep failing with outlives the process, as its history does

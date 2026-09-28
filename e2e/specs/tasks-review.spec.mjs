@@ -206,12 +206,21 @@ export default async ({ page, api, check, dirs }) => {
       db.prepare(
         "INSERT INTO flow_runs (id, project_id, item_id, role, agent, model, stage, column_name, state, chat_id, outcome, error, queued_at, started_at, ended_at) VALUES ('e2e-flow-failed', ?, ?, 'developer', 'developer', 'sonnet', 'work', 'in_progress', 'ended', 'e2e-flow-chat', 'failed', 'the chat ended without a result', ?, ?, ?)",
       ).run(project.id, second.id, now, now, now);
+      // The member ran again afterwards, in a chat of its own, and passed: the older failure is still
+      // this item's to show, read from every run of the item rather than the member's latest (gap 2)
+      const later = new Date(Date.now() + 1000).toISOString();
+      db.prepare("INSERT INTO work_item_links (id, item_id, kind, role, chat_id, created_at, team_role) VALUES ('e2e-flow-link-2', ?, 'chat', 'work', 'e2e-flow-chat-2', ?, 'developer')").run(second.id, later);
+      db.prepare(
+        "INSERT INTO flow_runs (id, project_id, item_id, role, agent, model, stage, column_name, state, chat_id, outcome, error, queued_at, started_at, ended_at) VALUES ('e2e-flow-passed', ?, ?, 'developer', 'developer', 'sonnet', 'work', 'in_progress', 'ended', 'e2e-flow-chat-2', 'passed', NULL, ?, ?, ?)",
+      ).run(project.id, second.id, later, later, later);
       db.close();
       await page.goto(`/tasks/REV-${second.key.split('-')[1]}`, 1500);
       const row = await page.waitFor(`return [...document.querySelectorAll('.work-link-row')].find((r) => r.textContent.includes('Run failed'))?.textContent`, { label: 'the failed run on its link' });
       check(row.includes('the chat ended without a result'), `the link gives the reason (${row})`);
       check(!row.includes('did not move it'), 'and does not read as a run that simply moved nothing');
       check(await page.eval(`return !!document.querySelector('.work-link-row .badge-bad')`), 'in the bad colour, beside its word');
+      const failedRows = await page.eval(`return [...document.querySelectorAll('.work-link-row')].filter((r) => r.textContent.includes('Run failed')).length`);
+      check(failedRows === 1, `only the failed run's link reads failed, the later passed one does not (${failedRows})`);
     });
 
     await part('New task on a project whose Board is off asks for one that has it (22)', async () => {

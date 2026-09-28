@@ -13,7 +13,7 @@ import type {
   WorkItemStatus,
   WorkItemType,
 } from '@agentry/shared';
-import { MAX_FLOW_COST_USD, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@agentry/shared';
+import { isTeamCommandPattern, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
 import type { CoreConfig } from './paths.ts';
 import { projectTemplate } from './project-templates.ts';
@@ -32,8 +32,6 @@ import type { ProjectRecord } from './projects.ts';
 /** A limit above this is a typo, not a work in progress limit. */
 const MAX_COLUMN_LIMIT = 999;
 const MAX_BOUNCES = 20;
-/** Runs one project's flow may keep going at once; each is a paid agent run */
-const MAX_FLOW_PARALLEL = 10;
 const MAX_TEAM = 20;
 const MAX_TEXT = 500;
 const MAX_SHORT = 100;
@@ -193,6 +191,15 @@ function parseTeam(value: unknown): ProjectTeamSettings {
     if (raw.writes !== undefined) {
       if (!Array.isArray(raw.writes)) throw new Error(`team member ${i} writes must be an array`);
       member.writes = raw.writes.map((w: unknown) => relativePath(w, `team member ${i} writes`));
+    }
+    // null is "unrestricted", the same as leaving it out; [] is "no shell at all"
+    if (raw.commands !== undefined && raw.commands !== null) {
+      if (!Array.isArray(raw.commands)) throw new Error(`team member ${i} commands must be an array`);
+      if (raw.commands.length > MAX_TEAM_COMMANDS) throw new Error(`team member ${i} lists more than ${MAX_TEAM_COMMANDS} commands`);
+      for (const command of raw.commands) {
+        if (!isTeamCommandPattern(command)) throw new Error(`team member ${i} commands: not a command pattern: ${JSON.stringify(command)}`);
+      }
+      member.commands = [...new Set(raw.commands as string[])];
     }
     return member;
   });

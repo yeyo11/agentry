@@ -1,31 +1,17 @@
-import { BookOpen, ChevronRight, Menu as MenuIcon, type LucideIcon } from 'lucide-react';
+import { BookOpen, ChevronRight, Menu as MenuIcon } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { NavLink } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import type { MenuItem } from '../controls/Menu';
 import { Sheet } from '../controls/Sheet';
 import { ICON, ICON_SM } from '../icons';
 import { Tag } from '../ui';
 import { formatCost, formatNumber } from '../../lib/format';
 import type { MoreNote } from '../../lib/shell-live';
+import { isActive, navTarget, type NavItem } from './nav';
 import { useMoreNotes } from './more-notes';
 
-export interface NavItem {
-  to: string;
-  label: string;
-  icon: LucideIcon;
-  /** What the badge counts, for the screen reader */
-  count?: { value: number | undefined; what: string; live?: boolean };
-  /** Something here wants a look (a newer Agentry): shown as a dot, and this is what it says to a screen reader */
-  dot?: string;
-  /** Where the link lands inside the page, e.g. the settings tab the dot is about */
-  search?: string;
-}
-
-/** The link's target: the page, plus the tab its dot points at */
-export function navTarget(item: NavItem): string | { pathname: string; search: string } {
-  return item.search ? { pathname: item.to, search: item.search } : item.to;
-}
+export { isActive, navTarget, type NavItem } from './nav';
 
 /** A dot with words for the screen reader; never a count, never colour alone (it is there or not) */
 export function NavDot({ label }: { label: string | undefined }) {
@@ -35,11 +21,6 @@ export function NavDot({ label }: { label: string | undefined }) {
       <span className="sr-only">{label}</span>
     </span>
   );
-}
-
-export function isActive(item: NavItem, pathname: string): boolean {
-  if (item.to === '/') return pathname === '/';
-  return pathname === item.to || pathname.startsWith(`${item.to}/`);
 }
 
 function Badge({ count }: { count: NavItem['count'] }) {
@@ -76,14 +57,15 @@ function CellNote({ note }: { note: MoreNote | undefined }) {
  * The sheet's sections, a component of their own so that their figures are read only while the
  * sheet is open: its content is not mounted while it is closed.
  */
-function MoreSections({ items, pathname, label }: { items: NavItem[]; pathname: string; label: string }) {
+function MoreSections({ items, pathname, projectPage, label }: { items: NavItem[]; pathname: string; projectPage: boolean; label: string }) {
   const notes = useMoreNotes();
   return (
     <nav className="more-nav" aria-label={label}>
       {items.map((item) => {
         const Icon = item.icon;
+        const active = isActive(item, pathname, projectPage);
         return (
-          <NavLink key={item.to} to={navTarget(item)} className={`more-cell ${isActive(item, pathname) ? 'is-active' : ''}`}>
+          <Link key={item.to} to={navTarget(item)} aria-current={active ? 'page' : undefined} className={`more-cell ${active ? 'is-active' : ''}`}>
             <span className="more-cell-icon">
               <Icon {...ICON} />
             </span>
@@ -91,7 +73,7 @@ function MoreSections({ items, pathname, label }: { items: NavItem[]; pathname: 
             <CellNote note={notes[item.to]} />
             <NavDot label={item.dot} />
             <ChevronRight {...ICON_SM} className="more-cell-chevron" aria-hidden />
-          </NavLink>
+          </Link>
         );
       })}
     </nav>
@@ -105,6 +87,7 @@ function MoreSections({ items, pathname, label }: { items: NavItem[]; pathname: 
  */
 export function TabBar({
   pathname,
+  projectPage = false,
   tabs,
   more,
   start,
@@ -112,6 +95,8 @@ export function TabBar({
   connection,
 }: {
   pathname: string;
+  /** `/` is a project's page (`isActive`): its section is behind "More" */
+  projectPage?: boolean;
   tabs: NavItem[];
   more: NavItem[];
   /** What else a person can start, besides the floating button's own action */
@@ -125,7 +110,7 @@ export function TabBar({
   const [open, setOpen] = useState(false);
   // Following a link closes the sheet; the page takes focus from there
   useEffect(() => setOpen(false), [pathname]);
-  const moreActive = more.some((item) => isActive(item, pathname));
+  const moreActive = more.some((item) => isActive(item, pathname, projectPage));
   // Settings lives behind "More" on a phone, so its dot shows on the button that leads there
   const moreDot = more.find((item) => item.dot)?.dot;
 
@@ -133,15 +118,16 @@ export function TabBar({
     <nav className="tabbar" aria-label={t('tabbar.label')}>
       {tabs.map((item) => {
         const Icon = item.icon;
+        const active = isActive(item, pathname, projectPage);
         return (
-          <NavLink key={item.to} to={navTarget(item)} end={item.to === '/'} className={`tabbar-tab ${isActive(item, pathname) ? 'is-active' : ''}`}>
+          <Link key={item.to} to={navTarget(item)} aria-current={active ? 'page' : undefined} className={`tabbar-tab ${active ? 'is-active' : ''}`}>
             <span className="tabbar-icon">
               <Icon {...ICON} />
               <Badge count={item.count} />
               <NavDot label={item.dot} />
             </span>
             <span className="tabbar-label">{item.label}</span>
-          </NavLink>
+          </Link>
         );
       })}
       <button type="button" className={`tabbar-tab tabbar-more ${moreActive || open ? 'is-active' : ''}`} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
@@ -156,7 +142,7 @@ export function TabBar({
         {/* Every link in here leads away, and one may be to the page already open */}
         <div className="more-body" onClick={(event) => (event.target as HTMLElement).closest('a') && setOpen(false)}>
           {account}
-          <MoreSections items={more} pathname={pathname} label={t('tabbar.sections')} />
+          <MoreSections items={more} pathname={pathname} projectPage={projectPage} label={t('tabbar.sections')} />
           {start.length > 0 && (
             <div className="more-group" role="group" aria-labelledby="more-start-head">
               <span id="more-start-head" className="more-group-head">

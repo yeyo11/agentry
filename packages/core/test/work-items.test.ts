@@ -944,3 +944,155 @@ test('work items survive a reopen, and a project the store does not know still r
   assert.throws(() => forgetful.create('p1', { title: 'x' }), refusal(404));
   second.close();
 });
+
+// ---------- payloads and paging ----------
+
+test('the board, the lists and their pages leave descriptions out, and the item and the store keep them', () => {
+  const { service, story, bug, task } = seeded();
+  const long = 'x'.repeat(50_000);
+  service.update(bug.id, { description: long });
+  const cards = [
+    ...service.board('p1').columns.flatMap((c) => c.items),
+    ...service.cards({ projectId: 'p1' }),
+    ...service.page({ projectId: 'p1' }).items,
+    ...service.cardsOf([story.id, bug.id]),
+  ];
+  assert.ok(cards.length >= 8);
+  for (const card of cards) assert.equal(card.description, '', card.key);
+  const flag = (id: string) => [...new Set(cards.filter((c) => c.id === id).map((c) => c.hasDescription))];
+  assert.deepEqual(flag(bug.id), [true]);
+  assert.deepEqual(flag(story.id), [true]);
+  assert.deepEqual(flag(task.id), [false]);
+  // Whole wherever one item is read, and for the code that works on it
+  assert.equal(service.get(bug.id).description, long);
+  assert.equal(service.get(bug.id).hasDescription, undefined);
+  assert.equal(service.list({ projectId: 'p1' }).find((i) => i.id === bug.id)?.description, long);
+  assert.deepEqual(
+    service.cardsOf(['missing', story.id]).map((i) => i.id),
+    [story.id],
+  );
+});
+
+test('a list is paged by a cursor in its own order: nothing repeats or is skipped when items arrive meanwhile', () => {
+  const { service } = setup();
+  const made = Array.from({ length: 7 }, (_, n) => service.create('p1', { title: `item ${String(n)}`, status: n % 2 ? 'todo' : 'backlog' }));
+  service.create('p2', { title: 'other project' });
+  const whole = service.cards({ projectId: 'p1' }).map((i) => i.id);
+  assert.equal(whole.length, made.length);
+
+  const first = service.page({ projectId: 'p1' }, { limit: 3 });
+  assert.equal(first.total, 7);
+  assert.deepEqual(
+    first.items.map((i) => i.id),
+    whole.slice(0, 3),
+  );
+  assert.ok(first.nextCursor);
+  // An item put at the top of the backlog after the first page does not push another one back into view
+  const late = service.create('p1', { title: 'late' });
+  service.move(late.id, { status: 'backlog', afterId: null });
+  const second = service.page({ projectId: 'p1' }, { limit: 3, cursor: first.nextCursor });
+  assert.equal(second.total, 8);
+  assert.deepEqual(
+    second.items.map((i) => i.id),
+    whole.slice(3, 6),
+  );
+  const third = service.page({ projectId: 'p1' }, { limit: 3, cursor: second.nextCursor });
+  assert.deepEqual(
+    third.items.map((i) => i.id),
+    whole.slice(6),
+  );
+  assert.equal(third.nextCursor, null);
+
+  // The filter applies before the page, and the default page holds them all here
+  const todo = service.page({ projectId: 'p1', status: ['todo'] });
+  assert.equal(todo.total, 3);
+  assert.equal(todo.nextCursor, null);
+  assert.ok(todo.items.every((i) => i.status === 'todo'));
+  // Above the maximum is brought down; below one, a fraction and a cursor this list did not hand out are refused
+  assert.equal(service.page({ projectId: 'p1' }, { limit: 10_000 }).items.length, 8);
+  assert.throws(() => service.page({}, { limit: 0 }), refusal(400));
+  assert.throws(() => service.page({}, { limit: 2.5 }), refusal(400));
+  assert.throws(() => service.page({}, { cursor: 'not-a-cursor' }), refusal(400));
+  assert.throws(() => service.page({}, { cursor: Buffer.from('[1,2]').toString('base64url') }), refusal(400));
+});
+
+test('the Done column holds its newest closed items in rank order, counts the rest in more, and counts stay whole', () => {
+  const { service, db } = setup();
+  const closed = Array.from({ length: 25 }, (_, n) => service.create('p1', { title: `done ${String(n)}`, type: n === 0 ? 'bug' : 'task', status: 'done' }));
+  // Closed a minute apart, oldest first, so "newest" does not hang on the clock
+  closed.forEach((item, n) =>
+    db.connection.prepare('UPDATE work_items SET closed_at = ? WHERE id = ?').run(new Date(Date.UTC(2026, 0, 1, 0, n)).toISOString(), item.id),
+  );
+  const open = service.create('p1', { title: 'still open' });
+
+  const board = service.board('p1');
+  const done = board.columns.find((c) => c.status === 'done');
+  assert.equal(done?.count, 25);
+  assert.equal(done?.items.length, 20);
+  assert.equal(done?.more, 5);
+  // The newest twenty, left in the order a person ranked them
+  assert.deepEqual(
+    done?.items.map((i) => i.id),
+    closed.slice(5).map((i) => i.id),
+  );
+  const backlog = board.columns.find((c) => c.status === 'backlog');
+  assert.equal(backlog?.items[0]?.id, open.id);
+  assert.equal(backlog?.more, undefined);
+
+  // "And 5 more" asks again with a larger limit
+  const whole = service.board('p1', {}, { doneLimit: 40 }).columns.find((c) => c.status === 'done');
+  assert.equal(whole?.items.length, 25);
+  assert.equal(whole?.more, undefined);
+  assert.equal(service.board('p1', {}, { doneLimit: 0 }).columns.find((c) => c.status === 'done')?.more, 25);
+  // A filter narrows the items and what is left out, never the count
+  const bugs = service.board('p1', { type: ['bug'] }, { doneLimit: 0 }).columns.find((c) => c.status === 'done');
+  assert.equal(bugs?.more, 1);
+  assert.equal(bugs?.count, 25);
+  // An item moved into Done is the newest: it shows at once, where the board's optimistic move put it
+  const moved = service.move(open.id, { status: 'done' });
+  const after = service.board('p1').columns.find((c) => c.status === 'done');
+  assert.ok(after?.items.some((i) => i.id === moved.item.id));
+  assert.equal(after?.count, 26);
+  assert.equal(after?.more, 6);
+  assert.throws(() => service.board('p1', {}, { doneLimit: -1 }), refusal(400));
+});
+
+test('the All projects board and list keep to the projects asked for, counts included', () => {
+  const { service } = seeded();
+  const shown = new Set(['p2']);
+  const board = service.board(null, {}, {}, shown);
+  assert.deepEqual(
+    board.columns.map((c) => c.count),
+    [1, 0, 0, 0, 0],
+  );
+  assert.deepEqual(
+    board.columns.flatMap((c) => c.items).map((i) => i.key),
+    ['LIB-1'],
+  );
+  assert.deepEqual(
+    service.cards({}, shown).map((i) => i.key),
+    ['LIB-1'],
+  );
+  assert.equal(service.page({}, {}, shown).total, 1);
+  assert.equal(service.page({}, {}, new Set()).total, 0);
+});
+
+test('an item is found by its key in any case, in whichever project holds that prefix', () => {
+  const { service, projects } = setup();
+  const a = service.create('p1', { title: 'One', description: 'whole' });
+  const b = service.create('p2', { title: 'Lib one' });
+  assert.deepEqual(
+    service.withKey('agn-1').map((i) => i.id),
+    [a.id],
+  );
+  assert.equal(service.withKey('AGN-1')[0]?.description, 'whole');
+  assert.deepEqual(
+    service.withKey('LIB-1').map((i) => i.id),
+    [b.id],
+  );
+  assert.deepEqual(service.withKey('AGN-2'), []);
+  assert.deepEqual(service.withKey('not a key'), []);
+  // Two projects holding one prefix (a removed one kept it) both answer; the caller picks
+  projects.set('p2', { keyPrefix: 'AGN', columnLimits: {} });
+  assert.deepEqual(service.withKey('AGN-1').map((i) => i.id).sort(), [a.id, b.id].sort());
+});

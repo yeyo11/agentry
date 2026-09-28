@@ -1,36 +1,26 @@
-import type { WorkItem, WorkItemAssignee, WorkItemPriority, WorkItemRef, WorkItemRelationType, WorkItemStatus, WorkItemType } from '@agentry/shared';
+import type { WorkItem, WorkItemStatus, WorkItemType } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, FileText, Plus, X } from 'lucide-react';
-import { useEffect, useId, useRef, useState, type ComponentPropsWithRef, type FormEvent, type ReactElement, type ReactNode } from 'react';
+import { FileText, Plus } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys, useProjectSettings, useProjects } from '../../api';
 import { Checkbox, Select } from '../../components/controls';
 import { Dialog } from '../../components/Dialog';
-import { ICON_SM, PriorityMark, WorkItemKey, WorkItemStatusIcon, WorkItemTypeIcon } from '../../components/icons';
+import { ICON_SM, WorkItemKey, WorkItemTypeIcon } from '../../components/icons';
 import { useToast } from '../../components/Toast';
 import { ErrorBox, Segmented } from '../../components/ui';
 import { NARROW, useMediaQuery } from '../../lib/media';
-import { columnMeta, newTaskProject, priorityMeta, taskPath, WORK_ITEM_TYPE_META } from '../../lib/work-items';
-import {
-  AssigneeMark,
-  EpicDot,
-  NONE,
-  assigneeOf,
-  assigneeValue,
-  useAssigneeName,
-  useAssigneeOptions,
-  useEpicOptions,
-  useMilestoneOptions,
-  usePriorityOptions,
-  useStatusOptions,
-} from './item/fields';
+import { newTaskProject, taskPath, WORK_ITEM_TYPE_META } from '../../lib/work-items';
 import { usePersonName } from './item/hooks';
 import { addLabel, cleanCriteria } from './item/model';
-import { Picker } from './item/Picker';
 import { LabelsEditor } from './item/Properties';
 import { RelationDialog, RelationRow } from './item/Relations';
 import { FullScreen } from './FullScreen';
+import { CriterionInput, LabelsInput, RemoveCriterion } from './new-task/Fields';
+import { blank, type Draft } from './new-task/model';
+import { useNewTaskPickers } from './new-task/pickers';
+import { Cell, FieldButton } from './new-task/Triggers';
 
 export interface NewTaskProps {
   /** The project the task goes into; with All projects, the form asks for one */
@@ -39,56 +29,6 @@ export interface NewTaskProps {
   status?: WorkItemStatus;
   onClose: () => void;
   onCreated?: (item: WorkItem) => void;
-}
-
-interface Draft {
-  type: WorkItemType;
-  title: string;
-  description: string;
-  status: WorkItemStatus;
-  priority: WorkItemPriority;
-  assignee: WorkItemAssignee | null;
-  epicId: string | null;
-  milestoneId: string | null;
-  labels: string[];
-  relations: Array<{ type: WorkItemRelationType; item: WorkItemRef }>;
-  criteria: string[];
-}
-
-const blank = (status: WorkItemStatus, type: WorkItemType): Draft => ({
-  type,
-  title: '',
-  description: '',
-  status,
-  priority: 'medium',
-  assignee: null,
-  epicId: null,
-  milestoneId: null,
-  labels: [],
-  relations: [],
-  criteria: [],
-});
-
-/** A field's trigger in the dialog: the app's select look, with the value drawn as the board draws it. */
-function FieldButton({ label, children, ...rest }: { label: string; children: ReactNode } & Omit<ComponentPropsWithRef<'button'>, 'children'>) {
-  return (
-    <button type="button" {...rest} className="select-trigger newtask-select">
-      <span className="sr-only">{label}: </span>
-      <span className="select-value newtask-select-value">{children}</span>
-      <ChevronDown {...ICON_SM} className="select-chevron" />
-    </button>
-  );
-}
-
-/** A phone cell: its name, its value, and the chevron of a cell that opens a choice. */
-function Cell({ label, children, ...rest }: { label: string; children: ReactNode } & Omit<ComponentPropsWithRef<'button'>, 'children'>) {
-  return (
-    <button type="button" {...rest} className="newtask-cell">
-      <span className="newtask-cell-key">{label}</span>
-      <span className="newtask-cell-value">{children}</span>
-      <ChevronRight {...ICON_SM} className="newtask-cell-chevron" />
-    </button>
-  );
 }
 
 /**
@@ -125,14 +65,7 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
     if (!offered.includes(draft.type)) set('type', firstType);
   }, [offered.join(','), firstType]);
 
-  const statuses = useStatusOptions();
-  const priorities = usePriorityOptions();
-  const assignees = useAssigneeOptions(person, draft.assignee, project?.id ?? null);
-  const epics = useEpicOptions(project?.id ?? null);
-  const milestones = useMilestoneOptions(project?.id ?? null, draft.milestoneId);
-  const epic = epics.epics.find((e) => e.id === draft.epicId) ?? null;
-  const milestone = milestones.milestones.find((m) => m.id === draft.milestoneId) ?? null;
-  const assigneeName = useAssigneeName(person)(draft.assignee);
+  const pickers = useNewTaskPickers(draft, set, person, project?.id ?? null);
 
   const create = useMutation({
     mutationFn: async () => {
@@ -255,122 +188,10 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
         }}
       />
     ) : null;
-  const criterionInput = (value: string, index: number, extra?: string) => (
-    <input
-      className={extra}
-      value={value}
-      autoFocus={index === draft.criteria.length - 1 && value === ''}
-      aria-label={t('criteria.nth', { n: index + 1 })}
-      onChange={(e) =>
-        set(
-          'criteria',
-          draft.criteria.map((c, i) => (i === index ? e.target.value : c)),
-        )
-      }
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          set('criteria', [...draft.criteria, '']);
-        }
-      }}
-    />
-  );
-  const removeCriterion = (index: number) => (
-    <button
-      type="button"
-      className="icon-btn"
-      aria-label={t('criteria.removeNth', { n: index + 1 })}
-      onClick={() =>
-        set(
-          'criteria',
-          draft.criteria.filter((_, i) => i !== index),
-        )
-      }
-    >
-      <X {...ICON_SM} />
-    </button>
-  );
+  const setCriteria = (criteria: string[]) => set('criteria', criteria);
   const addCriterion = () => set('criteria', [...draft.criteria, '']);
   const heading = project ? t('newTask.into', { project: project.name, prefix: project.key }) : null;
   const createLabel = create.isPending ? t('newTask.creating') : t('newTask.create');
-
-  // The same pickers in both forms; only their trigger differs
-  const pickers = (trigger: (label: string, value: ReactNode) => ReactElement) => ({
-    status: (
-      <Picker
-        label={t('newTask.column')}
-        value={draft.status}
-        options={statuses}
-        onPick={(v) => set('status', v)}
-        trigger={trigger(
-          t('newTask.column'),
-          <>
-            <WorkItemStatusIcon status={draft.status} decorative />
-            {tt(columnMeta(draft.status).label)}
-          </>,
-        )}
-      />
-    ),
-    priority: (
-      <Picker
-        label={t('fields.priority')}
-        value={draft.priority}
-        options={priorities}
-        onPick={(v) => set('priority', v)}
-        trigger={trigger(
-          t('fields.priority'),
-          <>
-            <PriorityMark priority={draft.priority} />
-            {tt(priorityMeta(draft.priority).label)}
-          </>,
-        )}
-      />
-    ),
-    assignee: (
-      <Picker
-        label={t('fields.assignee')}
-        value={assigneeValue(draft.assignee)}
-        options={assignees}
-        onPick={(v) => set('assignee', assigneeOf(v))}
-        trigger={trigger(
-          t('fields.assignee'),
-          <>
-            <AssigneeMark assignee={draft.assignee} person={person} />
-            <span className={draft.assignee ? '' : 'muted'}>{assigneeName}</span>
-          </>,
-        )}
-      />
-    ),
-    epic:
-      draft.type === 'epic' ? null : (
-        <Picker
-          label={t('fields.epic')}
-          value={draft.epicId ?? NONE}
-          options={epics.options}
-          onPick={(v) => set('epicId', v === NONE ? null : v)}
-          trigger={trigger(
-            t('fields.epic'),
-            epic ? (
-              <>
-                <EpicDot epic={epic} />
-                {epic.title}
-              </>
-            ) : (
-              <span className="muted">{t('fields.noEpic')}</span>
-            ),
-          )}
-        />
-      ),
-    milestone: (
-      <Picker
-        label={t('fields.milestone')}
-        value={draft.milestoneId ?? NONE}
-        options={milestones.options}
-        onPick={(v) => set('milestoneId', v === NONE ? null : v)}
-        trigger={trigger(t('fields.milestone'), milestone ? <span className="milestone-name">{milestone.name}</span> : <span className="muted">{t('fields.noMilestone')}</span>)}
-      />
-    ),
-  });
 
   if (narrow) {
     const cells = pickers((label, value) => <Cell label={label}>{value}</Cell>);
@@ -419,10 +240,10 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
             <span className="mono small muted">{cleanCriteria(draft.criteria).length}</span>
           </div>
           <div className="newtask-cells">
-            {draft.criteria.map((value, index) => (
+            {draft.criteria.map((_, index) => (
               <div key={index} className="newtask-cell is-static">
-                {criterionInput(value, index, 'newtask-criterion')}
-                {removeCriterion(index)}
+                <CriterionInput criteria={draft.criteria} index={index} className="newtask-criterion" onChange={setCriteria} />
+                <RemoveCriterion criteria={draft.criteria} index={index} onChange={setCriteria} />
               </div>
             ))}
             <button type="button" className="newtask-cell newtask-add" onClick={addCriterion}>
@@ -504,42 +325,7 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
           </div>
           <div className="form-row">
             <span className="section-label">{t('fields.labels')}</span>
-            <div className="newtask-labels">
-              {draft.labels.map((label) => (
-                <button
-                  key={label}
-                  type="button"
-                  className="workitem-label workitem-label-remove"
-                  aria-label={t('fields.removeLabel', { label })}
-                  onClick={() =>
-                    set(
-                      'labels',
-                      draft.labels.filter((l) => l !== label),
-                    )
-                  }
-                >
-                  {label}
-                  <X size={10} strokeWidth={2} aria-hidden />
-                </button>
-              ))}
-              <input
-                value={labelDraft}
-                aria-label={t('fields.addLabel')}
-                placeholder={t('newTask.labelsPlaceholder')}
-                onChange={(e) => setLabelDraft(e.target.value)}
-                onBlur={() => {
-                  set('labels', addLabel(draft.labels, labelDraft));
-                  setLabelDraft('');
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ',') {
-                    e.preventDefault();
-                    set('labels', addLabel(draft.labels, labelDraft));
-                    setLabelDraft('');
-                  } else if (e.key === 'Backspace' && !labelDraft && draft.labels.length) set('labels', draft.labels.slice(0, -1));
-                }}
-              />
-            </div>
+            <LabelsInput labels={draft.labels} onChange={(labels) => set('labels', labels)} labelDraft={labelDraft} setLabelDraft={setLabelDraft} />
           </div>
         </div>
         <div className="form-row">
@@ -558,10 +344,10 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
             <span className="section-label grow">{t('criteria.title')}</span>
             <span className="mono small muted">{cleanCriteria(draft.criteria).length}</span>
           </span>
-          {draft.criteria.map((value, index) => (
+          {draft.criteria.map((_, index) => (
             <div key={index} className="newtask-criterion-row">
-              {criterionInput(value, index)}
-              {removeCriterion(index)}
+              <CriterionInput criteria={draft.criteria} index={index} onChange={setCriteria} />
+              <RemoveCriterion criteria={draft.criteria} index={index} onChange={setCriteria} />
             </div>
           ))}
           <button type="button" className="btn btn-small workitem-add newtask-add-inline" onClick={addCriterion}>

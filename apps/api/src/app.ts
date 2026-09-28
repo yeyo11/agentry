@@ -120,7 +120,9 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
     const status = err.statusCode ?? (refusal ? (/not found/i.test(err.message) ? 404 : 400) : 500);
     // A bug here is ours to find: a 400 nobody logs is a server fault blamed on the caller
     if (!refusal || status >= 500) app.log.error({ err, url: req.url }, 'request failed');
-    void reply.status(status).send({ error: status >= 500 ? 'internal error' : err.message });
+    // A server fault's message stays inside unless it was written for the person (`expose`)
+    const exposed = (err as { expose?: unknown }).expose === true;
+    void reply.status(status).send({ error: status >= 500 && !exposed ? 'internal error' : err.message });
   });
 
   // Core has no logger of its own, and a push that cannot be delivered is a log line rather than
@@ -129,6 +131,11 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
 
   // Before every route: the guard must also cover /docs and the OpenAPI document
   registerSecurity(app, core);
+
+  // The panel sends the person's language with every request: the chats Agentry starts on its own
+  // later, with no request behind them (the flow's runs), are titled in it. After the guard, so only
+  // an allowed caller sets it
+  app.addHook('onRequest', async (req) => core.noteLanguage(req.headers['accept-language']));
 
   await registerOpenApi(app, (await core.system()).version);
 

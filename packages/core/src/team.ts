@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
+  AgentryLanguage,
   FlowRun,
   ProjectFlowSettings,
   ProjectSettings,
@@ -17,7 +18,7 @@ import type {
   TeamMember,
   WorkItemStatus,
 } from '@agentry/shared';
-import { WORK_ITEM_STATUSES } from '@agentry/shared';
+import { isTeamCommandPattern, MAX_TEAM_COMMANDS, WORK_ITEM_STATUSES } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
 import type { AgentryEventInput } from './events.ts';
 import { projectTemplate } from './project-templates.ts';
@@ -126,6 +127,25 @@ export function roleTitle(role: string): string {
   );
 }
 
+/** The built-in roles in Spanish, as the interface names them (apps/web/src/i18n/GLOSSARY.md) */
+const ROLE_TITLES_ES: Readonly<Record<string, string>> = {
+  'product-owner': 'Product Owner',
+  architect: 'Arquitecto',
+  developer: 'Desarrollador',
+  qa: 'QA',
+  researcher: 'Investigador',
+  writer: 'Redactor técnico',
+  reviewer: 'Revisor',
+};
+
+/**
+ * A role as the person reads it, for the first line of a chat Agentry starts for a member: a
+ * built-in role in their language, a role of their own as they wrote it.
+ */
+export function roleTitleIn(role: string, language: AgentryLanguage): string {
+  return (language === 'es' ? ROLE_TITLES_ES[role] : undefined) ?? roleTitle(role);
+}
+
 /** A YAML scalar that reads back as `value`: plain where that is safe, JSON-quoted (valid YAML) otherwise. */
 function yamlScalar(value: string): string {
   const plain = /^[A-Za-z0-9][^:#\n"'`{}[\],&*!|>%@]*$/.test(value) && value.trim() === value;
@@ -203,6 +223,23 @@ export function agentFileContent(member: ProjectTeamMember): string {
           '',
           'Agentry enforces this on the chats it starts for you; from a terminal, keep to it yourself.',
         ];
+  // Only said when the member has a list: a file written before the list existed reads the same
+  const commands = !member.commands
+    ? []
+    : [
+        '## What you may run',
+        '',
+        ...(member.commands.length
+          ? [
+              'When you work on an item, the shell runs only these commands (`*` stands for any arguments):',
+              '',
+              ...member.commands.map((c) => `- \`${c}\``),
+            ]
+          : ['When you work on an item, you have no shell: read, edit and write files only.']),
+        '',
+        'Agentry enforces this on the chats it starts for you; from a terminal, keep to it yourself.',
+        '',
+      ];
   return [
     '---',
     `name: ${yamlScalar(member.agent)}`,
@@ -219,6 +256,7 @@ export function agentFileContent(member: ProjectTeamMember): string {
     '',
     ...writes,
     '',
+    ...commands,
     '## How a flow run ends',
     '',
     "Agentry's flow starts you on a work item when its card enters a column you answer for. End every such run with the structured result it asks for:",
@@ -259,6 +297,17 @@ export function parseMemberRequest(agent: string, input: unknown): { member: Pro
     if (!Array.isArray(body.writes)) throw new TeamError('writes must be an array of paths', 400);
     if (body.writes.length > MAX_WRITES) throw new TeamError(`writes lists more than ${MAX_WRITES} paths`, 400);
     member.writes = [...new Set(body.writes.map((w) => text(w, 'writes', MAX_TEXT)))];
+  }
+  // null, like leaving it out, is an unrestricted shell; [] is no shell at all
+  if (body.commands !== undefined && body.commands !== null) {
+    if (!Array.isArray(body.commands)) throw new TeamError('commands must be an array of command patterns', 400);
+    if (body.commands.length > MAX_TEAM_COMMANDS) throw new TeamError(`commands lists more than ${MAX_TEAM_COMMANDS} patterns`, 400);
+    for (const command of body.commands as unknown[]) {
+      if (!isTeamCommandPattern(command)) throw new TeamError(`not a command pattern: ${JSON.stringify(command)} (one line, no parentheses, not only a wildcard)`, 400);
+      // The CLI's list of rules is comma separated, so a comma would cut the rule in two
+      if (command.includes(',')) throw new TeamError(`a command pattern cannot contain a comma: ${JSON.stringify(command)}`, 400);
+    }
+    member.commands = [...new Set(body.commands as string[])];
   }
   if (body.createFile !== undefined && typeof body.createFile !== 'boolean') throw new TeamError('createFile must be a boolean', 400);
   return { member, createFile: body.createFile === true };
@@ -446,6 +495,14 @@ export class TeamService {
    * person's choice.
    */
   async fromTemplate(projectId: string, input: unknown): Promise<Team> {
+    return (await this.addFromTemplate(projectId, input)).team;
+  }
+
+  /**
+   * `fromTemplate`, and the members it added: `POST /projects/:id/team/from-template` answers 201
+   * when it added any and 200 when every role was already on the team, like the other creating routes.
+   */
+  async addFromTemplate(projectId: string, input: unknown): Promise<{ team: Team; added: string[] }> {
     return this.serialized(async () => {
       const project = await this.deps.project(projectId);
       this.requireEnabled(project);
@@ -468,7 +525,7 @@ export class TeamService {
         members.push(member);
         added.push(member);
       }
-      if (!added.length) return this.view(project);
+      if (!added.length) return { team: this.view(project), added: [] };
 
       const flow: ProjectFlowSettings = project.settings.flow ?? { enabled: false, columns: {}, maxBounces: DEFAULT_MAX_BOUNCES };
       const columns = { ...flow.columns };
@@ -477,7 +534,7 @@ export class TeamService {
       const saved = { ...project, settings };
       for (const member of added) await this.writeFile(saved, member, true);
       this.emit(saved, 'template', added.map((m) => m.agent), `${project.name}: ${added.length} team members from the template`);
-      return this.view(saved);
+      return { team: this.view(saved), added: added.map((m) => m.agent) };
     });
   }
 
@@ -523,6 +580,23 @@ export class TeamService {
       await this.deps.saveSettings(project.id, { ...project.settings, team: { members: members.filter((m) => m !== member) } });
       this.emit(project, 'removed', [agent], `${project.name}: ${roleTitle(member.role)} left the team`);
     });
+  }
+
+  /**
+   * An agent file of the project saved or deleted outside the team's own routes (the resources
+   * editor, the assistant): announced as `file` when it is a member's, whose file state and drift
+   * change with it, or while the Team module is on, whose unassigned agents it is. Never throws.
+   */
+  async agentFileChanged(projectId: string, agent: string, action: 'saved' | 'removed'): Promise<void> {
+    try {
+      const project = await this.deps.project(projectId);
+      const member = project.settings.team?.members.find((m) => m.agent === agent);
+      if (!member && !project.settings.modules.includes('team')) return;
+      const what = member ? `${roleTitle(member.role)}'s agent file` : `agent file ${agent}`;
+      this.emit(project, 'file', [agent], `${project.name}: ${what} ${action === 'saved' ? 'saved' : 'deleted'}`);
+    } catch {
+      // the project went away meanwhile: nobody is left to tell
+    }
   }
 
   private serialized<T>(fn: () => Promise<T>): Promise<T> {

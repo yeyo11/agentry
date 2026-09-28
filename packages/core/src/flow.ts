@@ -5,9 +5,14 @@ import type { DatabaseSync } from 'node:sqlite';
 import {
   DEFAULT_FLOW_MAX_PARALLEL,
   DOCUMENT_KINDS,
+  FLOW_RUN_STATUSES,
+  FLOW_RUNS_PAGE,
+  FLOW_RUNS_PAGE_MAX,
   FLOW_STAGE_OF_COLUMN,
+  isTeamCommandPattern,
   MAX_FLOW_RESTARTS,
   type AgentryEvent,
+  type AgentryLanguage,
   type ChatActivity,
   type DocumentKind,
   type FlowCriterionResult,
@@ -16,7 +21,10 @@ import {
   type FlowRunAction,
   type FlowRunDocument,
   type FlowRunOutcome,
+  type FlowRunPage,
+  type FlowRunQuery,
   type FlowRunState,
+  type FlowRunStatus,
   type FlowStage,
   type FlowVerdict,
   type MemoryProposalTargetKind,
@@ -27,6 +35,7 @@ import {
   type WorkItem,
   type WorkItemActor,
   type WorkItemCause,
+  type WorkItemChange,
   type WorkItemRef,
   type WorkItemSource,
   type WorkItemStatus,
@@ -34,7 +43,7 @@ import {
 import type { RunResult } from './chats.ts';
 import type { Db } from './db.ts';
 import type { AgentryEventInput } from './events.ts';
-import { roleTitle } from './team.ts';
+import { roleTitle, roleTitleIn } from './team.ts';
 import { workItemPrompt } from './work-links.ts';
 import type { WorkItemService } from './work-items.ts';
 
@@ -98,6 +107,64 @@ const GIT_READS = ['status', 'diff', 'log', 'show'].flatMap((c) => [`Bash(git ${
 /** `--output` makes those same commands write a file anywhere, so it is denied beside them */
 const GIT_OUTPUT_DENIED = ['diff', 'log', 'show'].map((c) => `Bash(git ${c} *--output*)`);
 
+/** A request the flow refuses, with the status the API answers it with. */
+export class FlowError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: 400 | 404,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * The query of `GET /projects/:id/flow/runs` as the query string carries it (lists comma separated),
+ * checked: an unknown status, a limit out of range or a cursor this service did not write is refused.
+ */
+export function parseFlowRunQuery(raw: Record<string, unknown> | undefined): FlowRunQuery {
+  const query: FlowRunQuery = {};
+  const list = (value: unknown, field: string): string[] | undefined => {
+    if (value === undefined || value === '') return undefined;
+    if (typeof value !== 'string' && !Array.isArray(value)) throw new FlowError(`${field} must be a comma separated list`, 400);
+    const values = (Array.isArray(value) ? value : [value]).flatMap((v) => (typeof v === 'string' ? v.split(',') : [])).map((v) => v.trim()).filter(Boolean);
+    return values.length ? [...new Set(values)] : undefined;
+  };
+  const agents = list(raw?.agent, 'agent');
+  if (agents) query.agent = agents;
+  const statuses = list(raw?.status, 'status');
+  if (statuses) {
+    const unknown = statuses.filter((v) => !(FLOW_RUN_STATUSES as readonly string[]).includes(v));
+    if (unknown.length) throw new FlowError(`unknown status ${unknown.join(', ')}; a run is ${FLOW_RUN_STATUSES.join(', ')}`, 400);
+    query.status = statuses as FlowRunStatus[];
+  }
+  if (typeof raw?.itemId === 'string' && raw.itemId) query.itemId = raw.itemId;
+  if (raw?.limit !== undefined && raw.limit !== '') {
+    const limit = Number(raw.limit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > FLOW_RUNS_PAGE_MAX) throw new FlowError(`limit must be a whole number from 1 to ${FLOW_RUNS_PAGE_MAX}`, 400);
+    query.limit = limit;
+  }
+  if (typeof raw?.cursor === 'string' && raw.cursor) {
+    cursorSeq(raw.cursor);
+    query.cursor = raw.cursor;
+  }
+  return query;
+}
+
+/** A page's cursor is the position of its last run, so the next page starts after it whatever was added since. */
+function cursorOf(seq: number): string {
+  return Buffer.from(JSON.stringify({ seq }), 'utf8').toString('base64url');
+}
+
+function cursorSeq(cursor: string): number {
+  try {
+    const seq = (JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as { seq?: unknown }).seq;
+    if (typeof seq === 'number' && Number.isInteger(seq) && seq > 0) return seq;
+  } catch {
+    // refused below
+  }
+  throw new FlowError('cursor is not one this list gave out', 400);
+}
+
 /** What the flow knows of a project, read without waiting: its directory and its settings. */
 export interface FlowProject {
   path: string;
@@ -148,8 +215,16 @@ export interface FlowDeps {
   launch: (launch: FlowLaunch, onStart: (chatId: string) => void) => Promise<void>;
   /** A chat has a live execution now (a person may be working in it) */
   chatBusy: (chatId: string) => boolean;
+  /**
+   * The chat's turn hit its account's rate limit and the account rotation is on its way for it: the
+   * run waits to go on in the same chat on the next account (`rotated`) rather than fail. False when
+   * the rotation is off or has nothing left to try.
+   */
+  rotating?: (chatId: string) => boolean;
   stop: (chatId: string) => void;
   activity?: (chatId: string) => ChatActivity | null;
+  /** The person's language, which the first line of a run's chat is written in; English without it */
+  language?: () => AgentryLanguage;
   emit: (event: AgentryEventInput) => void;
 }
 
@@ -192,6 +267,9 @@ interface ParsedResult {
 }
 
 const TARGET_KINDS: readonly MemoryProposalTargetKind[] = ['instructions', 'memory', 'journal'];
+
+/** History entries that say where an item is or what worked on it, not what it asks: they give a refine nothing new to check */
+const UNCHANGING: ReadonlySet<WorkItemChange> = new Set<WorkItemChange>(['status', 'link', 'waiting']);
 
 /** The JSON Schema a run's result is held to (`--json-schema`); refining may also rewrite the item. */
 export function flowResultSchema(stage: FlowStage): Record<string, unknown> {
@@ -283,14 +361,20 @@ function editRules(paths: readonly string[]): string[] {
  * - **work** has the shell and the web, and writes the member's `writes` plus the documents folder.
  *   With no `writes`, edits are accepted anywhere in the place it works. With them the session runs
  *   in `dontAsk`, which denies whatever is not allowed outright: the CLI's rules cannot say "every
- *   path but these", so the paths are allowed rather than the rest denied. A shell command can
- *   still write files; `writes` bounds the edit tools, as the member's screen says;
+ *   path but these", so the paths are allowed rather than the rest denied. The shell is `Bash`
+ *   whole unless the member lists `commands`: then only `Bash(<pattern>)` for each, in `dontAsk`
+ *   too, and none at all for an empty list. A shell command can still write files; `writes` bounds
+ *   the edit tools, as the member's screen says, and `commands` is what bounds the shell;
  * - **verify** reads, asks git what changed, runs the test commands the project declares
  *   (`testCommandRules`), and writes only under the documents folder, where its report goes.
  *
  * Refining and verifying run in `dontAsk` whatever `writes` says, and `git push` is denied to all.
  */
-export function stageRules(stage: FlowStage, writes: readonly string[] | undefined, extra: { documentsPath: string; testCommands: readonly string[] }): FlowRules {
+export function stageRules(
+  stage: FlowStage,
+  writes: readonly string[] | undefined,
+  extra: { documentsPath: string; testCommands: readonly string[]; commands?: readonly string[] | undefined },
+): FlowRules {
   const documents = editRules([extra.documentsPath]);
   if (stage === 'refine') return { permissionMode: 'dontAsk', allowedTools: [...READ_TOOLS, ...documents], disallowedTools: [...DENIED_TOOLS] };
   if (stage === 'verify') {
@@ -300,9 +384,20 @@ export function stageRules(stage: FlowStage, writes: readonly string[] | undefin
       disallowedTools: [...DENIED_TOOLS, ...GIT_OUTPUT_DENIED],
     };
   }
-  const tools = [...READ_TOOLS, 'Bash', ...WEB_TOOLS];
-  if (!writes) return { permissionMode: 'acceptEdits', allowedTools: [...tools, ...WRITE_TOOLS], disallowedTools: [...DENIED_TOOLS] };
-  return { permissionMode: 'dontAsk', allowedTools: [...tools, ...editRules([...writes, extra.documentsPath])], disallowedTools: [...DENIED_TOOLS] };
+  const commands = extra.commands;
+  const tools = [...READ_TOOLS, ...(commands ? commandRules(commands) : ['Bash']), ...WEB_TOOLS];
+  if (!writes && !commands) return { permissionMode: 'acceptEdits', allowedTools: [...tools, ...WRITE_TOOLS], disallowedTools: [...DENIED_TOOLS] };
+  const edits = writes ? editRules([...writes, extra.documentsPath]) : WRITE_TOOLS;
+  return { permissionMode: 'dontAsk', allowedTools: [...tools, ...edits], disallowedTools: [...DENIED_TOOLS] };
+}
+
+/**
+ * A member's shell commands as the CLI's rules: `Bash(<pattern>)` each. A pattern the rule could not
+ * carry (a comma splits the flag's list, a parenthesis closes the rule, a newline starts another) is
+ * left out, which allows less, never more.
+ */
+function commandRules(commands: readonly string[]): string[] {
+  return [...new Set(commands.filter((c) => isTeamCommandPattern(c) && !c.includes(',')).map((c) => `Bash(${c})`))];
 }
 
 const SCRIPT_NAME = /^[A-Za-z0-9][\w:.-]{0,63}$/;
@@ -355,10 +450,26 @@ export function testCommandRules(dir: string): string[] {
   return [...new Set(rules)];
 }
 
-/** The stage's instructions, then the item as "Work on it" gives it. */
-export function flowPrompt(stage: FlowStage, column: WorkItemStatus, item: WorkItem, member: ProjectTeamMember, extra: { documentsPath: string; rejection: string | null }): string {
+/**
+ * A run's chat is listed by its first prompt's first line, so that line is the person's, in their
+ * language: the member's role, the item's key and its title (`Desarrollador · AGN-12 · Fix the cart`).
+ * The instructions for Claude after it stay in English.
+ */
+export function flowTitle(item: Pick<WorkItem, 'key' | 'title'>, role: string, language: AgentryLanguage): string {
+  const title = item.title.replace(/\s+/g, ' ').trim();
+  return [roleTitleIn(role, language), item.key, ...(title ? [title] : [])].join(' · ');
+}
+
+/** The run's title, the stage's instructions, then the item as "Work on it" gives it. */
+export function flowPrompt(
+  stage: FlowStage,
+  column: WorkItemStatus,
+  item: WorkItem,
+  member: ProjectTeamMember,
+  extra: { documentsPath: string; rejection: string | null; language?: AgentryLanguage },
+): string {
   const who = `You are the ${roleTitle(member.role)} of this project's team, started by Agentry's flow by column because ${item.key} entered ${column}.`;
-  const lines = [workItemPrompt(item), '', '---', '', who, ''];
+  const lines = [flowTitle(item, member.role, extra.language ?? 'en'), '', workItemPrompt(item), '', '---', '', who, ''];
   if (stage === 'refine' && column === 'backlog') {
     lines.push(
       'Refine it so a developer can start without asking: complete its description and its acceptance criteria.',
@@ -404,6 +515,11 @@ export class FlowService {
   /** One dispatch at a time: claiming reads the counts, and two at once could both see a free place */
   private dispatching: Promise<void> = Promise.resolve();
   private recovered = false;
+  /**
+   * Chats of running runs whose turn hit the rate limit, waiting for the rotation to say whether they
+   * go on. In memory: a restart meanwhile continues the run in its chat anyway (`recover`).
+   */
+  private readonly awaitingRotation = new Set<string>();
 
   constructor(private readonly deps: FlowDeps) {
     this.sql = deps.db.connection;
@@ -437,6 +553,59 @@ export class FlowService {
   run(runId: string): FlowRun | null {
     const row = this.row(runId);
     return row ? this.runOf(row) : null;
+  }
+
+  /**
+   * `GET /work-items/:itemId/runs`: every run of an item, newest first, whatever its state. The Team
+   * screen holds each member's latest run only, so an older failed run read as a normal one there.
+   */
+  itemRuns(itemId: string): FlowRun[] {
+    const rows = this.sql.prepare('SELECT * FROM flow_runs WHERE item_id = ? ORDER BY queued_at DESC, seq DESC').all(itemId) as unknown as RunRow[];
+    return rows.map((r) => this.runOf(r));
+  }
+
+  /**
+   * `GET /projects/:id/flow/runs`: the team's activity, every run of the project newest first, a page
+   * at a time. Newest first is the order they were queued in, `seq`, which the cursor carries, so a
+   * run queued while someone pages never shifts the pages after it.
+   */
+  page(projectId: string, query: FlowRunQuery = {}): FlowRunPage {
+    const where = ['project_id = ?'];
+    const params: Array<string | number> = [projectId];
+    if (query.agent?.length) {
+      where.push('agent IN (SELECT value FROM json_each(?))');
+      params.push(JSON.stringify(query.agent));
+    }
+    if (query.itemId) {
+      where.push('item_id = ?');
+      params.push(query.itemId);
+    }
+    if (query.status?.length) {
+      const states = query.status.filter((v): v is 'queued' | 'running' => v === 'queued' || v === 'running');
+      const outcomes = query.status.filter((v) => v !== 'queued' && v !== 'running');
+      const any: string[] = [];
+      if (states.length) {
+        any.push('state IN (SELECT value FROM json_each(?))');
+        params.push(JSON.stringify(states));
+      }
+      if (outcomes.length) {
+        // An ended run with no outcome, which the store never writes, reads as failed (`flowRunStatus`)
+        any.push(`(state = 'ended' AND (outcome IN (SELECT value FROM json_each(?))${outcomes.includes('failed') ? ' OR outcome IS NULL' : ''}))`);
+        params.push(JSON.stringify(outcomes));
+      }
+      where.push(`(${any.join(' OR ')})`);
+    }
+    const filter = where.join(' AND ');
+    const total = (this.sql.prepare(`SELECT COUNT(*) AS n FROM flow_runs WHERE ${filter}`).get(...params) as { n: number }).n;
+    const limit = Math.min(Math.max(1, query.limit ?? FLOW_RUNS_PAGE), FLOW_RUNS_PAGE_MAX);
+    const after = query.cursor ? cursorSeq(query.cursor) : null;
+    const rows = this.sql
+      .prepare(`SELECT * FROM flow_runs WHERE ${filter}${after !== null ? ' AND seq < ?' : ''} ORDER BY seq DESC LIMIT ?`)
+      .all(...params, ...(after !== null ? [after] : []), limit + 1) as unknown as RunRow[];
+    const more = rows.length > limit;
+    const runs = rows.slice(0, limit);
+    const last = runs[runs.length - 1];
+    return { runs: runs.map((r) => this.runOf(r)), total, nextCursor: more && last ? cursorOf(last.seq) : null };
   }
 
   /** A run's chat is the flow's while the run goes on: the work-links automation leaves it alone. */
@@ -507,6 +676,12 @@ export class FlowService {
     const member = role && project ? memberOf(project.settings, role) : null;
     if (!project || !active(project.settings) || !stage || !member || item.type === 'epic' || item.status !== column) {
       this.cancelQueued(itemId, 'the item moved');
+      return;
+    }
+    // The Product Owner refined it already and nothing has changed since: checking it again in todo
+    // would be a second paid run to say the same
+    if (this.refinedAlready(item, column, member.role)) {
+      this.cancelQueued(itemId, 'it was refined and has not changed since');
       return;
     }
     const now = new Date().toISOString();
@@ -613,6 +788,11 @@ export class FlowService {
       this.end(row.id, 'cancelled', null, 'nobody on the team answers for the column now');
       return null;
     }
+    // Queued while the refine it would repeat was still running: that one has spoken for it
+    if (!row.chat_id && this.refinedAlready(item, item.status, row.role)) {
+      this.end(row.id, 'cancelled', null, 'it was refined and has not changed since');
+      return null;
+    }
     // The count and the claim in one transaction: two processes on one database could otherwise
     // both see the last free place and both take it
     const now = new Date().toISOString();
@@ -647,7 +827,7 @@ export class FlowService {
     const continuing = row.chat_id !== null;
     const resumeChatId = row.chat_id ?? (stage === 'work' ? this.workChat(item.id) : null);
     const documentsPath = project.settings.documents?.path ?? 'docs';
-    const rules = stageRules(stage, member.writes, { documentsPath, testCommands: stage === 'verify' ? testCommandRules(project.path) : [] });
+    const rules = stageRules(stage, member.writes, { documentsPath, testCommands: stage === 'verify' ? testCommandRules(project.path) : [], commands: member.commands });
     const launch: FlowLaunch = {
       run: this.runOf(row),
       item,
@@ -657,6 +837,7 @@ export class FlowService {
         : flowPrompt(stage, row.column_name as WorkItemStatus, item, member, {
             documentsPath,
             rejection: stage === 'work' && (item.bounces ?? 0) > 0 ? this.rejection(item.id, project.settings) : null,
+            language: this.deps.language?.() ?? 'en',
           }),
       appendSystemPrompt: this.deps.handoff(item.projectId),
       jsonSchema: flowResultSchema(stage),
@@ -727,15 +908,48 @@ export class FlowService {
     }
   }
 
-  /** The chat's process ended; a run still going got no result, and failed. */
+  /** The chat's process ended; a run still going got no result, and failed, unless it waits for the rotation. */
   chatEnded(chatId: string, error: string | null): void {
     const row = this.sql.prepare("SELECT * FROM flow_runs WHERE chat_id = ? AND state = 'running'").get(chatId) as RunRow | undefined;
     if (!row) return;
+    // The process the limit took down: the run goes on in this chat once the rotation replays it
+    if (this.awaitingRotation.has(chatId)) return;
+    if (this.deps.rotating?.(chatId)) {
+      this.awaitingRotation.add(chatId);
+      return;
+    }
     this.end(row.id, 'failed', null, error ?? 'the chat ended without a result');
     this.dispatch();
   }
 
+  /** A run's chat is waiting for the account rotation, which may replay its turn: the core's to do. */
+  awaitsRotation(chatId: string): boolean {
+    return this.awaitingRotation.has(chatId);
+  }
+
+  /**
+   * What the rotation came to for a chat that hit the rate limit. Resumed, its turn was replayed on
+   * the next account in the same chat, and the run goes on there; otherwise no account was left to
+   * take it over, and the run fails and says so on its item.
+   */
+  rotated(chatId: string, outcome: { resumed: boolean; reason?: string | null }): void {
+    try {
+      if (!this.awaitingRotation.delete(chatId) || outcome.resumed) return;
+      const row = this.sql.prepare("SELECT * FROM flow_runs WHERE chat_id = ? AND state = 'running'").get(chatId) as RunRow | undefined;
+      if (!row) return;
+      this.end(row.id, 'failed', null, `the account hit its rate limit and no other account could take the run over${outcome.reason ? ` (${outcome.reason})` : ''}`);
+      this.dispatch();
+    } catch {
+      // heard from the core's rotation: a closed database (shutting down) must not become its error
+    }
+  }
+
   private async finish(row: RunRow, result: FlowChatResult): Promise<void> {
+    // A turn the rate limit cut goes on in the same chat on the next account, as a person's chat does
+    if (result.isError && result.cause === 'rate-limit' && row.chat_id && (this.awaitingRotation.has(row.chat_id) || this.deps.rotating?.(row.chat_id))) {
+      this.awaitingRotation.add(row.chat_id);
+      return;
+    }
     const parsed = result.isError ? null : parseResult(result.structuredOutput, row.stage as FlowStage);
     const failure = result.isError ? chatFailure(result, this.deps.project(row.project_id)?.settings) : parsed ? null : 'the run ended without a readable structured result';
     const verdictMissing = !!parsed && row.stage === 'verify' && !parsed.verdict;
@@ -848,6 +1062,29 @@ export class FlowService {
     }
   }
 
+  /**
+   * Whether the todo check of an item would repeat a refine: the role's latest refine of the item
+   * passed, and nothing has changed on the item since it started but what that run wrote itself (its
+   * description, criteria, comment, documents and its move to todo). An edit, a comment or a relation
+   * from anyone else is something to check again; so is a refine that failed or was cancelled. Moves
+   * and links are not: they say where the item is, not what it asks. Only todo: a card a person puts
+   * back in backlog asks for a new refine.
+   */
+  private refinedAlready(item: WorkItem, column: WorkItemStatus, role: string): boolean {
+    if (column !== 'todo') return false;
+    const last = this.sql
+      .prepare("SELECT * FROM flow_runs WHERE item_id = ? AND stage = 'refine' AND role = ? AND state = 'ended' ORDER BY seq DESC LIMIT 1")
+      .get(item.id, role) as RunRow | undefined;
+    if (!last || last.outcome !== 'passed') return false;
+    const since = last.started_at ?? last.queued_at;
+    const own = (actor: WorkItemActor, chatId: string | null | undefined): boolean => actor.kind === 'agent' && actor.role === last.role && !!last.chat_id && chatId === last.chat_id;
+    const changed = this.deps.items
+      .history(item.id)
+      .some((e) => e.createdAt >= since && !UNCHANGING.has(e.change) && !own(e.actor, e.cause?.chatId));
+    if (changed) return false;
+    return !this.deps.items.comments(item.id).some((c) => c.createdAt >= since && !own(c.author, c.source?.chatId));
+  }
+
   private personMovedSince(itemId: string, since: string): boolean {
     return this.deps.items.history(itemId).some((e) => e.change === 'status' && e.actor.kind === 'person' && e.createdAt >= since);
   }
@@ -892,6 +1129,9 @@ export class FlowService {
   private end(runId: string, outcome: FlowRunOutcome, summary: string | null, error: string | null): boolean {
     const ended = this.endRow(runId, outcome, summary, error, new Date().toISOString());
     if (!ended) return false;
+    // A run stopped while it waited for the rotation is not replayed once the rotation comes back
+    const chatId = this.row(runId)?.chat_id;
+    if (chatId) this.awaitingRotation.delete(chatId);
     this.announce(runId, 'ended');
     if (outcome === 'failed') this.reportFailure(runId);
     return true;

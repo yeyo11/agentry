@@ -419,7 +419,10 @@ test('a message of a chat becomes a task in backlog, linked to the chat it came 
   const detail = await item(created.id);
   assert.deepEqual(detail.links.map((l) => [l.kind, l.role, l.chatId]), [['chat', 'origin', chatId]]);
   assert.equal(detail.history[0]?.cause?.event, 'chat.message');
-  assert.ok((await app.inject(`/api/chats/${chatId}/work-items`)).json<WorkItem[]>().some((i) => i.id === created.id));
+  // The chat's header reads a card: the description stays on the item's page
+  const card = (await app.inject(`/api/chats/${chatId}/work-items`)).json<WorkItem[]>().find((i) => i.id === created.id);
+  assert.equal(card?.description, '');
+  assert.equal(card?.hasDescription, true);
 
   // The chat that ends another turn does not move the item it was only the origin of
   const titled = await app.inject({ method: 'POST', url: `/api/chats/${chatId}/work-items`, ...json({ text: 'body', title: 'Own title' }) });

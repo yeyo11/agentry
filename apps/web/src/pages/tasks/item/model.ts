@@ -9,7 +9,6 @@ import type {
   AcceptanceCriterion,
   ChangedFile,
   FlowRun,
-  TeamMember,
   WorkItem,
   WorkItemAssignee,
   WorkItemCause,
@@ -225,21 +224,15 @@ export function linkEffect(
 }
 
 /**
- * The flow run a chat link was made for, as the team reads it: the one going in that chat, or the
- * latest a member ended there. A failed run leaves its chat looking finished ("completed") and the
- * item unmoved, so this is what says it failed. Null for a chat the flow did not run, and for an
- * older run after which the member ended others (its failure is still the item's comment).
+ * The flow run a chat link was made for: the newest of the item's runs in that chat (`GET
+ * /work-items/:itemId/runs`, newest first). A failed run leaves its chat looking finished
+ * ("completed") and the item unmoved, so this is what says it failed, for every run of the item and
+ * not only a member's latest. A newer run going on in the same chat is what the link shows. Null for
+ * a chat the flow did not run.
  */
-export function linkRun(
-  link: Pick<WorkItemLink, 'kind' | 'chatId'>,
-  members: ReadonlyArray<Pick<TeamMember, 'running' | 'lastRun'>>,
-): Pick<FlowRun, 'state' | 'outcome' | 'error'> | null {
+export function linkRun<R extends Pick<FlowRun, 'chatId' | 'state' | 'outcome' | 'error'>>(link: Pick<WorkItemLink, 'kind' | 'chatId'>, runs: readonly R[]): R | null {
   if (link.kind !== 'chat' || !link.chatId) return null;
-  for (const member of members) {
-    const going = member.running.find((run) => run.chatId === link.chatId);
-    if (going) return going;
-  }
-  return members.map((member) => member.lastRun).find((run) => run?.chatId === link.chatId) ?? null;
+  return runs.find((run) => run.chatId === link.chatId) ?? null;
 }
 
 /** Why a link's flow run failed, when it did: the reason the core recorded, or '' when it gave none. */

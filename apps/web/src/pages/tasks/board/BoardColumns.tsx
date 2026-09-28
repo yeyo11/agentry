@@ -3,11 +3,10 @@ import { WORK_ITEM_STATUSES } from '@agentry/shared';
 import { Plus, TriangleAlert } from 'lucide-react';
 import { Fragment, useLayoutEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
 import { ICON_SM, WorkItemStatusIcon } from '../../../components/icons';
 import { columnMeta } from '../../../lib/work-items';
 import type { LiveSources } from './LiveLine';
-import { DONE_SHOWN, isSamePlace, keyboardDrop, type Drop, type NotSelectable } from './model';
+import { foldColumn, isSamePlace, keyboardDrop, type Drop, type NotSelectable } from './model';
 import { ColumnRole } from './team';
 import { useMoveWorkItem } from './useMoveWorkItem';
 import { WorkItemCard } from './WorkItemCard';
@@ -42,7 +41,8 @@ export function BoardColumns({
   live,
   selection,
   moving = true,
-  moreTo,
+  doneShown,
+  onMoreDone,
   onOpen,
   onNewTask,
 }: {
@@ -54,8 +54,9 @@ export function BoardColumns({
   selection: BoardSelection | null;
   /** Off while a filter hides cards: a drop between visible cards is still honest, so it stays on */
   moving?: boolean;
-  /** Where "and N more" in Done leads: the list of what is done */
-  moreTo: string;
+  /** How many Done cards are drawn; "and N more" asks for the next page of them */
+  doneShown: number;
+  onMoreDone: () => void;
   onOpen: (item: WorkItem) => void;
   onNewTask?: ((status: WorkItemStatus) => void) | undefined;
 }) {
@@ -189,9 +190,8 @@ export function BoardColumns({
       {WORK_ITEM_STATUSES.map((status) => {
         const column = byStatus.get(status) ?? { status, limit: null, count: 0, overLimit: false, items: [] };
         const all = drawn(column);
-        const done = status === 'done';
-        const shown = done ? all.slice(0, Math.max(DONE_SHOWN, grab?.at.status === 'done' ? grab.at.index + 1 : 0)) : all;
-        const hidden = all.length - shown.length;
+        // A card carried down Done by keyboard stays drawn wherever it goes
+        const { shown, hidden } = foldColumn({ ...column, items: all }, Math.max(doneShown, grab?.at.status === 'done' ? grab.at.index + 1 : 0));
         const limit = projectNames ? null : column.limit;
         const over = !projectNames && column.overLimit;
         const others = dragId ? shown.filter((item) => item.id !== dragId) : shown;
@@ -258,9 +258,9 @@ export function BoardColumns({
               {indicatorAt >= 0 && indicatorAt >= others.length && indicator}
               {shown.length === 0 && indicatorAt < 0 && <div className="workitem-col-slot">{dragId ? t('column.drop') : t('column.empty')}</div>}
               {hidden > 0 && (
-                <Link to={moreTo} className="workitem-col-slot is-more">
+                <button type="button" className="workitem-col-slot is-more" onClick={onMoreDone}>
                   {t('column.more', { count: hidden })}
-                </Link>
+                </button>
               )}
             </div>
           </section>

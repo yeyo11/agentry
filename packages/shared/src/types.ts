@@ -1041,6 +1041,13 @@ export interface ProjectTeamMember extends ProjectTeamRole {
    * from a terminal it is only what the agent file says.
    */
   writes?: string[];
+  /**
+   * The shell commands the member may run in the flow's work stage, as patterns the CLI's permission
+   * rules take (`npm test`, `pnpm *`: each becomes `Bash(<pattern>)`). Absent means `Bash` is not
+   * restricted there, as before; present means only these, and an empty list means no shell at all.
+   * The refine and verify stages keep their own tool sets. Checked with {@link isTeamCommandPattern}.
+   */
+  commands?: string[];
 }
 
 /**
@@ -1345,8 +1352,17 @@ export interface WorkItem {
   key: string;
   type: WorkItemType;
   title: string;
-  /** Markdown */
+  /**
+   * Markdown. Left out of board and list payloads (the board, the lists and their pages, a chat's
+   * items), where it is `''` and {@link WorkItem.hasDescription} says whether there is one: the
+   * item's own page fetches it (`GET /work-items/:itemId`, `GET /work-items/by-key/:key`).
+   */
   description: string;
+  /**
+   * Whether the item has a description, set wherever `description` is left out. Absent where the
+   * description is served whole, where it reads as `description !== ''`.
+   */
+  hasDescription?: boolean;
   status: WorkItemStatus;
   priority: WorkItemPriority;
   /** Free text, in the order they were given */
@@ -1389,7 +1405,11 @@ export interface WorkItem {
   closedAt: string | null;
 }
 
-/** One work item with what its page shows beyond the card. */
+/**
+ * One work item with what its page shows beyond the card: `GET /work-items/:itemId`, or
+ * `GET /work-items/by-key/:key` for its key (`AGN-12`, in any case; 404 when no project's item has
+ * it, since a key prefix is unique among projects).
+ */
 export interface WorkItemDetail extends WorkItem {
   /** For an epic, the items it groups */
   children: WorkItemRef[];
@@ -1512,6 +1532,27 @@ export interface WorkItemFilter {
   q?: string;
 }
 
+/**
+ * `GET /projects/:id/work-items/page` and `GET /work-items/page` (All projects): the list a page at a
+ * time, in the same order as the whole list, with the same filter. `GET /projects/:id/work-items`
+ * and `GET /work-items` still answer the whole list as an array.
+ */
+export interface WorkItemPageQuery extends Omit<WorkItemFilter, 'projectId'> {
+  /** Default `WORK_ITEMS_PAGE` (100), at most `WORK_ITEMS_PAGE_MAX` */
+  limit?: number;
+  /** `nextCursor` of the previous page; absent for the first */
+  cursor?: string;
+}
+
+/** A page of work items, descriptions left out. */
+export interface WorkItemPage {
+  items: WorkItem[];
+  /** Every item that passes the filter, across the pages */
+  total: number;
+  /** Opaque: pass as `cursor` for the next page; null on the last */
+  nextCursor: string | null;
+}
+
 export type MilestoneState = 'open' | 'closed';
 
 /** Derived from the milestone's work items, epics left out: they group work, they are not work. */
@@ -1565,8 +1606,28 @@ export interface BoardColumnSummary {
 }
 
 export interface BoardColumn extends BoardColumnSummary {
-  /** The items that pass the filter, in rank order */
+  /**
+   * The items that pass the filter, in rank order, descriptions left out. The Done column holds
+   * only the most recently closed of them, `doneLimit` ({@link BoardQuery}), still in rank order
+   */
   items: WorkItem[];
+  /**
+   * Items that pass the filter and are left out of `items`: "and N more", which asks the board again
+   * with a larger `doneLimit`. Only the Done column leaves any out; absent reads as 0.
+   */
+  more?: number;
+}
+
+/**
+ * `GET /projects/:id/work-items/board` and `GET /work-items/board` take the filter
+ * ({@link WorkItemFilter}) and this. The Done column grows without end, so it is paged: a board
+ * holds its newest closed items, and "and N more" asks again with the next multiple of the page.
+ * Asking for a larger limit rather than a cursor keeps one board per query, which the event feed
+ * refreshes whole.
+ */
+export interface BoardQuery {
+  /** Items of the Done column to hold; default `BOARD_DONE_PAGE`, at most `WORK_ITEMS_PAGE_MAX` */
+  doneLimit?: number;
 }
 
 export interface Board {
@@ -1690,6 +1751,10 @@ export interface Team {
  * Writes the members of the project's template (`ProjectTemplate.team`). The person accepts them one
  * by one, so `roles` names the ones accepted; absent means every role of the template. An agent file
  * that already exists is kept as it is, and a role already on the team is left alone.
+ *
+ * `POST /projects/:id/team/from-template` answers the whole {@link Team}: with 201 when it added at
+ * least one member, and with 200 when nothing changed (every role was already on the team), like
+ * the other creating routes. Sending it twice is harmless either way.
  */
 export interface TeamFromTemplateRequest {
   roles?: string[];
@@ -1701,6 +1766,8 @@ export interface TeamFromTemplateRequest {
  */
 export interface PutTeamMemberRequest extends ProjectTeamRole {
   writes?: string[];
+  /** Absent or null leaves the shell unrestricted in the work stage ({@link ProjectTeamMember.commands}) */
+  commands?: string[] | null;
   /** Write a starting agent file for the role when there is none; an existing file is never overwritten */
   createFile?: boolean;
 }
@@ -1749,6 +1816,12 @@ export interface FlowRun {
   error: string | null;
   /** Times a restart cut it off and it went on in its chat; past `MAX_FLOW_RESTARTS` it fails */
   restarts: number;
+  /**
+   * The person's language, which the first line of its chat's prompt (`<Role> · <KEY>`, the title the
+   * chat is listed by) is written in, kept so a restart words it the same. Absent on a run stored
+   * before it was kept, which reads as `en`.
+   */
+  language?: AgentryLanguage;
   queuedAt: string;
   startedAt: string | null;
   endedAt: string | null;
@@ -1764,6 +1837,42 @@ export interface ProjectFlow {
   running: FlowRun[];
   /** In the order they will start */
   queued: FlowRun[];
+}
+
+/**
+ * A run's state and outcome in one word, what the team's activity filters and shows: `queued` and
+ * `running` while it has not ended, its {@link FlowRunOutcome} once it has (`flowRunStatus`).
+ */
+export type FlowRunStatus = Exclude<FlowRunState, 'ended'> | FlowRunOutcome;
+
+/**
+ * `GET /work-items/:itemId/runs` answers every flow run of an item as `FlowRun[]`, newest first
+ * (by `queuedAt`), whatever its state: an older failed run still shows as failed on the item, and a
+ * failed run's chat page finds its run (by `chatId`) to say why it failed and which item it was for.
+ *
+ * `GET /projects/:id/flow/runs` pages every flow run of a project, newest first, for the team's
+ * activity ("See all"). Every field is optional; the values of a list are alternatives and fields
+ * combine. In a query string, a list is comma separated.
+ */
+export interface FlowRunQuery {
+  /** Members, by agent file name */
+  agent?: string[];
+  status?: FlowRunStatus[];
+  /** Runs of one work item */
+  itemId?: string;
+  /** Default `FLOW_RUNS_PAGE`, at most `FLOW_RUNS_PAGE_MAX` */
+  limit?: number;
+  /** `nextCursor` of the previous page; absent for the first */
+  cursor?: string;
+}
+
+/** A page of a project's flow runs, newest first. */
+export interface FlowRunPage {
+  runs: FlowRun[];
+  /** Every run that passes the filter, across the pages */
+  total: number;
+  /** Opaque: pass as `cursor` for the next page; null on the last */
+  nextCursor: string | null;
 }
 
 /** QA's verdict: `pass` leaves the item waiting for the person's approval, `fail` sends it back to `in_progress`. */
@@ -2104,6 +2213,17 @@ export interface AssistantRun {
   model: string;
   /** What the person described: the one resource "Create with AI" builds, or what an empty project is for */
   description: string | null;
+  /**
+   * For a `work-items` run, what to look for ("Suggest tasks"'s focus, {@link StartAssistantRunRequest.focus});
+   * absent or null otherwise, and on a run stored before it was its own field
+   */
+  focus?: string | null;
+  /**
+   * The person's language when it started, which its chat's title is written in, kept so a run
+   * started again after a restart words it the same. Absent on a run stored before it was kept,
+   * which reads as `en`.
+   */
+  language?: AgentryLanguage;
   /** For a `resources` run from a description, the kind of the one resource it builds; null otherwise */
   resourceKind: AssistantResourceKind | null;
   /**
@@ -2144,6 +2264,22 @@ export interface AssistantRun {
 export interface AssistantRunDetail extends AssistantRun {
   /** Every proposal it made, whatever its status, by kind then in the order it proposed them */
   proposals: AssistantProposal[];
+  /**
+   * "Create with AI" while it runs: the one resource as the chat is writing it, read from its partial
+   * structured output or its stream, so the editor opens at once and fills in. Absent or null for
+   * every other run, and once the run ended (its proposal carries the whole file). Refreshed through
+   * `assistant.run` events with the action `read`.
+   */
+  draft?: AssistantResourceDraft | null;
+}
+
+/** The resource a running "Create with AI" has written so far; nothing of it is saved. */
+export interface AssistantResourceDraft {
+  kind: AssistantResourceKind;
+  /** Null until the chat has written it */
+  name: string | null;
+  /** What it has written of the whole file so far, frontmatter included; empty before the first part */
+  content: string;
 }
 
 /**
@@ -2160,6 +2296,12 @@ export interface StartAssistantRunRequest {
    * `project` or `work-items` run, what the project is for when there is nothing to read
    */
   description?: string;
+  /**
+   * For a `work-items` run ("Suggest tasks"), what to look for ("the checkout's error handling"): the
+   * prompt words it as the area to propose work in, not as what the project is for. Refused on
+   * the other kinds. The language is not a field: it is the request's `Accept-Language`.
+   */
+  focus?: string;
   /** Required with a `resources` run's `description` */
   resourceKind?: AssistantResourceKind;
   /** Mark the pending proposals of the latest finished run of this kind `superseded`. Default false */
@@ -2424,6 +2566,14 @@ export interface Localized {
   /** The English sentence, always present */
   text: string;
 }
+
+/**
+ * The languages Agentry speaks. A chat Agentry starts on its own is listed by the first line of its
+ * prompt, so that line is written in the person's language, read from the request's
+ * `Accept-Language` (`agentryLanguage`) and kept on what runs later or again (an assistant run, a
+ * flow run); the instructions for Claude after it may stay in English.
+ */
+export type AgentryLanguage = 'en' | 'es';
 
 // ---------- Orchestration ----------
 
@@ -4170,7 +4320,9 @@ export interface ProjectUpdatedEvent extends AgentryEventBase {
 /**
  * `created` and `updated` are a member's metadata written through `PUT`, `template` the members a
  * template wrote, `removed` a member taken off the team (its agent file stays), and `file` an agent
- * file of a member written, deleted or found drifted.
+ * file of a member written, deleted or found drifted: saved or deleted through the resources route
+ * (`/config/resources/agents/:name?project=`), whose `agents` names the member, or rewritten by the
+ * team service to follow the metadata.
  */
 export type TeamChangeAction = 'created' | 'updated' | 'removed' | 'template' | 'file';
 
@@ -4247,8 +4399,9 @@ export interface FlowRunEvent extends AgentryEventBase, WorkItemEventRef {
 
 /**
  * `started` and `failed` as they say; `ended` a run that completed or was stopped (its `status`
- * says which); `read` a running one's {@link AssistantRun.sources} or cost changed, at most every
- * few seconds, so "what it has read" fills in without polling.
+ * says which); `read` a running one's {@link AssistantRun.sources}, cost or
+ * {@link AssistantRunDetail.draft} changed, at most every few seconds, so "what it has read" and the
+ * file "Create with AI" writes fill in without polling.
  */
 export type AssistantRunAction = 'started' | 'read' | 'ended' | 'failed';
 

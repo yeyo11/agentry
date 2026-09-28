@@ -1,32 +1,29 @@
 import type { BoardColumn, WorkItem, WorkItemStatus } from '@agentry/shared';
 import { WORK_ITEM_STATUSES } from '@agentry/shared';
-import { Info, Plus } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { useWorkItemBoard } from '../../api';
-import { ICON_SM } from '../../components/icons';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useWorkItemBoard, useWorkItemPages } from '../../api';
 import { FabStandIn } from '../../components/shell/Fab';
-import { Card, Empty, ErrorBox, Skeleton } from '../../components/ui';
+import { Card, ErrorBox, Skeleton } from '../../components/ui';
 import { NARROW, useMediaQuery } from '../../lib/media';
 import { DirtyScope } from '../../lib/dirty';
 import {
   boardColumns,
-  filtersToSearch,
-  firstKey,
   NEW_TASK_PARAM,
   openCount,
   returnState,
   staleFilters,
   taskPath,
-  TASKS_PATH,
-  VIEW_PARAM,
   viewFromSearch,
 } from '../../lib/work-items';
 import { BoardColumns, type BoardSelection } from './board/BoardColumns';
+import { BoardOff, EmptyBoard, NoBoards, NothingFiltered } from './board/EmptyBoards';
 import { useLiveSources } from './board/LiveLine';
 import { BoardTeamProvider, FlowButton, useBoardTeamData } from './board/team';
-import { boardItems, epicProgress, NO_MILESTONE, notSelectable } from './board/model';
+import { boardItems, boardTotal, DONE_SHOWN, doneLimitFor, holdsPart, NO_MILESTONE, nextDoneShown, notSelectable } from './board/model';
+import { useEpicProgress } from './board/useEpicProgress';
 import { PhoneBoard } from './board/PhoneBoard';
 import { PhoneSelectionFoot, SelectionBar, SelectionNote } from './board/SelectionBar';
 import { List } from './List';
@@ -70,9 +67,16 @@ function TasksBoard() {
   const filters = useTaskFilters();
   const enabled = scope.settled && !scope.boardOff;
 
-  const full = useWorkItemBoard(scope.projectId, {}, enabled);
-  const narrowed = useWorkItemBoard(scope.projectId, filters.query, enabled && filters.active);
+  // Done draws its first few cards, and each "and N more" the next page of them, asked of the server
+  // once the board's own page runs out; a new scope starts folded again
+  const [doneShown, setDoneShown] = useState(DONE_SHOWN);
+  useEffect(() => setDoneShown(DONE_SHOWN), [scope.projectId]);
+  const doneLimit = doneLimitFor(doneShown);
+  const full = useWorkItemBoard(scope.projectId, {}, enabled, filters.active ? undefined : doneLimit);
+  const narrowed = useWorkItemBoard(scope.projectId, filters.query, enabled && filters.active, doneLimit);
   const answer = filters.active ? narrowed : full;
+  // The list reads its rows a page at a time, and the board above only for its columns' figures
+  const pages = useWorkItemPages(scope.projectId, filters.query, enabled && view === 'list');
   const milestones = useScopeMilestones(scope.allProjects ? scope.boardProjects.map((p) => p.id) : scope.projectId && !scope.boardOff ? [scope.projectId] : []);
 
   // The previous scope's board stands in while a new one loads; its cards would belong elsewhere
@@ -83,7 +87,7 @@ function TasksBoard() {
   );
   const allItems = useMemo(() => boardItems(full.data), [full.data]);
   const shownItems = useMemo(() => columns.flatMap((column) => column.items), [columns]);
-  const epics = useMemo(() => epicProgress(allItems), [allItems]);
+  const epics = useEpicProgress(full.data, allItems);
   const live = useLiveSources(shownItems);
   // A project worked by a team: its columns' roles, the runs on its cards, and the way to its flow
   const team = useBoardTeamData(scope.allProjects || scope.boardOff ? null : scope.project);
@@ -91,8 +95,9 @@ function TasksBoard() {
 
   // An epic or a milestone the scope does not have (another project's, or deleted) has no chip to
   // take it off and leaves "0 of N": once the scope's own are known, it goes from the address. It
-  // is judged only on fresh lists: one just created may not be in a cached answer yet
-  const epicsKnown = full.isSuccess && !full.isPlaceholderData && !full.isFetching;
+  // is judged only on fresh lists: one just created may not be in a cached answer yet. A board whose
+  // Done column leaves items out may leave a closed epic out with them, so it judges no epic
+  const epicsKnown = full.isSuccess && !full.isPlaceholderData && !full.isFetching && !holdsPart(full.data);
   const knownEpics = useMemo(() => (epicsKnown ? new Set(allItems.filter((item) => item.type === 'epic').map((item) => item.id)) : null), [epicsKnown, allItems]);
   const milestonesKnown = !milestones.loading && !milestones.fetching;
   const knownMilestones = useMemo(() => (milestonesKnown ? new Set(milestones.milestones.map((m) => m.id)) : null), [milestonesKnown, milestones.milestones]);
@@ -187,10 +192,12 @@ function TasksBoard() {
   // no room beside it and opens the item's page
   const here = `${location.pathname}${location.search}`;
   const onOpen = (item: WorkItem) => (phone ? navigate(taskPath(item.key), { state: returnState(here) }) : setParams(itemPanelSearch(item.key, params)));
-  const moreTo = `${TASKS_PATH}?${filtersToSearch({ ...filters.filters, status: ['done'] }, new URLSearchParams({ [VIEW_PARAM]: 'list' })).toString()}`;
+  const moreDone = () => setDoneShown(nextDoneShown);
 
   // ---- what the header says ----
-  const total = allItems.length;
+  // What Done leaves out counts too: the header speaks of the whole board
+  const total = boardTotal(full.data);
+  const shownTotal = boardTotal({ columns });
   const open = openCount(full.data) ?? 0;
   const empty = full.isSuccess && total === 0 && !scope.allProjects;
   const withBoard = new Set(allItems.map((item) => item.projectId));
@@ -198,7 +205,7 @@ function TasksBoard() {
   const figures = scope.allProjects
     ? `${t('header.open', { count: open })} ${t('header.inProjects', { count: withBoard.size })}`
     : filters.active
-      ? t('header.filtered', { shown: shownItems.length, total })
+      ? t('header.filtered', { shown: shownTotal, total })
       : empty
         ? t('header.tasks', { count: 0 })
         : t('header.open', { count: open });
@@ -220,43 +227,9 @@ function TasksBoard() {
   // ---- the body ----
   let body;
   if (scope.boardOff && scope.project) {
-    body = (
-      <section className="card glow-top workitem-empty">
-        {/* Nothing can be started on a board that is off: no New task button floats over it */}
-        <FabStandIn />
-        <Empty
-          illustration="board"
-          illustrationText={firstKey(scope.project)}
-          size={phone ? 'md' : 'lg'}
-          title={t('empty.offTitle')}
-          action={
-            <Link to="/projects" className="btn">
-              {t('empty.offAction')}
-            </Link>
-          }
-        >
-          {t('empty.offBody', { project: scope.project.name })}
-        </Empty>
-      </section>
-    );
+    body = <BoardOff project={scope.project} phone={phone} />;
   } else if (scope.allProjects && scope.settled && scope.boardProjects.length === 0) {
-    body = (
-      <section className="card glow-top workitem-empty">
-        <FabStandIn />
-        <Empty
-          illustration="board"
-          size={phone ? 'md' : 'lg'}
-          title={t('empty.noneTitle')}
-          action={
-            <Link to="/projects" className="btn btn-primary">
-              {t('empty.noneAction')}
-            </Link>
-          }
-        >
-          {t('empty.noneBody')}
-        </Empty>
-      </section>
-    );
+    body = <NoBoards phone={phone} />;
   } else if (answer.error && !answer.data) {
     body = <ErrorBox error={answer.error} />;
   } else if (!answer.data || stale) {
@@ -266,52 +239,26 @@ function TasksBoard() {
       </Card>
     );
   } else if (empty) {
-    body = (
-      <section className="card glow-top workitem-empty">
-        {/* Its own primary is New task: the same action twice, one floating over the other, is noise */}
-        <FabStandIn />
-        <Empty
-          illustration="board"
-          illustrationText={firstKey(scope.project)}
-          size={phone ? 'md' : 'lg'}
-          title={t('empty.title')}
-          action={
-            <button type="button" className="btn btn-primary workitem-empty-new" onClick={() => openNew(null)}>
-              <Plus {...ICON_SM} />
-              {t('empty.action')}
-            </button>
-          }
-        >
-          {t('empty.body', { project: scope.project?.name ?? '' })}
-        </Empty>
-        {!phone && (
-          <p className="workitem-empty-hint">
-            <kbd className="palette-kbd">N</kbd> {t('empty.hint')}
-          </p>
-        )}
-      </section>
-    );
-  } else if (filters.active && shownItems.length === 0) {
-    body = (
-      <Card>
-        <Empty
-          illustration="no-results"
-          size={phone ? 'sm' : 'md'}
-          title={t('empty.filteredTitle')}
-          action={
-            <button type="button" className="btn" onClick={filters.clear}>
-              {t('toolbar.reset')}
-            </button>
-          }
-        >
-          {t('empty.filteredBody')}
-        </Empty>
-      </Card>
-    );
+    body = <EmptyBoard project={scope.project} phone={phone} onNew={() => openNew(null)} />;
+  } else if (filters.active && shownTotal === 0) {
+    body = <NothingFiltered phone={phone} onReset={filters.clear} />;
   } else if (view === 'list') {
-    body = <List columns={columns} projectNames={scope.allProjects ? scope.projectNames : undefined} live={live} selection={selection} phone={phone} onOpen={onOpen} />;
+    body = (
+      <List
+        columns={columns}
+        pages={pages}
+        narrow={filters.narrow}
+        projectNames={scope.allProjects ? scope.projectNames : undefined}
+        live={live}
+        selection={selection}
+        phone={phone}
+        onOpen={onOpen}
+      />
+    );
   } else if (phone) {
-    body = <PhoneBoard columns={columns} projectNames={scope.allProjects ? scope.projectNames : undefined} epics={epics} live={live} selection={selection} moreTo={moreTo} />;
+    body = (
+      <PhoneBoard columns={columns} projectNames={scope.allProjects ? scope.projectNames : undefined} epics={epics} live={live} selection={selection} doneShown={doneShown} onMoreDone={moreDone} />
+    );
   } else {
     body = (
       <BoardColumns
@@ -320,7 +267,8 @@ function TasksBoard() {
         epics={epics}
         live={live}
         selection={selection}
-        moreTo={moreTo}
+        doneShown={doneShown}
+        onMoreDone={moreDone}
         onOpen={onOpen}
         onNewTask={scope.allProjects ? undefined : (status) => openNew(null, status)}
       />
@@ -336,7 +284,7 @@ function TasksBoard() {
       </span>
     </p>
   );
-  const boardShown = view === 'board' && !phone && Boolean(answer.data) && !stale && !empty && shownItems.length > 0;
+  const boardShown = view === 'board' && !phone && Boolean(answer.data) && !stale && !empty && shownTotal > 0;
 
   return (
     <div className={`tasks-page ${boardShown ? 'is-board' : ''} ${selecting ? 'is-selecting' : ''}`.replace(/\s+/g, ' ').trim()}>
@@ -356,9 +304,9 @@ function TasksBoard() {
             <>
               <div className="workitem-mtools">
                 <SearchField state={filters} short />
-                <FilterSheetButton facets={facets} state={filters} shown={shownItems.length} />
+                <FilterSheetButton facets={facets} state={filters} shown={shownTotal} />
               </div>
-              <ActiveFilterChips facets={facets} state={filters} summary={filters.active ? t('header.shownOf', { shown: shownItems.length, total }) : undefined} />
+              <ActiveFilterChips facets={facets} state={filters} summary={filters.active ? t('header.shownOf', { shown: shownTotal, total }) : undefined} />
               {scope.allProjects && total > 0 && (
                 <div className="card workitem-all-card">
                   <Info size={16} strokeWidth={1.75} aria-hidden />
