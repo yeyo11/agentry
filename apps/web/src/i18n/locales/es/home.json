@@ -272,6 +272,7 @@
       "closedBy": "pasó a Hecho",
       "agent": "Un agente",
       "byYou": "escrita por ti",
+      "you": "Tú",
       "fromItem": "desde {{key}}",
       "approvedByYou": "aprobada por ti",
       "kind": {

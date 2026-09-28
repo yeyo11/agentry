@@ -1,16 +1,30 @@
 import type { FlowRun, TeamMember } from '@agentry/shared';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { ActivityTicker } from '../../components/ActivityTicker';
 import { Monogram, WorkItemKey, WorkItemStatusIcon } from '../../components/icons';
 import { Spinner } from '../../components/Spinner';
 import { timeAgo } from '../../lib/format';
+import { elapsedSince, formatElapsed } from '../../lib/live';
+import { useClockTick } from '../../lib/motion';
 import { chatActivity } from '../../lib/shell-live';
 import { columnMeta, taskPath } from '../../lib/work-items';
 import { runNote } from './model';
 import { RoleAvatar, useRoleName } from './RoleAvatar';
 
-/** What a run is doing now, as the live line of a card says it: its verb, what it is on, and the time. */
+/** How long a run has gone, ticking each second, in the live line's own clock ("4:12"). */
+export function RunElapsed({ since }: { since: string }) {
+  const tick = useClockTick(1000);
+  const elapsed = useMemo(() => formatElapsed(elapsedSince(since)), [since, tick]);
+  return <span className="team-live-time">{elapsed}</span>;
+}
+
+/**
+ * What a run is doing now, as the live line of a card says it: its verb, what it is on, and the time.
+ * Before its chat reports an activity, the stage's verb and the time since it started; the time never
+ * wraps under the verb, however narrow the card.
+ */
 export function RunTicker({ run, className = '', showTime = true }: { run: FlowRun; className?: string; showTime?: boolean }) {
   const { t } = useTranslation('team');
   const activity = chatActivity(run);
@@ -19,6 +33,7 @@ export function RunTicker({ run, className = '', showTime = true }: { run: FlowR
     <span className={`team-run-working ${className}`.trim()}>
       <Spinner className="team-live-spin" />
       <span className="team-live-verb">{t(`stage.${run.stage}.doing`)}</span>
+      {showTime && run.startedAt && <RunElapsed since={run.startedAt} />}
     </span>
   );
 }
@@ -151,14 +166,19 @@ export function FlowSummary({
   );
 }
 
-/** The team's latest work: each member's run going now, or its last. Rows lead to the item. */
-export function TeamActivity({ runs }: { runs: FlowRun[] }) {
+/** The team's latest work: each member's run going now, or its last. Rows lead to the item; "See all" to every run. */
+export function TeamActivity({ runs, allHref }: { runs: FlowRun[]; allHref: string }) {
   const { t } = useTranslation('team');
   const roleName = useRoleName();
   return (
     <section className="card team-side-card" aria-labelledby="team-activity">
       <div className="card-head">
         <h2 id="team-activity">{t('activity.title')}</h2>
+        {runs.length > 0 && (
+          <Link to={allHref} className="team-link">
+            {t('activity.seeAll')}
+          </Link>
+        )}
       </div>
       {runs.length === 0 ? (
         <p className="team-muted">{t('activity.none')}</p>

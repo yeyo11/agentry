@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { parseChangeScope, WorkItemError, type Core } from '@agentry/core';
-import { WORK_ITEM_PRIORITIES, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@agentry/shared';
+import { agentryLanguage, WORK_ITEM_PRIORITIES, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@agentry/shared';
 import type {
   CheckAcceptanceCriterionRequest,
   CreateMilestoneRequest,
@@ -142,9 +142,10 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     return core.workItems.board(req.params.id, filterOf(req.query), boardOf(req.query));
   });
 
-  // A draft to review, not a launched graph: `POST /orchestrations` launches it
+  // A draft to review, not a launched graph: `POST /orchestrations` launches it. Its objective is
+  // written in the language the person reads Agentry in, which the web sends
   app.post<{ Params: { id: string }; Body: OrchestrateWorkItemsRequest }>('/projects/:id/work-items/orchestrate', (req) =>
-    core.orchestrateWorkItems(req.params.id, bodyOf(req.body)),
+    core.orchestrateWorkItems(req.params.id, bodyOf(req.body), agentryLanguage(req.headers['accept-language'])),
   );
 
   app.get<{ Params: { id: string } }>('/projects/:id/milestones', async (req) => {

@@ -44,7 +44,7 @@ export function useLiveSources(items: readonly Pick<WorkItem, 'activeLink'>[]): 
  * the idle tone and stands still. Nothing for an item at rest.
  */
 export function LiveLine({ item, sources, className = '' }: { item: Pick<WorkItem, 'id' | 'activeLink'>; sources: LiveSources; className?: string }) {
-  const { t } = useTranslation('tasks');
+  const { t } = useTranslation(['tasks', 'team']);
   const state = workItemLiveState(item);
   // A team member at work says which one, beside its verb
   const role = useRunRole(item);
@@ -82,11 +82,14 @@ export function LiveLine({ item, sources, className = '' }: { item: Pick<WorkIte
         <ActivityTicker activity={activity} className="workitem-live-ticker" />
       </div>
     );
+  // A Product Owner refining it or QA verifying it is live too (their links are `refine` and `verify`),
+  // and says so with the stage's own verb until its chat reports what it is doing
+  const verb = link.role === 'refine' || link.role === 'verify' ? t(`team:stage.${link.role}.doing`) : t('card.working');
   return (
     <div className={`workitem-card-live ${className}`.trim()}>
       <Spinner className="workitem-live-spin" />
       {who}
-      <span className="workitem-live-verb">{t('card.working')}</span>
+      <span className="workitem-live-verb">{verb}</span>
     </div>
   );
 }

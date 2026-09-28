@@ -146,7 +146,7 @@ export default async ({ page, api, check, dirs }) => {
     await until(async () => (await item(main.id)).links.some((l) => l.chatId === chatId && l.role === 'work'), 'the chat is linked to the item');
     await until(async () => (await item(main.id)).status === 'in_review', 'the turn ended well and the item is in review', 30_000);
     const prompt = await until(async () => (await api.get(`/chats/${chatId}`)).body?.chat?.firstPrompt ?? null, 'the chat has its prompt');
-    check(String(prompt).startsWith(`${main.key}: `), `the chat was prompted with the item (${String(prompt).slice(0, 60)})`);
+    check(String(prompt).startsWith(`${main.key} · `), `the chat was prompted with the item (${String(prompt).slice(0, 60)})`);
     await page.goto(`/tasks/${main.key}`, 1500);
     await page.waitFor(`return document.querySelectorAll('main .work-link-row').length === 1`, { label: 'the chat is listed on the item' });
     check((await page.text('main .work-link-row .work-link-meta')).includes('took it to In review'), 'the link says what it did');
