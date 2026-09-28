@@ -20,7 +20,7 @@ export function ProjectHead({ project, primaryTask }: { project: Project; primar
   const board = project.modules.includes('board');
   return (
     <header className="page-header project-head">
-      <Monogram name={project.name} size={44} />
+      <Monogram name={project.name} size={44} project />
       <div className="page-header-text project-head-text">
         <div className="project-head-title">
           <h1>{project.name}</h1>
@@ -70,7 +70,7 @@ export function PhoneHead({ project }: { project: Project }) {
       <Link to="/projects" className="icon-btn" aria-label={t('head.backToProjects')}>
         <ChevronLeft {...ICON} />
       </Link>
-      <Monogram name={project.name} size={40} />
+      <Monogram name={project.name} size={40} project />
       <div className="page-header-text project-head-text">
         <h1>{project.name}</h1>
         <span className="mono small muted ellipsis">

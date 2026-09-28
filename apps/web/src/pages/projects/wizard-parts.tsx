@@ -139,7 +139,7 @@ export function Summary({ draft, wizard, onChange }: { draft: Draft; wizard: Wiz
   return (
     <>
       <div className="summary-project">
-        <Monogram name={wizard.name || '?'} size={40} />
+        <Monogram name={wizard.name || '?'} size={40} project />
         <span className="summary-project-id">
           <strong className="break">{wizard.name || t('wizard.unnamed')}</strong>
           <span className="mono small muted ellipsis" title={wizard.where || undefined}>

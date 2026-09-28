@@ -60,7 +60,7 @@ export function DesktopAssistant({ project, run, tasksRun, following, actions }:
         <Link to={projectPath(project.id)} className="btn assistant-back" aria-label={t('back')}>
           <ChevronLeft {...ICON} />
         </Link>
-        <Monogram name={project.name} size={40} />
+        <Monogram name={project.name} size={40} project />
         <div className="page-header-text">
           <h1>{t('title')}</h1>
           <div className="muted assistant-subtitle">

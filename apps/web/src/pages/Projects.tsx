@@ -261,7 +261,7 @@ function ProjectCard({ project, active, live }: { project: Project; active: bool
   return (
     <li className={classes} aria-current={active || undefined}>
       <div className="project-card-head">
-        <Monogram name={project.name} size={40} />
+        <Monogram name={project.name} size={40} project />
         <div className="project-card-id">
           {renaming ? (
             <RenameForm initial={project.name} pending={rename.isPending} onSave={(name) => rename.mutate(name)} onCancel={() => setRenaming(false)} />

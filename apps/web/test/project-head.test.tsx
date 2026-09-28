@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
+import { monogramLetters } from '../src/components/icons';
 import i18n from '../src/i18n';
 import { PhoneHead, ProjectHead } from '../src/pages/home/ProjectHead';
 
@@ -40,4 +41,13 @@ test("a phone's project header carries the assistant as a named icon button", ()
   const html = wrap(<PhoneHead project={project} />);
   assert.match(html, /<a [^>]*class="icon-btn project-head-assistant"[^>]*aria-label="Asistente de shop"/);
   assert.match(html, /href="\/projects\/p%201\/assistant"/);
+});
+
+test('a one-word project gets a two-letter monogram, as the references draw it; a person keeps one', () => {
+  // "nodo" showed "N" where the references have "NO"
+  assert.equal(monogramLetters('nodo', true), 'NO');
+  assert.equal(monogramLetters('claude-wrapper', true), 'CW');
+  assert.equal(monogramLetters('x', true), 'X');
+  assert.equal(monogramLetters('yeyo'), 'Y');
+  assert.match(wrap(<ProjectHead project={{ ...project, name: 'nodo' }} primaryTask={false} />), /class="monogram"[^>]*>NO</);
 });
