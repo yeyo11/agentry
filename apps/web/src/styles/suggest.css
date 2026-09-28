@@ -611,6 +611,18 @@
   font-size: 13px;
 }
 
+/* While the file streams in: the live verb and the file it writes, as the reference's head says it */
+.create-ai-writing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.create-ai-verb {
+  color: var(--live);
+}
+
 .create-ai-live .suggestion-wait {
   margin: 0;
   min-height: 120px;

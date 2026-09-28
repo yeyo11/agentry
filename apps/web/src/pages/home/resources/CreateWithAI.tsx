@@ -1,4 +1,4 @@
-import type { AssistantResourceKind, AssistantResourceProposal, ConfigScopeKind, Project } from '@agentry/shared';
+import type { AssistantResourceKind, AssistantResourceProposal, AssistantRunDetail, ConfigScopeKind, Project } from '@agentry/shared';
 import { RESOURCE_FORMATS } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Folder, RefreshCw, Sparkle, User, X } from 'lucide-react';
@@ -10,6 +10,7 @@ import { ActivityTicker } from '../../../components/ActivityTicker';
 import { CodeEditor } from '../../../components/CodeEditor';
 import { Dialog } from '../../../components/Dialog';
 import { ICON_SM } from '../../../components/icons';
+import { Spinner } from '../../../components/Spinner';
 import { useToast } from '../../../components/Toast';
 import { Segmented } from '../../../components/ui';
 import { NARROW, useMediaQuery } from '../../../lib/media';
@@ -147,7 +148,7 @@ export function CreateWithAI({
   );
 
   let result: ReactNode = null;
-  if (run && running) result = <LiveWriting run={run} />;
+  if (run && running) result = <LiveWriting run={run} scope={scope} phone={phone} />;
   else if (run && proposal)
     result = (
       <section className="suggestion-run is-done create-ai-result" aria-label={t('resourcesAi.written')}>
@@ -247,20 +248,45 @@ export function CreateWithAI({
   );
 }
 
-/** The run writing the resource: the live verb and the time, its facts, and the still slot its file will fill. */
-function LiveWriting({ run }: { run: NonNullable<ReturnType<typeof useAssistantRun>['data']> }) {
+/**
+ * The run writing the resource: the live verb, the file it writes and the time, its facts, and the
+ * file itself as the chat writes it (`draft`, refreshed by each `assistant.run` read event), read-only:
+ * nothing of it is saved, and "Open in the editor" waits for the whole file. Until the first part
+ * arrives, the still slot the file will fill.
+ */
+export function LiveWriting({ run, scope, phone }: { run: AssistantRunDetail; scope: ConfigScopeKind; phone: boolean }) {
   const { t } = useTranslation('config');
   const elapsed = useElapsed(run.startedAt, true);
   const activity = run.activity ?? { kind: 'thinking' as const, since: run.startedAt };
+  const draft = run.draft && run.draft.content ? run.draft : null;
   return (
     <section className="suggestion-run is-live live-energy create-ai-live" aria-label={t('resourcesAi.writing')}>
       <div className="create-ai-now">
-        <ActivityTicker activity={activity} showElapsed={false} />
+        {draft ? (
+          <span className="create-ai-writing">
+            <Spinner />
+            <span className="create-ai-verb">{t('resourcesAi.writingVerb')}</span>
+            {draft.name && <span className="mono ellipsis create-ai-file">{savePath(draft.kind, draft.name, scope)}</span>}
+          </span>
+        ) : (
+          <ActivityTicker activity={activity} showElapsed={false} />
+        )}
         <span className="grow" />
         <span className="mono small muted tabular">{elapsed}</span>
       </div>
       <RunFacts run={run} />
-      <SuggestionWait>{t('resourcesAi.contentWait')}</SuggestionWait>
+      {draft ? (
+        <CodeEditor
+          language={RESOURCE_FORMATS[draft.kind]}
+          ariaLabel={t(`resources.kinds.${draft.kind}.content`)}
+          value={draft.content}
+          readOnly
+          minHeight="160px"
+          maxHeight={phone ? '46vh' : '300px'}
+        />
+      ) : (
+        <SuggestionWait>{t('resourcesAi.contentWait')}</SuggestionWait>
+      )}
     </section>
   );
 }

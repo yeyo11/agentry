@@ -82,7 +82,7 @@ export function useMotionPreference(): MotionLevel {
 
 /** The level actually in force; `off` while the system asks for reduced motion. */
 export function useMotionLevel(): MotionLevel {
-  return useSyncExternalStore(subscribe, effective);
+  return useSyncExternalStore(subscribe, effective, effective);
 }
 
 /** True while the operating system is overriding the stored preference, so the UI can say so. */

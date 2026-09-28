@@ -1110,7 +1110,8 @@
     "createHint": "It opens in the editor so you review it before saving it.",
     "writing": "Writing the resource",
     "written": "The resource it wrote",
-    "contentWait": "The file shows here once it is written",
+    "writingVerb": "Writing",
+    "contentWait": "The file shows here as soon as it starts writing it",
     "startFailed": "Could not start the assistant",
     "stopFailed": "Could not stop the assistant",
     "decideFailed": "Could not change the proposal"
