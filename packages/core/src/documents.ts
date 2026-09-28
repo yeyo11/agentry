@@ -1,6 +1,6 @@
 import type { Dirent } from 'node:fs';
 import { lstat, mkdir, open, readdir, readFile, realpath, stat, unlink } from 'node:fs/promises';
-import { dirname, join, relative, sep } from 'node:path';
+import { basename, dirname, join, relative, sep } from 'node:path';
 import type {
   DocumentFile,
   DocumentKind,
@@ -252,9 +252,33 @@ async function resolvedRoot(place: DocumentsPlace): Promise<string | null> {
   return realRoot;
 }
 
+/**
+ * The file a checked path names on disk. A name is matched as written first, then by its NFC form:
+ * the same accented name can be stored composed or decomposed (a checkout made on macOS), and a
+ * path typed or reported by an agent is composed, so without this it would not find the file, and a
+ * write would add a second one beside it.
+ */
+async function onDisk(place: DocumentsPlace, rel: string): Promise<string> {
+  let dir = place.projectPath;
+  const segments = rel.split('/');
+  for (const [i, segment] of segments.entries()) {
+    const exact = join(dir, segment);
+    if (await lstat(exact).catch(() => null)) {
+      dir = exact;
+      continue;
+    }
+    const wanted = segment.normalize('NFC');
+    const names = await readdir(dir).catch(() => [] as string[]);
+    const match = names.find((name) => name.normalize('NFC') === wanted);
+    if (!match) return join(exact, ...segments.slice(i + 1));
+    dir = join(dir, match);
+  }
+  return dir;
+}
+
 /** The file on disk for a checked path, which must exist, be a file, and resolve inside the folder. */
 async function existingFile(place: DocumentsPlace, rel: string): Promise<string> {
-  const file = join(place.projectPath, ...rel.split('/'));
+  const file = await onDisk(place, rel);
   const realRoot = await resolvedRoot(place);
   const real = await realpath(file).catch(() => null);
   if (!realRoot || !real) throw new DocumentError(`document ${rel} not found`, 404);
@@ -271,7 +295,7 @@ async function existingFile(place: DocumentsPlace, rel: string): Promise<string>
  * swapped in between cannot carry the write out either.
  */
 async function writableFile(place: DocumentsPlace, rel: string): Promise<string> {
-  const file = join(place.projectPath, ...rel.split('/'));
+  const file = await onDisk(place, rel);
   const rootDir = rootDirOf(place);
   const outside = new DocumentError(`${rel} is outside the documents folder`, 400);
   const realProject = await realpath(place.projectPath).catch(() => null);
@@ -296,7 +320,7 @@ async function writableFile(place: DocumentsPlace, rel: string): Promise<string>
   const realDir = await realpath(dirname(file));
   const madeRoot = await resolvedRoot(place);
   if (!madeRoot || !inside(realDir, madeRoot)) throw outside;
-  const target = join(realDir, rel.split('/').pop() ?? '');
+  const target = join(realDir, basename(file));
   const link = await lstat(target).catch(() => null);
   if (link?.isSymbolicLink()) {
     const real = await realpath(target).catch(() => null);
@@ -352,7 +376,8 @@ async function walk(dir: string, rel: string, depth: number, ties: Map<string, D
         title: await readTitle(full),
         size: info.size,
         updatedAt: info.mtime.toISOString(),
-        ties: ties.get(at(entry.name)) ?? [],
+        // Ties are kept under the NFC form of the path, whichever form the name has on disk
+        ties: ties.get(at(entry.name).normalize('NFC')) ?? [],
       });
     }
   }

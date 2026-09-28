@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -303,6 +303,34 @@ test('deleting a file unties it from every item, each in its history', async () 
 });
 
 // ---------- ties ----------
+
+test('an accented name is one document whether it comes composed or decomposed', async () => {
+  const s = setup();
+  // On disk as a checkout made on macOS leaves it; typed, and reported by an agent, composed
+  const decomposed = 'docs/disen\u0303o.md';
+  const composed = 'docs/dise\u00f1o.md';
+  assert.notEqual(decomposed, composed);
+  writeFileSync(join(s.project, ...decomposed.split('/')), '# Diseño');
+  const item = s.items.create('p1', { title: 'Design' });
+
+  const byAgent = await s.docs.tie(item.id, { path: composed }, { requireFile: false, role: 'refine' });
+  const byHand = await s.docs.tie(item.id, { path: decomposed });
+  assert.equal(byHand.id, byAgent.id, 'one link for one file');
+  assert.equal(byAgent.documentPath, composed);
+
+  const [node] = (await s.docs.tree('p1')).tree;
+  assert.equal(node?.path, decomposed, 'the tree names the file as it is on disk');
+  assert.deepEqual(node?.ties.map((t) => t.linkId), [byAgent.id]);
+  assert.equal((await s.docs.read('p1', composed)).content, '# Diseño');
+  assert.deepEqual((await s.docs.read('p1', decomposed)).ties.map((t) => t.linkId), [byAgent.id]);
+
+  await s.docs.write('p1', composed, { content: '# Diseño 2' });
+  assert.deepEqual(readdirSync(join(s.project, 'docs')).filter((n) => n.endsWith('.md')), ['disen\u0303o.md'], 'rewritten, not a second file');
+  assert.equal(readFileSync(join(s.project, ...decomposed.split('/')), 'utf8'), '# Diseño 2');
+
+  await s.docs.remove('p1', composed);
+  assert.equal(s.items.links(item.id).length, 0, 'deleting the file unties it');
+});
 
 test('tying by hand is a reference to a file on disk, once per file whatever its role', async () => {
   const s = setup();

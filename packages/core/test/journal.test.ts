@@ -85,6 +85,11 @@ test('a person writes decisions and notes only, as the person, with a relative d
   assert.throws(() => journal.create('p1', { text: '   ' }), refusal(400));
   assert.throws(() => journal.create('p1', { text: 'x', documentPath: '../outside.md' }), refusal(400));
   assert.throws(() => journal.create('p1', { text: 'x', documentPath: '/etc/passwd' }), refusal(400));
+  // The shape every document path has: no hidden part, no control character, nothing to clean up
+  for (const documentPath of ['.git/config', 'docs/.env', 'docs/a\u0000.md', 'docs//a.md', 'docs/./a.md', 'docs\\a.md']) {
+    assert.throws(() => journal.create('p1', { text: 'x', documentPath }), refusal(400), documentPath);
+  }
+  assert.equal(journal.create('p1', { text: 'x', documentPath: 'docs/disen\u0303o.md' }).documentPath, 'docs/dise\u00f1o.md');
   assert.throws(() => journal.create('p1', { text: 'x', itemId: 'missing' }), refusal(404));
 });
 

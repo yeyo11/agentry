@@ -864,7 +864,7 @@ export class WorkItemService {
          WHERE i.project_id = ? AND l.kind = 'document' AND (? IS NULL OR l.document_path = ?)
          ORDER BY l.created_at, l.rowid`,
       )
-      .all(projectId, path ?? null, path ?? null) as unknown as LinkRow[];
+      .all(projectId, path?.normalize('NFC') ?? null, path?.normalize('NFC') ?? null) as unknown as LinkRow[];
     if (!rows.length) return [];
     const prefix = this.prefixOf(projectId);
     const items = this.sql
@@ -1473,7 +1473,8 @@ function linkedDocumentPath(value: unknown): string {
   try {
     const segments = pathSegments(value, 'documentPath');
     if (!isMarkdown(segments[segments.length - 1] ?? '')) throw new DocumentPathError('documentPath must name a Markdown file');
-    return segments.join('/');
+    // One document is one link whether its accented name came composed or decomposed
+    return segments.join('/').normalize('NFC');
   } catch (err) {
     if (err instanceof DocumentPathError) throw new WorkItemError(err.message, 400);
     throw err;
