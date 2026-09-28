@@ -78,7 +78,23 @@ import {
   type StoredHistoryValue,
   type StoredItemRef,
 } from './work-item-rows.ts';
-import { CRITERIA_MAX, ROLE_MAX, WorkItemError, actorFrom, assignee, commentBody, criterionText, labels, milestoneName, oneOf, optionalId, text, title } from './work-item-validation.ts';
+import {
+  MILESTONE_DESCRIPTION_MAX,
+  ROLE_MAX,
+  WorkItemError,
+  actorFrom,
+  assignee,
+  body,
+  commentBody,
+  criteriaList,
+  filterOf,
+  labels,
+  milestoneName,
+  oneOf,
+  optionalId,
+  text,
+  title,
+} from './work-item-validation.ts';
 
 export { WorkItemError } from './work-item-validation.ts';
 
@@ -273,8 +289,9 @@ export class WorkItemService {
 
   // ---------- writing an item ----------
 
-  create(projectId: string, input: CreateWorkItemRequest, ctx?: WorkItemContext): WorkItem {
+  create(projectId: string, request: CreateWorkItemRequest, ctx?: WorkItemContext): WorkItem {
     if (!this.deps.project(projectId)) throw new WorkItemError('project not found', 404);
+    const input = body(request);
     const type = input.type === undefined ? 'task' : oneOf(input.type, WORK_ITEM_TYPES, 'type');
     const status = input.status === undefined ? 'backlog' : oneOf(input.status, WORK_ITEM_STATUSES, 'status');
     const priority = input.priority === undefined ? 'medium' : oneOf(input.priority, WORK_ITEM_PRIORITIES, 'priority');
@@ -282,15 +299,16 @@ export class WorkItemService {
     const description = input.description === undefined ? '' : text(input.description, 'description');
     const itemLabels = input.labels === undefined ? [] : labels(input.labels);
     const itemAssignee = input.assignee === undefined ? null : assignee(input.assignee);
-    const criteria = (input.acceptanceCriteria ?? []).map((c) => criterionText(c.text));
-    if (criteria.length > CRITERIA_MAX) throw new WorkItemError(`an item holds at most ${String(CRITERIA_MAX)} acceptance criteria`, 400);
+    const criteria = input.acceptanceCriteria === undefined || input.acceptanceCriteria === null ? [] : criteriaList(input.acceptanceCriteria).map((c) => c.text);
+    const epicInput = optionalId(input.epicId, 'epicId');
+    const milestoneInput = optionalId(input.milestoneId, 'milestoneId');
     const actor = actorFrom(ctx);
     const cause = ctx?.cause ?? null;
 
     const id = randomUUID();
     const row = this.write(() => {
-      const epicId = input.epicId ? this.checkEpic(projectId, input.epicId, type, id) : null;
-      const milestoneId = input.milestoneId ? this.checkMilestone(projectId, input.milestoneId) : null;
+      const epicId = epicInput ? this.checkEpic(projectId, epicInput, type, id) : null;
+      const milestoneId = milestoneInput ? this.checkMilestone(projectId, milestoneInput) : null;
       const counter = this.sql
         .prepare(
           `INSERT INTO work_item_counters (project_id, last_number) VALUES (?, 1)
@@ -343,7 +361,11 @@ export class WorkItemService {
   }
 
   /** Only the fields present change; one history entry per field that did. */
-  update(itemId: string, input: UpdateWorkItemRequest, ctx?: WorkItemContext): WorkItem {
+  update(itemId: string, request: UpdateWorkItemRequest, ctx?: WorkItemContext): WorkItem {
+    const input = body(request);
+    const epicInput = optionalId(input.epicId, 'epicId');
+    const milestoneInput = optionalId(input.milestoneId, 'milestoneId');
+    const criteriaInput = input.acceptanceCriteria === undefined ? undefined : criteriaList(input.acceptanceCriteria);
     const actor = actorFrom(ctx);
     const cause = ctx?.cause ?? null;
     const result = this.write(() => {
@@ -404,14 +426,14 @@ export class WorkItemService {
           entries.push({ itemId, change: 'assignee', from: previous, to: next });
         }
       }
-      const epicId = input.epicId === undefined ? before.epic_id : input.epicId === null ? null : this.checkEpic(before.project_id, input.epicId, type, itemId);
+      const epicId = input.epicId === undefined ? before.epic_id : epicInput === null ? null : this.checkEpic(before.project_id, epicInput, type, itemId);
       if (type === 'epic' && epicId !== null) throw new WorkItemError('an epic cannot belong to another epic', 400);
       if (epicId !== before.epic_id) {
         set('epic_id', epicId);
         entries.push({ itemId, change: 'epic', from: this.itemSnapshot(before.epic_id), to: this.itemSnapshot(epicId) });
       }
       if (input.milestoneId !== undefined) {
-        const next = input.milestoneId === null ? null : this.checkMilestone(before.project_id, input.milestoneId);
+        const next = milestoneInput === null ? null : this.checkMilestone(before.project_id, milestoneInput);
         if (next !== before.milestone_id) {
           set('milestone_id', next);
           entries.push({ itemId, change: 'milestone', from: this.milestoneSnapshot(before.milestone_id), to: this.milestoneSnapshot(next) });
@@ -419,8 +441,8 @@ export class WorkItemService {
       }
       // A new order alone rewrites the checklist without an entry, and still counts as a change
       let reordered = false;
-      if (input.acceptanceCriteria !== undefined) {
-        const criteria = this.replaceCriteria(itemId, input.acceptanceCriteria);
+      if (criteriaInput !== undefined) {
+        const criteria = this.replaceCriteria(itemId, criteriaInput);
         entries.push(...criteria.entries);
         reordered = criteria.rewritten;
       }
@@ -443,8 +465,11 @@ export class WorkItemService {
    * Moves an item to a column and a place in it. Over the column's limit is not a refusal: the
    * result and the event say so, and the board shows it.
    */
-  move(itemId: string, input: MoveWorkItemRequest, ctx?: WorkItemContext): MoveWorkItemResult {
+  move(itemId: string, request: MoveWorkItemRequest, ctx?: WorkItemContext): MoveWorkItemResult {
+    const input = body(request);
     const status = oneOf(input.status, WORK_ITEM_STATUSES, 'status');
+    // Absent goes last, null goes first: both mean something, so only a present value is an id
+    const afterId = input.afterId === undefined || input.afterId === null ? input.afterId : optionalId(input.afterId, 'afterId');
     const actor = actorFrom(ctx);
     const cause = ctx?.cause ?? null;
     const result = this.write(() => {
@@ -453,17 +478,17 @@ export class WorkItemService {
       const fits = (low: string | null, high: string | null): boolean =>
         before.status === status && (low === null || before.rank > low) && (high === null || before.rank < high);
       let rank: string;
-      if (input.afterId === undefined) {
+      if (afterId === undefined) {
         rank = before.status === status && this.isLast(before) ? before.rank : this.rankAtEnd(before.project_id, status, itemId);
-      } else if (input.afterId === null) {
+      } else if (afterId === null) {
         const first = this.sql
           .prepare('SELECT rank FROM work_items WHERE project_id = ? AND status = ? AND id != ? ORDER BY rank LIMIT 1')
           .get(before.project_id, status, itemId) as { rank: string } | undefined;
         const high = first?.rank ?? null;
         rank = fits(null, high) ? before.rank : this.rankInColumn(before.project_id, status, itemId, null, high);
       } else {
-        if (input.afterId === itemId) throw new WorkItemError('an item cannot go after itself', 400);
-        const after = this.row(input.afterId);
+        if (afterId === itemId) throw new WorkItemError('an item cannot go after itself', 400);
+        const after = this.row(afterId);
         if (!after || after.project_id !== before.project_id || after.status !== status) {
           throw new WorkItemError('afterId must name an item in the target column', 400);
         }
@@ -583,8 +608,10 @@ export class WorkItemService {
 
   // ---------- criteria, comments, relations, links ----------
 
-  checkCriterion(itemId: string, criterionId: string, input: CheckAcceptanceCriterionRequest, ctx?: WorkItemContext): WorkItem {
-    if (typeof input.checked !== 'boolean') throw new WorkItemError('checked must be true or false', 400);
+  checkCriterion(itemId: string, criterionId: string, request: CheckAcceptanceCriterionRequest, ctx?: WorkItemContext): WorkItem {
+    const { checked } = body(request);
+    if (typeof checked !== 'boolean') throw new WorkItemError('checked must be true or false', 400);
+    const input = { checked };
     const actor = actorFrom(ctx);
     const cause = ctx?.cause ?? null;
     const result = this.write(() => {
@@ -618,8 +645,8 @@ export class WorkItemService {
   }
 
   /** Comments are their own list, not history; the event still says one arrived. */
-  comment(itemId: string, input: CreateWorkItemCommentRequest, ctx?: WorkItemCommentContext): WorkItemComment {
-    const body = commentBody(input.body);
+  comment(itemId: string, request: CreateWorkItemCommentRequest, ctx?: WorkItemCommentContext): WorkItemComment {
+    const bodyText = commentBody(body(request).body);
     const actor = actorFrom(ctx);
     const source = ctx?.source ?? null;
     const comment = this.write(() => {
@@ -641,7 +668,7 @@ export class WorkItemService {
           source?.chatId ?? null,
           source?.orchestrationId ?? null,
           source?.taskId ?? null,
-          body,
+          bodyText,
           now,
           now,
         );
@@ -658,15 +685,17 @@ export class WorkItemService {
    * Relates two items of one project. Stored once, as `blocks`, whichever end it was asked from;
    * refused when it points at the item itself or would close a cycle, and a no-op when it exists.
    */
-  relate(itemId: string, input: CreateWorkItemRelationRequest, ctx?: WorkItemContext): WorkItem {
+  relate(itemId: string, request: CreateWorkItemRelationRequest, ctx?: WorkItemContext): WorkItem {
+    const input = body(request);
     const type = oneOf(input.type, ['blocks', 'blocked_by'] as const, 'type');
-    if (typeof input.itemId !== 'string' || !input.itemId) throw new WorkItemError('itemId is required', 400);
-    if (input.itemId === itemId) throw new WorkItemError('an item cannot be related to itself', 400);
+    const otherId = optionalId(input.itemId, 'itemId');
+    if (otherId === null) throw new WorkItemError('itemId is required', 400);
+    if (otherId === itemId) throw new WorkItemError('an item cannot be related to itself', 400);
     const actor = actorFrom(ctx);
     const cause = ctx?.cause ?? null;
     const result = this.write(() => {
       const self = this.mustRow(itemId);
-      const other = this.row(input.itemId);
+      const other = this.row(otherId);
       if (!other || other.project_id !== self.project_id) throw new WorkItemError('the related item must be a work item of the same project', 400);
       const [blocker, blocked] = type === 'blocks' ? [self, other] : [other, self];
       if (this.sql.prepare('SELECT 1 FROM work_item_relations WHERE blocker_id = ? AND blocked_id = ?').get(blocker.id, blocked.id)) {
@@ -692,7 +721,7 @@ export class WorkItemService {
     const item = this.mustHydrate(result.row);
     if (result.changed) {
       this.emitUpdated(item, ['relation'], actor, cause);
-      const other = this.find(input.itemId);
+      const other = this.find(otherId);
       if (other) this.emitUpdated(other, ['relation'], actor, cause);
     }
     return item;
@@ -737,7 +766,8 @@ export class WorkItemService {
    * A document's path is only checked for its shape here: that it lies in the project's documents
    * folder is for `DocumentService`, which knows the folder, to check before calling this.
    */
-  link(itemId: string, input: WorkItemLinkInput, ctx?: WorkItemContext): WorkItemLink {
+  link(itemId: string, request: WorkItemLinkInput, ctx?: WorkItemContext): WorkItemLink {
+    const input = body(request);
     const kind = oneOf(input.kind, WORK_ITEM_LINK_KINDS, 'kind');
     const role = oneOf(input.role, WORK_ITEM_LINK_ROLES, 'role');
     const chatId = optionalId(input.chatId, 'chatId');
@@ -834,7 +864,7 @@ export class WorkItemService {
          WHERE i.project_id = ? AND l.kind = 'document' AND (? IS NULL OR l.document_path = ?)
          ORDER BY l.created_at, l.rowid`,
       )
-      .all(projectId, path ?? null, path ?? null) as unknown as LinkRow[];
+      .all(projectId, path?.normalize('NFC') ?? null, path?.normalize('NFC') ?? null) as unknown as LinkRow[];
     if (!rows.length) return [];
     const prefix = this.prefixOf(projectId);
     const items = this.sql
@@ -876,10 +906,11 @@ export class WorkItemService {
     return milestoneOf(row, this.progress([row.id]).get(row.id) ?? emptyProgress());
   }
 
-  createMilestone(projectId: string, input: CreateMilestoneRequest): Milestone {
+  createMilestone(projectId: string, request: CreateMilestoneRequest): Milestone {
     if (!this.deps.project(projectId)) throw new WorkItemError('project not found', 404);
+    const input = body(request);
     const name = milestoneName(input.name);
-    const description = input.description === undefined ? '' : text(input.description, 'description');
+    const description = input.description === undefined ? '' : text(input.description, 'description', MILESTONE_DESCRIPTION_MAX);
     const id = randomUUID();
     this.write(() => {
       const now = new Date().toISOString();
@@ -892,12 +923,13 @@ export class WorkItemService {
     return milestone;
   }
 
-  updateMilestone(milestoneId: string, input: UpdateMilestoneRequest): Milestone {
+  updateMilestone(milestoneId: string, request: UpdateMilestoneRequest): Milestone {
+    const input = body(request);
     const action = this.write((): MilestoneChangeAction | null => {
       const row = this.sql.prepare('SELECT * FROM milestones WHERE id = ?').get(milestoneId) as MilestoneRow | undefined;
       if (!row) throw new WorkItemError('milestone not found', 404);
       const name = input.name === undefined ? row.name : milestoneName(input.name);
-      const description = input.description === undefined ? row.description : text(input.description, 'description');
+      const description = input.description === undefined ? row.description : text(input.description, 'description', MILESTONE_DESCRIPTION_MAX);
       const state = input.state === undefined ? (row.state as MilestoneState) : oneOf(input.state, ['open', 'closed'] as const, 'state');
       if (name === row.name && description === row.description && state === row.state) return null;
       const now = new Date().toISOString();
@@ -1078,14 +1110,12 @@ export class WorkItemService {
    * `rewritten` says the rows changed, so the caller still bumps the item and announces it.
    */
   private replaceCriteria(itemId: string, input: readonly AcceptanceCriterionInput[]): { entries: PendingEntry[]; rewritten: boolean } {
-    if (!Array.isArray(input)) throw new WorkItemError('acceptanceCriteria must be a list', 400);
-    if (input.length > CRITERIA_MAX) throw new WorkItemError(`an item holds at most ${String(CRITERIA_MAX)} acceptance criteria`, 400);
     const current = this.sql.prepare('SELECT * FROM work_item_criteria WHERE item_id = ? ORDER BY position').all(itemId) as unknown as CriterionRow[];
     const byId = new Map(current.map((c) => [c.id, c]));
     const kept = new Set<string>();
     const entries: PendingEntry[] = [];
     const next = input.map((entry) => {
-      const t = criterionText(entry.text);
+      const t = entry.text;
       if (entry.id !== undefined) {
         const existing = byId.get(entry.id);
         if (!existing || kept.has(entry.id)) throw new WorkItemError('an acceptance criterion id does not belong to this item', 400);
@@ -1206,7 +1236,8 @@ export class WorkItemService {
 
   // ---------- reading many ----------
 
-  private filtered(filter: WorkItemFilter): ItemRow[] {
+  private filtered(request: WorkItemFilter): ItemRow[] {
+    const filter = filterOf(request);
     const where: string[] = [];
     const params: SQLInputValue[] = [];
     if (filter.projectId !== undefined) {
@@ -1442,7 +1473,8 @@ function linkedDocumentPath(value: unknown): string {
   try {
     const segments = pathSegments(value, 'documentPath');
     if (!isMarkdown(segments[segments.length - 1] ?? '')) throw new DocumentPathError('documentPath must name a Markdown file');
-    return segments.join('/');
+    // One document is one link whether its accented name came composed or decomposed
+    return segments.join('/').normalize('NFC');
   } catch (err) {
     if (err instanceof DocumentPathError) throw new WorkItemError(err.message, 400);
     throw err;

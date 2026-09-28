@@ -1,6 +1,6 @@
 import type { Dirent } from 'node:fs';
 import { lstat, mkdir, open, readdir, readFile, realpath, stat, unlink } from 'node:fs/promises';
-import { dirname, join, sep } from 'node:path';
+import { basename, dirname, join, relative, sep } from 'node:path';
 import type {
   DocumentFile,
   DocumentKind,
@@ -32,8 +32,11 @@ import type { WorkItemContext, WorkItemService } from './work-items.ts';
 /** The folder a project's documents live in when its settings leave `documents.path` out */
 export const DEFAULT_DOCUMENTS_PATH = 'docs';
 
-/** A document written from the editor; a file larger than this is not a note someone types */
-export const DOCUMENT_CONTENT_MAX = 2 * 1024 * 1024;
+/**
+ * A document written from the editor; a file larger than this is not a note someone types. The
+ * API's body limit (1 MiB) as well, so a document the core would take is never one the route drops.
+ */
+export const DOCUMENT_CONTENT_MAX = 1024 * 1024;
 
 /** How much of a file is read to find its title for the tree */
 const TITLE_READ_BYTES = 16 * 1024;
@@ -100,7 +103,7 @@ export class DocumentService {
     const rootDir = rootDirOf(place);
     const ties = tiesByPath(this.deps.items.documentTies(projectId));
     const base = rootSegments(place.root).join('/');
-    const realRoot = await realpath(rootDir).catch(() => null);
+    const realRoot = await resolvedRoot(place);
     const exists = realRoot !== null && (await stat(realRoot).then((s) => s.isDirectory()).catch(() => false));
     const budget = { files: TREE_MAX_FILES };
     const tree = exists ? await walk(rootDir, base, 0, ties, budget) : [];
@@ -141,7 +144,7 @@ export class DocumentService {
     const content: unknown = request?.content;
     if (typeof content !== 'string') throw new DocumentError('content must be text', 400);
     if (Buffer.byteLength(content, 'utf8') > DOCUMENT_CONTENT_MAX) {
-      throw new DocumentError(`a document is larger than ${String(DOCUMENT_CONTENT_MAX / 1024 / 1024)} MB`, 400);
+      throw new DocumentError(`a document is larger than ${String(DOCUMENT_CONTENT_MAX / 1024 / 1024)} MiB`, 400);
     }
     const base: unknown = request.baseUpdatedAt;
     if (base !== undefined && base !== null && typeof base !== 'string') throw new DocumentError('baseUpdatedAt must be a date or null', 400);
@@ -234,10 +237,49 @@ function inside(child: string, parent: string): boolean {
   return child === parent || child.startsWith(parent.endsWith(sep) ? parent : parent + sep);
 }
 
+/**
+ * The documents folder through its symbolic links, or null while it does not exist. The files are
+ * checked against this folder, so the folder itself (or a folder on the way to it) must not be a
+ * link that leads out of the project: `docs -> /home/someone` would make every file there a document.
+ */
+async function resolvedRoot(place: DocumentsPlace): Promise<string | null> {
+  const realRoot = await realpath(rootDirOf(place)).catch(() => null);
+  if (!realRoot) return null;
+  const realProject = await realpath(place.projectPath).catch(() => null);
+  if (!realProject || !inside(realRoot, realProject)) {
+    throw new DocumentError(`the documents folder ${place.root} is outside the project`, 400);
+  }
+  return realRoot;
+}
+
+/**
+ * The file a checked path names on disk. A name is matched as written first, then by its NFC form:
+ * the same accented name can be stored composed or decomposed (a checkout made on macOS), and a
+ * path typed or reported by an agent is composed, so without this it would not find the file, and a
+ * write would add a second one beside it.
+ */
+async function onDisk(place: DocumentsPlace, rel: string): Promise<string> {
+  let dir = place.projectPath;
+  const segments = rel.split('/');
+  for (const [i, segment] of segments.entries()) {
+    const exact = join(dir, segment);
+    if (await lstat(exact).catch(() => null)) {
+      dir = exact;
+      continue;
+    }
+    const wanted = segment.normalize('NFC');
+    const names = await readdir(dir).catch(() => [] as string[]);
+    const match = names.find((name) => name.normalize('NFC') === wanted);
+    if (!match) return join(exact, ...segments.slice(i + 1));
+    dir = join(dir, match);
+  }
+  return dir;
+}
+
 /** The file on disk for a checked path, which must exist, be a file, and resolve inside the folder. */
 async function existingFile(place: DocumentsPlace, rel: string): Promise<string> {
-  const file = join(place.projectPath, ...rel.split('/'));
-  const realRoot = await realpath(rootDirOf(place)).catch(() => null);
+  const file = await onDisk(place, rel);
+  const realRoot = await resolvedRoot(place);
   const real = await realpath(file).catch(() => null);
   if (!realRoot || !real) throw new DocumentError(`document ${rel} not found`, 404);
   if (!inside(real, realRoot) || real === realRoot) throw new DocumentError(`${rel} is outside the documents folder`, 400);
@@ -253,7 +295,7 @@ async function existingFile(place: DocumentsPlace, rel: string): Promise<string>
  * swapped in between cannot carry the write out either.
  */
 async function writableFile(place: DocumentsPlace, rel: string): Promise<string> {
-  const file = join(place.projectPath, ...rel.split('/'));
+  const file = await onDisk(place, rel);
   const rootDir = rootDirOf(place);
   const outside = new DocumentError(`${rel} is outside the documents folder`, 400);
   const realProject = await realpath(place.projectPath).catch(() => null);
@@ -265,20 +307,30 @@ async function writableFile(place: DocumentsPlace, rel: string): Promise<string>
     probe = up;
   }
   const realProbe = await realpath(probe).catch(() => null);
-  const realRoot = await realpath(rootDir).catch(() => null);
+  const realRoot = await resolvedRoot(place);
   const allowed = realProbe !== null && (realRoot ? inside(realProbe, realRoot) : inside(realProbe, realProject));
-  if (!allowed) throw outside;
+  if (!allowed || realProbe === null) throw outside;
+  // A file where a folder of the path should be: mkdir fails with ENOTDIR, which is the caller's path
+  // meeting what is on disk, not a fault of the server
+  if (!(await stat(realProbe).then((s) => s.isDirectory()).catch(() => false))) {
+    throw new DocumentError(`${relativeTo(place, probe)} is a file, so it cannot hold ${rel}`, 409);
+  }
   await mkdir(dirname(file), { recursive: true });
   // Checked again on what now exists: the folder the file goes in, and the file if it is a link
   const realDir = await realpath(dirname(file));
-  if (!inside(realDir, await realpath(rootDir))) throw outside;
-  const target = join(realDir, rel.split('/').pop() ?? '');
+  const madeRoot = await resolvedRoot(place);
+  if (!madeRoot || !inside(realDir, madeRoot)) throw outside;
+  const target = join(realDir, basename(file));
   const link = await lstat(target).catch(() => null);
   if (link?.isSymbolicLink()) {
     const real = await realpath(target).catch(() => null);
-    if (!real || !inside(real, await realpath(rootDir))) throw outside;
+    if (!real || !inside(real, madeRoot)) throw outside;
   }
   return target;
+}
+
+function relativeTo(place: DocumentsPlace, path: string): string {
+  return relative(place.projectPath, path).split(sep).join('/');
 }
 
 // ---------- the tree ----------
@@ -324,7 +376,8 @@ async function walk(dir: string, rel: string, depth: number, ties: Map<string, D
         title: await readTitle(full),
         size: info.size,
         updatedAt: info.mtime.toISOString(),
-        ties: ties.get(at(entry.name)) ?? [],
+        // Ties are kept under the NFC form of the path, whichever form the name has on disk
+        ties: ties.get(at(entry.name).normalize('NFC')) ?? [],
       });
     }
   }

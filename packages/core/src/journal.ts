@@ -11,6 +11,7 @@ import {
   type WorkItemSource,
 } from '@agentry/shared';
 import type { Db } from './db.ts';
+import { DocumentPathError, pathSegments } from './document-paths.ts';
 import type { AgentryEventInput } from './events.ts';
 import { actorOf } from './work-item-rows.ts';
 import { PERSON, WorkItemError } from './work-item-validation.ts';
@@ -36,8 +37,6 @@ export const JOURNAL_HANDOFF_BYTES = 16 * 1024;
 export const JOURNAL_ENTRY_MAX = 8_000;
 export const JOURNAL_PAGE_DEFAULT = 50;
 export const JOURNAL_PAGE_MAX = 200;
-
-const DOCUMENT_PATH_MAX = 1_000;
 
 export interface JournalServiceDeps {
   db: Db;
@@ -291,12 +290,19 @@ function entryText(value: unknown): string {
   return text;
 }
 
+/**
+ * A path relative to the project, with the shape every document path has (`document-paths.ts`): no
+ * climbing, no hidden part such as `.git`, no control character. It may name any file, a decision
+ * can point at code as well as at a document. Stored in NFC, as a tie is.
+ */
 function documentPath(value: unknown): string | null {
   if (value === undefined || value === null || value === '') return null;
-  if (typeof value !== 'string' || value.length > DOCUMENT_PATH_MAX) throw new WorkItemError('documentPath must be a path relative to the project', 400);
-  const path = value.trim().replace(/\\/g, '/');
-  if (path.startsWith('/') || /^[A-Za-z]:/.test(path) || path.split('/').includes('..')) throw new WorkItemError('documentPath must be a path relative to the project', 400);
-  return path;
+  try {
+    return pathSegments(typeof value === 'string' ? value.trim() : value, 'documentPath').join('/').normalize('NFC');
+  } catch (err) {
+    if (err instanceof DocumentPathError) throw new WorkItemError(err.message, 400);
+    throw err;
+  }
 }
 
 function pageLimit(value: unknown): number {
