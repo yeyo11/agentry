@@ -123,6 +123,9 @@ export default async ({ page, api, check, dirs }) => {
     check(Math.abs(foot.bottom - 844) <= 1 && foot.width >= 389, `the Edit bar spans the bottom of the screen (${JSON.stringify(foot)})`);
     await page.click('.doc-phone-foot .btn', 'Edit', 1200);
     await page.waitFor(`return !!document.querySelector('.doc-phone-edit .cm-content')`, { label: 'the editor on a phone' });
+    // Editing, the editor fills the screen and Discard and Save sit at its bottom edge (MobileDocumentoEditar)
+    const editFoot = await page.eval(`const f = document.querySelector('.doc-phone-edit > .doc-phone-foot').getBoundingClientRect(); const e = document.querySelector('.doc-phone-edit .cm-editor').getBoundingClientRect(); return { bottom: Math.round(f.bottom), gap: Math.round(f.top - e.bottom) }`);
+    check(Math.abs(editFoot.bottom - 844) <= 1 && editFoot.gap <= 24, `the Save bar sits at the bottom, right under the editor (${JSON.stringify(editFoot)})`);
     await page.click('.doc-phone-cancel', 'Cancel', 800);
     await page.waitFor(`return ${param('mode')} === null && !!document.querySelector('.doc-phone-view')`, { label: 'Cancel goes back to the document' });
   } finally {
