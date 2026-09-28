@@ -9,7 +9,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { monogramLetters } from '../src/components/icons';
 import i18n from '../src/i18n';
+import { PhoneViewHead } from '../src/pages/Home';
 import { PhoneHead, ProjectHead } from '../src/pages/home/ProjectHead';
+import { PhoneHead as TeamPhoneHead } from '../src/pages/team/Team';
 
 // Gap 8 of orchestration 6: once a project had a team, nothing on its page led to its assistant.
 // Every tab's header now carries it, beside "New chat here" and "New task".
@@ -41,6 +43,18 @@ test("a phone's project header carries the assistant as a named icon button", ()
   const html = wrap(<PhoneHead project={project} />);
   assert.match(html, /<a [^>]*class="icon-btn project-head-assistant"[^>]*aria-label="Asistente de shop"/);
   assert.match(html, /href="\/projects\/p%201\/assistant"/);
+});
+
+test("every tab's phone head carries the assistant too, Team and its activity included", () => {
+  // Only the phone's project summary had it: on a phone the tabs are screens of their own, so the
+  // assistant was out of reach from all of them
+  for (const html of [
+    wrap(<PhoneViewHead project={project} view="documents" onBack={() => undefined} />),
+    wrap(<TeamPhoneHead project={project} title="Equipo" detail="shop" backHref="/?project=p%201" />),
+  ]) {
+    assert.match(html, /<a [^>]*class="icon-btn project-head-assistant"[^>]*aria-label="Asistente de shop"/);
+    assert.match(html, /href="\/projects\/p%201\/assistant"/);
+  }
 });
 
 test('a one-word project gets a two-letter monogram, as the references draw it; a person keeps one', () => {

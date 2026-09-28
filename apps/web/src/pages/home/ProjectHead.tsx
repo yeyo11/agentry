@@ -77,9 +77,20 @@ export function PhoneHead({ project }: { project: Project }) {
           {project.key} · {project.path}
         </span>
       </div>
-      <Link to={assistantPath(project.id)} className="icon-btn project-head-assistant" aria-disabled={!project.exists || undefined} aria-label={t('head.assistantOf', { name: project.name })}>
-        <Sparkle {...ICON} />
-      </Link>
+      <PhoneAssistantLink project={project} />
     </header>
+  );
+}
+
+/**
+ * The assistant as a phone head draws it, an icon at the end: every tab's head carries it, as the
+ * desktop head does, so no tab is a dead end on the way to it.
+ */
+export function PhoneAssistantLink({ project }: { project: Pick<Project, 'id' | 'name' | 'exists'> }) {
+  const { t } = useTranslation('projects');
+  return (
+    <Link to={assistantPath(project.id)} className="icon-btn project-head-assistant" aria-disabled={!project.exists || undefined} aria-label={t('head.assistantOf', { name: project.name })}>
+      <Sparkle {...ICON} />
+    </Link>
   );
 }
