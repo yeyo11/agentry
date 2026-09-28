@@ -221,7 +221,15 @@
     "save": "Guardar los cambios",
     "saving": "Guardando…",
     "saved": "Ajustes del proyecto guardados",
-    "saveFailed": "No se han podido guardar los ajustes del proyecto"
+    "saveFailed": "No se han podido guardar los ajustes del proyecto",
+    "moduleNote": {
+      "members_one": "{{n}} miembro",
+      "members_other": "{{n}} miembros",
+      "documents_one": "{{n}} documento",
+      "documents_other": "{{n}} documentos",
+      "journal_one": "diario con {{n}} entrada",
+      "journal_other": "diario con {{n}} entradas"
+    }
   },
   "illustration": {
     "refine": "refinar",

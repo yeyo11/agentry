@@ -221,7 +221,15 @@
     "save": "Save changes",
     "saving": "Saving…",
     "saved": "Project settings saved",
-    "saveFailed": "Could not save the project settings"
+    "saveFailed": "Could not save the project settings",
+    "moduleNote": {
+      "members_one": "{{n}} member",
+      "members_other": "{{n}} members",
+      "documents_one": "{{n}} document",
+      "documents_other": "{{n}} documents",
+      "journal_one": "journal with {{n}} entry",
+      "journal_other": "journal with {{n}} entries"
+    }
   },
   "illustration": {
     "refine": "refine",

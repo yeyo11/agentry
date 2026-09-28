@@ -117,3 +117,23 @@ export function limitedColumns(board: Pick<BoardSettings, 'columnLimits'> | unde
     return limit === undefined ? [] : [{ status, limit }];
   });
 }
+
+/** What a module holds, for the line under its switch in the settings. */
+export interface ModuleFigures {
+  members?: number | undefined;
+  documents?: number | undefined;
+  journal?: number | undefined;
+}
+
+/**
+ * The figure a switched-on module shows under its name (DesktopProyectoAjustes, MobileProyectoAjustes):
+ * the team's members, the documents, the journal's entries. The board has its own line (open and
+ * total); a module whose figure has not loaded yet shows none rather than a zero.
+ */
+export function moduleFigure(module: ProjectModule, figures: ModuleFigures): { key: 'members' | 'documents' | 'journal'; count: number } | null {
+  const pick = (key: 'members' | 'documents' | 'journal', count: number | undefined) => (count === undefined ? null : { key, count });
+  if (module === 'team') return pick('members', figures.members);
+  if (module === 'documents') return pick('documents', figures.documents);
+  if (module === 'memory') return pick('journal', figures.journal);
+  return null;
+}
