@@ -210,6 +210,12 @@
     "h": 1320
   },
   {
+    "file": "DSTablero.html",
+    "title": "Design system · Tablero y tareas",
+    "w": 1440,
+    "h": 2300
+  },
+  {
     "file": "DesktopChatsVacio.html",
     "title": "Desktop · Chats vacío",
     "w": 1440,
@@ -224,6 +230,426 @@
   {
     "file": "MobileInstalar.html",
     "title": "Móvil · Instalar",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopNuevoProyecto.html",
+    "title": "Desktop · Nuevo proyecto",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopProyectoAjustes.html",
+    "title": "Desktop · Ajustes del proyecto",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopProyecto.html",
+    "title": "Desktop · Proyecto · resumen",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopTablero.html",
+    "title": "Desktop · Tablero",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopTableroVacio.html",
+    "title": "Desktop · Tablero vacío",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopTareasLista.html",
+    "title": "Desktop · Lista de tareas",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopTareasTodos.html",
+    "title": "Desktop · Tareas de todos los proyectos",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopTarea.html",
+    "title": "Desktop · Tarea (detalle)",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopNuevaTarea.html",
+    "title": "Desktop · Nueva tarea",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopHitos.html",
+    "title": "Desktop · Hitos",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopChatTarea.html",
+    "title": "Desktop · Chat que trabaja en una tarea",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileNuevoProyectoOrigen.html",
+    "title": "Móvil · Nuevo proyecto · origen",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileNuevoProyecto.html",
+    "title": "Móvil · Nuevo proyecto",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileNuevoProyectoModulos.html",
+    "title": "Móvil · Nuevo proyecto · módulos",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileNuevoProyectoResumen.html",
+    "title": "Móvil · Nuevo proyecto · resumen",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileProyectoAjustes.html",
+    "title": "Móvil · Ajustes del proyecto",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileProyecto.html",
+    "title": "Móvil · Proyecto · resumen",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTablero.html",
+    "title": "Móvil · Tablero",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTableroSeleccion.html",
+    "title": "Móvil · Tablero · selección para orquestar",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTableroFiltros.html",
+    "title": "Móvil · Tablero · filtros",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTableroVacio.html",
+    "title": "Móvil · Tablero vacío",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTareasLista.html",
+    "title": "Móvil · Lista de tareas",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTareasTodos.html",
+    "title": "Móvil · Tareas de todos los proyectos",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTarea.html",
+    "title": "Móvil · Tarea (detalle)",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTareaActividad.html",
+    "title": "Móvil · Tarea · actividad",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTareaCambios.html",
+    "title": "Móvil · Tarea · cambios",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileNuevaTarea.html",
+    "title": "Móvil · Nueva tarea",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileHitos.html",
+    "title": "Móvil · Hitos",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileChatTarea.html",
+    "title": "Móvil · Chat que trabaja en una tarea",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopEquipo.html",
+    "title": "Desktop · Equipo",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopEquipoVacio.html",
+    "title": "Desktop · Equipo vacío",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopMiembro.html",
+    "title": "Desktop · Miembro del equipo",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopFlujo.html",
+    "title": "Desktop · Flujo por columna",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopMemoria.html",
+    "title": "Desktop · Memoria",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopDocumentos.html",
+    "title": "Desktop · Documentos",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopDocumentoEditar.html",
+    "title": "Desktop · Documento en el editor",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopTableroEquipo.html",
+    "title": "Desktop · Tablero trabajado por roles",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopEquipoActividad.html",
+    "title": "Desktop · Actividad del equipo",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopChatFlujo.html",
+    "title": "Desktop · Chat de una ejecución fallida",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileEquipo.html",
+    "title": "Móvil · Equipo",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileEquipoVacio.html",
+    "title": "Móvil · Equipo vacío",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileMiembro.html",
+    "title": "Móvil · Miembro del equipo",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileFlujo.html",
+    "title": "Móvil · Flujo por columna",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileMemoria.html",
+    "title": "Móvil · Memoria",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileMemoriaDiario.html",
+    "title": "Móvil · Memoria · diario",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileMemoriaCLI.html",
+    "title": "Móvil · Memoria · del CLI",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileDocumentos.html",
+    "title": "Móvil · Documentos",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileDocumento.html",
+    "title": "Móvil · Documento",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileDocumentoEditar.html",
+    "title": "Móvil · Documento en el editor",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTableroEquipo.html",
+    "title": "Móvil · Tablero trabajado por roles",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileEquipoActividad.html",
+    "title": "Móvil · Actividad del equipo, fallidas",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileChatFlujo.html",
+    "title": "Móvil · Chat de una ejecución fallida",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopAsistente.html",
+    "title": "Desktop · Asistente leyendo el proyecto",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopAsistentePropuestas.html",
+    "title": "Desktop · Asistente · propuestas",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopAsistenteVacio.html",
+    "title": "Desktop · Asistente sin nada que leer",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopSugerirTareas.html",
+    "title": "Desktop · Sugerir tareas",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopSugerirTareasEnCurso.html",
+    "title": "Desktop · Sugerir tareas, en curso",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopRecursos.html",
+    "title": "Desktop · Recursos",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopRecursoPropuesta.html",
+    "title": "Desktop · Recurso propuesto en el editor",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopRecursoCrearIA.html",
+    "title": "Desktop · Crear un recurso con IA",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileAsistente.html",
+    "title": "Móvil · Asistente leyendo el proyecto",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileAsistentePropuestas.html",
+    "title": "Móvil · Asistente · propuestas",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileAsistenteEquipo.html",
+    "title": "Móvil · Asistente · equipo propuesto",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileAsistenteRecursos.html",
+    "title": "Móvil · Asistente · recursos propuestos",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileAsistenteVacio.html",
+    "title": "Móvil · Asistente sin nada que leer",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileSugerirTareas.html",
+    "title": "Móvil · Sugerir tareas",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileSugerirTareasEnCurso.html",
+    "title": "Móvil · Sugerir tareas, en curso",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileRecursos.html",
+    "title": "Móvil · Recursos",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileRecursoPropuesta.html",
+    "title": "Móvil · Recurso propuesto en el editor",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileRecursoCrearIA.html",
+    "title": "Móvil · Crear un recurso con IA",
     "w": 390,
     "h": 844
   },

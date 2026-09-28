@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Documento (móvil)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:var(--bg)}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)})}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
+<div class="app m-screen" data-theme="dark">
+<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 4px">
+<a href="MobileDocumentos.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width: 2"><path d="m15 6-6 6 6 6"></path></svg></a>
+<span class="col grow" style="gap: 1px; min-width: 0"><h1 class="t-h1">Especificación</h1><span class="mono t-xs fg-3">docs/specs/agn-28-tablero.md</span></span>
+<button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width: 3"><path d="M5 12h.01M12 12h.01M19 12h.01"></path></svg></button>
+</header>
+<div class="m-body stack" style="gap: 14px">
+<a href="MobileTarea.html" class="doc-origin" style="min-height: 48px; flex-wrap: nowrap"><span class="role-av sm" style="--hue: 215" role="img" aria-label="Arquitecto" title="Arquitecto">AR</span><span class="grow">Lo escribió el <b style="color: var(--fg); font-weight: 500">Arquitecto</b> desde <span class="wi-key boxed">AGN-28</span></span><svg class="ico fg-3" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></a>
+<article class="doc-view" style="font-size: 15px"><h1>Tablero con columnas fijas y límites</h1><p>Especificación de <strong>AGN-28</strong>. El tablero de un proyecto tiene cinco columnas fijas, en este orden, y no se pueden editar.</p><h2>Columnas</h2><ul><li><strong>Backlog</strong>: lo que alguien pidió y aún nadie refinó.</li><li><strong>Por hacer</strong>: refinado, con criterios de aceptación.</li><li><strong>En curso</strong>: un chat o un nodo de una orquestación trabaja en ello.</li><li><strong>En revisión</strong>: espera la verificación de QA o la tuya.</li><li><strong>Hecho</strong>: solo tú apruebas este paso.</li></ul><h2>Límite por columna</h2><p>Cada columna puede tener un límite opcional. Superarlo se permite: la columna lo dice con palabras en el color de aviso, y mover una tarjeta nunca se bloquea.</p><h2>Orden</h2><p>Cada tarea guarda su <code>rank</code> dentro de la columna, así que el orden que das al arrastrar sobrevive a un reinicio y a otro proceso del wrapper.</p></article>
+</div>
+<div class="m-foot"><a href="MobileDocumentoEditar.html" class="btn btn-lg"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"></path></svg>Editar</a></div>
+
+
+</div>
+<script>t()</script>
+</body></html>

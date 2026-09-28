@@ -160,6 +160,79 @@
   flex: none;
 }
 
+/* A flow run that failed in this chat (.run-fail, ChatFlujo): why in the person's words, the raw
+   error in mono, what the retry did, and the ways on. A bad rail on its left, never a red box */
+.chat-run-failed {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bad-soft) 55%, transparent);
+  box-shadow: inset 3px 0 0 var(--bad);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+
+.chat-run-failed-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--bad);
+}
+
+.chat-run-failed-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chat-run-failed-text b {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.chat-run-failed-why {
+  font-size: 12px;
+  color: var(--fg-3);
+  overflow-wrap: anywhere;
+}
+
+.chat-run-failed-next {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.chat-run-failed-next b {
+  font-weight: 600;
+}
+
+.chat-run-failed-ok {
+  flex: none;
+  align-self: center;
+  color: var(--ok);
+}
+
+.chat-run-failed-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.btn.chat-run-failed-quiet {
+  border-color: transparent;
+  background: transparent;
+}
+
+.btn.chat-run-failed-quiet:hover {
+  background: var(--bg-hover);
+}
+
 /* A worker's way back to its orchestration: one quiet line, the graph's progress at its end */
 .chat-part-of {
   position: relative;
@@ -241,6 +314,119 @@
   .chat-part-of-progress {
     display: none;
   }
+}
+
+/* The same row for a work item the chat works on: "Works on AGN-28 *title*", then where the item
+   stands, in words beside its column's glyph */
+.chat-part-of-lead {
+  white-space: nowrap;
+}
+
+.chat-part-of-lead .workitem-key {
+  margin-left: 2px;
+  vertical-align: 1px;
+}
+
+.chat-part-of-state {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.chat-part-of-criteria {
+  flex: none;
+}
+
+/* On a phone the row is two lines: what it is and where it stands, then the title in full */
+@media (max-width: 640px) {
+  .chat-part-of-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 2px;
+    min-height: 52px;
+  }
+
+  .chat-part-of-item:not(.is-flow) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .chat-part-of-item > .role-avatar {
+    grid-row: 1 / span 2;
+    align-self: start;
+    margin-top: 2px;
+  }
+
+  .chat-part-of-item:not(.is-flow) .chat-part-of-lead {
+    grid-column: 1;
+  }
+
+  .chat-part-of-item:not(.is-flow) .chat-part-of-name {
+    grid-column: 1 / span 2;
+  }
+
+  .chat-part-of-item:not(.is-flow) .chat-part-of-state {
+    grid-column: 2;
+  }
+
+  /* The row above already opens the item; the banner keeps the way to the retry's chat, full width */
+  .btn.chat-run-failed-quiet {
+    display: none;
+  }
+
+  .chat-run-failed-acts {
+    flex-direction: column;
+  }
+
+  .chat-run-failed-acts .btn {
+    justify-content: center;
+    min-height: 44px;
+  }
+
+  .chat-part-of-item .chat-part-of-text {
+    display: contents;
+  }
+
+  .chat-part-of-item .chat-part-of-lead {
+    grid-column: 2;
+    grid-row: 1;
+    font-size: 12px;
+  }
+
+  .chat-part-of-item .chat-part-of-name {
+    grid-column: 2 / span 2;
+    grid-row: 2;
+    font-size: 14px;
+    white-space: normal;
+  }
+
+  .chat-part-of-item .chat-part-of-state {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .chat-part-of-item .chat-part-of-criteria {
+    display: none;
+  }
+}
+
+/* The inspector's card for that item */
+.insp-item-open {
+  color: var(--accent);
+}
+
+.insp-facts > dd.insp-item-status,
+.insp-facts > dd.insp-item-criteria {
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.insp-item-bar {
+  flex: 0 1 90px;
 }
 
 /* ---- the conversation ---- */

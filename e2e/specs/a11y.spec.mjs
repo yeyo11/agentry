@@ -3,16 +3,19 @@
 // around, and the contrast of the theme tokens (which axe cannot judge over gradients and tints).
 // Findings are gathered and reported together, so one run says everything that is wrong.
 //
-// It seeds a chat (with a subagent and a background task), a project and an orchestration whose
-// workers fail in the sandbox, so the pages are scanned with content in them, and removes all of it
-// afterwards because the chats spec counts what the sandbox holds.
+// It seeds a chat (with a subagent and a background task), a project with its board (an epic, work
+// items with criteria and a relation, a milestone) and an orchestration whose workers fail in the
+// sandbox, so the pages are scanned with content in them, and removes all of it afterwards because
+// the chats spec counts what the sandbox holds. The assistant's screens (orchestration 4) are scanned
+// without the CLI: an empty project's run reads nothing, starts no chat, and offers the template's
+// team at once.
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Two themes, a phone and a dozen pages, plus the overlays and the keyboard walk
-export const timeout = 420_000;
+// Two themes, a phone and two dozen pages, plus the overlays and the keyboard walk
+export const timeout = 540_000;
 
 const FIXTURES = resolve(dirname(fileURLToPath(import.meta.url)), '../../packages/core/test/fixtures');
 const PROJECT = '-work-e2e-a11y';
@@ -135,7 +138,9 @@ export default async ({ page, api, check, dirs }) => {
   const tasksRoot = join(tmpdir(), `claude-${String(process.getuid?.() ?? 0)}`, PROJECT);
   const workspace = join(dirs.workspaceDir, 'e2e-a11y');
   let projectId = null;
+  let emptyProjectId = null;
   let orchestrationId = null;
+  const workItems = [];
   const orchestrationChats = [];
 
   try {
@@ -170,9 +175,74 @@ export default async ({ page, api, check, dirs }) => {
     writeFileSync(join(tasksRoot, SESSION, 'tasks', 'bg-sub-1.output'), 'watching the build\nrebuilt in 12ms\n');
 
     mkdirSync(workspace, { recursive: true });
-    const imported = await api.post('/projects/import', { path: workspace, name: 'e2e-a11y' });
+    // Every module on, so the project page has its Board and Memory tabs to scan
+    const imported = await api.post('/projects/import', { path: workspace, name: 'e2e-a11y', template: 'software' });
     check(imported.status === 201, `the project was imported (${imported.status})`);
     projectId = imported.body.id;
+    // A board with something on every kind of mark: types, an urgent priority, an epic, labels, a
+    // checklist half done, a blocker, a milestone, and a column over its limit
+    const settings = (await api.get(`/projects/${projectId}/settings`)).body;
+    await api.put(`/projects/${projectId}/settings`, { ...settings, board: { ...settings.board, columnLimits: { in_progress: 1 } } });
+    const milestone = (await api.post(`/projects/${projectId}/milestones`, { name: 'v1.0', description: 'The first release' })).body;
+    const make = async (body) => {
+      const made = await api.post(`/projects/${projectId}/work-items`, body);
+      check(made.status === 201, `"${body.title}" was created (${made.status})`);
+      workItems.push(made.body.id);
+      return made.body;
+    };
+    const epic = await make({ title: 'Accessible board', type: 'epic', status: 'in_progress' });
+    const story = await make({
+      title: 'Read the board with a screen reader',
+      type: 'story',
+      status: 'in_progress',
+      priority: 'urgent',
+      labels: ['a11y'],
+      epicId: epic.id,
+      milestoneId: milestone.id,
+      description: 'Every card says its **key**, its column and its priority in words.',
+      acceptanceCriteria: [{ text: 'Cards are named', checked: true }, { text: 'Moves are announced' }],
+    });
+    const blocker = await make({ title: 'Name the columns', type: 'task', status: 'todo', milestoneId: milestone.id });
+    await make({ title: 'Focus ring on cards', type: 'bug', status: 'done', milestoneId: milestone.id });
+    await api.post(`/work-items/${blocker.id}/relations`, { type: 'blocks', itemId: story.id });
+    await api.post(`/work-items/${story.id}/comments`, { body: 'Check it with the keyboard only.' });
+    const board = `/tasks?project=${projectId}`;
+    const itemPage = `/tasks/${story.key}?project=${projectId}`;
+
+    // Orchestration 3's screens with something in them: the template's team (so the board, the item
+    // and the flow name roles), a document tied to the story, and a journal entry. The flow stays
+    // off, so no run starts in the sandbox; the story is assigned to a role
+    const team = await api.post(`/projects/${projectId}/team/from-template`, {});
+    check(team.status === 200 || team.status === 201, `the template's team (${team.status})`);
+    const spec = await api.put(`/projects/${projectId}/documents/file?path=${encodeURIComponent('docs/specs/board.md')}`, { content: '# Board\n\nEvery card says its key.\n' });
+    check(spec.status === 200, `a document was written (${spec.status})`);
+    await api.post(`/work-items/${story.id}/documents`, { path: 'docs/specs/board.md', kind: 'spec' });
+    await api.post(`/projects/${projectId}/journal`, { kind: 'decision', text: 'Cards name their column in words' });
+    await api.request('PATCH', `/work-items/${story.id}`, { assignee: { kind: 'role', role: 'developer' } });
+    const project = `/?project=${projectId}`;
+    const ecosystem = [
+      `${project}&view=team`,
+      `${project}&view=team&member=developer`,
+      `${project}&view=team&section=flow`,
+      `${project}&view=team&section=activity`,
+      `${project}&view=documents`,
+      `${project}&view=documents&doc=${encodeURIComponent('docs/specs/board.md')}`,
+      `${project}&view=documents&doc=${encodeURIComponent('docs/specs/board.md')}&mode=edit`,
+      `${project}&view=memory&section=journal`,
+      `${project}&view=memory&section=cli`,
+    ];
+    const milestones = `/tasks/milestones?project=${projectId}`;
+
+    // Orchestration 4's screens: the assistant of a project that has not asked it anything, and of
+    // an empty one with the template's team to accept member by member
+    const emptyDir = join(dirs.workspaceDir, 'e2e-a11y-empty');
+    mkdirSync(emptyDir, { recursive: true });
+    const emptyProject = await api.post('/projects/import', { path: emptyDir, name: 'e2e-a11y-empty', template: 'software' });
+    check(emptyProject.status === 201, `the empty project was imported (${emptyProject.status})`);
+    emptyProjectId = emptyProject.body.id;
+    const emptyRun = await api.post(`/projects/${emptyProjectId}/assistant/runs`, { kind: 'project' });
+    check(emptyRun.status === 201 && emptyRun.body.empty === true, `the empty project's run reads nothing (${emptyRun.status} ${JSON.stringify(emptyRun.body?.empty)})`);
+    const assistant = [`/projects/${projectId}/assistant`, `/projects/${emptyProjectId}/assistant`];
 
     // Nothing is logged in inside the sandbox, so the first task fails, the one behind it is blocked
     // and the graph waits for a decision: the states the board has to show without colour alone
@@ -211,7 +281,15 @@ export default async ({ page, api, check, dirs }) => {
       '/connectors',
       ...['account', 'instructions', 'settings', 'mcp', 'agents', 'skills', 'commands', 'output-styles', 'rules', 'files', 'memory', 'plugins', 'supervisor', 'security', 'remote', 'install', 'notifications'].map((tab) => `/settings?tab=${tab}`),
       `/?project=${projectId}`,
-      ...['settings', 'memory', 'resources', 'worktrees'].map((view) => `/?project=${projectId}&view=${view}`),
+      ...['board', 'settings', 'memory', 'resources', 'worktrees'].map((view) => `/?project=${projectId}&view=${view}`),
+      ...ecosystem,
+      ...assistant,
+      '/projects/new',
+      board,
+      `${board}&view=list`,
+      '/tasks?project=all',
+      milestones,
+      itemPage,
     ];
     for (const theme of ['dark', 'light']) {
       // Home is the selected project's page: both themes start from All projects
@@ -226,7 +304,28 @@ export default async ({ page, api, check, dirs }) => {
     // ---------- axe: phone width ----------
     await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
     await page.viewport(420, 900);
-    const narrow = ['/', '/chats', '/chats/new', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/settings?tab=settings', '/settings?tab=install', '/settings?tab=notifications', '/settings?tab=remote', `/?project=${projectId}`, `/?project=${projectId}&view=settings`];
+    const narrow = [
+      '/',
+      '/chats',
+      '/chats/new',
+      `/chats/${SESSION}`,
+      `/orchestration/${orchestrationId}`,
+      '/settings?tab=settings',
+      '/settings?tab=install',
+      '/settings?tab=notifications',
+      '/settings?tab=remote',
+      `/?project=${projectId}`,
+      `/?project=${projectId}&view=settings`,
+      `/?project=${projectId}&view=board`,
+      ...ecosystem,
+      ...assistant,
+      `/?project=${projectId}&view=resources`,
+      '/projects/new',
+      board,
+      `${board}&view=list`,
+      milestones,
+      itemPage,
+    ];
     for (const path of narrow) {
       await settle(page, path);
       await scan(page, `420px ${path}`);
@@ -234,7 +333,7 @@ export default async ({ page, api, check, dirs }) => {
       if (overflow > 1) problems.push(`[420px ${path}] the page scrolls sideways by ${overflow}px`);
     }
     await page.viewport(768, 900);
-    for (const path of ['/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/', `/?project=${projectId}`]) {
+    for (const path of ['/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/', `/?project=${projectId}`, board, itemPage]) {
       await settle(page, path);
       const overflow = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
       if (overflow > 1) problems.push(`[768px ${path}] the page scrolls sideways by ${overflow}px`);
@@ -346,8 +445,33 @@ export default async ({ page, api, check, dirs }) => {
     await page.sleep(400);
     await scan(page, 'new orchestration form');
 
+    // The board's own overlays: New task, a work item in its panel, and a move menu on a phone
+    await page.goto(`${board}&new=1`, 800);
+    await page.waitFor(`return !!document.querySelector('[role=dialog] .newtask-form, [role=dialog] form')`, { label: 'the New task dialog' });
+    await scan(page, 'new task dialog', { rules: OVERLAY_RULES });
+    await page.key('Escape');
+    await page.goto(`${board}&item=${story.key}`, 800);
+    await page.waitFor(`return document.querySelector('[role=dialog]')?.innerText.includes(${JSON.stringify(story.title)})`, { label: 'the work item panel' });
+    await scan(page, 'work item panel', { rules: OVERLAY_RULES });
+    await page.key('Escape');
+    // …and orchestration 4's: Suggest tasks before it runs, and Create with AI on the Resources tab
+    await page.goto(`${board}&suggest=1`, 800);
+    await page.waitFor(`return !!document.querySelector('[role=dialog] .suggest-body')`, { label: 'the Suggest tasks dialog' });
+    await scan(page, 'suggest tasks dialog', { rules: OVERLAY_RULES });
+    await page.key('Escape');
+    await page.goto(`/?project=${projectId}&view=resources&ai=1`, 800);
+    await page.waitFor(`return !!document.querySelector('[role=dialog] .create-ai-description')`, { label: 'the Create with AI dialog' });
+    await scan(page, 'create with AI dialog', { rules: OVERLAY_RULES });
+    await page.key('Escape');
+    await page.viewport(420, 900);
+    await settle(page, `${board}&new=1`);
+    await scan(page, '420px new task screen', { rules: OVERLAY_RULES });
+    await settle(page, `${board}&suggest=1`);
+    await scan(page, '420px suggest tasks screen', { rules: OVERLAY_RULES });
+    await page.viewport(1440, 900);
+
     // ---------- status is never colour alone ----------
-    for (const path of ['/', '/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/orchestration', '/accounts', '/connectors']) {
+    for (const path of ['/', '/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/orchestration', '/accounts', '/connectors', board, `${board}&view=list`, milestones, itemPage, ...ecosystem, ...assistant]) {
       await settle(page, path);
       const bare = await page.eval(`
         const bare = [];
@@ -432,7 +556,9 @@ export default async ({ page, api, check, dirs }) => {
     await page.eval(`localStorage.removeItem('agentry-theme'); localStorage.removeItem('agentry:project'); return true`).catch(() => {});
     if (orchestrationId) await api.del(`/orchestrations/${orchestrationId}`).catch(() => {});
     for (const id of orchestrationChats) await api.del(`/chats/${id}`).catch(() => {});
+    for (const id of workItems.reverse()) await api.del(`/work-items/${id}`).catch(() => {});
     if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
+    if (emptyProjectId) await api.del(`/projects/${emptyProjectId}`).catch(() => {});
     rmSync(projectDir, { recursive: true, force: true });
     rmSync(tasksRoot, { recursive: true, force: true });
   }

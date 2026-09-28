@@ -55,6 +55,7 @@ function chat(env = {}, { args = [], setup } = {}) {
   const exited = new Promise((r) => proc.on('exit', r));
   return {
     proc,
+    dir,
     events,
     exited,
     log: () => (existsSync(logFile) ? readFileSync(logFile, 'utf8').trim().split('\n').map((l) => JSON.parse(l)) : []),
@@ -178,6 +179,56 @@ test('say: lines are the assistant\'s own prose, in their place among the calls'
   const result = await c.next((e) => e.type === 'result');
   assert.equal(result.result, 'Two handlers, both tested.');
   assert.ok(!c.events.some((e) => /^Running|^All done/.test(text(e))), 'a scripted turn has none of the fake\'s own words');
+  await c.done();
+});
+
+test('read: holds a Read call open, and json: is the structured output of the result', async () => {
+  const c = chat({ AGENTRY_FAKE_CLI_READ_MS: '50' }, { setup: (dir) => writeFileSync(join(dir, 'README.md'), '# hello\n') });
+  c.say('read: README.md\nread: missing.md\njson: {"summary":"ok","workItems":[]}');
+  const first = await c.next((e) => toolUse(e) && e.message.content[0].name === 'Read');
+  assert.match(first.message.content[0].input.file_path, /README\.md$/);
+  const answer = await c.next((e) => e.type === 'user' && e.message.content[0].type === 'tool_result');
+  assert.equal(answer.message.content[0].content, '# hello\n');
+  await c.next((e) => toolUse(e) && /missing\.md$/.test(e.message.content[0].input.file_path));
+  const missing = await c.next((e) => e.type === 'user' && e.message.content[0].type === 'tool_result');
+  assert.equal(missing.message.content[0].content, '(file not found)');
+  const result = await c.next((e) => e.type === 'result');
+  assert.deepEqual(result.structured_output, { summary: 'ok', workItems: [] });
+  assert.equal(result.is_error, false);
+  await c.done();
+});
+
+test('stream: hands the structured output over as StructuredOutput deltas, and hold: keeps it half-written', async () => {
+  const c = chat();
+  const json = '{"resources":[{"kind":"agents","name":"glossary-reviewer","content":"---\\nname: glossary-reviewer\\n---\\n"}]}';
+  c.say(`stream: ${json}\nhold: release\nsay: Written.`);
+  const start = await c.next((e) => e.type === 'stream_event' && e.event.type === 'content_block_start');
+  assert.equal(start.event.content_block.name, 'StructuredOutput');
+  const partial = () =>
+    c.events
+      .filter((e) => e.type === 'stream_event' && e.event.delta?.type === 'input_json_delta')
+      .map((e) => e.event.delta.partial_json)
+      .join('');
+  await new Promise((r) => setTimeout(r, 300));
+  // Held: half the file is out, and no result yet
+  assert.equal(partial(), json.slice(0, Math.floor(json.length / 2)));
+  assert.ok(!c.events.some((e) => e.type === 'result'));
+  writeFileSync(join(c.dir, 'release'), '');
+  const result = await c.next((e) => e.type === 'result');
+  assert.equal(partial(), json);
+  assert.ok(c.events.some((e) => e.type === 'stream_event' && e.event.type === 'content_block_stop'));
+  assert.deepEqual(result.structured_output, JSON.parse(json));
+  assert.equal(result.result, 'Written.');
+  await c.done();
+});
+
+test('an interrupt during a read ends the turn at once', async () => {
+  const c = chat({ AGENTRY_FAKE_CLI_READ_MS: '60000' });
+  c.say('read: README.md');
+  await c.next((e) => toolUse(e) && e.message.content[0].name === 'Read');
+  c.send({ type: 'control_request', request_id: 'r1', request: { subtype: 'interrupt' } });
+  const result = await c.next((e) => e.type === 'result');
+  assert.equal(result.is_error, true);
   await c.done();
 });
 

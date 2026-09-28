@@ -2,11 +2,12 @@ import type { ChangeSummary, EditStep, FileDiff } from '@agentry/shared';
 import type { ChangeScope, DiffOptions } from '../../api';
 
 /**
- * Where a review reads from: a chat, a task, or an orchestration's integration branch. The screen
- * is the same for the three; only these loaders, the way back and what is live differ.
+ * Where a review reads from: a chat, a task, an orchestration's integration branch, or a work
+ * item's own branch. The screen is the same for all four; only these loaders, the way back and what
+ * is live differ.
  */
 export interface ReviewSource {
-  kind: 'chat' | 'task' | 'integration';
+  kind: 'chat' | 'task' | 'integration' | 'workItem';
   /** Names the source in the browser's "seen" store */
   storageKey: string;
   /** The summary of a scope; null when there is no git checkout to compare (a chat outside git) */

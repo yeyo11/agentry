@@ -16,6 +16,7 @@ export function NumberInput({
   placeholder,
   disabled,
   compact,
+  decimal,
   'aria-label': ariaLabel,
 }: {
   value: number | undefined;
@@ -27,6 +28,8 @@ export function NumberInput({
   disabled?: boolean;
   /** Smaller variant for dense rows */
   compact?: boolean;
+  /** Takes fractions (an amount): a phone offers the keypad with a decimal point */
+  decimal?: boolean;
   'aria-label'?: string;
 }) {
   const { t } = useTranslation('components');
@@ -45,7 +48,7 @@ export function NumberInput({
       </button>
       <input
         type="number"
-        inputMode="numeric"
+        inputMode={decimal ? 'decimal' : 'numeric'}
         min={min}
         max={max}
         step={step}

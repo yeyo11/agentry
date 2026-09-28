@@ -4,7 +4,8 @@
   "back": {
     "chat": "Back to the chat",
     "task": "Back to the task",
-    "orchestration": "Back to the orchestration"
+    "orchestration": "Back to the orchestration",
+    "workItem": "Back to {{key}}"
   },
   "meta": {
     "from": "from {{base}}",
@@ -103,7 +104,8 @@
     "scope": "Nothing in this scope",
     "scopeBody": "Pick another part of the work in the menu above.",
     "noSteps": "No edits yet",
-    "noStepsBody": "Every Edit and Write call of the chat shows up here with its patch."
+    "noStepsBody": "Every Edit and Write call of the chat shows up here with its patch.",
+    "workItem": "This task is not here"
   },
   "blocksOnly": "Over 5,000 lines: shown as blocks only, and the rest of the file is not asked for.",
   "phone": {

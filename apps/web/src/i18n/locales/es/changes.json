@@ -4,7 +4,8 @@
   "back": {
     "chat": "Volver al chat",
     "task": "Volver a la tarea",
-    "orchestration": "Volver a la orquestación"
+    "orchestration": "Volver a la orquestación",
+    "workItem": "Volver a {{key}}"
   },
   "meta": {
     "from": "desde {{base}}",
@@ -103,7 +104,8 @@
     "scope": "No hay nada en esta parte",
     "scopeBody": "Elige otra parte del trabajo en el menú de arriba.",
     "noSteps": "Aún no hay ediciones",
-    "noStepsBody": "Cada llamada a Edit y Write del chat aparece aquí con su parche."
+    "noStepsBody": "Cada llamada a Edit y Write del chat aparece aquí con su parche.",
+    "workItem": "Esta tarea no está"
   },
   "blocksOnly": "Más de 5.000 líneas: se muestra solo por bloques y no se pide el resto del archivo.",
   "phone": {
@@ -126,7 +128,7 @@
     "countShort_one": "{{count}} edición de Claude",
     "countShort_other": "{{count}} ediciones de Claude, en orden",
     "keys": "pasos",
-    "live": "en vivo",
+    "live": "en directo",
     "back": "Volver a los cambios",
     "allFiles": "Todos los archivos",
     "filter": "Ver los pasos de",

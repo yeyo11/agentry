@@ -43,14 +43,20 @@ export function toMs(value: string | number | null | undefined): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
+/**
+ * A finished duration, in words: `3 min 40 s`, `11 min`, `2 h 5 min`. Two units at most, and the
+ * second left out when it is zero ("11 min", not "11 min 0 s"). A running clock is `formatElapsed`.
+ */
 export function formatDuration(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
   if (s < 60) return unit(s, 'second');
+  const pair = (big: number, bigUnit: Unit, small: number, smallUnit: Unit) =>
+    small === 0 ? unit(big, bigUnit) : `${unit(big, bigUnit)} ${unit(small, smallUnit)}`;
   const m = Math.floor(s / 60);
-  if (m < 60) return `${unit(m, 'minute')} ${unit(s % 60, 'second')}`;
+  if (m < 60) return pair(m, 'minute', s % 60, 'second');
   const h = Math.floor(m / 60);
-  if (h < 24) return `${unit(h, 'hour')} ${unit(m % 60, 'minute')}`;
-  return `${unit(Math.floor(h / 24), 'day')} ${unit(h % 24, 'hour')}`;
+  if (h < 24) return pair(h, 'hour', m % 60, 'minute');
+  return pair(Math.floor(h / 24), 'day', h % 24, 'hour');
 }
 
 export function timeAgo(value: string | number | null | undefined): string {
@@ -89,6 +95,29 @@ export function formatDate(value: string | number | null | undefined): string {
 export function formatDateTime(value: string | number | null | undefined): string {
   const ms = toMs(value);
   return ms == null ? '—' : dateTime('datetime', { ...DATE, ...TIME }).format(ms);
+}
+
+/**
+ * The bare hour of a moment, `17:44`: only inside a list grouped by day (the team's activity), where
+ * the day's heading says which day it is. Anywhere else a past moment is `timeAgo`.
+ */
+export function formatHour(value: string | number | null | undefined): string {
+  const ms = toMs(value);
+  return ms == null ? '' : dateTime('hour', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(ms);
+}
+
+/**
+ * The day a moment falls on, counted in the local calendar from `now`: 0 today, 1 yesterday. What a
+ * list grouped by day heads each group with ("Hoy", "Ayer", then the date).
+ */
+export function daysAgo(value: string | number | null | undefined, now: number = Date.now()): number | null {
+  const ms = toMs(value);
+  if (ms == null) return null;
+  const midnight = (at: number) => {
+    const d = new Date(at);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  };
+  return Math.round((midnight(now) - midnight(ms)) / 86_400_000);
 }
 
 export function formatClock(value: string | null | undefined): string {

@@ -35,9 +35,11 @@ import { canRerun, dependantsOf } from '../lib/orchestration-v2';
 import { orchestrationProgress } from '../lib/orchestration-steps';
 import { NARROW, useMediaQuery } from '../lib/media';
 import { healthReason } from '../lib/server-strings';
+import { withoutKey } from '../lib/work-item-links';
 import { ActivityTicker } from './ActivityTicker';
 import { Collapsible, Tooltip } from './controls';
 import { useConfirm } from './Dialog';
+import { useLinkedWorkItem, WorkItemKeyLink } from './WorkItemKeyLink';
 import { ICON_SM } from './icons';
 import { HealthBadge } from './observe/Health';
 import { motion, useReducedMotion } from './motion';
@@ -286,10 +288,16 @@ export function TaskDuration({ task }: { task: OrchestrationTaskState }) {
 function TaskName({ task, id, className, level: Heading }: { task: OrchestrationTaskState; id: string; className: string; level: 'h3' | 'h4' }) {
   const { t } = useTranslation('orchestration');
   const { open } = useDetailPanel();
-  const name = task.name || task.id;
+  const item = useLinkedWorkItem(task.workItemId);
+  const name = withoutKey(task.name || task.id, item?.key);
   const chatId = task.sessionId;
   return (
     <Heading id={id} className={className}>
+      {item && (
+        <>
+          <WorkItemKeyLink item={item} />{' '}
+        </>
+      )}
       {chatId ? (
         <Tooltip content={t('board.openChatBeside')}>
           <button type="button" className="link-btn task-name-btn" onClick={() => open({ kind: 'chat', chatId })}>

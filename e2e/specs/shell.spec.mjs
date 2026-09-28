@@ -2,13 +2,21 @@
 // Settings → Appearance as the one place for theme, language and motion (they left the top bar),
 // the palette reaching the same preferences, and a phone's bottom tab bar instead of a slide-over.
 
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+/** The figure beside Tasks in the sidebar, without the words said to a screen reader */
+const tasksCount = `(document.querySelector('#sidebar a.nav-link[href="/tasks"] .nav-count')?.childNodes[0]?.textContent ?? null)`;
+const pageHeading = `(document.querySelector('main h1')?.textContent.trim() ?? null)`;
+
 const openNewMenu = async (page) => {
   await page.focus('.topbar-new .split-btn-more');
   await page.press('Enter');
   await page.waitFor(`return !!document.querySelector('[role=menu]')`, { label: 'the New chat menu opens' });
 };
 
-export default async ({ page, check }) => {
+export default async ({ page, api, check, dirs }) => {
+  let projectId = null;
   try {
     await page.viewport(1440, 900);
     await page.goto('/', 1500);
@@ -23,7 +31,10 @@ export default async ({ page, check }) => {
     check(!(await page.eval(`return !!document.querySelector('.topbar .palette-trigger')?.getClientRects().length`)), 'and not in the top bar on a desktop');
     // The sidebar's two groups, and the status bar at the bottom of the column
     const groups = await page.eval(`return [...document.querySelectorAll('#sidebar .nav-group')].map((g) => [...g.querySelectorAll('a')].map((a) => a.getAttribute('href').split('?')[0]))`);
-    check(JSON.stringify(groups) === JSON.stringify([['/', '/chats', '/orchestration', '/schedules'], ['/projects', '/accounts', '/connectors', '/usage', '/settings']]), `the sidebar has the Work and Space groups (${JSON.stringify(groups)})`);
+    check(
+      JSON.stringify(groups) === JSON.stringify([['/', '/chats', '/tasks', '/orchestration', '/schedules'], ['/projects', '/accounts', '/connectors', '/usage', '/settings']]),
+      `the sidebar has the Work and Space groups, Tasks between Chats and Orchestrations (${JSON.stringify(groups)})`,
+    );
     const status = await page.eval(`const s = document.querySelector('.statusbar'); if (!s) return null; const r = s.getBoundingClientRect(); return { height: r.height, bottom: r.bottom, text: s.innerText }`);
     check(status !== null && Math.round(status.height) === 30 && Math.abs(status.bottom - 900) <= 1, `the status bar is 30px at the bottom (${JSON.stringify(status)})`);
     check(/Claude Code|CLI not detected|Not logged in|Connecting|unreachable/.test(status?.text ?? ''), `the status bar says the connection or the CLI (${status?.text})`);
@@ -34,6 +45,75 @@ export default async ({ page, check }) => {
     for (const item of ['Run workflow', 'New orchestration']) check(items.includes(item), `"${item}" is behind New chat ▾ (${items.join(', ')})`);
     await page.click('[role=menu] [role=menuitem]', 'New orchestration', 900);
     check((await page.eval(`return location.pathname + location.search`)) === '/orchestration?new=1', 'New orchestration opens the Orchestrations page with its form');
+
+    // ---- Tasks: the open items of the selected project, kept current by the event feed ----
+    const dir = join(dirs.workspaceDir, 'e2e-shell-tasks');
+    mkdirSync(dir, { recursive: true });
+    const imported = await api.post('/projects/import', { path: dir, name: 'e2e-shell-tasks', template: 'software' });
+    check(imported.status === 201 && imported.body.modules.includes('board'), `a project with its board was imported (${imported.status})`);
+    projectId = imported.body.id;
+    const created = [];
+    for (const title of ['First task', 'Second task', 'Third task']) {
+      const made = await api.post(`/projects/${projectId}/work-items`, { title });
+      check(made.status === 201, `"${title}" was created (${made.status})`);
+      created.push(made.body);
+    }
+    const moved = await api.post(`/work-items/${created[2].id}/move`, { status: 'done' });
+    check(moved.status === 200, `a task was moved to Done (${moved.status})`);
+    // An epic groups the two open tasks: it is not a third
+    const epic = await api.post(`/projects/${projectId}/work-items`, { title: 'The epic', type: 'epic' });
+    check(epic.status === 201, `an epic was created (${epic.status})`);
+    await page.goto(`/?project=${projectId}`, 1200);
+    await page.waitFor(`return ${tasksCount} === '2'`, { label: 'Tasks counts the two open items of the project, not the one done nor the epic' });
+    const said = await page.text('#sidebar a.nav-link[href="/tasks"] .nav-count .sr-only');
+    check(said.trim() === 'open', `the count is said with its word (${said})`);
+    // A task created elsewhere (an agent, another tab) shows without a reload
+    await api.post(`/projects/${projectId}/work-items`, { title: 'Fourth task' });
+    await page.waitFor(`return ${tasksCount} === '3'`, { label: 'the count follows a task created through the API' });
+    // With All projects, every project's open items
+    const all = (await api.get('/work-items/board')).body;
+    const open = all.columns.filter((c) => c.status !== 'done').reduce((sum, c) => sum + c.count, 0);
+    await page.goto('/?project=all', 1200);
+    await page.waitFor(`return ${tasksCount} === '${open}'`, { label: `All projects counts every open item (${open})` });
+
+    // Every new route renders, under its crumb
+    await page.goto(`/?project=${projectId}`, 900);
+    // A project's page lives at `/`, yet it is one of the projects: Projects is the current section (gap 22)
+    await page.waitFor(`return document.querySelector('#sidebar a.nav-link[href="/projects"]')?.classList.contains('is-active')`, { label: "Projects is current on a project's page" });
+    check(!(await page.eval(`return document.querySelector('#sidebar a.nav-link[href="/"]').classList.contains('is-active')`)), "Home is not current on a project's page");
+    check((await page.eval(`return document.querySelector('#sidebar a.nav-link[href="/projects"]').getAttribute('aria-current')`)) === 'page', 'and a screen reader hears it as the current page');
+    check((await page.eval(`return document.querySelectorAll('#sidebar .nav-link[aria-current=page]').length`)) === 1, 'one current section');
+    await page.goto(`/?project=${projectId}&view=board`, 900);
+    check(await page.eval(`return document.querySelector('#sidebar a.nav-link[href="/projects"]').classList.contains('is-active')`), "and on the project's tabs");
+    await page.goto('/?project=all', 900);
+    await page.waitFor(`return document.querySelector('#sidebar a.nav-link[href="/"]')?.classList.contains('is-active')`, { label: 'Home is current on the Home of every project' });
+    await page.goto(`/?project=${projectId}`, 900);
+    await page.click('#sidebar a.nav-link[href="/tasks"]', undefined, 900);
+    check((await page.eval(`return location.pathname`)) === '/tasks', 'Tasks opens /tasks');
+    await page.waitFor(`return ${pageHeading} === 'Tasks'`, { label: 'the Tasks page' });
+    check((await page.eval(`return document.querySelector('#sidebar a.nav-link[href="/tasks"]').classList.contains('is-active')`)) === true, 'Tasks is the current section');
+    check((await page.text('.topbar .crumb-page')).trim() === 'Tasks', 'the crumb reads Tasks');
+    await page.goto('/tasks/milestones', 900);
+    // The milestones are a view of Tasks: the title stays, and the view switch says which (DesktopHitos)
+    await page.waitFor(`return ${pageHeading} === 'Tasks' && document.querySelector('main [role=radiogroup] [role=radio][aria-checked=true]')?.textContent.trim() === 'Milestones'`, { label: 'the milestones page' });
+    const key = created[0].key;
+    await page.goto(`/tasks/${key.toLowerCase()}`, 900);
+    await page.waitFor(`return ${pageHeading} === 'First task' && document.querySelector('main .workitem-key.boxed')?.textContent.trim() === '${key}'`, {
+      label: `a work item's page, by its key in any case (${key})`,
+    });
+    const crumbs = await page.eval(`return [...document.querySelectorAll('.topbar .crumb-page')].map((c) => c.textContent.trim())`);
+    check(JSON.stringify(crumbs) === JSON.stringify(['Tasks', key]), `the crumb reads Tasks / ${key} (${JSON.stringify(crumbs)})`);
+    await page.goto('/projects/new', 900);
+    await page.waitFor(`return ${pageHeading} === 'New project'`, { label: 'the new project wizard' });
+
+    // The palette starts a task and goes to Tasks
+    await page.key('k', 2);
+    await page.waitFor(`return !!document.querySelector('[role=dialog][aria-label="Command palette"]')`, { label: 'palette open' });
+    await page.type('new task');
+    await page.sleep(300);
+    check((await page.text('.palette-list [role=option][aria-selected=true]')).includes('New task'), 'the palette offers New task');
+    await page.key('Enter');
+    await page.waitFor(`return location.pathname + location.search === '/tasks?new=1'`, { label: 'New task opens Tasks with its form' });
 
     // ---- Settings → Appearance: the first tab, and what /settings opens on ----
     await page.goto('/settings', 1200);
@@ -71,7 +151,7 @@ export default async ({ page, check }) => {
 
     // ---- a phone: the tab bar, nothing sideways, fingers get room ----
     await page.viewport(390, 844);
-    for (const path of ['/', '/chats', '/orchestration', '/settings']) {
+    for (const path of ['/', '/chats', '/tasks', '/orchestration', '/settings']) {
       await page.goto(path, 900);
       const overflow = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
       check(overflow <= 1, `[390px ${path}] nothing scrolls sideways (${overflow}px)`);
@@ -106,6 +186,45 @@ export default async ({ page, check }) => {
     }
     await page.goto('/orchestration?new=1', 900);
     check(!(await page.eval(`return !!document.querySelector('.fab')`)), 'the new orchestration form is open, so the FAB steps aside');
+    // Tasks is in the More sheet on a phone, and its FAB starts a task
+    const tasksFab = await fab('/tasks');
+    expectFab(tasksFab, '/tasks', 'New task');
+    check((await page.eval(`return document.querySelector('.tabbar-more')?.classList.contains('is-active')`)) === true, '[390px /tasks] More is the current tab, where Tasks lives');
+    // A project's page is behind More too, where Projects lives (MobileProyecto), not under Home
+    await page.goto(`/?project=${projectId}`, 900);
+    await page.waitFor(`return document.querySelector('.tabbar-more')?.classList.contains('is-active') === true`, { label: "[390px a project's page] More is the current tab" });
+    check(!(await page.eval(`return document.querySelector('.tabbar a[href="/"]').classList.contains('is-active')`)), "[390px a project's page] Home is not");
+    // A phone's detail screens head themselves with a way back, as their references do: no top bar
+    // there, and the bar with the scope, search and the bell everywhere else (gap 21)
+    const topBarShown = `return document.querySelector('.topbar').getClientRects().length > 0`;
+    for (const path of [`/?project=${projectId}`, `/?project=${projectId}&view=team`, `/?project=${projectId}&view=documents`, `/tasks`, '/tasks/milestones', `/tasks/${key}`, `/projects/${projectId}/assistant`]) {
+      await page.goto(path, 1200);
+      await page.waitFor(`return !!document.querySelector('main h1')`, { label: `[390px ${path}] the page` });
+      check(!(await page.eval(topBarShown)), `[390px ${path}] no top bar over a screen that heads itself`);
+      const back = await page.eval(`const b = [...document.querySelectorAll('main button, main a')].find((e) => e.getAttribute('aria-label') && e.querySelector(':scope > svg.lucide-chevron-left')); if (!b) return null; const r = b.getBoundingClientRect(); return { top: r.top, h: r.height }`);
+      check(back !== null && back.top < 80 && back.h >= 44, `[390px ${path}] its header leads back, at the top, as a 44 px target (${JSON.stringify(back)})`);
+      check((await page.eval(`return document.querySelector('.shell')?.dataset.phoneHeader`)) === 'page', `[390px ${path}] the shell marks the route phoneHeader: 'page'`);
+    }
+    // The new project wizard is a modal flow: no top bar either, and a ✕ in place of the arrow
+    await page.goto('/projects/new', 1200);
+    await page.waitFor(`return !!document.querySelector('main h1')`, { label: '[390px /projects/new] the wizard' });
+    check(!(await page.eval(topBarShown)), '[390px /projects/new] no top bar over the wizard, which heads itself');
+    check(await page.eval(`const b = document.querySelector('main a[href="/projects"] svg.lucide-x, main button svg.lucide-x'); return !!b && b.closest('a, button').getBoundingClientRect().top < 80`), '[390px /projects/new] its header closes it, at the top');
+    // Tasks keeps the project scope, in its own header
+    await page.goto('/tasks', 1200);
+    check(await page.eval(`return !!document.querySelector('main .tasks-phone-head .project-selector')?.getClientRects().length`), '[390px /tasks] the project scope is in the header');
+    for (const path of ['/chats', '/orchestration', '/projects', '/?project=all']) {
+      await page.goto(path, 1200);
+      check(await page.eval(topBarShown), `[390px ${path}] the top bar stays`);
+      check((await page.eval(`return document.querySelector('.shell')?.dataset.phoneHeader`)) === 'app', `[390px ${path}] the route keeps the app's header`);
+    }
+    await page.goto(`/?project=${projectId}`, 900);
+    await page.goto('/tasks', 900);
+    if (tasksFab.shown) {
+      await page.click('.fab', undefined, 900);
+      check((await page.eval(`return location.pathname + location.search`)) === '/tasks?new=1', 'the Tasks FAB opens the New task form');
+    }
+    check(!(await fab(`/tasks/${key}`)).shown, "[390px a work item] no FAB on a work item's page");
     check(!(await fab('/settings')).shown, '[390px /settings] no FAB where there is nothing to start');
     if ((await fab('/')).shown) {
       await page.click('.fab', undefined, 900);
@@ -117,6 +236,8 @@ export default async ({ page, check }) => {
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.removeItem('agentry-theme'); localStorage.removeItem('agentry-motion'); localStorage.removeItem('agentry-language'); localStorage.removeItem('agentry-palette-recent'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('agentry-theme'); localStorage.removeItem('agentry-motion'); localStorage.removeItem('agentry-language'); localStorage.removeItem('agentry-palette-recent'); localStorage.removeItem('agentry:project'); return true`).catch(() => {});
+    // Later specs count the projects
+    if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
   }
 };

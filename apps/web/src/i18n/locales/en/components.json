@@ -346,6 +346,9 @@
       "worktrees": "worktrees"
     },
     "projectChats": "{{name}} — chats",
+    "assistant": "Project assistant",
+    "assistantOf": "Assistant of {{name}}",
+    "projectAssistant": "{{name}} — assistant",
     "projectNewChat": "{{name}} — new chat",
     "language": "Language: {{name}}",
     "motion": "Motion: {{level}}"

@@ -6,14 +6,14 @@
     },
     "silence": "No ha pasado nada en {{minutes}} min y no hay ningún comando en marcha: puede que el modelo o una llamada a la API se hayan atascado.",
     "lastExecution": {
-      "interrupted": "La última ejecución se cortó: se perdió su proceso.",
-      "failed": "La última ejecución falló.",
-      "failedWithError": "La última ejecución falló: {{error}}"
+      "interrupted": "La última ejecución se ha cortado: se ha perdido su proceso.",
+      "failed": "La última ejecución ha fallado.",
+      "failedWithError": "La última ejecución ha fallado: {{error}}"
     },
     "waiting": "Parado hasta que una persona responda a un permiso, una pregunta o un plan.",
     "context": "{{percent}} % de la ventana de contexto está en uso: Claude Code compacta la conversación cuando se llena.",
-    "branches_one": "Falló {{count}} rama.",
-    "branches_other": "Fallaron {{count}} ramas.",
+    "branches_one": "Ha fallado {{count}} rama.",
+    "branches_other": "Han fallado {{count}} ramas.",
     "repeatStall": "`{{kind}}` se ha colgado {{count}} veces seguidas ({{count}} ejecuciones, cada una de más de {{limitSeconds}}).",
     "loop": {
       "command": "`{{command}}` se ejecutó {{count}} veces con el mismo resultado.",

@@ -1,5 +1,6 @@
 // Every namespace of both languages, bundled: the UI never waits on a request to show its text.
 import enAccountsConfig from './locales/en/accountsConfig.json';
+import enAssistant from './locales/en/assistant.json';
 import enChanges from './locales/en/changes.json';
 import enChat from './locales/en/chat.json';
 import enChats from './locales/en/chats.json';
@@ -7,6 +8,7 @@ import enCommon from './locales/en/common.json';
 import enComponents from './locales/en/components.json';
 import enConfig from './locales/en/config.json';
 import enConnectors from './locales/en/connectors.json';
+import enDocuments from './locales/en/documents.json';
 import enHome from './locales/en/home.json';
 import enObserve from './locales/en/observe.json';
 import enOrchestration from './locales/en/orchestration.json';
@@ -17,9 +19,14 @@ import enProjects from './locales/en/projects.json';
 import enSchedules from './locales/en/schedules.json';
 import enServer from './locales/en/server.json';
 import enShell from './locales/en/shell.json';
+import enSuggestion from './locales/en/suggestion.json';
+import enTasks from './locales/en/tasks.json';
+import enTeam from './locales/en/team.json';
 import enUsage from './locales/en/usage.json';
 import enWork from './locales/en/work.json';
+import enWorkItem from './locales/en/workItem.json';
 import esAccountsConfig from './locales/es/accountsConfig.json';
+import esAssistant from './locales/es/assistant.json';
 import esChanges from './locales/es/changes.json';
 import esChat from './locales/es/chat.json';
 import esChats from './locales/es/chats.json';
@@ -27,6 +34,7 @@ import esCommon from './locales/es/common.json';
 import esComponents from './locales/es/components.json';
 import esConfig from './locales/es/config.json';
 import esConnectors from './locales/es/connectors.json';
+import esDocuments from './locales/es/documents.json';
 import esHome from './locales/es/home.json';
 import esObserve from './locales/es/observe.json';
 import esOrchestration from './locales/es/orchestration.json';
@@ -37,13 +45,18 @@ import esProjects from './locales/es/projects.json';
 import esSchedules from './locales/es/schedules.json';
 import esServer from './locales/es/server.json';
 import esShell from './locales/es/shell.json';
+import esSuggestion from './locales/es/suggestion.json';
+import esTasks from './locales/es/tasks.json';
+import esTeam from './locales/es/team.json';
 import esUsage from './locales/es/usage.json';
 import esWork from './locales/es/work.json';
+import esWorkItem from './locales/es/workItem.json';
 
 export const defaultNS = 'common';
 
 export const en = {
   common: enCommon,
+  assistant: enAssistant,
   components: enComponents,
   primitives: enPrimitives,
   config: enConfig,
@@ -63,6 +76,11 @@ export const en = {
   connectors: enConnectors,
   server: enServer,
   shell: enShell,
+  tasks: enTasks,
+  team: enTeam,
+  workItem: enWorkItem,
+  documents: enDocuments,
+  suggestion: enSuggestion,
 };
 
 export type Namespace = keyof typeof en;
@@ -72,6 +90,7 @@ type Shape<T> = { [K in keyof T]: T[K] extends string ? string : Shape<T[K]> };
 
 export const es = {
   common: esCommon,
+  assistant: esAssistant,
   components: esComponents,
   primitives: esPrimitives,
   config: esConfig,
@@ -91,6 +110,11 @@ export const es = {
   connectors: esConnectors,
   server: esServer,
   shell: esShell,
+  tasks: esTasks,
+  team: esTeam,
+  workItem: esWorkItem,
+  documents: esDocuments,
+  suggestion: esSuggestion,
 } satisfies Shape<typeof en>;
 
 // `satisfies` only catches keys Spanish lacks; a key only Spanish has is caught here instead, so a

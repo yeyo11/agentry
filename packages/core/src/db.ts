@@ -172,7 +172,325 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // How much each install may be interrupted. Rows from before it get the default a new install
   // gets: the page re-registers with its own choice the next time it opens anyway.
   `ALTER TABLE push_subscriptions ADD COLUMN level TEXT NOT NULL DEFAULT 'important';`,
+
+  // The work items of the project ecosystem (docs/plans/project-ecosystem.md), in rows rather than
+  // one document per item: several processes move cards at once, and a card rewritten whole by one
+  // of them would erase the other's comment. Only the number is stored, never the key, so a new
+  // prefix renames every key at once. The counter hands out numbers and is never decremented, so a
+  // number freed by a delete is not handed out again. Nothing references the projects: a project
+  // removed from Agentry keeps its work items for when its directory is imported again.
+  `CREATE TABLE work_item_counters (
+     project_id  TEXT PRIMARY KEY,
+     last_number INTEGER NOT NULL
+   );
+   CREATE TABLE milestones (
+     id          TEXT PRIMARY KEY,
+     project_id  TEXT NOT NULL,
+     name        TEXT NOT NULL,
+     description TEXT NOT NULL,
+     state       TEXT NOT NULL,
+     created_at  TEXT NOT NULL,
+     updated_at  TEXT NOT NULL,
+     closed_at   TEXT
+   );
+   CREATE INDEX milestones_project ON milestones (project_id, created_at);
+   CREATE TABLE work_items (
+     id            TEXT PRIMARY KEY,
+     project_id    TEXT NOT NULL,
+     number        INTEGER NOT NULL,
+     type          TEXT NOT NULL,
+     title         TEXT NOT NULL,
+     description   TEXT NOT NULL,
+     status        TEXT NOT NULL,
+     priority      TEXT NOT NULL,
+     assignee_kind TEXT,
+     assignee_role TEXT,
+     epic_id       TEXT REFERENCES work_items (id) ON DELETE SET NULL,
+     milestone_id  TEXT REFERENCES milestones (id) ON DELETE SET NULL,
+     rank          TEXT NOT NULL,
+     worktree      TEXT,
+     branch        TEXT,
+     created_at    TEXT NOT NULL,
+     updated_at    TEXT NOT NULL,
+     closed_at     TEXT,
+     UNIQUE (project_id, number)
+   );
+   CREATE INDEX work_items_board ON work_items (project_id, status, rank);
+   CREATE INDEX work_items_status ON work_items (status, rank);
+   CREATE INDEX work_items_epic ON work_items (epic_id);
+   CREATE INDEX work_items_milestone ON work_items (milestone_id);
+   CREATE TABLE work_item_labels (
+     item_id  TEXT NOT NULL REFERENCES work_items (id) ON DELETE CASCADE,
+     position INTEGER NOT NULL,
+     label    TEXT NOT NULL,
+     PRIMARY KEY (item_id, label)
+   );
+   CREATE INDEX work_item_labels_label ON work_item_labels (label);
+   CREATE TABLE work_item_criteria (
+     id              TEXT PRIMARY KEY,
+     item_id         TEXT NOT NULL REFERENCES work_items (id) ON DELETE CASCADE,
+     position        INTEGER NOT NULL,
+     text            TEXT NOT NULL,
+     checked         INTEGER NOT NULL DEFAULT 0,
+     checked_by_kind TEXT,
+     checked_by_role TEXT
+   );
+   CREATE INDEX work_item_criteria_item ON work_item_criteria (item_id, position);
+   CREATE TABLE work_item_relations (
+     blocker_id TEXT NOT NULL REFERENCES work_items (id) ON DELETE CASCADE,
+     blocked_id TEXT NOT NULL REFERENCES work_items (id) ON DELETE CASCADE,
+     created_at TEXT NOT NULL,
+     PRIMARY KEY (blocker_id, blocked_id)
+   );
+   CREATE INDEX work_item_relations_blocked ON work_item_relations (blocked_id);
+   CREATE TABLE work_item_comments (
+     id                      TEXT PRIMARY KEY,
+     item_id                 TEXT NOT NULL REFERENCES work_items (id) ON DELETE CASCADE,
+     author_kind             TEXT NOT NULL,
+     author_role             TEXT,
+     source_kind             TEXT,
+     source_chat_id          TEXT,
+     source_orchestration_id TEXT,
+     source_task_id          TEXT,
+     body                    TEXT NOT NULL,
+     created_at              TEXT NOT NULL,
+     updated_at              TEXT NOT NULL
+   );
+   CREATE INDEX work_item_comments_item ON work_item_comments (item_id, created_at);
+   CREATE TABLE work_item_history (
+     seq                    INTEGER PRIMARY KEY AUTOINCREMENT,
+     id                     TEXT NOT NULL UNIQUE,
+     item_id                TEXT NOT NULL REFERENCES work_items (id) ON DELETE CASCADE,
+     change                 TEXT NOT NULL,
+     from_value             TEXT,
+     to_value               TEXT,
+     actor_kind             TEXT NOT NULL,
+     actor_role             TEXT,
+     cause_kind             TEXT,
+     cause_event            TEXT,
+     cause_chat_id          TEXT,
+     cause_orchestration_id TEXT,
+     cause_task_id          TEXT,
+     created_at             TEXT NOT NULL
+   );
+   CREATE INDEX work_item_history_item ON work_item_history (item_id, seq);
+   CREATE TABLE work_item_links (
+     id               TEXT PRIMARY KEY,
+     item_id          TEXT NOT NULL REFERENCES work_items (id) ON DELETE CASCADE,
+     kind             TEXT NOT NULL,
+     role             TEXT NOT NULL,
+     chat_id          TEXT,
+     orchestration_id TEXT,
+     task_id          TEXT,
+     created_at       TEXT NOT NULL
+   );
+   CREATE INDEX work_item_links_item ON work_item_links (item_id, created_at);
+   CREATE INDEX work_item_links_chat ON work_item_links (chat_id);
+   CREATE INDEX work_item_links_task ON work_item_links (orchestration_id, task_id);`,
+
+  // A project's journal and the memory its team proposes (orchestration 3 of
+  // docs/plans/project-ecosystem.md). Rows, because both accumulate and several processes write
+  // them: a closed item, an approval and a note typed by hand can land at once. `seq` orders the
+  // journal and pages it, since two entries can share a timestamp. A `closed` entry is written once
+  // per item, which the partial index holds even against two processes closing it together. No
+  // reference to the work items: the journal keeps what happened after the item is deleted.
+  `CREATE TABLE journal_entries (
+     seq                     INTEGER PRIMARY KEY AUTOINCREMENT,
+     id                      TEXT NOT NULL UNIQUE,
+     project_id              TEXT NOT NULL,
+     kind                    TEXT NOT NULL,
+     text                    TEXT NOT NULL,
+     item_id                 TEXT,
+     author_kind             TEXT NOT NULL,
+     author_role             TEXT,
+     approved_by_kind        TEXT,
+     approved_by_role        TEXT,
+     proposal_id             TEXT,
+     document_path           TEXT,
+     sources                 TEXT NOT NULL DEFAULT '[]',
+     created_at              TEXT NOT NULL
+   );
+   CREATE INDEX journal_entries_project ON journal_entries (project_id, seq);
+   CREATE UNIQUE INDEX journal_entries_closed ON journal_entries (item_id) WHERE kind = 'closed';
+   CREATE TABLE memory_proposals (
+     seq                     INTEGER PRIMARY KEY AUTOINCREMENT,
+     id                      TEXT NOT NULL UNIQUE,
+     project_id              TEXT NOT NULL,
+     target_kind             TEXT NOT NULL,
+     target_file             TEXT,
+     target_section          TEXT,
+     text                    TEXT NOT NULL,
+     reason                  TEXT NOT NULL,
+     status                  TEXT NOT NULL,
+     proposed_by_kind        TEXT NOT NULL,
+     proposed_by_role        TEXT,
+     source_kind             TEXT,
+     source_chat_id          TEXT,
+     source_orchestration_id TEXT,
+     source_task_id          TEXT,
+     flow_run_id             TEXT,
+     item_id                 TEXT,
+     approved_text           TEXT,
+     decided_by_kind         TEXT,
+     decided_by_role         TEXT,
+     decided_at              TEXT,
+     reject_reason           TEXT,
+     journal_entry_id        TEXT REFERENCES journal_entries (id) ON DELETE SET NULL,
+     created_at              TEXT NOT NULL
+   );
+   CREATE INDEX memory_proposals_project ON memory_proposals (project_id, status, seq);`,
+
+  // A document of the project tied to a work item (the Documents module) is a link like a chat is,
+  // so an item keeps one list of what it is tied to. The path is relative to the project, never
+  // absolute, so a project moved to another directory keeps its ties. `team_role` is the role whose
+  // flow run made a link, for documents and chats alike; null for links made outside the flow.
+  `ALTER TABLE work_item_links ADD COLUMN document_path TEXT;
+   ALTER TABLE work_item_links ADD COLUMN document_kind TEXT;
+   ALTER TABLE work_item_links ADD COLUMN team_role TEXT;
+   CREATE INDEX work_item_links_document ON work_item_links (document_path) WHERE document_path IS NOT NULL;`,
+
+  // The flow by column (orchestration 3 of docs/plans/project-ecosystem.md). An item's bounces and
+  // what it waits for are its own columns, read with the card. Each run of a team member is a row, so
+  // a queue a restart cut off is still there when the wrapper comes back; `seq` is the queue's order.
+  // At most one run per item waits in the queue: a second trigger replaces the first, which is what
+  // keeps a burst of moves from queueing a burst of paid runs.
+  `ALTER TABLE work_items ADD COLUMN bounces INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE work_items ADD COLUMN waiting TEXT;
+   CREATE TABLE flow_runs (
+     seq         INTEGER PRIMARY KEY AUTOINCREMENT,
+     id          TEXT NOT NULL UNIQUE,
+     project_id  TEXT NOT NULL,
+     item_id     TEXT NOT NULL,
+     role        TEXT NOT NULL,
+     agent       TEXT NOT NULL,
+     model       TEXT NOT NULL,
+     stage       TEXT NOT NULL,
+     column_name TEXT NOT NULL,
+     state       TEXT NOT NULL,
+     chat_id     TEXT,
+     outcome     TEXT,
+     summary     TEXT,
+     error       TEXT,
+     queued_at   TEXT NOT NULL,
+     started_at  TEXT,
+     ended_at    TEXT
+   );
+   CREATE INDEX flow_runs_project ON flow_runs (project_id, state, seq);
+   CREATE INDEX flow_runs_item ON flow_runs (item_id, seq);
+   CREATE INDEX flow_runs_chat ON flow_runs (chat_id) WHERE chat_id IS NOT NULL;
+   CREATE UNIQUE INDEX flow_runs_queued ON flow_runs (item_id) WHERE state = 'queued';`,
+  // The project assistant (orchestration 4): each run a read-only chat, each proposal a row decided on
+  // its own. What a run laid out to read and what it read are kept apart, so the list can be drawn
+  // at any moment. One running run per project and kind, held by the index rather than by a check
+  // two processes could both pass.
+  `CREATE TABLE assistant_runs (
+     seq           INTEGER PRIMARY KEY AUTOINCREMENT,
+     id            TEXT NOT NULL UNIQUE,
+     project_id    TEXT NOT NULL,
+     kind          TEXT NOT NULL,
+     status        TEXT NOT NULL,
+     model         TEXT NOT NULL,
+     description   TEXT,
+     resource_kind TEXT,
+     chat_id       TEXT,
+     empty         INTEGER NOT NULL DEFAULT 0,
+     template      TEXT,
+     proposes      TEXT NOT NULL,
+     base_sources  TEXT NOT NULL,
+     reads         TEXT NOT NULL,
+     findings      TEXT NOT NULL DEFAULT '[]',
+     summary       TEXT,
+     cost_usd      REAL,
+     error         TEXT,
+     supersedes    TEXT,
+     superseded_by TEXT,
+     restarts      INTEGER NOT NULL DEFAULT 0,
+     started_at    TEXT NOT NULL,
+     ended_at      TEXT
+   );
+   CREATE INDEX assistant_runs_project ON assistant_runs (project_id, kind, seq);
+   CREATE INDEX assistant_runs_chat ON assistant_runs (chat_id) WHERE chat_id IS NOT NULL;
+   CREATE UNIQUE INDEX assistant_runs_running ON assistant_runs (project_id, kind) WHERE status = 'running';
+   CREATE TABLE assistant_proposals (
+     seq              INTEGER PRIMARY KEY AUTOINCREMENT,
+     id               TEXT NOT NULL UNIQUE,
+     run_id           TEXT NOT NULL,
+     project_id       TEXT NOT NULL,
+     kind             TEXT NOT NULL,
+     status           TEXT NOT NULL,
+     position         INTEGER NOT NULL,
+     reason           TEXT NOT NULL,
+     payload          TEXT NOT NULL,
+     outcome          TEXT,
+     decided_by_kind  TEXT,
+     decided_by_role  TEXT,
+     decided_at       TEXT,
+     created_at       TEXT NOT NULL
+   );
+   CREATE INDEX assistant_proposals_run ON assistant_proposals (run_id, kind, position);`,
+  // How many times a restart cut a flow run off: a run goes on in its chat at most twice, so a
+  // run that keeps dying with the wrapper does not keep spending
+  `ALTER TABLE flow_runs ADD COLUMN restarts INTEGER NOT NULL DEFAULT 0;`,
+  // A label filter folds case and accents in JS, so no query ever used this index: it only cost
+  // every write of an item's labels
+  `DROP INDEX IF EXISTS work_item_labels_label;`,
+  // What "Suggest tasks" is asked to look at, apart from what a project is for, and the language a
+  // run's chat is titled in, so a run started again after a restart is worded as it was first
+  `ALTER TABLE assistant_runs ADD COLUMN focus TEXT;
+   ALTER TABLE assistant_runs ADD COLUMN language TEXT;`,
+  // The language a flow run's chat is titled in, taken when the run is queued: after a restart the
+  // person's language is unknown until their next request, and a queued run would be titled in English
+  `ALTER TABLE flow_runs ADD COLUMN language TEXT;`,
+  // Why a flow run failed or was cancelled, as a code the panel words in the person's language (the
+  // English error stays beside it), and the failed run a person's retry queued it for
+  `ALTER TABLE flow_runs ADD COLUMN cause TEXT;
+   ALTER TABLE flow_runs ADD COLUMN retry_of TEXT;`,
 ];
+
+/**
+ * The schema version the work item tables arrive in. Found rather than counted, so the test that
+ * upgrades into it keeps upgrading from the version before it when later migrations are added.
+ */
+export const WORK_ITEMS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE work_item_counters')) + 1;
+
+/** The version that added the flow's runs, for the test that upgrades a database from the one before */
+export const FLOW_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE flow_runs')) + 1;
+/** The version flow runs got their cause and the run a retry was for, for the test that upgrades into it */
+export const FLOW_CAUSE_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN retry_of')) + 1;
+/** The schema version document links arrive in, found the same way. */
+export const DOCUMENT_LINKS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN document_path')) + 1;
+/** The version that added the assistant's runs and proposals, found the same way */
+export const ASSISTANT_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE assistant_runs')) + 1;
+
+/**
+ * Applies the migrations a database has not run yet, up to schema version `until` (every one by
+ * default). Exported so a test can build a database as an older release left it.
+ */
+export function migrate(db: DatabaseSync, until = MIGRATIONS.length): void {
+  const target = Math.min(until, MIGRATIONS.length);
+  for (;;) {
+    // One transaction per migration: a failure leaves user_version behind, never half a schema.
+    // IMMEDIATE, and the version read inside it: two processes opening an old database at once
+    // would otherwise both read the same version and the second would run a migration again
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const row = db.prepare('PRAGMA user_version').get() as { user_version: number } | undefined;
+      const version = row?.user_version ?? 0;
+      if (version >= target) {
+        db.exec('COMMIT');
+        return;
+      }
+      const statement = MIGRATIONS[version];
+      if (typeof statement === 'string') db.exec(statement);
+      else if (statement) statement(db);
+      db.exec(`PRAGMA user_version = ${String(version + 1)}`);
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+}
 
 /** Rows older than this are dropped on open, so a long-lived install cannot grow without bound. */
 const KEEP_EVENTS = 20_000;
@@ -300,13 +618,23 @@ export class Db {
   constructor(config: CoreConfig) {
     this.db = new DatabaseSync(join(config.dataDir, 'wrapper.db'));
     // WAL lets readers run while a writer holds the lock; busy_timeout absorbs the contention
-    // between processes instead of throwing SQLITE_BUSY at whoever lost the race.
-    this.db.exec('PRAGMA journal_mode = WAL');
+    // between processes instead of throwing SQLITE_BUSY at whoever lost the race. It goes first:
+    // switching the journal mode takes a lock too, and a process opening the file while another
+    // writes would otherwise fail on the spot with "database is locked".
     this.db.exec('PRAGMA busy_timeout = 5000');
+    this.db.exec('PRAGMA journal_mode = WAL');
     this.db.exec('PRAGMA foreign_keys = ON');
-    this.migrate();
+    migrate(this.db);
     this.pruneRotationEvents();
     this.pruneAudit();
+  }
+
+  /**
+   * The connection itself, for a store whose queries live in their own module (`work-items.ts`)
+   * rather than growing this class: it shares the schema, the pragmas and the migrations.
+   */
+  get connection(): DatabaseSync {
+    return this.db;
   }
 
   private tx<T>(fn: () => T): T {
@@ -318,21 +646,6 @@ export class Db {
     } catch (err) {
       this.db.exec('ROLLBACK');
       throw err;
-    }
-  }
-
-  private migrate(): void {
-    const row = this.db.prepare('PRAGMA user_version').get() as { user_version: number } | undefined;
-    const applied = row?.user_version ?? 0;
-    for (let version = applied; version < MIGRATIONS.length; version++) {
-      const statement = MIGRATIONS[version];
-      if (statement === undefined) continue;
-      // One transaction per migration: a failure leaves user_version behind, never half a schema
-      this.tx(() => {
-        if (typeof statement === 'string') this.db.exec(statement);
-        else statement(this.db);
-        this.db.exec(`PRAGMA user_version = ${String(version + 1)}`);
-      });
     }
   }
 

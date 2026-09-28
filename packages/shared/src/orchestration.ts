@@ -20,7 +20,17 @@ export function cleanTask(task: OrchestrationTaskSpec): OrchestrationTaskSpec {
     ...(task.cwd ? { cwd: task.cwd } : {}),
     ...(task.model?.trim() ? { model: task.model.trim() } : {}),
     ...(limits ? { limits } : {}),
+    ...(task.workItemId ? { workItemId: task.workItemId } : {}),
   };
+}
+
+/**
+ * The graph without the work items its nodes name. A schedule runs the same graph again and again,
+ * as new work each time: were its nodes still linked, every firing would take the items over, move
+ * them along the board and overwrite where their changes are.
+ */
+export function withoutWorkItems(spec: OrchestrationSpec): OrchestrationSpec {
+  return { ...spec, tasks: spec.tasks.map(({ workItemId: _item, ...task }) => task) };
 }
 
 /** What a task was launched with, to edit it and launch it again: the state's own fields (chat, result…) stay behind. */
@@ -33,6 +43,8 @@ export function specOfTask(task: OrchestrationTaskState): OrchestrationTaskSpec 
     ...(task.cwd ? { cwd: task.cwd } : {}),
     ...(task.model ? { model: task.model } : {}),
     ...(task.limits ? { limits: task.limits } : {}),
+    // A relaunch is the same work on the same items, so each node keeps its link
+    ...(task.workItemId ? { workItemId: task.workItemId } : {}),
   };
 }
 

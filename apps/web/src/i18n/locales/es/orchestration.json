@@ -132,5 +132,16 @@
     "resume": "Reanudar",
     "emptyBody": "Divide un objetivo en tareas y ejecútalas como agentes en paralelo. Crea una nueva o parte de una plantilla.",
     "noMatchBody": "Prueba con otro nombre o quita el filtro de estado."
+  },
+  "workItem": {
+    "open": "Abrir la tarea {{key}}"
+  },
+  "draft": {
+    "fromBoard_one": "Desde el tablero: {{count}} tarea, con su nodo enlazado",
+    "fromBoard_other": "Desde el tablero: {{count}} tareas, cada nodo enlazado a la suya",
+    "externalTitle_one": "Bloqueada por una tarea fuera de la selección",
+    "externalTitle_other": "Bloqueadas por {{count}} tareas fuera de la selección",
+    "externalBody_one": "El grafo no puede esperarla. Lánzalo cuando esté hecha, o añádela a la selección en el tablero.",
+    "externalBody_other": "El grafo no puede esperarlas. Lánzalo cuando estén hechas, o añádelas a la selección en el tablero."
   }
 }

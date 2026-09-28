@@ -12,6 +12,7 @@ import { ChatConflictError } from '../src/chat-service.ts';
 import { Db } from '../src/db.ts';
 import { Core } from '../src/index.ts';
 import { drivesSession } from '../src/processes.ts';
+import { ModelAliasIds, modelOptions } from '../src/models.ts';
 import { encodeProjectId } from '../src/workspace.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -73,6 +74,35 @@ const finished = (core: Core, id: string, executions: number) =>
     const runtime = core.runtime.get(id);
     return runtime && runtime.executions.length === executions && runtime.executions.every((e) => e.endedAt !== null) && runtime;
   }, `${String(executions)} finished execution(s) of ${id}`);
+
+// ---------- the models the aliases stand for ----------
+
+test("a chat started on an alias records the model its system/init reports, which names the alias in the picker", async () => {
+  process.env.FAKE_CLAUDE_MODEL_IDS = JSON.stringify({ sonnet: 'claude-sonnet-5', opus: 'claude-opus-5-5[1m]' });
+  const { config, core } = setup();
+  try {
+    const named = (value: string) => modelOptions(config.globalConfigFile, core.runtime.modelIds.get()).find((m) => m.value === value)?.label;
+    // Before any chat ran on it, the alias stands alone
+    assert.equal(named('sonnet'), undefined);
+    const chat = core.runtime.start({ prompt: 'hello', model: 'sonnet', keepAlive: false });
+    await finished(core, chat.id, 1);
+    assert.deepEqual(core.runtime.modelIds.get(), { sonnet: 'claude-sonnet-5' });
+    assert.equal(named('sonnet'), 'Sonnet 5');
+    assert.equal(named('opus'), undefined);
+    // A chat started on a full id, or on none, says nothing about an alias
+    const full = core.runtime.start({ prompt: 'hello', model: 'claude-opus-5-5[1m]', keepAlive: false });
+    const plain = core.runtime.start({ prompt: 'hello', keepAlive: false });
+    await finished(core, full.id, 1);
+    await finished(core, plain.id, 1);
+    assert.deepEqual(core.runtime.modelIds.get(), { sonnet: 'claude-sonnet-5' });
+    // And it is still known after a restart
+    await core.runtime.modelIds.settled();
+    assert.deepEqual(new ModelAliasIds(config.dataDir).get(), { sonnet: 'claude-sonnet-5' });
+  } finally {
+    delete process.env.FAKE_CLAUDE_MODEL_IDS;
+    core.shutdown();
+  }
+});
 
 // ---------- one chat per session ----------
 

@@ -100,7 +100,10 @@ export const MODEL_ALIASES = ['fable', 'opus', 'sonnet', 'haiku'] as const;
 export interface ModelOption {
   /** What the flag takes: an alias (`opus`) or a model's full name (`claude-fable-5-1[1m]`) */
   value: string;
-  /** What the CLI calls it, where it says so */
+  /**
+   * What the CLI calls it, where it says so; for an alias, the name of the model a chat started on
+   * it reported in its `system/init` event ("Sonnet 5" for `claude-sonnet-5`), once one has
+   */
   label?: string;
   /** The line the CLI shows under it */
   description?: string;
@@ -946,6 +949,10 @@ export interface Project {
   /** Chats under the project and its worktrees */
   chatCount: number;
   lastActivity: string | null;
+  /** Prefix of its work items' keys (`AGN` in `AGN-12`), from {@link ProjectSettings.keyPrefix} */
+  key: string;
+  /** The modules switched on, from {@link ProjectSettings.modules}; empty for a project that never had one */
+  modules: ProjectModule[];
 }
 
 /** A directory chats have run in that is not imported, offered on first start. */
@@ -961,10 +968,1546 @@ export interface ImportProjectRequest {
   path: string;
   /** Defaults to the directory's name */
   name?: string;
+  /** Configures the project from a template; without one, and without `modules`, every module is off */
+  template?: ProjectTemplateId;
+  /** The modules to switch on; when given, it replaces the template's choice instead of adding to it */
+  modules?: ProjectModule[];
 }
 
+/** Every field is optional, so a rename alone (`{ name }`) keeps working as it always has. */
 export interface UpdateProjectRequest {
+  name?: string;
+  /** New key prefix; the keys of existing work items follow, since only their number is stored */
+  key?: string;
+  /** The whole set of modules that are on afterwards; switching one off hides it and keeps its data */
+  modules?: ProjectModule[];
+}
+
+// ---------- Project modules ----------
+//
+// A project is more than a directory once the person switches modules on: a board of work items, a
+// team of agents, its documents, a shared memory (docs/plans/project-ecosystem.md). What a project
+// configures lives in a settings document per project, a JSON file keyed by its id, so the project
+// record itself stays a name and a path. Switching a module off only hides it: nothing it holds is
+// deleted, and switching it on again brings everything back. A project with no document reads as
+// every module off, which is how the projects imported before this existed stay as they were.
+//
+// Lists (`modules`, `types`) rather than one boolean per member, so a module or a type added later
+// is simply absent from older documents and requests instead of a missing required key.
+
+export type ProjectModule = 'board' | 'team' | 'documents' | 'memory';
+
+/**
+ * The built-in templates. `simple` switches nothing on and `custom` starts from everything off for
+ * the person to choose; the other three are presets. There are no user-saved templates.
+ */
+export type ProjectTemplateId = 'simple' | 'software' | 'library' | 'research' | 'custom';
+
+/** How the Board module is configured. The five columns and the four types are fixed; this only picks and limits. */
+export interface BoardSettings {
+  /** The types a new work item may take in this project, in the order a form offers them */
+  types: WorkItemType[];
+  /**
+   * Work in progress limit per column. A column without an entry has none. Going over a limit is
+   * allowed and only shown as a warning: it never blocks a move.
+   */
+  columnLimits: Partial<Record<WorkItemStatus, number>>;
+}
+
+/**
+ * A role of the project's team as a template or the settings describe it. `role` is free text
+ * (`product-owner`, `developer`, `qa`…) until the Team module defines its roles.
+ */
+export interface ProjectTeamRole {
+  role: string;
+  /** Model alias or id of the agent that plays it (`opus`, `sonnet`) */
+  model: string;
+  /** One line on what it answers for */
+  responsibility: string;
+}
+
+/**
+ * The Team module's metadata. A member is a CLI agent file in the project's `.claude/agents/`, so it
+ * also works from a terminal; this is what Agentry keeps beside it. `GET /projects/:id/team` serves
+ * each member with the state of its file ({@link TeamMember}).
+ */
+export interface ProjectTeamSettings {
+  members: ProjectTeamMember[];
+}
+
+export interface ProjectTeamMember extends ProjectTeamRole {
+  /** Name of the agent file in the project's `.claude/agents/`, without `.md` */
+  agent: string;
+  /**
+   * Paths or globs, relative to the project, the member may write; absent means no restriction of
+   * Agentry's own. Enforced on the chats Agentry starts for it through the CLI's permission rules;
+   * from a terminal it is only what the agent file says.
+   */
+  writes?: string[];
+  /**
+   * The shell commands the member may run in the flow's work stage, as patterns the CLI's permission
+   * rules take (`npm test`, `pnpm *`: each becomes `Bash(<pattern>)`). Absent means `Bash` is not
+   * restricted there, as before; present means only these, and an empty list means no shell at all.
+   * The refine and verify stages keep their own tool sets. Checked with {@link isTeamCommandPattern}.
+   */
+  commands?: string[];
+}
+
+/**
+ * The flow by column. Each column may have a responsible role that acts when a card enters it;
+ * agents move cards, and a person approves `done`. Only while `enabled` and the Team module is on.
+ */
+export interface ProjectFlowSettings {
+  enabled: boolean;
+  /** Responsible role per column, matching {@link ProjectTeamRole.role}; `done` never has one */
+  columns: Partial<Record<WorkItemStatus, string>>;
+  /** Times QA may send an item back to `in_progress` before it waits for the person */
+  maxBounces: number;
+  /**
+   * Flow runs of the project at once; the rest wait in order, so the flow cannot drain the accounts'
+   * quota on its own. Absent reads as 2 (`DEFAULT_FLOW_MAX_PARALLEL`).
+   */
+  maxParallel?: number;
+  /**
+   * What one run may spend, in USD, passed to the CLI as `--max-budget-usd`: the CLI stops the run
+   * once it is reached. Absent (the default) means no limit of Agentry's own.
+   */
+  maxCostUsd?: number;
+}
+
+/** The Documents module: the repository's documents folder, and documents tied to work items. */
+export interface ProjectDocumentsSettings {
+  /** The documents folder, relative to the project (`docs`) */
+  path: string;
+}
+
+/**
+ * The settings document of a project, read and written whole (`GET`/`PUT /projects/:id/settings`).
+ * Later orchestrations add their configuration as optional fields, so a document written today
+ * stays valid.
+ */
+export interface ProjectSettings {
+  /** The modules switched on */
+  modules: ProjectModule[];
+  /** The template the project was created from, for reference only: editing the settings never re-applies it */
+  template: ProjectTemplateId | null;
+  /**
+   * Prefix of the work items' keys: upper case letters and digits, starting with a letter
+   * (`WORK_ITEM_KEY_PREFIX_PATTERN`), unique among projects. Derived from the name on first read.
+   */
+  keyPrefix: string;
+  board: BoardSettings;
+  team?: ProjectTeamSettings;
+  flow?: ProjectFlowSettings;
+  documents?: ProjectDocumentsSettings;
+}
+
+/**
+ * A built-in template: configuration, not only switches. `name` and `description` are the English
+ * copy; a client that knows the `id` shows its own translation.
+ */
+export interface ProjectTemplate {
+  id: ProjectTemplateId;
   name: string;
+  description: string;
+  modules: ProjectModule[];
+  board: BoardSettings;
+  /** The starting team, offered when the Team module is switched on and there is nothing in the project to read */
+  team: ProjectTeamRole[];
+}
+
+// ---------- Work items ----------
+//
+// What a project needs done, followed on its board. Named `WorkItem` because "task" already means an
+// orchestration task and a background command (`GET /tasks`); the interface still says "Task".
+//
+// A work item carries no time: no due date, no estimate, no sprint. `createdAt`, `updatedAt` and
+// `closedAt` are facts about what happened, never a plan, and no other date field is added.
+//
+// The key (`AGN-12`) is composed when read from the project's current prefix and the item's number,
+// which is what is stored and never reused inside a project, even after a delete. So changing the
+// prefix renames every key at once, history included.
+
+export type WorkItemType = 'epic' | 'story' | 'task' | 'bug';
+
+/** The five columns of the board, in order; fixed, not editable. */
+export type WorkItemStatus = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done';
+
+/** Not a status: only `urgent` may be shown in a colour. */
+export type WorkItemPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+/**
+ * Who a work item is assigned to: the person, or a team role once the Team module exists. A
+ * discriminated union, so a kind added later (a named member) leaves the existing ones as they are.
+ */
+export type WorkItemAssignee = { kind: 'person' } | { kind: 'role'; role: string };
+
+/** `system` is Agentry itself acting on a chat's or a node's behalf; the cause beside it says which. */
+export type WorkItemActorKind = 'person' | 'agent' | 'system';
+
+/** Who did something to a work item: made a change, wrote a comment, checked a criterion. */
+export interface WorkItemActor {
+  kind: WorkItemActorKind;
+  /** The team role an agent acted as, once the Team module exists */
+  role?: string | null;
+}
+
+/**
+ * What acts on a work item on an agent's behalf: a chat, or a task of an orchestration. Final: a team
+ * role acts through a chat (the actor names the role), the person acts with no source at all, and a
+ * document never acts, it is only linked (see {@link WorkItemLinkKind}).
+ */
+export type WorkItemSourceKind = 'chat' | 'orchestration';
+
+/**
+ * A chat or an orchestration task, as the source of a comment, the cause of a change or the other end
+ * of a link. Flat rather than a union so it maps onto one row; the ids that do not apply are null.
+ */
+export interface WorkItemSource {
+  kind: WorkItemSourceKind;
+  /** The chat's session id; for an orchestration task, the chat of its worker once it has one */
+  chatId: string | null;
+  orchestrationId: string | null;
+  taskId: string | null;
+}
+
+/**
+ * Why an automatic change happened: the source, and what happened there as a stable code a client
+ * translates (`chat.started`, `chat.turn-completed`, `orchestration.task.completed`…).
+ */
+export interface WorkItemCause extends WorkItemSource {
+  event: string;
+}
+
+/** Another work item as a field refers to it: enough to draw its chip without fetching it. */
+export interface WorkItemRef {
+  id: string;
+  key: string;
+  title: string;
+  type: WorkItemType;
+  status: WorkItemStatus;
+}
+
+/** One entry of the acceptance checklist, checked on its own. Its position is its order in the list. */
+export interface AcceptanceCriterion {
+  id: string;
+  text: string;
+  checked: boolean;
+  /** Who checked it; null while unchecked */
+  checkedBy: WorkItemActor | null;
+}
+
+/**
+ * `blocks` and `blocked_by` only. Stored once, as `blocks`, and reported from both ends: the item
+ * that blocks shows `blocks`, the other `blocked_by`. Orchestrating a selection turns them into the
+ * graph's `dependsOn`.
+ */
+export type WorkItemRelationType = 'blocks' | 'blocked_by';
+
+export interface WorkItemRelation {
+  type: WorkItemRelationType;
+  item: WorkItemRef;
+}
+
+/** Written by the person or by an agent; Markdown, no attachments. */
+export interface WorkItemComment {
+  id: string;
+  itemId: string;
+  author: WorkItemActor;
+  /** The chat or orchestration task an agent wrote it from; null for the person */
+  source: WorkItemSource | null;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * What a history entry, or a `workitem.updated` event, says changed. `created` opens every history;
+ * `comment` only appears on events, since comments are their own list. `waiting` is the flow's
+ * {@link WorkItemWaitReason} starting or ending, from and to the reason or null.
+ */
+export type WorkItemChange =
+  | 'created'
+  | 'type'
+  | 'title'
+  | 'description'
+  | 'status'
+  | 'priority'
+  | 'labels'
+  | 'assignee'
+  | 'epic'
+  | 'milestone'
+  | 'criterion'
+  | 'relation'
+  | 'link'
+  | 'comment'
+  | 'waiting';
+
+/**
+ * A referenced thing (an epic, a milestone, a link) as it was when the entry was written, so the
+ * history still reads after it is renamed or deleted. For a work item, `key` is composed when read,
+ * like every key.
+ */
+export interface WorkItemHistoryRef {
+  id: string;
+  label: string;
+  key?: string;
+}
+
+/** A criterion as a history entry records it. */
+export interface WorkItemHistoryCriterion {
+  id: string;
+  text: string;
+  checked: boolean;
+}
+
+/** A plain value for a scalar field, the list for `labels`, and a snapshot for everything else. */
+export type WorkItemHistoryValue =
+  | string
+  | string[]
+  | WorkItemAssignee
+  | WorkItemHistoryRef
+  | WorkItemHistoryCriterion
+  | WorkItemRelation
+  | null;
+
+/**
+ * One change to one field. Written by the service, never by the caller: an update that changes
+ * three fields writes three entries.
+ */
+export interface WorkItemHistoryEntry {
+  id: string;
+  itemId: string;
+  change: WorkItemChange;
+  /** Null when there was nothing before: `created`, a criterion or a relation added */
+  from: WorkItemHistoryValue;
+  /** Null when there is nothing after: a criterion or a relation removed */
+  to: WorkItemHistoryValue;
+  actor: WorkItemActor;
+  /** Set when a chat or an orchestration made the change, rather than someone acting on the item */
+  cause: WorkItemCause | null;
+  createdAt: string;
+}
+
+/**
+ * What a work item can be linked to: what can act on it ({@link WorkItemSourceKind}), and a document
+ * of the project (a specification, an architecture decision) tied to it by the Documents module.
+ */
+export type WorkItemLinkKind = WorkItemSourceKind | 'document';
+
+/**
+ * The part a linked chat, orchestration task or document played in the item's life. The roles past
+ * `origin` follow the fixed columns, so they cannot grow with the flow: whichever team role a
+ * project puts on a column, its chat is `refine` in `backlog` and `todo`, `work` in `in_progress` and
+ * `verify` in `in_review`.
+ *
+ * - `origin`: the item was created from it (the chat of "Create a task from this message", or a
+ *   document the assistant proposed items from).
+ * - `refine`: refined it before work started; for a document, the specification refinement wrote.
+ * - `work`: worked on it ("Work on it", a node of an orchestration built from it); for a document,
+ *   one written while working, such as an architecture decision.
+ * - `verify`: verified it against its acceptance criteria; for a document, the verification report.
+ * - `reference`: tied to it by hand, without playing a part in its life. Documents only, in practice.
+ *
+ * `refine`, `work` and `verify` are also what a flow run's chat gets, by its {@link FlowStage}; a
+ * client handles every member all the same.
+ */
+export type WorkItemLinkRole = 'origin' | 'refine' | 'work' | 'verify' | 'reference';
+
+/** A chat, an orchestration task or a document tied to a work item. An item keeps every link, not only the last. */
+export interface WorkItemLink extends Omit<WorkItemSource, 'kind'> {
+  id: string;
+  itemId: string;
+  kind: WorkItemLinkKind;
+  role: WorkItemLinkRole;
+  /** For a `document` link, its path relative to the project; absent or null for the others */
+  documentPath?: string | null;
+  /** For a `document` link, what kind of document it is; absent or null for the others */
+  documentKind?: DocumentKind | null;
+  /**
+   * The team role whose flow run made the link (the Product Owner's specification, QA's chat);
+   * absent or null for a link a person or a chat outside the flow made
+   */
+  teamRole?: string | null;
+  /** The chat's title or the task's name, filled in when read; null when it is gone */
+  name?: string | null;
+  /** Filled in when read, for a chat */
+  chatState?: ChatState | null;
+  /** Filled in when read, for an orchestration task */
+  taskStatus?: OrchestrationTaskStatus | null;
+  createdAt: string;
+}
+
+/**
+ * Why an item waits for the person under the flow by column: `approval`, an agent finished and asks
+ * for the move to `done`, which only a person makes; `bounces`, verification sent it back more times
+ * than the project allows. Either ends when a person moves it.
+ */
+export type WorkItemWaitReason = 'approval' | 'bounces';
+
+export interface WorkItem {
+  /** Ours and stable: the key changes with the prefix, the id never does */
+  id: string;
+  projectId: string;
+  /** Never reused inside the project */
+  number: number;
+  /** `<prefix>-<number>`, composed when read */
+  key: string;
+  type: WorkItemType;
+  title: string;
+  /**
+   * Markdown. Left out of board and list payloads (the board, the lists and their pages, a chat's
+   * items), where it is `''` and {@link WorkItem.hasDescription} says whether there is one: the
+   * item's own page fetches it (`GET /work-items/:itemId`, `GET /work-items/by-key/:key`).
+   */
+  description: string;
+  /**
+   * Whether the item has a description, set wherever `description` is left out. Absent where the
+   * description is served whole, where it reads as `description !== ''`.
+   */
+  hasDescription?: boolean;
+  status: WorkItemStatus;
+  priority: WorkItemPriority;
+  /** Free text, in the order they were given */
+  labels: string[];
+  assignee: WorkItemAssignee | null;
+  /** Always null for an epic: there is one level of hierarchy */
+  epicId: string | null;
+  /** The epic, filled in when read, so a card can show its label */
+  epic?: WorkItemRef | null;
+  milestoneId: string | null;
+  acceptanceCriteria: AcceptanceCriterion[];
+  relations: WorkItemRelation[];
+  /**
+   * Order inside its column, compared as plain strings. Opaque to clients, which move an item by
+   * naming its neighbour ({@link MoveWorkItemRequest}), so the order a person drags survives.
+   */
+  rank: string;
+  /** The item's own git worktree, once something worked on it, on branch `task/<key>` in lower case */
+  worktree: string | null;
+  branch: string | null;
+  /**
+   * The chat or orchestration task working on it right now, filled in when read: what makes a card
+   * live. Null when nothing is.
+   */
+  activeLink?: WorkItemLink | null;
+  /**
+   * Times the verifying role sent it back to `in_progress` in the current round of work, compared with
+   * {@link ProjectFlowSettings.maxBounces}; a person moving it starts a new round. Written by the
+   * flow by column: absent reads as 0.
+   */
+  bounces?: number;
+  /**
+   * What it waits for from the person, which the board shows in the idle colour with a word. Written
+   * by the flow by column: absent reads as null, waiting for nothing.
+   */
+  waiting?: WorkItemWaitReason | null;
+  createdAt: string;
+  updatedAt: string;
+  /** When it last entered `done`; null while it is anywhere else */
+  closedAt: string | null;
+}
+
+/**
+ * One work item with what its page shows beyond the card: `GET /work-items/:itemId`, or
+ * `GET /work-items/by-key/:key` for its key (`AGN-12`, in any case; 404 when no project's item has
+ * it, since a key prefix is unique among projects).
+ */
+export interface WorkItemDetail extends WorkItem {
+  /** For an epic, the items it groups */
+  children: WorkItemRef[];
+  links: WorkItemLink[];
+  /** Oldest first */
+  comments: WorkItemComment[];
+  /** Oldest first */
+  history: WorkItemHistoryEntry[];
+}
+
+/** A new entry of the acceptance checklist: an object, so fields can join the text later. */
+export interface NewAcceptanceCriterion {
+  text: string;
+}
+
+export interface CreateWorkItemRequest {
+  title: string;
+  /** Default `task` */
+  type?: WorkItemType;
+  description?: string;
+  /** Default `backlog` */
+  status?: WorkItemStatus;
+  /** Default `medium` */
+  priority?: WorkItemPriority;
+  labels?: string[];
+  assignee?: WorkItemAssignee | null;
+  /** Must name an epic of the same project; not allowed on an epic */
+  epicId?: string | null;
+  milestoneId?: string | null;
+  acceptanceCriteria?: NewAcceptanceCriterion[];
+}
+
+/** An entry of a replaced checklist: one with an `id` keeps its check, one without is new. */
+export interface AcceptanceCriterionInput {
+  id?: string;
+  text: string;
+}
+
+/**
+ * Only the fields present change, and `null` clears a nullable one. The status and the order change
+ * through {@link MoveWorkItemRequest}, and one criterion is checked through
+ * {@link CheckAcceptanceCriterionRequest}.
+ */
+export interface UpdateWorkItemRequest {
+  type?: WorkItemType;
+  title?: string;
+  description?: string;
+  priority?: WorkItemPriority;
+  labels?: string[];
+  assignee?: WorkItemAssignee | null;
+  epicId?: string | null;
+  milestoneId?: string | null;
+  /** Replaces the whole checklist, in this order */
+  acceptanceCriteria?: AcceptanceCriterionInput[];
+}
+
+/**
+ * Moves an item to a column and a place in it. The place is named by a neighbour rather than an
+ * index, so two people reordering at once do not land items on top of each other.
+ */
+export interface MoveWorkItemRequest {
+  status: WorkItemStatus;
+  /** The item it goes right after in the target column; null puts it first, absent puts it last */
+  afterId?: string | null;
+}
+
+/** A move always succeeds; going over the column's limit is reported, never refused. */
+export interface MoveWorkItemResult {
+  item: WorkItem;
+  column: BoardColumnSummary;
+}
+
+export interface CheckAcceptanceCriterionRequest {
+  checked: boolean;
+}
+
+export interface CreateWorkItemCommentRequest {
+  /** Markdown */
+  body: string;
+}
+
+/** Refused when it points at the item itself or closes a cycle of `blocks`. */
+export interface CreateWorkItemRelationRequest {
+  type: WorkItemRelationType;
+  itemId: string;
+}
+
+/**
+ * Every kind and role is accepted by the contract. A document is tied by hand through
+ * `POST /work-items/:itemId/documents` ({@link TieDocumentRequest}), with the role `reference`.
+ */
+export interface CreateWorkItemLinkRequest {
+  kind: WorkItemLinkKind;
+  role: WorkItemLinkRole;
+  chatId?: string | null;
+  orchestrationId?: string | null;
+  taskId?: string | null;
+  /** For a `document` link: the document's path, relative to the project */
+  documentPath?: string | null;
+}
+
+/**
+ * What a list, a search or the board is narrowed to. Every field is optional; the values of a list
+ * are alternatives (any of them) and fields combine (all of them). In a query string, a list is
+ * comma separated.
+ */
+export interface WorkItemFilter {
+  /** Left out for every project: the All projects view */
+  projectId?: string;
+  status?: WorkItemStatus[];
+  type?: WorkItemType[];
+  priority?: WorkItemPriority[];
+  /** Items carrying any of these labels */
+  labels?: string[];
+  /** `person`, `none`, or `role:<role>` */
+  assignee?: string[];
+  epicId?: string;
+  milestoneId?: string;
+  /** Searched in the title and the description, and matched against the key */
+  q?: string;
+}
+
+/**
+ * `GET /projects/:id/work-items/page` and `GET /work-items/page` (All projects): the list a page at a
+ * time, in the same order as the whole list, with the same filter. `GET /projects/:id/work-items`
+ * and `GET /work-items` still answer the whole list as an array.
+ */
+export interface WorkItemPageQuery extends Omit<WorkItemFilter, 'projectId'> {
+  /** Default `WORK_ITEMS_PAGE` (100), at most `WORK_ITEMS_PAGE_MAX` */
+  limit?: number;
+  /** `nextCursor` of the previous page; absent for the first */
+  cursor?: string;
+}
+
+/** A page of work items, descriptions left out. */
+export interface WorkItemPage {
+  items: WorkItem[];
+  /** Every item that passes the filter, across the pages */
+  total: number;
+  /** Opaque: pass as `cursor` for the next page; null on the last */
+  nextCursor: string | null;
+}
+
+export type MilestoneState = 'open' | 'closed';
+
+/** Derived from the milestone's work items, epics left out: they group work, they are not work. */
+export interface MilestoneProgress {
+  total: number;
+  done: number;
+  byStatus: Record<WorkItemStatus, number>;
+}
+
+/** A named goal (`v0.19`) with no date: open or closed, and how far its work items are. */
+export interface Milestone {
+  id: string;
+  projectId: string;
+  name: string;
+  /** Markdown */
+  description: string;
+  state: MilestoneState;
+  progress: MilestoneProgress;
+  createdAt: string;
+  updatedAt: string;
+  /** When it was last closed; null while open */
+  closedAt: string | null;
+}
+
+export interface CreateMilestoneRequest {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateMilestoneRequest {
+  name?: string;
+  description?: string;
+  state?: MilestoneState;
+}
+
+// ---------- Board ----------
+//
+// Everything one request returns to draw a board: the five columns in order, each with its limit,
+// how many items it holds and those items in rank order. A filter narrows `items` but not `count`,
+// since a limit is about the real load of a column, not about what a search shows.
+
+/** A column without its items: what a move reports. */
+export interface BoardColumnSummary {
+  status: WorkItemStatus;
+  /** Null when the column has no limit */
+  limit: number | null;
+  /** Every item in the column but its epics, whatever the filter: an epic takes no place under the limit */
+  count: number;
+  /** `count` is over `limit`: shown in the warn colour with a word, never a block */
+  overLimit: boolean;
+}
+
+export interface BoardColumn extends BoardColumnSummary {
+  /**
+   * The items that pass the filter, in rank order, descriptions left out. The Done column holds
+   * only the most recently closed of them, `doneLimit` ({@link BoardQuery}), newest first
+   */
+  items: WorkItem[];
+  /**
+   * Items that pass the filter and are left out of `items`: "and N more", which asks the board again
+   * with a larger `doneLimit`. Only the Done column leaves any out; absent reads as 0.
+   */
+  more?: number;
+}
+
+/**
+ * `GET /projects/:id/work-items/board` and `GET /work-items/board` take the filter
+ * ({@link WorkItemFilter}) and this. The Done column grows without end, so it is paged: a board
+ * holds its newest closed items, and "and N more" asks again with the next multiple of the page.
+ * Asking for a larger limit rather than a cursor keeps one board per query, which the event feed
+ * refreshes whole.
+ */
+export interface BoardQuery {
+  /** Items of the Done column to hold; default `BOARD_DONE_PAGE`, at most `WORK_ITEMS_PAGE_MAX` */
+  doneLimit?: number;
+}
+
+export interface Board {
+  /** Null for the All projects board, whose columns carry no limit */
+  projectId: string | null;
+  /** Always the five columns, in {@link WorkItemStatus} order */
+  columns: BoardColumn[];
+}
+
+// ---------- Work items with chats and orchestrations ----------
+//
+// "Work on it" starts a chat on an item, "Orchestrate" turns a selection into a graph, and "Create a
+// task from this message" turns a chat's message into an item. The item then follows what works on
+// it: it enters `in_progress` when the chat's turn or the node starts and `in_review` when it ends
+// well. Only forward, never out of `done`, and never over a person who moved the item since the
+// work began: those moves are recorded in its history with the chat or the node as the cause.
+
+/**
+ * What a chat started on a work item may be given. The prompt is built from the item (its title,
+ * description and acceptance criteria) and the directory is its worktree, so neither is taken here.
+ */
+export type WorkOnWorkItemRequest = ChatStartOptions;
+
+export interface WorkOnWorkItemResult {
+  /** The item as it is once the chat started: in its worktree, and in `in_progress` unless a person had it elsewhere */
+  item: WorkItem;
+  chat: ChatSummary;
+  link: WorkItemLink;
+}
+
+/** A selection of work items of one project to orchestrate, in the order they were picked. */
+export interface OrchestrateWorkItemsRequest {
+  itemIds: string[];
+}
+
+/**
+ * A graph to review, not a launched one: one node per item, each naming its item in `workItemId`,
+ * and `dependsOn` from the `blocks` relations inside the selection. `POST /orchestrations` launches it.
+ */
+export interface WorkItemOrchestrationDraft {
+  spec: OrchestrationSpec;
+  /** Items outside the selection, not done yet, that block an item of it: the graph cannot wait for them */
+  externalBlockers: WorkItemRef[];
+}
+
+/** Creates a work item in `backlog` from a message of a chat, linked to that chat. */
+export interface CreateWorkItemFromMessageRequest {
+  /** The message, which becomes the description */
+  text: string;
+  /** Default: the message's first line */
+  title?: string;
+  /** Default `task` */
+  type?: WorkItemType;
+  /** Default `medium` */
+  priority?: WorkItemPriority;
+}
+
+/** What the item's own branch changed, read from git the way a chat's worktree is. */
+export interface WorkItemChanges {
+  worktree: string | null;
+  branch: string | null;
+  /** Null while nothing has worked on it in a worktree, or once its branch is gone */
+  summary: ChangeSummary | null;
+}
+
+// ---------- Team, flow by column, journal, memory proposals and documents ----------
+//
+// Orchestration 3 of docs/plans/project-ecosystem.md. A team member is a CLI agent file in the
+// project's `.claude/agents/` plus the metadata in `settings.team`; it runs as `claude --agent` with
+// its model, so the same member works from a terminal. The flow starts a member's run when a card
+// enters the column it answers for, and every run ends with a structured result
+// ({@link FlowRunResult}) through `--json-schema`: its comment, QA's verdict, the memory entries it
+// proposes and the documents it wrote. Nothing reaches the memory before the person approves it.
+
+/**
+ * The member's agent file as it is on disk: `ok`, it matches the metadata; `missing`, it was deleted
+ * (the member still shows, and its file can be written again); `drifted`, its frontmatter says
+ * something the metadata does not ({@link TeamAgentFile.drift}). A drifted or hand-edited file is
+ * reported, never overwritten.
+ */
+export type TeamAgentFileState = 'ok' | 'missing' | 'drifted';
+
+/** A frontmatter field of the agent file that disagrees with the member's metadata. */
+export type TeamAgentDriftField = 'name' | 'description' | 'model';
+
+export interface TeamAgentFile {
+  /** Relative to the project: `.claude/agents/<agent>.md` */
+  path: string;
+  state: TeamAgentFileState;
+  /** Empty unless `state` is `drifted` */
+  drift: TeamAgentDriftField[];
+  /** As the file's frontmatter says them; null when the file is missing or leaves them out */
+  description: string | null;
+  model: string | null;
+  updatedAt: string | null;
+}
+
+/** A member as `GET /projects/:id/team` serves it: the metadata, its file, and what it is doing. */
+export interface TeamMember extends ProjectTeamMember {
+  file: TeamAgentFile;
+  /** The columns it answers for under the flow, in board order; empty for a role that is only consulted */
+  columns: WorkItemStatus[];
+  /** Its flow runs working now, oldest first; empty when it is idle */
+  running: FlowRun[];
+  /** How many of its flow runs wait for a free place */
+  queued: number;
+  /** Its latest run that ended, for "refined AGN-47 1 h ago"; null when it never ran */
+  lastRun: FlowRun | null;
+}
+
+export interface Team {
+  projectId: string;
+  /** The Team module is on; with it off the members are still served, and the client hides them */
+  enabled: boolean;
+  members: TeamMember[];
+  /** Agent files in the project's `.claude/agents/` that no member uses, which "add a member" offers */
+  unassignedAgents: string[];
+}
+
+/**
+ * Writes the members of the project's template (`ProjectTemplate.team`). The person accepts them one
+ * by one, so `roles` names the ones accepted; absent means every role of the template. An agent file
+ * that already exists is kept as it is, and a role already on the team is left alone.
+ *
+ * `POST /projects/:id/team/from-template` answers the whole {@link Team}: with 201 when it added at
+ * least one member, and with 200 when nothing changed (every role was already on the team), like
+ * the other creating routes. Sending it twice is harmless either way.
+ */
+export interface TeamFromTemplateRequest {
+  roles?: string[];
+}
+
+/**
+ * Creates or replaces a member's metadata (`PUT /projects/:id/team/:agent`). The agent file itself is
+ * edited through `/config/resources/agents/:name?project=`.
+ */
+export interface PutTeamMemberRequest extends ProjectTeamRole {
+  writes?: string[];
+  /** Absent or null leaves the shell unrestricted in the work stage ({@link ProjectTeamMember.commands}) */
+  commands?: string[] | null;
+  /** Write a starting agent file for the role when there is none; an existing file is never overwritten */
+  createFile?: boolean;
+}
+
+/**
+ * What a flow run does, named after the link role its chat gets: `refine` in `backlog` and `todo`,
+ * `work` in `in_progress`, `verify` in `in_review`.
+ */
+export type FlowStage = 'refine' | 'work' | 'verify';
+
+/**
+ * A stage as the person reads it, by the column it runs in: `refine` covers two, and what the
+ * Product Owner does differs between them. In `backlog` it refines the item (`refine`, "refinado");
+ * in `todo` it only checks the item is ready (`check`, "comprobación"). `work` and `verify` are
+ * their stage. See `FLOW_STEP_OF_COLUMN`.
+ */
+export type FlowStep = 'refine' | 'check' | 'work' | 'verify';
+
+/** `queued` waits for a place under `maxParallel`; `running` has its chat; `ended` has an outcome. */
+export type FlowRunState = 'queued' | 'running' | 'ended';
+
+/**
+ * How a run ended: `passed`, it finished well (and for QA, the item held); `rejected`, QA's verdict
+ * failed the item; `failed`, the chat failed or its result was unreadable; `cancelled`, a person's
+ * move or the flow being switched off made it moot before it started.
+ */
+export type FlowRunOutcome = 'passed' | 'rejected' | 'failed' | 'cancelled';
+
+/**
+ * Why a run failed or was cancelled, as a stable code a client words in the person's language; the
+ * run's `error` keeps the raw text beside it. A run stored before causes were kept gets the one its
+ * error reads as, or none.
+ *
+ * Failed:
+ * - `budget`: it reached `flow.maxCostUsd` (`--max-budget-usd`);
+ * - `no-account`: the account hit its rate limit and no other account could take the run over;
+ * - `rate-limit`: the account hit its rate limit and the rotation was off;
+ * - `stopped`: its chat was stopped;
+ * - `restarts`: Agentry restarted past `MAX_FLOW_RESTARTS` times while it worked;
+ * - `unreadable`: it ended without a readable structured result;
+ * - `no-verdict`: a verification ended without a verdict;
+ * - `not-started`: its chat did not start;
+ * - `not-continued`: its chat could not be continued after a restart;
+ * - `chat-ended`: its chat ended, or was removed, without a result;
+ * - `chat-failed`: its chat ended in an error the CLI reported (the error is the CLI's text).
+ *
+ * Cancelled:
+ * - `item-moved`: the item left the column before the run started, or while a restart cut it off;
+ * - `item-removed` and `item-done`: the item was removed, or moved to `done`;
+ * - `replaced`: the item entered a column again before the run started, and the newer run took its place;
+ * - `flow-off`: the flow, the Team module or the Board module was switched off;
+ * - `no-member`: nobody on the team answers for the column any more;
+ * - `refined`: a todo check would repeat a refine that passed, on an item unchanged since;
+ * - `chat-busy`: a chat of the person's was already working on the item.
+ */
+export type FlowRunCause =
+  | 'budget'
+  | 'no-account'
+  | 'rate-limit'
+  | 'stopped'
+  | 'restarts'
+  | 'unreadable'
+  | 'no-verdict'
+  | 'not-started'
+  | 'not-continued'
+  | 'chat-ended'
+  | 'chat-failed'
+  | 'item-moved'
+  | 'item-removed'
+  | 'item-done'
+  | 'replaced'
+  | 'flow-off'
+  | 'no-member'
+  | 'refined'
+  | 'chat-busy';
+
+/** Another run as a run refers to it: enough to say what it did and open its chat. */
+export interface FlowRunRef {
+  id: string;
+  state: FlowRunState;
+  outcome: FlowRunOutcome | null;
+  chatId: string | null;
+  queuedAt: string;
+  endedAt: string | null;
+}
+
+/** One run of a team member on a work item, queued, running or ended. Rows, so it survives a restart. */
+export interface FlowRun {
+  id: string;
+  projectId: string;
+  itemId: string;
+  /** Filled in when read; null once the item is gone */
+  item: WorkItemRef | null;
+  /** The team role, matching {@link ProjectTeamRole.role} */
+  role: string;
+  /** The member's agent file name, as `claude --agent` takes it */
+  agent: string;
+  model: string;
+  stage: FlowStage;
+  /** The stage as the person reads it, by its column: `check` is a `refine` in `todo` */
+  step: FlowStep;
+  /** The column the card entered that started it */
+  column: WorkItemStatus;
+  state: FlowRunState;
+  /** The chat it runs in; null while queued. A Developer's run continues the item's work chat when there is one */
+  chatId: string | null;
+  /** What the chat is doing now, filled in when read while it runs */
+  activity?: ChatActivity | null;
+  /** Null until it ends */
+  outcome: FlowRunOutcome | null;
+  /** The result's summary, once it ended with one */
+  summary: string | null;
+  /** Why it failed or was cancelled, in English, as the core or the CLI said it; null otherwise */
+  error: string | null;
+  /** Why it failed or was cancelled, as a code to word; null otherwise, and on an old run whose error reads as none */
+  cause: FlowRunCause | null;
+  /** The failed run a person retried with this one (`POST /flow-runs/:runId/retry`); null for a run a card entering its column started */
+  retryOf: string | null;
+  /**
+   * On a run that did not pass, the next run of the same step on the item, whatever started it (a
+   * retry or the card entering the column again): what the person's retry, or the flow, did next.
+   * Null until there is one.
+   */
+  retriedBy: FlowRunRef | null;
+  /**
+   * Whether `POST /flow-runs/:runId/retry` would queue it again now: it failed, nothing has run that
+   * step on the item since, the item is still in the run's column, and the flow is on with a member
+   * answering for the column.
+   */
+  retryable: boolean;
+  /** Times a restart cut it off and it went on in its chat; past `MAX_FLOW_RESTARTS` it fails */
+  restarts: number;
+  /**
+   * The person's language, which the first line of its chat's prompt (`<Role> · <KEY>`, the title the
+   * chat is listed by) is written in, kept so a restart words it the same. Absent on a run stored
+   * before it was kept, which reads as `en`.
+   */
+  language?: AgentryLanguage;
+  queuedAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+}
+
+/** `GET /projects/:id/flow`: what the flow is doing in a project now. */
+export interface ProjectFlow {
+  projectId: string;
+  /** `flow.enabled`, with the Team module on */
+  enabled: boolean;
+  maxParallel: number;
+  /** Oldest first */
+  running: FlowRun[];
+  /** In the order they will start */
+  queued: FlowRun[];
+}
+
+/**
+ * A run's state and outcome in one word, what the team's activity filters and shows: `queued` and
+ * `running` while it has not ended, its {@link FlowRunOutcome} once it has (`flowRunStatus`).
+ */
+export type FlowRunStatus = Exclude<FlowRunState, 'ended'> | FlowRunOutcome;
+
+/**
+ * `GET /work-items/:itemId/runs` answers every flow run of an item as `FlowRun[]`, newest first
+ * (by `queuedAt`), whatever its state: an older failed run still shows as failed on the item, and a
+ * failed run's chat page finds its run (by `chatId`) to say why it failed and which item it was for.
+ *
+ * `GET /projects/:id/flow/runs` pages every flow run of a project, newest first, for the team's
+ * activity ("See all"). Every field is optional; the values of a list are alternatives and fields
+ * combine. In a query string, a list is comma separated.
+ */
+export interface FlowRunQuery {
+  /** Members, by agent file name */
+  agent?: string[];
+  /** Members, by team role ({@link ProjectTeamRole.role}) */
+  role?: string[];
+  /** `outcome` in a query string is another name for it */
+  status?: FlowRunStatus[];
+  /** Runs queued before this moment (ISO 8601): a page of the activity from a day back */
+  before?: string;
+  /** Runs of one work item */
+  itemId?: string;
+  /** Default `FLOW_RUNS_PAGE`, at most `FLOW_RUNS_PAGE_MAX` */
+  limit?: number;
+  /** `nextCursor` of the previous page; absent for the first */
+  cursor?: string;
+}
+
+/** A page of a project's flow runs, newest first. */
+export interface FlowRunPage {
+  runs: FlowRun[];
+  /** Every run that passes the filter, across the pages */
+  total: number;
+  /** Opaque: pass as `cursor` for the next page; null on the last */
+  nextCursor: string | null;
+}
+
+/** QA's verdict: `pass` leaves the item waiting for the person's approval, `fail` sends it back to `in_progress`. */
+export type FlowVerdict = 'pass' | 'fail';
+
+/**
+ * QA's judgement of one acceptance criterion. A met criterion is checked on the item as the agent;
+ * the run passes only when every criterion of the item is met.
+ */
+export interface FlowCriterionResult {
+  /** The criterion's id, as the run's prompt lists it */
+  id: string;
+  met: boolean;
+  /** What was checked, or what is missing */
+  note: string;
+}
+
+/** A memory entry a flow run proposes, as its result carries it. */
+export interface FlowMemoryProposal {
+  target: MemoryProposalTarget;
+  text: string;
+  /** Why the team should remember it */
+  reason: string;
+}
+
+/** A document a flow run wrote in the item's worktree, reported so Agentry ties it to the item. */
+export interface FlowRunDocument {
+  /** Relative to the project, inside the documents folder (`docs/specs/agn-28-board.md`) */
+  path: string;
+  kind: DocumentKind;
+}
+
+/**
+ * The structured result every flow run ends with, through the CLI's `--json-schema`. `summary`
+ * becomes the member's comment on the item; `verdict` is QA's only.
+ */
+export interface FlowRunResult {
+  summary: string;
+  verdict?: FlowVerdict;
+  /** Verification only: every acceptance criterion of the item, each judged on its own */
+  criteria?: FlowCriterionResult[];
+  memoryProposals: FlowMemoryProposal[];
+  documents: FlowRunDocument[];
+}
+
+/**
+ * What a journal entry records: `closed`, an item reached `done` (written once per item); `decision`,
+ * a decision taken; `memory`, an approved memory proposal addressed to the journal; `note`, anything
+ * else a person wrote by hand.
+ */
+export type JournalEntryKind = 'closed' | 'decision' | 'memory' | 'note';
+
+/**
+ * One entry of a project's journal, Agentry's own record of decisions and closed items. The newest
+ * are handed to every flow run with `--append-system-prompt`.
+ */
+export interface JournalEntry {
+  id: string;
+  projectId: string;
+  kind: JournalEntryKind;
+  /** Markdown; for `closed`, the item's title as it was */
+  text: string;
+  itemId: string | null;
+  /** Filled in when read; null when there is no item or it is gone */
+  item: WorkItemRef | null;
+  /** Who wrote or proposed it: the person, or the agent and its role */
+  author: WorkItemActor;
+  /** Who approved it: the move to `done` for `closed`, the proposal for `memory`; null for what a person wrote */
+  approvedBy: WorkItemActor | null;
+  /** The proposal it came from */
+  proposalId: string | null;
+  /** A document it refers to (an architecture decision), relative to the project */
+  documentPath: string | null;
+  /** For `closed`: the chats and orchestration tasks that worked on the item */
+  sources: WorkItemSource[];
+  createdAt: string;
+}
+
+/** `GET /projects/:id/journal?limit=&before=`, newest first. */
+export interface JournalPage {
+  entries: JournalEntry[];
+  /** Every entry of the project */
+  total: number;
+  /** What a flow run is handed: the newest entries that fit the cap */
+  handed: { entries: number; bytes: number };
+  /** Pass as `before` for the next page; null on the last */
+  nextBefore: string | null;
+}
+
+/** An entry written by hand. `closed` and `memory` are Agentry's to write. */
+export interface CreateJournalEntryRequest {
+  text: string;
+  /** Default `note` */
+  kind?: Extract<JournalEntryKind, 'decision' | 'note'>;
+  itemId?: string | null;
+  documentPath?: string | null;
+}
+
+/**
+ * Where an approved proposal is written: `instructions`, the project's `CLAUDE.md` (under `section`
+ * when given, a heading of it); `memory`, a file of the project's CLI memory directory (`file`,
+ * appended to, or created and indexed in `MEMORY.md`); `journal`, a `memory` entry of the journal.
+ */
+export type MemoryProposalTargetKind = 'instructions' | 'memory' | 'journal';
+
+/** Flat rather than a union so it maps onto one row; the fields that do not apply are null. */
+export interface MemoryProposalTarget {
+  kind: MemoryProposalTargetKind;
+  /** For `memory`: the file name (`tests.md`) */
+  file: string | null;
+  /** For `instructions`: the heading it goes under; null appends at the end */
+  section: string | null;
+}
+
+export type MemoryProposalStatus = 'pending' | 'approved' | 'rejected';
+
+/** A memory entry a team member proposed. Nothing is written until the person approves it. */
+export interface MemoryProposal {
+  id: string;
+  projectId: string;
+  target: MemoryProposalTarget;
+  /** As proposed */
+  text: string;
+  reason: string;
+  status: MemoryProposalStatus;
+  /** The agent and its role */
+  proposedBy: WorkItemActor;
+  /** The chat it came from */
+  source: WorkItemSource | null;
+  flowRunId: string | null;
+  itemId: string | null;
+  /** Filled in when read; null when there is no item or it is gone */
+  item: WorkItemRef | null;
+  /** What was written, when the person edited it before approving; null otherwise */
+  approvedText: string | null;
+  /** The person, once decided */
+  decidedBy: WorkItemActor | null;
+  decidedAt: string | null;
+  /** Why it was rejected, when the person said */
+  rejectReason: string | null;
+  /** The journal entry an approval to the journal wrote */
+  journalEntryId: string | null;
+  createdAt: string;
+}
+
+export interface ApproveMemoryProposalRequest {
+  /** The text to write instead of the proposed one */
+  text?: string;
+}
+
+export interface RejectMemoryProposalRequest {
+  reason?: string;
+}
+
+/**
+ * What a document tied to a work item is: `spec`, a specification (the Product Owner's, refining);
+ * `adr`, an architecture decision; `report`, a verification report (QA's); `doc`, anything else.
+ */
+export type DocumentKind = 'spec' | 'adr' | 'report' | 'doc';
+
+/** A work item a document is tied to, as a `document` link. */
+export interface DocumentTie {
+  linkId: string;
+  item: WorkItemRef;
+  kind: DocumentKind;
+  /** The part it played in the item's life; `reference` when tied by hand */
+  linkRole: WorkItemLinkRole;
+  /** The team role that wrote it; null when a person tied it */
+  teamRole: string | null;
+  /** The chat that wrote it */
+  chatId: string | null;
+  createdAt: string;
+}
+
+/** A file or directory of the documents folder. Only Markdown files are listed. */
+export interface DocumentNode {
+  name: string;
+  /** Relative to the project, `/`-separated (`docs/specs/agn-28-board.md`) */
+  path: string;
+  type: 'file' | 'dir';
+  /** For a directory, its entries, directories first; absent for a file */
+  children?: DocumentNode[];
+  /** For a directory, the Markdown files under it at any depth */
+  fileCount?: number;
+  /** For a file: its first `# ` heading, when it has one */
+  title?: string | null;
+  size?: number;
+  updatedAt?: string | null;
+  /** For a file, the items it is tied to; empty for a directory */
+  ties: DocumentTie[];
+}
+
+/** `GET /projects/:id/documents`: the tree of the documents folder. */
+export interface ProjectDocuments {
+  projectId: string;
+  /** `documents.path`, relative to the project (`docs`) */
+  root: string;
+  /** The folder is on disk */
+  exists: boolean;
+  /** The folder's entries, directories first */
+  tree: DocumentNode[];
+  fileCount: number;
+  /** Files tied to at least one item */
+  tiedCount: number;
+}
+
+/** `GET /projects/:id/documents/file?path=`. */
+export interface DocumentFile {
+  /** Relative to the project */
+  path: string;
+  content: string;
+  title: string | null;
+  size: number;
+  updatedAt: string | null;
+  ties: DocumentTie[];
+}
+
+/** `PUT /projects/:id/documents/file?path=`: creates or replaces a Markdown file of the documents folder. */
+export interface WriteDocumentRequest {
+  content: string;
+  /**
+   * The `updatedAt` the editor started from; when the file changed since (an agent wrote it), the
+   * write is refused with 409 instead of overwriting it. Absent writes whatever is there.
+   */
+  baseUpdatedAt?: string | null;
+}
+
+/** `POST /work-items/:itemId/documents`: ties a document of the project to an item by hand, role `reference`. */
+export interface TieDocumentRequest {
+  /** Relative to the project, inside the documents folder */
+  path: string;
+  /** Default `doc` */
+  kind?: DocumentKind;
+}
+
+// ---------- The project assistant: suggested team, resources and work items ----------
+//
+// Orchestration 4 of docs/plans/project-ecosystem.md (decisions 35 to 37). An assistant run is a chat
+// through the CLI in the project's directory, read-only (the read tools, and `Bash` limited to
+// `git log`, `git status` and `ls`), that answers through `--json-schema`. It never writes a file:
+// each proposal is accepted or discarded on its own, and only an accept makes Agentry write
+// something, through the service that owns it (the team, the work items, the resources). It runs on
+// demand or when a project is created, never on a schedule.
+
+/**
+ * `project`: team, resources and first work items, after creating a project or on demand from its
+ * page. `work-items`: "Suggest tasks" on the board. `resources`: "Suggest" on the Resources tab, or
+ * "Create with AI" for one resource from a description.
+ */
+export type AssistantRunKind = 'project' | 'work-items' | 'resources';
+
+/**
+ * `running` has its chat, or is about to; `completed` answered and its proposals are served;
+ * `failed` ended without a readable answer (the chat failed, the result did not match the schema, or
+ * a restart cut it and it could not be started again); `stopped` a person stopped it. A finished run
+ * never runs again: "Suggest again" is a new run.
+ */
+export type AssistantRunStatus = 'running' | 'completed' | 'failed' | 'stopped';
+
+/** The resources an assistant proposes or creates: the ones a project's `.claude/` holds as Markdown. */
+export type AssistantResourceKind = Extract<ResourceKind, 'agents' | 'skills' | 'commands'>;
+
+/**
+ * What an entry of "what it read" is: the project's files (`file`, `dir`), the CLI's `instructions`
+ * (`CLAUDE.md`) and `memory`, Agentry's `journal`, `work-items` and `milestones` (so it does not
+ * propose them again), the `team`, the `resources`, the CLI's `chats` in the directory and the `git`
+ * history.
+ */
+export type AssistantSourceKind =
+  | 'file'
+  | 'dir'
+  | 'instructions'
+  | 'memory'
+  | 'journal'
+  | 'work-items'
+  | 'milestones'
+  | 'team'
+  | 'resources'
+  | 'chats'
+  | 'git';
+
+/**
+ * `pending`: it will read it later ("after"); `reading`: now; `read`: all of it; `partial`: some of
+ * it (`count` of `total`); `missing`: it looked and there is none (`CLAUDE.md` does not exist).
+ */
+export type AssistantSourceState = 'pending' | 'reading' | 'read' | 'partial' | 'missing';
+
+/** What `count` and `total` count, which a client words ("142 lines", "23 chats", "14 of 20"). */
+export type AssistantSourceUnit = 'lines' | 'files' | 'documents' | 'chats' | 'commits' | 'items' | 'entries' | 'members';
+
+/**
+ * One entry of what a run read ("See what it read"): kept on the run, filled in from the chat's tool
+ * calls and from what Agentry handed it (its journal, its work items, its team, its resources).
+ */
+export interface AssistantSource {
+  kind: AssistantSourceKind;
+  /** Relative to the project, `/`-separated, a directory ending in `/` (`docs/`); null for what is not a path */
+  path: string | null;
+  state: AssistantSourceState;
+  count: number | null;
+  /** For `partial`, how many there were */
+  total: number | null;
+  unit: AssistantSourceUnit | null;
+  /** A few names a client may list beside it: the open milestones (`v0.20`), the files of a group */
+  names: string[];
+}
+
+/**
+ * Something a `project` run found, shown as a tag ("TypeScript", "Fastify"): `stack` is what the
+ * project uses, `gap` is what it lacks ("no CI").
+ */
+export interface AssistantFinding {
+  kind: 'stack' | 'gap';
+  label: string;
+}
+
+/** `pending` waits for the person; `superseded` was pending when the person asked to suggest again. */
+export type AssistantProposalStatus = 'pending' | 'accepted' | 'discarded' | 'superseded';
+
+export type AssistantProposalKind = 'team-member' | 'resource' | 'work-item';
+
+/** How many proposals of a kind a run made, by status: "2 of 6 accepted", "3 to review". */
+export interface AssistantProposalCount {
+  total: number;
+  pending: number;
+  accepted: number;
+  discarded: number;
+  superseded: number;
+}
+
+/** An assistant run as `GET /projects/:id/assistant/runs` lists it; `GET /assistant/runs/:runId` adds its proposals. */
+export interface AssistantRun {
+  id: string;
+  projectId: string;
+  kind: AssistantRunKind;
+  status: AssistantRunStatus;
+  /** Model alias or id the chat ran with; `sonnet` unless the request chose another */
+  model: string;
+  /** What the person described: the one resource "Create with AI" builds, or what an empty project is for */
+  description: string | null;
+  /**
+   * For a `work-items` run, what to look for ("Suggest tasks"'s focus, {@link StartAssistantRunRequest.focus});
+   * absent or null otherwise, and on a run stored before it was its own field
+   */
+  focus?: string | null;
+  /**
+   * The person's language when it started, which its chat's title is written in, kept so a run
+   * started again after a restart words it the same. Absent on a run stored before it was kept,
+   * which reads as `en`.
+   */
+  language?: AgentryLanguage;
+  /** For a `resources` run from a description, the kind of the one resource it builds; null otherwise */
+  resourceKind: AssistantResourceKind | null;
+  /**
+   * The chat it runs in, which counts in Usage like any other. Null while starting, and for a run with
+   * nothing to read ({@link AssistantRun.empty}), which starts no chat.
+   */
+  chatId: string | null;
+  /** What the chat is doing now, filled in when read while it runs */
+  activity?: ChatActivity | null;
+  /**
+   * The project had nothing to read: no files, no chats, no git history. No chat was started; a
+   * `project` run offers the template's team, and asks for a description to propose work items.
+   */
+  empty: boolean;
+  /** The template whose team it offered as the starting point; null when it proposed none */
+  template: ProjectTemplateId | null;
+  /** What it read, in the order it read it; entries still `pending` while it runs */
+  sources: AssistantSource[];
+  /** For a `project` run; empty for the others and until the answer comes */
+  findings: AssistantFinding[];
+  /** Proposals by kind; a kind the run does not propose counts zero */
+  counts: Record<AssistantProposalKind, AssistantProposalCount>;
+  /** The chat's cost so far, then its total; null when the CLI reported none (or no chat was started) */
+  costUsd: number | null;
+  /** From start to end; null while it runs */
+  durationMs: number | null;
+  /** Why it failed; null unless `failed` */
+  error: Localized | null;
+  /** The finished run of the same kind whose pending proposals this one superseded ("Suggest again") */
+  supersedes: string | null;
+  /** The run that superseded this one's pending proposals; null while none has */
+  supersededBy: string | null;
+  startedAt: string;
+  endedAt: string | null;
+}
+
+/** `GET /assistant/runs/:runId`, and what starting or stopping one answers. */
+export interface AssistantRunDetail extends AssistantRun {
+  /** Every proposal it made, whatever its status, by kind then in the order it proposed them */
+  proposals: AssistantProposal[];
+  /**
+   * "Create with AI" while it runs: the one resource as the chat is writing it, read from its partial
+   * structured output or its stream, so the editor opens at once and fills in. Absent or null for
+   * every other run, and once the run ended (its proposal carries the whole file). Refreshed through
+   * `assistant.run` events with the action `read`.
+   */
+  draft?: AssistantResourceDraft | null;
+}
+
+/** The resource a running "Create with AI" has written so far; nothing of it is saved. */
+export interface AssistantResourceDraft {
+  kind: AssistantResourceKind;
+  /** Null until the chat has written it */
+  name: string | null;
+  /** What it has written of the whole file so far, frontmatter included; empty before the first part */
+  content: string;
+}
+
+/**
+ * `POST /projects/:id/assistant/runs`. One run at a time per project and kind: a second one while
+ * one runs is refused with 409. A new run leaves the previous one's pending proposals as they are,
+ * unless `supersede` says to set them aside ("Suggest again").
+ */
+export interface StartAssistantRunRequest {
+  kind: AssistantRunKind;
+  /** Default `sonnet` (`DEFAULT_ASSISTANT_MODEL`) */
+  model?: string;
+  /**
+   * For a `resources` run, the one resource to build ("Create with AI"), with `resourceKind`; for a
+   * `project` or `work-items` run, what the project is for when there is nothing to read
+   */
+  description?: string;
+  /**
+   * For a `work-items` run ("Suggest tasks"), what to look for ("the checkout's error handling"): the
+   * prompt words it as the area to propose work in, not as what the project is for. Refused on
+   * the other kinds. The language is not a field: it is the request's `Accept-Language`.
+   */
+  focus?: string;
+  /** Required with a `resources` run's `description` */
+  resourceKind?: AssistantResourceKind;
+  /** Mark the pending proposals of the latest finished run of this kind `superseded`. Default false */
+  supersede?: boolean;
+}
+
+/** A role of the team the assistant proposes, as the member it would add. */
+export interface ProposedTeamMember extends ProjectTeamRole {
+  /** Name of the agent file it would write in `.claude/agents/`, without `.md` */
+  agent: string;
+  /** Paths or globs it may write; empty means nothing but work items ("writes: nothing, only tasks") */
+  writes: string[];
+  /** One of the template's roles; false for one the project needs beyond it ("outside the template") */
+  fromTemplate: boolean;
+  /** The agent file's `description`, what the CLI picks it by */
+  description: string;
+  /** The agent file's body; empty lets the team service write its starting one */
+  instructions: string;
+}
+
+/** A resource the assistant proposes: a whole file, opened in the editor before anything is saved. */
+export interface ProposedResource {
+  kind: AssistantResourceKind;
+  /** File or directory name, without extension; a command's without its `/` */
+  name: string;
+  /** One line, as its frontmatter says it */
+  description: string;
+  /** The whole file, frontmatter included (a skill's `SKILL.md`) */
+  content: string;
+  /** Where it is meant to go: the project by default (decision 37) */
+  scope: ConfigScopeKind;
+  /**
+   * Where it would be saved, relative to its scope's root: the project (`.claude/agents/x.md`, a
+   * skill's directory `.claude/skills/x/`), or the Claude config dir for `user` (`agents/x.md`)
+   */
+  path: string;
+}
+
+/** A work item the assistant proposes, created in `backlog` when accepted. */
+export interface ProposedWorkItem {
+  type: WorkItemType;
+  title: string;
+  /** Markdown */
+  description: string;
+  priority: WorkItemPriority;
+  labels: string[];
+  acceptanceCriteria: NewAcceptanceCriterion[];
+  /** An existing epic of the project it belongs to */
+  epicId: string | null;
+  /** Filled in when read; null without one or once it is gone */
+  epic: WorkItemRef | null;
+  /**
+   * An existing item it resembles ("Similar to AGN-45"), filled in when read; such a proposal starts
+   * unselected where a client offers a selection
+   */
+  similarTo: WorkItemRef | null;
+}
+
+/** What every proposal carries, whatever its kind. */
+export interface AssistantProposalBase {
+  id: string;
+  runId: string;
+  projectId: string;
+  status: AssistantProposalStatus;
+  /** Why it proposes it, one or two sentences; for a work item, its first comment once accepted */
+  reason: string;
+  /** Its place among the run's proposals of the same kind */
+  position: number;
+  /** Who accepted or discarded it last; null while pending (and again once restored) */
+  decidedBy: WorkItemActor | null;
+  decidedAt: string | null;
+  createdAt: string;
+}
+
+/** Accepting it adds the member through the team service, agent file included. */
+export interface AssistantTeamMemberProposal extends AssistantProposalBase {
+  kind: 'team-member';
+  member: ProposedTeamMember;
+  /** The member as added, by agent file name, once accepted; null otherwise */
+  acceptedAgent: string | null;
+}
+
+/**
+ * Accepting it is saving it: the editor opens the proposal unsaved, and its save is the accept, with
+ * what the person edited ({@link AcceptAssistantProposalRequest.resource}).
+ */
+export interface AssistantResourceProposal extends AssistantProposalBase {
+  kind: 'resource';
+  resource: ProposedResource;
+  /** Where it was saved, once accepted: its scope and its path there; null otherwise */
+  saved: { scope: ConfigScopeKind; name: string; path: string } | null;
+}
+
+/** Accepting it creates the item in `backlog`, with the reason as its first comment. */
+export interface AssistantWorkItemProposal extends AssistantProposalBase {
+  kind: 'work-item';
+  workItem: ProposedWorkItem;
+  /** The item it created, once accepted ("created · PAG-1"); null otherwise, or once it is gone */
+  created: WorkItemRef | null;
+}
+
+/** One proposal of a run, accepted or discarded on its own (decision 36). */
+export type AssistantProposal = AssistantTeamMemberProposal | AssistantResourceProposal | AssistantWorkItemProposal;
+
+/**
+ * `POST /assistant/proposals/:proposalId/accept`, with what the person changed before accepting;
+ * only the part that matches the proposal's kind is read, and a field left out keeps the proposed
+ * value. Accepting a proposal that is not `pending` is refused with 409.
+ */
+export interface AcceptAssistantProposalRequest {
+  member?: Partial<Omit<ProposedTeamMember, 'fromTemplate'>>;
+  /** The editor's save: the name, content and scope the person left */
+  resource?: { name?: string; content?: string; scope?: ConfigScopeKind };
+  workItem?: Partial<Omit<ProposedWorkItem, 'epic' | 'similarTo'>>;
 }
 
 // ---------- What changed on disk ----------
@@ -1116,6 +2659,14 @@ export interface Localized {
   text: string;
 }
 
+/**
+ * The languages Agentry speaks. A chat Agentry starts on its own is listed by the first line of its
+ * prompt, so that line is written in the person's language, read from the request's
+ * `Accept-Language` (`agentryLanguage`) and kept on what runs later or again (an assistant run, a
+ * flow run); the instructions for Claude after it may stay in English.
+ */
+export type AgentryLanguage = 'en' | 'es';
+
 // ---------- Orchestration ----------
 
 export interface OrchestrationTaskSpec {
@@ -1127,6 +2678,12 @@ export interface OrchestrationTaskSpec {
   model?: string;
   /** What this worker may spend before Agentry stops it; the graph's default when absent */
   limits?: TaskLimits;
+  /**
+   * The work item this node works on, as a draft built from a selection names it. Launching links
+   * the node to the item, which then follows the node's status. Must be a work item of a project
+   * whose Board module is on, and at most one node per item.
+   */
+  workItemId?: string;
 }
 
 /**
@@ -2278,6 +3835,10 @@ export interface CreateProjectRequest {
   name: string;
   /** Clone this repository instead of creating an empty directory */
   gitUrl?: string;
+  /** Configures the project from a template; without one, and without `modules`, every module is off */
+  template?: ProjectTemplateId;
+  /** The modules to switch on; when given, it replaces the template's choice instead of adding to it */
+  modules?: ProjectModule[];
 }
 
 export interface ApiError {
@@ -2765,6 +4326,217 @@ export interface SupervisorProposedEvent extends AgentryEventBase, RunEventRef {
   proposal: SupervisorProposal;
 }
 
+/** What every work item event names, so a client knows which item, board and list to refetch. */
+export interface WorkItemEventRef {
+  projectId: string;
+  itemId: string;
+  key: string;
+}
+
+export interface WorkItemCreatedEvent extends AgentryEventBase, WorkItemEventRef {
+  type: 'workitem.created';
+  itemType: WorkItemType;
+  status: WorkItemStatus;
+  /** Set when a chat created it, from one of its messages */
+  source: WorkItemSource | null;
+}
+
+/** An item's fields, criteria, relations, links or comments changed; its column and place did not. */
+export interface WorkItemUpdatedEvent extends AgentryEventBase, WorkItemEventRef {
+  type: 'workitem.updated';
+  changes: WorkItemChange[];
+  actor: WorkItemActor;
+  cause: WorkItemCause | null;
+}
+
+/** An item changed column or place: a person dragged it, or it moved on its own and `cause` says why. */
+export interface WorkItemMovedEvent extends AgentryEventBase, WorkItemEventRef {
+  type: 'workitem.moved';
+  status: WorkItemStatus;
+  /** Equal to `status` when only its place in the column changed */
+  previousStatus: WorkItemStatus;
+  /** The target column is over its limit after the move */
+  overLimit: boolean;
+  actor: WorkItemActor;
+  cause: WorkItemCause | null;
+}
+
+export interface WorkItemRemovedEvent extends AgentryEventBase, WorkItemEventRef {
+  type: 'workitem.removed';
+}
+
+export type MilestoneChangeAction = 'created' | 'updated' | 'closed' | 'reopened' | 'deleted';
+
+/**
+ * A milestone was created, edited, closed, reopened or deleted. Its progress moving because an item
+ * did is not announced here: that item's own event already makes it stale.
+ */
+export interface MilestoneChangedEvent extends AgentryEventBase {
+  type: 'milestone.changed';
+  projectId: string;
+  milestoneId: string;
+  milestoneName: string;
+  action: MilestoneChangeAction;
+}
+
+/**
+ * A directory was imported as a project, or a new one created in the workspace. A directory imported
+ * again after it was removed takes its old id back, and is announced as created all the same.
+ */
+export interface ProjectCreatedEvent extends AgentryEventBase {
+  type: 'project.created';
+  projectId: string;
+  projectName: string;
+}
+
+/** A project was removed from Agentry. Its directory, settings and work items are left where they are. */
+export interface ProjectRemovedEvent extends AgentryEventBase {
+  type: 'project.removed';
+  projectId: string;
+  projectName: string;
+}
+
+/** What `project.updated` says changed; `settings` is anything else in the settings document. */
+export type ProjectChange = 'name' | 'key' | 'modules' | 'settings';
+
+/** A project was renamed, its key prefix or its modules changed, or its settings document was replaced. */
+export interface ProjectUpdatedEvent extends AgentryEventBase {
+  type: 'project.updated';
+  projectId: string;
+  projectName: string;
+  changes: ProjectChange[];
+  /** The modules on after the change */
+  modules: ProjectModule[];
+}
+
+/**
+ * `created` and `updated` are a member's metadata written through `PUT`, `template` the members a
+ * template wrote, `removed` a member taken off the team (its agent file stays), and `file` an agent
+ * file of a member written, deleted or found drifted: saved or deleted through the resources route
+ * (`/config/resources/agents/:name?project=`), whose `agents` names the member, or rewritten by the
+ * team service to follow the metadata.
+ */
+export type TeamChangeAction = 'created' | 'updated' | 'removed' | 'template' | 'file';
+
+/** A project's team changed. */
+export interface TeamChangedEvent extends AgentryEventBase {
+  type: 'team.changed';
+  projectId: string;
+  action: TeamChangeAction;
+  /** The members it touched, by agent file name */
+  agents: string[];
+}
+
+export type JournalChangeAction = 'added' | 'removed';
+
+/** An entry was added to a project's journal, or removed from it. */
+export interface JournalChangedEvent extends AgentryEventBase {
+  type: 'journal.changed';
+  projectId: string;
+  entryId: string;
+  action: JournalChangeAction;
+  kind: JournalEntryKind;
+  itemId: string | null;
+}
+
+export type MemoryProposalAction = 'created' | 'approved' | 'rejected';
+
+/**
+ * A memory proposal was made, approved or rejected. An approval also wrote its target: the journal
+ * announces its entry on its own, the CLI's memory and `CLAUDE.md` are read again from `target`.
+ */
+export interface MemoryProposalEvent extends AgentryEventBase {
+  type: 'memory.proposal';
+  projectId: string;
+  proposalId: string;
+  action: MemoryProposalAction;
+  target: MemoryProposalTarget;
+  /** The role that proposed it */
+  role: string | null;
+  itemId: string | null;
+}
+
+/** `written` and `removed` are the file; `tied` and `untied` a link between it and a work item. */
+export type DocumentChangeAction = 'written' | 'removed' | 'tied' | 'untied';
+
+/** A document of a project's documents folder changed, or was tied to or untied from an item. */
+export interface DocumentChangedEvent extends AgentryEventBase {
+  type: 'document.changed';
+  projectId: string;
+  /** Relative to the project */
+  path: string;
+  action: DocumentChangeAction;
+  /** The item of a `tied` or `untied`; for a file written by a flow run, the item it was written for */
+  itemId: string | null;
+}
+
+export type FlowRunAction = 'queued' | 'started' | 'ended';
+
+/**
+ * A flow run was queued, started or ended. What it did to the item (a comment, a move, the waiting
+ * state) comes as that item's own `workitem.*` events.
+ */
+export interface FlowRunEvent extends AgentryEventBase, WorkItemEventRef {
+  type: 'flow.run';
+  runId: string;
+  action: FlowRunAction;
+  role: string;
+  agent: string;
+  stage: FlowStage;
+  step: FlowStep;
+  /** Set once started */
+  chatId: string | null;
+  /** Set when ended */
+  outcome: FlowRunOutcome | null;
+  /** Set when it failed or was cancelled */
+  cause: FlowRunCause | null;
+  /** The failed run this one retries, when a person retried it */
+  retryOf: string | null;
+}
+
+/**
+ * `started` and `failed` as they say; `ended` a run that completed or was stopped (its `status`
+ * says which); `read` a running one's {@link AssistantRun.sources}, cost or
+ * {@link AssistantRunDetail.draft} changed, at most every few seconds, so "what it has read" and the
+ * file "Create with AI" writes fill in without polling.
+ */
+export type AssistantRunAction = 'started' | 'read' | 'ended' | 'failed';
+
+/** An assistant run started, read something, ended or failed. */
+export interface AssistantRunEvent extends AgentryEventBase {
+  type: 'assistant.run';
+  projectId: string;
+  runId: string;
+  kind: AssistantRunKind;
+  action: AssistantRunAction;
+  status: AssistantRunStatus;
+  /** Set once its chat started; null for a run with nothing to read */
+  chatId: string | null;
+  /** The run whose pending proposals this one superseded when it started, which reads again */
+  supersedes: string | null;
+}
+
+export type AssistantProposalAction = 'accepted' | 'discarded' | 'restored';
+
+/**
+ * A proposal was accepted, discarded or restored. What an accept wrote announces itself too where
+ * it has an event (`workitem.created`, `team.changed`); a saved resource has none, so this names it.
+ */
+export interface AssistantProposalEvent extends AgentryEventBase {
+  type: 'assistant.proposal';
+  projectId: string;
+  runId: string;
+  proposalId: string;
+  proposalKind: AssistantProposalKind;
+  action: AssistantProposalAction;
+  /** For an accepted work item, the item it created */
+  itemId: string | null;
+  /** For an accepted team member, its agent file name */
+  agent: string | null;
+  /** For an accepted resource, where it was saved */
+  resource: { kind: AssistantResourceKind; name: string; scope: ConfigScopeKind } | null;
+}
+
 /** A layered setting changed, from the UI or the file: the whole document as it now stands. */
 export interface SettingsChangedEvent extends AgentryEventBase {
   type: 'settings.changed';
@@ -2811,6 +4583,21 @@ export type AgentryEvent =
   | ScheduleChangedEvent
   | ScheduleFiredEvent
   | SupervisorProposedEvent
+  | WorkItemCreatedEvent
+  | WorkItemUpdatedEvent
+  | WorkItemMovedEvent
+  | WorkItemRemovedEvent
+  | MilestoneChangedEvent
+  | ProjectCreatedEvent
+  | ProjectUpdatedEvent
+  | ProjectRemovedEvent
+  | TeamChangedEvent
+  | JournalChangedEvent
+  | MemoryProposalEvent
+  | DocumentChangedEvent
+  | FlowRunEvent
+  | AssistantRunEvent
+  | AssistantProposalEvent
   | SettingsChangedEvent
   | TunnelChangedEvent;
 

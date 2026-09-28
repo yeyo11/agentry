@@ -16,7 +16,18 @@ const schedule = (over: Partial<Schedule> = {}): Schedule => ({
   ...over,
 });
 
-const project = (over: Partial<Project>): Project => ({ id: 'p', name: 'p', path: '/p', worktrees: [], exists: true, chatCount: 0, lastActivity: null, ...over });
+const project = (over: Partial<Project>): Project => ({
+  id: 'p',
+  name: 'p',
+  path: '/p',
+  key: 'P',
+  modules: [],
+  worktrees: [],
+  exists: true,
+  chatCount: 0,
+  lastActivity: null,
+  ...over,
+});
 
 test('every word typed has to be found, in any order and any case', () => {
   assert.equal(matchesText('', ['anything']), true);

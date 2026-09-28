@@ -245,7 +245,7 @@
     "taskOutput": "Salida de la tarea",
     "chat": "Chat",
     "theChat": "el chat",
-    "chatFailed": "No se pudo leer este chat",
+    "chatFailed": "No se ha podido leer este chat",
     "cost": "Coste",
     "openChat": "Abrir el chat",
     "earlierInChat_one": "{{count}} entrada anterior en el chat",
@@ -346,6 +346,9 @@
       "worktrees": "worktrees"
     },
     "projectChats": "{{name}} — chats",
+    "assistant": "Asistente del proyecto",
+    "assistantOf": "Asistente de {{name}}",
+    "projectAssistant": "{{name}} — asistente",
     "projectNewChat": "{{name}} — nuevo chat",
     "language": "Idioma: {{name}}",
     "motion": "Movimiento: {{level}}"
@@ -444,7 +447,7 @@
     "label": "Enviar también a este dispositivo",
     "hintOn": "Este dispositivo está registrado: lo que elijas abajo le llega aunque Agentry esté cerrado.",
     "hintOff": "Envía lo que elijas abajo a este dispositivo aunque Agentry esté cerrado. El navegador pedirá permiso.",
-    "failed": "No se pudieron cambiar las notificaciones push de este dispositivo",
+    "failed": "No se han podido cambiar las notificaciones push de este dispositivo",
     "incomplete": "Este navegador devolvió una suscripción sin claves de cifrado, así que no se le podría enviar nada.",
     "noWorker": "Este navegador todavía no tiene un service worker de Agentry, así que no hay dónde entregar una notificación. Recarga la página y vuelve a intentarlo.",
     "fallbackTitle": "Agentry",

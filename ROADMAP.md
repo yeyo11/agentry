@@ -149,6 +149,78 @@
   (restart now, or update when you quit). A page that outlived a deploy notices from the version in
   `stream.hello`, or from a lazy chunk that is gone, and offers a reload that goes through the service
   worker. See [docs/plans/app-updates.md](docs/plans/app-updates.md).
+- **The project ecosystem's foundation: modules and the board, server side** — a settings document
+  per project with modules (Board, Team, Documents, Shared memory) switched on from one of five
+  built-in templates, and switched off without losing data; work items with a key per project
+  (`AGN-12`, never reused), five fixed columns with optional limits, epics, milestones without
+  dates, acceptance checklists, `blocks` relations, comments and a history the server writes, safe
+  across several wrapper processes. "Work on it" runs a chat on an item in its own worktree, a
+  selection becomes a draft orchestration with its dependencies, a chat's message becomes a task,
+  and the item follows that work, forward only and never over a person's move. The screens are
+  static prototypes in `docs/design-system/reference/` (66 of them, with the states an audit found
+  missing), which the owner validated on 2026-09-27; the fixes of that audit are in, in
+  orchestration 1b.
+  See
+  [docs/projects.md](docs/projects.md), [docs/work-items.md](docs/work-items.md) and
+  [docs/plans/project-ecosystem.md](docs/plans/project-ecosystem.md).
+- **The board's web: projects, Tasks and work items on screen** — orchestration 2 of the project
+  ecosystem built the screens from the prototypes the owner validated. It has:
+  - the project wizard, with a template and module switches;
+  - the project page as tabs that follow its modules, and its settings (key prefix, modules, column
+    limits);
+  - the Tasks board, dragged by pointer or keyboard, with limits that warn and never block, and live
+    cards;
+  - the list, All projects and milestones;
+  - a work item as a page and as a panel beside the board, with "Work on it" and "Move to Done";
+  - New task;
+  - on a phone, a board as one list with a jump between columns;
+  - tasks created from a chat's message, a chat naming the task it works on, and a board selection
+    opened as a draft graph whose nodes carry their keys.
+
+  Both themes and both sizes, checked against the references. See [docs/work-items.md](docs/work-items.md#the-screens)
+  and [docs/projects.md](docs/projects.md#the-screens).
+- **The team, the flow by column, shared memory and documents** — orchestration 3 of the project
+  ecosystem, core and web:
+  - a project's team: each member a Claude Code agent file plus the role, model, responsibility and
+    write paths Agentry keeps. A file a person wrote or edited is never overwritten, only reported;
+  - the flow by column, switched on per project. A card entering a column starts its role's run with
+    `--agent`, `--model`, the journal as `--append-system-prompt` and a structured result through
+    `--json-schema`. QA sends the card back a set number of times; only a person moves it to Done.
+    Runs are capped per project, queued as rows, and survive a restart;
+  - the project journal, and memory proposals a person approves one by one;
+  - the documents folder, read and edited with path traversal refused, and documents tied to tasks;
+  - the Team, member, Flow, Documents and Memory screens, the board worked by a team, and a task's
+    documents and waiting state, in both themes and sizes.
+
+  See [docs/team-and-flow.md](docs/team-and-flow.md).
+- **The project assistant, suggested tasks and resources with AI** — orchestration 4, the last of the
+  project ecosystem, core and web:
+  - a run is a CLI chat in the project's directory that may only read (`dontAsk`, the read tools and
+    `git log`/`git status`/`ls`, no MCP server) and answers through `--json-schema`, on demand or when
+    a project is created, never on a schedule, one at a time per project and kind;
+  - it proposes a team, agents, skills and commands, and work items, each accepted or discarded on its
+    own, and only an accept writes: a member through the team service, a work item in Backlog with
+    its reason as the first comment, a resource saved from the editor it opens in;
+  - what it read is kept on the run; its model, time and cost show on every screen;
+  - a project with nothing to read starts no chat and is offered its template's team;
+  - the assistant's page after the wizard, "Pedir propuesta" on the empty team, "Sugerir tareas" on
+    the board, and "Sugerir" and "Crear con IA" on a project's Resources tab, in both themes and
+    sizes;
+  - the four items the audit of orchestration 2 left open, epics no longer counting against a
+    column's limit among them.
+
+  See [docs/assistant.md](docs/assistant.md). A review of the whole feature followed, and a fifth
+  orchestration fixed its findings
+  ([the audit](docs/plans/project-ecosystem-audit.md#review-of-the-whole-feature-before-the-pull-request)).
+  A sixth closed the 24 gaps the documents still listed: live cards while a member refines or
+  verifies, every run of an item and the team's whole activity, a run that waits for the account
+  rotation, one refine per backlog card, the flow's limits on screen, a member's shell commands,
+  the assistant from every tab, "Crear con IA" streaming its file, chats titled in the person's
+  language, a route by key, paged Done and lists, phone screens with their own heads, and the web
+  files over 400 lines split
+  ([the plan](docs/plans/project-ecosystem.md#orchestration-6-ecosystem-gaps)).
+  The whole ecosystem reaches `main` in one pull request from `feat/project-ecosystem`, once the
+  owner has tried it.
 
 ## Next
 

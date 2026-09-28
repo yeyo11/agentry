@@ -55,6 +55,9 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     console.log('  (health-actions: cancelling a command needs /proc; nothing to check here)');
     return;
   }
+  // The fake's log is shared by every fake-CLI spec, and an earlier one (assistant.spec) started its
+  // own processes: only what this chat started counts
+  const logStart = logOf(fake.log).length;
   const started = await api.post('/chats', { prompt: 'elapsed: 200\nrun: sleep 600 | cat\nrun: sleep 601', cwd: dirs.workspaceDir });
   check(started.status === 201, `the chat started: ${JSON.stringify(started.body)}`);
   const id = started.body.id;
@@ -80,7 +83,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.eval(`[...document.querySelector('[role=dialog]').querySelectorAll('button')].find((b) => b.textContent.includes('Cancel the command')).click(); return true;`);
     await until(() => firstTree.every((pid) => !alive(pid)), 'every process of the cancelled command is gone');
     const second = await until(() => commandOf('sleep 601'), 'the worker went on to its next command');
-    check(logOf(fake.log).filter((e) => e.event === 'started').length === 1, 'the same CLI process went on: nothing was restarted');
+    check(logOf(fake.log).slice(logStart).filter((e) => e.event === 'started').length === 1, 'the same CLI process went on: nothing was restarted');
     await page.waitFor(
       `const t = document.querySelector('main').innerText; return t.includes('Heard: A hint from the person following this chat') && t.includes('Heard: A person cancelled the command');`,
       { label: 'the worker answered the hint and the notice of the cancel' },

@@ -9,8 +9,8 @@ import {
   PanelLeftOpen,
   Play,
   Plug,
-  Plus,
   Settings2,
+  SquareCheck,
   Users,
   Workflow,
 } from 'lucide-react';
@@ -18,22 +18,23 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { api, chatListQuery, keys } from './api';
+import { api, chatListQuery, keys, useOpenTaskCount } from './api';
 import { CommandPalette, CommandPaletteTrigger, NEW_ORCHESTRATION_PATH, RUN_WORKFLOW_EVENT } from './components/CommandPalette';
 import type { MenuItem } from './components/controls/Menu';
 import { Tooltip } from './components/controls/Tooltip';
 import { DetailHost } from './components/DetailHost';
 import { BrandMark, ICON } from './components/icons';
-import { NotificationBell, NotificationHost } from './components/Notifications';
+import { NotificationHost } from './components/Notifications';
 import { PageTransition, SlidingIndicator, StatusDot } from './components/motion';
-import { ProjectSelector } from './components/ProjectSelector';
 import { lazyPage, ReloadBanner } from './components/ReloadOffer';
 import { Fab } from './components/shell/Fab';
-import { LiveChip, LiveSection, useLive } from './components/shell/live';
+import { useOwnPhoneHeader, usePhoneHeaderMark } from './components/shell/PhoneHeader';
+import { LiveSection, useLive } from './components/shell/live';
 import { AccountCard, StatusBar, useConnection } from './components/shell/StatusBar';
+import { useRailCollapsed } from './components/shell/rail';
+import { TopBar } from './components/shell/TopBar';
 import { isActive, NavDot, navTarget, TabBar, type NavItem } from './components/shell/TabBar';
 import { SignIn } from './components/SignIn';
-import { SplitButton } from './components/SplitButton';
 import { Empty, Skeleton } from './components/ui';
 import { useUsageNow } from './lib/usage-now';
 import { useAuthChallenge, useAuthSettled } from './lib/auth';
@@ -43,6 +44,7 @@ import { useKeyboardInset } from './lib/viewport';
 import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
 import { fabFor, hidesTabBar } from './lib/shell-live';
+import { NEW_TASK_PATH, TASKS_PATH } from './lib/work-items';
 import { Home } from './pages/Home';
 
 // Only the landing pages ship in the main bundle; everything else loads on first visit
@@ -52,6 +54,7 @@ const loadChangesReview = () => import('./pages/ChangesReview');
 const ChatChangesReview = lazyPage(() => loadChangesReview().then((m) => m.ChatChangesReview));
 const TaskChangesReview = lazyPage(() => loadChangesReview().then((m) => m.TaskChangesReview));
 const IntegrationChangesReview = lazyPage(() => loadChangesReview().then((m) => m.IntegrationChangesReview));
+const WorkItemChangesReview = lazyPage(() => loadChangesReview().then((m) => m.WorkItemChangesReview));
 const Connectors = lazyPage(() => import('./pages/Connectors').then((m) => m.Connectors));
 // Loaded ahead of a visit too: the list is where most visits go after the landing page
 const loadChats = () => import('./pages/Chats');
@@ -60,6 +63,11 @@ const NewChat = lazyPage(() => import('./pages/NewChat').then((m) => m.NewChat))
 const Orchestration = lazyPage(() => import('./pages/Orchestration').then((m) => m.Orchestration));
 const OrchestrationDetail = lazyPage(() => import('./pages/OrchestrationDetail').then((m) => m.OrchestrationDetail));
 const Projects = lazyPage(() => import('./pages/Projects').then((m) => m.Projects));
+const NewProject = lazyPage(() => import('./pages/projects/NewProject').then((m) => m.NewProject));
+const AssistantPage = lazyPage(() => import('./pages/assistant/Assistant').then((m) => m.AssistantPage));
+const TasksBoard = lazyPage(() => import('./pages/tasks/Board').then((m) => m.Board));
+const Milestones = lazyPage(() => import('./pages/tasks/Milestones').then((m) => m.Milestones));
+const WorkItemPage = lazyPage(() => import('./pages/tasks/WorkItem').then((m) => m.WorkItemPage));
 const RunWorkflowDialog = lazyPage(
   () => import('./components/RunWorkflowDialog').then((m) => m.RunWorkflowDialog),
   // A dialog has no page to stand in for: the banner alone says what happened
@@ -70,17 +78,9 @@ const ScheduleEditor = lazyPage(() => import('./pages/ScheduleEditor').then((m) 
 const Usage = lazyPage(() => import('./pages/Usage').then((m) => m.Usage));
 const Settings = lazyPage(() => import('./pages/Settings').then((m) => m.Settings));
 
-const RAIL_KEY = 'cw:sidebar-collapsed';
 /** A list prefetched on hover is used as it is if the click comes within this long. */
 const PREFETCH_FRESH_MS = 10_000;
 
-function readCollapsed(): boolean {
-  try {
-    return localStorage.getItem(RAIL_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
 
 export function App() {
   // A guarded wrapper reached without a credential answers 401 to everything, so the shell is not
@@ -100,8 +100,13 @@ export function App() {
 function Shell() {
   const navigate = useNavigate();
   const { project, settled } = useProjectScope();
-  const { pathname } = useLocation();
-  const { t } = useTranslation(['components', 'connectors', 'shell']);
+  const { pathname, search } = useLocation();
+  // A phone's detail screens are headed by the page itself, by route (components/shell/phone-header.ts).
+  // `bare` is `useOwnPhoneHeader`, the condition PhoneHeader.tsx defines for a page heading itself, so
+  // the shell hiding its top bar and a page drawing its own cannot drift apart.
+  const phoneHeader = usePhoneHeaderMark();
+  const bare = useOwnPhoneHeader();
+  const { t } = useTranslation(['components', 'connectors', 'shell', 'home']);
   // The same queries the Home usage widgets read, so the status bar never fetches its own
   const now = useUsageNow();
   const overview = now.overview;
@@ -112,7 +117,8 @@ function Shell() {
   const counts = overview.data?.counts;
   const connection = useConnection(overview, feed === 'open');
   const live = useLive(counts);
-  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const openTasks = useOpenTaskCount(project, settled);
+  const [collapsed, setCollapsed] = useRailCollapsed();
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -135,14 +141,6 @@ function Shell() {
     const timer = setTimeout(load, 2000);
     return () => clearTimeout(timer);
   }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(RAIL_KEY, collapsed ? '1' : '0');
-    } catch {
-      // private mode: the preference just does not persist
-    }
-  }, [collapsed]);
 
   // A route change is silent to a screen reader and leaves keyboard focus on a link that may no
   // longer be there, so focus moves to the page, unless the page already took it (an autofocus).
@@ -170,6 +168,8 @@ function Shell() {
 
   const home: NavItem = { to: '/', label: t('nav.home'), icon: House, count: { value: counts?.chatsWaiting, what: t('nav.badge.waiting') } };
   const chats: NavItem = { to: '/chats', label: t('nav.chats'), icon: MessagesSquare, count: { value: counts?.chatsWorking, what: t('nav.badge.working'), live: true } };
+  // The open items of the scope: neutral, since an item waiting in a column is not something running
+  const tasks: NavItem = { to: TASKS_PATH, label: t('shell:nav.tasks'), icon: SquareCheck, count: { value: openTasks, what: t('shell:nav.open', { count: openTasks ?? 0 }) } };
   const orchestrations: NavItem = {
     to: '/orchestration',
     label: t('nav.orchestrations'),
@@ -190,15 +190,18 @@ function Shell() {
   };
   // What a person does, then where it happens: the sidebar's two groups
   const groups = [
-    { id: 'work', label: t('shell:nav.work'), items: [home, chats, orchestrations, schedules] },
+    { id: 'work', label: t('shell:nav.work'), items: [home, chats, tasks, orchestrations, schedules] },
     { id: 'space', label: t('shell:nav.space'), items: [projects, accounts, connectors, usage, settings] },
   ];
   const items = groups.flatMap((group) => group.items);
 
-  const current = items.find((item) => isActive(item, pathname));
+  // A project's page lives at `/`: the sidebar and the tab bar mark Projects there, not Home
+  const projectPage = pathname === '/' && Boolean(project);
+  const current = items.find((item) => isActive(item, pathname, projectPage));
 
   const newChat = () => navigate(project?.exists ? `/chats/new?cwd=${encodeURIComponent(project.path)}` : '/chats/new');
   const newOrchestration = () => navigate(NEW_ORCHESTRATION_PATH);
+  const newTask = () => navigate(NEW_TASK_PATH);
   // What else a person can start: behind "New chat ▾" in the top bar, and in the phone's More sheet
   const startEntries: MenuItem[] = [
     { id: 'run-workflow', label: t('shell.runWorkflow'), icon: Play, onSelect: () => setWorkflowOpen(true) },
@@ -216,14 +219,14 @@ function Shell() {
     </NavLink>
   );
 
-  const tabBar = !hidesTabBar(pathname);
-  const fab = fabFor(pathname) !== null;
+  const tabBar = !hidesTabBar(pathname, search);
+  const fab = fabFor(pathname, search) !== null;
 
   // In the icon rail the labels are hidden, so they move into tooltips
   const railTip = (label: string) => (collapsed ? label : undefined);
 
   return (
-    <div className={`shell ${collapsed ? 'shell-rail' : ''} ${tabBar ? 'shell-has-tabbar' : ''} ${fab ? 'shell-has-fab' : ''}`}>
+    <div className={`shell ${collapsed ? 'shell-rail' : ''} ${tabBar ? 'shell-has-tabbar' : ''} ${fab ? 'shell-has-fab' : ''} ${bare ? 'shell-bare' : ''}`} data-phone-header={phoneHeader}>
       <a
         href="#main"
         className="skip-link"
@@ -265,14 +268,14 @@ function Shell() {
                 {group.label}
               </span>
               {group.items.map((item) => {
-                const active = isActive(item, pathname);
+                const active = isActive(item, pathname, projectPage);
                 const Icon = item.icon;
                 const badge = item.count?.value;
                 return (
                   <Tooltip key={item.to} content={railTip(item.label)} side="right">
-                    <NavLink
+                    <Link
                       to={navTarget(item)}
-                      end={item.to === '/'}
+                      aria-current={active ? 'page' : undefined}
                       className={`nav-link ${active ? 'is-active' : ''}`}
                       {...(item.to === '/chats' && !active ? { onPointerEnter: warmChats, onFocus: warmChats } : {})}
                     >
@@ -288,7 +291,7 @@ function Shell() {
                         </span>
                       ) : null}
                       <NavDot label={item.dot} />
-                    </NavLink>
+                    </Link>
                   </Tooltip>
                 );
               })}
@@ -309,27 +312,7 @@ function Shell() {
       </aside>
 
       <div className="content">
-        {/* In the desktop app this bar is also the window's title bar (lib/desktop.ts, styles/shell.css) */}
-        <header className="topbar">
-          {/* A phone has no sidebar, so the bar carries the mark that leads home */}
-          <NavLink to="/" className="brand topbar-brand" aria-label="Agentry">
-            <BrandMark size={28} />
-          </NavLink>
-          {/* The scope is the crumb's root: every page below it is about that project */}
-          <div className="crumbs">
-            <ProjectSelector />
-            <span className="crumb-sep" aria-hidden>
-              /
-            </span>
-            <span className="crumb-page ellipsis">{current?.label ?? 'Agentry'}</span>
-          </div>
-          <div className="topbar-actions">
-            <CommandPaletteTrigger className="topbar-search" />
-            <LiveChip live={live} />
-            <NotificationBell />
-            <SplitButton className="topbar-new" label={t('shell.newChat')} icon={Plus} onClick={newChat} entries={startEntries} />
-          </div>
-        </header>
+        <TopBar pathname={pathname} search={search} projectsLabel={projects.label} currentLabel={current?.label} live={live} startEntries={startEntries} onNewChat={newChat} />
 
         <ReloadBanner />
 
@@ -344,6 +327,12 @@ function Shell() {
               <Route path="/chats/:id" element={<ChatView />} />
               <Route path="/chats/:id/changes" element={<ChatChangesReview />} />
               <Route path="/projects" element={<Projects />} />
+              <Route path="/projects/new" element={<NewProject />} />
+              <Route path="/projects/:id/assistant" element={<AssistantPage />} />
+              <Route path="/tasks" element={<TasksBoard />} />
+              <Route path="/tasks/milestones" element={<Milestones />} />
+              <Route path="/tasks/:key" element={<WorkItemPage />} />
+              <Route path="/tasks/:key/changes" element={<WorkItemChangesReview />} />
               <Route path="/orchestration" element={<Orchestration />} />
               <Route path="/orchestration/:id" element={<OrchestrationDetail />} />
               <Route path="/orchestration/:id/changes" element={<IntegrationChangesReview />} />
@@ -382,11 +371,12 @@ function Shell() {
 
       {tabBar && (
         <>
-          <Fab pathname={pathname} scroller={mainRef} onNewChat={newChat} onNewOrchestration={newOrchestration} />
+          <Fab pathname={pathname} search={search} scroller={mainRef} onNewChat={newChat} onNewOrchestration={newOrchestration} onNewTask={newTask} />
           <TabBar
             pathname={pathname}
+            projectPage={projectPage}
             tabs={[home, chats, orchestrations]}
-            more={[projects, accounts, schedules, usage, connectors, settings]}
+            more={[tasks, projects, accounts, schedules, usage, connectors, settings]}
             start={startEntries}
             account={<AccountCard now={now} connection={connection} />}
             connection={connectionLink}

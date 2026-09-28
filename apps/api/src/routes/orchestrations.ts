@@ -14,8 +14,10 @@ import type {
 } from '@agentry/shared';
 
 /** The file a diff is asked for: required, since a whole-branch diff is not what the panel opens. */
-const pathOf = (path: string | undefined): string => {
-  if (!path) throw new Error('path is required');
+/** The file a diff is asked for: one path, which a repeated parameter would make a list of. */
+export const pathOf = (path: unknown): string => {
+  if (Array.isArray(path)) throw new Error('path is given more than once');
+  if (typeof path !== 'string' || !path) throw new Error('path is required');
   return path;
 };
 
@@ -35,8 +37,9 @@ export const diffOptions = (query: DiffQuery): DiffOptions => ({ ...parseChangeS
 export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   app.get('/orchestrations', () => core.orchestrator.list().map((o) => core.orchestrator.view(o)));
 
+  // Through core rather than the orchestrator: a node that names a work item is checked and linked
   app.post<{ Body: OrchestrationSpec }>('/orchestrations', async (req, reply) =>
-    reply.status(201).send(core.orchestrator.create(req.body ?? ({} as OrchestrationSpec))),
+    reply.status(201).send(await core.launchOrchestration(req.body ?? ({} as OrchestrationSpec))),
   );
 
   // Runs a planner agent with structured output; can take a couple of minutes.
@@ -121,9 +124,10 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
     core.orchestrator.hintTask(req.params.id, req.params.taskId, req.body?.text ?? ''),
   );
 
-  // The same graph with corrections, as a new orchestration that records where it came from
-  app.post<{ Params: { id: string }; Body: RelaunchOrchestrationRequest }>('/orchestrations/:id/relaunch', (req, reply) =>
-    reply.status(201).send(core.orchestrator.relaunch(req.params.id, req.body ?? {})),
+  // The same graph with corrections, as a new orchestration that records where it came from. Through
+  // core, as a launch is: its nodes still name their work items, and are checked the same way
+  app.post<{ Params: { id: string }; Body: RelaunchOrchestrationRequest }>('/orchestrations/:id/relaunch', async (req, reply) =>
+    reply.status(201).send(await core.relaunchOrchestration(req.params.id, req.body ?? {})),
   );
 
   // What a worker actually did on disk, from git and from its transcript rather than from what it says

@@ -5,6 +5,7 @@
  * without a browser.
  */
 import type { AccountUsage, ChatState, OrchestrationStatus, OrchestrationTaskStatus } from '@agentry/shared';
+import { phoneHeaderOf } from '../components/shell/phone-header';
 import { displayTitle } from './chat-model';
 import type { TickerActivity } from './live';
 import type { ProgressCounts } from './progress';
@@ -153,33 +154,68 @@ export function liveSummary({
  * Pages that bring their own back button and a sticky footer (a chat's composer, an
  * orchestration's summary) take the whole height on a phone, so the tab bar steps aside there.
  */
-export function hidesTabBar(pathname: string): boolean {
+export function hidesTabBar(pathname: string, search = ''): boolean {
+  // A team member, the flow, an open document and an open resource end in their own Save bar, as
+  // their references do
+  if (pathname === '/' && search) {
+    const params = new URLSearchParams(search);
+    const view = params.get('view');
+    if (view === 'team' && (params.has('member') || params.get('section') === 'flow')) return true;
+    if (view === 'documents' && params.has('doc')) return true;
+    // The project's settings end in "Guardar los cambios" at the bottom (MobileProyectoAjustes)
+    if (view === 'settings') return true;
+    // So does a resource or an assistant's proposal open in the editor (MobileRecursoPropuesta)
+    if (view === 'resources' && (params.has('res') || params.has('proposal'))) return true;
+  }
   // A new chat is the same page as the chat it becomes — a box at the bottom of the window — and
   // the bar would sit over it; its header carries the way back instead
   if (/^\/chats\/[^/]+\/?$/.test(pathname)) return true;
+  // The new project wizard walks its steps with a bar of its own at the bottom, as a new chat does
+  if (/^\/projects\/new\/?$/.test(pathname)) return true;
+  // The project assistant, which the wizard hands off to, ends in its own bar ("Ir al proyecto")
+  if (/^\/projects\/[^/]+\/assistant\/?$/.test(pathname)) return true;
+  // A work item's page on a phone ends in its own bar ("Work on it", or the comment box)
+  if (/^\/tasks\/[^/]+\/?$/.test(pathname) && !/^\/tasks\/milestones\/?$/.test(pathname)) return true;
   // The review of a chat's, a task's or the integration branch's changes is a detail screen too:
   // a file's own screen has a bar of its own at the bottom
   if (/^\/chats\/[^/]+\/changes\/?$/.test(pathname)) return true;
   if (/^\/orchestration\/[^/]+\/(?:tasks\/[^/]+\/)?changes\/?$/.test(pathname)) return true;
+  // A work item's branch is reviewed on the same screen
+  if (/^\/tasks\/[^/]+\/changes\/?$/.test(pathname)) return true;
   return /^\/orchestration\/[^/]+\/?$/.test(pathname);
+}
+
+/**
+ * Where a phone shows no top bar: the routes marked `phoneHeader: 'page'`
+ * (components/shell/phone-header.ts), whose pages draw their own header with the way back.
+ */
+export function hidesTopBar(pathname: string, projectPage = false): boolean {
+  return phoneHeaderOf(pathname, projectPage) === 'page';
 }
 
 /** What the phone's floating button starts on a page. */
 export interface FabPlan {
-  action: 'chat' | 'orchestration';
+  action: 'chat' | 'orchestration' | 'task';
 }
 
 /**
  * The phone's one "start something" button: the same round "+" on every page that has it, so it
- * reads as one control, starting a chat or, on Orchestrations, one of those. Where
+ * reads as one control, starting a chat or, on Orchestrations and Tasks, one of those. Where
  * the tab bar steps aside the page has its own footer, so the button does too; on the other pages
  * a floating button would only cover a form or a table that has nothing to do with starting a chat.
+ * A project's tab (`/?view=`) is one of those: its settings end in a Save the button sat on. The
+ * milestones start a milestone from their header, so a New task button there would be a second,
+ * different "+" (MobileHitos draws none).
  */
-export function fabFor(pathname: string): FabPlan | null {
-  if (hidesTabBar(pathname)) return null;
+export function fabFor(pathname: string, search = ''): FabPlan | null {
+  if (hidesTabBar(pathname, search)) return null;
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
-  if (path === '/' || path === '/chats' || path === '/projects') return { action: 'chat' };
+  // A project's tab is a page of its own, not the dashboard the button starts a chat from
+  if (path === '/') return new URLSearchParams(search).has('view') ? null : { action: 'chat' };
+  if (path === '/chats' || path === '/projects') return { action: 'chat' };
   if (path === '/orchestration') return { action: 'orchestration' };
+  // Tasks starts a task of its own on the board and the list, not on a work item's page
+  if (path === '/tasks') return { action: 'task' };
   return null;
 }
 
@@ -233,11 +269,14 @@ export function swapUsageWindows(usage: Pick<AccountUsage, 'fiveHour' | 'sevenDa
  */
 export type MoreNote =
   | { kind: 'count'; value: number }
+  | { kind: 'open'; value: number }
   | { kind: 'exhausted'; value: number }
   | { kind: 'pending'; value: number }
   | { kind: 'cost'; value: number | null };
 
 export interface MoreNotesInput {
+  /** Open work items of the scope; undefined where there is no board to count */
+  tasks?: number | undefined;
   projects?: number | undefined;
   /** Accounts claude-swap knows of; `exhausted` only once their usage has been read */
   accounts?: { total: number; exhausted?: number | undefined } | undefined;
@@ -250,6 +289,8 @@ export interface MoreNotesInput {
 /** Keyed by the section's path. A section with nothing known yet has no entry rather than a guess. */
 export function moreNotes(input: MoreNotesInput): Record<string, MoreNote> {
   const notes: Record<string, MoreNote> = {};
+  // Said with its word, "15 open": a bare figure beside Tasks could be read as the total
+  if (input.tasks !== undefined) notes['/tasks'] = { kind: 'open', value: input.tasks };
   if (input.projects !== undefined) notes['/projects'] = { kind: 'count', value: input.projects };
   if (input.accounts) {
     const { total, exhausted } = input.accounts;

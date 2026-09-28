@@ -1,0 +1,1117 @@
+/* The project pages: the wizard, the settings and the tab strip (web-projects). Imported by
+   styles.css in cascade order. Reference: section 15 of docs/design-system/agentry-ds.css
+   (.module-card, .tpl-card, .steps, .proj-head, .proj-tabs), on the NuevoProyecto, Proyecto and
+   ProyectoAjustes screens. */
+
+/* ---- shared bits ---- */
+
+/* A button that is only its words, for the second action beside a primary ("Cancel", "Discard") */
+.btn.btn-quiet {
+  border-color: transparent;
+  background: none;
+  color: var(--text-muted);
+}
+
+.btn.btn-quiet:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* The one tall button of a zone: the wizard's "Create project", a phone's bottom bar */
+.btn.btn-tall {
+  min-height: 44px;
+  padding: 8px 18px;
+  font-size: 14px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.form-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.form-hint .mono,
+.field-hint .mono {
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.field-error {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--bad);
+}
+
+/* ---- a module and its switch ---- */
+
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.module-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  transition: border-color var(--dur-fast);
+}
+
+.module-card:hover {
+  border-color: var(--line-3);
+}
+
+.module-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius);
+  background: var(--bg-hover);
+  color: var(--text-faint);
+}
+
+.module-card.is-on .module-icon {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.module-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.module-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.module-card:not(.is-on) .module-name {
+  color: var(--text-muted);
+}
+
+.module-desc {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.module-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.module-switch {
+  flex: none;
+  margin-top: 4px;
+}
+
+/* A phone's settings: the modules are cells of one card, the note under the name */
+.module-card-compact {
+  align-items: center;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  min-height: 64px;
+}
+
+.module-card-compact + .module-card-compact {
+  border-top: 1px solid var(--border);
+}
+
+.module-card-compact .module-switch {
+  margin-top: 0;
+}
+
+.modules-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--bg-sunken);
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.modules-note > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-faint);
+}
+
+.modules-note strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* The four modules as marks: filled when on, dashed when off */
+.module-marks {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.module-mark {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-xs);
+  border: 1px dashed var(--border-strong);
+  color: var(--text-faint);
+}
+
+.module-mark.is-on {
+  border: 1px solid transparent;
+  background: var(--bg-4);
+  color: var(--text);
+}
+
+/* ---- a template as a radio card ---- */
+
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.template-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+
+.template-card:hover {
+  border-color: var(--line-3);
+}
+
+/* The chosen template takes the accent ring, never the gradient: that is the wizard's Create */
+.template-card.is-on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.template-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.template-radio {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+}
+
+.template-card.is-on .template-radio {
+  border: 0;
+  background: var(--accent-rose);
+  box-shadow: inset 0 0 0 5px var(--accent-rose), inset 0 0 0 8px var(--on-accent);
+}
+
+.template-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius);
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+.template-card.is-on .template-icon {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.template-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.template-name {
+  font-size: 14px;
+  font-weight: 600;
+  padding-right: 18px;
+}
+
+.template-desc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.template-mods {
+  margin-top: auto;
+  padding-top: 10px;
+}
+
+/* ---- the wizard on a desktop ---- */
+
+.wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.wizard-head {
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.wizard-back {
+  flex: none;
+  width: 36px;
+  padding: 0;
+}
+
+.wizard-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 22px;
+}
+
+.wizard-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.wizard-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.wizard-section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wizard-section-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.wizard-section-hint {
+  flex: 1 1 auto;
+}
+
+.wizard-step-n {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.wizard-section-aside .modules-note {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 12px;
+  align-items: center;
+}
+
+.wizard-origin-card {
+  display: grid;
+  gap: 14px;
+}
+
+.wizard-origin {
+  display: grid;
+  grid-template-columns: 1.1fr 1.6fr 0.8fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.wizard-origin > .field-error,
+.wizard-origin-hint {
+  grid-column: 1 / -1;
+}
+
+.wizard-where-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.wizard-name > .section-label,
+.wizard-prefix > .section-label {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+}
+
+.wizard-where-head .segmented {
+  padding: 2px;
+}
+
+.wizard-where-head .segment {
+  min-height: 24px;
+  padding: 2px 10px;
+  font-size: 12px;
+}
+
+.wizard-summary {
+  width: 336px;
+  flex: none;
+  gap: 16px;
+}
+
+.wizard-summary-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wizard-summary-actions .btn {
+  width: 100%;
+}
+
+.summary-project {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.summary-project-id {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.summary-project-id strong {
+  font-size: 15px;
+}
+
+.summary-rows {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.summary-row-top {
+  align-items: flex-start;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.summary-row dt {
+  width: 92px;
+  flex: none;
+  color: var(--text-faint);
+}
+
+.summary-row dd {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.summary-modules {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.summary-modules li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-faint);
+}
+
+.summary-modules li.is-on {
+  color: var(--text);
+}
+
+.summary-types {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
+.summary-team {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.45;
+}
+
+/* Wider than a phone, narrower than the five cards: they wrap instead of squeezing */
+@media (max-width: 1280px) {
+  .wizard-layout {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .wizard-summary {
+    width: auto;
+  }
+
+  .template-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ---- the wizard on a phone: one step per screen ---- */
+
+.wizard-phone {
+  gap: 16px;
+  /* The last field scrolls out from under the fixed footer */
+  padding-bottom: 76px;
+}
+
+.wizard-phone-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.wizard-phone-head .icon-btn {
+  width: 44px;
+  height: 44px;
+  justify-content: center;
+  align-items: center;
+  flex: none;
+}
+
+.wizard-phone-title {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wizard-phone-title h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.wizard-steps {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wizard-step {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.wizard-step::before {
+  content: '';
+  height: 3px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-4);
+}
+
+.wizard-step.is-done::before {
+  background: var(--text-faint);
+}
+
+.wizard-step.is-on::before {
+  background: var(--text);
+}
+
+.wizard-step-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.wizard-step.is-on .wizard-step-name {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.wizard-step.is-done .wizard-step-name {
+  color: var(--text-muted);
+}
+
+.wizard-phone-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.wizard-phone-body h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.wizard-phone-body > p {
+  margin: -6px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.wizard-phone .wizard-origin {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+
+.wizard-phone .segmented {
+  display: flex;
+  width: 100%;
+}
+
+.wizard-phone .segment {
+  flex: 1;
+  min-height: 44px;
+  font-size: 15px;
+}
+
+.wizard-phone .segment-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wizard-phone input,
+.wizard-phone .combobox-input {
+  min-height: 44px;
+  font-size: 16px;
+}
+
+.wizard-origin-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--bg-sunken);
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.wizard-origin-note > svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--text-faint);
+}
+
+.wizard-phone .template-grid,
+.wizard-phone .module-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* On a phone a template reads as a row: the icon, the words and the marks, the radio at the end */
+.wizard-phone .template-card {
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+}
+
+.wizard-phone .template-radio {
+  position: static;
+  flex: none;
+  order: 3;
+}
+
+.wizard-phone .template-name {
+  font-size: 15px;
+  padding-right: 0;
+}
+
+.wizard-phone .template-desc {
+  font-size: 13px;
+}
+
+.wizard-phone .template-mods {
+  padding-top: 6px;
+}
+
+.wizard-phone .wizard-summary {
+  width: auto;
+}
+
+/* Sticks to the bottom of the page's scroll, so the steps' actions never leave the screen */
+.wizard-phone-foot {
+  /* The screen has no top bar and no tab bar (MobileNuevoProyecto): the step's actions are the
+     bottom of the window, as the assistant's are */
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.wizard-phone-foot > :first-child {
+  flex: none;
+}
+
+.wizard-phone-foot > :last-child {
+  flex: 1;
+}
+
+/* ---- the project page ---- */
+
+.project-head {
+  align-items: center;
+  gap: 14px;
+}
+
+.project-head .monogram {
+  flex: none;
+  border-radius: var(--radius-lg);
+}
+
+.project-head-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.project-head-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.project-head-title h1 {
+  margin: 0;
+}
+
+.project-head-template {
+  font-family: var(--mono);
+}
+
+.project-head-facts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.project-head-facts > .ellipsis {
+  min-width: 0;
+}
+
+.project-head-phone {
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  gap: 12px;
+}
+
+.project-head-phone .icon-btn {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin-left: -10px;
+  justify-content: center;
+  align-items: center;
+}
+
+.project-head-phone h1 {
+  font-size: 24px;
+}
+
+/* The tab strip: taller than a card's, each tab with its icon and a neutral count */
+.project-tabs .tabs {
+  gap: 22px;
+}
+
+.project-tabs .tab {
+  min-height: 42px;
+  font-size: 14px;
+}
+
+.project-tabs .tab svg {
+  color: var(--text-faint);
+}
+
+.project-tabs .tab-on svg {
+  color: var(--text);
+}
+
+.project-tabs .count {
+  font-family: var(--mono);
+  font-size: 11px;
+  /* On the pill's --bg-4 the faint grey reads 4.4:1; the muted one keeps the count legible */
+  color: var(--text-muted);
+}
+
+/* A phone's stand-in for the strip */
+.project-tab-cells {
+  padding: 0;
+}
+
+.project-tab-cell {
+  min-height: 52px;
+}
+
+.project-tab-cell-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius);
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+/* The assistant's own square, in the accent as MobileProyecto draws it */
+.project-tab-cell-icon.is-accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* A phone's way to the project assistant, above the sections (decision 3) */
+.project-assistant-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  text-align: start;
+  gap: 12px;
+  min-height: 56px;
+  padding: 12px 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.project-assistant-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.project-assistant-row-title {
+  font-weight: 500;
+}
+
+/* ---- the project's own settings ---- */
+
+.project-general {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.project-general-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.project-general-col {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.project-general-card h2,
+.project-remove h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.project-general-card > p {
+  margin: -6px 0 0;
+  line-height: 1.5;
+}
+
+.project-prefix input {
+  max-width: 160px;
+}
+
+.project-modules-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.limit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.limit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.limit-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.project-remove {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.project-remove-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.project-remove p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.project-general-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.project-cli-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 10px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.project-cli-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+@media (max-width: 1180px) {
+  .project-general-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A phone: cells in cards, the limits in a sheet, the save at the bottom */
+.project-general-phone {
+  gap: 18px;
+}
+
+.project-general-cells {
+  padding: 0;
+}
+
+.project-general-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 0 14px;
+}
+
+.project-general-cell + .project-general-cell {
+  border-top: 1px solid var(--border);
+}
+
+.project-general-cell-k {
+  flex: none;
+  width: 80px;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.project-general-cell input {
+  border: 0;
+  background: none;
+  padding: 0;
+  min-height: 44px;
+  font-size: 16px;
+  box-shadow: none;
+}
+
+.project-general-cell input:focus {
+  box-shadow: none;
+}
+
+.project-general-cell:focus-within {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.project-general-cell input.is-invalid {
+  color: var(--bad);
+}
+
+.project-module-cells {
+  padding: 0;
+  gap: 0;
+}
+
+.project-module-cells .module-card {
+  padding: 12px 14px;
+}
+
+.project-limits-cell {
+  width: 100%;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-height: 56px;
+  padding: 0 16px;
+}
+
+.project-general-phone .project-remove {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.project-general-phone .limit-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.project-general-phone .btn {
+  min-height: 44px;
+}
+
+/* A phone saves from a bar that stays at the bottom while the form is in view, as MobileProyectoAjustes
+   draws it: no FAB shares that edge on a project's tab (fabFor) */
+.project-general-foot {
+  position: sticky;
+  /* Down to the tab bar, past the page's bottom padding (the shell's rule for a sticky edge) */
+  bottom: var(--stick-bottom);
+  z-index: 2;
+  padding: 10px 0;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+}
+
+.project-general-foot .project-general-actions > .btn {
+  flex: 1;
+}
+
+/* ---- the Projects list ---- */
+
+.project-card-name .workitem-key {
+  flex: none;
+}
+
+.project-card-modules {
+  margin-top: 6px;
+}
+
+.project-limits-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+}
+
+.limit-field input {
+  text-align: center;
+}

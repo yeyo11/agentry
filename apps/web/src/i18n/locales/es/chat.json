@@ -4,7 +4,7 @@
     "pageTitleFallback": "Chat",
     "loading": "Cargando chat…",
     "notFound": "Chat no encontrado",
-    "notFoundHint": "Puede que se haya eliminado. <anchor>Explora los chats</anchor> para encontrar la conversación.",
+    "notFoundHint": "Puede que se haya eliminado. <anchor>Buscar la conversación en los chats</anchor>",
     "conversation": "Conversación",
     "back": "Volver a los chats",
     "subagentMessages": "Mensajes de subagentes",
@@ -31,7 +31,7 @@
     "cancelFork": "Cancelar el fork",
     "copyId": "Copiar el id del chat",
     "copiedId": "Id del chat copiado",
-    "copyFailed": "No se pudo copiar el id",
+    "copyFailed": "No se ha podido copiar el id",
     "moreActions": "Más acciones del chat",
     "showDetails": "Mostrar detalles",
     "hideDetails": "Ocultar detalles",
@@ -44,10 +44,22 @@
       "sendNow": "Enviar ahora",
       "sending": "Acabando el turno…",
       "sendNowHint": "Acaba el turno en el que está Claude, para que lea lo que espera",
-      "undelivered": "No se entregó: el turno acabó antes de que el chat lo leyera",
+      "undelivered": "No se ha entregado: el turno ha acabado antes de que el chat lo leyera",
       "restore": "Devolverlo al cuadro"
     },
-    "stopHint": "Mata el proceso en el que corre el chat. Lo enviado y aún no leído se pierde con él"
+    "stopHint": "Mata el proceso en el que corre el chat. Lo enviado y aún no leído se pierde con él",
+    "workItem": {
+      "works": "Trabaja en",
+      "origin": "Creada desde este chat",
+      "criteria": "criterios {{done}}/{{total}}",
+      "step": {
+        "refine": "Refinado de",
+        "check": "Comprobación de",
+        "verify": "Verificación de"
+      },
+      "openChat": "Abrir el chat {{chat}}",
+      "openItem": "Abrir {{key}}"
+    }
   },
   "composer": {
     "message": "Mensaje",
@@ -198,6 +210,18 @@
       "updated": "Actualizado",
       "environmentEmpty": "Todavía nada ha informado de lo que Claude cargó para este chat.",
       "messages": "Mensajes"
+    },
+    "workItem": {
+      "title": "Tarea",
+      "open": "Abrir",
+      "openLabel": "Abrir {{key}}",
+      "key": "Clave",
+      "status": "Estado",
+      "criteria": "Criterios",
+      "worktree": "Worktree",
+      "onEnd": "Al terminar",
+      "onEndHint": "pasa a En revisión si el turno acaba bien",
+      "none": "ninguno"
     }
   },
   "delete": {
@@ -269,6 +293,19 @@
     "agents": "{{done}}/{{total}} agentes",
     "open": "Abrir",
     "openHint": "Abrir {{name}} en los detalles"
+  },
+  "messageMenu": {
+    "label": "Acciones del mensaje",
+    "copy": "Copiar el mensaje",
+    "copied": "Mensaje copiado",
+    "createTask": "Crear una tarea con este mensaje",
+    "createTaskHint": "En Backlog de {{project}}, enlazada a este chat",
+    "noProject": "Este chat no está en ningún proyecto",
+    "noBoard": "El módulo Tablero de {{project}} está desactivado",
+    "created": "{{key}} creada en Backlog",
+    "createdDetail": "Enlazada a este chat",
+    "openTask": "Abrir",
+    "createFailed": "No se ha podido crear la tarea"
   },
   "edits": {
     "label": "Archivos que editó este paso",

@@ -1,13 +1,24 @@
-import { ArrowLeft, Ban, CircleCheck, CircleX, CirclePause, LayoutTemplate, Play, Plus, Square, Zap } from 'lucide-react';
-import type { Orchestration as OrchestrationRecord, OrchestrationEngine, OrchestrationSpec, OrchestrationTemplate, OrchestrationTaskSpec, PermissionMode, TaskLimits } from '@agentry/shared';
+import { ArrowLeft, Ban, CircleCheck, CircleX, CirclePause, LayoutTemplate, Play, Plus, Square, TriangleAlert, Zap } from 'lucide-react';
+import type {
+  Orchestration as OrchestrationRecord,
+  OrchestrationEngine,
+  OrchestrationSpec,
+  OrchestrationTemplate,
+  OrchestrationTaskSpec,
+  PermissionMode,
+  TaskLimits,
+  WorkItemOrchestrationDraft,
+} from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useOrchestrations, useProjects } from '../api';
 import { ActivityTicker } from '../components/ActivityTicker';
 import { FabStandIn } from '../components/shell/Fab';
 import { Collapsible, Combobox, NumberInput, Select, Switch } from '../components/controls';
+import { ICON, WorkItemStatusIcon } from '../components/icons';
+import { WorkItemKeyLink } from '../components/WorkItemKeyLink';
 import { DefaultLimits, VerificationFields } from '../components/GraphExtras';
 import { ListToolbar } from '../components/ListToolbar';
 import { BoardStatusBadge } from '../components/OrchestrationBoard';
@@ -40,9 +51,11 @@ function plannerOutcome(status: string | undefined): 'failed' | 'stopped' | 'int
 /**
  * `template` is a saved graph the form starts from: it is already there to edit, so the form opens
  * in manual mode with the tasks listed instead of asking for a plan, and saving updates the template.
+ * `boardDraft` is the graph the board drafted from a selection of work items, opened the same way: each
+ * node keeps its `workItemId`, so launching links it to its item.
  */
-function CreateForm({ onDone, template }: { onDone: () => void; template?: OrchestrationTemplate }) {
-  const seed = template?.spec;
+function CreateForm({ onDone, template, boardDraft }: { onDone: () => void; template?: OrchestrationTemplate; boardDraft?: WorkItemOrchestrationDraft }) {
+  const seed = template?.spec ?? boardDraft?.spec;
   const { t } = useTranslation(['orchestration', 'config', 'common']);
   const { t: tv } = useTranslation('orchestrationV2');
   const navigate = useNavigate();
@@ -206,6 +219,7 @@ function CreateForm({ onDone, template }: { onDone: () => void; template?: Orche
             {tv('templates.editing', { name: template.name })}
           </p>
         )}
+        {boardDraft && <DraftNotice draft={boardDraft} />}
         <Field
           label={t('config:orchestration.objective')}
           hint={mode === 'auto' ? t('config:orchestration.objectiveAutoHint') : t('config:orchestration.objectiveManualHint')}
@@ -416,6 +430,43 @@ function CreateForm({ onDone, template }: { onDone: () => void; template?: Orche
   );
 }
 
+/**
+ * Where a graph drafted on the board comes from, and what it cannot wait for: a blocker left out of
+ * the selection is outside the graph, so it is said before launching rather than found out after.
+ */
+function DraftNotice({ draft }: { draft: WorkItemOrchestrationDraft }) {
+  const { t } = useTranslation(['orchestration', 'tasks']);
+  const blockers = draft.externalBlockers;
+  return (
+    <>
+      <p className="small strong orch-draft-note" role="status">
+        {t('draft.fromBoard', { count: draft.spec.tasks.length })}
+      </p>
+      {blockers.length > 0 && (
+        <div className="alert alert-warn orch-draft-blockers" role="alert">
+          <TriangleAlert {...ICON} className="alert-icon" />
+          <div className="alert-body">
+            <strong>{t('draft.externalTitle', { count: blockers.length })}</strong>
+            <div>{t('draft.externalBody', { count: blockers.length })}</div>
+            <ul className="orch-draft-blockers-list">
+              {blockers.map((blocker) => (
+                <li key={blocker.id}>
+                  <WorkItemKeyLink item={blocker} />
+                  <span className="orch-draft-blocker-title">{blocker.title}</span>
+                  <span className="orch-draft-blocker-status">
+                    <WorkItemStatusIcon status={blocker.status} decorative />
+                    {t(`tasks:status.${blocker.status}`)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 type PageTab = 'orchestrations' | 'templates';
 type StatusTab = 'all' | 'live' | 'completed' | 'failed' | 'stopped';
 type Sort = 'recent' | 'oldest' | 'cost' | 'name';
@@ -608,8 +659,12 @@ export function Orchestration() {
   const listState = useListParams('orchestrations', LIST_PARAMS, settled ? (projectId ?? ALL_PROJECTS) : null);
   const templates = useQuery({ queryKey: keys.orchestrationTemplates, queryFn: api.orchestrationTemplates });
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  // "Orchestrate" on the board hands its draft over in the router state, for the form to open on
+  const handed = (location.state as { workItemDraft?: WorkItemOrchestrationDraft } | null)?.workItemDraft;
   // `?new` opens the form, so the top bar's "New ▾" menu, the palette or a link can start one here
-  const [creating, setCreating] = useState(() => params.has('new'));
+  const [creating, setCreating] = useState(() => params.has('new') || Boolean(handed));
   // A template opened for editing: the form starts from its graph instead of an empty one. The
   // counter is the form's key, so opening a second template replaces the first instead of keeping its state.
   const [editing, setEditing] = useState<{ template: OrchestrationTemplate; n: number } | undefined>();
@@ -629,11 +684,16 @@ export function Orchestration() {
   const closeForm = () => {
     setCreating(false);
     setEditing(undefined);
+    // Dropped from the entry, so Back or a reload does not open the same draft again
+    if (handed) navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: null });
     if (params.has('new')) setParam({ new: null });
   };
   useEffect(() => {
     if (params.has('new')) setCreating(true);
   }, [params]);
+  useEffect(() => {
+    if (handed) setCreating(true);
+  }, [handed]);
 
   const tab: PageTab = params.get('tab') === 'templates' ? 'templates' : 'orchestrations';
   // One primary per zone: while the empty state offers New orchestration, the header's copy steps back
@@ -674,7 +734,10 @@ export function Orchestration() {
       />
       {/* The form is open: a button to open it again would float over it */}
       {creating && <FabStandIn />}
-      {creating && <CreateForm key={editing?.n ?? 'blank'} template={editing?.template} onDone={closeForm} />}
+      {creating && (
+        // Keyed by the entry too: a second draft from the board replaces the first instead of keeping its state
+        <CreateForm key={editing?.n ?? (handed ? location.key : 'blank')} template={editing?.template} boardDraft={editing ? undefined : handed} onDone={closeForm} />
+      )}
       <div className="stack">
         {tab === 'templates' ? (
           <section className="stack" aria-labelledby={templatesTitleId}>

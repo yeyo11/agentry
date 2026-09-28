@@ -196,6 +196,10 @@ test('planner drafts are listed and fetched by run', async () => {
 
 test('chats, orchestrations and plugins reject bad requests', async () => {
   assert.equal((await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: '  ' }) })).statusCode, 400);
+  // A field of the wrong shape is the caller's mistake, not a crash in the spawn
+  for (const body of [[], { prompt: 3 }, { prompt: 'hi', cwd: 3 }, { prompt: 'hi', worktree: [] }, { prompt: 'hi', name: {} }, { prompt: 'hi', attachments: 'a' }]) {
+    assert.equal((await app.inject({ method: 'POST', url: '/api/chats', ...json(body) })).statusCode, 400, JSON.stringify(body));
+  }
   assert.equal((await app.inject('/api/chats/ghost')).statusCode, 404);
   assert.equal((await app.inject({ method: 'POST', url: '/api/chats/ghost/messages', ...json({ text: 'hi' }) })).statusCode, 404);
   assert.deepEqual((await app.inject('/api/workflows')).json(), []);

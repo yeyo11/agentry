@@ -34,6 +34,13 @@ const UP_KEYS = new Set(['ArrowUp', 'PageUp', 'Home']);
 export function useStickToBottom(ref: RefObject<HTMLElement | null>, mounted: boolean) {
   const [follow, setFollowState] = useState(true);
   const following = useRef(true);
+  /**
+   * The view is showing something the reader asked for (a search hit, a linked entry): nothing but
+   * the reader may take it back to the end. Reading the hit's page back re-lays the list out, and a
+   * scroll the list itself makes past the end used to count as coming back to it, so the pin pulled
+   * the view away from the hit it had just reached.
+   */
+  const held = useRef(false);
   /** A smooth scroll to the end is in flight: what happens to the view meanwhile is its doing. */
   const gliding = useRef(false);
   const glideEnds = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -86,7 +93,7 @@ export function useStickToBottom(ref: RefObject<HTMLElement | null>, mounted: bo
     /** Nothing to scroll: a conversation shorter than its viewport is always at its end. */
     const scrollable = () => el.scrollHeight - el.clientHeight > NEAR_END_PX;
     const resume = () => {
-      if (following.current) return;
+      if (following.current || held.current) return;
       following.current = true;
       setFollowState(true);
     };
@@ -188,5 +195,10 @@ export function useStickToBottom(ref: RefObject<HTMLElement | null>, mounted: bo
     };
   }, [ref, mounted]);
 
-  return { follow, setFollow, jumpToLatest };
+  /** While on, only the reader (or `setFollow`) goes back to following the end. */
+  const hold = useCallback((on: boolean) => {
+    held.current = on;
+  }, []);
+
+  return { follow, setFollow, jumpToLatest, hold };
 }

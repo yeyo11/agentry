@@ -104,6 +104,7 @@ export const reviewPath = {
   chat: (id: string) => `/chats/${encodeURIComponent(id)}/changes`,
   task: (id: string, taskId: string) => `/orchestration/${encodeURIComponent(id)}/tasks/${encodeURIComponent(taskId)}/changes`,
   integration: (id: string) => `/orchestration/${encodeURIComponent(id)}/changes`,
+  workItem: (key: string) => `/tasks/${encodeURIComponent(key)}/changes`,
 };
 
 export function reviewLink(base: string, params: { file?: string; lens?: 'steps'; step?: string } = {}): string {

@@ -40,6 +40,7 @@ import type { RunDefaults } from './app-settings.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
 import { runningCommands, type ToolCall, type Trace } from './health.ts';
+import { ModelAliasIds } from './models.ts';
 import { cliProcessOf, commandRoots, drivesSession, processTable, streamJsonProcesses, terminateTree } from './processes.ts';
 import type { SessionStore } from './sessions.ts';
 import { composeContent, type UploadStore } from './uploads.ts';
@@ -57,7 +58,21 @@ const SUBAGENT_TOOLS = new Set(['Task', 'Agent']);
 const IGNORED_SUBTYPES = new Set(['thinking_tokens', 'hook_started', 'hook_response', 'commands_changed']);
 /** Wording the CLI uses when the subscription window is spent (`result` text and stderr) */
 const RATE_LIMIT_RE = /usage limit|rate limit|session limit|out of (?:usage|quota)|quota exceeded/i;
-/** One rotate-and-resume per run: a second failure is a real one, not a quota one */
+/**
+ * What starting or continuing a chat refuses on purpose (no prompt, the runtime full, the session
+ * held elsewhere, a bad upload): the caller's to fix, with its 4xx. Anything else that goes wrong
+ * while a chat starts is the server's (`ChatStartError`).
+ */
+export class ChatRefusal extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: 400 | 404 | 409 = 400,
+  ) {
+    super(message);
+  }
+}
+
+/** One rotate-and-resume per execution: a second failure is a real one, not a quota one */
 const MAX_ROTATION_RETRIES = 1;
 const MAX_ATTACHMENTS = 20;
 
@@ -93,11 +108,42 @@ const BUDGET_SUBTYPE = 'error_max_budget_usd';
 /** What starts a chat, beyond what the API takes: the housekeeping knobs the wrapper's own callers use. */
 export interface NewChat extends NewChatRequest {
   name?: string;
+  /** A CLI agent the session runs as (`--agent`): a team member's, for a run of the flow by column */
+  agent?: string;
+  /**
+   * A file defining agents for the session (`--agents`). The flow hands the member's definition this
+   * way because the item's worktree only has the agent files that were committed.
+   */
+  agentsFile?: string;
+  /**
+   * `off` renders the system prompt fresh on every request instead of recording it on the first
+   * (`--system-prompt-snapshot off`). A member's run asks for it: its prompt is the agent's and the
+   * journal as they are now, and a recorded one would outlive the run into whoever continues the chat.
+   */
+  systemPromptSnapshot?: 'off';
+  /**
+   * `false` leaves the uploads directory out (`--add-dir`): a run Agentry starts on its own carries
+   * no attachment, and every person's uploads would otherwise be readable to it.
+   */
+  uploads?: false;
   /** Keep the process alive after each turn so more messages can be sent (default true) */
   keepAlive?: boolean;
   /** Housekeeping: no transcript is written (`--no-session-persistence`), so it cannot be resumed */
   internal?: boolean;
   toolConfig?: ChatToolConfig | null;
+  /** Held to a closed set of tools and no settings file: the project assistant's read-only runs */
+  confine?: ChatConfinement;
+}
+
+/**
+ * A chat that may only do what Agentry names. The allow and deny lists only rule on the tools a
+ * session has, and add to whatever the person's settings files allow; this takes the rest away.
+ */
+export interface ChatConfinement {
+  /** `--tools`: the only built-in tools the session has */
+  tools: string[];
+  /** `--setting-sources`: the settings files it loads; empty loads none, so no rule, hook or server of theirs applies */
+  settingSources: Array<'user' | 'project' | 'local'>;
 }
 
 /**
@@ -106,6 +152,28 @@ export interface NewChat extends NewChatRequest {
  */
 export interface ResolvedTools {
   toolConfig?: ChatToolConfig | null;
+}
+
+/**
+ * What one execution of a resumed chat runs with beyond the start options: the flow resumes a
+ * member's chat as its agent, asking for its structured result. `null` drops what an earlier
+ * execution set, so a chat a person continues by hand is not held to a schema it never asked for.
+ */
+export interface ExecutionExtras {
+  agent?: string | null;
+  agentsFile?: string | null;
+  jsonSchema?: unknown;
+  systemPromptSnapshot?: 'off' | null;
+  uploads?: false | null;
+  keepAlive?: boolean;
+  /**
+   * The chat goes back to a person: whatever a member's run set (its mode, its allow and deny lists,
+   * its budget, the appended journal, `keepAlive: false`) is dropped before the request's own
+   * options apply, so the person's chat is not held to the rules of a run that already ended. The
+   * model stays: it is the chat's, shown on it and switchable.
+   */
+  handBack?: boolean;
+  confine?: ChatConfinement | null;
 }
 
 export interface RunMeta {
@@ -218,6 +286,9 @@ function toEnvironment(cwd: string, chatId: string, raw: Record<string, unknown>
  * executions and, while one is running, the process. There is one per session id, however many
  * times the chat is resumed: resuming adds an execution here, it never adds a chat.
  */
+/** The tool the CLI gives a chat started with `--json-schema`, whose input is the structured result. */
+export const STRUCTURED_OUTPUT_TOOL = 'StructuredOutput';
+
 class LiveChat {
   readonly emitter = new EventEmitter();
   readonly events: RunEvent[] = [];
@@ -253,6 +324,8 @@ class LiveChat {
   idleTimer: NodeJS.Timeout | null = null;
   partial: { block: 'text' | 'thinking'; text: string } | null = null;
   partialTimer: NodeJS.Timeout | null = null;
+  /** The structured result (`--json-schema`) as its tool call streams it: raw JSON, cut wherever it has got to */
+  structured: string | null = null;
   /** Control requests sent to the CLI, by request_id, waiting for its control_response */
   readonly controls = new Map<string, { resolve: (response: Record<string, unknown>) => void; reject: (err: Error) => void }>();
   controlSeq = 0;
@@ -574,6 +647,9 @@ export class ChatManager extends EventEmitter {
 
   private readonly file: string;
 
+  /** The model id each alias last ran as, which names the aliases in the model picker */
+  readonly modelIds: ModelAliasIds;
+
   /**
    * CLI processes found at start still working on a restored chat's session, by chat id: a previous
    * wrapper went away without them (a crash, or `tsx watch` killing it mid-shutdown). Nothing here
@@ -588,6 +664,7 @@ export class ChatManager extends EventEmitter {
     super();
     this.defaults = config;
     this.file = join(config.dataDir, 'runs.json');
+    this.modelIds = new ModelAliasIds(config.dataDir);
     for (const env of db.loadEnvironments()) this.environments.set(env.cwd, env);
   }
 
@@ -883,7 +960,7 @@ export class ChatManager extends EventEmitter {
    * a conversation that exists is `resume` (the same chat) or `fork` (a new one), never this.
    */
   start(opts: NewChat, meta: RunMeta = {}): ChatRuntime {
-    if (!opts.prompt?.trim() && !opts.attachments?.length) throw new Error('prompt is required');
+    if (!opts.prompt?.trim() && !opts.attachments?.length) throw new ChatRefusal('prompt is required');
     this.admit(opts);
     const attachments = this.resolveAttachments(opts.attachments);
     return this.begin(new LiveChat(randomUUID(), opts, meta, opts.internal ? 'internal' : meta.orchestrationId ? 'orchestration' : 'agentry', null, this.chatDefaults()), opts.prompt, attachments);
@@ -896,18 +973,21 @@ export class ChatManager extends EventEmitter {
    * something holds the session is checked again here, on the process table, whatever the caller
    * saw a moment ago.
    */
-  resume(id: string, request: ResumeChatRequest & ResolvedTools, adopt?: AdoptedChat): ChatRuntime {
-    if (!request.prompt?.trim() && !request.attachments?.length) throw new Error('prompt is required');
+  resume(id: string, request: ResumeChatRequest & ResolvedTools & ExecutionExtras, adopt?: AdoptedChat): ChatRuntime {
+    if (!request.prompt?.trim() && !request.attachments?.length) throw new ChatRefusal('prompt is required');
     let chat = this.chats.get(id);
-    if (chat?.alive) throw new Error('the chat already has a live execution; send it a message instead');
+    if (chat?.alive) throw new ChatRefusal('the chat already has a live execution; send it a message instead');
     this.admit(request);
     const attachments = this.resolveAttachments(request.attachments);
     if (!chat) {
-      if (!adopt) throw new Error('chat not found');
+      if (!adopt) throw new ChatRefusal('chat not found', 404);
       chat = new LiveChat(id, { prompt: request.prompt, cwd: adopt.cwd, name: adopt.name, ...(adopt.model ? { model: adopt.model } : {}) }, {}, 'external', null, this.chatDefaults(), true);
       chat.workingDir = adopt.cwd;
     }
     this.applyStartOptions(chat, request);
+    // A new execution is a new turn to see through: the rotation it may need is its own, not one an
+    // earlier execution of the chat already spent (a flow run continues its member's chat this way)
+    chat.rotationRetries = 0;
     const known = this.chats.has(id);
     if (!known) this.chats.set(id, chat);
     try {
@@ -926,8 +1006,8 @@ export class ChatManager extends EventEmitter {
    * The copy's id is chosen here and imposed on the CLI (`--session-id` beside `--fork-session`), so
    * the chat exists under its final id from the first instant and no other row can stand for it.
    */
-  fork(sourceId: string, request: ResumeChatRequest & ResolvedTools, source: AdoptedChat): ChatRuntime {
-    if (!request.prompt?.trim() && !request.attachments?.length) throw new Error('prompt is required');
+  fork(sourceId: string, request: ResumeChatRequest & ResolvedTools & Pick<ExecutionExtras, 'handBack'>, source: AdoptedChat): ChatRuntime {
+    if (!request.prompt?.trim() && !request.attachments?.length) throw new ChatRefusal('prompt is required');
     this.admit(request);
     const attachments = this.resolveAttachments(request.attachments);
     const known = this.chats.get(sourceId);
@@ -949,11 +1029,11 @@ export class ChatManager extends EventEmitter {
   /** Refuses what cannot start, before anything is created. */
   private admit(opts: ChatStartOptions): void {
     if (opts.account && !this.accounts?.managed) {
-      throw new Error('no claude-swap account is registered: a chat cannot be pinned to one');
+      throw new ChatRefusal('no claude-swap account is registered: a chat cannot be pinned to one');
     }
     const limit = this.defaults.maxConcurrentRuns;
     if (this.activeCount() >= limit) {
-      throw new Error(`Concurrent run limit reached (${limit})`);
+      throw new ChatRefusal(`Concurrent run limit reached (${limit})`);
     }
   }
 
@@ -963,8 +1043,39 @@ export class ChatManager extends EventEmitter {
   }
 
   /** What a request chooses for the execution it starts, on top of what the chat already had. */
-  private applyStartOptions(chat: LiveChat, options: ChatStartOptions & ResolvedTools): void {
+  private applyStartOptions(chat: LiveChat, options: ChatStartOptions & ResolvedTools & ExecutionExtras): void {
     const { opts } = chat;
+    if (options.handBack) {
+      for (const key of ['agent', 'agentsFile', 'jsonSchema', 'systemPromptSnapshot', 'uploads', 'confine', 'keepAlive', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'disallowedTools', 'maxBudgetUsd', 'permissionPrompts', 'toolConfig', 'mcp'] as const) {
+        delete opts[key];
+      }
+      chat.setSettings({ permissionMode: options.permissionMode ?? this.defaults.defaultPermissionMode });
+    }
+    if (options.agent !== undefined) {
+      if (options.agent === null) delete opts.agent;
+      else opts.agent = options.agent;
+    }
+    if (options.agentsFile !== undefined) {
+      if (options.agentsFile === null) delete opts.agentsFile;
+      else opts.agentsFile = options.agentsFile;
+    }
+    if (options.jsonSchema !== undefined) {
+      if (options.jsonSchema === null) delete opts.jsonSchema;
+      else opts.jsonSchema = options.jsonSchema;
+    }
+    if (options.systemPromptSnapshot !== undefined) {
+      if (options.systemPromptSnapshot === null) delete opts.systemPromptSnapshot;
+      else opts.systemPromptSnapshot = options.systemPromptSnapshot;
+    }
+    if (options.uploads !== undefined) {
+      if (options.uploads === null) delete opts.uploads;
+      else opts.uploads = options.uploads;
+    }
+    if (options.keepAlive !== undefined) opts.keepAlive = options.keepAlive;
+    if (options.confine !== undefined) {
+      if (options.confine === null) delete opts.confine;
+      else opts.confine = options.confine;
+    }
     chat.setSettings({ ...(options.permissionMode ? { permissionMode: options.permissionMode } : {}), ...(options.model ? { model: options.model } : {}) });
     for (const key of ['model', 'effort', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'disallowedTools', 'maxBudgetUsd', 'permissionPrompts'] as const) {
       if (options[key] !== undefined) Object.assign(opts, { [key]: options[key] });
@@ -1041,10 +1152,16 @@ export class ChatManager extends EventEmitter {
   /** Looks the uploads up before anything starts, so a bad id fails the request, not the turn. */
   private resolveAttachments(ids: string[] = []): Attachment[] {
     if (ids.length === 0) return [];
-    if (!this.uploads) throw new Error('attachments are not available');
-    if (ids.length > MAX_ATTACHMENTS) throw new Error(`at most ${MAX_ATTACHMENTS} files can be attached to one message`);
+    if (!this.uploads) throw new ChatRefusal('attachments are not available');
+    if (ids.length > MAX_ATTACHMENTS) throw new ChatRefusal(`at most ${MAX_ATTACHMENTS} files can be attached to one message`);
     const uploads = this.uploads;
-    return ids.map((id) => uploads.get(String(id)));
+    return ids.map((id) => {
+      try {
+        return uploads.get(String(id));
+      } catch (err) {
+        throw new ChatRefusal(err instanceof Error ? err.message : String(err), 404);
+      }
+    });
   }
 
   stop(id: string): ChatRuntime {
@@ -1288,10 +1405,11 @@ export class ChatManager extends EventEmitter {
       '--verbose',
       '--include-partial-messages',
       '--permission-mode', chat.permissionMode,
-      // Makes bypassPermissions a mode the chat can be switched to later, without starting in it: the
-      // CLI refuses the switch otherwise. Starting a chat in that mode is already open to the same caller.
-      '--allow-dangerously-skip-permissions',
     ];
+    // Makes bypassPermissions a mode the chat can be switched to later, without starting in it: the
+    // CLI refuses the switch otherwise. Starting a chat in that mode is already open to the same caller.
+    // A confined chat is never to be switched there, and `--restricted` refuses the flag outright.
+    if (!opts.confine) args.push('--allow-dangerously-skip-permissions');
     if (chat.forkFrom) {
       // The copy is created under the id Agentry chose; until the CLI confirms it, a respawn forks again
       args.push('--resume', chat.forkFrom, '--fork-session', '--session-id', chat.id, '--name', chat.name);
@@ -1300,6 +1418,8 @@ export class ChatManager extends EventEmitter {
     } else {
       args.push('--session-id', chat.id, '--name', chat.name);
     }
+    if (opts.agentsFile) args.push('--agents', opts.agentsFile);
+    if (opts.agent) args.push('--agent', opts.agent);
     if (opts.model) args.push('--model', opts.model);
     if (opts.effort) args.push('--effort', opts.effort);
     if (opts.appendSystemPrompt) args.push('--append-system-prompt', opts.appendSystemPrompt);
@@ -1308,8 +1428,13 @@ export class ChatManager extends EventEmitter {
     // Strict, because the point of choosing servers is that no other one loads. The `=` form keeps
     // the variadic flag from taking whatever follows it as another file.
     if (opts.mcp?.config) args.push(`--mcp-config=${opts.mcp.config}`, '--strict-mcp-config');
+    if (opts.confine) {
+      // `--restricted` confines the file tools to the working directory, which is why no other
+      // directory is added. The `=` forms keep an empty list a value of its flag.
+      args.push('--restricted', `--tools=${opts.confine.tools.join(',')}`, `--setting-sources=${opts.confine.settingSources.join(',')}`);
+    }
     // Attached files live outside every project; this is what lets Claude open them by path
-    if (this.uploads) args.push('--add-dir', this.uploads.dir);
+    else if (this.uploads && opts.uploads !== false) args.push('--add-dir', this.uploads.dir);
     // The CLI creates, names and locks the worktree itself, and works in it for the session
     if (opts.worktree) args.push('--worktree', opts.worktree);
     // The CLI stops the chat itself once the ceiling is reached, which no amount of watching from
@@ -1326,6 +1451,7 @@ export class ChatManager extends EventEmitter {
       args.push('--permission-prompts', 'none');
     }
     if (opts.jsonSchema) args.push('--json-schema', JSON.stringify(opts.jsonSchema));
+    if (opts.systemPromptSnapshot === 'off') args.push('--system-prompt-snapshot', 'off');
     if (opts.internal) args.push('--no-session-persistence');
     return args;
   }
@@ -1355,10 +1481,10 @@ export class ChatManager extends EventEmitter {
    * by the chat it works for, and a chat never has two.
    */
   private spawnProcess(chat: LiveChat, prompt: string, attachments: Attachment[] = []): void {
-    if (chat.alive) throw new Error('the chat already has a live process');
+    if (chat.alive) throw new ChatRefusal('the chat already has a live process');
     const holders = this.sessionHolders(chat);
     if (holders.length) {
-      throw new Error(
+      throw new ChatRefusal(
         `session ${chat.id} is still running in process ${holders.join(', ')}, which this chat does not track; ` +
           'a second process would carry on the same conversation beside it. Wait for it to finish, or stop it first.',
       );
@@ -1506,6 +1632,24 @@ export class ChatManager extends EventEmitter {
   }
 
   /**
+   * The chat's turns are held to a structured result, which only a run Agentry started on its own
+   * asks for (a flow run, the assistant): whoever started it heard its result already.
+   */
+  heldToSchema(id: string): boolean {
+    return this.chats.get(id)?.opts.jsonSchema !== undefined;
+  }
+
+  /**
+   * The chat's turn died against the rate limit and a rotation will be asked for it: what a run
+   * held to a schema waits on rather than fail. True from the limit until the rotation is asked,
+   * so together with the rotation's own bookkeeping it covers the whole wait.
+   */
+  rotationComing(id: string): boolean {
+    const chat = this.chats.get(id);
+    return !!chat && chat.rateLimited && !chat.rotationRequested && !!chat.lastUserTurn && chat.rotationRetries < MAX_ROTATION_RETRIES;
+  }
+
+  /**
    * Re-sends the turn that died against the rate limit. The process is gone by now, so `send`
    * respawns it with `--resume` — on whichever account is active at that point.
    */
@@ -1573,6 +1717,15 @@ export class ChatManager extends EventEmitter {
         // here, seconds before its arguments have finished streaming
         chat.activity.blockStarted(block, now());
         chat.partial = blockType === 'text' || blockType === 'thinking' ? { block: blockType, text: '' } : null;
+        // The CLI hands the result a schema asks for as the input of this tool, which streams like any
+        // other: whoever waits for the result may show it as it is written
+        chat.structured = blockType === 'tool_use' && block.name === STRUCTURED_OUTPUT_TOOL ? '' : null;
+      } else if (event.type === 'content_block_delta' && chat.structured !== null) {
+        const delta = (event.delta ?? {}) as Record<string, unknown>;
+        if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string' && delta.partial_json) {
+          chat.structured += delta.partial_json;
+          this.emit('chat-structured', chat.id, chat.structured);
+        }
       } else if (event.type === 'content_block_delta' && chat.partial) {
         const delta = (event.delta ?? {}) as Record<string, unknown>;
         const chunk = delta.type === 'text_delta' ? delta.text : delta.type === 'thinking_delta' ? delta.thinking : null;
@@ -1583,6 +1736,7 @@ export class ChatManager extends EventEmitter {
       } else if (event.type === 'content_block_stop') {
         chat.activity.blockStopped();
         chat.partial = null;
+        chat.structured = null;
       }
       return;
     }
@@ -1626,6 +1780,13 @@ export class ChatManager extends EventEmitter {
       // chat would be one row on disk and another here, so say so where the person can see it
       if (typeof raw.session_id === 'string' && raw.session_id !== chat.id) {
         chat.push({ kind: 'notice', type: 'notice', text: `The CLI reported session ${raw.session_id} for the chat ${chat.id}; its transcript is not where this chat expects it.` });
+      }
+      // What the alias this process was started with stands for now: the CLI's cache of models
+      // labels none of the aliases, and this is the one place it says which model one is
+      try {
+        this.modelIds.record(chat.opts.model, raw.model);
+      } catch {
+        // the picker only goes on showing the alias alone
       }
       chat.setSettings({
         ...(typeof raw.permissionMode === 'string' ? { permissionMode: reportedMode(raw.permissionMode) } : {}),

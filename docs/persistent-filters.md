@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T12:00:00Z
-updated_at: 2026-09-27T12:00:00Z
+updated_at: 2026-09-28T12:00:00Z
 tags:
     - web
     - lists
@@ -21,12 +21,13 @@ chat search lost them even on Back.
 | --- | --- | --- |
 | Chats | `q`, `state`, `sort`, `origin`, `projects`, `models`, `workers`, `internal` | top bar's project (`loose` for chats under none) |
 | Orchestrations | `q`, `status`, `sort` | top bar's project |
+| Tasks (the board, the list and a project's Tablero tab) | `q`, `status`, `type`, `priority`, `label`, `assignee`, `epic`, `milestone`, `projects` | top bar's project |
 | Schedules | `q`, `view` | top bar's project |
 | Projects | `q`, `sort` | global |
 | Settings → Security → audit | `path`, `method`, `status` | global |
 | Settings → Plugins → Browse | `q` | global |
 
-Views of a page are not filters and are not kept: `tab=templates`, `new`, `view`, `section`.
+Views of a page are not filters and are not kept: `tab=templates`, `new`, `view`, `section`, and Tasks' `item`.
 
 ## How it works
 

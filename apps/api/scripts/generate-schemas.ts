@@ -52,6 +52,22 @@ const ROOT_TYPES = [
   'PushKeyInfo', 'RegisterPushSubscriptionRequest', 'PushSubscriptionSummary', 'RemovePushSubscriptionRequest', 'SendTestPushRequest', 'PushSendResult', 'PushPayload',
   // Packaging
   'CliVersionInfo', 'AgentryReleaseInfo',
+  // Project ecosystem: modules and templates, work items, milestones and the board
+  'ProjectSettings', 'ProjectTemplate', 'WorkItem', 'WorkItemDetail', 'WorkItemComment', 'WorkItemHistoryEntry', 'WorkItemLink', 'WorkItemFilter',
+  'CreateWorkItemRequest', 'UpdateWorkItemRequest', 'MoveWorkItemRequest', 'MoveWorkItemResult', 'CheckAcceptanceCriterionRequest',
+  'CreateWorkItemCommentRequest', 'CreateWorkItemRelationRequest', 'CreateWorkItemLinkRequest',
+  'Milestone', 'CreateMilestoneRequest', 'UpdateMilestoneRequest', 'Board',
+  // The lists a page at a time, and the board's Done column
+  'WorkItemPage', 'WorkItemPageQuery', 'BoardQuery',
+  // Work items with chats and orchestrations
+  'WorkOnWorkItemRequest', 'WorkOnWorkItemResult', 'OrchestrateWorkItemsRequest', 'WorkItemOrchestrationDraft', 'CreateWorkItemFromMessageRequest',
+  'WorkItemChanges',
+  // Team, flow by column, journal, memory proposals and documents
+  'Team', 'TeamMember', 'TeamFromTemplateRequest', 'PutTeamMemberRequest', 'ProjectFlow', 'FlowRun', 'FlowRunPage', 'FlowRunResult',
+  'JournalPage', 'JournalEntry', 'CreateJournalEntryRequest', 'MemoryProposal', 'ApproveMemoryProposalRequest', 'RejectMemoryProposalRequest',
+  'ProjectDocuments', 'DocumentFile', 'WriteDocumentRequest', 'TieDocumentRequest',
+  // The project assistant: runs and their proposals
+  'AssistantRun', 'AssistantRunDetail', 'StartAssistantRunRequest', 'AssistantProposal', 'AcceptAssistantProposalRequest',
   // Settings that change at runtime, and the tunnel
   'AppSettings', 'UpdateAppSettingsRequest', 'TunnelStatus', 'TunnelSettings', 'UpdateTunnelSettingsRequest',
 ];

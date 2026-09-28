@@ -1,6 +1,10 @@
 {
   "tabs": {
+    "summary": "Resumen",
+    "board": "Tablero",
+    "team": "Equipo",
     "settings": "Ajustes",
+    "documents": "Documentos",
     "memory": "Memoria",
     "resources": "Recursos",
     "worktrees": "Worktrees"
@@ -84,8 +88,7 @@
     "label": "Panel de {{name}}",
     "labelAll": "Panel de todos los proyectos",
     "back": "Panel",
-    "projectSettings": "Ajustes de {{name}}",
-    "widgetFailed": "No se pudo mostrar el widget {{title}}"
+    "widgetFailed": "No se ha podido mostrar el widget {{title}}"
   },
   "widgets": {
     "kpis": {
@@ -96,7 +99,7 @@
       "needYou_one": "{{n}} te necesita",
       "needYou_other": "{{n}} te necesitan",
       "noActivity": "Trabajando",
-      "live": "en vivo",
+      "live": "en directo",
       "all": "Ver todo",
       "offline": "Agentry no responde",
       "offlineHint": "La página no llega al wrapper. Comprueba que está en marcha y vuelve a intentarlo.",
@@ -221,5 +224,96 @@
     "weekly": "semanal {{pct}}%",
     "fiveHourShort": "5h {{pct}}%",
     "weeklyShort": "7d {{pct}}%"
+  },
+  "memoryTab": {
+    "intro": "Lo que el equipo comparte. Cada agente lo recibe al empezar: <mono>CLAUDE.md</mono>, la memoria del proyecto y las últimas entradas del diario. Ningún rol tiene memoria propia.",
+    "sections": "Secciones de la memoria",
+    "target": {
+      "label": "Se escribe en",
+      "instructions": "CLAUDE.md",
+      "memory": "memoria",
+      "journal": "diario"
+    },
+    "proposals": {
+      "tab": "Propuestas",
+      "title": "Propuestas",
+      "waiting_one": "{{n}} espera tu aprobación",
+      "waiting_other": "{{n}} esperan tu aprobación",
+      "nothingWithoutYou": "nada se escribe hasta que la apruebas",
+      "nothingWithoutYouShort": "nada se escribe sin ti",
+      "none": "Ninguna propuesta espera. Los miembros del equipo proponen lo que el equipo debería recordar al terminar una ejecución.",
+      "approve": "Aprobar",
+      "approveEdited": "Aprobar editada",
+      "reject": "Descartar",
+      "edit": "Editar",
+      "editLabel": "Texto que se escribe",
+      "more": "Más acciones de la propuesta",
+      "from": "desde",
+      "anAgent": "Un agente",
+      "approved": "Aprobada y escrita",
+      "approveFailed": "No se ha podido aprobar la propuesta",
+      "rejected": "Propuesta descartada",
+      "rejectFailed": "No se ha podido descartar la propuesta"
+    },
+    "journal": {
+      "tab": "Diario",
+      "title": "Diario del proyecto",
+      "summary_one": "decisiones y tareas cerradas · {{n}} entrada",
+      "summary_other": "decisiones y tareas cerradas · {{n}} entradas",
+      "phoneIntro": "Las decisiones tomadas y las tareas cerradas, lo último arriba. Cada agente del equipo recibe las {{n}} últimas.",
+      "none": "El diario está vacío. Una tarea que llega a Hecho escribe su entrada, igual que una propuesta aprobada dirigida al diario.",
+      "today": "Hoy",
+      "yesterday": "Ayer",
+      "more": "Ver más",
+      "closed": "cerrada",
+      "decision": "Decisión: {{text}}",
+      "memory": "Memoria: «{{text}}»",
+      "approvedDone": "aprobaste el paso a Hecho",
+      "closedBy": "pasó a Hecho",
+      "agent": "Un agente",
+      "byYou": "escrita por ti",
+      "you": "Tú",
+      "fromItem": "desde {{key}}",
+      "approvedByYou": "aprobada por ti",
+      "kind": {
+        "closed": "Tarea cerrada",
+        "decision": "Decisión",
+        "memory": "Memoria",
+        "note": "Nota"
+      },
+      "kindLabel": "Tipo de entrada",
+      "delete": "Eliminar entrada",
+      "deleteTitle": "¿Eliminar esta entrada del diario?",
+      "deleteBody": "Los agentes dejan de recibirla. La tarea o la propuesta de la que salió no cambia.",
+      "deleteFailed": "No se ha podido eliminar la entrada",
+      "addButton": "Añadir al diario",
+      "addTitle": "Añadir al diario",
+      "add": "Añadir",
+      "addFailed": "No se ha podido añadir la entrada",
+      "decisionLabel": "La decisión",
+      "noteLabel": "La nota",
+      "addHint": "Markdown. Cada agente del equipo la recibe con las últimas entradas."
+    },
+    "cli": {
+      "tab": "Del CLI",
+      "title": "Memoria del CLI",
+      "intro": "La del propio CLI: también la leen los chats de la terminal. Las propuestas que apruebas se escriben aquí.",
+      "openEditor": "Abrir en el editor",
+      "none": "ninguno",
+      "fileCount_one": "{{n}} archivo",
+      "fileCount_other": "{{n}} archivos",
+      "claudeMd": "CLAUDE.md del repositorio",
+      "noClaudeMd": "Este proyecto aún no tiene CLAUDE.md.",
+      "edit": "Editar",
+      "projectMemory": "Memoria del proyecto",
+      "back": "Volver a Memoria"
+    },
+    "handed": {
+      "title": "Lo que recibe cada agente",
+      "memory": "Memoria del proyecto",
+      "journal_one": "Diario, última entrada",
+      "journal_other": "Diario, últimas {{n}} entradas",
+      "note": "Se le entrega al empezar cada chat del equipo, junto con el archivo de su rol."
+    }
   }
 }

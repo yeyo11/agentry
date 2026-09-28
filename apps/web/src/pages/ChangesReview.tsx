@@ -4,7 +4,7 @@ import { Check, ChevronDown, ChevronLeft, Copy, Crosshair } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { api, keys, useOrchestration } from '../api';
+import { api, keys, useOrchestration, useWorkItemByKey } from '../api';
 import { Counts, FileMap, MapLegend, StatusLetter, useRowWords, type MapFile } from '../components/changes/FileMap';
 import { FileReview } from '../components/changes/FileReview';
 import { Fingerprint } from '../components/changes/Fingerprint';
@@ -45,6 +45,7 @@ import {
   type SeenMap,
 } from '../lib/review-state';
 import { useWidth } from '../lib/use-width';
+import { isLive, taskPath } from '../lib/work-items';
 
 // The review screen (docs/plans/changes-review.md): one page for a chat, a task and the integration
 // branch. Each route builds a ReviewSource and draws the same screen, whose Result lens is the file
@@ -140,6 +141,38 @@ export function IntegrationChangesReview() {
     [id, live, orch.data?.name, t],
   );
   if (orch.error) return <ErrorBox error={orch.error} />;
+  return <ReviewScreen source={source} />;
+}
+
+/**
+ * A work item's own worktree and branch (`task/<key>`), which several chats may have worked in one
+ * after another: no single transcript holds its steps, so it is reviewed by its result alone.
+ */
+export function WorkItemChangesReview() {
+  const { key = '' } = useParams();
+  const { t } = useTranslation('changes');
+  const found = useWorkItemByKey(key);
+  const item = found.data ?? null;
+  const itemId = item?.id ?? '';
+  const live = item ? isLive(item) : false;
+  const source = useMemo<ReviewSource>(
+    () => ({
+      kind: 'workItem',
+      storageKey: `work-item:${itemId}`,
+      summary: (scope) => ({ queryKey: keys.workItemChanges(itemId, scope), queryFn: () => api.workItemChanges(itemId, scope).then((c) => c.summary) }),
+      diff: (path, opts) => ({ queryKey: keys.workItemDiff(itemId, path, opts), queryFn: () => api.workItemDiff(itemId, path, opts) }),
+      steps: null,
+      conversation: null,
+      live,
+      back: { to: taskPath(item?.key ?? key), label: t('back.workItem', { key: item?.key ?? key.toUpperCase() }) },
+      subject: item?.title ?? null,
+      activity: null,
+    }),
+    [itemId, live, item?.key, item?.title, key, t],
+  );
+  if (found.error) return <ErrorBox error={found.error} />;
+  if (found.isPending) return <Skeleton rows={4} />;
+  if (!item) return <Empty title={t('empty.workItem')} />;
   return <ReviewScreen source={source} />;
 }
 

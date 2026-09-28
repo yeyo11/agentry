@@ -1,7 +1,7 @@
-// Home is the selected project's dashboard: the top bar's selector decides what it is about, a deep link
-// overrides the remembered choice, and with All projects it is the dashboard of every project. The
-// project's settings, memory, resources and worktrees are full views; its Export widget and the Usage
-// page offer the project's export as a download.
+// Home is the selected project's page: the top bar's selector decides what it is about, a deep link
+// overrides the remembered choice, and with All projects it is the dashboard of every project. A
+// project's page is a strip of tabs, Overview (its dashboard) first, and the tabs its modules allow;
+// its Export widget and the Usage page offer the project's export as a download.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -37,7 +37,8 @@ export default async ({ page, api, check, dirs }) => {
     await page.goto(`/?project=${encodeURIComponent(id)}`, 1200);
     await page.waitFor(`return document.querySelector('main h1')?.textContent === 'e2e-home'`, { label: 'the project page' });
     check((await page.eval(`return document.querySelector('.project-selector')?.textContent ?? ''`)).includes('e2e-home'), 'the top bar selector shows the project');
-    check((await page.eval(tabsText)) === '', 'the project page is a dashboard, not a tab strip');
+    // Its tabs, Overview (the dashboard) first; a project imported by hand has no module on, so no Board or Memory
+    check((await page.eval(tabsText)) === 'Overview,Resources,Worktrees,Settings', `the project page is a tab strip over its dashboard (${await page.eval(tabsText)})`);
     await page.waitFor(`return !!document.querySelector('main [data-widget=now]')`, { label: 'the project dashboard' });
     // Quick start is out of the default: New chat in the header and the phone's FAB start a chat here
     check(
@@ -45,14 +46,12 @@ export default async ({ page, api, check, dirs }) => {
       `the project draws its default layout (${await page.eval(widgetTypes)})`,
     );
 
-    // The project's own screens are full views, reached from the ⚙ and from their widgets
-    await page.click('main a[aria-label="Settings of e2e-home"]', undefined, 800);
-    await page.waitFor(`return location.search.includes('view=settings')`, { label: 'the ⚙ opens the settings view' });
-    await page.waitFor(`return !!document.querySelector('main [role=tablist]')`, { label: 'the views of the project' });
-    check((await page.eval(tabsText)) === 'Settings,Memory,Resources,Worktrees', `the full views are tabs of their own (${await page.eval(tabsText)})`);
-    await page.click('main [role=tab]', 'Memory', 600);
-    check((await page.eval('return location.search')).includes('view=memory'), 'the view is in the address');
-    await page.click('main .page-header button', 'Dashboard', 800);
+    // The project's own screens are its tabs, also reached from their widgets
+    await page.click('main [role=tab]', 'Settings', 800);
+    await page.waitFor(`return location.search.includes('view=settings')`, { label: 'the Settings tab' });
+    await page.click('main [role=tab]', 'Resources', 600);
+    check((await page.eval('return location.search')).includes('view=resources'), 'the tab is in the address');
+    await page.click('main [role=tab]', 'Overview', 800);
     await page.waitFor(`return !location.search.includes('view=') && !!document.querySelector('main .dashboard-grid')`, { label: 'back on the dashboard' });
     await page.click('main [data-widget=resources] a', 'Skills', 800);
     await page.waitFor(`return location.search.includes('view=resources') && location.search.includes('section=skills')`, { label: 'a widget opens its section of the full view' });

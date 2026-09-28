@@ -28,6 +28,9 @@ import {
   Search,
   Settings2,
   SlidersHorizontal,
+  Sparkle,
+  SquareCheck,
+  SquarePlus,
   Sun,
   Users,
   Waypoints,
@@ -41,66 +44,22 @@ import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
 import { LANGUAGES, setLanguage } from '../i18n';
 import { displayTitle } from '../lib/chat-model';
-import { setMotionPreference, type MotionLevel } from '../lib/motion';
+import { assistantPath } from '../pages/assistant/model';
+import { setMotionPreference } from '../lib/motion';
 import { useProjectScope } from '../lib/project-scope';
 import { liveSummary } from '../lib/shell-live';
 import { setThemePreference } from '../lib/theme';
+import { NEW_PROJECT_PATH, NEW_TASK_PATH, TASKS_PATH } from '../lib/work-items';
 import { statusText } from './ui';
 import '../palette.css';
+import { MAX_RECENT, MAX_RESULTS, MOTION_LEVELS, readRecent, RECENT_KEY, score, type Command, type Group } from './palette-model';
 
 const OPEN_EVENT = 'cw:open-command-palette';
 /** The workflow dialog lives in the shell, beside "New chat": the palette only asks for it. */
 export const RUN_WORKFLOW_EVENT = 'agentry:run-workflow';
 /** Opens the Orchestrations page with its "New orchestration" form already open. */
 export const NEW_ORCHESTRATION_PATH = '/orchestration?new=1';
-const RECENT_KEY = 'agentry-palette-recent';
-const MAX_RECENT = 5;
-const MAX_RESULTS = 40;
-
-type Group = 'live' | 'actions' | 'theme' | 'language' | 'motion' | 'goTo' | 'settings' | 'projects' | 'recentChats' | 'recent';
-
-const MOTION_LEVELS: MotionLevel[] = ['full', 'subtle', 'off'];
-
-interface Command {
-  id: string;
-  group: Group;
-  title: string;
-  hint?: string;
-  keywords?: string;
-  icon: LucideIcon;
-  run: () => void;
-}
-
 const isMac = typeof navigator !== 'undefined' && /mac|iphone|ipad/i.test(navigator.platform);
-
-/** Subsequence match with a bonus for word starts and contiguous runs; -1 when it does not match. */
-function score(query: string, text: string): number {
-  if (!query) return 0;
-  const q = query.toLowerCase();
-  const t = text.toLowerCase();
-  const direct = t.indexOf(q);
-  if (direct >= 0) return 1000 - direct - (t.length - q.length) * 0.1;
-  let total = 0;
-  let from = 0;
-  let streak = 0;
-  for (const ch of q) {
-    const at = t.indexOf(ch, from);
-    if (at < 0) return -1;
-    streak = at === from ? streak + 1 : 0;
-    total += 10 + streak * 5 + (at === 0 || /[\s/\-_.]/.test(t[at - 1] ?? '') ? 8 : 0) - (at - from);
-    from = at + 1;
-  }
-  return total;
-}
-
-function readRecent(): string[] {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
-  } catch {
-    return [];
-  }
-}
 
 /** A search field in the sidebar on a desktop, an icon in the top bar on a phone: `className` says which. */
 export function CommandPaletteTrigger({ className = '' }: { className?: string }) {
@@ -175,7 +134,11 @@ export function CommandPalette() {
       { id: 'act:new-chat', group: 'actions', title: t('palette.newChat'), hint: selected?.exists ? t('palette.newChatIn', { name: selected.name }) : t('palette.newChatHint'), keywords: 'run prompt start', icon: Play, run: go(newChat) },
       { id: 'act:run-workflow', group: 'actions', title: t('palette.runWorkflow'), hint: t('palette.runWorkflowHint'), keywords: 'workflow script', icon: Waypoints, run: () => window.dispatchEvent(new Event(RUN_WORKFLOW_EVENT)) },
       { id: 'act:new-orchestration', group: 'actions', title: t('palette.newOrchestration'), hint: t('palette.newOrchestrationHint'), keywords: 'agents dag plan', icon: Network, run: go(NEW_ORCHESTRATION_PATH) },
-      { id: 'act:new-project', group: 'actions', title: t('palette.newProject'), hint: t('palette.newProjectHint'), keywords: 'import git clone folder directory', icon: FolderPlus, run: go('/projects') },
+      { id: 'act:new-task', group: 'actions', title: t('shell:tasks.newTask'), hint: selected ? t('shell:tasks.newTaskIn', { name: selected.name }) : t('shell:tasks.newTaskHint'), keywords: 'work item board backlog issue ticket bug story epic', icon: SquarePlus, run: go(NEW_TASK_PATH) },
+      ...(selected
+        ? [{ id: 'act:assistant', group: 'actions' as const, title: t('palette.assistant'), hint: t('palette.assistantOf', { name: selected.name }), keywords: 'assistant ai suggest propose team resources tasks asistente', icon: Sparkle, run: go(assistantPath(selected.id)) }]
+        : []),
+      { id: 'act:new-project', group: 'actions', title: t('palette.newProject'), hint: t('palette.newProjectHint'), keywords: 'import git clone folder directory template modules', icon: FolderPlus, run: go(NEW_PROJECT_PATH) },
       { id: 'act:credential', group: 'actions', title: t('palette.credential'), hint: t('palette.credentialHint'), keywords: 'login auth token key', icon: KeyRound, run: go('/settings?tab=account') },
       { id: 'act:api-docs', group: 'actions', title: t('palette.apiReference'), hint: t('palette.apiReferenceHint'), keywords: 'swagger openapi rest docs scalar', icon: BookOpen, run: () => window.open('/docs', '_blank', 'noopener') },
       { id: 'theme:light', group: 'theme', title: t('theme.light'), icon: Sun, run: () => setThemePreference('light') },
@@ -185,6 +148,7 @@ export function CommandPalette() {
       ...MOTION_LEVELS.map((level): Command => ({ id: `motion:${level}`, group: 'motion', title: t('palette.motion', { level: t(`shell:appearance.motionOptions.${level}`) }), hint: t(`shell:appearance.motionDescriptions.${level}`), keywords: 'motion animation reduce spinner appearance', icon: Gauge, run: () => setMotionPreference(level) })),
       { id: 'nav:/', group: 'goTo', title: t('nav.home'), keywords: 'inbox activity waiting overview status usage', icon: House, run: go('/') },
       { id: 'nav:/chats', group: 'goTo', title: t('nav.chats'), keywords: 'sessions history transcripts conversations', icon: MessagesSquare, run: go('/chats') },
+      { id: `nav:${TASKS_PATH}`, group: 'goTo', title: t('shell:nav.tasks'), hint: t('shell:tasks.goToHint'), keywords: 'board work items backlog kanban milestones issues', icon: SquareCheck, run: go(TASKS_PATH) },
       { id: 'nav:/orchestration', group: 'goTo', title: t('nav.orchestrations'), keywords: 'multi agent graph', icon: Network, run: go('/orchestration') },
       { id: 'nav:/projects', group: 'goTo', title: t('nav.projects'), keywords: 'import workspace directories', icon: FolderGit2, run: go('/projects') },
       { id: 'nav:/accounts', group: 'goTo', title: t('nav.accounts'), keywords: 'claude-swap multi account quota rotate switch limit', icon: Users, run: go('/accounts') },
@@ -236,6 +200,7 @@ export function CommandPalette() {
       page('memory', Brain, 'facts');
       page('resources', Library, 'agents skills commands workflows');
       page('worktrees', GitBranch, 'branches');
+      list.push({ id: `project:assistant:${project.id}`, group: 'projects', title: t('palette.projectAssistant', { name: project.name }), hint, keywords: 'assistant ai suggest propose asistente', icon: Sparkle, run: go(assistantPath(project.id)) });
       list.push({ id: `project:chats:${project.id}`, group: 'projects', title: t('palette.projectChats', { name: project.name }), hint, keywords: 'sessions history', icon: MessagesSquare, run: go(`/chats?project=${id}`) });
       if (project.exists) {
         list.push({ id: `project:new-chat:${project.id}`, group: 'projects', title: t('palette.projectNewChat', { name: project.name }), hint, keywords: 'start run', icon: Play, run: go(`/chats/new?cwd=${encodeURIComponent(project.path)}`) });

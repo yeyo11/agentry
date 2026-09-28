@@ -1,0 +1,1658 @@
+/* ==========================================================================
+   A work item's page, its panel on the board, and the New task form
+   (pages/tasks/WorkItem.tsx, NewTask.tsx, item/**). Reference: DesktopTarea,
+   MobileTarea, MobileTareaActividad, MobileTareaCambios, DesktopNuevaTarea and
+   MobileNuevaTarea, and `.prop-row`, `.ac-row`, `.rel-row`, `.link-row`,
+   `.diff-file`, `.activity`, `.hist` and `.comment` in agentry-ds.css §15. The
+   marks it shares with the board are in work-item-marks.css.
+   ========================================================================== */
+
+/* ---- the page owns the window's height: its two columns scroll on their own ---- */
+
+.main:has(> .page > .workitem-layout:not(.is-panel)) {
+  padding: 0;
+  overflow: hidden;
+}
+
+.page:has(> .workitem-layout:not(.is-panel)) {
+  height: 100%;
+  max-width: none;
+}
+
+.workitem-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  height: 100%;
+  min-height: 0;
+}
+
+.workitem-main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 32px 40px;
+}
+
+.workitem-main > * {
+  flex-shrink: 0;
+}
+
+.workitem-side {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 18px 32px;
+  border-left: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+/* In the board's panel everything is one column, the properties first under the text */
+.workitem-layout.is-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  height: auto;
+  color: var(--fg);
+}
+
+.workitem-layout.is-panel > * {
+  flex-shrink: 0;
+}
+
+.workitem-layout.is-panel .workitem-side {
+  overflow: visible;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+/* ---- the head: back, type, key, column, then the actions ---- */
+
+.workitem-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+}
+
+.workitem-head .workitem-back {
+  border: 1px solid var(--line-2);
+}
+
+.workitem-status-badge {
+  gap: 6px;
+}
+
+.workitem-status-badge .workitem-status {
+  width: 12px;
+  height: 12px;
+}
+
+.workitem-refusal {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  color: var(--fg-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.workitem-refusal svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--fg-3);
+}
+
+/* ---- title and description, edited in place ---- */
+
+.workitem-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.workitem-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.workitem-title h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.workitem-title-input {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* The pencils show on hover and focus; a touch screen has no hover, so there they stay */
+.workitem-edit {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+}
+
+.workitem-title:hover .workitem-edit,
+.workitem-description:hover .workitem-edit,
+.workitem-edit:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .workitem-edit {
+    opacity: 1;
+  }
+}
+
+.workitem-description {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.workitem-description-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 720px;
+  color: var(--fg-2);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.workitem-description-text .md > :first-child {
+  margin-top: 0;
+}
+
+.workitem-description-text .md > :last-child {
+  margin-bottom: 0;
+}
+
+.workitem-description.is-editing {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.workitem-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---- sections ---- */
+
+.workitem-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.workitem-section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+}
+
+/* On a phone the Activity tab names the section: its heading is for screen readers only, and takes no room */
+.workitem-section-head.is-bare {
+  display: contents;
+}
+
+.workitem-h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.workitem-none {
+  margin: 0;
+}
+
+/* A section's own "add": neutral, as the prototype's ghost buttons; the zone's primary is elsewhere */
+.btn.workitem-add {
+  border-color: transparent;
+  background: none;
+  color: var(--fg-2);
+}
+
+.btn.workitem-add:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--bg-3);
+  color: var(--fg);
+}
+
+.workitem-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+  overflow: hidden;
+}
+
+/* ---- acceptance criteria (.ac-row): the whole row is the checkbox's label ---- */
+
+.criterion-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg);
+  font-size: 14px;
+  line-height: 1.45;
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+
+.criterion-row:last-child {
+  border-bottom: 0;
+}
+
+.criterion-row:hover {
+  background: var(--bg-3);
+}
+
+.criterion-row > .checkbox {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.criterion-row:has(.checkbox:focus-visible) {
+  background: var(--bg-3);
+}
+
+.criterion-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.criterion-row.on .criterion-text {
+  color: var(--fg-2);
+}
+
+.criterion-by {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.criteria-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.criteria-editor-row,
+.newtask-criterion-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.criteria-editor-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* A person is a round monogram wherever an item names who did something */
+.criterion-by .monogram,
+.workitem-option .monogram,
+.prop-edit .monogram,
+.workitem-chip .monogram,
+.newtask-select .monogram,
+.newtask-cell .monogram {
+  border-radius: var(--radius-pill);
+}
+
+/* An agent: the terminal prompt on a neutral tile */
+.agent-mark {
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-2);
+  background: var(--bg-3);
+  color: var(--fg-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* ---- relations (.rel-row) ---- */
+
+.relation-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.relation-row:last-child {
+  border-bottom: 0;
+}
+
+.relation-kind {
+  width: 110px;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.relation-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.relation-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+}
+
+/* The title is the link, and its box covers the row: the whole line is the target */
+.relation-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.relation-link:hover {
+  text-decoration: underline;
+}
+
+.relation-row:hover {
+  background: var(--bg-3);
+}
+
+.relation-status {
+  flex-shrink: 0;
+}
+
+.relation-remove {
+  position: relative;
+  z-index: 1;
+}
+
+.relation-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.relation-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.relation-search > svg {
+  position: absolute;
+  left: 11px;
+  color: var(--fg-3);
+  pointer-events: none;
+}
+
+.relation-search input {
+  padding-left: 32px;
+}
+
+.relation-results {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.relation-pick {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.relation-results li:last-child .relation-pick {
+  border-bottom: 0;
+}
+
+.relation-pick .relation-title {
+  flex: 1 1 auto;
+}
+
+.relation-pick:hover,
+.relation-pick:focus-visible {
+  background: var(--bg-3);
+}
+
+/* ---- chats and orchestrations that worked on it (.link-row) ---- */
+
+.work-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.work-link-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 52px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  transition: border-color var(--dur-fast);
+}
+
+.work-link-row:hover {
+  border-color: var(--line-3);
+}
+
+.work-link-row.live-rail {
+  padding-left: 16px;
+}
+
+.work-link-row.live-rail::before {
+  inset: 8px auto 8px 0;
+}
+
+.work-link-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-3);
+  color: var(--fg-2);
+}
+
+.work-link-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.work-link-name {
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+a.work-link-name::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+a.work-link-name:hover {
+  text-decoration: none;
+}
+
+.work-link-state {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.work-link-meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--fg-3);
+}
+
+/* Why a flow run failed, as the core wrote it: it may run long, so three lines at most */
+.work-link-why {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-2);
+  overflow-wrap: anywhere;
+}
+
+/* A flow run's link leads with its role's squircle, where a chat's has its glyph */
+.work-link-row.is-run > .role-avatar {
+  flex-shrink: 0;
+}
+
+.work-link-raw {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--fg-3);
+  overflow-wrap: anywhere;
+}
+
+/* ---- what changed in its worktree (.diff-file) ----
+   Under .workitem-card: the review screen has a .changes-head of its own (components/changes). */
+
+.workitem-card .changes-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg-3);
+}
+
+.workitem-card .changes-head .mono:first-of-type {
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.workitem-card .changes-head .grow {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changes-empty {
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.diff-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: var(--fg-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.diff-file:last-child {
+  border-bottom: 0;
+}
+
+.diff-file:hover {
+  background: var(--bg-3);
+}
+
+.diff-file-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.5;
+}
+
+.diff-file-facts {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.diff-file-n {
+  color: var(--fg-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.workitem-card .changes-head .diff-file-n {
+  color: var(--fg-2);
+}
+
+/* A diffstat without status colours: added lines in --fg-2, removed ones in --line-3 */
+.diffstat {
+  display: inline-flex;
+  gap: 1.5px;
+}
+
+.diffstat > i {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-4);
+}
+
+.diffstat > i.add {
+  background: var(--fg-2);
+}
+
+.diffstat > i.del {
+  background: var(--line-3);
+}
+
+.changes-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.changes-actions > .btn {
+  flex: 1 1 auto;
+}
+
+.changes-note {
+  margin: 0;
+  padding: 0 4px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* ---- activity: history and comments interleaved (.activity, .hist, .comment) ---- */
+
+.workitem-activity {
+  gap: 12px;
+}
+
+.activity {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activity::before {
+  content: '';
+  position: absolute;
+  left: 13.5px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--line);
+}
+
+.history-entry {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 24px;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.history-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+}
+
+.history-icon > span {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--bg-3);
+  color: var(--fg-3);
+}
+
+.history-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.history-text b {
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.history-cause {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.history-entry > time,
+.comment-head > time {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.comment {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+/* The rail runs behind the avatars: they are opaque over it */
+.comment > .monogram {
+  background: linear-gradient(var(--monogram-fill), var(--monogram-fill)), var(--bg);
+}
+
+.comment > .agent-mark {
+  width: 28px;
+  height: 28px;
+}
+
+.comment-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.comment.agent .comment-body {
+  background: var(--bg-1);
+}
+
+.comment-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.comment-head b {
+  font-weight: 600;
+}
+
+.comment-text {
+  overflow-wrap: anywhere;
+}
+
+/* A role's squircle is opaque over the rail too */
+.comment > .role-avatar {
+  background: var(--bg-3);
+}
+
+.comment-text > p {
+  margin: 0;
+}
+
+/* A failed run's way to its chat, drawn from the run rather than from the core's English comment */
+.comment-run-chat {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* On a phone it is a target of its own, under the sentence */
+.workitem-layout.is-phone .comment-run-chat {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  min-height: var(--touch);
+  margin: 2px 0 -8px;
+}
+
+.comment-text .md > :first-child {
+  margin-top: 0;
+}
+
+.comment-text .md > :last-child {
+  margin-bottom: 0;
+}
+
+.comment-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.comment-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.comment-field textarea {
+  resize: none;
+  min-height: 38px;
+}
+
+.comment-box.is-compact {
+  align-items: center;
+  margin: 0;
+  width: 100%;
+}
+
+.comment-box.is-compact .comment-field > svg {
+  position: absolute;
+  left: 14px;
+  color: var(--fg-3);
+  pointer-events: none;
+}
+
+.comment-box.is-compact textarea {
+  min-height: 44px;
+  padding: 11px 14px 11px 42px;
+}
+
+.comment-send {
+  flex-shrink: 0;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+
+/* ---- properties (.prop-row), the right-hand column ---- */
+
+.workitem-props {
+  display: flex;
+  flex-direction: column;
+}
+
+.prop-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.prop-row:first-child {
+  border-top: 0;
+}
+
+.prop-key {
+  flex-shrink: 0;
+  width: 92px;
+  color: var(--fg-3);
+}
+
+.prop-value {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.prop-edit:not(.btn) {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  margin-left: -6px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
+}
+
+.prop-edit:not(.btn):hover,
+.prop-edit[data-state='open'] {
+  background: var(--bg-3);
+}
+
+.prop-edit .workitem-epic {
+  max-width: 200px;
+}
+
+.prop-fact {
+  color: var(--fg-2);
+}
+
+.workitem-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.workitem-option .workitem-key {
+  margin-left: 4px;
+}
+
+.workitem-assignee-none {
+  flex-shrink: 0;
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-pill);
+  border: 1px dashed var(--line-3);
+}
+
+/* An epic's diamond alone, in its hue, for a field too narrow for its label */
+.workitem-epic.workitem-epic-dot {
+  width: 8px;
+  height: auto;
+  padding: 0;
+  background: none;
+  line-height: 1;
+  overflow: visible;
+}
+
+.workitem-epic.workitem-epic-dot::before {
+  margin: 0;
+}
+
+.milestone-name {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* A milestone's bar: done in ok, in flight neutral, the rest as track. No dates. */
+.milestone-bar {
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-4);
+  overflow: hidden;
+}
+
+.milestone-bar > i {
+  display: block;
+  height: 100%;
+}
+
+.milestone-bar > i.done {
+  background: var(--ok);
+}
+
+.milestone-bar > i.doing {
+  background: var(--fg-3);
+}
+
+.criteria-bar {
+  width: 90px;
+}
+
+/* Labels: each one a button that takes it off */
+.workitem-labels {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.workitem-label-remove {
+  gap: 4px;
+  background: none;
+  cursor: pointer;
+}
+
+.workitem-label-remove > svg {
+  opacity: 0.55;
+}
+
+.workitem-label-remove:hover {
+  border-color: var(--line-3);
+  color: var(--fg);
+}
+
+.workitem-label-remove:hover > svg {
+  opacity: 1;
+}
+
+input.workitem-label-input {
+  width: 120px;
+  height: 24px;
+  padding: 2px 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.workitem-label-add {
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+}
+
+/* A finger needs 44 px, and iOS zooms into any input under 16 px */
+@media (max-width: 900px) {
+  input.workitem-label-input {
+    width: 160px;
+    height: 44px;
+    font-size: 16px;
+  }
+
+  .workitem-label-add {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* A label keeps its pill, and the finger gets a 44 px tall target around it */
+  .workitem-label-remove {
+    position: relative;
+  }
+
+  .workitem-label-remove::after {
+    content: '';
+    position: absolute;
+    inset: -13px 0;
+  }
+}
+
+/* A picker's sheet on a phone: the chosen option has the selected-row look */
+.workitem-picker-option {
+  justify-content: flex-start;
+  gap: 10px;
+  text-align: left;
+}
+
+.workitem-picker-option[aria-pressed='true'] {
+  background: var(--bg-4);
+}
+
+.workitem-picker-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.workitem-picker-why {
+  color: var(--fg-3);
+  font-size: 12px;
+  white-space: normal;
+}
+
+/* ---- "Work on it" ---- */
+
+.workon-form > p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ---- phone: sections of one screen, and a bar at the bottom ---- */
+
+.main:has(> .page > .workitem-layout.is-phone) {
+  padding: 0;
+  overflow: hidden;
+}
+
+.workitem-layout.is-phone {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.workitem-mhead {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 4px;
+  padding: 6px 6px 2px;
+}
+
+.workitem-mhead .icon-btn {
+  width: 44px;
+  height: 44px;
+}
+
+.workitem-mbody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 16px 20px;
+}
+
+.workitem-mbody > * {
+  flex-shrink: 0;
+}
+
+.is-phone .workitem-title h1 {
+  font-size: 24px;
+}
+
+.workitem-chips,
+.workitem-facts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.workitem-chip {
+  min-height: 44px;
+  padding: 0 16px;
+  gap: 8px;
+  color: var(--fg);
+  font-size: 15px;
+}
+
+.workitem-fact {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.is-phone .segmented {
+  display: flex;
+  width: 100%;
+}
+
+.is-phone .segmented .segment {
+  flex: 1 1 0;
+  min-height: 44px;
+  font-size: 15px;
+}
+
+.is-phone .criterion-row {
+  min-height: 44px;
+  padding: 12px 14px;
+  font-size: 15px;
+}
+
+.is-phone .relation-row {
+  flex-wrap: wrap;
+  row-gap: 4px;
+  min-height: 52px;
+  padding: 10px 14px;
+}
+
+.is-phone .relation-kind {
+  width: auto;
+}
+
+.is-phone .relation-item {
+  flex-basis: 100%;
+  order: 3;
+}
+
+.is-phone .relation-title {
+  white-space: normal;
+  font-size: 14px;
+}
+
+.is-phone .relation-remove {
+  margin-left: auto;
+  width: 44px;
+  height: 44px;
+  margin: -10px -10px -10px auto;
+}
+
+.is-phone .diff-file {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-height: 52px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.is-phone .diff-file-path {
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.is-phone .changes-actions .btn {
+  min-height: 44px;
+}
+
+.is-phone .workitem-section-head .link-btn {
+  min-height: 44px;
+}
+
+/* The pencils and a section's own actions take a finger's 44 px; the negative margin keeps the
+   30 px they are drawn at from pushing the rows apart */
+.is-phone .workitem-edit,
+.is-phone .workitem-section-head .icon-btn {
+  width: var(--touch);
+  height: var(--touch);
+  margin: -7px;
+}
+
+.is-phone .workitem-section-head .btn.workitem-add {
+  min-height: var(--touch);
+  margin-block: -7px;
+}
+
+/* Epic and milestone read as facts, and each is a target of its own */
+.is-phone .workitem-facts .workitem-fact {
+  min-height: var(--touch);
+}
+
+.workitem-mfoot {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
+  padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.workitem-mfoot > .btn {
+  flex: 1 1 0;
+  min-height: 48px;
+  font-size: 15px;
+}
+
+.workitem-mfoot:empty {
+  display: none;
+}
+
+/* Inputs at 16 px on a phone, so the browser does not zoom into them */
+.is-phone input,
+.is-phone textarea,
+.newtask-screen input,
+.newtask-screen textarea {
+  font-size: 16px;
+}
+
+/* ==========================================================================
+   New task: a dialog on a desktop, a full screen on a phone
+   ========================================================================== */
+
+/* "New task" and, at the other end, where it goes: the heading grows so the two sit apart */
+.dialog-head h2:has(> .newtask-dialog-title) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.newtask-dialog-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+
+.newtask-where {
+  margin-left: auto;
+  padding-right: 8px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.newtask-form > .segmented {
+  align-self: flex-start;
+}
+
+.newtask-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 8px;
+}
+
+.newtask-form .form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.newtask-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.newtask-md {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+input.newtask-title {
+  min-height: 44px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.newtask-description {
+  min-height: 84px;
+}
+
+.newtask-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr;
+  gap: 12px;
+}
+
+.newtask-select {
+  width: 100%;
+}
+
+.newtask-select-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.newtask-labels {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-height: 36px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+.newtask-labels:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.newtask-labels > input,
+.newtask-labels > input:focus,
+.newtask-labels > input:hover {
+  flex: 1 1 60px;
+  width: auto;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.newtask-add-inline {
+  align-self: flex-start;
+}
+
+.newtask-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top, 0px);
+  background: var(--bg);
+}
+
+.newtask-screen-head {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 4px;
+  min-height: 60px;
+  padding: 8px;
+}
+
+.newtask-screen-head h2 {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.newtask-cancel {
+  min-height: 44px;
+  border-color: transparent;
+  background: none;
+  color: var(--fg-2);
+  font-size: 15px;
+}
+
+.newtask-screen-aside {
+  width: 86px;
+  padding-right: 8px;
+  text-align: right;
+}
+
+.newtask-screen-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 16px 20px;
+}
+
+.newtask-form.is-phone {
+  gap: 14px;
+  padding: 0;
+}
+
+.newtask-form.is-phone .segmented {
+  display: flex;
+  width: 100%;
+}
+
+.newtask-form.is-phone .segment {
+  flex: 1 1 0;
+  min-height: 44px;
+  padding: 0 6px;
+  font-size: 13px;
+}
+
+.newtask-form.is-phone .newtask-description {
+  min-height: 104px;
+}
+
+.newtask-screen-foot {
+  display: flex;
+  flex-shrink: 0;
+  padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.newtask-create {
+  flex: 1 1 auto;
+  min-height: 48px;
+  font-size: 15px;
+}
+
+.newtask-cells {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--bg-2);
+  overflow: hidden;
+}
+
+.newtask-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.newtask-cell:last-child {
+  border-bottom: 0;
+}
+
+.newtask-cell.is-static {
+  cursor: default;
+}
+
+.newtask-cell-key {
+  flex-shrink: 0;
+  width: 104px;
+  color: var(--fg-3);
+}
+
+.newtask-cell-value {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 0;
+}
+
+.newtask-cell-relations {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.newtask-cell-chevron {
+  flex-shrink: 0;
+  color: var(--fg-3);
+}
+
+.newtask-cell .icon-btn {
+  width: 44px;
+  height: 44px;
+  margin-right: -10px;
+}
+
+input.newtask-criterion,
+input.newtask-criterion:hover,
+input.newtask-criterion:focus {
+  flex: 1 1 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.newtask-add {
+  justify-content: flex-start;
+  gap: 8px;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+@media (max-width: 1100px) {
+  .workitem-layout:not(.is-phone):not(.is-panel) {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+
+  .workitem-main {
+    padding: 20px 24px 32px;
+  }
+}
+
+/* A section's name keeps its line beside its count and its buttons */
+.workitem-section-head > h2 {
+  flex-shrink: 0;
+}
+
+/* A document tied to the item, with the button that unties it at the end of its row: the border
+   between rows goes on the item, so the button's corner of the row has it too */
+.workitem-doc-item {
+  display: flex;
+  align-items: center;
+  border-top: 1px solid var(--line);
+}
+
+.workitem-doc-item:first-child {
+  border-top: 0;
+}
+
+.doc-rows > .workitem-doc-item > .doc-row {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-top: 0;
+}
+
+.workitem-doc-untie {
+  margin-right: 8px;
+}
+
+@media (max-width: 900px) {
+  .workitem-doc-untie {
+    width: 44px;
+    height: 44px;
+    margin-right: 4px;
+  }
+}

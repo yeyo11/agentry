@@ -151,7 +151,7 @@
       },
       "label": {
         "type": "string",
-        "description": "What the CLI calls it, where it says so"
+        "description": "What the CLI calls it, where it says so; for an alias, the name of the model a chat started on it reported in its `system/init` event (\"Sonnet 5\" for `claude-sonnet-5`), once one has"
       },
       "description": {
         "type": "string",
@@ -1198,10 +1198,41 @@
       "gitUrl": {
         "type": "string",
         "description": "Clone this repository instead of creating an empty directory"
+      },
+      "template": {
+        "$ref": "#/components/schemas/ProjectTemplateId",
+        "description": "Configures the project from a template; without one, and without `modules`, every module is off"
+      },
+      "modules": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectModule"
+        },
+        "description": "The modules to switch on; when given, it replaces the template's choice instead of adding to it"
       }
     },
     "required": [
       "name"
+    ]
+  },
+  "ProjectTemplateId": {
+    "type": "string",
+    "enum": [
+      "simple",
+      "software",
+      "library",
+      "research",
+      "custom"
+    ],
+    "description": "The built-in templates. `simple` switches nothing on and `custom` starts from everything off for the person to choose; the other three are presets. There are no user-saved templates."
+  },
+  "ProjectModule": {
+    "type": "string",
+    "enum": [
+      "board",
+      "team",
+      "documents",
+      "memory"
     ]
   },
   "TranscriptSearchResult": {
@@ -2223,6 +2254,10 @@
         "$ref": "#/components/schemas/TaskLimits",
         "description": "What this worker may spend before Agentry stops it; the graph's default when absent"
       },
+      "workItemId": {
+        "type": "string",
+        "description": "The work item this node works on, as a draft built from a selection names it. Launching links the node to the item, which then follows the node's status. Must be a work item of a project whose Board module is on, and at most one node per item."
+      },
       "status": {
         "$ref": "#/components/schemas/OrchestrationTaskStatus"
       },
@@ -2950,6 +2985,10 @@
       "limits": {
         "$ref": "#/components/schemas/TaskLimits",
         "description": "What this worker may spend before Agentry stops it; the graph's default when absent"
+      },
+      "workItemId": {
+        "type": "string",
+        "description": "The work item this node works on, as a draft built from a selection names it. Launching links the node to the item, which then follows the node's status. Must be a work item of a project whose Board module is on, and at most one node per item."
       }
     },
     "required": [
@@ -4202,6 +4241,51 @@
       },
       {
         "$ref": "#/components/schemas/SupervisorProposedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/WorkItemCreatedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/WorkItemUpdatedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/WorkItemMovedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/WorkItemRemovedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/MilestoneChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/ProjectCreatedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/ProjectUpdatedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/ProjectRemovedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/TeamChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/JournalChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/MemoryProposalEvent"
+      },
+      {
+        "$ref": "#/components/schemas/DocumentChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/FlowRunEvent"
+      },
+      {
+        "$ref": "#/components/schemas/AssistantRunEvent"
+      },
+      {
+        "$ref": "#/components/schemas/AssistantProposalEvent"
       },
       {
         "$ref": "#/components/schemas/SettingsChangedEvent"
@@ -6157,6 +6241,1226 @@
     ],
     "description": "The supervisor answered a bad signal with a hint; the same `proposal` hangs on the chat's health."
   },
+  "WorkItemCreatedEvent": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "key": {
+        "type": "string"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "workitem.created"
+      },
+      "itemType": {
+        "$ref": "#/components/schemas/WorkItemType"
+      },
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus"
+      },
+      "source": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemSource"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set when a chat created it, from one of its messages"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "itemId",
+      "itemType",
+      "key",
+      "projectId",
+      "source",
+      "status",
+      "title",
+      "type"
+    ]
+  },
+  "WorkItemType": {
+    "type": "string",
+    "enum": [
+      "epic",
+      "story",
+      "task",
+      "bug"
+    ]
+  },
+  "WorkItemStatus": {
+    "type": "string",
+    "enum": [
+      "backlog",
+      "todo",
+      "in_progress",
+      "in_review",
+      "done"
+    ],
+    "description": "The five columns of the board, in order; fixed, not editable."
+  },
+  "WorkItemSource": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/WorkItemSourceKind"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The chat's session id; for an orchestration task, the chat of its worker once it has one"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "kind",
+      "chatId",
+      "orchestrationId",
+      "taskId"
+    ],
+    "description": "A chat or an orchestration task, as the source of a comment, the cause of a change or the other end of a link. Flat rather than a union so it maps onto one row; the ids that do not apply are null."
+  },
+  "WorkItemSourceKind": {
+    "type": "string",
+    "enum": [
+      "chat",
+      "orchestration"
+    ],
+    "description": "What acts on a work item on an agent's behalf: a chat, or a task of an orchestration. Final: a team role acts through a chat (the actor names the role), the person acts with no source at all, and a document never acts, it is only linked (see  {@link  WorkItemLinkKind } )."
+  },
+  "WorkItemUpdatedEvent": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "key": {
+        "type": "string"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "workitem.updated"
+      },
+      "changes": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemChange"
+        }
+      },
+      "actor": {
+        "$ref": "#/components/schemas/WorkItemActor"
+      },
+      "cause": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemCause"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "actor",
+      "at",
+      "cause",
+      "changes",
+      "id",
+      "itemId",
+      "key",
+      "projectId",
+      "title",
+      "type"
+    ],
+    "description": "An item's fields, criteria, relations, links or comments changed; its column and place did not."
+  },
+  "WorkItemChange": {
+    "type": "string",
+    "enum": [
+      "created",
+      "type",
+      "title",
+      "description",
+      "status",
+      "priority",
+      "labels",
+      "assignee",
+      "epic",
+      "milestone",
+      "criterion",
+      "relation",
+      "link",
+      "comment",
+      "waiting"
+    ],
+    "description": "What a history entry, or a `workitem.updated` event, says changed. `created` opens every history; `comment` only appears on events, since comments are their own list. `waiting` is the flow's  {@link  WorkItemWaitReason }  starting or ending, from and to the reason or null."
+  },
+  "WorkItemActor": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/WorkItemActorKind"
+      },
+      "role": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The team role an agent acted as, once the Team module exists"
+      }
+    },
+    "required": [
+      "kind"
+    ],
+    "description": "Who did something to a work item: made a change, wrote a comment, checked a criterion."
+  },
+  "WorkItemActorKind": {
+    "type": "string",
+    "enum": [
+      "person",
+      "agent",
+      "system"
+    ],
+    "description": "`system` is Agentry itself acting on a chat's or a node's behalf; the cause beside it says which."
+  },
+  "WorkItemCause": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/WorkItemSourceKind"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The chat's session id; for an orchestration task, the chat of its worker once it has one"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "event": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "chatId",
+      "event",
+      "kind",
+      "orchestrationId",
+      "taskId"
+    ],
+    "description": "Why an automatic change happened: the source, and what happened there as a stable code a client translates (`chat.started`, `chat.turn-completed`, `orchestration.task.completed`…)."
+  },
+  "WorkItemMovedEvent": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "key": {
+        "type": "string"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "workitem.moved"
+      },
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus"
+      },
+      "previousStatus": {
+        "$ref": "#/components/schemas/WorkItemStatus",
+        "description": "Equal to `status` when only its place in the column changed"
+      },
+      "overLimit": {
+        "type": "boolean",
+        "description": "The target column is over its limit after the move"
+      },
+      "actor": {
+        "$ref": "#/components/schemas/WorkItemActor"
+      },
+      "cause": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemCause"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "actor",
+      "at",
+      "cause",
+      "id",
+      "itemId",
+      "key",
+      "overLimit",
+      "previousStatus",
+      "projectId",
+      "status",
+      "title",
+      "type"
+    ],
+    "description": "An item changed column or place: a person dragged it, or it moved on its own and `cause` says why."
+  },
+  "WorkItemRemovedEvent": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "key": {
+        "type": "string"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "workitem.removed"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "itemId",
+      "key",
+      "projectId",
+      "title",
+      "type"
+    ]
+  },
+  "MilestoneChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "milestone.changed"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "milestoneId": {
+        "type": "string"
+      },
+      "milestoneName": {
+        "type": "string"
+      },
+      "action": {
+        "$ref": "#/components/schemas/MilestoneChangeAction"
+      }
+    },
+    "required": [
+      "action",
+      "at",
+      "id",
+      "milestoneId",
+      "milestoneName",
+      "projectId",
+      "title",
+      "type"
+    ],
+    "description": "A milestone was created, edited, closed, reopened or deleted. Its progress moving because an item did is not announced here: that item's own event already makes it stale."
+  },
+  "MilestoneChangeAction": {
+    "type": "string",
+    "enum": [
+      "created",
+      "updated",
+      "closed",
+      "reopened",
+      "deleted"
+    ]
+  },
+  "ProjectCreatedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "project.created"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "projectName": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "projectId",
+      "projectName",
+      "title",
+      "type"
+    ],
+    "description": "A directory was imported as a project, or a new one created in the workspace. A directory imported again after it was removed takes its old id back, and is announced as created all the same."
+  },
+  "ProjectUpdatedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "project.updated"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "projectName": {
+        "type": "string"
+      },
+      "changes": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectChange"
+        }
+      },
+      "modules": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectModule"
+        },
+        "description": "The modules on after the change"
+      }
+    },
+    "required": [
+      "at",
+      "changes",
+      "id",
+      "modules",
+      "projectId",
+      "projectName",
+      "title",
+      "type"
+    ],
+    "description": "A project was renamed, its key prefix or its modules changed, or its settings document was replaced."
+  },
+  "ProjectChange": {
+    "type": "string",
+    "enum": [
+      "name",
+      "key",
+      "modules",
+      "settings"
+    ],
+    "description": "What `project.updated` says changed; `settings` is anything else in the settings document."
+  },
+  "ProjectRemovedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "project.removed"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "projectName": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "projectId",
+      "projectName",
+      "title",
+      "type"
+    ],
+    "description": "A project was removed from Agentry. Its directory, settings and work items are left where they are."
+  },
+  "TeamChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "team.changed"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "action": {
+        "$ref": "#/components/schemas/TeamChangeAction"
+      },
+      "agents": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The members it touched, by agent file name"
+      }
+    },
+    "required": [
+      "action",
+      "agents",
+      "at",
+      "id",
+      "projectId",
+      "title",
+      "type"
+    ],
+    "description": "A project's team changed."
+  },
+  "TeamChangeAction": {
+    "type": "string",
+    "enum": [
+      "created",
+      "updated",
+      "removed",
+      "template",
+      "file"
+    ],
+    "description": "`created` and `updated` are a member's metadata written through `PUT`, `template` the members a template wrote, `removed` a member taken off the team (its agent file stays), and `file` an agent file of a member written, deleted or found drifted: saved or deleted through the resources route (`/config/resources/agents/:name?project=`), whose `agents` names the member, or rewritten by the team service to follow the metadata."
+  },
+  "JournalChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "journal.changed"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "entryId": {
+        "type": "string"
+      },
+      "action": {
+        "$ref": "#/components/schemas/JournalChangeAction"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/JournalEntryKind"
+      },
+      "itemId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "action",
+      "at",
+      "entryId",
+      "id",
+      "itemId",
+      "kind",
+      "projectId",
+      "title",
+      "type"
+    ],
+    "description": "An entry was added to a project's journal, or removed from it."
+  },
+  "JournalChangeAction": {
+    "type": "string",
+    "enum": [
+      "added",
+      "removed"
+    ]
+  },
+  "JournalEntryKind": {
+    "type": "string",
+    "enum": [
+      "closed",
+      "decision",
+      "memory",
+      "note"
+    ],
+    "description": "What a journal entry records: `closed`, an item reached `done` (written once per item); `decision`, a decision taken; `memory`, an approved memory proposal addressed to the journal; `note`, anything else a person wrote by hand."
+  },
+  "MemoryProposalEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "memory.proposal"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "proposalId": {
+        "type": "string"
+      },
+      "action": {
+        "$ref": "#/components/schemas/MemoryProposalAction"
+      },
+      "target": {
+        "$ref": "#/components/schemas/MemoryProposalTarget"
+      },
+      "role": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The role that proposed it"
+      },
+      "itemId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "action",
+      "at",
+      "id",
+      "itemId",
+      "projectId",
+      "proposalId",
+      "role",
+      "target",
+      "title",
+      "type"
+    ],
+    "description": "A memory proposal was made, approved or rejected. An approval also wrote its target: the journal announces its entry on its own, the CLI's memory and `CLAUDE.md` are read again from `target`."
+  },
+  "MemoryProposalAction": {
+    "type": "string",
+    "enum": [
+      "created",
+      "approved",
+      "rejected"
+    ]
+  },
+  "MemoryProposalTarget": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/MemoryProposalTargetKind"
+      },
+      "file": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For `memory`: the file name (`tests.md`)"
+      },
+      "section": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For `instructions`: the heading it goes under; null appends at the end"
+      }
+    },
+    "required": [
+      "kind",
+      "file",
+      "section"
+    ],
+    "description": "Flat rather than a union so it maps onto one row; the fields that do not apply are null."
+  },
+  "MemoryProposalTargetKind": {
+    "type": "string",
+    "enum": [
+      "instructions",
+      "memory",
+      "journal"
+    ],
+    "description": "Where an approved proposal is written: `instructions`, the project's `CLAUDE.md` (under `section` when given, a heading of it); `memory`, a file of the project's CLI memory directory (`file`, appended to, or created and indexed in `MEMORY.md`); `journal`, a `memory` entry of the journal."
+  },
+  "DocumentChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "document.changed"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string",
+        "description": "Relative to the project"
+      },
+      "action": {
+        "$ref": "#/components/schemas/DocumentChangeAction"
+      },
+      "itemId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The item of a `tied` or `untied`; for a file written by a flow run, the item it was written for"
+      }
+    },
+    "required": [
+      "action",
+      "at",
+      "id",
+      "itemId",
+      "path",
+      "projectId",
+      "title",
+      "type"
+    ],
+    "description": "A document of a project's documents folder changed, or was tied to or untied from an item."
+  },
+  "DocumentChangeAction": {
+    "type": "string",
+    "enum": [
+      "written",
+      "removed",
+      "tied",
+      "untied"
+    ],
+    "description": "`written` and `removed` are the file; `tied` and `untied` a link between it and a work item."
+  },
+  "FlowRunEvent": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "key": {
+        "type": "string"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "flow.run"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "action": {
+        "$ref": "#/components/schemas/FlowRunAction"
+      },
+      "role": {
+        "type": "string"
+      },
+      "agent": {
+        "type": "string"
+      },
+      "stage": {
+        "$ref": "#/components/schemas/FlowStage"
+      },
+      "step": {
+        "$ref": "#/components/schemas/FlowStep"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set once started"
+      },
+      "outcome": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FlowRunOutcome"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set when ended"
+      },
+      "cause": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FlowRunCause"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set when it failed or was cancelled"
+      },
+      "retryOf": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The failed run this one retries, when a person retried it"
+      }
+    },
+    "required": [
+      "action",
+      "agent",
+      "at",
+      "cause",
+      "chatId",
+      "id",
+      "itemId",
+      "key",
+      "outcome",
+      "projectId",
+      "retryOf",
+      "role",
+      "runId",
+      "stage",
+      "step",
+      "title",
+      "type"
+    ],
+    "description": "A flow run was queued, started or ended. What it did to the item (a comment, a move, the waiting state) comes as that item's own `workitem.*` events."
+  },
+  "FlowRunAction": {
+    "type": "string",
+    "enum": [
+      "queued",
+      "started",
+      "ended"
+    ]
+  },
+  "FlowStage": {
+    "type": "string",
+    "enum": [
+      "refine",
+      "work",
+      "verify"
+    ],
+    "description": "What a flow run does, named after the link role its chat gets: `refine` in `backlog` and `todo`, `work` in `in_progress`, `verify` in `in_review`."
+  },
+  "FlowStep": {
+    "type": "string",
+    "enum": [
+      "refine",
+      "check",
+      "work",
+      "verify"
+    ],
+    "description": "A stage as the person reads it, by the column it runs in: `refine` covers two, and what the Product Owner does differs between them. In `backlog` it refines the item (`refine`, \"refinado\"); in `todo` it only checks the item is ready (`check`, \"comprobación\"). `work` and `verify` are their stage. See `FLOW_STEP_OF_COLUMN`."
+  },
+  "FlowRunOutcome": {
+    "type": "string",
+    "enum": [
+      "passed",
+      "rejected",
+      "failed",
+      "cancelled"
+    ],
+    "description": "How a run ended: `passed`, it finished well (and for QA, the item held); `rejected`, QA's verdict failed the item; `failed`, the chat failed or its result was unreadable; `cancelled`, a person's move or the flow being switched off made it moot before it started."
+  },
+  "FlowRunCause": {
+    "type": "string",
+    "enum": [
+      "budget",
+      "no-account",
+      "rate-limit",
+      "stopped",
+      "restarts",
+      "unreadable",
+      "no-verdict",
+      "not-started",
+      "not-continued",
+      "chat-ended",
+      "chat-failed",
+      "item-moved",
+      "item-removed",
+      "item-done",
+      "replaced",
+      "flow-off",
+      "no-member",
+      "refined",
+      "chat-busy"
+    ],
+    "description": "Why a run failed or was cancelled, as a stable code a client words in the person's language; the run's `error` keeps the raw text beside it. A run stored before causes were kept gets the one its error reads as, or none.\n\nFailed:\n- `budget`: it reached `flow.maxCostUsd` (`--max-budget-usd`);\n- `no-account`: the account hit its rate limit and no other account could take the run over;\n- `rate-limit`: the account hit its rate limit and the rotation was off;\n- `stopped`: its chat was stopped;\n- `restarts`: Agentry restarted past `MAX_FLOW_RESTARTS` times while it worked;\n- `unreadable`: it ended without a readable structured result;\n- `no-verdict`: a verification ended without a verdict;\n- `not-started`: its chat did not start;\n- `not-continued`: its chat could not be continued after a restart;\n- `chat-ended`: its chat ended, or was removed, without a result;\n- `chat-failed`: its chat ended in an error the CLI reported (the error is the CLI's text).\n\nCancelled:\n- `item-moved`: the item left the column before the run started, or while a restart cut it off;\n- `item-removed` and `item-done`: the item was removed, or moved to `done`;\n- `replaced`: the item entered a column again before the run started, and the newer run took its place;\n- `flow-off`: the flow, the Team module or the Board module was switched off;\n- `no-member`: nobody on the team answers for the column any more;\n- `refined`: a todo check would repeat a refine that passed, on an item unchanged since;\n- `chat-busy`: a chat of the person's was already working on the item."
+  },
+  "AssistantRunEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "assistant.run"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/AssistantRunKind"
+      },
+      "action": {
+        "$ref": "#/components/schemas/AssistantRunAction"
+      },
+      "status": {
+        "$ref": "#/components/schemas/AssistantRunStatus"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set once its chat started; null for a run with nothing to read"
+      },
+      "supersedes": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The run whose pending proposals this one superseded when it started, which reads again"
+      }
+    },
+    "required": [
+      "action",
+      "at",
+      "chatId",
+      "id",
+      "kind",
+      "projectId",
+      "runId",
+      "status",
+      "supersedes",
+      "title",
+      "type"
+    ],
+    "description": "An assistant run started, read something, ended or failed."
+  },
+  "AssistantRunKind": {
+    "type": "string",
+    "enum": [
+      "project",
+      "work-items",
+      "resources"
+    ],
+    "description": "`project`: team, resources and first work items, after creating a project or on demand from its page. `work-items`: \"Suggest tasks\" on the board. `resources`: \"Suggest\" on the Resources tab, or \"Create with AI\" for one resource from a description."
+  },
+  "AssistantRunAction": {
+    "type": "string",
+    "enum": [
+      "started",
+      "read",
+      "ended",
+      "failed"
+    ],
+    "description": "`started` and `failed` as they say; `ended` a run that completed or was stopped (its `status` says which); `read` a running one's  {@link  AssistantRun.sources } , cost or  {@link  AssistantRunDetail.draft }  changed, at most every few seconds, so \"what it has read\" and the file \"Create with AI\" writes fill in without polling."
+  },
+  "AssistantRunStatus": {
+    "type": "string",
+    "enum": [
+      "running",
+      "completed",
+      "failed",
+      "stopped"
+    ],
+    "description": "`running` has its chat, or is about to; `completed` answered and its proposals are served; `failed` ended without a readable answer (the chat failed, the result did not match the schema, or a restart cut it and it could not be started again); `stopped` a person stopped it. A finished run never runs again: \"Suggest again\" is a new run."
+  },
+  "AssistantProposalEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "assistant.proposal"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "proposalId": {
+        "type": "string"
+      },
+      "proposalKind": {
+        "$ref": "#/components/schemas/AssistantProposalKind"
+      },
+      "action": {
+        "$ref": "#/components/schemas/AssistantProposalAction"
+      },
+      "itemId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For an accepted work item, the item it created"
+      },
+      "agent": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For an accepted team member, its agent file name"
+      },
+      "resource": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "$ref": "#/components/schemas/AssistantResourceKind"
+              },
+              "name": {
+                "type": "string"
+              },
+              "scope": {
+                "$ref": "#/components/schemas/ConfigScopeKind"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "scope"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "For an accepted resource, where it was saved"
+      }
+    },
+    "required": [
+      "action",
+      "agent",
+      "at",
+      "id",
+      "itemId",
+      "projectId",
+      "proposalId",
+      "proposalKind",
+      "resource",
+      "runId",
+      "title",
+      "type"
+    ],
+    "description": "A proposal was accepted, discarded or restored. What an accept wrote announces itself too where it has an event (`workitem.created`, `team.changed`); a saved resource has none, so this names it."
+  },
+  "AssistantProposalKind": {
+    "type": "string",
+    "enum": [
+      "team-member",
+      "resource",
+      "work-item"
+    ]
+  },
+  "AssistantProposalAction": {
+    "type": "string",
+    "enum": [
+      "accepted",
+      "discarded",
+      "restored"
+    ]
+  },
+  "AssistantResourceKind": {
+    "type": "string",
+    "enum": [
+      "agents",
+      "skills",
+      "commands"
+    ],
+    "description": "The resources an assistant proposes or creates: the ones a project's `.claude/` holds as Markdown."
+  },
+  "ConfigScopeKind": {
+    "type": "string",
+    "enum": [
+      "user",
+      "project"
+    ],
+    "description": "Every /config route takes an optional `?project=<projectId>`: absent means the user scope (the Claude config dir), present means that project's own files."
+  },
   "SettingsChangedEvent": {
     "type": "object",
     "properties": {
@@ -7820,6 +9124,17 @@
           "string",
           "null"
         ]
+      },
+      "key": {
+        "type": "string",
+        "description": "Prefix of its work items' keys (`AGN` in `AGN-12`), from  {@link  ProjectSettings.keyPrefix }"
+      },
+      "modules": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectModule"
+        },
+        "description": "The modules switched on, from  {@link  ProjectSettings.modules } ; empty for a project that never had one"
       }
     },
     "required": [
@@ -7829,7 +9144,9 @@
       "worktrees",
       "exists",
       "chatCount",
-      "lastActivity"
+      "lastActivity",
+      "key",
+      "modules"
     ],
     "description": "A directory the person imported, with the worktrees that belong to it."
   },
@@ -7927,6 +9244,17 @@
       "name": {
         "type": "string",
         "description": "Defaults to the directory's name"
+      },
+      "template": {
+        "$ref": "#/components/schemas/ProjectTemplateId",
+        "description": "Configures the project from a template; without one, and without `modules`, every module is off"
+      },
+      "modules": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectModule"
+        },
+        "description": "The modules to switch on; when given, it replaces the template's choice instead of adding to it"
       }
     },
     "required": [
@@ -7939,11 +9267,20 @@
     "properties": {
       "name": {
         "type": "string"
+      },
+      "key": {
+        "type": "string",
+        "description": "New key prefix; the keys of existing work items follow, since only their number is stored"
+      },
+      "modules": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectModule"
+        },
+        "description": "The whole set of modules that are on afterwards; switching one off hides it and keeps its data"
       }
     },
-    "required": [
-      "name"
-    ]
+    "description": "Every field is optional, so a rename alone (`{ name }`) keeps working as it always has."
   },
   "ChangeSummary": {
     "type": "object",
@@ -9679,6 +11016,4170 @@
       "updateAvailable"
     ],
     "description": "Which Claude Code the wrapper runs and whether a newer one exists. The check costs a registry read, so it happens on demand or once a day, never on a page load: `checkedAt` says how old the answer is."
+  },
+  "ProjectSettings": {
+    "type": "object",
+    "properties": {
+      "modules": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectModule"
+        },
+        "description": "The modules switched on"
+      },
+      "template": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProjectTemplateId"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The template the project was created from, for reference only: editing the settings never re-applies it"
+      },
+      "keyPrefix": {
+        "type": "string",
+        "description": "Prefix of the work items' keys: upper case letters and digits, starting with a letter (`WORK_ITEM_KEY_PREFIX_PATTERN`), unique among projects. Derived from the name on first read."
+      },
+      "board": {
+        "$ref": "#/components/schemas/BoardSettings"
+      },
+      "team": {
+        "$ref": "#/components/schemas/ProjectTeamSettings"
+      },
+      "flow": {
+        "$ref": "#/components/schemas/ProjectFlowSettings"
+      },
+      "documents": {
+        "$ref": "#/components/schemas/ProjectDocumentsSettings"
+      }
+    },
+    "required": [
+      "modules",
+      "template",
+      "keyPrefix",
+      "board"
+    ],
+    "description": "The settings document of a project, read and written whole (`GET`/`PUT /projects/:id/settings`). Later orchestrations add their configuration as optional fields, so a document written today stays valid."
+  },
+  "BoardSettings": {
+    "type": "object",
+    "properties": {
+      "types": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemType"
+        },
+        "description": "The types a new work item may take in this project, in the order a form offers them"
+      },
+      "columnLimits": {
+        "type": "object",
+        "properties": {
+          "backlog": {
+            "type": "number"
+          },
+          "todo": {
+            "type": "number"
+          },
+          "in_progress": {
+            "type": "number"
+          },
+          "in_review": {
+            "type": "number"
+          },
+          "done": {
+            "type": "number"
+          }
+        },
+        "description": "Work in progress limit per column. A column without an entry has none. Going over a limit is allowed and only shown as a warning: it never blocks a move."
+      }
+    },
+    "required": [
+      "types",
+      "columnLimits"
+    ],
+    "description": "How the Board module is configured. The five columns and the four types are fixed; this only picks and limits."
+  },
+  "ProjectTeamSettings": {
+    "type": "object",
+    "properties": {
+      "members": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectTeamMember"
+        }
+      }
+    },
+    "required": [
+      "members"
+    ],
+    "description": "The Team module's metadata. A member is a CLI agent file in the project's `.claude/agents/`, so it also works from a terminal; this is what Agentry keeps beside it. `GET /projects/:id/team` serves each member with the state of its file ( {@link  TeamMember } )."
+  },
+  "ProjectTeamMember": {
+    "type": "object",
+    "properties": {
+      "role": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model alias or id of the agent that plays it (`opus`, `sonnet`)"
+      },
+      "responsibility": {
+        "type": "string",
+        "description": "One line on what it answers for"
+      },
+      "agent": {
+        "type": "string",
+        "description": "Name of the agent file in the project's `.claude/agents/`, without `.md`"
+      },
+      "writes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Paths or globs, relative to the project, the member may write; absent means no restriction of Agentry's own. Enforced on the chats Agentry starts for it through the CLI's permission rules; from a terminal it is only what the agent file says."
+      },
+      "commands": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The shell commands the member may run in the flow's work stage, as patterns the CLI's permission rules take (`npm test`, `pnpm *`: each becomes `Bash(<pattern>)`). Absent means `Bash` is not restricted there, as before; present means only these, and an empty list means no shell at all. The refine and verify stages keep their own tool sets. Checked with  {@link  isTeamCommandPattern  } ."
+      }
+    },
+    "required": [
+      "agent",
+      "model",
+      "responsibility",
+      "role"
+    ]
+  },
+  "ProjectFlowSettings": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "columns": {
+        "type": "object",
+        "properties": {
+          "backlog": {
+            "type": "string"
+          },
+          "todo": {
+            "type": "string"
+          },
+          "in_progress": {
+            "type": "string"
+          },
+          "in_review": {
+            "type": "string"
+          },
+          "done": {
+            "type": "string"
+          }
+        },
+        "description": "Responsible role per column, matching  {@link  ProjectTeamRole.role } ; `done` never has one"
+      },
+      "maxBounces": {
+        "type": "number",
+        "description": "Times QA may send an item back to `in_progress` before it waits for the person"
+      },
+      "maxParallel": {
+        "type": "number",
+        "description": "Flow runs of the project at once; the rest wait in order, so the flow cannot drain the accounts' quota on its own. Absent reads as 2 (`DEFAULT_FLOW_MAX_PARALLEL`)."
+      },
+      "maxCostUsd": {
+        "type": "number",
+        "description": "What one run may spend, in USD, passed to the CLI as `--max-budget-usd`: the CLI stops the run once it is reached. Absent (the default) means no limit of Agentry's own."
+      }
+    },
+    "required": [
+      "enabled",
+      "columns",
+      "maxBounces"
+    ],
+    "description": "The flow by column. Each column may have a responsible role that acts when a card enters it; agents move cards, and a person approves `done`. Only while `enabled` and the Team module is on."
+  },
+  "ProjectDocumentsSettings": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "The documents folder, relative to the project (`docs`)"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "description": "The Documents module: the repository's documents folder, and documents tied to work items."
+  },
+  "ProjectTemplate": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "$ref": "#/components/schemas/ProjectTemplateId"
+      },
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "modules": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectModule"
+        }
+      },
+      "board": {
+        "$ref": "#/components/schemas/BoardSettings"
+      },
+      "team": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectTeamRole"
+        },
+        "description": "The starting team, offered when the Team module is switched on and there is nothing in the project to read"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "description",
+      "modules",
+      "board",
+      "team"
+    ],
+    "description": "A built-in template: configuration, not only switches. `name` and `description` are the English copy; a client that knows the `id` shows its own translation."
+  },
+  "ProjectTeamRole": {
+    "type": "object",
+    "properties": {
+      "role": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model alias or id of the agent that plays it (`opus`, `sonnet`)"
+      },
+      "responsibility": {
+        "type": "string",
+        "description": "One line on what it answers for"
+      }
+    },
+    "required": [
+      "role",
+      "model",
+      "responsibility"
+    ],
+    "description": "A role of the project's team as a template or the settings describe it. `role` is free text (`product-owner`, `developer`, `qa`…) until the Team module defines its roles."
+  },
+  "WorkItem": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Ours and stable: the key changes with the prefix, the id never does"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "number": {
+        "type": "number",
+        "description": "Never reused inside the project"
+      },
+      "key": {
+        "type": "string",
+        "description": "`<prefix>-<number>`, composed when read"
+      },
+      "type": {
+        "$ref": "#/components/schemas/WorkItemType"
+      },
+      "title": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string",
+        "description": "Markdown. Left out of board and list payloads (the board, the lists and their pages, a chat's items), where it is `''` and  {@link  WorkItem.hasDescription }  says whether there is one: the item's own page fetches it (`GET /work-items/:itemId`, `GET /work-items/by-key/:key`)."
+      },
+      "hasDescription": {
+        "type": "boolean",
+        "description": "Whether the item has a description, set wherever `description` is left out. Absent where the description is served whole, where it reads as `description !== ''`."
+      },
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus"
+      },
+      "priority": {
+        "$ref": "#/components/schemas/WorkItemPriority"
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Free text, in the order they were given"
+      },
+      "assignee": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemAssignee"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "epicId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Always null for an epic: there is one level of hierarchy"
+      },
+      "epic": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The epic, filled in when read, so a card can show its label"
+      },
+      "milestoneId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "acceptanceCriteria": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AcceptanceCriterion"
+        }
+      },
+      "relations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemRelation"
+        }
+      },
+      "rank": {
+        "type": "string",
+        "description": "Order inside its column, compared as plain strings. Opaque to clients, which move an item by naming its neighbour ( {@link  MoveWorkItemRequest } ), so the order a person drags survives."
+      },
+      "worktree": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The item's own git worktree, once something worked on it, on branch `task/<key>` in lower case"
+      },
+      "branch": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "activeLink": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemLink"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The chat or orchestration task working on it right now, filled in when read: what makes a card live. Null when nothing is."
+      },
+      "bounces": {
+        "type": "number",
+        "description": "Times the verifying role sent it back to `in_progress` in the current round of work, compared with  {@link  ProjectFlowSettings.maxBounces } ; a person moving it starts a new round. Written by the flow by column: absent reads as 0."
+      },
+      "waiting": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemWaitReason"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What it waits for from the person, which the board shows in the idle colour with a word. Written by the flow by column: absent reads as null, waiting for nothing."
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": "string"
+      },
+      "closedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When it last entered `done`; null while it is anywhere else"
+      }
+    },
+    "required": [
+      "id",
+      "projectId",
+      "number",
+      "key",
+      "type",
+      "title",
+      "description",
+      "status",
+      "priority",
+      "labels",
+      "assignee",
+      "epicId",
+      "milestoneId",
+      "acceptanceCriteria",
+      "relations",
+      "rank",
+      "worktree",
+      "branch",
+      "createdAt",
+      "updatedAt",
+      "closedAt"
+    ]
+  },
+  "WorkItemPriority": {
+    "type": "string",
+    "enum": [
+      "low",
+      "medium",
+      "high",
+      "urgent"
+    ],
+    "description": "Not a status: only `urgent` may be shown in a colour."
+  },
+  "WorkItemAssignee": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "person"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "role"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "role"
+        ]
+      }
+    ],
+    "description": "Who a work item is assigned to: the person, or a team role once the Team module exists. A discriminated union, so a kind added later (a named member) leaves the existing ones as they are."
+  },
+  "WorkItemRef": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "key": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "type": {
+        "$ref": "#/components/schemas/WorkItemType"
+      },
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus"
+      }
+    },
+    "required": [
+      "id",
+      "key",
+      "title",
+      "type",
+      "status"
+    ],
+    "description": "Another work item as a field refers to it: enough to draw its chip without fetching it."
+  },
+  "AcceptanceCriterion": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "text": {
+        "type": "string"
+      },
+      "checked": {
+        "type": "boolean"
+      },
+      "checkedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemActor"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who checked it; null while unchecked"
+      }
+    },
+    "required": [
+      "id",
+      "text",
+      "checked",
+      "checkedBy"
+    ],
+    "description": "One entry of the acceptance checklist, checked on its own. Its position is its order in the list."
+  },
+  "WorkItemRelation": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "$ref": "#/components/schemas/WorkItemRelationType"
+      },
+      "item": {
+        "$ref": "#/components/schemas/WorkItemRef"
+      }
+    },
+    "required": [
+      "type",
+      "item"
+    ]
+  },
+  "WorkItemRelationType": {
+    "type": "string",
+    "enum": [
+      "blocks",
+      "blocked_by"
+    ],
+    "description": "`blocks` and `blocked_by` only. Stored once, as `blocks`, and reported from both ends: the item that blocks shows `blocks`, the other `blocked_by`. Orchestrating a selection turns them into the graph's `dependsOn`."
+  },
+  "WorkItemLink": {
+    "type": "object",
+    "properties": {
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The chat's session id; for an orchestration task, the chat of its worker once it has one"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "id": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/WorkItemLinkKind"
+      },
+      "role": {
+        "$ref": "#/components/schemas/WorkItemLinkRole"
+      },
+      "documentPath": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For a `document` link, its path relative to the project; absent or null for the others"
+      },
+      "documentKind": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/DocumentKind"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "For a `document` link, what kind of document it is; absent or null for the others"
+      },
+      "teamRole": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The team role whose flow run made the link (the Product Owner's specification, QA's chat); absent or null for a link a person or a chat outside the flow made"
+      },
+      "name": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The chat's title or the task's name, filled in when read; null when it is gone"
+      },
+      "chatState": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatState"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Filled in when read, for a chat"
+      },
+      "taskStatus": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/OrchestrationTaskStatus"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Filled in when read, for an orchestration task"
+      },
+      "createdAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "chatId",
+      "createdAt",
+      "id",
+      "itemId",
+      "kind",
+      "orchestrationId",
+      "role",
+      "taskId"
+    ],
+    "description": "A chat, an orchestration task or a document tied to a work item. An item keeps every link, not only the last."
+  },
+  "WorkItemLinkKind": {
+    "anyOf": [
+      {
+        "$ref": "#/components/schemas/WorkItemSourceKind"
+      },
+      {
+        "type": "string",
+        "const": "document"
+      }
+    ],
+    "description": "What a work item can be linked to: what can act on it ( {@link  WorkItemSourceKind } ), and a document of the project (a specification, an architecture decision) tied to it by the Documents module."
+  },
+  "WorkItemLinkRole": {
+    "type": "string",
+    "enum": [
+      "origin",
+      "refine",
+      "work",
+      "verify",
+      "reference"
+    ],
+    "description": "The part a linked chat, orchestration task or document played in the item's life. The roles past `origin` follow the fixed columns, so they cannot grow with the flow: whichever team role a project puts on a column, its chat is `refine` in `backlog` and `todo`, `work` in `in_progress` and `verify` in `in_review`.\n\n- `origin`: the item was created from it (the chat of \"Create a task from this message\", or a   document the assistant proposed items from).\n- `refine`: refined it before work started; for a document, the specification refinement wrote.\n- `work`: worked on it (\"Work on it\", a node of an orchestration built from it); for a document,   one written while working, such as an architecture decision.\n- `verify`: verified it against its acceptance criteria; for a document, the verification report.\n- `reference`: tied to it by hand, without playing a part in its life. Documents only, in practice.\n\n`refine`, `work` and `verify` are also what a flow run's chat gets, by its  {@link  FlowStage } ; a client handles every member all the same."
+  },
+  "DocumentKind": {
+    "type": "string",
+    "enum": [
+      "spec",
+      "adr",
+      "report",
+      "doc"
+    ],
+    "description": "What a document tied to a work item is: `spec`, a specification (the Product Owner's, refining); `adr`, an architecture decision; `report`, a verification report (QA's); `doc`, anything else."
+  },
+  "WorkItemWaitReason": {
+    "type": "string",
+    "enum": [
+      "approval",
+      "bounces"
+    ],
+    "description": "Why an item waits for the person under the flow by column: `approval`, an agent finished and asks for the move to `done`, which only a person makes; `bounces`, verification sent it back more times than the project allows. Either ends when a person moves it."
+  },
+  "WorkItemDetail": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Ours and stable: the key changes with the prefix, the id never does"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "number": {
+        "type": "number",
+        "description": "Never reused inside the project"
+      },
+      "key": {
+        "type": "string",
+        "description": "`<prefix>-<number>`, composed when read"
+      },
+      "type": {
+        "$ref": "#/components/schemas/WorkItemType"
+      },
+      "title": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string",
+        "description": "Markdown. Left out of board and list payloads (the board, the lists and their pages, a chat's items), where it is `''` and  {@link  WorkItem.hasDescription }  says whether there is one: the item's own page fetches it (`GET /work-items/:itemId`, `GET /work-items/by-key/:key`)."
+      },
+      "hasDescription": {
+        "type": "boolean",
+        "description": "Whether the item has a description, set wherever `description` is left out. Absent where the description is served whole, where it reads as `description !== ''`."
+      },
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus"
+      },
+      "priority": {
+        "$ref": "#/components/schemas/WorkItemPriority"
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Free text, in the order they were given"
+      },
+      "assignee": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemAssignee"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "epicId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Always null for an epic: there is one level of hierarchy"
+      },
+      "epic": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The epic, filled in when read, so a card can show its label"
+      },
+      "milestoneId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "acceptanceCriteria": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AcceptanceCriterion"
+        }
+      },
+      "relations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemRelation"
+        }
+      },
+      "rank": {
+        "type": "string",
+        "description": "Order inside its column, compared as plain strings. Opaque to clients, which move an item by naming its neighbour ( {@link  MoveWorkItemRequest } ), so the order a person drags survives."
+      },
+      "worktree": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The item's own git worktree, once something worked on it, on branch `task/<key>` in lower case"
+      },
+      "branch": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "activeLink": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemLink"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The chat or orchestration task working on it right now, filled in when read: what makes a card live. Null when nothing is."
+      },
+      "bounces": {
+        "type": "number",
+        "description": "Times the verifying role sent it back to `in_progress` in the current round of work, compared with  {@link  ProjectFlowSettings.maxBounces } ; a person moving it starts a new round. Written by the flow by column: absent reads as 0."
+      },
+      "waiting": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemWaitReason"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What it waits for from the person, which the board shows in the idle colour with a word. Written by the flow by column: absent reads as null, waiting for nothing."
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": "string"
+      },
+      "closedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When it last entered `done`; null while it is anywhere else"
+      },
+      "children": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemRef"
+        },
+        "description": "For an epic, the items it groups"
+      },
+      "links": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemLink"
+        }
+      },
+      "comments": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemComment"
+        },
+        "description": "Oldest first"
+      },
+      "history": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemHistoryEntry"
+        },
+        "description": "Oldest first"
+      }
+    },
+    "required": [
+      "acceptanceCriteria",
+      "assignee",
+      "branch",
+      "children",
+      "closedAt",
+      "comments",
+      "createdAt",
+      "description",
+      "epicId",
+      "history",
+      "id",
+      "key",
+      "labels",
+      "links",
+      "milestoneId",
+      "number",
+      "priority",
+      "projectId",
+      "rank",
+      "relations",
+      "status",
+      "title",
+      "type",
+      "updatedAt",
+      "worktree"
+    ],
+    "description": "One work item with what its page shows beyond the card: `GET /work-items/:itemId`, or `GET /work-items/by-key/:key` for its key (`AGN-12`, in any case; 404 when no project's item has it, since a key prefix is unique among projects)."
+  },
+  "WorkItemComment": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "author": {
+        "$ref": "#/components/schemas/WorkItemActor"
+      },
+      "source": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemSource"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The chat or orchestration task an agent wrote it from; null for the person"
+      },
+      "body": {
+        "type": "string"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "itemId",
+      "author",
+      "source",
+      "body",
+      "createdAt",
+      "updatedAt"
+    ],
+    "description": "Written by the person or by an agent; Markdown, no attachments."
+  },
+  "WorkItemHistoryEntry": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "change": {
+        "$ref": "#/components/schemas/WorkItemChange"
+      },
+      "from": {
+        "$ref": "#/components/schemas/WorkItemHistoryValue",
+        "description": "Null when there was nothing before: `created`, a criterion or a relation added"
+      },
+      "to": {
+        "$ref": "#/components/schemas/WorkItemHistoryValue",
+        "description": "Null when there is nothing after: a criterion or a relation removed"
+      },
+      "actor": {
+        "$ref": "#/components/schemas/WorkItemActor"
+      },
+      "cause": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemCause"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set when a chat or an orchestration made the change, rather than someone acting on the item"
+      },
+      "createdAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "itemId",
+      "change",
+      "from",
+      "to",
+      "actor",
+      "cause",
+      "createdAt"
+    ],
+    "description": "One change to one field. Written by the service, never by the caller: an update that changes three fields writes three entries."
+  },
+  "WorkItemHistoryValue": {
+    "anyOf": [
+      {
+        "type": "string"
+      },
+      {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      {
+        "$ref": "#/components/schemas/WorkItemAssignee"
+      },
+      {
+        "$ref": "#/components/schemas/WorkItemHistoryRef"
+      },
+      {
+        "$ref": "#/components/schemas/WorkItemHistoryCriterion"
+      },
+      {
+        "$ref": "#/components/schemas/WorkItemRelation"
+      },
+      {
+        "type": "null"
+      }
+    ],
+    "description": "A plain value for a scalar field, the list for `labels`, and a snapshot for everything else."
+  },
+  "WorkItemHistoryRef": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "label": {
+        "type": "string"
+      },
+      "key": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "label"
+    ],
+    "description": "A referenced thing (an epic, a milestone, a link) as it was when the entry was written, so the history still reads after it is renamed or deleted. For a work item, `key` is composed when read, like every key."
+  },
+  "WorkItemHistoryCriterion": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "text": {
+        "type": "string"
+      },
+      "checked": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "id",
+      "text",
+      "checked"
+    ],
+    "description": "A criterion as a history entry records it."
+  },
+  "WorkItemFilter": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string",
+        "description": "Left out for every project: the All projects view"
+      },
+      "status": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemStatus"
+        }
+      },
+      "type": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemType"
+        }
+      },
+      "priority": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemPriority"
+        }
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Items carrying any of these labels"
+      },
+      "assignee": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "`person`, `none`, or `role:<role>`"
+      },
+      "epicId": {
+        "type": "string"
+      },
+      "milestoneId": {
+        "type": "string"
+      },
+      "q": {
+        "type": "string",
+        "description": "Searched in the title and the description, and matched against the key"
+      }
+    },
+    "description": "What a list, a search or the board is narrowed to. Every field is optional; the values of a list are alternatives (any of them) and fields combine (all of them). In a query string, a list is comma separated."
+  },
+  "CreateWorkItemRequest": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "type": {
+        "$ref": "#/components/schemas/WorkItemType",
+        "description": "Default `task`"
+      },
+      "description": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus",
+        "description": "Default `backlog`"
+      },
+      "priority": {
+        "$ref": "#/components/schemas/WorkItemPriority",
+        "description": "Default `medium`"
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "assignee": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemAssignee"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "epicId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Must name an epic of the same project; not allowed on an epic"
+      },
+      "milestoneId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "acceptanceCriteria": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/NewAcceptanceCriterion"
+        }
+      }
+    },
+    "required": [
+      "title"
+    ]
+  },
+  "NewAcceptanceCriterion": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "text"
+    ],
+    "description": "A new entry of the acceptance checklist: an object, so fields can join the text later."
+  },
+  "UpdateWorkItemRequest": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "$ref": "#/components/schemas/WorkItemType"
+      },
+      "title": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "priority": {
+        "$ref": "#/components/schemas/WorkItemPriority"
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "assignee": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemAssignee"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "epicId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "milestoneId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "acceptanceCriteria": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AcceptanceCriterionInput"
+        },
+        "description": "Replaces the whole checklist, in this order"
+      }
+    },
+    "description": "Only the fields present change, and `null` clears a nullable one. The status and the order change through  {@link  MoveWorkItemRequest } , and one criterion is checked through  {@link  CheckAcceptanceCriterionRequest } ."
+  },
+  "AcceptanceCriterionInput": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "text": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "text"
+    ],
+    "description": "An entry of a replaced checklist: one with an `id` keeps its check, one without is new."
+  },
+  "MoveWorkItemRequest": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus"
+      },
+      "afterId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The item it goes right after in the target column; null puts it first, absent puts it last"
+      }
+    },
+    "required": [
+      "status"
+    ],
+    "description": "Moves an item to a column and a place in it. The place is named by a neighbour rather than an index, so two people reordering at once do not land items on top of each other."
+  },
+  "MoveWorkItemResult": {
+    "type": "object",
+    "properties": {
+      "item": {
+        "$ref": "#/components/schemas/WorkItem"
+      },
+      "column": {
+        "$ref": "#/components/schemas/BoardColumnSummary"
+      }
+    },
+    "required": [
+      "item",
+      "column"
+    ],
+    "description": "A move always succeeds; going over the column's limit is reported, never refused."
+  },
+  "BoardColumnSummary": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus"
+      },
+      "limit": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Null when the column has no limit"
+      },
+      "count": {
+        "type": "number",
+        "description": "Every item in the column but its epics, whatever the filter: an epic takes no place under the limit"
+      },
+      "overLimit": {
+        "type": "boolean",
+        "description": "`count` is over `limit`: shown in the warn colour with a word, never a block"
+      }
+    },
+    "required": [
+      "status",
+      "limit",
+      "count",
+      "overLimit"
+    ],
+    "description": "A column without its items: what a move reports."
+  },
+  "CheckAcceptanceCriterionRequest": {
+    "type": "object",
+    "properties": {
+      "checked": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "checked"
+    ]
+  },
+  "CreateWorkItemCommentRequest": {
+    "type": "object",
+    "properties": {
+      "body": {
+        "type": "string",
+        "description": "Markdown"
+      }
+    },
+    "required": [
+      "body"
+    ]
+  },
+  "CreateWorkItemRelationRequest": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "$ref": "#/components/schemas/WorkItemRelationType"
+      },
+      "itemId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "type",
+      "itemId"
+    ],
+    "description": "Refused when it points at the item itself or closes a cycle of `blocks`."
+  },
+  "CreateWorkItemLinkRequest": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/WorkItemLinkKind"
+      },
+      "role": {
+        "$ref": "#/components/schemas/WorkItemLinkRole"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "documentPath": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For a `document` link: the document's path, relative to the project"
+      }
+    },
+    "required": [
+      "kind",
+      "role"
+    ],
+    "description": "Every kind and role is accepted by the contract. A document is tied by hand through `POST /work-items/:itemId/documents` ( {@link  TieDocumentRequest } ), with the role `reference`."
+  },
+  "Milestone": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string",
+        "description": "Markdown"
+      },
+      "state": {
+        "$ref": "#/components/schemas/MilestoneState"
+      },
+      "progress": {
+        "$ref": "#/components/schemas/MilestoneProgress"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": "string"
+      },
+      "closedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When it was last closed; null while open"
+      }
+    },
+    "required": [
+      "id",
+      "projectId",
+      "name",
+      "description",
+      "state",
+      "progress",
+      "createdAt",
+      "updatedAt",
+      "closedAt"
+    ],
+    "description": "A named goal (`v0.19`) with no date: open or closed, and how far its work items are."
+  },
+  "MilestoneState": {
+    "type": "string",
+    "enum": [
+      "open",
+      "closed"
+    ]
+  },
+  "MilestoneProgress": {
+    "type": "object",
+    "properties": {
+      "total": {
+        "type": "number"
+      },
+      "done": {
+        "type": "number"
+      },
+      "byStatus": {
+        "type": "object",
+        "properties": {
+          "backlog": {
+            "type": "number"
+          },
+          "todo": {
+            "type": "number"
+          },
+          "in_progress": {
+            "type": "number"
+          },
+          "in_review": {
+            "type": "number"
+          },
+          "done": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "backlog",
+          "todo",
+          "in_progress",
+          "in_review",
+          "done"
+        ]
+      }
+    },
+    "required": [
+      "total",
+      "done",
+      "byStatus"
+    ],
+    "description": "Derived from the milestone's work items, epics left out: they group work, they are not work."
+  },
+  "CreateMilestoneRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ]
+  },
+  "UpdateMilestoneRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "state": {
+        "$ref": "#/components/schemas/MilestoneState"
+      }
+    }
+  },
+  "Board": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null for the All projects board, whose columns carry no limit"
+      },
+      "columns": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/BoardColumn"
+        },
+        "description": "Always the five columns, in  {@link  WorkItemStatus }  order"
+      }
+    },
+    "required": [
+      "projectId",
+      "columns"
+    ]
+  },
+  "BoardColumn": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus"
+      },
+      "limit": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Null when the column has no limit"
+      },
+      "count": {
+        "type": "number",
+        "description": "Every item in the column but its epics, whatever the filter: an epic takes no place under the limit"
+      },
+      "overLimit": {
+        "type": "boolean",
+        "description": "`count` is over `limit`: shown in the warn colour with a word, never a block"
+      },
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItem"
+        },
+        "description": "The items that pass the filter, in rank order, descriptions left out. The Done column holds only the most recently closed of them, `doneLimit` ( {@link  BoardQuery } ), newest first"
+      },
+      "more": {
+        "type": "number",
+        "description": "Items that pass the filter and are left out of `items`: \"and N more\", which asks the board again with a larger `doneLimit`. Only the Done column leaves any out; absent reads as 0."
+      }
+    },
+    "required": [
+      "count",
+      "items",
+      "limit",
+      "overLimit",
+      "status"
+    ]
+  },
+  "WorkItemPage": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItem"
+        }
+      },
+      "total": {
+        "type": "number",
+        "description": "Every item that passes the filter, across the pages"
+      },
+      "nextCursor": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Opaque: pass as `cursor` for the next page; null on the last"
+      }
+    },
+    "required": [
+      "items",
+      "total",
+      "nextCursor"
+    ],
+    "description": "A page of work items, descriptions left out."
+  },
+  "WorkItemPageQuery": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemStatus"
+        }
+      },
+      "type": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemType"
+        }
+      },
+      "priority": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemPriority"
+        }
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Items carrying any of these labels"
+      },
+      "assignee": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "`person`, `none`, or `role:<role>`"
+      },
+      "epicId": {
+        "type": "string"
+      },
+      "milestoneId": {
+        "type": "string"
+      },
+      "q": {
+        "type": "string",
+        "description": "Searched in the title and the description, and matched against the key"
+      },
+      "limit": {
+        "type": "number",
+        "description": "Default `WORK_ITEMS_PAGE` (100), at most `WORK_ITEMS_PAGE_MAX`"
+      },
+      "cursor": {
+        "type": "string",
+        "description": "`nextCursor` of the previous page; absent for the first"
+      }
+    },
+    "description": "`GET /projects/:id/work-items/page` and `GET /work-items/page` (All projects): the list a page at a time, in the same order as the whole list, with the same filter. `GET /projects/:id/work-items` and `GET /work-items` still answer the whole list as an array."
+  },
+  "BoardQuery": {
+    "type": "object",
+    "properties": {
+      "doneLimit": {
+        "type": "number",
+        "description": "Items of the Done column to hold; default `BOARD_DONE_PAGE`, at most `WORK_ITEMS_PAGE_MAX`"
+      }
+    },
+    "description": "`GET /projects/:id/work-items/board` and `GET /work-items/board` take the filter ( {@link  WorkItemFilter } ) and this. The Done column grows without end, so it is paged: a board holds its newest closed items, and \"and N more\" asks again with the next multiple of the page. Asking for a larger limit rather than a cursor keeps one board per query, which the event feed refreshes whole."
+  },
+  "WorkOnWorkItemRequest": {
+    "$ref": "#/components/schemas/ChatStartOptions",
+    "description": "What a chat started on a work item may be given. The prompt is built from the item (its title, description and acceptance criteria) and the directory is its worktree, so neither is taken here."
+  },
+  "ChatStartOptions": {
+    "type": "object",
+    "properties": {
+      "model": {
+        "type": "string"
+      },
+      "effort": {
+        "type": "string"
+      },
+      "permissionMode": {
+        "$ref": "#/components/schemas/PermissionMode"
+      },
+      "appendSystemPrompt": {
+        "type": "string"
+      },
+      "allowedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "disallowedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "toolPreset": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it. A new chat that names neither this nor `allowedTools` takes the default preset; `null` opts out of it (and, on a resume or a fork, drops the preset the chat had)."
+      },
+      "mcp": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/McpSelection"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "MCP servers this chat starts with; absent keeps what it has, `null` goes back to what the CLI loads on its own"
+      },
+      "maxBudgetUsd": {
+        "type": "number",
+        "description": "Ceiling on what this execution may spend"
+      },
+      "permissionPrompts": {
+        "type": "string",
+        "enum": [
+          "host",
+          "none"
+        ],
+        "description": "`host` sends permissions, questions and plans to the panel; `none`, the default, denies them"
+      },
+      "account": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one; `null` unpins a chat on a resume or a fork. A pinned chat that hits its limit is unpinned by the rotation."
+      }
+    },
+    "description": "What can be chosen when a process starts on a chat, whether it is new, resumed or a fork."
+  },
+  "WorkOnWorkItemResult": {
+    "type": "object",
+    "properties": {
+      "item": {
+        "$ref": "#/components/schemas/WorkItem",
+        "description": "The item as it is once the chat started: in its worktree, and in `in_progress` unless a person had it elsewhere"
+      },
+      "chat": {
+        "$ref": "#/components/schemas/ChatSummary"
+      },
+      "link": {
+        "$ref": "#/components/schemas/WorkItemLink"
+      }
+    },
+    "required": [
+      "item",
+      "chat",
+      "link"
+    ]
+  },
+  "OrchestrateWorkItemsRequest": {
+    "type": "object",
+    "properties": {
+      "itemIds": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "itemIds"
+    ],
+    "description": "A selection of work items of one project to orchestrate, in the order they were picked."
+  },
+  "WorkItemOrchestrationDraft": {
+    "type": "object",
+    "properties": {
+      "spec": {
+        "$ref": "#/components/schemas/OrchestrationSpec"
+      },
+      "externalBlockers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemRef"
+        },
+        "description": "Items outside the selection, not done yet, that block an item of it: the graph cannot wait for them"
+      }
+    },
+    "required": [
+      "spec",
+      "externalBlockers"
+    ],
+    "description": "A graph to review, not a launched one: one node per item, each naming its item in `workItemId`, and `dependsOn` from the `blocks` relations inside the selection. `POST /orchestrations` launches it."
+  },
+  "CreateWorkItemFromMessageRequest": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "The message, which becomes the description"
+      },
+      "title": {
+        "type": "string",
+        "description": "Default: the message's first line"
+      },
+      "type": {
+        "$ref": "#/components/schemas/WorkItemType",
+        "description": "Default `task`"
+      },
+      "priority": {
+        "$ref": "#/components/schemas/WorkItemPriority",
+        "description": "Default `medium`"
+      }
+    },
+    "required": [
+      "text"
+    ],
+    "description": "Creates a work item in `backlog` from a message of a chat, linked to that chat."
+  },
+  "WorkItemChanges": {
+    "type": "object",
+    "properties": {
+      "worktree": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "branch": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "summary": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeSummary"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null while nothing has worked on it in a worktree, or once its branch is gone"
+      }
+    },
+    "required": [
+      "worktree",
+      "branch",
+      "summary"
+    ],
+    "description": "What the item's own branch changed, read from git the way a chat's worktree is."
+  },
+  "Team": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "enabled": {
+        "type": "boolean",
+        "description": "The Team module is on; with it off the members are still served, and the client hides them"
+      },
+      "members": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TeamMember"
+        }
+      },
+      "unassignedAgents": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Agent files in the project's `.claude/agents/` that no member uses, which \"add a member\" offers"
+      }
+    },
+    "required": [
+      "projectId",
+      "enabled",
+      "members",
+      "unassignedAgents"
+    ]
+  },
+  "TeamMember": {
+    "type": "object",
+    "properties": {
+      "role": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model alias or id of the agent that plays it (`opus`, `sonnet`)"
+      },
+      "responsibility": {
+        "type": "string",
+        "description": "One line on what it answers for"
+      },
+      "agent": {
+        "type": "string",
+        "description": "Name of the agent file in the project's `.claude/agents/`, without `.md`"
+      },
+      "writes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Paths or globs, relative to the project, the member may write; absent means no restriction of Agentry's own. Enforced on the chats Agentry starts for it through the CLI's permission rules; from a terminal it is only what the agent file says."
+      },
+      "commands": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The shell commands the member may run in the flow's work stage, as patterns the CLI's permission rules take (`npm test`, `pnpm *`: each becomes `Bash(<pattern>)`). Absent means `Bash` is not restricted there, as before; present means only these, and an empty list means no shell at all. The refine and verify stages keep their own tool sets. Checked with  {@link  isTeamCommandPattern  } ."
+      },
+      "file": {
+        "$ref": "#/components/schemas/TeamAgentFile"
+      },
+      "columns": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemStatus"
+        },
+        "description": "The columns it answers for under the flow, in board order; empty for a role that is only consulted"
+      },
+      "running": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlowRun"
+        },
+        "description": "Its flow runs working now, oldest first; empty when it is idle"
+      },
+      "queued": {
+        "type": "number",
+        "description": "How many of its flow runs wait for a free place"
+      },
+      "lastRun": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FlowRun"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Its latest run that ended, for \"refined AGN-47 1 h ago\"; null when it never ran"
+      }
+    },
+    "required": [
+      "agent",
+      "columns",
+      "file",
+      "lastRun",
+      "model",
+      "queued",
+      "responsibility",
+      "role",
+      "running"
+    ],
+    "description": "A member as `GET /projects/:id/team` serves it: the metadata, its file, and what it is doing."
+  },
+  "TeamAgentFile": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Relative to the project: `.claude/agents/<agent>.md`"
+      },
+      "state": {
+        "$ref": "#/components/schemas/TeamAgentFileState"
+      },
+      "drift": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TeamAgentDriftField"
+        },
+        "description": "Empty unless `state` is `drifted`"
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "As the file's frontmatter says them; null when the file is missing or leaves them out"
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "updatedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "path",
+      "state",
+      "drift",
+      "description",
+      "model",
+      "updatedAt"
+    ]
+  },
+  "TeamAgentFileState": {
+    "type": "string",
+    "enum": [
+      "ok",
+      "missing",
+      "drifted"
+    ],
+    "description": "The member's agent file as it is on disk: `ok`, it matches the metadata; `missing`, it was deleted (the member still shows, and its file can be written again); `drifted`, its frontmatter says something the metadata does not ( {@link  TeamAgentFile.drift } ). A drifted or hand-edited file is reported, never overwritten."
+  },
+  "TeamAgentDriftField": {
+    "type": "string",
+    "enum": [
+      "name",
+      "description",
+      "model"
+    ],
+    "description": "A frontmatter field of the agent file that disagrees with the member's metadata."
+  },
+  "FlowRun": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "item": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Filled in when read; null once the item is gone"
+      },
+      "role": {
+        "type": "string",
+        "description": "The team role, matching  {@link  ProjectTeamRole.role }"
+      },
+      "agent": {
+        "type": "string",
+        "description": "The member's agent file name, as `claude --agent` takes it"
+      },
+      "model": {
+        "type": "string"
+      },
+      "stage": {
+        "$ref": "#/components/schemas/FlowStage"
+      },
+      "step": {
+        "$ref": "#/components/schemas/FlowStep",
+        "description": "The stage as the person reads it, by its column: `check` is a `refine` in `todo`"
+      },
+      "column": {
+        "$ref": "#/components/schemas/WorkItemStatus",
+        "description": "The column the card entered that started it"
+      },
+      "state": {
+        "$ref": "#/components/schemas/FlowRunState"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The chat it runs in; null while queued. A Developer's run continues the item's work chat when there is one"
+      },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What the chat is doing now, filled in when read while it runs"
+      },
+      "outcome": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FlowRunOutcome"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null until it ends"
+      },
+      "summary": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The result's summary, once it ended with one"
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Why it failed or was cancelled, in English, as the core or the CLI said it; null otherwise"
+      },
+      "cause": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FlowRunCause"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why it failed or was cancelled, as a code to word; null otherwise, and on an old run whose error reads as none"
+      },
+      "retryOf": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The failed run a person retried with this one (`POST /flow-runs/:runId/retry`); null for a run a card entering its column started"
+      },
+      "retriedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FlowRunRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "On a run that did not pass, the next run of the same step on the item, whatever started it (a retry or the card entering the column again): what the person's retry, or the flow, did next. Null until there is one."
+      },
+      "retryable": {
+        "type": "boolean",
+        "description": "Whether `POST /flow-runs/:runId/retry` would queue it again now: it failed, nothing has run that step on the item since, the item is still in the run's column, and the flow is on with a member answering for the column."
+      },
+      "restarts": {
+        "type": "number",
+        "description": "Times a restart cut it off and it went on in its chat; past `MAX_FLOW_RESTARTS` it fails"
+      },
+      "language": {
+        "$ref": "#/components/schemas/AgentryLanguage",
+        "description": "The person's language, which the first line of its chat's prompt (`<Role> · <KEY>`, the title the chat is listed by) is written in, kept so a restart words it the same. Absent on a run stored before it was kept, which reads as `en`."
+      },
+      "queuedAt": {
+        "type": "string"
+      },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "projectId",
+      "itemId",
+      "item",
+      "role",
+      "agent",
+      "model",
+      "stage",
+      "step",
+      "column",
+      "state",
+      "chatId",
+      "outcome",
+      "summary",
+      "error",
+      "cause",
+      "retryOf",
+      "retriedBy",
+      "retryable",
+      "restarts",
+      "queuedAt",
+      "startedAt",
+      "endedAt"
+    ],
+    "description": "One run of a team member on a work item, queued, running or ended. Rows, so it survives a restart."
+  },
+  "FlowRunState": {
+    "type": "string",
+    "enum": [
+      "queued",
+      "running",
+      "ended"
+    ],
+    "description": "`queued` waits for a place under `maxParallel`; `running` has its chat; `ended` has an outcome."
+  },
+  "FlowRunRef": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "state": {
+        "$ref": "#/components/schemas/FlowRunState"
+      },
+      "outcome": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FlowRunOutcome"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "queuedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "state",
+      "outcome",
+      "chatId",
+      "queuedAt",
+      "endedAt"
+    ],
+    "description": "Another run as a run refers to it: enough to say what it did and open its chat."
+  },
+  "AgentryLanguage": {
+    "type": "string",
+    "enum": [
+      "en",
+      "es"
+    ],
+    "description": "The languages Agentry speaks. A chat Agentry starts on its own is listed by the first line of its prompt, so that line is written in the person's language, read from the request's `Accept-Language` (`agentryLanguage`) and kept on what runs later or again (an assistant run, a flow run); the instructions for Claude after it may stay in English."
+  },
+  "TeamFromTemplateRequest": {
+    "type": "object",
+    "properties": {
+      "roles": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "description": "Writes the members of the project's template (`ProjectTemplate.team`). The person accepts them one by one, so `roles` names the ones accepted; absent means every role of the template. An agent file that already exists is kept as it is, and a role already on the team is left alone.\n\n`POST /projects/:id/team/from-template` answers the whole  {@link  Team } : with 201 when it added at least one member, and with 200 when nothing changed (every role was already on the team), like the other creating routes. Sending it twice is harmless either way."
+  },
+  "PutTeamMemberRequest": {
+    "type": "object",
+    "properties": {
+      "role": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model alias or id of the agent that plays it (`opus`, `sonnet`)"
+      },
+      "responsibility": {
+        "type": "string",
+        "description": "One line on what it answers for"
+      },
+      "writes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "commands": {
+        "anyOf": [
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Absent or null leaves the shell unrestricted in the work stage ( {@link  ProjectTeamMember.commands } )"
+      },
+      "createFile": {
+        "type": "boolean",
+        "description": "Write a starting agent file for the role when there is none; an existing file is never overwritten"
+      }
+    },
+    "required": [
+      "model",
+      "responsibility",
+      "role"
+    ],
+    "description": "Creates or replaces a member's metadata (`PUT /projects/:id/team/:agent`). The agent file itself is edited through `/config/resources/agents/:name?project=`."
+  },
+  "ProjectFlow": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "enabled": {
+        "type": "boolean",
+        "description": "`flow.enabled`, with the Team module on"
+      },
+      "maxParallel": {
+        "type": "number"
+      },
+      "running": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlowRun"
+        },
+        "description": "Oldest first"
+      },
+      "queued": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlowRun"
+        },
+        "description": "In the order they will start"
+      }
+    },
+    "required": [
+      "projectId",
+      "enabled",
+      "maxParallel",
+      "running",
+      "queued"
+    ],
+    "description": "`GET /projects/:id/flow`: what the flow is doing in a project now."
+  },
+  "FlowRunPage": {
+    "type": "object",
+    "properties": {
+      "runs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlowRun"
+        }
+      },
+      "total": {
+        "type": "number",
+        "description": "Every run that passes the filter, across the pages"
+      },
+      "nextCursor": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Opaque: pass as `cursor` for the next page; null on the last"
+      }
+    },
+    "required": [
+      "runs",
+      "total",
+      "nextCursor"
+    ],
+    "description": "A page of a project's flow runs, newest first."
+  },
+  "FlowRunResult": {
+    "type": "object",
+    "properties": {
+      "summary": {
+        "type": "string"
+      },
+      "verdict": {
+        "$ref": "#/components/schemas/FlowVerdict"
+      },
+      "criteria": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlowCriterionResult"
+        },
+        "description": "Verification only: every acceptance criterion of the item, each judged on its own"
+      },
+      "memoryProposals": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlowMemoryProposal"
+        }
+      },
+      "documents": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlowRunDocument"
+        }
+      }
+    },
+    "required": [
+      "summary",
+      "memoryProposals",
+      "documents"
+    ],
+    "description": "The structured result every flow run ends with, through the CLI's `--json-schema`. `summary` becomes the member's comment on the item; `verdict` is QA's only."
+  },
+  "FlowVerdict": {
+    "type": "string",
+    "enum": [
+      "pass",
+      "fail"
+    ],
+    "description": "QA's verdict: `pass` leaves the item waiting for the person's approval, `fail` sends it back to `in_progress`."
+  },
+  "FlowCriterionResult": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "The criterion's id, as the run's prompt lists it"
+      },
+      "met": {
+        "type": "boolean"
+      },
+      "note": {
+        "type": "string",
+        "description": "What was checked, or what is missing"
+      }
+    },
+    "required": [
+      "id",
+      "met",
+      "note"
+    ],
+    "description": "QA's judgement of one acceptance criterion. A met criterion is checked on the item as the agent; the run passes only when every criterion of the item is met."
+  },
+  "FlowMemoryProposal": {
+    "type": "object",
+    "properties": {
+      "target": {
+        "$ref": "#/components/schemas/MemoryProposalTarget"
+      },
+      "text": {
+        "type": "string"
+      },
+      "reason": {
+        "type": "string",
+        "description": "Why the team should remember it"
+      }
+    },
+    "required": [
+      "target",
+      "text",
+      "reason"
+    ],
+    "description": "A memory entry a flow run proposes, as its result carries it."
+  },
+  "FlowRunDocument": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Relative to the project, inside the documents folder (`docs/specs/agn-28-board.md`)"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/DocumentKind"
+      }
+    },
+    "required": [
+      "path",
+      "kind"
+    ],
+    "description": "A document a flow run wrote in the item's worktree, reported so Agentry ties it to the item."
+  },
+  "JournalPage": {
+    "type": "object",
+    "properties": {
+      "entries": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/JournalEntry"
+        }
+      },
+      "total": {
+        "type": "number",
+        "description": "Every entry of the project"
+      },
+      "handed": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "number"
+          },
+          "bytes": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "entries",
+          "bytes"
+        ],
+        "description": "What a flow run is handed: the newest entries that fit the cap"
+      },
+      "nextBefore": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Pass as `before` for the next page; null on the last"
+      }
+    },
+    "required": [
+      "entries",
+      "total",
+      "handed",
+      "nextBefore"
+    ],
+    "description": "`GET /projects/:id/journal?limit=&before=`, newest first."
+  },
+  "JournalEntry": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/JournalEntryKind"
+      },
+      "text": {
+        "type": "string",
+        "description": "Markdown; for `closed`, the item's title as it was"
+      },
+      "itemId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "item": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Filled in when read; null when there is no item or it is gone"
+      },
+      "author": {
+        "$ref": "#/components/schemas/WorkItemActor",
+        "description": "Who wrote or proposed it: the person, or the agent and its role"
+      },
+      "approvedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemActor"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who approved it: the move to `done` for `closed`, the proposal for `memory`; null for what a person wrote"
+      },
+      "proposalId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The proposal it came from"
+      },
+      "documentPath": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "A document it refers to (an architecture decision), relative to the project"
+      },
+      "sources": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemSource"
+        },
+        "description": "For `closed`: the chats and orchestration tasks that worked on the item"
+      },
+      "createdAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "projectId",
+      "kind",
+      "text",
+      "itemId",
+      "item",
+      "author",
+      "approvedBy",
+      "proposalId",
+      "documentPath",
+      "sources",
+      "createdAt"
+    ],
+    "description": "One entry of a project's journal, Agentry's own record of decisions and closed items. The newest are handed to every flow run with `--append-system-prompt`."
+  },
+  "CreateJournalEntryRequest": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "decision",
+          "note"
+        ],
+        "description": "Default `note`"
+      },
+      "itemId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "documentPath": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "text"
+    ],
+    "description": "An entry written by hand. `closed` and `memory` are Agentry's to write."
+  },
+  "MemoryProposal": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "target": {
+        "$ref": "#/components/schemas/MemoryProposalTarget"
+      },
+      "text": {
+        "type": "string",
+        "description": "As proposed"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/MemoryProposalStatus"
+      },
+      "proposedBy": {
+        "$ref": "#/components/schemas/WorkItemActor",
+        "description": "The agent and its role"
+      },
+      "source": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemSource"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The chat it came from"
+      },
+      "flowRunId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "itemId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "item": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Filled in when read; null when there is no item or it is gone"
+      },
+      "approvedText": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "What was written, when the person edited it before approving; null otherwise"
+      },
+      "decidedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemActor"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The person, once decided"
+      },
+      "decidedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "rejectReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Why it was rejected, when the person said"
+      },
+      "journalEntryId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The journal entry an approval to the journal wrote"
+      },
+      "createdAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "projectId",
+      "target",
+      "text",
+      "reason",
+      "status",
+      "proposedBy",
+      "source",
+      "flowRunId",
+      "itemId",
+      "item",
+      "approvedText",
+      "decidedBy",
+      "decidedAt",
+      "rejectReason",
+      "journalEntryId",
+      "createdAt"
+    ],
+    "description": "A memory entry a team member proposed. Nothing is written until the person approves it."
+  },
+  "MemoryProposalStatus": {
+    "type": "string",
+    "enum": [
+      "pending",
+      "approved",
+      "rejected"
+    ]
+  },
+  "ApproveMemoryProposalRequest": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "The text to write instead of the proposed one"
+      }
+    }
+  },
+  "RejectMemoryProposalRequest": {
+    "type": "object",
+    "properties": {
+      "reason": {
+        "type": "string"
+      }
+    }
+  },
+  "ProjectDocuments": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "root": {
+        "type": "string",
+        "description": "`documents.path`, relative to the project (`docs`)"
+      },
+      "exists": {
+        "type": "boolean",
+        "description": "The folder is on disk"
+      },
+      "tree": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DocumentNode"
+        },
+        "description": "The folder's entries, directories first"
+      },
+      "fileCount": {
+        "type": "number"
+      },
+      "tiedCount": {
+        "type": "number",
+        "description": "Files tied to at least one item"
+      }
+    },
+    "required": [
+      "projectId",
+      "root",
+      "exists",
+      "tree",
+      "fileCount",
+      "tiedCount"
+    ],
+    "description": "`GET /projects/:id/documents`: the tree of the documents folder."
+  },
+  "DocumentNode": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string",
+        "description": "Relative to the project, `/`-separated (`docs/specs/agn-28-board.md`)"
+      },
+      "type": {
+        "type": "string",
+        "enum": [
+          "file",
+          "dir"
+        ]
+      },
+      "children": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DocumentNode"
+        },
+        "description": "For a directory, its entries, directories first; absent for a file"
+      },
+      "fileCount": {
+        "type": "number",
+        "description": "For a directory, the Markdown files under it at any depth"
+      },
+      "title": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For a file: its first `# ` heading, when it has one"
+      },
+      "size": {
+        "type": "number"
+      },
+      "updatedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "ties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DocumentTie"
+        },
+        "description": "For a file, the items it is tied to; empty for a directory"
+      }
+    },
+    "required": [
+      "name",
+      "path",
+      "type",
+      "ties"
+    ],
+    "description": "A file or directory of the documents folder. Only Markdown files are listed."
+  },
+  "DocumentTie": {
+    "type": "object",
+    "properties": {
+      "linkId": {
+        "type": "string"
+      },
+      "item": {
+        "$ref": "#/components/schemas/WorkItemRef"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/DocumentKind"
+      },
+      "linkRole": {
+        "$ref": "#/components/schemas/WorkItemLinkRole",
+        "description": "The part it played in the item's life; `reference` when tied by hand"
+      },
+      "teamRole": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The team role that wrote it; null when a person tied it"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The chat that wrote it"
+      },
+      "createdAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "linkId",
+      "item",
+      "kind",
+      "linkRole",
+      "teamRole",
+      "chatId",
+      "createdAt"
+    ],
+    "description": "A work item a document is tied to, as a `document` link."
+  },
+  "DocumentFile": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Relative to the project"
+      },
+      "content": {
+        "type": "string"
+      },
+      "title": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "size": {
+        "type": "number"
+      },
+      "updatedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "ties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DocumentTie"
+        }
+      }
+    },
+    "required": [
+      "path",
+      "content",
+      "title",
+      "size",
+      "updatedAt",
+      "ties"
+    ],
+    "description": "`GET /projects/:id/documents/file?path=`."
+  },
+  "WriteDocumentRequest": {
+    "type": "object",
+    "properties": {
+      "content": {
+        "type": "string"
+      },
+      "baseUpdatedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The `updatedAt` the editor started from; when the file changed since (an agent wrote it), the write is refused with 409 instead of overwriting it. Absent writes whatever is there."
+      }
+    },
+    "required": [
+      "content"
+    ],
+    "description": "`PUT /projects/:id/documents/file?path=`: creates or replaces a Markdown file of the documents folder."
+  },
+  "TieDocumentRequest": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Relative to the project, inside the documents folder"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/DocumentKind",
+        "description": "Default `doc`"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "description": "`POST /work-items/:itemId/documents`: ties a document of the project to an item by hand, role `reference`."
+  },
+  "AssistantRun": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/AssistantRunKind"
+      },
+      "status": {
+        "$ref": "#/components/schemas/AssistantRunStatus"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model alias or id the chat ran with; `sonnet` unless the request chose another"
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "What the person described: the one resource \"Create with AI\" builds, or what an empty project is for"
+      },
+      "focus": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For a `work-items` run, what to look for (\"Suggest tasks\"'s focus,  {@link  StartAssistantRunRequest.focus } ); absent or null otherwise, and on a run stored before it was its own field"
+      },
+      "language": {
+        "$ref": "#/components/schemas/AgentryLanguage",
+        "description": "The person's language when it started, which its chat's title is written in, kept so a run started again after a restart words it the same. Absent on a run stored before it was kept, which reads as `en`."
+      },
+      "resourceKind": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AssistantResourceKind"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "For a `resources` run from a description, the kind of the one resource it builds; null otherwise"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The chat it runs in, which counts in Usage like any other. Null while starting, and for a run with nothing to read ( {@link  AssistantRun.empty } ), which starts no chat."
+      },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What the chat is doing now, filled in when read while it runs"
+      },
+      "empty": {
+        "type": "boolean",
+        "description": "The project had nothing to read: no files, no chats, no git history. No chat was started; a `project` run offers the template's team, and asks for a description to propose work items."
+      },
+      "template": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProjectTemplateId"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The template whose team it offered as the starting point; null when it proposed none"
+      },
+      "sources": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AssistantSource"
+        },
+        "description": "What it read, in the order it read it; entries still `pending` while it runs"
+      },
+      "findings": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AssistantFinding"
+        },
+        "description": "For a `project` run; empty for the others and until the answer comes"
+      },
+      "counts": {
+        "type": "object",
+        "properties": {
+          "team-member": {
+            "$ref": "#/components/schemas/AssistantProposalCount"
+          },
+          "resource": {
+            "$ref": "#/components/schemas/AssistantProposalCount"
+          },
+          "work-item": {
+            "$ref": "#/components/schemas/AssistantProposalCount"
+          }
+        },
+        "required": [
+          "team-member",
+          "resource",
+          "work-item"
+        ],
+        "description": "Proposals by kind; a kind the run does not propose counts zero"
+      },
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "The chat's cost so far, then its total; null when the CLI reported none (or no chat was started)"
+      },
+      "durationMs": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "From start to end; null while it runs"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Localized"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why it failed; null unless `failed`"
+      },
+      "supersedes": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The finished run of the same kind whose pending proposals this one superseded (\"Suggest again\")"
+      },
+      "supersededBy": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The run that superseded this one's pending proposals; null while none has"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "projectId",
+      "kind",
+      "status",
+      "model",
+      "description",
+      "resourceKind",
+      "chatId",
+      "empty",
+      "template",
+      "sources",
+      "findings",
+      "counts",
+      "costUsd",
+      "durationMs",
+      "error",
+      "supersedes",
+      "supersededBy",
+      "startedAt",
+      "endedAt"
+    ],
+    "description": "An assistant run as `GET /projects/:id/assistant/runs` lists it; `GET /assistant/runs/:runId` adds its proposals."
+  },
+  "AssistantSource": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/AssistantSourceKind"
+      },
+      "path": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Relative to the project, `/`-separated, a directory ending in `/` (`docs/`); null for what is not a path"
+      },
+      "state": {
+        "$ref": "#/components/schemas/AssistantSourceState"
+      },
+      "count": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "total": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "For `partial`, how many there were"
+      },
+      "unit": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AssistantSourceUnit"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "names": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "A few names a client may list beside it: the open milestones (`v0.20`), the files of a group"
+      }
+    },
+    "required": [
+      "kind",
+      "path",
+      "state",
+      "count",
+      "total",
+      "unit",
+      "names"
+    ],
+    "description": "One entry of what a run read (\"See what it read\"): kept on the run, filled in from the chat's tool calls and from what Agentry handed it (its journal, its work items, its team, its resources)."
+  },
+  "AssistantSourceKind": {
+    "type": "string",
+    "enum": [
+      "file",
+      "dir",
+      "instructions",
+      "memory",
+      "journal",
+      "work-items",
+      "milestones",
+      "team",
+      "resources",
+      "chats",
+      "git"
+    ],
+    "description": "What an entry of \"what it read\" is: the project's files (`file`, `dir`), the CLI's `instructions` (`CLAUDE.md`) and `memory`, Agentry's `journal`, `work-items` and `milestones` (so it does not propose them again), the `team`, the `resources`, the CLI's `chats` in the directory and the `git` history."
+  },
+  "AssistantSourceState": {
+    "type": "string",
+    "enum": [
+      "pending",
+      "reading",
+      "read",
+      "partial",
+      "missing"
+    ],
+    "description": "`pending`: it will read it later (\"after\"); `reading`: now; `read`: all of it; `partial`: some of it (`count` of `total`); `missing`: it looked and there is none (`CLAUDE.md` does not exist)."
+  },
+  "AssistantSourceUnit": {
+    "type": "string",
+    "enum": [
+      "lines",
+      "files",
+      "documents",
+      "chats",
+      "commits",
+      "items",
+      "entries",
+      "members"
+    ],
+    "description": "What `count` and `total` count, which a client words (\"142 lines\", \"23 chats\", \"14 of 20\")."
+  },
+  "AssistantFinding": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "stack",
+          "gap"
+        ]
+      },
+      "label": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "kind",
+      "label"
+    ],
+    "description": "Something a `project` run found, shown as a tag (\"TypeScript\", \"Fastify\"): `stack` is what the project uses, `gap` is what it lacks (\"no CI\")."
+  },
+  "AssistantProposalCount": {
+    "type": "object",
+    "properties": {
+      "total": {
+        "type": "number"
+      },
+      "pending": {
+        "type": "number"
+      },
+      "accepted": {
+        "type": "number"
+      },
+      "discarded": {
+        "type": "number"
+      },
+      "superseded": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "total",
+      "pending",
+      "accepted",
+      "discarded",
+      "superseded"
+    ],
+    "description": "How many proposals of a kind a run made, by status: \"2 of 6 accepted\", \"3 to review\"."
+  },
+  "AssistantRunDetail": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/AssistantRunKind"
+      },
+      "status": {
+        "$ref": "#/components/schemas/AssistantRunStatus"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model alias or id the chat ran with; `sonnet` unless the request chose another"
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "What the person described: the one resource \"Create with AI\" builds, or what an empty project is for"
+      },
+      "focus": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For a `work-items` run, what to look for (\"Suggest tasks\"'s focus,  {@link  StartAssistantRunRequest.focus } ); absent or null otherwise, and on a run stored before it was its own field"
+      },
+      "language": {
+        "$ref": "#/components/schemas/AgentryLanguage",
+        "description": "The person's language when it started, which its chat's title is written in, kept so a run started again after a restart words it the same. Absent on a run stored before it was kept, which reads as `en`."
+      },
+      "resourceKind": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AssistantResourceKind"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "For a `resources` run from a description, the kind of the one resource it builds; null otherwise"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The chat it runs in, which counts in Usage like any other. Null while starting, and for a run with nothing to read ( {@link  AssistantRun.empty } ), which starts no chat."
+      },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What the chat is doing now, filled in when read while it runs"
+      },
+      "empty": {
+        "type": "boolean",
+        "description": "The project had nothing to read: no files, no chats, no git history. No chat was started; a `project` run offers the template's team, and asks for a description to propose work items."
+      },
+      "template": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProjectTemplateId"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The template whose team it offered as the starting point; null when it proposed none"
+      },
+      "sources": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AssistantSource"
+        },
+        "description": "What it read, in the order it read it; entries still `pending` while it runs"
+      },
+      "findings": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AssistantFinding"
+        },
+        "description": "For a `project` run; empty for the others and until the answer comes"
+      },
+      "counts": {
+        "type": "object",
+        "properties": {
+          "team-member": {
+            "$ref": "#/components/schemas/AssistantProposalCount"
+          },
+          "resource": {
+            "$ref": "#/components/schemas/AssistantProposalCount"
+          },
+          "work-item": {
+            "$ref": "#/components/schemas/AssistantProposalCount"
+          }
+        },
+        "required": [
+          "team-member",
+          "resource",
+          "work-item"
+        ],
+        "description": "Proposals by kind; a kind the run does not propose counts zero"
+      },
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "The chat's cost so far, then its total; null when the CLI reported none (or no chat was started)"
+      },
+      "durationMs": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "From start to end; null while it runs"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Localized"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why it failed; null unless `failed`"
+      },
+      "supersedes": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The finished run of the same kind whose pending proposals this one superseded (\"Suggest again\")"
+      },
+      "supersededBy": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The run that superseded this one's pending proposals; null while none has"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "proposals": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AssistantProposal"
+        },
+        "description": "Every proposal it made, whatever its status, by kind then in the order it proposed them"
+      },
+      "draft": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AssistantResourceDraft"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "\"Create with AI\" while it runs: the one resource as the chat is writing it, read from its partial structured output or its stream, so the editor opens at once and fills in. Absent or null for every other run, and once the run ended (its proposal carries the whole file). Refreshed through `assistant.run` events with the action `read`."
+      }
+    },
+    "required": [
+      "chatId",
+      "costUsd",
+      "counts",
+      "description",
+      "durationMs",
+      "empty",
+      "endedAt",
+      "error",
+      "findings",
+      "id",
+      "kind",
+      "model",
+      "projectId",
+      "proposals",
+      "resourceKind",
+      "sources",
+      "startedAt",
+      "status",
+      "supersededBy",
+      "supersedes",
+      "template"
+    ],
+    "description": "`GET /assistant/runs/:runId`, and what starting or stopping one answers."
+  },
+  "AssistantProposal": {
+    "anyOf": [
+      {
+        "$ref": "#/components/schemas/AssistantTeamMemberProposal"
+      },
+      {
+        "$ref": "#/components/schemas/AssistantResourceProposal"
+      },
+      {
+        "$ref": "#/components/schemas/AssistantWorkItemProposal"
+      }
+    ],
+    "description": "One proposal of a run, accepted or discarded on its own (decision 36)."
+  },
+  "AssistantTeamMemberProposal": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/AssistantProposalStatus"
+      },
+      "reason": {
+        "type": "string",
+        "description": "Why it proposes it, one or two sentences; for a work item, its first comment once accepted"
+      },
+      "position": {
+        "type": "number",
+        "description": "Its place among the run's proposals of the same kind"
+      },
+      "decidedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemActor"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who accepted or discarded it last; null while pending (and again once restored)"
+      },
+      "decidedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string",
+        "const": "team-member"
+      },
+      "member": {
+        "$ref": "#/components/schemas/ProposedTeamMember"
+      },
+      "acceptedAgent": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The member as added, by agent file name, once accepted; null otherwise"
+      }
+    },
+    "required": [
+      "acceptedAgent",
+      "createdAt",
+      "decidedAt",
+      "decidedBy",
+      "id",
+      "kind",
+      "member",
+      "position",
+      "projectId",
+      "reason",
+      "runId",
+      "status"
+    ],
+    "description": "Accepting it adds the member through the team service, agent file included."
+  },
+  "AssistantProposalStatus": {
+    "type": "string",
+    "enum": [
+      "pending",
+      "accepted",
+      "discarded",
+      "superseded"
+    ],
+    "description": "`pending` waits for the person; `superseded` was pending when the person asked to suggest again."
+  },
+  "ProposedTeamMember": {
+    "type": "object",
+    "properties": {
+      "role": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model alias or id of the agent that plays it (`opus`, `sonnet`)"
+      },
+      "responsibility": {
+        "type": "string",
+        "description": "One line on what it answers for"
+      },
+      "agent": {
+        "type": "string",
+        "description": "Name of the agent file it would write in `.claude/agents/`, without `.md`"
+      },
+      "writes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Paths or globs it may write; empty means nothing but work items (\"writes: nothing, only tasks\")"
+      },
+      "fromTemplate": {
+        "type": "boolean",
+        "description": "One of the template's roles; false for one the project needs beyond it (\"outside the template\")"
+      },
+      "description": {
+        "type": "string",
+        "description": "The agent file's `description`, what the CLI picks it by"
+      },
+      "instructions": {
+        "type": "string",
+        "description": "The agent file's body; empty lets the team service write its starting one"
+      }
+    },
+    "required": [
+      "agent",
+      "description",
+      "fromTemplate",
+      "instructions",
+      "model",
+      "responsibility",
+      "role",
+      "writes"
+    ],
+    "description": "A role of the team the assistant proposes, as the member it would add."
+  },
+  "AssistantResourceProposal": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/AssistantProposalStatus"
+      },
+      "reason": {
+        "type": "string",
+        "description": "Why it proposes it, one or two sentences; for a work item, its first comment once accepted"
+      },
+      "position": {
+        "type": "number",
+        "description": "Its place among the run's proposals of the same kind"
+      },
+      "decidedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemActor"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who accepted or discarded it last; null while pending (and again once restored)"
+      },
+      "decidedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string",
+        "const": "resource"
+      },
+      "resource": {
+        "$ref": "#/components/schemas/ProposedResource"
+      },
+      "saved": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "scope": {
+                "$ref": "#/components/schemas/ConfigScopeKind"
+              },
+              "name": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "scope",
+              "name",
+              "path"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Where it was saved, once accepted: its scope and its path there; null otherwise"
+      }
+    },
+    "required": [
+      "createdAt",
+      "decidedAt",
+      "decidedBy",
+      "id",
+      "kind",
+      "position",
+      "projectId",
+      "reason",
+      "resource",
+      "runId",
+      "saved",
+      "status"
+    ],
+    "description": "Accepting it is saving it: the editor opens the proposal unsaved, and its save is the accept, with what the person edited ( {@link  AcceptAssistantProposalRequest.resource } )."
+  },
+  "ProposedResource": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/AssistantResourceKind"
+      },
+      "name": {
+        "type": "string",
+        "description": "File or directory name, without extension; a command's without its `/`"
+      },
+      "description": {
+        "type": "string",
+        "description": "One line, as its frontmatter says it"
+      },
+      "content": {
+        "type": "string",
+        "description": "The whole file, frontmatter included (a skill's `SKILL.md`)"
+      },
+      "scope": {
+        "$ref": "#/components/schemas/ConfigScopeKind",
+        "description": "Where it is meant to go: the project by default (decision 37)"
+      },
+      "path": {
+        "type": "string",
+        "description": "Where it would be saved, relative to its scope's root: the project (`.claude/agents/x.md`, a skill's directory `.claude/skills/x/`), or the Claude config dir for `user` (`agents/x.md`)"
+      }
+    },
+    "required": [
+      "kind",
+      "name",
+      "description",
+      "content",
+      "scope",
+      "path"
+    ],
+    "description": "A resource the assistant proposes: a whole file, opened in the editor before anything is saved."
+  },
+  "AssistantWorkItemProposal": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/AssistantProposalStatus"
+      },
+      "reason": {
+        "type": "string",
+        "description": "Why it proposes it, one or two sentences; for a work item, its first comment once accepted"
+      },
+      "position": {
+        "type": "number",
+        "description": "Its place among the run's proposals of the same kind"
+      },
+      "decidedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemActor"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who accepted or discarded it last; null while pending (and again once restored)"
+      },
+      "decidedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string",
+        "const": "work-item"
+      },
+      "workItem": {
+        "$ref": "#/components/schemas/ProposedWorkItem"
+      },
+      "created": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The item it created, once accepted (\"created · PAG-1\"); null otherwise, or once it is gone"
+      }
+    },
+    "required": [
+      "created",
+      "createdAt",
+      "decidedAt",
+      "decidedBy",
+      "id",
+      "kind",
+      "position",
+      "projectId",
+      "reason",
+      "runId",
+      "status",
+      "workItem"
+    ],
+    "description": "Accepting it creates the item in `backlog`, with the reason as its first comment."
+  },
+  "ProposedWorkItem": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "$ref": "#/components/schemas/WorkItemType"
+      },
+      "title": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string",
+        "description": "Markdown"
+      },
+      "priority": {
+        "$ref": "#/components/schemas/WorkItemPriority"
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "acceptanceCriteria": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/NewAcceptanceCriterion"
+        }
+      },
+      "epicId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "An existing epic of the project it belongs to"
+      },
+      "epic": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Filled in when read; null without one or once it is gone"
+      },
+      "similarTo": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "An existing item it resembles (\"Similar to AGN-45\"), filled in when read; such a proposal starts unselected where a client offers a selection"
+      }
+    },
+    "required": [
+      "type",
+      "title",
+      "description",
+      "priority",
+      "labels",
+      "acceptanceCriteria",
+      "epicId",
+      "epic",
+      "similarTo"
+    ],
+    "description": "A work item the assistant proposes, created in `backlog` when accepted."
+  },
+  "AssistantResourceDraft": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/AssistantResourceKind"
+      },
+      "name": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until the chat has written it"
+      },
+      "content": {
+        "type": "string",
+        "description": "What it has written of the whole file so far, frontmatter included; empty before the first part"
+      }
+    },
+    "required": [
+      "kind",
+      "name",
+      "content"
+    ],
+    "description": "The resource a running \"Create with AI\" has written so far; nothing of it is saved."
+  },
+  "StartAssistantRunRequest": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/AssistantRunKind"
+      },
+      "model": {
+        "type": "string",
+        "description": "Default `sonnet` (`DEFAULT_ASSISTANT_MODEL`)"
+      },
+      "description": {
+        "type": "string",
+        "description": "For a `resources` run, the one resource to build (\"Create with AI\"), with `resourceKind`; for a `project` or `work-items` run, what the project is for when there is nothing to read"
+      },
+      "focus": {
+        "type": "string",
+        "description": "For a `work-items` run (\"Suggest tasks\"), what to look for (\"the checkout's error handling\"): the prompt words it as the area to propose work in, not as what the project is for. Refused on the other kinds. The language is not a field: it is the request's `Accept-Language`."
+      },
+      "resourceKind": {
+        "$ref": "#/components/schemas/AssistantResourceKind",
+        "description": "Required with a `resources` run's `description`"
+      },
+      "supersede": {
+        "type": "boolean",
+        "description": "Mark the pending proposals of the latest finished run of this kind `superseded`. Default false"
+      }
+    },
+    "required": [
+      "kind"
+    ],
+    "description": "`POST /projects/:id/assistant/runs`. One run at a time per project and kind: a second one while one runs is refused with 409. A new run leaves the previous one's pending proposals as they are, unless `supersede` says to set them aside (\"Suggest again\")."
+  },
+  "AcceptAssistantProposalRequest": {
+    "type": "object",
+    "properties": {
+      "member": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string",
+            "description": "Name of the agent file it would write in `.claude/agents/`, without `.md`"
+          },
+          "writes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Paths or globs it may write; empty means nothing but work items (\"writes: nothing, only tasks\")"
+          },
+          "description": {
+            "type": "string",
+            "description": "The agent file's `description`, what the CLI picks it by"
+          },
+          "instructions": {
+            "type": "string",
+            "description": "The agent file's body; empty lets the team service write its starting one"
+          },
+          "role": {},
+          "model": {},
+          "responsibility": {}
+        }
+      },
+      "resource": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/ConfigScopeKind"
+          }
+        },
+        "description": "The editor's save: the name, content and scope the person left"
+      },
+      "workItem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/WorkItemType"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "description": "Markdown"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/WorkItemPriority"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "acceptanceCriteria": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NewAcceptanceCriterion"
+            }
+          },
+          "epicId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An existing epic of the project it belongs to"
+          }
+        }
+      }
+    },
+    "description": "`POST /assistant/proposals/:proposalId/accept`, with what the person changed before accepting; only the part that matches the proposal's kind is read, and a field left out keeps the proposed value. Accepting a proposal that is not `pending` is refused with 409."
   },
   "UpdateAppSettingsRequest": {
     "type": "object",

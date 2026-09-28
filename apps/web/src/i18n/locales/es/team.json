@@ -1,0 +1,493 @@
+{
+  "back": "Volver al proyecto",
+  "roles": {
+    "product-owner": "Product Owner",
+    "architect": "Arquitecto",
+    "developer": "Desarrollador",
+    "qa": "QA",
+    "researcher": "Investigador",
+    "writer": "Redactor técnico",
+    "reviewer": "Revisor"
+  },
+  "stage": {
+    "refine": {
+      "name": "refina",
+      "doing": "Refinando",
+      "done": "refinada",
+      "onEnter": "completa la descripción y los criterios de aceptación",
+      "onEnd": "la pasa a Por hacer cuando los criterios están completos"
+    },
+    "work": {
+      "name": "implementa",
+      "doing": "Implementando",
+      "done": "trabajada",
+      "onEnter": "abre un chat en el worktree de la tarea",
+      "onEnd": "la mueve a En revisión"
+    },
+    "verify": {
+      "name": "verifica",
+      "doing": "Verificando",
+      "done": "verificada",
+      "onEnter": "comprueba cada criterio contra el worktree",
+      "onEnd": "espera tu aprobación o la devuelve a En curso"
+    }
+  },
+  "outcome": {
+    "rejected": "devuelta",
+    "failed": "fallida",
+    "cancelled": "cancelada",
+    "queued": "en cola"
+  },
+  "members": {
+    "title": "Miembros",
+    "count_one": "{{count}} miembro",
+    "count_other": "{{count}} miembros",
+    "working_one": "{{count}} trabajando ahora",
+    "working_other": "{{count}} trabajando ahora"
+  },
+  "member": {
+    "actions": "Más acciones de {{name}}",
+    "open": "Abrir",
+    "back": "Volver al equipo",
+    "properties": "Propiedades del rol",
+    "role": "Rol",
+    "model": "Modelo",
+    "column": "Columna",
+    "onEnter": "Al entrar",
+    "onEnd": "Al terminar",
+    "answersFor": "Responde de",
+    "consulted": "Ninguna columna · se le consulta",
+    "writes": "Puede escribir en",
+    "writesAnywhere": "En todo el proyecto",
+    "writesDocuments": "Solo la carpeta de documentos",
+    "writesNone": "Ninguna ruta: solo la carpeta de documentos",
+    "scope": {
+      "anywhere": "En todo",
+      "documents": "Solo documentos",
+      "paths": "Estas rutas"
+    },
+    "scopeHint": {
+      "anywhere": "Agentry no pone ningún límite propio a los chats que le abre. Desde la terminal solo cuenta lo que dice su archivo de agente.",
+      "documents": "Ningún archivo del proyecto: solo documentos en la carpeta de documentos, donde van las especificaciones y los informes. Desde la terminal solo cuenta lo que dice su archivo de agente.",
+      "paths": "Fuera de estas rutas y de la carpeta de documentos, los chats que Agentry le abre no pueden editar. Desde la terminal solo cuenta lo que dice su archivo de agente."
+    },
+    "commands": "Comandos de shell",
+    "commandScope": {
+      "any": "Cualquiera",
+      "none": "Ninguno",
+      "listed": "Estos comandos"
+    },
+    "commandHint": {
+      "any": "Cuando trabaja en una tarea, Agentry no pone ningún límite propio a la shell. Al refinar y al verificar tiene sus propias herramientas.",
+      "none": "Cuando trabaja en una tarea, no ejecuta ningún comando de shell. Al refinar y al verificar tiene sus propias herramientas.",
+      "listed": "Cuando trabaja en una tarea, solo ejecuta estos comandos; un * vale por el resto de la línea (pnpm *). Al refinar y al verificar tiene sus propias herramientas."
+    },
+    "addCommand": "Añadir un comando…",
+    "commandsNone": "Ningún comando: sin shell",
+    "commandProblem": {
+      "comma": "Un comando no puede llevar comas: el CLI lee sus reglas como una lista separada por comas.",
+      "invalid": "Un comando es una sola línea, sin paréntesis y no solo un *: para permitir cualquiera, elige Cualquiera.",
+      "tooMany": "Como máximo 50 comandos."
+    },
+    "addPath": "Añadir una ruta…",
+    "responsibility": "Responsabilidad",
+    "responsibilityHint": "Va al principio de cada prompt que recibe el rol.",
+    "file": "Archivo del agente",
+    "fileHint": "lo que guardes aquí lo lee el CLI tal cual, también en la terminal",
+    "fileContent": "Contenido del archivo del agente",
+    "filePreview": "Vista previa de {{path}}",
+    "markdown": "Markdown",
+    "edit": "Editar",
+    "idle": "Sin trabajo ahora",
+    "queued_one": "{{count}} en cola",
+    "queued_other": "{{count}} en cola",
+    "more_one": "y {{count}} más",
+    "more_other": "y {{count}} más",
+    "nowAndBefore": "Ahora y antes",
+    "tasks_one": "{{n}} tarea",
+    "tasks_other": "{{n}} tareas",
+    "tasksMore_one": "más de {{n}} tarea",
+    "tasksMore_other": "más de {{n}} tareas",
+    "noRuns": "Aún no ha trabajado en ninguna tarea.",
+    "itemGone": "Tarea eliminada",
+    "memory": "Memoria",
+    "noProposals": "Ninguna propuesta espera",
+    "proposalsWaiting_one": "{{count}} propuesta suya espera",
+    "proposalsWaiting_other": "{{count}} propuestas suyas esperan",
+    "proposalFrom": "desde {{key}}",
+    "waiting_one": "{{count}} espera",
+    "waiting_other": "{{count}} esperan",
+    "waitingWord": "espera",
+    "memoryHint": "Al empezar recibe CLAUDE.md, la memoria del proyecto y el diario. No tiene memoria propia.",
+    "saved": "{{name}} guardado",
+    "saveFailed": "No se ha podido guardar el miembro"
+  },
+  "file": {
+    "missing": "falta el archivo",
+    "drifted": "archivo editado",
+    "missingTitle": "Falta el archivo del agente",
+    "missingBody": "Se ha borrado {{path}}. El miembro sigue en el equipo; vuelve a escribir su archivo para usarlo.",
+    "write": "Escribir el archivo",
+    "writeFailed": "No se ha podido escribir el archivo del agente",
+    "driftedTitle": "El archivo del agente dice otra cosa",
+    "driftedBody": "Su cabecera no coincide con el rol en: {{fields}}. Se editó a mano, así que Agentry lo deja como está."
+  },
+  "add": {
+    "title": "Añadir miembro",
+    "submit": "Añadir miembro",
+    "role": "Rol",
+    "rolePlaceholder": "developer, qa, tech-writer…",
+    "roleHint": "Un miembro por rol: el flujo da cada columna a un rol.",
+    "roleTaken": "Ese rol ya está en el equipo.",
+    "file": "Archivo del agente",
+    "newFile": "Un archivo nuevo",
+    "fileNew": "Agentry escribe {{path}} con las instrucciones del rol.",
+    "fileKept": "El archivo se queda como está.",
+    "responsibilityPlaceholder": "De qué responde, en una línea",
+    "added": "{{name}} se ha unido al equipo",
+    "failed": "No se ha podido añadir el miembro",
+    "existingTitle": "Añadir un agente que ya existe",
+    "existingHint_one": ".claude/agents/ tiene {{count}} agente sin rol: {{names}}",
+    "existingHint_other": ".claude/agents/ tiene {{count}} agentes sin rol: {{names}}",
+    "newHint": "Un rol, su modelo y su archivo de agente en .claude/agents/"
+  },
+  "remove": {
+    "action": "Quitar del equipo",
+    "title": "¿Quitar a {{name}} del equipo?",
+    "body": "Se borran sus datos de rol; {{path}} se queda en el disco, así que sigue funcionando desde la terminal.",
+    "confirm": "Quitar",
+    "done": "{{name}} ha salido del equipo",
+    "failed": "No se ha podido quitar el miembro del equipo"
+  },
+  "empty": {
+    "title": "Este proyecto aún no tiene equipo",
+    "body": "Cada miembro es un agente del CLI en <code>.claude/agents/</code>, con su rol, su modelo y lo que puede escribir, así que también trabaja desde la terminal. Empieza con el equipo de la plantilla y edita cada miembro después.",
+    "bodyShort": "Cada miembro es un agente del CLI en <code>.claude/agents/</code>, con su rol y su modelo. El asistente lee el proyecto y te propone uno; tú lo aceptas miembro a miembro.",
+    "useTemplate": "Usar el de la plantilla",
+    "templateBrings": "La plantilla {{name}} trae",
+    "templateBringsShort": "La plantilla trae",
+    "applied_one": "{{count}} miembro se ha unido al equipo",
+    "applied_other": "{{count}} miembros se han unido al equipo",
+    "failed": "No se ha podido añadir el equipo de la plantilla"
+  },
+  "flow": {
+    "title": "Flujo",
+    "summaryTitle": "Flujo por columna",
+    "on": "automático",
+    "off": "desactivado",
+    "notSet": "sin configurar",
+    "edit": "Editar",
+    "setUp": "Configurar",
+    "nobody": "Nadie",
+    "you": "Tú",
+    "youApprove": "Tú apruebas el paso a Hecho",
+    "youApproveShort": "Tú lo apruebas",
+    "bouncesLine_one": "Hasta {{count}} rebote; luego te espera",
+    "bouncesLine_other": "Hasta {{count}} rebotes; luego te espera",
+    "notSetLine": "Aún no hay ningún flujo guardado: ningún rol actúa en el tablero.",
+    "auto": "Flujo automático",
+    "autoBody": "Cuando una tarea entra en una columna, actúa el rol que responde de ella. Los agentes mueven las tarjetas; tú apruebas el paso a Hecho.",
+    "autoBodyShort": "Cuando una tarea entra en una columna, actúa el rol que responde de ella. Tú apruebas el paso a Hecho.",
+    "proposalNote": "Aún no hay ningún flujo guardado. Esto es lo que propone la plantilla para el equipo que tienes: guárdalo para que cada columna tenga su rol.",
+    "enabled": "Activado",
+    "disabled": "Desactivado",
+    "stripLabel": "Las columnas y el rol que actúa en cada una",
+    "back": "si QA la rechaza, vuelve a En curso con su comentario y se reanuda el mismo chat",
+    "whoTitle": "Quién responde de cada columna",
+    "whoHint": "un rol por columna",
+    "roleFor": "Rol que responde de {{column}}",
+    "column": {
+      "backlog": {
+        "does": "Refina: título, descripción y criterios de aceptación.",
+        "then": "→ la pasa a Por hacer cuando los criterios están completos"
+      },
+      "todo": {
+        "does": "Comprueba que nada la bloquea.",
+        "then": "→ espera a que la muevas o a que la orquestes"
+      },
+      "in_progress": {
+        "does": "Implementa en el worktree task/<clave>.",
+        "then": "→ la mueve a En revisión cuando el turno termina bien"
+      },
+      "in_review": {
+        "does": "Verifica cada criterio contra el worktree.",
+        "then": "→ si falla, vuelve a En curso con su comentario"
+      },
+      "done": {
+        "does": "Apruebas el paso a Hecho. Ningún agente mueve una tarea a Hecho.",
+        "then": "→ fijo: no depende del flujo",
+        "phone": "ningún agente mueve a Hecho"
+      }
+    },
+    "bouncesTitle": "Rebotes",
+    "bouncesBodyShort": "después, la tarea te espera",
+    "bouncesMax": "Rebotes como máximo",
+    "modelsTitle": "Modelo de cada rol",
+    "modelFor": "Modelo de {{role}}",
+    "modelsHint": "Opus para Product Owner y Arquitecto, Sonnet para el resto, como trae la plantilla. El alias se guarda en el archivo del agente; al lado, el modelo al que apunta hoy.",
+    "save": "Guardar el flujo",
+    "saved": "Flujo guardado",
+    "saveFailed": "No se ha podido guardar el flujo",
+    "changes_one": "{{count}} cambio sin guardar",
+    "changes_other": "{{count}} cambios sin guardar",
+    "limitsTitle": "Límites",
+    "parallel": "Ejecuciones a la vez",
+    "parallelHint": "el resto espera en cola, por orden",
+    "cost": "Coste por ejecución",
+    "costLabel": "Coste por ejecución, en US$",
+    "costHint": "vacío, sin límite (lo predeterminado)",
+    "noLimit": "Sin límite",
+    "usd": "US$",
+    "parallelShort": "A la vez",
+    "costPhone": "Coste máximo por ejecución",
+    "costHintPhone": "Vacío, sin límite. Con un límite, la ejecución que lo alcanza falla y lo comenta en su tarea.",
+    "bouncesHint": "los que QA devuelve antes de que te espere",
+    "seeRuns": "Ver ejecuciones",
+    "limitsFoot": "Con un límite de coste, la ejecución que lo alcanza se detiene, falla y lo comenta en su tarea. Las tareas devueltas están en Actividad, con el filtro Devueltas."
+  },
+  "activity": {
+    "title": "Actividad del equipo",
+    "none": "Nadie del equipo ha trabajado aún en una tarea.",
+    "seeAll": "Ver todo",
+    "back": "Volver al equipo",
+    "member": "Miembro",
+    "state": "Estado",
+    "allMembers": "Todos los miembros",
+    "allStates": "Todos los estados",
+    "filter": {
+      "queued": "En cola",
+      "running": "En marcha",
+      "passed": "Terminadas bien",
+      "rejected": "Devueltas",
+      "failed": "Fallidas",
+      "cancelled": "Canceladas"
+    },
+    "status": {
+      "queued": "en cola",
+      "running": "en marcha",
+      "rejected": "devuelta",
+      "failed": "fallida",
+      "cancelled": "cancelada"
+    },
+    "count_one": "{{n}} ejecución",
+    "count_other": "{{n}} ejecuciones",
+    "noMatch": "Ninguna ejecución del equipo coincide con estos filtros.",
+    "more": "Cargar más · quedan {{n}}",
+    "openChat": "Abrir el chat de {{key}}"
+  },
+  "step": {
+    "refine": {
+      "name": "refinado",
+      "doing": "Refinando",
+      "failed": "Falló al refinarla"
+    },
+    "check": {
+      "name": "comprobación",
+      "doing": "Comprobando",
+      "failed": "Falló al comprobarla"
+    },
+    "work": {
+      "name": "implementación",
+      "doing": "Implementando",
+      "failed": "Falló al implementarla"
+    },
+    "verify": {
+      "name": "verificación",
+      "doing": "Verificando",
+      "failed": "Falló al verificarla"
+    }
+  },
+  "run": {
+    "badge": {
+      "running": "en marcha",
+      "queued": "en cola",
+      "passed": "pasó",
+      "rejected": "devuelta",
+      "failed": "fallida",
+      "cancelled": "cancelada"
+    },
+    "label": "{{role}}, {{step}} de {{key}}",
+    "labelGone": "{{role}}, {{step}} de una tarea eliminada",
+    "failed": "Falló",
+    "openChat": "Ver el chat",
+    "retry": "Reintentar",
+    "retryFailed": "No se ha podido reintentar la ejecución",
+    "retryQueued": "Ejecución en cola de nuevo",
+    "retriedBy": {
+      "running": "Reintentada: en marcha",
+      "queued": "Reintentada: en cola",
+      "passed": "Reintentada: pasó {{when}}",
+      "rejected": "Reintentada: la devolvió {{when}}",
+      "failed": "Reintentada: volvió a fallar {{when}}",
+      "cancelled": "Reintentada: se canceló {{when}}"
+    },
+    "waitsPlace": "Espera sitio: hay {{running}} de {{max}} ejecuciones en marcha",
+    "waitsTurn": "Espera su turno en la cola",
+    "resumes": "Retomará su chat cuando quede sitio",
+    "passedToReview": "pasó a En revisión",
+    "waitsForYou": "te espera para pasar a Hecho",
+    "itemGone": "Tarea eliminada"
+  },
+  "cause": {
+    "budget": {
+      "title": "Llegó al límite de coste.",
+      "body": "Alcanzó el coste máximo por ejecución del flujo y se detuvo. La tarea sigue en {{column}}, sin cambios.",
+      "short": "llegó al límite de coste"
+    },
+    "no-account": {
+      "title": "Ninguna cuenta tenía cupo.",
+      "body": "Las cuentas llegaron a su límite y no quedaba otra a la que pasar. La tarea sigue en {{column}}, sin cambios.",
+      "short": "ninguna cuenta tenía cupo"
+    },
+    "rate-limit": {
+      "title": "La cuenta llegó a su límite.",
+      "body": "La rotación de cuentas está desactivada, así que no pasó a otra. La tarea sigue en {{column}}, sin cambios.",
+      "short": "la cuenta llegó a su límite"
+    },
+    "stopped": {
+      "title": "Se detuvo su chat.",
+      "body": "El chat se detuvo antes de terminar. La tarea sigue en {{column}}, sin cambios.",
+      "short": "se detuvo su chat"
+    },
+    "restarts": {
+      "title_one": "Se cortó {{count}} vez.",
+      "title_other": "Se cortó {{count}} veces.",
+      "body": "Agentry se reinició mientras {{role}} trabajaba. Siguió en su chat las veces que se permiten; a la siguiente, la ejecución se dio por fallida.",
+      "short": "se cortó al reiniciarse Agentry"
+    },
+    "unreadable": {
+      "title": "No dejó un resultado legible.",
+      "body": "El chat terminó sin el resultado que el flujo lee para mover la tarea. La tarea sigue en {{column}}, sin cambios.",
+      "short": "sin un resultado legible"
+    },
+    "no-verdict": {
+      "title": "Terminó sin veredicto.",
+      "body": "La verificación acabó sin decir si la tarea pasa. La tarea sigue en {{column}}, sin cambios.",
+      "short": "terminó sin veredicto"
+    },
+    "not-started": {
+      "title": "Su chat no llegó a empezar.",
+      "body": "El CLI no pudo abrir el chat de la ejecución. La tarea sigue en {{column}}, sin cambios.",
+      "short": "su chat no llegó a empezar"
+    },
+    "not-continued": {
+      "title": "No se ha podido retomar su chat.",
+      "body": "Agentry se reinició y el chat no pudo continuar. La tarea sigue en {{column}}, sin cambios.",
+      "short": "no se ha podido retomar su chat"
+    },
+    "chat-ended": {
+      "title": "Su chat terminó sin resultado.",
+      "body": "El chat acabó, o se borró, sin dejar el resultado de la ejecución. La tarea sigue en {{column}}, sin cambios.",
+      "short": "su chat terminó sin resultado"
+    },
+    "chat-failed": {
+      "title": "El CLI dio un error.",
+      "body": "El chat terminó con un error del CLI, que se ve debajo tal cual. La tarea sigue en {{column}}, sin cambios.",
+      "short": "el CLI dio un error"
+    },
+    "unknown": {
+      "title": "Falló.",
+      "body": "La tarea sigue en {{column}}, sin cambios.",
+      "short": "falló"
+    },
+    "item-moved": {
+      "note": "No llegó a empezar: la tarea salió de la columna"
+    },
+    "item-removed": {
+      "note": "No llegó a empezar: se eliminó la tarea mientras esperaba"
+    },
+    "item-done": {
+      "note": "No llegó a empezar: la tarea pasó a Hecho"
+    },
+    "replaced": {
+      "note": "La sustituyó otra: la tarea volvió a entrar en la columna"
+    },
+    "flow-off": {
+      "note": "No llegó a empezar: se desactivó el flujo"
+    },
+    "no-member": {
+      "note": "No llegó a empezar: nadie del equipo responde ya de la columna"
+    },
+    "refined": {
+      "note": "No hacía falta: ya se refinó y la tarea no ha cambiado"
+    },
+    "chat-busy": {
+      "note": "No llegó a empezar: un chat tuyo ya trabajaba en la tarea"
+    },
+    "cancelledUnknown": "No llegó a empezar"
+  },
+  "log": {
+    "title": "Actividad",
+    "views": "Estado",
+    "all": "Todas",
+    "running": "En marcha",
+    "failed": "Fallidas",
+    "rejected": "Devueltas",
+    "member": "Miembro",
+    "allMembers": "Todos",
+    "filterMember": "Filtrar por miembro",
+    "now": "Ahora",
+    "nowCount": "{{running}} en marcha · {{queued}} en cola",
+    "today": "Hoy",
+    "yesterday": "Ayer · {{date}}",
+    "runs": "Ejecuciones",
+    "summary": {
+      "today_one": "Hoy <b>{{n}}</b> ejecución",
+      "today_other": "Hoy <b>{{n}}</b> ejecuciones",
+      "running": "<b>{{n}}</b> en marcha",
+      "queued": "<b>{{n}}</b> en cola",
+      "failed_one": "<b>{{n}}</b> fallida",
+      "failed_other": "<b>{{n}}</b> fallidas"
+    },
+    "more": "Mostrar {{count}} más",
+    "left": "quedan {{n}}",
+    "byMember": "Por miembro",
+    "todayWord": "hoy",
+    "memberRuns": "{{n}} ejec.",
+    "memberFailed_one": "{{count}} fallida",
+    "memberFailed_other": "{{count}} fallidas",
+    "consulted_one": "No responde de ninguna columna: {{names}}. El flujo no lo ejecuta; se le consulta desde un chat.",
+    "consulted_other": "No responden de ninguna columna: {{names}}. El flujo no los ejecuta; se les consulta desde un chat.",
+    "limits": "Límites del flujo",
+    "atOnce": "A la vez",
+    "inUse": "{{running}} en uso · {{queued}} en cola",
+    "costPerRun": "Coste por ejecución",
+    "bounces": "Rebotes",
+    "atMost": "como máximo",
+    "phoneFoot": "Una ejecución fallida no mueve la tarea: deja un comentario en ella y su chat dice por qué. Tócala para reintentarla desde su chat."
+  },
+  "phone": {
+    "more": "Más acciones del equipo",
+    "board": "Abrir el tablero",
+    "settings": "Ajustes del proyecto"
+  },
+  "board": {
+    "columnRole": "{{role}} responde de esta columna"
+  },
+  "card": {
+    "bounce": "rebote {{n}} de {{max}}",
+    "bounceTitle_one": "QA la devolvió {{count}} vez de {{max}} posibles",
+    "bounceTitle_other": "QA la devolvió {{count}} veces de {{max}} posibles",
+    "bounceBare": "rebote {{n}}",
+    "bounceBareTitle_one": "QA la devolvió {{count}} vez",
+    "bounceBareTitle_other": "QA la devolvió {{count}} veces",
+    "waits": "espera",
+    "waitsForYou": "te espera",
+    "passed": "{{role}} la dio por buena",
+    "passedAnon": "La verificación la dio por buena",
+    "sentBack_one": "{{role}} la devolvió {{count}} vez",
+    "sentBack_other": "{{role}} la devolvió {{count}} veces",
+    "sentBackAnon_one": "Devuelta {{count}} vez",
+    "sentBackAnon_other": "Devuelta {{count}} veces",
+    "approve": "Aprobar y pasar a Hecho"
+  },
+  "responsibilities": {
+    "product-owner": "Refina el backlog y escribe los criterios de aceptación",
+    "architect": "Decide el diseño y lo revisa contra el código",
+    "developer": "Implementa las tareas en su propio worktree",
+    "qa": "Verifica cada tarea contra sus criterios de aceptación",
+    "researcher": "Lee las fuentes y expone lo que se sabe",
+    "writer": "Convierte los hallazgos en documentos",
+    "reviewer": "Revisa que los documentos sean exactos y claros"
+  }
+}

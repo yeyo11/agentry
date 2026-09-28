@@ -631,6 +631,13 @@
   padding: 14px 18px;
 }
 
+/* The rail sits inside the card's corner, not on its edge: a full-height rail pokes out of the
+   rounded bottom corner of the last row and draws over the card's border */
+.now-row.live-rail::before,
+.orch-item.live-rail::before {
+  inset: 10px auto 10px 0;
+}
+
 .now-main {
   flex: 1;
   min-width: 0;
@@ -685,7 +692,9 @@
 }
 
 .pick-when {
-  width: 48px;
+  /* a floor that lines the column up, not a width: "hace 12 min" is wider than "1h ago" */
+  flex: none;
+  min-width: 48px;
   text-align: right;
 }
 
@@ -754,7 +763,11 @@
 }
 
 .today-table .num {
-  width: 64px;
+  /* sized by their figures, not a fixed width: "2 mil" beside "103,9 mil" ran together at 64 px,
+     and the model column gives way instead */
+  width: 1%;
+  padding-left: 10px;
+  white-space: nowrap;
   text-align: right;
   font-size: 12px;
   font-variant-numeric: tabular-nums;

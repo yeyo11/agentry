@@ -72,8 +72,8 @@
   --diff-rail-w: 3px;
   --diff-rail-radius: 2px;
   --diff-mark-radius: 3px;
-  /* Muted syntax, for code inside the comparator only: never green, red or cyan, which mean
-     added, removed and live there */
+  /* Muted syntax, for code inside the comparator and the editor: never green, red or cyan, which
+     mean added, removed and live there, and a status everywhere */
   --sx-kw: #b7a4d9;
   --sx-str: #d4bd8f;
   --sx-num: #93b4db;
@@ -164,6 +164,11 @@
      group side by side line up. The small one is for dense places; a finger gets 44 for both. */
   --control-h: 36px;
   --control-h-sm: 30px;
+  /* The smallest target a finger gets on a phone (design system, decision 9) */
+  --touch: 44px;
+  /* A selected row: one fill and one accent mark for every list, tree and master column */
+  --sel-bg: var(--bg-3);
+  --sel-mark: inset 2px 0 0 var(--accent);
 
   /* Type */
   --mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -181,6 +186,7 @@
   --grad: var(--gradient-accent);
   --shadow: var(--shadow-card);
   --shadow-pop: var(--shadow-lg);
+  --r-xs: var(--radius-xs);
 
   /* Lets height:auto animate where the browser supports it */
   interpolate-size: allow-keywords;
@@ -233,8 +239,8 @@
   --info-soft: rgba(29, 78, 216, 0.09);
   --idle: #6d28d9;
   --idle-soft: rgba(109, 40, 217, 0.09);
-  --live: #0e7490;
-  --live-soft: rgba(14, 116, 144, 0.1);
+  --live: #0b6680;
+  --live-soft: rgba(11, 102, 128, 0.1);
   --diff-add-bg: rgba(21, 128, 61, 0.06);
   --diff-del-bg: rgba(185, 28, 28, 0.05);
   --diff-add-word: rgba(21, 128, 61, 0.16);
@@ -293,8 +299,8 @@
     --info-soft: rgba(29, 78, 216, 0.09);
     --idle: #6d28d9;
     --idle-soft: rgba(109, 40, 217, 0.09);
-    --live: #0e7490;
-    --live-soft: rgba(14, 116, 144, 0.1);
+    --live: #0b6680;
+    --live-soft: rgba(11, 102, 128, 0.1);
     --diff-add-bg: rgba(21, 128, 61, 0.06);
     --diff-del-bg: rgba(185, 28, 28, 0.05);
     --diff-add-word: rgba(21, 128, 61, 0.16);
@@ -329,4 +335,17 @@
   --monogram-fill: hsl(var(--hue) 70% 55% / 0.14);
   --monogram-shadow: none;
   --monogram-ink: color-mix(in oklab, hsl(var(--hue) 70% 55%), var(--text) 50%);
+}
+
+/* The same working-out for anything else that has a colour of its own: an epic's label, a team
+   role's avatar. The label and the avatar stay neutral and only their small diamond takes the hue
+   (--hue-mark), so a board of one epic does not turn the brand's colour. Rules read these, never
+   hsl() themselves; `.monogram` gets them too for a project's tile. */
+.monogram,
+.workitem-epic,
+.role-avatar {
+  --hue-base: hsl(var(--hue, 20) 70% 55%);
+  --hue-fill: hsl(var(--hue, 20) 70% 55% / 0.14);
+  --hue-ink: color-mix(in oklab, var(--hue-base), var(--text) 50%);
+  --hue-mark: color-mix(in oklab, var(--hue-base), var(--text) 25%);
 }

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T18:00:00Z
-updated_at: 2026-09-27T18:00:00Z
+updated_at: 2026-09-28T12:00:00Z
 tags:
     - web
     - mobile
@@ -41,14 +41,16 @@ for the chat's stick-to-bottom scrolling, and was left for its own branch.
 
 ## The FAB
 
-- The same round "+" on Home, Chats, Projects and Orchestrations, named by `aria-label`. The
-  labelled "New chat" variant on Home is gone: it read as a different control.
+- The same round "+" on Home, Chats, Projects, Orchestrations and Tasks (where it starts a task),
+  named by `aria-label`. A project's tab (`/?view=`), the milestones and a work item's page have
+  none. The labelled "New chat" variant on Home is gone: it read as a different control.
 - It hides while the page scrolls down and comes back on scrolling up or near the top, as floating
   buttons do on iOS and Android. So the page keeps no room for it at its end: `.main` only keeps the
   tab bar's height. Keeping 72 px for it left an empty band at the end of every page that had one.
 - It steps aside (`<FabStandIn />`) where the page already offers what it starts: an empty list
-  whose own primary action is New chat or New orchestration, the new orchestration form while it
-  is open, and a Home where nothing can start (offline, no CLI, no credential).
+  whose own primary action is New chat, New orchestration or New task, the new orchestration and
+  new task forms while they are open, a board that is off or has no project to hold it, and a Home
+  where nothing can start (offline, no CLI, no credential).
 
 ## Related
 

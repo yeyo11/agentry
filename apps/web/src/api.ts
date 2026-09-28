@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   Attachment,
   AccountConfig,
@@ -120,12 +120,67 @@ import type {
   TaskHintRequest,
   TranscriptSearchResult,
   UsageReport,
+  Board,
+  BoardQuery,
+  CreateMilestoneRequest,
+  CreateWorkItemCommentRequest,
+  CreateWorkItemFromMessageRequest,
+  CreateWorkItemLinkRequest,
+  CreateWorkItemRelationRequest,
+  CreateWorkItemRequest,
+  Milestone,
+  MoveWorkItemRequest,
+  MoveWorkItemResult,
+  OrchestrateWorkItemsRequest,
+  ProjectSettings,
+  ProjectTemplate,
+  UpdateMilestoneRequest,
+  UpdateProjectRequest,
+  UpdateWorkItemRequest,
+  WorkItem,
+  WorkItemChanges,
+  WorkItemComment,
+  WorkItemDetail,
+  WorkItemFilter,
+  WorkItemHistoryEntry,
+  WorkItemLink,
+  WorkItemOrchestrationDraft,
+  WorkItemPage,
+  WorkItemPageQuery,
+  WorkOnWorkItemRequest,
+  WorkOnWorkItemResult,
+  ApproveMemoryProposalRequest,
+  CreateJournalEntryRequest,
+  DocumentFile,
+  JournalEntry,
+  JournalPage,
+  MemoryProposal,
+  MemoryProposalStatus,
+  ProjectDocuments,
+  FlowRun,
+  FlowRunPage,
+  FlowRunQuery,
+  ProjectFlow,
+  PutTeamMemberRequest,
+  RejectMemoryProposalRequest,
+  Team,
+  TeamFromTemplateRequest,
+  TeamMember,
+  TieDocumentRequest,
+  WriteDocumentRequest,
+  AcceptAssistantProposalRequest,
+  AssistantProposal,
+  AssistantRun,
+  AssistantRunDetail,
+  AssistantRunKind,
+  StartAssistantRunRequest,
 } from '@agentry/shared';
 import i18n from './i18n';
 import { authHeaders, setChallenge, withToken } from './lib/auth';
 import { RUN_TAG } from './lib/chat-pages';
 import { accountsRefetchInterval, normalizeCswap } from './lib/cswap';
 import { useFallbackInterval } from './lib/feed';
+import { filterKey, normalizeKey, openCount } from './lib/work-items';
 
 export const BASE = '/api';
 
@@ -181,7 +236,8 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
   try {
     res = await fetch(`${BASE}${path}`, {
       method: init.method ?? 'GET',
-      headers: { ...(hasBody ? { 'content-type': 'application/json' } : {}), ...authHeaders() },
+      // The language the person reads Agentry in, for what the server writes in it (a chat's title)
+      headers: { ...(hasBody ? { 'content-type': 'application/json' } : {}), 'accept-language': i18n.resolvedLanguage ?? i18n.language, ...authHeaders() },
       body: hasBody ? JSON.stringify(init.body) : undefined,
       signal: init.signal ? either(init.signal, timeout) : timeout,
     });
@@ -234,12 +290,69 @@ export interface Scope {
   projectId?: string;
 }
 
+/** A page of a project's journal, newest first: `before` is the `nextBefore` of the previous page. */
+export interface JournalQuery {
+  limit?: number;
+  before?: string;
+}
+
 const num = (value: number | undefined) => (value === undefined ? undefined : String(value));
 
 function qs(params: Record<string, string | undefined>): string {
   const pairs = Object.entries(params).filter((e): e is [string, string] => e[1] !== undefined && e[1] !== '');
   return pairs.length ? `?${pairs.map(([k, v]) => `${k}=${enc(v)}`).join('&')}` : '';
 }
+
+/** A work item filter as the routes read it: every list comma separated. */
+const workItemQuery = (filter: Omit<WorkItemFilter, 'projectId'>) =>
+  qs({
+    status: filter.status?.join(','),
+    type: filter.type?.join(','),
+    priority: filter.priority?.join(','),
+    labels: filter.labels?.join(','),
+    assignee: filter.assignee?.join(','),
+    epicId: filter.epicId,
+    milestoneId: filter.milestoneId,
+    q: filter.q?.trim() || undefined,
+  });
+
+/** A project's collection, or every project's (the All projects view) for `null`. */
+const workItemsOf = (projectId: string | null) => (projectId ? `/projects/${enc(projectId)}/work-items` : '/work-items');
+
+/**
+ * The item behind a key, whole, as its page shows it (`GET /work-items/by-key/:key`). Null when no
+ * project has it, and for what is not a key at all, which is never asked.
+ */
+async function workItemByKey(key: string, o: ReadOptions = {}): Promise<WorkItemDetail | null> {
+  const wanted = normalizeKey(key);
+  if (!wanted) return null;
+  try {
+    return await request<WorkItemDetail>(`/work-items/by-key/${enc(wanted)}`, o);
+  } catch (err) {
+    if (err instanceof ApiRequestError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+/** A page of a list: the filter, then where to start and how many. */
+const workItemPageQuery = (query: WorkItemPageQuery) => {
+  const { limit, cursor, ...filter } = query;
+  const base = workItemQuery(filter);
+  const extra = qs({ limit: num(limit), cursor }).slice(1);
+  return extra ? `${base}${base ? '&' : '?'}${extra}` : base;
+};
+
+/** A page of a project's flow runs, every list comma separated. */
+const flowRunQuery = (query: FlowRunQuery) =>
+  qs({
+    agent: query.agent?.join(','),
+    role: query.role?.join(','),
+    status: query.status?.join(','),
+    itemId: query.itemId,
+    before: query.before,
+    limit: num(query.limit),
+    cursor: query.cursor,
+  });
 
 /** Which part of a branch's work a change summary or diff is about; neither means all of it. */
 export interface ChangeScope {
@@ -276,6 +389,13 @@ export const api = {
   importProject: (req: ImportProjectRequest) => request<Project>('/projects/import', { method: 'POST', body: req }),
   createProject: (req: CreateProjectRequest) => request<Project>('/projects', { method: 'POST', body: req }),
   renameProject: (id: string, name: string) => request<Project>(`/projects/${enc(id)}`, { method: 'PATCH', body: { name } }),
+  /** Name, key prefix and modules; only the fields present change */
+  updateProject: (id: string, req: UpdateProjectRequest) => request<Project>(`/projects/${enc(id)}`, { method: 'PATCH', body: req }),
+  projectTemplates: (o: ReadOptions = {}) => request<ProjectTemplate[]>('/projects/templates', o),
+  projectSettings: (id: string, o?: ReadOptions) => request<ProjectSettings>(`/projects/${enc(id)}/settings`, o),
+  /** The whole document: read it, change it, write it back */
+  putProjectSettings: (id: string, settings: ProjectSettings) =>
+    request<ProjectSettings>(`/projects/${enc(id)}/settings`, { method: 'PUT', body: settings }),
   removeProject: (id: string) => request<{ ok: true }>(`/projects/${enc(id)}`, { method: 'DELETE' }),
   purgeProject: (id: string) => request<{ detail: string }>(`/projects/${enc(id)}/state`, { method: 'DELETE' }),
   chats: (filter: ChatFilter = {}, o?: ReadOptions) =>
@@ -526,6 +646,122 @@ export const api = {
     request<CliTextResult>(`/plugins/marketplaces/${enc(name)}`, { method: 'DELETE' }),
   updateMarketplaces: (name?: string) =>
     request<CliTextResult>('/plugins/marketplaces/update', { method: 'POST', body: name ? { name } : {} }),
+  // ---- work items (docs/work-items.md). `projectId` null is every project: the All projects view
+  workItems: (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, o?: ReadOptions) =>
+    request<WorkItem[]>(`${workItemsOf(projectId)}${workItemQuery(filter)}`, o),
+  /** Descriptions left out (`hasDescription`); the Done column holds its newest `doneLimit` items, and `more` counts the rest */
+  workItemBoard: (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, o: ReadOptions & BoardQuery = {}) => {
+    const { doneLimit, ...read } = o;
+    const done = doneLimit === undefined ? '' : `doneLimit=${doneLimit}`;
+    const query = workItemQuery(filter);
+    return request<Board>(`${workItemsOf(projectId)}/board${done ? `${query}${query ? '&' : '?'}${done}` : query}`, read);
+  },
+  /** A page of the list, descriptions left out; `nextCursor` is the next page's `cursor` */
+  workItemPage: (projectId: string | null, query: WorkItemPageQuery = {}, o?: ReadOptions) =>
+    request<WorkItemPage>(`${workItemsOf(projectId)}/page${workItemPageQuery(query)}`, o),
+  workItemByKey,
+  workItem: (itemId: string, o?: ReadOptions) => request<WorkItemDetail>(`/work-items/${enc(itemId)}`, o),
+  /** Every flow run of the item, newest first, failed ones included */
+  workItemRuns: (itemId: string, o?: ReadOptions) => request<FlowRun[]>(`/work-items/${enc(itemId)}/runs`, o),
+  createWorkItem: (projectId: string, req: CreateWorkItemRequest) =>
+    request<WorkItem>(`/projects/${enc(projectId)}/work-items`, { method: 'POST', body: req }),
+  updateWorkItem: (itemId: string, req: UpdateWorkItemRequest) => request<WorkItem>(`/work-items/${enc(itemId)}`, { method: 'PATCH', body: req }),
+  deleteWorkItem: (itemId: string) => request<{ ok: true }>(`/work-items/${enc(itemId)}`, { method: 'DELETE' }),
+  /** `afterId` names the neighbour it lands after: null puts it first in the column, absent last */
+  moveWorkItem: (itemId: string, req: MoveWorkItemRequest) =>
+    request<MoveWorkItemResult>(`/work-items/${enc(itemId)}/move`, { method: 'POST', body: req }),
+  checkCriterion: (itemId: string, criterionId: string, checked: boolean) =>
+    request<WorkItem>(`/work-items/${enc(itemId)}/criteria/${enc(criterionId)}`, { method: 'PATCH', body: { checked } }),
+  workItemComments: (itemId: string, o?: ReadOptions) => request<WorkItemComment[]>(`/work-items/${enc(itemId)}/comments`, o),
+  addWorkItemComment: (itemId: string, req: CreateWorkItemCommentRequest) =>
+    request<WorkItemComment>(`/work-items/${enc(itemId)}/comments`, { method: 'POST', body: req }),
+  addWorkItemRelation: (itemId: string, req: CreateWorkItemRelationRequest) =>
+    request<WorkItem>(`/work-items/${enc(itemId)}/relations`, { method: 'POST', body: req }),
+  removeWorkItemRelation: (itemId: string, otherId: string) =>
+    request<WorkItem>(`/work-items/${enc(itemId)}/relations/${enc(otherId)}`, { method: 'DELETE' }),
+  workItemLinks: (itemId: string, o?: ReadOptions) => request<WorkItemLink[]>(`/work-items/${enc(itemId)}/links`, o),
+  addWorkItemLink: (itemId: string, req: CreateWorkItemLinkRequest) =>
+    request<WorkItemLink>(`/work-items/${enc(itemId)}/links`, { method: 'POST', body: req }),
+  removeWorkItemLink: (itemId: string, linkId: string) =>
+    request<{ ok: true }>(`/work-items/${enc(itemId)}/links/${enc(linkId)}`, { method: 'DELETE' }),
+  workItemHistory: (itemId: string, o?: ReadOptions) => request<WorkItemHistoryEntry[]>(`/work-items/${enc(itemId)}/history`, o),
+  /** "Work on it": a chat in the item's own worktree, prompted with the item; the page opens `chat.id` */
+  workOnWorkItem: (itemId: string, req: WorkOnWorkItemRequest = {}) =>
+    request<WorkOnWorkItemResult>(`/work-items/${enc(itemId)}/work`, { method: 'POST', body: req }),
+  workItemChanges: (itemId: string, scope: ChangeScope = {}, o?: ReadOptions) => request<WorkItemChanges>(`/work-items/${enc(itemId)}/changes${scopeQs(scope)}`, o),
+  workItemDiff: (itemId: string, path: string, opts: DiffOptions = {}) => request<FileDiff>(`/work-items/${enc(itemId)}/changes/diff${diffQs(path, opts)}`),
+  /** A draft for the orchestration editor to review, not a launched graph: `createOrchestration` launches it */
+  orchestrateWorkItems: (projectId: string, req: OrchestrateWorkItemsRequest) =>
+    request<WorkItemOrchestrationDraft>(`/projects/${enc(projectId)}/work-items/orchestrate`, { method: 'POST', body: req }),
+  /** "Create a task from this message": in Backlog, linked to the chat */
+  workItemFromMessage: (chatId: string, req: CreateWorkItemFromMessageRequest) =>
+    request<WorkItem>(`/chats/${enc(chatId)}/work-items`, { method: 'POST', body: req }),
+  /** The items a chat is linked to, whatever part it played */
+  chatWorkItems: (chatId: string, o?: ReadOptions) => request<WorkItem[]>(`/chats/${enc(chatId)}/work-items`, o),
+  milestones: (projectId: string, o?: ReadOptions) => request<Milestone[]>(`/projects/${enc(projectId)}/milestones`, o),
+  milestone: (milestoneId: string, o?: ReadOptions) => request<Milestone>(`/milestones/${enc(milestoneId)}`, o),
+  createMilestone: (projectId: string, req: CreateMilestoneRequest) =>
+    request<Milestone>(`/projects/${enc(projectId)}/milestones`, { method: 'POST', body: req }),
+  updateMilestone: (milestoneId: string, req: UpdateMilestoneRequest) =>
+    request<Milestone>(`/milestones/${enc(milestoneId)}`, { method: 'PATCH', body: req }),
+  deleteMilestone: (milestoneId: string) => request<{ ok: true }>(`/milestones/${enc(milestoneId)}`, { method: 'DELETE' }),
+  // ---- team, flow, journal, memory proposals and documents (docs/plans/project-ecosystem.md, orchestration 3)
+  team: (projectId: string, o?: ReadOptions) => request<Team>(`/projects/${enc(projectId)}/team`, o),
+  teamFromTemplate: (projectId: string, req: TeamFromTemplateRequest = {}) =>
+    request<Team>(`/projects/${enc(projectId)}/team/from-template`, { method: 'POST', body: req }),
+  /** The member's metadata; its agent file is a resource: `putResource({ projectId }, 'agents', agent, …)` */
+  putTeamMember: (projectId: string, agent: string, req: PutTeamMemberRequest) =>
+    request<TeamMember>(`/projects/${enc(projectId)}/team/${enc(agent)}`, { method: 'PUT', body: req }),
+  /** Takes the member off the team; its agent file stays */
+  removeTeamMember: (projectId: string, agent: string) =>
+    request<{ ok: true }>(`/projects/${enc(projectId)}/team/${enc(agent)}`, { method: 'DELETE' }),
+  flow: (projectId: string, o?: ReadOptions) => request<ProjectFlow>(`/projects/${enc(projectId)}/flow`, o),
+  /** Every flow run of the project, newest first, a page at a time: the team's activity */
+  flowRuns: (projectId: string, query: FlowRunQuery = {}, o?: ReadOptions) =>
+    request<FlowRunPage>(`/projects/${enc(projectId)}/flow/runs${flowRunQuery(query)}`, o),
+  /**
+   * Queues a failed run's step again, as the person (409 once the item left the run's column, or the
+   * step ran again). The new run comes back; `flow.run` refreshes the lists that show either.
+   */
+  retryFlowRun: (runId: string) => request<FlowRun>(`/flow-runs/${enc(runId)}/retry`, { method: 'POST' }),
+  journal: (projectId: string, page: JournalQuery = {}, o?: ReadOptions) =>
+    request<JournalPage>(`/projects/${enc(projectId)}/journal${qs({ limit: num(page.limit), before: page.before })}`, o),
+  addJournalEntry: (projectId: string, req: CreateJournalEntryRequest) =>
+    request<JournalEntry>(`/projects/${enc(projectId)}/journal`, { method: 'POST', body: req }),
+  removeJournalEntry: (entryId: string) => request<{ ok: true }>(`/journal/${enc(entryId)}`, { method: 'DELETE' }),
+  /** Every status when `status` is left out */
+  memoryProposals: (projectId: string, status?: MemoryProposalStatus, o?: ReadOptions) =>
+    request<MemoryProposal[]>(`/projects/${enc(projectId)}/memory/proposals${qs({ status })}`, o),
+  approveMemoryProposal: (proposalId: string, req: ApproveMemoryProposalRequest = {}) =>
+    request<MemoryProposal>(`/memory-proposals/${enc(proposalId)}/approve`, { method: 'POST', body: req }),
+  rejectMemoryProposal: (proposalId: string, req: RejectMemoryProposalRequest = {}) =>
+    request<MemoryProposal>(`/memory-proposals/${enc(proposalId)}/reject`, { method: 'POST', body: req }),
+  documents: (projectId: string, o?: ReadOptions) => request<ProjectDocuments>(`/projects/${enc(projectId)}/documents`, o),
+  /** `path` is relative to the project, as the tree gives it */
+  documentFile: (projectId: string, path: string, o?: ReadOptions) =>
+    request<DocumentFile>(`/projects/${enc(projectId)}/documents/file${qs({ path })}`, o),
+  writeDocument: (projectId: string, path: string, req: WriteDocumentRequest) =>
+    request<DocumentFile>(`/projects/${enc(projectId)}/documents/file${qs({ path })}`, { method: 'PUT', body: req }),
+  deleteDocument: (projectId: string, path: string) =>
+    request<{ ok: true }>(`/projects/${enc(projectId)}/documents/file${qs({ path })}`, { method: 'DELETE' }),
+  tieDocument: (itemId: string, req: TieDocumentRequest) =>
+    request<WorkItemLink>(`/work-items/${enc(itemId)}/documents`, { method: 'POST', body: req }),
+  // ---- the project assistant (docs/plans/project-ecosystem.md, orchestration 4)
+  /** Refused with 409 while a run of the same kind runs in the project */
+  startAssistantRun: (projectId: string, req: StartAssistantRunRequest) =>
+    request<AssistantRunDetail>(`/projects/${enc(projectId)}/assistant/runs`, { method: 'POST', body: req }),
+  /** Latest first; every kind when `kind` is left out */
+  assistantRuns: (projectId: string, kind?: AssistantRunKind, o?: ReadOptions) =>
+    request<AssistantRun[]>(`/projects/${enc(projectId)}/assistant/runs${qs({ kind })}`, o),
+  assistantRun: (runId: string, o?: ReadOptions) => request<AssistantRunDetail>(`/assistant/runs/${enc(runId)}`, o),
+  stopAssistantRun: (runId: string) => request<AssistantRunDetail>(`/assistant/runs/${enc(runId)}/stop`, { method: 'POST' }),
+  /** For a resource, this is the editor's save: pass what the person left in `resource` */
+  acceptAssistantProposal: (proposalId: string, req: AcceptAssistantProposalRequest = {}) =>
+    request<AssistantProposal>(`/assistant/proposals/${enc(proposalId)}/accept`, { method: 'POST', body: req }),
+  discardAssistantProposal: (proposalId: string) =>
+    request<AssistantProposal>(`/assistant/proposals/${enc(proposalId)}/discard`, { method: 'POST' }),
+  restoreAssistantProposal: (proposalId: string) =>
+    request<AssistantProposal>(`/assistant/proposals/${enc(proposalId)}/restore`, { method: 'POST' }),
   /** The VAPID public key to subscribe against; the server makes its keypair when this is first asked */
   pushKey: () => request<PushKeyInfo>('/push/key'),
   pushSubscriptions: () => request<PushSubscriptionSummary[]>('/push/subscriptions'),
@@ -613,6 +849,86 @@ export const keys = {
   securityAuth: ['security', 'auth'] as const,
   audit: (page: AuditFilter & { from?: number }) =>
     ['security', 'audit', page.from ?? 0, page.path ?? '', page.method ?? '', page.status ?? ''] as const,
+  // ---- the project ecosystem. Every work item read sits under `workItems` or `workItemDetails`, and
+  // milestones under `milestonesAll`, so the event feed (lib/events.ts) reaches exactly the ones an
+  // event touches by prefix.
+  projectTemplates: ['project-templates'] as const,
+  // Not under `projects`: the run events refresh that prefix all the time, and a settings form must
+  // not be read back from under the person editing it
+  projectSettings: (projectId: string) => ['project-settings', projectId] as const,
+  workItems: ['work-items'] as const,
+  /** Every board of a project whatever its filter, or of All projects for `null` */
+  workItemBoards: (projectId: string | null) => ['work-items', 'board', projectId ?? 'all'] as const,
+  /** The unpaged board keeps its key, which the sidebar's count shares; "and N more" adds the Done column's limit */
+  workItemBoard: (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, doneLimit?: number) =>
+    doneLimit === undefined
+      ? (['work-items', 'board', projectId ?? 'all', filterKey(filter)] as const)
+      : (['work-items', 'board', projectId ?? 'all', filterKey(filter), doneLimit] as const),
+  /** Every list of a project whatever its filter, or of All projects for `null` */
+  workItemLists: (projectId: string | null) => ['work-items', 'list', projectId ?? 'all'] as const,
+  workItemList: (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}) =>
+    ['work-items', 'list', projectId ?? 'all', filterKey(filter)] as const,
+  /** Under the lists, so what refreshes a list refreshes its pages; every page loaded is read again */
+  workItemPages: (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, limit?: number) =>
+    ['work-items', 'list', projectId ?? 'all', filterKey(filter), 'pages', limit ?? 0] as const,
+  /** Which item each key names: stale once an item is removed or a project's prefix changes */
+  workItemKeys: ['work-items', 'key'] as const,
+  workItemByKey: (key: string) => ['work-items', 'key', normalizeKey(key) ?? key] as const,
+  chatWorkItemsAll: ['work-items', 'chat'] as const,
+  chatWorkItems: (chatId: string) => ['work-items', 'chat', chatId] as const,
+  /** Prefix of every item's page and of what is read for it */
+  workItemDetails: ['work-item'] as const,
+  workItem: (itemId: string) => ['work-item', itemId] as const,
+  workItemComments: (itemId: string) => ['work-item', itemId, 'comments'] as const,
+  workItemHistory: (itemId: string) => ['work-item', itemId, 'history'] as const,
+  workItemLinks: (itemId: string) => ['work-item', itemId, 'links'] as const,
+  /** Under the item, so `flow.run` and the item's own events refresh it with the page */
+  workItemRuns: (itemId: string) => ['work-item', itemId, 'runs'] as const,
+  workItemChanges: (itemId: string, scope: ChangeScope = {}) => ['work-item', itemId, 'changes', scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,
+  workItemDiff: (itemId: string, path: string, opts: DiffOptions = {}) =>
+    ['work-item', itemId, 'changes', 'diff', path, String(opts.context ?? ''), opts.commit ?? '', opts.uncommitted ? 'uncommitted' : ''] as const,
+  milestonesAll: ['milestones'] as const,
+  /** Prefix of every milestone read alone */
+  milestoneEach: ['milestones', 'one'] as const,
+  milestones: (projectId: string) => ['milestones', projectId] as const,
+  milestone: (milestoneId: string) => ['milestones', 'one', milestoneId] as const,
+  // ---- team, flow, journal, memory proposals and documents. One prefix per project for each, so an
+  // event of that project reaches every page and filter of it
+  team: (projectId: string) => ['team', projectId] as const,
+  flow: (projectId: string) => ['flow', projectId] as const,
+  /**
+   * Every page of a project's team activity. Not under `flow`: that prefix holds the live snapshot,
+   * which `chat.activity` patches in place and would find pages there instead
+   */
+  flowRunsOf: (projectId: string) => ['flow-runs', projectId] as const,
+  flowRuns: (projectId: string, query: Omit<FlowRunQuery, 'cursor'> = {}) =>
+    [
+      'flow-runs',
+      projectId,
+      [...(query.agent ?? [])].sort().join(','),
+      [...(query.role ?? [])].sort().join(','),
+      [...(query.status ?? [])].sort().join(','),
+      query.itemId ?? '',
+      query.before ?? '',
+      query.limit ?? 0,
+    ] as const,
+  /** Every page of a project's journal */
+  journal: (projectId: string) => ['journal', projectId] as const,
+  journalPage: (projectId: string, page: JournalQuery = {}) => ['journal', projectId, page.limit ?? 0, page.before ?? ''] as const,
+  /** Not under `memory`: that prefix is the CLI's memory files, which a proposal only reaches once approved */
+  memoryProposalsOf: (projectId: string) => ['memory-proposals', projectId] as const,
+  memoryProposals: (projectId: string, status?: MemoryProposalStatus) => ['memory-proposals', projectId, status ?? 'all'] as const,
+  /** A project's tree and every file read of it */
+  documentsOf: (projectId: string) => ['documents', projectId] as const,
+  documentTree: (projectId: string) => ['documents', projectId, 'tree'] as const,
+  documentFile: (projectId: string, path: string) => ['documents', projectId, 'file', path] as const,
+  // ---- the project assistant. A project's lists under one prefix, so a run of any kind reaches the
+  // filtered lists too; a run's detail under another, since its events name the run
+  assistantRunsOf: (projectId: string) => ['assistant', 'runs', projectId] as const,
+  assistantRuns: (projectId: string, kind?: AssistantRunKind) => ['assistant', 'runs', projectId, kind ?? 'all'] as const,
+  /** Every run's detail */
+  assistantRunEach: ['assistant', 'run'] as const,
+  assistantRun: (runId: string) => ['assistant', 'run', runId] as const,
   pushSubscriptions: ['push', 'subscriptions'] as const,
   // Both are written whole from their events (lib/events.ts), never refetched for them
   appSettings: ['settings', 'app'] as const,
@@ -722,3 +1038,233 @@ export const useOrchestration = (id: string) => {
     },
   });
 };
+
+// ---------- the project ecosystem ----------
+//
+// Kept fresh by `workitem.*`, `milestone.changed` and `project.updated` (lib/events.ts), and by the
+// run events for what makes a card live. A page that edits passes what it changed through the
+// mutation's answer and lets the event refetch the rest.
+
+/** The five built-in templates; they never change while the server runs. */
+export const useProjectTemplates = () =>
+  useQuery({ queryKey: keys.projectTemplates, queryFn: ({ signal }) => api.projectTemplates({ signal }), staleTime: Infinity });
+
+export const useProjectSettings = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.projectSettings(projectId ?? ''),
+    queryFn: ({ signal }) => api.projectSettings(projectId ?? '', { signal }),
+    enabled: projectId !== null,
+  });
+
+/**
+ * How a board is read everywhere, so the sidebar's count and the page share one cache entry. The
+ * Done column holds its newest `BOARD_DONE_PAGE` items unless `doneLimit` asks for more ("and N more").
+ */
+export const workItemBoardQuery = (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, doneLimit?: number) => ({
+  queryKey: keys.workItemBoard(projectId, filter, doneLimit),
+  queryFn: ({ signal }: { signal: AbortSignal }) => api.workItemBoard(projectId, filter, { signal, ...(doneLimit === undefined ? {} : { doneLimit }) }),
+});
+
+/**
+ * A project's board, or every project's for `null`. A new filter, or a larger Done column, keeps the
+ * cards on screen until its answer arrives.
+ */
+export const useWorkItemBoard = (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, enabled = true, doneLimit?: number) =>
+  useQuery({ ...workItemBoardQuery(projectId, filter, doneLimit), refetchInterval: useFallbackInterval(), enabled, placeholderData: keepPreviousData });
+
+export const useWorkItemList = (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, enabled = true) =>
+  useQuery({
+    queryKey: keys.workItemList(projectId, filter),
+    queryFn: ({ signal }) => api.workItems(projectId, filter, { signal }),
+    refetchInterval: useFallbackInterval(),
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+
+/**
+ * The list a page at a time (`limit`, default `WORK_ITEMS_PAGE`): `fetchNextPage` loads the next one
+ * while `hasNextPage`. An event refreshes every page loaded, so a long list stays whole.
+ */
+export const useWorkItemPages = (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, enabled = true, limit?: number) =>
+  useInfiniteQuery({
+    queryKey: keys.workItemPages(projectId, filter, limit),
+    queryFn: ({ signal, pageParam }) => api.workItemPage(projectId, { ...filter, ...(limit ? { limit } : {}), ...(pageParam ? { cursor: pageParam } : {}) }, { signal }),
+    initialPageParam: '',
+    getNextPageParam: (last: WorkItemPage) => last.nextCursor ?? undefined,
+    refetchInterval: useFallbackInterval(),
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+
+/**
+ * The item a key names (`/tasks/:key`), whole; `data` is null when no project has it. The answer is
+ * also the item's page (`useWorkItem`), which starts from it instead of asking again.
+ */
+export const useWorkItemByKey = (key: string) => {
+  const client = useQueryClient();
+  return useQuery({
+    queryKey: keys.workItemByKey(key),
+    queryFn: async ({ signal }) => {
+      const item = await api.workItemByKey(key, { signal });
+      if (item) client.setQueryData(keys.workItem(item.id), item);
+      return item;
+    },
+  });
+};
+
+/** Every flow run of an item, newest first: each failed run stays failed on its link. */
+export const useWorkItemRuns = (itemId: string | null, enabled = true) =>
+  useQuery({
+    queryKey: keys.workItemRuns(itemId ?? ''),
+    queryFn: ({ signal }) => api.workItemRuns(itemId ?? '', { signal }),
+    enabled: enabled && itemId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+/** One item's page: its fields, children, links, comments and history. */
+export const useWorkItem = (itemId: string | null) =>
+  useQuery({
+    queryKey: keys.workItem(itemId ?? ''),
+    queryFn: ({ signal }) => api.workItem(itemId ?? '', { signal }),
+    enabled: itemId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+/** What the item's own branch changed; read while its Changes are shown. */
+export const useWorkItemChanges = (itemId: string | null, enabled = true) =>
+  useQuery({
+    queryKey: keys.workItemChanges(itemId ?? ''),
+    queryFn: ({ signal }) => api.workItemChanges(itemId ?? '', {}, { signal }),
+    enabled: enabled && itemId !== null,
+  });
+
+export const useMilestones = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.milestones(projectId ?? ''),
+    queryFn: ({ signal }) => api.milestones(projectId ?? '', { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+/** The work items a chat is linked to: the header of a chat that works on one names it. */
+export const useChatWorkItems = (chatId: string | null) =>
+  useQuery({
+    queryKey: keys.chatWorkItems(chatId ?? ''),
+    queryFn: ({ signal }) => api.chatWorkItems(chatId ?? '', { signal }),
+    enabled: chatId !== null,
+  });
+
+// ---------- team, flow, journal, memory proposals and documents ----------
+//
+// Kept fresh by `team.changed`, `flow.run`, `journal.changed`, `memory.proposal` and
+// `document.changed` (lib/events.ts); a member's live line is patched in place by `chat.activity`.
+
+export const useTeam = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.team(projectId ?? ''),
+    queryFn: ({ signal }) => api.team(projectId ?? '', { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+export const useFlow = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.flow(projectId ?? ''),
+    queryFn: ({ signal }) => api.flow(projectId ?? '', { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+/**
+ * The team's activity ("See all"): every flow run of the project, newest first, filtered by member
+ * and status, a page at a time (`fetchNextPage` while `hasNextPage`).
+ */
+export const useFlowRuns = (projectId: string | null, query: Omit<FlowRunQuery, 'cursor'> = {}) =>
+  useInfiniteQuery({
+    queryKey: keys.flowRuns(projectId ?? '', query),
+    queryFn: ({ signal, pageParam }) => api.flowRuns(projectId ?? '', { ...query, ...(pageParam ? { cursor: pageParam } : {}) }, { signal }),
+    initialPageParam: '',
+    getNextPageParam: (last: FlowRunPage) => last.nextCursor ?? undefined,
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+    placeholderData: keepPreviousData,
+  });
+
+export const useJournal = (projectId: string | null, page: JournalQuery = {}) =>
+  useQuery({
+    queryKey: keys.journalPage(projectId ?? '', page),
+    queryFn: ({ signal }) => api.journal(projectId ?? '', page, { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+    placeholderData: keepPreviousData,
+  });
+
+/** Every status when `status` is left out; the Memory tab asks for `pending`. */
+export const useMemoryProposals = (projectId: string | null, status?: MemoryProposalStatus) =>
+  useQuery({
+    queryKey: keys.memoryProposals(projectId ?? '', status),
+    queryFn: ({ signal }) => api.memoryProposals(projectId ?? '', status, { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+export const useDocuments = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.documentTree(projectId ?? ''),
+    queryFn: ({ signal }) => api.documents(projectId ?? '', { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+/**
+ * No fallback interval: `document.changed` says when the file changed, and an editor open on it
+ * compares `updatedAt` to its own before taking the new content, so an agent's write never replaces
+ * what the person is typing.
+ */
+export const useDocumentFile = (projectId: string | null, path: string | null) =>
+  useQuery({
+    queryKey: keys.documentFile(projectId ?? '', path ?? ''),
+    queryFn: ({ signal }) => api.documentFile(projectId ?? '', path ?? '', { signal }),
+    enabled: projectId !== null && path !== null,
+  });
+
+// ---------- the project assistant ----------
+//
+// Kept fresh by `assistant.run` (its `read` action fills in what a running one read) and
+// `assistant.proposal` (lib/events.ts); a running one's live line is patched in place by
+// `chat.activity`.
+
+/** Latest first; every kind when `kind` is left out. The latest of a kind is the one its screen shows. */
+export const useAssistantRuns = (projectId: string | null, kind?: AssistantRunKind) =>
+  useQuery({
+    queryKey: keys.assistantRuns(projectId ?? '', kind),
+    queryFn: ({ signal }) => api.assistantRuns(projectId ?? '', kind, { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+export const useAssistantRun = (runId: string | null) =>
+  useQuery({
+    queryKey: keys.assistantRun(runId ?? ''),
+    queryFn: ({ signal }) => api.assistantRun(runId ?? '', { signal }),
+    enabled: runId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+/**
+ * Whether the scope has a board to count: a project with its Board module on, or All projects.
+ * A project whose board is switched off keeps its items but shows no count for them.
+ */
+export const scopeHasBoard = (project: Pick<Project, 'modules'> | null): boolean => project === null || project.modules.includes('board');
+
+/**
+ * The open items of the top bar's scope, as the sidebar and the More sheet show beside Tasks: the
+ * selected project's, or every project's with All projects. Read from the unfiltered board, the
+ * very entry Tasks opens on. Undefined while unknown and where there is no board.
+ */
+export function useOpenTaskCount(project: Project | null, settled: boolean): number | undefined {
+  const counted = settled && scopeHasBoard(project);
+  const board = useWorkItemBoard(project?.id ?? null, {}, counted);
+  // The previous scope's board stands in while the new one loads: its figure would be wrong
+  return counted && !board.isPlaceholderData ? openCount(board.data) : undefined;
+}

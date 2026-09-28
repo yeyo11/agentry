@@ -75,23 +75,31 @@ export function FabStandIn(): null {
  */
 export function Fab({
   pathname,
+  search,
   scroller,
   onNewChat,
   onNewOrchestration,
+  onNewTask,
 }: {
   pathname: string;
+  search: string;
   /** The page's scroll container, whose direction hides and shows the button */
   scroller: RefObject<HTMLElement | null>;
   onNewChat: () => void;
   onNewOrchestration: () => void;
+  onNewTask: () => void;
 }) {
   const { t } = useTranslation(['components', 'shell']);
-  const plan = fabFor(pathname);
+  const plan = fabFor(pathname, search);
   const hidden = useHideOnScroll(scroller, pathname);
   const [focused, setFocused] = useState(false);
   const stoodIn = useSyncExternalStore(subscribe, () => standIns > 0);
   if (!plan || stoodIn) return null;
-  const label = plan.action === 'chat' ? t('components:shell.newChat') : t('shell:topbar.newOrchestration');
+  const { label, onClick } = {
+    chat: { label: t('components:shell.newChat'), onClick: onNewChat },
+    orchestration: { label: t('shell:topbar.newOrchestration'), onClick: onNewOrchestration },
+    task: { label: t('shell:tasks.newTask'), onClick: onNewTask },
+  }[plan.action];
   // A keyboard that reaches it brings it back: a control is never focused while out of sight
   const away = hidden && !focused;
   return (
@@ -101,7 +109,7 @@ export function Fab({
       aria-label={label}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
-      onClick={plan.action === 'chat' ? onNewChat : onNewOrchestration}
+      onClick={onClick}
     >
       <Plus size={22} strokeWidth={2.2} aria-hidden />
     </button>

@@ -1,0 +1,493 @@
+{
+  "back": "Back to the project",
+  "roles": {
+    "product-owner": "Product Owner",
+    "architect": "Architect",
+    "developer": "Developer",
+    "qa": "QA",
+    "researcher": "Researcher",
+    "writer": "Technical writer",
+    "reviewer": "Reviewer"
+  },
+  "stage": {
+    "refine": {
+      "name": "refines",
+      "doing": "Refining",
+      "done": "refined",
+      "onEnter": "completes the description and the acceptance criteria",
+      "onEnd": "moves it to To do when its criteria are complete"
+    },
+    "work": {
+      "name": "implements",
+      "doing": "Implementing",
+      "done": "worked on",
+      "onEnter": "opens a chat in the task's worktree",
+      "onEnd": "moves it to In review"
+    },
+    "verify": {
+      "name": "verifies",
+      "doing": "Verifying",
+      "done": "verified",
+      "onEnter": "checks each criterion against the worktree",
+      "onEnd": "waits for your approval, or sends it back to In progress"
+    }
+  },
+  "outcome": {
+    "rejected": "sent back",
+    "failed": "failed",
+    "cancelled": "cancelled",
+    "queued": "queued"
+  },
+  "members": {
+    "title": "Members",
+    "count_one": "{{count}} member",
+    "count_other": "{{count}} members",
+    "working_one": "{{count}} working now",
+    "working_other": "{{count}} working now"
+  },
+  "member": {
+    "actions": "More actions for {{name}}",
+    "open": "Open",
+    "back": "Back to the team",
+    "properties": "Role properties",
+    "role": "Role",
+    "model": "Model",
+    "column": "Column",
+    "onEnter": "On entering",
+    "onEnd": "On finishing",
+    "answersFor": "Answers for",
+    "consulted": "No column · consulted",
+    "writes": "May write in",
+    "writesAnywhere": "Anywhere in the project",
+    "writesDocuments": "Only the documents folder",
+    "writesNone": "No path: only the documents folder",
+    "scope": {
+      "anywhere": "Anywhere",
+      "documents": "Only documents",
+      "paths": "These paths"
+    },
+    "scopeHint": {
+      "anywhere": "Agentry sets no limit of its own on the chats it starts for it. From a terminal it is only what its agent file says.",
+      "documents": "None of the project's files: only documents in the documents folder, where specifications and reports go. From a terminal it is only what its agent file says.",
+      "paths": "Outside these paths and the documents folder, the chats Agentry starts for it may not edit. From a terminal it is only what its agent file says."
+    },
+    "commands": "Shell commands",
+    "commandScope": {
+      "any": "Any",
+      "none": "None",
+      "listed": "These commands"
+    },
+    "commandHint": {
+      "any": "When it works on a task, the shell has no limit of Agentry's own. Refining and verifying keep their own tools.",
+      "none": "When it works on a task, it runs no shell command at all. Refining and verifying keep their own tools.",
+      "listed": "When it works on a task, it runs only these commands; a * stands for the rest of the line (pnpm *). Refining and verifying keep their own tools."
+    },
+    "addCommand": "Add a command…",
+    "commandsNone": "No command: no shell at all",
+    "commandProblem": {
+      "comma": "A command cannot hold a comma: the CLI reads its rules as a comma-separated list.",
+      "invalid": "A command is one line, without parentheses, and not only a *: leave the list out for any command.",
+      "tooMany": "At most 50 commands."
+    },
+    "addPath": "Add a path…",
+    "responsibility": "Responsibility",
+    "responsibilityHint": "Goes at the start of every prompt the role gets.",
+    "file": "Agent file",
+    "fileHint": "what you save here the CLI reads as it is, in the terminal too",
+    "fileContent": "Agent file content",
+    "filePreview": "Preview of {{path}}",
+    "markdown": "Markdown",
+    "edit": "Edit",
+    "idle": "No work now",
+    "queued_one": "{{count}} queued",
+    "queued_other": "{{count}} queued",
+    "more_one": "and {{count}} more",
+    "more_other": "and {{count}} more",
+    "nowAndBefore": "Now and before",
+    "tasks_one": "{{n}} task",
+    "tasks_other": "{{n}} tasks",
+    "tasksMore_one": "over {{n}} task",
+    "tasksMore_other": "over {{n}} tasks",
+    "noRuns": "It has not worked on a task yet.",
+    "itemGone": "Task deleted",
+    "memory": "Memory",
+    "noProposals": "No proposals waiting",
+    "proposalsWaiting_one": "{{count}} proposal of its own waits",
+    "proposalsWaiting_other": "{{count}} proposals of its own wait",
+    "proposalFrom": "from {{key}}",
+    "waiting_one": "{{count}} waits",
+    "waiting_other": "{{count}} wait",
+    "waitingWord": "waits",
+    "memoryHint": "When it starts it gets CLAUDE.md, the project's memory and the journal. It has no memory of its own.",
+    "saved": "{{name}} saved",
+    "saveFailed": "Could not save the member"
+  },
+  "file": {
+    "missing": "file missing",
+    "drifted": "file edited",
+    "missingTitle": "The agent file is missing",
+    "missingBody": "{{path}} was deleted. The member stays on the team; write its file again to use it.",
+    "write": "Write the file",
+    "writeFailed": "Could not write the agent file",
+    "driftedTitle": "The agent file says something else",
+    "driftedBody": "Its frontmatter differs from the role in: {{fields}}. It was edited by hand, so Agentry leaves it as it is."
+  },
+  "add": {
+    "title": "Add member",
+    "submit": "Add member",
+    "role": "Role",
+    "rolePlaceholder": "developer, qa, tech-writer…",
+    "roleHint": "One member per role: the flow gives each column to a role.",
+    "roleTaken": "That role is already on the team.",
+    "file": "Agent file",
+    "newFile": "A new file",
+    "fileNew": "Agentry writes {{path}} with the role's instructions.",
+    "fileKept": "The file is kept as it is.",
+    "responsibilityPlaceholder": "What it answers for, in one line",
+    "added": "{{name}} joined the team",
+    "failed": "Could not add the member",
+    "existingTitle": "Add an agent that already exists",
+    "existingHint_one": ".claude/agents/ has {{count}} agent without a role: {{names}}",
+    "existingHint_other": ".claude/agents/ has {{count}} agents without a role: {{names}}",
+    "newHint": "A role, its model and its agent file in .claude/agents/"
+  },
+  "remove": {
+    "action": "Take off the team",
+    "title": "Take {{name}} off the team?",
+    "body": "Its metadata goes; {{path}} stays on disk, so it still works from a terminal.",
+    "confirm": "Take off",
+    "done": "{{name}} left the team",
+    "failed": "Could not take the member off the team"
+  },
+  "empty": {
+    "title": "This project has no team yet",
+    "body": "Each member is a CLI agent in <code>.claude/agents/</code>, with its role, its model and what it may write, so it also works from the terminal. Start with the template's team and edit each member afterwards.",
+    "bodyShort": "Each member is a CLI agent in <code>.claude/agents/</code>, with its role and its model. The assistant reads the project and proposes a team; you accept it member by member.",
+    "useTemplate": "Use the template's",
+    "templateBrings": "The {{name}} template brings",
+    "templateBringsShort": "The template brings",
+    "applied_one": "{{count}} member joined the team",
+    "applied_other": "{{count}} members joined the team",
+    "failed": "Could not add the template's team"
+  },
+  "flow": {
+    "title": "Flow",
+    "summaryTitle": "Flow by column",
+    "on": "automatic",
+    "off": "off",
+    "notSet": "not set up",
+    "edit": "Edit",
+    "setUp": "Set up",
+    "nobody": "Nobody",
+    "you": "You",
+    "youApprove": "You approve the move to Done",
+    "youApproveShort": "You approve it",
+    "bouncesLine_one": "Up to {{count}} bounce; then it waits for you",
+    "bouncesLine_other": "Up to {{count}} bounces; then it waits for you",
+    "notSetLine": "No flow saved yet: no role acts on the board.",
+    "auto": "Automatic flow",
+    "autoBody": "When a task enters a column, the role that answers for it acts. The agents move the cards; you approve the move to Done.",
+    "autoBodyShort": "When a task enters a column, the role that answers for it acts. You approve the move to Done.",
+    "proposalNote": "No flow is saved yet. This is what the template proposes for the team you have: save it to give each column its role.",
+    "enabled": "On",
+    "disabled": "Off",
+    "stripLabel": "The columns and the role that acts in each",
+    "back": "if QA rejects it, it goes back to In progress with its comment and the same chat resumes",
+    "whoTitle": "Who answers for each column",
+    "whoHint": "one role per column",
+    "roleFor": "Role that answers for {{column}}",
+    "column": {
+      "backlog": {
+        "does": "Refines: title, description and acceptance criteria.",
+        "then": "→ moves it to To do when the criteria are complete"
+      },
+      "todo": {
+        "does": "Checks that nothing blocks it.",
+        "then": "→ waits for you to move it or orchestrate it"
+      },
+      "in_progress": {
+        "does": "Implements in the task/<key> worktree.",
+        "then": "→ moves it to In review when the turn ends well"
+      },
+      "in_review": {
+        "does": "Verifies each criterion against the worktree.",
+        "then": "→ if it fails, back to In progress with its comment"
+      },
+      "done": {
+        "does": "You approve the move to Done. No agent moves a task to Done.",
+        "then": "→ fixed: it does not depend on the flow",
+        "phone": "no agent moves an item to Done"
+      }
+    },
+    "bouncesTitle": "Bounces",
+    "bouncesBodyShort": "after that, the task waits for you",
+    "bouncesMax": "Bounces at most",
+    "modelsTitle": "Model of each role",
+    "modelFor": "Model of {{role}}",
+    "modelsHint": "Opus for the Product Owner and the Architect, Sonnet for the rest, as the template brings them. The alias is saved in the agent file; beside it, the model it points to today.",
+    "save": "Save the flow",
+    "saved": "Flow saved",
+    "saveFailed": "Could not save the flow",
+    "changes_one": "{{count}} unsaved change",
+    "changes_other": "{{count}} unsaved changes",
+    "limitsTitle": "Limits",
+    "parallel": "Runs at once",
+    "parallelHint": "the rest wait in the queue, in order",
+    "cost": "Cost per run",
+    "costLabel": "Cost per run, in USD",
+    "costHint": "empty, no limit (the default)",
+    "noLimit": "No limit",
+    "usd": "USD",
+    "parallelShort": "At once",
+    "costPhone": "Highest cost per run",
+    "costHintPhone": "Empty, no limit. With a limit, the run that reaches it fails and says so on its item.",
+    "bouncesHint": "how many times QA sends it back before it waits for you",
+    "seeRuns": "See runs",
+    "limitsFoot": "With a cost limit, the run that reaches it stops, fails and says so on its item. The items sent back are in Activity, under the Sent back filter."
+  },
+  "activity": {
+    "title": "Team activity",
+    "none": "Nobody on the team has worked on a task yet.",
+    "seeAll": "See all",
+    "back": "Back to the team",
+    "member": "Member",
+    "state": "State",
+    "allMembers": "Every member",
+    "allStates": "Every state",
+    "filter": {
+      "queued": "Queued",
+      "running": "Running",
+      "passed": "Done well",
+      "rejected": "Sent back",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "status": {
+      "queued": "queued",
+      "running": "running",
+      "rejected": "sent back",
+      "failed": "failed",
+      "cancelled": "cancelled"
+    },
+    "count_one": "{{n}} run",
+    "count_other": "{{n}} runs",
+    "noMatch": "No run of the team matches these filters.",
+    "more": "Load more · {{n}} left",
+    "openChat": "Open the chat of {{key}}"
+  },
+  "step": {
+    "refine": {
+      "name": "refinement",
+      "doing": "Refining",
+      "failed": "Failed to refine it"
+    },
+    "check": {
+      "name": "check",
+      "doing": "Checking",
+      "failed": "Failed to check it"
+    },
+    "work": {
+      "name": "implementation",
+      "doing": "Implementing",
+      "failed": "Failed to implement it"
+    },
+    "verify": {
+      "name": "verification",
+      "doing": "Verifying",
+      "failed": "Failed to verify it"
+    }
+  },
+  "run": {
+    "badge": {
+      "running": "running",
+      "queued": "queued",
+      "passed": "passed",
+      "rejected": "sent back",
+      "failed": "failed",
+      "cancelled": "cancelled"
+    },
+    "label": "{{role}}, {{step}} of {{key}}",
+    "labelGone": "{{role}}, {{step}} of a deleted item",
+    "failed": "Failed",
+    "openChat": "See the chat",
+    "retry": "Retry",
+    "retryFailed": "Could not retry the run",
+    "retryQueued": "Run queued again",
+    "retriedBy": {
+      "running": "Retried: running",
+      "queued": "Retried: queued",
+      "passed": "Retried: passed {{when}}",
+      "rejected": "Retried: sent back {{when}}",
+      "failed": "Retried: failed again {{when}}",
+      "cancelled": "Retried: cancelled {{when}}"
+    },
+    "waitsPlace": "Waiting for a place: {{running}} of {{max}} runs are running",
+    "waitsTurn": "Waiting for its turn in the queue",
+    "resumes": "Will resume its chat when there is a place",
+    "passedToReview": "moved to In review",
+    "waitsForYou": "waits for you to move it to Done",
+    "itemGone": "Deleted item"
+  },
+  "cause": {
+    "budget": {
+      "title": "It reached the cost limit.",
+      "body": "It hit the flow's cost per run and stopped. The item stays in {{column}}, unchanged.",
+      "short": "reached the cost limit"
+    },
+    "no-account": {
+      "title": "No account had quota left.",
+      "body": "The accounts reached their limit and there was no other to switch to. The item stays in {{column}}, unchanged.",
+      "short": "no account had quota left"
+    },
+    "rate-limit": {
+      "title": "The account reached its limit.",
+      "body": "Account rotation is off, so it did not switch to another. The item stays in {{column}}, unchanged.",
+      "short": "the account reached its limit"
+    },
+    "stopped": {
+      "title": "Its chat was stopped.",
+      "body": "The chat was stopped before it finished. The item stays in {{column}}, unchanged.",
+      "short": "its chat was stopped"
+    },
+    "restarts": {
+      "title_one": "It was cut off {{count}} time.",
+      "title_other": "It was cut off {{count}} times.",
+      "body": "Agentry restarted while {{role}} was working. It went on in its chat as many times as allowed; the next time, the run was marked as failed.",
+      "short": "cut off by Agentry restarting"
+    },
+    "unreadable": {
+      "title": "It left no readable result.",
+      "body": "The chat ended without the result the flow reads to move the item. The item stays in {{column}}, unchanged.",
+      "short": "no readable result"
+    },
+    "no-verdict": {
+      "title": "It ended without a verdict.",
+      "body": "The verification ended without saying whether the item passes. The item stays in {{column}}, unchanged.",
+      "short": "ended without a verdict"
+    },
+    "not-started": {
+      "title": "Its chat never started.",
+      "body": "The CLI could not open the run's chat. The item stays in {{column}}, unchanged.",
+      "short": "its chat never started"
+    },
+    "not-continued": {
+      "title": "Its chat could not be resumed.",
+      "body": "Agentry restarted and the chat could not continue. The item stays in {{column}}, unchanged.",
+      "short": "its chat could not be resumed"
+    },
+    "chat-ended": {
+      "title": "Its chat ended without a result.",
+      "body": "The chat ended, or was removed, without leaving the run's result. The item stays in {{column}}, unchanged.",
+      "short": "its chat ended without a result"
+    },
+    "chat-failed": {
+      "title": "The CLI reported an error.",
+      "body": "The chat ended in a CLI error, shown below as it was reported. The item stays in {{column}}, unchanged.",
+      "short": "the CLI reported an error"
+    },
+    "unknown": {
+      "title": "It failed.",
+      "body": "The item stays in {{column}}, unchanged.",
+      "short": "failed"
+    },
+    "item-moved": {
+      "note": "Never started: the item left the column"
+    },
+    "item-removed": {
+      "note": "Never started: the item was deleted while it waited"
+    },
+    "item-done": {
+      "note": "Never started: the item moved to Done"
+    },
+    "replaced": {
+      "note": "Replaced by another: the item entered the column again"
+    },
+    "flow-off": {
+      "note": "Never started: the flow was switched off"
+    },
+    "no-member": {
+      "note": "Never started: nobody on the team answers for the column any more"
+    },
+    "refined": {
+      "note": "Not needed: it was already refined and the item has not changed"
+    },
+    "chat-busy": {
+      "note": "Never started: a chat of yours was already working on the item"
+    },
+    "cancelledUnknown": "Never started"
+  },
+  "log": {
+    "title": "Activity",
+    "views": "State",
+    "all": "All",
+    "running": "Running",
+    "failed": "Failed",
+    "rejected": "Sent back",
+    "member": "Member",
+    "allMembers": "All",
+    "filterMember": "Filter by member",
+    "now": "Now",
+    "nowCount": "{{running}} running · {{queued}} queued",
+    "today": "Today",
+    "yesterday": "Yesterday · {{date}}",
+    "runs": "Runs",
+    "summary": {
+      "today_one": "Today <b>{{n}}</b> run",
+      "today_other": "Today <b>{{n}}</b> runs",
+      "running": "<b>{{n}}</b> running",
+      "queued": "<b>{{n}}</b> queued",
+      "failed_one": "<b>{{n}}</b> failed",
+      "failed_other": "<b>{{n}}</b> failed"
+    },
+    "more": "Show {{count}} more",
+    "left": "{{n}} left",
+    "byMember": "By member",
+    "todayWord": "today",
+    "memberRuns": "{{n}} runs",
+    "memberFailed_one": "{{count}} failed",
+    "memberFailed_other": "{{count}} failed",
+    "consulted_one": "Answers for no column: {{names}}. The flow does not run it; it is consulted from a chat.",
+    "consulted_other": "Answer for no column: {{names}}. The flow does not run them; they are consulted from a chat.",
+    "limits": "Flow limits",
+    "atOnce": "At once",
+    "inUse": "{{running}} in use · {{queued}} queued",
+    "costPerRun": "Cost per run",
+    "bounces": "Bounces",
+    "atMost": "at most",
+    "phoneFoot": "A failed run doesn't move the item: it leaves a comment on it and its chat says why. Tap it to retry it from its chat."
+  },
+  "phone": {
+    "more": "More team actions",
+    "board": "Open the board",
+    "settings": "Project settings"
+  },
+  "board": {
+    "columnRole": "{{role}} answers for this column"
+  },
+  "card": {
+    "bounce": "bounce {{n}} of {{max}}",
+    "bounceTitle_one": "QA sent it back {{count}} time out of {{max}}",
+    "bounceTitle_other": "QA sent it back {{count}} times out of {{max}}",
+    "bounceBare": "bounce {{n}}",
+    "bounceBareTitle_one": "QA sent it back {{count}} time",
+    "bounceBareTitle_other": "QA sent it back {{count}} times",
+    "waits": "waits",
+    "waitsForYou": "waits for you",
+    "passed": "{{role}} passed it",
+    "passedAnon": "Verification passed it",
+    "sentBack_one": "{{role}} sent it back {{count}} time",
+    "sentBack_other": "{{role}} sent it back {{count}} times",
+    "sentBackAnon_one": "Sent back {{count}} time",
+    "sentBackAnon_other": "Sent back {{count}} times",
+    "approve": "Approve and move to Done"
+  },
+  "responsibilities": {
+    "product-owner": "Refines the backlog and writes acceptance criteria",
+    "architect": "Decides the design and reviews it against the codebase",
+    "developer": "Implements work items in their own worktree",
+    "qa": "Verifies each item against its acceptance criteria",
+    "researcher": "Reads the sources and sets out what is known",
+    "writer": "Turns findings into documents",
+    "reviewer": "Checks documents for accuracy and clarity"
+  }
+}

@@ -29,6 +29,7 @@ export default async ({ page, api, check, dirs }) => {
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, `${SESSION}.jsonl`), Array.from({ length: TOTAL }, (_, i) => JSON.stringify(entry(i))).join('\n'));
   let chatId = null;
+  let projectId = null;
 
   try {
     await page.viewport(390, 844);
@@ -70,8 +71,36 @@ export default async ({ page, api, check, dirs }) => {
     check(!(await page.eval(`return !!document.querySelector('.fab, .tabbar')`)), 'no FAB or tab bar over the composer');
     await page.eval(`document.getElementById('e2e-filler')?.remove();return true`);
     await page.shot('mobile-chat');
+
+    // ---- Tasks has no tab of its own on a phone: it heads the More sheet, with its open items ----
+    const tasksDir = join(dirs.workspaceDir, 'e2e-mobile-tasks');
+    mkdirSync(tasksDir, { recursive: true });
+    const imported = await api.post('/projects/import', { path: tasksDir, name: 'e2e-mobile-tasks', template: 'software' });
+    check(imported.status === 201, `a project with its board was imported (${imported.status})`);
+    projectId = imported.body.id;
+    for (const title of ['Filters in the list', 'The FAB covers the last row']) await api.post(`/projects/${projectId}/work-items`, { title });
+    // An epic is not an open item: the sheet still says two
+    await api.post(`/projects/${projectId}/work-items`, { title: 'Phone polish', type: 'epic' });
+    await page.goto(`/?project=${projectId}`, 900);
+    check((await page.eval(`return [...document.querySelectorAll('.tabbar-tab')].some((t) => t.getAttribute('href') === '/tasks')`)) === false, 'Tasks is not one of the four tabs');
+    await page.click('.tabbar-more', undefined, 600);
+    await page.waitFor(`return !!document.querySelector('.more-sheet .more-nav a.more-cell')`, { label: 'the More sheet opens' });
+    const first = await page.eval(`return document.querySelector('.more-sheet .more-nav a.more-cell')?.getAttribute('href')`);
+    check(first === '/tasks', `Tasks is the first section of the sheet (${first})`);
+    await page.waitFor(`return document.querySelector('.more-sheet a[href="/tasks"] .more-cell-note')?.textContent.trim() === '2 open'`, {
+      label: 'Tasks says its open items with the word',
+    });
+    const cell = await page.eval(`return document.querySelector('.more-sheet a[href="/tasks"]').getBoundingClientRect().height`);
+    check(cell >= 44, `the Tasks cell is a 44px target (${cell}px)`);
+    await page.click('.more-sheet a[href="/tasks"]', undefined, 900);
+    check((await page.eval(`return location.pathname`)) === '/tasks', 'the cell opens Tasks');
+    await page.waitFor(`return !document.querySelector('.more-sheet') && document.querySelector('main h1')?.textContent.trim() === 'Tasks'`, { label: 'the sheet closes on the Tasks page' });
+    const overflow = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
+    check(overflow <= 1, `[390px /tasks] nothing scrolls sideways (${overflow}px)`);
   } finally {
     await page.viewport(1440, 900);
+    await page.eval(`localStorage.removeItem('agentry:project'); return true`).catch(() => {});
+    if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
     // Later specs count the seeded chats
     await api.del(`/chats/${SESSION}`);
     if (chatId) {

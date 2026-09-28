@@ -1,9 +1,25 @@
-/** A project's own screens, each at `/?view=<id>`; everything else on its page is the dashboard. */
-export const PROJECT_VIEWS = ['settings', 'memory', 'resources', 'worktrees'] as const;
+import type { ProjectModule } from '@agentry/shared';
+
+/**
+ * A project's own tabs, each at `/?view=<id>`, in the order the strip draws them after Resumen (the
+ * dashboard, which has no `view`).
+ */
+export const PROJECT_VIEWS = ['board', 'team', 'documents', 'memory', 'resources', 'worktrees', 'settings'] as const;
 
 export type ProjectViewId = (typeof PROJECT_VIEWS)[number];
 
+/** The module a tab belongs to: it exists only while that module is on. The others are always there. */
+export const VIEW_MODULE: Partial<Record<ProjectViewId, ProjectModule>> = { board: 'board', team: 'team', documents: 'documents', memory: 'memory' };
+
 export const asProjectView = (value: string | null): ProjectViewId | null => PROJECT_VIEWS.find((id) => id === value) ?? null;
+
+/** The tabs a project with these modules shows. */
+export function projectViews(modules: readonly ProjectModule[]): ProjectViewId[] {
+  return PROJECT_VIEWS.filter((id) => {
+    const module = VIEW_MODULE[id];
+    return module === undefined || modules.includes(module);
+  });
+}
 
 /**
  * `?tab=` is what the page used before it was a dashboard, and links to it live in bookmarks and in

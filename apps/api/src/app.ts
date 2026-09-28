@@ -16,6 +16,8 @@ import { connectorRoutes } from './routes/connectors.ts';
 import { appSettingsRoutes } from './routes/app-settings.ts';
 import { tunnelRoutes } from './routes/tunnel.ts';
 import { eventRoutes } from './routes/events.ts';
+import { flowRoutes } from './routes/flow.ts';
+import { journalRoutes } from './routes/journal.ts';
 import { memoryRoutes } from './routes/memory.ts';
 import { orchestrationRoutes } from './routes/orchestrations.ts';
 import { pluginRoutes } from './routes/plugins.ts';
@@ -25,8 +27,12 @@ import { securityRoutes } from './routes/security.ts';
 import { scheduleRoutes } from './routes/schedules.ts';
 import { supervisorRoutes } from './routes/supervisor.ts';
 import { systemRoutes } from './routes/system.ts';
+import { teamRoutes } from './routes/team.ts';
 import { toolPresetRoutes } from './routes/tool-presets.ts';
 import { uploadRoutes } from './routes/uploads.ts';
+import { workItemRoutes } from './routes/work-items.ts';
+import { documentRoutes } from './routes/documents.ts';
+import { assistantRoutes } from './routes/assistant.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -114,7 +120,9 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
     const status = err.statusCode ?? (refusal ? (/not found/i.test(err.message) ? 404 : 400) : 500);
     // A bug here is ours to find: a 400 nobody logs is a server fault blamed on the caller
     if (!refusal || status >= 500) app.log.error({ err, url: req.url }, 'request failed');
-    void reply.status(status).send({ error: status >= 500 ? 'internal error' : err.message });
+    // A server fault's message stays inside unless it was written for the person (`expose`)
+    const exposed = (err as { expose?: unknown }).expose === true;
+    void reply.status(status).send({ error: status >= 500 && !exposed ? 'internal error' : err.message });
   });
 
   // Core has no logger of its own, and a push that cannot be delivered is a log line rather than
@@ -124,6 +132,11 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
   // Before every route: the guard must also cover /docs and the OpenAPI document
   registerSecurity(app, core);
 
+  // The panel sends the person's language with every request: the chats Agentry starts on its own
+  // later, with no request behind them (the flow's runs), are titled in it. After the guard, so only
+  // an allowed caller sets it
+  app.addHook('onRequest', async (req) => core.noteLanguage(req.headers['accept-language']));
+
   await registerOpenApi(app, (await core.system()).version);
 
   await app.register(
@@ -132,6 +145,11 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(securityRoutes, { core });
       await api.register(accountRoutes, { core });
       await api.register(projectRoutes, { core });
+      await api.register(workItemRoutes, { core });
+      await api.register(teamRoutes, { core });
+      await api.register(flowRoutes, { core });
+      await api.register(documentRoutes, { core });
+      await api.register(assistantRoutes, { core });
       await api.register(chatRoutes, { core });
       await api.register(eventRoutes, { core });
       await api.register(orchestrationRoutes, { core });
@@ -142,6 +160,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(pluginRoutes, { core });
       await api.register(connectorRoutes, { core });
       await api.register(memoryRoutes, { core });
+      await api.register(journalRoutes, { core });
       await api.register(uploadRoutes, { core });
       await api.register(scheduleRoutes, { core });
       await api.register(supervisorRoutes, { core });

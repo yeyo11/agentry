@@ -23,7 +23,29 @@ function parseDescription(content: string): string | null {
  * A workflow is named by its `meta.name`, as the Workflow tool resolves it, so its file may be
  * called otherwise: the listing of `GET /workflows/saved` is what finds it.
  */
+/** A resource written or deleted through this service, told to whoever depends on it. */
+export interface ResourceChange {
+  scope: ConfigScope;
+  kind: ResourceKind;
+  name: string;
+  action: 'saved' | 'removed';
+}
+
 export class ConfigResources {
+  /**
+   * @param onChange hears every save and delete once it is on disk: a project's agent file is also
+   *   a team member's, and the team announces it. A listener that throws does not undo the write.
+   */
+  constructor(private readonly onChange?: (change: ResourceChange) => void) {}
+
+  private changed(change: ResourceChange): void {
+    try {
+      this.onChange?.(change);
+    } catch {
+      // the file is written; a listener's failure is its own
+    }
+  }
+
   private dir(scope: ConfigScope, kind: ResourceKind): string {
     return join(scope.claudeDir, kind);
   }
@@ -81,6 +103,7 @@ export class ConfigResources {
     // A script that renames itself in its `meta` is another workflow from then on: answer with that one
     const saved = kind === 'workflows' ? (await this.list(scope, kind)).find((r) => r.path === path) : await this.get(scope, kind, name);
     if (!saved) throw new Error('resource was not persisted');
+    this.changed({ scope, kind, name: saved.name, action: 'saved' });
     return saved;
   }
 
@@ -89,5 +112,6 @@ export class ConfigResources {
     if (!existsSync(path)) throw new Error('resource not found');
     // A skill owns its whole directory; the other kinds are single files.
     await rm(kind === 'skills' ? join(this.dir(scope, kind), name) : path, { recursive: true });
+    this.changed({ scope, kind, name, action: 'removed' });
   }
 }

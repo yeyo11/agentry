@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { desktopClasses } from '../src/lib/desktop.ts';
-import { chatActivity, fabFor, hidesTabBar, liveSummary, moreNotes, orchestrationProgress, pickUsageWindows, swapUsageWindows, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
+import { chatActivity, fabFor, hidesTabBar, hidesTopBar, liveSummary, moreNotes, orchestrationProgress, pickUsageWindows, swapUsageWindows, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
 
 // The shell is where a person sees at a glance what is alive. What it lists has to be in the order
 // that needs them most, never twice, and a shape it does not expect must not break a row.
@@ -118,20 +118,35 @@ test('chat ids in links are encoded', () => {
 
 test('the tab bar steps aside on a chat and on an orchestration, not on their lists or on New chat', () => {
   // A new chat is that page too: the box sits at the bottom of the window, where the bar would be
-  for (const path of ['/chats/abc', '/chats/abc/', '/chats/new', '/orchestration/o1']) assert.equal(hidesTabBar(path), true, path);
-  for (const path of ['/', '/chats', '/orchestration', '/settings', '/projects']) assert.equal(hidesTabBar(path), false, path);
+  for (const path of ['/chats/abc', '/chats/abc/', '/chats/new', '/orchestration/o1', '/projects/new', '/projects/p1/assistant', '/tasks/AGN-12', '/tasks/AGN-12/']) assert.equal(hidesTabBar(path), true, path);
+  for (const path of ['/', '/chats', '/orchestration', '/settings', '/projects', '/tasks', '/tasks/milestones']) assert.equal(hidesTabBar(path), false, path);
+  // A member, the flow and an open document bring their own Save bar; the lists around them keep the tab bar
+  for (const search of ['?project=p&view=team&member=developer', '?project=p&view=team&section=flow', '?project=p&view=documents&doc=docs%2Fa.md', '?view=documents&doc=a.md&mode=edit', '?project=p&view=resources&proposal=x', '?project=p&view=resources&res=agents%3Areviewer', '?project=p&view=settings'])
+    assert.equal(hidesTabBar('/', search), true, search);
+  for (const search of ['', '?project=p&view=team', '?project=p&view=documents', '?project=p&view=documents&dir=docs%2Fspecs', '?project=p&view=memory', '?project=p&view=resources', '?project=p&view=resources&section=agents'])
+    assert.equal(hidesTabBar('/', search), false, search);
+  assert.equal(hidesTabBar('/chats', '?view=team&member=developer'), false);
 });
 
-test('the review of changes hides the tab bar, for a chat, a task and the integration branch', () => {
-  for (const path of ['/chats/abc/changes', '/chats/abc/changes/', '/orchestration/o1/changes', '/orchestration/o1/tasks/t1/changes']) assert.equal(hidesTabBar(path), true, path);
+test('the review of changes hides the tab bar, for a chat, a task, the integration branch and a work item', () => {
+  for (const path of ['/chats/abc/changes', '/chats/abc/changes/', '/orchestration/o1/changes', '/orchestration/o1/tasks/t1/changes', '/tasks/AGN-12/changes']) assert.equal(hidesTabBar(path), true, path);
   for (const path of ['/chats/abc/other', '/orchestration/o1/tasks/t1', '/orchestration/o1/tasks']) assert.equal(hidesTabBar(path), false, path);
   assert.equal(fabFor('/chats/abc/changes'), null);
 });
 
-test('the phone FAB follows the page: words on Home, an icon on the lists, none where the tab bar steps aside', () => {
+test('the phone FAB follows the page: the same round button where it starts something, none where the tab bar steps aside', () => {
   for (const path of ['/', '/chats', '/chats/', '/projects']) assert.deepEqual(fabFor(path), { action: 'chat' }, path);
   assert.deepEqual(fabFor('/orchestration'), { action: 'orchestration' });
-  for (const path of ['/chats/abc', '/chats/new', '/orchestration/o1', '/settings', '/accounts', '/usage', '/nowhere']) assert.equal(fabFor(path), null, path);
+  // Tasks starts a new task on the board and the list; a work item's page has its own actions, and
+  // the milestones start a milestone from their header
+  for (const path of ['/tasks', '/tasks/']) assert.deepEqual(fabFor(path), { action: 'task' }, path);
+  assert.deepEqual(fabFor('/tasks', '?view=list'), { action: 'task' });
+  // A project's tab is a page of its own, whose settings end in a Save the button would cover
+  assert.deepEqual(fabFor('/', '?project=p1'), { action: 'chat' });
+  for (const search of ['?view=settings', '?project=p1&view=board']) assert.equal(fabFor('/', search), null, search);
+  for (const path of ['/tasks/milestones', '/chats/abc', '/chats/new', '/orchestration/o1', '/tasks/AGN-12', '/projects/new', '/settings', '/accounts', '/usage', '/nowhere']) {
+    assert.equal(fabFor(path), null, path);
+  }
 });
 
 test('the status bar reads the account-wide 5 h and 7 d windows, never a per-model one', () => {
@@ -182,4 +197,22 @@ test('the More sheet says a problem before a count, and nothing it does not know
   // Before the account list is read, the overview's total; a day with no cost is said, not left blank
   assert.deepEqual(moreNotes({ accounts: { total: 2 } })['/accounts'], { kind: 'count', value: 2 });
   assert.deepEqual(moreNotes({ todayCost: null })['/usage'], { kind: 'cost', value: null });
+});
+
+test('Tasks in the More sheet says its open items with the word, and nothing where there is no board', () => {
+  assert.deepEqual(moreNotes({ tasks: 15 })['/tasks'], { kind: 'open', value: 15 });
+  assert.deepEqual(moreNotes({ tasks: 0 })['/tasks'], { kind: 'open', value: 0 });
+  assert.equal(moreNotes({ tasks: undefined })['/tasks'], undefined);
+});
+
+test("a phone's detail screens head themselves: no top bar on them, and the bar everywhere else (gap 21)", () => {
+  // A project's page and its tabs (a member, a document) live at `/` with a project in scope
+  assert.equal(hidesTopBar('/', true), true, "a project's page");
+  assert.equal(hidesTopBar('/', false), false, 'Home of every project keeps the scope in the bar');
+  for (const path of ['/tasks', '/tasks/', '/tasks/milestones', '/tasks/AGN-12', '/tasks/agn-12/', '/projects/p1/assistant', '/projects/p1/assistant/', '/projects/new'])
+    assert.equal(hidesTopBar(path), true, path);
+  for (const path of ['/chats', '/chats/abc', '/orchestration', '/projects', '/settings', '/usage', '/tasks/AGN-12/changes'])
+    assert.equal(hidesTopBar(path, false), false, path);
+  // The flag is about `/` alone: another page with a project in scope keeps its bar
+  assert.equal(hidesTopBar('/chats', true), false);
 });

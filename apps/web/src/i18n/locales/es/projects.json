@@ -14,24 +14,14 @@
   "page": {
     "subtitle_one": "{{n}} directorio importado. Sus worktrees le pertenecen.",
     "subtitle_other": "{{n}} directorios importados. Sus worktrees les pertenecen.",
-    "importDirectory": "Importar directorio",
     "emptyHint": "Importa un directorio para convertirlo en proyecto, o crea uno en el espacio de trabajo."
   },
   "importForm": {
-    "directory": "Directorio",
-    "directoryHint": "Una ruta absoluta. Todos los chats que se ejecutaron en ella pasan a formar parte del proyecto. Un worktree de git se rechaza: importa su repositorio.",
     "candidateHint_one": "{{n}} chat · {{path}}",
     "candidateHint_other": "{{n}} chats · {{path}}",
-    "nameOptional": "Nombre (opcional)",
-    "nameOptionalHint": "Si lo dejas vacío, se usa el nombre del directorio.",
-    "failed": "No se ha podido importar el directorio",
-    "importing": "Importando…",
     "import": "Importar"
   },
   "candidates": {
-    "imported": "{{name}} importado",
-    "adopted_one": "{{n}} chat adoptado",
-    "adopted_other": "{{n}} chats adoptados",
     "chats_one": "{{n}} chat",
     "chats_other": "{{n}} chats",
     "last": " · última vez {{ago}}",
@@ -82,9 +72,168 @@
   },
   "settings": {
     "environmentHint": "lo que Claude cargó realmente en el último chat de aquí",
-    "sections": "Secciones de ajustes del proyecto"
+    "sections": "Secciones de ajustes del proyecto",
+    "cliTitle": "Claude Code",
+    "cliHint": "La configuración que el CLI lee en este proyecto: CLAUDE.md, ajustes, servidores MCP y archivos."
   },
   "resources": {
     "sections": "Recursos del proyecto"
+  },
+  "head": {
+    "chats_one": "{{n}} chat",
+    "chats_other": "{{n}} chats",
+    "worktrees_one": "{{n}} worktree",
+    "worktrees_other": "{{n}} worktrees",
+    "newTask": "Nueva tarea",
+    "assistant": "Asistente",
+    "assistantOf": "Asistente de {{name}}",
+    "open_one": "{{n}} abierta",
+    "open_other": "{{n}} abiertas",
+    "backToProjects": "Volver a proyectos",
+    "assistantRow": "Asistente del proyecto",
+    "assistantPending_one": "{{n}} propuesta por revisar",
+    "assistantPending_other": "{{n}} propuestas por revisar",
+    "assistantIdle": "Lee el proyecto y te propone equipo, recursos y tareas"
+  },
+  "modules": {
+    "board": {
+      "name": "Tablero",
+      "description": "Tareas en cinco columnas, hitos, y su enlace con chats y orquestaciones."
+    },
+    "team": {
+      "name": "Equipo",
+      "description": "Agentes con un rol, un modelo y lo que pueden escribir, en .claude/agents/."
+    },
+    "documents": {
+      "name": "Documentos",
+      "description": "La carpeta docs/ del repositorio y los documentos que escriben los agentes."
+    },
+    "memory": {
+      "name": "Memoria compartida",
+      "description": "CLAUDE.md, la memoria del proyecto y un diario que recibe cada agente."
+    },
+    "hiddenKept": "oculto · sus datos se conservan",
+    "hiddenEmpty": "oculto, sin datos todavía",
+    "offMeansBrief": "Desactivar un módulo lo oculta y conserva sus datos",
+    "offMeansShort": "Desactivar un módulo oculta su pestaña y conserva sus datos. Al activarlo vuelve todo.",
+    "offMeansLong": "Desactivar un módulo <strong>oculta su pestaña y conserva sus datos</strong>. Al activarlo de nuevo vuelve todo, tal como estaba. Ningún interruptor borra nada.",
+    "marksLabel": "Módulos: {{list}}",
+    "marksNone": "Sin módulos"
+  },
+  "templates": {
+    "simple": {
+      "name": "Simple",
+      "description": "Un nombre y un directorio. Sin módulos."
+    },
+    "software": {
+      "name": "Software profesional",
+      "description": "Todos los módulos, los cuatro tipos de tarea y un equipo de cuatro roles."
+    },
+    "library": {
+      "name": "Biblioteca o paquete",
+      "description": "Tablero, documentos y memoria. Límite de 2 en curso."
+    },
+    "research": {
+      "name": "Investigación o documentación",
+      "description": "Documentos y memoria, y un tablero sin bugs."
+    },
+    "custom": {
+      "name": "Personalizada",
+      "description": "Todo desactivado: eliges cada módulo."
+    }
+  },
+  "prefix": {
+    "empty": "El prefijo de clave no puede quedar vacío",
+    "pattern": "Letras mayúsculas y dígitos, empezando por una letra, de 2 a 10 caracteres",
+    "taken": "{{prefix}} ya lo usa otro proyecto"
+  },
+  "wizard": {
+    "subtitle": "Un directorio, una plantilla y los módulos que quieras. Todo se puede cambiar después.",
+    "backToProjects": "Volver a proyectos",
+    "close": "Cerrar",
+    "stepsLabel": "Pasos del nuevo proyecto",
+    "stepOf": "paso {{n}} de {{total}}",
+    "steps": {
+      "origin": "Origen",
+      "template": "Plantilla",
+      "modules": "Módulos",
+      "summary": "Resumen"
+    },
+    "chooseTemplate": "Elige una plantilla",
+    "templateHint": "Preselecciona módulos, tipos de tarea, límites y el equipo inicial.",
+    "modulesHint": "Los que la plantilla ha preseleccionado.",
+    "modulesHintPhone": "{{template}} ha preseleccionado estos. Puedes cambiarlos ahora o en los ajustes del proyecto.",
+    "name": "Nombre",
+    "namePlaceholder": "mi-proyecto",
+    "folderHint": "Carpeta: <mono>{{folder}}</mono>",
+    "folderEmpty": "El nombre necesita una letra o un número: la carpeta nueva se llama como él.",
+    "folderTaken": "El espacio de trabajo ya tiene una carpeta llamada {{folder}}. Elige otro nombre o importa esa carpeta como directorio.",
+    "directory": "Directorio",
+    "directoryPlaceholder": "/home/tu/codigo/mi-proyecto",
+    "source": "De dónde sale el proyecto",
+    "local": "Local",
+    "git": "URL de git",
+    "prefix": "Prefijo de clave",
+    "keysHint": "Las tareas se llamarán <mono>{{a}}</mono>, <mono>{{b}}</mono>…",
+    "candidateHint_one": "El directorio ya tiene {{n}} chat de Claude Code: queda agrupado en el proyecto.",
+    "candidateHint_other": "El directorio ya tiene {{n}} chats de Claude Code: quedan agrupados en el proyecto.",
+    "importHint": "Cada chat que se ejecutó en el directorio pasa a formar parte del proyecto. Un worktree de git se rechaza: importa su repositorio.",
+    "emptyHint": "Deja el directorio vacío para crear uno nuevo en el espacio de trabajo.",
+    "gitHint": "El repositorio se clona en el espacio de trabajo.",
+    "unnamed": "Sin nombre",
+    "inWorkspace": "un directorio nuevo en el espacio de trabajo",
+    "change": "Cambiar",
+    "summaryKeys": "Claves",
+    "summaryTypes": "Tipos",
+    "summaryLimits": "Límites",
+    "allTypes": "los cuatro",
+    "noLimits": "ninguno",
+    "moduleOff": "{{name}} · desactivado",
+    "teamRoles_one": "{{n}} rol de la plantilla",
+    "teamRoles_other": "{{n}} roles de la plantilla",
+    "noTeam": "Sin equipo inicial",
+    "teamHint": "Se ofrece al crear el proyecto: cada rol que aceptes tiene su archivo de agente en .claude/agents/.",
+    "create": "Crear proyecto",
+    "created": "Proyecto {{name}} creado",
+    "keyFailed": "El proyecto se ha creado, pero no se ha podido poner su prefijo de clave",
+    "renameFailed": "El proyecto se ha creado, pero no se ha podido cambiarle el nombre",
+    "next": "Siguiente",
+    "back": "Volver"
+  },
+  "general": {
+    "title": "General",
+    "name": "Nombre",
+    "prefix": "Prefijo de clave",
+    "prefixShort": "Prefijo",
+    "prefixHint": "Las claves se componen al leerlas: un prefijo nuevo renombra <mono>{{from}}</mono> de golpe. El número no cambia nunca y no se reutiliza.",
+    "prefixHintChange": "Las claves se componen al leerlas: <mono>{{from}}</mono> pasará a leerse <mono>{{to}}</mono>. El número no cambia nunca y no se reutiliza.",
+    "directory": "Directorio",
+    "modules": "Módulos",
+    "modulesOn": "{{n}} de {{total}} activados",
+    "boardNote": "{{open}} abiertas · {{total}} en total",
+    "boardLimits": "Límites del tablero",
+    "limitsHint": "Límite por columna. Pasarse se permite: la columna lo avisa con una palabra, sin bloquear el movimiento.",
+    "limitOf": "Límite de {{column}}",
+    "noLimits": "sin límites",
+    "removeTitle": "Quitar el proyecto",
+    "removeBody": "Deja de aparecer en Agentry. Sus ajustes y sus tareas se conservan: si vuelves a importar el directorio, vuelve todo. No toca el repositorio.",
+    "discard": "Descartar",
+    "save": "Guardar los cambios",
+    "saving": "Guardando…",
+    "saved": "Ajustes del proyecto guardados",
+    "saveFailed": "No se han podido guardar los ajustes del proyecto",
+    "moduleNote": {
+      "members_one": "{{n}} miembro",
+      "members_other": "{{n}} miembros",
+      "documents_one": "{{n}} documento",
+      "documents_other": "{{n}} documentos",
+      "journal_one": "diario con {{n}} entrada",
+      "journal_other": "diario con {{n}} entradas"
+    }
+  },
+  "illustration": {
+    "refine": "refinar",
+    "work": "implementar",
+    "verify": "verificar"
   }
 }

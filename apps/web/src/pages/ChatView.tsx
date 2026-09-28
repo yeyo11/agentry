@@ -10,24 +10,27 @@ import { useDeleteChat } from '../components/ChatDelete';
 import { PermissionPrompts } from '../components/PermissionPrompts';
 import { ICON, ICON_SM } from '../components/icons';
 import { AnimatePresence, motion } from '../components/motion';
-import { endsWithAssistant, StreamingEntry, Transcript, type SubagentLink, type TranscriptEdits, type WorkflowLaunches } from '../components/Transcript';
+import { useToast } from '../components/Toast';
+import { endsWithAssistant, StreamingEntry, Transcript, type MessageActions, type SubagentLink, type TranscriptEdits, type WorkflowLaunches } from '../components/Transcript';
 import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind, type FindTarget } from '../components/TranscriptSearch';
 import { entryParam } from '../components/changes/steps/steps-model';
 import '../components/changes/steps/at-jump.css';
 import { Empty, ErrorBox, Loading, PageHeader, Skeleton, usePageTitle } from '../components/ui';
-import { api, ApiRequestError, keys } from '../api';
+import { api, ApiRequestError, keys, useProjects } from '../api';
 import { tickerActivity } from '../lib/chat-live';
 import { displayTitle } from '../lib/chat-model';
 import { subagentFor, transcriptRows } from '../lib/chat-steps';
 import type { ChatStreamStore } from '../lib/chat-stream';
 import { useChatStream, useChatTranscript, useStreamSnapshot } from '../lib/chats';
 import { useDetailPanel } from '../lib/detail';
+import { taskPath } from '../lib/work-items';
 import { Composer, type ComposerKind } from './chat/Composer';
 import { ChatHeader, type HeaderActions } from './chat/Header';
 import { Inspector, useInspector } from './chat/Inspector';
 import { PartOf } from './chat/PartOf';
 import { useQueuedMessages } from './chat/queued';
 import { useStickToBottom } from './chat/stick-to-bottom';
+import { useChatItemLinks, WorkItemPartOf } from './chat/WorkItemLinks';
 
 /** How long the entry a link opened the chat at stays marked */
 const AT_MARK_MS = 2400;
@@ -72,7 +75,7 @@ export function ChatView() {
   const stream = useChatStream(id, Boolean(chat?.execution));
   const connected = useStreamSnapshot(stream, (snapshot) => snapshot.connected);
   const writing = useStreamSnapshot(stream, (snapshot) => snapshot.partial?.block === 'text');
-  const { follow, setFollow, jumpToLatest } = useStickToBottom(scroller, Boolean(chat));
+  const { follow, setFollow, jumpToLatest, hold } = useStickToBottom(scroller, Boolean(chat));
   const { queued, add: queueMessage, drop: dropQueued, pending: isPending } = useQueuedMessages(chat, transcript.items);
   // Words handed back to the composer: a message the chat ended without ever reading
   const [restore, setRestore] = useState<{ text: string; at: number } | null>(null);
@@ -125,9 +128,11 @@ export function ChatView() {
   const focus = useFindFocus(find.target ?? jump, transcript.items, transcript.from, transcript.reach);
   useFindHighlight(scroller, find);
   // Jumping to a hit is the reader moving: the bottom must not pull them back
+  const steered = Boolean(find.target || jump);
   useEffect(() => {
-    if (find.target || jump) setFollow(false);
-  }, [find.target, jump, setFollow]);
+    hold(steered);
+    if (steered) setFollow(false);
+  }, [find.target, jump, steered, hold, setFollow]);
   // The entry stays marked for a moment once it is on screen, then reads like any other
   const jumpShown = Boolean(jump && focus);
   useEffect(() => {
@@ -171,6 +176,33 @@ export function ChatView() {
     [workflowList, showInspector],
   );
 
+  // "Create a task from this message": in Backlog of the chat's project, then offered to open
+  const toast = useToast();
+  const projects = useProjects(false);
+  const itemLinks = useChatItemLinks(id);
+  const chatProject = chat?.project ?? null;
+  const project = chatProject ? projects.data?.find((p) => p.id === chatProject.id) : undefined;
+  const { mutate: createTask } = useMutation({
+    mutationFn: (text: string) => api.workItemFromMessage(id, { text }),
+    onSuccess: (item) => {
+      void queryClient.invalidateQueries({ queryKey: keys.chatWorkItems(id) });
+      toast.show({
+        tone: 'ok',
+        title: t('messageMenu.created', { key: item.key }),
+        detail: t('messageMenu.createdDetail'),
+        action: { label: t('messageMenu.openTask'), onClick: () => navigate(taskPath(item.key)) },
+      });
+    },
+    onError: (error) => toast.error(t('messageMenu.createFailed'), error),
+  });
+  // Read before the project list arrives, the item is offered: the server has the last word
+  const noBoard = project && !project.modules.includes('board');
+  const taskDisabled = !chatProject ? t('messageMenu.noProject') : noBoard ? t('messageMenu.noBoard', { project: chatProject.name }) : undefined;
+  const taskHint = chatProject ? t('messageMenu.createTaskHint', { project: chatProject.name }) : '';
+  const messages = useMemo<MessageActions>(
+    () => ({ createTask: { run: (text) => createTask(text), hint: taskHint, disabledReason: taskDisabled } }),
+    [createTask, taskHint, taskDisabled],
+  );
   // The steps give the edit chips their counts. They are read once the conversation has painted,
   // never in its way, and again whenever a call comes back: an edit's result is what makes a step
   const [painted, setPainted] = useState(false);
@@ -258,6 +290,9 @@ export function ChatView() {
           </div>
         )}
         {chat.orchestration && <PartOf link={chat.orchestration} />}
+        {itemLinks.map((link) => (
+          <WorkItemPartOf key={link.item.id} link={link} chatId={chat.id} />
+        ))}
         <FindBar find={find} />
 
         <div className="run-stage">
@@ -296,6 +331,7 @@ export function ChatView() {
                 working={stepCurrent}
                 subagents={subagents}
                 workflows={workflows}
+                messages={messages}
                 edits={edits}
               />
             )}

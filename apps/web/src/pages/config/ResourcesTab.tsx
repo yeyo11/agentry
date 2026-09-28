@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react';
-import { RESOURCE_FORMATS, type ResourceKind } from '@agentry/shared';
+import { RESOURCE_FORMATS, type ConfigResource, type ResourceKind } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,7 @@ import { useToast } from '../../components/Toast';
 import { Card, Empty, ErrorBox, PathLabel, Skeleton, Tag } from '../../components/ui';
 import { useDirty, useLeaveGuard } from '../../lib/dirty';
 import { timeAgo } from '../../lib/format';
+import { frontmatterProblem } from './frontmatter';
 
 // The starting file content is not translated: it is what the CLI reads, and the frontmatter keys are
 // the CLI's own. Every visible string about a kind lives in the `config` locale under resources.kinds.
@@ -45,20 +46,20 @@ type KindPhrase =
   | 'create'
   | 'deleteTitle';
 
+/** A resource's name as the API takes it: a file or directory name without its extension. */
+export const RESOURCE_NAME = /^[\w-]{1,64}$/;
+
+/** The resource open in the editor: one that exists, or a new one not written yet. */
 interface Draft {
   name: string;
-  content: string;
   isNew: boolean;
-  /** Content as last saved, to compute the dirty state */
-  saved: string;
+  /** What the save answered, which stands in until the list is fetched again */
+  saved?: ConfigResource;
 }
 
 export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind }) {
   const { t } = useTranslation(['config', 'common']);
-  const k = (phrase: KindPhrase, options?: { name: string }) => t(`resources.kinds.${kind}.${phrase}`, options ?? {});
-  const queryClient = useQueryClient();
-  const toast = useToast();
-  const confirm = useConfirm();
+  const k = (phrase: KindPhrase) => t(`resources.kinds.${kind}.${phrase}`);
   const guard = useLeaveGuard();
   const queryKey = keys.resources(scope, kind);
   const { data, error, isLoading } = useQuery({ queryKey, queryFn: () => api.resources(scope, kind) });
@@ -66,46 +67,19 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
   const [naming, setNaming] = useState<string | null>(null);
   const resources = data ?? [];
 
-  const dirty = draft !== null && (draft.isNew || draft.content !== draft.saved);
-  useDirty(kind, dirty);
-
-  const save = useMutation({
-    mutationFn: (d: Draft) => api.putResource(scope, kind, d.name, d.content),
-    onSuccess: (saved) => {
-      void queryClient.invalidateQueries({ queryKey });
-      if (kind === 'workflows') void queryClient.invalidateQueries({ queryKey: keys.savedWorkflowsAll });
-      setDraft({ name: saved.name, content: saved.content, saved: saved.content, isNew: false });
-      toast.success(k('saved', { name: saved.name }), saved.path);
-    },
-    onError: (err) => toast.error(k('saveFailed'), err),
-  });
-
-  const remove = useMutation({
-    mutationFn: (name: string) => api.deleteResource(scope, kind, name),
-    onSuccess: (_result, name) => {
-      void queryClient.invalidateQueries({ queryKey });
-      if (kind === 'workflows') void queryClient.invalidateQueries({ queryKey: keys.savedWorkflowsAll });
-      setDraft(null);
-      toast.success(k('deleted', { name }));
-    },
-    onError: (err) => toast.error(k('deleteFailed'), err),
-  });
-
   const open = async (name: string) => {
     if (draft?.name === name && !draft.isNew) return;
     if (!(await guard())) return;
-    const resource = resources.find((r) => r.name === name);
-    if (resource) setDraft({ name, content: resource.content, saved: resource.content, isNew: false });
+    if (resources.some((r) => r.name === name)) setDraft({ name, isNew: false });
   };
 
-  const nameValid = naming !== null && /^[\w-]{1,64}$/.test(naming);
   const nameTaken = naming !== null && resources.some((r) => r.name === naming);
   const create = () => {
-    if (!naming || !nameValid || nameTaken) return;
-    setDraft({ name: naming, content: TEMPLATES[kind](naming), saved: '', isNew: true });
+    if (!naming || !RESOURCE_NAME.test(naming) || nameTaken) return;
+    setDraft({ name: naming, isNew: true });
     setNaming(null);
   };
-  const trySave = () => draft && dirty && !save.isPending && save.mutate(draft);
+  const current = draft && !draft.isNew ? (resources.find((r) => r.name === draft.name) ?? draft.saved ?? null) : null;
 
   return (
     <Card
@@ -122,35 +96,7 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
       <ErrorBox error={error} />
       <div className="master-detail">
         <div className="master">
-          {naming !== null && (
-            <form
-              className="master-new"
-              onSubmit={(e) => {
-                e.preventDefault();
-                create();
-              }}
-            >
-              <input
-                autoFocus
-                className={`mono ${naming && (!nameValid || nameTaken) ? 'is-invalid' : ''}`}
-                value={naming}
-                placeholder={k('namePlaceholder')}
-                aria-label={k('nameLabel')}
-                onChange={(e) => setNaming(e.target.value.trim())}
-                onKeyDown={(e) => e.key === 'Escape' && setNaming(null)}
-              />
-              <div className="form-actions">
-                <button type="submit" className="btn btn-small btn-primary" disabled={!nameValid || nameTaken}>
-                  {t('shared.create')}
-                </button>
-                <button type="button" className="btn btn-small" onClick={() => setNaming(null)}>
-                  {t('common:actions.cancel')}
-                </button>
-              </div>
-              {nameTaken && <span className="field-hint text-err">{t('resources.exists')}</span>}
-              {naming && !nameValid && <span className="field-hint text-err">{t('resources.nameRule')}</span>}
-            </form>
-          )}
+          {naming !== null && <NameForm kind={kind} value={naming} taken={nameTaken} onChange={setNaming} onSubmit={create} onCancel={() => setNaming(null)} />}
           {isLoading ? (
             <Skeleton rows={4} />
           ) : resources.length === 0 && !draft?.isNew ? (
@@ -166,13 +112,13 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
                 </li>
               )}
               {resources.map((resource) => {
-                const current = draft?.name === resource.name && !draft.isNew;
+                const on = draft?.name === resource.name && !draft.isNew;
                 return (
                   <li key={resource.name}>
                     <button
                       type="button"
-                      aria-current={current ? 'true' : undefined}
-                      className={`master-item ${current ? 'master-item-on' : ''}`}
+                      aria-current={on ? 'true' : undefined}
+                      className={`master-item ${on ? 'master-item-on' : ''}`}
                       onClick={() => void open(resource.name)}
                     >
                       <span className="strong break">{resource.name}</span>
@@ -201,53 +147,179 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
               {resources.length === 0 ? k('hint') : t('resources.pick')}
             </Empty>
           ) : (
-            <div className="form">
-              <div className="editor-meta">
-                <strong>{draft.name}</strong>
-                {!draft.isNew && <PathLabel path={resources.find((r) => r.name === draft.name)?.path ?? ''} />}
-                {dirty && <Tag tone="warn">{draft.isNew ? t('resources.notSavedYet') : t('shared.unsaved')}</Tag>}
-              </div>
-              <CodeEditor
-                key={`${draft.name}:${draft.isNew}`}
-                language={resources.find((r) => r.name === draft.name)?.format ?? RESOURCE_FORMATS[kind]}
-                ariaLabel={k('content')}
-                minHeight="380px"
-                value={draft.content}
-                onChange={(content) => setDraft((d) => (d ? { ...d, content } : d))}
-                onSave={trySave}
-              />
-              <div className="form-actions">
-                <button className="btn btn-primary" disabled={!dirty || save.isPending} onClick={() => save.mutate(draft)}>
-                  {save.isPending ? t('shared.saving') : draft.isNew ? k('create') : t('shared.save')}
-                </button>
-                <button
-                  className="btn"
-                  disabled={!dirty}
-                  onClick={() => (draft.isNew ? setDraft(null) : setDraft({ ...draft, content: draft.saved }))}
-                >
-                  {t('shared.discard')}
-                </button>
-                {!draft.isNew && (
-                  <button
-                    className="btn btn-danger push-right"
-                    disabled={remove.isPending}
-                    onClick={() =>
-                      void confirm({
-                        title: k('deleteTitle', { name: draft.name }),
-                        body: kind === 'skills' ? t('resources.deleteSkillBody') : t('resources.deleteFileBody'),
-                        confirmLabel: t('common:actions.delete'),
-                        danger: true,
-                      }).then((ok) => ok && remove.mutate(draft.name))
-                    }
-                  >
-                    {t('common:actions.delete')}
-                  </button>
-                )}
-              </div>
-            </div>
+            <ResourceEditor
+              key={`${draft.name}:${draft.isNew}`}
+              scope={scope}
+              kind={kind}
+              name={draft.name}
+              resource={current}
+              onSaved={(saved) => setDraft({ name: saved.name, isNew: false, saved })}
+              onClosed={() => setDraft(null)}
+            />
           )}
         </div>
       </div>
     </Card>
+  );
+}
+
+/** The name of a new resource, checked as it is typed: its rule, and whether that name is taken. */
+export function NameForm({
+  kind,
+  value,
+  taken,
+  onChange,
+  onSubmit,
+  onCancel,
+}: {
+  kind: ResourceKind;
+  value: string;
+  taken: boolean;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
+  const { t } = useTranslation(['config', 'common']);
+  const valid = RESOURCE_NAME.test(value);
+  return (
+    <form
+      className="master-new"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit();
+      }}
+    >
+      <input
+        autoFocus
+        className={`mono ${value && (!valid || taken) ? 'is-invalid' : ''}`}
+        value={value}
+        placeholder={t(`resources.kinds.${kind}.namePlaceholder`)}
+        aria-label={t(`resources.kinds.${kind}.nameLabel`)}
+        onChange={(e) => onChange(e.target.value.trim())}
+        onKeyDown={(e) => e.key === 'Escape' && onCancel()}
+      />
+      <div className="form-actions">
+        <button type="submit" className="btn btn-small btn-primary" disabled={!valid || taken}>
+          {t('shared.create')}
+        </button>
+        <button type="button" className="btn btn-small" onClick={onCancel}>
+          {t('common:actions.cancel')}
+        </button>
+      </div>
+      {taken && <span className="field-hint text-err">{t('resources.exists')}</span>}
+      {value && !valid && <span className="field-hint text-err">{t('resources.nameRule')}</span>}
+    </form>
+  );
+}
+
+/**
+ * One resource in the editor: a file that exists (saved, discarded back to what is on disk, or
+ * deleted) or a new one, which starts from its kind's template and exists only once saved. The
+ * settings' resources and a project's Resources tab both open it; the parent keys it by name so each
+ * file starts from its own content.
+ */
+export function ResourceEditor({
+  scope,
+  kind,
+  name,
+  resource,
+  onSaved,
+  onClosed,
+}: {
+  scope: Scope;
+  kind: ResourceKind;
+  name: string;
+  /** The file as the API serves it; null for a new one */
+  resource: ConfigResource | null;
+  onSaved: (saved: ConfigResource) => void;
+  /** A new one discarded, or the file deleted */
+  onClosed: () => void;
+}) {
+  const { t } = useTranslation(['config', 'common']);
+  const k = (phrase: KindPhrase, options?: { name: string }) => t(`resources.kinds.${kind}.${phrase}`, options ?? {});
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const queryKey = keys.resources(scope, kind);
+  const isNew = resource === null;
+  const [saved, setSaved] = useState(resource?.content ?? '');
+  const [content, setContent] = useState(resource?.content ?? TEMPLATES[kind](name));
+
+  const dirty = isNew || content !== saved;
+  useDirty(kind, dirty);
+  // Said before saving: the CLI skips a file it cannot read without telling anyone
+  const problem = dirty ? frontmatterProblem(kind, content) : null;
+
+  const save = useMutation({
+    mutationFn: (text: string) => api.putResource(scope, kind, name, text),
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey });
+      if (kind === 'workflows') void queryClient.invalidateQueries({ queryKey: keys.savedWorkflowsAll });
+      setSaved(result.content);
+      setContent(result.content);
+      toast.success(k('saved', { name: result.name }), result.path);
+      onSaved(result);
+    },
+    onError: (err) => toast.error(k('saveFailed'), err),
+  });
+
+  const remove = useMutation({
+    mutationFn: () => api.deleteResource(scope, kind, name),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey });
+      if (kind === 'workflows') void queryClient.invalidateQueries({ queryKey: keys.savedWorkflowsAll });
+      toast.success(k('deleted', { name }));
+      onClosed();
+    },
+    onError: (err) => toast.error(k('deleteFailed'), err),
+  });
+
+  const trySave = () => dirty && problem === null && !save.isPending && save.mutate(content);
+
+  return (
+    <div className="form">
+      <div className="editor-meta">
+        <strong>{name}</strong>
+        {resource && <PathLabel path={resource.path} />}
+        {dirty && <Tag tone="warn">{isNew ? t('resources.notSavedYet') : t('shared.unsaved')}</Tag>}
+      </div>
+      <CodeEditor
+        language={resource?.format ?? RESOURCE_FORMATS[kind]}
+        ariaLabel={k('content')}
+        minHeight="380px"
+        value={content}
+        onChange={setContent}
+        onSave={trySave}
+      />
+      {problem && (
+        <span className="field-error" role="alert">
+          {t(`resources.frontmatter.${problem}`)}
+        </span>
+      )}
+      <div className="form-actions">
+        <button className="btn btn-primary" disabled={!dirty || problem !== null || save.isPending} onClick={() => save.mutate(content)}>
+          {save.isPending ? t('shared.saving') : isNew ? k('create') : t('shared.save')}
+        </button>
+        <button className="btn" disabled={!dirty} onClick={() => (isNew ? onClosed() : setContent(saved))}>
+          {t('shared.discard')}
+        </button>
+        {!isNew && (
+          <button
+            className="btn btn-danger push-right"
+            disabled={remove.isPending}
+            onClick={() =>
+              void confirm({
+                title: k('deleteTitle', { name }),
+                body: kind === 'skills' ? t('resources.deleteSkillBody') : t('resources.deleteFileBody'),
+                confirmLabel: t('common:actions.delete'),
+                danger: true,
+              }).then((ok) => ok && remove.mutate())
+            }
+          >
+            {t('common:actions.delete')}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

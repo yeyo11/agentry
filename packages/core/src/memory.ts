@@ -12,7 +12,24 @@ const INDEX = 'MEMORY.md';
 function frontmatterField(content: string, field: string): string | null {
   const frontmatter = /^---\n([\s\S]*?)\n---/.exec(content)?.[1];
   const match = frontmatter ? new RegExp(`^\\s*${field}:\\s*(.+)$`, 'm').exec(frontmatter) : null;
-  return match?.[1]?.trim().replace(/^["']|["']$/g, '') ?? null;
+  const value = match?.[1]?.trim();
+  if (value === undefined) return null;
+  // A double-quoted scalar is JSON's string syntax, which is how `append` writes one
+  if (value.startsWith('"')) {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (typeof parsed === 'string') return parsed;
+    } catch {
+      // not one we wrote: read it as the text it is
+    }
+  }
+  return value.replace(/^["']|["']$/g, '');
+}
+
+/** A description as frontmatter and the index hold it: the first line, short enough to scan. */
+function oneLine(value: string): string {
+  const first = value.trim().split('\n')[0]?.trim() ?? '';
+  return first.length > 150 ? `${first.slice(0, 149)}…` : first;
 }
 
 /**
@@ -64,6 +81,35 @@ export class MemoryStore {
     const saved = await this.get(projectId, name);
     if (!saved) throw new Error('memory file was not persisted');
     return saved;
+  }
+
+  /** A name `save` and `append` take: letters, digits, `_ . -` and a `.md` extension. */
+  static isFileName(name: string): boolean {
+    return NAME_RE.test(name);
+  }
+
+  /**
+   * Adds `text` to a memory file, as an approved memory proposal does: at the end of the file when it
+   * exists, else in a new one with the frontmatter the CLI's memory files carry, indexed in
+   * `MEMORY.md` so a session finds it. The index itself is never the target: it only points at facts.
+   */
+  async append(projectId: string, name: string, text: string, description: string): Promise<{ file: MemoryFile; created: boolean }> {
+    if (name === INDEX) throw new Error(`${INDEX} is the index of the memory, not a memory file`);
+    const existing = await this.get(projectId, name);
+    const body = text.trim();
+    if (existing) {
+      const file = await this.save(projectId, name, `${existing.content.trimEnd()}\n\n${body}\n`);
+      return { file, created: false };
+    }
+    const slug = name.replace(/\.md$/, '');
+    const line = oneLine(description) || oneLine(body) || slug;
+    // Quoted: a description is free text, and one with `: `, a leading `-`, `[` or `#` is not a plain
+    // YAML scalar, which would break the frontmatter for whoever parses it. A JSON string is valid YAML
+    const file = await this.save(projectId, name, `---\nname: ${slug}\ndescription: ${JSON.stringify(line)}\nmetadata:\n  type: project\n---\n\n${body}\n`);
+    const index = await this.get(projectId, INDEX);
+    const entry = `- [${slug}](${name}) — ${line}`;
+    await this.save(projectId, INDEX, index ? `${index.content.trimEnd()}\n${entry}\n` : `${entry}\n`);
+    return { file, created: true };
   }
 
   async remove(projectId: string, name: string): Promise<void> {
