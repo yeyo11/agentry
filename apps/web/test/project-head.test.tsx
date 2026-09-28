@@ -31,7 +31,7 @@ test.beforeEach(async () => {
 test("every tab's header leads to the project's assistant, beside the ways to start work", () => {
   const html = wrap(<ProjectHead project={project} primaryTask={false} />);
   const actions = [...html.matchAll(/<a [^>]*class="(btn[^"]*)"[^>]*>(?:<svg.*?<\/svg>)?([^<]+)<\/a>/g)].map((m) => `${m[2]}|${m[1]}`);
-  assert.deepEqual(actions, ['Asistente|btn btn-ghost project-head-assistant', 'Nuevo chat aquí|btn', 'Nueva tarea|btn']);
+  assert.deepEqual(actions, ['Asistente|btn btn-quiet project-head-assistant', 'Nuevo chat aquí|btn', 'Nueva tarea|btn']);
   assert.match(html, /href="\/projects\/p%201\/assistant"/);
   assert.match(html, /aria-label="Asistente de shop"/);
   // The gradient stays on New task on Summary: the assistant never takes the primary

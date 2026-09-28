@@ -534,8 +534,8 @@
 
 .wizard-phone {
   gap: 16px;
-  /* The screen under the top bar, so the step's actions sit at its bottom */
-  min-height: calc(100dvh - 96px);
+  /* The last field scrolls out from under the fixed footer */
+  padding-bottom: 76px;
 }
 
 .wizard-phone-head {
@@ -719,10 +719,13 @@
 
 /* Sticks to the bottom of the page's scroll, so the steps' actions never leave the screen */
 .wizard-phone-foot {
-  position: sticky;
+  /* The screen has no top bar and no tab bar (MobileNuevoProyecto): the step's actions are the
+     bottom of the window, as the assistant's are */
+  position: fixed;
+  left: 0;
+  right: 0;
   bottom: 0;
   z-index: 20;
-  margin: auto calc(-1 * var(--main-pad-x, 16px)) 0;
   display: flex;
   gap: 10px;
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom));

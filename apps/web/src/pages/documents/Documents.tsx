@@ -237,17 +237,6 @@ function PhoneDocuments({ project, tree, root, fileCount, tied, address }: Layou
     const heading = tie ? t(`kinds.${tie.kind}.name`) : (file?.title ?? baseName(address.path));
     return (
       <div className="doc-phone">
-        {address.mode === 'view' && (
-          <header className="doc-phone-head">
-            <button type="button" className="icon-btn" aria-label={t('phone.back')} onClick={() => address.go({ doc: null, mode: 'view' })}>
-              <ChevronLeft {...ICON} />
-            </button>
-            <div className="doc-phone-head-text">
-              <h1>{heading}</h1>
-              <span className="mono small muted ellipsis">{address.path}</span>
-            </div>
-          </header>
-        )}
         <DocumentPane
           key={address.path}
           project={project}
@@ -257,6 +246,7 @@ function PhoneDocuments({ project, tree, root, fileCount, tied, address }: Layou
           onClosed={() => address.go({ doc: null, mode: 'view' }, false)}
           onCancel={() => address.go({ mode: 'view' })}
           phone
+          phoneHead={{ title: heading, backLabel: t('phone.back'), fallback: `/?project=${encodeURIComponent(project.id)}&view=documents` }}
         />
       </div>
     );

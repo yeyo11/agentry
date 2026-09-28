@@ -47,7 +47,7 @@ export function ProjectHead({ project, primaryTask, actions = true }: { project:
         <div className="page-actions">
           <Link
             to={assistantPath(project.id)}
-            className="btn btn-ghost project-head-assistant"
+            className="btn btn-quiet project-head-assistant"
             aria-disabled={!project.exists || undefined}
             aria-label={t('projects:head.assistantOf', { name: project.name })}
           >

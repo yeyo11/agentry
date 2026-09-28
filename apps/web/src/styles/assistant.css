@@ -222,15 +222,6 @@
   gap: 14px;
 }
 
-.assistant-head-phone {
-  align-items: flex-start;
-}
-
-.assistant-head-phone .project-head-text {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
 .assistant-page.is-phone .suggestion-run.is-done {
   flex-direction: column;
   align-items: stretch;
