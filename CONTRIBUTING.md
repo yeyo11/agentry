@@ -21,6 +21,10 @@ pnpm install
 pnpm dev          # API on :8787, Vite on :5173
 ```
 
+If `:8787` is taken, the API stops and says so instead of moving: Vite proxies `/api` there, and
+another Agentry on that port (a worktree's dev server, the desktop app) would answer the new UI
+with old routes. Stop what holds it, or run with `PORT=<free>` and `VITE_API_TARGET=http://127.0.0.1:<free>`.
+
 The API serves the built UI too, so `pnpm build && pnpm start` gives you the production shape on
 `:8787` alone.
 

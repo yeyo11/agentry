@@ -8,6 +8,12 @@ export interface StartServerOptions {
   host?: string;
   /** Built UI to serve; defaults to AGENTRY_WEB_DIST or the monorepo's apps/web/dist */
   webDist?: string;
+  /**
+   * Whether a taken port is answered by binding one the system picks (default true, what the
+   * desktop shell wants). Off, a taken port is the error it is: `pnpm dev` and a container have a
+   * fixed address in front of them, and moving would leave that address pointing at something else.
+   */
+  portFallback?: boolean;
 }
 
 export interface RunningServer {
@@ -27,11 +33,11 @@ export interface RunningServer {
  * which is the worse of the two. Port 0 already means "whatever is free", so it has nothing to
  * fall back to, and an error that is not a taken port is a real failure either way.
  */
-export async function listenOn(app: FastifyInstance, port: number, host: string): Promise<void> {
+export async function listenOn(app: FastifyInstance, port: number, host: string, fallback = true): Promise<void> {
   try {
     await app.listen({ port, host });
   } catch (err) {
-    if (port === 0 || (err as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw err;
+    if (!fallback || port === 0 || (err as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw err;
     app.log.warn(`port ${String(port)} is taken; listening on one the operating system picks instead`);
     await app.listen({ port: 0, host });
   }
@@ -58,7 +64,7 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   else app.log.info(`Claude Code ${system.cli.version} ready (auth: ${system.auth.tokenSource}, plan: ${system.auth.subscriptionType ?? 'n/a'})`);
 
   try {
-    await listenOn(app, opts.port ?? 8787, host);
+    await listenOn(app, opts.port ?? 8787, host, opts.portFallback ?? true);
   } catch (err) {
     core.shutdown();
     await app.close();

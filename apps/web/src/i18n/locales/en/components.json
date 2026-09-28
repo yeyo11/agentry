@@ -495,6 +495,7 @@
     "noChanges": "No line changed.",
     "fingerprint": "Change fingerprint: each file as wide as what changed in it",
     "fingerprintFile": "{{path}}: {{additions}} added, {{deletions}} removed",
-    "fingerprintFileSeen": "{{path}}: {{additions}} added, {{deletions}} removed, seen"
+    "fingerprintFileSeen": "{{path}}: {{additions}} added, {{deletions}} removed, seen",
+    "fingerprintMore": "{{count}} more files, too small for a segment of their own: open the first"
   }
 }
