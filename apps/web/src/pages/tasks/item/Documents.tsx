@@ -1,6 +1,6 @@
 import type { DocumentKind, WorkItemDetail, WorkItemLink } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link2, Search } from 'lucide-react';
+import { Link2, Search, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -20,13 +20,28 @@ export function documentHref(projectId: string, path: string): string {
   return `/?${query.toString()}`;
 }
 
-function DocumentRow({ link, projectId, title }: { link: WorkItemLink; projectId: string; title: string | null }) {
+/**
+ * A tied document, opened on the Documents tab, and a way to untie it: the link goes, the file stays
+ * in the folder. Deleting the file used to be the only way to take a document off a task.
+ */
+function DocumentRow({ link, itemId, projectId, title }: { link: WorkItemLink; itemId: string; projectId: string; title: string | null }) {
   const { t } = useTranslation('documents');
   const roleName = useRoleName();
+  const qc = useQueryClient();
+  const toast = useToast();
   const path = link.documentPath ?? '';
   const who = link.teamRole ? roleName(link.teamRole) : t('tied.byHand');
+  const untie = useMutation({
+    mutationFn: () => api.removeWorkItemLink(itemId, link.id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: keys.workItem(itemId) });
+      void qc.invalidateQueries({ queryKey: keys.documentsOf(projectId) });
+      toast.success(t('item.untied', { path }));
+    },
+    onError: (error) => toast.error(t('item.untieFailed'), error),
+  });
   return (
-    <li>
+    <li className="workitem-doc-item">
       <Link to={documentHref(projectId, path)} className="doc-row workitem-doc">
         <DocumentKindTag kind={link.documentKind ?? 'doc'} />
         <span className="doc-row-main">
@@ -38,6 +53,9 @@ function DocumentRow({ link, projectId, title }: { link: WorkItemLink; projectId
         </span>
         {link.teamRole && <RoleAvatar role={link.teamRole} size="sm" />}
       </Link>
+      <button type="button" className="icon-btn workitem-doc-untie" aria-label={t('item.untie', { path })} title={t('item.untie', { path })} disabled={untie.isPending} onClick={() => untie.mutate()}>
+        <X {...ICON_SM} />
+      </button>
     </li>
   );
 }
@@ -126,7 +144,7 @@ export function ItemDocuments({ item }: { item: WorkItemDetail }) {
       ) : (
         <ul className="doc-rows card">
           {links.map((link) => (
-            <DocumentRow key={link.id} link={link} projectId={item.projectId} title={titles.get(link.documentPath ?? '') ?? null} />
+            <DocumentRow key={link.id} link={link} itemId={item.id} projectId={item.projectId} title={titles.get(link.documentPath ?? '') ?? null} />
           ))}
         </ul>
       )}

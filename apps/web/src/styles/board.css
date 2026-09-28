@@ -755,6 +755,13 @@
   gap: 8px;
 }
 
+/* A list per column: its rows are the items, and nothing of a list's own look */
+.workitem-list-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .workitem-row {
   position: relative;
   min-height: 44px;
@@ -1405,6 +1412,12 @@
   padding: 0 2px;
   border: 0;
   background: none;
+}
+
+/* The FAB floats over the right edge of the page, where a section's role label sits: the heads keep
+   that column clear, so the label is never under it (the cards scroll past it, their titles wrap) */
+.shell-has-fab .workitem-msection-head {
+  padding-right: 64px;
 }
 
 .workitem-msection-note {

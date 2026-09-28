@@ -41,7 +41,6 @@
     "mode": "Modo",
     "edited": "editado {{when}}",
     "markdown": "Markdown",
-    "saveKey": "⌘S",
     "preview": "Vista previa"
   },
   "origin": {
@@ -119,6 +118,9 @@
     "search": "Buscar en la carpeta de documentos",
     "noFiles": "Todos los documentos ya están ligados, o la carpeta está vacía",
     "files": "Documentos",
-    "none": "Aún no hay documentos. Aquí aparece la especificación o la decisión que un miembro del equipo escriba para ella."
+    "none": "Aún no hay documentos. Aquí aparece la especificación o la decisión que un miembro del equipo escriba para ella.",
+    "untie": "Desligar {{path}} de la tarea",
+    "untied": "{{path}} ya no está ligado a la tarea. El archivo sigue en la carpeta.",
+    "untieFailed": "No se pudo desligar el documento"
   }
 }

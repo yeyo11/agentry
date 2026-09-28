@@ -1,12 +1,14 @@
 import type { BoardColumn, WorkItem } from '@agentry/shared';
 import { Check, ChevronDown, ListOrdered, TriangleAlert, User } from 'lucide-react';
-import { useState, type KeyboardEvent } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { hasOpenLayer } from '../../components/controls/layer';
 import { PriorityMark, WorkItemKey, WorkItemStatusIcon, WorkItemTypeIcon } from '../../components/icons';
 import { Spinner } from '../../components/Spinner';
 import { timeAgo } from '../../lib/format';
-import { columnMeta, priorityMeta, taskPath, workItemLiveState } from '../../lib/work-items';
+import { useListKeys } from '../../lib/list-keys';
+import { columnMeta, countsInColumn, listRowStep, priorityMeta, taskPath, workItemLiveState } from '../../lib/work-items';
 import type { BoardSelection } from './board/BoardColumns';
 import { LiveLine, type LiveSources } from './board/LiveLine';
 import { byRank, DONE_SHOWN, openBlockers } from './board/model';
@@ -14,9 +16,11 @@ import { Assignee } from './board/WorkItemCard';
 
 /**
  * The list view of Tasks (`/tasks?view=list`): the same items as the board, grouped by column in
- * board order and ordered by their place in it, one row each. J and K walk the rows; Enter opens
- * one. Done shows its first few, and the rest behind a button. On a phone each group is a card of
- * rows whose titles wrap.
+ * board order and ordered by their place in it, one row each: a list per column, each row a link
+ * that says what it shows. J and K walk the rows from anywhere on the page (the keys every list
+ * answers to, `lib/list-keys.ts`); Enter opens one. A group counts what its board column counts,
+ * epics left out. Done shows its first few, and the rest behind a button. On a phone each group is
+ * a card of rows whose titles wrap.
  */
 export function List({
   columns,
@@ -36,22 +40,35 @@ export function List({
   const { t } = useTranslation('tasks');
   const [allDone, setAllDone] = useState(false);
   const groups = columns.filter((column) => column.items.length > 0);
+  const list = useRef<HTMLDivElement>(null);
 
-  const walk = (event: KeyboardEvent<HTMLElement>) => {
-    const key = event.key.toLowerCase();
-    if (key !== 'j' && key !== 'k') return;
-    if ((event.target as HTMLElement).closest('input, textarea')) return;
-    const rows = [...event.currentTarget.querySelectorAll<HTMLElement>('[data-row]')];
-    const at = rows.indexOf(document.activeElement as HTMLElement);
-    const next = rows[at < 0 ? 0 : at + (key === 'j' ? 1 : -1)];
-    if (next) {
+  // A shortcut with a modifier (Ctrl+K is the palette), a letter typed in a field, and a dialog or a
+  // menu open above the list are someone else's; `/` is the search field's own
+  useListKeys(
+    groups.length > 0,
+    (action, event) => {
+      if (action !== 'next' && action !== 'previous' && action !== 'select') return;
+      const rows = [...(list.current?.querySelectorAll<HTMLElement>('[data-row]') ?? [])];
+      const at = rows.indexOf(document.activeElement as HTMLElement);
+      if (action === 'select') {
+        // X picks the row in focus while selecting, as a click does
+        if (selection && at >= 0) {
+          event.preventDefault();
+          rows[at]?.click();
+        }
+        return;
+      }
+      const next = listRowStep(rows.length, at, action === 'next' ? 1 : -1);
+      if (next === null) return;
       event.preventDefault();
-      next.focus();
-    }
-  };
+      rows[next]?.focus();
+      rows[next]?.scrollIntoView({ block: 'nearest' });
+    },
+    () => hasOpenLayer() || document.querySelector('[role=dialog], [role=alertdialog]') !== null,
+  );
 
   return (
-    <div className={phone ? 'workitem-mlist' : 'workitem-list-wrap'} onKeyDown={walk}>
+    <div ref={list} className={phone ? 'workitem-mlist' : 'workitem-list-wrap'}>
       <div className={phone ? 'workitem-mlist-groups' : 'card workitem-list'}>
         {/* The column heads are for the eye; each row says everything it shows to a screen reader */}
         {!phone && (
@@ -77,6 +94,7 @@ export function List({
         )}
         {groups.map((column) => {
           const items = byRank(column.items);
+          const counted = items.filter(countsInColumn).length;
           const done = column.status === 'done';
           const shown = done && !allDone ? items.slice(0, DONE_SHOWN) : items;
           const rest = items.length - shown.length;
@@ -86,7 +104,7 @@ export function List({
               <span className="workitem-group-name">
                 <WorkItemStatusIcon status={column.status} decorative />
                 <span className="workitem-col-name">{t(columnMeta(column.status).label)}</span>
-                <span className="workitem-col-count">{items.length}</span>
+                <span className="workitem-col-count">{counted}</span>
                 {over && (
                   <span className="badge badge-warn">
                     <TriangleAlert size={11} strokeWidth={2} aria-hidden />
@@ -96,7 +114,15 @@ export function List({
               </span>
             </div>
           );
-          const rows = shown.map((item) => <Row key={item.id} item={item} project={projectNames?.get(item.projectId)} live={live} selection={selection} phone={phone} onOpen={onOpen} />);
+          const rows = (
+            <ul className="workitem-list-rows">
+              {shown.map((item) => (
+                <li key={item.id}>
+                  <Row item={item} project={projectNames?.get(item.projectId)} live={live} selection={selection} phone={phone} onOpen={onOpen} />
+                </li>
+              ))}
+            </ul>
+          );
           const toggle =
             done && (rest > 0 || allDone) && items.length > DONE_SHOWN ? (
               <button type="button" className="workitem-list-more" aria-expanded={allDone} onClick={() => setAllDone((v) => !v)}>
@@ -190,14 +216,25 @@ function Row({
         ))}
       </span>
       <span className="workitem-row-num" title={total ? t('card.criteria', { done: checked, total }) : undefined}>
-        {total > 0 && `${checked}/${total}`}
+        {total > 0 && (
+          <>
+            <span aria-hidden>{`${checked}/${total}`}</span>
+            <span className="sr-only">{t('card.criteria', { done: checked, total })}</span>
+          </>
+        )}
       </span>
       <span className="workitem-row-prio">
         <PriorityMark priority={item.priority} />
         <span aria-hidden>{t(priorityMeta(item.priority).label)}</span>
       </span>
       <span className="workitem-row-who">
-        {item.assignee ? <Assignee item={item} /> : <span className="workitem-assignee-none" title={t('list.unassigned')} />}
+        {item.assignee ? (
+          <Assignee item={item} />
+        ) : (
+          <span className="workitem-assignee-none" title={t('list.unassigned')}>
+            <span className="sr-only">{t('list.unassigned')}</span>
+          </span>
+        )}
       </span>
       <span className="workitem-row-when">
         {timeAgo(item.updatedAt)}
@@ -212,11 +249,11 @@ function Row({
       <button
         type="button"
         className={`${classes} is-select ${chosen ? 'is-selected' : ''}`.trim()}
-       
         aria-pressed={chosen}
         aria-disabled={blocked ? true : undefined}
         title={blocked ? t(`select.why.${blocked}`) : undefined}
         data-row
+        data-item-id={item.id}
         onClick={() => {
           if (!blocked) selection.toggle(item);
         }}
@@ -230,8 +267,8 @@ function Row({
     <Link
       to={taskPath(item.key)}
       className={classes}
-     
       data-row
+      data-item-id={item.id}
       onClick={(event) => {
         if (event.metaKey || event.ctrlKey || event.shiftKey) return;
         event.preventDefault();

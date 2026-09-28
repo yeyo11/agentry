@@ -4,6 +4,7 @@ import { lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CodeEditor } from '../../../components/CodeEditor';
 import { ICON_SM } from '../../../components/icons';
+import { useDirty } from '../../../lib/dirty';
 import type { ItemActions } from './hooks';
 
 const Markdown = lazy(() => import('../../../components/Markdown'));
@@ -12,6 +13,7 @@ const Markdown = lazy(() => import('../../../components/Markdown'));
 export function Title({ item, actions }: { item: WorkItemDetail; actions: ItemActions }) {
   const { t } = useTranslation('workItem');
   const [draft, setDraft] = useState<string | null>(null);
+  useDirty(`workitem:${item.id}:title`, draft !== null && draft.trim() !== '' && draft.trim() !== item.title);
   const save = () => {
     const title = draft?.trim();
     setDraft(null);
@@ -51,6 +53,8 @@ export function Title({ item, actions }: { item: WorkItemDetail; actions: ItemAc
 export function Description({ item, actions }: { item: WorkItemDetail; actions: ItemActions }) {
   const { t } = useTranslation('workItem');
   const [draft, setDraft] = useState<string | null>(null);
+  // Leaving the page, closing the panel or switching project asks before this text is lost
+  useDirty(`workitem:${item.id}:description`, draft !== null && draft !== item.description);
   const save = () => {
     if (draft === null) return;
     if (draft === item.description) return setDraft(null);

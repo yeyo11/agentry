@@ -47,7 +47,22 @@ export function RelationDialog({
         />
         <label className="relation-search">
           <Search {...ICON_SM} />
-          <input data-autofocus type="search" value={q} placeholder={t('relations.search')} aria-label={t('relations.search')} onChange={(e) => setQ(e.target.value)} />
+          <input
+            data-autofocus
+            type="search"
+            value={q}
+            placeholder={t('relations.search')}
+            aria-label={t('relations.search')}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter takes the first match, the one a typed key finds on its own, once the results
+              // are for what is typed now and not for the letters before
+              if (e.key !== 'Enter') return;
+              e.preventDefault();
+              const first = items[0];
+              if (first && query === q.trim() && !found.isFetching) onPick(type, first);
+            }}
+          />
         </label>
         {items.length === 0 ? (
           <p className="muted small">{found.isLoading ? t('relations.searching') : t('relations.noMatch')}</p>

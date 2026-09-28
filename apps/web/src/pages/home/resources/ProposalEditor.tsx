@@ -12,6 +12,7 @@ import { useToast } from '../../../components/Toast';
 import { Segmented, Tag } from '../../../components/ui';
 import { useDirty } from '../../../lib/dirty';
 import { NARROW, useMediaQuery } from '../../../lib/media';
+import { shortcut } from '../../../lib/shortcut';
 import { savePath, shownName } from './model';
 
 /**
@@ -141,7 +142,7 @@ export function ProposalEditor({
               {t('resourcesAi.discard')}
             </button>
             <span className="form-hint push-right resource-proposal-hint">
-              {t('resourcesAi.nothingWritten')} <kbd className="palette-kbd">⌘S</kbd>
+              {t('resourcesAi.nothingWritten')} <kbd className="palette-kbd">{shortcut('S')}</kbd>
             </span>
           </>
         ) : (

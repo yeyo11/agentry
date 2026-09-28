@@ -241,6 +241,17 @@ export function workOnBlocker(item: Pick<WorkItem, 'type' | 'status' | 'activeLi
   return null;
 }
 
+/** Criteria still unchecked: moving to Done with any asks first, since Done means every one is met. */
+export function uncheckedCriteria(item: Pick<WorkItem, 'acceptanceCriteria'>): { unchecked: number; total: number } {
+  const total = item.acceptanceCriteria.length;
+  return { unchecked: item.acceptanceCriteria.filter((c) => !c.checked).length, total };
+}
+
+/** Deleting an item a chat or a node is working on leaves that work without its task: the confirmation says so. */
+export function deleteWarning(item: Pick<WorkItem, 'activeLink'>): 'working' | null {
+  return item.activeLink && (item.activeLink.chatState === 'working' || item.activeLink.chatState === 'waiting' || item.activeLink.taskStatus === 'running') ? 'working' : null;
+}
+
 // ---------- the New task form ----------
 
 /** A label typed in the form: trimmed, and the same label twice (case folded) kept once. */

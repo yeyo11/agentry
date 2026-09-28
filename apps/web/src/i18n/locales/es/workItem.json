@@ -173,7 +173,8 @@
   },
   "delete": {
     "title": "¿Eliminar {{key}}?",
-    "body": "Se eliminan también su historial, sus comentarios y sus enlaces. Su número no se da nunca a otra tarea."
+    "body": "Se eliminan también su historial, sus comentarios y sus enlaces. Su número no se da nunca a otra tarea.",
+    "working": "Hay un chat o una orquestación trabajando en ella ahora: ese trabajo sigue, sin su tarea."
   },
   "workOn": {
     "title": "Trabajar en {{key}}",
@@ -211,5 +212,10 @@
     "created": "{{key}} creada",
     "open": "Abrir",
     "noBoard": "Ningún proyecto tiene activado el módulo Tablero. Actívalo en los ajustes de un proyecto para crear tareas."
+  },
+  "done": {
+    "title": "¿Mover {{key}} a Hecho?",
+    "body_one": "Queda {{count}} de sus {{total}} criterios de aceptación sin marcar. Hecho quiere decir que se cumplen todos.",
+    "body_other": "Quedan {{count}} de sus {{total}} criterios de aceptación sin marcar. Hecho quiere decir que se cumplen todos."
   }
 }

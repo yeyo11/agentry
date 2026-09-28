@@ -11,7 +11,7 @@ import { ICON_SM, PriorityMark, WorkItemKey, WorkItemStatusIcon, WorkItemTypeIco
 import { useToast } from '../../components/Toast';
 import { ErrorBox, Segmented } from '../../components/ui';
 import { NARROW, useMediaQuery } from '../../lib/media';
-import { columnMeta, priorityMeta, taskPath, WORK_ITEM_TYPE_META } from '../../lib/work-items';
+import { columnMeta, newTaskProject, priorityMeta, taskPath, WORK_ITEM_TYPE_META } from '../../lib/work-items';
 import {
   AssigneeMark,
   EpicDot,
@@ -106,8 +106,10 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
   const person = usePersonName();
   const projects = useProjects(false);
   const boards = (projects.data ?? []).filter((p) => p.modules.includes('board'));
-  const [chosen, setChosen] = useState<string>(projectId ?? '');
-  const project = boards.find((p) => p.id === (projectId ?? chosen)) ?? null;
+  // A project whose Board is off (the palette and the FAB open the form on the top bar's) asks for one
+  const fixed = newTaskProject(projectId, boards, projects.isSuccess);
+  const [chosen, setChosen] = useState<string>('');
+  const project = boards.find((p) => p.id === (fixed ?? chosen)) ?? null;
   const settings = useProjectSettings(project?.id ?? null);
   const offered = settings.data?.board.types.length ? settings.data.board.types : WORK_ITEM_TYPE_META.map((m) => m.type);
   const firstType: WorkItemType = offered.includes('task') ? 'task' : (offered[0] ?? 'task');
@@ -194,7 +196,7 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
     />
   );
   const projectControl =
-    projectId === null ? (
+    fixed === null ? (
       <div className="form-row">
         <span className="section-label">{t('newTask.project')}</span>
         <Select
@@ -428,6 +430,7 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
               {t('criteria.add')}
             </button>
           </div>
+          {fixed === null && boards.length === 0 && <p className="muted small">{t('newTask.noBoard')}</p>}
           <ErrorBox error={create.error} title={t('errors.create')} />
         </form>
         {relationDialog}
@@ -566,7 +569,7 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
             {t('criteria.add')}
           </button>
         </div>
-        {projectId === null && boards.length === 0 && <p className="muted small">{t('newTask.noBoard')}</p>}
+        {fixed === null && boards.length === 0 && <p className="muted small">{t('newTask.noBoard')}</p>}
         <ErrorBox error={create.error} title={t('errors.create')} />
       </form>
       {relationDialog}

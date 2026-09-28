@@ -13,6 +13,8 @@ import { useToast } from '../../components/Toast';
 import { Empty, ErrorBox, Segmented, Skeleton, Tag } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
 import { timeAgo } from '../../lib/format';
+import { queryView } from '../../lib/query-view';
+import { shortcut } from '../../lib/shortcut';
 import { taskPath } from '../../lib/work-items';
 import { mainTie } from './model';
 import { RoleAvatar, useRoleName } from '../team/RoleAvatar';
@@ -158,14 +160,16 @@ export function DocumentPane({
     });
   };
 
-  if (file.isLoading) {
+  const view = queryView(file);
+  if (view === 'loading') {
     return (
       <div className="doc-pane-body">
         <Skeleton rows={6} height={16} />
       </div>
     );
   }
-  if (file.error || !data) {
+  // A refetch that fails keeps the file drawn, and an edit in progress keeps its text
+  if (view !== 'shown' || !data) {
     return (
       <div className="doc-pane-body">
         <ErrorBox error={file.error} title={t('pane.readFailed')} />
@@ -303,7 +307,7 @@ export function DocumentPane({
       {mode === 'edit' && (
         <div className="doc-pane-foot">
           <span className="small muted">{t('pane.markdown')}</span>
-          <kbd className="kbd">{t('pane.saveKey')}</kbd>
+          <kbd className="kbd">{shortcut('S')}</kbd>
           <span className="doc-fill" />
           {dirty && <Tag tone="warn">{t('pane.unsaved')}</Tag>}
           {discardButton}
