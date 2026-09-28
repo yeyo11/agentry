@@ -203,11 +203,9 @@ export function WorkItemStrip({
       );
       break;
   }
-  return (
-    <div className={className} role={tone === 'fail' ? 'status' : undefined}>
-      {body}
-    </div>
-  );
+  // No live region on a failure: a board with several would announce them all on load. The word and
+  // the icon say it where the card is read.
+  return <div className={className}>{body}</div>;
 }
 
 /** The causes of a failed run, which the strip words; a cancellation's cause is never a failure's reason. */

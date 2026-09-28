@@ -225,7 +225,8 @@ test('a failed run is said on the card with its stage by column and its reason, 
   await i18n.changeLanguage('es');
   const failed = run('36', { state: 'ended', outcome: 'failed', role: 'product-owner', stage: 'refine', step: 'check', column: 'todo', cause: 'no-account', error: 'No account had quota' });
   const html = card(item('36', 'todo', { acceptanceCriteria: criteria(0, 4) }), team({ ended: new Map([['36', failed]]) }));
-  assert.match(html, /class="workitem-strip is-fail" role="status"/);
+  assert.match(html, /class="workitem-strip is-fail"/);
+  assert.doesNotMatch(html, /role="status"/, 'a board of failures does not announce each one on load');
   assert.match(text(html), /PO Falló al comprobarla · ninguna cuenta tenía cupo/);
   // The raw error, in English as the core wrote it, stays behind the words
   assert.match(html, /title="No account had quota"/);
