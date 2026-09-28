@@ -5,6 +5,10 @@ in `reference/` is now the official one for the ecosystem: apply it screen by sc
 The decisions behind it are in [design-system.md, "Decisions of the ecosystem design review"](../design-system.md#decisions-of-the-ecosystem-design-review),
 and the board's spec page is `reference/DSTablero.html`.
 
+Orchestration 7 of [the plan](../plans/project-ecosystem.md#orchestration-7-ecosystem-design)
+(`ecosystem-design`) applied it to the app on 2026-09-28. What it applied, screen by screen, and what
+it left are in [Applied in development](#applied-in-development) at the end of this note.
+
 ## Two bugs in the drafts
 
 1. **A merge marker in the stylesheet.** `agentry-ds.css` carried a stray `=======` on the line
@@ -117,3 +121,94 @@ without a generator were edited as HTML. "Counts" means the figures of bug 2.
   44 × 44 px.
 - Every changed screen captured again in both themes; `index.html` and `manifest.json` list the five
   new pages.
+
+## Applied in development
+
+Orchestration 7 (`ecosystem-design`, 2026-09-28) brought the app to this reference, on top of what
+orchestration 6 had already built (paging, Team activity, the flow's limits, the assistant button,
+phone headers and the model label), which it aligned rather than rebuilt. Its final review captured
+56 screens at 1440 × 1024 and 390 × 844, in both themes, each beside its reference screenshot, in a
+sandbox seeded with this note's data set (25 items plus 2 epics, 13 open, 12 done).
+
+Two differences hold on every screen and are not drifts: the sandbox's data (keys, ages, the fake
+CLI's missing model names), and past moments read as relative times ("hace 3 min"), by the owner's
+decision on time in [the plan](../plans/project-ecosystem.md#the-owners-decisions-for-the-questions-the-design-left).
+
+### The two bugs and the smaller slips
+
+- **The merge marker** was in the reference's stylesheet only; the app's stylesheets never had it.
+  The app's 44 px minimum comes from `--touch` in `tokens.css`, which it now defines.
+- **Epics are not counted** in the app since orchestration 4 (`countsInColumn`), so the corrected
+  figures are the ones the app already showed.
+- The smaller slips were in the drafts' data set, not in the app: it had the Worktrees tab, and the
+  failed runs, their retry and Team activity's "Ver todo" are built (below).
+
+### The stylesheet
+
+Each reference class landed as an app class, in the stylesheet of the screen that uses it. Where the
+name differs from the one §2 of `design-system.md` planned, the name below is the app's.
+
+| Reference | In the app |
+|---|---|
+| New card anatomy | `.workitem-context`, `.workitem-criteria` (`.is-full`) and `.workitem-card-foot` in `board.css`, with the epic bare in the context row |
+| The strip | `WorkItemStrip` (`.workitem-strip`) in `pages/tasks/board/`, its state picked by `workItemStrip()` in `lib/work-items.ts` |
+| Quiet over-limit column | `.workitem-col-limit` and the column's warn hairline |
+| Paging | `.workitem-col-more` and `.workitem-card.is-skeleton` on the board, `.workitem-list-more` on the list, `.list-more` on Team activity |
+| Roles | `RoleAvatar` in the `xs` size (18 px, `.role-avatar-xs`) |
+| Flow runs | `.flow-run*` in `team.css`, drawn by `pages/team/runs.tsx`; `.run-fail` is `.chat-run-failed` in `chat.css` |
+| Model picker | `ModelPicker` (`.model-pick`, `.model-tag`, `.resolved`) in `components/controls` |
+| Removed | the card's live line and meta row: `WorkItemStrip` and the context row replace them |
+| Phone header (`.m-head`) | `PhoneHeader` (`.phone-head*`) in `components/shell`, switched on by route in `phone-header.ts` |
+
+### Screen by screen
+
+"Matches" means the final review found no difference of structure, hierarchy, spacing or colour
+beyond the two above.
+
+| Screen | Applied | Left, and why |
+|---|---|---|
+| `Sidebar`, `MobileMas` | counts without epics; Proyectos highlighted on a project's tabs, and Más on a phone (orchestration 6) | — |
+| `DesktopProyecto` | a ghost "Asistente" before "Nuevo chat aquí"; the Worktrees tab; counts; Ajustes and Recursos carry no header actions | the Resumen tab keeps the app's dashboard widgets rather than the reference's composition |
+| `MobileProyecto` | `PhoneHeader` (back, monogram, name with key and path, "⋯" as a sheet); the "Asistente del proyecto" row with the proposals waiting; a Worktrees cell | the milestone card and "En marcha ahora" are not drawn |
+| `DesktopProyectoAjustes`, `MobileProyectoAjustes` | the Worktrees tab; "13 abiertas · 25 en total"; a mono figure under every module that is on (members, documents, journal entries); on a phone, its own Save bar with the tab bar stepped aside | on a phone "Límites del tablero" takes two lines instead of one |
+| `DesktopTablero`, `MobileTablero` | match: the five-row card with its context line, criteria bar and strip; the quiet over-limit column; "Mostrar N más" in Hecho with two skeleton cards; the assignee left out when the strip starts with it | the desktop header also shows "Sugerir tareas" (its sparkle beside the flow button), which the reference draws only on `DesktopSugerirTareas` |
+| `MobileTableroFiltros` | counts; the two epic items and the labels | not reviewed in detail; its `Sheet` shows ✕ where the reference draws a grab handle |
+| `MobileTableroSeleccion` | matches: the tab bar steps aside for the selection bar, and the epic is drawn bare | — |
+| `DesktopTableroEquipo` | matches: every state as a strip (queued, failed "al comprobarla", implementing, QA's words, "te espera" with "Aprobar y pasar a Hecho", verifying), each column's role in its head, and the flow's button leading the views | — |
+| `MobileTableroEquipo` | matches: the flow's state as one row under the view switch ("2 a la vez, 1 en cola"), at 13 px | — |
+| `DesktopTableroVacio`, `MobileTableroVacio` | match: the redrawn `board` illustration and the project's own first key; on a phone the page itself, with a full-width action | — |
+| `DesktopTareasLista`, `MobileTareasLista` | match: the type glyph leads each row, and the Now column says who runs the item or that its run failed | with no epic filter the list also shows the epic rows, which the count leaves out |
+| `DesktopTareasTodos` | matches | — |
+| `MobileTareasTodos` | counts; the project, by its monogram, at the head of the context row | the app keeps search, filters and the column jump, which the reference leaves out; the monogram is "CW" by decision 10 where the screenshot still shows "C" |
+| `DesktopTarea`, `MobileTarea` | match in structure: "te espera" beside the state, every flow run as a link led by the role's squircle, a failed one with its reason, each opening its chat | the review did not see the run links, since its seeded runs had no chat; `tasks-item-runs.spec.mjs` covers them |
+| `DesktopTarea` (activity), `MobileTareaActividad` | a failed run's comment drawn from the run in the person's words, with "Ver el chat"; "Verificación reintentada · <person>"; no repeated "agente" badge | `MobileTareaActividad` was not reviewed in detail |
+| `DesktopNuevaTarea`, `MobileNuevaTarea` | match | the header reads "claude-wrapper · AGN", not "será AGN-48": the client does not know the next number |
+| `DesktopSugerirTareas`, `DesktopSugerirTareasEnCurso` | the empty state matches | the proposals were not seen: the sandbox's fake CLI proposes none |
+| `DesktopHitos` | matches: the rows' actions are ghost buttons | — |
+| `DesktopEquipo`, `MobileEquipo` | match: Actividad in the segmented control and "Ver todo" opening it; stage verbs; the Product Owner's failure in words | — |
+| `DesktopFlujo` | matches: Actividad; one "Límites" card (bounces, runs at once, cost per run) that leads to the runs; the sent-back list moved to Team activity's "Devueltas"; each role's model as a `ModelPicker` | — |
+| `MobileFlujo` | matches: the same "Límites" as cells | the role picker says "Product Owner" where the reference abbreviates to "PO", and "Descartar" is bordered |
+| `DesktopMiembro`, `MobileMiembro` | match: the model is a `ModelPicker`, a list on a desktop and a sheet on a phone | — |
+| `DesktopEquipoVacio`, `MobileEquipoVacio` | match: the redrawn `team` illustration; the desktop card reaches the status bar; on a phone "La plantilla trae" and the third action in "⋯" | the desktop keeps a quiet "Añadir miembro": it is the only way to add a member by hand |
+| `DesktopMemoria`, `DesktopDocumentos`, `DesktopDocumentoEditar`, `DesktopRecursos`, `DesktopRecursoPropuesta`, `DesktopRecursoCrearIA` | the Worktrees tab; Asistente in the header where it has actions; counts; on a phone, `PhoneHeader`, with the folder read in the subtitle of Documentos and Recursos, and an open document's "⋯" holding the desktop pane's menu | `MobileMemoria` matches; the others were compared by the tasks that built them |
+| `DSIlustraciones` | `board` and `team` redrawn in `components/illustrations`, the team's stage words through i18n | — |
+| `DesktopEquipoActividad`, `MobileEquipoActividad` | match: "Ahora" on top; days ("Hoy", "Ayer · domingo 27") with the bare hour inside them; Todas / En marcha / Fallidas / Devueltas and the member chips; a failed run's reason, raw error, "Ver el chat" and "Reintentar", or what the retry did; today by member and the limits at the side; "Mostrar 50 más · quedan N"; the crumb "Equipo / Actividad". On a phone the member filter is the header's button and the row opens the run's chat | — |
+| `DesktopChatFlujo`, `MobileChatFlujo` | the failure banner (`.chat-run-failed`) at the head of the run's chat: the reason from its cause, what did not move, the raw error and "Reintentar", or once retried what the next run did, with its chat | on a phone the chat keeps the chat page's header, by the owner's decision on phone headers; it moves in the separate job, with every chat |
+| `DesktopChatTarea` | the chat page, with the item's row under its header | kept as it is, by the same decision |
+| Also headed by `PhoneHeader` | `MobileAsistente`, `MobileDocumento`, and `MobileNuevoProyecto` with "Cerrar" (a modal flow) and its step actions pinned to the bottom | — |
+
+### For development
+
+| Item | Applied |
+|---|---|
+| Routes | `GET /projects/:id/flow/runs` takes `role`, `outcome` (another name for `status`), `before` and `limit`; `GET /work-items/:itemId/runs` came with orchestration 6; `POST /flow-runs/:runId/retry` answers 409 once the item left the run's column or a later run of the step exists, and counts as a person's move. A run knows the run it retries (`retryOf`), the next run of its step (`retriedBy`) and whether it can be retried now (`retryable`) |
+| Failure text | a run keeps its `cause` as a code (`FlowRunCause`: `budget`, `no-account`, `rate-limit`, `stopped`, `restarts`, `unreadable`, `no-verdict`… and the cancellations' reasons). The web words it in the person's language with the raw `error` under it in mono; a run stored before reads its cause from its error. The item's activity draws `flow.failed` from the run, not from the English comment |
+| Durations | `formatElapsed` reads `m:ss` from the first second ("0:41"); `formatDuration` words an ended run ("3 min 40 s", "11 min") |
+| Stage names | a run carries its `step` by column (`FLOW_STEP_OF_COLUMN`, `flowStepOf`): refine in Backlog, check in Por hacer ("Falló al comprobarla"), work, verify |
+| Retry | "Reintentar" shows while `retryable`; once `retriedBy` exists, the failed run says what that run did and links its chat |
+| Monogram | `projectMonogram`: the first letter of the first two words, or the first two letters of a single word, in any script |
+| The strip's actor | `stripNamesAssignee` leaves the assignee out of the foot when the strip starts with the same role, or with the person |
+
+The e2e specs of these screens were updated (`tasks-board`, `tasks-item-runs`, `tasks-review`,
+`team`, `team-gaps`, `team-review`, `documents`, `documents-item`, `projects-wizard`, `shell`,
+`suggest`); they run once, in the verification of the merged branch.

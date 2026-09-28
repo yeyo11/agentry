@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-09-28T12:00:00Z
+updated_at: 2026-09-28T20:00:00Z
 tags:
     - design-system
     - web
@@ -888,6 +888,26 @@ the file being edited is its only moving part.
   made every summary 8 px wider than its panel.
 - The Result / Step by step switch is the app's `Segmented` control, so it takes the arrow keys and
   the tab order like every other one; a lens out of reach is dimmed and says why.
+
+### The ecosystem design review
+
+> **Landed** in orchestration 7 of the [project ecosystem](plans/project-ecosystem.md)
+> (`ecosystem-design`, 2026-09-28). Screen by screen, what the app applied and left is at the end of
+> [the review's note](design-system/ecosystem-review.md#applied-in-development).
+
+Where §2 planned an app name and the app settled on another:
+
+- `.model-pick` is `ModelPicker` with the reference's own `.model-pick` class, not `.model-picker`.
+- `.run-fail`, the failed run's banner at the head of its chat, is `.chat-run-failed` in
+  `chat.css`, since the chat page draws it; `.flow-run-failed` does not exist.
+- `.flow-run*` lives in `pages/team/` (`runs.tsx`) and `team.css`, not in `components/team/`.
+- The skeleton cards are `.workitem-card.is-skeleton`, and the task list's foot is
+  `.workitem-list-more`; Team activity's foot is `.list-more`.
+- `.m-head` is `PhoneHeader` (`.phone-head*`, `components/shell/`). Which routes it heads is one
+  table, `PHONE_HEADER_ROUTES` in `phone-header.ts`: the ecosystem's screens now, the rest of the app
+  in a separate job ([status.md](status.md#what-is-open)).
+- Time follows decision 10 with the owner's rule for past moments: a relative time everywhere, and
+  the bare hour ("17:44") only inside a list grouped by day, such as Team activity.
 
 
 ## Related

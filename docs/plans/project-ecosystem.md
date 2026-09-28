@@ -1802,6 +1802,28 @@ What stays open is listed in
 - board payloads with descriptions;
 - the web files over 400 lines.
 
+### Orchestration 7: `ecosystem-design`
+
+Built on `feat/ecosystem-design-base` (orchestration 6's web work and the designer's patch) on
+2026-09-28, to be merged back into `feat/project-ecosystem`:
+
+- **Core and API** (`78940029`): a flow run's `cause`, its `step` by column (refine, check, work,
+  verify), `POST /flow-runs/:runId/retry` with `retryOf`, `retriedBy` and `retryable`, and the
+  `role`, `outcome` and `before` filters of `GET /projects/:id/flow/runs`.
+- **Shell and time**: `formatElapsed` reads `m:ss` from the first second, the phone header by route
+  (`phoneHeader: 'page'`, `PhoneHeader`), `ModelPicker`, the monogram rule, and the tokens `--touch`,
+  `--sel-*` and `--r-xs`.
+- **Screens**: the board's card and strip, the list's Now column, paging, the work item's runs and
+  activity, the failed run's banner on the chat page, Team activity, the Límites card, the project's
+  headers and settings, and the redrawn `board` and `team` illustrations.
+- **Final review**: 56 screens captured beside their references in both themes and sizes, and eight
+  drifts that crossed tasks fixed.
+
+What it applied and left, screen by screen, is at the end of
+[the review's note](../design-system/ecosystem-review.md#applied-in-development). The phone headers
+of the rest of the app are the separate job above, recorded in [status.md](../status.md#what-is-open).
+`pnpm e2e` runs once, in the verification of the merged branch.
+
 ## Related
 
 [[status.md]] · [[projects.md]] · [[work-items.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[design-system.md]] · [[plans/agents-redesign.md]] ·
