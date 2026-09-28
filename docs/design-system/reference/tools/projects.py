@@ -113,8 +113,11 @@ def new_project_mobile():
   write('MobileNuevoProyectoModulos.html', mobile('Nuevo proyecto, módulos', inner))
 
 
-def proj_head(actions=True):
-  acts = f'<div class="row" style="gap: 8px"><a href="DesktopNuevoChat.html" class="btn">{ico("chats")}Nuevo chat aquí</a><a href="DesktopNuevaTarea.html" class="btn btn-primary">{ico("plus")}Nueva tarea</a></div>' if actions else ''
+def proj_head(actions=True, task_primary=True):
+  # The assistant is an occasional visit, so it is the quiet one of the three: ghost, with its sparkle.
+  # "Nueva tarea" is the primary only on the Summary; a tab with its own primary (Añadir miembro) lowers it.
+  tp = ' btn-primary' if task_primary else ''
+  acts = f'<div class="row" style="gap: 8px"><a href="DesktopAsistentePropuestas.html" class="btn btn-ghost">{ico("sparkle")}Asistente</a><a href="DesktopNuevoChat.html" class="btn">{ico("chats")}Nuevo chat aquí</a><a href="DesktopNuevaTarea.html" class="btn{tp}">{ico("plus")}Nueva tarea</a></div>' if actions else ''
   return f'''<div class="proj-head">
 <span class="proj monogram" style="--hue: 20">CW</span>
 <span class="col grow" style="gap: 4px"><span class="row" style="gap: 10px"><h1 class="t-h1">claude-wrapper</h1><span class="wi-key boxed">AGN</span><span class="badge">Software profesional</span></span><span class="mono t-xs fg-3">~/Escritorio/claude-wrapper · 186 chats · 15 worktrees</span></span>
@@ -123,15 +126,15 @@ def proj_head(actions=True):
 
 
 def proj_tabs(on):
-  # The seven tabs of the plan, in its order. Settings draws the strip without Documents, because that
+  # The eight tabs of the plan, in its order (Worktrees is not a module: it is always there). Settings draws the strip without Documents, because that
   # screen shows the module switched off. Memory counts the proposals waiting, in idle.
   memory = '<span class="count-pill" style="background: var(--idle-soft); color: var(--idle)" title="3 propuestas esperan tu aprobación" aria-label="3 propuestas esperan tu aprobación">3</span>'
-  tabs = [('overview', 'overview', 'Resumen', ''), ('board', 'board', 'Tablero', '15'), ('team', 'team', 'Equipo', '5'), ('documents', 'docs', 'Documentos', '23'),
-          ('memory', 'memory', 'Memoria', memory), ('resources', 'resources', 'Recursos', '12'), ('settings', 'settings', 'Ajustes', '')]
+  tabs = [('overview', 'overview', 'Resumen', ''), ('board', 'board', 'Tablero', '13'), ('team', 'team', 'Equipo', '5'), ('documents', 'docs', 'Documentos', '23'),
+          ('memory', 'memory', 'Memoria', memory), ('resources', 'resources', 'Recursos', '12'), ('worktrees', 'branch', 'Worktrees', '15'), ('settings', 'settings', 'Ajustes', '')]
   if on == 'settings':
     tabs = [t for t in tabs if t[0] != 'documents']
   hrefs = {'overview': 'DesktopProyecto.html', 'board': 'DesktopTablero.html', 'team': 'DesktopEquipo.html', 'documents': 'DesktopDocumentos.html',
-           'memory': 'DesktopMemoria.html', 'resources': 'DesktopRecursos.html', 'settings': 'DesktopProyectoAjustes.html'}
+           'memory': 'DesktopMemoria.html', 'resources': 'DesktopRecursos.html', 'worktrees': '#', 'settings': 'DesktopProyectoAjustes.html'}
   def count(c):
     return c if c.startswith('<') else (f'<span class="count">{c}</span>' if c else '')
   out = ''.join(f'<a href="{hrefs[k]}" role="tab" aria-selected="{"true" if k == on else "false"}" class="tab{" on" if k == on else ""}">{ico(i)}{n}{count(c)}</a>' for k, i, n, c in tabs)
@@ -159,7 +162,7 @@ def project_settings_desktop():
 </div>
 <div class="col" style="flex: 1.15 1 0; gap: 18px; min-width: 0">
 <section class="card col" style="padding: 18px; gap: 12px"><div class="row"><h2 class="t-h2 grow">Módulos</h2><span class="mono t-xs fg-3">3 de 4 activados</span></div>
-{module_card('board', True, '15 abiertas · 27 en total')}
+{module_card('board', True, '13 abiertas · 25 en total')}
 {module_card('team', True, '5 miembros en .claude/agents/')}
 {module_card('documents', False, ico('eyeoff') + 'oculto · 23 documentos conservados')}
 {module_card('memory', True, 'CLAUDE.md · diario con 86 entradas')}
@@ -187,7 +190,7 @@ def project_settings_mobile():
 </div>
 <div class="col" style="gap: 8px"><span class="t-label" style="padding: 0 4px">Módulos</span>
 <div class="card" style="overflow: hidden">
-{cell_sw('board', True, '15 abiertas · 27 en total')}
+{cell_sw('board', True, '13 abiertas · 25 en total')}
 {cell_sw('team', True, '5 miembros')}
 {cell_sw('documents', False, 'oculto · 23 documentos conservados')}
 {cell_sw('memory', True, 'diario con 86 entradas')}
@@ -204,7 +207,7 @@ def dist_rows():
   total = 15
   out = []
   for s, n in COLS:
-    c = len(by_col(s)) + (DONE_MORE if s == 'done' else 0)
+    c = len(counted(by_col(s))) + (DONE_MORE if s == 'done' else 0)
     lim = LIMITS.get(s)
     over = lim is not None and c > lim
     pct = min(100, c / 12 * 100)
@@ -222,7 +225,7 @@ def live_rows(compact=False):
 def project_page_desktop():
   hist = [
     ('move', '<b>AGN-26</b> pasó de En curso a En revisión', 'automático · el turno del chat terminó bien', '12 min'),
-    ('play', '<b>AGN-28</b> pasó a En curso', 'automático · empezó el chat b67aa3', '18 min'),
+    ('play', '<b>AGN-28</b> pasó a En curso', 'automático · empezó el chat b67aa3', '4 min'),
     ('check', 'Criterio 4 de 5 marcado en <b>AGN-26</b>', 'yeyo', '40 min'),
     ('plus', '<b>AGN-45</b> creada en Backlog', 'yeyo · desde el chat 9f02c1', '1 h'),
     ('flag', 'Hito <b class="mono">v0.19</b> cerrado', 'yeyo', '2 d'),
@@ -232,7 +235,7 @@ def project_page_desktop():
 {proj_head()}
 {proj_tabs('overview')}
 <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
-<div class="card kpi"><span class="t-label">Abiertas</span><span class="v">15</span><span class="t-xs fg-3">27 en total · 12 hechas</span></div>
+<div class="card kpi"><span class="t-label">Abiertas</span><span class="v">13</span><span class="t-xs fg-3">25 en total · 12 hechas</span></div>
 <div class="card kpi"><span class="t-label">En curso</span><span class="v c-warn">5<span class="fg-3">/3</span></span><span class="row t-xs c-warn" style="gap: 5px">{ico('warn', 'ico ico-sm')}sobre el límite</span></div>
 <div class="card kpi"><span class="t-label">Agentes trabajando</span><span class="v c-live">2</span><span class="row t-xs fg-3" style="gap: 6px"><span class="spin-braille"></span>1 chat · 1 orquestación</span></div>
 <a href="DesktopHitos.html" class="card kpi grad-border"><span class="t-label">Hito actual · <span style="text-transform: none">v0.20</span></span><span class="v grad-text">47 %</span><span class="ms-bar" style="margin-top: 2px"><i class="done" style="width: 47%"></i><i class="doing" style="width: 27%"></i></span></a>
@@ -273,18 +276,20 @@ def project_page_mobile():
 <span class="row"><span class="t-label grow">Hito actual · <span style="text-transform: none">v0.20</span></span>{ico('right', 'ico fg-3')}</span>
 <span class="row" style="align-items: baseline; gap: 10px"><span class="t-num grad-text" style="font-size: 34px; font-weight: 600; letter-spacing: -0.035em">47 %</span><span class="t-sm fg-2">7 de 15 hechas</span></span>
 <span class="ms-bar"><i class="done" style="width: 47%"></i><i class="doing" style="width: 27%"></i></span>
-<span class="row mono t-xs fg-3" style="gap: 12px"><span>15 abiertas</span><span class="row c-warn" style="gap: 5px">{ico('warn', 'ico', 'width: 12px; height: 12px')}en curso 5/3, sobre el límite</span></span>
+<span class="row mono t-xs fg-3" style="gap: 12px"><span>13 abiertas</span><span class="row c-warn" style="gap: 5px">{ico('warn', 'ico', 'width: 12px; height: 12px')}en curso 4/3, sobre el límite</span></span>
 </a>
 <div class="col" style="gap: 8px"><div class="row" style="padding: 0 4px"><span class="t-label grow">En marcha ahora</span><span class="count-pill live">2</span></div>
 <a href="MobileChatTarea.html" class="card row rail-live" style="padding: 12px 14px 12px 16px; gap: 10px; min-height: 56px"><span class="spin-ring"></span><span class="col grow" style="gap: 2px; min-width: 0"><span class="row" style="gap: 7px"><span class="wi-key">AGN-28</span><span class="t-sm" style="font-weight: 500">Tablero con columnas fijas y límites</span></span><span class="row t-xs" style="gap: 6px"><span class="c-live">Ejecutando</span><span class="mono fg-3">pnpm test</span></span></span><span class="mono t-xs fg-3">4:12</span></a>
 <a href="MobileOrquestacion.html" class="card row rail-live" style="padding: 12px 14px 12px 16px; gap: 10px; min-height: 56px"><span class="spin-ring"></span><span class="col grow" style="gap: 4px; min-width: 0"><span class="row" style="gap: 7px"><span class="wi-key">AGN-30</span><span class="t-sm" style="font-weight: 500">API de tareas y del tablero</span></span><span class="segbar" style="height: 4px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 55%"></i><i></i><i></i><i></i><i></i><i></i><i></i></span></span><span class="mono t-xs fg-3">3/9</span></a>
 </div>
+<a href="MobileAsistentePropuestas.html" class="card row" style="padding: 12px 14px; gap: 12px; min-height: 56px"><span class="proj" style="background: var(--accent-soft); color: var(--accent)">{ico('sparkle')}</span><span class="col grow" style="gap: 2px; min-width: 0"><span style="font-weight: 500">Asistente del proyecto</span><span class="t-xs fg-3">3 propuestas por revisar</span></span>{ico('right', 'ico fg-3')}</a>
 <nav aria-label="Secciones del proyecto" class="card" style="overflow: hidden">
-{cell('board', 'Tablero', '15 abiertas', 'MobileTablero.html')}
+{cell('board', 'Tablero', '13 abiertas', 'MobileTablero.html')}
 {cell('team', 'Equipo', '5', 'MobileEquipo.html')}
 {cell('docs', 'Documentos', '23', 'MobileDocumentos.html')}
 {cell('memory', 'Memoria', '<span class="badge b-idle">3 esperan</span>', 'MobileMemoria.html')}
 {cell('resources', 'Recursos', '12', 'MobileRecursos.html')}
+{cell('branch', 'Worktrees', '15', '#')}
 {cell('settings', 'Ajustes', '', 'MobileProyectoAjustes.html')}
 </nav>
 </div>

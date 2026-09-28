@@ -51,7 +51,7 @@ def board_desktop():
   selected = ('AGN-36', 'AGN-33')
   cols = ''.join(col(s, epics_first(by_col(s)), sel_mode=True, selected=selected) for s, _ in COLS)
   main = f'''<main class="page selecting" style="gap: 16px; position: relative">
-{head('claude-wrapper · 15 abiertas · clave <span class="mono">AGN</span>', select=True)}
+{head('claude-wrapper · 13 abiertas · clave <span class="mono">AGN</span>', select=True)}
 {toolbar()}
 <div class="wi-board">{cols}</div>
 <div class="select-bar" role="toolbar" aria-label="Selección">
@@ -71,51 +71,63 @@ def mhead(title, sub=None, back=None, right=''):
   return f'<header class="m-head" style="padding-left: {4 if back else 16}px">{b}<span class="col grow" style="gap: 1px"><h1 class="t-h1">{title}</h1>{s}</span>{right}</header>'
 
 
-def mrow(k, show_status=False):
+def mrow(k, show_status=False, strip=None, who=None, lead=(), crit=None):
+  """A work item on the phone board: the card's anatomy in a full-width row. The title wraps; the
+  strip at its foot says what is happening to it, as on the desktop card."""
   w = W[k]
-  live = w.get('live')
-  cls = 'wi-mrow' + (' rail-live' if live else '')
-  lead = '<span class="spin-ring" style="width: 14px; height: 14px" role="img" aria-label="Trabajando"></span>' if live else tico(w['t'])
+  if strip is None:
+    live = w.get('live')
+    strip = live_strip('Y', 'Ejecutando', '4:12', 'pnpm test') if live == 'chat' else orch_strip() if live == 'orch' else ''
+  live_now = 'wi-strip live' in strip
+  cls = 'wi-mrow' + (' rail-live' if live_now else '')
   st = sico(w['s']) if show_status else ''
-  meta = []
-  if w.get('epic'): meta.append(epic(w['epic']))
-  for l in w.get('labels', []): meta.append(label(l))
-  if w.get('crit'): meta.append(f'<span class="row mono t-xs fg-3" style="gap: 4px">{ico("crit", "ico", "width: 12px; height: 12px")}{w["crit"][0]}/{w["crit"][1]}</span>')
-  if w.get('blocked'): meta.append(f'<span class="row mono t-xs fg-2" style="gap: 4px">{ico("block", "ico", "width: 12px; height: 12px")}bloqueada por {w["blocked"]}</span>')
+  ctx = []
+  if w.get('epic'):
+    n, h = EPICS[w['epic']]
+    ctx.append(f'<span class="wi-epic bare" style="--hue: {h}">{n}</span>')
+  if w.get('labels'):
+    ctx.append('<span class="row" style="gap: 6px">' + ''.join(f'<span class="wi-tag">{l}</span>' for l in w['labels']) + '</span>')
+  facts = list(lead)
   if w['t'] == 'epic':
     d, n = w['child']
-    meta.append(f'<span class="row mono t-xs fg-2" style="gap: 6px"><span class="ms-bar" style="width: 48px"><i class="done" style="width: {d / n * 100:.0f}%"></i></span>{d}/{n} tareas</span>')
-  livel = ''
-  if live == 'chat':
-    livel = '<span class="row t-xs" style="gap: 6px"><span class="spin-braille"></span><span class="c-live">Ejecutando</span><span class="mono fg-3 grow">pnpm test</span><span class="mono fg-3">4:12</span></span>'
-  if live == 'orch':
-    livel = '<span class="row t-xs" style="gap: 8px"><span class="spin-braille"></span><span class="mono c-live">nodo 3 de 9</span><span class="segbar grow" style="height: 4px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 55%"></i><i></i><i></i><i></i></span></span>'
-  who = av() if w.get('who') else ''
+    facts.append(f'<span class="wi-fact"><span class="ms-bar" style="width: 48px; height: 4px"><i class="done" style="width: {d / n * 100:.0f}%"></i></span>{d}/{n} tareas</span>' if n
+                 else '<span class="wi-fact">sin tareas todavía</span>')
+  if w.get('blocked'):
+    facts.append(f'<span class="wi-fact">{ico("block")}bloqueada por {w["blocked"]}</span>')
+  if crit or w.get('crit'):
+    facts.append(crit_fact(*(crit or w['crit'])))
+  who = who or w.get('who')
+  assignee = (av('Y') if who == 'Y' else role(who)) if who and actor(who) not in strip else ''
+  if assignee and not facts and ctx:
+    ctx.append(f'<span class="grow"></span>{assignee}')
+    assignee = ''
+  ctx_html = f'<span class="wi-card-ctx" style="font-size: 13px">{"".join(ctx)}</span>' if ctx else ''
+  foot = f'<span class="wi-card-foot" style="font-size: 12px">{"".join(facts)}{assignee}</span>' if (facts or assignee) else ''
   return f'''<a href="MobileTarea.html" class="{cls}">
-<span class="row" style="gap: 8px">{st}{lead}<span class="wi-key">{k}</span><span class="grow"></span>{prio(w['p'])}{who}</span>
+<span class="row" style="gap: 8px">{st}{tico(w['t'])}<span class="wi-key">{k}</span><span class="grow"></span>{prio(w['p'])}</span>
 <span style="font-weight: 500; font-size: 15px; line-height: 1.35">{w['title']}</span>
-{f'<span class="row" style="gap: 5px; flex-wrap: wrap">{"".join(meta)}</span>' if meta else ''}
-{livel}
+{ctx_html}{foot}{strip}
 </a>'''
 
 
-def msection(s, keys, first=False):
-  n = len(keys) + (DONE_MORE if s == 'done' else 0)
+def msection(s, keys, first=False, rows_html=None, head_right=''):
+  n = len(counted(keys)) + (DONE_MORE if s == 'done' else 0)
   lim = LIMITS.get(s)
   over = lim is not None and n > lim
   cnt = f'<span class="wi-col-count"><b>{n}</b>/{lim}</span>' if lim else f'<span class="wi-col-count"><b>{n}</b></span>'
-  warn = f'<span class="badge b-warn">{ico("warn", "ico", "width: 11px; height: 11px")}sobre el límite</span>' if over else ''
-  rows = ''.join(mrow(k) for k in keys)
+  # Over the limit: the count in the warn colour and the words, as the desktop column says it
+  warn = f'<span class="row t-xs c-warn" style="gap: 5px; font-weight: 500">{ico("warn", "ico", "width: 12px; height: 12px")}Sobre el límite: {n} de {lim}</span>' if over else ''
+  rows = rows_html if rows_html is not None else ''.join(mrow(k) for k in keys)
   return f'''<section class="col" style="gap: 8px" aria-label="{COL_WORD[s]}">
-<div class="row" style="gap: 8px; padding: 0 2px">{sico(s)}<span class="t-label" style="color: var(--fg-2)">{COL_WORD[s]}</span><span class="{'c-warn ' if over else ''}wi-col-count">{cnt}</span>{warn}<span class="grow"></span></div>
-<div class="card{' ' if not over else ''}" style="overflow: hidden{'; border-color: color-mix(in srgb, var(--warn) 38%, transparent)' if over else ''}">{rows}</div>
+<div class="row" style="gap: 8px; padding: 0 2px; flex-wrap: wrap">{sico(s)}<span class="t-label" style="color: var(--fg-2)">{COL_WORD[s]}</span><span class="{'c-warn ' if over else ''}wi-col-count">{cnt}</span><span class="grow"></span>{head_right}{warn}</div>
+<div class="card" style="overflow: hidden">{rows}</div>
 </section>'''
 
 
 def jump(on='in_progress'):
   out = []
   for s, n in COLS:
-    k = by_col(s)
+    k = counted(by_col(s))
     c = len(k) + (DONE_MORE if s == 'done' else 0)
     lim = LIMITS.get(s)
     over = lim is not None and c > lim

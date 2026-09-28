@@ -338,7 +338,7 @@ SUGG = [
        why='Los hitos existen, pero la lista solo filtra por épica.'),
   dict(on=False, t='task', title='Documentar la clave por proyecto', p='low', labels=['docs'],
        why='<span class="mono">docs/work-items.md</span> no dice cómo se deriva el prefijo.'),
-  dict(on=False, t='bug', title='El FAB tapa la barra de selección en el iPhone SE', p='medium', epic='mob', like='AGN-38',
+  dict(on=False, t='bug', title='El FAB tapa la barra de selección en el iPhone SE', p='medium', labels=['móvil'], like='AGN-38',
        why='Los dos flotan a 16 px del borde inferior.'),
 ]
 
@@ -352,7 +352,7 @@ def sugg_row(x):
 
 def suggest_desktop():
   cols = ''.join(col(s, by_col(s)) for s, _ in COLS)
-  hd = board_head('claude-wrapper · 15 abiertas · clave <span class="mono">AGN</span>', primary=False)
+  hd = board_head('claude-wrapper · 13 abiertas · clave <span class="mono">AGN</span>', primary=False)
   hd = hd.replace('<a href="DesktopNuevaTarea.html"', '<button type="button" class="btn" aria-pressed="true">' + ico('sparkle') + 'Sugerir tareas</button><a href="DesktopNuevaTarea.html"')
   main = f'''<main class="page" style="gap: 16px; position: relative">
 {hd}

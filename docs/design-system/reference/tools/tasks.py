@@ -8,7 +8,7 @@ def empty_desktop():
   main = f'''<main class="page" style="gap: 16px">
 {head('pagos-api · 0 tareas · clave <span class="mono">PAG</span>', primary=False).replace('<button type="button" class="btn">' + ico('tasks') + 'Seleccionar</button>', '')}
 <section class="card glow-top empty-state" style="flex: 1 1 auto; justify-content: center; padding: 64px 24px; gap: 16px; background-size: 100% 320px">
-<div class="app" data-theme="dark" style="display: inline-block; background: transparent">{empty_board_svg('il-lg')}</div>
+<div class="app" data-theme="dark" style="display: inline-block; background: transparent">{empty_board_svg('il-lg', 'PAG-1')}</div>
 <h2 class="t-h1">Aún no hay tareas</h2>
 <p>El tablero de pagos-api está vacío. Crea la primera tarea aquí, o desde cualquier mensaje de un chat con «Crear una tarea con este mensaje».</p>
 <div class="row" style="gap: 8px"><a href="DesktopNuevaTarea.html" class="btn btn-primary">{ico('plus')}Crear la primera tarea</a></div>
@@ -16,8 +16,7 @@ def empty_desktop():
 </section>
 </main>'''
   # The illustration's card carries the key of the project it sits in
-  html = desktop('Tablero vacío', 'tasks', '<span style="font-weight: 500">Tareas</span>', main, project='pagos-api')
-  write('DesktopTableroVacio.html', html.replace('>AGN-1</text>', '>PAG-1</text>'))
+  write('DesktopTableroVacio.html', desktop('Tablero vacío', 'tasks', '<span style="font-weight: 500">Tareas</span>', main, project='pagos-api'))
 
 
 def empty_mobile():
@@ -25,7 +24,7 @@ def empty_mobile():
 <div class="m-body stack" style="gap: 12px">
 {mview_seg('board')}
 <section class="empty-state" style="flex: 1 1 auto; justify-content: center; padding: 16px 8px 40px; gap: 14px">
-<div class="app" data-theme="dark" style="display: inline-block; background: transparent">{empty_board_svg('')}</div>
+<div class="app" data-theme="dark" style="display: inline-block; background: transparent">{empty_board_svg('', 'PAG-1')}</div>
 <h2 class="t-h1" style="font-size: 24px">Aún no hay tareas</h2>
 <p>El tablero de pagos-api está vacío. Crea la primera tarea aquí, o desde un mensaje de cualquier chat.</p>
 <a href="MobileNuevaTarea.html" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 4px">{ico('plus', 'ico ico-lg')}Crear la primera tarea</a>
@@ -44,12 +43,12 @@ def lrow(k):
   w = W[k]
   live = w.get('live')
   cls = 'wi-row' + (' rail-live' if live else '') + (' done' if w['s'] == 'done' else '')
-  lead = '<span class="spin-ring" style="width: 14px; height: 14px" role="img" aria-label="Trabajando"></span>' if live else tico(w['t'])
+  lead = tico(w['t'])
   st = ''
   if live == 'chat':
-    st = '<span class="row t-xs" style="gap: 6px; width: 170px"><span class="spin-braille"></span><span class="c-live">Ejecutando</span><span class="mono fg-3 ellipsis">pnpm test</span></span>'
+    st = f'<span class="row t-xs" style="gap: 6px; width: 170px">{actor("Y")}<span class="spin-braille"></span><span class="c-live">Ejecutando</span><span class="mono fg-3 ellipsis">pnpm test</span></span>'
   elif live == 'orch':
-    st = '<span class="row t-xs" style="gap: 6px; width: 170px"><span class="spin-braille"></span><span class="mono c-live ellipsis">nodo 3 de 9</span><span class="segbar grow" style="height: 4px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 55%"></i><i></i><i></i></span></span>'
+    st = f'<span class="row t-xs" style="gap: 6px; width: 170px">{actor("orch")}<span class="spin-braille"></span><span class="mono c-live ellipsis">nodo 3 de 9</span><span class="segbar grow" style="height: 4px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 55%"></i><i></i><i></i></span></span>'
   elif w.get('blocked'):
     st = f'<span class="row mono t-xs fg-3" style="gap: 5px; width: 170px">{ico("block", "ico ico-sm")}bloqueada por {w["blocked"]}</span>'
   else:
@@ -61,9 +60,9 @@ def lrow(k):
 
 
 def lgroup(s, keys):
-  n = len(keys)
+  n = len(counted(keys))
   lim = LIMITS.get(s)
-  tot = len(by_col(s))
+  tot = len(counted(by_col(s)))
   over = lim is not None and tot > lim
   warn = f'<span class="badge b-warn">{ico("warn", "ico", "width: 11px; height: 11px")}sobre el límite · {tot} de {lim}</span>' if over else ''
   return f'<div class="wi-group">{sico(s)}<span class="t-label">{COL_WORD[s]}</span><span class="wi-col-count"><b>{n}</b></span>{warn}</div>' + ''.join(lrow(k) for k in keys)
@@ -72,7 +71,7 @@ def lgroup(s, keys):
 def list_desktop():
   groups = ''.join(lgroup(s, by_col(s, ECO)) for s, _ in COLS if by_col(s, ECO))
   main = f'''<main class="page" style="gap: 16px">
-{head('claude-wrapper · 11 de 27 con los filtros', on='list')}
+{head('claude-wrapper · 11 de 25 con los filtros', on='list')}
 {toolbar({'epic': 'Ecosistema de proyectos'})}
 <div class="card" style="overflow: hidden">
 <div class="row th" style="gap: 12px; height: 34px; padding: 0 14px; border-bottom: 1px solid var(--line)"><span style="width: 14px"></span><span style="width: 52px">Clave</span><span class="grow">Título</span><span style="width: 170px">Ahora</span><span style="width: 90px">Etiquetas</span><span style="width: 34px">Crit.</span><span style="width: 78px">Prioridad</span><span class="row" style="width: 20px; justify-content: center" title="Responsable" role="img" aria-label="Responsable">{ico('user', 'ico ico-sm')}</span><span style="width: 48px; text-align: right">Cambio</span></div>
@@ -90,21 +89,21 @@ def list_mobile():
     ks = by_col(s, ECO)
     if not ks: continue
     lim = LIMITS.get(s)
-    tot = len(by_col(s))
+    tot = len(counted(by_col(s)))
     over = lim is not None and tot > lim
     warn = f'<span class="badge b-warn">{ico("warn", "ico", "width: 11px; height: 11px")}{tot}/{lim}</span>' if over else ''
     rows = ''
     for k in ks:
       w = W[k]
       live = w.get('live')
-      lead = '<span class="spin-ring" style="width: 14px; height: 14px" role="img" aria-label="Trabajando"></span>' if live else tico(w['t'])
+      lead = tico(w['t'])
       rows += f'<a href="MobileTarea.html" class="wi-row{" rail-live" if live else ""}{" done" if s == "done" else ""}" style="min-height: 52px; font-size: 15px; align-items: flex-start; padding-top: 14px; padding-bottom: 14px">{lead}<span class="wi-key" style="width: 50px; margin-top: 2px">{k}</span><span class="wi-row-title">{w["title"]}</span>{prio(w["p"])}</a>'
     secs += f'<section class="col" style="gap: 6px"><div class="row" style="gap: 8px; padding: 0 2px">{sico(s)}<span class="t-label" style="color: var(--fg-2)">{n}</span><span class="wi-col-count"><b>{len(ks)}</b></span><span class="grow"></span>{warn}</div><div class="card" style="overflow: hidden">{rows}</div></section>'
   inner = f'''{mhead('Tareas', None, 'MobileMas.html', mproject_chip() + '<span style="width: 8px"></span>')}
 <div class="m-body stack" style="gap: 12px; margin-bottom: 76px">
 {mview_seg('list')}
 {mtoolbar(1)}
-<div class="row" style="gap: 6px"><button type="button" class="chip on">Épica: Ecosistema de proyectos<span aria-label="Quitar filtro">{ico('x', 'ico ico-sm')}</span></button><span class="mono t-xs fg-3">11 de 27</span></div>
+<div class="row" style="gap: 6px"><button type="button" class="chip on">Épica: Ecosistema de proyectos<span aria-label="Quitar filtro">{ico('x', 'ico ico-sm')}</span></button><span class="mono t-xs fg-3">11 de 25</span></div>
 {secs}
 </div>
 <a href="MobileNuevaTarea.html" class="fab" aria-label="Nueva tarea" style="padding: 0; width: 56px">{ico('plus', 'ico ico-lg', 'stroke-width: 2.2')}</a>
@@ -118,7 +117,7 @@ CRIT = [
   (True, '<span class="mono">GET /projects/templates</span> las lista en el orden del asistente.', 'chat 4c1d0e', '1 d'),
   (True, 'Crear un proyecto con una plantilla preselecciona sus módulos.', 'chat 4c1d0e', '1 d'),
   (True, 'Personalizada no activa ningún módulo.', 'yeyo', '40 min'),
-  (False, 'Los proyectos ya importados siguen con todos los módulos desactivados.', '', ''),
+  (True, 'Los proyectos ya importados siguen con todos los módulos desactivados.', 'QA', '12 min'),
 ]
 
 
@@ -127,7 +126,7 @@ def crit_rows(mobile=False):
   for on, t, who, when in CRIT:
     by = ''
     if on:
-      mark = av(cls='wi-assignee') if who == 'yeyo' else '<span class="agent-mark" style="width: 18px; height: 18px">›_</span>'
+      mark = av(cls='wi-assignee') if who == 'yeyo' else role(who, 'xs') if who in ROLES else '<span class="agent-mark" style="width: 18px; height: 18px">›_</span>'
       by = f'<span class="ac-by">{mark}{who} · {when}</span>' if not mobile else f'<span class="ac-by">{mark}{when}</span>'
     out += f'<div class="ac-row{" on" if on else ""}"{" style=\"min-height: 52px\"" if mobile else ""}><span class="checkbox{" on" if on else ""}" role="checkbox" aria-checked="{"true" if on else "false"}"></span><span class="ac-text">{t}</span>{by}</div>'
   return out
@@ -136,12 +135,29 @@ def crit_rows(mobile=False):
 LINKS = [
   ('chats', 'Trabaja en AGN-26: plantillas de proyecto', 'chat 4c1d0e · la llevó a revisión', '<span class="badge b-ok">' + '✓ completada</span>', '1,84 US$'),
   ('orch', 'ecosystem-foundation › project-modules', 'nodo del grafo · la tarea siguió su estado', '<span class="badge b-ok">✓ completada</span>', '3,12 US$'),
-  ('chats', 'Trabaja en AGN-26: plantillas de proyecto', 'chat 91ab22 · no movió la tarea', '<span class="badge b-bad">interrumpida</span>', '0,41 US$'),
+  # A flow run is a link too (gap 2): the member's squircle instead of the chat glyph, the outcome in a
+  # word, and a failed one says why under it and opens its own chat, whose banner has the retry.
+  ('QA', 'QA verifica AGN-26', 'chat 91ab22 · ejecución del flujo · ayer 17:44 · no movió la tarea', '<span class="badge b-bad">✕ fallida</span>', '0,39 US$'),
+  ('QA2', 'QA verifica AGN-26', 'chat 7c2e01 · ejecución del flujo · 12 min · te espera para pasar a Hecho', '<span class="badge b-ok">✓ pasó</span>', '0,42 US$'),
 ]
+LINK_WHY = {'QA': 'Se cortó tres veces: Agentry se reinició mientras verificaba.'}
+
+
+def link_ico(i):
+  r = i.rstrip('0123456789')
+  return role(r, '') if r in ROLES else f'<span class="link-ico">{ico(i)}</span>'
+
+
+def link_href(i, pre='Desktop'):
+  return f'{pre}Orquestacion.html' if i == 'orch' else f'{pre}ChatFlujo.html' if i == 'QA' else f'{pre}Chat.html'
 
 
 def link_rows():
-  return ''.join(f'<a href="{"DesktopOrquestacion.html" if i == "orch" else "DesktopChat.html"}" class="link-row" style="align-items: flex-start"><span class="link-ico">{ico(i)}</span><span class="col grow" style="gap: 4px; min-width: 0"><span class="t-sm" style="font-weight: 500">{t}</span><span class="row" style="gap: 8px">{b}<span class="mono t-xs fg-3">{c}</span></span><span class="mono t-xs fg-3">{m}</span></span></a>' for i, t, m, b, c in LINKS)
+  out = ''
+  for i, t, m, b, c in LINKS:
+    why = f'<span class="t-xs" style="color: var(--fg-2); line-height: 1.45">{LINK_WHY[i]}</span>' if i in LINK_WHY else ''
+    out += f'<a href="{link_href(i)}" class="link-row" style="align-items: flex-start">{link_ico(i)}<span class="col grow" style="gap: 4px; min-width: 0"><span class="t-sm" style="font-weight: 500">{t}</span><span class="row" style="gap: 8px">{b}<span class="mono t-xs fg-3">{c}</span></span>{why}<span class="mono t-xs fg-3">{m}</span></span></a>'
+  return out
 
 
 FILES = [('core/src/project-templates.ts', 142, 0, 'aaaaa'), ('core/src/project-settings.ts', 38, 12, 'aaad'), ('api/src/routes/projects.ts', 21, 19, 'aadd'), ('core/test/project-templates.test.ts', 13, 6, 'aad')]
@@ -161,16 +177,24 @@ def activity(compact=False):
     ('h', 'play', 'Pasó de Por hacer a <b>En curso</b>', 'automático · empezó el chat 4c1d0e', '1 d'),
     ('a', '', 'He dejado las cinco plantillas como datos en <code>project-templates.ts</code> y la ruta que las lista. Queda el criterio 5: los proyectos ya importados deben leerse sin módulos, y eso depende de <span class="mono">AGN-24</span>.', 'chat 4c1d0e', '1 d'),
     ('h', 'move', 'Pasó de En curso a <b>En revisión</b>', 'automático · el turno del chat terminó bien', '1 d'),
+    ('q', '', 'Esta verificación falló y no movió nada: se cortó tres veces al reiniciarse Agentry. La tarea sigue en En revisión.', 'ejecución del flujo · chat 91ab22', '1 d'),
     ('p', '', 'AGN-24 ya está hecha. Revisa el criterio 5 contra un proyecto importado antes de darla por buena.', 'yeyo', '40 min'),
     ('h', 'check', 'Criterio 4 marcado', 'yeyo', '40 min'),
+    ('h', 'retry', 'Verificación reintentada', 'yeyo · QA empezó el chat 7c2e01', '16 min'),
+    ('v', '', 'Los cinco criterios se cumplen: el 5 lo he comprobado importando un proyecto sin ajustes, que se lee sin módulos. Te espera para pasar a Hecho.', 'ejecución del flujo · chat 7c2e01', '12 min'),
   ]
   if compact: items = items[1:]
   out = ''
   for kind, i, t, who, when in items:
     if kind == 'h':
       out += f'<div class="hist"><span class="hist-ico"><span>{ico(i)}</span></span><span class="col grow" style="gap: 1px; min-width: 0"><span>{t}</span><span class="cause">{who}</span></span><time>{when}</time></div>'
+    elif kind == 'v':
+      out += f'<div class="comment agent">{role("QA", "")}<div class="comment-body"><div class="comment-head"><b>QA</b><span class="badge b-ok">{ico("check", "ico ico-sm")}pasó</span><span class="mono t-xs fg-3">{who}</span><time>{when}</time></div><span>{t}</span></div></div>'
+    elif kind == 'q':
+      # A failed run comments as its member: the squircle, the outcome in a word, and the reason
+      out += f'<div class="comment agent">{role("QA", "")}<div class="comment-body"><div class="comment-head"><b>QA</b><span class="badge b-bad">{ico("x", "ico ico-sm")}fallida</span><span class="mono t-xs fg-3">{who}</span><time>{when}</time></div><span>{t} <a href="DesktopChatFlujo.html" class="c-accent">Ver el chat</a></span></div></div>'
     elif kind == 'a':
-      out += f'<div class="comment agent"><span class="agent-mark">›_</span><div class="comment-body"><div class="comment-head"><b>Agente</b><span class="badge">agente</span><span class="mono t-xs fg-3">{who}</span><time>{when}</time></div><span>{t}</span></div></div>'
+      out += f'<div class="comment agent"><span class="agent-mark" role="img" aria-label="Agente">›_</span><div class="comment-body"><div class="comment-head"><b>Agente</b><span class="mono t-xs fg-3">{who}</span><time>{when}</time></div><span>{t}</span></div></div>'
     else:
       out += f'<div class="comment">{av(cls="avatar")}<div class="comment-body"><div class="comment-head"><b>yeyo</b><time>{when}</time></div><span>{t}</span></div></div>'
   return out
@@ -197,7 +221,7 @@ def detail_desktop():
 <div class="prop-row"><span class="k">Creada</span><span class="v mono t-xs fg-2">hace 3 d · yeyo</span></div>'''
   aside = f'''<aside aria-label="Propiedades de la tarea" class="col" style="width: 340px; flex-shrink: 0; border-left: 1px solid var(--line); background: var(--bg-1); padding: 20px 18px; gap: 22px; overflow: hidden">
 <section class="col" style="gap: 0">{props}</section>
-<section class="col" style="gap: 8px"><div class="row"><span class="t-label grow">Chats y orquestaciones</span><span class="count">3</span></div>{link_rows()}</section>
+<section class="col" style="gap: 8px"><div class="row"><span class="t-label grow">Chats y orquestaciones</span><span class="count">4</span></div>{link_rows()}</section>
 <section class="col" style="gap: 8px"><div class="row"><span class="t-label grow">Cambios en su worktree</span></div>
 <div class="card" style="overflow: hidden; border-radius: var(--r-lg)"><div class="row" style="gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line)">{ico('branch', 'ico ico-sm fg-3')}<span class="mono t-xs">task/agn-26</span><span class="mono t-xs fg-3 grow">desde main</span><span class="mono t-xs fg-2">+214 −37</span></div>{wrap_paths(diff_rows())}</div>
 <div class="row" style="gap: 8px"><a href="#" class="btn btn-sm grow">{ico('git', 'ico ico-sm')}Ver el diff</a><a href="#" class="btn btn-sm btn-ghost">Abrir el worktree</a></div>
@@ -207,7 +231,7 @@ def detail_desktop():
 <div class="col grow stack" style="padding: 22px 32px 0; gap: 20px; overflow: hidden; min-width: 0">
 <div class="row" style="gap: 10px">
 <a href="DesktopTablero.html" class="btn btn-icon btn-sm" aria-label="Volver al tablero">{ico('left')}</a>
-{tico('story', True)}<span class="wi-key boxed">AGN-26</span><span class="badge">{sico('in_review')}en revisión</span>
+{tico('story', True)}<span class="wi-key boxed">AGN-26</span><span class="badge">{sico('in_review')}en revisión</span><span class="badge b-idle">te espera</span>
 <span class="grow"></span>
 <button type="button" class="btn btn-ghost btn-icon" aria-label="Copiar el enlace">{ico('link')}</button>
 <button type="button" class="btn btn-ghost btn-icon" aria-label="Más acciones">{ico('more', 'ico', 'stroke-width: 3')}</button>
@@ -216,20 +240,21 @@ def detail_desktop():
 </div>
 <div class="col" style="gap: 10px"><h1 class="t-h1">Plantillas de proyecto</h1>
 <div class="t-body fg-2" style="line-height: 1.6; max-width: 720px">Un proyecto nuevo elige una plantilla que preselecciona módulos, tipos de tarea, límites por columna y el equipo inicial con el modelo de cada rol. Cinco plantillas integradas: <b style="color: var(--fg); font-weight: 500">Simple</b>, <b style="color: var(--fg); font-weight: 500">Software profesional</b>, <b style="color: var(--fg); font-weight: 500">Biblioteca o paquete</b>, <b style="color: var(--fg); font-weight: 500">Investigación o documentación</b> y <b style="color: var(--fg); font-weight: 500">Personalizada</b>. Sin plantillas guardadas por el usuario.</div></div>
-<section class="col" style="gap: 8px"><div class="row" style="gap: 10px"><h2 class="t-h2">Criterios de aceptación</h2><span class="mono t-xs fg-3">4/5</span><span class="ms-bar" style="width: 90px; height: 4px"><i class="done" style="width: 80%"></i></span><span class="grow"></span><button type="button" class="btn btn-ghost btn-sm">{ico('plus', 'ico ico-sm')}Añadir criterio</button></div>
+<section class="col" style="gap: 8px"><div class="row" style="gap: 10px"><h2 class="t-h2">Criterios de aceptación</h2><span class="mono t-xs fg-3">5/5</span><span class="ms-bar" style="width: 90px; height: 4px"><i class="done" style="width: 100%"></i></span><span class="grow"></span><button type="button" class="btn btn-ghost btn-sm">{ico('plus', 'ico ico-sm')}Añadir criterio</button></div>
 <div class="card" style="overflow: hidden; border-radius: var(--r-lg)">{crit_rows()}</div></section>
 <section class="col" style="gap: 8px"><div class="row"><h2 class="t-h2 grow">Relaciones</h2><button type="button" class="btn btn-ghost btn-sm">{ico('plus', 'ico ico-sm')}Relacionar</button></div>
 <div class="card" style="overflow: hidden; border-radius: var(--r-lg)">
 <a href="#" class="rel-row"><span class="rel-kind">Bloquea</span>{sico('todo')}<span class="wi-key">AGN-33</span><span class="grow ellipsis">Enlazar tareas con chats y orquestaciones</span><span class="t-xs fg-3">Por hacer</span></a>
-<a href="#" class="rel-row"><span class="rel-kind">Bloqueada por</span>{sico('done')}<span class="wi-key">AGN-24</span><span class="grow ellipsis">Ajustes por proyecto en un JSON</span><span class="t-xs c-ok">Hecha</span></a>
+<a href="#" class="rel-row"><span class="rel-kind">Bloqueada por</span>{sico('done')}<span class="wi-key">AGN-24</span><span class="grow ellipsis">Ajustes por proyecto en un JSON</span><span class="t-xs c-ok">Hecho</span></a>
 </div></section>
-<section class="col" style="gap: 12px"><div class="row" style="gap: 10px"><h2 class="t-h2 grow">Actividad</h2><div class="seg" role="tablist" aria-label="Actividad"><button type="button" class="on">Todo</button><button type="button">Comentarios <span class="count">2</span></button><button type="button">Historial <span class="count">4</span></button></div></div>
+<section class="col" style="gap: 12px"><div class="row" style="gap: 10px"><h2 class="t-h2 grow">Actividad</h2><div class="seg" role="tablist" aria-label="Actividad"><button type="button" class="on">Todo</button><button type="button">Comentarios <span class="count">4</span></button><button type="button">Historial <span class="count">5</span></button></div></div>
 <div class="activity">{activity()}</div>
 </section>
 </div>
 {aside}
 </div>'''
-  write('DesktopTarea.html', desktop('Tarea', 'tasks', '<a href="DesktopTablero.html" class="fg-2">Tareas</a><span class="fg-3">/</span><span class="mono" style="font-weight: 500">AGN-26</span>', main))
+  from desktop import TEAM_LIVE
+  write('DesktopTarea.html', desktop('Tarea', 'tasks', '<a href="DesktopTablero.html" class="fg-2">Tareas</a><span class="fg-3">/</span><span class="mono" style="font-weight: 500">AGN-26</span>', main, live=TEAM_LIVE, agents=3, running=3))
 
 
 def mcrit_rows():
@@ -239,14 +264,14 @@ def mcrit_rows():
   for on, t, who, when in CRIT:
     by = ''
     if on:
-      mark = av(cls='wi-assignee') if who == 'yeyo' else '<span class="agent-mark" role="img" aria-label="Agente" style="width: 18px; height: 18px; font-size: 11px">›_</span>'
+      mark = av(cls='wi-assignee') if who == 'yeyo' else role(who, 'xs') if who in ROLES else '<span class="agent-mark" role="img" aria-label="Agente" style="width: 18px; height: 18px; font-size: 11px">›_</span>'
       by = f'<span class="ac-by">{mark}{when}</span>'
     out += f'<button type="button" role="checkbox" aria-checked="{"true" if on else "false"}" class="ac-row{" on" if on else ""}"><span class="checkbox{" on" if on else ""}" aria-hidden="true"></span><span class="ac-text">{t}</span>{by}</button>'
   return out
 
 
 MRELS = [('Bloquea', 'todo', 'AGN-33', 'Enlazar tareas con chats y orquestaciones', 'Por hacer'),
-         ('Bloqueada por', 'done', 'AGN-24', 'Ajustes por proyecto en un JSON', 'Hecha')]
+         ('Bloqueada por', 'done', 'AGN-24', 'Ajustes por proyecto en un JSON', 'Hecho')]
 
 
 def mrel_rows():
@@ -260,21 +285,22 @@ def mlink_rows():
   # The same three links as the desktop, with the title and the cause wrapping instead of cut.
   out = ''
   for i, t, m, b, c in LINKS:
-    out += f'<a href="{"MobileOrquestacion.html" if i == "orch" else "MobileChat.html"}" class="link-row" style="align-items: flex-start"><span class="link-ico">{ico(i)}</span><span class="col grow" style="gap: 4px; min-width: 0"><span class="t-sm" style="font-weight: 500">{t}</span><span class="row" style="gap: 8px">{b}<span class="mono t-xs fg-3">{c}</span></span><span class="mono t-xs fg-3">{m}</span></span></a>'
+    why = f'<span class="t-sm" style="color: var(--fg-2); line-height: 1.45">{LINK_WHY[i]}</span>' if i in LINK_WHY else ''
+    out += f'<a href="{link_href(i, "Mobile")}" class="link-row" style="align-items: flex-start">{link_ico(i)}<span class="col grow" style="gap: 4px; min-width: 0"><span class="t-sm" style="font-weight: 500">{t}</span><span class="row" style="gap: 8px">{b}<span class="mono t-xs fg-3">{c}</span></span>{why}<span class="mono t-xs fg-3">{m}</span></span></a>'
   return out
 
 
 def mtask_head():
   return f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 4px">
 <a href="MobileTablero.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico('left', 'ico ico-lg', 'stroke-width: 2')}</a>
-<span class="row grow" style="gap: 8px">{tico('story', True)}<span class="wi-key boxed">AGN-26</span></span>
+<span class="row grow" style="gap: 8px">{tico('story', True)}<span class="wi-key boxed">AGN-26</span><span class="badge b-idle">te espera</span></span>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones">{ico('more', 'ico ico-lg', 'stroke-width: 3')}</button>
 </header>'''
 
 
 def mtask_top(tab):
   # What every tab of the work item shares: title, state, priority, assignee, and the three tabs.
-  tabs = [('detail', 'MobileTarea.html', 'Detalle'), ('activity', 'MobileTareaActividad.html', 'Actividad <span class="count">6</span>'), ('changes', 'MobileTareaCambios.html', 'Cambios <span class="count">4</span>')]
+  tabs = [('detail', 'MobileTarea.html', 'Detalle'), ('activity', 'MobileTareaActividad.html', 'Actividad <span class="count">9</span>'), ('changes', 'MobileTareaCambios.html', 'Cambios <span class="count">4</span>')]
   seg = ''.join(f'<a href="{h}" role="tab" aria-selected="{"true" if k == tab else "false"}" class="{"on" if k == tab else ""}" style="flex: 1 1 0; justify-content: center">{n}</a>' for k, h, n in tabs)
   return f'''<h1 class="t-h1">Plantillas de proyecto</h1>
 <div class="row" style="gap: 6px; flex-wrap: wrap"><button type="button" class="chip">{sico('in_review')}En revisión{ico('down', 'ico ico-sm')}</button><button type="button" class="chip">{prio('medium')}Media</button><button type="button" class="chip">{av()}yeyo</button></div>
@@ -291,11 +317,11 @@ def detail_mobile():
 <div class="m-body stack" style="gap: 14px">
 {mtask_top('detail')}
 <p class="t-sm fg-2" style="margin: 0; line-height: 1.55">Un proyecto nuevo elige una plantilla que preselecciona módulos, tipos de tarea, límites por columna y el equipo inicial con el modelo de cada rol. Cinco plantillas integradas.</p>
-<div class="row" style="gap: 8px; padding: 0 2px"><span class="t-label grow">Criterios de aceptación</span><span class="mono t-xs fg-3">4/5</span></div>
+<div class="row" style="gap: 8px; padding: 0 2px"><span class="t-label grow">Criterios de aceptación</span><span class="mono t-xs fg-3">5/5</span></div>
 <div class="card" style="overflow: hidden">{mcrit_rows()}</div>
 <div class="row" style="gap: 8px; padding: 0 2px"><span class="t-label grow">Relaciones</span><button type="button" class="btn btn-ghost btn-lg" style="margin: -8px -8px -8px 0">{ico('plus', 'ico')}Relacionar</button></div>
 <div class="card" style="overflow: hidden">{mrel_rows()}</div>
-<div class="row" style="gap: 8px; padding: 0 2px"><span class="t-label grow">Chats y orquestaciones</span><span class="count">3</span></div>
+<div class="row" style="gap: 8px; padding: 0 2px"><span class="t-label grow">Chats y orquestaciones</span><span class="count">4</span></div>
 <div class="col" style="gap: 8px">{mlink_rows()}</div>
 </div>
 {mtask_foot()}'''
@@ -311,7 +337,7 @@ def new_task_desktop():
   from board import head as bhead, toolbar as btool
   cols = ''.join(col(s, by_col(s)) for s, _ in COLS)
   main = f'''<main class="page" style="gap: 16px">
-{bhead('claude-wrapper · 15 abiertas · clave <span class="mono">AGN</span>', primary=False)}
+{bhead('claude-wrapper · 13 abiertas · clave <span class="mono">AGN</span>', primary=False)}
 {btool()}
 <div class="wi-board">{cols}</div>
 </main>'''

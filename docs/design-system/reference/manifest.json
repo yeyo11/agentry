@@ -210,6 +210,12 @@
     "h": 1320
   },
   {
+    "file": "DSTablero.html",
+    "title": "Design system · Tablero y tareas",
+    "w": 1440,
+    "h": 2300
+  },
+  {
     "file": "DesktopChatsVacio.html",
     "title": "Desktop · Chats vacío",
     "w": 1440,
@@ -450,6 +456,18 @@
     "h": 1024
   },
   {
+    "file": "DesktopEquipoActividad.html",
+    "title": "Desktop · Actividad del equipo",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopChatFlujo.html",
+    "title": "Desktop · Chat de una ejecución fallida",
+    "w": 1440,
+    "h": 1024
+  },
+  {
     "file": "MobileEquipo.html",
     "title": "Móvil · Equipo",
     "w": 390,
@@ -512,6 +530,18 @@
   {
     "file": "MobileTableroEquipo.html",
     "title": "Móvil · Tablero trabajado por roles",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileEquipoActividad.html",
+    "title": "Móvil · Actividad del equipo, fallidas",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileChatFlujo.html",
+    "title": "Móvil · Chat de una ejecución fallida",
     "w": 390,
     "h": 844
   },

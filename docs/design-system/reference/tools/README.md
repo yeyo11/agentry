@@ -10,8 +10,11 @@ write byte for byte when they were brought in (2026-09-27): the hand fixes `prot
 HTML were ported back into them. A task that changes a generated screen changes its generator too,
 or says in its result that the two parted. Screens with no generator (the team, flow, memory and
 documents screens of `proto-team`, and every screen from before the ecosystem) are edited as HTML.
+The design review of `feat/project-ecosystem` (2026-09-28) added `team.py` and edited the
+hand-written team screens in place; [../../ecosystem-review.md](../../ecosystem-review.md) lists
+what changed on each screen.
 
-Python 3 with Pillow and Chrome (`CHROME_BIN`, default `/usr/bin/google-chrome`); Node 22 for
+Python 3.12 or later (the generators use backslashes inside f-strings) with Pillow, and Chrome (`CHROME_BIN`, default `/usr/bin/google-chrome`); Node 22 for
 `check.mjs`. Run everything from this folder.
 
 | Script | Writes |
@@ -24,11 +27,12 @@ Python 3 with Pillow and Chrome (`CHROME_BIN`, default `/usr/bin/google-chrome`)
 | `projects.py` | the project wizard, the project page and its settings, both sizes |
 | `chat.py` | `DesktopChatTarea`, `MobileChatTarea` |
 | `ai.py` | the assistant, suggested tasks and resources with AI, both sizes |
+| `team.py` | the screens the design review added: Team activity (`DesktopEquipoActividad`, `MobileEquipoActividad`), a failed flow run's chat (`DesktopChatFlujo`, `MobileChatFlujo`), the phone board while the team works it (`MobileTableroEquipo`, hand-drawn before) and the board's spec page `DSTablero`. Run after `desktop.py`; it imports it |
 | `desktop.py` | desktop only: the board while the team works it (`DesktopTableroEquipo`, hand-drawn before), Tasks with All projects (`DesktopTareasTodos`), suggestions while they run (`DesktopSugerirTareasEnCurso`) and the assistant on an empty project (`DesktopAsistenteVacio`). `DesktopDocumentoEditar` has no generator: it is `DesktopDocumentos` with the editor open, edited as HTML |
 
 ```bash
 python3 board.py && python3 tasks.py && python3 projects.py && python3 chat.py && python3 ai.py \
-  && python3 desktop.py && python3 phone.py
+  && python3 desktop.py && python3 phone.py && python3 team.py
 NS_OUT=/tmp/ns-out python3 board.py   # write somewhere else, to diff against the committed HTML
 ```
 
@@ -49,7 +53,7 @@ into §2 of `docs/design-system.md`.
 ## Screenshots
 
 ```bash
-python3 shoot.py DesktopTablero MobileTablero DSComponentes:1620
+python3 shoot.py DesktopTablero MobileTablero DSComponentes:1620 DSTablero:2300
 python3 sheet.py board-sheet.png MobileTablero-dark MobileTablero-light
 ```
 

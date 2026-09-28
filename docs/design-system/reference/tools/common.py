@@ -62,6 +62,12 @@ P = {
   'clip': 'M20 11.5 12.5 19a5 5 0 0 1-7-7l8-8a3.3 3.3 0 0 1 4.7 4.7l-8 8a1.7 1.7 0 0 1-2.4-2.4L15 7.5',
   'md': 'M4 6h16v12H4zM7 15V9l2.5 3L12 9v6M16 9v6M14 13l2 2 2-2',
   'dots-v': 'M12 5h.01M12 12h.01M12 19h.01',
+  'flow': 'M5 6h4v4H5zM15 14h4v4h-4zM9 8h4a2 2 0 0 1 2 2v4',
+  'bounce': 'M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3',
+  'wait': 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
+  'info': 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5M12 8h.01',
+  'activity': 'M3 12h4l3-8 4 16 3-8h4',
+  'retry': 'M20 11a8 8 0 0 0-14.7-4.3L4 8M4 4v4h4M4 13a8 8 0 0 0 14.7 4.3L20 16M20 20v-4h-4',
 }
 
 TYPE = {
@@ -110,7 +116,9 @@ def unassigned():
   return '<span class="proj wi-assignee none" role="img" aria-label="Sin responsable" title="Sin responsable"></span>'
 
 
-EPICS = {'eco': ('Ecosistema de proyectos', 18), 'mob': ('Móvil', 215), 'perf': ('Coste y uso', 330)}
+# The project's epics are its epic items: AGN-12 and AGN-47. Móvil and Coste y uso were epics without
+# an item in the drafts; they are labels now.
+EPICS = {'eco': ('Ecosistema de proyectos', 18), 'ai': ('Asistente de proyecto', 280)}
 
 
 def epic(k):
@@ -151,7 +159,7 @@ LIVE_DEFAULT = '''<div class="col" style="gap: 4px">
 
 # The open work items of the project in scope: pagos-api is the empty project and shows no count,
 # and All projects adds every project's open items.
-TASKS_OPEN = {'claude-wrapper': '15', 'Todos los proyectos': '18'}
+TASKS_OPEN = {'claude-wrapper': '13', 'Todos los proyectos': '16'}
 
 
 def sidebar(active, live=None, project='claude-wrapper'):
@@ -264,25 +272,50 @@ def write(name, html):
   print('wrote', name)
 
 
-def empty_board_svg(size='il-lg'):
-  ids = 'il'
-  # The empty board: three empty columns with dashed slots, and the first card, gradient-bordered,
-  # floating in with its key and the + that creates it.
-  g, d, fg, fm = f'{ids}-grad', f'{ids}-dots', f'{ids}-fade-g', f'{ids}-fade'
-  return f'''<svg class="il {size}" viewBox="0 0 240 160" aria-hidden="true"><defs><linearGradient id="{g}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="stop-a"></stop><stop offset="1" class="stop-b"></stop></linearGradient><pattern id="{d}" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" class="dot-fill"></circle></pattern><radialGradient id="{fg}" cx="0.5" cy="0.5" r="0.5"><stop offset="0" class="stop-in"></stop><stop offset="1" class="stop-out"></stop></radialGradient><mask id="{fm}"><rect x="0" y="0" width="240" height="160" fill="url(#{fg})"></rect></mask></defs>{BOARD_BODY}</svg>'''
+def _il(size, body):
+  g, d, fg, fm = 'il-grad', 'il-dots', 'il-fade-g', 'il-fade'
+  return f'''<svg class="il {size}" viewBox="0 0 240 160" aria-hidden="true"><defs><linearGradient id="{g}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="stop-a"></stop><stop offset="1" class="stop-b"></stop></linearGradient><pattern id="{d}" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" class="dot-fill"></circle></pattern><radialGradient id="{fg}" cx="0.5" cy="0.5" r="0.5"><stop offset="0" class="stop-in"></stop><stop offset="1" class="stop-out"></stop></radialGradient><mask id="{fm}"><rect x="0" y="0" width="240" height="160" fill="url(#{fg})"></rect></mask></defs>{body}</svg>'''
+
+
+def empty_board_svg(size='il-lg', key='AGN-1'):
+  # The empty board: the five fixed columns with their dashed slots, and the first card, gradient-bordered, floating
+  # into Por hacer with the project's key. No + disc: the button under the illustration is the one way to create it.
+  return _il(size, BOARD_BODY.replace('>AGN-1<', f'>{key}<'))
+
+
+def empty_team_svg(size='il-lg'):
+  # The empty team: three role squircles in flow order (refine, implement, verify). The Product Owner floats in,
+  # gradient-bordered; the other two are dashed places still to fill. No + disc, for the same reason as the board.
+  return _il(size, TEAM_BODY)
 
 
 BOARD_BODY = '''<rect x="0" y="0" width="240" height="160" class="f-dots" mask="url(#il-fade)"></rect>
-<rect x="34" y="32" width="52" height="102" rx="10" class="c0"></rect>
-<rect x="94" y="32" width="52" height="102" rx="10" class="c0"></rect>
-<rect x="154" y="32" width="52" height="102" rx="10" class="c0"></rect>
-<rect x="42" y="42" width="20" height="4" rx="2" class="s3"></rect><circle cx="77" cy="44" r="2.5" class="f-ink"></circle>
-<rect x="102" y="42" width="24" height="4" rx="2" class="s3"></rect><circle cx="137" cy="44" r="2.5" class="f-ink"></circle>
-<rect x="162" y="42" width="16" height="4" rx="2" class="s3"></rect><path d="M193.5 44 l1.8 1.8 l3.2 -3.4" class="ln-ok"></path>
-<rect x="41" y="56" width="38" height="24" rx="5" class="ln-soft dash-lg"></rect>
-<rect x="101" y="56" width="38" height="24" rx="5" class="ln-soft dash-lg"></rect>
-<rect x="101" y="86" width="38" height="24" rx="5" class="ln-soft dash-lg"></rect>
-<rect x="161" y="56" width="38" height="24" rx="5" class="ln-soft dash-lg"></rect>
-<g class="a-float"><g transform="rotate(-8 64 58)"><rect x="34" y="42" width="64" height="34" rx="7" class="cg"></rect><text x="42" y="56" class="txt">AGN-1</text><rect x="42" y="63" width="36" height="5" rx="2.5" class="s3"></rect><circle cx="88" cy="53" r="2.5" class="f-grad"></circle></g></g>
-<circle cx="212" cy="126" r="17" class="halo"></circle>
-<circle cx="212" cy="126" r="13" class="f-grad a-pulse"></circle><path d="M212 120 v12 M206 126 h12" class="ln-white"></path>'''
+<rect x="18" y="30" width="36" height="104" rx="8" class="c0"></rect>
+<rect x="24" y="39" width="14" height="4" rx="2" class="s3"></rect><circle cx="47" cy="41" r="2" class="f-ink"></circle>
+<rect x="23" y="50" width="26" height="17" rx="4" class="ln-soft dash-lg"></rect>
+<rect x="23" y="72" width="26" height="17" rx="4" class="ln-soft dash-lg"></rect>
+<rect x="60" y="30" width="36" height="104" rx="8" class="c0"></rect>
+<rect x="66" y="39" width="18" height="4" rx="2" class="s3"></rect><circle cx="89" cy="41" r="2" class="f-ink"></circle>
+<rect x="65" y="50" width="26" height="17" rx="4" class="ln-soft dash-lg"></rect>
+<rect x="102" y="30" width="36" height="104" rx="8" class="c0"></rect>
+<rect x="108" y="39" width="16" height="4" rx="2" class="s3"></rect><circle cx="131" cy="41" r="2" class="f-ink"></circle>
+<rect x="107" y="50" width="26" height="17" rx="4" class="ln-soft dash-lg"></rect>
+<rect x="144" y="30" width="36" height="104" rx="8" class="c0"></rect>
+<rect x="150" y="39" width="20" height="4" rx="2" class="s3"></rect><circle cx="173" cy="41" r="2" class="f-ink"></circle>
+<rect x="149" y="50" width="26" height="17" rx="4" class="ln-soft dash-lg"></rect>
+<rect x="186" y="30" width="36" height="104" rx="8" class="c0"></rect>
+<rect x="192" y="39" width="12" height="4" rx="2" class="s3"></rect><path d="M211 41 l1.6 1.6 l3 -3.2" class="ln-ok"></path>
+<rect x="191" y="50" width="26" height="17" rx="4" class="ln-soft dash-lg"></rect>
+<g class="a-float"><g transform="rotate(-6 76 80)"><rect x="46" y="64" width="60" height="32" rx="7" class="cg"></rect><text x="54" y="78" class="txt">AGN-1</text><rect x="54" y="84" width="34" height="4" rx="2" class="s3"></rect></g></g>'''
+
+TEAM_BODY = '''<rect x="0" y="0" width="240" height="160" class="f-dots" mask="url(#il-fade)"></rect>
+<path d="M84 72 h10 M90 68 l4 4 l-4 4" class="ln-soft"></path>
+<path d="M148 72 h10 M154 68 l4 4 l-4 4" class="ln-soft"></path>
+<rect x="98" y="50" width="44" height="44" rx="12" class="ln-soft dash-lg"></rect>
+<rect x="162" y="50" width="44" height="44" rx="12" class="ln-soft dash-lg"></rect>
+<text x="120" y="75" text-anchor="middle" class="txt">DEV</text>
+<text x="184" y="75" text-anchor="middle" class="txt">QA</text>
+<text x="56" y="114" text-anchor="middle" class="txt">refinar</text>
+<text x="120" y="114" text-anchor="middle" class="txt">implementar</text>
+<text x="184" y="114" text-anchor="middle" class="txt">verificar</text>
+<g class="a-float"><rect x="34" y="50" width="44" height="44" rx="12" class="cg"></rect><text x="56" y="78" text-anchor="middle" class="glyph">PO</text></g>'''

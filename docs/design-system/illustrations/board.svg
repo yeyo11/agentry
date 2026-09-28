@@ -56,17 +56,21 @@
 .il .glyph { font-family: var(--mono, 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace); font-size: 17px; font-weight: 600; fill: url(#il-grad); }
 .il .glyph-white { font-family: var(--mono, 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace); font-size: 15px; font-weight: 600; fill: #fff; }
 @keyframes spin { to { transform: rotate(360deg); } } @keyframes caret-blink { 50% { opacity: 0; } } @media (prefers-reduced-motion: reduce) { .il * { animation: none !important; } }</style><defs><linearGradient id="il-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="stop-a"></stop><stop offset="1" class="stop-b"></stop></linearGradient><pattern id="il-dots" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" class="dot-fill"></circle></pattern><radialGradient id="il-fade-g" cx="0.5" cy="0.5" r="0.5"><stop offset="0" class="stop-in"></stop><stop offset="1" class="stop-out"></stop></radialGradient><mask id="il-fade"><rect x="0" y="0" width="240" height="160" fill="url(#il-fade-g)"></rect></mask></defs><rect x="0" y="0" width="240" height="160" class="f-dots" mask="url(#il-fade)"></rect>
-<rect x="34" y="32" width="52" height="102" rx="10" class="c0"></rect>
-<rect x="94" y="32" width="52" height="102" rx="10" class="c0"></rect>
-<rect x="154" y="32" width="52" height="102" rx="10" class="c0"></rect>
-<rect x="42" y="42" width="20" height="4" rx="2" class="s3"></rect><circle cx="77" cy="44" r="2.5" class="f-ink"></circle>
-<rect x="102" y="42" width="24" height="4" rx="2" class="s3"></rect><circle cx="137" cy="44" r="2.5" class="f-ink"></circle>
-<rect x="162" y="42" width="16" height="4" rx="2" class="s3"></rect><path d="M193.5 44 l1.8 1.8 l3.2 -3.4" class="ln-ok"></path>
-<rect x="41" y="56" width="38" height="24" rx="5" class="ln-soft dash-lg"></rect>
-<rect x="101" y="56" width="38" height="24" rx="5" class="ln-soft dash-lg"></rect>
-<rect x="101" y="86" width="38" height="24" rx="5" class="ln-soft dash-lg"></rect>
-<rect x="161" y="56" width="38" height="24" rx="5" class="ln-soft dash-lg"></rect>
-<g class="a-float"><g transform="rotate(-8 64 58)"><rect x="34" y="42" width="64" height="34" rx="7" class="cg"></rect><text x="42" y="56" class="txt">AGN-1</text><rect x="42" y="63" width="36" height="5" rx="2.5" class="s3"></rect><circle cx="88" cy="53" r="2.5" class="f-grad"></circle></g></g>
-<circle cx="212" cy="126" r="17" class="halo"></circle>
-<circle cx="212" cy="126" r="13" class="f-grad a-pulse"></circle><path d="M212 120 v12 M206 126 h12" class="ln-white"></path>
+<rect x="18" y="30" width="36" height="104" rx="8" class="c0"></rect>
+<rect x="24" y="39" width="14" height="4" rx="2" class="s3"></rect><circle cx="47" cy="41" r="2" class="f-ink"></circle>
+<rect x="23" y="50" width="26" height="17" rx="4" class="ln-soft dash-lg"></rect>
+<rect x="23" y="72" width="26" height="17" rx="4" class="ln-soft dash-lg"></rect>
+<rect x="60" y="30" width="36" height="104" rx="8" class="c0"></rect>
+<rect x="66" y="39" width="18" height="4" rx="2" class="s3"></rect><circle cx="89" cy="41" r="2" class="f-ink"></circle>
+<rect x="65" y="50" width="26" height="17" rx="4" class="ln-soft dash-lg"></rect>
+<rect x="102" y="30" width="36" height="104" rx="8" class="c0"></rect>
+<rect x="108" y="39" width="16" height="4" rx="2" class="s3"></rect><circle cx="131" cy="41" r="2" class="f-ink"></circle>
+<rect x="107" y="50" width="26" height="17" rx="4" class="ln-soft dash-lg"></rect>
+<rect x="144" y="30" width="36" height="104" rx="8" class="c0"></rect>
+<rect x="150" y="39" width="20" height="4" rx="2" class="s3"></rect><circle cx="173" cy="41" r="2" class="f-ink"></circle>
+<rect x="149" y="50" width="26" height="17" rx="4" class="ln-soft dash-lg"></rect>
+<rect x="186" y="30" width="36" height="104" rx="8" class="c0"></rect>
+<rect x="192" y="39" width="12" height="4" rx="2" class="s3"></rect><path d="M211 41 l1.6 1.6 l3 -3.2" class="ln-ok"></path>
+<rect x="191" y="50" width="26" height="17" rx="4" class="ln-soft dash-lg"></rect>
+<g class="a-float"><g transform="rotate(-6 76 80)"><rect x="46" y="64" width="60" height="32" rx="7" class="cg"></rect><text x="54" y="78" class="txt">AGN-1</text><rect x="54" y="84" width="34" height="4" rx="2" class="s3"></rect></g></g>
 </svg>
