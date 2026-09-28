@@ -130,6 +130,11 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
   // Before every route: the guard must also cover /docs and the OpenAPI document
   registerSecurity(app, core);
 
+  // The panel sends the person's language with every request: the chats Agentry starts on its own
+  // later, with no request behind them (the flow's runs), are titled in it. After the guard, so only
+  // an allowed caller sets it
+  app.addHook('onRequest', async (req) => core.noteLanguage(req.headers['accept-language']));
+
   await registerOpenApi(app, (await core.system()).version);
 
   await app.register(

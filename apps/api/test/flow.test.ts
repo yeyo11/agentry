@@ -221,6 +221,19 @@ test('a card entering in_progress is implemented by the developer, verified by Q
   assert.equal(argvs().length, before);
 });
 
+test("the person's language is the one the panel last named, and a request naming none leaves it", async () => {
+  const say = (language: string) => app.inject({ url: '/api/projects', headers: { 'accept-language': language } });
+  await say('es-ES,es;q=0.9,en;q=0.8');
+  assert.equal(core.personLanguage(), 'es');
+  // What a script's fetch sends, and a language Agentry does not speak
+  await say('*');
+  await say('fr-FR');
+  await app.inject('/api/projects');
+  assert.equal(core.personLanguage(), 'es');
+  await say('en-GB,en;q=0.9');
+  assert.equal(core.personLanguage(), 'en');
+});
+
 test('a chat started over the API cannot name an agents file of its own', async () => {
   const res = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hi', agentsFile: '/etc/passwd' }) });
   assert.ok(res.statusCode >= 400 && res.statusCode < 500, `${res.statusCode} ${res.body}`);

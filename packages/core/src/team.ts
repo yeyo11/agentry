@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
+  AgentryLanguage,
   FlowRun,
   ProjectFlowSettings,
   ProjectSettings,
@@ -124,6 +125,25 @@ export function roleTitle(role: string): string {
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ')
   );
+}
+
+/** The built-in roles in Spanish, as the interface names them (apps/web/src/i18n/GLOSSARY.md) */
+const ROLE_TITLES_ES: Readonly<Record<string, string>> = {
+  'product-owner': 'Product Owner',
+  architect: 'Arquitecto',
+  developer: 'Desarrollador',
+  qa: 'QA',
+  researcher: 'Investigador',
+  writer: 'Redactor técnico',
+  reviewer: 'Revisor',
+};
+
+/**
+ * A role as the person reads it, for the first line of a chat Agentry starts for a member: a
+ * built-in role in their language, a role of their own as they wrote it.
+ */
+export function roleTitleIn(role: string, language: AgentryLanguage): string {
+  return (language === 'es' ? ROLE_TITLES_ES[role] : undefined) ?? roleTitle(role);
 }
 
 /** A YAML scalar that reads back as `value`: plain where that is safe, JSON-quoted (valid YAML) otherwise. */

@@ -12,6 +12,7 @@ import {
   isTeamCommandPattern,
   MAX_FLOW_RESTARTS,
   type AgentryEvent,
+  type AgentryLanguage,
   type ChatActivity,
   type DocumentKind,
   type FlowCriterionResult,
@@ -42,7 +43,7 @@ import {
 import type { RunResult } from './chats.ts';
 import type { Db } from './db.ts';
 import type { AgentryEventInput } from './events.ts';
-import { roleTitle } from './team.ts';
+import { roleTitle, roleTitleIn } from './team.ts';
 import { workItemPrompt } from './work-links.ts';
 import type { WorkItemService } from './work-items.ts';
 
@@ -222,6 +223,8 @@ export interface FlowDeps {
   rotating?: (chatId: string) => boolean;
   stop: (chatId: string) => void;
   activity?: (chatId: string) => ChatActivity | null;
+  /** The person's language, which the first line of a run's chat is written in; English without it */
+  language?: () => AgentryLanguage;
   emit: (event: AgentryEventInput) => void;
 }
 
@@ -447,10 +450,26 @@ export function testCommandRules(dir: string): string[] {
   return [...new Set(rules)];
 }
 
-/** The stage's instructions, then the item as "Work on it" gives it. */
-export function flowPrompt(stage: FlowStage, column: WorkItemStatus, item: WorkItem, member: ProjectTeamMember, extra: { documentsPath: string; rejection: string | null }): string {
+/**
+ * A run's chat is listed by its first prompt's first line, so that line is the person's, in their
+ * language: the member's role, the item's key and its title (`Desarrollador · AGN-12 · Fix the cart`).
+ * The instructions for Claude after it stay in English.
+ */
+export function flowTitle(item: Pick<WorkItem, 'key' | 'title'>, role: string, language: AgentryLanguage): string {
+  const title = item.title.replace(/\s+/g, ' ').trim();
+  return [roleTitleIn(role, language), item.key, ...(title ? [title] : [])].join(' · ');
+}
+
+/** The run's title, the stage's instructions, then the item as "Work on it" gives it. */
+export function flowPrompt(
+  stage: FlowStage,
+  column: WorkItemStatus,
+  item: WorkItem,
+  member: ProjectTeamMember,
+  extra: { documentsPath: string; rejection: string | null; language?: AgentryLanguage },
+): string {
   const who = `You are the ${roleTitle(member.role)} of this project's team, started by Agentry's flow by column because ${item.key} entered ${column}.`;
-  const lines = [workItemPrompt(item), '', '---', '', who, ''];
+  const lines = [flowTitle(item, member.role, extra.language ?? 'en'), '', workItemPrompt(item), '', '---', '', who, ''];
   if (stage === 'refine' && column === 'backlog') {
     lines.push(
       'Refine it so a developer can start without asking: complete its description and its acceptance criteria.',
@@ -818,6 +837,7 @@ export class FlowService {
         : flowPrompt(stage, row.column_name as WorkItemStatus, item, member, {
             documentsPath,
             rejection: stage === 'work' && (item.bounces ?? 0) > 0 ? this.rejection(item.id, project.settings) : null,
+            language: this.deps.language?.() ?? 'en',
           }),
       appendSystemPrompt: this.deps.handoff(item.projectId),
       jsonSchema: flowResultSchema(stage),

@@ -5,10 +5,10 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { Worker } from 'node:worker_threads';
-import { flowRunStatus, type AgentryEvent, type FlowRunDocument, type FlowMemoryProposal, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@agentry/shared';
+import { flowRunStatus, type AgentryEvent, type AgentryLanguage, type FlowRunDocument, type FlowMemoryProposal, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@agentry/shared';
 import { Db, FLOW_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import { EventBus } from '../src/events.ts';
-import { FlowError, flowResultSchema, FlowService, parseFlowRunQuery, parseResult, stageRules, testCommandRules, type FlowChatResult, type FlowLaunch } from '../src/flow.ts';
+import { FlowError, flowResultSchema, flowTitle, FlowService, parseFlowRunQuery, parseResult, stageRules, testCommandRules, type FlowChatResult, type FlowLaunch } from '../src/flow.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -40,7 +40,7 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean } 
   const bus = new EventBus();
   const events: AgentryEvent[] = [];
   bus.observe((e) => events.push(e));
-  const state = { settings: opts.settings ?? settingsWith() };
+  const state: { settings: ProjectSettings; language: AgentryLanguage } = { settings: opts.settings ?? settingsWith(), language: 'en' };
   const items = new WorkItemService({ db, project: (id) => (id === 'p1' ? { keyPrefix: 'AGN', columnLimits: {} } : null), emit: (e) => bus.emit(e) });
   const launches: FlowLaunch[] = [];
   const proposals: FlowMemoryProposal[] = [];
@@ -74,6 +74,7 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean } 
     },
     chatBusy: (id) => busy.has(id),
     rotating: (id) => rotating.has(id),
+    language: () => state.language,
     stop: (id) => void stopped.push(id),
     emit: (e) => bus.emit(e),
   });
@@ -136,6 +137,28 @@ test('a card a person puts on the board starts the role of its column, with the 
     s.events.filter((e) => e.type === 'flow.run').map((e) => (e.type === 'flow.run' ? e.action : '')),
     ['queued', 'started'],
   );
+});
+
+test("a run's chat is titled in the person's language: the member's role, the item's key and its title", async () => {
+  const s = setup();
+  s.state.language = 'es';
+  const cart = await item(s, 'backlog', 'Arreglar el carrito');
+  const [first, ...rest] = s.launches[0]?.prompt.split('\n') ?? [];
+  assert.equal(first, 'Product Owner · AGN-1 · Arreglar el carrito');
+  // The instructions for Claude after it stay as they were
+  assert.match(rest.join('\n'), /AGN-1: Arreglar el carrito[^]*You are the Product Owner/);
+  await item(s, 'in_progress', 'Guardar   las\nlíneas');
+  assert.equal(s.launches.at(-1)?.prompt.split('\n')[0], 'Desarrollador · AGN-2 · Guardar las líneas');
+
+  // Two runs at once by default: the third starts once the first ends, in the language of then
+  s.state.language = 'en';
+  await item(s, 'in_review', 'Keep the lines');
+  await s.answer(cart.id, ok('Refined'));
+  assert.equal(s.launches.at(-1)?.prompt.split('\n')[0], 'QA · AGN-3 · Keep the lines');
+  assert.equal(flowTitle({ key: 'AGN-4', title: 'x' }, 'developer', 'en'), 'Developer · AGN-4 · x');
+  // A role of the person's own reads as they named it, in either language
+  assert.equal(flowTitle({ key: 'AGN-5', title: 'y' }, 'data-steward', 'es'), 'Data Steward · AGN-5 · y');
+  assert.equal(flowTitle({ key: 'AGN-6', title: 'z' }, 'architect', 'es'), 'Arquitecto · AGN-6 · z');
 });
 
 test('refining in backlog completes the item, comments, and moves it to todo, where it costs no second run', async () => {

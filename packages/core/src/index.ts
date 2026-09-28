@@ -4,6 +4,7 @@ import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type {
   AccountsOverview,
+  AgentryLanguage,
   AuthVerification,
   AgentryReleaseInfo,
   CliVersionInfo,
@@ -54,7 +55,7 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@agentry/shared';
-import { WORK_ITEM_STATUSES } from '@agentry/shared';
+import { AGENTRY_LANGUAGES, agentryLanguage, WORK_ITEM_STATUSES } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
 import { AppSettingsStore } from './app-settings.ts';
@@ -142,7 +143,7 @@ export { parseChangeScope, parseDiffContext, type ChangeScope, type DiffOptions 
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { deriveKeyPrefix, parseProjectSettings, parseProjectSetup } from './project-settings.ts';
 export { PROJECT_TEMPLATES } from './project-templates.ts';
-export { agentFileContent, TeamError, TeamService, templateTeam, type TeamRunSource } from './team.ts';
+export { agentFileContent, roleTitleIn, TeamError, TeamService, templateTeam, type TeamRunSource } from './team.ts';
 export {
   ASSISTANT_ERRORS,
   AssistantError,
@@ -162,6 +163,7 @@ export {
   FLOW_CAUSE,
   FlowError,
   flowPrompt,
+  flowTitle,
   flowResultSchema,
   FlowService,
   parseFlowRunQuery,
@@ -287,6 +289,11 @@ export class Core {
   /** The project assistant: read-only runs that propose a team, resources and work items, each accepted on its own */
   readonly assistant: AssistantService;
   private readonly startedAt = Date.now();
+  /**
+   * The person's language, as their panel last said it (`noteLanguage`): what the chats Agentry
+   * starts on its own, with no request of the person's behind them, are titled in.
+   */
+  private language: AgentryLanguage = 'en';
   /** Chats whose account rotation after a rate limit is under way: a flow run on one waits for it */
   private readonly rotations = new Set<string>();
   private readonly sessionsWatcher: SessionsWatcher;
@@ -523,6 +530,7 @@ export class Core {
       },
       stop: (chatId) => void this.runtime.stop(chatId),
       activity: (chatId) => this.runtime.get(chatId)?.activity ?? null,
+      language: () => this.language,
       rotating: (chatId) =>
         this.rotations.has(chatId) || (this.accounts.autoSwitch.rotateOnLimit && this.accounts.managed && this.runtime.rotationComing(chatId)),
       emit: (event) => this.events.emit(event),
@@ -1205,6 +1213,22 @@ export class Core {
   projectFlow(projectId: string) {
     this.requireProject(projectId);
     return this.flow.projectFlow(projectId);
+  }
+
+  /**
+   * Keeps the language an `Accept-Language` header names, when it names one of Agentry's: the panel
+   * sends the person's with every request. A header that names none (`*`, which a script's fetch
+   * sends, or another language) leaves the last one as it was.
+   */
+  noteLanguage(header: unknown): void {
+    if (typeof header !== 'string') return;
+    const named = header.split(',').some((tag) => (AGENTRY_LANGUAGES as readonly string[]).includes(tag.trim().toLowerCase().split(/[-_;]/)[0] ?? ''));
+    if (named) this.language = agentryLanguage(header);
+  }
+
+  /** The person's language as the panel last said it. */
+  personLanguage(): AgentryLanguage {
+    return this.language;
   }
 
   /** `GET /projects/:id/flow/runs`: the team's activity, a page at a time; readable with the flow off. */
