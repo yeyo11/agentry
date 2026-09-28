@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T21:30:00Z
-updated_at: 2026-09-27T21:30:00Z
+updated_at: 2026-09-28T20:00:00Z
 tags:
     - assistant
     - ai-suggestions
@@ -213,7 +213,8 @@ Events:
 What every run draws the same way lives in `apps/web/src/components/assistant/run.tsx`, styled by
 `styles/suggestion.css`:
 
-- the live head, with the verb, the braille spinner, the elapsed time and "Detener";
+- the live head, with the verb, the braille spinner, the elapsed time as a running clock (`m:ss`
+  from the first second, "0:41") and "Detener";
 - the facts line: model · time · cost · chat;
 - "Lo que ha leído" and what it found;
 - the proposal rows and phone cards.
@@ -252,6 +253,11 @@ Asistente".
   here. If the run cannot start, the project still exists: the page offers to ask again.
 - **The empty Team screen.** "Pedir propuesta" is its primary action, and the template's team stays
   beside it. If a run is already going (409), it leads to that run's page.
+- **The project's header, on every tab** (decision 3 of the design review): a ghost "Asistente" with
+  its sparkle, before "Nuevo chat aquí". On a phone it is an "Asistente del proyecto" row above the
+  project's sections, which says how many proposals wait ("3 propuestas por revisar") or what the
+  assistant does.
+- **The command palette**: "Asistente del proyecto".
 
 ### "Sugerir tareas" on the board
 
@@ -286,6 +292,11 @@ on a phone.
   Resources tab and the project tab edit a proposal, a new file and an existing file the same way.
 
 ### On a phone
+
+The assistant's page has no app top bar: its route is marked `phoneHeader: 'page'`
+(`components/shell/phone-header.ts`), so it draws `PhoneHeader` (`MobileAsistente`), with the way
+back to the project, its title over the project's name and key, and a "⋯" sheet once the run has
+finished. The Resources tab is a project tab and is headed the same way, naming the folder it reads.
 
 The assistant's page, and a resource or proposal open in the editor, hide the tab bar and end in
 their own bar with 44 px buttons (`hidesTabBar` in `lib/shell-live.ts`). The proposals are cards with
@@ -332,14 +343,8 @@ had left for the owner:
 - **"Sugerir tareas"'s focus travels as the run's `description`**, which the prompt heads as what the
   project is for. It works, but the prompt words it as a project description rather than a focus. A
   field of its own in `StartAssistantRunRequest` would say it plainly.
-- **Only the wizard and the empty Team screen lead to the assistant's page.** Decision 35 also asks
-  for "on demand from the project page", and the page can ask on its own. But once a project has a
-  team, nothing on the project page links to it; its address is the only way in.
 - **Small differences from the references**, left by the review:
-  - the elapsed time reads "12s" where the reference has "0:41" (the app's clock format);
-  - a one-word project shows a one-letter monogram ("N", not "NO");
-  - the empty Team title is smaller than the reference's;
-  - the project tabs highlight "Inicio" rather than "Proyectos", as in orchestrations 2 and 3.
+  - the empty Team title is smaller than the reference's.
 
 ## Related
 
