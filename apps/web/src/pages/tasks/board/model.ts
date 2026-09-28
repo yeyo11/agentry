@@ -6,14 +6,49 @@
  * lib/work-items.ts.
  */
 import type { Board, BoardColumn, WorkItem, WorkItemRef, WorkItemStatus } from '@agentry/shared';
-import { WORK_ITEM_STATUSES } from '@agentry/shared';
+import { BOARD_DONE_PAGE, WORK_ITEM_STATUSES } from '@agentry/shared';
 import { countsInColumn } from '../../../lib/work-items';
 
 /**
  * Done keeps growing, and what is finished matters least on a board: it shows its first few cards
- * and says how many more there are, which the list shows in full.
+ * and says how many more there are; "and N more" draws the next page of them in place.
  */
 export const DONE_SHOWN = 3;
+
+/**
+ * The Done cards drawn after one more "and N more": up to the page the board already holds
+ * (`BOARD_DONE_PAGE`), then a page more each time.
+ */
+export function nextDoneShown(shown: number): number {
+  return (Math.floor(shown / BOARD_DONE_PAGE) + 1) * BOARD_DONE_PAGE;
+}
+
+/**
+ * The `doneLimit` a board is asked with so its Done column holds `shown` cards. Undefined while the
+ * default page holds them, so the board shares its answer with the sidebar's count.
+ */
+export function doneLimitFor(shown: number): number | undefined {
+  return shown <= BOARD_DONE_PAGE ? undefined : Math.ceil(shown / BOARD_DONE_PAGE) * BOARD_DONE_PAGE;
+}
+
+/**
+ * What a column draws of what it holds, and what its "and N more" counts: the cards it holds but
+ * folds, plus those the server left out (`more`). Only Done folds.
+ */
+export function foldColumn<T>(column: { status: WorkItemStatus; items: readonly T[]; more?: number }, shown: number): { shown: T[]; hidden: number } {
+  const drawn = column.status === 'done' ? column.items.slice(0, shown) : [...column.items];
+  return { shown: drawn, hidden: column.items.length - drawn.length + (column.more ?? 0) };
+}
+
+/** Every item a board counts, the ones its Done column leaves out included. */
+export function boardTotal(board: Pick<Board, 'columns'> | undefined): number {
+  return board ? board.columns.reduce((sum, column) => sum + column.items.length + (column.more ?? 0), 0) : 0;
+}
+
+/** Whether the board leaves some of its Done items out: then its cards alone cannot say how far an epic is. */
+export function holdsPart(board: Pick<Board, 'columns'> | undefined): boolean {
+  return Boolean(board?.columns.some((column) => (column.more ?? 0) > 0));
+}
 
 /** Where a card goes: a column and its index among the cards drawn there, the card itself left out. */
 export interface Drop {
@@ -139,6 +174,15 @@ export function epicProgress(items: readonly Pick<WorkItem, 'epicId' | 'status' 
     progress.set(item.epicId, entry);
   }
   return progress;
+}
+
+/**
+ * An epic's progress from the items it groups, as its page reads them (`children`), for a board
+ * whose Done column leaves some of them out.
+ */
+export function childProgress(children: readonly Pick<WorkItemRef, 'status' | 'type'>[]): { done: number; total: number } {
+  const grouped = children.filter((child) => child.type !== 'epic');
+  return { done: grouped.filter((child) => child.status === 'done').length, total: grouped.length };
 }
 
 /** Every item of a board, column after column, in board order. */

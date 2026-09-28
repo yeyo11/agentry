@@ -305,6 +305,15 @@
   transition: border-color var(--dur-fast);
 }
 
+/* "and N more" draws the next page of Done in place, so it is a button drawn as the slot */
+button.workitem-col-slot.is-more,
+button.workitem-mrow-more-link {
+  width: 100%;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
 .workitem-col-slot.is-more:hover {
   border-color: var(--line-3);
   color: var(--fg);
@@ -895,6 +904,26 @@
 
 .workitem-list-more svg.is-open {
   transform: rotate(180deg);
+}
+
+.workitem-list-load {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: none;
+  color: var(--fg-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.workitem-list-load:hover:not(:disabled) {
+  border-color: var(--line-3);
+  color: var(--fg);
 }
 
 .workitem-list-foot {
@@ -1505,6 +1534,7 @@ a.workitem-mrow-title::after {
 
 .workitem-mrow-more-link {
   display: grid;
+  border: 0;
   place-items: center;
   min-height: 48px;
   color: var(--fg-2);
