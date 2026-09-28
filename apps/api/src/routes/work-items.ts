@@ -16,33 +16,43 @@ import type {
   WorkItemFilter,
   WorkOnWorkItemRequest,
 } from '@agentry/shared';
-import { diffOptions, type DiffQuery, type ScopeQuery } from './orchestrations.ts';
+import { diffOptions, pathOf, type DiffQuery, type ScopeQuery } from './orchestrations.ts';
 
-/** A filter as a query string carries it: every list comma separated. */
+/**
+ * A filter as a query string carries it: every list comma separated, or its parameter repeated
+ * (`status=todo&status=done`), which a query string parser hands over as an array.
+ */
+type Param = string | string[] | undefined;
 interface FilterQuery {
-  status?: string;
-  type?: string;
-  priority?: string;
-  labels?: string;
-  assignee?: string;
-  epicId?: string;
-  milestoneId?: string;
-  q?: string;
+  status?: Param;
+  type?: Param;
+  priority?: Param;
+  labels?: Param;
+  assignee?: Param;
+  epicId?: Param;
+  milestoneId?: Param;
+  q?: Param;
 }
 
-const csv = (value: string | undefined): string[] | undefined => {
-  const items = value
-    ?.split(',')
+const csv = (value: Param): string[] | undefined => {
+  const items = (Array.isArray(value) ? value : [value])
+    .flatMap((v) => (typeof v === 'string' ? v.split(',') : []))
     .map((v) => v.trim())
     .filter(Boolean);
-  return items?.length ? items : undefined;
+  return items.length ? items : undefined;
 };
+
+/** A parameter that takes one value: repeated, it would have to pick one, so it is refused. */
+function single(value: Param, field: string): string | undefined {
+  if (Array.isArray(value)) throw new Error(`${field} is given more than once`);
+  return value;
+}
 
 /**
  * Refused rather than ignored: a filter on a status that does not exist would answer with an empty
  * board, which reads as "nothing to do" instead of "you asked for something else".
  */
-function members<T extends string>(value: string | undefined, allowed: readonly T[], field: string): T[] | undefined {
+function members<T extends string>(value: Param, allowed: readonly T[], field: string): T[] | undefined {
   const items = csv(value);
   for (const item of items ?? []) if (!(allowed as readonly string[]).includes(item)) throw new Error(`unknown ${field}: ${item}`);
   return items as T[] | undefined;
@@ -54,15 +64,18 @@ function filterOf(query: FilterQuery): Omit<WorkItemFilter, 'projectId'> {
   const priority = members(query.priority, WORK_ITEM_PRIORITIES, 'priority');
   const labels = csv(query.labels);
   const assignee = csv(query.assignee);
+  const epicId = single(query.epicId, 'epicId');
+  const milestoneId = single(query.milestoneId, 'milestoneId');
+  const q = single(query.q, 'q');
   return {
     ...(status ? { status } : {}),
     ...(type ? { type } : {}),
     ...(priority ? { priority } : {}),
     ...(labels ? { labels } : {}),
     ...(assignee ? { assignee } : {}),
-    ...(query.epicId ? { epicId: query.epicId } : {}),
-    ...(query.milestoneId ? { milestoneId: query.milestoneId } : {}),
-    ...(query.q?.trim() ? { q: query.q } : {}),
+    ...(epicId ? { epicId } : {}),
+    ...(milestoneId ? { milestoneId } : {}),
+    ...(q?.trim() ? { q } : {}),
   };
 }
 
@@ -199,10 +212,9 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     core.workItemChanges(req.params.itemId, parseChangeScope(req.query)),
   );
 
-  app.get<{ Params: { itemId: string }; Querystring: DiffQuery }>('/work-items/:itemId/changes/diff', (req) => {
-    if (!req.query.path) throw new Error('path is required');
-    return core.workItemDiff(req.params.itemId, req.query.path, diffOptions(req.query));
-  });
+  app.get<{ Params: { itemId: string }; Querystring: DiffQuery }>('/work-items/:itemId/changes/diff', (req) =>
+    core.workItemDiff(req.params.itemId, pathOf(req.query.path), diffOptions(req.query)),
+  );
 
   app.post<{ Params: { id: string }; Body: CreateWorkItemFromMessageRequest }>('/chats/:id/work-items', async (req, reply) =>
     reply.status(201).send(await core.workItemFromMessage(req.params.id, bodyOf(req.body))),

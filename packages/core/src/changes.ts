@@ -65,16 +65,18 @@ const MAX_CONTEXT = 500;
 const FULL_LIMIT = 20_000;
 
 /** `?context=` as a request sends it: a count of lines or `full`; anything else is the default. */
-export function parseDiffContext(raw: string | undefined): DiffContext {
+export function parseDiffContext(raw: unknown): DiffContext {
   if (raw === 'full') return 'full';
-  if (raw === undefined || !/^\d+$/.test(raw.trim())) return DEFAULT_CONTEXT;
+  // A repeated parameter arrives as a list: not a count either
+  if (typeof raw !== 'string' || !/^\d+$/.test(raw.trim())) return DEFAULT_CONTEXT;
   return Math.min(MAX_CONTEXT, Number(raw.trim()));
 }
 
 /** `?commit=` and `?uncommitted=` as a request sends them; asking for both at once is refused. */
-export function parseChangeScope(query: { commit?: string; uncommitted?: string }): ChangeScope {
+export function parseChangeScope(query: { commit?: unknown; uncommitted?: unknown }): ChangeScope {
+  if (Array.isArray(query.commit) || Array.isArray(query.uncommitted)) throw new Error('commit and uncommitted are given once each');
   const uncommitted = query.uncommitted === '1' || query.uncommitted === 'true';
-  const commit = query.commit?.trim() || undefined;
+  const commit = (typeof query.commit === 'string' ? query.commit.trim() : '') || undefined;
   if (commit && uncommitted) throw new Error('commit and uncommitted cannot be asked for together');
   return { ...(commit ? { commit } : {}), ...(uncommitted ? { uncommitted } : {}) };
 }

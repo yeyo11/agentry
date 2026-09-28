@@ -340,6 +340,33 @@ test('the All projects view shows the boards that are on, and a removed project 
   }
 });
 
+test('a repeated query parameter or a body of the wrong shape is a 400, never a 500', async () => {
+  const project = await importProject('Malformed', ['board', 'memory']);
+  const item = await createItem(project.id, { title: 'Probed' });
+  try {
+    // A list parameter takes its repeats as more members; a single one refuses them
+    const both = await app.inject(`/api/projects/${project.id}/work-items?status=backlog&status=todo`);
+    assert.equal(both.statusCode, 200, both.body);
+    assert.deepEqual(both.json<WorkItem[]>().map((i) => i.id), [item.id]);
+    for (const base of [`/api/projects/${project.id}/work-items`, `/api/projects/${project.id}/work-items/board`, '/api/work-items', '/api/work-items/board']) {
+      for (const query of ['type=task&type=bug', 'labels=a&labels=b', 'priority=low&priority=high']) {
+        assert.equal((await app.inject(`${base}?${query}`)).statusCode, 200, `${base}?${query}`);
+      }
+      for (const query of ['q=a&q=b', 'epicId=a&epicId=b', 'milestoneId=a&milestoneId=b', 'status=x&status=y']) {
+        assert.equal((await app.inject(`${base}?${query}`)).statusCode, 400, `${base}?${query}`);
+      }
+    }
+    assert.equal((await app.inject(`/api/work-items/${item.id}/changes?commit=a&commit=b`)).statusCode, 400);
+    assert.equal((await app.inject(`/api/work-items/${item.id}/changes/diff?path=a&path=b`)).statusCode, 400);
+    assert.equal((await app.inject(`/api/work-items/${item.id}/changes/diff?path=a&context=1&context=2`)).statusCode, 400);
+    assert.equal((await app.inject({ method: 'POST', url: `/api/projects/${project.id}/journal`, ...json({ text: 'x', itemId: { a: 1 } }) })).statusCode, 400);
+    assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...json({ name: 12 }) })).statusCode, 400);
+    assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations', ...json({ name: 'g', objective: 'o', tasks: [null] }) })).statusCode, 400);
+  } finally {
+    await app.inject({ method: 'DELETE', url: `/api/projects/${project.id}` });
+  }
+});
+
 test('creations, moves and deletions are written to the audit log under their route summary', async () => {
   const project = await importProject('Audited');
   const item = await createItem(project.id, { title: 'Watched' });

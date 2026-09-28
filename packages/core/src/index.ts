@@ -1040,6 +1040,9 @@ export class Core {
   /** A new directory in the workspace, imported straight away. The template is checked before the directory exists. */
   async createProject(req: CreateProjectRequest): Promise<Project> {
     const setup = parseProjectSetup(req);
+    const { name, gitUrl } = req as { name?: unknown; gitUrl?: unknown };
+    if (typeof name !== 'string') throw new Error('name is required: the name of the new directory');
+    if (gitUrl !== undefined && gitUrl !== null && typeof gitUrl !== 'string') throw new Error('gitUrl must be a URL to clone');
     const path = await this.workspace.create(req.name ?? '', req.gitUrl || undefined);
     return this.importProject({ path, ...(setup.template ? { template: setup.template } : {}), ...(setup.modules ? { modules: setup.modules } : {}) });
   }
@@ -1515,6 +1518,7 @@ export class Core {
   private async checkWorkItemNodes(tasks: unknown): Promise<void> {
     const seen = new Set<string>();
     for (const task of Array.isArray(tasks) ? (tasks as Array<Partial<OrchestrationSpec['tasks'][number]> | null>) : []) {
+      if (!task || typeof task !== 'object' || Array.isArray(task)) throw new WorkItemError('every task must be an object with an id and a prompt', 400);
       const itemId: unknown = task?.workItemId;
       if (itemId === undefined) continue;
       const label = `task '${String(task?.id)}'`;

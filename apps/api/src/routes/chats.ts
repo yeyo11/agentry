@@ -19,7 +19,7 @@ import type {
   UsageBucket,
 } from '@agentry/shared';
 import { openStream } from '../sse.ts';
-import { diffOptions, type DiffQuery, type ScopeQuery } from './orchestrations.ts';
+import { diffOptions, pathOf, type DiffQuery, type ScopeQuery } from './orchestrations.ts';
 
 const PERMISSION_MODES: readonly PermissionMode[] = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'];
 const ORIGINS: readonly ChatOrigin[] = ['agentry', 'external', 'orchestration', 'internal'];
@@ -107,10 +107,9 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
   // What the chat changed on disk: a worktree's git changes, and the files its own tool calls wrote
   app.get<{ Params: { id: string }; Querystring: ScopeQuery }>('/chats/:id/changes', (req) => core.changes.chatChanges(req.params.id, parseChangeScope(req.query)));
 
-  app.get<{ Params: { id: string }; Querystring: DiffQuery }>('/chats/:id/changes/diff', (req) => {
-    if (!req.query.path) throw new Error('path is required');
-    return core.changes.chatDiff(req.params.id, req.query.path, diffOptions(req.query));
-  });
+  app.get<{ Params: { id: string }; Querystring: DiffQuery }>('/chats/:id/changes/diff', (req) =>
+    core.changes.chatDiff(req.params.id, pathOf(req.query.path), diffOptions(req.query)),
+  );
 
   // Every edit of the transcript, each with its patch and the sentence written before it
   app.get<{ Params: { id: string } }>('/chats/:id/changes/steps', (req) => core.changes.chatSteps(req.params.id));
