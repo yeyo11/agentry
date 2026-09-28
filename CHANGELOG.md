@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.23.1](https://github.com/yeyo11/agentry/compare/v0.23.0...v0.23.1) (2026-09-28)
+
+
+### Documentation
+
+* record the queued plans and the English-language decision ([#120](https://github.com/yeyo11/agentry/issues/120)) ([6412c44](https://github.com/yeyo11/agentry/commit/6412c44ce3cd57522d556b3356c298c298f07c0c))
+
 ## [0.23.0](https://github.com/yeyo11/agentry/compare/v0.22.1...v0.23.0) (2026-09-28)
 
 
