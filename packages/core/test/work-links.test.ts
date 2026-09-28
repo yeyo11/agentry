@@ -111,6 +111,48 @@ test('a failed or stopped turn moves nothing', () => {
   assert.equal(statusOf(s, item.id), 'in_progress');
 });
 
+function runEnded(runId: string, status: 'completed' | 'failed' | 'stopped'): AgentryEvent {
+  return { id: ++seq, at: iso(), title: '', type: 'run.ended', runId, runName: runId, sessionId: runId, orchestrationId: null, internal: false, status, error: null, turns: 0, costUsd: 0 } as AgentryEvent;
+}
+
+test('a chat that fails before its turn gives any result puts the item back where it was', () => {
+  const s = setup();
+  const item = workedBy(s, 'chat-1');
+  s.automation.chatStarted('chat-1');
+  assert.equal(statusOf(s, item.id), 'in_progress');
+  // The CLI could not be spawned, or refused a flag: the process ends with no result at all
+  s.automation.observe(runEnded('chat-1', 'failed'));
+  assert.equal(statusOf(s, item.id), 'todo');
+  assert.deepEqual(
+    automatic(s.items.history(item.id)).map((e) => [e.to, e.cause?.event]),
+    [
+      ['in_progress', 'chat.started'],
+      ['todo', 'chat.failed-to-start'],
+    ],
+  );
+});
+
+test('a chat whose turn gave a result, or that a person moved past, is not put back when it fails', () => {
+  const s = setup();
+  const answered = workedBy(s, 'chat-1');
+  s.automation.chatStarted('chat-1');
+  s.automation.chatResult('chat-1', { isError: true });
+  s.automation.observe(runEnded('chat-1', 'failed'));
+  assert.equal(statusOf(s, answered.id), 'in_progress');
+
+  const moved = workedBy(s, 'chat-2');
+  s.automation.chatStarted('chat-2');
+  s.items.move(moved.id, { status: 'in_review' });
+  s.items.move(moved.id, { status: 'in_progress' });
+  s.automation.observe(runEnded('chat-2', 'failed'));
+  assert.equal(statusOf(s, moved.id), 'in_progress');
+
+  const stopped = workedBy(s, 'chat-3');
+  s.automation.chatStarted('chat-3');
+  s.automation.observe(runEnded('chat-3', 'stopped'));
+  assert.equal(statusOf(s, stopped.id), 'in_progress');
+});
+
 test('a person who moves the item while the turn runs wins over the move its end would make', () => {
   const s = setup();
   const item = workedBy(s, 'chat-1');

@@ -184,6 +184,20 @@ test('a failed turn leaves the item in progress, and a chat still working refuse
   assert.equal((await item(hanging.id)).status, 'in_progress');
 });
 
+test('a chat that never starts its turn puts the item back, so it is not left in progress with nobody on it', async () => {
+  const refused = await createItem({ title: 'Never started', status: 'todo' });
+  const started = await workOn(refused.id, { model: 'fake-refused' });
+  await until(() => core.runtime.get(started.chat.id)?.status, (s) => s === 'failed', 'the chat to fail');
+  const back = await statusIs(refused.id, 'todo');
+  assert.deepEqual(
+    back.history.filter((e) => e.change === 'status').map((e) => [e.to, e.cause?.event]),
+    [
+      ['in_progress', 'chat.started'],
+      ['todo', 'chat.failed-to-start'],
+    ],
+  );
+});
+
 test('an item in done is not worked on, and start options of the wrong type are refused before a chat starts', async () => {
   const chats = () => core.runtime.list().length;
   const before = chats();

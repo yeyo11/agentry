@@ -36,6 +36,8 @@ import type { WorkItemService } from './work-items.ts';
 export const WORK_CAUSE = {
   chatStarted: 'chat.started',
   turnCompleted: 'chat.turn-completed',
+  /** The chat ended failed before its turn gave any result: the move its start made is undone */
+  chatFailed: 'chat.failed-to-start',
   message: 'chat.message',
   taskStarted: 'orchestration.task.started',
   taskCompleted: 'orchestration.task.completed',
@@ -288,6 +290,12 @@ export class WorkItemAutomation {
   private readonly turns = new Map<string, string>();
   /** When each node's current attempt began, by `<orchestration>/<task>` */
   private readonly attempts = new Map<string, string>();
+  /**
+   * The moves a chat's start made that no result has answered yet, with where each item was: a chat
+   * whose process fails before its turn gives a result (the CLI missing, a flag it refuses) never
+   * worked on the item, and leaving it in `in_progress` would say someone is on it
+   */
+  private readonly unanswered = new Map<string, Array<{ itemId: string; from: WorkItemStatus; at: string }>>();
 
   constructor(private readonly deps: WorkItemAutomationDeps) {}
 
@@ -311,8 +319,13 @@ export class WorkItemAutomation {
           }
           break;
         case 'run.ended':
+          this.turns.delete(event.runId);
+          if (event.status === 'failed') this.chatFailed(event.runId);
+          this.unanswered.delete(event.runId);
+          break;
         case 'run.removed':
           this.turns.delete(event.runId);
+          this.unanswered.delete(event.runId);
           break;
         case 'orchestration.updated':
           if (event.previousStatus === null) this.linkNodes(event.orchestrationId);
@@ -335,10 +348,29 @@ export class WorkItemAutomation {
   chatStarted(chatId: string): void {
     try {
       for (const link of this.chatLinks(chatId)) {
-        this.advance(link, 'in_progress', chatCause(chatId, WORK_CAUSE.chatStarted), this.turns.get(chatId) ?? link.createdAt);
+        const from = this.advance(link, 'in_progress', chatCause(chatId, WORK_CAUSE.chatStarted), this.turns.get(chatId) ?? link.createdAt);
+        if (from) this.unanswered.set(chatId, [...(this.unanswered.get(chatId) ?? []), { itemId: link.itemId, from, at: new Date().toISOString() }]);
       }
     } catch {
       // see the class comment: the chat is linked and running, and the next turn moves the item
+    }
+  }
+
+  /**
+   * A chat ended failed with no result for the turn that moved its items: each goes back where it
+   * was, unless a person moved it since or something else took it further. A turn that gave a
+   * result, even an error, did run, and leaves the item in progress as decision 21 says.
+   */
+  private chatFailed(chatId: string): void {
+    for (const { itemId, from, at } of this.unanswered.get(chatId) ?? []) {
+      try {
+        const item = this.deps.items.find(itemId);
+        if (!item || !this.deps.writable(item.projectId) || item.status !== 'in_progress') continue;
+        if (this.personMovedSince(item.id, at)) continue;
+        this.deps.items.move(item.id, { status: from }, { actor: SYSTEM, cause: chatCause(chatId, WORK_CAUSE.chatFailed) });
+      } catch {
+        // see the class comment
+      }
     }
   }
 
@@ -350,6 +382,7 @@ export class WorkItemAutomation {
     try {
       const since = this.turns.get(chatId);
       this.turns.delete(chatId);
+      this.unanswered.delete(chatId);
       if (result.isError || this.deps.flowOwns?.(chatId)) return;
       for (const link of this.chatLinks(chatId)) {
         this.advance(link, 'in_review', chatCause(chatId, WORK_CAUSE.turnCompleted), since ?? link.createdAt);
@@ -408,15 +441,17 @@ export class WorkItemAutomation {
   }
 
   /**
-   * The one place an automatic move is made, and where its three rules are kept: forward only, never
-   * out of `done`, and never over a person who moved the item after the work that causes it began.
+   * The one place an automatic move forward is made, and where its three rules are kept: forward
+   * only, never out of `done`, and never over a person who moved the item after the work that causes
+   * it began. Returns where the item was when it moved it.
    */
-  private advance(link: WorkItemLink, target: WorkItemStatus, cause: WorkItemCause, since: string): void {
+  private advance(link: WorkItemLink, target: WorkItemStatus, cause: WorkItemCause, since: string): WorkItemStatus | null {
     const item = this.deps.items.find(link.itemId);
-    if (!item || !this.deps.writable(item.projectId)) return;
-    if (item.status === 'done' || column(item.status) >= column(target)) return;
-    if (this.personMovedSince(item.id, since)) return;
+    if (!item || !this.deps.writable(item.projectId)) return null;
+    if (item.status === 'done' || column(item.status) >= column(target)) return null;
+    if (this.personMovedSince(item.id, since)) return null;
     this.deps.items.move(item.id, { status: target }, { actor: SYSTEM, cause });
+    return item.status;
   }
 
   private personMovedSince(itemId: string, since: string): boolean {
