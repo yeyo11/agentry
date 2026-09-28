@@ -5,16 +5,16 @@ import { Check, ChevronLeft, Folder, GitBranch, MessageCircle, Plus, X } from 'l
 import { useMemo, useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { api, keys, useProjectCandidates, useProjects, useProjectTemplates } from '../../api';
+import { api, ApiRequestError, keys, useProjectCandidates, useProjects, useProjectTemplates } from '../../api';
 import { Combobox, Switch } from '../../components/controls';
 import { ICON, ICON_SM, Monogram, WorkItemKey, WorkItemTypeIcon } from '../../components/icons';
 import { useToast } from '../../components/Toast';
 import { ErrorBox, Segmented, usePageTitle } from '../../components/ui';
-import { formatNumber } from '../../lib/format';
+import { errorMessage, formatNumber } from '../../lib/format';
 import { NARROW, useMediaQuery } from '../../lib/media';
 import { columnMeta } from '../../lib/work-items';
 import { assistantPath, proposesByDefault } from '../assistant/model';
-import { deriveKeyPrefix, limitedColumns, normalizePrefix, prefixProblem, PROJECT_MODULES, sortModules, TEMPLATE_ORDER, toggleModule } from './model';
+import { deriveKeyPrefix, folderNameFor, limitedColumns, normalizePrefix, prefixProblem, PROJECT_MODULES, sortModules, TEMPLATE_ORDER, toggleModule } from './model';
 import { ModuleCard, ModulesOffNote, TemplateCard } from './parts';
 
 type Source = 'local' | 'git';
@@ -50,9 +50,25 @@ function useWizard(draft: Draft, templates: ProjectTemplate[] | undefined, proje
   const template = templates?.find((tpl) => tpl.id === draft.template);
   const candidate = draft.source === 'local' ? candidates?.find((c) => c.path === draft.path.trim()) : undefined;
   const where = draft.source === 'git' ? draft.gitUrl.trim() : draft.path.trim();
+  // A new directory (created or cloned) is named after the project, as far as a folder name allows;
+  // the project keeps the name as typed. Importing takes the directory as it is.
+  const makesFolder = draft.source === 'git' || !draft.path.trim();
+  const folder = makesFolder ? folderNameFor(name) : null;
+  const folderProblem = makesFolder && name && !folder ? 'empty' : null;
   // Creating needs a name; importing takes the directory's; cloning needs its URL
   const originReady = draft.source === 'git' ? !!draft.gitUrl.trim() && !!name : !!name;
-  return { candidates: candidates ?? [], name, prefix, problem, template, candidate, where, ready: originReady && problem === null };
+  return {
+    candidates: candidates ?? [],
+    name,
+    prefix,
+    problem,
+    template,
+    candidate,
+    where,
+    folder,
+    folderProblem,
+    ready: originReady && problem === null && folderProblem === null,
+  };
 }
 
 type Wizard = ReturnType<typeof useWizard>;
@@ -78,7 +94,26 @@ function OriginFields({ draft, set, wizard, narrow }: { draft: Draft; set: (patc
     <div className="wizard-origin">
       <label className="form-row wizard-name">
         <span className="section-label">{t('wizard.name')}</span>
-        <input value={draft.name} placeholder={wizard.name || t('wizard.namePlaceholder')} onChange={(e) => set({ name: e.target.value })} />
+        <input
+          className={wizard.folderProblem ? 'is-invalid' : undefined}
+          value={draft.name}
+          placeholder={wizard.name || t('wizard.namePlaceholder')}
+          aria-invalid={wizard.folderProblem !== null}
+          onChange={(e) => set({ name: e.target.value })}
+        />
+        {/* Said while typing, not after "Create project": the folder is the one thing a name must fit */}
+        {wizard.folderProblem ? (
+          <span className="field-error" role="alert">
+            {t('wizard.folderEmpty')}
+          </span>
+        ) : (
+          wizard.folder &&
+          wizard.folder !== wizard.name && (
+            <span className="form-hint">
+              <Trans t={t} i18nKey="wizard.folderHint" values={{ folder: wizard.folder }} components={{ mono: <span className="mono" /> }} />
+            </span>
+          )
+        )}
       </label>
       <div className="form-row wizard-where">
         <span className="wizard-where-head">
@@ -168,7 +203,9 @@ function Summary({ draft, wizard, onChange }: { draft: Draft; wizard: Wizard; on
         <Monogram name={wizard.name || '?'} size={40} />
         <span className="summary-project-id">
           <strong className="break">{wizard.name || t('wizard.unnamed')}</strong>
-          <span className="mono small muted ellipsis" title={wizard.where || undefined}>{wizard.where || t('wizard.inWorkspace')}</span>
+          <span className="mono small muted ellipsis" title={wizard.where || undefined}>
+            {draft.source === 'git' || !wizard.where ? `${wizard.where ? `${wizard.where} → ` : ''}${wizard.folder ? `${wizard.folder}/` : t('wizard.inWorkspace')}` : wizard.where}
+          </span>
         </span>
         {onChange && (
           <button type="button" className="btn btn-small btn-quiet" onClick={onChange}>
@@ -291,18 +328,29 @@ export function NewProject() {
   const create = useMutation({
     mutationFn: async () => {
       const setup = { template: draft.template, modules: draft.modules };
-      const project =
-        draft.source === 'git'
-          ? await api.createProject({ name: wizard.name, gitUrl: draft.gitUrl.trim(), ...setup })
-          : draft.path.trim()
-            ? await api.importProject({ path: draft.path.trim(), ...(draft.name.trim() ? { name: draft.name.trim() } : {}), ...setup })
-            : await api.createProject({ name: wizard.name, ...setup });
-      // The API derives a prefix of its own; only one the person typed is worth a second call
-      if (draft.prefix !== null && draft.prefix !== project.key) {
+      const folder = wizard.folder ?? wizard.name;
+      let project: Project;
+      try {
+        project =
+          draft.source === 'git'
+            ? await api.createProject({ name: folder, gitUrl: draft.gitUrl.trim(), ...setup })
+            : draft.path.trim()
+              ? await api.importProject({ path: draft.path.trim(), ...(draft.name.trim() ? { name: draft.name.trim() } : {}), ...setup })
+              : await api.createProject({ name: folder, ...setup });
+      } catch (error) {
+        // The one refusal a person can fix from here, said in their words rather than the server's
+        if (wizard.folder && error instanceof ApiRequestError && /already exists/.test(errorMessage(error))) throw new Error(t('wizard.folderTaken', { folder: wizard.folder }));
+        throw error;
+      }
+      // The directory holds what a folder name can; the project is called as the person wrote it.
+      // The API derives a prefix of its own; only one the person typed is worth sending.
+      const rename = project.name !== wizard.name ? wizard.name : null;
+      const key = draft.prefix !== null && draft.prefix !== project.key ? draft.prefix : null;
+      if (rename || key) {
         try {
-          return await api.updateProject(project.id, { key: draft.prefix });
+          return await api.updateProject(project.id, { ...(rename ? { name: rename } : {}), ...(key ? { key } : {}) });
         } catch (error) {
-          toast.error(t('wizard.keyFailed'), error);
+          toast.error(t(key ? 'wizard.keyFailed' : 'wizard.renameFailed'), error);
         }
       }
       return project;

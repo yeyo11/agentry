@@ -74,6 +74,25 @@ export function prefixProblem(value: string, taken: ReadonlySet<string>): Prefix
 /** A prefix as it is typed: upper case, and nothing a prefix cannot hold. */
 export const normalizePrefix = (value: string): string => value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
 
+/** A directory the workspace creates: what core's `Workspace.create` accepts (packages/core/src/workspace.ts). */
+export const FOLDER_NAME = /^\w[\w.-]{0,63}$/;
+
+/**
+ * The directory a new project gets in the workspace, from the name the person gave it: accents
+ * dropped and anything else a folder name cannot hold turned into dashes, so "Mi proyecto" lives in
+ * `Mi-proyecto` and keeps its name. Empty when nothing of the name can make one.
+ */
+export function folderNameFor(name: string): string {
+  return name
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w.-]+/g, '-')
+    .replace(/^[^A-Za-z0-9_]+/, '')
+    .slice(0, 64)
+    .replace(/-+$/, '');
+}
+
 /** The columns that carry a limit, in board order. */
 export function limitedColumns(board: Pick<BoardSettings, 'columnLimits'> | undefined): Array<{ status: WorkItemStatus; limit: number }> {
   if (!board) return [];

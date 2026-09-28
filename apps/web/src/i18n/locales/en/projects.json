@@ -169,6 +169,9 @@
     "modulesHintPhone": "{{template}} preselected these. Change them now or later in the project's settings.",
     "name": "Name",
     "namePlaceholder": "my-project",
+    "folderHint": "Its folder in the workspace: <mono>{{folder}}</mono>",
+    "folderEmpty": "The name needs a letter or a digit: the new folder is named after it.",
+    "folderTaken": "The workspace already has a folder called {{folder}}. Pick another name, or import that folder as a directory.",
     "directory": "Directory",
     "directoryPlaceholder": "/home/you/code/my-project",
     "source": "Where the project comes from",
@@ -197,6 +200,7 @@
     "create": "Create project",
     "created": "Created {{name}}",
     "keyFailed": "The project was created, but its key prefix could not be set",
+    "renameFailed": "The project was created, but it could not be renamed",
     "next": "Next",
     "back": "Back"
   },

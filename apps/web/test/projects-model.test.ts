@@ -3,7 +3,7 @@ import test from 'node:test';
 import en from '../src/i18n/locales/en/projects.json' with { type: 'json' };
 import es from '../src/i18n/locales/es/projects.json' with { type: 'json' };
 import { asProjectView, projectViews } from '../src/pages/dashboard/views.ts';
-import { deriveKeyPrefix, limitedColumns, normalizePrefix, prefixProblem, sameModules, toggleModule } from '../src/pages/projects/model.ts';
+import { deriveKeyPrefix, FOLDER_NAME, folderNameFor, limitedColumns, normalizePrefix, prefixProblem, sameModules, toggleModule } from '../src/pages/projects/model.ts';
 
 // The wizard previews the prefix the server will derive, and the settings refuse what the API
 // would refuse before sending it, so both have to agree with core's rules.
@@ -62,4 +62,16 @@ test("the wizard's team line says the roles become agent files once accepted, no
     assert.match(hint, /\.claude\/agents\//);
     assert.doesNotMatch(hint, /\byet\b|todavía|nothing is written|no se escribe/i);
   }
+});
+
+test("a new project's folder takes what it can of the name, so a name with spaces or accents is not refused", () => {
+  // The wizard sent the name as the folder, and core refused it after "Create project", in English
+  assert.equal(folderNameFor('Mi proyecto'), 'Mi-proyecto');
+  assert.equal(folderNameFor('Página de pagos'), 'Pagina-de-pagos');
+  assert.equal(folderNameFor('  api.v2  '), 'api.v2');
+  assert.equal(folderNameFor('-- ¿Qué? --'), 'Que');
+  assert.equal(folderNameFor('¡¡!!'), '');
+  assert.equal(folderNameFor('x'.repeat(80)).length, 64);
+  for (const name of ['Mi proyecto', 'Página de pagos', 'api.v2', 'ñandú 2026', '.hidden', '_tmp', 'a/b\\c'])
+    assert.match(folderNameFor(name), FOLDER_NAME, name);
 });
