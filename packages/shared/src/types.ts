@@ -4114,6 +4114,23 @@ export interface MilestoneChangedEvent extends AgentryEventBase {
   action: MilestoneChangeAction;
 }
 
+/**
+ * A directory was imported as a project, or a new one created in the workspace. A directory imported
+ * again after it was removed takes its old id back, and is announced as created all the same.
+ */
+export interface ProjectCreatedEvent extends AgentryEventBase {
+  type: 'project.created';
+  projectId: string;
+  projectName: string;
+}
+
+/** A project was removed from Agentry. Its directory, settings and work items are left where they are. */
+export interface ProjectRemovedEvent extends AgentryEventBase {
+  type: 'project.removed';
+  projectId: string;
+  projectName: string;
+}
+
 /** What `project.updated` says changed; `settings` is anything else in the settings document. */
 export type ProjectChange = 'name' | 'key' | 'modules' | 'settings';
 
@@ -4298,7 +4315,9 @@ export type AgentryEvent =
   | WorkItemMovedEvent
   | WorkItemRemovedEvent
   | MilestoneChangedEvent
+  | ProjectCreatedEvent
   | ProjectUpdatedEvent
+  | ProjectRemovedEvent
   | TeamChangedEvent
   | JournalChangedEvent
   | MemoryProposalEvent

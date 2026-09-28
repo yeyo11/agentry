@@ -1032,6 +1032,7 @@ export class Core {
   async importProject(req: ImportProjectRequest): Promise<Project> {
     const setup = parseProjectSetup(req);
     const active = () => new Set(this.projectStore.list().map((p) => p.id));
+    const imported = active();
     const record = await this.projectStore.add(
       { path: req.path, ...(req.name ? { name: req.name } : {}) },
       (d) => this.locator.worktreeOf(d),
@@ -1040,6 +1041,8 @@ export class Core {
     const { settings, previous } = await this.projectSettingsStore.create(record, setup, this.projectStore.list());
     // A directory imported again can come back with other modules: whoever shows its tabs has to know
     if (previous) this.projectUpdated(record, settingsChanges(previous, settings), settings.modules);
+    // Other tabs list projects too, and the All projects board takes the new one in
+    if (!imported.has(record.id)) this.events.emit({ type: 'project.created', title: `${record.name} added`, projectId: record.id, projectName: record.name });
     return this.projectView(record.id);
   }
 
@@ -1114,8 +1117,10 @@ export class Core {
    * Forgets a project in Agentry. What Claude Code keeps about it is `purgeProject`, and is not
    * touched; neither are its settings document and work items, which importing it again brings back.
    */
-  removeProject(id: string): Promise<void> {
-    return this.projectStore.remove(id);
+  async removeProject(id: string): Promise<void> {
+    const record = this.projectStore.get(id);
+    await this.projectStore.remove(id);
+    if (record) this.events.emit({ type: 'project.removed', title: `${record.name} removed`, projectId: record.id, projectName: record.name });
   }
 
   // ---------- journal and memory proposals ----------

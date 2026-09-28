@@ -106,7 +106,9 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'workitem.moved': true,
   'workitem.removed': true,
   'milestone.changed': true,
+  'project.created': true,
   'project.updated': true,
+  'project.removed': true,
   'team.changed': true,
   'journal.changed': true,
   'memory.proposal': true,
@@ -275,6 +277,10 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'system.release':
       // Reading it back costs nothing: the server answers from release.json, not from GitHub
       return [[keys.release, NOW]];
+    case 'project.created':
+    case 'project.removed':
+      // The projects' lists, and the All projects views, which take a project's items in or leave them out
+      return [[keys.projects, NOW], [keys.overview, OVERVIEW], [keys.workItemBoards(null), NOW], [keys.workItemLists(null), NOW], [keys.chatWorkItemsAll, NOW]];
     case 'project.updated':
       return [
         [keys.projects, NOW], [keys.overview, OVERVIEW], [keys.projectSettings(event.projectId), NOW],
