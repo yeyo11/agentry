@@ -328,3 +328,53 @@ test('a member proposed past the team limits is held to them, so accepting it as
     core.shutdown();
   }
 });
+
+test('"Create with AI" shows the file while the chat writes it, from the result the CLI streams, and saves nothing', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  mkdirSync(config.dataDir, { recursive: true });
+  const core = new Core(config);
+  const events: AgentryEvent[] = [];
+  core.events.observe((e) => events.push(e));
+  try {
+    const dir = repo();
+    const project = await core.importProject({ path: dir, name: 'pagos-api', template: 'software', modules: [] });
+    const before = snapshot(dir);
+    const content = `---\nname: migration-reviewer\ndescription: Reviews "migrations"\n---\n${'Check every ALTER TABLE.\n'.repeat(20)}`;
+    const answer = {
+      summary: 'One agent.',
+      read: [{ kind: 'file', path: 'README.md' }],
+      resources: [{ kind: 'agents', name: 'migration-reviewer', description: 'Reviews migrations', content, reason: 'db.ts has migrations' }],
+    };
+    const release = join(config.dataDir, 'release');
+    const started = await core.assistant.start(project.id, {
+      kind: 'resources',
+      resourceKind: 'agents',
+      description: `Reviews migrations\nFAKE-RESULT-ASSISTANT ${JSON.stringify(answer)}\nFAKE-STREAM-HOLD ${release}`,
+    });
+    let running = core.assistant.run(started.id);
+    for (let i = 0; i < 200 && !running.draft?.content; i++) {
+      await new Promise((r) => setTimeout(r, 25));
+      running = core.assistant.run(started.id);
+    }
+    assert.equal(running.status, 'running');
+    const draft = running.draft;
+    assert.ok(draft, 'the file shows before the run ends');
+    assert.equal(draft.kind, 'agents');
+    assert.equal(draft.name, 'migration-reviewer');
+    assert.ok(draft.content.length > 0 && draft.content.length < content.length, 'as far as the chat has written it');
+    assert.ok(content.startsWith(draft.content), 'escapes read as the text they stand for');
+    assert.ok(events.some((e) => e.type === 'assistant.run' && e.runId === started.id && e.action === 'read'), 'announced, so a client reads it again');
+    assert.deepEqual(snapshot(dir), before, 'nothing is saved while it is written');
+
+    writeFileSync(release, '');
+    const done = await until(core, started.id);
+    assert.equal(done.status, 'completed', JSON.stringify(done.error));
+    assert.equal(done.draft, undefined, 'an ended run has its proposal instead');
+    const [proposal] = done.proposals;
+    assert.ok(proposal?.kind === 'resource');
+    assert.equal(proposal.resource.content, content);
+    assert.deepEqual(snapshot(dir), before);
+  } finally {
+    core.shutdown();
+  }
+});

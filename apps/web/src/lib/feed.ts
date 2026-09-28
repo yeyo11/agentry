@@ -52,7 +52,8 @@ const subscribeState = (onChange: () => void) => {
 };
 
 export function useFeedState(): FeedState {
-  return useSyncExternalStore(subscribeState, () => state);
+  // The server snapshot lets a component that polls be rendered to markup, as the web tests do
+  return useSyncExternalStore(subscribeState, () => state, () => state);
 }
 
 /** For `refetchInterval`: nothing while the stream keeps the query fresh, a slow poll while it is down. */

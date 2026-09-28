@@ -8,6 +8,7 @@ import { ICON_SM, WorkItemKey, WorkItemStatusIcon } from '../../components/icons
 import { ProgressBar } from '../../components/ProgressBar';
 import { byChatRole, chatItemRole, criteriaProgress, movesToReviewOnEnd, type ChatItemRole } from '../../lib/work-item-links';
 import { columnMeta, taskPath } from '../../lib/work-items';
+import { FailedFlowRun } from './FailedFlowRun';
 import { Section } from './Side';
 
 /** A work item this chat is linked to, and the part the chat played in it. */
@@ -44,13 +45,14 @@ export function useChatItemLinks(chatId: string): ChatItemLink[] {
  * The row under a chat's header that names the work item it works on, as `PartOf` names an
  * orchestration: "Works on AGN-28 *title* · In progress · criteria 2/5". The title is the link and
  * its box covers the row, so the whole line opens the item. A chat an item was created from says so
- * instead, in the same row.
+ * instead, in the same row. A flow run that failed in this chat says so under it.
  */
-export function WorkItemPartOf({ link }: { link: ChatItemLink }) {
+export function WorkItemPartOf({ link, chatId }: { link: ChatItemLink; chatId: string }) {
   const { t } = useTranslation(['chat', 'tasks']);
   const { item, role } = link;
   const criteria = criteriaProgress(item);
   return (
+    <>
     <div className="chat-part-of chat-part-of-item">
       <SquareCheck {...ICON_SM} className="chat-part-of-icon" aria-hidden />
       <span className="chat-part-of-text">
@@ -67,6 +69,8 @@ export function WorkItemPartOf({ link }: { link: ChatItemLink }) {
       </span>
       {criteria.total > 0 && <span className="chat-part-of-where mono chat-part-of-criteria">{t('view.workItem.criteria', criteria)}</span>}
     </div>
+    <FailedFlowRun item={item} chatId={chatId} />
+    </>
   );
 }
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { AssistantProposal, AssistantResourceProposal, AssistantRun, AssistantSource, AssistantWorkItemProposal } from '@agentry/shared';
 import { byDecision, proposalRuns, resourceProposals, savePath, sectionFrom, sectionKinds, shownName } from '../src/pages/home/resources/model';
-import { initialSelection, isRunning, readPhrases, selectedPending, workItemProposals } from '../src/pages/tasks/suggest/model';
+import { initialSelection, isRunning, latestFocus, readPhrases, selectedPending, suggestRequest, workItemProposals } from '../src/pages/tasks/suggest/model';
 
 const base = { runId: 'r1', projectId: 'p1', reason: 'why', decidedBy: null, decidedAt: null, createdAt: '2026-09-27T10:00:00Z' };
 
@@ -117,6 +117,16 @@ test('resources: the runs whose proposals the tab reads', () => {
   // A link to a proposal the tab has not found also reads the latest project runs
   assert.deepEqual(proposalRuns([suggest], [project], true).ids, ['s', 'p']);
   assert.deepEqual(proposalRuns([], [], false), { suggest: null, ids: [] });
+});
+
+test('suggest tasks: the focus goes as its own field, never as what the project is for', () => {
+  assert.deepEqual(suggestRequest('  the checkout errors ', false), { kind: 'work-items', focus: 'the checkout errors' });
+  assert.deepEqual(suggestRequest('', true), { kind: 'work-items', supersede: true });
+  assert.equal('description' in suggestRequest('x', true), false);
+  // The field starts with what the latest run looked for; a run stored before focus kept it in description
+  assert.equal(latestFocus({ focus: 'errors', description: null }), 'errors');
+  assert.equal(latestFocus({ description: 'old' }), 'old');
+  assert.equal(latestFocus({ focus: null, description: null }), '');
 });
 
 test('resources: proposals once each, superseded ones out, pending first', () => {

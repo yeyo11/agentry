@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import type { FlowRun, TeamMember } from '@agentry/shared';
 import {
   agentNameFor,
   backlogRunsFor,
   cleanWrites,
+  commandProblem,
+  commandScope,
+  commandsFor,
+  commandsProblem,
   columnsOf,
   flowOf,
   memberBody,
@@ -16,7 +21,12 @@ import {
   sameWrites,
   savedFlow,
   setColumnRole,
+  setMaxCost,
+  setMaxParallel,
+  settledFlow,
   stageOf,
+  TEMPLATE_RESPONSIBILITIES,
+  templateResponsibilityRole,
   teamActivity,
   teamSearch,
   workingCount,
@@ -186,4 +196,55 @@ test('creating suggestions in Backlog says how many flow runs it queues, as core
   assert.equal(backlogRunsFor({ ...on, team: { members: [] } }, types), null);
   assert.equal(backlogRunsFor(on, ['epic']), null);
   assert.equal(backlogRunsFor(undefined, types), null);
+});
+
+test('the Flow screen sets how many runs go at once and what one may spend, unlimited unless chosen', () => {
+  // Both could only be set through the settings document: the Flow screen had no control for them
+  const base = { enabled: true, columns: {}, maxBounces: 3 };
+  assert.equal(setMaxParallel(base, 4).maxParallel, 4);
+  // The default and out-of-range values: the default drops the key, the rest are held to 1..10
+  assert.ok(!('maxParallel' in setMaxParallel({ ...base, maxParallel: 5 }, 2)));
+  assert.ok(!('maxParallel' in setMaxParallel({ ...base, maxParallel: 5 }, undefined)));
+  assert.equal(setMaxParallel(base, 0).maxParallel, 1);
+  assert.equal(setMaxParallel(base, 99).maxParallel, 10);
+  // A cost is rounded to cents and capped; empty or zero is no limit, and no key is saved for it
+  assert.equal(setMaxCost(base, 2.345).maxCostUsd, 2.35);
+  assert.equal(setMaxCost(base, 500).maxCostUsd, 100);
+  assert.ok(!('maxCostUsd' in setMaxCost({ ...base, maxCostUsd: 3 }, undefined)));
+  assert.ok(!('maxCostUsd' in setMaxCost({ ...base, maxCostUsd: 3 }, 0)));
+  // A cost change is a change to save; typing "0" on the way to "0.5" settles to what is saved
+  assert.equal(sameFlow(base, { ...base, maxCostUsd: 1 }), false);
+  assert.equal(sameFlow(base, settledFlow({ ...base, maxCostUsd: 0, maxParallel: 2 })), true);
+});
+
+test("a member's shell commands read three ways, and saving another field keeps them", () => {
+  // Saving the model from the Flow screen sent no commands, which the route reads as unrestricted
+  assert.equal(commandScope(undefined), 'any');
+  assert.equal(commandScope([]), 'none');
+  assert.equal(commandScope(['pnpm test']), 'listed');
+  assert.equal(commandsFor('any', ['x']), null);
+  assert.deepEqual(commandsFor('none', ['x']), []);
+  assert.deepEqual(commandsFor('listed', [' pnpm test ', 'pnpm test', '', 'npm run *']), ['pnpm test', 'npm run *']);
+  const limited = member('developer', { commands: ['pnpm test'] });
+  assert.deepEqual(memberBody(limited, { model: 'opus' }).commands, ['pnpm test']);
+  assert.deepEqual(memberBody(member('qa', { commands: [] })).commands, []);
+  assert.ok(!('commands' in memberBody(limited, { commands: null })));
+  assert.ok(!('commands' in memberBody(member('dev'))));
+  // What the route refuses is refused here first, so Save stays off with a reason
+  assert.equal(commandProblem('pnpm *'), null);
+  assert.equal(commandProblem('npm test, rm -rf /'), 'comma');
+  assert.equal(commandProblem('*'), 'invalid');
+  assert.equal(commandProblem('echo (x)'), 'invalid');
+  assert.equal(commandsProblem(['pnpm test', 'a,b']), 'comma');
+  assert.equal(commandsProblem(Array.from({ length: 51 }, (_, i) => `cmd ${i}`)), 'tooMany');
+});
+
+test("a responsibility still the template's is shown in the person's language; an edited one as written", () => {
+  // Core writes the template's responsibilities in English, since Claude reads them
+  assert.equal(templateResponsibilityRole(member('developer', { responsibility: 'Implements work items in their own worktree' })), 'developer');
+  assert.equal(templateResponsibilityRole(member('developer', { responsibility: 'Implements work items, with tests' })), null);
+  assert.equal(templateResponsibilityRole(member('tech-writer', { responsibility: 'Turns findings into documents' })), null);
+  // The English the web recognises is the English core writes, word for word
+  const core = readFileSync(new URL('../../../packages/core/src/project-templates.ts', import.meta.url), 'utf8');
+  for (const [role, text] of Object.entries(TEMPLATE_RESPONSIBILITIES)) assert.ok(core.includes(`responsibility: '${text}'`), `${role} drifted from core`);
 });

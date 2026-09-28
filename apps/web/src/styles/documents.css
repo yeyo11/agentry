@@ -503,6 +503,16 @@
   min-width: 0;
 }
 
+/* The way back is the phone screen's only way out without a top bar: a full touch target */
+.doc-phone-head > .icon-btn {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin-left: -10px;
+  justify-content: center;
+  align-items: center;
+}
+
 .doc-phone-head-text {
   display: flex;
   flex-direction: column;
@@ -565,9 +575,52 @@
   background: var(--bg);
 }
 
+/* Reading, "Edit" is the screen's bar at the bottom edge (MobileDocumento), however short the
+   document: the tab bar steps aside here, so nothing else holds that edge. Editing keeps the sticky
+   bar, which follows the keyboard up. */
+.doc-phone-view > .doc-phone-foot {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 25;
+  padding: 12px calc(16px + env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
+  border-top: 1px solid var(--line);
+}
+
 .doc-phone-foot > .btn {
   flex: 1;
   min-height: 44px;
+}
+
+/* Editing, the screen is the editor (MobileDocumentoEditar): it takes exactly the height the page
+   leaves, so Discard and Save sit at the bottom edge above their divider however short the file,
+   and a long one scrolls inside the editor while the head and the switch stay put */
+.doc-phone-edit {
+  height: calc(100dvh - var(--main-pad-top) - var(--main-pad-bottom));
+  padding-bottom: 0;
+}
+
+.doc-phone-edit > .code-editor,
+.doc-phone-edit > .code-editor > *,
+.doc-phone-edit > .code-editor .cm-editor {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* The editor's own floor and ceiling (420 px, 64vh) would push past or stop short of the bar */
+.doc-phone-edit > .code-editor .cm-editor {
+  max-height: none;
+  height: 100%;
+}
+
+.doc-phone-edit > .doc-phone-foot {
+  /* Into the page's bottom padding, so the bar meets the screen's edge rather than stopping above it */
+  margin: auto calc(-1 * var(--main-pad-x)) calc(-1 * (var(--main-pad-bottom) + var(--main-covered-bottom)));
+  padding: 12px var(--main-pad-x) calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line);
 }
 
 /* ---------- Memory ---------- */

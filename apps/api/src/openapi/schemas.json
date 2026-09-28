@@ -6850,7 +6850,7 @@
       "template",
       "file"
     ],
-    "description": "`created` and `updated` are a member's metadata written through `PUT`, `template` the members a template wrote, `removed` a member taken off the team (its agent file stays), and `file` an agent file of a member written, deleted or found drifted."
+    "description": "`created` and `updated` are a member's metadata written through `PUT`, `template` the members a template wrote, `removed` a member taken off the team (its agent file stays), and `file` an agent file of a member written, deleted or found drifted: saved or deleted through the resources route (`/config/resources/agents/:name?project=`), whose `agents` names the member, or rewritten by the team service to follow the metadata."
   },
   "JournalChangedEvent": {
     "type": "object",
@@ -7266,7 +7266,7 @@
       "ended",
       "failed"
     ],
-    "description": "`started` and `failed` as they say; `ended` a run that completed or was stopped (its `status` says which); `read` a running one's  {@link  AssistantRun.sources }  or cost changed, at most every few seconds, so \"what it has read\" fills in without polling."
+    "description": "`started` and `failed` as they say; `ended` a run that completed or was stopped (its `status` says which); `read` a running one's  {@link  AssistantRun.sources } , cost or  {@link  AssistantRunDetail.draft }  changed, at most every few seconds, so \"what it has read\" and the file \"Create with AI\" writes fill in without polling."
   },
   "AssistantRunStatus": {
     "type": "string",
@@ -11081,6 +11081,13 @@
           "type": "string"
         },
         "description": "Paths or globs, relative to the project, the member may write; absent means no restriction of Agentry's own. Enforced on the chats Agentry starts for it through the CLI's permission rules; from a terminal it is only what the agent file says."
+      },
+      "commands": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The shell commands the member may run in the flow's work stage, as patterns the CLI's permission rules take (`npm test`, `pnpm *`: each becomes `Bash(<pattern>)`). Absent means `Bash` is not restricted there, as before; present means only these, and an empty list means no shell at all. The refine and verify stages keep their own tool sets. Checked with  {@link  isTeamCommandPattern  } ."
       }
     },
     "required": [
@@ -11237,7 +11244,11 @@
       },
       "description": {
         "type": "string",
-        "description": "Markdown"
+        "description": "Markdown. Left out of board and list payloads (the board, the lists and their pages, a chat's items), where it is `''` and  {@link  WorkItem.hasDescription }  says whether there is one: the item's own page fetches it (`GET /work-items/:itemId`, `GET /work-items/by-key/:key`)."
+      },
+      "hasDescription": {
+        "type": "boolean",
+        "description": "Whether the item has a description, set wherever `description` is left out. Absent where the description is served whole, where it reads as `description !== ''`."
       },
       "status": {
         "$ref": "#/components/schemas/WorkItemStatus"
@@ -11676,7 +11687,11 @@
       },
       "description": {
         "type": "string",
-        "description": "Markdown"
+        "description": "Markdown. Left out of board and list payloads (the board, the lists and their pages, a chat's items), where it is `''` and  {@link  WorkItem.hasDescription }  says whether there is one: the item's own page fetches it (`GET /work-items/:itemId`, `GET /work-items/by-key/:key`)."
+      },
+      "hasDescription": {
+        "type": "boolean",
+        "description": "Whether the item has a description, set wherever `description` is left out. Absent where the description is served whole, where it reads as `description !== ''`."
       },
       "status": {
         "$ref": "#/components/schemas/WorkItemStatus"
@@ -11848,7 +11863,7 @@
       "updatedAt",
       "worktree"
     ],
-    "description": "One work item with what its page shows beyond the card."
+    "description": "One work item with what its page shows beyond the card: `GET /work-items/:itemId`, or `GET /work-items/by-key/:key` for its key (`AGN-12`, in any case; 404 when no project's item has it, since a key prefix is unique among projects)."
   },
   "WorkItemComment": {
     "type": "object",
@@ -12527,7 +12542,11 @@
         "items": {
           "$ref": "#/components/schemas/WorkItem"
         },
-        "description": "The items that pass the filter, in rank order"
+        "description": "The items that pass the filter, in rank order, descriptions left out. The Done column holds only the most recently closed of them, `doneLimit` ( {@link  BoardQuery } ), still in rank order"
+      },
+      "more": {
+        "type": "number",
+        "description": "Items that pass the filter and are left out of `items`: \"and N more\", which asks the board again with a larger `doneLimit`. Only the Done column leaves any out; absent reads as 0."
       }
     },
     "required": [
@@ -12537,6 +12556,100 @@
       "overLimit",
       "status"
     ]
+  },
+  "WorkItemPage": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItem"
+        }
+      },
+      "total": {
+        "type": "number",
+        "description": "Every item that passes the filter, across the pages"
+      },
+      "nextCursor": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Opaque: pass as `cursor` for the next page; null on the last"
+      }
+    },
+    "required": [
+      "items",
+      "total",
+      "nextCursor"
+    ],
+    "description": "A page of work items, descriptions left out."
+  },
+  "WorkItemPageQuery": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemStatus"
+        }
+      },
+      "type": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemType"
+        }
+      },
+      "priority": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemPriority"
+        }
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Items carrying any of these labels"
+      },
+      "assignee": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "`person`, `none`, or `role:<role>`"
+      },
+      "epicId": {
+        "type": "string"
+      },
+      "milestoneId": {
+        "type": "string"
+      },
+      "q": {
+        "type": "string",
+        "description": "Searched in the title and the description, and matched against the key"
+      },
+      "limit": {
+        "type": "number",
+        "description": "Default `WORK_ITEMS_PAGE` (100), at most `WORK_ITEMS_PAGE_MAX`"
+      },
+      "cursor": {
+        "type": "string",
+        "description": "`nextCursor` of the previous page; absent for the first"
+      }
+    },
+    "description": "`GET /projects/:id/work-items/page` and `GET /work-items/page` (All projects): the list a page at a time, in the same order as the whole list, with the same filter. `GET /projects/:id/work-items` and `GET /work-items` still answer the whole list as an array."
+  },
+  "BoardQuery": {
+    "type": "object",
+    "properties": {
+      "doneLimit": {
+        "type": "number",
+        "description": "Items of the Done column to hold; default `BOARD_DONE_PAGE`, at most `WORK_ITEMS_PAGE_MAX`"
+      }
+    },
+    "description": "`GET /projects/:id/work-items/board` and `GET /work-items/board` take the filter ( {@link  WorkItemFilter } ) and this. The Done column grows without end, so it is paged: a board holds its newest closed items, and \"and N more\" asks again with the next multiple of the page. Asking for a larger limit rather than a cursor keeps one board per query, which the event feed refreshes whole."
   },
   "WorkOnWorkItemRequest": {
     "$ref": "#/components/schemas/ChatStartOptions",
@@ -12779,6 +12892,13 @@
         },
         "description": "Paths or globs, relative to the project, the member may write; absent means no restriction of Agentry's own. Enforced on the chats Agentry starts for it through the CLI's permission rules; from a terminal it is only what the agent file says."
       },
+      "commands": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The shell commands the member may run in the flow's work stage, as patterns the CLI's permission rules take (`npm test`, `pnpm *`: each becomes `Bash(<pattern>)`). Absent means `Bash` is not restricted there, as before; present means only these, and an empty list means no shell at all. The refine and verify stages keep their own tool sets. Checked with  {@link  isTeamCommandPattern  } ."
+      },
       "file": {
         "$ref": "#/components/schemas/TeamAgentFile"
       },
@@ -12980,6 +13100,10 @@
         "type": "number",
         "description": "Times a restart cut it off and it went on in its chat; past `MAX_FLOW_RESTARTS` it fails"
       },
+      "language": {
+        "$ref": "#/components/schemas/AgentryLanguage",
+        "description": "The person's language, which the first line of its chat's prompt (`<Role> · <KEY>`, the title the chat is listed by) is written in, kept so a restart words it the same. Absent on a run stored before it was kept, which reads as `en`."
+      },
       "queuedAt": {
         "type": "string"
       },
@@ -13027,6 +13151,14 @@
     ],
     "description": "`queued` waits for a place under `maxParallel`; `running` has its chat; `ended` has an outcome."
   },
+  "AgentryLanguage": {
+    "type": "string",
+    "enum": [
+      "en",
+      "es"
+    ],
+    "description": "The languages Agentry speaks. A chat Agentry starts on its own is listed by the first line of its prompt, so that line is written in the person's language, read from the request's `Accept-Language` (`agentryLanguage`) and kept on what runs later or again (an assistant run, a flow run); the instructions for Claude after it may stay in English."
+  },
   "TeamFromTemplateRequest": {
     "type": "object",
     "properties": {
@@ -13037,7 +13169,7 @@
         }
       }
     },
-    "description": "Writes the members of the project's template (`ProjectTemplate.team`). The person accepts them one by one, so `roles` names the ones accepted; absent means every role of the template. An agent file that already exists is kept as it is, and a role already on the team is left alone."
+    "description": "Writes the members of the project's template (`ProjectTemplate.team`). The person accepts them one by one, so `roles` names the ones accepted; absent means every role of the template. An agent file that already exists is kept as it is, and a role already on the team is left alone.\n\n`POST /projects/:id/team/from-template` answers the whole  {@link  Team } : with 201 when it added at least one member, and with 200 when nothing changed (every role was already on the team), like the other creating routes. Sending it twice is harmless either way."
   },
   "PutTeamMemberRequest": {
     "type": "object",
@@ -13058,6 +13190,20 @@
         "items": {
           "type": "string"
         }
+      },
+      "commands": {
+        "anyOf": [
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Absent or null leaves the shell unrestricted in the work stage ( {@link  ProjectTeamMember.commands } )"
       },
       "createFile": {
         "type": "boolean",
@@ -13107,6 +13253,34 @@
       "queued"
     ],
     "description": "`GET /projects/:id/flow`: what the flow is doing in a project now."
+  },
+  "FlowRunPage": {
+    "type": "object",
+    "properties": {
+      "runs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlowRun"
+        }
+      },
+      "total": {
+        "type": "number",
+        "description": "Every run that passes the filter, across the pages"
+      },
+      "nextCursor": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Opaque: pass as `cursor` for the next page; null on the last"
+      }
+    },
+    "required": [
+      "runs",
+      "total",
+      "nextCursor"
+    ],
+    "description": "A page of a project's flow runs, newest first."
   },
   "FlowRunResult": {
     "type": "object",
@@ -13774,6 +13948,17 @@
         ],
         "description": "What the person described: the one resource \"Create with AI\" builds, or what an empty project is for"
       },
+      "focus": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For a `work-items` run, what to look for (\"Suggest tasks\"'s focus,  {@link  StartAssistantRunRequest.focus } ); absent or null otherwise, and on a run stored before it was its own field"
+      },
+      "language": {
+        "$ref": "#/components/schemas/AgentryLanguage",
+        "description": "The person's language when it started, which its chat's title is written in, kept so a run started again after a restart words it the same. Absent on a run stored before it was kept, which reads as `en`."
+      },
       "resourceKind": {
         "anyOf": [
           {
@@ -14099,6 +14284,17 @@
         ],
         "description": "What the person described: the one resource \"Create with AI\" builds, or what an empty project is for"
       },
+      "focus": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For a `work-items` run, what to look for (\"Suggest tasks\"'s focus,  {@link  StartAssistantRunRequest.focus } ); absent or null otherwise, and on a run stored before it was its own field"
+      },
+      "language": {
+        "$ref": "#/components/schemas/AgentryLanguage",
+        "description": "The person's language when it started, which its chat's title is written in, kept so a run started again after a restart words it the same. Absent on a run stored before it was kept, which reads as `en`."
+      },
       "resourceKind": {
         "anyOf": [
           {
@@ -14231,6 +14427,17 @@
           "$ref": "#/components/schemas/AssistantProposal"
         },
         "description": "Every proposal it made, whatever its status, by kind then in the order it proposed them"
+      },
+      "draft": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AssistantResourceDraft"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "\"Create with AI\" while it runs: the one resource as the chat is writing it, read from its partial structured output or its stream, so the editor opens at once and fills in. Absent or null for every other run, and once the run ended (its proposal carries the whole file). Refreshed through `assistant.run` events with the action `read`."
       }
     },
     "required": [
@@ -14686,6 +14893,31 @@
     ],
     "description": "A work item the assistant proposes, created in `backlog` when accepted."
   },
+  "AssistantResourceDraft": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/AssistantResourceKind"
+      },
+      "name": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until the chat has written it"
+      },
+      "content": {
+        "type": "string",
+        "description": "What it has written of the whole file so far, frontmatter included; empty before the first part"
+      }
+    },
+    "required": [
+      "kind",
+      "name",
+      "content"
+    ],
+    "description": "The resource a running \"Create with AI\" has written so far; nothing of it is saved."
+  },
   "StartAssistantRunRequest": {
     "type": "object",
     "properties": {
@@ -14699,6 +14931,10 @@
       "description": {
         "type": "string",
         "description": "For a `resources` run, the one resource to build (\"Create with AI\"), with `resourceKind`; for a `project` or `work-items` run, what the project is for when there is nothing to read"
+      },
+      "focus": {
+        "type": "string",
+        "description": "For a `work-items` run (\"Suggest tasks\"), what to look for (\"the checkout's error handling\"): the prompt words it as the area to propose work in, not as what the project is for. Refused on the other kinds. The language is not a field: it is the request's `Accept-Language`."
       },
       "resourceKind": {
         "$ref": "#/components/schemas/AssistantResourceKind",

@@ -43,7 +43,8 @@
     "inProjects_other": "en {{count}} proyectos con tablero",
     "inProjectsShort_one": "en {{count}} proyecto",
     "inProjectsShort_other": "en {{count}} proyectos",
-    "view": "Vista"
+    "view": "Vista",
+    "back": "Volver"
   },
   "actions": {
     "select": "Seleccionar",
@@ -183,6 +184,9 @@
     "showDone_one": "Mostrar la otra hecha",
     "showDone_other": "Mostrar las otras {{count}} hechas",
     "hideDone": "Mostrar menos hechas",
+    "loadMore_one": "Cargar más · queda {{count}}",
+    "loadMore_other": "Cargar más · quedan {{count}}",
+    "loading": "Cargando…",
     "order": "Ordenadas por su posición en el tablero",
     "keys": "para moverte",
     "over": "sobre el límite · {{count}} de {{limit}}",

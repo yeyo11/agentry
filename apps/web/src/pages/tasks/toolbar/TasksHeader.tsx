@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Menu } from '../../../components/controls/Menu';
+import { ProjectSelector } from '../../../components/ProjectSelector';
+import { BackButton } from '../../../components/shell/BackButton';
 import { ICON_SM } from '../../../components/icons';
 import { Segmented, usePageTitle } from '../../../components/ui';
 import { MILESTONES_PATH, TASKS_PATH, VIEW_PARAM } from '../../../lib/work-items';
@@ -131,8 +133,9 @@ export function TasksHeader({ subtitle, view, actions }: { subtitle: ReactNode; 
 }
 
 /**
- * The phone's header: the title (the project scope stays in the top bar, as on every page) and
- * an icon action, the views across the width under it. While choosing cards to
+ * The phone's header, which stands for the top bar there (MobileTablero, MobileHitos): the way back,
+ * the title, and beside it the project scope (the board and the list) or a line naming it (the
+ * milestones), then an icon action, the views across the width under it. While choosing cards to
  * orchestrate it becomes "2 chosen" with a way out.
  */
 export function PhoneTasksHeader({
@@ -165,10 +168,12 @@ export function PhoneTasksHeader({
   return (
     <>
       <header className="workitem-mhead">
+        <BackButton label={t('header.back')} />
         <div className="workitem-mhead-text">
           <h1>{title ?? t('title')}</h1>
           {subtitle && <span className="mono muted">{subtitle}</span>}
         </div>
+        {!subtitle && <ProjectSelector />}
         {action}
       </header>
       <ViewSwitch view={view} wide />

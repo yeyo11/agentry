@@ -1,9 +1,12 @@
 import type {
+  AgentryLanguage,
   DocumentChangeAction,
   DocumentKind,
   FlowRunAction,
   FlowRunOutcome,
   FlowRunState,
+  FlowRunStatus,
+  FlowRun,
   FlowStage,
   FlowVerdict,
   JournalChangeAction,
@@ -97,6 +100,20 @@ export const FLOW_RUN_STATES = valuesOf<FlowRunState>()(['queued', 'running', 'e
 
 export const FLOW_RUN_OUTCOMES = valuesOf<FlowRunOutcome>()(['passed', 'rejected', 'failed', 'cancelled']);
 
+/** Queued and running first, then the outcomes in {@link FLOW_RUN_OUTCOMES} order: how the activity lists them */
+export const FLOW_RUN_STATUSES = valuesOf<FlowRunStatus>()(['queued', 'running', 'passed', 'rejected', 'failed', 'cancelled']);
+
+/** A run's state and outcome in one word; an ended run without an outcome, which the store never writes, reads as failed. */
+export function flowRunStatus(run: Pick<FlowRun, 'state' | 'outcome'>): FlowRunStatus {
+  return run.state === 'ended' ? (run.outcome ?? 'failed') : run.state;
+}
+
+/** Runs of the team's activity a page holds when the request does not say */
+export const FLOW_RUNS_PAGE = 50;
+
+/** The most runs one page of the team's activity may ask for */
+export const FLOW_RUNS_PAGE_MAX = 200;
+
 export const FLOW_RUN_ACTIONS = valuesOf<FlowRunAction>()(['queued', 'started', 'ended']);
 
 export const FLOW_VERDICTS = valuesOf<FlowVerdict>()(['pass', 'fail']);
@@ -104,11 +121,35 @@ export const FLOW_VERDICTS = valuesOf<FlowVerdict>()(['pass', 'fail']);
 /** Flow runs of a project at once when its settings leave `flow.maxParallel` out */
 export const DEFAULT_FLOW_MAX_PARALLEL = 2;
 
+/** The highest `flow.maxParallel` a project may set: the Flow screen's stepper stops there */
+export const MAX_FLOW_PARALLEL = 10;
+
 /** The highest `flow.maxCostUsd` a project may set */
 export const MAX_FLOW_COST_USD = 100;
 
 /** Times a flow run cut off by a restart is continued in its chat before it fails */
 export const MAX_FLOW_RESTARTS = 2;
+
+/** The most shell command patterns a member may list in `commands` */
+export const MAX_TEAM_COMMANDS = 50;
+
+/** The longest shell command pattern */
+export const TEAM_COMMAND_MAX = 200;
+
+/**
+ * A shell command pattern a member may carry (`npm test`, `pnpm *`, `cargo test *`): one line of
+ * printable text, no longer than {@link TEAM_COMMAND_MAX}, without the parentheses that would end
+ * the `Bash(<pattern>)` rule it becomes, and not only a wildcard, which would mean any command and
+ * is what leaving `commands` out already says.
+ */
+export function isTeamCommandPattern(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const pattern = value.trim();
+  if (!pattern || pattern.length > TEAM_COMMAND_MAX || pattern !== value) return false;
+  // Control characters (a newline would start a second rule) and the rule's own delimiters
+  if (/[\u0000-\u001f\u007f()]/.test(pattern)) return false;
+  return !/^[*\s:]+$/.test(pattern);
+}
 
 export const JOURNAL_ENTRY_KINDS = valuesOf<JournalEntryKind>()(['closed', 'decision', 'memory', 'note']);
 
@@ -123,6 +164,32 @@ export const MEMORY_PROPOSAL_ACTIONS = valuesOf<MemoryProposalAction>()(['create
 export const DOCUMENT_KINDS = valuesOf<DocumentKind>()(['spec', 'adr', 'report', 'doc']);
 
 export const DOCUMENT_CHANGE_ACTIONS = valuesOf<DocumentChangeAction>()(['written', 'removed', 'tied', 'untied']);
+
+/** Work items a list page holds when the request does not say (`WorkItemPageQuery.limit`) */
+export const WORK_ITEMS_PAGE = 100;
+
+/** The most work items one page, or a board's Done column, may ask for */
+export const WORK_ITEMS_PAGE_MAX = 500;
+
+/** Items of the Done column a board holds when the request does not say, and each "and N more" adds */
+export const BOARD_DONE_PAGE = 20;
+
+export const AGENTRY_LANGUAGES = valuesOf<AgentryLanguage>()(['en', 'es']);
+
+/**
+ * The language of an `Accept-Language` header, or of a stored choice: the first of Agentry's
+ * languages it names, English when it names none. Weights are not read: browsers list the
+ * preferred language first.
+ */
+export function agentryLanguage(value: unknown): AgentryLanguage {
+  if (typeof value !== 'string') return 'en';
+  for (const tag of value.split(',')) {
+    const code = tag.trim().toLowerCase().split(/[-_;.@]/)[0];
+    const known = AGENTRY_LANGUAGES.find((language) => language === code);
+    if (known) return known;
+  }
+  return 'en';
+}
 
 /**
  * A key prefix: upper case letters and digits, starting with a letter, two to ten characters. The

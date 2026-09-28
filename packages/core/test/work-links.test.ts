@@ -444,7 +444,7 @@ test('the prompt opens with the key and the title, and carries the description a
   assert.ok(criterion);
   s.items.checkCriterion(item.id, criterion.id, { checked: true });
   const prompt = workItemPrompt(s.items.get(item.id));
-  assert.match(prompt, /^AGN-2: Cart loses items\n/);
+  assert.match(prompt, /^AGN-2 · Cart loses items\n/);
   assert.match(prompt, /bug AGN-2 .*epic AGN-1 "Checkout"/);
   assert.match(prompt, /Reload the page with items in the cart\./);
   assert.match(prompt, /- \[ \] Items survive a reload\n- \[x\] A test covers it/);
@@ -475,7 +475,7 @@ test('a selection becomes a draft with one node per item and dependsOn from the 
   assert.equal(spec.cwd, '/repo');
   assert.equal(spec.worktree, true);
   assert.equal(spec.engine, 'graph');
-  assert.match(spec.tasks[0]?.prompt ?? '', /^AGN-3: Docs/);
+  assert.match(spec.tasks[0]?.prompt ?? '', /^AGN-3 · Docs\n/);
   // A blocker left out is named; one already done does not hold anything back
   assert.deepEqual(externalBlockers.map((r) => r.key), ['AGN-4']);
   assert.equal(orchestrationDraft({ name: 'Shop', path: '/repo' }, picked, false).spec.worktree, false);

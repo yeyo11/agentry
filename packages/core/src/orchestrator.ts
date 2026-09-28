@@ -742,6 +742,9 @@ export class Orchestrator {
 
   private buildPrompt(orch: Orchestration, task: OrchestrationTaskState, pendingMerge: PendingMerge | null = null): string {
     const parts: string[] = [];
+    // A chat is listed by its first line: a node working on a task of the board opens with its name,
+    // `KEY · title` in a draft, rather than with the same English sentence as every other node
+    if (task.workItemId && task.name.trim()) parts.push(task.name.trim());
     const head = this.workerHead(orch);
     if (head) parts.push(head);
     const deps = orch.tasks.filter((t) => task.dependsOn?.includes(t.id));

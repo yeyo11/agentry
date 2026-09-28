@@ -12,9 +12,11 @@ export const teamRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
 
   // Registered before `/projects/:id/team/:agent`, which would otherwise read "from-template" as an
   // agent on a PUT or DELETE
-  app.post<{ Params: { id: string }; Body: TeamFromTemplateRequest }>('/projects/:id/team/from-template', (req) =>
-    core.team.fromTemplate(req.params.id, req.body ?? {}),
-  );
+  // 201 when it added a member, 200 when every role was already there: sending it twice is harmless
+  app.post<{ Params: { id: string }; Body: TeamFromTemplateRequest }>('/projects/:id/team/from-template', async (req, reply) => {
+    const { team, added } = await core.team.addFromTemplate(req.params.id, req.body ?? {});
+    return reply.code(added.length ? 201 : 200).send(team);
+  });
 
   app.put<{ Params: { id: string; agent: string }; Body: PutTeamMemberRequest }>('/projects/:id/team/:agent', (req) =>
     core.team.putMember(req.params.id, req.params.agent, req.body),

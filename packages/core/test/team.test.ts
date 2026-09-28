@@ -107,6 +107,50 @@ test('roles are accepted one by one, and a role the template does not offer is r
   });
 });
 
+test('adding from the template says which members it added, and nothing when every role is there', async () => {
+  await withCore(async (core) => {
+    const p = await project(core);
+    const first = await core.team.addFromTemplate(p.id, { roles: ['developer', 'qa'] });
+    assert.deepEqual(first.added, ['developer', 'qa']);
+    const again = await core.team.addFromTemplate(p.id, { roles: ['developer', 'qa'] });
+    assert.deepEqual(again.added, []);
+    assert.deepEqual(again.team.members.map((m) => m.agent), ['developer', 'qa']);
+  });
+});
+
+test("an agent file saved or deleted through the resources is announced as the team's file change", async () => {
+  await withCore(async (core) => {
+    const p = await project(core);
+    await core.team.fromTemplate(p.id, { roles: ['qa'] });
+    const scope = await core.resolveScope(p.id);
+    const settle = () => new Promise((r) => setTimeout(r, 50));
+    const fileEvents = (events: AgentryEvent[]) => events.filter((e) => e.type === 'team.changed' && e.action === 'file');
+
+    const saved = await feed(core, async () => {
+      await core.resources.save(scope, 'agents', 'qa', '---\nname: qa\ndescription: Mine\n---\nMine.\n');
+      await settle();
+    });
+    assert.deepEqual(
+      fileEvents(saved).map((e) => (e.type === 'team.changed' ? [e.projectId, e.agents] : null)),
+      [[p.id, ['qa']]],
+    );
+    // An agent nobody on the team is yet, while the module is on: its unassigned agents changed
+    const other = await feed(core, async () => {
+      await core.resources.save(scope, 'agents', 'helper', '---\nname: helper\ndescription: Helps\n---\n');
+      await core.resources.remove(scope, 'agents', 'helper');
+      await settle();
+    });
+    assert.equal(fileEvents(other).length, 2);
+    // Another kind of resource, or the user's own agents, are not the team's
+    const unrelated = await feed(core, async () => {
+      await core.resources.save(scope, 'commands', 'qa', 'Run the tests.\n');
+      await core.resources.save(await core.resolveScope(), 'agents', 'qa', '---\nname: qa\ndescription: Mine\n---\n');
+      await settle();
+    });
+    assert.equal(fileEvents(unrelated).length, 0);
+  });
+});
+
 test('an agent file that already exists is kept as it is, and reported when it disagrees', async () => {
   await withCore(async (core) => {
     const p = await project(core);
@@ -301,6 +345,32 @@ test('a member that writes nothing is told so, not told it has no limit; one wit
   const some = agentFileContent({ agent: 'qa', role: 'qa', model: 'sonnet', responsibility: 'Verifies', writes: ['docs/reports'] });
   assert.match(some, /You may write only these paths, relative to the project, and the documents folder:\n\n- `docs\/reports`/);
   assert.match(some, /`criteria`: when you verify the item/);
+});
+
+test("a member's shell commands are kept, checked and told to its agent file; null or none leaves the shell free", async () => {
+  await withCore(async (core) => {
+    const p = await project(core);
+    await core.team.fromTemplate(p.id, { roles: ['developer'] });
+    // The template's Developer gets no list: the owner's shell stays unlimited unless they choose
+    assert.equal((await core.projectSettings(p.id)).team?.members[0]?.commands, undefined);
+    const base = { role: 'developer', model: 'sonnet', responsibility: 'Implements' };
+    const listed = await core.team.putMember(p.id, 'developer', { ...base, commands: ['pnpm test', 'pnpm *', 'pnpm test'] });
+    assert.deepEqual(listed.commands, ['pnpm test', 'pnpm *']);
+    assert.deepEqual((await core.projectSettings(p.id)).team?.members[0]?.commands, ['pnpm test', 'pnpm *']);
+    // Agentry's own file follows, and says what the shell may run
+    assert.match(readFileSync(agentFile(p, 'developer'), 'utf8'), /## What you may run[^]*- `pnpm test`\n- `pnpm \*`/);
+
+    const none = await core.team.putMember(p.id, 'developer', { ...base, commands: [] });
+    assert.deepEqual(none.commands, []);
+    assert.match(readFileSync(agentFile(p, 'developer'), 'utf8'), /you have no shell/);
+    const free = await core.team.putMember(p.id, 'developer', { ...base, commands: null });
+    assert.equal(free.commands, undefined);
+    assert.doesNotMatch(readFileSync(agentFile(p, 'developer'), 'utf8'), /What you may run/);
+
+    for (const commands of ['pnpm test', ['*'], ['rm -rf (x)'], ['a\nb'], ['npm run a,b'], [1], Array.from({ length: 51 }, (_, i) => `cmd${i}`)]) {
+      await rejects(core.team.putMember(p.id, 'developer', { ...base, commands }), 400, /command/);
+    }
+  });
 });
 
 test('a list field of an agent file reads in every form the CLI takes', () => {

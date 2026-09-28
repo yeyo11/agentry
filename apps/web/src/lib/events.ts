@@ -167,8 +167,8 @@ const activity = (delay: number): Target[] => [
 ];
 
 // Where a work item shows besides its own page: every board and list of its project and of All
-// projects (the sidebar's count reads the unfiltered board), the chats' lists of their items, and the
-// milestones whose progress counts it
+// projects (the sidebar's count reads the unfiltered board), the chats' lists of their items, the
+// milestones whose progress counts it, and the team's activity, whose runs name it by key and title
 const workItemViews = (projectId: string): Target[] => [
   [keys.workItemBoards(projectId), NOW],
   [keys.workItemBoards(null), NOW],
@@ -177,6 +177,7 @@ const workItemViews = (projectId: string): Target[] => [
   [keys.chatWorkItemsAll, NOW],
   [keys.milestones(projectId), NOW],
   [keys.milestoneEach, NOW],
+  [keys.flowRunsOf(projectId), NOW],
 ];
 
 /** What another item's page shows of this one: its chip (key, title, type) and the relation itself. */
@@ -344,9 +345,11 @@ export function targetsFor(event: AgentryEvent): Target[] {
       ];
     case 'flow.run':
       // What the run does to its item (a comment, a move, the waiting state) comes as `workitem.*`;
-      // this only changes who is working, which the card shows live
+      // this only changes who is working, which the card shows live, and the runs the team's activity
+      // and the item's own list of runs (under the item) show
       return [
         ...flowViews(event.projectId),
+        [keys.flowRunsOf(event.projectId), NOW],
         [keys.workItemBoards(event.projectId), NOW],
         [keys.workItemLists(event.projectId), NOW],
         [keys.workItem(event.itemId), NOW, 'no-diffs'],

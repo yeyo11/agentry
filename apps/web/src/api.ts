@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   Attachment,
   AccountConfig,
@@ -121,6 +121,7 @@ import type {
   TranscriptSearchResult,
   UsageReport,
   Board,
+  BoardQuery,
   CreateMilestoneRequest,
   CreateWorkItemCommentRequest,
   CreateWorkItemFromMessageRequest,
@@ -144,6 +145,8 @@ import type {
   WorkItemHistoryEntry,
   WorkItemLink,
   WorkItemOrchestrationDraft,
+  WorkItemPage,
+  WorkItemPageQuery,
   WorkOnWorkItemRequest,
   WorkOnWorkItemResult,
   ApproveMemoryProposalRequest,
@@ -154,6 +157,9 @@ import type {
   MemoryProposal,
   MemoryProposalStatus,
   ProjectDocuments,
+  FlowRun,
+  FlowRunPage,
+  FlowRunQuery,
   ProjectFlow,
   PutTeamMemberRequest,
   RejectMemoryProposalRequest,
@@ -314,16 +320,31 @@ const workItemQuery = (filter: Omit<WorkItemFilter, 'projectId'>) =>
 const workItemsOf = (projectId: string | null) => (projectId ? `/projects/${enc(projectId)}/work-items` : '/work-items');
 
 /**
- * The item behind a key. There is no route by key, but a search for one matches it exactly (the
- * API parses a key in `q`), so this asks every project and keeps the one whose key it is: a title
- * that happens to contain the key does not count. Null when there is none.
+ * The item behind a key, whole, as its page shows it (`GET /work-items/by-key/:key`). Null when no
+ * project has it, and for what is not a key at all, which is never asked.
  */
-async function workItemByKey(key: string, o: ReadOptions = {}): Promise<WorkItem | null> {
+async function workItemByKey(key: string, o: ReadOptions = {}): Promise<WorkItemDetail | null> {
   const wanted = normalizeKey(key);
   if (!wanted) return null;
-  const found = await request<WorkItem[]>(`/work-items${qs({ q: wanted })}`, o);
-  return found.find((item) => item.key.toUpperCase() === wanted) ?? null;
+  try {
+    return await request<WorkItemDetail>(`/work-items/by-key/${enc(wanted)}`, o);
+  } catch (err) {
+    if (err instanceof ApiRequestError && err.status === 404) return null;
+    throw err;
+  }
 }
+
+/** A page of a list: the filter, then where to start and how many. */
+const workItemPageQuery = (query: WorkItemPageQuery) => {
+  const { limit, cursor, ...filter } = query;
+  const base = workItemQuery(filter);
+  const extra = qs({ limit: num(limit), cursor }).slice(1);
+  return extra ? `${base}${base ? '&' : '?'}${extra}` : base;
+};
+
+/** A page of a project's flow runs, every list comma separated. */
+const flowRunQuery = (query: FlowRunQuery) =>
+  qs({ agent: query.agent?.join(','), status: query.status?.join(','), itemId: query.itemId, limit: num(query.limit), cursor: query.cursor });
 
 /** Which part of a branch's work a change summary or diff is about; neither means all of it. */
 export interface ChangeScope {
@@ -620,10 +641,20 @@ export const api = {
   // ---- work items (docs/work-items.md). `projectId` null is every project: the All projects view
   workItems: (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, o?: ReadOptions) =>
     request<WorkItem[]>(`${workItemsOf(projectId)}${workItemQuery(filter)}`, o),
-  workItemBoard: (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, o?: ReadOptions) =>
-    request<Board>(`${workItemsOf(projectId)}/board${workItemQuery(filter)}`, o),
+  /** Descriptions left out (`hasDescription`); the Done column holds its newest `doneLimit` items, and `more` counts the rest */
+  workItemBoard: (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, o: ReadOptions & BoardQuery = {}) => {
+    const { doneLimit, ...read } = o;
+    const done = doneLimit === undefined ? '' : `doneLimit=${doneLimit}`;
+    const query = workItemQuery(filter);
+    return request<Board>(`${workItemsOf(projectId)}/board${done ? `${query}${query ? '&' : '?'}${done}` : query}`, read);
+  },
+  /** A page of the list, descriptions left out; `nextCursor` is the next page's `cursor` */
+  workItemPage: (projectId: string | null, query: WorkItemPageQuery = {}, o?: ReadOptions) =>
+    request<WorkItemPage>(`${workItemsOf(projectId)}/page${workItemPageQuery(query)}`, o),
   workItemByKey,
   workItem: (itemId: string, o?: ReadOptions) => request<WorkItemDetail>(`/work-items/${enc(itemId)}`, o),
+  /** Every flow run of the item, newest first, failed ones included */
+  workItemRuns: (itemId: string, o?: ReadOptions) => request<FlowRun[]>(`/work-items/${enc(itemId)}/runs`, o),
   createWorkItem: (projectId: string, req: CreateWorkItemRequest) =>
     request<WorkItem>(`/projects/${enc(projectId)}/work-items`, { method: 'POST', body: req }),
   updateWorkItem: (itemId: string, req: UpdateWorkItemRequest) => request<WorkItem>(`/work-items/${enc(itemId)}`, { method: 'PATCH', body: req }),
@@ -677,6 +708,9 @@ export const api = {
   removeTeamMember: (projectId: string, agent: string) =>
     request<{ ok: true }>(`/projects/${enc(projectId)}/team/${enc(agent)}`, { method: 'DELETE' }),
   flow: (projectId: string, o?: ReadOptions) => request<ProjectFlow>(`/projects/${enc(projectId)}/flow`, o),
+  /** Every flow run of the project, newest first, a page at a time: the team's activity */
+  flowRuns: (projectId: string, query: FlowRunQuery = {}, o?: ReadOptions) =>
+    request<FlowRunPage>(`/projects/${enc(projectId)}/flow/runs${flowRunQuery(query)}`, o),
   journal: (projectId: string, page: JournalQuery = {}, o?: ReadOptions) =>
     request<JournalPage>(`/projects/${enc(projectId)}/journal${qs({ limit: num(page.limit), before: page.before })}`, o),
   addJournalEntry: (projectId: string, req: CreateJournalEntryRequest) =>
@@ -812,12 +846,18 @@ export const keys = {
   workItems: ['work-items'] as const,
   /** Every board of a project whatever its filter, or of All projects for `null` */
   workItemBoards: (projectId: string | null) => ['work-items', 'board', projectId ?? 'all'] as const,
-  workItemBoard: (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}) =>
-    ['work-items', 'board', projectId ?? 'all', filterKey(filter)] as const,
+  /** The unpaged board keeps its key, which the sidebar's count shares; "and N more" adds the Done column's limit */
+  workItemBoard: (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, doneLimit?: number) =>
+    doneLimit === undefined
+      ? (['work-items', 'board', projectId ?? 'all', filterKey(filter)] as const)
+      : (['work-items', 'board', projectId ?? 'all', filterKey(filter), doneLimit] as const),
   /** Every list of a project whatever its filter, or of All projects for `null` */
   workItemLists: (projectId: string | null) => ['work-items', 'list', projectId ?? 'all'] as const,
   workItemList: (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}) =>
     ['work-items', 'list', projectId ?? 'all', filterKey(filter)] as const,
+  /** Under the lists, so what refreshes a list refreshes its pages; every page loaded is read again */
+  workItemPages: (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, limit?: number) =>
+    ['work-items', 'list', projectId ?? 'all', filterKey(filter), 'pages', limit ?? 0] as const,
   /** Which item each key names: stale once an item is removed or a project's prefix changes */
   workItemKeys: ['work-items', 'key'] as const,
   workItemByKey: (key: string) => ['work-items', 'key', normalizeKey(key) ?? key] as const,
@@ -829,6 +869,8 @@ export const keys = {
   workItemComments: (itemId: string) => ['work-item', itemId, 'comments'] as const,
   workItemHistory: (itemId: string) => ['work-item', itemId, 'history'] as const,
   workItemLinks: (itemId: string) => ['work-item', itemId, 'links'] as const,
+  /** Under the item, so `flow.run` and the item's own events refresh it with the page */
+  workItemRuns: (itemId: string) => ['work-item', itemId, 'runs'] as const,
   workItemChanges: (itemId: string, scope: ChangeScope = {}) => ['work-item', itemId, 'changes', scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,
   workItemDiff: (itemId: string, path: string, opts: DiffOptions = {}) =>
     ['work-item', itemId, 'changes', 'diff', path, String(opts.context ?? ''), opts.commit ?? '', opts.uncommitted ? 'uncommitted' : ''] as const,
@@ -841,6 +883,13 @@ export const keys = {
   // event of that project reaches every page and filter of it
   team: (projectId: string) => ['team', projectId] as const,
   flow: (projectId: string) => ['flow', projectId] as const,
+  /**
+   * Every page of a project's team activity. Not under `flow`: that prefix holds the live snapshot,
+   * which `chat.activity` patches in place and would find pages there instead
+   */
+  flowRunsOf: (projectId: string) => ['flow-runs', projectId] as const,
+  flowRuns: (projectId: string, query: Omit<FlowRunQuery, 'cursor'> = {}) =>
+    ['flow-runs', projectId, [...(query.agent ?? [])].sort().join(','), [...(query.status ?? [])].sort().join(','), query.itemId ?? '', query.limit ?? 0] as const,
   /** Every page of a project's journal */
   journal: (projectId: string) => ['journal', projectId] as const,
   journalPage: (projectId: string, page: JournalQuery = {}) => ['journal', projectId, page.limit ?? 0, page.before ?? ''] as const,
@@ -985,15 +1034,21 @@ export const useProjectSettings = (projectId: string | null) =>
     enabled: projectId !== null,
   });
 
-/** How a board is read everywhere, so the sidebar's count and the page share one cache entry. */
-export const workItemBoardQuery = (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}) => ({
-  queryKey: keys.workItemBoard(projectId, filter),
-  queryFn: ({ signal }: { signal: AbortSignal }) => api.workItemBoard(projectId, filter, { signal }),
+/**
+ * How a board is read everywhere, so the sidebar's count and the page share one cache entry. The
+ * Done column holds its newest `BOARD_DONE_PAGE` items unless `doneLimit` asks for more ("and N more").
+ */
+export const workItemBoardQuery = (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, doneLimit?: number) => ({
+  queryKey: keys.workItemBoard(projectId, filter, doneLimit),
+  queryFn: ({ signal }: { signal: AbortSignal }) => api.workItemBoard(projectId, filter, { signal, ...(doneLimit === undefined ? {} : { doneLimit }) }),
 });
 
-/** A project's board, or every project's for `null`. A new filter keeps the cards on screen until its answer arrives. */
-export const useWorkItemBoard = (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, enabled = true) =>
-  useQuery({ ...workItemBoardQuery(projectId, filter), refetchInterval: useFallbackInterval(), enabled, placeholderData: keepPreviousData });
+/**
+ * A project's board, or every project's for `null`. A new filter, or a larger Done column, keeps the
+ * cards on screen until its answer arrives.
+ */
+export const useWorkItemBoard = (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, enabled = true, doneLimit?: number) =>
+  useQuery({ ...workItemBoardQuery(projectId, filter, doneLimit), refetchInterval: useFallbackInterval(), enabled, placeholderData: keepPreviousData });
 
 export const useWorkItemList = (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, enabled = true) =>
   useQuery({
@@ -1004,9 +1059,45 @@ export const useWorkItemList = (projectId: string | null, filter: Omit<WorkItemF
     placeholderData: keepPreviousData,
   });
 
-/** The item a key names (`/tasks/:key`); `data` is null when no project has it. */
-export const useWorkItemByKey = (key: string) =>
-  useQuery({ queryKey: keys.workItemByKey(key), queryFn: ({ signal }) => api.workItemByKey(key, { signal }) });
+/**
+ * The list a page at a time (`limit`, default `WORK_ITEMS_PAGE`): `fetchNextPage` loads the next one
+ * while `hasNextPage`. An event refreshes every page loaded, so a long list stays whole.
+ */
+export const useWorkItemPages = (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, enabled = true, limit?: number) =>
+  useInfiniteQuery({
+    queryKey: keys.workItemPages(projectId, filter, limit),
+    queryFn: ({ signal, pageParam }) => api.workItemPage(projectId, { ...filter, ...(limit ? { limit } : {}), ...(pageParam ? { cursor: pageParam } : {}) }, { signal }),
+    initialPageParam: '',
+    getNextPageParam: (last: WorkItemPage) => last.nextCursor ?? undefined,
+    refetchInterval: useFallbackInterval(),
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+
+/**
+ * The item a key names (`/tasks/:key`), whole; `data` is null when no project has it. The answer is
+ * also the item's page (`useWorkItem`), which starts from it instead of asking again.
+ */
+export const useWorkItemByKey = (key: string) => {
+  const client = useQueryClient();
+  return useQuery({
+    queryKey: keys.workItemByKey(key),
+    queryFn: async ({ signal }) => {
+      const item = await api.workItemByKey(key, { signal });
+      if (item) client.setQueryData(keys.workItem(item.id), item);
+      return item;
+    },
+  });
+};
+
+/** Every flow run of an item, newest first: each failed run stays failed on its link. */
+export const useWorkItemRuns = (itemId: string | null, enabled = true) =>
+  useQuery({
+    queryKey: keys.workItemRuns(itemId ?? ''),
+    queryFn: ({ signal }) => api.workItemRuns(itemId ?? '', { signal }),
+    enabled: enabled && itemId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
 
 /** One item's page: its fields, children, links, comments and history. */
 export const useWorkItem = (itemId: string | null) =>
@@ -1060,6 +1151,21 @@ export const useFlow = (projectId: string | null) =>
     queryFn: ({ signal }) => api.flow(projectId ?? '', { signal }),
     enabled: projectId !== null,
     refetchInterval: useFallbackInterval(),
+  });
+
+/**
+ * The team's activity ("See all"): every flow run of the project, newest first, filtered by member
+ * and status, a page at a time (`fetchNextPage` while `hasNextPage`).
+ */
+export const useFlowRuns = (projectId: string | null, query: Omit<FlowRunQuery, 'cursor'> = {}) =>
+  useInfiniteQuery({
+    queryKey: keys.flowRuns(projectId ?? '', query),
+    queryFn: ({ signal, pageParam }) => api.flowRuns(projectId ?? '', { ...query, ...(pageParam ? { cursor: pageParam } : {}) }, { signal }),
+    initialPageParam: '',
+    getNextPageParam: (last: FlowRunPage) => last.nextCursor ?? undefined,
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+    placeholderData: keepPreviousData,
   });
 
 export const useJournal = (projectId: string | null, page: JournalQuery = {}) =>

@@ -8,11 +8,13 @@ import { ICON, ICON_SM } from '../../components/icons';
 import { ErrorBox, Segmented, Skeleton } from '../../components/ui';
 import { useLeaveGuard } from '../../lib/dirty';
 import { NARROW, useMediaQuery } from '../../lib/media';
+import { PhoneAssistantLink } from '../home/ProjectHead';
+import { TeamActivityView } from './Activity';
 import { AddMemberDialog } from './AddMember';
 import { FlowEditor } from './Flow';
 import { MemberPage } from './Member';
-import { MemberCells, MemberGrid, TeamEmpty } from './Members';
-import { proposedFlow, savedFlow, teamActivity, teamSearch, workingCount, type TeamSection } from './model';
+import { MemberCells, MemberGrid, ProposeButton, TeamEmpty } from './Members';
+import { proposedFlow, savedFlow, teamActivity, teamSearch, teamSection, workingCount, type TeamSection } from './model';
 import { FlowSummary, TeamActivity } from './parts';
 
 /** Back from the Team tab on a phone: the project's page, with its selection kept. */
@@ -25,7 +27,7 @@ function summaryHref(params: URLSearchParams): string {
 }
 
 /** A phone's Team screen heads itself: the tab's name, the project and what it holds, and the way back. */
-function PhoneHead({ title, detail, backHref }: { title: string; detail: string; backHref: string }) {
+export function PhoneHead({ project, title, detail, backHref }: { project: Project; title: string; detail: string; backHref: string }) {
   const { t } = useTranslation('team');
   return (
     <header className="page-header project-head project-head-phone">
@@ -36,6 +38,7 @@ function PhoneHead({ title, detail, backHref }: { title: string; detail: string;
         <h1>{title}</h1>
         <span className="mono small muted ellipsis">{detail}</span>
       </div>
+      <PhoneAssistantLink project={project} />
     </header>
   );
 }
@@ -57,7 +60,7 @@ export function ProjectTeam({ project }: { project: Project }) {
   const [adding, setAdding] = useState<{ agent?: string } | null>(null);
   const [flowChanges, setFlowChanges] = useState(0);
 
-  const section: TeamSection = params.get('section') === 'flow' ? 'flow' : 'members';
+  const section: TeamSection = teamSection(params.get('section'));
   const memberId = params.get('member');
   const go = (next: { section?: TeamSection; member?: string | null }) => void guard().then((ok) => ok && navigate({ search: teamSearch(params, next) }));
   const memberHref = (agent: string) => teamSearch(params, { member: agent });
@@ -77,13 +80,22 @@ export function ProjectTeam({ project }: { project: Project }) {
   if (member) return <MemberPage key={member.agent} project={project} member={member} backHref={teamSearch(params, { member: null })} />;
 
   const count = members.length;
+  if (section === 'activity' && count > 0) {
+    const membersHref = teamSearch(params, { section: 'members' });
+    return (
+      <>
+        {phone && <PhoneHead project={project} title={t('activity.title')} detail={project.name} backHref={membersHref} />}
+        <TeamActivityView projectId={project.id} team={data} backHref={membersHref} phone={phone} />
+      </>
+    );
+  }
   const phoneDetail =
     section === 'members' && count > 0
       ? `${project.name} · ${t('members.count', { count })}`
       : section === 'flow' && flowChanges > 0
         ? `${project.name} · ${t('flow.changes', { count: flowChanges })}`
         : project.name;
-  const head = phone && <PhoneHead title={t('home:tabs.team')} detail={phoneDetail} backHref={back} />;
+  const head = phone && <PhoneHead project={project} title={t('home:tabs.team')} detail={phoneDetail} backHref={back} />;
   const addDialog = adding && (
     <AddMemberDialog
       projectId={project.id}
@@ -158,7 +170,10 @@ export function ProjectTeam({ project }: { project: Project }) {
           {working > 0 && <span className="team-working">{t('members.working', { count: working })}</span>}
         </div>
         <MemberCells team={data} memberHref={memberHref} />
-        <div className="team-phone-actions">{addButton}</div>
+        <div className="team-phone-actions">
+          {addButton}
+          <ProposeButton projectId={project.id} />
+        </div>
         {addDialog}
       </div>
     );
@@ -169,6 +184,7 @@ export function ProjectTeam({ project }: { project: Project }) {
       <div className="team-toolbar">
         {switcher}
         <span className="grow" />
+        <ProposeButton projectId={project.id} />
         {addButton}
       </div>
       <div className="team-layout">
@@ -177,7 +193,7 @@ export function ProjectTeam({ project }: { project: Project }) {
         </div>
         <div className="team-side">
           <FlowSummary columns={flow.columns} enabled={flow.enabled} saved={proposal === null} maxBounces={flow.maxBounces} editHref={teamSearch(params, { section: 'flow' })} />
-          <TeamActivity runs={teamActivity(members)} />
+          <TeamActivity runs={teamActivity(members)} allHref={teamSearch(params, { section: 'activity' })} />
         </div>
       </div>
       {addDialog}

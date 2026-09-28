@@ -57,7 +57,21 @@ const SUBAGENT_TOOLS = new Set(['Task', 'Agent']);
 const IGNORED_SUBTYPES = new Set(['thinking_tokens', 'hook_started', 'hook_response', 'commands_changed']);
 /** Wording the CLI uses when the subscription window is spent (`result` text and stderr) */
 const RATE_LIMIT_RE = /usage limit|rate limit|session limit|out of (?:usage|quota)|quota exceeded/i;
-/** One rotate-and-resume per run: a second failure is a real one, not a quota one */
+/**
+ * What starting or continuing a chat refuses on purpose (no prompt, the runtime full, the session
+ * held elsewhere, a bad upload): the caller's to fix, with its 4xx. Anything else that goes wrong
+ * while a chat starts is the server's (`ChatStartError`).
+ */
+export class ChatRefusal extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: 400 | 404 | 409 = 400,
+  ) {
+    super(message);
+  }
+}
+
+/** One rotate-and-resume per execution: a second failure is a real one, not a quota one */
 const MAX_ROTATION_RETRIES = 1;
 const MAX_ATTACHMENTS = 20;
 
@@ -271,6 +285,9 @@ function toEnvironment(cwd: string, chatId: string, raw: Record<string, unknown>
  * executions and, while one is running, the process. There is one per session id, however many
  * times the chat is resumed: resuming adds an execution here, it never adds a chat.
  */
+/** The tool the CLI gives a chat started with `--json-schema`, whose input is the structured result. */
+export const STRUCTURED_OUTPUT_TOOL = 'StructuredOutput';
+
 class LiveChat {
   readonly emitter = new EventEmitter();
   readonly events: RunEvent[] = [];
@@ -306,6 +323,8 @@ class LiveChat {
   idleTimer: NodeJS.Timeout | null = null;
   partial: { block: 'text' | 'thinking'; text: string } | null = null;
   partialTimer: NodeJS.Timeout | null = null;
+  /** The structured result (`--json-schema`) as its tool call streams it: raw JSON, cut wherever it has got to */
+  structured: string | null = null;
   /** Control requests sent to the CLI, by request_id, waiting for its control_response */
   readonly controls = new Map<string, { resolve: (response: Record<string, unknown>) => void; reject: (err: Error) => void }>();
   controlSeq = 0;
@@ -936,7 +955,7 @@ export class ChatManager extends EventEmitter {
    * a conversation that exists is `resume` (the same chat) or `fork` (a new one), never this.
    */
   start(opts: NewChat, meta: RunMeta = {}): ChatRuntime {
-    if (!opts.prompt?.trim() && !opts.attachments?.length) throw new Error('prompt is required');
+    if (!opts.prompt?.trim() && !opts.attachments?.length) throw new ChatRefusal('prompt is required');
     this.admit(opts);
     const attachments = this.resolveAttachments(opts.attachments);
     return this.begin(new LiveChat(randomUUID(), opts, meta, opts.internal ? 'internal' : meta.orchestrationId ? 'orchestration' : 'agentry', null, this.chatDefaults()), opts.prompt, attachments);
@@ -950,17 +969,20 @@ export class ChatManager extends EventEmitter {
    * saw a moment ago.
    */
   resume(id: string, request: ResumeChatRequest & ResolvedTools & ExecutionExtras, adopt?: AdoptedChat): ChatRuntime {
-    if (!request.prompt?.trim() && !request.attachments?.length) throw new Error('prompt is required');
+    if (!request.prompt?.trim() && !request.attachments?.length) throw new ChatRefusal('prompt is required');
     let chat = this.chats.get(id);
-    if (chat?.alive) throw new Error('the chat already has a live execution; send it a message instead');
+    if (chat?.alive) throw new ChatRefusal('the chat already has a live execution; send it a message instead');
     this.admit(request);
     const attachments = this.resolveAttachments(request.attachments);
     if (!chat) {
-      if (!adopt) throw new Error('chat not found');
+      if (!adopt) throw new ChatRefusal('chat not found', 404);
       chat = new LiveChat(id, { prompt: request.prompt, cwd: adopt.cwd, name: adopt.name, ...(adopt.model ? { model: adopt.model } : {}) }, {}, 'external', null, this.chatDefaults(), true);
       chat.workingDir = adopt.cwd;
     }
     this.applyStartOptions(chat, request);
+    // A new execution is a new turn to see through: the rotation it may need is its own, not one an
+    // earlier execution of the chat already spent (a flow run continues its member's chat this way)
+    chat.rotationRetries = 0;
     const known = this.chats.has(id);
     if (!known) this.chats.set(id, chat);
     try {
@@ -980,7 +1002,7 @@ export class ChatManager extends EventEmitter {
    * the chat exists under its final id from the first instant and no other row can stand for it.
    */
   fork(sourceId: string, request: ResumeChatRequest & ResolvedTools & Pick<ExecutionExtras, 'handBack'>, source: AdoptedChat): ChatRuntime {
-    if (!request.prompt?.trim() && !request.attachments?.length) throw new Error('prompt is required');
+    if (!request.prompt?.trim() && !request.attachments?.length) throw new ChatRefusal('prompt is required');
     this.admit(request);
     const attachments = this.resolveAttachments(request.attachments);
     const known = this.chats.get(sourceId);
@@ -1002,11 +1024,11 @@ export class ChatManager extends EventEmitter {
   /** Refuses what cannot start, before anything is created. */
   private admit(opts: ChatStartOptions): void {
     if (opts.account && !this.accounts?.managed) {
-      throw new Error('no claude-swap account is registered: a chat cannot be pinned to one');
+      throw new ChatRefusal('no claude-swap account is registered: a chat cannot be pinned to one');
     }
     const limit = this.defaults.maxConcurrentRuns;
     if (this.activeCount() >= limit) {
-      throw new Error(`Concurrent run limit reached (${limit})`);
+      throw new ChatRefusal(`Concurrent run limit reached (${limit})`);
     }
   }
 
@@ -1125,10 +1147,16 @@ export class ChatManager extends EventEmitter {
   /** Looks the uploads up before anything starts, so a bad id fails the request, not the turn. */
   private resolveAttachments(ids: string[] = []): Attachment[] {
     if (ids.length === 0) return [];
-    if (!this.uploads) throw new Error('attachments are not available');
-    if (ids.length > MAX_ATTACHMENTS) throw new Error(`at most ${MAX_ATTACHMENTS} files can be attached to one message`);
+    if (!this.uploads) throw new ChatRefusal('attachments are not available');
+    if (ids.length > MAX_ATTACHMENTS) throw new ChatRefusal(`at most ${MAX_ATTACHMENTS} files can be attached to one message`);
     const uploads = this.uploads;
-    return ids.map((id) => uploads.get(String(id)));
+    return ids.map((id) => {
+      try {
+        return uploads.get(String(id));
+      } catch (err) {
+        throw new ChatRefusal(err instanceof Error ? err.message : String(err), 404);
+      }
+    });
   }
 
   stop(id: string): ChatRuntime {
@@ -1448,10 +1476,10 @@ export class ChatManager extends EventEmitter {
    * by the chat it works for, and a chat never has two.
    */
   private spawnProcess(chat: LiveChat, prompt: string, attachments: Attachment[] = []): void {
-    if (chat.alive) throw new Error('the chat already has a live process');
+    if (chat.alive) throw new ChatRefusal('the chat already has a live process');
     const holders = this.sessionHolders(chat);
     if (holders.length) {
-      throw new Error(
+      throw new ChatRefusal(
         `session ${chat.id} is still running in process ${holders.join(', ')}, which this chat does not track; ` +
           'a second process would carry on the same conversation beside it. Wait for it to finish, or stop it first.',
       );
@@ -1607,6 +1635,16 @@ export class ChatManager extends EventEmitter {
   }
 
   /**
+   * The chat's turn died against the rate limit and a rotation will be asked for it: what a run
+   * held to a schema waits on rather than fail. True from the limit until the rotation is asked,
+   * so together with the rotation's own bookkeeping it covers the whole wait.
+   */
+  rotationComing(id: string): boolean {
+    const chat = this.chats.get(id);
+    return !!chat && chat.rateLimited && !chat.rotationRequested && !!chat.lastUserTurn && chat.rotationRetries < MAX_ROTATION_RETRIES;
+  }
+
+  /**
    * Re-sends the turn that died against the rate limit. The process is gone by now, so `send`
    * respawns it with `--resume` — on whichever account is active at that point.
    */
@@ -1674,6 +1712,15 @@ export class ChatManager extends EventEmitter {
         // here, seconds before its arguments have finished streaming
         chat.activity.blockStarted(block, now());
         chat.partial = blockType === 'text' || blockType === 'thinking' ? { block: blockType, text: '' } : null;
+        // The CLI hands the result a schema asks for as the input of this tool, which streams like any
+        // other: whoever waits for the result may show it as it is written
+        chat.structured = blockType === 'tool_use' && block.name === STRUCTURED_OUTPUT_TOOL ? '' : null;
+      } else if (event.type === 'content_block_delta' && chat.structured !== null) {
+        const delta = (event.delta ?? {}) as Record<string, unknown>;
+        if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string' && delta.partial_json) {
+          chat.structured += delta.partial_json;
+          this.emit('chat-structured', chat.id, chat.structured);
+        }
       } else if (event.type === 'content_block_delta' && chat.partial) {
         const delta = (event.delta ?? {}) as Record<string, unknown>;
         const chunk = delta.type === 'text_delta' ? delta.text : delta.type === 'thinking_delta' ? delta.thinking : null;
@@ -1684,6 +1731,7 @@ export class ChatManager extends EventEmitter {
       } else if (event.type === 'content_block_stop') {
         chat.activity.blockStopped();
         chat.partial = null;
+        chat.structured = null;
       }
       return;
     }

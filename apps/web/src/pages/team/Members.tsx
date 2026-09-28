@@ -13,7 +13,7 @@ import { columnMeta } from '../../lib/work-items';
 import { assistantPath } from '../assistant/model';
 import { writeScope } from './model';
 import { MemberNow } from './parts';
-import { ModelTag, RoleAvatar, useRoleName } from './RoleAvatar';
+import { ModelTag, RoleAvatar, useResponsibility, useRoleName } from './RoleAvatar';
 
 /** "Answers for": the member's columns with their glyphs, or that it is only consulted. */
 export function AnswersFor({ columns }: { columns: WorkItemStatus[] }) {
@@ -95,6 +95,7 @@ function MemberCard({ member, href, onRemove }: { member: TeamMember; href: stri
   const { t } = useTranslation('team');
   const navigate = useNavigate();
   const name = useRoleName()(member.role);
+  const responsibility = useResponsibility()(member);
   const live = member.running.length > 0;
   return (
     <article className={`member-card ${live ? 'live-rail' : ''}`.trim()} aria-label={name} data-agent={member.agent}>
@@ -116,7 +117,7 @@ function MemberCard({ member, href, onRemove }: { member: TeamMember; href: stri
           ]}
         />
       </div>
-      {member.responsibility && <p className="member-desc">{member.responsibility}</p>}
+      {responsibility && <p className="member-desc">{responsibility}</p>}
       <div className="member-facts-list">
         <div className="member-facts">
           <span className="section-label">{t('member.answersFor')}</span>
@@ -192,14 +193,16 @@ export function MemberCells({ team, memberHref }: { team: Team; memberHref: (age
  * assistant's (orchestration 4), so here the template's team is the one offer, beside adding a
  * member by hand; the roles it brings are listed under it.
  */
-export function TeamEmpty({ projectId, roles, templateName, phone, onAdd }: { projectId: string; roles: ProjectTeamRole[]; templateName: string | null; phone: boolean; onAdd: () => void }) {
-  const { t } = useTranslation(['team', 'assistant']);
-  const roleName = useRoleName();
+/**
+ * "Ask for a proposal": the assistant reads the project and proposes the team on its own page. A
+ * run already reading the project is where the proposal will be, so a 409 goes there too.
+ */
+export function useProposeTeam(projectId: string) {
+  const { t } = useTranslation('assistant');
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  // "Ask for a proposal": the assistant reads the project and proposes the team on its own page
-  const propose = useMutation({
+  return useMutation({
     mutationFn: () => api.startAssistantRun(projectId, { kind: 'project' }),
     onSuccess: (run) => {
       queryClient.setQueryData(keys.assistantRun(run.id), run);
@@ -207,11 +210,30 @@ export function TeamEmpty({ projectId, roles, templateName, phone, onAdd }: { pr
       navigate(assistantPath(projectId));
     },
     onError: (error) => {
-      // One is already reading the project: its page is where the proposal will be
       if (error instanceof ApiRequestError && error.status === 409) navigate(assistantPath(projectId));
-      else toast.error(t('assistant:startFailed'), error);
+      else toast.error(t('startFailed'), error);
     },
   });
+}
+
+/** "Ask for a proposal" on a team that has members, beside "Add member", as the references draw it. */
+export function ProposeButton({ projectId }: { projectId: string }) {
+  const { t } = useTranslation('assistant');
+  const propose = useProposeTeam(projectId);
+  return (
+    <button type="button" className="btn team-propose" disabled={propose.isPending} onClick={() => propose.mutate()}>
+      <Sparkle {...ICON_SM} />
+      {t('teamEmpty.propose')}
+    </button>
+  );
+}
+
+export function TeamEmpty({ projectId, roles, templateName, phone, onAdd }: { projectId: string; roles: ProjectTeamRole[]; templateName: string | null; phone: boolean; onAdd: () => void }) {
+  const { t } = useTranslation(['team', 'assistant']);
+  const roleName = useRoleName();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const propose = useProposeTeam(projectId);
   const apply = useMutation({
     mutationFn: () => api.teamFromTemplate(projectId),
     onSuccess: (team) => {

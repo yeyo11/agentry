@@ -182,6 +182,22 @@ export function hidesTabBar(pathname: string, search = ''): boolean {
   return /^\/orchestration\/[^/]+\/?$/.test(pathname);
 }
 
+/**
+ * Where a phone shows no top bar: the screens whose own header leads back, as their references draw
+ * them (MobileTarea, MobileMiembro, MobileDocumento, MobileAsistente, MobileProyecto, MobileTablero,
+ * MobileHitos). A project's page and its tabs (a member and a document among them) live at `/` with
+ * a project in scope (`projectPage`), headed by the project and the way back to Projects; Tasks, its
+ * milestones and a work item carry their own title, and Tasks the project scope beside it; the
+ * assistant names its project. Everywhere else the bar holds the scope, search and the bell.
+ */
+export function hidesTopBar(pathname: string, projectPage = false): boolean {
+  if (pathname === '/' && projectPage) return true;
+  if (/^\/projects\/[^/]+\/assistant\/?$/.test(pathname)) return true;
+  if (/^\/tasks\/?$/.test(pathname)) return true;
+  // The milestones, and a work item's page (not the review of its changes, a screen of its own)
+  return /^\/tasks\/[^/]+\/?$/.test(pathname);
+}
+
 /** What the phone's floating button starts on a page. */
 export interface FabPlan {
   action: 'chat' | 'orchestration' | 'task';

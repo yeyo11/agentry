@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T01:59:47.104538408Z
-updated_at: 2026-09-28T18:00:00Z
+updated_at: 2026-09-28T22:00:00Z
 tags:
     - plan
     - projects
@@ -26,7 +26,9 @@ design system wins.
 Status: **every orchestration built, on 2026-09-27.** Orchestration 1 (`ecosystem-foundation`) was
 fixed by 1b (`ecosystem-fixes`) after [its audit](project-ecosystem-audit.md). The owner validated
 the prototypes, and orchestrations 2 (`ecosystem-board-web`), 3 (`ecosystem-team`) and 4
-(`ecosystem-assistant`) built the web, the team and the assistant on them. Everything is on
+(`ecosystem-assistant`) built the web, the team and the assistant on them. On 2026-09-28
+orchestration 5 (`ecosystem-review-fixes`) fixed the review of the whole feature, and orchestration 6
+(`ecosystem-gaps`) closed the 24 gaps the documents still listed. Everything is on
 `feat/project-ecosystem`, waiting for the owner to try the whole feature before its one pull request
 to `main`. See [Outcome](#outcome).
 
@@ -1672,16 +1674,14 @@ of its captures did not complete: Suggest tasks while running, and the light pho
 
 ### The ecosystem as a whole
 
-The four orchestrations delivered all 40 decisions. Some things stay open, each listed where its
-area is documented:
+The four orchestrations delivered all 40 decisions. What they left open is closed:
 
-- **A card being refined or verified is not live.** This is the only open item that shows on the
-  board ([team-and-flow.md](../team-and-flow.md#known-gaps)).
-- **Orchestration 3** left the Flow screen's `maxParallel` control and the template's English
-  responsibilities.
-- **Orchestration 4** left the gaps above.
 - **Orchestration 5** fixed the review of the whole feature, except what
   [its section below](#orchestration-5-ecosystem-review-fixes-1) lists.
+- **Orchestration 6** closed those and every Known gap of the area documents, 24 in all
+  ([its section below](#orchestration-6-ecosystem-gaps-1)). One detail stays partly open, with its
+  reason, in [team-and-flow.md](../team-and-flow.md#known-gaps): a member's model is followed by the
+  CLI's name for it only when the CLI's own model list names it.
 - **The whole feature has not yet been verified end to end on `feat/project-ecosystem`.** Each
   orchestration's `pnpm e2e` runs in its own verification phase. After that, the owner tries the
   feature and opens its one pull request to `main`.
@@ -1793,14 +1793,84 @@ from their commits and the code.
 - "Crear las seleccionadas" counts the runs it queues.
 - The Spanish copy was checked end to end.
 
-What stays open is listed in
-[the audit](project-ecosystem-audit.md#still-open-after-orchestration-5):
+What stayed open is listed in
+[the audit](project-ecosystem-audit.md#still-open-after-orchestration-5), and orchestration 6 closed
+all of it:
 
 - parts of findings 14 and 25;
 - `from-template`'s 200;
 - two runs per backlog card;
 - board payloads with descriptions;
 - the web files over 400 lines.
+
+### Orchestration 6: `ecosystem-gaps`
+
+Orchestration 6 closed, on 2026-09-28, the 24 gaps [its section](#orchestration-6-ecosystem-gaps)
+numbers, from `ad1d6cf` (main 0.22.1 merged). Each is now described in the area's document where it
+lives, marked with its number, and the audit has
+[a row per gap](project-ecosystem-audit.md#orchestration-6-the-known-gaps-closed) with its commits
+and tests. The merged branch's `pnpm build` and `pnpm e2e` run in the verification phase, after this
+was written. Only `gaps-review`'s report reached the documentation task, so the other tasks' parts
+below are written from their commits and the code.
+
+**`gaps-shared`** — the contract, keeping every existing shape: an item's runs and the paged
+activity (`FlowRunQuery`, `FlowRunPage`, `FlowRunStatus`), a member's `commands` with
+`isTeamCommandPattern`, `MAX_FLOW_PARALLEL` in shared, the assistant run's `focus`, `language` and
+`draft`, `AgentryLanguage`, `WorkItem.hasDescription`, the paged lists and `doneLimit`/`more`, and
+the web's client, query keys and events for all of it.
+
+**`gaps-flow`** — gaps 1, 2, 3, 4, 6, 7, 13 (flow runs), 15, 17, 18 and 19:
+
+- `isLive` counts `refine` and `verify` links.
+- `GET /work-items/:itemId/runs` and `GET /projects/:id/flow/runs`, with a cursor on the queue.
+- A rate-limited run waits for the rotation and continues in the same chat on the next account.
+- The `todo` check runs only when the refine did not pass or the item changed since.
+- `commands` become `Bash(<pattern>)` rules in the work stage.
+- A run's chat opens with "<Role> · <KEY> · <title>" in the language the panel last named.
+- The history names a terminal chat by its title, read when the history is.
+- A chat that fails to start for the server's reason is a 500 (`ChatStartError`); a refusal keeps
+  its 4xx (`ChatRefusal`).
+- `from-template` answers 201 or 200, and an agent file saved in Recursos emits `team.changed`
+  `file`.
+
+**`gaps-assistant`** — gaps 9, 10, 11, 12 (core) and 13 (Work on it, nodes, draft):
+
+- `focus` is its own field, worded as where to look.
+- A run's language is stored on it.
+- `CLAUDE.md` shows once.
+- "Crear con IA" serves its file as the chat writes it: the runtime gathers the `StructuredOutput`
+  input deltas, and the run's `draft` is read by a parser that takes JSON cut anywhere.
+- "Work on it" and each draft node open with `KEY · title`, and the draft's objective is in the
+  person's language.
+
+**`gaps-data`** — gaps 16 and 20 in core and the API: `GET /work-items/by-key/:key`; cards without
+descriptions; Done holding its newest `doneLimit`; the lists paged by 100 with a cursor that is a
+place in the order; the All projects board counted in SQL.
+
+**`gaps-web-work`** — gaps 2 (item), 16, 20, 21, 22 and 24 (task files): the item's links from its
+runs and a failed run's chat; `/tasks/:key` by key; "y N más" and the paged list; the phone detail
+screens without the top bar; Projects and More marked; NewTask, the item view, Suggest tasks, the
+board and `App.tsx` split.
+
+**`gaps-web-team`** — gaps 1 (web), 5, 6, 7 (web), 8, 12 (web), 14, 23 and 24 (other files): the
+live line's stage verb; the Flow screen's Limits card; the team's activity view; the member's shell
+field; "Asistente" in the header and the palette; the streamed file in "Crear con IA"; the template's
+responsibilities translated; the `0:41` clock, two-letter monograms, "Tú", the narrow card's time,
+the empty Team title, "Ahora y antes" counting tasks and the model's CLI name; the assistant, new
+project, resources, memory and palette files split. It wrote `team-gaps.spec.mjs` and
+`create-ai-stream.spec.mjs`, and taught the fake CLI to stream a structured result.
+
+**`gaps-review`** re-checked all 24 on the integrated branch, settled the one merge conflict (in
+`openapi/routes.ts`: the board's `doneLimit` from one side, the draft's `KEY · title` nodes from the
+other), and fixed six things the tasks had left between them: Suggest tasks' focus still sent as
+`description`, the assistant reachable only from the summary's phone head, a 30 px way back, the
+"Sin límite" placeholder squeezed out, a running row out of line, and the phone document editor's
+bar mid-screen.
+
+**What stays open**, with its reason, in [team-and-flow.md](../team-and-flow.md#known-gaps): the
+member page writes "sonnet · Sonnet 5" only when the CLI's model list labels the alias, and the list
+the CLI writes (`additionalModelOptionsCache`) does not label the aliases, so with today's CLI
+"sonnet" still reads alone. Everything else the gaps asked for is built.
 
 ## Related
 

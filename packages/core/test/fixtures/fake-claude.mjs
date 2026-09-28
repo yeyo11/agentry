@@ -11,11 +11,16 @@
 //   FAKE-FAIL-ALWAYS <message>    fails like that, and so does every later turn of the session: a
 //                                 fault a retry cannot mend, which the resumed prompt no longer names
 //   FAKE-BUDGET                   ends the turn as the CLI does when --max-budget-usd ran out
+//   FAKE-LIMIT-ONCE               the session's first turn dies against the rate limit (a 429), and
+//                                 the same prompt sent again (the rotation's replay) goes on as usual
 //
 //   FAKE-RESULT-<STAGE> <json>    with --json-schema, ends with that structured output; the stage
 //                                 (REFINE, WORK, VERIFY) is read off the schema as a flow run's
 //                                 differs by stage, so one item's description can script each role;
 //                                 ASSISTANT is an assistant run's, whose schema asks for `read`
+//   FAKE-STREAM-HOLD <file>       with a FAKE-RESULT, streams it first as the CLI does, as the input of
+//                                 its StructuredOutput tool call: the first half, then, once <file>
+//                                 exists, the rest, and only then the result
 //
 //   --model fake-refused          exits 1 at once with an error on stderr, as the CLI does with an
 //                                 option it refuses: a chat that never starts its turn
@@ -99,6 +104,12 @@ lines.on('line', (line) => {
     out({ type: 'result', subtype: 'error_max_budget_usd', is_error: true, num_turns: 1, total_cost_usd: 0.01, result: 'budget reached' });
     return;
   }
+  const limited = join(tmpdir(), `fake-claude-limit-${sessionId}`);
+  if (/^FAKE-LIMIT-ONCE$/m.test(prompt) && !existsSync(limited)) {
+    writeFileSync(limited, '1');
+    out({ type: 'result', subtype: 'error_during_execution', is_error: true, api_error_status: 429, num_turns: 1, total_cost_usd: 0.01, result: "You've hit your usage limit" });
+    return;
+  }
   // What a session was told to keep failing with outlives the process, as its history does
   const fault = join(tmpdir(), `fake-claude-fault-${sessionId}`);
   const sticky = /^FAKE-FAIL-(ONCE|ALWAYS) (.*)$/m.exec(prompt);
@@ -124,6 +135,25 @@ lines.on('line', (line) => {
     const stage = props.read ? 'ASSISTANT' : props.verdict ? 'VERIFY' : props.acceptanceCriteria ? 'REFINE' : 'WORK';
     const scripted = new RegExp(`^FAKE-RESULT-${stage} (.*)$`, 'm').exec(prompt);
     if (scripted) {
+      const hold = /^FAKE-STREAM-HOLD (\S+)$/m.exec(prompt);
+      if (hold) {
+        const json = scripted[1];
+        const half = Math.floor(json.length / 2);
+        const block = (event) => out({ type: 'stream_event', session_id: sessionId, parent_tool_use_id: null, event });
+        const deltas = (text) => {
+          for (let i = 0; i < text.length; i += 24) block({ type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: text.slice(i, i + 24) } });
+        };
+        block({ type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'toolu_fake', name: 'StructuredOutput', input: {} } });
+        deltas(json.slice(0, half));
+        const wait = setInterval(() => {
+          if (!existsSync(hold[1])) return;
+          clearInterval(wait);
+          deltas(json.slice(half));
+          block({ type: 'content_block_stop', index: 0 });
+          out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: '', structured_output: JSON.parse(json) });
+        }, 20);
+        return;
+      }
       out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: '', structured_output: JSON.parse(scripted[1]) });
       return;
     }

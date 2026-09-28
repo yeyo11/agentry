@@ -160,6 +160,37 @@
   flex: none;
 }
 
+/* A flow run that failed in this chat: the item it was for and the core's reason, under the row */
+.chat-run-failed {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.chat-run-failed-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--bad);
+}
+
+.chat-run-failed-text {
+  min-width: 0;
+}
+
+.chat-run-failed-why {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 /* A worker's way back to its orchestration: one quiet line, the graph's progress at its end */
 .chat-part-of {
   position: relative;

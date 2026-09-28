@@ -43,7 +43,8 @@
     "inProjects_other": "in {{count}} projects with a board",
     "inProjectsShort_one": "in {{count}} project",
     "inProjectsShort_other": "in {{count}} projects",
-    "view": "View"
+    "view": "View",
+    "back": "Back"
   },
   "actions": {
     "select": "Select",
@@ -183,6 +184,9 @@
     "showDone_one": "Show the other done task",
     "showDone_other": "Show the other {{count}} done",
     "hideDone": "Show fewer done",
+    "loadMore_one": "Load more · {{count}} left",
+    "loadMore_other": "Load more · {{count}} left",
+    "loading": "Loading…",
     "order": "Ordered by their place on the board",
     "keys": "to move",
     "over": "over the limit · {{count}} of {{limit}}",

@@ -117,7 +117,7 @@ test('working on an item starts a chat in its own worktree, and the item follows
   assert.equal(started.link.chatId, started.chat.id);
   assert.equal(started.link.role, 'work');
   assert.equal(started.chat.project?.id, project.id);
-  assert.match(started.chat.firstPrompt ?? started.chat.title, new RegExp(`^${bug.key}: Cart loses items`));
+  assert.match(started.chat.firstPrompt ?? started.chat.title, new RegExp(`^${bug.key} · Cart loses items`));
   assert.equal(execFileSync('git', ['-C', worktree, 'branch', '--show-current'], { encoding: 'utf8' }).trim(), `task/${slug}`);
 
   const reviewed = await statusIs(bug.id, 'in_review');
@@ -134,7 +134,7 @@ test('working on an item starts a chat in its own worktree, and the item follows
   // The history names the chat by its first prompt, as the chat list does, not by its session name
   assert.deepEqual(
     reviewed.history.filter((e) => e.change === 'link').map((e) => (e.to && typeof e.to === 'object' && 'label' in e.to ? e.to.label : null)),
-    [`${bug.key}: Cart loses items`],
+    [`${bug.key} · Cart loses items`],
   );
   const moved = events.filter((e): e is Extract<AgentryEvent, { type: 'workitem.moved' }> => e.type === 'workitem.moved' && e.itemId === bug.id);
   assert.deepEqual(moved.map((e) => [e.status, e.cause?.event]), [['in_progress', 'chat.started'], ['in_review', 'chat.turn-completed']]);
@@ -291,12 +291,27 @@ test('a selection becomes a draft, and launching it makes each item follow its n
   assert.deepEqual(draft.externalBlockers.map((r) => r.id), [design.id]);
   assert.equal(draft.spec.cwd, repo);
   assert.equal(draft.spec.worktree, true);
+  // Each node is named, and its chat will be listed, by `KEY · title`; the objective is in the
+  // person's language
+  assert.deepEqual(draft.spec.tasks.map((t) => t.name), [`${ui.key} · UI`, `${api.key} · API`]);
+  assert.equal(draft.spec.objective?.split('\n')[0], `Work on these tasks of ${project.name}:`);
+  const es = await app.inject({
+    method: 'POST',
+    url: `/api/projects/${project.id}/work-items/orchestrate`,
+    payload: JSON.stringify({ itemIds: [ui.id, api.id] }),
+    headers: { 'content-type': 'application/json', 'accept-language': 'es-ES,es;q=0.9' },
+  });
+  assert.deepEqual(es.json<WorkItemOrchestrationDraft>().spec.objective?.split('\n'), [`Trabajar en estas tareas de ${project.name}:`, `- ${ui.key} · UI`, `- ${api.key} · API`]);
 
   const launched = await app.inject({ method: 'POST', url: '/api/orchestrations', ...json({ ...draft.spec, synthesize: false }) });
   assert.equal(launched.statusCode, 201, launched.body);
   const graph = launched.json<Orchestration>();
   const done = await until(() => core.orchestrator.get(graph.id), (o) => !!o && o.status !== 'running', 'the graph to finish');
   assert.equal(done?.status, 'completed');
+  // A node's chat is listed by the first line of its prompt: the item, not "You are one worker…"
+  const nodePrompt = (task: Orchestration['tasks'][number] | undefined) => (done && task ? core.orchestrator['buildPrompt'](done, task) : '');
+  assert.equal(nodePrompt(done?.tasks[0]).split('\n')[0], `${ui.key} · UI`);
+  assert.match(nodePrompt(done?.tasks[0]), /\n\nYou are one worker in a multi-agent orchestration\./);
 
   for (const [id, node] of [
     [api.id, apiNode],
@@ -419,7 +434,10 @@ test('a message of a chat becomes a task in backlog, linked to the chat it came 
   const detail = await item(created.id);
   assert.deepEqual(detail.links.map((l) => [l.kind, l.role, l.chatId]), [['chat', 'origin', chatId]]);
   assert.equal(detail.history[0]?.cause?.event, 'chat.message');
-  assert.ok((await app.inject(`/api/chats/${chatId}/work-items`)).json<WorkItem[]>().some((i) => i.id === created.id));
+  // The chat's header reads a card: the description stays on the item's page
+  const card = (await app.inject(`/api/chats/${chatId}/work-items`)).json<WorkItem[]>().find((i) => i.id === created.id);
+  assert.equal(card?.description, '');
+  assert.equal(card?.hasDescription, true);
 
   // The chat that ends another turn does not move the item it was only the origin of
   const titled = await app.inject({ method: 'POST', url: `/api/chats/${chatId}/work-items`, ...json({ text: 'body', title: 'Own title' }) });
