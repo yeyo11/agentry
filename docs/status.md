@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-09-28T18:00:00Z
+updated_at: 2026-09-28T22:00:00Z
 tags:
     - status
     - project-state
@@ -18,7 +18,7 @@ change gets in.
 
 | | |
 | --- | --- |
-| Version | **0.22.0** on `main`, the same across all five packages |
+| Version | **0.22.1** on `main`, the same across all five packages |
 | Released | 2026-09-27, by release-please from the commit messages |
 | Runtime | Node >= 22, pnpm workspace |
 | Source | 634 tracked `.ts`/`.tsx` files on `feat/project-ecosystem` with `main` merged in; the API contract is 4,338 lines of `packages/shared/src/types.ts` |
@@ -65,12 +65,13 @@ adds a journal and memory proposals the person approves, and Documents the repos
 folder with documents tied to tasks ([team-and-flow.md](team-and-flow.md)). The **project
 assistant** reads a project through a read-only CLI chat and proposes a team, resources and first
 tasks. You accept or discard each proposal on its own, and only an accept writes anything. It runs
-after the wizard, from the empty team, from the board ("Sugerir tareas") and from the Resources
-tab ("Sugerir", "Crear con IA") ([assistant.md](assistant.md)).
+after the wizard, from the Team screen, from the project header's "Asistente" on every tab and the
+palette, from the board ("Sugerir tareas") and from the Resources tab ("Sugerir", "Crear con IA")
+([assistant.md](assistant.md)).
 
 ## What is open
 
-- **The project ecosystem, waiting for the owner.** All five orchestrations are built, on
+- **The project ecosystem, waiting for the owner.** All six orchestrations are built, on
   `feat/project-ecosystem`, which reaches `main` in one pull request once the owner has tried the
   whole feature:
   - **1** (`ecosystem-foundation`, fixed by 1b after [its audit](plans/project-ecosystem-audit.md)):
@@ -82,17 +83,17 @@ tab ("Sugerir", "Crear con IA") ([assistant.md](assistant.md)).
   - **4** (`ecosystem-assistant`): the assistant, suggested tasks and resources with AI, and the four
     items the audit of orchestration 2 had left for the owner;
   - **5** (`ecosystem-review-fixes`): the fixes of the review of the whole feature, each finding
-    marked closed or open in [the audit](plans/project-ecosystem-audit.md#review-of-the-whole-feature-before-the-pull-request).
+    marked closed or open in [the audit](plans/project-ecosystem-audit.md#review-of-the-whole-feature-before-the-pull-request);
+  - **6** (`ecosystem-gaps`): every gap the documents still listed after 5, 24 in all, closed
+    ([the plan](plans/project-ecosystem.md#orchestration-6-ecosystem-gaps)).
 
   Each orchestration's `pnpm build` and `pnpm e2e` run in its verification phase, on the merged
-  branch. What stays open is listed per area:
-  - [work-items.md](work-items.md#known-gaps);
-  - [team-and-flow.md](team-and-flow.md#known-gaps). The one gap that shows on the board is there:
-    a card being refined or verified by a team member is not drawn live;
-  - [assistant.md](assistant.md#known-gaps): once a project has a team, nothing on its page links
-    to the assistant;
-  - [the audit](plans/project-ecosystem-audit.md#still-open-after-orchestration-5): what the review
-    of the whole feature left, parts of its findings 14 and 25 among them.
+  branch. The Known gaps of [work-items.md](work-items.md#known-gaps) and
+  [assistant.md](assistant.md#known-gaps) are empty, and
+  [the audit](plans/project-ecosystem-audit.md#still-open-after-orchestration-5) has nothing left
+  open. One detail stays partly open, in [team-and-flow.md](team-and-flow.md#known-gaps): a
+  member's model reads "sonnet · Sonnet 5" only when the CLI's own model list names the alias, and
+  today's CLI does not.
 
   See the plan's [Outcome](plans/project-ecosystem.md#the-ecosystem-as-a-whole).
 - **The editable dashboard.** Home renders any layout that validates, from a registry of widget
@@ -124,7 +125,7 @@ tab ("Sugerir", "Crear con IA") ([assistant.md](assistant.md)).
 | [`plans/redesign-night-shift.md`](plans/redesign-night-shift.md) | Landed (#101) — see [Outcome](plans/redesign-night-shift.md#outcome) |
 | [`plans/tunnel.md`](plans/tunnel.md) | Landed (#110) — see [Outcome](plans/tunnel.md#outcome) and [tunnel.md](tunnel.md) |
 | [`plans/changes-review.md`](plans/changes-review.md) | Landed (#115) — see [Outcome](plans/changes-review.md#outcome) |
-| [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | All five orchestrations built: 1 (server side and prototypes, fixed by 1b after [its audit](plans/project-ecosystem-audit.md)), 2 (the board's web), 3 (the team, the flow, memory and documents), 4 (the assistant) and 5 (the review's fixes). `main` (0.22.0) is merged into the branch; it awaits its e2e run on the merged branch, then the owner's trial and one pull request to `main` — see [Outcome](plans/project-ecosystem.md#outcome) |
+| [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | All six orchestrations built: 1 (server side and prototypes, fixed by 1b after [its audit](plans/project-ecosystem-audit.md)), 2 (the board's web), 3 (the team, the flow, memory and documents), 4 (the assistant), 5 (the review's fixes) and 6 (the known gaps). `main` (0.22.1) is merged into the branch; it awaits its e2e run on the merged branch, then the owner's trial and one pull request to `main` — see [Outcome](plans/project-ecosystem.md#outcome) |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.
@@ -137,8 +138,8 @@ pnpm test
 pnpm build && pnpm e2e
 ```
 
-`pnpm typecheck`, `pnpm test` and `pnpm build` pass on `feat/project-ecosystem` with `main` (0.22.0)
-merged in, on 2026-09-28: 1,654 tests across the five packages and none failing. `pnpm e2e` runs on
+`pnpm typecheck` and `pnpm test` pass on `feat/project-ecosystem` with `main` (0.22.1) merged in and
+orchestration 6 integrated, on 2026-09-28: 1,812 tests across the five packages and none failing. `pnpm e2e` runs on
 the merged branch before its pull request. The last full e2e run on `main` (`d6269c4`) had three
 specs that failed in the full suite and passed alone: see the plan's
 [Before launching](plans/redesign-night-shift.md#before-launching). The browser suite runs headless Chrome over CDP against an isolated
