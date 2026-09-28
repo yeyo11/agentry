@@ -178,7 +178,8 @@ on in its directory.
 - **Where it branches from**: the project's own HEAD, which for a project inside a linked worktree
   is not the main checkout's; or, when an orchestration node worked on the item first, the node's
   branch, so its work carries over. The main checkout of a submodule is the submodule's own
-  checkout, not its git directory under the superproject's `.git/modules/` (`mainCheckout`; an orchestration's `--worktree` stays where `mainTopLevel` puts it, which is where the CLI looks).
+  checkout, not its git directory under the superproject's `.git/modules/` (`mainCheckout`). An
+  orchestration's `--worktree` stays where `mainTopLevel` puts it, which is where the CLI looks.
 - **Never a node's worktree.** "Retry clean" on a failed node force-removes its worktree and branch,
   so "Work on it" never works there: it makes the item's own `task/<key>` one instead, and nothing
   removes a worktree an item holds.
