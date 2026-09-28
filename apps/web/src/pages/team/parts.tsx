@@ -7,6 +7,7 @@ import { Spinner } from '../../components/Spinner';
 import { timeAgo } from '../../lib/format';
 import { chatActivity } from '../../lib/shell-live';
 import { columnMeta, taskPath } from '../../lib/work-items';
+import { runNote } from './model';
 import { RoleAvatar, useRoleName } from './RoleAvatar';
 
 /** What a run is doing now, as the live line of a card says it: its verb, what it is on, and the time. */
@@ -34,6 +35,12 @@ export function useRunDone(): (run: FlowRun) => string {
   };
 }
 
+/** A run's outcome in words, in the bad colour when it failed: a colour never goes without its word. */
+export function RunOutcome({ run }: { run: FlowRun }) {
+  const done = useRunDone();
+  return <span className={run.outcome === 'failed' ? 'text-err' : undefined}>{done(run)}</span>;
+}
+
 /** When a run last did something: it ended, it started, or it was queued. */
 export const runTime = (run: FlowRun): string => run.endedAt ?? run.startedAt ?? run.queuedAt;
 
@@ -43,7 +50,6 @@ export const runTime = (run: FlowRun): string => run.endedAt ?? run.startedAt ??
  */
 export function MemberNow({ member, compact = false }: { member: TeamMember; compact?: boolean }) {
   const { t } = useTranslation('team');
-  const done = useRunDone();
   const run = member.running[0];
   if (run)
     return (
@@ -67,8 +73,8 @@ export function MemberNow({ member, compact = false }: { member: TeamMember; com
         <>
           <span aria-hidden>·</span>
           {last.item && <WorkItemKey value={last.item.key} />}
-          <span className="ellipsis">
-            {done(last)} {timeAgo(runTime(last))}
+          <span className="ellipsis" title={runNote(last) ?? undefined}>
+            <RunOutcome run={last} /> {timeAgo(runTime(last))}
           </span>
         </>
       )}
@@ -136,7 +142,6 @@ export function FlowSummary({ columns, enabled, maxBounces, editHref }: { column
 export function TeamActivity({ runs }: { runs: FlowRun[] }) {
   const { t } = useTranslation('team');
   const roleName = useRoleName();
-  const done = useRunDone();
   return (
     <section className="card team-side-card" aria-labelledby="team-activity">
       <div className="card-head">
@@ -156,10 +161,10 @@ export function TeamActivity({ runs }: { runs: FlowRun[] }) {
                       {run.item.key}
                     </Link>
                   ) : null}{' '}
-                  {run.state === 'running' ? t(`stage.${run.stage}.doing`) : run.state === 'queued' ? t('outcome.queued') : done(run)}
+                  {run.state === 'running' ? t(`stage.${run.stage}.doing`) : run.state === 'queued' ? t('outcome.queued') : <RunOutcome run={run} />}
                 </span>
-                <span className="team-activity-cause">
-                  {roleName(run.role)} · {run.summary && run.state === 'ended' ? run.summary : t(`stage.${run.stage}.name`)}
+                <span className="team-activity-cause" title={runNote(run) ?? undefined}>
+                  {roleName(run.role)} · {runNote(run) ?? t(`stage.${run.stage}.name`)}
                 </span>
               </span>
               <time className="team-activity-time">{timeAgo(runTime(run))}</time>

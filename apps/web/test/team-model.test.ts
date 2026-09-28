@@ -9,6 +9,7 @@ import {
   memberBody,
   roleFallbackName,
   roleInitials,
+  runNote,
   sameFlow,
   sameWrites,
   setColumnRole,
@@ -142,4 +143,12 @@ test("saving a member's model keeps a member that may write anywhere writing any
   assert.deepEqual(memberBody(member('qa', { writes: [] })).writes, []);
   assert.deepEqual(memberBody(member('dev', { writes: ['src/'] }), { writes: null }), { role: 'dev', model: 'sonnet', responsibility: '' });
   assert.deepEqual(memberBody(anywhere, { writes: ['docs/'] }).writes, ['docs/']);
+});
+
+test('a failed run says why beside its outcome, and one that passed says what it did', () => {
+  // The Team screen said "failed" and nothing else, and the item said nothing at all
+  assert.equal(runNote(run('a', { outcome: 'failed', error: 'the account hit its rate limit', summary: null })), 'the account hit its rate limit');
+  assert.equal(runNote(run('b', { outcome: 'failed', error: null })), null);
+  assert.equal(runNote(run('c', { outcome: 'passed', summary: 'Wrote the criteria' })), 'Wrote the criteria');
+  assert.equal(runNote(run('d', { state: 'running', outcome: null, error: 'x' })), null);
 });

@@ -19,8 +19,8 @@ import { NARROW, useMediaQuery } from '../../lib/media';
 import { taskPath } from '../../lib/work-items';
 import { AnswersFor, FileState } from './Members';
 import { frontmatterProblem } from '../config/frontmatter';
-import { memberBody, sameWrites, stageOf, writeScope, writesFor, type WriteScope } from './model';
-import { RunTicker, runTime, useRunDone } from './parts';
+import { memberBody, runNote, sameWrites, stageOf, writeScope, writesFor, type WriteScope } from './model';
+import { RunOutcome, RunTicker, runTime } from './parts';
 import { RoleAvatar, useRoleName } from './RoleAvatar';
 
 interface Draft {
@@ -47,8 +47,8 @@ function useAgentFile(projectId: string, member: TeamMember) {
 /** A line of "now and before": a run going now (live), queued, or ended, leading to its item. */
 function RunRow({ run }: { run: FlowRun }) {
   const { t } = useTranslation('team');
-  const done = useRunDone();
   const live = run.state === 'running';
+  const note = runNote(run);
   const body = (
     <>
       {live ? <Spinner variant="ring" className="member-run-spin" /> : <MessageCircle {...ICON_SM} className="member-run-icon" />}
@@ -58,8 +58,13 @@ function RunRow({ run }: { run: FlowRun }) {
           <span className="ellipsis">{run.item?.title ?? t('member.itemGone')}</span>
         </span>
         <span className="member-run-state">
-          {live ? <RunTicker run={run} showTime={false} /> : run.state === 'queued' ? t('outcome.queued') : done(run)}
+          {live ? <RunTicker run={run} showTime={false} /> : run.state === 'queued' ? t('outcome.queued') : <RunOutcome run={run} />}
         </span>
+        {note && (
+          <span className="member-run-note" title={note}>
+            {note}
+          </span>
+        )}
       </span>
       {!live && <time className="member-run-time">{timeAgo(runTime(run))}</time>}
     </>

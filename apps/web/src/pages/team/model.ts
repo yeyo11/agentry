@@ -108,6 +108,16 @@ export function teamActivity(members: readonly TeamMember[], limit = 6): FlowRun
   return runs.sort((a, b) => at(b).localeCompare(at(a))).slice(0, limit);
 }
 
+/**
+ * What a run that ended has to say beside its outcome: why it failed, or the summary it wrote. A
+ * failed run moved nothing, so its reason is the one thing that explains the item where it is.
+ */
+export function runNote(run: Pick<FlowRun, 'state' | 'outcome' | 'error' | 'summary'>): string | null {
+  if (run.state !== 'ended') return null;
+  if (run.outcome === 'failed' || run.outcome === 'cancelled') return run.error?.trim() || null;
+  return run.summary?.trim() || null;
+}
+
 /** Two members may not share a role (the flow hands a column to one), and an agent file name is the CLI's. */
 export const AGENT_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 
