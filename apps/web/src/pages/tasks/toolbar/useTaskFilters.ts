@@ -1,5 +1,5 @@
 import type { WorkItem, WorkItemFilter } from '@agentry/shared';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useListParams } from '../../../lib/list-params';
 import { ALL_PROJECTS, useProjectScope } from '../../../lib/project-scope';
 import { apiFilter, FILTER_PARAMS, filtersFromSearch, filtersToSearch, hasFilters, inProjects, type TaskFilters } from '../../../lib/work-items';
@@ -31,7 +31,19 @@ export function useTaskFilters(): TaskFilterState {
   // Each project, and All projects, keeps its own; until the scope is known there is no telling whose
   const { params, patch, reset } = useListParams('tasks', OWNED, settled ? (projectId ?? ALL_PROJECTS) : null);
   const search = params.toString();
-  const filters = useMemo(() => filtersFromSearch(new URLSearchParams(search)), [search]);
+  const allProjects = projectId === null;
+  const inAddress = useMemo(() => filtersFromSearch(new URLSearchParams(search)), [search]);
+  // `projects` picks among All projects' projects; with one project selected no chip shows it, so it
+  // would narrow the view to nothing with no way to take it off (a link, a stored set from before)
+  const strayProjects = settled && !allProjects && Boolean(inAddress.projects?.length);
+  const filters = useMemo<TaskFilters>(() => {
+    if (!strayProjects) return inAddress;
+    const { projects: _projects, ...rest } = inAddress;
+    return rest;
+  }, [inAddress, strayProjects]);
+  useEffect(() => {
+    if (strayProjects) patch({ [FILTER_PARAMS.projects]: null });
+  }, [strayProjects, patch]);
   const noMilestone = filters.milestoneId === NO_MILESTONE;
 
   const set = useCallback(
