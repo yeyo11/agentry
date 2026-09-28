@@ -8,7 +8,7 @@ import { Empty, ErrorBox, Skeleton } from '../../../components/ui';
 import { useLeaveGuard } from '../../../lib/dirty';
 import { NARROW, useMediaQuery } from '../../../lib/media';
 import { queryView } from '../../../lib/query-view';
-import { normalizeKey, renamedKey, returnState, taskPath } from '../../../lib/work-items';
+import { followedItem, normalizeKey, renamedKey, returnState, taskPath } from '../../../lib/work-items';
 import { WorkItemView } from './View';
 
 /**
@@ -34,9 +34,11 @@ export function ItemByKey({ itemKey, variant, onRenamed }: { itemKey: string; va
   const { t } = useTranslation('workItem');
   const byKey = useWorkItemByKey(itemKey);
   const found = useRef<{ key: string; id: string } | null>(null);
-  if (found.current?.key !== itemKey) found.current = null;
+  const shownKey = useRef<string | null>(null);
+  found.current = followedItem(found.current, itemKey, shownKey.current);
   if (byKey.data) found.current = { key: itemKey, id: byKey.data.id };
   const detail = useWorkItem(found.current?.id ?? null);
+  shownKey.current = detail.data?.key ?? null;
   const renamed = renamedKey(itemKey, detail.data?.key);
   const latest = useRef(onRenamed);
   latest.current = onRenamed;

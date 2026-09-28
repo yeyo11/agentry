@@ -557,6 +557,19 @@ a.work-link-name:hover {
   color: var(--fg-3);
 }
 
+/* Why a flow run failed, as the core wrote it: it may run long, so three lines at most */
+.work-link-why {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-2);
+  overflow-wrap: anywhere;
+}
+
 /* ---- what changed in its worktree (.diff-file) ----
    Under .workitem-card: the review screen has a .changes-head of its own (components/changes). */
 

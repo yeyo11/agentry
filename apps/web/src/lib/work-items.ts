@@ -67,6 +67,17 @@ export function renamedKey(wanted: string, current: string | null | undefined): 
 }
 
 /**
+ * The item an address goes on showing when its key changes: the same one, when the new key is the
+ * one it goes by now (the address followed a new prefix), so its page is not dropped to a skeleton
+ * and back, taking an edit in progress with it. Any other key starts over.
+ */
+export function followedItem(found: { key: string; id: string } | null, itemKey: string, shownKey: string | null | undefined): { key: string; id: string } | null {
+  if (!found) return null;
+  if (found.key === itemKey) return found;
+  return shownKey && renamedKey(itemKey, shownKey) === null ? { key: itemKey, id: found.id } : null;
+}
+
+/**
  * Where an item's page goes back to, and where it lands after a delete: the board or list it was
  * opened from (with its view, filters and project tab, as `location.state.from` carries them), or
  * Tasks. Only a path of this app is taken, never an address from elsewhere.

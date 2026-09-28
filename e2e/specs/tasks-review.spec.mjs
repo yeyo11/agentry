@@ -10,6 +10,7 @@
 // item open while its prefix changes follows its new key.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 
 export const timeout = 240_000;
 
@@ -171,8 +172,18 @@ export default async ({ page, api, check, dirs }) => {
       check((await api.get(`/projects/${project.id}/documents/file?path=${encodeURIComponent('docs/spec.md')}`)).status === 200, 'the file stays');
     });
 
-    await part('an open item follows a new prefix (key-rename)', async () => {
+    await part('an open item follows a new prefix (key-rename), once its edit is done', async () => {
+      // A new path mounts the page again: while the description is being edited the address waits
+      await page.click('.workitem-description .workitem-edit', undefined, 800);
+      await page.focus('.workitem-description .cm-content');
+      await page.type('Kept through a rename');
       await api.request('PATCH', `/projects/${project.id}`, { key: 'REV' });
+      await sleep(2500);
+      check(
+        await page.eval(`return document.querySelector('.workitem-description.is-editing .cm-content')?.textContent.includes('Kept through a rename') && !document.querySelector('[role=dialog]')`),
+        'the edit in progress stays, with no discard question',
+      );
+      await page.click('.workitem-edit-actions .btn', 'Cancel', 400);
       await page.waitFor(`return location.pathname === '/tasks/REV-' + ${JSON.stringify(first.key.split('-')[1])}`, { label: 'the address follows the new key' });
       check(await page.eval(`return !!document.querySelector('.workitem-title h1')`), 'and the item is still shown');
     });
@@ -182,6 +193,25 @@ export default async ({ page, api, check, dirs }) => {
       const kbd = await page.waitFor(`return document.querySelector('.doc-pane-foot .kbd')?.textContent`, { label: 'the save shortcut' });
       const mac = await page.eval(`return /mac|iphone|ipad/i.test(navigator.platform)`);
       check(kbd === (mac ? '⌘S' : 'Ctrl+S'), `the shortcut as this keyboard names it (${kbd})`);
+    });
+
+    await part("a failed flow run says so on the item's link, with its reason (14)", async () => {
+      await api.request('PUT', `/projects/${project.id}/team/developer`, { role: 'developer', model: 'sonnet', responsibility: 'Implements', createFile: true });
+      // The flow's own chat link and its failed run, as the core leaves them: the chat itself ended
+      // well enough, the run did not, and nothing moved the item
+      const db = new DatabaseSync(join(dirs.dataDir, 'wrapper.db'));
+      db.exec('PRAGMA busy_timeout = 15000');
+      const now = new Date().toISOString();
+      db.prepare("INSERT INTO work_item_links (id, item_id, kind, role, chat_id, created_at, team_role) VALUES ('e2e-flow-link', ?, 'chat', 'work', 'e2e-flow-chat', ?, 'developer')").run(second.id, now);
+      db.prepare(
+        "INSERT INTO flow_runs (id, project_id, item_id, role, agent, model, stage, column_name, state, chat_id, outcome, error, queued_at, started_at, ended_at) VALUES ('e2e-flow-failed', ?, ?, 'developer', 'developer', 'sonnet', 'work', 'in_progress', 'ended', 'e2e-flow-chat', 'failed', 'the chat ended without a result', ?, ?, ?)",
+      ).run(project.id, second.id, now, now, now);
+      db.close();
+      await page.goto(`/tasks/REV-${second.key.split('-')[1]}`, 1500);
+      const row = await page.waitFor(`return [...document.querySelectorAll('.work-link-row')].find((r) => r.textContent.includes('Run failed'))?.textContent`, { label: 'the failed run on its link' });
+      check(row.includes('the chat ended without a result'), `the link gives the reason (${row})`);
+      check(!row.includes('did not move it'), 'and does not read as a run that simply moved nothing');
+      check(await page.eval(`return !!document.querySelector('.work-link-row .badge-bad')`), 'in the bad colour, beside its word');
     });
 
     await part('New task on a project whose Board is off asks for one that has it (22)', async () => {

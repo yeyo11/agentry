@@ -85,6 +85,8 @@
     "origin": "la creó",
     "moved": "la llevó a {{to}}",
     "noMove": "no movió la tarea",
+    "runFailed": "Ejecución fallida",
+    "failedNoMove": "su ejecución falló y no movió la tarea",
     "noCost": "sin coste"
   },
   "changes": {
@@ -181,19 +183,19 @@
     "intro": "Empieza un chat en el worktree propio de la tarea, en la rama {{branch}}, con su descripción y sus criterios de aceptación como prompt. La tarea pasa a En curso cuando empieza, y a En revisión cuando su turno termina bien.",
     "start": "Empezar el chat",
     "starting": "Empezando…",
-    "failed": "No se pudo empezar el chat",
+    "failed": "No se ha podido empezar el chat",
     "blocked": {
       "epic": "Una épica agrupa trabajo y no se trabaja en ella: trabaja en una de sus tareas.",
       "done": "La tarea está en Hecho, y nada de lo que haga un agente la saca de ahí. Muévela atrás para volver a trabajar en ella."
     }
   },
   "errors": {
-    "save": "No se pudo guardar el cambio",
-    "move": "No se pudo mover la tarea",
-    "relate": "No se pudo añadir la relación",
-    "comment": "No se pudo enviar el comentario",
-    "create": "No se pudo crear la tarea",
-    "delete": "No se pudo eliminar la tarea"
+    "save": "No se ha podido guardar el cambio",
+    "move": "No se ha podido mover la tarea",
+    "relate": "No se ha podido añadir la relación",
+    "comment": "No se ha podido enviar el comentario",
+    "create": "No se ha podido crear la tarea",
+    "delete": "No se ha podido eliminar la tarea"
   },
   "newTask": {
     "title": "Nueva tarea",
