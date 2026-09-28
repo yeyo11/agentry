@@ -1,18 +1,16 @@
 import type { BoardColumn, WorkItem, WorkItemStatus } from '@agentry/shared';
 import { WORK_ITEM_STATUSES } from '@agentry/shared';
-import { Info, Plus } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useWorkItemBoard, useWorkItemPages } from '../../api';
-import { ICON_SM } from '../../components/icons';
 import { FabStandIn } from '../../components/shell/Fab';
-import { Card, Empty, ErrorBox, Skeleton } from '../../components/ui';
+import { Card, ErrorBox, Skeleton } from '../../components/ui';
 import { NARROW, useMediaQuery } from '../../lib/media';
 import { DirtyScope } from '../../lib/dirty';
 import {
   boardColumns,
-  firstKey,
   NEW_TASK_PARAM,
   openCount,
   returnState,
@@ -21,6 +19,7 @@ import {
   viewFromSearch,
 } from '../../lib/work-items';
 import { BoardColumns, type BoardSelection } from './board/BoardColumns';
+import { BoardOff, EmptyBoard, NoBoards, NothingFiltered } from './board/EmptyBoards';
 import { useLiveSources } from './board/LiveLine';
 import { BoardTeamProvider, FlowButton, useBoardTeamData } from './board/team';
 import { boardItems, boardTotal, DONE_SHOWN, doneLimitFor, holdsPart, NO_MILESTONE, nextDoneShown, notSelectable } from './board/model';
@@ -228,43 +227,9 @@ function TasksBoard() {
   // ---- the body ----
   let body;
   if (scope.boardOff && scope.project) {
-    body = (
-      <section className="card glow-top workitem-empty">
-        {/* Nothing can be started on a board that is off: no New task button floats over it */}
-        <FabStandIn />
-        <Empty
-          illustration="board"
-          illustrationText={firstKey(scope.project)}
-          size={phone ? 'md' : 'lg'}
-          title={t('empty.offTitle')}
-          action={
-            <Link to="/projects" className="btn">
-              {t('empty.offAction')}
-            </Link>
-          }
-        >
-          {t('empty.offBody', { project: scope.project.name })}
-        </Empty>
-      </section>
-    );
+    body = <BoardOff project={scope.project} phone={phone} />;
   } else if (scope.allProjects && scope.settled && scope.boardProjects.length === 0) {
-    body = (
-      <section className="card glow-top workitem-empty">
-        <FabStandIn />
-        <Empty
-          illustration="board"
-          size={phone ? 'md' : 'lg'}
-          title={t('empty.noneTitle')}
-          action={
-            <Link to="/projects" className="btn btn-primary">
-              {t('empty.noneAction')}
-            </Link>
-          }
-        >
-          {t('empty.noneBody')}
-        </Empty>
-      </section>
-    );
+    body = <NoBoards phone={phone} />;
   } else if (answer.error && !answer.data) {
     body = <ErrorBox error={answer.error} />;
   } else if (!answer.data || stale) {
@@ -274,48 +239,9 @@ function TasksBoard() {
       </Card>
     );
   } else if (empty) {
-    body = (
-      <section className="card glow-top workitem-empty">
-        {/* Its own primary is New task: the same action twice, one floating over the other, is noise */}
-        <FabStandIn />
-        <Empty
-          illustration="board"
-          illustrationText={firstKey(scope.project)}
-          size={phone ? 'md' : 'lg'}
-          title={t('empty.title')}
-          action={
-            <button type="button" className="btn btn-primary workitem-empty-new" onClick={() => openNew(null)}>
-              <Plus {...ICON_SM} />
-              {t('empty.action')}
-            </button>
-          }
-        >
-          {t('empty.body', { project: scope.project?.name ?? '' })}
-        </Empty>
-        {!phone && (
-          <p className="workitem-empty-hint">
-            <kbd className="palette-kbd">N</kbd> {t('empty.hint')}
-          </p>
-        )}
-      </section>
-    );
+    body = <EmptyBoard project={scope.project} phone={phone} onNew={() => openNew(null)} />;
   } else if (filters.active && shownTotal === 0) {
-    body = (
-      <Card>
-        <Empty
-          illustration="no-results"
-          size={phone ? 'sm' : 'md'}
-          title={t('empty.filteredTitle')}
-          action={
-            <button type="button" className="btn" onClick={filters.clear}>
-              {t('toolbar.reset')}
-            </button>
-          }
-        >
-          {t('empty.filteredBody')}
-        </Empty>
-      </Card>
-    );
+    body = <NothingFiltered phone={phone} onReset={filters.clear} />;
   } else if (view === 'list') {
     body = (
       <List

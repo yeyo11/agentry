@@ -9,7 +9,6 @@ import {
   PanelLeftOpen,
   Play,
   Plug,
-  Plus,
   Settings2,
   SquareCheck,
   Users,
@@ -19,22 +18,22 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { api, chatListQuery, keys, useOpenTaskCount, useTeam } from './api';
+import { api, chatListQuery, keys, useOpenTaskCount } from './api';
 import { CommandPalette, CommandPaletteTrigger, NEW_ORCHESTRATION_PATH, RUN_WORKFLOW_EVENT } from './components/CommandPalette';
 import type { MenuItem } from './components/controls/Menu';
 import { Tooltip } from './components/controls/Tooltip';
 import { DetailHost } from './components/DetailHost';
 import { BrandMark, ICON } from './components/icons';
-import { NotificationBell, NotificationHost } from './components/Notifications';
+import { NotificationHost } from './components/Notifications';
 import { PageTransition, SlidingIndicator, StatusDot } from './components/motion';
-import { ProjectSelector } from './components/ProjectSelector';
 import { lazyPage, ReloadBanner } from './components/ReloadOffer';
 import { Fab } from './components/shell/Fab';
-import { LiveChip, LiveSection, useLive } from './components/shell/live';
+import { LiveSection, useLive } from './components/shell/live';
 import { AccountCard, StatusBar, useConnection } from './components/shell/StatusBar';
+import { useRailCollapsed } from './components/shell/rail';
+import { TopBar } from './components/shell/TopBar';
 import { isActive, NavDot, navTarget, TabBar, type NavItem } from './components/shell/TabBar';
 import { SignIn } from './components/SignIn';
-import { SplitButton } from './components/SplitButton';
 import { Empty, Skeleton } from './components/ui';
 import { useUsageNow } from './lib/usage-now';
 import { useAuthChallenge, useAuthSettled } from './lib/auth';
@@ -44,11 +43,8 @@ import { useKeyboardInset } from './lib/viewport';
 import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
 import { fabFor, hidesTabBar, hidesTopBar } from './lib/shell-live';
-import { NEW_TASK_PATH, TASKS_PATH, normalizeKey } from './lib/work-items';
+import { NEW_TASK_PATH, TASKS_PATH } from './lib/work-items';
 import { Home } from './pages/Home';
-import { AssistantCrumbs, assistantProjectOf } from './pages/assistant/crumbs';
-import { asProjectView } from './pages/dashboard/views';
-import { useRoleName } from './pages/team/RoleAvatar';
 
 // Only the landing pages ship in the main bundle; everything else loads on first visit
 const Accounts = lazyPage(() => import('./pages/Accounts').then((m) => m.Accounts));
@@ -81,17 +77,9 @@ const ScheduleEditor = lazyPage(() => import('./pages/ScheduleEditor').then((m) 
 const Usage = lazyPage(() => import('./pages/Usage').then((m) => m.Usage));
 const Settings = lazyPage(() => import('./pages/Settings').then((m) => m.Settings));
 
-const RAIL_KEY = 'cw:sidebar-collapsed';
 /** A list prefetched on hover is used as it is if the click comes within this long. */
 const PREFETCH_FRESH_MS = 10_000;
 
-function readCollapsed(): boolean {
-  try {
-    return localStorage.getItem(RAIL_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
 
 export function App() {
   // A guarded wrapper reached without a credential answers 401 to everything, so the shell is not
@@ -105,32 +93,6 @@ export function App() {
     <ProjectScopeProvider>
       <Shell />
     </ProjectScopeProvider>
-  );
-}
-
-/**
- * The Team tab's crumbs: "Equipo", and below it "Equipo / Flujo" or "Equipo / Desarrollador", with
- * Equipo leading back, as the flow's and the member's references draw them.
- */
-function TeamCrumbs({ projectId, search }: { projectId: string; search: string }) {
-  const { t } = useTranslation(['home', 'team']);
-  const roleName = useRoleName();
-  const params = new URLSearchParams(search);
-  const agent = params.get('member');
-  const flow = params.get('section') === 'flow';
-  const members = useTeam(agent ? projectId : null).data?.members;
-  if (!agent && !flow) return <span className="crumb-page ellipsis">{t('home:tabs.team')}</span>;
-  const role = agent ? (members?.find((m) => m.agent === agent)?.role ?? agent) : null;
-  return (
-    <>
-      <Link to={`/?${new URLSearchParams({ project: projectId, view: 'team' }).toString()}`} className="crumb-page muted ellipsis">
-        {t('home:tabs.team')}
-      </Link>
-      <span className="crumb-sep" aria-hidden>
-        /
-      </span>
-      <span className="crumb-page ellipsis">{role ? roleName(role) : t('team:flow.title')}</span>
-    </>
   );
 }
 
@@ -150,7 +112,7 @@ function Shell() {
   const connection = useConnection(overview, feed === 'open');
   const live = useLive(counts);
   const openTasks = useOpenTaskCount(project, settled);
-  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const [collapsed, setCollapsed] = useRailCollapsed();
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -173,14 +135,6 @@ function Shell() {
     const timer = setTimeout(load, 2000);
     return () => clearTimeout(timer);
   }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(RAIL_KEY, collapsed ? '1' : '0');
-    } catch {
-      // private mode: the preference just does not persist
-    }
-  }, [collapsed]);
 
   // A route change is silent to a screen reader and leaves keyboard focus on a link that may no
   // longer be there, so focus moves to the page, unless the page already took it (an autofocus).
@@ -242,12 +196,6 @@ function Shell() {
   const newChat = () => navigate(project?.exists ? `/chats/new?cwd=${encodeURIComponent(project.path)}` : '/chats/new');
   const newOrchestration = () => navigate(NEW_ORCHESTRATION_PATH);
   const newTask = () => navigate(NEW_TASK_PATH);
-  // A project's page reads "Projects / <name> / <tab>", as every project tab of the reference does.
-  // A tab its modules hide lands on Summary, so the crumb may name it for a moment before that
-  const projectTab = pathname === '/' && project ? (asProjectView(new URLSearchParams(search).get('view')) ?? 'summary') : null;
-  const assistantProject = assistantProjectOf(pathname);
-  // A work item's page, and the review of its changes, add its key to the crumb: "Tasks / AGN-12"
-  const taskKey = pathname.startsWith(`${TASKS_PATH}/`) ? normalizeKey(decodeURIComponent(pathname.slice(TASKS_PATH.length + 1).split('/')[0] ?? '')) : null;
   // What else a person can start: behind "New chat ▾" in the top bar, and in the phone's More sheet
   const startEntries: MenuItem[] = [
     { id: 'run-workflow', label: t('shell.runWorkflow'), icon: Play, onSelect: () => setWorkflowOpen(true) },
@@ -360,55 +308,7 @@ function Shell() {
       </aside>
 
       <div className="content">
-        {/* In the desktop app this bar is also the window's title bar (lib/desktop.ts, styles/shell.css) */}
-        <header className="topbar">
-          {/* A phone has no sidebar, so the bar carries the mark that leads home */}
-          <NavLink to="/" className="brand topbar-brand" aria-label="Agentry">
-            <BrandMark size={28} />
-          </NavLink>
-          {/* The scope is the crumb's root: every page below it is about that project */}
-          <div className="crumbs">
-            <ProjectSelector />
-            <span className="crumb-sep" aria-hidden>
-              /
-            </span>
-            {projectTab && project ? (
-              <>
-                <Link to="/projects" className="crumb-page muted ellipsis">
-                  {projects.label}
-                </Link>
-                <span className="crumb-sep" aria-hidden>
-                  /
-                </span>
-                <span className="crumb-page muted ellipsis">{project.name}</span>
-                <span className="crumb-sep" aria-hidden>
-                  /
-                </span>
-                {projectTab === 'team' ? <TeamCrumbs projectId={project.id} search={search} /> : <span className="crumb-page ellipsis">{t(`home:tabs.${projectTab}`)}</span>}
-              </>
-            ) : assistantProject ? (
-              <AssistantCrumbs projectId={assistantProject} projectsLabel={projects.label} />
-            ) : taskKey ? (
-              <>
-                <Link to={TASKS_PATH} className="crumb-page muted ellipsis">
-                  {current?.label}
-                </Link>
-                <span className="crumb-sep" aria-hidden>
-                  /
-                </span>
-                <span className="crumb-page mono">{taskKey}</span>
-              </>
-            ) : (
-              <span className="crumb-page ellipsis">{current?.label ?? 'Agentry'}</span>
-            )}
-          </div>
-          <div className="topbar-actions">
-            <CommandPaletteTrigger className="topbar-search" />
-            <LiveChip live={live} />
-            <NotificationBell />
-            <SplitButton className="topbar-new" label={t('shell.newChat')} icon={Plus} onClick={newChat} entries={startEntries} />
-          </div>
-        </header>
+        <TopBar pathname={pathname} search={search} projectsLabel={projects.label} currentLabel={current?.label} live={live} startEntries={startEntries} onNewChat={newChat} />
 
         <ReloadBanner />
 
