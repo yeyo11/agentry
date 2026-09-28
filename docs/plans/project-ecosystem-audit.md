@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T07:12:38.39333137Z
-updated_at: 2026-09-27T21:30:00Z
+updated_at: 2026-09-28T18:00:00Z
 tags:
     - audit
     - plan
@@ -297,7 +297,14 @@ environment): typecheck, 1,476 unit tests, the build and all 47 e2e spec files p
 Run on 2026-09-28 over `origin/main...849b0ff` by five reviewers on Opus, one per area (the store
 and the automation; the modules that launch agents; the API; the web wiring; a hands-on walkthrough
 of the built app with the fake CLI), each reproducing what it could. The most serious items were
-checked again by hand in the code. Nothing was fixed yet: this section is the list of work.
+checked again by hand in the code.
+
+Status: **fixed by `ecosystem-review-fixes` (orchestration 5) on 2026-09-28**, except what
+[Still open after orchestration 5](#still-open-after-orchestration-5) lists. Each finding is marked
+**closed**, **partly closed** or **open** after an arrow, with the task that closed it and the test
+that covers it. `review-5` re-ran every reproduction on the merged branch of the six fix tasks.
+`pnpm typecheck` and `pnpm test` pass there; `pnpm build` and `pnpm e2e` run in the verification
+phase, on the merged branch.
 
 ### Cost, safety and data
 
@@ -306,36 +313,65 @@ checked again by hand in the code. Nothing was fixed yet: this section is the li
    "Agentry restarted while you were on this run…" (`flow.ts:495`, `index.ts:1230`). The structured
    result still moves the card. Reproduced. The flow also has no restart counter, unlike the
    assistant. Fix: build the full prompt in the fallback (or fail the run) and bound restarts.
+   → **Closed** by `fix-flow`: a cut run continues only in its own chat, at most twice
+   (`flow_runs.restarts`), and keeps its first `started_at`; otherwise it fails with a comment on
+   the item. Tests: `flow-cli.test.ts`, `flow.test.ts`.
 2. **Flow members get unrestricted `Bash`, `WebFetch` and `WebSearch` in every stage**, and no run
    sets `--max-budget-usd` (`flow.ts:80`). A Product Owner or QA run can push, delete or fetch.
    Fix: tool sets per stage, deny `Bash(git push *)`, a per-run budget setting.
+   → **Closed** by `fix-flow`, one decision changed: each stage has its own tools, `git push` is
+   always denied, `WebFetch`/`WebSearch` only in the work stage, and `flow.maxCostUsd` is passed as
+   `--max-budget-usd`. The owner decided on **no default budget**, not the plan's 2 USD. `writes`
+   still does not bound the shell in the work stage
+   ([team-and-flow.md](../team-and-flow.md#known-gaps)). Test: flow-cli "each stage runs with its
+   own rules".
 3. **The assistant is not strictly read-only.** `--allowedTools` adds to the rules of the user,
    project and local settings, `Bash(git log *)` admits `git log --output=<path>` (writes a file),
    every chat gets `--add-dir <uploads>`, and a bare `Read` is not scoped to the project
    (`assistant.ts:152`, `chats.ts:1325`). Fix: `--tools Read,Grep,Glob`, restrict setting sources,
    hand git facts in the prompt, deny `Read(./.env*)` and credential files, skip uploads.
+   → **Closed** by `fix-assistant`: an assistant chat is confined (`ChatConfinement`):
+   `--tools=Read,Grep,Glob`, `--setting-sources=`, `--restricted`, no `--add-dir`, reads of `.env*`,
+   keys, credentials and `.git/` denied, git facts and `CLAUDE.md` handed in the prompt. Flags
+   checked against CLI 2.1.282. Test: `assistant-cli.test.ts`.
 4. **The Documents folder may itself be a symlink out of the project** (`documents.ts:103,240,268`):
    the file is checked against the folder, the folder never against the project. Reproduced:
    read and write through `linked -> /tmp/outside`. Fix: the resolved folder must be inside the
    resolved project.
+   → **Closed** by `fix-core-data`: the resolved folder must be inside the resolved project, or a
+   400. Test: the documents tests.
 5. **"Retry clean" on a failed orchestration node can delete "Work on it" work.** `recordPlace`
    adopts the node's worktree for the item; `startOver` then force-removes that worktree and
    branch (`work-links.ts:385`, `orchestrator.ts:1849`). Fix: keep "Work on it" on its own
    `task/<key>` worktree, or refuse to remove a worktree an item holds.
+   → **Closed** by `fix-links-api`: "Work on it" always has its own `task/<key>` worktree, branched
+   from the node's branch when a node worked on the item, and a node no longer takes over an item's
+   place. Test: the work-links tests.
 6. **"Work on it" branches from the main checkout's HEAD, not the project's**, when the project is
    a linked worktree (`work-links.ts:169`, and `changes.ts:173` diffs the same way). Reproduced.
    A submodule project gets its worktree under `.git/modules/…`. Fix: `headCommit(projectPath)` as
    the base, and the main worktree from `git worktree list`.
+   → **Closed** by `fix-links-api`: the branch and its changes use the project's HEAD; a submodule's
+   main checkout is its own top level (`mainCheckout`), while the orchestrator keeps `mainTopLevel`,
+   where the CLI adopts worktrees (`546d0b7`). Tests: the linked-worktree and submodule tests.
 7. **A chat the flow ran keeps the member's options when a person continues it**: `dontAsk`, the
    member's allow-list, `keepAlive: false`, model and system prompt persist after `resume`
    (`chat-service.ts:519`). Reproduced from the spawn arguments. The person's own "Work on it" chat
    then silently denies their edits outside `writes`. Fix: snapshot and restore, or never resume a
    person's chat for a member.
+   → **Closed** by `fix-flow` and `review-5`: resuming or forking a flow or assistant chat hands it
+   back (`handBack`) with a new chat's mode and tools; member and assistant runs pass
+   `--system-prompt-snapshot off`; a Developer never resumes a person's "Work on it" chat. Test:
+   `assistant-cli.test.ts` drives the hand-back and the confinement together.
 8. **Two processes opening a pre-feature database at once: one crashes on the migrations**
    (`db.ts:450`: `user_version` read outside a deferred transaction). Reproduced (5 of 18).
    Predates the feature, which added five migrations. Fix: `BEGIN IMMEDIATE` and re-read inside.
+   → **Closed** by `fix-core-data`: each migration runs in `BEGIN IMMEDIATE` and reads
+   `user_version` inside it. Test: db "two processes upgrading…".
 9. **A "suggest again" run that fails to start buries the previous proposals for good**
    (`assistant.ts:329` supersedes before launching; `restore` refuses superseded). Reproduced.
+   → **Closed** by `fix-assistant`: a superseding run that ends without proposals hands the previous
+   ones back in the same transaction. Test: assistant "suggesting again that ends with nothing…".
 
 ### Decisions not met, and data shown wrong
 
@@ -343,90 +379,206 @@ checked again by hand in the code. Nothing was fixed yet: this section is the li
     only `verdict`, and `apply()` never marks a criterion (`flow.ts:201`). An item reaches `done`
     with every criterion unchecked. Fix: `criteria: [{ id, met, note }]` in the schema, checked as
     the agent.
+    → **Closed** by `fix-flow`: the verify result carries `criteria: [{ id, met, note }]`, each met
+    one is checked as QA, and the run passes only when all are met. Test: flow "QA judges each
+    criterion".
 11. **Epics still count with All projects** (`index.ts:1335`) and in the List view's group counts,
     while the per-project board leaves them out: the sidebar and the More sheet change their
     figure when the scope changes. Reproduced on the app.
+    → **Closed** by `fix-core-data` (All projects counts) and `fix-web-tasks` (the List's group
+    counts). Tests: the core counts, the API's All projects test, the e2e list group counts.
 12. **Events can reach the web out of order and be dropped.** A handler that emits while an event
     is being delivered has its event sent first; the web discards the earlier id
     (`core/events.ts:43`, `web/lib/events.ts:476`). Seen: `journal.changed` before
     `workitem.moved` on a move to `done`, so other tabs never see the move; the same for
     `flow.run` and `assistant.run`. Fix: queue nested emits until the current delivery ends.
+    → **Closed** by `fix-core-data`: the bus queues nested emits until the current delivery ends.
+    Tests: the events and journal ordering tests.
 13. **The Product Owner's write permission reads two opposite ways**: "escribe: nada, solo tareas"
     in the proposal and the template list, "En todo el proyecto" on the member card
     (`writeRules([])` gives no edit rule but the card says the opposite). And the flow prompt asks
     the Product Owner to write a spec and QA a report under `documents.path` while `writes: []`
     denies it silently (`assistant.ts:174`, `flow.ts`).
+    → **Closed** by `fix-flow` (the agent file for `writes: []`, the documents folder writable in
+    every stage) and `fix-web-team` (the card, the proposal and the editor name the three cases;
+    saves keep `writes` absent when it was). Tests: the flow rules and team tests,
+    `team-model.test.ts`, the Team e2e spec.
 14. **A failed flow run is invisible on the task**: the chat shows "COMPLETADA · no movió la tarea",
     no comment, no reason; only the Team tab says "fallida".
+    → **Partly closed.** A failed run carries its `error` and leaves a comment on the item
+    (`fix-flow`); the Team screens show the reason in the bad colour (`fix-web-team`); the item's
+    chat link reads "Ejecución fallida" and the reason (`review-5`). Tests: `tasks-screens.test.ts`,
+    `tasks-review.spec.mjs` part 14, the Team e2e spec. **Open:** the web has only each member's
+    latest run, so an older failed run's link reads as a normal one again (the comment stays), and
+    the failed run's own chat page says nothing. Serving an item's runs from the core would close
+    it.
 15. **Before the flow is saved, the Team screen draws a flow that does not exist** (columns per
     role shown while `settings.flow` is null).
+    → **Closed** by `fix-web-team`: with `settings.flow` null the Team screen says the flow is not
+    set up, and the Flow screen offers the template's proposal as a draft to save. Tests: the
+    `savedFlow` and `proposedFlow` tests, the Team e2e spec.
 16. **Documents between 1 MiB and 2 MiB open but never save**: the core allows 2 MB, Fastify's body
     limit is 1 MiB (`routes/documents.ts:17`).
+    → **Closed** by `fix-core-data` (1 MiB in the core) and `fix-links-api` (the write route's body
+    limit fits any content the core accepts). Test: API "a document of up to 1 MiB".
 
 ### Bugs a user hits
 
 17. **"Crear otra" in New task is ignored**: `Board.tsx:350` passes `onCreated={() => closeNew()}`,
     overriding the keep-open branch. Reproduced.
+    → **Closed** by `fix-web-tasks`: the form decides, and focus goes to the new card or row. Test:
+    `tasks-review.spec.mjs`.
 18. **Escape in a dialog opened from the item panel also closes the panel** (and the New task form
     from its relation picker), because every `Dialog` listens on `document` in capture phase.
+    → **Closed** by `fix-web-tasks`: modal surfaces share one stack and only the top one hears a
+    key. Test: `tasks-review.spec.mjs`.
 19. **An API blip unmounts open editors and loses unsaved text**: Documents, the item page and the
     panel replace their content with an error box while a fallback poll fails
     (`Documents.tsx:67`, `Pane.tsx:168`, `Panel.tsx:32`). No dirty guard on the item's title and
     description either.
+    → **Closed** by `fix-web-tasks`: `queryView()` keeps what was shown through a failed refetch,
+    and an edited title or description asks before leaving. Tests: `tasks-screens.test.ts`,
+    `tasks-review.spec.mjs`.
 20. **The wizard only rejects names with spaces or accents after "Crear proyecto", in English**
     ("invalid project name (letters, digits, _ . - only)"), while Settings accepts such a rename.
+    → **Closed** by `fix-web-team`: the wizard makes the folder from the name, says which folder
+    while it is typed, and renames the project to the name as typed. Test: `projects-model.test.ts`.
 21. **Filters of one project survive a project switch** (`projects=`, `epic=`, `milestone=` in the
     address), leaving "0 of N" with no chip to remove.
+    → **Closed** by `fix-web-tasks`: a filter the scope does not have leaves the address, judged
+    only on fresh lists. Test: `tasks-review.spec.mjs`.
 22. **New task can be a dead end** when the selected project's Board is off: the palette and the
     FAB open the form with no picker and a disabled Create.
+    → **Closed** by `fix-web-tasks`: New task asks for a project that has a board. Test:
+    `tasks-review.spec.mjs`.
 23. **Deleting an item or going back drops the board's context** (filters, view, project tab).
+    → **Closed** by `fix-web-tasks`: Delete closes the panel, and Back returns to the address the
+    page was opened from. Test: `tasks-review.spec.mjs`.
 24. **A document tied to a task cannot be untied from the UI**; deleting the file is the only way.
+    → **Closed** by `fix-web-tasks`: each tied document has an untie button that leaves the file.
+    Test: `tasks-review.spec.mjs`.
 25. **Assistant chats are titled with their English system prompt** in the chat list, the sidebar
     and "Retomar"; the "Trabajar en ella" prompt and the orchestration draft's prompts are in
     English too.
+    → **Partly closed.** Assistant chats are titled in the person's language ("Asistente de …", from
+    `Accept-Language`), and the chat list, the sidebar and "Retomar" show it (`fix-assistant`).
+    **Open:** the "Work on it" prompt starts `KEY: title` rather than the plan's `KEY · title`, and
+    the rest of it and the orchestration draft's prompts are English instructions for Claude; an
+    assistant run relaunched after a restart is titled in English, as its language is not kept.
 26. **"Sugerir" on the Resources tab gives no feedback** when pressed from a kind section with a
     file open.
+    → **Closed** by `fix-web-team`: "Sugerir" leaves the editor first (asking if it holds unsaved
+    text) and shows "Sugiriendo…" with a spinner. Test: a `suggest.spec.mjs` step.
 27. **Malformed bodies answer 500** (`acceptanceCriteria: "abc"`, `epicId: true`, repeated query
     parameters, writing a document "under" a file), and `description`, criteria and milestone
     descriptions have no length cap, which makes every board read heavy.
+    → **Closed** by `fix-core-data` (body shapes; caps of 100,000 characters for a description,
+    2,000 for a criterion and 10,000 for a milestone's description; 409 for a document under a file)
+    and `fix-links-api` (repeated query parameters, journal, project and graph bodies). `review-5`
+    found `POST /chats` still answered 500 to text fields of the wrong type and fixed it; a probe of
+    about 45 routes finds no other 500. Tests: `api.test.ts` and the core validation tests.
 28. **A `task/<key>` branch checked out elsewhere gives git's raw error as a 400**, not the
     documented 409.
+    → **Closed** by `fix-links-api`: the documented 409, naming where the branch is checked out.
+    Test: the work-links 409 test.
 29. **Phone**: the label input is 12 px (iOS zooms) and the label controls are 24 px; the FAB covers
     a column header's role label; the sheet's close button is 30 px.
+    → **Closed** by `fix-web-tasks` (a 16 px label input, 44 px label controls and sheet close
+    button, section heads kept clear of the FAB) and `review-5` (the phone's resource name field).
+    Tests: `tasks-review.spec.mjs`, `suggest.spec.mjs`; the FAB change is CSS with no test.
 30. **Wrong save shortcut on Linux** ("⌘S" hard-coded in the document and resource editors).
+    → **Closed** by `fix-web-tasks`: `shortcut()` names Ctrl+S outside Apple keyboards. Test:
+    `tasks-review.spec.mjs`.
 
 ### Inconsistencies and drift
 
 - The project header says "0 chats" on projects with assistant, flow and work chats.
+  → **Closed** by `fix-links-api`: the count and the last activity come from the chat list the
+  project's page reads.
 - The docs overstate a key prefix change: recorded branches, worktree paths, chat titles, node ids
   and `/tasks/<old key>` links keep the old key; two projects can derive the same `task-<key>` path.
+  → **Closed** by `fix-links-api`: [work-items.md](../work-items.md) says what keeps the old key,
+  and an item worktree's lock records the project that made it, so two projects never share one.
+  An item's page open through a prefix change follows it to the new key (`fix-web-tasks`).
 - The re-import comment says the opposite of the code (modules replaced, not merged); a stale
   "orchestration 3" comment in `project-settings.ts` and `ProjectGeneral.tsx`; docs say
   "unlocked and pruned" where the code removes; OpenAPI for settings omits team, flow and documents;
   `docs/team-and-flow.md` says only Edit/Write are allowed with `writes`.
+  → **Closed**: the re-import comment by `fix-core-data`, the stale comments by `fix-web-team` and
+  `review-5`, `work-items.md` by `fix-links-api`, the settings' OpenAPI by `review-5`, and
+  `team-and-flow.md`'s table of each stage's tools by `fix-flow`.
 - Status codes differ for the same situation across routes (journal 404 vs relations 400 for a
   foreign item; `from-template` 200 vs 201 elsewhere; `PATCH {status}` silently ignored).
+  → **Partly closed** by `fix-links-api`: the journal answers 400 like a relation, and a `PATCH`
+  naming `status` or `afterId` is a 400 pointing at `POST /work-items/:id/move`. **Open, on
+  purpose:** `from-template` keeps its 200, since it answers the whole team and sending it twice
+  changes nothing.
 - Two routes tie a document (`/documents` and `/links` with `kind=document`); `itemId` vs
   `otherId`; `/memory-proposals/:id` vs `/assistant/proposals/:id`.
+  → **Closed as decided**: both routes stay, `/links` documented as the general form and
+  `/documents` as its shorthand; the relation routes say `itemId` and `otherId` are the same item.
+  The two proposal paths stay as they are.
 - No `project.created` / `project.removed` events; `GET /projects/:id/settings` can write.
+  → **Closed**: `fix-links-api` added both events, and the web refreshes the project lists and the
+  All projects views on them. A first read of the settings still writes the document; the OpenAPI
+  now says so (`review-5`).
 - The Spanish glossary was not extended (Backlog, Épica, Historia, Hito, Responsable, Flujo…) and
   "tarea" now names both a work item and an orchestration node; "No se pudo…" and "No se ha
   podido…" both in use; "Arquitecto · Descartada"; toasts and prompts with English left in.
+  → **Closed** by `fix-web-team` (the glossary, with "nodo" where the two meet, and "Arquitecto ·
+  Propuesta descartada") and `review-5` (the copy end to end; a test in `i18n.test.ts` keeps the
+  replaced forms out of every namespace). The English left in Claude's prompts is finding 25.
 - Unused: `AssistantService.ownsChat`, `TeamService.memberForRole`, core's `FLOW_COLUMNS`, the
   `work_item_labels_label` index, and eight i18n keys; five web files over 400 lines.
+  → **Closed**, except the file sizes: `ownsChat` removed by `fix-assistant`, `memberForRole` and
+  the index by `review-5` (a migration drops it; `db.test.ts`), core no longer has `FLOW_COLUMNS`,
+  and `fix-web-team` dropped nineteen unread keys. **Open:** the web files over 400 lines were not
+  split.
 - Approved memory files get an unquoted YAML `description`; memory proposals are never
   de-duplicated; a flow result path like `./docs/x.md` is refused silently.
+  → **Closed**: the description is written as a JSON string and a proposal of the same text for
+  the same target is the one already there (`fix-core-data`); `./` and absolute paths are made
+  relative, and what still cannot be tied is named in the run's comment (`review-5`).
+
+Found by `review-5` next to the findings, and fixed: every team change wrote the whole settings
+document back, undoing a module switched meanwhile (only the team and the flow are written now;
+`project-settings.test.ts`); a graph node could name another project's item and move it (400;
+API `work-links`); a fork of a flow or assistant chat kept the run's mode and tools; and a refine or
+verify chat's inspector said the item would move to In review (`work-item-links.test.ts`).
 
 ### Improvements a user would want
 
 - Warn when "Mover a Hecho" leaves criteria unchecked, and when deleting an item a chat is working
   on.
+  → **Done** by `fix-web-tasks`: "Move to Done" asks while criteria are unchecked, and deleting an
+  item a chat or a node works on says that work goes on without it.
 - Every backlog card costs two back-to-back runs (refine in `backlog`, then the `todo` check);
   "Crear las seleccionadas" on eight suggestions queues eight runs with no word.
+  → **Partly done**: "Crear las seleccionadas" says how many flow runs it queues, the role and how
+  many run at a time (`review-5`; `team-model.test.ts`, a `suggest.spec.mjs` step). **Open:** a
+  backlog card still costs two runs.
 - Page the Done column and the unbounded lists; leave descriptions out of board payloads; stop
   refetching `changes` (a git diff) on every run event.
+  → **Partly done**: `changes` is read again only on a turn that ended or a node that moved
+  (`fix-web-team`). **Open:** paging was left out by the plan's decision, and board payloads still
+  carry descriptions, now capped at 100,000 characters (finding 27).
 - Keep the Tasks filters when leaving and coming back; remove or explain the Done column limit;
   validate agent-file frontmatter before saving; let "Crear con IA" pick a free name.
+  → **Done**: the filters are kept through `main`'s `useListParams`
+  ([persistent-filters.md](../persistent-filters.md)); the Done column has no limit control; the
+  resource editor, a proposal's editor and a member's agent file check the frontmatter before
+  saving; a proposal's name starts from the first free `<name>-2`, `-3`… (`fix-web-team`).
+
+### Still open after orchestration 5
+
+- **14:** an older failed flow run's link on the item, and a failed run's own chat page.
+- **25:** the "Work on it" and orchestration draft prompts, and an assistant run relaunched after a
+  restart.
+- `from-template` answers 200, on purpose.
+- A backlog card costs two flow runs; board payloads carry descriptions; nothing is paged.
+- Web files over 400 lines, not split.
+- `writes` does not bound the shell in the flow's work stage (a known gap of
+  [team-and-flow.md](../team-and-flow.md#known-gaps)).
 
 ### Verified as sound
 
