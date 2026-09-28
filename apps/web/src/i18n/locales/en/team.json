@@ -19,7 +19,7 @@
     },
     "work": {
       "name": "implements",
-      "doing": "Working",
+      "doing": "Implementing",
       "done": "worked on",
       "onEnter": "opens a chat in the task's worktree",
       "onEnd": "moves it to In review"
@@ -162,7 +162,7 @@
   "empty": {
     "title": "This project has no team yet",
     "body": "Each member is a CLI agent in <code>.claude/agents/</code>, with its role, its model and what it may write, so it also works from the terminal. Start with the template's team and edit each member afterwards.",
-    "bodyShort": "Each member is a CLI agent in <code>.claude/agents/</code>, with its role and its model. Start with the template's team.",
+    "bodyShort": "Each member is a CLI agent in <code>.claude/agents/</code>, with its role and its model. The assistant reads the project and proposes a team; you accept it member by member.",
     "useTemplate": "Use the template's",
     "templateBrings": "The {{name}} template brings",
     "templateBringsShort": "The template brings",
@@ -215,18 +215,16 @@
       },
       "done": {
         "does": "You approve the move to Done. No agent moves a task to Done.",
-        "then": "→ fixed: it does not depend on the flow"
+        "then": "→ fixed: it does not depend on the flow",
+        "phone": "no agent moves an item to Done"
       }
     },
     "bouncesTitle": "Bounces",
-    "bouncesBody": "How many times QA may send a task back before it waits for you.",
     "bouncesBodyShort": "after that, the task waits for you",
     "bouncesMax": "Bounces at most",
-    "atMost": "at most",
-    "bounceOf": "{{n}} of {{max}}",
     "modelsTitle": "Model of each role",
     "modelFor": "Model of {{role}}",
-    "modelsHint": "Opus for Product Owner and Architect, Sonnet for the rest, as the template brings.",
+    "modelsHint": "Opus for the Product Owner and the Architect, Sonnet for the rest, as the template brings them. The alias is saved in the agent file; beside it, the model it points to today.",
     "save": "Save the flow",
     "saved": "Flow saved",
     "saveFailed": "Could not save the flow",
@@ -234,13 +232,18 @@
     "changes_other": "{{count}} unsaved changes",
     "limitsTitle": "Limits",
     "parallel": "Runs at once",
-    "parallelHint_one": "{{count}} unless you choose",
-    "parallelHint_other": "{{count}} unless you choose",
-    "cost": "Spend per run",
-    "costLabel": "Spend per run, in USD",
-    "costHint": "The CLI stops a run that reaches it. Empty: no limit.",
+    "parallelHint": "the rest wait in the queue, in order",
+    "cost": "Cost per run",
+    "costLabel": "Cost per run, in USD",
+    "costHint": "empty, no limit (the default)",
     "noLimit": "No limit",
-    "usd": "USD"
+    "usd": "USD",
+    "parallelShort": "At once",
+    "costPhone": "Highest cost per run",
+    "costHintPhone": "Empty, no limit. With a limit, the run that reaches it fails and says so on its item.",
+    "bouncesHint": "how many times QA sends it back before it waits for you",
+    "seeRuns": "See runs",
+    "limitsFoot": "With a cost limit, the run that reaches it stops, fails and says so on its item. The items sent back are in Activity, under the Sent back filter."
   },
   "activity": {
     "title": "Team activity",
@@ -271,6 +274,192 @@
     "noMatch": "No run of the team matches these filters.",
     "more": "Load more · {{n}} left",
     "openChat": "Open the chat of {{key}}"
+  },
+  "step": {
+    "refine": {
+      "name": "refinement",
+      "doing": "Refining",
+      "failed": "Failed to refine it"
+    },
+    "check": {
+      "name": "check",
+      "doing": "Checking",
+      "failed": "Failed to check it"
+    },
+    "work": {
+      "name": "implementation",
+      "doing": "Implementing",
+      "failed": "Failed to implement it"
+    },
+    "verify": {
+      "name": "verification",
+      "doing": "Verifying",
+      "failed": "Failed to verify it"
+    }
+  },
+  "run": {
+    "badge": {
+      "running": "running",
+      "queued": "queued",
+      "passed": "passed",
+      "rejected": "sent back",
+      "failed": "failed",
+      "cancelled": "cancelled"
+    },
+    "label": "{{role}}, {{step}} of {{key}}",
+    "labelGone": "{{role}}, {{step}} of a deleted item",
+    "failed": "Failed",
+    "openChat": "See the chat",
+    "retry": "Retry",
+    "retryFailed": "Could not retry the run",
+    "retryQueued": "Run queued again",
+    "retriedBy": {
+      "running": "Retried: running",
+      "queued": "Retried: queued",
+      "passed": "Retried: passed {{when}}",
+      "rejected": "Retried: sent back {{when}}",
+      "failed": "Retried: failed again {{when}}",
+      "cancelled": "Retried: cancelled {{when}}"
+    },
+    "waitsPlace": "Waiting for a place: {{running}} of {{max}} runs are running",
+    "waitsTurn": "Waiting for its turn in the queue",
+    "resumes": "Will resume its chat when there is a place",
+    "passedToReview": "moved to In review",
+    "waitsForYou": "waits for you to move it to Done",
+    "itemGone": "Deleted item"
+  },
+  "cause": {
+    "budget": {
+      "title": "It reached the cost limit.",
+      "body": "It hit the flow's cost per run and stopped. The item stays in {{column}}, unchanged.",
+      "short": "reached the cost limit"
+    },
+    "no-account": {
+      "title": "No account had quota left.",
+      "body": "The accounts reached their limit and there was no other to switch to. The item stays in {{column}}, unchanged.",
+      "short": "no account had quota left"
+    },
+    "rate-limit": {
+      "title": "The account reached its limit.",
+      "body": "Account rotation is off, so it did not switch to another. The item stays in {{column}}, unchanged.",
+      "short": "the account reached its limit"
+    },
+    "stopped": {
+      "title": "Its chat was stopped.",
+      "body": "The chat was stopped before it finished. The item stays in {{column}}, unchanged.",
+      "short": "its chat was stopped"
+    },
+    "restarts": {
+      "title_one": "It was cut off {{count}} time.",
+      "title_other": "It was cut off {{count}} times.",
+      "body": "Agentry restarted while {{role}} was working. It went on in its chat as many times as allowed; the next time, the run was marked as failed.",
+      "short": "cut off by Agentry restarting"
+    },
+    "unreadable": {
+      "title": "It left no readable result.",
+      "body": "The chat ended without the result the flow reads to move the item. The item stays in {{column}}, unchanged.",
+      "short": "no readable result"
+    },
+    "no-verdict": {
+      "title": "It ended without a verdict.",
+      "body": "The verification ended without saying whether the item passes. The item stays in {{column}}, unchanged.",
+      "short": "ended without a verdict"
+    },
+    "not-started": {
+      "title": "Its chat never started.",
+      "body": "The CLI could not open the run's chat. The item stays in {{column}}, unchanged.",
+      "short": "its chat never started"
+    },
+    "not-continued": {
+      "title": "Its chat could not be resumed.",
+      "body": "Agentry restarted and the chat could not continue. The item stays in {{column}}, unchanged.",
+      "short": "its chat could not be resumed"
+    },
+    "chat-ended": {
+      "title": "Its chat ended without a result.",
+      "body": "The chat ended, or was removed, without leaving the run's result. The item stays in {{column}}, unchanged.",
+      "short": "its chat ended without a result"
+    },
+    "chat-failed": {
+      "title": "The CLI reported an error.",
+      "body": "The chat ended in a CLI error, shown below as it was reported. The item stays in {{column}}, unchanged.",
+      "short": "the CLI reported an error"
+    },
+    "unknown": {
+      "title": "It failed.",
+      "body": "The item stays in {{column}}, unchanged.",
+      "short": "failed"
+    },
+    "item-moved": {
+      "note": "Never started: the item left the column"
+    },
+    "item-removed": {
+      "note": "Never started: the item was deleted while it waited"
+    },
+    "item-done": {
+      "note": "Never started: the item moved to Done"
+    },
+    "replaced": {
+      "note": "Replaced by another: the item entered the column again"
+    },
+    "flow-off": {
+      "note": "Never started: the flow was switched off"
+    },
+    "no-member": {
+      "note": "Never started: nobody on the team answers for the column any more"
+    },
+    "refined": {
+      "note": "Not needed: it was already refined and the item has not changed"
+    },
+    "chat-busy": {
+      "note": "Never started: a chat of yours was already working on the item"
+    },
+    "cancelledUnknown": "Never started"
+  },
+  "log": {
+    "title": "Activity",
+    "views": "State",
+    "all": "All",
+    "running": "Running",
+    "failed": "Failed",
+    "rejected": "Sent back",
+    "member": "Member",
+    "allMembers": "All",
+    "filterMember": "Filter by member",
+    "now": "Now",
+    "nowCount": "{{running}} running · {{queued}} queued",
+    "today": "Today",
+    "yesterday": "Yesterday · {{date}}",
+    "runs": "Runs",
+    "summary": {
+      "today_one": "Today <b>{{n}}</b> run",
+      "today_other": "Today <b>{{n}}</b> runs",
+      "running": "<b>{{n}}</b> running",
+      "queued": "<b>{{n}}</b> queued",
+      "failed_one": "<b>{{n}}</b> failed",
+      "failed_other": "<b>{{n}}</b> failed"
+    },
+    "more": "Show {{count}} more",
+    "left": "{{n}} left",
+    "byMember": "By member",
+    "todayWord": "today",
+    "memberRuns": "{{n}} runs",
+    "memberFailed_one": "{{count}} failed",
+    "memberFailed_other": "{{count}} failed",
+    "consulted_one": "Answers for no column: {{names}}. The flow does not run it; it is consulted from a chat.",
+    "consulted_other": "Answer for no column: {{names}}. The flow does not run them; they are consulted from a chat.",
+    "limits": "Flow limits",
+    "atOnce": "At once",
+    "inUse": "{{running}} in use · {{queued}} queued",
+    "costPerRun": "Cost per run",
+    "bounces": "Bounces",
+    "atMost": "at most",
+    "phoneFoot": "A failed run doesn't move the item: it leaves a comment on it and its chat says why. Tap it to retry it from its chat."
+  },
+  "phone": {
+    "more": "More team actions",
+    "board": "Open the board",
+    "settings": "Project settings"
   },
   "board": {
     "columnRole": "{{role}} answers for this column"

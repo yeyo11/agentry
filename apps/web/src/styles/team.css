@@ -54,6 +54,29 @@
   bottom: -1.5px;
 }
 
+/* 18 px: inside a chip, a card's foot, a column's head and the strip (design system `.role-av.xs`) */
+.role-avatar-xs {
+  width: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 2px;
+  border-radius: var(--radius-xs);
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.role-avatar-xs::after {
+  width: 4px;
+  height: 4px;
+  border-width: 1px;
+  right: -1.5px;
+  bottom: -1.5px;
+}
+
+.chip .role-avatar-xs {
+  margin-left: -3px;
+}
+
 .role-avatar-lg {
   width: 44px;
   height: 44px;
@@ -513,87 +536,476 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- The team's activity, whole ("See all") ---------- */
-.team-log-heading {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+/* ---------- Team activity: every run by day (design system `.run-*`, DesktopEquipoActividad) ---------- */
+.team-activity-live {
+  color: var(--live);
 }
 
-.team-log-card {
-  gap: 14px;
-}
-
-.team-log-filters {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.team-log-filters .team-log-filter {
-  flex: 0 0 220px;
-  width: 220px;
-}
-
-.team-log-count {
+.flow-log-views .count {
+  margin-left: 6px;
   font-family: var(--mono);
   font-size: 11px;
   color: var(--fg-3);
   font-variant-numeric: tabular-nums;
 }
 
-.team-log {
-  gap: 0;
-}
-
-.team-log-row {
-  position: relative;
+.flow-log-chips {
+  display: flex;
   align-items: center;
-  min-height: 52px;
-  padding: 8px 0 8px 10px;
-  border-top: 1px solid var(--line);
+  gap: 8px;
+  flex-wrap: wrap;
+  min-height: 34px;
 }
 
-.team-log-line {
+.flow-log-chips .section-label {
+  margin-right: 4px;
+}
+
+.flow-log-chips .chip .n {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-log-chips .chip-on .n {
+  color: inherit;
+}
+
+.flow-log-card {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.flow-log-card-head {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.flow-run-sum {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.flow-run-sum b {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-run-day {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.flow-run-day .section-label {
+  color: var(--fg-2);
+}
+
+.flow-run-day-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A run: its squircle, what and for which item, and the time at the side; a failure's reason spans below */
+.flow-run {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 4px 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.flow-run:hover {
+  background: var(--bg-2);
+}
+
+.flow-run-group:last-of-type > .flow-run:last-child {
+  border-bottom: 0;
+}
+
+.flow-run.live-rail {
+  padding-left: 18px;
+}
+
+.flow-run.live-rail::before {
+  top: 12px;
+  bottom: 12px;
+}
+
+.flow-run-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.flow-run-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.flow-run-title .who {
+  font-weight: 600;
+}
+
+.flow-run-title .stage {
+  color: var(--fg-2);
+}
+
+.flow-run-item {
   display: flex;
   align-items: baseline;
   gap: 8px;
   min-width: 0;
+  color: inherit;
+  text-decoration: none;
 }
 
-.team-log-title {
-  flex: 0 1 auto;
+.flow-run-item-title {
   min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+a.flow-run-item:hover .flow-run-item-title {
+  text-decoration: underline;
+}
+
+.flow-run-item.is-gone {
+  font-size: 13px;
+  color: var(--fg-3);
+}
+
+.flow-run-line {
+  font-size: 13px;
+  line-height: 1.45;
   color: var(--fg-2);
 }
 
-.team-run-status {
-  flex-shrink: 0;
+.flow-run-now {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.flow-run-spin,
+.flow-run-verb {
+  color: var(--live);
   white-space: nowrap;
 }
 
-.team-run-status.is-live {
-  color: var(--live);
+.flow-run-verb {
+  font-weight: 500;
 }
 
-.team-log-chat {
+.flow-run-target {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  overflow-wrap: anywhere;
+}
+
+.flow-run-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.flow-run-side time,
+.flow-run-clock {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-run-side .flow-run-clock {
+  font-size: 12px;
+  color: var(--fg-2);
+}
+
+.flow-run-side .team-link {
+  font-size: 12px;
+}
+
+.flow-run-duration {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-run-badge {
+  font-family: var(--mono);
+}
+
+/* A failure's reason: bad, with its word in bold, the raw error in mono, and its way on */
+.flow-run-why {
+  grid-column: 2 / -1;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bad-soft) 55%, transparent);
+  box-shadow: inset 2px 0 0 var(--bad);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+
+.flow-run-why-icon {
   flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--bad);
 }
 
-.team-log-more {
-  align-self: center;
+.flow-run-why-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
-.team-log-page.is-phone .team-log-filters .team-log-filter {
-  flex: 1 1 100%;
-  width: 100%;
+.flow-run-why b {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.flow-run-why-acts {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.flow-run-raw {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  overflow-wrap: anywhere;
+}
+
+.flow-run-retry {
+  margin: -4px 0;
+}
+
+.flow-run-retried {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-2);
+}
+
+.flow-run-retried-link {
+  color: inherit;
+}
+
+.flow-log-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 52px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--fg-3);
+}
+
+.flow-log-left {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.flow-log-empty {
+  margin: 0;
+  padding: 20px 16px;
+}
+
+/* The side: today by member, and the flow's limits */
+.team-side-note {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.flow-log-member-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.flow-log-member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-height: 44px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
 }
 
-.team-log-page.is-phone .team-log-title {
-  display: none;
+.flow-log-member-text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.flow-log-member-failed {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--bad);
+}
+
+.flow-log-member-runs {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-2);
+  white-space: nowrap;
+}
+
+.flow-log-limits .prop-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.flow-log-limits .prop-row .prop-key {
+  width: 132px;
+  flex-shrink: 0;
+  color: var(--fg-3);
+}
+
+.flow-log-limit {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.flow-log-limit .num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-log-limit .team-muted {
+  font-size: 12px;
+}
+
+/* The phone: the views full width, the whole row opens its chat, 15 px text */
+.flow-log-page.is-phone {
+  gap: 12px;
+}
+
+.flow-log-page.is-phone .flow-log-views {
+  display: flex;
+  width: 100%;
+}
+
+.flow-log-page.is-phone .flow-log-views .segment {
+  flex: 1 1 0;
+  justify-content: center;
+  min-height: var(--touch);
+  padding: 0 6px;
+  font-size: 14px;
+}
+
+.flow-log-page.is-phone .flow-run {
+  font-size: 15px;
+}
+
+.flow-log-page.is-phone .flow-run-title {
+  font-size: 15px;
+}
+
+.flow-log-page.is-phone .flow-run-item-title {
+  font-size: 14px;
+}
+
+.flow-log-page.is-phone .flow-run-now {
+  font-size: 13px;
+}
+
+.flow-log-foot {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.flow-log-sheet {
+  display: flex;
+  flex-direction: column;
+}
+
+.flow-log-sheet-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--touch);
+  padding: 0 4px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg);
+  font: 15px var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.flow-log-sheet-option:first-child {
+  border-top: 0;
+}
+
+.flow-log-sheet-option[aria-selected='true'] {
+  font-weight: 600;
+}
+
+.phone-head-actions .icon-btn.is-on {
+  color: var(--accent-text);
 }
 
 /* ---------- Empty team ---------- */
@@ -726,10 +1138,16 @@
   color: var(--live);
 }
 
-.member-cell {
+/* Each member a 72 px cell, as MobileEquipo draws them: the name at 15 px, its line at 13 */
+.member-cells .member-cell {
   gap: 12px;
   align-items: center;
+  min-height: 72px;
   padding-block: 14px;
+}
+
+.member-cells .member-now-line {
+  font-size: 13px;
 }
 
 .member-cell.live-rail::before {
@@ -1106,8 +1524,17 @@ a.member-run:hover {
 }
 
 .member-phone-props {
-  padding: 4px 16px;
+  padding: 0 16px;
   gap: 0;
+}
+
+.member-phone-props .prop-row {
+  min-height: 48px;
+  font-size: 15px;
+}
+
+.member-phone-props .prop-key {
+  color: var(--fg);
 }
 
 .member-memory-cell {
@@ -1398,42 +1825,6 @@ a.member-run:hover {
   color: var(--fg-3);
 }
 
-.flow-bounces {
-  gap: 14px;
-}
-
-.flow-bounces-input {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.flow-bounced {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.flow-bounced-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 40px;
-  padding: 6px 0;
-  border-top: 1px solid var(--line);
-  color: inherit;
-  text-decoration: none;
-  font-size: 13px;
-}
-
-.flow-bounced-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  line-height: 1.35;
-}
-
 .bounce {
   display: inline-flex;
   align-items: center;
@@ -1475,12 +1866,6 @@ a.member-run:hover {
   font-weight: 500;
 }
 
-.flow-limit-cost {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .flow-limit-unit {
   font-family: var(--mono);
   font-size: 11px;
@@ -1508,9 +1893,142 @@ a.member-run:hover {
   border-top: 0;
 }
 
-.flow-model-input {
-  width: 132px;
+.flow-model-row .flow-model-pick {
   flex-shrink: 0;
+  min-width: 144px;
+}
+
+.flow-limits-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.flow-limits-head h2 {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.flow-limit-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 128px;
+  flex-shrink: 0;
+  height: var(--control-h);
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+.flow-limit-cost:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.flow-limit-cost input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: 13px var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-limits-foot {
+  margin: 0;
+}
+
+/* The phone's limits: a section label, then one card of cells, 44 px steppers and a 16 px field */
+.flow-limits-label {
+  padding: 0 4px;
+}
+
+.flow-page.is-phone .flow-limits {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.flow-page.is-phone .flow-limit-row {
+  padding: 10px 16px;
+}
+
+.flow-page.is-phone .flow-limit-row:first-of-type {
+  border-top: 0;
+}
+
+.flow-page.is-phone .flow-limit-row.is-stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 12px 16px 14px;
+}
+
+.flow-page.is-phone .flow-limit-name {
+  font-size: 15px;
+}
+
+.flow-page.is-phone .flow-limit-cost {
+  width: 100%;
+  min-height: var(--touch);
+}
+
+.flow-page.is-phone .flow-limit-cost input {
+  font-size: 16px;
+}
+
+.flow-page.is-phone .number-input {
+  min-height: var(--touch);
+}
+
+.flow-page.is-phone .number-step {
+  width: var(--touch);
+}
+
+/* A member whose last run failed: its word and reason in bad, still; nothing moves */
+.member-now.is-failed {
+  border-color: color-mix(in srgb, var(--bad) 30%, var(--line));
+  background: color-mix(in srgb, var(--bad-soft) 55%, transparent);
+  color: var(--fg-2);
+}
+
+.member-now-fail-icon,
+.member-now-fail {
+  flex-shrink: 0;
+  color: var(--bad);
+}
+
+.member-now-fail {
+  font-weight: 600;
+}
+
+.member-now-why {
+  min-width: 0;
+}
+
+.member-run-note.is-failed {
+  color: var(--bad);
+}
+
+/* The member's model: the picker in its row; on a phone the whole row is the button that opens the sheet */
+.member-model-pick {
+  max-width: 100%;
+}
+
+.member-page.is-phone .member-model-pick {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  min-height: var(--touch);
+  padding-right: 0;
+  border: 0;
+  background: transparent;
+  font-size: 15px;
 }
 
 /* The phone's flow: each column a stacked cell, its role a select on the right */

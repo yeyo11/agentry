@@ -45,14 +45,14 @@ export default async ({ page, api, check, dirs }) => {
     await page.goto(`/?project=${project.id}&view=team&section=flow`, 1500);
     await page.waitFor(`return !!document.querySelector('.flow-limits')`, { label: 'the limits card' });
     check((await page.eval(`return document.querySelector('.flow-limits input[aria-label="Runs at once"]').value`)) === '2', 'two runs at once unless chosen');
-    check((await page.eval(`return document.querySelector('.flow-limits input[aria-label="Spend per run, in USD"]').value`)) === '', 'no spending limit unless chosen');
+    check((await page.eval(`return document.querySelector('.flow-limits input[aria-label="Cost per run, in USD"]').value`)) === '', 'no spending limit unless chosen');
     await page.fill('.flow-limits input[aria-label="Runs at once"]', '3');
-    await page.fill('.flow-limits input[aria-label="Spend per run, in USD"]', '1.5');
+    await page.fill('.flow-limits input[aria-label="Cost per run, in USD"]', '1.5');
     await page.click('.team-toolbar .btn-primary', 'Save the flow', 1500);
     await page.waitFor(`return document.querySelector('.team-toolbar .btn-primary')?.disabled === true`, { label: 'the flow saved' });
     let flow = (await api.get(`/projects/${project.id}/settings`)).body.flow;
     check(flow?.maxParallel === 3 && flow.maxCostUsd === 1.5, `both limits saved (${JSON.stringify(flow)})`);
-    await page.fill('.flow-limits input[aria-label="Spend per run, in USD"]', '');
+    await page.fill('.flow-limits input[aria-label="Cost per run, in USD"]', '');
     await page.click('.team-toolbar .btn-primary', 'Save the flow', 1500);
     await page.waitFor(`return document.querySelector('.team-toolbar .btn-primary')?.disabled === true`, { label: 'the flow saved again' });
     flow = (await api.get(`/projects/${project.id}/settings`)).body.flow;
@@ -77,42 +77,59 @@ export default async ({ page, api, check, dirs }) => {
     check(JSON.stringify(developer?.commands) === '["pnpm test"]', `the member's commands saved (${JSON.stringify(developer?.commands)})`);
     // A model saved from the Flow screen keeps them: the route reads a body without them as unrestricted
     await page.goto(`/?project=${project.id}&view=team&section=flow`, 1500);
-    await page.fill('.flow-models input[aria-label="Model of Developer"]', 'opus');
+    // The model is a picker (`.model-pick`, "[opus] Opus 5.5"): open it and take the row whose alias is opus
+    await page.click('.flow-models .model-pick[aria-label="Model of Developer"]', undefined, 400);
+    await page.waitFor(
+      `const o = [...document.querySelectorAll('[role=listbox] [role=option]')].find((o) => o.querySelector('.model-tag')?.textContent === 'opus'); if (!o) return false; o.click(); return true`,
+      { label: 'the opus row of the model picker' },
+    );
+    await page.sleep(300);
     await page.click('.team-toolbar .btn-primary', 'Save the flow', 1500);
     await page.waitFor(`return document.querySelector('.team-toolbar .btn-primary')?.disabled === true`, { label: 'the model saved' });
     developer = (await api.get(`/projects/${project.id}/team`)).body.members.find((m) => m.agent === 'developer');
     check(developer?.model === 'opus' && JSON.stringify(developer.commands) === '["pnpm test"]', `a model change keeps the commands (${JSON.stringify(developer)})`);
 
-    // ---- 6: "See all" opens every run of the team, filtered and paged ----
+    // ---- 6: "See all" opens Team activity, the third view: every run by day, filtered and paged ----
     const item = (await api.post(`/projects/${project.id}/work-items`, { title: 'Checkout totals' })).body;
     const db = new DatabaseSync(join(dirs.dataDir, 'wrapper.db'));
     db.exec('PRAGMA busy_timeout = 15000');
     const insert = db.prepare(
-      'INSERT INTO flow_runs (id, project_id, item_id, role, agent, model, stage, column_name, state, outcome, error, queued_at, started_at, ended_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO flow_runs (id, project_id, item_id, role, agent, model, stage, column_name, state, outcome, error, cause, queued_at, started_at, ended_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     );
     const at = (min) => new Date(Date.now() - min * 60_000).toISOString();
-    insert.run('e2e-gaps-1', project.id, item.id, 'product-owner', 'product-owner', 'opus', 'refine', 'backlog', 'ended', 'passed', null, at(30), at(30), at(28));
-    insert.run('e2e-gaps-2', project.id, item.id, 'developer', 'developer', 'sonnet', 'work', 'in_progress', 'ended', 'failed', 'the account hit its rate limit', at(20), at(20), at(15));
-    insert.run('e2e-gaps-3', project.id, item.id, 'qa', 'qa', 'sonnet', 'verify', 'in_review', 'ended', 'rejected', null, at(10), at(10), at(8));
+    insert.run('e2e-gaps-1', project.id, item.id, 'product-owner', 'product-owner', 'opus', 'refine', 'backlog', 'ended', 'passed', null, null, at(30), at(30), at(28));
+    insert.run('e2e-gaps-2', project.id, item.id, 'developer', 'developer', 'sonnet', 'work', 'in_progress', 'ended', 'failed', 'the account hit its rate limit', 'no-account', at(20), at(20), at(15));
+    insert.run('e2e-gaps-3', project.id, item.id, 'qa', 'qa', 'sonnet', 'verify', 'in_review', 'ended', 'rejected', null, null, at(10), at(10), at(8));
     db.close();
     await page.goto(`/?project=${project.id}&view=team`, 1500);
+    check(await page.eval(`return [...document.querySelectorAll('.team-switch [role=radio]')].map((b) => b.textContent.replace(/\\d+$/, '')).join(',') === 'Members,Flow,Activity'`), 'Team has three views: Members, Flow and Activity');
     await page.click('.team-side-card .team-link', 'See all', 1200);
-    await page.waitFor(`return new URLSearchParams(location.search).get('section') === 'activity' && document.querySelectorAll('.team-log-row').length === 3`, { label: 'every run of the team' });
-    const order = await page.eval(`return [...document.querySelectorAll('.team-log-row')].map((row) => row.dataset.status)`);
+    await page.waitFor(`return new URLSearchParams(location.search).get('section') === 'activity' && document.querySelectorAll('.flow-run').length === 3`, { label: 'every run of the team' });
+    check(await page.eval(`return document.querySelector('.team-switch [role=radio][aria-checked=true]')?.textContent === 'Activity'`), 'the Activity view is the one selected');
+    const order = await page.eval(`return [...document.querySelectorAll('.flow-run')].map((row) => row.dataset.status)`);
     check(JSON.stringify(order) === '["rejected","failed","passed"]', `newest first (${order})`);
-    check((await page.text('.team-log-row[data-status="failed"]')).includes('the account hit its rate limit'), 'a failed run says why');
-    check(await page.eval(`return !!document.querySelector('.team-log-row[data-status="failed"] .text-err')`), 'in the bad colour, beside its word');
-    await page.select('.team-log-filters .select-trigger[aria-label="State"]', 'Failed');
-    await page.waitFor(`return document.querySelectorAll('.team-log-row').length === 1 && !!document.querySelector('.team-log-row[data-status="failed"]')`, { label: 'the state filter' });
-    await page.select('.team-log-filters .select-trigger[aria-label="State"]', 'Every state');
-    await page.select('.team-log-filters .select-trigger[aria-label="Member"]', 'QA');
-    await page.waitFor(`return document.querySelectorAll('.team-log-row').length === 1 && !!document.querySelector('.team-log-row[data-status="rejected"]')`, { label: 'the member filter' });
+    check((await page.text('.flow-run-day')).startsWith('TODAY') || (await page.text('.flow-run-day')).startsWith('Today'), 'the runs are grouped under their day');
+    const why = await page.text('.flow-run[data-status="failed"] .flow-run-why');
+    check(why.includes('No account had quota left.') && why.includes('The item stays in In progress, unchanged.'), `a failed run says why in words, from its cause (${why})`);
+    check((await page.text('.flow-run[data-status="failed"] .flow-run-raw')).includes('the account hit its rate limit'), 'with the raw error under it');
+    check(await page.eval(`return !!document.querySelector('.flow-run[data-status="failed"] .badge-bad')`), 'its badge in the bad colour, beside its word');
+    check((await page.text('.flow-run[data-status="failed"] .flow-run-title')).includes('implementation'), 'the step is named by its column');
+    await page.click('.flow-log-views [role=radio]', 'Failed', 800);
+    await page.waitFor(`return document.querySelectorAll('.flow-run').length === 1 && !!document.querySelector('.flow-run[data-status="failed"]')`, { label: 'the Failed view' });
+    await page.click('.flow-log-views [role=radio]', 'Sent back', 800);
+    await page.waitFor(`return document.querySelectorAll('.flow-run').length === 1 && !!document.querySelector('.flow-run[data-status="rejected"]')`, { label: 'the Sent back view' });
+    await page.click('.flow-log-views [role=radio]', 'All', 800);
+    await page.click('.flow-log-chips .chip', 'QA', 800);
+    await page.waitFor(`return document.querySelectorAll('.flow-run').length === 1 && !!document.querySelector('.flow-run[data-status="rejected"]')`, { label: 'the member filter' });
+    check((await page.text('.flow-log-limits')).includes('No limit'), 'the flow\'s limits sit beside the runs');
 
-    // ---- the same on a phone: its own head, the filters, no horizontal scroll ----
+    // ---- the same on a phone: its own header with the member filter, a row opens its chat ----
     await page.viewport(390, 844);
     await page.goto(`/?project=${project.id}&view=team&section=activity`, 1500);
-    await page.waitFor(`return document.querySelectorAll('.team-log-row').length === 3`, { label: 'the phone activity' });
-    check(await page.eval(`return !!document.querySelector('.project-head-phone h1')`), 'the phone activity heads itself');
+    await page.waitFor(`return document.querySelectorAll('.flow-run').length === 3`, { label: 'the phone activity' });
+    check(await page.eval(`return document.querySelector('.team-page .phone-head h1')?.textContent === 'Team'`), 'the phone activity heads itself');
+    check(await page.eval(`return !!document.querySelector('.phone-head button[aria-label="Filter by member"]')`), 'its header carries the member filter');
+    check(await page.eval(`return !document.querySelector('.flow-run .flow-run-retry') && !document.querySelector('.flow-run a')`), 'nothing inside a phone row is a control of its own');
     check(await page.eval(`return document.documentElement.scrollWidth <= innerWidth`), 'nothing scrolls sideways');
   } finally {
     await page.viewport(1440, 900).catch(() => {});
