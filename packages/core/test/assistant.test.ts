@@ -14,6 +14,7 @@ import type {
   ProjectTeamMember,
 } from '@agentry/shared';
 import { assistantLanguage, parseAnswer, assistantSchema, assistantPrompt, type AssistantBrief, type AssistantGit } from '../src/assistant-answer.ts';
+import { partialJson, resourceDraft } from '../src/assistant-draft.ts';
 import { ASSISTANT_ERRORS, AssistantService, DENIED_TOOLS, memberFile, READ_ONLY_TOOLS, type AssistantKnown, type AssistantLaunch } from '../src/assistant.ts';
 import { ASSISTANT_SCHEMA_VERSION, Db, migrate } from '../src/db.ts';
 import { EventBus } from '../src/events.ts';
@@ -860,6 +861,48 @@ test('a run keeps its language, so one started again after a restart is titled a
   // A run stored before the language was kept reads as English
   db.connection.prepare('UPDATE assistant_runs SET language = NULL WHERE id = ?').run(run.id);
   assert.equal('language' in second.assistant.run(run.id), false);
+});
+
+test('a streamed result is read wherever it is cut, and a running Create with AI serves it as its draft', async () => {
+  const whole = JSON.stringify({ summary: 'x', read: [], resources: [{ kind: 'agents', name: 'reviewer', content: 'a "b"\nc é\\d', n: 12 }] });
+  // Every prefix reads without throwing, and the content only ever grows toward the whole
+  let last = '';
+  for (let i = 0; i <= whole.length; i++) {
+    const draft = resourceDraft(whole.slice(0, i), 'agents');
+    const content = draft?.content ?? '';
+    assert.ok(content.startsWith(last), `prefix ${String(i)}: ${JSON.stringify(content)}`);
+    last = content;
+  }
+  assert.equal(last, 'a "b"\nc é\\d');
+  assert.deepEqual(partialJson('{"a": "x\\'), { a: 'x' }, 'an escape cut in half is left out');
+  assert.deepEqual(partialJson('{"a": "\\u00'), { a: '' });
+  assert.deepEqual(partialJson('{"a": 1, "b": 2'), { a: 1 }, 'a number is whole once something follows it');
+  assert.deepEqual(partialJson('{"a": [1, "t'), { a: [1, 't'] });
+  assert.deepEqual(partialJson('{"a'), {});
+  assert.equal(partialJson('not json'), undefined);
+  assert.equal(resourceDraft('{"summary": "x", "read": [', 'skills'), null, 'nothing of it written yet');
+  assert.deepEqual(resourceDraft('{"resources": [{"kind": "skills", "name": "/pay.md", "cont', 'skills'), { kind: 'skills', name: 'pay', content: '' });
+
+  // Only a running Create with AI keeps one, and only until it ends
+  const s = setup();
+  const suggest = await s.assistant.start('p1', { kind: 'resources' });
+  const create = await s.assistant.start('p1', { kind: 'resources', resourceKind: 'agents', description: 'Reviews migrations' }).catch((e: unknown) => e);
+  assert.ok(create instanceof Error, 'one resources run at a time');
+  await s.assistant.settled();
+  s.assistant.chatStructured(suggest.chatId ?? '', '{"resources": [{"name": "x", "content": "y');
+  assert.equal(s.assistant.run(suggest.id).draft, undefined, 'a suggestion shows its proposals, not a draft');
+  s.assistant.stop(suggest.id);
+  const run = await s.assistant.start('p1', { kind: 'resources', resourceKind: 'agents', description: 'Reviews migrations' });
+  await s.assistant.settled();
+  assert.equal(s.assistant.run(run.id).draft, undefined, 'nothing written yet');
+  const before = s.events.length;
+  s.assistant.chatStructured(run.chatId ?? '', '{"summary": "x", "read": [], "resources": [{"kind": "agents", "name": "migration-reviewer", "content": "---\\nname: mig');
+  assert.deepEqual(s.assistant.run(run.id).draft, { kind: 'agents', name: 'migration-reviewer', content: '---\nname: mig' });
+  assert.ok(s.events.slice(before).some((e) => e.type === 'assistant.run' && e.action === 'read'));
+  const done = s.answer(s.assistant.run(run.id), { summary: 'x', read: [], resources: [{ kind: 'agents', name: 'migration-reviewer', description: 'd', content: '---\nname: migration-reviewer\n---\nx', reason: 'r' }] });
+  assert.equal(done.draft, undefined);
+  s.assistant.chatStructured(run.chatId ?? '', '{"resources": [{"name": "late"');
+  assert.equal(s.assistant.run(run.id).draft, undefined, 'a late stream changes nothing');
 });
 
 test('CLAUDE.md shows once in what a run read, whether the chat opens it or not', async () => {

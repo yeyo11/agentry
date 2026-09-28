@@ -271,6 +271,9 @@ function toEnvironment(cwd: string, chatId: string, raw: Record<string, unknown>
  * executions and, while one is running, the process. There is one per session id, however many
  * times the chat is resumed: resuming adds an execution here, it never adds a chat.
  */
+/** The tool the CLI gives a chat started with `--json-schema`, whose input is the structured result. */
+export const STRUCTURED_OUTPUT_TOOL = 'StructuredOutput';
+
 class LiveChat {
   readonly emitter = new EventEmitter();
   readonly events: RunEvent[] = [];
@@ -306,6 +309,8 @@ class LiveChat {
   idleTimer: NodeJS.Timeout | null = null;
   partial: { block: 'text' | 'thinking'; text: string } | null = null;
   partialTimer: NodeJS.Timeout | null = null;
+  /** The structured result (`--json-schema`) as its tool call streams it: raw JSON, cut wherever it has got to */
+  structured: string | null = null;
   /** Control requests sent to the CLI, by request_id, waiting for its control_response */
   readonly controls = new Map<string, { resolve: (response: Record<string, unknown>) => void; reject: (err: Error) => void }>();
   controlSeq = 0;
@@ -1674,6 +1679,15 @@ export class ChatManager extends EventEmitter {
         // here, seconds before its arguments have finished streaming
         chat.activity.blockStarted(block, now());
         chat.partial = blockType === 'text' || blockType === 'thinking' ? { block: blockType, text: '' } : null;
+        // The CLI hands the result a schema asks for as the input of this tool, which streams like any
+        // other: whoever waits for the result may show it as it is written
+        chat.structured = blockType === 'tool_use' && block.name === STRUCTURED_OUTPUT_TOOL ? '' : null;
+      } else if (event.type === 'content_block_delta' && chat.structured !== null) {
+        const delta = (event.delta ?? {}) as Record<string, unknown>;
+        if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string' && delta.partial_json) {
+          chat.structured += delta.partial_json;
+          this.emit('chat-structured', chat.id, chat.structured);
+        }
       } else if (event.type === 'content_block_delta' && chat.partial) {
         const delta = (event.delta ?? {}) as Record<string, unknown>;
         const chunk = delta.type === 'text_delta' ? delta.text : delta.type === 'thinking_delta' ? delta.thinking : null;
@@ -1684,6 +1698,7 @@ export class ChatManager extends EventEmitter {
       } else if (event.type === 'content_block_stop') {
         chat.activity.blockStopped();
         chat.partial = null;
+        chat.structured = null;
       }
       return;
     }

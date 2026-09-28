@@ -535,6 +535,8 @@ export class Core {
       void this.flow.chatResult(chatId, result);
       this.assistant.chatResult(chatId, result);
     });
+    // "Create with AI" shows the file while the chat writes it, from the result it is streaming
+    this.runtime.on('chat-structured', (chatId: string, raw: string) => this.assistant.chatStructured(chatId, raw));
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
     // Started last of all, once the chats it may resume or start are restored, so a slot judged at
     // boot finds the runtime it launches into ready

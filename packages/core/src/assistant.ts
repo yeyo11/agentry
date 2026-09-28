@@ -52,6 +52,7 @@ import {
   type AssistantGit,
   type AssistantLanguage,
 } from './assistant-answer.ts';
+import { resourceDraft } from './assistant-draft.ts';
 import { addReads, initialSources, NO_READS, projectIsEmpty, projectPath, sameReads, sourcesOf, type AssistantFacts, type AssistantReads, type ReadingNow } from './assistant-sources.ts';
 import type { Db } from './db.ts';
 import type { AgentryEventInput } from './events.ts';
@@ -203,6 +204,8 @@ const DESCRIPTION_MAX = 4000;
 const MODEL = /^[A-Za-z0-9][\w.:[\]-]{0,99}$/;
 /** How often a running run announces what it read, at most */
 export const READ_EVENT_MS = 3000;
+/** How often a running "Create with AI" announces the file it is writing, at most: often enough to watch it fill in */
+export const DRAFT_EVENT_MS = 750;
 const WORK_ITEMS_LISTED = 150;
 const CHATS_LISTED = 30;
 
@@ -522,6 +525,7 @@ export class AssistantService {
       await this.deps.launch(launch, (chatId) => {
         started = true;
         this.sql.prepare("UPDATE assistant_runs SET chat_id = ? WHERE id = ? AND status = 'running'").run(chatId, row.id);
+        if (row.kind === 'resources' && row.description && row.resource_kind) this.drafting.set(chatId, row.id);
         this.announce(row.id, 'read');
       });
       if (!started) throw new Error('the chat did not start');
@@ -631,13 +635,28 @@ export class AssistantService {
     return this.dirs.get(row.id) ?? null;
   }
 
-  /** Announces what a running run has read, at most every few seconds. */
-  private readSoon(runId: string): void {
+  /** The running "Create with AI" runs by their chat, and what each one's chat has streamed of its result */
+  private readonly drafting = new Map<string, string>();
+  private readonly drafts = new Map<string, string>();
+
+  /**
+   * The structured result a chat is streaming, as far as it has got. A running "Create with AI" keeps
+   * it, so its editor can show the file as it is written; nothing of it is saved or proposed.
+   */
+  chatStructured(chatId: string, raw: string): void {
+    const runId = this.drafting.get(chatId);
+    if (!runId) return;
+    this.drafts.set(runId, raw);
+    this.readSoon(runId, DRAFT_EVENT_MS);
+  }
+
+  /** Announces what a running run has read, or has written of its draft, at most every few seconds. */
+  private readSoon(runId: string, every = READ_EVENT_MS): void {
     const now = Date.now();
     const state = this.readEvents.get(runId) ?? { at: 0, timer: null };
     this.readEvents.set(runId, state);
     if (state.timer) return;
-    const wait = state.at + READ_EVENT_MS - now;
+    const wait = state.at + every - now;
     if (wait <= 0) {
       state.at = now;
       this.announce(runId, 'read');
@@ -945,6 +964,8 @@ export class AssistantService {
     const pending = this.readEvents.get(runId);
     if (pending?.timer) clearTimeout(pending.timer);
     this.readEvents.delete(runId);
+    this.drafts.delete(runId);
+    for (const [chatId, id] of this.drafting) if (id === runId) this.drafting.delete(chatId);
     this.dirs.delete(runId);
     this.knownResources.delete(runId);
     this.settingsOfRun.delete(runId);
@@ -1055,7 +1076,10 @@ export class AssistantService {
     const rows = this.sql.prepare('SELECT * FROM assistant_proposals WHERE run_id = ? ORDER BY seq').all(row.id) as unknown as ProposalRow[];
     const order = (k: string) => ASSISTANT_PROPOSAL_KINDS.findIndex((x) => x === k);
     const proposals = rows.sort((a, b) => order(a.kind) - order(b.kind) || a.position - b.position).map((p) => this.proposalOf(p));
-    return { ...this.runOf(row), proposals };
+    const raw = row.status === 'running' ? this.drafts.get(row.id) : undefined;
+    const kind = ASSISTANT_RESOURCE_KINDS.find((k) => k === row.resource_kind);
+    const draft = raw !== undefined && kind ? resourceDraft(raw, kind) : null;
+    return { ...this.runOf(row), proposals, ...(draft ? { draft } : {}) };
   }
 
   private ref(itemId: string | null | undefined): WorkItemRef | null {
