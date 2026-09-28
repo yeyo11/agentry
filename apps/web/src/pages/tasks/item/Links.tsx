@@ -9,7 +9,7 @@ import { StatusBadge } from '../../../components/ui';
 import { displayTitle, lastEnded } from '../../../lib/chat-model';
 import { formatCost } from '../../../lib/format';
 import { columnMeta } from '../../../lib/work-items';
-import { linkEffect, linkRun, shortId, sortLinks } from './model';
+import { chatlessRuns, linkEffect, linkRun, shortId, sortLinks } from './model';
 import { latestOfStep, RunLinkRow } from './RunLink';
 
 const LINK_ICON = { chat: MessageSquare, orchestration: Workflow, document: FileText } as const;
@@ -82,24 +82,29 @@ export function Links({ item }: { item: WorkItemDetail }) {
   const chats = useChats({ project: item.projectId, enabled: item.links.some((link) => link.kind === 'chat') });
   const byId = new Map((chats.data ?? []).map((chat) => [chat.id, chat]));
   // A flow run's outcome is its own to tell (a failed one leaves its chat "completed"): every run of
-  // the item, so an older failure stays on its link
-  const flowMade = item.links.some((link) => link.kind === 'chat' && Boolean(link.teamRole));
-  const runs = useWorkItemRuns(item.id, flowMade).data ?? [];
+  // the item, so an older failure stays on its link. Read for every item, since a run that failed
+  // before its chat started left no link to say the flow worked on it
+  const runs = useWorkItemRuns(item.id).data ?? [];
   // Documents have their own section (Documents.tsx): this one is what acted on the item
   const links = sortLinks(item.links.filter((link) => link.kind !== 'document'));
+  const entries = [
+    ...links.map((link) => ({ at: link.createdAt, link, run: null })),
+    ...chatlessRuns(item.links, runs).map((run) => ({ at: run.queuedAt, link: null, run })),
+  ].sort((a, b) => b.at.localeCompare(a.at));
   return (
     <section className="workitem-section" aria-labelledby={`links-${item.id}`}>
       <div className="workitem-section-head">
         <h2 id={`links-${item.id}`} className="section-label grow">
           {t('links.title')}
         </h2>
-        <span className="count">{links.length}</span>
+        <span className="count">{entries.length}</span>
       </div>
-      {links.length === 0 ? (
+      {entries.length === 0 ? (
         <p className="muted small workitem-none">{t('links.none')}</p>
       ) : (
         <div className="work-links">
-          {links.map((link) => {
+          {entries.map(({ link, run: chatless }) => {
+            if (!link) return chatless && <RunLinkRow key={chatless.id} link={null} run={chatless} item={item} chat={undefined} latest={latestOfStep(chatless, runs)} />;
             const chat = link.chatId ? byId.get(link.chatId) : undefined;
             const run = link.teamRole ? linkRun(link, runs) : null;
             return run ? (

@@ -246,6 +246,16 @@ export function linkRun<R extends Pick<FlowRun, 'chatId' | 'state' | 'outcome' |
   return runs.find((run) => run.chatId === link.chatId) ?? null;
 }
 
+/**
+ * The item's flow runs that no chat link stands for: queued ones, and those that ended before a chat
+ * started (no account had quota, the chat did not start). They acted on the item too, so its links
+ * list them, a failed one with its reason, rather than leaving the board strip their only trace.
+ */
+export function chatlessRuns<R extends Pick<FlowRun, 'chatId'>>(links: readonly Pick<WorkItemLink, 'kind' | 'chatId'>[], runs: readonly R[]): R[] {
+  const chats = new Set(links.flatMap((link) => (link.kind === 'chat' && link.chatId ? [link.chatId] : [])));
+  return runs.filter((run) => !run.chatId || !chats.has(run.chatId));
+}
+
 /** Newest first: the chat working now, then the ones before it. */
 export function sortLinks<T extends Pick<WorkItemLink, 'createdAt'>>(links: readonly T[]): T[] {
   return [...links].sort((a, b) => b.createdAt.localeCompare(a.createdAt));

@@ -238,6 +238,7 @@
       "cancelled": "cancelled"
     },
     "flowRun": "flow run",
+    "noChat": "no chat",
     "noMove": "did not move the task",
     "waitsApproval": "waits for you to move it to Done",
     "failedHead": {

@@ -160,11 +160,11 @@ function CommentItem({ comment, person, runs }: { comment: WorkItemComment; pers
 
 /**
  * The item's flow runs, which tell its flow comments, and a person's retries among them, which are
- * history of their own. Only fetched for an item the flow has worked on.
+ * history of their own. Read for every item, as its links read them: a run that failed before its
+ * chat started leaves no link, yet its comment is one of the flow's.
  */
 export function useItemRuns(item: Pick<WorkItemDetail, 'id' | 'links'>): { runs: FlowRun[]; retries: FlowRun[] } {
-  const flowMade = item.links.some((link) => link.kind === 'chat' && Boolean(link.teamRole));
-  const runs = useWorkItemRuns(item.id, flowMade).data ?? [];
+  const runs = useWorkItemRuns(item.id).data ?? [];
   return { runs, retries: retriesOf(runs) };
 }
 

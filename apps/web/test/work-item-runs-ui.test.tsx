@@ -14,6 +14,7 @@ import i18n from '../src/i18n';
 import { FailedFlowRunNote } from '../src/pages/chat/FailedFlowRun';
 import { Activity } from '../src/pages/tasks/item/Activity';
 import type { ItemActions } from '../src/pages/tasks/item/hooks';
+import { chatlessRuns } from '../src/pages/tasks/item/model';
 import { latestOfStep, RunLinkRow } from '../src/pages/tasks/item/RunLink';
 import { WaitingBadge } from '../src/pages/tasks/item/Waiting';
 
@@ -156,6 +157,27 @@ test("the item's links name each flow run by its role and stage, with its outcom
   assert.match(html, /role-avatar/, "a run's link leads with the role's squircle");
   assert.match(html, /badge-bad/);
   assert.match(html, /badge-ok/);
+});
+
+test("a run that failed before its chat started is on the item's links, with its reason and no chat", () => {
+  const noChat = run({ id: 'r-quota', chatId: null, outcome: 'failed', cause: 'no-account', error: 'no account with quota left', startedAt: null });
+  const queued = run({ id: 'r-queued', chatId: null, state: 'queued', outcome: null, startedAt: null, endedAt: null });
+  // Only the runs no chat link stands for: a run a link stands for is drawn once, on its link
+  assert.deepEqual(
+    chatlessRuns(item.links, [queued, noChat, passed, failed, run({ id: 'r-gone', chatId: 'c-unlinked' })]).map((r) => r.id),
+    ['r-queued', 'r-quota', 'r-gone'],
+  );
+  const html = render(<RunLinkRow link={null} run={noChat} item={item} chat={undefined} latest />);
+  const said = text(html);
+  assert.match(said, /QA verifies AGN-26/);
+  assert.match(html, /badge-bad/);
+  assert.match(said, /No account had quota left/);
+  assert.match(said, /no chat · flow run/);
+  assert.match(said, /did not move the task/);
+  assert.doesNotMatch(html, /href="\/chats\//, 'there is no chat to open');
+  const waiting = text(render(<RunLinkRow link={null} run={queued} item={item} chat={undefined} latest />));
+  assert.match(waiting, /queued/);
+  assert.doesNotMatch(waiting, /did not move/);
 });
 
 test("the activity draws a failed run's comment from the run, names each flow comment's run, and tells the retry", () => {

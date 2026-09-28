@@ -238,6 +238,7 @@
       "cancelled": "cancelada"
     },
     "flowRun": "ejecución del flujo",
+    "noChat": "sin chat",
     "noMove": "no movió la tarea",
     "waitsApproval": "te espera para pasar a Hecho",
     "failedHead": {
