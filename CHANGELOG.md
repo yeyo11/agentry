@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.22.1](https://github.com/yeyo11/agentry/compare/v0.22.0...v0.22.1) (2026-09-28)
+
+
+### Bug fixes
+
+* **web:** keep the changes summary inside its panel and make the lens switch keyboard-reachable ([#116](https://github.com/yeyo11/agentry/issues/116)) ([d85446e](https://github.com/yeyo11/agentry/commit/d85446eaa57ea73ce80208ce9c421aafbd6d8770))
+
 ## [0.22.0](https://github.com/yeyo11/agentry/compare/v0.21.1...v0.22.0) (2026-09-27)
 
 
