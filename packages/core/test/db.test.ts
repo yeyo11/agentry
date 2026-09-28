@@ -148,6 +148,21 @@ const legacyRun = (id: string, sessionId: string | null, createdAt: string, extr
   ...extra,
 });
 
+test('the labels table keeps no index nothing queries, on a new database or an upgraded one', () => {
+  const indexes = (db: DatabaseSync) =>
+    (db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'work_item_labels' AND sql IS NOT NULL").all() as Array<{ name: string }>).map((i) => i.name);
+  const fresh = new Db(tempConfig());
+  assert.deepEqual(indexes(fresh.connection), []);
+  fresh.close();
+
+  const old = new DatabaseSync(':memory:');
+  migrate(old, WORK_ITEMS_SCHEMA_VERSION);
+  assert.deepEqual(indexes(old), ['work_item_labels_label']);
+  migrate(old);
+  assert.deepEqual(indexes(old), []);
+  old.close();
+});
+
 test('two processes upgrading an old database at once never run a migration twice', async () => {
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });

@@ -431,6 +431,9 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // How many times a restart cut a flow run off: a run goes on in its chat at most twice, so a
   // run that keeps dying with the wrapper does not keep spending
   `ALTER TABLE flow_runs ADD COLUMN restarts INTEGER NOT NULL DEFAULT 0;`,
+  // A label filter folds case and accents in JS, so no query ever used this index: it only cost
+  // every write of an item's labels
+  `DROP INDEX IF EXISTS work_item_labels_label;`,
 ];
 
 /**
@@ -439,9 +442,9 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
  */
 export const WORK_ITEMS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE work_item_counters')) + 1;
 
-/** The schema version document links arrive in, found the same way. */
 /** The version that added the flow's runs, for the test that upgrades a database from the one before */
 export const FLOW_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE flow_runs')) + 1;
+/** The schema version document links arrive in, found the same way. */
 export const DOCUMENT_LINKS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN document_path')) + 1;
 /** The version that added the assistant's runs and proposals, found the same way */
 export const ASSISTANT_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE assistant_runs')) + 1;
