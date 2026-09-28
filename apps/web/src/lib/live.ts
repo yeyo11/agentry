@@ -82,12 +82,13 @@ export function elapsedSince(since: string, now: number = Date.now()): number {
 }
 
 /**
- * A clock, not a sentence: `12s`, `3:04`, `1:02:03`. It sits in a mono line next to a spinner and
- * changes every second, so it has to keep its width and stay short.
+ * A clock, not a sentence: `0:41`, `3:04`, `1:02:03`. It sits in a mono line next to a spinner and
+ * changes every second, so it has to keep its width and stay short: `m:ss` from the first second,
+ * since `59s` turning into `1:00` made the line jump (design system, decision 10). A finished
+ * duration is words instead (`formatDuration`).
  */
 export function formatElapsed(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
-  if (total < 60) return `${total}s`;
   const seconds = total % 60;
   const minutes = Math.floor(total / 60);
   if (minutes < 60) return `${minutes}:${String(seconds).padStart(2, '0')}`;
