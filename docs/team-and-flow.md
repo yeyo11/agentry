@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T20:00:00Z
-updated_at: 2026-09-28T18:00:00Z
+updated_at: 2026-09-28T20:00:00Z
 tags:
     - team
     - flow
@@ -256,6 +256,28 @@ colour, and the item's chat link reads "Ejecución fallida" with the reason. A r
 <n> USD (flow.maxCostUsd)", and one cut by the account's rate limit says so. A cancelled run is a
 person's doing, or the flow going off, and writes nothing.
 
+**A failed run keeps its cause as a code** (`FlowRunCause` in `packages/shared/src/types.ts`), beside
+the English `error`: `budget`, `no-account`, `rate-limit`, `stopped`, `restarts`, `unreadable`,
+`no-verdict`, `not-started`, `not-continued`, `chat-ended` or `chat-failed`, and for a cancelled run
+its reason (`item-moved`, `item-removed`, `item-done`, `replaced`, `flow-off`, `no-member`, `refined`,
+`chat-busy`). The web words the cause in the person's language, with the raw error under it in mono;
+the English comment on the item is never shown as it is. A run ended before causes were kept reads
+its cause from its error. Orchestration 7 added this for the design review, which asks for every
+failure to say why in the person's words.
+
+**A person can retry a failed run.** `POST /flow-runs/:runId/retry` queues the same step again for the
+item while the item is still in the run's column; it answers 409 once the item left that column, or
+once a later run of the same step exists. The retry counts as a person's move, so the item starts a
+new round. The new run records the run it retries (`retryOf`); the failed run is read with the next
+run of its step (`retriedBy`, whatever started it) and with `retryable`, whether a retry would queue
+now. So a screen offers "Reintentar" only while it can work, and afterwards says what the next run
+did.
+
+**A run carries its step by column** (`step`, `FLOW_STEP_OF_COLUMN` and `flowStepOf` in
+`packages/shared/src/work-items.ts`). The Product Owner's `refine` stage is a refinement in `backlog`
+and a check in `todo`, where it only checks that the item is ready, so the screens say "comprobación"
+and "Falló al comprobarla" there.
+
 ### Runs are rows, and a restart picks them up
 
 Runs are rows in `flow_runs`, in a migration of `packages/core/src/db.ts`, with the item's `bounces`
@@ -423,32 +445,54 @@ seconds.
 Built from the validated `DesktopEquipo`, `DesktopEquipoVacio`, `DesktopMiembro`, `DesktopFlujo`,
 `DesktopTableroEquipo`, `DesktopMemoria`, `DesktopDocumentos` and `DesktopDocumentoEditar` and their
 `Mobile*` screens (`MobileMemoriaDiario` and `MobileMemoriaCLI` included), for desktop and phone, in
-dark and light. The project page's tabs are now, in order: Resumen, Tablero, **Equipo**,
+dark and light. Orchestration 7 brought them to the designer's review of those screens, which added
+`DesktopEquipoActividad` and `DesktopChatFlujo` and their phone screens; what it applied and left is
+at the end of [the review's note](design-system/ecosystem-review.md#applied-in-development). The project page's tabs are now, in order: Resumen, Tablero, **Equipo**,
 **Documentos**, Memoria, Recursos, Worktrees and Ajustes. Each of the first four follows its module.
 
 **A role is drawn one way everywhere** (`RoleAvatar` in `apps/web/src/pages/team/`): a neutral
 squircle with its initials in mono, and the role's own hue only on the diamond in its corner. A
 person stays a round monogram, so a board never mixes the two up. The template's roles are
-translated; any other role is shown as written.
+translated; any other role is shown as written. It comes in four sizes; the 18 px one (`xs`) is for
+the chips, a card's foot and a column's head.
+
+**A run is named by its step**, the same way everywhere: refinado, comprobación, implementación,
+verificación. A member at work says its step's verb (Refinando, Comprobando, Implementando,
+Verificando), never the chat's tool verb. A running clock reads `m:ss` from the first second
+("0:41"); an ended run's duration is words ("3 min 40 s").
 
 ### Team: `/?view=team`
 
 - **Members.** Each member shows its role and agent file, the columns it answers for (or that it is
   only consulted), where it may write, and what it does now. A file that is `missing` or `drifted`
-  says so in words, in warn. The member at work carries the live rail; the rest stand still. The
-  last card offers the agent files no member plays. The flow shows at a glance, with the team's latest
-  work. The tab counts its members.
-- **Empty team.** `Empty` with the `team` illustration, the template's team with the roles it brings,
-  and "Add a member".
+  says so in words, in warn. The member at work carries the live rail and leads with the spinner,
+  the item and its step verb; the rest stand still. A member whose last run failed says "Falló" in
+  bad with the short reason. The last card offers the agent files no member plays. The flow shows at
+  a glance, with the team's latest work; "Ver todo" opens Team activity. The tab counts its members.
+- **Three views.** A segmented control switches between the members, the flow and Actividad.
+- **Empty team.** `Empty` with the `team` illustration, redrawn with the flow's three roles over the
+  stage each one does, the template's team with the roles it brings, "Pedir propuesta" and a quiet
+  "Add a member", the only way to add one by hand. On a desktop the card reaches the status bar.
 - **A member** (`&member=<agent>`). Its responsibility, write paths and model, saved through the team
-  route. Its agent file in the existing editor, saved through the resources route, the file a
+  route. The model is a `ModelPicker` (`components/controls`): the alias as a tag and the model it
+  resolves to today, "[sonnet] Sonnet 5", a list on a desktop and a sheet on a phone. Its agent file in the existing editor, saved through the resources route, the file a
   terminal reads. Beside them: its columns, what it runs now and ran before, and its memory. On a
   desktop it is a page of its own, without the project's header and tabs, and the crumbs read
   "Equipo / Desarrollador".
-- **The flow** (`&section=flow`). The switch, the role of each column, the bounce limit and each
-  role's model, edited as one draft and saved together: the flow into the settings, each model into
-  its member. The crumbs read "Equipo / Flujo". `maxParallel` has no control yet: it is kept as the
-  settings hold it, and set through `PUT /projects/:id/settings`.
+- **The flow** (`&section=flow`). The switch, the role of each column, one **Límites** card and each
+  role's model as a `ModelPicker`, edited as one draft and saved together: the flow into the
+  settings, each model into its member. Límites holds the bounces and the runs at once (steppers)
+  and the cost per run (a field, empty for no limit), and leads to the runs. The list of items QA
+  sent back moved to Team activity's "Devueltas". The crumbs read "Equipo / Flujo".
+- **Team activity** (`&section=activity`, `pages/team/Activity.tsx`). Every flow run of the project,
+  from `GET /projects/:id/flow/runs`: "Ahora" on top with what runs and waits, then one group per day
+  ("Hoy", "Ayer · domingo 27"), where a run shows its bare hour and, before today, the day heads the
+  group. Filters: Todas, En marcha, Fallidas and Devueltas, and a chip per member. Each row has the
+  member's squircle, "QA · verificación", the outcome as a badge with its word, the item, what it did
+  and, once ended, how long it took. A failed run shows its reason, the raw error, "Ver el chat" and
+  "Reintentar", or what the retry did once it ran; a run whose item was deleted says so. Beside the
+  runs: today by member and the flow's limits. The list pages by 50 with "Mostrar 50 más · quedan
+  N". The crumbs read "Equipo / Actividad".
 - **Add a member.** A role, the agent file that plays it (one already in `.claude/agents/` or a new
   one Agentry writes), its model and what it answers for.
 
@@ -456,14 +500,16 @@ translated; any other role is shown as written.
 
 On one project's board with the Team module on:
 
-- each column shows the role that answers for it while the flow is on;
-- a card at work names the member on it;
-- a card that QA sent back shows "rebote 1 de 3", neutral while it has bounces left;
-- an item waiting for the person says why, with "Aprobar y pasar a Hecho" when verification passed
-  it.
+- each column's head shows the role that answers for it while the flow is on;
+- a card's strip, at its foot, says what the team is doing with it: a role queued for a place, at
+  work with its step verb and clock, or failed with its reason ("Falló al comprobarla"); QA's words
+  on a card it sent back; "te espera" with "Aprobar y pasar a Hecho" once QA passed it (see
+  [work-items.md](work-items.md#the-board));
+- a card that QA sent back shows "rebote 1 de 3", neutral while it has bounces left.
 
-The toolbar has a way to the flow, with its state in a word. The All projects board and a project
-without a team draw the plain board.
+The flow's button leads the header's views, with its state in a word; on a phone the flow's state is
+one row under the view switch. The All projects board and a project without a team draw the plain
+board.
 
 **Assignee.** A task can be assigned to a role (decision 13). The task page, New task and the
 board's Assignee filter offer the team's members while the Team module is on, and draw a role with
@@ -505,9 +551,18 @@ On a phone the three are tabs of one screen (`&section=proposals|journal|cli`).
 
 ### On a phone
 
+These screens have no app top bar. A project's page and its tabs are routes the shell marks
+`phoneHeader: 'page'` (`components/shell/phone-header.ts`), and each draws `PhoneHeader`: the way
+back, "Equipo" over the project with its member count (or its unsaved changes), and "⋯" as a sheet.
+
 A member, the flow and an open document end in their own Save bar and hide the tab bar
 (`hidesTabBar` in `lib/shell-live.ts` reads the query string too). The empty team is drawn on the
-page with full-width actions.
+page with full-width actions, "La plantilla trae" over the template's roles, and its third action in
+"⋯". In Team activity the member filter is the header's button, and a whole row opens the run's
+chat, with no control inside it. The Flow's Límites are cells.
+
+A failed run's chat keeps the chat page's header on a phone, as every chat does; see
+[work-items.md](work-items.md#from-a-chat-and-an-orchestration) for its banner.
 
 ## Known gaps
 
@@ -517,13 +572,6 @@ page with full-width actions.
   tab shows that member at work. [The audit](plans/project-ecosystem-audit.md) left this for
   orchestration 3, and it is still open. Counting `refine` and `verify` chat links there is the likely
   fix.
-- **`maxParallel` and `maxCostUsd` have no control** on the Flow screen: both are set through the
-  settings document (`PUT /projects/:id/settings`).
-- **Only a member's latest failed run shows on the item's link.** The web reads the runs from the
-  team data, which holds each member's latest run, so an older failed run's chat link reads as a
-  normal one again; its comment stays. A failed run's own chat page says nothing of the failure.
-  Serving an item's runs from the core would close both (finding 14 of
-  [the review](plans/project-ecosystem-audit.md#review-of-the-whole-feature-before-the-pull-request)).
 - **`POST /projects/:id/team/from-template` answers 200**, where other creating routes answer 201.
   It answers the whole team, and sending it twice changes nothing, so it stays.
 - **A run that hits a rate limit fails** rather than waiting for the rotation to replay it. Moving
@@ -534,16 +582,11 @@ page with full-width actions.
   file saved through the resources route does not emit `team.changed`.
 - **The template's responsibilities are English**, written by core into the metadata and the agent
   file, so they show in English in the Spanish interface.
-- **Not built yet**: the team activity's "Ver todo" has no route to go to. ("Pedir propuesta" came
-  with the assistant in orchestration 4.)
 - **Small differences from the references**, left by the review:
-  - the model picker shows "sonnet", not "sonnet · Sonnet 5";
   - "Ahora y antes" has no task count;
   - a narrow card's live line wraps its time;
   - the phone journal shows the person's monogram without "Tú";
-  - the phone's "Editar" bar sits under a short document rather than at the bottom;
-  - the shell highlights "Inicio" where the references highlight "Proyectos" or "Más", and the phone
-    project screens keep the app's top bar. These are shell choices from orchestration 2.
+  - the phone's "Editar" bar sits under a short document rather than at the bottom.
 
 ## Related
 
