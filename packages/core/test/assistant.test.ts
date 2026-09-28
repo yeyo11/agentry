@@ -14,6 +14,7 @@ import type {
   ProjectTeamMember,
 } from '@agentry/shared';
 import { assistantLanguage, parseAnswer, assistantSchema, assistantPrompt, type AssistantBrief, type AssistantGit } from '../src/assistant-answer.ts';
+import { partialJson, resourceDraft } from '../src/assistant-draft.ts';
 import { ASSISTANT_ERRORS, AssistantService, DENIED_TOOLS, memberFile, READ_ONLY_TOOLS, type AssistantKnown, type AssistantLaunch } from '../src/assistant.ts';
 import { ASSISTANT_SCHEMA_VERSION, Db, migrate } from '../src/db.ts';
 import { EventBus } from '../src/events.ts';
@@ -675,6 +676,7 @@ test('the prompt and the schema say what a run is and is not', () => {
     kind: 'work-items',
     projectName: 'claude-wrapper',
     description: null,
+    focus: null,
     resourceKind: null,
     empty: false,
     proposes: ['work-item'],
@@ -803,4 +805,117 @@ test("a proposed member is held to the team's limits, and an edit past them is r
   }
   assert.equal(s.added.length, 0);
   assert.equal(s.assistant.proposal(proposed.id).status, 'pending');
+});
+
+test("Suggest tasks' focus is its own field, worded as where to look and not as what the project is for", async () => {
+  const s = setup();
+  const run = await s.assistant.start('p1', { kind: 'work-items', focus: "the checkout's error handling" });
+  await s.assistant.settled();
+  assert.equal(run.focus, "the checkout's error handling");
+  assert.equal(run.description, null);
+  const prompt = s.launches[0]?.prompt ?? '';
+  assert.match(prompt, /## Where to look\n\nThe person asks for work items in this area[^\n]*\n\nthe checkout's error handling/);
+  assert.match(prompt, /`workItems`: the next work items in the area above/);
+  assert.doesNotMatch(prompt, /What the person says the project is for/);
+  // Kept on the run, so it reads back with it and a restart words it the same
+  assert.equal(s.assistant.runs('p1', 'work-items')[0]?.focus, "the checkout's error handling");
+  assert.equal(s.assistant.run(run.id).focus, "the checkout's error handling");
+
+  // A project run takes no focus; one without a focus reads as none
+  await assert.rejects(s.assistant.start('p1', { kind: 'project', focus: 'x' }), /focus goes with a work-items run only/);
+  await assert.rejects(s.assistant.start('p1', { kind: 'work-items', focus: 3 }), /focus must be a string/);
+  await assert.rejects(s.assistant.start('p1', { kind: 'work-items', focus: 'x'.repeat(4001) }), /focus is longer/);
+  const project = await projectRun(s);
+  assert.equal('focus' in project, false);
+
+  // On an empty project a focus is something to work from, as a description is
+  const empty = setup({ dir: mkdtempSync(join(tmpdir(), 'agentry-assistant-empty-')), commits: null, chats: 0 });
+  const focused = await empty.assistant.start('p1', { kind: 'work-items', focus: 'a payments API' });
+  await empty.assistant.settled();
+  assert.equal(focused.status, 'running');
+  assert.equal(empty.launches.length, 1);
+});
+
+test('a run keeps its language, so one started again after a restart is titled as it was', async () => {
+  const config = tempConfig();
+  mkdirSync(config.dataDir, { recursive: true });
+  const db = new Db(config);
+  const dir = repo();
+  const first = setup({ db, dir });
+  const run = await first.assistant.start('p1', { kind: 'work-items', focus: 'webhooks' }, 'es');
+  await first.assistant.settled();
+  assert.equal(run.language, 'es');
+  assert.equal(first.launches[0]?.prompt.split('\n')[0], 'Sugerir tareas · pagos-api');
+  // As if the process died before its chat started: the run is asked again from its start
+  db.connection.prepare('UPDATE assistant_runs SET chat_id = NULL WHERE id = ?').run(run.id);
+
+  const second = setup({ db, dir });
+  await second.assistant.recover();
+  const again = second.launches[0];
+  assert.ok(again);
+  assert.equal(again.resumeChatId, null);
+  assert.equal(again.prompt.split('\n')[0], 'Sugerir tareas · pagos-api');
+  assert.match(again.prompt, /## Where to look[\s\S]*webhooks/, 'and with its focus');
+  assert.equal(second.assistant.run(run.id).language, 'es');
+
+  // A run stored before the language was kept reads as English
+  db.connection.prepare('UPDATE assistant_runs SET language = NULL WHERE id = ?').run(run.id);
+  assert.equal('language' in second.assistant.run(run.id), false);
+});
+
+test('a streamed result is read wherever it is cut, and a running Create with AI serves it as its draft', async () => {
+  const whole = JSON.stringify({ summary: 'x', read: [], resources: [{ kind: 'agents', name: 'reviewer', content: 'a "b"\nc é\\d', n: 12 }] });
+  // Every prefix reads without throwing, and the content only ever grows toward the whole
+  let last = '';
+  for (let i = 0; i <= whole.length; i++) {
+    const draft = resourceDraft(whole.slice(0, i), 'agents');
+    const content = draft?.content ?? '';
+    assert.ok(content.startsWith(last), `prefix ${String(i)}: ${JSON.stringify(content)}`);
+    last = content;
+  }
+  assert.equal(last, 'a "b"\nc é\\d');
+  assert.deepEqual(partialJson('{"a": "x\\'), { a: 'x' }, 'an escape cut in half is left out');
+  assert.deepEqual(partialJson('{"a": "\\u00'), { a: '' });
+  assert.deepEqual(partialJson('{"a": 1, "b": 2'), { a: 1 }, 'a number is whole once something follows it');
+  assert.deepEqual(partialJson('{"a": [1, "t'), { a: [1, 't'] });
+  assert.deepEqual(partialJson('{"a'), {});
+  assert.equal(partialJson('not json'), undefined);
+  assert.equal(resourceDraft('{"summary": "x", "read": [', 'skills'), null, 'nothing of it written yet');
+  assert.deepEqual(resourceDraft('{"resources": [{"kind": "skills", "name": "/pay.md", "cont', 'skills'), { kind: 'skills', name: 'pay', content: '' });
+
+  // Only a running Create with AI keeps one, and only until it ends
+  const s = setup();
+  const suggest = await s.assistant.start('p1', { kind: 'resources' });
+  const create = await s.assistant.start('p1', { kind: 'resources', resourceKind: 'agents', description: 'Reviews migrations' }).catch((e: unknown) => e);
+  assert.ok(create instanceof Error, 'one resources run at a time');
+  await s.assistant.settled();
+  s.assistant.chatStructured(suggest.chatId ?? '', '{"resources": [{"name": "x", "content": "y');
+  assert.equal(s.assistant.run(suggest.id).draft, undefined, 'a suggestion shows its proposals, not a draft');
+  s.assistant.stop(suggest.id);
+  const run = await s.assistant.start('p1', { kind: 'resources', resourceKind: 'agents', description: 'Reviews migrations' });
+  await s.assistant.settled();
+  assert.equal(s.assistant.run(run.id).draft, undefined, 'nothing written yet');
+  const before = s.events.length;
+  s.assistant.chatStructured(run.chatId ?? '', '{"summary": "x", "read": [], "resources": [{"kind": "agents", "name": "migration-reviewer", "content": "---\\nname: mig');
+  assert.deepEqual(s.assistant.run(run.id).draft, { kind: 'agents', name: 'migration-reviewer', content: '---\nname: mig' });
+  assert.ok(s.events.slice(before).some((e) => e.type === 'assistant.run' && e.action === 'read'));
+  const done = s.answer(s.assistant.run(run.id), { summary: 'x', read: [], resources: [{ kind: 'agents', name: 'migration-reviewer', description: 'd', content: '---\nname: migration-reviewer\n---\nx', reason: 'r' }] });
+  assert.equal(done.draft, undefined);
+  s.assistant.chatStructured(run.chatId ?? '', '{"resources": [{"name": "late"');
+  assert.equal(s.assistant.run(run.id).draft, undefined, 'a late stream changes nothing');
+});
+
+test('CLAUDE.md shows once in what a run read, whether the chat opens it or not', async () => {
+  const dir = repo();
+  writeFileSync(join(dir, 'CLAUDE.md'), '# Pagos\n\nNever log a card.\n');
+  const s = setup({ dir });
+  const run = await projectRun(s);
+  const claudeMd = (r: AssistantRunDetail) => r.sources.filter((x) => x.path === 'CLAUDE.md');
+  assert.deepEqual(claudeMd(run).map((x) => [x.kind, x.state, x.count]), [['instructions', 'read', 3]]);
+  // The chat opens it too, by an absolute path, and says so in its answer
+  s.bus.emit({ type: 'chat.activity', title: '', runId: 'chat-1', runName: 'x', sessionId: 'chat-1', orchestrationId: null, internal: false, taskId: null, activity: { kind: 'tool', tool: 'Read', target: join(dir, 'CLAUDE.md'), since: new Date().toISOString() } });
+  assert.deepEqual(claudeMd(s.assistant.run(run.id)).map((x) => x.kind), ['instructions']);
+  const done = s.answer(s.assistant.run(run.id), { ...RESULT, read: [{ kind: 'file', path: './CLAUDE.md' }, { kind: 'file', path: 'README.md' }] });
+  assert.deepEqual(claudeMd(done).map((x) => [x.kind, x.state]), [['instructions', 'read']]);
+  assert.equal(done.sources.filter((x) => x.path === 'README.md').length, 1);
 });

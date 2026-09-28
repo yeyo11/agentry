@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useOverview } from '../../api';
 import { formatCost, formatDuration, formatNumber, timeAgo } from '../../lib/format';
-import { elapsedSince, formatElapsed } from '../../lib/live';
+import { elapsedSince } from '../../lib/live';
 import { useClockTick } from '../../lib/motion';
 import { ActivityTicker } from '../ActivityTicker';
 import { EpicLabel, ICON_SM, PriorityMark, WorkItemTypeIcon } from '../icons';
@@ -26,11 +26,24 @@ export function AssistantMark({ small = false }: { small?: boolean }) {
   );
 }
 
+/**
+ * A run's clock as the references write it, minutes and seconds from the first second: `0:41`,
+ * `12:05`, `1:02:05`. The app's other live times read `41s` under a minute; a run's clock ticks
+ * beside its verb, where a width that jumps at the minute would shift the line.
+ */
+export function formatRunClock(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const seconds = String(total % 60).padStart(2, '0');
+  const minutes = Math.floor(total / 60);
+  if (minutes < 60) return `${minutes}:${seconds}`;
+  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}:${seconds}`;
+}
+
 /** A clock that runs while the run does: `0:41`, then its whole duration once it ends. */
 export function useElapsed(startedAt: string, running: boolean): string {
   const tick = useClockTick(running ? 1000 : 60_000);
   // The tick is what makes the clock read the time again
-  return useMemo(() => formatElapsed(elapsedSince(startedAt)), [startedAt, tick]);
+  return useMemo(() => formatRunClock(elapsedSince(startedAt)), [startedAt, tick]);
 }
 
 /** The model the way the CLI names it ("Sonnet 5"), once the overview has read its list; the alias until then. */

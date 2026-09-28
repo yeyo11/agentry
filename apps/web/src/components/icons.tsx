@@ -179,11 +179,23 @@ export function EpicLabel({ epic }: { epic: Pick<WorkItemRef, 'id' | 'title'> })
   );
 }
 
-export function Monogram({ name, size = 36 }: { name: string; size?: number }) {
-  const letters = (name.match(/[A-Za-z0-9]+/g) ?? [name])
+/**
+ * The letters of a monogram: the first of each of the first two words. A project always gets two, as
+ * the references draw it ("claude-wrapper" CW, "nodo" NO), taking the second from a lone word; a
+ * person keeps one, since their mark stands beside their name.
+ */
+export function monogramLetters(name: string, pair = false): string {
+  const words = name.match(/[A-Za-z0-9]+/g) ?? [name];
+  const [first = '', second] = words;
+  if (pair && second === undefined) return first.slice(0, 2).toUpperCase();
+  return words
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('');
+}
+
+export function Monogram({ name, size = 36, project = false }: { name: string; size?: number; /** Two letters even for one word */ project?: boolean }) {
+  const letters = monogramLetters(name, project);
   return (
     <span className="monogram" style={{ '--hue': nameHue(name), width: size, height: size } as React.CSSProperties} aria-hidden>
       {letters || '?'}

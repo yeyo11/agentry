@@ -27,14 +27,15 @@ function useCause() {
   const { t } = useTranslation('home');
   const roleName = useRoleName();
   const say = t as unknown as Say;
-  return (entry: JournalEntry): string => {
+  // `named`: the person is already named beside the line ("Tú"), so "written by you" would say it twice
+  return (entry: JournalEntry, named = false): string => {
     const parts: string[] = [];
     if (entry.kind === 'closed') {
       parts.push(entry.approvedBy?.kind === 'person' || !entry.approvedBy ? say('memoryTab.journal.approvedDone') : say('memoryTab.journal.closedBy'));
       return parts.join(' · ');
     }
     if (entry.author.kind === 'agent') parts.push(entry.author.role ? roleName(entry.author.role) : say('memoryTab.journal.agent'));
-    else if (entry.kind === 'note' || entry.kind === 'decision') parts.push(say('memoryTab.journal.byYou'));
+    else if ((entry.kind === 'note' || entry.kind === 'decision') && !named) parts.push(say('memoryTab.journal.byYou'));
     if (entry.documentPath) parts.push(entry.documentPath.split('/').pop() ?? entry.documentPath);
     if (entry.item) parts.push(say('memoryTab.journal.fromItem', { key: entry.item.key }));
     if (entry.approvedBy?.kind === 'person' && entry.author.kind !== 'person') parts.push(say('memoryTab.journal.approvedByYou'));
@@ -89,10 +90,19 @@ function DeleteEntry({ entry }: { entry: JournalEntry }) {
   );
 }
 
-/** The mark of who wrote an entry on a phone: the role, or the person. */
+/** Whether a phone's entry is marked as the person's: anything no role wrote. */
+const byPerson = (entry: JournalEntry): boolean => !(entry.author.kind === 'agent' && entry.author.role);
+
+/** The mark of who wrote an entry on a phone: the role, or the person with "You" beside, as the reference writes it. */
 function Author({ entry, person }: { entry: JournalEntry; person: string }) {
+  const { t } = useTranslation('home');
   if (entry.author.kind === 'agent' && entry.author.role) return <RoleAvatar role={entry.author.role} size="sm" />;
-  return <Monogram name={person} size={22} />;
+  return (
+    <>
+      <Monogram name={person} size={22} />
+      <span className="journal-card-you">{t('memoryTab.journal.you')}</span>
+    </>
+  );
 }
 
 /**
@@ -148,7 +158,7 @@ export function Journal({ projectId, phone = false }: { projectId: string; phone
                 <p className="journal-card-text">{entry.text}</p>
                 <div className="journal-card-by">
                   <Author entry={entry} person={person} />
-                  <span>{cause(entry)}</span>
+                  <span>{byPerson(entry) ? [cause(entry, true)].filter(Boolean).map((text) => `· ${text}`) : cause(entry)}</span>
                 </div>
               </li>
             ))}

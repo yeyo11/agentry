@@ -1,6 +1,8 @@
 import {
   ASSISTANT_RESOURCE_KINDS,
   WORK_ITEM_PRIORITIES,
+  agentryLanguage,
+  type AgentryLanguage,
   WORK_ITEM_TYPES,
   assistantResourcePath,
   type AssistantFinding,
@@ -42,8 +44,10 @@ export const RESOURCE_NAME = /^[A-Za-z0-9][\w.-]{0,63}$/;
 export interface AssistantBrief {
   kind: AssistantRunKind;
   projectName: string;
-  /** What the person described: the one resource to build, or what an empty project is for */
+  /** What the person described: the one resource to build, or what the project is for */
   description: string | null;
+  /** For "Suggest tasks", the area to propose work in; never what the project is for */
+  focus: string | null;
   resourceKind: AssistantResourceKind | null;
   /** The directory had nothing to read: the run works from the description alone */
   empty: boolean;
@@ -65,7 +69,7 @@ export interface AssistantBrief {
 }
 
 /** The languages Agentry speaks; a chat's title is written in the person's. */
-export type AssistantLanguage = 'en' | 'es';
+export type AssistantLanguage = AgentryLanguage;
 
 /** The history and state of a project's repository, as a run is handed them instead of a shell. */
 export interface AssistantGit {
@@ -234,15 +238,7 @@ export function assistantTitle(brief: Pick<AssistantBrief, 'kind' | 'projectName
 }
 
 /** The language of an `Accept-Language` header or a stored choice: Spanish when it comes first, English otherwise. */
-export function assistantLanguage(value: unknown): AssistantLanguage {
-  if (typeof value !== 'string') return 'en';
-  for (const tag of value.split(',')) {
-    const code = tag.trim().toLowerCase().split(/[-_;.@]/)[0];
-    if (code === 'es') return 'es';
-    if (code === 'en') return 'en';
-  }
-  return 'en';
-}
+export const assistantLanguage: (value: unknown) => AssistantLanguage = agentryLanguage;
 
 /** The prompt of a run: who it is, that it writes nothing, what Agentry already knows, what to propose. */
 export function assistantPrompt(brief: AssistantBrief): string {
@@ -293,6 +289,16 @@ export function assistantPrompt(brief: AssistantBrief): string {
   lines.push('', "The project's journal, if it has entries, is in your system prompt.", '');
 
   if (brief.description && brief.kind !== 'resources') lines.push('## What the person says the project is for', '', brief.description, '');
+  if (brief.focus && brief.kind === 'work-items') {
+    lines.push(
+      '## Where to look',
+      '',
+      'The person asks for work items in this area of the project. Read what concerns it closely, and propose work there rather than elsewhere:',
+      '',
+      brief.focus,
+      '',
+    );
+  }
 
   lines.push('## What to propose', '');
   if (brief.kind === 'resources' && brief.description && brief.resourceKind) {
@@ -324,7 +330,9 @@ export function assistantPrompt(brief: AssistantBrief): string {
       lines.push(
         brief.kind === 'project'
           ? '- `workItems`: the first work items: what is missing or broken, most useful first, at most eight.'
-          : '- `workItems`: the next work items: what is missing or broken, most useful first, at most eight.',
+          : brief.focus
+            ? '- `workItems`: the next work items in the area above: what is missing or broken there, most useful first, at most eight.'
+            : '- `workItems`: the next work items: what is missing or broken, most useful first, at most eight.',
         '  Each is created in the backlog if the person accepts it. Name an existing epic by its key when it belongs to one, and an existing item it resembles in `similarTo`.',
       );
     }

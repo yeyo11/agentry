@@ -104,7 +104,8 @@ export function initialSources(path: string, facts: AssistantFacts, empty: boole
     sources.push({ path: null, count: null, total: null, unit: null, names: [], ...s });
   };
   const top = entries(path).filter(visible);
-  const files = top.filter((e) => e.isFile() && !LOCK_FILE.test(e.name)).sort((a, b) => fileRank(a.name) - fileRank(b.name) || a.name.localeCompare(b.name));
+  // CLAUDE.md has an entry of its own below, as what the run is handed
+  const files = top.filter((e) => e.isFile() && !LOCK_FILE.test(e.name) && e.name !== 'CLAUDE.md').sort((a, b) => fileRank(a.name) - fileRank(b.name) || a.name.localeCompare(b.name));
   for (const f of files.slice(0, FILES_MAX)) source({ kind: 'file', path: f.name, state: 'pending', count: lines(join(path, f.name)), unit: 'lines' });
   const dirs = top.filter((e) => e.isDirectory()).sort((a, b) => a.name.localeCompare(b.name));
   for (const d of dirs.slice(0, DIRS_MAX)) {
@@ -181,6 +182,13 @@ export function sourcesOf(base: readonly AssistantSource[], reads: AssistantRead
       } else if (reading) out.push({ ...s, state: 'reading' });
       else if (listed) out.push({ ...s, state: 'read' });
       else if (!finished) out.push(s);
+      continue;
+    }
+    // CLAUDE.md is handed to the run, and the chat may open it as well: one entry, the one laid out
+    if (s.kind === 'instructions' && s.path) {
+      const read = reads.files.includes(s.path);
+      if (read) claimed.add(s.path);
+      out.push(read && s.state === 'missing' ? { ...s, state: 'read' } : s);
       continue;
     }
     // A run started before git was handed to it has its history still to read

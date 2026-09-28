@@ -123,7 +123,7 @@ test('a card a person puts on the board starts the role of its column, with the 
   assert.equal(launch.run.stage, 'refine');
   assert.equal(launch.appendSystemPrompt, '# Project journal');
   assert.deepEqual(launch.jsonSchema, flowResultSchema('refine'));
-  assert.match(launch.prompt, /AGN-1: Fix the cart/);
+  assert.match(launch.prompt, /AGN-1 · Fix the cart/);
   // Refining reads, writes only in the documents folder, pushes nothing, and has no budget unless one is set
   assert.equal(launch.permissionMode, 'dontAsk');
   assert.ok(launch.allowedTools.includes('Write(docs/**)'));
@@ -146,7 +146,7 @@ test("a run's chat is titled in the person's language: the member's role, the it
   const [first, ...rest] = s.launches[0]?.prompt.split('\n') ?? [];
   assert.equal(first, 'Product Owner · AGN-1 · Arreglar el carrito');
   // The instructions for Claude after it stay as they were
-  assert.match(rest.join('\n'), /AGN-1: Arreglar el carrito[^]*You are the Product Owner/);
+  assert.match(rest.join('\n'), /AGN-1 · Arreglar el carrito[^]*You are the Product Owner/);
   await item(s, 'in_progress', 'Guardar   las\nlíneas');
   assert.equal(s.launches.at(-1)?.prompt.split('\n')[0], 'Desarrollador · AGN-2 · Guardar las líneas');
 

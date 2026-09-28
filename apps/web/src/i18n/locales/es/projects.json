@@ -85,6 +85,8 @@
     "worktrees_one": "{{n}} worktree",
     "worktrees_other": "{{n}} worktrees",
     "newTask": "Nueva tarea",
+    "assistant": "Asistente",
+    "assistantOf": "Asistente de {{name}}",
     "open_one": "{{n}} abierta",
     "open_other": "{{n}} abiertas",
     "backToProjects": "Volver a proyectos"

@@ -5,6 +5,7 @@ import {
   WORK_ITEM_STATUSES,
   workItemBranch,
   type AgentryEvent,
+  type AgentryLanguage,
   type ChatStartOptions,
   type Orchestration,
   type OrchestrationTaskSpec,
@@ -50,11 +51,19 @@ const TITLE_MAX = 120;
 // ---------- what an agent is told ----------
 
 /**
- * The prompt a chat or a node starts from. It opens with the key and the title, since a chat's title
- * is its first prompt and the list should name the item.
+ * The line a chat working on an item is listed by, `KEY · title`: a chat's title is its first
+ * prompt, so it names the item in the words the person gave it, whatever language they read.
+ */
+export function workItemTitle(item: Pick<WorkItem, 'key' | 'title'>): string {
+  return `${item.key} · ${item.title}`;
+}
+
+/**
+ * The prompt a chat or a node starts from. It opens with the item's title line; the instructions for
+ * Claude after it stay in English.
  */
 export function workItemPrompt(item: WorkItem): string {
-  const lines = [`${item.key}: ${item.title}`, ''];
+  const lines = [workItemTitle(item), ''];
   lines.push(`You are working on the ${item.type} ${item.key} of this project${item.epic ? `, part of the epic ${item.epic.key} "${item.epic.title}"` : ''}.`);
   if (item.description.trim()) lines.push('', item.description.trim());
   if (item.acceptanceCriteria.length) {
@@ -224,7 +233,12 @@ export function nodeId(item: Pick<WorkItem, 'key'>): string {
  * in the order they were picked, and an edge wherever one item of the selection blocks another. A
  * blocker left out of the selection cannot be waited for, so it is named rather than dropped quietly.
  */
-export function orchestrationDraft(project: { name: string; path: string }, selected: readonly WorkItem[], git: boolean): WorkItemOrchestrationDraft {
+export function orchestrationDraft(
+  project: { name: string; path: string },
+  selected: readonly WorkItem[],
+  git: boolean,
+  language: AgentryLanguage = 'en',
+): WorkItemOrchestrationDraft {
   const inSelection = new Set(selected.map((i) => i.id));
   const nodeOf = new Map(selected.map((i) => [i.id, nodeId(i)]));
   const external = new Map<string, WorkItemRef>();
@@ -238,7 +252,8 @@ export function orchestrationDraft(project: { name: string; path: string }, sele
     }
     return {
       id: nodeOf.get(item.id) ?? nodeId(item),
-      name: clip(`${item.key} ${item.title}`, 80),
+      // A linked node's chat is listed by its name: the orchestrator heads the node's prompt with it
+      name: clip(workItemTitle(item), 80),
       prompt: workItemPrompt(item),
       ...(dependsOn.length ? { dependsOn } : {}),
       workItemId: item.id,
@@ -248,8 +263,9 @@ export function orchestrationDraft(project: { name: string; path: string }, sele
   const only = selected.length === 1 ? selected[0] : undefined;
   return {
     spec: {
-      name: clip(only ? `${only.key} ${only.title}` : `${project.name}: ${keys.join(', ')}`, 80),
-      objective: [`Work on these tasks of ${project.name}:`, ...selected.map((i) => `- ${i.key} ${i.title}`)].join('\n'),
+      name: clip(only ? workItemTitle(only) : `${project.name}: ${keys.join(', ')}`, 80),
+      // The person reads and edits it before launching, so it is written in their language
+      objective: [language === 'es' ? `Trabajar en estas tareas de ${project.name}:` : `Work on these tasks of ${project.name}:`, ...selected.map((i) => `- ${workItemTitle(i)}`)].join('\n'),
       engine: 'graph',
       cwd: project.path,
       // Each node in its own worktree, as "Work on it" does, whenever there is a repository for it

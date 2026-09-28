@@ -272,6 +272,7 @@
       "closedBy": "moved to Done",
       "agent": "An agent",
       "byYou": "written by you",
+      "you": "You",
       "fromItem": "from {{key}}",
       "approvedByYou": "approved by you",
       "kind": {

@@ -1110,7 +1110,8 @@
     "createHint": "Se abre en el editor para que lo revises antes de guardarlo.",
     "writing": "Escribiendo el recurso",
     "written": "El recurso que ha escrito",
-    "contentWait": "El archivo aparece aquí cuando esté escrito",
+    "writingVerb": "Escribiendo",
+    "contentWait": "El archivo aparece aquí en cuanto empiece a escribirlo",
     "startFailed": "No se ha podido empezar el asistente",
     "stopFailed": "No se ha podido detener el asistente",
     "decideFailed": "No se ha podido cambiar la propuesta"
