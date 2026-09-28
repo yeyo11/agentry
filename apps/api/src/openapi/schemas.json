@@ -12557,6 +12557,100 @@
       "status"
     ]
   },
+  "WorkItemPage": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItem"
+        }
+      },
+      "total": {
+        "type": "number",
+        "description": "Every item that passes the filter, across the pages"
+      },
+      "nextCursor": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Opaque: pass as `cursor` for the next page; null on the last"
+      }
+    },
+    "required": [
+      "items",
+      "total",
+      "nextCursor"
+    ],
+    "description": "A page of work items, descriptions left out."
+  },
+  "WorkItemPageQuery": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemStatus"
+        }
+      },
+      "type": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemType"
+        }
+      },
+      "priority": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemPriority"
+        }
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Items carrying any of these labels"
+      },
+      "assignee": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "`person`, `none`, or `role:<role>`"
+      },
+      "epicId": {
+        "type": "string"
+      },
+      "milestoneId": {
+        "type": "string"
+      },
+      "q": {
+        "type": "string",
+        "description": "Searched in the title and the description, and matched against the key"
+      },
+      "limit": {
+        "type": "number",
+        "description": "Default `WORK_ITEMS_PAGE` (100), at most `WORK_ITEMS_PAGE_MAX`"
+      },
+      "cursor": {
+        "type": "string",
+        "description": "`nextCursor` of the previous page; absent for the first"
+      }
+    },
+    "description": "`GET /projects/:id/work-items/page` and `GET /work-items/page` (All projects): the list a page at a time, in the same order as the whole list, with the same filter. `GET /projects/:id/work-items` and `GET /work-items` still answer the whole list as an array."
+  },
+  "BoardQuery": {
+    "type": "object",
+    "properties": {
+      "doneLimit": {
+        "type": "number",
+        "description": "Items of the Done column to hold; default `BOARD_DONE_PAGE`, at most `WORK_ITEMS_PAGE_MAX`"
+      }
+    },
+    "description": "`GET /projects/:id/work-items/board` and `GET /work-items/board` take the filter ( {@link  WorkItemFilter } ) and this. The Done column grows without end, so it is paged: a board holds its newest closed items, and \"and N more\" asks again with the next multiple of the page. Asking for a larger limit rather than a cursor keeps one board per query, which the event feed refreshes whole."
+  },
   "WorkOnWorkItemRequest": {
     "$ref": "#/components/schemas/ChatStartOptions",
     "description": "What a chat started on a work item may be given. The prompt is built from the item (its title, description and acceptance criteria) and the directory is its worktree, so neither is taken here."

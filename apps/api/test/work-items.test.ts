@@ -17,6 +17,7 @@ import type {
   WorkItemDetail,
   WorkItemHistoryEntry,
   WorkItemLink,
+  WorkItemPage,
 } from '@agentry/shared';
 import { Core, loadConfig } from '@agentry/core';
 import { buildApp } from '../src/app.ts';
@@ -387,6 +388,98 @@ test('a repeated query parameter or a body of the wrong shape is a 400, never a 
   }
 });
 
+test('an item is read by its key in any case, and a key no project has is a 404', async () => {
+  const project = await importProject('Keyed Place');
+  try {
+    const item = await createItem(project.id, { title: 'Found by key', description: 'The whole text' });
+    for (const key of [item.key, item.key.toLowerCase()]) {
+      const res = await app.inject(`/api/work-items/by-key/${key}`);
+      assert.equal(res.statusCode, 200, res.body);
+      const detail = res.json<WorkItemDetail>();
+      assert.equal(detail.id, item.id);
+      // The item's page, whole: its description and what only the detail carries
+      assert.equal(detail.description, 'The whole text');
+      assert.ok(Array.isArray(detail.history) && Array.isArray(detail.comments));
+    }
+    const prefix = item.key.split('-')[0] ?? '';
+    for (const key of [`${prefix}-999`, 'ZZZZ-1', 'not-a-key', 'board']) {
+      assert.equal((await app.inject(`/api/work-items/by-key/${key}`)).statusCode, 404, key);
+    }
+    // A removed project's item stays readable by key, as it is by id, while no other project takes the prefix
+    await app.inject({ method: 'DELETE', url: `/api/projects/${project.id}` });
+    assert.equal((await app.inject(`/api/work-items/by-key/${item.key}`)).json<WorkItemDetail>().id, item.id);
+  } finally {
+    await app.inject({ method: 'DELETE', url: `/api/projects/${project.id}` });
+  }
+});
+
+test('the board and the lists serve cards without descriptions, and page the Done column and the lists', async () => {
+  const project = await importProject('Paged Place');
+  const other = await importProject('Paged Other');
+  try {
+    const described = await createItem(project.id, { title: 'Described', description: 'd'.repeat(10_000) });
+    const bare = await createItem(project.id, { title: 'Bare' });
+    const done: WorkItem[] = [];
+    for (let n = 0; n < 23; n += 1) done.push(await createItem(project.id, { title: `Closed ${String(n)}`, status: 'done' }));
+    await createItem(other.id, { title: 'Elsewhere' });
+
+    // No description in any list payload, and the flag says which have one
+    const board = (await app.inject(`/api/projects/${project.id}/work-items/board`)).json<Board>();
+    const list = (await app.inject(`/api/projects/${project.id}/work-items`)).json<WorkItem[]>();
+    const all = (await app.inject('/api/work-items')).json<WorkItem[]>();
+    for (const card of [...board.columns.flatMap((c) => c.items), ...list, ...all]) assert.equal(card.description, '', card.key);
+    assert.equal(list.find((i) => i.id === described.id)?.hasDescription, true);
+    assert.equal(list.find((i) => i.id === bare.id)?.hasDescription, false);
+    assert.equal((await app.inject(`/api/work-items/${described.id}`)).json<WorkItemDetail>().description.length, 10_000);
+
+    // The Done column: its newest 20, the count over all of them, and "3 more" that a larger limit shows
+    const column = board.columns.find((c) => c.status === 'done');
+    assert.equal(column?.count, 23);
+    assert.equal(column?.items.length, 20);
+    assert.equal(column?.more, 3);
+    const grown = (await app.inject(`/api/projects/${project.id}/work-items/board?doneLimit=40`)).json<Board>().columns.find((c) => c.status === 'done');
+    assert.equal(grown?.items.length, 23);
+    assert.equal(grown?.more, undefined);
+    const allDone = (await app.inject('/api/work-items/board?doneLimit=1')).json<Board>().columns.find((c) => c.status === 'done');
+    assert.equal(allDone?.items.length, 1);
+    assert.equal((allDone?.items.length ?? 0) + (allDone?.more ?? 0), allDone?.count);
+
+    // A project's list a page at a time, the filter with it, until the last page
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const url: string = `/api/projects/${project.id}/work-items/page?status=done&limit=10${cursor ? `&cursor=${cursor}` : ''}`;
+      const res = await app.inject(url);
+      assert.equal(res.statusCode, 200, res.body);
+      const page = res.json<WorkItemPage>();
+      assert.equal(page.total, 23);
+      assert.ok(page.items.every((i) => i.description === '' && i.status === 'done'));
+      seen.push(...page.items.map((i) => i.id));
+      cursor = page.nextCursor;
+    } while (cursor);
+    assert.deepEqual(seen, list.filter((i) => i.status === 'done').map((i) => i.id));
+    // All projects pages the same list as `/work-items`
+    const first = (await app.inject('/api/work-items/page?limit=5')).json<WorkItemPage>();
+    assert.equal(first.total, all.length);
+    assert.deepEqual(
+      first.items.map((i) => i.id),
+      all.slice(0, 5).map((i) => i.id),
+    );
+
+    // A count that is not a whole number, a repeated one or a cursor this list did not hand out is a 400
+    for (const query of ['limit=abc', 'limit=-1', 'limit=0', 'limit=1&limit=2', 'cursor=nope']) {
+      assert.equal((await app.inject(`/api/projects/${project.id}/work-items/page?${query}`)).statusCode, 400, query);
+      assert.equal((await app.inject(`/api/work-items/page?${query}`)).statusCode, 400, query);
+    }
+    for (const query of ['doneLimit=x', 'doneLimit=-2', 'doneLimit=1&doneLimit=2']) {
+      assert.equal((await app.inject(`/api/projects/${project.id}/work-items/board?${query}`)).statusCode, 400, query);
+      assert.equal((await app.inject(`/api/work-items/board?${query}`)).statusCode, 400, query);
+    }
+  } finally {
+    for (const p of [project, other]) await app.inject({ method: 'DELETE', url: `/api/projects/${p.id}` });
+  }
+});
+
 test('creations, moves and deletions are written to the audit log under their route summary', async () => {
   const project = await importProject('Audited');
   const item = await createItem(project.id, { title: 'Watched' });
@@ -406,6 +499,9 @@ test('every work item route is documented with a summary and a tag', async () =>
     ['/api/projects/{id}/milestones', ['get', 'post']],
     ['/api/work-items', ['get']],
     ['/api/work-items/board', ['get']],
+    ['/api/projects/{id}/work-items/page', ['get']],
+    ['/api/work-items/page', ['get']],
+    ['/api/work-items/by-key/{key}', ['get']],
     ['/api/work-items/{itemId}', ['get', 'patch', 'delete']],
     ['/api/work-items/{itemId}/move', ['post']],
     ['/api/work-items/{itemId}/criteria/{criterionId}', ['patch']],
