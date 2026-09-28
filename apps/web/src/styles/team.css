@@ -1632,8 +1632,7 @@ a.member-run:hover {
   gap: 18px;
 }
 
-.flow-auto-head,
-.flow-bounces-head {
+.flow-auto-head {
   display: flex;
   align-items: flex-start;
   gap: 16px;
@@ -2086,10 +2085,6 @@ a.member-run:hover {
 .flow-page.is-phone .flow-then {
   font-family: var(--sans);
   font-size: 13px;
-}
-
-.flow-page.is-phone .flow-bounces-head {
-  align-items: center;
 }
 
 /* ---------- The board worked by a team ---------- */

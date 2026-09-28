@@ -302,26 +302,12 @@
   font-size: 12px;
 }
 
-.workitem-col-slot.is-more {
-  border-style: solid;
-  border-color: var(--line);
-  color: var(--fg-2);
-  text-decoration: none;
-  transition: border-color var(--dur-fast);
-}
-
-/* "and N more" draws the next page of Done in place, so it is a button drawn as the slot */
-button.workitem-col-slot.is-more,
+/* A phone's "Mostrar N más" draws the next page of Done in place, so it is a button drawn as a row */
 button.workitem-mrow-more-link {
   width: 100%;
   background: none;
   font-family: inherit;
   cursor: pointer;
-}
-
-.workitem-col-slot.is-more:hover {
-  border-color: var(--line-3);
-  color: var(--fg);
 }
 
 /* "Mostrar 9 más": the next page of Done, loaded in place (decision 6) */
