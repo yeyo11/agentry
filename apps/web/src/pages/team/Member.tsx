@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, keys, useMemoryProposals } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
-import { ModelPicker, MoreActions } from '../../components/controls';
+import { ModelPicker, MoreActions, Tooltip } from '../../components/controls';
 import { useConfirm } from '../../components/Dialog';
 import { ICON, ICON_SM } from '../../components/icons';
 import { PhoneHeader } from '../../components/shell/PhoneHeader';
@@ -234,9 +234,11 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
     />
   ) : (
     <header className="member-page-head">
-      <Link to={backHref} className="icon-btn" aria-label={t('member.back')}>
-        <ChevronLeft {...ICON} />
-      </Link>
+      <Tooltip content={t('member.back')}>
+        <Link to={backHref} className="icon-btn member-back" aria-label={t('member.back')}>
+          <ChevronLeft {...ICON} />
+        </Link>
+      </Tooltip>
       <RoleAvatar role={member.role} size="lg" />
       <div className="member-page-title">
         <h1>{name}</h1>

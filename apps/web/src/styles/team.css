@@ -1239,6 +1239,11 @@ a.flow-run-item:hover .flow-run-item-title {
   flex-wrap: wrap;
 }
 
+/* Boxed, as the task page's back button */
+.member-page-head .member-back {
+  border: 1px solid var(--line-2);
+}
+
 .member-page-title {
   flex: 1 1 200px;
   display: flex;
