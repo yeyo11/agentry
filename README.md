@@ -793,7 +793,7 @@ on (409 otherwise); reading does not.
 | GET | `/projects/:id/documents/file?path=` | One file's content and ties |
 | PUT | `/projects/:id/documents/file?path=` | `{ content, baseUpdatedAt? }` — create or replace a file; a file changed since `baseUpdatedAt` is refused (409). Emits `document.changed` |
 | DELETE | `/projects/:id/documents/file?path=` | Delete a file and untie it from every item. Emits `document.changed` |
-| POST | `/work-items/:itemId/documents` | `{ path, kind? }` — tie a file on disk to the item, role `reference`. Emits `document.changed` and `workitem.updated` |
+| POST | `/work-items/:itemId/documents` | `{ path, kind? }` — tie a file on disk to the item, role `reference`: the shorthand of `POST /work-items/:itemId/links` with `kind: document`. Emits `document.changed` and `workitem.updated` |
 
 ### Events
 
