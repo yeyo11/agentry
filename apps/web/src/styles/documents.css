@@ -586,16 +586,33 @@
   min-height: 44px;
 }
 
-/* A short document still has its bar at the bottom of the screen, not right under its text (the
-   reference's MobileDocumento): the bar is pinned to the bottom edge, which an open document keeps
-   free of the tab bar */
-.doc-phone-view > .doc-phone-foot {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 5;
-  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+/* Editing, the screen is the editor (MobileDocumentoEditar): it takes exactly the height the page
+   leaves, so Discard and Save sit at the bottom edge above their divider however short the file,
+   and a long one scrolls inside the editor while the head and the switch stay put */
+.doc-phone-edit {
+  height: calc(100dvh - var(--main-pad-top) - var(--main-pad-bottom));
+  padding-bottom: 0;
+}
+
+.doc-phone-edit > .code-editor,
+.doc-phone-edit > .code-editor > *,
+.doc-phone-edit > .code-editor .cm-editor {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* The editor's own floor and ceiling (420 px, 64vh) would push past or stop short of the bar */
+.doc-phone-edit > .code-editor .cm-editor {
+  max-height: none;
+  height: 100%;
+}
+
+.doc-phone-edit > .doc-phone-foot {
+  /* Into the page's bottom padding, so the bar meets the screen's edge rather than stopping above it */
+  margin: auto calc(-1 * var(--main-pad-x)) calc(-1 * (var(--main-pad-bottom) + var(--main-covered-bottom)));
+  padding: 12px var(--main-pad-x) calc(12px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--line);
 }
 
