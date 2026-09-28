@@ -4,6 +4,7 @@ import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type {
   AccountsOverview,
+  AgentryLanguage,
   AuthVerification,
   AgentryReleaseInfo,
   CliVersionInfo,
@@ -1564,7 +1565,7 @@ export class Core {
    * The graph a selection of one project's items becomes, for the person to review: nothing is
    * launched. The existing launch route takes it as it is and links each node to its item.
    */
-  async orchestrateWorkItems(projectId: string, request?: OrchestrateWorkItemsRequest): Promise<WorkItemOrchestrationDraft> {
+  async orchestrateWorkItems(projectId: string, request?: OrchestrateWorkItemsRequest, language: AgentryLanguage = 'en'): Promise<WorkItemOrchestrationDraft> {
     await this.workItemProject(projectId, 'write');
     const record = this.requireProject(projectId);
     const ids: unknown = request?.itemIds;
@@ -1578,7 +1579,7 @@ export class Core {
       this.checkWorkable(item);
       return item;
     });
-    return orchestrationDraft(record, items, canBranch(record.path));
+    return orchestrationDraft(record, items, canBranch(record.path), language);
   }
 
   /**

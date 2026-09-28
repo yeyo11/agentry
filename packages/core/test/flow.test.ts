@@ -119,7 +119,7 @@ test('a card a person puts on the board starts the role of its column, with the 
   assert.equal(launch.run.stage, 'refine');
   assert.equal(launch.appendSystemPrompt, '# Project journal');
   assert.deepEqual(launch.jsonSchema, flowResultSchema('refine'));
-  assert.match(launch.prompt, /AGN-1: Fix the cart/);
+  assert.match(launch.prompt, /AGN-1 · Fix the cart/);
   // Refining reads, writes only in the documents folder, pushes nothing, and has no budget unless one is set
   assert.equal(launch.permissionMode, 'dontAsk');
   assert.ok(launch.allowedTools.includes('Write(docs/**)'));
