@@ -1732,14 +1732,15 @@ button.workitem-mrow-more-link {
 }
 
 /* The flow's state under the views, the whole row a link to it (MobileTableroEquipo) */
+/* 13 px, as the reference sets it: at 14 the figures ("2 a la vez, 1 en cola") were cut on a 390 px phone */
 .board-flow-row {
   flex-direction: row;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-height: var(--touch);
-  padding: 8px 14px;
+  padding: 0 12px;
   color: var(--fg);
-  font-size: 14px;
+  font-size: 13px;
   text-decoration: none;
 }
 
@@ -1960,11 +1961,13 @@ button.workitem-mrow.is-unselectable .workitem-mrow-title {
   color: var(--fg-3);
 }
 
+/* Choosing cards is a mode of its own (MobileTableroSeleccion): its bar takes the tab bar's place at
+   the bottom, as a detail screen's Save bar does, and the way out is the header's ✕ */
 .selection-foot {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+  bottom: env(safe-area-inset-bottom, 0px);
   z-index: 25;
   display: flex;
   align-items: center;
@@ -1994,9 +1997,14 @@ button.workitem-mrow.is-unselectable .workitem-mrow-title {
   font-size: 16px;
 }
 
-/* The phone's FAB would sit on the bottom bar while cards are being chosen */
-.shell:has(.selection-foot) .fab {
+/* The phone's FAB would sit on the bottom bar while cards are being chosen, and the tab bar under it */
+.shell:has(.selection-foot) .fab,
+.shell:has(.selection-foot) .tabbar {
   display: none;
+}
+
+.shell:has(.selection-foot) .main {
+  --main-covered-bottom: 0px;
 }
 
 @media (max-width: 900px) {

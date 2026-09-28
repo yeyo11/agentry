@@ -256,8 +256,10 @@ export function FlowRunRow({ run, days, context, phone, projectId }: { run: Flow
       <RoleAvatar role={run.role} />
       <div className="flow-run-main">
         <span className="flow-run-title">
-          <span className="who">{role}</span>
-          <span className="stage">· {step}</span>
+          {/* Who and the step wrap as one, so a narrow row moves the badge down rather than splitting them */}
+          <span className="flow-run-actor">
+            <span className="who">{role}</span> <span className="stage">· {step}</span>
+          </span>
           <RunBadge run={run} />
         </span>
         {itemLine}

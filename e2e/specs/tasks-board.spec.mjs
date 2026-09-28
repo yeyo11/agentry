@@ -251,6 +251,9 @@ export default async ({ page, api, check, dirs }) => {
     const chosen = await page.eval(`const b = document.querySelector('button.workitem-mrow[data-item-id="${blocker.id}"]'); return { pressed: b.getAttribute('aria-pressed'), text: b.innerText }`);
     check(chosen.pressed === 'true' && chosen.text.includes('Chosen'), `a chosen row is pressed and says Chosen (${JSON.stringify(chosen)})`);
     check((await page.text('.selection-foot')).includes('1 task'), 'the bottom bar counts the chosen tasks');
+    // Choosing is a mode of its own (MobileTableroSeleccion): its bar takes the tab bar's place
+    const foot = await page.eval(`const f = document.querySelector('.selection-foot').getBoundingClientRect(); return { tabbar: document.querySelector('.tabbar')?.getClientRects().length ?? 0, gap: Math.round(innerHeight - f.bottom) }`);
+    check(foot.tabbar === 0 && foot.gap < 40, `the tab bar steps aside while choosing, and the bar sits at the bottom (${JSON.stringify(foot)})`);
   } finally {
     await page.viewport(1440, 900).catch(() => {});
     await page.eval(`localStorage.removeItem('agentry:project'); return true`).catch(() => {});

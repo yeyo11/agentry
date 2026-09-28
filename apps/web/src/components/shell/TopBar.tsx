@@ -1,10 +1,8 @@
 import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link, NavLink } from 'react-router-dom';
-import { useTeam } from '../../api';
 import { AssistantCrumbs, assistantProjectOf } from '../../pages/assistant/crumbs';
 import { asProjectView } from '../../pages/dashboard/views';
-import { useRoleName } from '../../pages/team/RoleAvatar';
 import { useProjectScope } from '../../lib/project-scope';
 import type { LiveSummary } from '../../lib/shell-live';
 import { normalizeKey, TASKS_PATH } from '../../lib/work-items';
@@ -15,32 +13,7 @@ import { NotificationBell } from '../Notifications';
 import { ProjectSelector } from '../ProjectSelector';
 import { SplitButton } from '../SplitButton';
 import { LiveChip } from './live';
-
-/**
- * The Team tab's crumbs: "Equipo", and below it "Equipo / Flujo" or "Equipo / Desarrollador", with
- * Equipo leading back, as the flow's and the member's references draw them.
- */
-function TeamCrumbs({ projectId, search }: { projectId: string; search: string }) {
-  const { t } = useTranslation(['home', 'team']);
-  const roleName = useRoleName();
-  const params = new URLSearchParams(search);
-  const agent = params.get('member');
-  const flow = params.get('section') === 'flow';
-  const members = useTeam(agent ? projectId : null).data?.members;
-  if (!agent && !flow) return <span className="crumb-page ellipsis">{t('home:tabs.team')}</span>;
-  const role = agent ? (members?.find((m) => m.agent === agent)?.role ?? agent) : null;
-  return (
-    <>
-      <Link to={`/?${new URLSearchParams({ project: projectId, view: 'team' }).toString()}`} className="crumb-page muted ellipsis">
-        {t('home:tabs.team')}
-      </Link>
-      <span className="crumb-sep" aria-hidden>
-        /
-      </span>
-      <span className="crumb-page ellipsis">{role ? roleName(role) : t('team:flow.title')}</span>
-    </>
-  );
-}
+import { TeamCrumbs } from './TeamCrumbs';
 
 /**
  * The top bar: the project scope as the crumb's root, where the page is below it, and what is live,

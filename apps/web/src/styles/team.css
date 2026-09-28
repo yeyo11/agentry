@@ -670,6 +670,11 @@
   line-height: 1.4;
 }
 
+/* Text, not a flex row: squeezed by the time beside it, it wraps between words as a sentence does */
+.flow-run-actor {
+  min-width: 0;
+}
+
 .flow-run-title .who {
   font-weight: 600;
 }
@@ -1013,6 +1018,23 @@ a.flow-run-item:hover .flow-run-item-title {
   align-items: center;
   padding: 40px 32px;
   gap: 18px;
+}
+
+/* The empty team's card reaches the status bar, as DesktopEquipoVacio draws it and the empty board does */
+.page:has(> .tab-panel > .team-page.is-empty) {
+  min-height: 100%;
+}
+
+.page > .tab-panel:has(> .team-page.is-empty),
+.tab-panel > .team-page.is-empty,
+.team-page.is-empty > .team-empty:not(.is-phone) {
+  flex: 1 1 auto;
+}
+
+.team-page.is-empty > .team-empty:not(.is-phone) {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 /* The empty team is the screen's whole subject: its title is the page's h1 size, as the references draw it */
