@@ -185,6 +185,43 @@ Each run is a chat, started by `launchFlowRun` in `packages/core/src/index.ts`:
   person's next request names a language again, is titled as it would have been. The item follows, as "Work on it" gives it, then the
   stage's instructions in English (`flowPrompt`).
 
+**The item's documents come into its worktree first** (CW-21, `syncItemDocuments` in
+`packages/core/src/item-documents.ts`). A refine writes the specification in the project's
+checkout and leaves it uncommitted, and the worktree is cut from a commit, so a work or verify run
+used to be told of a file that was not where it worked. Before a work or verify run's chat is
+created **or resumed**, `launchFlowRun` brings the item's documents across:
+
+- **What.** Every `document` link of the item, whatever its role (`refine`, `reference`…), and
+  nothing else: a file tied to another item, or not tied at all, is never read. Each path is checked
+  again as the Documents module checks it: its shape with `documentPath()`, then its real path inside
+  the real documents folder of the **checkout** (`existingDocument` in `documents.ts`), so a
+  symbolic link leading out is refused. The destination, the same relative path under the worktree's
+  project directory (`place.cwd`), must resolve inside that directory and must not be a link. A
+  refused or missing document is skipped and logged, and the others still come in.
+- **When.** A document is copied only when the worktree's file is missing or its bytes differ from the
+  checkout's, **and the branch has not made it its own**. The branch owns it when it has a commit
+  touching that path since it forked from the project's HEAD (`git log <merge-base>..HEAD -- <path>`,
+  the sync's own commits aside) or when the worktree has uncommitted changes to it. A spec the
+  developer or a person edited on the branch wins over the checkout's copy.
+- **The commit.** What was copied, and only that (`git add -- <paths>`, then `git commit -- <paths>`,
+  so the developer's uncommitted work stays out), is committed on `task/<key>` in one commit,
+  `docs: bring <KEY>'s specification into its branch`, with the identity and `--no-verify` the
+  orchestrator's commits in worktrees use, and no `Co-Authored-By` line. Nothing copied, no commit.
+- **The prompt.** A work or verify prompt gets one line, after the item's part, naming every tied
+  document now in the worktree, copied or already there: ``The item's specification is in this
+  worktree: `docs/plans/x.md`.`` A prompt with no tied document has no such line. A resumed
+  Developer's chat gets it too; the short "Agentry restarted…" prompt of a continued run does not, but
+  the sync still runs before it.
+- **Failure.** If copying or committing fails (a git error, an index lock), the launch throws with
+  git's message and the run ends failed like any launch that fails, rather than start without its
+  specification.
+
+It runs on every work and verify launch, so a spec changed in the checkout between rounds reaches the
+branch before the Developer's chat is resumed after a QA bounce. A refine, which has no worktree, and a
+project that is not a git repository (`itemWorktree` returns null), copy nothing. The other direction,
+documents a work or verify run writes in the worktree, still reaches the checkout only when the branch
+is merged.
+
 **A member never takes over a person's chat.** A Developer's run continues **its own chat from an
 earlier round** (the item's latest `work` run in `flow_runs`), and starts its own if that chat cannot
 be resumed. It never continues a chat a person started with "Work on it", although the item links
@@ -461,9 +498,11 @@ every place the audit's note N5 lists:
 
 `team_role` is general: the flow records the role whose run made any link.
 
-- **A run's documents** are written by the agent itself, in the worktree, and reported in its
-  result. Agentry ties each to the item with the run's stage as the link's role and the member's role
-  as `teamRole`.
+- **A run's documents** are written by the agent itself, and reported in its result: a refine's in
+  the project's checkout, a work or verify run's in the item's worktree. Agentry ties each to the
+  item with the run's stage as the link's role and the member's role as `teamRole`. The tied
+  documents are brought from the checkout into the item's worktree, and committed on its branch,
+  before each work or verify run (see [How a run starts](#how-a-run-starts)).
 - **A person** ties a document by hand with `POST /work-items/:itemId/documents`, role `reference`.
 - **Deleting a file** unties it from every item.
 

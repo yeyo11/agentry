@@ -242,6 +242,87 @@ test("a run's documents are tied as the agent reports them, ./ or absolute, and 
   }
 });
 
+test("a work run finds the refine's specification in its worktree, and the Developer's chat resumed after a QA bounce gets the checkout's newer copy", async () => {
+  const { config } = configWithFake();
+  const prompts = join(config.dataDir, 'prompts.log');
+  process.env.FAKE_CLAUDE_PROMPTS = prompts;
+  const core = new Core(config);
+  try {
+    const dir = repo();
+    const project = await flowProject(core, dir, (s) => ({ ...s, flow: { ...s.flow!, maxBounces: 1, columns: { in_progress: 'developer', in_review: 'qa' } } }));
+    const failing = { summary: 'Missing a rule', verdict: 'fail', criteria: [], memoryProposals: [], documents: [] };
+    const item = core.workItems.create(project.id, {
+      title: 'Limit resumes',
+      status: 'todo',
+      type: 'task',
+      description: `See docs/plans/limit.md.\nFAKE-RESULT-WORK ${JSON.stringify(WORK)}\nFAKE-RESULT-VERIFY ${JSON.stringify(failing)}`,
+    });
+    // What a refine leaves: the spec uncommitted in the checkout, tied to the item
+    mkdirSync(join(dir, 'docs', 'plans'), { recursive: true });
+    writeFileSync(join(dir, 'docs', 'plans', 'limit.md'), '# Limit\n');
+    await core.documents.tie(item.id, { path: 'docs/plans/limit.md', kind: 'spec' }, { role: 'refine', actor: { kind: 'person' } });
+    core.workItems.move(item.id, { status: 'in_progress' }, { actor: { kind: 'person' } });
+    await until(() => core.workItems.find(item.id)?.status, (s) => s === 'in_review', 'the work run to end');
+    const worktree = core.workItems.find(item.id)?.worktree ?? '';
+    const spec = join(worktree, 'docs', 'plans', 'limit.md');
+    assert.equal(readFileSync(spec, 'utf8'), '# Limit\n');
+    // The person sharpens the spec in the checkout while QA looks
+    writeFileSync(join(dir, 'docs', 'plans', 'limit.md'), '# Limit\n\nAt most three.\n');
+    await until(() => core.workItems.find(item.id)?.waiting, (w) => w === 'bounces', 'QA to send it back past the limit');
+
+    assert.equal(readFileSync(spec, 'utf8'), '# Limit\n\nAt most three.\n');
+    const own = execFileSync('git', ['-C', worktree, 'log', '--format=%s'], { encoding: 'utf8' }).split('\n').filter((s) => s.startsWith('docs: bring'));
+    assert.equal(own.length, 2, 'one commit for the first copy, one for the newer one');
+    const told = readFileSync(prompts, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { cwd: string; resume: string | null; prompt: string });
+    const work = told.filter((t) => t.prompt.includes('Implement it here'));
+    assert.equal(work.length, 2, 'a first work run and the resumed one');
+    assert.equal(work[0]?.resume, null);
+    assert.ok(work[1]?.resume, "the second round continued the Developer's chat");
+    for (const t of told) assert.match(t.prompt, /The item's specification is in this worktree: `docs\/plans\/limit\.md`\./);
+  } finally {
+    core.shutdown();
+    delete process.env.FAKE_CLAUDE_SPAWNS;
+    delete process.env.FAKE_CLAUDE_PROMPTS;
+  }
+});
+
+test('a run a restart cut off brings the newer spec into its worktree before its chat carries on, and its short prompt stays short', async () => {
+  const { config } = configWithFake();
+  const prompts = join(config.dataDir, 'prompts.log');
+  process.env.FAKE_CLAUDE_PROMPTS = prompts;
+  const dir = repo();
+  let core = new Core(config);
+  let worktree = '';
+  try {
+    const project = await flowProject(core, dir, (s) => ({ ...s, flow: { ...s.flow!, columns: { in_progress: 'developer' } } }));
+    const item = core.workItems.create(project.id, { title: 'Hang', status: 'todo', type: 'task', description: 'FAKE-HANG' });
+    mkdirSync(join(dir, 'docs', 'plans'), { recursive: true });
+    writeFileSync(join(dir, 'docs', 'plans', 'hang.md'), '# Hang\n');
+    await core.documents.tie(item.id, { path: 'docs/plans/hang.md', kind: 'spec' }, { role: 'refine', actor: { kind: 'person' } });
+    core.workItems.move(item.id, { status: 'in_progress' }, { actor: { kind: 'person' } });
+    await until(() => core.flow.runs(project.id)[0], (r) => !!r?.chatId && r.state === 'running', 'the run to start');
+    await until(() => existsSync(prompts), (told) => told, 'the run to be told its prompt');
+    worktree = core.workItems.find(item.id)?.worktree ?? '';
+  } finally {
+    core.shutdown();
+  }
+  writeFileSync(join(dir, 'docs', 'plans', 'hang.md'), '# Hang\n\nNewer.\n');
+  core = new Core(config);
+  try {
+    await until(() => (existsSync(prompts) ? readFileSync(prompts, 'utf8').trim().split('\n').length : 0), (n) => n >= 2, 'the cut run to carry on');
+    assert.equal(readFileSync(join(worktree, 'docs', 'plans', 'hang.md'), 'utf8'), '# Hang\n\nNewer.\n');
+    const [first, again] = readFileSync(prompts, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { resume: string | null; prompt: string });
+    assert.match(first?.prompt ?? '', /specification is in this worktree: `docs\/plans\/hang\.md`/);
+    assert.ok(again?.resume);
+    assert.match(again?.prompt ?? '', /^Agentry restarted while you were on this run\./);
+    assert.doesNotMatch(again?.prompt ?? '', /specification is in this worktree/);
+  } finally {
+    core.shutdown();
+    delete process.env.FAKE_CLAUDE_SPAWNS;
+    delete process.env.FAKE_CLAUDE_PROMPTS;
+  }
+});
+
 /** claude-swap managing the accounts, as far as the rotation asks: `to` is where it moves, null when none is left */
 function accountsRotating(core: Core, to: string | null): { rotations: number } {
   const seen = { rotations: 0 };
