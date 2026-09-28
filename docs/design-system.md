@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-09-27T20:00:00Z
+updated_at: 2026-09-28T12:00:00Z
 tags:
     - design-system
     - web
@@ -531,6 +531,72 @@ the file being edited is its only moving part.
 
 - The observability "stuck" badge stays bad (red): stuck is a problem, not a warning.
 - `quota` is still reserved: the app has no "every account exhausted" state yet.
+
+### The diff comparator (§5)
+
+> **Landed** in the `changes-review` orchestration (2026-09-28), as
+> [plans/changes-review.md](plans/changes-review.md) planned it. The notes below are where the app
+> settled a detail of §5 differently or said something §5 did not. The before/after pairs of its
+> consistency pass are in [`media/changes-review/`](media/changes-review/README.md).
+
+**Where the code is**
+
+- `lib/diff.ts` (parse, pair, fold, the rows of each mode) and `lib/word-diff.ts` (the token LCS)
+  are pure and unit-tested against the reference's sample diffs. `components/changes/` holds
+  `DiffView`, `BlockRail`, `Fingerprint`, `FileMap`, `FileReview`, `Intent` and the review's rules
+  (`review-model.ts`); Step by step is `components/changes/steps/`, its rules in `steps-model.ts`.
+- `styles/diff.css` is the comparator (§15 of `agentry-ds.css`); the review screen's own styles
+  sit beside its components (`changes.css`, `steps/steps.css`) and every rule is scoped under
+  `.changes-review`, because the compact summary reuses some of the class names (`.changes-file`)
+  and the review's stylesheet stays loaded once the page has been visited.
+- The comparator's strings live in the `components:diff` namespace, the screen's in `changes`.
+
+**The comparator**
+
+- Operators stay in the foreground: the GitHub themes paint them as keywords, the reference does
+  not. A language only shiki knows stays plain inside a diff (`highlightRoles` returns `null`).
+- Side by side is offered neither for a deleted file nor for an added one: with one side empty it
+  only doubles the width. Both fall back to Unified, as a narrow window does.
+- A file with no text to compare (binary, too large, only renamed) drops the mode switch and the
+  block counter.
+- A patch shown on its own (a step's) starts at its change: `DiffView` takes `trimEdges`, which
+  drops the gaps before the first hunk and after the last and keeps the ones between hunks.
+- Past 400 rows the rows are virtualised and measure from a box of their own. The block rail merges
+  the blocks that land on the same stretch of it into one tick and keeps the viewport box in its
+  own state, so a 20 000-line diff scrolls at 17–33 ms a frame and is never asked for with
+  `context=full` (`changes-large.spec.mjs`).
+- **Contrast.** The diff's dimmed context and its line numbers sit under 4.5:1 by design (rule 1:
+  only what changed carries colour). The review's chrome (header, file map, file header) is held to
+  the full contrast rule; axe scans the diff itself without `color-contrast`. Everything else on the
+  screen follows the global rule.
+- The fingerprint's segments draw 6 px but take a 24 px hit area in the header, which axe's
+  target-size rule asks for.
+
+**The review screen**
+
+- `?scope=` (a commit's sha, or `uncommitted`) joins the deep links of §5, so a scope survives a
+  reload and can be shared.
+- "Seen" is keyed by the file's status and counts (so the map can tell before a diff is read) and
+  by the hash of its diff once read; a browser keeps the seen files of the last 60 sources.
+- The why line and Step by step's heading quote the intent through one `Intent` component: what
+  Claude put between backticks is drawn as code, in the language's quotes («» in `es`, “” in `en`).
+  The why line says the step's time as hours and minutes and is hidden when the source has no
+  steps; on a phone it follows the sentence.
+- The file map's legend draws the braille spinner's resting glyph beside "Claude is editing": only
+  the row of the file being edited moves.
+
+**Everywhere else**
+
+- **Review the changes** takes the gradient only in the chat's inspector, where it is the zone's
+  one action. The task panel and the integration card draw it as a plain button: an orchestration's
+  page already spends its gradient on relaunching and the pull request.
+- A chat outside a repository lists, in its summary, the files its steps wrote, and opens the
+  review on Step by step.
+- The transcript's edit chips share the folded step's line, as `DesktopChatCambios` draws them; an
+  opened step takes the row and pushes them under it.
+- "See it in the conversation" opens `/chats/:id?at=<entryIndex>`: the chat drops `?at=` from the
+  address, turns subagent messages off (the index counts the main view) and marks the entry for a
+  moment in the accent, where a search hit takes the warning colour.
 
 ## Related
 

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-09-27T18:00:00Z
+updated_at: 2026-09-28T12:00:00Z
 tags:
     - status
     - project-state
@@ -18,12 +18,12 @@ change gets in.
 
 | | |
 | --- | --- |
-| Version | **0.17.2**, the same across all five packages |
-| Released | 2026-09-25, by release-please from the commit messages |
+| Version | **0.22.0**, the same across all five packages |
+| Released | 2026-09-27, by release-please from the commit messages |
 | Runtime | Node >= 22, pnpm workspace |
-| Source | 454 tracked `.ts`/`.tsx` files; the API contract is 2,676 lines of `packages/shared/src/types.ts` |
-| REST | 17 route files, documented as OpenAPI 3.1 and served at `/docs` |
-| Tests | 115 unit and integration test files, plus 34 browser specs under `e2e/` |
+| Source | 503 tracked `.ts`/`.tsx` files; the API contract is 2,843 lines of `packages/shared/src/types.ts` |
+| REST | 18 route files, documented as OpenAPI 3.1 and served at `/docs` |
+| Tests | 131 unit and integration test files, plus 40 browser specs under `e2e/` |
 | CI | `ci.yml` (typecheck, tests, advisories, OpenAPI drift, e2e, image smoke test), `desktop.yml`, `image.yml`, `release.yml` |
 
 The shape is unchanged: `packages/shared` holds the types every other package imports,
@@ -47,6 +47,13 @@ chat; authentication as none, bearer token or OIDC; a progressive web app with p
 Linux desktop app; a Docker image with a Kubernetes manifest; and remote access through a
 localhost.run tunnel over settings that change at runtime ([tunnel.md](tunnel.md),
 [layered-settings.md](layered-settings.md)).
+
+Changes are reviewed inside Agentry: one screen for a chat, a task and the integration branch,
+drawn by a diff comparator of its own in Reading, Unified and Side by side, with a Step by step lens
+that replays every edit of the transcript with the sentence Claude wrote before it. The editor
+integration (links, the copied diff command, Settings → Editor and `/settings/editor`) is gone. See
+[the plan's Outcome](plans/changes-review.md#outcome) and design system
+[§5](design-system.md#5-diff-comparator).
 
 ## What is open
 
@@ -79,6 +86,7 @@ localhost.run tunnel over settings that change at runtime ([tunnel.md](tunnel.md
 | [`plans/app-updates.md`](plans/app-updates.md) | Landed (#95) — see [Outcome](plans/app-updates.md#outcome) |
 | [`plans/redesign-night-shift.md`](plans/redesign-night-shift.md) | Every task landed; the merged branch's e2e verification runs in the orchestration — see [Outcome](plans/redesign-night-shift.md#outcome) |
 | [`plans/tunnel.md`](plans/tunnel.md) | Built by the orchestration `tunnel` on `feat/tunnel`, one pull request; the merged branch's e2e verification runs in the orchestration — see [Outcome](plans/tunnel.md#outcome) and [tunnel.md](tunnel.md) |
+| [`plans/changes-review.md`](plans/changes-review.md) | Every task landed in the orchestration `changes-review`; the merged branch's e2e verification runs in the orchestration — see [Outcome](plans/changes-review.md#outcome) |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.
@@ -124,4 +132,5 @@ possible to keep honest.
 [[knowledge-base.md]] · [[deploy.md]] · [[desktop.md]] · [[plans/roadmap-completion.md]] ·
 [[plans/post-roadmap.md]] · [[plans/ui-redesign.md]] · [[plans/agent-observability.md]] ·
 [[plans/agents-redesign.md]] · [[plans/mobile.md]] · [[plans/spanish-copy.md]] ·
-[[plans/app-updates.md]] · [[plans/redesign-night-shift.md]] · [[design-system.md]]
+[[plans/app-updates.md]] · [[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] ·
+[[design-system.md]]
