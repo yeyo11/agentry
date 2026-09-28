@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T06:00:00Z
-updated_at: 2026-09-27T21:30:00Z
+updated_at: 2026-09-28T22:00:00Z
 tags:
     - work-items
     - board
@@ -27,7 +27,9 @@ Orchestration 2 (`ecosystem-board-web`) built the screens from the prototypes th
 2026-09-27: the board, the list, All projects, milestones, the item's page and panel, New task, and
 the entry points in chats and orchestrations. See [The screens](#the-screens). Orchestration 3
 (`ecosystem-team`) added a team of agents that works the board by column, documents tied to items
-and the item's waiting state: see [team-and-flow.md](team-and-flow.md).
+and the item's waiting state: see [team-and-flow.md](team-and-flow.md). Orchestrations 5
+(`ecosystem-review-fixes`) and 6 (`ecosystem-gaps`) fixed the whole on 2026-09-28; what 6 changed is
+marked with its gap's number from [the plan](plans/project-ecosystem.md#orchestration-6-ecosystem-gaps).
 
 A board belongs to a project whose **Board** module is on; see [projects.md](projects.md).
 
@@ -131,6 +133,11 @@ chat, the orchestration and task, and a stable event code a client translates). 
 history (an epic, a milestone, a related item, a link) are snapshots, items by number, so an entry
 still reads after a rename, a delete or a new prefix. A chat link is named by the chat's first prompt,
 as the chat list titles it (`chatLinkName`), not by the session name the CLI was started with.
+**A chat this process does not run** (the terminal chat an item was created from) had no title when
+its link was written, and read "chat 1a2b…". The history is now read through the core, which looks
+such a chat's title up in the chat list when the history is read, for
+`GET /work-items/:itemId/history` and the item's page alike; a chat nobody can find keeps its label
+(orchestration 6, gap 15).
 
 **Several wrapper processes share the database**, so every write runs in `BEGIN IMMEDIATE`: it takes
 the write lock before reading the counter or the neighbours' ranks. A deferred transaction would get
@@ -167,7 +174,9 @@ A filter in a query string lists its values comma separated, or repeats its para
 
 `POST /work-items/:itemId/work` starts a chat in the item's project, prompted with its key, title,
 description and acceptance criteria (`workItemPrompt`), with the options a new chat takes except the
-prompt and the directory.
+prompt and the directory. The prompt's first line is `KEY · title`, since a chat is listed by the
+first line of its first prompt and those are the person's own words in whatever language they wrote
+them; the instructions for Claude after it stay in English (orchestration 6, gap 13).
 
 The chat runs in the item's **own worktree**, on branch `task/<key>` in lower case, under
 `<main checkout>/.claude/worktrees/task-<key>`, where the CLI keeps the worktrees it makes. It is made
@@ -202,6 +211,13 @@ options are checked for their type before any chat starts, and a wrong one is a 
 number for `model` reached the CLI's arguments and failed as a 500). Of `mcp`, only the server names
 are passed on, never a config path.
 
+**A chat that fails to start for the server's reason answers 500** (orchestration 6, gap 17). The
+runtime's deliberate refusals (no prompt, the concurrent run limit, a pinned account without
+`claude-swap`, the session held elsewhere, a bad upload) are `ChatRefusal`s with their 4xx; anything
+else thrown while the chat starts becomes a `ChatStartError`, a 500 whose message ("the chat could not
+start: …") is sent, since it is what the person would report. `POST /chats` answers the same way.
+Before, the API's error handler read every bare error as the caller's fault and answered 400.
+
 The chat is linked to the item in the same tick its process is spawned (`ChatService.create` takes an
 `onStart` callback for this), so the item follows it from its very first status. If writing the link
 fails, the chat just started is stopped and the error returned, so no chat runs unlinked.
@@ -222,7 +238,11 @@ The changes are measured from where the branch left the project's checkout, not 
 
 `POST /projects/:id/work-items/orchestrate` takes a selection (`itemIds`) and returns a **draft**,
 not a launched graph: one node per item in the order they were picked, each prompted with its item
-and naming it in `workItemId`, and `dependsOn` wherever one selected item blocks another. A blocker
+and naming it in `workItemId`, and `dependsOn` wherever one selected item blocks another. Each node
+is named `KEY · title`, and the orchestrator heads a node linked to an item with that name before the
+English instructions, so its chat is listed by it. The draft's objective, which the person reads and
+edits before launching, is written in the language of the request's `Accept-Language` ("Trabajar en
+estas tareas de <project>" in Spanish; orchestration 6, gap 13). A blocker
 outside the selection that is not done comes back in `externalBlockers`, since the graph cannot wait
 for it. Every node gets its own worktree when the project is a git repository. Epics and items of
 another project are refused with 400; items already done, or being worked on, with 409.
@@ -255,6 +275,11 @@ item keeps **every** link, not only the last. A link made by hand (`POST /work-i
 must name a chat that exists in the item's project, or a task of an orchestration that runs there
 (400 otherwise). `POST /work-items/:itemId/documents` is its shorthand for a document; both stay. Links are rows, so they survive a restart; the chat's
 title, its state or the task's status are filled in when read.
+
+**What makes a card live** (`isLive` in `work-item-rows.ts`): a `work`, `refine` or `verify` link whose
+chat is working or whose orchestration node is running. The item's `activeLink` is that link, so a card a
+Product Owner refines or QA verifies carries the live rail as one a Developer works on does
+(orchestration 6, gap 1). `origin` and `reference` chats and document ties never make a card live.
 
 The unions were settled in 1b for what orchestration 3 needs, so the web can switch over them
 exhaustively without them growing later:
@@ -348,7 +373,8 @@ changes no item, but it does end a live card.
 - the filters, read from and written to the address;
 - grouping by column, and the open count;
 - what makes an item live: its chat or node `working` (the rail and the spinner), or `waiting` for
-  the person.
+  the person. Until the chat reports an activity, a card's live line takes its verb from the link's
+  role: "Refinando", "Trabajando" or "Verificando".
 
 ![The Tasks board of harbor-api in the dark theme: five columns, In progress over its limit of 3 with the words "Over the limit: 4 of 3", a live card with its ring spinner, live rail and the command its chat is running, an epic counting its tasks, a card blocked by another, and "and 2 more" in Done](media/board.png)
 
@@ -367,14 +393,26 @@ The routes:
 - `/tasks/:key`: one item;
 - `?new=1` on any of them opens New task.
 
-The API has no route by key, so `/tasks/:key` finds the item with a `q=<key>` search and keeps only
-the exact match.
+`/tasks/:key` asks `GET /work-items/by-key/:key`, which answers the item's page for its key in any
+case, and seeds the item's own cache with it (orchestration 6, gap 16). Before, it searched every
+project with `q=<key>` and asked again for the exact match. A removed project keeps its prefix, which
+an imported one may take later, so the imported project's item wins.
 
 ### The board
 
 - **Columns.** There are five, each with its glyph, mono label, count and optional limit. A column
   over its limit gets the warn hairline and the words "Over the limit: 4 of 3". It never refuses a
-  card. Done shows its first three cards and then "and N more".
+  card. Done shows its first three cards and then "and N more", a button that draws the next
+  page in place.
+- **What a board holds** (orchestration 6, gap 20). The board, both lists, their pages and a chat's
+  items leave each description out: `description` is `''` and `hasDescription` says whether there is
+  one, since a description may run to 100,000 characters and no card shows it. The item's own page
+  fetches it whole. The Done column holds its `doneLimit` most recently closed items (20 by default)
+  in rank order and counts the rest in `more`; once the board's own page is used up, "and N more"
+  asks for a larger `doneLimit`. The column counts stay over every item, so the limits and the
+  sidebar count do not change with the page, and the header counts what Done leaves out. An epic's
+  progress is read from its own page when the board holds only part of Done, since its closed
+  children may be among what was left out.
 - **Cards** show:
   - the key and the type;
   - the priority mark (only `urgent` has a colour);
@@ -411,6 +449,11 @@ the exact match.
 ### List, All projects and milestones
 
 - **List** (`?view=list`): the items grouped by column in board order. `J` and `K` move between rows.
+  The rows come 100 at a time (`GET /projects/:id/work-items/page`, and `GET /work-items/page` on All
+  projects), with a cursor that is a place in the list's order rather than an offset, so an item
+  created or moved while paging neither repeats nor pushes another out of view. The next page loads
+  as the end comes into view, or from "Cargar más"; each group's figures come from the board, so a
+  head does not grow as pages arrive.
 - **All projects**: with All projects selected, every card names its project and no column shows a
   limit, as `GET /work-items/board` answers.
 - **Milestones** (`/tasks/milestones`):
@@ -430,9 +473,11 @@ one over its limit). Other differences from the desktop:
 - the filters open in a sheet;
 - each row has a move sheet;
 - selection turns rows into pressed toggles, with a bottom bar;
-- the project scope stays in the top bar, as on every page since `main`'s
-  [persistent filters](persistent-filters.md) moved it there for good (the page's own chip and
-  `pageHoldsScope` are gone);
+- Tasks, its milestones and a work item head themselves, without the app's top bar (orchestration
+  6, gap 21): a 44 px way back and the title, as `MobileTablero`, `MobileHitos` and `MobileTarea`
+  draw it, with the project scope that [persistent filters](persistent-filters.md) put in the top bar
+  now beside the title (`hidesTopBar` in `lib/shell-live.ts`; the desktop app keeps its bar, which is
+  also the window's title bar);
 - Milestones has no FAB, because its header already has New milestone.
 
 <p align="center"><img src="media/board-mobile.png" alt="The same board on a phone: the column jump on In progress, the section marked over the limit, and the live card first, with the command its chat is running" width="320"></p>
@@ -451,7 +496,9 @@ the board. It shows:
   a phone too. Each checked row says who checked it and when, read from the history.
 - **Relations** (*blocks*, *blocked by*), with add and remove.
 - **Links**: the chats and orchestration nodes that worked on the item, with the chat list's own
-  state badges and what each did to the item.
+  state badges and what each did to the item. A chat a flow run used reads its state from
+  `GET /work-items/:itemId/runs`, so every failed run's chat stays "Ejecución fallida", not only each
+  member's latest (orchestration 6, gap 2).
 - **Changes**: the item's worktree, its branch and its files with a diffstat. Each file, and
   **Review the changes**, open the review screen at `/tasks/:key/changes` (design system §5), which
   reads the item by its result alone: several chats may have worked on its branch, so there is no
@@ -530,38 +577,11 @@ reason as its first comment, and nothing written before. See [assistant.md](assi
 
 ## Known gaps
 
-Left open by the fixes of 1b, each for its owner to decide:
-
-- **Only `work` links make a card live.** `isLive` in `work-item-rows.ts` still counts only `work`
-  links. Orchestration 3's flow now writes `refine` and `verify` chat links, so a card that a Product
-  Owner is refining or QA is verifying has no `activeLink` and shows no live rail, although the Team
-  tab shows that member at work. Counting those links is the likely fix.
-
-(Schedules no longer take over work items: since the second audit a schedule drops each node's
-`workItemId` when it is stored and when it fires, `withoutWorkItems`.)
-- A generic error thrown while "Work on it" creates its chat reaches the client as a 400, not a
-  500: that is the API's shared error handler.
-
-Left open by the web of orchestration 2 (its `web-review` report). The history's chat label and the
-empty board's key were fixed by `board-fixes` in orchestration 4: the history names a chat by its
-first prompt, and the empty board's illustration draws the project's own first key (`SHOP-1`).
-
-- **A chat the process does not run is still named by its id in the history** ("chat 1a2b…"), such
-  as the terminal chat a task was created from: the label is written when the link is made, and the
-  chat list that knows its title is read asynchronously.
-- **Phone headers**: Tasks and the other phone screens keep the app's top bar, not the prototypes'
-  back arrow. That is how the shell works on every screen.
-- **No route by key.** `/tasks/:key` resolves through a search. A `GET` by key would save a request
-  and the exact-match filter.
-
-Left open by orchestration 5 (see
-[the review](plans/project-ecosystem-audit.md#still-open-after-orchestration-5)):
-
-- **The "Work on it" prompt is English, headed `KEY: title`.** The plan asks for a first line in the
-  person's language, `KEY · title`, since a chat is listed by its first prompt; the assistant's
-  runs do this, "Work on it" (`workItemPrompt`) and the orchestration draft's prompts do not.
-- **Board and list payloads carry each item's description**, capped at 100,000 characters, and
-  neither the Done column nor the lists are paged.
+None. Orchestration 6 (`ecosystem-gaps`, 2026-09-28) closed every gap this section listed after 1b,
+2 and 5, each described above where it now lives: live refine and verify cards (gap 1), a chat's
+title in the history (15), 500 for a chat that fails to start (17), phone headers (21), the route by
+key (16), `KEY · title` for "Work on it" and the draft's nodes (13), and the board and list payloads
+without descriptions, with Done and the lists paged (20).
 
 ## Related
 
