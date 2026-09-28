@@ -447,6 +447,19 @@ export function unifiedRows(diff: ParsedDiff, options: RowOptions = {}): DiffRow
 }
 
 /**
+ * Rows without the gaps before the first hunk and after the last: a patch shown on its own (a step
+ * of Step by step) says where it sits with its line span, and "57 unchanged lines" above it would
+ * only push the change down.
+ */
+export function withoutEdgeGaps<R extends { type: string }>(rows: R[]): R[] {
+  let from = 0;
+  let to = rows.length;
+  while (from < to && rows[from]!.type === 'gap') from++;
+  while (to > from && rows[to - 1]!.type === 'gap') to--;
+  return from === 0 && to === rows.length ? rows : rows.slice(from, to);
+}
+
+/**
  * Side by side: paired lines face each other; between two pairs, the unpaired removed and added
  * lines face each other in order, and the shorter side is padded.
  */

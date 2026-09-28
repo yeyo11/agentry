@@ -237,7 +237,23 @@
   color: var(--fg);
 }
 
-/* ---------- edit chips under a tool group of the transcript ---------- */
+/* ---------- edit chips beside a tool group of the transcript ---------- */
+
+/* A folded step and the files it edited read as one line, as in the reference; opened, the step
+   takes the row and its chips go under it. Anything else in the step (a workflow card) keeps a row. */
+.msg-step .msg-body:has(> .edit-chips) {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 8px;
+}
+.msg-step .msg-body:has(> .edit-chips) > :not(.tool-step, .edit-chips, .msg-time),
+.msg-step .msg-body:has(> .edit-chips) > .tool-step[data-state='open'] {
+  flex-basis: 100%;
+}
+.msg-step .msg-body > .tool-step[data-state='closed'] + .edit-chips {
+  margin-top: 0;
+}
 
 .edit-chips {
   display: flex;

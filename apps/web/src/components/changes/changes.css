@@ -578,8 +578,13 @@
   text-overflow: ellipsis;
 }
 
-.changes-review .changes-why-text q {
-  quotes: '«' '»';
+.changes-review .changes-why-text code {
+  padding: 0 4px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-xs);
+  background: var(--bg-2);
+  font-family: var(--mono);
+  font-size: 0.9em;
 }
 
 .changes-review .changes-why-when {

@@ -4,6 +4,7 @@ import type { RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Tooltip } from '../controls';
+import { spinnerGlyph } from '../../lib/live';
 import { ICON_SM } from '../icons';
 import { Spinner } from '../Spinner';
 import { groupByDir, splitPath, statusLetter } from './review-model';
@@ -187,7 +188,10 @@ export function MapLegend({ keys = true }: { keys?: boolean }) {
         <span className="changes-dot" aria-hidden />
         {t('map.legendUncommitted')}
         <span className="changes-legend-gap" />
-        <Spinner />
+        {/* The legend explains the live mark, and is not itself live: only a working agent moves */}
+        <span className="spinner-glyph" aria-hidden>
+          {spinnerGlyph(0, false)}
+        </span>
         {t('map.legendLive')}
       </span>
       {keys && (

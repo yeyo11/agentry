@@ -157,8 +157,10 @@ export default async ({ page, api, check }) => {
     check(await page.eval(`return !!document.querySelector('.changes-file.is-seen[aria-label^="long.ts"]')`), 'the seen file is marked in the map');
 
     // ---------- keyboard: j moves between blocks, p to the previous file (long.ts is the last) ----------
+    // The header (and its Seen box) draws before the diff arrives, and j has no block to go to until then
+    await page.waitFor(`return document.querySelectorAll('.changes-review .diff-row').length > 0`, { label: 'the rows of long.ts' });
     await page.key('j');
-    check((await page.text('.changes-blocks-count')).includes('1 /'), 'j moves to the first block');
+    await page.waitFor(`return document.querySelector('.changes-blocks-count')?.textContent.includes('1 /')`, { label: 'j moves to the first block' });
     const before = await current();
     await page.key('p');
     await page.waitFor(`return document.querySelector('.changes-file[aria-current=page], .changes-rail-file[aria-current=page]')?.getAttribute('aria-label')?.split(' · ')[0] !== ${JSON.stringify(before)}`, { label: 'p opens the previous file' });

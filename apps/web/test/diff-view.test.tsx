@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
-import { BlockRail } from '../src/components/changes/BlockRail';
+import { BlockRail, RAIL_BUCKETS, railTicks } from '../src/components/changes/BlockRail';
 import { classOf, diffSyntax, DiffView, type DiffSyntax } from '../src/components/changes/DiffView';
 import { Fingerprint } from '../src/components/changes/Fingerprint';
 import { highlightRoles, languageOfPath, SYNTAX_CLASS } from '../src/components/highlight';
@@ -164,6 +164,19 @@ test('the block rail draws the file to scale, a mark per block', () => {
   assert.match(html, /class="diff-rail-tick is-mod is-current" style="top:11.43%;height:1.43%"/);
   assert.match(html, /class="diff-rail-tick is-add" style="top:95.71%;height:1.43%"/);
   assert.equal(count(html, /diff-rail-tick/g), 5);
+});
+
+test('blocks that land on the same stretch of the rail become one tick', () => {
+  // A generated file: a one-line change every fourth line, 5 000 blocks for 20 000 lines
+  const marks = Array.from({ length: 5_000 }, (_, i) => ({ index: i, kind: i % 2 ? ('add' as const) : ('mod' as const), newLine: i * 4 + 1, oldLine: i * 4 + 1, adds: 1, dels: i % 2 ? 0 : 1 }));
+  const ticks = railTicks(marks, 20_000, 2_600);
+  assert.ok(ticks.length <= RAIL_BUCKETS, `${ticks.length} ticks`);
+  assert.equal(ticks.filter((t) => t.current).length, 1, 'the current block is still marked');
+  assert.equal(ticks[0]!.kind, 'mod', 'additions merged with a modification read as one');
+  const last = ticks[ticks.length - 1]!;
+  assert.ok(Math.abs(last.top + last.height - 1) < 0.001, 'the last tick reaches the end of the file');
+  // A short file keeps a tick per block
+  assert.equal(railTicks(blockStarts(GIT), GIT.newLength).length, blockStarts(GIT).length);
 });
 
 test('the fingerprint is a link per file, as wide as its churn', () => {

@@ -337,6 +337,9 @@
   background: var(--bg-1);
   border-left: 1px solid var(--line);
   cursor: pointer;
+  /* Its size comes from the row it stretches in, so nothing inside can move the diff: the view box
+     moving on every scroll then repaints the rail alone */
+  contain: strict;
 }
 
 .diff-rail-view {
