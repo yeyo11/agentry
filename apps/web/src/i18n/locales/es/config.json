@@ -634,6 +634,13 @@
     },
     "exists": "Ya existe",
     "nameRule": "Solo letras, dígitos, guiones y guiones bajos",
+    "frontmatter": {
+      "missing": "El archivo necesita una cabecera entre dos líneas ---, que es lo que lee el CLI.",
+      "unclosed": "La cabecera no está cerrada: añade una línea --- después de su último campo.",
+      "line": "Una línea de la cabecera no es un campo «clave: valor», así que el CLI no leería el bloque.",
+      "name": "La cabecera necesita un name: el CLI elige el agente por él.",
+      "description": "La cabecera necesita una description: es lo que le dice a Claude cuándo usarlo."
+    },
     "newUnsaved": "nuevo · sin guardar",
     "noDescription": "Sin descripción",
     "pick": "Elige uno de la lista para verlo y editarlo.",

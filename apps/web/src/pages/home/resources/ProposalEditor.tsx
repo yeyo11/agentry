@@ -12,6 +12,7 @@ import { useToast } from '../../../components/Toast';
 import { Segmented, Tag } from '../../../components/ui';
 import { useDirty } from '../../../lib/dirty';
 import { NARROW, useMediaQuery } from '../../../lib/media';
+import { frontmatterProblem } from '../../config/frontmatter';
 import { savePath, shownName } from './model';
 
 /**
@@ -71,7 +72,8 @@ export function ProposalEditor({
     },
     onError: (err) => toast.error(t('resourcesAi.decideFailed'), err),
   });
-  const trySave = () => pending && !save.isPending && save.mutate();
+  const problem = pending ? frontmatterProblem(resource.kind, content) : null;
+  const trySave = () => pending && problem === null && !save.isPending && save.mutate();
 
   return (
     <div className={`form resource-proposal-editor${phone ? ' is-phone' : ''}`}>
@@ -129,11 +131,16 @@ export function ProposalEditor({
         onSave={trySave}
         readOnly={!pending}
       />
+      {problem && (
+        <span className="field-error" role="alert">
+          {t(`resources.frontmatter.${problem}`)}
+        </span>
+      )}
 
       <div className="form-actions resource-proposal-actions">
         {pending ? (
           <>
-            <button type="button" className="btn btn-primary" disabled={save.isPending} onClick={() => save.mutate()}>
+            <button type="button" className="btn btn-primary" disabled={save.isPending || problem !== null} onClick={() => save.mutate()}>
               <Check {...ICON_SM} />
               {save.isPending ? t('shared.saving') : t(`resources.kinds.${resource.kind}.create`)}
             </button>

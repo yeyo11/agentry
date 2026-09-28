@@ -634,6 +634,13 @@
     },
     "exists": "Already exists",
     "nameRule": "Letters, digits, dashes and underscores only",
+    "frontmatter": {
+      "missing": "The file needs a frontmatter block between two --- lines, as the CLI reads it.",
+      "unclosed": "The frontmatter is not closed: add a --- line after its last field.",
+      "line": "A line of the frontmatter is not a \"key: value\" field, so the CLI would not read the block.",
+      "name": "The frontmatter needs a name: the CLI picks the agent by it.",
+      "description": "The frontmatter needs a description: it is what tells Claude when to use it."
+    },
     "newUnsaved": "new · unsaved",
     "noDescription": "No description",
     "pick": "Pick one from the list to view and edit it.",
