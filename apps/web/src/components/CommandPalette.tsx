@@ -28,6 +28,7 @@ import {
   Search,
   Settings2,
   SlidersHorizontal,
+  Sparkle,
   SquareCheck,
   SquarePlus,
   Sun,
@@ -43,6 +44,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
 import { LANGUAGES, setLanguage } from '../i18n';
 import { displayTitle } from '../lib/chat-model';
+import { assistantPath } from '../pages/assistant/model';
 import { setMotionPreference, type MotionLevel } from '../lib/motion';
 import { useProjectScope } from '../lib/project-scope';
 import { liveSummary } from '../lib/shell-live';
@@ -179,6 +181,9 @@ export function CommandPalette() {
       { id: 'act:run-workflow', group: 'actions', title: t('palette.runWorkflow'), hint: t('palette.runWorkflowHint'), keywords: 'workflow script', icon: Waypoints, run: () => window.dispatchEvent(new Event(RUN_WORKFLOW_EVENT)) },
       { id: 'act:new-orchestration', group: 'actions', title: t('palette.newOrchestration'), hint: t('palette.newOrchestrationHint'), keywords: 'agents dag plan', icon: Network, run: go(NEW_ORCHESTRATION_PATH) },
       { id: 'act:new-task', group: 'actions', title: t('shell:tasks.newTask'), hint: selected ? t('shell:tasks.newTaskIn', { name: selected.name }) : t('shell:tasks.newTaskHint'), keywords: 'work item board backlog issue ticket bug story epic', icon: SquarePlus, run: go(NEW_TASK_PATH) },
+      ...(selected
+        ? [{ id: 'act:assistant', group: 'actions' as const, title: t('palette.assistant'), hint: t('palette.assistantOf', { name: selected.name }), keywords: 'assistant ai suggest propose team resources tasks asistente', icon: Sparkle, run: go(assistantPath(selected.id)) }]
+        : []),
       { id: 'act:new-project', group: 'actions', title: t('palette.newProject'), hint: t('palette.newProjectHint'), keywords: 'import git clone folder directory template modules', icon: FolderPlus, run: go(NEW_PROJECT_PATH) },
       { id: 'act:credential', group: 'actions', title: t('palette.credential'), hint: t('palette.credentialHint'), keywords: 'login auth token key', icon: KeyRound, run: go('/settings?tab=account') },
       { id: 'act:api-docs', group: 'actions', title: t('palette.apiReference'), hint: t('palette.apiReferenceHint'), keywords: 'swagger openapi rest docs scalar', icon: BookOpen, run: () => window.open('/docs', '_blank', 'noopener') },
@@ -241,6 +246,7 @@ export function CommandPalette() {
       page('memory', Brain, 'facts');
       page('resources', Library, 'agents skills commands workflows');
       page('worktrees', GitBranch, 'branches');
+      list.push({ id: `project:assistant:${project.id}`, group: 'projects', title: t('palette.projectAssistant', { name: project.name }), hint, keywords: 'assistant ai suggest propose asistente', icon: Sparkle, run: go(assistantPath(project.id)) });
       list.push({ id: `project:chats:${project.id}`, group: 'projects', title: t('palette.projectChats', { name: project.name }), hint, keywords: 'sessions history', icon: MessagesSquare, run: go(`/chats?project=${id}`) });
       if (project.exists) {
         list.push({ id: `project:new-chat:${project.id}`, group: 'projects', title: t('palette.projectNewChat', { name: project.name }), hint, keywords: 'start run', icon: Play, run: go(`/chats/new?cwd=${encodeURIComponent(project.path)}`) });
