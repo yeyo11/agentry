@@ -25,7 +25,7 @@ async function until(condition, label, limit = 20_000) {
 }
 
 // Text only each kind of run's prompt holds (packages/core/src/assistant-answer.ts)
-const WORK_ITEMS_KEY = 'the next work items: what is missing or broken';
+const WORK_ITEMS_KEY = '- `workItems`: the next work items';
 const SUGGEST_KEY = '`resources`: agents, skills and commands that would help';
 const ONE_AGENT_KEY = 'Build exactly one agent from this description';
 
