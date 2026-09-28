@@ -244,7 +244,7 @@ export function TeamEmpty({ projectId, roles, templateName, phone, onAdd }: { pr
   });
   const list = (
     <div className="team-template">
-      <span className="section-label">{templateName ? t('empty.templateBrings', { name: templateName }) : t('empty.templateBringsShort')}</span>
+      <span className="section-label">{templateName && !phone ? t('empty.templateBrings', { name: templateName }) : t('empty.templateBringsShort')}</span>
       <ul className={phone ? 'card settings-cells team-template-cells' : 'team-template-chips'}>
         {roles.map((role) => (
           <li key={role.role} className={phone ? 'settings-cell' : 'team-template-chip'}>
