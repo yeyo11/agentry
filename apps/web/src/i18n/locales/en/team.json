@@ -207,7 +207,9 @@
     "modelsHint": "Opus for Product Owner and Architect, Sonnet for the rest, as the template brings.",
     "save": "Save the flow",
     "saved": "Flow saved",
-    "saveFailed": "Could not save the flow"
+    "saveFailed": "Could not save the flow",
+    "changes_one": "{{count}} unsaved change",
+    "changes_other": "{{count}} unsaved changes"
   },
   "activity": {
     "title": "Team activity",

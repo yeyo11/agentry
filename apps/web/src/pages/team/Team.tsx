@@ -55,6 +55,7 @@ export function ProjectTeam({ project }: { project: Project }) {
   const settings = useProjectSettings(project.id);
   const templates = useProjectTemplates();
   const [adding, setAdding] = useState<{ agent?: string } | null>(null);
+  const [flowChanges, setFlowChanges] = useState(0);
 
   const section: TeamSection = params.get('section') === 'flow' ? 'flow' : 'members';
   const memberId = params.get('member');
@@ -76,7 +77,12 @@ export function ProjectTeam({ project }: { project: Project }) {
   if (member) return <MemberPage key={member.agent} project={project} member={member} backHref={teamSearch(params, { member: null })} />;
 
   const count = members.length;
-  const phoneDetail = section === 'members' && count > 0 ? `${project.name} · ${t('members.count', { count })}` : project.name;
+  const phoneDetail =
+    section === 'members' && count > 0
+      ? `${project.name} · ${t('members.count', { count })}`
+      : section === 'flow' && flowChanges > 0
+        ? `${project.name} · ${t('flow.changes', { count: flowChanges })}`
+        : project.name;
   const head = phone && <PhoneHead title={t('home:tabs.team')} detail={phoneDetail} backHref={back} />;
   const addDialog = adding && (
     <AddMemberDialog
@@ -130,7 +136,7 @@ export function ProjectTeam({ project }: { project: Project }) {
     return (
       <div className="team-page">
         {head}
-        <FlowEditor key={project.id} project={project} team={data} flow={flow} proposal={proposal} switcher={switcher} />
+        <FlowEditor key={project.id} project={project} team={data} flow={flow} proposal={proposal} switcher={switcher} onChanges={setFlowChanges} />
       </div>
     );
 

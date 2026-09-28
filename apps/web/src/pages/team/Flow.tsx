@@ -1,7 +1,7 @@
 import type { Project, ProjectFlowSettings, Team, WorkItem, WorkItemStatus } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, CornerDownLeft, Info, Lock, Undo2 } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useWorkItemBoard } from '../../api';
@@ -43,6 +43,7 @@ export function FlowEditor({
   flow: saved,
   proposal,
   switcher,
+  onChanges,
 }: {
   project: Project;
   team: Team;
@@ -50,6 +51,8 @@ export function FlowEditor({
   /** For a project that never saved a flow, the template's: shown as a draft to save, not as the flow */
   proposal: ProjectFlowSettings | null;
   switcher: ReactNode;
+  /** Hears how many changes wait to be saved: a phone says it under its title, as the reference does */
+  onChanges?: (count: number) => void;
 }) {
   const { t } = useTranslation(['team', 'tasks', 'config']);
   const roleName = useRoleName();
@@ -70,6 +73,8 @@ export function FlowEditor({
   const edited = (draft !== null && !sameFlow(draft, baseline)) || modelChanges.length > 0;
   const dirty = flowChanged || modelChanges.length > 0;
   useDirty('flow', edited);
+  const changes = (flowChanged ? 1 : 0) + modelChanges.length;
+  useEffect(() => onChanges?.(changes), [changes, onChanges]);
 
   const discard = () => {
     setDraft(null);
@@ -296,10 +301,7 @@ export function FlowEditor({
         {autoCard}
         {rows}
         {bounceCard}
-        <div className="member-phone-foot">
-          {unsaved}
-          {actions}
-        </div>
+        <div className="member-phone-foot">{actions}</div>
       </div>
     );
 

@@ -207,7 +207,9 @@
     "modelsHint": "Opus para Product Owner y Arquitecto, Sonnet para el resto, como trae la plantilla.",
     "save": "Guardar el flujo",
     "saved": "Flujo guardado",
-    "saveFailed": "No se ha podido guardar el flujo"
+    "saveFailed": "No se ha podido guardar el flujo",
+    "changes_one": "{{count}} cambio sin guardar",
+    "changes_other": "{{count}} cambios sin guardar"
   },
   "activity": {
     "title": "Actividad del equipo",

@@ -159,7 +159,7 @@
     "modulesHintPhone": "{{template}} ha preseleccionado estos. Puedes cambiarlos ahora o en los ajustes del proyecto.",
     "name": "Nombre",
     "namePlaceholder": "mi-proyecto",
-    "folderHint": "Su carpeta en el espacio de trabajo: <mono>{{folder}}</mono>",
+    "folderHint": "Carpeta: <mono>{{folder}}</mono>",
     "folderEmpty": "El nombre necesita una letra o un número: la carpeta nueva se llama como él.",
     "folderTaken": "El espacio de trabajo ya tiene una carpeta llamada {{folder}}. Elige otro nombre o importa esa carpeta como directorio.",
     "directory": "Directorio",

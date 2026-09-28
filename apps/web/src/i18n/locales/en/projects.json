@@ -159,7 +159,7 @@
     "modulesHintPhone": "{{template}} preselected these. Change them now or later in the project's settings.",
     "name": "Name",
     "namePlaceholder": "my-project",
-    "folderHint": "Its folder in the workspace: <mono>{{folder}}</mono>",
+    "folderHint": "Folder: <mono>{{folder}}</mono>",
     "folderEmpty": "The name needs a letter or a digit: the new folder is named after it.",
     "folderTaken": "The workspace already has a folder called {{folder}}. Pick another name, or import that folder as a directory.",
     "directory": "Directory",
