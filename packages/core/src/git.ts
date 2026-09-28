@@ -50,7 +50,40 @@ export function topLevel(dir: string): string {
  * worktree, but the CLI keeps the checkouts it makes for `--worktree` under the main one.
  */
 export function mainTopLevel(dir: string): string {
-  return dirname(git(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir'], 10_000));
+  const common = git(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir'], 10_000);
+  // In the main checkout its own top level is the answer, and the only right one for a submodule,
+  // whose git directory lives under the superproject's `.git/modules/`
+  if (resolve(git(dir, ['rev-parse', '--absolute-git-dir'], 10_000)) === resolve(common)) return topLevel(dir);
+  // A linked worktree of a submodule: the main checkout is where its common directory says it is
+  let configured = '';
+  try {
+    configured = git(dir, ['config', '--file', join(common, 'config'), 'core.worktree'], 10_000);
+  } catch {
+    /* not set: the main checkout holds its `.git` */
+  }
+  return configured ? resolve(common, configured) : dirname(common);
+}
+
+export interface WorktreeEntry {
+  path: string;
+  /** The branch checked out there, without `refs/heads/`; null when detached */
+  branch: string | null;
+  /** The reason it was locked with, `''` when locked with none; null when not locked */
+  locked: string | null;
+}
+
+/** Every worktree git knows of in `repo`'s repository, the main checkout first. */
+export function worktrees(repo: string): WorktreeEntry[] {
+  const entries: WorktreeEntry[] = [];
+  for (const line of git(repo, ['worktree', 'list', '--porcelain'], 10_000).split('\n')) {
+    if (line.startsWith('worktree ')) entries.push({ path: line.slice('worktree '.length), branch: null, locked: null });
+    const last = entries[entries.length - 1];
+    if (!last) continue;
+    if (line.startsWith('branch ')) last.branch = line.slice('branch '.length).replace(/^refs\/heads\//, '');
+    else if (line === 'locked') last.locked = '';
+    else if (line.startsWith('locked ')) last.locked = line.slice('locked '.length);
+  }
+  return entries;
 }
 
 /** Whether git ignores `path`, relative to the top level of `repo`, or anything above it. */

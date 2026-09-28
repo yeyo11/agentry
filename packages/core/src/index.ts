@@ -404,7 +404,18 @@ export class Core {
       environmentOf: (dir) => this.runtime.environments.get(dir),
       windowOf: (model) => this.db.modelWindow(model),
     });
-    this.changes = new Changes({ orchestrator: this.orchestrator, chats: this.chats, sessions: this.sessions, runtime: this.runtime });
+    this.changes = new Changes({
+      orchestrator: this.orchestrator,
+      chats: this.chats,
+      sessions: this.sessions,
+      runtime: this.runtime,
+      // A chat on a work item works in the item's worktree, cut from the project's checkout
+      forkedFrom: (chatId) => {
+        const itemId = this.workItems.linksOfChat(chatId).find((l) => l.kind === 'chat' && l.role !== 'origin')?.itemId;
+        const item = itemId ? this.workItems.find(itemId) : null;
+        return item ? (this.projectStore.get(item.projectId)?.path ?? null) : null;
+      },
+    });
     // The CLI's list of sessions is kept a while; a process of ours that started or ended changes
     // what it says about that chat, and a stale one would read it as held by someone else
     this.events.observe((event) => {

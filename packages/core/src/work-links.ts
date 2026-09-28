@@ -17,7 +17,7 @@ import {
   type WorkItemRef,
   type WorkItemStatus,
 } from '@agentry/shared';
-import { addWorktree, git, headCommit, isGitRepo, isIgnored, lockWorktree, mainTopLevel, topLevel } from './git.ts';
+import { addWorktree, branchExists, git, headCommit, isGitRepo, isIgnored, lockWorktree, mainTopLevel, topLevel, worktrees } from './git.ts';
 import { WorkItemError } from './work-item-validation.ts';
 import type { WorkItemService } from './work-items.ts';
 
@@ -143,43 +143,61 @@ export interface ItemPlace {
   branch: string;
 }
 
+/** Whether a recorded place is the item's own, rather than the worktree of a node that worked on it. */
+export function ownsPlace(item: Pick<WorkItem, 'branch'>): boolean {
+  return !!item.branch?.startsWith('task/');
+}
+
+const LOCK_REASON = 'agentry work item ';
+
 /**
  * The item's own worktree, on `task/<key>`, made the first time and found again after. It sits where
  * the CLI keeps the worktrees it makes, under the main checkout, so the chat that runs there is
  * attached to the project. Null when the project is not a git repository, or has no commit yet to
  * branch from: the work then happens in the project's directory.
+ *
+ * It is never a node's worktree, even when a node worked on the item last: retrying that node
+ * clean removes its worktree and branch, and whatever a person did there would go with them. The
+ * item's own branch starts from the node's instead, so the node's work carries over, or else from
+ * the project's HEAD, which in a linked worktree is not the main checkout's.
  */
-export function itemWorktree(projectPath: string, item: Pick<WorkItem, 'key' | 'worktree' | 'branch'>): ItemPlace | null {
+export function itemWorktree(projectPath: string, item: Pick<WorkItem, 'key' | 'worktree' | 'branch'> & { projectId?: string }): ItemPlace | null {
   if (!canBranch(projectPath)) return null;
   const root = topLevel(projectPath);
   const home = mainTopLevel(projectPath);
   const sub = relative(root, realpathSync(projectPath));
   // An ignored directory is missing from a fresh worktree: work at its top instead, as a node does
   const subdir = sub && !isIgnored(root, sub) ? sub : '';
-  const worktree = item.worktree ?? join(home, '.claude', 'worktrees', `task-${item.key.toLowerCase()}`);
-  const branch = item.branch ?? workItemBranch(item.key);
-  const registered = isWorktreeOf(home, worktree);
+  const own = ownsPlace(item);
+  // A recorded place keeps the key it was made with, so a new prefix does not strand earlier work
+  const worktree = (own && item.worktree) || join(home, '.claude', 'worktrees', `task-${item.key.toLowerCase()}`);
+  const branch = own && item.branch ? item.branch : workItemBranch(item.key);
+  const known = worktrees(home);
+  const wanted = new Set([worktree, existsSync(worktree) ? realpathSync(worktree) : worktree]);
+  const entry = known.find((w) => wanted.has(w.path));
+  const reason = `${LOCK_REASON}${item.key}${item.projectId ? ` of project ${item.projectId}` : ''}`;
   if (existsSync(worktree)) {
     // Git commands in a plain directory under the checkout reach the checkout itself: the chat
     // would work on the project's own branch, not the item's
-    if (!registered) throw new WorkItemError(`${worktree} is there but is not a worktree of this project: move it away and try again`, 409);
+    if (!entry) throw new WorkItemError(`${worktree} is there but is not a worktree of this project: move it away and try again`, 409);
+    // Two projects in one repository (its main checkout and a linked worktree) can share a key
+    const holder = entry.locked?.startsWith(LOCK_REASON) ? / of project (\S+)$/.exec(entry.locked)?.[1] : undefined;
+    if (holder && item.projectId && holder !== item.projectId) {
+      throw new WorkItemError(`${worktree} is the worktree of ${item.key} in another project of this repository: give this project another key prefix`, 409);
+    }
   } else {
     // Deleted by hand: git still holds it, locked, and refuses to check its branch out anywhere else
-    if (registered) forgetWorktree(home, worktree);
-    addWorktree(home, worktree, branch, 'HEAD');
+    if (entry) forgetWorktree(home, worktree);
+    const elsewhere = known.find((w) => w.branch === branch && !wanted.has(w.path));
+    if (elsewhere) throw new WorkItemError(`${branch} is checked out at ${elsewhere.path}: switch that checkout to another branch, or remove it, and try again`, 409);
+    const node = !own && item.branch && branchExists(home, item.branch) ? item.branch : null;
+    addWorktree(home, worktree, branch, node ?? headCommit(projectPath));
   }
   // As the CLI does with the worktrees it runs in, so `git worktree prune` leaves it be
-  lockWorktree(home, worktree, `agentry work item ${item.key}`);
+  lockWorktree(home, worktree, reason);
   const cwd = subdir ? join(worktree, subdir) : worktree;
   mkdirSync(cwd, { recursive: true });
   return { cwd, worktree, branch };
-}
-
-function isWorktreeOf(repo: string, path: string): boolean {
-  const wanted = new Set([path, existsSync(path) ? realpathSync(path) : path]);
-  return git(repo, ['worktree', 'list', '--porcelain'], 10_000)
-    .split('\n')
-    .some((line) => line.startsWith('worktree ') && wanted.has(line.slice('worktree '.length)));
 }
 
 /**
@@ -379,12 +397,13 @@ export class WorkItemAutomation {
   }
 
   /**
-   * Where a node works is where the item's changes are, as for "Work on it": the item reports the
-   * last place that worked on it, and "Work on it" afterwards continues there.
+   * Where a node works is where the item's changes are, until the item has a worktree of its own:
+   * then that one is where its changes are, and it is not traded for a node's. "Work on it" never
+   * works in the node's worktree; it branches from the node's branch into its own.
    */
   private recordPlace(itemId: string, worktree: string, branch: string): void {
     const item = this.deps.items.find(itemId);
-    if (!item || !this.deps.writable(item.projectId)) return;
+    if (!item || !this.deps.writable(item.projectId) || ownsPlace(item)) return;
     if (item.worktree !== worktree || item.branch !== branch) this.deps.items.setWorktree(item.id, { worktree, branch });
   }
 
