@@ -242,8 +242,8 @@ function parseDocuments(value: unknown): ProjectDocumentsSettings {
 
 /**
  * Validates a whole document a person sent (`PUT /projects/:id/settings`). A bad value is refused,
- * not replaced. Fields nobody reads yet (team, flow, documents) are checked all the same, so what
- * orchestration 3 finds stored is already well formed. Unknown fields are dropped.
+ * not replaced. The optional parts (team, flow, documents) are checked the same way when present,
+ * since the team, the flow and the Documents module read them as stored. Unknown fields are dropped.
  */
 export function parseProjectSettings(input: unknown): ProjectSettings {
   if (!isObject(input)) throw new Error('project settings must be a JSON object');
