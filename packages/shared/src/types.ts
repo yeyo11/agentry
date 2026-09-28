@@ -1778,6 +1778,14 @@ export interface PutTeamMemberRequest extends ProjectTeamRole {
  */
 export type FlowStage = 'refine' | 'work' | 'verify';
 
+/**
+ * A stage as the person reads it, by the column it runs in: `refine` covers two, and what the
+ * Product Owner does differs between them. In `backlog` it refines the item (`refine`, "refinado");
+ * in `todo` it only checks the item is ready (`check`, "comprobación"). `work` and `verify` are
+ * their stage. See `FLOW_STEP_OF_COLUMN`.
+ */
+export type FlowStep = 'refine' | 'check' | 'work' | 'verify';
+
 /** `queued` waits for a place under `maxParallel`; `running` has its chat; `ended` has an outcome. */
 export type FlowRunState = 'queued' | 'running' | 'ended';
 
@@ -1787,6 +1795,64 @@ export type FlowRunState = 'queued' | 'running' | 'ended';
  * move or the flow being switched off made it moot before it started.
  */
 export type FlowRunOutcome = 'passed' | 'rejected' | 'failed' | 'cancelled';
+
+/**
+ * Why a run failed or was cancelled, as a stable code a client words in the person's language; the
+ * run's `error` keeps the raw text beside it. A run stored before causes were kept gets the one its
+ * error reads as, or none.
+ *
+ * Failed:
+ * - `budget`: it reached `flow.maxCostUsd` (`--max-budget-usd`);
+ * - `no-account`: the account hit its rate limit and no other account could take the run over;
+ * - `rate-limit`: the account hit its rate limit and the rotation was off;
+ * - `stopped`: its chat was stopped;
+ * - `restarts`: Agentry restarted past `MAX_FLOW_RESTARTS` times while it worked;
+ * - `unreadable`: it ended without a readable structured result;
+ * - `no-verdict`: a verification ended without a verdict;
+ * - `not-started`: its chat did not start;
+ * - `not-continued`: its chat could not be continued after a restart;
+ * - `chat-ended`: its chat ended, or was removed, without a result;
+ * - `chat-failed`: its chat ended in an error the CLI reported (the error is the CLI's text).
+ *
+ * Cancelled:
+ * - `item-moved`: the item left the column before the run started, or while a restart cut it off;
+ * - `item-removed` and `item-done`: the item was removed, or moved to `done`;
+ * - `replaced`: the item entered a column again before the run started, and the newer run took its place;
+ * - `flow-off`: the flow, the Team module or the Board module was switched off;
+ * - `no-member`: nobody on the team answers for the column any more;
+ * - `refined`: a todo check would repeat a refine that passed, on an item unchanged since;
+ * - `chat-busy`: a chat of the person's was already working on the item.
+ */
+export type FlowRunCause =
+  | 'budget'
+  | 'no-account'
+  | 'rate-limit'
+  | 'stopped'
+  | 'restarts'
+  | 'unreadable'
+  | 'no-verdict'
+  | 'not-started'
+  | 'not-continued'
+  | 'chat-ended'
+  | 'chat-failed'
+  | 'item-moved'
+  | 'item-removed'
+  | 'item-done'
+  | 'replaced'
+  | 'flow-off'
+  | 'no-member'
+  | 'refined'
+  | 'chat-busy';
+
+/** Another run as a run refers to it: enough to say what it did and open its chat. */
+export interface FlowRunRef {
+  id: string;
+  state: FlowRunState;
+  outcome: FlowRunOutcome | null;
+  chatId: string | null;
+  queuedAt: string;
+  endedAt: string | null;
+}
 
 /** One run of a team member on a work item, queued, running or ended. Rows, so it survives a restart. */
 export interface FlowRun {
@@ -1801,6 +1867,8 @@ export interface FlowRun {
   agent: string;
   model: string;
   stage: FlowStage;
+  /** The stage as the person reads it, by its column: `check` is a `refine` in `todo` */
+  step: FlowStep;
   /** The column the card entered that started it */
   column: WorkItemStatus;
   state: FlowRunState;
@@ -1812,8 +1880,24 @@ export interface FlowRun {
   outcome: FlowRunOutcome | null;
   /** The result's summary, once it ended with one */
   summary: string | null;
-  /** Why it failed or was cancelled, in English; null otherwise */
+  /** Why it failed or was cancelled, in English, as the core or the CLI said it; null otherwise */
   error: string | null;
+  /** Why it failed or was cancelled, as a code to word; null otherwise, and on an old run whose error reads as none */
+  cause: FlowRunCause | null;
+  /** The failed run a person retried with this one (`POST /flow-runs/:runId/retry`); null for a run a card entering its column started */
+  retryOf: string | null;
+  /**
+   * On a run that did not pass, the next run of the same step on the item, whatever started it (a
+   * retry or the card entering the column again): what the person's retry, or the flow, did next.
+   * Null until there is one.
+   */
+  retriedBy: FlowRunRef | null;
+  /**
+   * Whether `POST /flow-runs/:runId/retry` would queue it again now: it failed, nothing has run that
+   * step on the item since, the item is still in the run's column, and the flow is on with a member
+   * answering for the column.
+   */
+  retryable: boolean;
   /** Times a restart cut it off and it went on in its chat; past `MAX_FLOW_RESTARTS` it fails */
   restarts: number;
   /**
@@ -1857,7 +1941,12 @@ export type FlowRunStatus = Exclude<FlowRunState, 'ended'> | FlowRunOutcome;
 export interface FlowRunQuery {
   /** Members, by agent file name */
   agent?: string[];
+  /** Members, by team role ({@link ProjectTeamRole.role}) */
+  role?: string[];
+  /** `outcome` in a query string is another name for it */
   status?: FlowRunStatus[];
+  /** Runs queued before this moment (ISO 8601): a page of the activity from a day back */
+  before?: string;
   /** Runs of one work item */
   itemId?: string;
   /** Default `FLOW_RUNS_PAGE`, at most `FLOW_RUNS_PAGE_MAX` */
@@ -4391,10 +4480,15 @@ export interface FlowRunEvent extends AgentryEventBase, WorkItemEventRef {
   role: string;
   agent: string;
   stage: FlowStage;
+  step: FlowStep;
   /** Set once started */
   chatId: string | null;
   /** Set when ended */
   outcome: FlowRunOutcome | null;
+  /** Set when it failed or was cancelled */
+  cause: FlowRunCause | null;
+  /** The failed run this one retries, when a person retried it */
+  retryOf: string | null;
 }
 
 /**

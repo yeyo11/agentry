@@ -108,7 +108,7 @@ import { AuthStore } from './security/auth.ts';
 import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
-import { FlowService, type FlowLaunch } from './flow.ts';
+import { FlowError, FlowService, type FlowLaunch } from './flow.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
 import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo } from './git.ts';
@@ -1249,6 +1249,17 @@ export class Core {
   async workItemRuns(itemId: string): Promise<FlowRun[]> {
     await this.workItemAccess(itemId, 'read');
     return this.flow.itemRuns(itemId);
+  }
+
+  /**
+   * `POST /flow-runs/:runId/retry`: queues a failed run's step again, as a person's move. Writing to
+   * the item, so its project must be imported, as for any change to it.
+   */
+  async retryFlowRun(runId: string): Promise<FlowRun> {
+    const run = this.flow.run(runId);
+    if (!run) throw new FlowError('flow run not found', 404);
+    await this.workItemAccess(run.itemId, 'write');
+    return this.flow.retry(runId);
   }
 
   // ---------- the project assistant ----------

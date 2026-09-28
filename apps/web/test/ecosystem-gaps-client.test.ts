@@ -124,6 +124,9 @@ test("a flow run refreshes the project's activity and its item's runs, and nothi
     role: 'qa',
     agent: 'qa',
     stage: 'verify',
+    step: 'verify',
+    cause: null,
+    retryOf: null,
     chatId: 'c1',
     outcome: 'failed',
   };
