@@ -1486,9 +1486,18 @@ a.member-run:hover {
 }
 
 .flow-limit-cost {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+/* A stepper takes only what its row leaves it, which squeezed "No limit" down to a glyph: both
+   limits get room for their placeholder and line up with each other */
+.flow-limit-row > .number-input,
+.flow-limit-cost > .number-input {
+  flex: none;
+  width: 9.5rem;
 }
 
 .flow-limit-unit {

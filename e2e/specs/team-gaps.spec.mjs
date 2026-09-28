@@ -46,6 +46,10 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return !!document.querySelector('.flow-limits')`, { label: 'the limits card' });
     check((await page.eval(`return document.querySelector('.flow-limits input[aria-label="Runs at once"]').value`)) === '2', 'two runs at once unless chosen');
     check((await page.eval(`return document.querySelector('.flow-limits input[aria-label="Spend per run, in USD"]').value`)) === '', 'no spending limit unless chosen');
+    // "No limit" is read in the field itself: a stepper squeezed by its row showed one glyph of it
+    const placeholderFits = `const i = document.querySelector('.flow-limits input[aria-label="Spend per run, in USD"]'); const c = document.createElement('canvas').getContext('2d'); const s = getComputedStyle(i); c.font = s.font; const room = i.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight); return { text: i.placeholder, need: Math.ceil(c.measureText(i.placeholder).width), room }`;
+    const deskFit = await page.eval(placeholderFits);
+    check(deskFit.text === 'No limit' && deskFit.need <= deskFit.room, `the spend field shows its placeholder whole (${JSON.stringify(deskFit)})`);
     await page.fill('.flow-limits input[aria-label="Runs at once"]', '3');
     await page.fill('.flow-limits input[aria-label="Spend per run, in USD"]', '1.5');
     await page.click('.team-toolbar .btn-primary', 'Save the flow', 1500);
@@ -114,6 +118,12 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return document.querySelectorAll('.team-log-row').length === 3`, { label: 'the phone activity' });
     check(await page.eval(`return !!document.querySelector('.project-head-phone h1')`), 'the phone activity heads itself');
     check(await page.eval(`return document.documentElement.scrollWidth <= innerWidth`), 'nothing scrolls sideways');
+    check(await page.eval(`return !!document.querySelector('.project-head-phone .project-head-assistant')`), "the phone activity's head leads to the assistant");
+    await page.goto(`/?project=${project.id}&view=team&section=flow`, 1500);
+    await page.waitFor(`return !!document.querySelector('.flow-limits')`, { label: 'the phone limits card' });
+    const phoneFit = await page.eval(placeholderFits);
+    check(phoneFit.need <= phoneFit.room, `on a phone too (${JSON.stringify(phoneFit)})`);
+    check(await page.eval(`return document.documentElement.scrollWidth <= innerWidth`), 'and the limits do not scroll the phone sideways');
   } finally {
     await page.viewport(1440, 900).catch(() => {});
     await page.eval(`localStorage.removeItem('agentry:project'); return true`).catch(() => {});
