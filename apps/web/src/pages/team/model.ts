@@ -57,11 +57,25 @@ export const DEFAULT_MAX_BOUNCES = 3;
 export const MAX_BOUNCES = 20;
 
 /**
- * The flow as the Flow screen starts editing it: the saved one, or, for a project that never saved
- * one, off, with each column given to the template role that answers for it when the team has it.
+ * The flow a project has: the saved one, or, for a project that never saved one, the template's
+ * proposal (off, so nothing acts on it). The board reads this; the Team screens tell the two apart
+ * with `savedFlow` and `proposedFlow`, since a proposal answers for no column until it is saved.
  */
 export function flowOf(settings: Pick<ProjectSettings, 'flow'> | undefined, members: readonly Pick<TeamMember, 'role'>[]): ProjectFlowSettings {
-  if (settings?.flow) return { ...settings.flow, columns: { ...settings.flow.columns } };
+  return settings?.flow ? savedFlow(settings) : proposedFlow(members);
+}
+
+/** No flow at all: what a project that never saved one has, whatever its template would propose. */
+export const NO_FLOW: ProjectFlowSettings = { enabled: false, columns: {}, maxBounces: DEFAULT_MAX_BOUNCES };
+
+/** The flow as saved, or none: the columns a member really answers for, as the server reads them. */
+export function savedFlow(settings: Pick<ProjectSettings, 'flow'> | undefined): ProjectFlowSettings {
+  const flow = settings?.flow ?? NO_FLOW;
+  return { ...flow, columns: { ...flow.columns } };
+}
+
+/** Each column given to the template role that answers for it, when the team has that role; off. */
+export function proposedFlow(members: readonly Pick<TeamMember, 'role'>[]): ProjectFlowSettings {
   const has = (role: string) => members.some((member) => member.role === role);
   const columns: ProjectFlowSettings['columns'] = {};
   if (has('product-owner')) {

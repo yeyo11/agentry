@@ -1,6 +1,6 @@
 import type { Project, ProjectFlowSettings, Team, WorkItem, WorkItemStatus } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, CornerDownLeft, Lock, Undo2 } from 'lucide-react';
+import { Check, CornerDownLeft, Info, Lock, Undo2 } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -37,7 +37,20 @@ function bounced(items: readonly WorkItem[]): WorkItem[] {
  * item back, and each role's model. Edited as a draft and saved whole, as the reference's "Save the
  * flow" does: the flow goes into the project's settings, each model into its member.
  */
-export function FlowEditor({ project, team, flow: saved, switcher }: { project: Project; team: Team; flow: ProjectFlowSettings; switcher: ReactNode }) {
+export function FlowEditor({
+  project,
+  team,
+  flow: saved,
+  proposal,
+  switcher,
+}: {
+  project: Project;
+  team: Team;
+  flow: ProjectFlowSettings;
+  /** For a project that never saved a flow, the template's: shown as a draft to save, not as the flow */
+  proposal: ProjectFlowSettings | null;
+  switcher: ReactNode;
+}) {
   const { t } = useTranslation(['team', 'tasks', 'config']);
   const roleName = useRoleName();
   const phone = useMediaQuery(NARROW);
@@ -46,15 +59,17 @@ export function FlowEditor({ project, team, flow: saved, switcher }: { project: 
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<ProjectFlowSettings | null>(null);
   const [models, setModels] = useState<Record<string, string>>({});
-  const flow = draft ?? saved;
+  const baseline = proposal ?? saved;
+  const flow = draft ?? baseline;
   const board = useWorkItemBoard(project.id, {}, project.modules.includes('board'));
   const items = useMemo(() => bounced((board.data?.columns ?? []).flatMap((column) => column.items)), [board.data]);
 
   const modelChanges = team.members.filter((member) => models[member.agent] !== undefined && models[member.agent]?.trim() !== member.model);
-  const flowChanged = draft !== null && !sameFlow(draft, saved);
-  const changes = (flowChanged ? 1 : 0) + modelChanges.length;
-  const dirty = changes > 0;
-  useDirty('flow', dirty);
+  // What saving would write, the proposal included; leaving only warns about what the person edited
+  const flowChanged = !sameFlow(flow, saved);
+  const edited = (draft !== null && !sameFlow(draft, baseline)) || modelChanges.length > 0;
+  const dirty = flowChanged || modelChanges.length > 0;
+  useDirty('flow', edited);
 
   const discard = () => {
     setDraft(null);
@@ -63,10 +78,10 @@ export function FlowEditor({ project, team, flow: saved, switcher }: { project: 
 
   const save = useMutation({
     mutationFn: async () => {
-      if (flowChanged && draft) {
+      if (flowChanged) {
         // Read again right before writing: the settings are replaced whole, and another tab may have changed them
         const fresh = await api.projectSettings(project.id);
-        await api.putProjectSettings(project.id, { ...fresh, flow: draft });
+        await api.putProjectSettings(project.id, { ...fresh, flow });
       }
       for (const member of modelChanges)
         await api.putTeamMember(project.id, member.agent, memberBody(member, { model: (models[member.agent] ?? member.model).trim() }));
@@ -101,7 +116,7 @@ export function FlowEditor({ project, team, flow: saved, switcher }: { project: 
   const unsaved = dirty && <Tag tone="warn">{t('config:shared.unsaved')}</Tag>;
   const actions = (
     <>
-      <button type="button" className="btn" disabled={!dirty || save.isPending} onClick={discard}>
+      <button type="button" className="btn" disabled={!edited || save.isPending} onClick={discard}>
         <Undo2 {...ICON_SM} />
         {t('config:shared.discard')}
       </button>
@@ -127,6 +142,12 @@ export function FlowEditor({ project, team, flow: saved, switcher }: { project: 
         </div>
         {toggle}
       </div>
+      {proposal && (
+        <div className="alert alert-info flow-proposal" role="status">
+          <Info size={16} strokeWidth={1.75} aria-hidden className="alert-icon" />
+          <div className="alert-body">{t('flow.proposalNote')}</div>
+        </div>
+      )}
       {!phone && (
         <>
           <ol className="flow-strip" aria-label={t('flow.stripLabel')}>

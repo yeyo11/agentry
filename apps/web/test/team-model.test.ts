@@ -7,11 +7,13 @@ import {
   columnsOf,
   flowOf,
   memberBody,
+  proposedFlow,
   roleFallbackName,
   roleInitials,
   runNote,
   sameFlow,
   sameWrites,
+  savedFlow,
   setColumnRole,
   stageOf,
   teamActivity,
@@ -151,4 +153,15 @@ test('a failed run says why beside its outcome, and one that passed says what it
   assert.equal(runNote(run('b', { outcome: 'failed', error: null })), null);
   assert.equal(runNote(run('c', { outcome: 'passed', summary: 'Wrote the criteria' })), 'Wrote the criteria');
   assert.equal(runNote(run('d', { state: 'running', outcome: null, error: 'x' })), null);
+});
+
+test('a project that never saved a flow has none: its columns answer to nobody until the proposal is saved', () => {
+  // The Team screen drew the template's proposal as the flow, while the members said they answered for nothing
+  const members = [member('product-owner'), member('developer'), member('qa')];
+  assert.deepEqual(savedFlow({}).columns, {});
+  assert.equal(savedFlow({}).enabled, false);
+  assert.deepEqual(proposedFlow(members).columns, { backlog: 'product-owner', todo: 'product-owner', in_progress: 'developer', in_review: 'qa' });
+  const flow = { enabled: true, columns: { in_progress: 'developer' }, maxBounces: 2 };
+  assert.deepEqual(savedFlow({ flow }), flow);
+  assert.notEqual(savedFlow({ flow }).columns, flow.columns);
 });

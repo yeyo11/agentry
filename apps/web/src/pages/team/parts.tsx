@@ -93,7 +93,20 @@ export function PersonMark({ size = 22 }: { size?: number }) {
 }
 
 /** The Team screen's summary of the flow: who answers for each column, and the bounce limit. */
-export function FlowSummary({ columns, enabled, maxBounces, editHref }: { columns: Partial<Record<string, string>>; enabled: boolean; maxBounces: number; editHref: string }) {
+export function FlowSummary({
+  columns,
+  enabled,
+  saved,
+  maxBounces,
+  editHref,
+}: {
+  columns: Partial<Record<string, string>>;
+  enabled: boolean;
+  /** False while the project never saved a flow: nobody answers for any column yet */
+  saved: boolean;
+  maxBounces: number;
+  editHref: string;
+}) {
   const { t } = useTranslation(['team', 'tasks']);
   const roleName = useRoleName();
   const statuses = ['backlog', 'todo', 'in_progress', 'in_review'] as const;
@@ -102,9 +115,9 @@ export function FlowSummary({ columns, enabled, maxBounces, editHref }: { column
       <div className="card-head">
         <h2 id="team-flow-summary">{t('flow.summaryTitle')}</h2>
         <span className="team-side-head-end">
-          <span className="badge badge-muted team-flow-state">{enabled ? t('flow.on') : t('flow.off')}</span>
+          <span className="badge badge-muted team-flow-state">{!saved ? t('flow.notSet') : enabled ? t('flow.on') : t('flow.off')}</span>
           <Link to={editHref} className="team-link">
-            {t('flow.edit')}
+            {saved ? t('flow.edit') : t('flow.setUp')}
           </Link>
         </span>
       </div>
@@ -133,7 +146,7 @@ export function FlowSummary({ columns, enabled, maxBounces, editHref }: { column
           <span className="team-flow-who">{t('flow.youApproveShort')}</span>
         </li>
       </ul>
-      <p className="team-flow-foot">{t('flow.bouncesLine', { count: maxBounces })}</p>
+      <p className="team-flow-foot">{saved ? t('flow.bouncesLine', { count: maxBounces }) : t('flow.notSetLine')}</p>
     </section>
   );
 }
