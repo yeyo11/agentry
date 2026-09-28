@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T06:00:00Z
-updated_at: 2026-09-27T21:30:00Z
+updated_at: 2026-09-28T22:00:00Z
 tags:
     - projects
     - modules
@@ -158,17 +158,19 @@ a new project.
 The project page (`/`, with a project selected) is a header over a strip of tabs.
 
 - **The header** shows:
-  - the monogram and the name;
+  - the monogram and the name. A one-word project's monogram takes two letters ("NO" for
+    "notes", beside "CW" for claude-wrapper), as the references draw it (orchestration 6, gap 23);
   - the key prefix, boxed;
   - the template;
   - the path;
   - the number of chats and worktrees. The chats are counted from the list the project's Chats
     reads, so a "Work on it", flow or assistant chat this process runs counts before the CLI writes
     its transcript;
-  - New chat, plus New task while the Board is on.
+  - New chat, plus New task while the Board is on, and "Asistente", which opens the
+    [project assistant](assistant.md) from every tab (orchestration 6, gap 8).
 
   New task takes the gradient only on Resumen. A tab that has a primary action of its own gets a
-  plain New task button instead.
+  plain New task button instead. "Asistente" is always a plain button.
 - **The tabs** each live at `/?view=<id>` (`apps/web/src/pages/dashboard/views.ts`):
   - Resumen: the dashboard that used to be the whole page, with no `view`;
   - Tablero (`board`);
@@ -189,8 +191,14 @@ The project page (`/`, with a project selected) is a header over a strip of tabs
   to `?view=`.
 - **The top bar's breadcrumb** reads `Proyectos / <project> / <tab>`. Inside Equipo it goes one
   level deeper, "Equipo / Flujo" or "Equipo / Desarrollador", with "Equipo" as a link back.
+- **The shell marks Projects** on the page and every tab: the sidebar marks "Proyectos", and the
+  phone's tab bar "Más", where Projects lives, as the references do (orchestration 6, gap 22). The
+  page lives at `/`, so `components/shell/nav.ts` works out the current section, told when `/` is a
+  project's page, and the links say it with `aria-current`.
 - **On a phone**, the strip becomes a card of cells right under the header, and each tab opens as its
-  own screen with a back button.
+  own screen. The page and its tabs drop the app's top bar and head themselves: a 44 px way back, the
+  title, and a link to the assistant (`hidesTopBar` in `lib/shell-live.ts`, orchestration 6, gap 21).
+  The desktop app keeps the bar, which is also its window's title bar.
 
 Memoria follows its module, as decision 6 says. An imported project starts with every module off, so
 it has no Memoria tab until someone switches Shared memory on. Until then the dashboard's Memory
