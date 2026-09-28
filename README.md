@@ -715,10 +715,12 @@ is none, and never overwrites one a person wrote or edited: that member is repor
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/projects/:id/team` | The members, each with its agent file's state, the columns it answers for under the flow and its flow runs, and the agent files no member uses |
-| POST | `/projects/:id/team/from-template` | `{ roles? }` — add the template's roles the person accepted, each with its agent file (an existing file is kept) |
-| PUT | `/projects/:id/team/:agent` | `{ role, model, responsibility, writes?, createFile? }` — create or replace a member's metadata. Two members may not share a role. The file itself goes through `/config/resources/agents/:name?project=` |
+| POST | `/projects/:id/team/from-template` | `{ roles? }` — add the template's roles the person accepted, each with its agent file (an existing file is kept). 201 when it added a member, 200 when nothing changed |
+| PUT | `/projects/:id/team/:agent` | `{ role, model, responsibility, writes?, commands?, createFile? }` — create or replace a member's metadata. Two members may not share a role. `commands` bounds the shell of its work runs (`[]` is none, absent is unrestricted). The file itself goes through `/config/resources/agents/:name?project=` |
 | DELETE | `/projects/:id/team/:agent` | Take a member off the team; its agent file stays |
 | GET | `/projects/:id/flow` | The flow by column's runs going and queued, each with its item, role, stage and chat; `enabled` and the per-project cap `maxParallel` |
+| GET | `/projects/:id/flow/runs` | The team's activity: every flow run, newest first, paged (`limit`, `cursor`), filtered by `agent`, `status` and `itemId` |
+| GET | `/work-items/:itemId/runs` | Every flow run of a work item, newest first, whatever its state |
 
 ### Assistant
 

@@ -196,7 +196,7 @@ test('each stage runs with its own rules, its budget and no recorded system prom
     assert.deepEqual(definition.qa?.tools, ['Read', 'Grep', 'Bash']);
     assert.equal(definition.qa?.model, 'sonnet');
 
-    // A turn held to a schema is the run's: a rate limit's replay would spend again for nobody
+    // A turn held to a schema is the run's: after a rate limit it is replayed only while its run waits for the rotation
     const qaChat = core.flow.runs(project.id).find((r) => r.stage === 'verify')?.chatId;
     assert.ok(qaChat);
     assert.equal(core.runtime.heldToSchema(qaChat), true);
@@ -238,6 +238,68 @@ test("a run's documents are tied as the agent reports them, ./ or absolute, and 
     assert.match(comment, /not tied[^]*`src\/outside\.md`/);
   } finally {
     core.shutdown();
+    delete process.env.FAKE_CLAUDE_SPAWNS;
+  }
+});
+
+/** claude-swap managing the accounts, as far as the rotation asks: `to` is where it moves, null when none is left */
+function accountsRotating(core: Core, to: string | null): { rotations: number } {
+  const seen = { rotations: 0 };
+  const accounts = core.accounts;
+  const settings = accounts.autoSwitch;
+  Object.defineProperty(accounts, 'managed', { get: () => true });
+  Object.defineProperty(accounts, 'autoSwitch', { get: () => ({ ...settings, rotateOnLimit: true }) });
+  accounts.launchFor = () => ({ account: null, configDir: null });
+  accounts.rotateWithinPolicy = async () => null;
+  accounts.rotate = async () => {
+    seen.rotations++;
+    return to ? { switched: true, from: '1', to, reason: null } : { switched: false, from: '1', to: null, reason: 'every account is out of quota' };
+  };
+  return seen;
+}
+
+test('a run that hits the rate limit goes on in the same chat once the accounts rotate, and fails with a comment when none is left', async () => {
+  const { config, spawns } = configWithFake();
+  const core = new Core(config);
+  try {
+    const dir = repo();
+    const seen = accountsRotating(core, '2');
+    const project = await flowProject(core, dir, (s) => ({ ...s, flow: { ...s.flow!, columns: { in_progress: 'developer' } } }));
+    const item = core.workItems.create(project.id, { title: 'Keep the cart', status: 'todo', type: 'task', description: `FAKE-LIMIT-ONCE\nFAKE-RESULT-WORK ${JSON.stringify(WORK)}` });
+    core.workItems.move(item.id, { status: 'in_progress' }, { actor: { kind: 'person' } });
+    await until(() => core.workItems.find(item.id)?.status, (s) => s === 'in_review', 'the work run to go on after the rotation');
+    const runs = core.flow.itemRuns(item.id);
+    assert.deepEqual(
+      runs.map((r) => [r.stage, r.outcome]),
+      [['work', 'passed']],
+    );
+    assert.equal(seen.rotations, 1);
+    // The same chat, spawned again to resume its session on the new account
+    const work = spawnsOf(spawns).filter((l) => l.includes('--json-schema'));
+    assert.equal(work.length, 2, work.join('\n'));
+    assert.match(work[1] ?? '', new RegExp(`--resume ${runs[0]?.chatId}`));
+    assert.equal(core.workItems.comments(item.id).at(-1)?.body, 'Implemented');
+  } finally {
+    core.shutdown();
+    delete process.env.FAKE_CLAUDE_SPAWNS;
+  }
+
+  const second = configWithFake();
+  const stuck = new Core(second.config);
+  try {
+    const dir = repo();
+    accountsRotating(stuck, null);
+    const project = await flowProject(stuck, dir, (s) => ({ ...s, flow: { ...s.flow!, columns: { in_progress: 'developer' } } }));
+    const item = stuck.workItems.create(project.id, { title: 'Keep the cart', status: 'todo', type: 'task', description: `FAKE-LIMIT-ONCE\nFAKE-RESULT-WORK ${JSON.stringify(WORK)}` });
+    stuck.workItems.move(item.id, { status: 'in_progress' }, { actor: { kind: 'person' } });
+    const [run] = await until(() => stuck.flow.itemRuns(item.id), (r) => r[0]?.state === 'ended', 'the run to fail');
+    assert.equal(run?.outcome, 'failed');
+    assert.match(run?.error ?? '', /no other account could take the run over \(no account with quota left: every account is out of quota\)/);
+    assert.match(stuck.workItems.comments(item.id).at(-1)?.body ?? '', /work run failed and moved nothing/);
+    assert.equal(stuck.workItems.find(item.id)?.status, 'in_progress');
+    assert.equal(spawnsOf(second.spawns).filter((l) => l.includes('--json-schema')).length, 1, 'nothing was replayed');
+  } finally {
+    stuck.shutdown();
     delete process.env.FAKE_CLAUDE_SPAWNS;
   }
 });

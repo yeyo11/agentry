@@ -4,6 +4,7 @@ import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type {
   AccountsOverview,
+  AgentryLanguage,
   AuthVerification,
   AgentryReleaseInfo,
   CliVersionInfo,
@@ -12,6 +13,9 @@ import type {
   ChatWorktree,
   ConfigFileRoot,
   CreateProjectRequest,
+  FlowRun,
+  FlowRunPage,
+  FlowRunQuery,
   ImportProjectRequest,
   MemoryFile,
   MemoryProjectSummary,
@@ -44,6 +48,8 @@ import type {
   WorkItemCause,
   WorkItemChanges,
   WorkItemDetail,
+  WorkItemHistoryEntry,
+  WorkItemHistoryValue,
   WorkItemFilter,
   WorkItemLink,
   WorkItemOrchestrationDraft,
@@ -51,7 +57,7 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@agentry/shared';
-import { WORK_ITEM_STATUSES } from '@agentry/shared';
+import { AGENTRY_LANGUAGES, agentryLanguage, WORK_ITEM_STATUSES } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
 import { AppSettingsStore } from './app-settings.ts';
@@ -60,7 +66,7 @@ import { chatLinkName, WorkItemError, WorkItemService, type WorkItemLinkState } 
 import { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentsPlace } from './documents.ts';
 import { canBranch, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
 import { TunnelManager } from './tunnel.ts';
-import { ChatService, type Placement } from './chat-service.ts';
+import { ChatService, ChatStartError, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatConfinement, type ChatRuntime, type RunResult } from './chats.ts';
 import { Connectors } from './connectors.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
@@ -115,7 +121,8 @@ export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, type AuthEnv, type C
 export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
 export { LOCALHOST_RUN_KNOWN_HOSTS, TunnelManager, TunnelRefusedError, parseTunnelUrl, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
-export { ChatConflictError, DEFAULT_ORIGINS, type ChatFilter, type Placement } from './chat-service.ts';
+export { ChatRefusal } from './chats.ts';
+export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type ChatFilter, type Placement } from './chat-service.ts';
 export { compareVersions } from './version-check.ts';
 export { ReleaseWatch, type ReleaseWatchOptions } from './release-watch.ts';
 export { DEFAULT_AUTO_SWITCH } from './accounts.ts';
@@ -139,7 +146,7 @@ export { parseChangeScope, parseDiffContext, type ChangeScope, type DiffOptions 
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { deriveKeyPrefix, parseProjectSettings, parseProjectSetup } from './project-settings.ts';
 export { PROJECT_TEMPLATES } from './project-templates.ts';
-export { agentFileContent, TeamError, TeamService, templateTeam, type TeamRunSource } from './team.ts';
+export { agentFileContent, roleTitleIn, TeamError, TeamService, templateTeam, type TeamRunSource } from './team.ts';
 export {
   ASSISTANT_ERRORS,
   AssistantError,
@@ -155,7 +162,23 @@ export {
   type AssistantProject,
 } from './assistant.ts';
 export { assistantLanguage, assistantPrompt, assistantSchema, assistantTitle, parseAnswer, type AssistantAnswer, type AssistantBrief, type AssistantGit, type AssistantLanguage } from './assistant-answer.ts';
-export { FLOW_CAUSE, flowPrompt, flowResultSchema, FlowService, parseResult, stageRules, testCommandRules, type FlowChatResult, type FlowDeps, type FlowLaunch, type FlowProject, type FlowRules } from './flow.ts';
+export {
+  FLOW_CAUSE,
+  FlowError,
+  flowPrompt,
+  flowTitle,
+  flowResultSchema,
+  FlowService,
+  parseFlowRunQuery,
+  parseResult,
+  stageRules,
+  testCommandRules,
+  type FlowChatResult,
+  type FlowDeps,
+  type FlowLaunch,
+  type FlowProject,
+  type FlowRules,
+} from './flow.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
 export {
@@ -269,6 +292,13 @@ export class Core {
   /** The project assistant: read-only runs that propose a team, resources and work items, each accepted on its own */
   readonly assistant: AssistantService;
   private readonly startedAt = Date.now();
+  /**
+   * The person's language, as their panel last said it (`noteLanguage`): what the chats Agentry
+   * starts on its own, with no request of the person's behind them, are titled in.
+   */
+  private language: AgentryLanguage = 'en';
+  /** Chats whose account rotation after a rate limit is under way: a flow run on one waits for it */
+  private readonly rotations = new Set<string>();
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
   private systemCache: { at: number; gen: number; value: Omit<SystemInfo, 'uptimeSec' | 'models'> } | null = null;
@@ -503,6 +533,9 @@ export class Core {
       },
       stop: (chatId) => void this.runtime.stop(chatId),
       activity: (chatId) => this.runtime.get(chatId)?.activity ?? null,
+      language: () => this.language,
+      rotating: (chatId) =>
+        this.rotations.has(chatId) || (this.accounts.autoSwitch.rotateOnLimit && this.accounts.managed && this.runtime.rotationComing(chatId)),
       emit: (event) => this.events.emit(event),
     });
     this.team.runs = (projectId) => this.flow.runs(projectId);
@@ -579,7 +612,12 @@ export class Core {
       void this.sessions.listSessions().catch(() => undefined);
     });
     this.connectors = new Connectors(config);
-    this.resources = new ConfigResources();
+    // A project's agent file is also a team member's: the team announces it, however it was written
+    this.resources = new ConfigResources((change) => {
+      if (change.kind !== 'agents' || change.scope.kind !== 'project') return;
+      const path = change.scope.projectPath;
+      for (const project of this.projectStore.list().filter((p) => p.path === path)) void this.team.agentFileChanged(project.id, change.name, change.action);
+    });
     this.accounts = new AccountManager(config, this.db);
     this.runtime.accounts = this.accounts;
     this.accounts.projectOf = (cwd) => this.attach(cwd)?.project.id ?? null;
@@ -622,6 +660,9 @@ export class Core {
    */
   private async rotateAndResume(run: ChatRuntime): Promise<void> {
     if (!this.accounts.autoSwitch.rotateOnLimit || !this.accounts.managed) return;
+    // Held until the rotation says how it went: a flow run waits on it rather than fail
+    this.rotations.add(run.id);
+    const outcome: { resumed: boolean; reason: string | null } = { resumed: false, reason: null };
     try {
       // A pinned chat leaves its account; a project with a rotation policy moves within it; everything
       // else uses the global rotation
@@ -632,6 +673,7 @@ export class Core {
         : ((await this.accounts.rotateWithinPolicy({ account: null, cwd: run.cwd }, reason)) ?? (await this.accounts.rotate(reason)));
       if (!result.switched) {
         this.runtime.notice(run.id, `Rate limit reached and no account with quota left${result.reason ? ` (${result.reason})` : ''}.`);
+        outcome.reason = result.reason ? `no account with quota left: ${result.reason}` : 'no account with quota left';
         return;
       }
       // Kept, the pin would respawn the replay on the account that just ran out
@@ -639,9 +681,10 @@ export class Core {
       this.forgetSystem();
       const target = result.to ?? 'another account';
       // An orchestration worker already handed its result to the orchestrator, and a turn held to a
-      // schema (a flow run, the assistant) to the run that started it, which has ended on it:
-      // rotating helps what comes after, but replaying the turn would spend again for nobody.
-      if (run.orchestrationId || this.runtime.heldToSchema(run.id)) {
+      // schema (the assistant) to the run that started it, which has ended on it: rotating helps what
+      // comes after, but replaying the turn would spend again for nobody. A flow run that waits for
+      // the rotation has not ended: it goes on in its chat, as a person's chat does.
+      if (run.orchestrationId || (this.runtime.heldToSchema(run.id) && !this.flow.awaitsRotation(run.id))) {
         this.runtime.notice(run.id, `Rate limit reached — switched to ${target}; the next tasks use it.`);
         this.announceRotation(run, result, false);
         return;
@@ -649,9 +692,16 @@ export class Core {
       this.runtime.notice(run.id, `Rate limit reached — switched to ${target} and resuming.`);
       const replayed = await this.runtime.replayLastTurn(run.id);
       if (!replayed) this.runtime.notice(run.id, 'The turn could not be resumed automatically; send it again.');
+      outcome.resumed = replayed;
+      if (!replayed) outcome.reason = 'its turn could not be replayed';
       this.announceRotation(run, result, replayed);
     } catch (error) {
-      this.runtime.notice(run.id, `Account rotation failed: ${error instanceof Error ? error.message : String(error)}`);
+      const message = error instanceof Error ? error.message : String(error);
+      this.runtime.notice(run.id, `Account rotation failed: ${message}`);
+      outcome.reason = `the rotation failed: ${message}`;
+    } finally {
+      this.rotations.delete(run.id);
+      this.flow.rotated(run.id, outcome);
     }
   }
 
@@ -1168,6 +1218,34 @@ export class Core {
     return this.flow.projectFlow(projectId);
   }
 
+  /**
+   * Keeps the language an `Accept-Language` header names, when it names one of Agentry's: the panel
+   * sends the person's with every request. A header that names none (`*`, which a script's fetch
+   * sends, or another language) leaves the last one as it was.
+   */
+  noteLanguage(header: unknown): void {
+    if (typeof header !== 'string') return;
+    const named = header.split(',').some((tag) => (AGENTRY_LANGUAGES as readonly string[]).includes(tag.trim().toLowerCase().split(/[-_;]/)[0] ?? ''));
+    if (named) this.language = agentryLanguage(header);
+  }
+
+  /** The person's language as the panel last said it. */
+  personLanguage(): AgentryLanguage {
+    return this.language;
+  }
+
+  /** `GET /projects/:id/flow/runs`: the team's activity, a page at a time; readable with the flow off. */
+  projectFlowRuns(projectId: string, query: FlowRunQuery = {}): FlowRunPage {
+    this.requireProject(projectId);
+    return this.flow.page(projectId, query);
+  }
+
+  /** `GET /work-items/:itemId/runs`: every flow run of an item, newest first, readable as the item is. */
+  async workItemRuns(itemId: string): Promise<FlowRun[]> {
+    await this.workItemAccess(itemId, 'read');
+    return this.flow.itemRuns(itemId);
+  }
+
   // ---------- the project assistant ----------
 
   private async assistantProject(projectId: string): Promise<AssistantProject> {
@@ -1504,11 +1582,45 @@ export class Core {
     );
   }
 
-  /** The item's page, with every link named. */
+  /**
+   * The history with every chat named by its title. A chat link's entry is written with the name
+   * this process knew, and a chat it does not run (a terminal chat an item was created from) had
+   * none then, so it was written as `chat <id>`: its title is looked up now, when it is read.
+   */
+  private async namedHistory(entries: WorkItemHistoryEntry[]): Promise<WorkItemHistoryEntry[]> {
+    const unnamed = (value: WorkItemHistoryValue): string | null => {
+      if (!value || typeof value !== 'object' || Array.isArray(value) || !('label' in value) || 'key' in value) return null;
+      return /^chat (\S+)$/.exec(value.label)?.[1] ?? null;
+    };
+    const ids = [...new Set(entries.filter((e) => e.change === 'link').flatMap((e) => [unnamed(e.from), unnamed(e.to)]).filter((id): id is string => !!id))];
+    if (!ids.length) return entries;
+    const titles = new Map<string, string>();
+    await Promise.all(
+      ids.map(async (id) => {
+        const title = (await this.chats.summaryOf(id).catch(() => null))?.title?.trim();
+        if (title) titles.set(id, title);
+      }),
+    );
+    const named = (value: WorkItemHistoryValue): WorkItemHistoryValue => {
+      const id = unnamed(value);
+      const title = id ? titles.get(id) : undefined;
+      return title && value && typeof value === 'object' && 'label' in value ? { ...value, label: title } : value;
+    };
+    return entries.map((e) => (e.change === 'link' ? { ...e, from: named(e.from), to: named(e.to) } : e));
+  }
+
+  /** `GET /work-items/:itemId/history`, with every chat named. */
+  async workItemHistory(itemId: string): Promise<WorkItemHistoryEntry[]> {
+    await this.workItemAccess(itemId, 'read');
+    return this.namedHistory(this.workItems.history(itemId));
+  }
+
+  /** The item's page, with every link and every chat of its history named. */
   async workItemDetail(itemId: string): Promise<WorkItemDetail> {
     await this.workItemAccess(itemId, 'read');
     const detail = this.workItems.get(itemId);
-    return { ...detail, links: await this.namedLinks(detail.links) };
+    const [links, history] = await Promise.all([this.namedLinks(detail.links), this.namedHistory(detail.history)]);
+    return { ...detail, links, history };
   }
 
   async workItemLinks(itemId: string): Promise<WorkItemLink[]> {
@@ -1542,7 +1654,7 @@ export class Core {
       }
       this.workLinks.chatStarted(started.id);
     });
-    if (!linked.link) throw new Error('the chat started without being linked to its work item');
+    if (!linked.link) throw new ChatStartError('the chat started without being linked to its work item');
     return { item: this.workItems.find(itemId) ?? item, chat, link: linked.link };
   }
 

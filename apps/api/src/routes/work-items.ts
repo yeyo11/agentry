@@ -201,10 +201,8 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     return { ok: true };
   });
 
-  app.get<{ Params: { itemId: string } }>('/work-items/:itemId/history', async (req) => {
-    await core.workItemAccess(req.params.itemId, 'read');
-    return core.workItems.history(req.params.itemId);
-  });
+  // A chat is named by its title when the history is read, not when the link was written
+  app.get<{ Params: { itemId: string } }>('/work-items/:itemId/history', (req) => core.workItemHistory(req.params.itemId));
 
   // ---- what works on an item
 

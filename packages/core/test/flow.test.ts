@@ -5,10 +5,10 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { Worker } from 'node:worker_threads';
-import type { AgentryEvent, FlowRunDocument, FlowMemoryProposal, ProjectModule, ProjectSettings, WorkItemStatus } from '@agentry/shared';
+import { flowRunStatus, type AgentryEvent, type AgentryLanguage, type FlowRunDocument, type FlowMemoryProposal, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@agentry/shared';
 import { Db, FLOW_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import { EventBus } from '../src/events.ts';
-import { flowResultSchema, FlowService, parseResult, stageRules, testCommandRules, type FlowChatResult, type FlowLaunch } from '../src/flow.ts';
+import { FlowError, flowResultSchema, flowTitle, FlowService, parseFlowRunQuery, parseResult, stageRules, testCommandRules, type FlowChatResult, type FlowLaunch } from '../src/flow.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -40,13 +40,15 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean } 
   const bus = new EventBus();
   const events: AgentryEvent[] = [];
   bus.observe((e) => events.push(e));
-  const state = { settings: opts.settings ?? settingsWith() };
+  const state: { settings: ProjectSettings; language: AgentryLanguage } = { settings: opts.settings ?? settingsWith(), language: 'en' };
   const items = new WorkItemService({ db, project: (id) => (id === 'p1' ? { keyPrefix: 'AGN', columnLimits: {} } : null), emit: (e) => bus.emit(e) });
   const launches: FlowLaunch[] = [];
   const proposals: FlowMemoryProposal[] = [];
   const ties: FlowRunDocument[] = [];
   const stopped: string[] = [];
   const busy = new Set<string>();
+  /** Chats whose account rotation is on its way, as the core would say */
+  const rotating = new Set<string>();
   /** `resume`: only continuing a chat fails; `started`: the chat to continue is told of, then it fails */
   const failNext: { message: string | null; when?: 'resume' | 'started' } = { message: null };
   let chats = 0;
@@ -71,6 +73,8 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean } 
       onStart(`chat-${++chats}`);
     },
     chatBusy: (id) => busy.has(id),
+    rotating: (id) => rotating.has(id),
+    language: () => state.language,
     stop: (id) => void stopped.push(id),
     emit: (e) => bus.emit(e),
   });
@@ -91,7 +95,7 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean } 
     state.settings = { ...state.settings, modules };
     bus.emit({ type: 'project.updated', title: '', projectId: 'p1', projectName: 'p', changes: ['modules'], modules });
   };
-  return { db, file: join(config.dataDir, 'wrapper.db'), bus, events, state, items, flow, launches, proposals, ties, stopped, busy, failNext, answer, chatOf, setModules };
+  return { db, file: join(config.dataDir, 'wrapper.db'), bus, events, state, items, flow, launches, proposals, ties, stopped, busy, rotating, failNext, answer, chatOf, setModules };
 }
 
 type Setup = ReturnType<typeof setup>;
@@ -135,7 +139,29 @@ test('a card a person puts on the board starts the role of its column, with the 
   );
 });
 
-test('refining in backlog completes the item, comments, and moves it to todo, where the Product Owner checks it and leaves it', async () => {
+test("a run's chat is titled in the person's language: the member's role, the item's key and its title", async () => {
+  const s = setup();
+  s.state.language = 'es';
+  const cart = await item(s, 'backlog', 'Arreglar el carrito');
+  const [first, ...rest] = s.launches[0]?.prompt.split('\n') ?? [];
+  assert.equal(first, 'Product Owner · AGN-1 · Arreglar el carrito');
+  // The instructions for Claude after it stay as they were
+  assert.match(rest.join('\n'), /AGN-1: Arreglar el carrito[^]*You are the Product Owner/);
+  await item(s, 'in_progress', 'Guardar   las\nlíneas');
+  assert.equal(s.launches.at(-1)?.prompt.split('\n')[0], 'Desarrollador · AGN-2 · Guardar las líneas');
+
+  // Two runs at once by default: the third starts once the first ends, in the language of then
+  s.state.language = 'en';
+  await item(s, 'in_review', 'Keep the lines');
+  await s.answer(cart.id, ok('Refined'));
+  assert.equal(s.launches.at(-1)?.prompt.split('\n')[0], 'QA · AGN-3 · Keep the lines');
+  assert.equal(flowTitle({ key: 'AGN-4', title: 'x' }, 'developer', 'en'), 'Developer · AGN-4 · x');
+  // A role of the person's own reads as they named it, in either language
+  assert.equal(flowTitle({ key: 'AGN-5', title: 'y' }, 'data-steward', 'es'), 'Data Steward · AGN-5 · y');
+  assert.equal(flowTitle({ key: 'AGN-6', title: 'z' }, 'architect', 'es'), 'Arquitecto · AGN-6 · z');
+});
+
+test('refining in backlog completes the item, comments, and moves it to todo, where it costs no second run', async () => {
   const s = setup();
   const it = await item(s, 'backlog');
   await s.answer(it.id, ok('Refined', { description: 'The cart keeps its lines', acceptanceCriteria: ['Lines survive a reload', 'Lines survive a reload'] }));
@@ -149,13 +175,106 @@ test('refining in backlog completes the item, comments, and moves it to todo, wh
   const move = s.items.history(it.id).find((e) => e.change === 'status');
   assert.equal(move?.actor.kind, 'agent');
   assert.equal(move?.cause?.event, 'flow.refined');
-  // The move into todo is the flow's own, so it starts the todo check, which moves nothing
+  // The Product Owner has just refined it, and nothing changed since: the todo check would repeat it
+  assert.equal(s.launches.length, 1);
+  assert.equal(s.items.find(it.id)?.status, 'todo');
+  assert.equal(running(s).length + queued(s).length, 0);
+  assert.deepEqual(flowRuns(s).map((r) => [r.column, r.outcome]), [['backlog', 'passed']]);
+});
+
+/** Refining in backlog and todo only, so a card can be moved around without starting other roles */
+function refineOnly(): ProjectSettings {
+  const settings = settingsWith();
+  return { ...settings, flow: { ...settings.flow!, columns: { backlog: 'product-owner', todo: 'product-owner' } } };
+}
+
+async function refined(s: Setup, title = 'Fix the cart') {
+  const it = await item(s, 'backlog', title);
+  await s.answer(it.id, ok('Refined', { description: 'Complete now' }));
+  assert.equal(s.items.find(it.id)?.status, 'todo');
+  assert.equal(s.launches.length, 1, 'the flow refined it once');
+  return it;
+}
+
+/** A person takes the card out of todo and puts it back, which asks for the todo check */
+async function backToTodo(s: Setup, itemId: string) {
+  s.items.move(itemId, { status: 'in_progress' }, person);
+  s.items.move(itemId, { status: 'todo' }, person);
+  await s.flow.settled();
+}
+
+test('a refined card put back in todo with nothing changed starts no run; one changed since starts the check', async () => {
+  const s = setup({ settings: refineOnly() });
+  const it = await refined(s);
+  await backToTodo(s, it.id);
+  assert.equal(s.launches.length, 1, 'nothing changed, yet the check ran again');
+
+  // A person's comment is something to check again
+  s.items.comment(it.id, { body: 'It must also keep the coupon' }, person);
+  await backToTodo(s, it.id);
   assert.equal(s.launches.length, 2);
   assert.equal(s.launches[1]?.run.column, 'todo');
   await s.answer(it.id, ok('Ready'));
+
+  // That check passed: back in todo again, it has spoken for the item until something changes
+  await backToTodo(s, it.id);
+  assert.equal(s.launches.length, 2);
+  s.items.update(it.id, { title: 'Fix the cart and the coupon' }, person);
+  await backToTodo(s, it.id);
+  assert.equal(s.launches.length, 3);
+});
+
+test("an edit a person makes while the Product Owner refines, or another member's comment, is something to check again", async () => {
+  const s = setup({ settings: refineOnly() });
+  const it = await item(s, 'backlog');
+  s.items.update(it.id, { description: 'Mine, while it refines' }, person);
+  await s.answer(it.id, ok('Refined', { description: 'Theirs' }));
   assert.equal(s.items.find(it.id)?.status, 'todo');
-  assert.equal(running(s).length + queued(s).length, 0);
-  assert.equal(flowRuns(s).filter((r) => r.outcome === 'passed').length, 2);
+  assert.equal(s.launches.length, 2, 'the edit made while it refined was not checked');
+  await s.answer(it.id, ok('Ready'));
+
+  s.items.comment(it.id, { body: 'Blocked by the payment API' }, { actor: { kind: 'agent', role: 'developer' } });
+  await backToTodo(s, it.id);
+  assert.equal(s.launches.length, 3);
+});
+
+test('a card that goes to todo without a refine that passed is checked there', async () => {
+  // Put straight into todo: nothing refined it
+  const s = setup({ settings: refineOnly() });
+  await item(s, 'todo');
+  assert.equal(s.launches.length, 1);
+
+  // A refine that failed spoke for nothing
+  const failed = await item(s, 'backlog', 'Failed');
+  await s.answer(failed.id, {}, true);
+  s.items.move(failed.id, { status: 'todo' }, person);
+  await s.flow.settled();
+  assert.equal(s.launches.at(-1)?.run.column, 'todo');
+  assert.equal(s.launches.at(-1)?.run.itemId, failed.id);
+
+  // Another role checking todo is a second opinion the project asked for
+  const settings = refineOnly();
+  const other = setup({ settings: { ...settings, flow: { ...settings.flow!, columns: { backlog: 'product-owner', todo: 'qa' } } } });
+  const it = await item(other, 'backlog');
+  await other.answer(it.id, ok('Refined'));
+  assert.deepEqual(other.launches.map((l) => [l.run.column, l.member.agent]), [
+    ['backlog', 'product-owner'],
+    ['todo', 'qa'],
+  ]);
+});
+
+test('a todo check queued while the refine it would repeat was running is cancelled once that refine passes', async () => {
+  const s = setup({ settings: refineOnly() });
+  const it = await item(s, 'backlog');
+  // A person drags it to todo mid-refine: the check waits for the refine, one run at a time
+  s.items.move(it.id, { status: 'todo' }, person);
+  await s.flow.settled();
+  assert.equal(queued(s)[0]?.column, 'todo');
+  await s.answer(it.id, ok('Refined', { acceptanceCriteria: ['Lines survive a reload'] }));
+  assert.equal(s.launches.length, 1);
+  assert.equal(queued(s).length + running(s).length, 0);
+  const check = flowRuns(s).find((r) => r.column === 'todo');
+  assert.deepEqual([check?.outcome, check?.error], ['cancelled', 'it was refined and has not changed since']);
 });
 
 test('a developer run that ends well moves the item to review, and QA passing leaves it waiting for approval', async () => {
@@ -466,6 +585,40 @@ test('each stage gets only its tools: refining and verifying write only document
   }
 });
 
+test("a member's commands bound the shell of the work stage: only those, none for an empty list, and the other stages keep theirs", () => {
+  const extra = { documentsPath: 'docs', testCommands: ['Bash(pnpm run test)'] };
+  const listed = stageRules('work', undefined, { ...extra, commands: ['pnpm test', 'pnpm *', 'a,b', 'x (y)'] });
+  // Denied rather than asked: whatever is not on the list does not run
+  assert.equal(listed.permissionMode, 'dontAsk');
+  assert.ok(!listed.allowedTools.includes('Bash'));
+  assert.deepEqual(listed.allowedTools.filter((r) => r.startsWith('Bash')), ['Bash(pnpm test)', 'Bash(pnpm *)']);
+  // Edits stay as free as they were without writes, and the web as it was
+  for (const tool of ['Edit', 'Write', 'WebFetch']) assert.ok(listed.allowedTools.includes(tool), tool);
+
+  const none = stageRules('work', ['src/'], { ...extra, commands: [] });
+  assert.equal(none.permissionMode, 'dontAsk');
+  assert.ok(!none.allowedTools.some((r) => r.startsWith('Bash')));
+  assert.ok(none.allowedTools.includes('Edit(src/**)'));
+
+  // No list is the shell whole, as before
+  assert.ok(stageRules('work', undefined, extra).allowedTools.includes('Bash'));
+  // Refining and verifying never take the member's list: their own sets hold
+  assert.ok(!stageRules('refine', undefined, { ...extra, commands: ['rm *'] }).allowedTools.some((r) => r.startsWith('Bash')));
+  assert.ok(!stageRules('verify', undefined, { ...extra, commands: ['rm *'] }).allowedTools.includes('Bash(rm *)'));
+  for (const rules of [listed, none]) assert.ok(rules.disallowedTools.includes('Bash(git push *)'));
+});
+
+test("a member's commands reach the work run it is launched with", async () => {
+  const settings = settingsWith();
+  settings.team = { members: settings.team!.members.map((m) => (m.agent === 'developer' ? { ...m, commands: ['npm test'] } : m)) };
+  const s = setup({ settings });
+  await item(s, 'in_progress');
+  const launch = s.launches.at(-1);
+  assert.equal(launch?.run.stage, 'work');
+  assert.equal(launch?.permissionMode, 'dontAsk');
+  assert.deepEqual(launch?.allowedTools.filter((r) => r.startsWith('Bash')), ['Bash(npm test)']);
+});
+
 test('the test commands a project declares are the only commands verifying may run', () => {
   const dir = mkdtempSync(join(tmpdir(), 'agentry-flow-tests-'));
   writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'node --test', 'test:unit': 'x', typecheck: 'tsc', deploy: 'rm -rf /', 'bad name': 'x', build: 'tsc' } }));
@@ -645,6 +798,150 @@ test('the cap holds against another process claiming at the same moment', async 
   assert.equal(queued(s).length, 1);
 });
 
+const RATE_LIMITED: Partial<FlowChatResult> = { cause: 'rate-limit' };
+
+test('a run that hits the rate limit waits for the rotation and goes on in the same chat on the next account', async () => {
+  const s = setup();
+  const it = await item(s, 'in_progress');
+  const chat = s.chatOf(it.id);
+  s.rotating.add(chat);
+  await s.answer(it.id, {}, true, RATE_LIMITED);
+  // Neither the limit's result nor the process it took down ends the run
+  s.flow.chatEnded(chat, 'exit code 1');
+  assert.equal(running(s)[0]?.chatId, chat);
+  assert.equal(s.flow.awaitsRotation(chat), true);
+  assert.equal(s.items.comments(it.id).length, 0);
+  s.rotating.delete(chat);
+  s.flow.rotated(chat, { resumed: true });
+  assert.equal(s.flow.awaitsRotation(chat), false);
+  // The replayed turn answers in the same chat, and the run ends as any other: no second run, no second chat
+  await s.answer(it.id, ok('Implemented'));
+  assert.equal(s.items.find(it.id)?.status, 'in_review');
+  assert.deepEqual(
+    flowRuns(s)
+      .filter((r) => r.stage === 'work')
+      .map((r) => [r.chatId, r.outcome]),
+    [[chat, 'passed']],
+  );
+  assert.equal(s.launches.filter((l) => l.run.stage === 'work').length, 1);
+});
+
+test('a rate limit fails the run when no account is left, when the rotation is off, and never waits for another error', async () => {
+  // No account left to take it over: the rotation says so, and the run fails with the reason
+  const s = setup();
+  const a = await item(s, 'in_progress', 'A');
+  const chat = s.chatOf(a.id);
+  s.rotating.add(chat);
+  await s.answer(a.id, {}, true, RATE_LIMITED);
+  s.rotating.delete(chat);
+  s.flow.rotated(chat, { resumed: false, reason: 'no account with quota left' });
+  await s.flow.settled();
+  const failed = flowRuns(s).find((r) => r.itemId === a.id);
+  assert.equal(failed?.outcome, 'failed');
+  assert.match(failed?.error ?? '', /rate limit and no other account could take the run over \(no account with quota left\)/);
+  assert.match(s.items.comments(a.id).at(-1)?.body ?? '', /failed and moved nothing/);
+  assert.equal(s.items.find(a.id)?.status, 'in_progress');
+
+  // The rotation off (or nothing left to try): it fails at once, as before
+  const b = await item(s, 'in_progress', 'B');
+  await s.answer(b.id, {}, true, RATE_LIMITED);
+  assert.equal(flowRuns(s).find((r) => r.itemId === b.id)?.outcome, 'failed');
+
+  // Any other error fails it at once, rotation or not
+  const c = await item(s, 'in_progress', 'C');
+  s.rotating.add(s.chatOf(c.id));
+  await s.answer(c.id, {}, true);
+  assert.equal(flowRuns(s).find((r) => r.itemId === c.id)?.outcome, 'failed');
+
+  // A process the limit took down before any result waits the same way, then fails with the rotation
+  const d = await item(s, 'in_progress', 'D');
+  const dChat = s.chatOf(d.id);
+  s.rotating.add(dChat);
+  s.flow.chatEnded(dChat, 'rate limit');
+  assert.equal(running(s).find((r) => r.itemId === d.id)?.chatId, dChat);
+  s.rotating.delete(dChat);
+  s.flow.rotated(dChat, { resumed: false });
+  assert.equal(flowRuns(s).find((r) => r.itemId === d.id)?.outcome, 'failed');
+  // A rotation heard for a chat nobody waits on changes nothing
+  s.flow.rotated('chat-unknown', { resumed: false });
+});
+
+test('a run stopped while it waits for the rotation is not replayed afterwards', async () => {
+  const s = setup();
+  const it = await item(s, 'in_progress');
+  const chat = s.chatOf(it.id);
+  s.rotating.add(chat);
+  await s.answer(it.id, {}, true, RATE_LIMITED);
+  s.setModules(['board', 'memory']);
+  await s.flow.settled();
+  assert.equal(flowRuns(s)[0]?.outcome, 'cancelled');
+  // The core asks before it replays the turn: nobody waits on this chat any more
+  assert.equal(s.flow.awaitsRotation(chat), false);
+  s.flow.rotated(chat, { resumed: true });
+  assert.equal(flowRuns(s)[0]?.outcome, 'cancelled');
+});
+
+test("an item's runs are all served, newest first, so an older failed run still reads as failed", async () => {
+  const s = setup();
+  const it = await item(s, 'in_progress');
+  await s.answer(it.id, {}, true);
+  s.items.move(it.id, { status: 'in_review' }, person);
+  await s.flow.settled();
+  await s.answer(it.id, ok('Holds', { verdict: 'pass', criteria: [] }));
+  const other = await item(s, 'backlog', 'Another');
+  const runs = s.flow.itemRuns(it.id);
+  assert.deepEqual(
+    runs.map((r) => [r.stage, flowRunStatus(r)]),
+    [
+      ['verify', 'passed'],
+      ['work', 'failed'],
+    ],
+  );
+  assert.equal(runs.at(-1)?.error, 'it broke');
+  assert.ok(runs.every((r) => r.itemId === it.id));
+  assert.equal(s.flow.itemRuns(other.id).length, 1);
+  assert.deepEqual(s.flow.itemRuns('nope'), []);
+});
+
+test("the team's activity pages every run of the project, newest first, by member, state and item", async () => {
+  const s = setup();
+  const a = await item(s, 'in_progress', 'A');
+  await s.answer(a.id, {}, true);
+  const b = await item(s, 'backlog', 'B');
+  const c = await item(s, 'backlog', 'C');
+  // a's work failed; b's refine runs; c's refine waits for a place (two at most by default)
+  const all = s.flow.page('p1');
+  assert.equal(all.total, s.flow.runs('p1').length);
+  assert.deepEqual(all.runs.map((r) => r.queuedAt), [...all.runs.map((r) => r.queuedAt)].sort().reverse());
+  assert.deepEqual(s.flow.page('p1', { status: ['failed'] }).runs.map((r) => [r.itemId, r.stage]), [[a.id, 'work']]);
+  assert.deepEqual(s.flow.page('p1', { agent: ['product-owner'] }).runs.map((r) => r.itemId).sort(), [b.id, c.id].sort());
+  assert.deepEqual(s.flow.page('p1', { itemId: c.id }).runs.length, 1);
+  assert.equal(s.flow.page('p1', { status: ['running', 'queued'] }).total, s.flow.runs('p1').filter((r) => r.state !== 'ended').length);
+
+  // Paged by a cursor that a run queued meanwhile does not shift
+  const first = s.flow.page('p1', { limit: 2 });
+  assert.equal(first.runs.length, 2);
+  assert.ok(first.nextCursor);
+  await item(s, 'backlog', 'D');
+  const rest = s.flow.page('p1', { limit: 2, cursor: first.nextCursor });
+  assert.deepEqual([...first.runs, ...rest.runs].map((r) => r.id), all.runs.map((r) => r.id));
+  assert.equal(rest.nextCursor, null);
+  assert.equal(s.flow.page('p2').total, 0);
+});
+
+test('the query of the activity is checked', () => {
+  assert.deepEqual(parseFlowRunQuery({ agent: 'qa,developer, qa', status: 'failed,running', limit: '10', itemId: 'i1' }), {
+    agent: ['qa', 'developer'],
+    status: ['failed', 'running'],
+    limit: 10,
+    itemId: 'i1',
+  });
+  assert.deepEqual(parseFlowRunQuery({}), {});
+  for (const bad of [{ status: 'ended' }, { limit: '0' }, { limit: '2.5' }, { limit: '201' }, { cursor: 'abc' }]) {
+    assert.throws(() => parseFlowRunQuery(bad), (err: unknown) => err instanceof FlowError && err.statusCode === 400, JSON.stringify(bad));
+  }
+});
+
 test('a result is read defensively', () => {
   assert.equal(parseResult(null, 'work'), null);
   assert.equal(parseResult({ verdict: 'pass' }, 'verify'), null);
@@ -686,5 +983,32 @@ test('the flow migration applies on top of the version before it, and an old ite
   assert.deepEqual([old?.bounces, old?.waiting], [0, null]);
   items.setFlowState('i1', { waiting: 'approval' }, { actor: { kind: 'agent', role: 'qa' } });
   assert.equal(items.find('i1')?.waiting, 'approval');
+  db.close();
+});
+
+test('a card is live while a Product Owner refines it or QA verifies it, as while a chat works on it; an origin chat or a document is not', () => {
+  const config = tempConfig();
+  mkdirSync(config.dataDir, { recursive: true });
+  const db = new Db(config);
+  const working = new Set(['po', 'qa', 'origin', 'spec']);
+  const items = new WorkItemService({
+    db,
+    project: () => ({ keyPrefix: 'AGN', columnLimits: {} }),
+    linkState: (link) => ({ name: link.chatId, chatState: link.chatId && working.has(link.chatId) ? 'working' : 'idle' }),
+  });
+  const refined = items.create('p1', { title: 'Refined' });
+  items.link(refined.id, { kind: 'chat', role: 'origin', chatId: 'origin' });
+  items.link(refined.id, { kind: 'document', role: 'refine', chatId: 'spec', documentPath: 'docs/spec.md' });
+  assert.equal(items.find(refined.id)?.activeLink, null, 'an origin chat or a document made the card live');
+  items.link(refined.id, { kind: 'chat', role: 'refine', chatId: 'po' }, { actor: { kind: 'agent', role: 'product-owner' } });
+  assert.equal(items.find(refined.id)?.activeLink?.chatId, 'po');
+  assert.equal(items.find(refined.id)?.activeLink?.role, 'refine');
+
+  const verified = items.create('p1', { title: 'Verified', status: 'in_review' });
+  items.link(verified.id, { kind: 'chat', role: 'verify', chatId: 'qa' });
+  assert.equal(items.find(verified.id)?.activeLink?.chatId, 'qa');
+  // Once QA's chat is idle the card is still again
+  working.delete('qa');
+  assert.equal(items.find(verified.id)?.activeLink, null);
   db.close();
 });

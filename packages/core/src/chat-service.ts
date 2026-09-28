@@ -74,6 +74,27 @@ const RECENT_ENDED_WINDOW_MS = 24 * 3_600_000;
 /** The origins a chat list shows unless asked for more: workers and housekeeping have their own homes. */
 export const DEFAULT_ORIGINS: readonly ChatOrigin[] = ['agentry', 'external'];
 
+/**
+ * A chat that could not start for a reason of the server's (the CLI could not be spawned, a callback
+ * failed on the way): a 500, whose message is still the person's to read, since it is what they
+ * would report. `expose` tells the API's error handler to send it rather than "internal error".
+ */
+export class ChatStartError extends Error {
+  readonly statusCode = 500;
+  readonly expose = true;
+}
+
+/**
+ * Whatever starting a chat threw, as the API should answer it: a refusal (a 4xx it chose, a
+ * `ChatRefusal`, a work item's refusal) as it is; anything else, bare `Error`s included, which the
+ * API would otherwise read as the caller's fault, as a 500 that says what went wrong.
+ */
+export function startFailure(err: unknown): Error {
+  if (err instanceof Error && typeof (err as { statusCode?: unknown }).statusCode === 'number') return err;
+  const message = err instanceof Error ? err.message : String(err);
+  return new ChatStartError(`the chat could not start: ${message}`, { cause: err });
+}
+
 /** An action the chat's control refuses: the person is told why, and the way forward. */
 export class ChatConflictError extends Error {
   readonly statusCode = 409;
@@ -462,8 +483,15 @@ export class ChatService {
     const fallback = request.toolPreset === undefined && request.allowedTools === undefined ? this.deps.tools.presets.defaultPreset() : null;
     const picked = fallback ? { ...request, toolPreset: fallback.id } : request;
     const chosen = await this.deps.tools.resolve(picked, resolve(request.cwd ?? this.deps.config.workspaceDir), null);
-    const started = this.deps.runtime.start({ ...request, ...chosen });
-    onStart?.(started);
+    // What the request asked for is checked above and by the runtime's refusals; past that, a failure
+    // is the server's, and answers as one
+    let started: ChatRuntime;
+    try {
+      started = this.deps.runtime.start({ ...request, ...chosen });
+      onStart?.(started);
+    } catch (err) {
+      throw startFailure(err);
+    }
     return this.require(started.id);
   }
 
