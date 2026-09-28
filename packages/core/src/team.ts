@@ -525,12 +525,6 @@ export class TeamService {
     });
   }
 
-  /** The member the flow runs for a role, with its model and write rules; null when nobody plays it. */
-  async memberForRole(projectId: string, role: string): Promise<ProjectTeamMember | null> {
-    const project = await this.deps.project(projectId);
-    return project.settings.team?.members.find((m) => m.role === role) ?? null;
-  }
-
   private serialized<T>(fn: () => Promise<T>): Promise<T> {
     const run = this.lock.then(fn, fn);
     this.lock = run.catch(() => undefined);
