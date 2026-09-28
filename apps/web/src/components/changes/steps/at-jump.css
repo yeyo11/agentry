@@ -1,0 +1,6 @@
+/* The entry a step's "See it in the conversation" opened the chat at (pages/ChatView.tsx, `?at=`):
+   marked for a moment in the accent, where a search hit takes the warning colour */
+.run-scroll.is-at-jump .transcript > [data-focused] {
+  outline-color: var(--accent);
+  background: var(--accent-soft);
+}

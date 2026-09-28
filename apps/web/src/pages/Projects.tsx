@@ -16,12 +16,15 @@ import { intlLocale } from '../i18n/language';
 import { formatDate, formatDateTime, formatNumber, timeAgo, toMs } from '../lib/format';
 import { matchesText, PROJECT_SORTERS, type ProjectSort } from '../lib/lists';
 import { NARROW, useMediaQuery } from '../lib/media';
+import { GLOBAL_SCOPE, useListParams } from '../lib/list-params';
 import { useProjectScope } from '../lib/project-scope';
 import { NEW_PROJECT_PATH } from '../lib/work-items';
 import { ModuleMarks } from './projects/parts';
 import '../insights.css';
 
 const PROJECT_SORTS = Object.keys(PROJECT_SORTERS) as ProjectSort[];
+/** What the list keeps until it is reset; the list of projects is the one page the top bar's project does not narrow */
+const LIST_PARAMS = ['q', 'sort'] as const;
 
 /**
  * How long ago, as short as a stat allows ("2 d", "5 h"): `timeAgo`'s "2 d ago" does not fit a third
@@ -334,8 +337,12 @@ export function Projects() {
   const candidates = useProjectCandidates(!isLoading);
   const offered = candidates.data ?? [];
   const first = !isLoading && projects.length === 0;
-  const [search, setSearch] = useState('');
-  const [sort, setSort] = useState<ProjectSort>('activity');
+  const listState = useListParams('projects', LIST_PARAMS, GLOBAL_SCOPE);
+  // On a phone a handful of cards is read at a glance; the search and the sort come with a longer list
+  const toolbar = !narrow || projects.length >= PHONE_TOOLBAR_FROM;
+  // A search kept from a longer list must not hide cards behind a toolbar that is not there
+  const search = toolbar ? (listState.params.get('q') ?? '') : '';
+  const sort = (toolbar && PROJECT_SORTS.find((s) => s === listState.params.get('sort'))) || 'activity';
   const shown = projects.filter((project) => matchesText(search, [project.name, project.path])).sort(PROJECT_SORTERS[sort]);
   const newButton = (primary: boolean) => (
     <Link to={NEW_PROJECT_PATH} className={primary ? 'btn btn-primary' : 'btn'}>
@@ -365,11 +372,12 @@ export function Projects() {
         )
       ) : (
         <div>
-          {/* On a phone a handful of cards is read at a glance; the search and the sort come with a longer list */}
-          {(!narrow || projects.length >= PHONE_TOOLBAR_FROM) && (
+          {toolbar && (
             <ListToolbar
-              search={{ value: search, onChange: setSearch, placeholder: t('list.searchPlaceholder'), label: t('list.searchLabel') }}
-              sort={{ value: sort, options: PROJECT_SORTS.map((value) => ({ value, label: t(`list.sort.${value}`) })), onChange: (v) => setSort(PROJECT_SORTS.find((s) => s === v) ?? 'activity'), label: t('list.sortLabel') }}
+              search={{ value: search, onChange: (value) => listState.patch({ q: value }), placeholder: t('list.searchPlaceholder'), label: t('list.searchLabel') }}
+              sort={{ value: sort, options: PROJECT_SORTS.map((value) => ({ value, label: t(`list.sort.${value}`) })), onChange: (v) => listState.patch({ sort: v === 'activity' ? null : v }), label: t('list.sortLabel') }}
+              onReset={listState.reset}
+              active={search !== '' || sort !== 'activity'}
             />
           )}
           {shown.length === 0 ? (

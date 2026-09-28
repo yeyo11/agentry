@@ -5,7 +5,7 @@ import { useOverview } from '../../../api';
 import { ProgressRing, usageTone } from '../../../components/motion';
 import { Spinner } from '../../../components/Spinner';
 import { Skeleton } from '../../../components/ui';
-import { formatCost, formatNumber, timeUntil } from '../../../lib/format';
+import { formatAmountShort, formatCost, formatNumber, timeUntil } from '../../../lib/format';
 import { useHomePulse } from '../pulse';
 import type { WidgetProps } from '../registry';
 
@@ -15,6 +15,7 @@ function Kpi({
   label,
   tag,
   value,
+  valueShort,
   valueClass = '',
   sub,
   short,
@@ -26,6 +27,8 @@ function Kpi({
   /** On a phone, a mono label in place of the long one */
   tag?: string;
   value: ReactNode;
+  /** On a phone, where the tile is a third of the screen, a shorter form of the figure */
+  valueShort?: ReactNode;
   valueClass?: string;
   sub: ReactNode;
   /** On a phone, the word under the figure */
@@ -38,7 +41,16 @@ function Kpi({
         <span className="kpi-label">{label}</span>
         {tag && <span className="kpi-tag section-label">{tag}</span>}
       </span>
-      <span className={`kpi-value ${valueClass}`.trim()}>{value}</span>
+      <span className={`kpi-value ${valueClass}`.trim()}>
+        {valueShort === undefined ? (
+          value
+        ) : (
+          <>
+            <span className="kpi-value-full">{value}</span>
+            <span className="kpi-value-short">{valueShort}</span>
+          </>
+        )}
+      </span>
       <span className="kpi-sub mono">{sub}</span>
       <span className="kpi-short">{short}</span>
     </div>
@@ -92,6 +104,7 @@ export function KpisWidget({ project, title, id }: WidgetProps) {
         label={t('kpis.spend')}
         tag={t('kpis.today')}
         value={pulse.spentToday === null ? '—' : formatCost(pulse.spentToday)}
+        valueShort={pulse.spentToday === null ? '—' : formatAmountShort(pulse.spentToday)}
         valueClass="grad-text"
         sub={
           pulse.chatsWithoutCost > 0

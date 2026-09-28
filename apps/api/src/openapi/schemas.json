@@ -3829,14 +3829,94 @@
       },
       "error": {
         "type": "string"
+      },
+      "source": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CswapSource"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "compatible": {
+        "type": "boolean",
+        "description": "The version is one whose `--json` output Agentry parses"
+      },
+      "pinned": {
+        "type": "string",
+        "description": "The version Agentry installs and is tested against"
+      },
+      "managed": {
+        "$ref": "#/components/schemas/CswapManagedInfo"
       }
     },
     "required": [
       "installed",
       "version",
-      "path"
+      "path",
+      "source",
+      "compatible",
+      "pinned",
+      "managed"
     ],
     "description": "The `cswap` binary that owns the account credentials, when it is installed."
+  },
+  "CswapSource": {
+    "type": "string",
+    "enum": [
+      "env",
+      "path",
+      "managed"
+    ],
+    "description": "Where the `cswap` in use came from: `CSWAP_BIN`, the `PATH`, or the copy Agentry installed in its own data directory."
+  },
+  "CswapManagedInfo": {
+    "type": "object",
+    "properties": {
+      "available": {
+        "type": "boolean",
+        "description": "False in the Docker image (claude-swap is baked in), with `CSWAP_BIN`, or with `AGENTRY_CSWAP_MANAGED=0`"
+      },
+      "state": {
+        "$ref": "#/components/schemas/CswapInstallState"
+      },
+      "step": {
+        "type": "string",
+        "enum": [
+          "uv",
+          "claude-swap"
+        ],
+        "description": "While installing: fetching uv, or uv installing claude-swap (and Python, when the system lacks it)"
+      },
+      "version": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Version of the managed copy, when there is one"
+      },
+      "error": {
+        "type": "string",
+        "description": "Why the last install failed"
+      }
+    },
+    "required": [
+      "available",
+      "state",
+      "version"
+    ]
+  },
+  "CswapInstallState": {
+    "type": "string",
+    "enum": [
+      "absent",
+      "installing",
+      "installed",
+      "failed"
+    ],
+    "description": "Progress of the copy of claude-swap Agentry installs itself."
   },
   "AutoSwitchSettings": {
     "type": "object",
@@ -4200,6 +4280,12 @@
       },
       {
         "$ref": "#/components/schemas/AssistantProposalEvent"
+      },
+      {
+        "$ref": "#/components/schemas/SettingsChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/TunnelChangedEvent"
       }
     ],
     "description": "Everything the buffered feed carries, discriminated by `type`."
@@ -7240,6 +7326,223 @@
     ],
     "description": "Every /config route takes an optional `?project=<projectId>`: absent means the user scope (the Claude config dir), present means that project's own files."
   },
+  "SettingsChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "settings.changed"
+      },
+      "settings": {
+        "$ref": "#/components/schemas/AppSettings"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "settings",
+      "title",
+      "type"
+    ],
+    "description": "A layered setting changed, from the UI or the file: the whole document as it now stands."
+  },
+  "AppSettings": {
+    "type": "object",
+    "properties": {
+      "allowedHosts": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern with at least two labels below the wildcard. Only the configured part: the exact names a running tunnel adds for itself are not listed here, because nobody may edit them."
+      },
+      "maxConcurrentRuns": {
+        "type": "number",
+        "description": "How many runs may work at once; a change applies to the next run, without a restart"
+      },
+      "defaultPermissionMode": {
+        "$ref": "#/components/schemas/PermissionMode",
+        "description": "The `--permission-mode` of a run that does not ask for one; applies to the next run"
+      },
+      "sources": {
+        "type": "object",
+        "properties": {
+          "allowedHosts": {
+            "$ref": "#/components/schemas/AppSettingSource"
+          },
+          "maxConcurrentRuns": {
+            "$ref": "#/components/schemas/AppSettingSource"
+          },
+          "defaultPermissionMode": {
+            "$ref": "#/components/schemas/AppSettingSource"
+          }
+        },
+        "required": [
+          "allowedHosts",
+          "maxConcurrentRuns",
+          "defaultPermissionMode"
+        ]
+      }
+    },
+    "required": [
+      "allowedHosts",
+      "defaultPermissionMode",
+      "maxConcurrentRuns",
+      "sources"
+    ],
+    "description": "`GET /settings/app`: every layered setting, and where each one's value comes from."
+  },
+  "AppSettingSource": {
+    "type": "string",
+    "enum": [
+      "env",
+      "file",
+      "default"
+    ],
+    "description": "Where a layered setting's current value comes from. `env` means the UI may show it but not change it."
+  },
+  "TunnelChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "tunnel.changed"
+      },
+      "tunnel": {
+        "$ref": "#/components/schemas/TunnelStatus"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "title",
+      "tunnel",
+      "type"
+    ],
+    "description": "The tunnel moved to another state, got a new address, or had its settings changed. Carries the whole status, so a client that follows the feed never has to refetch it."
+  },
+  "TunnelStatus": {
+    "type": "object",
+    "properties": {
+      "state": {
+        "$ref": "#/components/schemas/TunnelState"
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The public HTTPS address; null unless `state` is `active`, so nobody is sent to one that does not answer yet"
+      },
+      "since": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the current address started working. The free domain changes regularly, and an installed PWA belongs to the origin it was installed from, so a client can tell how old the address is. Null unless `state` is `active`"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Localized"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why the tunnel failed, with a code a client translates; null unless `state` is `failed`"
+      },
+      "enabled": {
+        "type": "boolean",
+        "description": "Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`). Off by default in the Docker image and the Helm chart: the tunnel reaches the server from inside the container, around the published port, the operator's proxy and its TLS, so opening that path is the operator's call. While false, `start` is refused and the UI says who can turn it on instead of offering a button"
+      },
+      "sshAvailable": {
+        "type": "boolean",
+        "description": "An `ssh` was found to run; without one the tunnel cannot start, and the UI says how to install it"
+      },
+      "settings": {
+        "$ref": "#/components/schemas/TunnelSettings"
+      }
+    },
+    "required": [
+      "state",
+      "url",
+      "since",
+      "reason",
+      "enabled",
+      "sshAvailable",
+      "settings"
+    ],
+    "description": "`GET /tunnel`, and what `tunnel.changed` carries."
+  },
+  "TunnelState": {
+    "type": "string",
+    "enum": [
+      "stopped",
+      "starting",
+      "verifying",
+      "active",
+      "stopping",
+      "failed"
+    ],
+    "description": "`verifying`: the provider handed out an address, and Agentry is checking that `GET /api/health` answers through it before showing it. A resolver asked too early caches the missing name, so an address shown before it works can look broken for a minute."
+  },
+  "Localized": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "string",
+        "description": "Stable across releases: a translation is keyed by it"
+      },
+      "params": {
+        "$ref": "#/components/schemas/LocalizedParams"
+      },
+      "text": {
+        "type": "string",
+        "description": "The English sentence, always present"
+      }
+    },
+    "required": [
+      "code",
+      "text"
+    ],
+    "description": "A sentence the server writes, with a stable key beside it. The API answers in English and reads as it is; a client that knows the code says the same thing in its own language, and one that does not shows `text`."
+  },
+  "TunnelSettings": {
+    "type": "object",
+    "properties": {
+      "startWithAgentry": {
+        "type": "boolean",
+        "description": "Open the tunnel whenever Agentry starts; off unless the person turns it on"
+      }
+    },
+    "required": [
+      "startWithAgentry"
+    ],
+    "description": "What the tunnel may be told to do beside starting and stopping it."
+  },
   "StreamHelloEvent": {
     "type": "object",
     "properties": {
@@ -8208,8 +8511,11 @@
         "description": "`host` sends permissions, questions and plans to the panel; `none`, the default, denies them"
       },
       "account": {
-        "type": "string",
-        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one"
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one; `null` unpins a chat on a resume or a fork. A pinned chat that hits its limit is unpinned by the rotation."
       },
       "prompt": {
         "type": "string"
@@ -8296,8 +8602,11 @@
         "description": "`host` sends permissions, questions and plans to the panel; `none`, the default, denies them"
       },
       "account": {
-        "type": "string",
-        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one"
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one; `null` unpins a chat on a resume or a fork. A pinned chat that hits its limit is unpinned by the rotation."
       },
       "prompt": {
         "type": "string"
@@ -8372,8 +8681,11 @@
         "description": "`host` sends permissions, questions and plans to the panel; `none`, the default, denies them"
       },
       "account": {
-        "type": "string",
-        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one"
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one; `null` unpins a chat on a resume or a fork. A pinned chat that hits its limit is unpinned by the rotation."
       },
       "prompt": {
         "type": "string"
@@ -8876,6 +9188,13 @@
           "$ref": "#/components/schemas/ChangedFile"
         },
         "description": "Working-tree changes that are in no commit, staged or not"
+      },
+      "working": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChangedFile"
+        },
+        "description": "Every file that differs between `base` and the working tree, committed or not, untracked included, with those counts: what the default diff of a file shows. Left out of a summary scoped to one commit or to the uncommitted work."
       }
     },
     "required": [
@@ -8906,6 +9225,10 @@
       "previousPath": {
         "type": "string",
         "description": "Where a rename came from"
+      },
+      "binary": {
+        "type": "boolean",
+        "description": "Git printed `-` for both counts: there are no lines to count, and no diff to draw"
       }
     },
     "required": [
@@ -8932,13 +9255,18 @@
       },
       "diff": {
         "type": "string"
+      },
+      "full": {
+        "type": "boolean",
+        "description": "True when the diff carries the whole file: `context=full` was asked for and honoured"
       }
     },
     "required": [
       "path",
-      "diff"
+      "diff",
+      "full"
     ],
-    "description": "One file's diff, unified, exactly as git prints it: the panel highlights it, nobody parses it."
+    "description": "One file's diff, unified, exactly as git prints it."
   },
   "ChatChanges": {
     "type": "object",
@@ -9034,62 +9362,101 @@
     ],
     "description": "One item of a worker's own checklist, from its `TaskCreate`/`TaskUpdate`/`TodoWrite` calls."
   },
-  "EditorSettings": {
-    "type": "object",
-    "properties": {
-      "template": {
-        "type": "string",
-        "description": "URL template; `{path}`, `{line}` and `{column}` are substituted"
+  "DiffContext": {
+    "anyOf": [
+      {
+        "type": "number"
       },
-      "diffCommand": {
+      {
         "type": "string",
-        "description": "Command for a side-by-side diff, e.g. `code --diff {left} {right}`; no button when absent"
-      },
-      "pathMap": {
-        "type": "array",
-        "items": {
-          "type": "object",
-          "properties": {
-            "from": {
-              "type": "string"
-            },
-            "to": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "from",
-            "to"
-          ]
-        },
-        "description": "Container paths rewritten to host paths before the template is filled; first match wins"
+        "const": "full"
       }
-    },
-    "required": [
-      "template"
     ],
-    "description": "How the panel turns a path and a line into something that opens the person's editor. It is a setting because the wrapper often runs in a container while the editor does not, and because nobody agrees on an editor: `vscode://file/{path}:{line}` is only the default."
+    "description": "How many unchanged lines a diff keeps around each change: a number (0–500), or `full` for the whole file."
   },
-  "UpdateEditorSettingsRequest": {
-    "$ref": "#/components/schemas/EditorSettings",
-    "description": "Replaces the whole document (`PUT /settings/editor`): it is small and the form always holds all of it."
-  },
-  "EditorSettingsDoc": {
+  "EditStep": {
     "type": "object",
     "properties": {
-      "stored": {
+      "id": {
+        "type": "string",
+        "description": "The `tool_use` id"
+      },
+      "index": {
+        "type": "number",
+        "description": "1-based, in the order the calls were made"
+      },
+      "at": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the call was made (ISO 8601); null when the entry carries no timestamp"
+      },
+      "tool": {
+        "$ref": "#/components/schemas/EditStepTool"
+      },
+      "path": {
+        "type": "string",
+        "description": "Relative to the git top level when the chat works in a checkout, to the chat's directory otherwise; absolute when the file is outside it"
+      },
+      "additions": {
+        "type": "number"
+      },
+      "deletions": {
+        "type": "number"
+      },
+      "diff": {
+        "type": "string",
+        "description": "Unified diff (`@@` hunks only); `''` when the transcript kept no patch"
+      },
+      "created": {
         "type": "boolean",
-        "description": "False until the first `PUT`: `settings` is then the shipped default, and a browser may migrate its own"
+        "description": "A `Write` that created the file"
       },
-      "settings": {
-        "$ref": "#/components/schemas/EditorSettings"
+      "intent": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The last thing the assistant wrote before the call, clipped to 280 characters; null when none"
+      },
+      "entryIndex": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "0-based index, in the space `GET /chats/:id` pages with sidechains off, of the entry that holds the `tool_use`; null when unknown"
+      },
+      "pending": {
+        "type": "boolean",
+        "description": "The call has no result yet: the chat is still working on it"
       }
     },
     "required": [
-      "stored",
-      "settings"
+      "id",
+      "index",
+      "at",
+      "tool",
+      "path",
+      "additions",
+      "deletions",
+      "diff",
+      "created",
+      "intent",
+      "entryIndex",
+      "pending"
     ],
-    "description": "`GET /settings/editor` and the answer to a `PUT`: the settings, and whether any were ever saved."
+    "description": "One successful edit of a chat's main transcript, with the patch the CLI stored for it."
+  },
+  "EditStepTool": {
+    "type": "string",
+    "enum": [
+      "Edit",
+      "MultiEdit",
+      "Write",
+      "NotebookEdit"
+    ],
+    "description": "The tools whose calls become the steps of the Step by step lens."
   },
   "CancelCommandRequest": {
     "type": "object",
@@ -9637,27 +10004,6 @@
       "links"
     ],
     "description": "What a person has to do: Agentry cannot authorise a connector on anyone's behalf."
-  },
-  "Localized": {
-    "type": "object",
-    "properties": {
-      "code": {
-        "type": "string",
-        "description": "Stable across releases: a translation is keyed by it"
-      },
-      "params": {
-        "$ref": "#/components/schemas/LocalizedParams"
-      },
-      "text": {
-        "type": "string",
-        "description": "The English sentence, always present"
-      }
-    },
-    "required": [
-      "code",
-      "text"
-    ],
-    "description": "A sentence the server writes, with a stable key beside it. The API answers in English and reads as it is; a client that knows the code says the same thing in its own language, and one that does not shows `text`."
   },
   "ConnectorLimit": {
     "type": "object",
@@ -10439,6 +10785,13 @@
         ],
         "description": "Path to open, e.g. `/chats/<id>?prompt=<id>`; null when there is nothing but the app to open"
       },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The same place as `href`, as an absolute URL on the tunnel's public address at the moment the push was sent; null while no tunnel is active. The free address changes, and an install made on an old one still receives its pushes, so its worker opens this instead of its own dead origin (docs/plans/tunnel.md, \"Answer: notifications after a domain change\")"
+      },
       "at": {
         "type": "string"
       },
@@ -10464,6 +10817,7 @@
       "title",
       "body",
       "href",
+      "url",
       "at",
       "priority",
       "runId",
@@ -12166,8 +12520,11 @@
         "description": "`host` sends permissions, questions and plans to the panel; `none`, the default, denies them"
       },
       "account": {
-        "type": "string",
-        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one"
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one; `null` unpins a chat on a resume or a fork. A pinned chat that hits its limit is unpinned by the rotation."
       }
     },
     "description": "What can be chosen when a process starts on a chat, whether it is new, resumed or a fork."
@@ -14319,5 +14676,37 @@
       }
     },
     "description": "`POST /assistant/proposals/:proposalId/accept`, with what the person changed before accepting; only the part that matches the proposal's kind is read, and a field left out keeps the proposed value. Accepting a proposal that is not `pending` is refused with 409."
+  },
+  "UpdateAppSettingsRequest": {
+    "type": "object",
+    "properties": {
+      "allowedHosts": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern with at least two labels below the wildcard. Only the configured part: the exact names a running tunnel adds for itself are not listed here, because nobody may edit them."
+      },
+      "maxConcurrentRuns": {
+        "type": "number",
+        "description": "How many runs may work at once; a change applies to the next run, without a restart"
+      },
+      "defaultPermissionMode": {
+        "$ref": "#/components/schemas/PermissionMode",
+        "description": "The `--permission-mode` of a run that does not ask for one; applies to the next run"
+      }
+    },
+    "description": "`PUT /settings/app`: the settings to change, and only those. A setting the environment set is refused rather than written to the file, where it would do nothing until the variable goes away and then change behaviour by surprise."
+  },
+  "UpdateTunnelSettingsRequest": {
+    "type": "object",
+    "properties": {
+      "startWithAgentry": {
+        "type": "boolean",
+        "description": "Open the tunnel whenever Agentry starts; off unless the person turns it on"
+      }
+    },
+    "additionalProperties": false,
+    "description": "`PUT /tunnel/settings`: the settings to change, and only those."
   }
 }

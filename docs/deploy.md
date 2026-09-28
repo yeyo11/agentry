@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-09-25T16:22:09Z
+updated_at: 2026-09-27T18:00:00Z
 tags:
     - deploy
     - docker
@@ -111,6 +111,48 @@ starts. Do not scale it.
 The `auth.*` values seed a volume that has no `auth.json` yet. After that the settings saved in the UI
 win, so changing the value and upgrading does not change a running install.
 
+`tunnel.enabled` (default `false`) decides whether Settings → Remote access may open a public address
+from the pod; see the next section. The deployment always writes `AGENTRY_TUNNEL` as `on` or `off`,
+and `NOTES.txt` warns when it is on.
+
+## The tunnel in Docker
+
+Settings → Remote access can open a public HTTPS address through localhost.run over ssh
+([tunnel.md](tunnel.md)). **In the image it is off unless the operator turns it on**:
+
+```dotenv
+# .env, for Compose: env_file already hands it to the container
+AGENTRY_TUNNEL=on
+```
+
+With Helm, set `tunnel.enabled: true`. A source install and the desktop app have it on by default,
+and `AGENTRY_TUNNEL=off` turns it off there too. `AGENTRY_TUNNEL` accepts `on`/`1`/`true` and
+`off`/`0`/`false`, with empty or unset meaning the default. Any other value stops the server at
+startup.
+
+Why off here, measured on 2026-09-27 from a throwaway container on Docker's default bridge network
+that published no port at all:
+
+- **The container can reach localhost.run on TCP 22 by default**, and its ssh opened the tunnel with
+  the options Agentry passes.
+- **The tunnel goes around everything in front of the server.** It reaches `127.0.0.1:8787` from
+  inside the container, so whoever has the address comes in around the port Compose publishes only on
+  `127.0.0.1`, the `tls` profile's Caddy and its certificate, and in Kubernetes the Service, the
+  Ingress and any ingress NetworkPolicy. localhost.run's TLS replaces yours. A `GET` from the internet
+  reached the container that published nothing.
+- **Operators decide ingress in their manifests**, and a pod that dials out and opens its own public
+  way in looks like a backdoor to a security review. Nothing on the network stops it, so Agentry's
+  own switch is the only thing in the way, and it is off.
+
+Turned on, the tunnel is the same as everywhere else. It refuses to open while the auth mode is
+`none`, even if `auth.mode` in the chart only seeded a volume and the UI changed it later: it checks
+the live mode. Only its exact host joins the allowlist, and it opens only when someone presses the
+button or turns on "start with Agentry". Where it is off, the tab says so and names the switch.
+
+It needs **outbound TCP 22** to `localhost.run`. An egress NetworkPolicy or a firewall that blocks it
+makes every attempt fail, however the switch is set. `openssh-client` is already in the image.
+The full evidence is in [the plan](plans/tunnel.md#answer-the-tunnel-in-docker).
+
 ## What the image contains
 
 The image is built in two stages. The stage that runs holds one compiled JavaScript file
@@ -157,6 +199,9 @@ Firebase project, no key of anyone else's.
   `*.push.services.mozilla.com`, `web.push.apple.com`, `fcm.googleapis.com`. A wrapper behind NAT
   needs nothing opened; an egress-filtered one needs those hosts allowed, and without them a push is
   a log line and nothing else.
+- **No domain or proxy at hand?** The [tunnel](tunnel.md) gives an HTTPS origin with nothing to
+  configure, if the operator turned it on (above). Its address changes, and each new address is a new
+  origin for the phone.
 - **In Kubernetes**, `push.json` sits on the same PersistentVolumeClaim as the rest of the data
   directory, which the chart keeps through `helm uninstall`. Bring your own Ingress, and terminate
   TLS there.
@@ -255,4 +300,4 @@ Both orchestrators allow 30 s between `SIGTERM` and `SIGKILL` (`stop_grace_perio
 
 ## Related
 
-[[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]]
+[[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]] · [[tunnel.md]] · [[plans/tunnel.md]]

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { desktopClasses } from '../src/lib/desktop.ts';
-import { chatActivity, fabFor, hidesTabBar, liveSummary, moreNotes, orchestrationProgress, pageHoldsScope, pickUsageWindows, swapUsageWindows, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
+import { chatActivity, fabFor, hidesTabBar, liveSummary, moreNotes, orchestrationProgress, pickUsageWindows, swapUsageWindows, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
 
 // The shell is where a person sees at a glance what is alive. What it lists has to be in the order
 // that needs them most, never twice, and a shape it does not expect must not break a row.
@@ -128,16 +128,21 @@ test('the tab bar steps aside on a chat and on an orchestration, not on their li
   assert.equal(hidesTabBar('/chats', '?view=team&member=developer'), false);
 });
 
-test('the phone FAB follows the page: words on Home, an icon on the lists, none where the tab bar steps aside', () => {
-  assert.deepEqual(fabFor('/'), { action: 'chat', labelled: true });
-  for (const path of ['/chats', '/chats/', '/projects']) assert.deepEqual(fabFor(path), { action: 'chat', labelled: false }, path);
-  assert.deepEqual(fabFor('/orchestration'), { action: 'orchestration', labelled: false });
+test('the review of changes hides the tab bar, for a chat, a task, the integration branch and a work item', () => {
+  for (const path of ['/chats/abc/changes', '/chats/abc/changes/', '/orchestration/o1/changes', '/orchestration/o1/tasks/t1/changes', '/tasks/AGN-12/changes']) assert.equal(hidesTabBar(path), true, path);
+  for (const path of ['/chats/abc/other', '/orchestration/o1/tasks/t1', '/orchestration/o1/tasks']) assert.equal(hidesTabBar(path), false, path);
+  assert.equal(fabFor('/chats/abc/changes'), null);
+});
+
+test('the phone FAB follows the page: the same round button where it starts something, none where the tab bar steps aside', () => {
+  for (const path of ['/', '/chats', '/chats/', '/projects']) assert.deepEqual(fabFor(path), { action: 'chat' }, path);
+  assert.deepEqual(fabFor('/orchestration'), { action: 'orchestration' });
   // Tasks starts a new task on the board and the list; a work item's page has its own actions, and
   // the milestones start a milestone from their header
-  for (const path of ['/tasks', '/tasks/']) assert.deepEqual(fabFor(path), { action: 'task', labelled: false }, path);
-  assert.deepEqual(fabFor('/tasks', '?view=list'), { action: 'task', labelled: false });
+  for (const path of ['/tasks', '/tasks/']) assert.deepEqual(fabFor(path), { action: 'task' }, path);
+  assert.deepEqual(fabFor('/tasks', '?view=list'), { action: 'task' });
   // A project's tab is a page of its own, whose settings end in a Save the button would cover
-  assert.deepEqual(fabFor('/', '?project=p1'), { action: 'chat', labelled: true });
+  assert.deepEqual(fabFor('/', '?project=p1'), { action: 'chat' });
   for (const search of ['?view=settings', '?project=p1&view=board']) assert.equal(fabFor('/', search), null, search);
   for (const path of ['/tasks/milestones', '/chats/abc', '/chats/new', '/orchestration/o1', '/tasks/AGN-12', '/projects/new', '/settings', '/accounts', '/usage', '/nowhere']) {
     assert.equal(fabFor(path), null, path);
@@ -198,11 +203,4 @@ test('Tasks in the More sheet says its open items with the word, and nothing whe
   assert.deepEqual(moreNotes({ tasks: 15 })['/tasks'], { kind: 'open', value: 15 });
   assert.deepEqual(moreNotes({ tasks: 0 })['/tasks'], { kind: 'open', value: 0 });
   assert.equal(moreNotes({ tasks: undefined })['/tasks'], undefined);
-});
-
-test('only the chat list holds the project scope in its own header', () => {
-  assert.equal(pageHoldsScope('/chats'), true);
-  assert.equal(pageHoldsScope('/chats/'), true);
-  assert.equal(pageHoldsScope('/tasks'), true);
-  for (const path of ['/', '/chats/new', '/chats/abc', '/orchestration', '/projects', '/tasks/milestones', '/tasks/AGN-12']) assert.equal(pageHoldsScope(path), false, path);
 });

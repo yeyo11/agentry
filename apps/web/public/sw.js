@@ -89,10 +89,17 @@ self.addEventListener('fetch', (event) => {
 // translations — so the words it shows come from the payload the server signed, and what it cannot
 // get from there it reads out of the small state the page left in a cache of its own.
 //
-// The rule that keeps this from being noise: while a window of ours is visible, the page is already
+// The rule that keeps this from being noise: while a window of ours is focused, the page is already
 // showing the toast for this very notification, and the worker shows nothing. Chrome's
-// `userVisibleOnly` bargain is satisfied by exactly that condition — a visible page of the origin
-// is the notification.
+// `userVisibleOnly` bargain is satisfied by exactly that condition — a page in front of the person
+// is the notification. Focused, not merely visible: a backgrounded iOS app can still report
+// `visible`, and a push swallowed on its word is a notification nobody ever sees.
+//
+// Two pushes are always shown. A test, because the page that asked for it has no toast to show — a
+// test never goes through the event bus. And anything that came through Apple's push service:
+// WebKit counts a push that shows nothing as a silent push and revokes the subscription after a
+// few, so a device that is in front of its person still gets the notification rather than losing
+// every future one.
 
 /** Written by the page (see src/lib/push-model.ts); the two names are asserted equal in the tests. */
 const PUSH_STATE_CACHE = 'agentry-push';
@@ -102,6 +109,19 @@ const PUSH_STATE_KEY = '/__agentry-push-state';
 const HANDOFF_MS = 600;
 
 const PUSH_ICON = '/icons/icon-192.png';
+
+/** The key a test push starts with: `TEST_PUSH_KEY_PREFIX` in @agentry/shared, asserted equal in the tests. */
+const TEST_PUSH_KEY_PREFIX = 'push:test:';
+
+/** Pushes through this service are held to WebKit's rule that every push shows a notification. */
+const APPLE_PUSH_HOST = /(^|\.)push\.apple\.com$/;
+
+/**
+ * The names localhost.run hands out for free (packages/core/src/tunnel.ts; the tests assert the two
+ * agree). An install made on one of them outlives it: the address changes, the push subscription
+ * does not, and the worker keeps receiving pushes for an origin that no longer answers.
+ */
+const TUNNEL_SUFFIX = '.lhr.life';
 
 /** Every window of this origin, open or not, controlled by this worker or not. */
 const windows = () => self.clients.matchAll({ type: 'window', includeUncontrolled: true });
@@ -128,8 +148,10 @@ async function notify(data) {
     // A push that is not our JSON is still a push: it is shown with the fallback words below
   }
 
-  const open = await windows();
-  if (open.some((client) => client.visibilityState === 'visible')) return;
+  if (!(await mustShow(payload))) {
+    const open = await windows();
+    if (open.some((client) => client.focused && client.visibilityState === 'visible')) return;
+  }
 
   const state = await pushState();
   const fallback = state && state.fallback ? state.fallback : null;
@@ -143,15 +165,52 @@ async function notify(data) {
     requireInteraction: Boolean(payload && payload.priority === 'high'),
     icon: PUSH_ICON,
     timestamp: Number.isNaN(at) ? Date.now() : at,
-    data: { href: (payload && payload.href) || '/', key: (payload && payload.key) || '' },
+    data: { href: (payload && payload.href) || '/', url: (payload && payload.url) || null, key: (payload && payload.key) || '' },
   });
+}
+
+async function mustShow(payload) {
+  if (payload && typeof payload.key === 'string' && payload.key.startsWith(TEST_PUSH_KEY_PREFIX)) return true;
+  try {
+    const subscription = await self.registration.pushManager.getSubscription();
+    return Boolean(subscription && APPLE_PUSH_HOST.test(new URL(subscription.endpoint).hostname));
+  } catch {
+    return false;
+  }
 }
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data = event.notification.data;
-  event.waitUntil(openPath((data && data.href) || '/'));
+  event.waitUntil(openUrl(destination(data)));
 });
+
+const tunnelHost = (hostname) => hostname.endsWith(TUNNEL_SUFFIX) && hostname.length > TUNNEL_SUFFIX.length;
+
+/**
+ * Where a click goes: the notification's path on this origin, unless this install was made on a
+ * tunnel address and the server has since moved to another one. Only then is `url` followed, and
+ * only to another tunnel address over https: a phone installed on the LAN or at the desk keeps
+ * opening its own origin while a tunnel happens to be open, rather than being sent through the
+ * provider.
+ */
+function destination(data) {
+  const own = new URL(self.location.origin);
+  const here = new URL((data && data.href) || '/', own.origin);
+  let current = null;
+  try {
+    current = data && typeof data.url === 'string' ? new URL(data.url) : null;
+  } catch {
+    return here;
+  }
+  if (!current || current.origin === own.origin) return here;
+  if (current.protocol !== 'https:' || !tunnelHost(current.hostname) || !tunnelHost(own.hostname)) return here;
+  return current;
+}
+
+async function openUrl(url) {
+  return url.origin === self.location.origin ? openPath(url) : openElsewhere(url);
+}
 
 /**
  * Opens what the notification was about: the prompt of a `waiting`, the chat of a run that ended.
@@ -161,8 +220,7 @@ self.addEventListener('notificationclick', (event) => {
  * composer. `navigate()` is the fallback for a page too old to know that message, and a new window
  * the fallback for having none.
  */
-async function openPath(href) {
-  const url = new URL(href || '/', self.location.origin);
+async function openPath(url) {
   const open = await windows();
   const here = open.find((client) => client.url === url.href);
   if (here) return void (await here.focus());
@@ -175,6 +233,28 @@ async function openPath(href) {
       return void (await client.navigate(url.href));
     } catch {
       // Not a client this worker may navigate; a new window is still better than nothing
+    }
+  }
+  await self.clients.openWindow(url.href);
+}
+
+/**
+ * Opens the server's current address from an install made on an earlier one. A page still open on
+ * the old origin cannot route there in place, and has nothing to lose: its origin no longer answers.
+ * So it is navigated away, which a worker may do to a window it controls even across origins (and
+ * which is what is reported to work in an iOS Home Screen app, where the window launched for the
+ * click already exists; not verified on a device, see docs/plans/tunnel.md). With no window, or one it may not navigate, a new one is opened; for a
+ * cross-origin URL `openWindow` resolves with null, which is not a failure.
+ */
+async function openElsewhere(url) {
+  const open = await windows();
+  const first = open[0];
+  if (first) {
+    try {
+      await first.focus().catch(() => null);
+      return void (await first.navigate(url.href));
+    } catch {
+      // Not a client this worker may navigate: a new window instead
     }
   }
   await self.clients.openWindow(url.href);

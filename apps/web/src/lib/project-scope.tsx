@@ -4,8 +4,9 @@ import { useSearchParams } from 'react-router-dom';
 import { useProjects } from '../api';
 
 /*
- * The project the top bar has selected. It scopes Home, Chats and Orchestrations; notifications
- * ignore it, because a chat waiting in another project is still worth knowing about.
+ * The project the top bar has selected. It scopes Home, Chats, Orchestrations, Schedules and the
+ * filters each of those lists keeps (`lib/list-params.ts`); notifications ignore it, because a chat
+ * waiting in another project is still worth knowing about.
  *
  * The choice is kept in the browser and a `?project=<id>` in the address overrides it, which is what
  * makes a link to a project's page work from anywhere. `all` in the address selects no project.

@@ -3,6 +3,39 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.22.0](https://github.com/yeyo11/agentry/compare/v0.21.1...v0.22.0) (2026-09-27)
+
+
+### Features
+
+* **web:** lists keep their filters until reset, and phone layout polish ([#113](https://github.com/yeyo11/agentry/issues/113)) ([71d693b](https://github.com/yeyo11/agentry/commit/71d693b5dfd812323949ca903432425e6073486b))
+
+## [0.21.1](https://github.com/yeyo11/agentry/compare/v0.21.0...v0.21.1) (2026-09-27)
+
+
+### Bug fixes
+
+* **web:** show pushes on iOS and test pushes while the app is open ([#111](https://github.com/yeyo11/agentry/issues/111)) ([9a087b6](https://github.com/yeyo11/agentry/commit/9a087b6289c499b43db7780d4be9620d9c49e345))
+
+## [0.21.0](https://github.com/yeyo11/agentry/compare/v0.20.0...v0.21.0) (2026-09-27)
+
+
+### Features
+
+* **core:** tell every chat which wrapper runs it ([#107](https://github.com/yeyo11/agentry/issues/107)) ([3bd4c04](https://github.com/yeyo11/agentry/commit/3bd4c04ce2384d6b6bab61a6b7287fbd08777744))
+
+
+### Bug fixes
+
+* **core:** move a pinned chat off the account that hit its limit ([#106](https://github.com/yeyo11/agentry/issues/106)) ([2614ef1](https://github.com/yeyo11/agentry/commit/2614ef1eee6ee0a36ca3f8a757e6f044fb673248))
+
+## [0.20.0](https://github.com/yeyo11/agentry/compare/v0.19.0...v0.20.0) (2026-09-27)
+
+
+### Features
+
+* install a pinned claude-swap from the app for multiple accounts ([#104](https://github.com/yeyo11/agentry/issues/104)) ([815d9bd](https://github.com/yeyo11/agentry/commit/815d9bdfd70c235fe015705716dd4a4f6d71c81c))
+
 ## [0.19.0](https://github.com/yeyo11/agentry/compare/v0.18.0...v0.19.0) (2026-09-25)
 
 

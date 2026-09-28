@@ -27,6 +27,27 @@ const WORK_ITEM_FILTER = obj({
   q: str('Searched in the title and the description, and matched against the key (`AGN-12`)'),
 });
 
+// What the change routes share: a scope (one commit, or the uncommitted work), and a diff's context
+const SCOPE_PARAMS: Json = {
+  commit: str('Only this commit (`<sha>^..<sha>`; a root commit against the empty tree). Refused with 400 unless it is on the branch since its base'),
+  uncommitted: str('`1` for the working tree against `HEAD` only, untracked files included'),
+};
+const SCOPE_QUERY = obj(SCOPE_PARAMS);
+const DIFF_QUERY = obj(
+  {
+    path: str('File to diff, relative to the checkout (required)'),
+    context: str('Unchanged lines around each change, 0–500, or `full` for the whole file. Anything else is the default of 3'),
+    ...SCOPE_PARAMS,
+  },
+  ['path'],
+);
+const SCOPE_NOTE =
+  '`?commit=` narrows `files` to what that commit changed, `?uncommitted=1` to the working tree against `HEAD`; either way the rest of the summary still describes the branch, and `working` is left out. Asking for both is refused. `binary` marks a file git counts no lines for.';
+const DIFF_NOTE =
+  '`?commit=` and `?uncommitted=1` scope it as the summary does. `full` is true only when `context=full` was honoured: a file over 20 000 lines keeps the default context. A binary file is git\'s one line; a long diff ends in `… diff truncated`, and one too large answers `… diff too large to show`.';
+const STEPS_NOTE =
+  "Every successful `Edit`, `MultiEdit`, `Write` or `NotebookEdit` of the chat's main transcript (not its subagents'), oldest first, each with the patch the CLI stored for it as a unified diff (`''` when it kept none) and `intent`, the last thing the assistant wrote before the call. `path` is relative to the git top level of where the chat works, or to its directory outside git. `entryIndex` is the entry's index in `GET /chats/:id` with sidechains off. A call still waiting for its result is the last step, `pending`, only while the chat has an execution. A chat with no transcript yet is read from what its process streamed, without patches. Read once, then only what the transcript appended.";
+
 export const TAGS = [
   { name: 'System', description: 'CLI detection, health and the dashboard overview.' },
   { name: 'Account', description: 'Credential used by every `claude` process. The secret is never returned.' },
@@ -49,6 +70,11 @@ export const TAGS = [
   { name: 'Connectors', description: 'The claude.ai connectors (Docs, Gmail, Calendar) as the CLI reports them. Read-only: Agentry cannot authorise one.' },
   { name: 'Uploads', description: 'Files to attach to a message. Images and PDFs reach Claude as content blocks, any other file by its path.' },
   { name: 'Security', description: 'Who may call this API, whether it accepts changes, and the trail every change leaves.' },
+  {
+    name: 'Remote access',
+    description:
+      "A tunnel through localhost.run over the system's own `ssh`, so a phone or another network can reach this wrapper. Only opens while the API asks for authentication. localhost.run terminates TLS, so it sees every request, and its free address changes.",
+  },
   {
     name: 'Push',
     description:
@@ -94,7 +120,9 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /auth/verify': d('Account', 'Verify the credential with a real request', { description: '`claude auth status` only reports what is configured; this sends a minimal prompt to prove it works. Costs a few tokens.', ok: ref('AuthVerification') }),
 
   // ---- Accounts
-  'GET /accounts': d('Accounts', 'Accounts, usage and rotation state', { description: 'Reports `cswap.installed === false` when claude-swap is not available; everything else is then empty.', querystring: obj({ refresh: str('`1` bypasses the 30s cache and re-reads the usage') }), ok: ref('AccountsOverview') }),
+  'GET /accounts': d('Accounts', 'Accounts, usage and rotation state', { description: 'Reports `cswap.installed === false` when claude-swap is not available; everything else is then empty. `cswap.source` says which binary is in use (`CSWAP_BIN`, the `PATH`, or the copy Agentry installed), `cswap.compatible` whether Agentry understands its output, and `cswap.managed` the state of Agentry\'s own install.', querystring: obj({ refresh: str('`1` bypasses the 30s cache and re-reads the usage') }), ok: ref('AccountsOverview') }),
+  'POST /accounts/cswap/install': d('Accounts', 'Install claude-swap in Agentry\'s data directory', { description: 'Starts installing the pinned claude-swap (`cswap.pinned`) with a pinned, digest-checked uv, entirely inside the data directory, and answers at once with `managed.state` `installing`; `GET /accounts` follows it to `installed` or `failed` (with `managed.error`). Calling it again retries, or upgrades a managed copy older than the pin. `409` when this Agentry does not install claude-swap itself: the Docker image, `CSWAP_BIN` or `AGENTRY_CSWAP_MANAGED=0`.', ok: ref('CswapInfo') }),
+  'DELETE /accounts/cswap': d('Accounts', 'Remove Agentry\'s copy of claude-swap', { description: 'Deletes the managed copy, uv and its cache. The registered accounts live in claude-swap\'s own data directory and are kept for any other `cswap`. `409` while an install is running, or when this Agentry does not manage a copy.', ok: ref('CswapInfo') }),
   'POST /accounts/switch': d('Accounts', 'Switch the active account', { description: 'Without a target it rotates: `best` picks the most headroom, `next-available` the next account that still has quota. The credential file is swapped under Claude Code\'s own locks; runs already in flight keep the account they started with.', body: ref('SwitchAccountRequest'), ok: ref('SwitchResult') }),
   'POST /accounts/token': d('Accounts', 'Register an account from a token', { description: 'Body carries a token from `claude setup-token` (or an API key). It is passed to `cswap add-token` over stdin and never returned.', body: ref('AddAccountTokenRequest'), ok: ref('AccountsOverview'), created: true }),
   'DELETE /accounts/:number': d('Accounts', 'Remove an account', { ok: OK }),
@@ -109,7 +137,7 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'GET /accounts/usage': d('Accounts', 'Usage history per account', { description: 'Readings of the 5h and 7d windows as claude-swap reported them, kept as rows, oldest first: one series per account and window.', querystring: obj({ account: str('Slot number'), window: str('`5h` or `7d`'), since: str('ISO-8601 lower bound'), until: str('ISO-8601 upper bound'), limit: str('Max readings (default 5000, keeps the newest)') }), ok: list('UsageHistoryPoint') }),
   'GET /accounts/events': d('Accounts', 'Rotation history', { description: 'Every poll, switch and failure claude-swap reported, persisted across restarts. `GET /accounts` carries only the last 200.', querystring: obj({ limit: str('Max events to return (default 200, max 5000)'), since: str('ISO-8601 timestamp; only newer events are returned') }), ok: list('AutoSwitchEvent') }),
   'GET /accounts/autoswitch': d('Accounts', 'Auto-rotation settings', { ok: ref('AutoSwitchSettings') }),
-  'PUT /accounts/autoswitch': d('Accounts', 'Change the auto-rotation settings', { description: 'Enabling it supervises a `cswap auto --json` process that rotates before the active account reaches `threshold`. `rotateOnLimit` also rotates and resumes a run that died against its limit.', body: ref('AutoSwitchSettings'), ok: ref('AutoSwitchSettings') }),
+  'PUT /accounts/autoswitch': d('Accounts', 'Change the auto-rotation settings', { description: 'Enabling it supervises a `cswap auto --json` process that rotates before the active account reaches `threshold`. `rotateOnLimit` also rotates and resumes a run that died against its limit; a chat pinned to the account that ran out is unpinned and moves to where it would run without the pin.', body: ref('AutoSwitchSettings'), ok: ref('AutoSwitchSettings') }),
 
   // ---- Projects
   'GET /projects': d('Projects', 'Imported projects', { description: 'Only directories that were imported. Each carries its worktrees and the number of chats under it or them.', ok: list('Project') }),
@@ -159,8 +187,8 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /work-items/:itemId/documents': d('Documents', 'Tie a document to a work item', { description: "A `document` link in the role `reference`, to a Markdown file of the item's project's documents folder that is on disk, with the path rules of the read. `kind` defaults to `doc`. Tying the same file twice answers with the tie already there. Needs the Board and the Documents modules on (409). Emits `workitem.updated` with `link` and `document.changed` (`tied`).", params: ITEM, body: ref('TieDocumentRequest'), ok: ref('WorkItemLink'), created: true }),
   'GET /work-items/:itemId/history': d('Work items', "A work item's history", { description: 'Written by the server, oldest first: one entry per field that changed, with who changed it and, when a chat or an orchestration did, the cause.', params: ITEM, ok: list('WorkItemHistoryEntry') }),
   'POST /work-items/:itemId/work': d('Work items', 'Work on a work item', { description: "Starts a chat in the item's project, prompted with its key, title, description and acceptance criteria, in its own git worktree on branch `task/<key>` in lower case: made the first time, found again by every later chat on the item, and made again on the same branch if its directory was deleted by hand. A project that is not a git repository, or has no commit yet, is worked on in its directory. Takes what a new chat takes, except the prompt and the directory, each checked for its type before any chat starts (400). The item follows the chat: it enters `in_progress` when a turn starts and `in_review` when one ends well; a failed or stopped turn moves nothing. Automatic moves only go forward, never out of `done`, and never over a person who moved the item since the turn began; each is in the history with the chat as its cause. Refused with 400 for an epic, and with 409 for an item in `done`, while a chat or a node is already working on the item, when a plain directory that is not a worktree sits at the worktree's path, or while the Board module is off. If the link cannot be written, the chat just started is stopped.", params: ITEM, body: ref('WorkOnWorkItemRequest'), ok: ref('WorkOnWorkItemResult'), created: true }),
-  'GET /work-items/:itemId/changes': d('Work items', 'What a work item changed on disk', { description: "Its worktree and branch, and what the branch changed against where it left the main checkout: commits, files and what is not committed yet, read from git as a chat's worktree is. `summary` is null while nothing has worked on the item in a worktree, and once both the worktree and the branch are gone.", params: ITEM, ok: ref('WorkItemChanges') }),
-  'GET /work-items/:itemId/changes/diff': d('Work items', 'The diff of one file of a work item', { description: 'Everything its branch did to the file since its base, committed or not. Refused when the item has no worktree or branch left.', params: ITEM, querystring: obj({ path: str('File to diff, relative to the checkout (required)') }, ['path']), ok: ref('FileDiff') }),
+  'GET /work-items/:itemId/changes': d('Work items', 'What a work item changed on disk', { description: "Its worktree and branch, and what the branch changed against where it left the main checkout: commits, files and what is not committed yet, read from git as a chat's worktree is. `summary` is null while nothing has worked on the item in a worktree, and once both the worktree and the branch are gone. " + SCOPE_NOTE, params: ITEM, querystring: SCOPE_QUERY, ok: ref('WorkItemChanges') }),
+  'GET /work-items/:itemId/changes/diff': d('Work items', 'The diff of one file of a work item', { description: `Everything its branch did to the file since its base, committed or not. Refused when the item has no worktree or branch left. ${DIFF_NOTE}`, params: ITEM, querystring: DIFF_QUERY, ok: ref('FileDiff') }),
   'POST /chats/:id/work-items': d('Work items', 'Create a task from a chat message', { description: "A work item in `backlog` of the chat's project, with the message as its description and, unless `title` is given, its first line as the title. Linked to the chat as its origin, and recorded with the chat as the cause. Refused with 409 when the chat is in no imported project, or while that project's Board module is off.", params: obj({ id: str('Chat (session) id') }), body: ref('CreateWorkItemFromMessageRequest'), ok: ref('WorkItem'), created: true }),
   'GET /chats/:id/work-items': d('Work items', 'The work items of a chat', { description: 'The items the chat works on or was the origin of, for its header. Items of projects no longer imported are left out; a chat with none answers an empty list.', params: obj({ id: str('Chat (session) id') }), ok: list('WorkItem') }),
   'GET /milestones/:milestoneId': d('Work items', 'Read a milestone', { params: MILESTONE, ok: ref('Milestone') }),
@@ -237,13 +265,18 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   }),
   'GET /chats/:id/search': d('Chats', 'Search the whole transcript', { description: 'Case-insensitive plain-text match over what the transcript view shows of each entry: text, thinking, tool names and inputs, tool results. Any run of whitespace in `q` matches any run in the text. One hit per matching entry, `index` in the same space as a page\'s `from` and `total`, so a hit on a page not loaded yet is reached by reading back to it. At most 500 hits, the newest; `truncated` says older ones were left out.', querystring: obj({ q: str('Text to find (required, up to 200 characters)'), sidechains: str('`1` includes subagent messages, as the page read with it does') }, ['q']), ok: ref('TranscriptSearchResult') }),
   'GET /chats/:id/changes': d('Chats', 'What a chat changed on disk', {
-    description: 'For a chat in a git worktree, the branch, its base, the commits and the files it changed against that base, and what it has not committed yet. Any chat also gets the files its `Write`/`Edit`/`NotebookEdit` calls touched, read from the transcript, so a chat outside git still answers. A worker of an orchestration is measured from where its own branch was cut.',
+    description: `For a chat in a git worktree, the branch, its base, the commits and the files it changed against that base, what it has not committed yet, and \`working\`: every file that differs from the base in the working tree, with the counts its default diff shows. Any chat also gets the files its \`Write\`/\`Edit\`/\`NotebookEdit\` calls touched, read from the transcript, so a chat outside git still answers. A worker of an orchestration is measured from where its own branch was cut. ${SCOPE_NOTE}`,
+    querystring: SCOPE_QUERY,
     ok: ref('ChatChanges'),
   }),
   'GET /chats/:id/changes/diff': d('Chats', 'The diff of one file of a chat in a worktree', {
-    description: "Everything the branch did to the file since its base, committed or not. A file created and not yet added shows as all new. Refused for a chat with no worktree of its own.",
-    querystring: obj({ path: str('File to diff, relative to the checkout (required)') }, ['path']),
+    description: `Everything the branch did to the file since its base, committed or not. A file created and not yet added shows as all new. Refused for a chat with no worktree of its own. ${DIFF_NOTE}`,
+    querystring: DIFF_QUERY,
     ok: ref('FileDiff'),
+  }),
+  'GET /chats/:id/changes/steps': d('Chats', 'Every edit a chat made, step by step', {
+    description: STEPS_NOTE,
+    ok: list('EditStep'),
   }),
   'GET /chats/:id/checklist': d('Chats', "The chat's own checklist", {
     description: 'The plan the agent kept with its `TaskCreate`/`TaskUpdate` or `TodoWrite` calls, as of its last update. Empty for one that never planned.',
@@ -256,7 +289,7 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
     ok: ref('RunEvent'),
     produces: 'text/event-stream',
   }),
-  'POST /chats/:id/resume': d('Chats', 'Continue a chat in place', { description: 'Adds an execution to the same chat, which keeps its id: it never creates one. Whether something else holds the session is checked on the server at this moment, from the CLI\'s own list and the process table, whatever the client last saw. A chat from a terminal that nothing holds is adopted and stays `external`; one a terminal holds, or that belongs to an orchestration, is refused with 409 and the reason, and `fork` is the way forward. The chat keeps its tools and MCP servers unless the request picks others; with no `mcp`, the config file the CLI reads is written again from the current definitions of the same servers, so a server edited since starts as it is now (one removed since is left out).', body: ref('ResumeChatRequest'), ok: ref('ChatSummary') }),
+  'POST /chats/:id/resume': d('Chats', 'Continue a chat in place', { description: 'Adds an execution to the same chat, which keeps its id: it never creates one. Whether something else holds the session is checked on the server at this moment, from the CLI\'s own list and the process table, whatever the client last saw. A chat from a terminal that nothing holds is adopted and stays `external`; one a terminal holds, or that belongs to an orchestration, is refused with 409 and the reason, and `fork` is the way forward. The chat keeps its tools and MCP servers unless the request picks others; with no `mcp`, the config file the CLI reads is written again from the current definitions of the same servers, so a server edited since starts as it is now (one removed since is left out). `account: null` unpins a chat pinned to one account.', body: ref('ResumeChatRequest'), ok: ref('ChatSummary') }),
   'POST /chats/:id/fork': d('Chats', 'Continue a chat in a copy', { description: 'Creates a new chat with the same history that records where it came from (`derivedFrom`), and leaves the original untouched. Available on any chat, held or not. The copy runs with the source\'s tools and MCP servers (preset, allowed and disallowed tools, server selection, the servers as they are defined now) unless the request picks others.', body: ref('ForkChatRequest'), ok: ref('ChatSummary'), created: true }),
   'POST /chats/:id/messages': d('Chats', 'Send another turn', { description: 'To a chat with a live execution. `attachments` are upload ids from `POST /uploads`; with attachments the text may be empty. A chat without one is refused with 409: resume it.', body: ref('ChatMessageRequest'), ok: ref('ChatSummary') }),
   'POST /chats/:id/stop': d('Chats', 'Stop what is working on the chat', { description: 'The execution Agentry runs, or for a background session the CLI itself holds, `claude stop`, so no pid is signalled directly. The conversation is kept and can be resumed.', ok: ref('ChatSummary') }),
@@ -309,24 +342,31 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /orchestrations/:id/tasks/:taskId/supervisor/:proposalId/send': d('Orchestration', "Send the supervisor's proposal to a worker", { description: "The same as the chat route, from the board: the hint goes through the task hint route, so a task that is no longer running refuses it. What the supervisor cost is already on the graph's `costUsd`.", params: obj({ id: str(), taskId: str(), proposalId: str() }), ok: ref('SupervisorProposal') }),
   'POST /orchestrations/:id/tasks/:taskId/supervisor/:proposalId/dismiss': d('Orchestration', "Dismiss the supervisor's proposal for a worker", { description: 'Marks it `dismissed`; nothing reaches the worker.', params: obj({ id: str(), taskId: str(), proposalId: str() }), ok: ref('SupervisorProposal') }),
   'GET /orchestrations/:id/tasks/:taskId/changes': d('Orchestration', 'What a task changed on disk', {
-    description: "The task's branch, the commit it started from (its dependencies' work is not counted as its own), the commits and the files it changed since, and what it has not committed yet. Refused for a graph without worktrees. A task that has not started has an empty summary. Announced by a `changes.updated` event while the worker runs.",
+    description: `The task's branch, the commit it started from (its dependencies' work is not counted as its own), the commits and the files it changed since, what it has not committed yet, and \`working\`: every file that differs from that commit in the working tree. Refused for a graph without worktrees. A task that has not started has an empty summary. Announced by a \`changes.updated\` event while the worker runs. ${SCOPE_NOTE}`,
+    querystring: SCOPE_QUERY,
     ok: ref('ChangeSummary'),
   }),
   'GET /orchestrations/:id/tasks/:taskId/changes/diff': d('Orchestration', 'The diff of one file of a task', {
-    description: 'Everything the task did to the file since it started, committed or not. A file created and not yet added shows as all new.',
-    querystring: obj({ path: str('File to diff, relative to the checkout (required)') }, ['path']),
+    description: `Everything the task did to the file since it started, committed or not. A file created and not yet added shows as all new. ${DIFF_NOTE}`,
+    querystring: DIFF_QUERY,
     ok: ref('FileDiff'),
+  }),
+  'GET /orchestrations/:id/tasks/:taskId/changes/steps': d('Orchestration', 'Every edit a task made, step by step', {
+    description: `Read through the task's chat. ${STEPS_NOTE} A task that has not started has none.`,
+    ok: list('EditStep'),
   }),
   'GET /orchestrations/:id/tasks/:taskId/checklist': d('Orchestration', "A task's own checklist", {
     description: "The plan the worker kept with its `TaskCreate`/`TaskUpdate` or `TodoWrite` calls, read from its chat's transcript, as of its last update. Empty for a worker that never planned or one that has not started.",
     ok: ref('Checklist'),
   }),
   'GET /orchestrations/:id/integration/changes': d('Orchestration', 'What the integration branch changed', {
-    description: "The same summary for the branch that merges every task's work, against the graph's base commit. Empty until the graph starts integrating.",
+    description: `The same summary for the branch that merges every task's work, against the graph's base commit. Empty until the graph starts integrating. ${SCOPE_NOTE}`,
+    querystring: SCOPE_QUERY,
     ok: ref('ChangeSummary'),
   }),
   'GET /orchestrations/:id/integration/changes/diff': d('Orchestration', 'The diff of one file of the integration branch', {
-    querystring: obj({ path: str('File to diff, relative to the checkout (required)') }, ['path']),
+    description: DIFF_NOTE,
+    querystring: DIFF_QUERY,
     ok: ref('FileDiff'),
   }),
   'DELETE /orchestrations/:id': d('Orchestration', 'Delete an orchestration', { description: 'Refused while it runs. Removes its worktrees and keeps their branches; refused if one holds uncommitted work, so a deletion never takes it.', ok: OK }),
@@ -352,8 +392,8 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /config/tool-presets/restore': d('Configuration', 'Restore the shipped tool presets', { description: 'Rewrites `read-only`, `no-network` and `everything` as they ship, whether they were edited or deleted. Every other preset, and the default, are left alone.', ok: ref('ToolPresetsOverview') }),
   'PUT /config/tool-presets/:id': d('Configuration', 'Create or replace a tool preset', { params: obj({ id: str('Lowercase letters, digits and `-`') }), body: obj({ name: str(), description: str(), allowedTools: { type: 'array', items: str() }, disallowedTools: { type: 'array', items: str() } }, ['name']), ok: ref('ToolPreset') }),
   'DELETE /config/tool-presets/:id': d('Configuration', 'Delete a tool preset', { description: 'A chat already running with it keeps the tools it was given.', params: obj({ id: str() }), ok: OK }),
-  'GET /settings/editor': d('Configuration', 'Editor links', { description: 'How a file path and line become a link that opens the person\'s editor, and the side-by-side diff command to copy. `stored` is false until the first `PUT`; `settings` is then the default (`vscode://file/{path}:{line}`).', ok: ref('EditorSettingsDoc') }),
-  'PUT /settings/editor': d('Configuration', 'Replace the editor links', { description: 'The whole document. A template must start with a URL scheme and contain `{path}`; `javascript:`, `data:`, `vbscript:`, `file:` and `blob:` are refused. Nothing here reaches the CLI.', body: ref('UpdateEditorSettingsRequest'), ok: ref('EditorSettingsDoc') }),
+  'GET /settings/app': d('Configuration', 'Runtime settings', { description: 'The settings that change without a restart (`allowedHosts`, `maxConcurrentRuns`, `defaultPermissionMode`), and in `sources` where each value comes from: `env` (the environment set it, so it is read-only here), `file` (`app-settings.json`) or `default`. `allowedHosts` is the configured part only: the exact host of a running tunnel is not listed.', ok: ref('AppSettings') }),
+  'PUT /settings/app': d('Configuration', 'Change runtime settings', { description: 'Only the settings the body names. A setting the environment set is refused with `400`, and so is an unknown key; `allowedHosts` follows the rule of `AGENTRY_ALLOWED_HOSTS` (a `*.domain` pattern needs two labels below the wildcard) and takes no ports. `maxConcurrentRuns` and `defaultPermissionMode` apply to the next run. Emits `settings.changed`.', body: ref('UpdateAppSettingsRequest'), ok: ref('AppSettings') }),
   'GET /config/resources/:kind': d('Configuration', 'List resources', { description: 'Saved workflows of the scope only: `GET /workflows/saved` also merges in the user\'s.', params: obj({ kind: KIND }), querystring: scopeQuery(), ok: list('ConfigResource') }),
   'GET /config/resources/:kind/:name': d('Configuration', 'Read a resource', { params: obj({ kind: KIND, name: str() }), querystring: scopeQuery(), ok: ref('ConfigResource') }),
   'PUT /config/resources/:kind/:name': d('Configuration', 'Create or replace a resource', { description: 'Skills are stored as `skills/<name>/SKILL.md`, workflows as the script `workflows/<name>.js` (an existing one keeps its own file, and is named by its `meta.name`), the other kinds as `<kind>/<name>.md`. `format` says which of the two the content is.', params: obj({ kind: KIND, name: str() }), querystring: scopeQuery(), body: obj({ content: str() }, ['content']), ok: ref('ConfigResource') }),
@@ -408,6 +448,12 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /security/token': d('Security', 'Set or rotate the bearer token', { description: 'Returns the token once and keeps only its SHA-256. Omit `token` to have one generated. Send it as `Authorization: Bearer …`; `GET /events`, `GET /chats/{id}/stream` and `GET /uploads/{id}/content` also accept `?token=`, because a browser cannot set a header on those.', body: ref('SetAuthTokenRequest'), ok: ref('AuthTokenResult') }),
   'DELETE /security/token': d('Security', 'Remove the bearer token', { description: 'Refused while the mode is `token`.', ok: ref('AuthConfig') }),
   'GET /audit': d('Security', 'Mutating requests, newest first', { description: 'When, who (token id, OIDC subject, `local`, or `env` for a token reset from the environment), method, path, status and a one-line summary built from the route. Bodies are never recorded: they carry prompts and secrets.', querystring: obj({ limit: str('1-500, default 50'), from: str('Offset within the filtered set'), path: str('Matches anywhere in the path; `%`, `_` and `\\` are taken literally'), method: str('Exact, case-insensitive: `POST`'), status: str('A code (`404`) or a class (`4xx`)') }), ok: ref('AuditPage') }),
+
+  // ---- Remote access
+  'GET /tunnel': d('Remote access', 'The tunnel', { description: 'Its state (`stopped`, `starting`, `verifying`, `active`, `stopping`, `failed`), the public address and since when it works (only while `active`), why it failed (only while `failed`, with a `code` to translate), whether this deploy offers the tunnel at all (`enabled`, off by default in the Docker image; `AGENTRY_TUNNEL`), whether an `ssh` was found, and its settings.', ok: ref('TunnelStatus') }),
+  'PUT /tunnel/settings': d('Remote access', 'Change the tunnel settings', { description: '`startWithAgentry` opens the tunnel whenever Agentry starts; off by default. Emits `tunnel.changed`.', body: ref('UpdateTunnelSettingsRequest'), ok: ref('TunnelStatus') }),
+  'POST /tunnel/start': d('Remote access', 'Start the tunnel', { description: 'Refused with `409` while the auth mode is `none`: the address would hand the machine to whoever has it. Also `409`, with `tunnel.disabled`, where the deploy does not offer the tunnel (`enabled` false). Answers at once, in `starting`; the address is only shown once `GET /api/health` answers through it, and only then does its exact host join the allowlist. Without `ssh` the answer is `failed` with `tunnel.sshMissing`. Emits `tunnel.changed` on every move.', ok: ref('TunnelStatus') }),
+  'POST /tunnel/stop': d('Remote access', 'Stop the tunnel', { description: 'Takes its host off the allowlist, then ends the `ssh` process. Turning the auth mode to `none` does this first by itself.', ok: ref('TunnelStatus') }),
 
   // ---- Uploads
   'POST /uploads': d('Uploads', 'Upload a file to attach', { description: 'The request body is the file itself, sent as `application/octet-stream`; `name` is its file name. The type is read from the bytes. Limits: images (PNG, JPEG, GIF, WebP) 5 MB, PDFs 32 MB, anything else 50 MB. Files are kept in the data dir, outside every project, and every run can read them.', querystring: obj({ name: str('File name') }), ok: ref('Attachment'), created: true }),

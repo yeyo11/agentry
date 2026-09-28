@@ -299,5 +299,10 @@
     "createdDetail": "Linked to this chat",
     "openTask": "Open",
     "createFailed": "The task could not be created"
+  },
+  "edits": {
+    "label": "Files this step edited",
+    "chip": "{{file}}: see this step",
+    "chipCounts": "{{file}}, {{additions}} lines added and {{deletions}} removed: see this step"
   }
 }

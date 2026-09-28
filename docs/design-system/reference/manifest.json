@@ -622,5 +622,59 @@
     "title": "Móvil · Crear un recurso con IA",
     "w": 390,
     "h": 844
+  },
+  {
+    "file": "DiffView.html",
+    "title": "Componente · Comparador",
+    "w": 896,
+    "h": 800
+  },
+  {
+    "file": "DesktopCambios.html",
+    "title": "Desktop · Cambios (Lectura)",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopCambiosLado.html",
+    "title": "Desktop · Cambios (lado a lado)",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopCambiosPasos.html",
+    "title": "Desktop · Cambios (paso a paso)",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopChatCambios.html",
+    "title": "Desktop · Chat › pestaña Cambios",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileCambios.html",
+    "title": "Móvil · Cambios",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileDiff.html",
+    "title": "Móvil · Diff de un archivo",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobilePasos.html",
+    "title": "Móvil · Paso a paso",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DSComparador.html",
+    "title": "Design system · Comparador de diffs",
+    "w": 1440,
+    "h": 2000
   }
 ]

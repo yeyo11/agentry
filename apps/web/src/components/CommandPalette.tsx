@@ -11,6 +11,7 @@ import {
   FolderPlus,
   Gauge,
   GitBranch,
+  Globe,
   House,
   KeyRound,
   Languages,
@@ -211,9 +212,11 @@ export function CommandPalette() {
       ['files', t('palette.settingsTabs.files'), 'explorer hooks scripts keybindings', SlidersHorizontal],
       ['memory', t('palette.settingsTabs.memory'), 'facts feedback MEMORY.md projects', Brain],
       ['plugins', t('palette.settingsTabs.plugins'), 'marketplace install extensions', Puzzle],
+      ['remote', t('palette.settingsTabs.remote'), 'tunnel localhost.run phone public address qr ssh', Globe],
     ];
     for (const [tab, title, extra, icon] of tabs) {
-      list.push({ id: `settings:${tab}`, group: 'settings', title, hint: t('palette.userScope'), keywords: `settings config ${extra}`, icon, run: go(`/settings?tab=${tab}`) });
+      // Remote access is Agentry's own, not a file in ~/.claude
+      list.push({ id: `settings:${tab}`, group: 'settings', title, hint: tab === 'remote' ? undefined : t('palette.userScope'), keywords: `settings config ${extra}`, icon, run: go(`/settings?tab=${tab}`) });
     }
     // What is live goes first: it is what a person most often jumps to
     const live = liveSummary({ chats: [...(working.data ?? []), ...(waiting.data ?? [])], orchestrations: orchestrations.data ?? [] });

@@ -1,5 +1,5 @@
 import { Ban, Check, Circle, Hand, TriangleAlert, type LucideIcon } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { StepState } from '../lib/progress';
 import { Spinner } from './Spinner';
@@ -71,9 +71,30 @@ export function Stepper({
   className?: string;
 }) {
   const { t } = useTranslation('primitives');
+  const listRef = useRef<HTMLOListElement>(null);
+  // The step to keep in view: the one being looked at, or else the one happening now
+  const focusId = selected ?? steps.find((step) => step.state === 'current' || step.state === 'waiting')?.id;
+  const focusIndex = focusId === undefined ? -1 : steps.findIndex((step) => step.id === focusId);
+
+  // A pipeline too narrow for its steps scrolls sideways; the step that matters is often past the
+  // edge (stage 4 of 5 on a phone), so the strip brings it into view. Only the strip moves, never
+  // the page, and without animation, so it is the same at every motion level.
+  useEffect(() => {
+    const list = listRef.current;
+    if (variant !== 'pipeline' || !list || focusIndex < 0 || list.scrollWidth <= list.clientWidth) return;
+    const item = list.children[focusIndex];
+    if (!(item instanceof HTMLElement)) return;
+    const box = list.getBoundingClientRect();
+    const target = item.getBoundingClientRect();
+    // Past the right edge, room is kept for the fade so the step is not half under it
+    const fade = 32;
+    if (target.left < box.left) list.scrollLeft += target.left - box.left - 8;
+    else if (target.right > box.right - fade) list.scrollLeft += target.right - box.right + fade;
+  }, [variant, focusIndex, steps.length]);
+
   return (
     <div className={`stepper ${compact ? 'is-compact' : ''} ${variant === 'pipeline' ? 'is-pipeline' : ''} ${className}`.replace(/\s+/g, ' ').trim()}>
-      <ol className="stepper-list" aria-label={label}>
+      <ol className="stepper-list" aria-label={label} ref={listRef}>
         {steps.map((step) => {
           const Icon = STEP_ICON[step.state];
           const state = stateLabels?.[step.state] ?? t(`step.${step.state}`);

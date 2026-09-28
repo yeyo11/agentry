@@ -94,7 +94,7 @@
     "detached": "sin rama",
     "from": "desde {{base}}",
     "counts": "{{additions}} líneas añadidas, {{deletions}} quitadas",
-    "viewDiff": "Ver el diff",
+    "viewDiff": "Revisar los cambios",
     "note": "Lo que cambió en el worktree de la tarea. Nada se fusiona ni abre una pull request solo:"
   },
   "activity": {

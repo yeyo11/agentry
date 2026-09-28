@@ -20,6 +20,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useChats, useOrchestrations, useOverview, useProjects, useSchedules } from '../../../api';
 import { ActivityTicker } from '../../../components/ActivityTicker';
+import { FabStandIn } from '../../../components/shell/Fab';
 import { ICON_SM } from '../../../components/icons';
 import { ProgressRing, StatusDot, usageTone } from '../../../components/motion';
 import { ProgressBar } from '../../../components/ProgressBar';
@@ -357,55 +358,67 @@ export function NowWidget({ project, title, id }: WidgetProps) {
   if (loading) body = <Loading />;
   else if (unreachable)
     body = (
-      <Empty
-        illustration="offline"
-        tone="bad"
-        size="sm"
-        title={t('widgets.now.offline')}
-        action={
-          <button type="button" className="btn" onClick={() => void overview.refetch()}>
-            {t('widgets.now.retry')}
-          </button>
-        }
-      >
-        {t('widgets.now.offlineHint')}
-      </Empty>
+      <>
+        {/* Nothing can be started while the wrapper cannot be reached */}
+        <FabStandIn />
+        <Empty
+          illustration="offline"
+          tone="bad"
+          size="sm"
+          title={t('widgets.now.offline')}
+          action={
+            <button type="button" className="btn" onClick={() => void overview.refetch()}>
+              {t('widgets.now.retry')}
+            </button>
+          }
+        >
+          {t('widgets.now.offlineHint')}
+        </Empty>
+      </>
     );
   else if (onlySetup && system)
     body = (
-      <Empty
-        illustration={setup === 'cli' ? 'cli-missing' : 'signed-out'}
-        tone="warn"
-        size="sm"
-        title={setup === 'cli' ? t('activity.cliMissing') : t('activity.notLoggedIn')}
-        action={
-          <Link to="/settings?tab=account" className="btn btn-primary">
-            {setup === 'cli' ? t('activity.openSettings') : t('activity.addCredential')}
-          </Link>
-        }
-      >
-        {setup === 'cli' ? (system.cli.error ?? t('activity.cliMissingHint')) : (system.auth.error ?? t('activity.noCredentials'))}
-      </Empty>
+      <>
+        {/* Without the CLI or a credential a chat cannot start: the fix is the one action */}
+        <FabStandIn />
+        <Empty
+          illustration={setup === 'cli' ? 'cli-missing' : 'signed-out'}
+          tone="warn"
+          size="sm"
+          title={setup === 'cli' ? t('activity.cliMissing') : t('activity.notLoggedIn')}
+          action={
+            <Link to="/settings?tab=account" className="btn btn-primary">
+              {setup === 'cli' ? t('activity.openSettings') : t('activity.addCredential')}
+            </Link>
+          }
+        >
+          {setup === 'cli' ? (system.cli.error ?? t('activity.cliMissingHint')) : (system.auth.error ?? t('activity.noCredentials'))}
+        </Empty>
+      </>
     );
   else if (empty)
     body = (
-      <Empty
-        illustration="welcome"
-        size="sm"
-        title={t('activity.nothing')}
-        action={
-          <>
-            <Link to={newChat} className="btn btn-primary">
-              {t('activity.startChat')}
-            </Link>
-            <Link to={NEW_ORCHESTRATION_PATH} className="btn">
-              {t('hero.newOrchestration')}
-            </Link>
-          </>
-        }
-      >
-        {t('activity.nothingHint')}
-      </Empty>
+      <>
+        {/* The welcome's own Start a chat is the FAB's action */}
+        <FabStandIn />
+        <Empty
+          illustration="welcome"
+          size="sm"
+          title={t('activity.nothing')}
+          action={
+            <>
+              <Link to={newChat} className="btn btn-primary">
+                {t('activity.startChat')}
+              </Link>
+              <Link to={NEW_ORCHESTRATION_PATH} className="btn">
+                {t('hero.newOrchestration')}
+              </Link>
+            </>
+          }
+        >
+          {t('activity.nothingHint')}
+        </Empty>
+      </>
     );
   else
     body = (

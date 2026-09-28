@@ -146,6 +146,12 @@ test('working on an item starts a chat in its own worktree, and the item follows
   const diff = await app.inject(`/api/work-items/${bug.id}/changes/diff?path=cart.txt`);
   assert.equal(diff.statusCode, 200, diff.body);
   assert.match(diff.json<{ diff: string }>().diff, /\+fixed/);
+  // Read as the review screen reads a chat's or a task's: scoped, and with the whole file
+  const loose = (await app.inject(`/api/work-items/${bug.id}/changes?uncommitted=1`)).json<WorkItemChanges>();
+  assert.deepEqual(loose.summary?.files.map((f) => f.path), ['cart.txt']);
+  const whole = await app.inject(`/api/work-items/${bug.id}/changes/diff?path=cart.txt&context=full&uncommitted=1`);
+  assert.equal(whole.statusCode, 200, whole.body);
+  assert.equal(whole.json<{ full: boolean }>().full, true);
 
   // The chat's header can name the item it works on
   assert.deepEqual((await app.inject(`/api/chats/${started.chat.id}/work-items`)).json<WorkItem[]>().map((i) => i.id), [bug.id]);

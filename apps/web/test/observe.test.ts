@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ContentBlock, Health, HealthSignal, TranscriptEntry } from '@agentry/shared';
-import { cancellable, checklistProgress, currentActivity, describeCall, healthWord, hunksOf, totalsOf } from '../src/lib/observe.ts';
+import { cancellable, checklistProgress, currentActivity, describeCall, healthWord, totalsOf } from '../src/lib/observe.ts';
 
 const entry = (uuid: string, blocks: ContentBlock[], extra: Partial<TranscriptEntry> = {}): TranscriptEntry => ({
   uuid,
@@ -15,37 +15,6 @@ const entry = (uuid: string, blocks: ContentBlock[], extra: Partial<TranscriptEn
 });
 const call = (id: string, name: string, input: unknown): ContentBlock => ({ type: 'tool_use', id, name, input });
 const result = (toolUseId: string): ContentBlock => ({ type: 'tool_result', toolUseId, content: 'ok', isError: false });
-
-test('a hunk points at the first line it changed, not at the context above it', () => {
-  const diff = ['diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '@@ -10,6 +10,7 @@ function f() {', ' one', ' two', ' three', '+added', ' four', '-gone', ''].join('\n');
-  assert.deepEqual(hunksOf(diff), [{ header: '@@ -10,6 +10,7 @@ function f() {', line: 13 }]);
-});
-
-test('a hunk that only deletes points at the line the deletion left behind', () => {
-  const diff = ['@@ -5,3 +5,2 @@', ' keep', '-removed', ' keep too', ''].join('\n');
-  assert.equal(hunksOf(diff)[0]?.line, 6);
-});
-
-test('every hunk of a file is listed, in order', () => {
-  const diff = ['@@ -1,2 +1,3 @@', ' a', '+b', ' c', '@@ -40,2 +41,2 @@', '-x', '+y', ' z'].join('\n');
-  assert.deepEqual(
-    hunksOf(diff).map((h) => h.line),
-    [2, 41],
-  );
-});
-
-test('a file emptied has no line zero to open: the link goes to the first line', () => {
-  assert.equal(hunksOf('@@ -1,2 +0,0 @@\n-a\n-b')[0]?.line, 1);
-});
-
-test('a new file opens at its first line, and the +++ header is not a line of it', () => {
-  assert.equal(hunksOf('--- /dev/null\n+++ b/n.ts\n@@ -0,0 +1,2 @@\n+a\n+b')[0]?.line, 1);
-});
-
-test('text that is not a diff has no hunks', () => {
-  assert.deepEqual(hunksOf(''), []);
-  assert.deepEqual(hunksOf('Binary files differ'), []);
-});
 
 test('totals add the lines of every file', () => {
   const file = (additions: number, deletions: number) => ({ path: 'p', status: 'modified' as const, additions, deletions });

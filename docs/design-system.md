@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-09-27T21:30:00Z
+updated_at: 2026-09-28T12:00:00Z
 tags:
     - design-system
     - web
@@ -18,6 +18,7 @@ brings the app to it is planned in [plans/redesign-night-shift.md](plans/redesig
 | Static prototypes of every screen (open `index.html`) | [`design-system/reference/`](design-system/reference/index.html) |
 | Screenshots, dark and light, 1440 px desktop and 390 px phone | [`design-system/reference/screenshots/`](design-system/reference/screenshots) |
 | The 15 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
+| The diff comparator: its rules, modes, pieces and states (§5) | `DSComparador` and the **Changes** section of the reference |
 | The tokens the app actually uses | `apps/web/src/styles/tokens.css` |
 
 The app reached this design in the `night-shift` orchestration. Where the implementation settled a
@@ -102,6 +103,11 @@ icon.
 - Radii: `--radius-xs 4` · `--radius-sm 6` · `--radius 8` (controls) · `--radius-lg 12` ·
   `--radius-xl 16` (cards) · pill 999.
 - Spacing is in multiples of 4. Page padding is 28 × 32; card padding is 18; gaps are 8, 12, 16 or 22.
+- Control height: `--control-h 36` for fields, selects, comboboxes, buttons, segmented groups and
+  the list search, and `--control-h-sm 30` for small buttons and icon buttons in dense places. Under
+  `(pointer: coarse)` both are 44, the touch target. A small button inside a row of controls
+  (`.list-toolbar-row`, `.filter-bar`, `.toolbar`, `.search-box`) takes `--control-h`, so nothing
+  in a row stands out of line. Set heights with these tokens, never with a padding and a font size.
 - Fonts: `--sans` Geist and `--mono` Geist Mono, from `@fontsource-variable/geist` and
   `@fontsource-variable/geist-mono`. They replace Inter and JetBrains Mono.
 - Type scale:
@@ -184,7 +190,9 @@ reference's class next to it.** The e2e specs select several of the app's classe
 | `.spin-braille` · `.spin-ring` · `.spin-dots` · `.shimmer` · `.skeleton` · `.caret` | `Spinner`, `.ticker*`, `.skeleton`, `.caret` | see §3 |
 | `.empty-state` + `Illustration` | `Empty` (`components/ui.tsx`), and the new `components/illustrations/` | see §4 |
 | `.avatar` (initials) | `.monogram` | a soft tint of the name's hue with letters in that hue; the gradient only on the active one |
-| `.fab` | `.fab`, `.fab-labelled` (components/shell/Fab.tsx) | a page's own button for the same action carries `.page-action-fab` and hides wherever the FAB shows |
+| `.fab` | `.fab` (components/shell/Fab.tsx), the round "+" alone on every page, named by `aria-label` | a page's own button for the same action carries `.page-action-fab` and hides wherever the FAB shows |
+| `.dv`, `.dv-row`, `.dv-ghost`, `.dv-seam`, `.dv-fold`, `.dv-map` | new: `.diff`, `.diff-row`, `.diff-fold-pill`, `.diff-seam`, `.diff-gap`, `.diff-rail` (`components/changes/`) | see §5 |
+| `.fp`, `.fmap`, `.frow`, `.edit-step`, `.scrub`, `.why` | new: `.changes-print`, `.changes-map`, `.changes-file`, `.edit-step`, `.edit-scrub`, `.changes-why` | see §5 |
 
 These keep their behaviour and take the new styling: the controls in
 `apps/web/src/components/controls`, and the primitives in `components/ui.tsx` and
@@ -223,7 +231,7 @@ status bar (30 px).
 The phone is the top bar, the page and a tab bar.
 
 - **Tab bar.** Four tabs: Home, Chats, Orchestrations (with a live counter) and More.
-- **New chat** moves to a gradient FAB. The FAB has a label on Home and only an icon on the lists.
+- **New chat** moves to a gradient FAB: the same round icon on every page that has one ([phone-layout.md](phone-layout.md)).
   It sits 16 px above the tab bar (the prototype's 100 px is measured from the bottom of the
   frame) and respects safe areas. On Orchestrations it starts a new orchestration instead.
 - **More.** A sheet that opens with the account and limits card, then the rest of the navigation
@@ -487,7 +495,82 @@ Rules:
 
 ---
 
-## 5. Content rules
+## 5. Diff comparator
+
+Changes are reviewed inside Agentry. Nothing links to an editor or hands out a command to copy:
+the comparator draws the unified diff the API already serves. The reference is `DSComparador`, the
+`DiffView` component and the screens of the reference's **Changes** section; the classes are §18
+of `agentry-ds.css`.
+
+**Four rules**
+
+1. **Only what changed carries colour.** Syntax is muted (`--sx-*`) and never uses green, red or
+   cyan. Context lines are dimmed in Reading. The changed words of a line are one mark
+   (`--diff-*-word`) that spans their syntax runs, not a mark per token.
+2. **What was removed folds away.** In Reading the file reads as it is now. A pill on the rail of
+   the first new line of a block (`−2`) opens the removed lines in place; when nothing replaced
+   them, the pill sits on a dashed seam between the lines they were between.
+3. **One line, one rail.** A 3 px rail in `--diff-add` or `--diff-del` marks a changed line, and its
+   number takes the same colour. A whole row is tinted, very lightly (`--diff-*-bg`), only in Unified
+   and Side by side.
+4. **Every change carries its why.** Where there is a transcript, the file header shows the intent
+   of the latest step that touched the file, and each step shows the sentence Claude wrote just
+   before the edit. One click reaches that place in the conversation.
+
+**Modes**
+
+| Mode | Draws | When |
+|---|---|---|
+| Reading (default) | the new file, rails, pills for what was removed, context dimmed | reading an agent's work top to bottom |
+| Unified | old and new interleaved, both line numbers, a sign column | the familiar view; Step by step uses it for each patch |
+| Side by side | matched lines face to face, the shorter side's padding hatched | from 1100 px of diff; the file list folds into a rail |
+
+Removed and added lines are paired by similarity (over 0.45), not by position, so a line that moved
+down a row still faces its old self. A phone offers Reading and Unified, and wraps long lines at 19
+px rows instead of scrolling sideways.
+
+**Pieces**
+
+- **Rows** are 20 px, mono 12.5 px, line numbers tabular in a 54 px column (46 px in Unified, 40 px
+  per side in Side by side).
+- **Gaps** between hunks are one row: "21 unchanged lines · in `aheadCount()`" (the function comes
+  from git's hunk header) and a ghost "Show". Opening one asks for the whole file once
+  (`context=full`) unless it is over 5 000 lines.
+- **Change fingerprint**: a 6 px strip, one segment per file as wide as its churn, split into added
+  and removed; the current file ringed, the seen ones at 18 %. It is also navigation.
+- **Block rail**: 14 px at the right of the diff, the file to scale, a mark per block (added,
+  removed, or both halves), the viewport as a box, the current block ringed.
+- **File map**: the tree by directory; a row is a status letter (M, A, D, R, B for binary), the
+  name, the counts, a hollow dot when not committed yet, a check when seen, and the live rail with
+  the braille spinner on the file the agent is editing right now. The selected row takes the
+  gradient indicator, like the sidebar.
+- **Steps**: a vertical line of dots, the selected one in the gradient, the pending one live; the
+  intent clamped to two lines. A scrubber of dots sits under the header.
+- **Keyboard**: `j`/`k` blocks, `n`/`p` files, `v` seen and next, `m` mode, `o` open the block's
+  removed lines, `[` the file map, `/` filter, `←`/`→` steps. None fires while typing in a field.
+
+**Tokens**
+
+| Token | Use |
+|---|---|
+| `--diff-add`, `--diff-del` | rails, line numbers, signs, pills (they are `--ok` and `--bad`) |
+| `--diff-add-bg`, `--diff-del-bg` | row tints in Unified and Side by side; removed lines opened in Reading |
+| `--diff-add-word`, `--diff-del-word` | the mark on changed words |
+| `--sx-kw`, `--sx-str`, `--sx-num`, `--sx-type`, `--sx-fn`, `--sx-com` | muted syntax, for code inside the comparator only |
+
+**States.** No worktree: Result is disabled with its reason and the screen opens on Step by step.
+Nothing changed yet: compact `Empty`, no illustration (it sits next to the conversation). Binary:
+said, not drawn. Over 5 000 lines: blocks only. Added: all rail. Deleted: one pill with its line
+count, and no Side by side. Renamed without changes: "only renamed".
+
+**Where it lives.** One screen for a chat, a task and the integration branch
+(`/chats/:id/changes`, `/orchestration/:id/tasks/:taskId/changes`, `/orchestration/:id/changes`);
+everywhere else, the compact summary opens it. The screen has no energy border: the live rail on
+the file being edited is its only moving part.
+
+---
+
+## 6. Content rules
 
 - Every string goes through i18n with `en` and `es` parity. The `es` copy follows `GLOSSARY.md`:
   - Spanish from Spain, with infinitive buttons ("Guardar", "Reanudar").
@@ -502,7 +585,7 @@ Rules:
 
 ---
 
-## 6. Checklist for every UI change
+## 7. Checklist for every UI change
 
 1. The diff has no raw colours, radii or durations: all go through tokens. The web test that
    guards this passes.
@@ -517,6 +600,7 @@ Rules:
 7. An empty, error or install state uses `Empty` with the matching illustration (§4), and uses at
    most one illustration per screen.
 8. A new variant or illustration is added to this document and to `agentry-ds.css` in the same PR.
+9. A diff is drawn with `DiffView` and follows the four rules of §5: nothing links to an editor.
 
 ## Landed
 
@@ -560,6 +644,12 @@ Rules:
   surface, so it takes no gradient and no energy; the segments carry the only live colour. The
   name is the link and its box covers the row, so the whole line is the touch target. The
   synthesis chat reads "· synthesis" instead of a stage.
+- Settings → Remote access draws a tunnel's open address as `.tunnel-address` (`.tunnel-address` and
+  `.qr` in `agentry-ds.css`): the URL in mono with copy, beside a QR code drawn in-house
+  (`components/QrCode.tsx`). The block takes `.grad-border` while the tunnel is open, because it is
+  what the screen is about; the start button is the gradient action only while there is no address.
+  The QR code is dark on light in both themes (`--qr-ink`, `--qr-paper`), since not every camera
+  reads an inverted one.
 - Badges are mono uppercase through CSS, so specs that read a badge's word match it
   case-insensitively or read it from the DOM.
 
@@ -570,8 +660,9 @@ Rules:
 - The status bar and Home read the 5 h and 7 d windows the same way: claude-swap's reading of the
   active account first, then the CLI's last rate-limit event (`swapUsageWindows`). Both come from
   one shared hook (`useUsageNow`), so nothing is fetched twice.
-- The FAB shows on Home (with its label), Chats and Projects (icon only, New chat) and
-  Orchestrations (icon only, New orchestration), and nowhere else (`fabFor`). A page header's
+- The FAB shows on Home, Chats and Projects (New chat), Orchestrations (New orchestration) and
+  Tasks (New task), always the icon alone, and nowhere else (`fabFor`); it hides while the page
+  scrolls down and steps aside where the page offers the same action (`FabStandIn`). A page header's
   button for the same action takes `.page-action-fab`.
 - The More sheet opens on the account and limits card, then the sections, a **Start** group (Run
   workflow, New orchestration), the API reference and the connection.
@@ -580,10 +671,9 @@ Rules:
   exhausted accounts in bad ("2 agotadas"), connectors waiting for authorisation in warn ("1
   pendiente"). The figures come from the queries the pages use (`useMoreNotes`), and the lists only
   the sheet needs (accounts, schedules, connectors) are read while it is open.
-- On a phone, Chats carries the project scope as a chip beside its title, as MobileChats draws it,
-  and the top bar leaves its selector out there (`pageHoldsScope`, decided with the `NARROW` media
-  query, not hidden in CSS), so the page has exactly one `.project-selector`. A desktop keeps it in
-  the top bar on every page.
+- The project scope lives in the top bar on every page and every screen, a phone included: the
+  chip MobileChats drew beside the Chats title, and `pageHoldsScope`, are gone
+  ([persistent-filters.md](persistent-filters.md)). A page has exactly one `.project-selector`.
 
 **Screens**
 
@@ -633,6 +723,72 @@ Rules:
 - The observability "stuck" badge stays bad (red): stuck is a problem, not a warning.
 - `quota` is still reserved: the app has no "every account exhausted" state yet.
 
+### The diff comparator (§5)
+
+> **Landed** in the `changes-review` orchestration (2026-09-28), as
+> [plans/changes-review.md](plans/changes-review.md) planned it. The notes below are where the app
+> settled a detail of §5 differently or said something §5 did not. The before/after pairs of its
+> consistency pass are in [`media/changes-review/`](media/changes-review/README.md).
+
+**Where the code is**
+
+- `lib/diff.ts` (parse, pair, fold, the rows of each mode) and `lib/word-diff.ts` (the token LCS)
+  are pure and unit-tested against the reference's sample diffs. `components/changes/` holds
+  `DiffView`, `BlockRail`, `Fingerprint`, `FileMap`, `FileReview`, `Intent` and the review's rules
+  (`review-model.ts`); Step by step is `components/changes/steps/`, its rules in `steps-model.ts`.
+- `styles/diff.css` is the comparator (§18 of `agentry-ds.css`, after the project ecosystem's §15 to §17; its step list is `.edit-steps`/`.edit-step` there, because the wizard's stepper is `.steps`/`.step`); the review screen's own styles
+  sit beside its components (`changes.css`, `steps/steps.css`) and every rule is scoped under
+  `.changes-review`, because the compact summary reuses some of the class names (`.changes-file`)
+  and the review's stylesheet stays loaded once the page has been visited.
+- The comparator's strings live in the `components:diff` namespace, the screen's in `changes`.
+
+**The comparator**
+
+- Operators stay in the foreground: the GitHub themes paint them as keywords, the reference does
+  not. A language only shiki knows stays plain inside a diff (`highlightRoles` returns `null`).
+- Side by side is offered neither for a deleted file nor for an added one: with one side empty it
+  only doubles the width. Both fall back to Unified, as a narrow window does.
+- A file with no text to compare (binary, too large, only renamed) drops the mode switch and the
+  block counter.
+- A patch shown on its own (a step's) starts at its change: `DiffView` takes `trimEdges`, which
+  drops the gaps before the first hunk and after the last and keeps the ones between hunks.
+- Past 400 rows the rows are virtualised and measure from a box of their own. The block rail merges
+  the blocks that land on the same stretch of it into one tick and keeps the viewport box in its
+  own state, so a 20 000-line diff scrolls at 17–33 ms a frame and is never asked for with
+  `context=full` (`changes-large.spec.mjs`).
+- **Contrast.** The diff's dimmed context and its line numbers sit under 4.5:1 by design (rule 1:
+  only what changed carries colour). The review's chrome (header, file map, file header) is held to
+  the full contrast rule; axe scans the diff itself without `color-contrast`. Everything else on the
+  screen follows the global rule.
+- The fingerprint's segments draw 6 px but take a 24 px hit area in the header, which axe's
+  target-size rule asks for.
+
+**The review screen**
+
+- `?scope=` (a commit's sha, or `uncommitted`) joins the deep links of §5, so a scope survives a
+  reload and can be shared.
+- "Seen" is keyed by the file's status and counts (so the map can tell before a diff is read) and
+  by the hash of its diff once read; a browser keeps the seen files of the last 60 sources.
+- The why line and Step by step's heading quote the intent through one `Intent` component: what
+  Claude put between backticks is drawn as code, in the language's quotes («» in `es`, “” in `en`).
+  The why line says the step's time as hours and minutes and is hidden when the source has no
+  steps; on a phone it follows the sentence.
+- The file map's legend draws the braille spinner's resting glyph beside "Claude is editing": only
+  the row of the file being edited moves.
+
+**Everywhere else**
+
+- **Review the changes** takes the gradient only in the chat's inspector, where it is the zone's
+  one action. The task panel and the integration card draw it as a plain button: an orchestration's
+  page already spends its gradient on relaunching and the pull request.
+- A chat outside a repository lists, in its summary, the files its steps wrote, and opens the
+  review on Step by step.
+- The transcript's edit chips share the folded step's line, as `DesktopChatCambios` draws them; an
+  opened step takes the row and pushes them under it.
+- "See it in the conversation" opens `/chats/:id?at=<entryIndex>`: the chat drops `?at=` from the
+  address, turns subagent messages off (the index counts the main view) and marks the entry for a
+  moment in the accent, where a search hit takes the warning colour.
+
 ## Related
 
-[[plans/redesign-night-shift.md]] · [[plans/ui-redesign.md]] · [[plans/mobile.md]] · [[desktop.md]]
+[[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] · [[plans/ui-redesign.md]] · [[plans/mobile.md]] · [[desktop.md]]

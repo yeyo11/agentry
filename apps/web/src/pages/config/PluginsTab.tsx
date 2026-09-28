@@ -9,6 +9,7 @@ import { Dialog, useConfirm } from '../../components/Dialog';
 import { useToast } from '../../components/Toast';
 import { Card, Empty, ErrorBox, Skeleton, TabPanel, Tabs, Tag, useTabGroup } from '../../components/ui';
 import { timeAgo } from '../../lib/format';
+import { GLOBAL_SCOPE, useListParams } from '../../lib/list-params';
 
 const SCOPES: PluginScope[] = ['user', 'project', 'local'];
 
@@ -205,9 +206,13 @@ function useDebounced<T>(value: T, delayMs: number): T {
   return debounced;
 }
 
+/** The marketplace search, kept until it is cleared */
+const BROWSE_PARAMS = ['q'] as const;
+
 function BrowseTab({ actions }: { actions: ReturnType<typeof usePluginAction> }) {
   const { t } = useTranslation(['config', 'common']);
-  const [search, setSearch] = useState('');
+  const { params, patch } = useListParams('plugins', BROWSE_PARAMS, GLOBAL_SCOPE);
+  const search = params.get('q') ?? '';
   const [scope, setScope] = useState<PluginScope>('user');
   const query = useDebounced(search.trim(), 300);
   const { data, error, isLoading, isFetching } = useQuery({
@@ -236,7 +241,7 @@ function BrowseTab({ actions }: { actions: ReturnType<typeof usePluginAction> })
           value={search}
           placeholder={t('plugins.searchPlaceholder')}
           aria-label={t('plugins.search')}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => patch({ q: e.target.value })}
         />
         {isFetching && <span className="spinner" role="img" aria-label={t('plugins.searching')} />}
       </div>

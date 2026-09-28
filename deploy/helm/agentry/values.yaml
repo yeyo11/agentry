@@ -62,6 +62,16 @@ auth:
     audience: ""
     clientId: ""
 
+# The tunnel through localhost.run (Settings > Remote access), off unless you turn it on here. It is
+# an ssh connection the pod opens itself to localhost.run on TCP 22, and it reaches the server on
+# 127.0.0.1 inside the pod: whoever has its address comes in around this chart's Service, your
+# Ingress, its TLS and any NetworkPolicy on ingress. The provider terminates TLS, so it sees every
+# request, the bearer token included. It also needs egress to TCP 22, which a restrictive
+# NetworkPolicy or firewall may block. Turned on, it still refuses to open while auth is `none`, and
+# only opens when someone starts it from the UI (or turns on "start with Agentry" there).
+tunnel:
+  enabled: false
+
 # Extra environment variables for the container (AGENTRY_MAX_CONCURRENT_RUNS, AGENTRY_CLI_UPDATE_CHECK...)
 env: {}
 

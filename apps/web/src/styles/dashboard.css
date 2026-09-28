@@ -22,10 +22,34 @@
   flex: 1 1 420px;
 }
 
+/* The title and what belongs to it (the project's ⚙) share one row, the control at its far end, so
+   it never takes a row of its own under the path */
+.home-hero-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* A project's name is one line that ends in an ellipsis before it reaches the control */
+.home-hero-title:has(> .home-hero-icon) h1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .home-hero h1 {
   display: block;
+  flex: 0 1 auto;
+  min-width: 0;
   margin: 0;
   text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.home-hero-title > .home-hero-icon {
+  flex: none;
 }
 
 .home-hero-summary {
@@ -40,7 +64,9 @@
 }
 
 .home-hero-icon {
-  padding-inline: 9px;
+  justify-content: center;
+  width: var(--control-h);
+  padding-inline: 0;
 }
 
 /*
@@ -53,7 +79,7 @@
   }
   .home-hero-date,
   .home-hero-summary,
-  .home-hero-actions > .btn:not(.home-hero-icon) {
+  .home-hero-actions {
     display: none;
   }
   .home-hero h1 {
@@ -103,13 +129,6 @@
 .widget-slot > .card,
 .widget-slot > .alert {
   flex: 1;
-}
-
-/* Room under the last card, so the phone's New chat button never sits on top of it */
-@media (max-width: 900px) {
-  .shell-has-tabbar .dashboard {
-    padding-bottom: 72px;
-  }
 }
 
 @container dashboard (min-width: 600px) {
@@ -385,6 +404,15 @@
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   color: var(--fg);
+  /* Never past the tile's edge, whatever the figure and the language make of it */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kpi-value-short {
+  display: none;
 }
 
 /* A note like "+2 terminal chats with no cost" is worth reading whole: it wraps onto a second line
@@ -452,6 +480,12 @@
   }
   .kpi-value {
     font-size: 22px;
+  }
+  .kpi-value-full {
+    display: none;
+  }
+  .kpi-value-short {
+    display: inline;
   }
   .limits-card .limits-text > .kpi-label,
   .limits-card .kpi-sub {

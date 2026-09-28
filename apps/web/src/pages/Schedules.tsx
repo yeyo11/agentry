@@ -1,7 +1,7 @@
 import type { Schedule, ScheduleRun, ScheduleRunStatus } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Clock, Ellipsis, MessageSquare, Pencil, Play, Plus, ShieldCheck, Trash2, Workflow } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useScheduleRuns, useSchedules } from '../api';
@@ -14,8 +14,10 @@ import { ListToolbar, type ListToolbarTab } from '../components/ListToolbar';
 import { Empty, ErrorBox, PageHeader, Skeleton, StatusBadge, Tag } from '../components/ui';
 import { describeCron } from '../lib/cron-words';
 import { formatDateTime, formatDuration, timeAgo, toMs } from '../lib/format';
+import { useListParams } from '../lib/list-params';
 import { NARROW, useMediaQuery } from '../lib/media';
 import { matchesText, scheduleFields, scheduleView, type ScheduleView } from '../lib/lists';
+import { ALL_PROJECTS, inProject, useProjectScope } from '../lib/project-scope';
 import '../insights.css';
 
 /** The starting points of an empty page. The editor reads `?cron=`, and everything else is filled in there. */
@@ -25,13 +27,31 @@ const TEMPLATES = [
   { id: 'quarter', cron: '*/15 * * * *' },
 ] as const;
 
+const VIEWS: readonly ScheduleView[] = ['all', 'on', 'off'];
+/** What the list keeps until it is reset */
+const LIST_PARAMS = ['q', 'view'] as const;
+
+/** Where a schedule's runs start; one with none starts in the wrapper's own directory, under no project */
+function scheduleCwd(schedule: Schedule): string | undefined {
+  return schedule.target.kind === 'chat' ? schedule.target.chat.cwd : schedule.target.spec.cwd;
+}
+
 /** The recurring chats and orchestrations, with the timetable of each said in words and what each run produced. */
 export function Schedules() {
   const { t } = useTranslation(['schedules', 'common']);
   const schedules = useSchedules();
-  const [search, setSearch] = useState('');
-  const [view, setView] = useState<ScheduleView>('all');
-  const all = schedules.data ?? [];
+  const { project, projectId, settled } = useProjectScope();
+  const { params, patch, reset } = useListParams('schedules', LIST_PARAMS, settled ? (projectId ?? ALL_PROJECTS) : null);
+  const search = params.get('q') ?? '';
+  const view = VIEWS.find((v) => v === params.get('view')) ?? 'all';
+  const all = useMemo(
+    () =>
+      (schedules.data ?? []).filter((schedule) => {
+        const cwd = scheduleCwd(schedule);
+        return !project || (cwd !== undefined && inProject(project, cwd));
+      }),
+    [schedules.data, project],
+  );
   const found = all.filter((schedule) => matchesText(search, scheduleFields(schedule)));
   const shown = found.filter((schedule) => view === 'all' || scheduleView(schedule) === view);
   const tabs: Array<ListToolbarTab<ScheduleView>> = [
@@ -39,10 +59,6 @@ export function Schedules() {
     { id: 'on', label: t('list.on'), count: found.filter((s) => s.enabled).length },
     { id: 'off', label: t('list.off'), count: found.filter((s) => !s.enabled).length },
   ];
-  const reset = () => {
-    setSearch('');
-    setView('all');
-  };
 
   return (
     <div className="schedules-page">
@@ -78,8 +94,10 @@ export function Schedules() {
       ) : (
         <div className="schedules">
           <ListToolbar
-            search={{ value: search, onChange: setSearch, placeholder: t('list.searchPlaceholder'), label: t('list.searchLabel') }}
-            tabs={{ value: view, options: tabs, onChange: setView, label: t('list.show') }}
+            search={{ value: search, onChange: (value) => patch({ q: value }), placeholder: t('list.searchPlaceholder'), label: t('list.searchLabel') }}
+            tabs={{ value: view, options: tabs, onChange: (next) => patch({ view: next === 'all' ? null : next }), label: t('list.show') }}
+            onReset={reset}
+            active={search !== '' || view !== 'all'}
           />
           {shown.length === 0 ? (
             <div className="card">

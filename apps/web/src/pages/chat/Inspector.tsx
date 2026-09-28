@@ -7,7 +7,7 @@ import { Sheet } from '../../components/controls/Sheet';
 import { Tooltip } from '../../components/controls/Tooltip';
 import { ICON_SM } from '../../components/icons';
 import { ActivityLine } from '../../components/observe/Activity';
-import { ChatChangesView, type ChangeSource } from '../../components/observe/Changes';
+import { ChatChangesSummary } from '../../components/observe/Changes';
 import { isStepIn } from '../../components/observe/Health';
 import { Stepper } from '../../components/Stepper';
 import { ErrorBox, TabPanel, Tabs, useTabGroup } from '../../components/ui';
@@ -126,22 +126,8 @@ function ActivityTab({ chat, entries }: { chat: Chat; entries: TranscriptEntry[]
   );
 }
 
-function ChangesTab({ chat }: { chat: Chat }) {
-  const { t } = useTranslation('observe');
-  const source: ChangeSource = {
-    queryKey: ['chat', chat.id, 'changes'],
-    diff: (path) => api.chatDiff(chat.id, path),
-    dir: chat.worktree?.path ?? null,
-    // The main checkout is not part of what a chat knows about itself
-    compare: null,
-    live: Boolean(chat.execution),
-  };
-  return (
-    <Section title={t('changes.title')}>
-      <ChatChangesView source={source} load={() => api.chatChanges(chat.id)} />
-    </Section>
-  );
-}
+// The summary carries its own heading and totals, as the reference draws the tab
+const ChangesTab = ({ chat }: { chat: Chat }) => <ChatChangesSummary chat={chat} />;
 
 /**
  * Everything the chat page knows about the chat that is not the conversation, in four tabs instead

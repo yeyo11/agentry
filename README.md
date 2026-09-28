@@ -48,17 +48,25 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
   so one lost to a closed tab is reloaded instead of paid for twice, and a graph interrupted by a
   restart goes on where it stopped.
 - **Multi-account rotation** — usage per window, proactive switching before an account runs out,
-  and a run that hits its limit is rotated and resumed on the next account. Every rotation is
+  and a run that hits its limit is rotated and resumed on the next account (a chat pinned to the
+  account that ran out is unpinned first). Every rotation is
   recorded, so "why did my account change" has an answer that survives a restart.
 - **See what an agent really did, and step in** — for every orchestration task and every chat: the
-  branch and its commits, the files changed with `+/−` and a highlighted diff per file, what is
-  uncommitted, the worker's own checklist, and what it is running right now. A health badge notices
+  branch and its commits, the files changed with `+/−`, what is uncommitted, the worker's own checklist, and what it is running right now. A health badge notices
   a hung or repeated command, a chat busy without progress, a loop, a test bent to pass, silence and
   a blown budget, says why in one line and offers three ways in: cancel just that command's process
   tree, send a hint, interrupt. An optional supervisor — Haiku, off by default — wakes once per
   signal when a worker turns `bad`, reads its last steps and proposes the hint, for you to send,
-  edit or dismiss. Links open a worktree, a file or a changed line in your editor, from settings the
-  server keeps, so every browser builds the same link.
+  edit or dismiss.
+- **Review the changes without leaving Agentry** — one screen for a chat, a task or the integration
+  branch, drawn by a diff comparator of its own (no editor, no diff library). **Reading**, the
+  default, shows each file as it is now with a 3 px rail on what is new and what was removed folded
+  into a pill; **Unified** and **Side by side** are one key away. Syntax stays muted so only the
+  change carries colour, a changed phrase is one mark, and a change fingerprint, a file map (seen,
+  not committed, being edited now) and a block rail with `j`/`k`/`n`/`p` keep a long branch
+  navigable. The **Step by step** lens replays every edit from the transcript with its own patch and
+  the sentence Claude wrote just before it, one click from that place in the conversation, so a chat
+  outside a repository can be reviewed too.
 - **Verify once, after integrating** — an orchestration can run its checks (build, the browser
   suite) once on the merged branch, after an install step it works out from the lockfile, with a
   fixer agent held to rules Agentry writes and a cap on its attempts and on what it may spend.
@@ -128,6 +136,10 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
   and able to tell you that a chat is waiting while it is closed, over Web Push this server signs
   with its own VAPID key. No app store, no native shell, no third-party push account. The
   push half needs HTTPS: see [On a phone](#on-a-phone).
+- **Reach it from anywhere, with nothing to set up** — Settings → Remote access opens a public HTTPS
+  address through [localhost.run](https://localhost.run) over the system's own `ssh`, with a QR code
+  for the phone: no account, no domain, no proxy. It only opens while authentication is on, only its
+  exact host is let in, and the provider's host key is pinned. See [docs/tunnel.md](docs/tunnel.md).
 - **One container, one volume** — non-root, the CLI baked in and pinned with an update check,
   everything else on a data volume. Compose profiles, a TLS proxy and a Helm chart are in
   [docs/deploy.md](docs/deploy.md).
@@ -155,9 +167,13 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
 
 ### See what an agent really did, and step in
 
-<img src="docs/media/chat.png" alt="A working chat: its transcript with the tool calls folded into steps and the command it is running now, the composer with its energy border and Interrupt, and beside it the inspector's Changes tab with the branch, commit and files it changed" width="100%">
+<img src="docs/media/chat.png" alt="A working chat: its transcript with the tool calls folded into steps and the command it is running now, the composer with its energy border and Interrupt, and beside it the inspector's Changes tab: the totals, the branch and its commit, a change fingerprint, one line per file it changed and Review the changes" width="100%">
 
 <p align="center"><img src="docs/media/chat-mobile.png" alt="The same working chat on a phone: a one-line header, the transcript with its folded steps and what it is running, and the composer with its model and permission chips at the bottom" width="320"></p>
+
+### Review the changes without an editor
+
+<img src="docs/media/changes.png" alt="The review screen of the same chat: a header with the branch, its base, the counts and a change fingerprint, the file map with each file's status letter and +/− beside the diff of src/server.js in Reading mode, the file as it is now with a green rail on its new lines and the removed line folded into a −1 pill" width="100%">
 
 ### Several accounts, rotated before they run out
 
@@ -252,7 +268,7 @@ Volumes:
 | --- | --- | --- |
 | `agentry-config` / `claude-config` | `/home/node/.claude` | The whole account setup: `settings.json`, `.claude.json` (MCP servers), `CLAUDE.md`, agents, skills, commands and session transcripts |
 | `./workspace` | `/workspace` | Projects Claude works on (default `cwd` for runs) |
-| `agentry-data` / `wrapper-data` | `/data` | Wrapper state. Rows in the SQLite store (`wrapper.db`): chats and their executions, orchestrations, plans, the rotation log, account usage history, command durations, schedule runs, the supervisor's proposals, the installs registered for Web Push and the audit log. Settings-shaped files: `accounts.json` (auto-rotation), `account-config.json` (config directories and rotation policies), `auth.json` (the auth mode and the hash of the token, mode 600), `credentials.json` (the runtime credential, mode 600), `tool-presets.json` (the presets and the default), `orchestration-templates.json`, `schedules.json`, `supervisor.json`, `editor.json`, `cli-version.json`, `release.json` (what the last Agentry release check learned) and `push.json` (the VAPID keypair, mode 600). `uploads/` holds attachments and `mcp/` the per-chat MCP config files (mode 600: they can hold a server's secrets) |
+| `agentry-data` / `wrapper-data` | `/data` | Wrapper state. Rows in the SQLite store (`wrapper.db`): chats and their executions, orchestrations, plans, the rotation log, account usage history, command durations, schedule runs, the supervisor's proposals, the installs registered for Web Push and the audit log. Settings-shaped files: `accounts.json` (auto-rotation), `account-config.json` (config directories and rotation policies), `auth.json` (the auth mode and the hash of the token, mode 600), `credentials.json` (the runtime credential, mode 600), `tool-presets.json` (the presets and the default), `orchestration-templates.json`, `schedules.json`, `supervisor.json`, `cli-version.json`, `release.json` (what the last Agentry release check learned) and `push.json` (the VAPID keypair, mode 600). `uploads/` holds attachments and `mcp/` the per-chat MCP config files (mode 600: they can hold a server's secrets) |
 | `agentry-accounts` / `claude-swap` | `/home/node/.local/share/claude-swap` | Credentials of every registered account |
 
 The compose file keeps its original volume names so an existing setup keeps its data; `docker compose`
@@ -299,8 +315,10 @@ switch. The browser subscribes with a VAPID key this server made for itself, and
 that stops for a permission prompt puts a notification on the phone even with Agentry closed; tapping
 it opens that prompt, not just the chat. The per-kind preferences and the interruption level above
 the switch decide what is worth waking a device for, and the list below it shows every install registered, this one marked,
-each with **Test** and **Remove**. A window that is open and visible shows its usual toast and no
-push, so the same news never arrives twice.
+each with **Test** and **Remove**. A window that is open and focused shows its usual toast and no
+push, so the same news never arrives twice. A test push, and every push on an iPhone or iPad, is
+shown even then: a test has no toast of its own, and iOS revokes a subscription whose pushes show
+nothing.
 
 Push needs a **secure origin**: `https://…` or `localhost`. On `http://192.168.1.10:8787` — how most
 people run Agentry on a LAN — the browser has no service worker at all, so there is no push and no
@@ -308,6 +326,13 @@ cached shell; the Settings page says so and names the origin rather than showing
 nothing. [docs/deploy.md](docs/deploy.md) has the TLS proxy that fixes it. On iPhone and iPad, a push
 reaches an app on the Home Screen only, never a Safari tab: install first, then turn the switch on
 from the app that starts.
+
+**No domain or proxy?** Settings → Remote access opens a tunnel through localhost.run, which gives an
+HTTPS origin, and so push, with nothing to configure. Turn on authentication first: the tunnel refuses
+to open without it. Its free address changes from time to time, and each new address is a new site for
+the phone: sign in there once. Notifications sent after a change open the new address on Chrome (not
+verified on iOS). localhost.run terminates TLS, so it sees every request, the token included. See
+[docs/tunnel.md](docs/tunnel.md).
 
 ## Local development
 
@@ -375,12 +400,13 @@ transpiler.
 | `ANTHROPIC_API_KEY` | – | Alternative: API key billing |
 | `PORT` / `HOST` | `8787` / `127.0.0.1` (`0.0.0.0` in the image) | API listen address. Loopback by default because the API runs commands on the machine and starts with no credential; the image opens it because Compose publishes the container on `127.0.0.1` anyway. Binding every interface while the mode is `none` logs a warning |
 | `CLAUDE_BIN` | `claude` | CLI binary to use |
-| `CSWAP_BIN` | `cswap` | claude-swap binary. With accounts registered it owns the credential, and the token above is ignored |
+| `CSWAP_BIN` | – | claude-swap binary. Unset, Agentry uses a compatible `cswap` on the `PATH`, else the copy it installed itself. With accounts registered claude-swap owns the credential, and the token above is ignored |
+| `AGENTRY_CSWAP_MANAGED` | on (off in the image) | `0` stops Agentry from installing claude-swap itself (see [Accounts](#accounts-multi-account)) |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude config dir (`/home/node/.claude` in the image) |
 | `AGENTRY_WORKSPACE_DIR` | `./workspace` | Default working directory for runs |
 | `AGENTRY_DATA_DIR` | `./data` | Wrapper state |
-| `AGENTRY_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | Mode for runs that do not set one |
-| `AGENTRY_MAX_CONCURRENT_RUNS` | `8` | Max simultaneous `claude` processes |
+| `AGENTRY_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | Mode for runs that do not set one. Without the variable it is editable in Settings → Security and applies to the next run; set, it is shown read-only there. Empty counts as unset |
+| `AGENTRY_MAX_CONCURRENT_RUNS` | `8` | Max simultaneous `claude` processes (1 to 64). Editable in Settings → Security unless set here, like the mode above. Empty counts as unset |
 | `AGENTRY_PUSH_SUBJECT` | `https://github.com/yeyo11/agentry` | The VAPID `sub` claim of every Web Push this server signs: a `mailto:` or `https:` a push service can complain to, naming a real domain — Apple refuses the whole JWT with `403 BadJwtToken` for something like `mailto:agentry@localhost`. Changing it takes effect on the next start, keypair and registered installs untouched |
 | `AGENTRY_AUTH_MODE` | `none` | `none`, `token` or `oidc`. **Seeds** an install that has no `auth.json` yet; after that the setting saved from the UI wins. See [Securing it](#securing-it) |
 | `AGENTRY_AUTH_TOKEN` | – | The bearer token to seed with when the mode is `token`. Only its SHA-256 is stored |
@@ -394,12 +420,19 @@ transpiler.
 | `AGENTRY_DISTRIBUTION` | – (a source checkout) | How this server was installed, which decides the update steps the UI offers: `docker` (set by the image), `appimage` or `deb` (set by the desktop app) |
 | `AGENTRY_PID_FILE` | `/tmp/agentry.pid` in the image | Where the server writes its pid, so the image's healthcheck can end a wedged server |
 | `AGENTRY_HEALTH_RESTART_AFTER` | `3` | Consecutive failed health probes (30 s apart) after which the container restarts itself |
-| `AGENTRY_ALLOWED_HOSTS` | – (loopback only) | Comma-separated host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern standing for that domain's subdomains. A `Host` that matches none of them is refused `421` before the credential is read. Ports and letter case are ignored; `GET /api/health` is exempt. Behind a proxy, name the public host here or everything answers `421` |
+| `AGENTRY_ALLOWED_HOSTS` | – (loopback only) | Comma-separated host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern standing for that domain's subdomains. A `Host` that matches none of them is refused `421` before the credential is read. Ports and letter case are ignored; `GET /api/health` is exempt. Behind a proxy, name the public host here or everything answers `421`. Without the variable the list is editable in Settings → Security ([docs/layered-settings.md](docs/layered-settings.md)); a running tunnel's exact host is added on its own |
+| `AGENTRY_TUNNEL` | on (off in the image) | Whether Settings → Remote access may open a tunnel through localhost.run: `on`/`1`/`true` or `off`/`0`/`false`, empty meaning the default; anything else stops the server at startup. In Docker it goes around the published port and the proxy, which is why it is off there. See [docs/tunnel.md](docs/tunnel.md) |
+| `SSH_BIN` | `ssh` | The `ssh` the tunnel runs. It never reads `~/.ssh` |
 | `AGENTRY_CORS_ORIGIN` | – (CORS off) | Comma-separated origins (or `*`, which echoes the caller) for external browser clients. The event streams obey this list too. The bundled UI never needs it: in dev it uses the Vite `/api` proxy, in production it is same-origin |
 | `VITE_API_TARGET` | `http://localhost:8787` | Where the Vite dev server proxies `/api` |
 | `AGENTRY_IDLE_TIMEOUT_MS` | `600000` | Idle runs are closed after this (they resume transparently) |
 | `AGENTRY_WEB_DIST` | `apps/web/dist` (`/app/web` in the image) | Built UI the API serves (the desktop app points it at its bundled copy) |
 | `LOG_LEVEL` | `info` | Fastify/pino log level (`trace` … `fatal`, or `silent`) |
+
+Agentry sets two variables for every chat it starts, so an agent that calls the REST API reaches the
+wrapper that runs it and not another one on the same machine: `AGENTRY_API_URL` (this server's API,
+e.g. `http://127.0.0.1:34331/api`) and `AGENTRY_CHAT_ID` (the chat's own id). With authentication on,
+the agent still needs a token of its own.
 
 ## Securing it
 
@@ -422,12 +455,19 @@ directory it wins over the environment).
   `AGENTRY_ALLOWED_HOSTS` is refused `421`, and that happens **before** the credential is looked at,
   so it holds in `mode: none` as well. It is what stops a page on another domain from pointing that
   domain at `127.0.0.1` and driving your install from your own browser. Put a proxy in front and you
-  must name the public host there; `GET /api/health` is exempt, so probes are unaffected.
+  must name the public host there; `GET /api/health` is exempt, so probes are unaffected. Without
+  the variable the list is editable in Settings → Security, and a running tunnel adds its own exact
+  host, never a pattern, for as long as it answers.
 - **Guessing is slowed down.** After ten failed authentications an address is answered `429` with a
   `Retry-After` that doubles from a second to a minute, and is forgotten after fifteen quiet minutes.
   A token you supply yourself must be at least 24 characters; one Agentry generates is 32 random
   bytes. The wait counts the peer's address, so behind a reverse proxy every client shares one
-  count — see [SECURITY.md](SECURITY.md).
+  count — see [SECURITY.md](SECURITY.md). Through the tunnel, which carries no trustworthy client
+  address, all traffic shares one count of its own, apart from loopback, so a stranger's guesses
+  never make the desk wait.
+- **The tunnel.** Settings → Remote access refuses to open while the mode is `none`, and turning the
+  mode to `none` closes it first. localhost.run terminates its TLS, so it sees every request, the
+  token included, and the `?token=` URLs below. See [docs/tunnel.md](docs/tunnel.md).
 - **What stays open.** `GET /api/health`, so a probe needs no credential, and the built UI bundle,
   which is what gives a `401` a sign-in screen instead of a blank page. `/docs` and `/openapi.json`
   are guarded like everything else.
@@ -495,6 +535,9 @@ what is and is not protected.
   security contexts, `auth.mode` (`none`, `token`, `oidc`) and `auth.readOnly`. There is no Ingress
   template; bring your own — and if it gives the pod a host name, put that name in
   `AGENTRY_ALLOWED_HOSTS` through the chart's `env`.
+- **The tunnel** (Settings → Remote access) is off in the image and the chart unless you turn it on
+  (`AGENTRY_TUNNEL=on`, or `tunnel.enabled: true`): from inside the container it goes around the
+  published port, the proxy and the Ingress. It needs outbound TCP 22.
 - **A pinned Claude Code**: the image installs a fixed version and Settings → Account says when a
   newer one is published, with how to move. The check reads the npm registry on demand and once a
   day.
@@ -563,12 +606,31 @@ next start, audited with actor `env` (see [Securing it](#securing-it)).
 | DELETE | `/security/token` | Remove it; refused while the mode is `token` |
 | GET | `/audit?limit=&from=&path=&method=&status=` | Mutating requests, newest first: when, actor (token id, OIDC subject, `local`, or `env` for a token reset from the environment), method, path, status and a one-line summary from the route. `path` matches anywhere and literally, `method` exactly, `status` a code (`404`) or a class (`4xx`). `limit` and `from` must be non-negative integers, or the answer is a `400` saying so. Bodies are never recorded |
 
+### Remote access
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/tunnel` | `{ state, url, since, reason, enabled, sshAvailable, settings }`: `url` and `since` only while `active`, `reason` (with a `code`) only while `failed`, `enabled` false where the deploy does not offer the tunnel (`AGENTRY_TUNNEL`, off in the image) |
+| PUT | `/tunnel/settings` | `{ startWithAgentry }`, off by default. Emits `tunnel.changed` |
+| POST | `/tunnel/start` | Opens the tunnel through localhost.run; `409` while the auth mode is `none` or where `enabled` is false. The address shows, and its exact host joins the allowlist, once `/api/health` answers through it |
+| POST | `/tunnel/stop` | Takes the host off the allowlist and ends `ssh`; turning the auth mode to `none` does it first |
+
 ### Accounts (multi-account)
 
 Several Claude accounts through [claude-swap](https://github.com/realiti4/claude-swap) (`cswap`),
 which owns the credential file, polls each account's 5h/7d/per-model usage and swaps accounts
 under Claude Code's own locks. Without it installed every route answers
 `{"cswap": {"installed": false}, "accounts": []}` and the wrapper stays single-account.
+
+**Where `cswap` comes from.** The Docker image bakes in the version Agentry parses. Anywhere else,
+the first match wins: `CSWAP_BIN`; a `cswap` on the `PATH` whose version Agentry understands; the
+copy Agentry installed itself; and last an incompatible one on the `PATH`, used with a warning.
+The Accounts page installs that copy with one button: a pinned uv, checked against its digest,
+installs the pinned claude-swap (and a Python 3.12 when the system has none) entirely inside the
+data directory, and nothing else on the system is touched. An Agentry update that moves the pin
+upgrades the copy in the background. Removing it keeps the accounts, which live in claude-swap's own
+data directory. `cswap.source`, `cswap.compatible` and `cswap.managed` in `GET /accounts` say which
+binary is in use and how the install is going.
 
 Register each account with a token from `claude setup-token` (there is no interactive login in a
 container). **From the first registered account on, claude-swap owns authentication:** the wrapper
@@ -578,6 +640,8 @@ environment before the credential file.
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/accounts?refresh=1` | Accounts with usage per window, the active one, auto-rotation settings and the rotation log |
+| POST | `/accounts/cswap/install` | Install (or retry, or upgrade) Agentry's own copy of the pinned claude-swap; answers at once with `managed.state: installing`. `409` in the Docker image or with `CSWAP_BIN` |
+| DELETE | `/accounts/cswap` | Remove Agentry's copy of claude-swap; the accounts are kept |
 | POST | `/accounts/switch` | `{ target?, strategy? }` — a slot number, email or alias; without a target it rotates (`best` \| `next-available`) |
 | POST | `/accounts/token` | `{ token, slot?, email? }` — register an account. The token goes to `cswap add-token` over stdin and is never returned |
 | DELETE | `/accounts/:number` | Remove an account |
@@ -707,8 +771,8 @@ event feed. Filters take comma-separated lists: `status`, `type`, `priority`, `l
 | DELETE | `/work-items/:itemId/links/:linkId` | Untie it; the chat, orchestration or file is not touched |
 | GET | `/work-items/:itemId/history` | Every change to the item, oldest first, with who made it and why |
 | POST | `/work-items/:itemId/work` | "Work on it": a chat prompted with the item, in its own worktree on `task/<key>` (made again if it was deleted by hand), with the options a new chat takes, each checked for its type (400). The item enters `in_progress` when a turn starts and `in_review` when one ends well. An epic is refused (400), and so are an item in `done`, one already being worked on and a plain directory where its worktree goes (409) |
-| GET | `/work-items/:itemId/changes` | What the item's branch changed: commits, files and what is not committed yet. The branch is the last chat's or orchestration node's that worked on the item |
-| GET | `/work-items/:itemId/changes/diff?path=` | One file's diff on the item's branch |
+| GET | `/work-items/:itemId/changes` | What the item's branch changed: commits, files and what is not committed yet. The branch is the last chat's or orchestration node's that worked on the item. `?commit=`/`?uncommitted=1` scope it as `/chats/:id/changes` does |
+| GET | `/work-items/:itemId/changes/diff?path=` | One file's diff on the item's branch, with `?context=`, `?commit=` and `?uncommitted=1` as `/chats/:id/changes/diff` takes them |
 | POST | `/chats/:id/work-items` | `{ text, title?, type?, priority? }` — create a task in `backlog` from a chat's message, linked to the chat |
 | GET | `/chats/:id/work-items` | The work items a chat works on or was the origin of |
 | GET | `/milestones/:milestoneId` | One milestone with its progress |
@@ -791,8 +855,9 @@ dismiss.
 | POST | `/chats` | Start a chat. Body: `NewChatRequest` (`prompt` required; `cwd`, `model`, `permissionMode`, `effort`, `appendSystemPrompt`, `allowedTools`, `disallowedTools`, `toolPreset`, `mcp`, `jsonSchema`, `maxBudgetUsd`, `worktree`, `permissionPrompts`, `account`, `attachments`). `toolPreset` (an id from `GET /config/tool-presets`) becomes `--allowedTools` / `--disallowedTools`, and an explicit list wins over the preset's; `mcp: { servers: [...] }` starts the chat with only those servers (`--mcp-config` with `--strict-mcp-config`), an empty list with none. Naming neither tools nor a preset takes the default preset from `GET /config/tool-presets`, and `toolPreset: null` opts out into the CLI's own defaults |
 | GET | `/chats/:id` | The chat with its branches, environment and `health` (`ok`, `warn` or `bad`, each signal with a one-line reason: a command running past 3 min, a working chat silent for 3 min, and facts of the chat such as a failed last execution, a full context or a failed branch), `tools` (the preset and MCP servers it was started with, `null` for a chat Agentry did not configure), and a window of its transcript: the newest 200 entries, or `?limit=` of them, with `from` and `total`; `?before=` the `from` of a page reads the one before it (`?sidechains=1` adds subagent messages) |
 | GET | `/chats/:id/search?q=&sidechains=1` | Search the whole transcript, pages not loaded included: the matching entries' indices (the space of `from`/`total`) with a snippet each, case-insensitive; at most 500, the newest, with `truncated` |
-| GET | `/chats/:id/changes` | What the chat changed on disk: for one in a git worktree its `summary` (branch, base, commits, files with `+/−`, uncommitted files), and for any chat the `touched` files of its `Write`/`Edit`/`NotebookEdit` calls, read from the transcript |
-| GET | `/chats/:id/changes/diff?path=` | The unified diff of one file of a chat in a worktree against its base, uncommitted work included |
+| GET | `/chats/:id/changes` | What the chat changed on disk: for one in a git worktree its `summary` (branch, base, commits, files with `+/−`, uncommitted files, and `working`: every file that differs from the base in the working tree), and for any chat the `touched` files of its `Write`/`Edit`/`NotebookEdit` calls, read from the transcript. `?commit=<sha>` narrows the files to one commit of the branch (400 for any other), `?uncommitted=1` to the working tree against `HEAD` |
+| GET | `/chats/:id/changes/diff?path=` | The unified diff of one file of a chat in a worktree against its base, uncommitted work included. `?context=` sets the unchanged lines around each change (0–500, or `full` for the whole file; `full: true` says it was honoured, never past 20 000 lines), and `?commit=`/`?uncommitted=1` scope it as the summary does |
+| GET | `/chats/:id/changes/steps` | Every successful `Edit`, `MultiEdit`, `Write` and `NotebookEdit` of the chat's main transcript, oldest first, each with its unified patch, its `+/−`, the sentence Claude wrote before it (`intent`) and the transcript entry that holds it (`entryIndex`); a call still waiting for its result is the last step, `pending`, while the chat runs |
 | GET | `/chats/:id/checklist` | The chat's own plan, from its `TaskCreate`/`TaskUpdate`/`TodoWrite` calls: `{ items[{ text, status }], updatedAt }` |
 | GET | `/chats/:id/export?format=markdown\|json` | Download the whole transcript. `markdown` (default) is for reading: cost and models in a header, turns, each tool call folded with its result, subagents left out. `json` is every event, subagents included, nothing cut |
 | GET | `/chats/:id/stream?since=SEQ` | Server-Sent Events, one `RunEvent` per message (honours `Last-Event-ID`). Includes ephemeral `partial` events with the text generated so far (token streaming); they are never replayed |
@@ -893,9 +958,10 @@ optionally a new task list, and records `relaunchedFrom`; the original stays as 
 launches on a new objective and directory and records `templateId`.
 
 **What a worker really did.** A running task shows its branch and base, its commits, the files it
-changed with `+/−` and a diff per file, its uncommitted work, its own checklist (the `TaskCreate` /
+changed with `+/−`, its uncommitted work, its own checklist (the `TaskCreate` /
 `TaskUpdate` / `TodoWrite` calls) and its health, measured from where its own branch was cut. The
-integration branch has the same summary. Changes are announced by a `changes.updated` event, checked
+integration branch has the same summary, and both open the review screen
+(`/orchestration/:id/tasks/:taskId/changes`, `/orchestration/:id/changes`). Changes are announced by a `changes.updated` event, checked
 every 3 s and only while a client listens.
 
 | Method | Route | Description |
@@ -923,11 +989,12 @@ every 3 s and only while a client listens.
 | PATCH | `/orchestrations/templates/:templateId` | `{ name?, description?, spec? }` |
 | DELETE | `/orchestrations/templates/:templateId` | Delete a template; orchestrations launched from it are unaffected |
 | POST | `/orchestrations/templates/:templateId/launch` | `{ objective?, cwd?, name?, model? }` — launch the template on a new objective and directory; recorded as `templateId` |
-| GET | `/orchestrations/:id/tasks/:taskId/changes` | What a task changed: `{ branch, base, ahead, commits[], files[{ path, status, additions, deletions }], uncommitted[] }`, measured from where its branch was cut. Announced by a `changes.updated` event while it runs |
-| GET | `/orchestrations/:id/tasks/:taskId/changes/diff?path=` | The unified diff of one file of the task against its base, uncommitted work included |
+| GET | `/orchestrations/:id/tasks/:taskId/changes` | What a task changed: `{ branch, base, ahead, commits[], files[{ path, status, additions, deletions }], uncommitted[], working[] }`, measured from where its branch was cut, with `?commit=` and `?uncommitted=1` as for a chat. Announced by a `changes.updated` event while it runs |
+| GET | `/orchestrations/:id/tasks/:taskId/changes/diff?path=` | The unified diff of one file of the task against its base, uncommitted work included, with `?context=`, `?commit=` and `?uncommitted=1` as for a chat |
+| GET | `/orchestrations/:id/tasks/:taskId/changes/steps` | The task's edits step by step, read through its chat, as `/chats/:id/changes/steps` |
 | GET | `/orchestrations/:id/tasks/:taskId/checklist` | The worker's own plan, from its `TaskCreate`/`TaskUpdate`/`TodoWrite` calls |
-| GET | `/orchestrations/:id/integration/changes` | The same summary for the integration branch, against the graph's base commit |
-| GET | `/orchestrations/:id/integration/changes/diff?path=` | The unified diff of one file of the integration branch |
+| GET | `/orchestrations/:id/integration/changes` | The same summary for the integration branch, against the graph's base commit, with the same scopes |
+| GET | `/orchestrations/:id/integration/changes/diff?path=` | The unified diff of one file of the integration branch, with the same `?context=` and scopes |
 | DELETE | `/orchestrations/:id` | Delete a graph that is not running, with its worktrees; refused while a worktree holds uncommitted work |
 | POST | `/orchestrations/:id/integrate` | Merge the task branches into the integration branch again: after resolving by hand, or for a graph that predates integration |
 | POST | `/orchestrations/:id/verify` | `{ verification? }` — run the graph's checks (`verification.commands`, then a fixer if asked) on the integration branch, or again after it changed; outcome on `verification`: `passed`, `fixed` or `failed`. Returns at once |
@@ -1023,7 +1090,7 @@ Claude Code precedence is local > project > user.
 | PUT | `/config/tool-presets/default` | `{ defaultPresetId }` — the preset a new chat takes when it names neither `toolPreset` nor `allowedTools` (`toolPreset: null` opts out); `null` clears it |
 | POST | `/config/tool-presets/restore` | Rewrite the three shipped presets as they ship; every other preset and the default are left alone |
 | PUT / DELETE | `/config/tool-presets/:id` | Create, replace or delete a preset — body `{ name, description?, allowedTools, disallowedTools? }` |
-| GET / PUT | `/settings/editor` | Where file links open (`editor.json`): `{ stored, settings: { template, diffCommand?, pathMap? } }`; the `PUT` body is the settings. A template needs a scheme and `{path}`; `javascript:`, `data:`, `vbscript:`, `file:` and `blob:` are refused |
+| GET / PUT | `/settings/app` | Settings that change without a restart (`app-settings.json`): `{ allowedHosts, maxConcurrentRuns, defaultPermissionMode, sources }`, where each source is `env`, `file` or `default`. The `PUT` body names only what changes; a setting the environment set is refused, and so is a pattern such as `*.com`. Emits `settings.changed` |
 | GET / PUT / DELETE | `/config/resources/:kind/:name?project=` | Markdown content (a script for `workflows`, whose `format` is `javascript`) — body `{ content }` |
 
 ### Config file explorer
@@ -1096,18 +1163,19 @@ The claude.ai connectors of the signed-in account, as the CLI reports them. Agen
 
 | Page | What it covers |
 | --- | --- |
-| Home | A dashboard of widgets. With a project selected: **Now** (what waits for a person first — chats stopped for a permission or a question, blocked orchestration tasks, merge conflicts, a command running for long, a missing CLI or credential — each with its action, then every working chat with a ticker of what it is doing), **Quick start** (a prompt that starts a chat in the project, with the model, permission mode, tool preset and MCP servers in one status line), **Limits**, **Orchestrations** (the running ones, or the latest, with a compact stepper and its progress), **Upcoming schedules**, **Pick up again**, **Today** (what the day has cost per model), **Memory** (the project's `CLAUDE.md` excerpt), **Worktrees**, **Resources** (counts per kind) and **Export** (the project's chats as Markdown or JSON). With All projects: Now, Orchestrations, Limits, Pick up again, Today, Upcoming schedules and **Projects** (each one's live count and last activity). The header shows the project's monogram, name, key, template, path, chats and worktrees, with New chat and (Board on) New task. Under it a strip of tabs, each `/?view=…`: Resumen (the dashboard), **Tablero** (`board`, while the Board module is on), **Equipo** (`team`, while the Team module is on: the members with their agent file's state, their columns, write paths and what each does now; a member's page (`&member=`) with its metadata and its agent file in the editor; the flow (`&section=flow`) with its switch, each column's role, the bounce limit and each role's model; and, with nobody on the team, the template's team), **Documentos** (`documents`, while the Documents module is on: the documents folder as a tree, a document rendered or edited (`&doc=`, `&mode=edit`), and the documents tied to tasks with the role that wrote them), **Memoria** (`memory`, while Shared memory is on: the team's memory proposals approved one by one, the project journal, and the CLI's `CLAUDE.md` and memory files), Recursos (`resources`: agents, skills and commands in one view with the assistant's proposals beside them, **Suggest** and **Create with AI** (`&ai=1`), each proposal opened in the editor unsaved (`&proposal=`) so saving it accepts it; then output styles, rules and saved workflows, each workflow with a **Run** button), Worktrees and Ajustes (`settings`: name, key prefix, modules, the board's column limits, removing the project, then Claude Code's settings). The widgets open them too; an address naming a hidden tab lands on Resumen, and old `?tab=` links redirect there. On a phone the tabs are a card of cells, each its own screen |
-| Tasks | The board of the selected project (`/tasks`), or of every project with All projects. Five fixed columns with their counts and optional limits (over one: the warn colour and "Over the limit: 4 of 3", never refused); cards with key, type, priority, title, epic, labels, assignee, checklist progress and blockers, and the live rail, spinner and what the agent is doing while a chat or orchestration node works on the item. Drag a card, or move it with the keyboard (Space, arrows, Space); search, filters by type, priority, label, assignee, epic and milestone kept in the address, and **Select** to hand a selection to the orchestration editor as a draft with its dependencies. `?view=list` is the list grouped by column; `/tasks/milestones` the milestones with their progress, open and closed, without dates. A card opens its item in a panel beside the board (`?item=KEY`); `/tasks/:key` is its page: every field edited in place, the Markdown description, the acceptance checklist with who checked each entry, relations, linked chats and orchestrations, the changes on its branch, and the activity with comments. **Work on it** starts a chat on the item with New chat's options; **Move to Done** is the person's approval. With the Team module on, each column shows the role that answers for it under the flow, a card names the member at work on it and its bounces, a task can be assigned to a role, and a task shows its tied documents and what it waits for from the person (QA's pass, or its last bounce) with the move that ends it. **New task** (`?new=1`, `N`) is a dialog, a full screen on a phone. **Suggest tasks** (`?suggest=1`) has the project assistant read the project and propose work items, each with its reason, created in Backlog one by one as the person selects them; closing it leaves the run going. On a phone the board is one list with a jump between columns, a move sheet per card and the filters in a sheet |
+| Home | A dashboard of widgets. With a project selected: **Now** (what waits for a person first — chats stopped for a permission or a question, blocked orchestration tasks, merge conflicts, a command running for long, a missing CLI or credential — each with its action, then every working chat with a ticker of what it is doing), **Limits**, **Orchestrations** (the running ones, or the latest, with a compact stepper and its progress), **Upcoming schedules**, **Pick up again**, **Today** (what the day has cost per model), **Memory** (the project's `CLAUDE.md` excerpt), **Worktrees**, **Resources** (counts per kind) and **Export** (the project's chats as Markdown or JSON). With All projects: Now, Orchestrations, Limits, Pick up again, Today, Upcoming schedules and **Projects** (each one's live count and last activity). The header shows the project's monogram, name, key, template, path, chats and worktrees, with New chat and (Board on) New task. Under it a strip of tabs, each `/?view=…`: Resumen (the dashboard), **Tablero** (`board`, while the Board module is on), **Equipo** (`team`, while the Team module is on: the members with their agent file's state, their columns, write paths and what each does now; a member's page (`&member=`) with its metadata and its agent file in the editor; the flow (`&section=flow`) with its switch, each column's role, the bounce limit and each role's model; and, with nobody on the team, the template's team), **Documentos** (`documents`, while the Documents module is on: the documents folder as a tree, a document rendered or edited (`&doc=`, `&mode=edit`), and the documents tied to tasks with the role that wrote them), **Memoria** (`memory`, while Shared memory is on: the team's memory proposals approved one by one, the project journal, and the CLI's `CLAUDE.md` and memory files), Recursos (`resources`: agents, skills and commands in one view with the assistant's proposals beside them, **Suggest** and **Create with AI** (`&ai=1`), each proposal opened in the editor unsaved (`&proposal=`) so saving it accepts it; then output styles, rules and saved workflows, each workflow with a **Run** button), Worktrees and Ajustes (`settings`: name, key prefix, modules, the board's column limits, removing the project, then Claude Code's settings). The widgets open them too; an address naming a hidden tab lands on Resumen, and old `?tab=` links redirect there. On a phone the tabs are a card of cells, each its own screen |
+| Tasks | The board of the selected project (`/tasks`), or of every project with All projects. Five fixed columns with their counts and optional limits (over one: the warn colour and "Over the limit: 4 of 3", never refused); cards with key, type, priority, title, epic, labels, assignee, checklist progress and blockers, and the live rail, spinner and what the agent is doing while a chat or orchestration node works on the item. Drag a card, or move it with the keyboard (Space, arrows, Space); search, filters by type, priority, label, assignee, epic and milestone kept in the address and, per project until Reset, in the browser, like every list, and **Select** to hand a selection to the orchestration editor as a draft with its dependencies. `?view=list` is the list grouped by column; `/tasks/milestones` the milestones with their progress, open and closed, without dates. A card opens its item in a panel beside the board (`?item=KEY`); `/tasks/:key` is its page: every field edited in place, the Markdown description, the acceptance checklist with who checked each entry, relations, linked chats and orchestrations, the changes on its branch (each file, and **Review the changes**, opening the review screen), and the activity with comments. **Work on it** starts a chat on the item with New chat's options; **Move to Done** is the person's approval. With the Team module on, each column shows the role that answers for it under the flow, a card names the member at work on it and its bounces, a task can be assigned to a role, and a task shows its tied documents and what it waits for from the person (QA's pass, or its last bounce) with the move that ends it. **New task** (`?new=1`, `N`) is a dialog, a full screen on a phone. **Suggest tasks** (`?suggest=1`) has the project assistant read the project and propose work items, each with its reason, created in Backlog one by one as the person selects them; closing it leaves the run going. On a phone the board is one list with a jump between columns, a move sheet per card and the filters in a sheet |
 | Chats | Every conversation in one list, whoever started it, grouped by day (Today, Yesterday, This week, Earlier) when sorted by activity. A toolbar with state tabs and their counts (All, Working, Waiting for you, Idle), search, sort and **Filters** (origin, project, model, orchestration workers, housekeeping chats), each filter in force shown as a removable chip. Each row takes two lines: a state rail and word, the title and the time; then the first prompt — or, while it works, what it is doing now — its origin and project and at most two tags (a control that is not the default, a fork or a worktree), with a context ring and the cost on the right. Select several with `x` or their checkbox to export them as Markdown or delete them with one confirmation; a chat with something running on it is skipped and named |
-| Chat | One conversation, live over SSE. A one-line header: title, one pill for its state, who controls it and the stream (`Working · live`), its checklist as `▰▰▱ 1/3`, search, **Stop ▾** (with Interrupt) while it works and a ⋯ menu with Export Markdown/JSON, Fork, Subagent messages, Copy id and Delete; on a phone search and Interrupt move into the ⋯ menu, Stop keeps only its icon and ⓘ opens the inspector. The transcript shows the author only when it changes, folds consecutive tool calls into one **step** ("7 tools · 42 s", open with a live rail while it runs), and replaces "working…" with a ticker of what the agent is doing (`Running npm test`, `Editing src/app.ts`). A `Task` call opens its subagent's transcript in a side panel, like background tasks and workflows (`?detail=…`: prompt, status, duration, tokens, transcript and result, updating while it runs). The composer is one pill with a status line under it (`model · mode · preset · MCP`) that opens the permission mode, model, tool preset and MCP servers; while the agent works and the box is empty, send becomes interrupt. The **inspector** is a drawer on the right: folded, it is a rail with its toggle and one button per tab; open, it is docked beside the transcript from 1100 px (remembered open or folded) and slides over the chat from 900 px; on a phone it is a sheet. It has four tabs: Summary (context, cost, facts, id), Activity (the checklist as steps, executions), Changes (a worktree's commits and files with `+/−`, or the files its own tool calls wrote, and a diff per file) and Environment (branches, **health** with the actions that fit the signal — cancel the command, send a hint, interrupt, and the supervisor's proposed hint when it is on — tools, servers and environment). What it can do follows its control: send, interrupt, resume, or continue in a copy. On a phone the page is the screen's height, with the composer following the on-screen keyboard. New chat puts the prompt first and the directory, model, mode, system prompt, account and tools under **Advanced options**. `?prompt=<id>` scrolls to a permission prompt. A message's menu (a sheet on a phone) copies it or creates a task from it in Backlog; a chat that works on a task names it under its header, the whole row a link, and the inspector's Summary shows its card |
+| Chat | One conversation, live over SSE. A one-line header: title, one pill for its state, who controls it and the stream (`Working · live`), its checklist as `▰▰▱ 1/3`, search, **Stop ▾** (with Interrupt) while it works and a ⋯ menu with Export Markdown/JSON, Fork, Subagent messages, Copy id and Delete; on a phone search and Interrupt move into the ⋯ menu, Stop keeps only its icon and ⓘ opens the inspector. The transcript shows the author only when it changes, folds consecutive tool calls into one **step** ("7 tools · 42 s", open with a live rail while it runs), and replaces "working…" with a ticker of what the agent is doing (`Running npm test`, `Editing src/app.ts`). A `Task` call opens its subagent's transcript in a side panel, like background tasks and workflows (`?detail=…`: prompt, status, duration, tokens, transcript and result, updating while it runs). The composer is one pill with a status line under it (`model · mode · preset · MCP`) that opens the permission mode, model, tool preset and MCP servers; while the agent works and the box is empty, send becomes interrupt. The **inspector** is a drawer on the right: folded, it is a rail with its toggle and one button per tab; open, it is docked beside the transcript from 1100 px (remembered open or folded) and slides over the chat from 900 px; on a phone it is a sheet. It has four tabs: Summary (context, cost, facts, id), Activity (the checklist as steps, executions), Changes (a compact summary: the totals, branch and commits, a change fingerprint, one line per file with `+/−`, the latest edit and why it was made, and **Review the changes**) and Environment (branches, **health** with the actions that fit the signal — cancel the command, send a hint, interrupt, and the supervisor's proposed hint when it is on — tools, servers and environment). What it can do follows its control: send, interrupt, resume, or continue in a copy. On a phone the page is the screen's height, with the composer following the on-screen keyboard. New chat puts the prompt first and the directory, model, mode, system prompt, account and tools under **Advanced options**. `?prompt=<id>` scrolls to a permission prompt. A message's menu (a sheet on a phone) copies it or creates a task from it in Backlog; a chat that works on a task names it under its header, the whole row a link, and the inspector's Summary shows its card |
 | Projects | The management screen, with search and sort (recent activity, name, most chats), each card with its key and its modules: rename, remove (harmless) or purge what Claude Code keeps about it (irreversible). **New project** opens the wizard (`/projects/new`): a local directory, a repository to clone or a new directory in the workspace, one of five templates, the module switches it preselected, and a summary with the key prefix and **Propose team, resources and tasks** (on for every template but Simple), which hands the new project to its assistant; on a phone, one step per screen. On a first start with none imported it offers the directories holding the most chats, each opening the wizard |
 | Assistant | `/projects/:id/assistant`, reached from the wizard and from the empty Team's **Ask for a proposal**: while the run reads, what it has read with a spinner and **Stop**; then the proposed team, resources and first tasks in three sections, each proposal with its reason, accepted or discarded on its own (**Review** opens a resource in the project's Resources tab). A project with nothing to read starts no chat, offers the template's team and asks what the project is for, which proposes the first tasks. The run's model, time, cost and chat, and **Suggest again**. On a phone, without the tab bar |
 | Orchestration | Auto-planned or manual task DAG. The list has status tabs with counts (All, Live, Completed, Failed, Stopped), search, sort and a **Templates** tab (`?tab=templates`); each row carries a segmented progress bar and, while it runs, the stage and what its task is doing. A graph's page pins a summary (status, live clock, cost, progress of its tasks, and Stop or **Edit and relaunch** with the rest in a ⋯ menu), folds the objective to three lines, and follows it as **steps**: its stages, then integration, verification, synthesis and the pull request, each with its state. The page follows the step that is happening; picking another pins it (`?step=`) and offers "Back to live". A stage's tasks show their live rail, what they are doing, duration, cost and attempts; a task's name opens its chat beside the page (`?detail=chat:<id>`). `?view=graph` is the board by stage, scrolling inside its own box, with connectors that flow into the running stage. On a phone the steps are a vertical timeline. Each task has a **Work** panel (`?task=<id>`: what it runs now, its health, checklist and changes) and, on a finished graph on the graph engine, **Re-run**. **Edit and relaunch** a graph, **templates** (save, launch on a new objective and directory, edit, delete), per-task and per-graph time and cost limits, and a **verification** card with each command's output, the install step, what the fixer spent against its limit and its commits, before the pull request; a graph its checks failed says so at the top and is offered no pull request. The integration card has the merged branch's changes. A draft handed over by the Tasks board opens in the editor with each node showing its task's key and the blockers left outside the selection as a warning; on a graph's page, a node linked to a task links to it by its key |
+| Changes | The review screen of a chat (`/chats/:id/changes`), a task (`/orchestration/:id/tasks/:taskId/changes`), the integration branch (`/orchestration/:id/changes`) or a work item's own branch (`/tasks/:key/changes`, by its result alone: several chats may have worked on it), opened from the compact summary. **Result** is the net change file by file: a header with the branch, base, counts, the scope (all the work, one commit, not committed yet) and a change fingerprint; a file map by directory with seen, not committed and the file being edited now; and the file's diff in **Reading** (the default: the file as it is now, removed lines folded into a pill on the rail), **Unified** or **Side by side** (from 1100 px), with the intent of the latest step that touched it and a block rail. **Step by step** lists every edit of the transcript with its patch and the sentence Claude wrote before it, and links to that place in the conversation (`/chats/:id?at=`). Keys: `j`/`k` blocks, `n`/`p` files, `v` seen, `m` mode, `o` open the removed lines, `[` the map, `/` filter, `←`/`→` steps. Deep links: `?file=`, `?mode=`, `?scope=`, `?lens=steps`, `?step=`. The mode and what was seen stay in the browser. On a phone the files are cells and each file is a screen of its own |
 | Accounts | Registered accounts with 5h/7d (and per-model) usage, manual switch, add/remove, enable/disable, auto-rotation settings and the rotation log. Per account, an optional **config directory**; **rotation policies** per project (or for the chats without one); and a **usage history** chart per account and window with the auto-switch threshold |
 | Schedules | Recurring chats and orchestrations, with search and All/On/Off tabs: each schedule with its cron expression in words, when it fires next and when it last ran, on/off, **Run now**, edit, delete, and a run history behind it (when, result, what it started or the error; a slot the overlap policy skipped or queued is tagged as such). The cron builder offers every few minutes to monthly or a custom expression, previews the next five fires as you type, and says that a window missed while Agentry was down is skipped, not replayed. A schedule is created and edited on a page of its own (`/schedules/new`, `/schedules/:id/edit`). The form sets what happens when a slot arrives while the last run is still going, and can be filled from an orchestration that already ran |
 | Usage | Cost, tokens or chats over time, per day or week, for 7, 30 or 90 days, all time or a range picked from a calendar of Agentry's own (typed dates still work); by project and by model, with the selected project's chats offered as a download. An SVG chart with the same figures as a table, a text readout and a screen-reader description. A cost the CLI never reported reads "Not reported", never `$0.00` |
 | Connectors | The claude.ai connectors (Docs, Gmail, Calendar) the CLI can see, with their status and prepared prompts that start a chat, what to do to authorise one, and a sentence on what has no CLI surface (web artifacts, claude.ai memory) |
-| Settings | User scope only, as tabs: **Appearance** (theme, language and motion, the tab `/settings` opens on), Account (with the Claude Code version card: in use, pinned, newest published, check now), Instructions, Settings (guided editor + raw JSON), MCP servers (guided form, scopes, connection checks), Agents, Skills, Commands, Output styles, Rules, a file explorer for everything else (hook scripts, skill files, keybindings…), Memory (where each project's memory is), Plugins (installed plugins, marketplace search and install, marketplaces), **Tool presets** (named allowed and disallowed tool sets, which one a chat with no preset takes, and restoring the shipped ones), **Notifications** (what is worth telling you about, the switch that pushes it to this device with Agentry closed, and every install registered for push, with a test and a way to remove any), **Install** (adding Agentry to this device's home screen), **Supervisor** (off by default: the model, what it may spend and whether it sends its hint on its own), **Security** (auth mode, token, OIDC, read-only, and an audit log narrowed by path, method and status) and **Editor** (link template for your editor, an optional `code --diff` command, container-to-host path rows; kept on the server, so every browser builds the same link — an older browser's copy is moved there once). Everything that belongs to one project lives on its page instead |
+| Settings | User scope only, as tabs: **Appearance** (theme, language and motion, the tab `/settings` opens on), Account (with the Claude Code version card: in use, pinned, newest published, check now), Instructions, Settings (guided editor + raw JSON), MCP servers (guided form, scopes, connection checks), Agents, Skills, Commands, Output styles, Rules, a file explorer for everything else (hook scripts, skill files, keybindings…), Memory (where each project's memory is), Plugins (installed plugins, marketplace search and install, marketplaces), **Tool presets** (named allowed and disallowed tool sets, which one a chat with no preset takes, and restoring the shipped ones), **Notifications** (what is worth telling you about, the switch that pushes it to this device with Agentry closed, and every install registered for push, with a test and a way to remove any), **Install** (adding Agentry to this device's home screen), **Supervisor** (off by default: the model, what it may spend and whether it sends its hint on its own) and **Security** (auth mode, token, OIDC, read-only, and an audit log narrowed by path, method and status). Everything that belongs to one project lives on its page instead |
 
 Across the app:
 
@@ -1200,8 +1268,8 @@ Across the app:
   to its side panel, and a finished workflow to the agent that ended it.
   **Web Push** carries the same news to a device whose Agentry is closed: Settings → Notifications
   registers this install with the server, which decides what is worth sending with the same function
-  the browser runs on the same event. A visible window shows its toast and no push, so nothing
-  arrives twice. It needs a secure origin, and on iPhone an installed app — see
+  the browser runs on the same event. A focused window shows its toast and no push, so nothing
+  arrives twice (except on iOS, which must show every push). It needs a secure origin, and on iPhone an installed app — see
   [On a phone](#on-a-phone).
 - **Execution detail**: a subagent, a background task or a workflow agent opens in a side panel — prompt,
   type, status, duration, tokens, the full transcript, the result and, for a subagent, the tasks it
@@ -1210,11 +1278,6 @@ Across the app:
   transcript, with a link to the full chat. It
   follows the agent or the command's output while it runs, and it is part of the URL (`?detail=…`), so a
   reload or a link brings it back.
-- **Editor links**: the worktree of a chat or task, each changed file and each changed line (from the
-  diff's hunk headers) link into your editor through a template (`vscode://file/{path}:{line}` by
-  default; Cursor, Windsurf or JetBrains fit too). Where Agentry runs in a container, rows map its
-  paths to the host's. The template, the diff command and those rows live on the server, so every
-  browser builds the same link. A browser cannot run `code --diff`, so that button copies the command.
 - **Installable**: a web app manifest and a service worker make Agentry an app on a phone or a
   desktop — its own icon, a standalone window and a shell that paints before the server answers. The
   worker caches that shell and nothing else: `/api`, `/docs` and `/openapi.json` are left to the
@@ -1286,6 +1349,12 @@ interactive `claude` session (`/mcp`) or in claude.ai's connector settings: Agen
   who holds it, so every device that turned push on is sent the same notifications, whoever the chat
   was started by, and anyone who can reach Settings can test or remove another device's registration.
   Turning it on on a shared phone tells whoever is holding it that a chat is waiting.
+- The tunnel goes through one provider, localhost.run, which terminates TLS and so sees every
+  request, the bearer token and the five `?token=` URLs included. Its free address changes from time
+  to time; each new one is a new site for a phone, which signs in again there, and an app installed
+  from an old address keeps opening that one. Notifications follow the current address on Chrome;
+  on iOS that is not verified. localhost.run passes no client address, so every stranger behind the
+  tunnel shares one failed-login wait, and can make your phone wait with them.
 - A subscription token is meant for your own individual use; use an API key for anything
   shared or multi-user.
 - Switching accounts rewrites the shared credential file: runs already in flight keep the account

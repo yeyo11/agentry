@@ -299,5 +299,10 @@
     "createdDetail": "Enlazada a este chat",
     "openTask": "Abrir",
     "createFailed": "No se ha podido crear la tarea"
+  },
+  "edits": {
+    "label": "Archivos que editó este paso",
+    "chip": "{{file}}: ver este paso",
+    "chipCounts": "{{file}}, {{additions}} líneas añadidas y {{deletions}} quitadas: ver este paso"
   }
 }

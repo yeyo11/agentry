@@ -9,12 +9,16 @@ import type {
   ApiError,
   AuditFilter,
   AuditPage,
+  AppSettings,
   AuthConfig,
   AuthMode,
   AuthStatus,
   AuthTokenResult,
   SetAuthTokenRequest,
   UpdateAuthConfigRequest,
+  UpdateAppSettingsRequest,
+  TunnelStatus,
+  UpdateTunnelSettingsRequest,
   AuthVerification,
   AutoSwitchEvent,
   AutoSwitchSettings,
@@ -23,6 +27,7 @@ import type {
   CancelCommandRequest,
   CancelCommandResult,
   ChangeSummary,
+  CswapInfo,
   ChatChanges,
   Checklist,
   ChatBackgroundTask,
@@ -45,6 +50,8 @@ import type {
   LaunchOrchestrationTemplateRequest,
   CreateProjectRequest,
   FileDiff,
+  DiffContext,
+  EditStep,
   CreateScheduleRequest,
   ExportFormat,
   ForkChatRequest,
@@ -102,10 +109,8 @@ import type {
   SwitchAccountRequest,
   SwitchResult,
   SettingsDoc,
-  EditorSettingsDoc,
   SupervisorConfig,
   SupervisorProposal,
-  UpdateEditorSettingsRequest,
   UpdateSupervisorConfigRequest,
   RunWorkflowRequest,
   WorkflowDefinition,
@@ -167,6 +172,7 @@ import type {
 import i18n from './i18n';
 import { authHeaders, setChallenge, withToken } from './lib/auth';
 import { RUN_TAG } from './lib/chat-pages';
+import { accountsRefetchInterval, normalizeCswap } from './lib/cswap';
 import { useFallbackInterval } from './lib/feed';
 import { filterKey, normalizeKey, openCount } from './lib/work-items';
 
@@ -232,6 +238,9 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
     if (err instanceof DOMException && err.name === 'TimeoutError') {
       throw new ApiRequestError(i18n.t('common:requestTimeout'), 408);
     }
+    // fetch rejects with a bare TypeError ("Failed to fetch", "NetworkError…") when no answer came
+    // back at all: the browser's wording, in the browser's language, and nothing a person can act on
+    if (err instanceof TypeError) throw new ApiRequestError(i18n.t('common:networkError'), 0, err.message);
     throw err;
   }
   const text = await res.text();
@@ -246,7 +255,10 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
     // The guard refused the credential: every page is about to fail the same way, so the app
     // shows one sign-in screen instead of an error on each of them
     if (res.status === 401) setChallenge(err?.mode ?? 'token');
-    throw new ApiRequestError(err?.error ?? `HTTP ${res.status} ${res.statusText}`, res.status, err?.detail);
+    // No JSON error means Agentry did not write this answer (a proxy's or a tunnel's page): say so in
+    // the person's language and keep the status line as the detail
+    if (!err?.error) throw new ApiRequestError(i18n.t('common:httpError', { status: res.status }), res.status, `HTTP ${res.status} ${res.statusText}`.trim());
+    throw new ApiRequestError(err.error, res.status, err.detail);
   }
   return json as T;
 }
@@ -311,6 +323,21 @@ async function workItemByKey(key: string, o: ReadOptions = {}): Promise<WorkItem
   const found = await request<WorkItem[]>(`/work-items${qs({ q: wanted })}`, o);
   return found.find((item) => item.key.toUpperCase() === wanted) ?? null;
 }
+
+/** Which part of a branch's work a change summary or diff is about; neither means all of it. */
+export interface ChangeScope {
+  commit?: string;
+  uncommitted?: boolean;
+}
+
+export interface DiffOptions extends ChangeScope {
+  context?: DiffContext;
+}
+
+const scopeQs = (scope: ChangeScope, extra: Record<string, string | undefined> = {}) =>
+  qs({ ...extra, commit: scope.commit, uncommitted: scope.uncommitted ? '1' : undefined });
+const diffQs = (path: string, opts: DiffOptions) =>
+  scopeQs(opts, { path, context: opts.context === undefined ? undefined : String(opts.context) });
 
 const scoped = (scope: Scope, variant?: ConfigFileVariant) =>
   qs({ project: scope.projectId, variant: scope.projectId ? variant : undefined });
@@ -447,14 +474,18 @@ export const api = {
   hintOrchestrationTask: (id: string, taskId: string, req: TaskHintRequest) =>
     request<Orchestration>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/hint`, { method: 'POST', body: req }),
   // What a worker changed on disk, and the plan it kept for itself (see docs: agent observability)
-  taskChanges: (id: string, taskId: string) => request<ChangeSummary>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/changes`),
-  taskDiff: (id: string, taskId: string, path: string) =>
-    request<FileDiff>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/changes/diff${qs({ path })}`),
+  taskChanges: (id: string, taskId: string, scope: ChangeScope = {}) =>
+    request<ChangeSummary>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/changes${scopeQs(scope)}`),
+  taskDiff: (id: string, taskId: string, path: string, opts: DiffOptions = {}) =>
+    request<FileDiff>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/changes/diff${diffQs(path, opts)}`),
+  taskSteps: (id: string, taskId: string) => request<EditStep[]>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/changes/steps`),
   taskChecklist: (id: string, taskId: string) => request<Checklist>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/checklist`),
-  integrationChanges: (id: string) => request<ChangeSummary>(`/orchestrations/${enc(id)}/integration/changes`),
-  integrationDiff: (id: string, path: string) => request<FileDiff>(`/orchestrations/${enc(id)}/integration/changes/diff${qs({ path })}`),
-  chatChanges: (id: string) => request<ChatChanges>(`/chats/${enc(id)}/changes`),
-  chatDiff: (id: string, path: string) => request<FileDiff>(`/chats/${enc(id)}/changes/diff${qs({ path })}`),
+  integrationChanges: (id: string, scope: ChangeScope = {}) => request<ChangeSummary>(`/orchestrations/${enc(id)}/integration/changes${scopeQs(scope)}`),
+  integrationDiff: (id: string, path: string, opts: DiffOptions = {}) =>
+    request<FileDiff>(`/orchestrations/${enc(id)}/integration/changes/diff${diffQs(path, opts)}`),
+  chatChanges: (id: string, scope: ChangeScope = {}) => request<ChatChanges>(`/chats/${enc(id)}/changes${scopeQs(scope)}`),
+  chatDiff: (id: string, path: string, opts: DiffOptions = {}) => request<FileDiff>(`/chats/${enc(id)}/changes/diff${diffQs(path, opts)}`),
+  chatSteps: (id: string) => request<EditStep[]>(`/chats/${enc(id)}/changes/steps`),
   chatChecklist: (id: string) => request<Checklist>(`/chats/${enc(id)}/checklist`),
   hintChat: (id: string, req: HintRequest) => request<ChatSummary>(`/chats/${enc(id)}/hint`, { method: 'POST', body: req }),
   // A task's proposal goes through its task's routes, so the hint reaches it the way a task's hint does
@@ -512,8 +543,6 @@ export const api = {
   deleteToolPreset: (id: string) => request<{ ok: true }>(`/config/tool-presets/${enc(id)}`, { method: 'DELETE' }),
   supervisorConfig: (o: ReadOptions = {}) => request<SupervisorConfig>('/settings/supervisor', o),
   putSupervisorConfig: (config: UpdateSupervisorConfigRequest) => request<SupervisorConfig>('/settings/supervisor', { method: 'PUT', body: config }),
-  editorSettings: (o: ReadOptions = {}) => request<EditorSettingsDoc>('/settings/editor', o),
-  putEditorSettings: (settings: UpdateEditorSettingsRequest) => request<EditorSettingsDoc>('/settings/editor', { method: 'PUT', body: settings }),
   resources: (scope: Scope, kind: ResourceKind) =>
     request<ConfigResource[]>(`/config/resources/${kind}${scoped(scope)}`),
   resource: (scope: Scope, kind: ResourceKind, name: string) =>
@@ -533,10 +562,15 @@ export const api = {
     request<ConfigFileContent>('/config/files/content', { method: 'PUT', body: req }),
   deleteFile: (root: string, path: string) =>
     request<{ ok: true }>(`/config/files/content${qs({ root, path })}`, { method: 'DELETE' }),
-  accounts: (refresh = false, o?: ReadOptions) => request<AccountsOverview>(`/accounts${qs({ refresh: refresh ? '1' : '' })}`, o),
+  accounts: (refresh = false, o?: ReadOptions) =>
+    request<AccountsOverview>(`/accounts${qs({ refresh: refresh ? '1' : '' })}`, o).then((overview) => ({ ...overview, cswap: normalizeCswap(overview.cswap) })),
   switchAccount: (body: SwitchAccountRequest) => request<SwitchResult>('/accounts/switch', { method: 'POST', body }),
   addAccount: (body: AddAccountTokenRequest) => request<AccountsOverview>('/accounts/token', { method: 'POST', body }),
   removeAccount: (number: number) => request<{ ok: true }>(`/accounts/${number}`, { method: 'DELETE' }),
+  /** Starts Agentry's own install of claude-swap; it goes on in the background and `accounts()` follows it */
+  installCswap: () => request<CswapInfo>('/accounts/cswap/install', { method: 'POST' }).then(normalizeCswap),
+  /** Removes the copy of claude-swap Agentry installed; the accounts are kept */
+  removeCswap: () => request<CswapInfo>('/accounts/cswap', { method: 'DELETE' }).then(normalizeCswap),
   accountEvents: (limit = 500, o?: ReadOptions) => request<AutoSwitchEvent[]>(`/accounts/events${qs({ limit: String(limit) })}`, o),
   setAccountEnabled: (number: number, enabled: boolean) =>
     request<{ ok: true }>(`/accounts/${number}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' }),
@@ -549,6 +583,13 @@ export const api = {
   /** The only answer that ever carries the token; it cannot be read back afterwards. */
   setSecurityToken: (body: SetAuthTokenRequest = {}) => request<AuthTokenResult>('/security/token', { method: 'POST', body }),
   clearSecurityToken: () => request<AuthConfig>('/security/token', { method: 'DELETE' }),
+  /** The settings that change at runtime; a key the environment set is refused, so send only what changed */
+  appSettings: (o: ReadOptions = {}) => request<AppSettings>('/settings/app', o),
+  updateAppSettings: (body: UpdateAppSettingsRequest) => request<AppSettings>('/settings/app', { method: 'PUT', body }),
+  tunnel: (o: ReadOptions = {}) => request<TunnelStatus>('/tunnel', o),
+  updateTunnelSettings: (body: UpdateTunnelSettingsRequest) => request<TunnelStatus>('/tunnel/settings', { method: 'PUT', body }),
+  startTunnel: () => request<TunnelStatus>('/tunnel/start', { method: 'POST' }),
+  stopTunnel: () => request<TunnelStatus>('/tunnel/stop', { method: 'POST' }),
   audit: (page: AuditFilter & { limit?: number; from?: number } = {}) =>
     request<AuditPage>(`/audit${qs({ limit: num(page.limit), from: num(page.from), path: page.path, method: page.method, status: page.status })}`),
   setAccountConfig: (number: number, body: UpdateAccountConfigRequest) =>
@@ -607,8 +648,8 @@ export const api = {
   /** "Work on it": a chat in the item's own worktree, prompted with the item; the page opens `chat.id` */
   workOnWorkItem: (itemId: string, req: WorkOnWorkItemRequest = {}) =>
     request<WorkOnWorkItemResult>(`/work-items/${enc(itemId)}/work`, { method: 'POST', body: req }),
-  workItemChanges: (itemId: string, o?: ReadOptions) => request<WorkItemChanges>(`/work-items/${enc(itemId)}/changes`, o),
-  workItemDiff: (itemId: string, path: string) => request<FileDiff>(`/work-items/${enc(itemId)}/changes/diff${qs({ path })}`),
+  workItemChanges: (itemId: string, scope: ChangeScope = {}, o?: ReadOptions) => request<WorkItemChanges>(`/work-items/${enc(itemId)}/changes${scopeQs(scope)}`, o),
+  workItemDiff: (itemId: string, path: string, opts: DiffOptions = {}) => request<FileDiff>(`/work-items/${enc(itemId)}/changes/diff${diffQs(path, opts)}`),
   /** A draft for the orchestration editor to review, not a launched graph: `createOrchestration` launches it */
   orchestrateWorkItems: (projectId: string, req: OrchestrateWorkItemsRequest) =>
     request<WorkItemOrchestrationDraft>(`/projects/${enc(projectId)}/work-items/orchestrate`, { method: 'POST', body: req }),
@@ -700,6 +741,12 @@ export const keys = {
   chat: (id: string, sidechains: boolean) => ['chat', id, sidechains] as const,
   /** The pages of a chat read back from its newest one, kept across visits */
   chatEarlier: (id: string, sidechains: boolean) => ['chat', id, sidechains, RUN_TAG] as const,
+  // A chat's changes sit under its scope: `changes.updated` never names a chat, but its own events
+  // (and the panel's timer while it works) refresh everything there
+  chatChanges: (id: string, scope: ChangeScope = {}) => ['chat', id, 'changes', scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,
+  chatDiff: (id: string, path: string, opts: DiffOptions = {}) =>
+    ['chat', id, 'changes', 'diff', path, String(opts.context ?? ''), opts.commit ?? '', opts.uncommitted ? 'uncommitted' : ''] as const,
+  chatSteps: (id: string) => ['chat', id, 'changes', 'steps'] as const,
   usage: (range: { from?: string; to?: string }) => ['usage', range.from ?? '', range.to ?? ''] as const,
   usageSeries: (range: UsageRange, bucket: UsageBucket) => ['usage', 'series', range.from ?? '', range.to ?? '', bucket] as const,
   usageBreakdown: (range: UsageRange) => ['usage', 'breakdown', range.from ?? '', range.to ?? ''] as const,
@@ -721,6 +768,16 @@ export const keys = {
   planDrafts: ['orchestrations', 'plans'] as const,
   chatPermissions: (id: string) => ['chat', id, 'permissions'] as const,
   orchestration: (id: string) => ['orchestration', id] as const,
+  // A task's and the integration branch's changes sit under the graph, which `changes.updated` refreshes
+  taskChanges: (id: string, taskId: string, scope: ChangeScope = {}) =>
+    ['orchestration', id, 'changes', 'task', taskId, scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,
+  taskDiff: (id: string, taskId: string, path: string, opts: DiffOptions = {}) =>
+    ['orchestration', id, 'changes', 'task', taskId, 'diff', path, String(opts.context ?? ''), opts.commit ?? '', opts.uncommitted ? 'uncommitted' : ''] as const,
+  taskSteps: (id: string, taskId: string) => ['orchestration', id, 'changes', 'task', taskId, 'steps'] as const,
+  integrationChanges: (id: string, scope: ChangeScope = {}) =>
+    ['orchestration', id, 'changes', 'integration', scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,
+  integrationDiff: (id: string, path: string, opts: DiffOptions = {}) =>
+    ['orchestration', id, 'changes', 'integration', 'diff', path, String(opts.context ?? ''), opts.commit ?? '', opts.uncommitted ? 'uncommitted' : ''] as const,
   settings: (scope: Scope, variant: ConfigFileVariant) =>
     ['config', 'settings', scope.projectId ?? 'user', variant] as const,
   instructions: (scope: Scope, variant: ConfigFileVariant) =>
@@ -728,7 +785,6 @@ export const keys = {
   mcp: (scope: Scope) => ['config', 'mcp', scope.projectId ?? 'user'] as const,
   toolPresets: ['config', 'tool-presets'] as const,
   supervisor: ['settings', 'supervisor'] as const,
-  editor: ['settings', 'editor'] as const,
   resources: (scope: Scope, kind: ResourceKind) => ['config', 'resources', scope.projectId ?? 'user', kind] as const,
   fileRoots: ['config', 'files', 'roots'] as const,
   fileTree: (root: string) => ['config', 'files', 'tree', root] as const,
@@ -772,8 +828,9 @@ export const keys = {
   workItemComments: (itemId: string) => ['work-item', itemId, 'comments'] as const,
   workItemHistory: (itemId: string) => ['work-item', itemId, 'history'] as const,
   workItemLinks: (itemId: string) => ['work-item', itemId, 'links'] as const,
-  workItemChanges: (itemId: string) => ['work-item', itemId, 'changes'] as const,
-  workItemDiff: (itemId: string, path: string) => ['work-item', itemId, 'changes', 'diff', path] as const,
+  workItemChanges: (itemId: string, scope: ChangeScope = {}) => ['work-item', itemId, 'changes', scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,
+  workItemDiff: (itemId: string, path: string, opts: DiffOptions = {}) =>
+    ['work-item', itemId, 'changes', 'diff', path, String(opts.context ?? ''), opts.commit ?? '', opts.uncommitted ? 'uncommitted' : ''] as const,
   milestonesAll: ['milestones'] as const,
   /** Prefix of every milestone read alone */
   milestoneEach: ['milestones', 'one'] as const,
@@ -801,6 +858,9 @@ export const keys = {
   assistantRunEach: ['assistant', 'run'] as const,
   assistantRun: (runId: string) => ['assistant', 'run', runId] as const,
   pushSubscriptions: ['push', 'subscriptions'] as const,
+  // Both are written whole from their events (lib/events.ts), never refetched for them
+  appSettings: ['settings', 'app'] as const,
+  tunnel: ['tunnel'] as const,
   availablePlugins: (q: string) => ['plugins', 'available', q] as const,
   pluginDetails: (plugin: string) => ['plugins', 'details', plugin] as const,
 };
@@ -871,7 +931,13 @@ export const useScheduleRuns = (id: string, enabled: boolean) => {
 
 /** Usage refreshes on claude-swap's own cadence; polling faster would only re-read its cache. */
 export const useAccounts = (enabled = true) =>
-  useQuery({ queryKey: keys.accounts, queryFn: ({ signal }) => api.accounts(false, { signal }), refetchInterval: 10_000, enabled });
+  useQuery({
+    queryKey: keys.accounts,
+    queryFn: ({ signal }) => api.accounts(false, { signal }),
+    // An install of claude-swap reports its progress only through this read
+    refetchInterval: (query) => accountsRefetchInterval(query.state.data?.cswap),
+    enabled,
+  });
 
 /** `claude mcp list` is slow, and the server keeps its answer for a minute: asking sooner gains nothing. */
 export const useConnectors = (enabled = true) =>
@@ -954,7 +1020,7 @@ export const useWorkItem = (itemId: string | null) =>
 export const useWorkItemChanges = (itemId: string | null, enabled = true) =>
   useQuery({
     queryKey: keys.workItemChanges(itemId ?? ''),
-    queryFn: ({ signal }) => api.workItemChanges(itemId ?? '', { signal }),
+    queryFn: ({ signal }) => api.workItemChanges(itemId ?? '', {}, { signal }),
     enabled: enabled && itemId !== null,
   });
 

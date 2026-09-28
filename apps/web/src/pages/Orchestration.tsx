@@ -10,11 +10,12 @@ import type {
   WorkItemOrchestrationDraft,
 } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useOrchestrations, useProjects } from '../api';
 import { ActivityTicker } from '../components/ActivityTicker';
+import { FabStandIn } from '../components/shell/Fab';
 import { Collapsible, Combobox, NumberInput, Select, Switch } from '../components/controls';
 import { ICON, WorkItemStatusIcon } from '../components/icons';
 import { WorkItemKeyLink } from '../components/WorkItemKeyLink';
@@ -27,7 +28,9 @@ import { removeTaskAt, renameTask, TaskEditor, validateGraph } from '../componen
 import { Card, Empty, ErrorBox, Field, Loading, ModelCombobox, PageHeader, PERMISSION_MODES, Segmented, Tag } from '../components/ui';
 import { useFallbackInterval } from '../lib/feed';
 import { formatCost, timeAgo } from '../lib/format';
+import { useListParams } from '../lib/list-params';
 import { NARROW, useMediaQuery } from '../lib/media';
+import { ALL_PROJECTS, inProject, useProjectScope } from '../lib/project-scope';
 import { layerTasks, liveTask, orchestrationProgress } from '../lib/orchestration-steps';
 import { cleanTask, draftOfVerification, verificationOf, type VerificationDraft } from '../lib/orchestration-v2';
 
@@ -470,6 +473,8 @@ type Sort = 'recent' | 'oldest' | 'cost' | 'name';
 
 const STATUS_TABS: readonly StatusTab[] = ['all', 'live', 'completed', 'failed', 'stopped'];
 const SORTS: readonly Sort[] = ['recent', 'oldest', 'cost', 'name'];
+/** What the list keeps until it is reset; `tab` and `new` are views of the page, not filters */
+const LIST_PARAMS = ['q', 'status', 'sort'] as const;
 
 function inTab(orch: OrchestrationRecord, tab: StatusTab): boolean {
   switch (tab) {
@@ -649,6 +654,9 @@ function OrchestrationCard({ orch, energy }: { orch: OrchestrationRecord; energy
 export function Orchestration() {
   const { t } = useTranslation(['orchestration', 'config']);
   const { data, error, isLoading } = useOrchestrations();
+  const { project, projectId, settled } = useProjectScope();
+  const list = useMemo(() => (data ?? []).filter((orch) => !project || inProject(project, orch.cwd)), [data, project]);
+  const listState = useListParams('orchestrations', LIST_PARAMS, settled ? (projectId ?? ALL_PROJECTS) : null);
   const templates = useQuery({ queryKey: keys.orchestrationTemplates, queryFn: api.orchestrationTemplates });
   const [params, setParams] = useSearchParams();
   const location = useLocation();
@@ -660,7 +668,6 @@ export function Orchestration() {
   // A template opened for editing: the form starts from its graph instead of an empty one. The
   // counter is the form's key, so opening a second template replaces the first instead of keeping its state.
   const [editing, setEditing] = useState<{ template: OrchestrationTemplate; n: number } | undefined>();
-  const list = data ?? [];
   // The list's state is in the address, so a filtered view can be linked to and survives Back
   const setParam = (changes: Record<string, string | null>) =>
     setParams(
@@ -691,9 +698,9 @@ export function Orchestration() {
   const tab: PageTab = params.get('tab') === 'templates' ? 'templates' : 'orchestrations';
   // One primary per zone: while the empty state offers New orchestration, the header's copy steps back
   const emptyList = !isLoading && list.length === 0 && tab === 'orchestrations';
-  const status: StatusTab = STATUS_TABS.find((s) => s === params.get('status')) ?? 'all';
-  const sort: Sort = SORTS.find((s) => s === params.get('sort')) ?? 'recent';
-  const query = params.get('q') ?? '';
+  const status: StatusTab = STATUS_TABS.find((s) => s === listState.params.get('status')) ?? 'all';
+  const sort: Sort = SORTS.find((s) => s === listState.params.get('sort')) ?? 'recent';
+  const query = listState.params.get('q') ?? '';
   const searched = list.filter((orch) => matches(orch, query.trim()));
   const shown = searched.filter((orch) => inTab(orch, status)).sort(SORTERS[sort]);
   // One energy border a screen: the first running card has it, the others take the live rail
@@ -725,6 +732,8 @@ export function Orchestration() {
           </>
         }
       />
+      {/* The form is open: a button to open it again would float over it */}
+      {creating && <FabStandIn />}
       {creating && (
         // Keyed by the entry too: a second draft from the board replaces the first instead of keeping its state
         <CreateForm key={editing?.n ?? (handed ? location.key : 'blank')} template={editing?.template} boardDraft={editing ? undefined : handed} onDone={closeForm} />
@@ -754,47 +763,54 @@ export function Orchestration() {
               tabs={{
                 value: status,
                 label: t('list.statusLabel'),
-                onChange: (next) => setParam({ status: next === 'all' ? null : next }),
+                onChange: (next) => listState.patch({ status: next === 'all' ? null : next }),
                 options: STATUS_TABS.map((id) => ({ id, label: t(`list.status.${id}`), count: searched.filter((orch) => inTab(orch, id)).length })),
               }}
-              search={{ value: query, onChange: (value) => setParam({ q: value }), placeholder: t('list.searchPlaceholder'), label: t('list.searchLabel') }}
+              search={{ value: query, onChange: (value) => listState.patch({ q: value }), placeholder: t('list.searchPlaceholder'), label: t('list.searchLabel') }}
               sort={{
                 value: sort,
                 label: t('list.sortLabel'),
-                onChange: (next) => setParam({ sort: next === 'recent' ? null : next }),
+                onChange: (next) => listState.patch({ sort: next === 'recent' ? null : next }),
                 options: SORTS.map((value) => ({ value, label: t(`list.sort.${value}`) })),
               }}
+              onReset={listState.reset}
+              active={query !== '' || status !== 'all' || sort !== 'recent'}
+              // No orchestration at all (the search is applied after this list): nothing to narrow yet
+              disabled={emptyList}
             />
             <ErrorBox error={error} />
             {isLoading ? (
               <Loading />
             ) : list.length === 0 ? (
-              <Empty
-                illustration="orchestrations"
-                size={narrow ? 'sm' : undefined}
-                title={t('config:orchestration.none')}
-                action={
-                  <>
-                    <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
-                      <Plus size={14} strokeWidth={2} aria-hidden />
-                      {t('config:orchestration.new')}
-                    </button>
-                    <button type="button" className="btn" onClick={openTemplates}>
-                      <LayoutTemplate size={14} strokeWidth={2} aria-hidden />
-                      {t('list.templates')}
-                    </button>
-                  </>
-                }
-              >
-                {t('list.emptyBody')}
-              </Empty>
+              <>
+                <FabStandIn />
+                <Empty
+                  illustration="orchestrations"
+                  size={narrow ? 'sm' : undefined}
+                  title={t('config:orchestration.none')}
+                  action={
+                    <>
+                      <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
+                        <Plus size={14} strokeWidth={2} aria-hidden />
+                        {t('config:orchestration.new')}
+                      </button>
+                      <button type="button" className="btn" onClick={openTemplates}>
+                        <LayoutTemplate size={14} strokeWidth={2} aria-hidden />
+                        {t('list.templates')}
+                      </button>
+                    </>
+                  }
+                >
+                  {t('list.emptyBody')}
+                </Empty>
+              </>
             ) : shown.length === 0 ? (
               <Empty
                 illustration="no-results"
                 size={narrow ? 'sm' : undefined}
                 title={t('list.noMatch')}
                 action={
-                  <button type="button" className="btn" onClick={() => setParam({ q: null, status: null })}>
+                  <button type="button" className="btn" onClick={listState.reset}>
                     {t('list.showAll')}
                   </button>
                 }

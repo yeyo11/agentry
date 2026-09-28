@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-09-27T21:30:00Z
+updated_at: 2026-09-28T12:00:00Z
 tags:
     - status
     - project-state
@@ -18,12 +18,12 @@ change gets in.
 
 | | |
 | --- | --- |
-| Version | **0.19.0**, the same across all five packages |
-| Released | 2026-09-25, by release-please from the commit messages |
+| Version | **0.22.0** on `main`, the same across all five packages |
+| Released | 2026-09-27, by release-please from the commit messages |
 | Runtime | Node >= 22, pnpm workspace |
-| Source | 596 tracked `.ts`/`.tsx` files on the `ecosystem-assistant` branch; the API contract is 4,176 lines of `packages/shared/src/types.ts` |
-| REST | 23 route files, documented as OpenAPI 3.1 and served at `/docs` |
-| Tests | 149 unit and integration test files, plus 47 browser specs under `e2e/specs/` |
+| Source | 634 tracked `.ts`/`.tsx` files on `feat/project-ecosystem` with `main` merged in; the API contract is 4,338 lines of `packages/shared/src/types.ts` |
+| REST | 24 route files, documented as OpenAPI 3.1 and served at `/docs` |
+| Tests | 166 unit and integration test files, plus 51 browser specs under `e2e/specs/` |
 | CI | `ci.yml` (typecheck, tests, advisories, OpenAPI drift, e2e, image smoke test), `desktop.yml`, `image.yml`, `release.yml` |
 
 The shape is unchanged: `packages/shared` holds the types every other package imports,
@@ -44,7 +44,16 @@ orchestration with a task DAG, parallel workers and a verification phase on the 
 observability that reconstructs what an agent did from git and the transcript; several accounts
 rotated before they run out; schedules; configuration and MCP servers per scope; tool presets per
 chat; authentication as none, bearer token or OIDC; a progressive web app with push for phones; a
-Linux desktop app; and a Docker image with a Kubernetes manifest.
+Linux desktop app; a Docker image with a Kubernetes manifest; and remote access through a
+localhost.run tunnel over settings that change at runtime ([tunnel.md](tunnel.md),
+[layered-settings.md](layered-settings.md)).
+
+Changes are reviewed inside Agentry: one screen for a chat, a task and the integration branch,
+drawn by a diff comparator of its own in Reading, Unified and Side by side, with a Step by step lens
+that replays every edit of the transcript with the sentence Claude wrote before it. The editor
+integration (links, the copied diff command, Settings → Editor and `/settings/editor`) is gone. See
+[the plan's Outcome](plans/changes-review.md#outcome) and design system
+[§5](design-system.md#5-diff-comparator).
 
 The newest piece is the **project ecosystem**, now complete, server side and screens: its board,
 its team and its assistant. Projects are created in a wizard from a template, and switch modules on
@@ -109,7 +118,9 @@ tab ("Sugerir", "Crear con IA") ([assistant.md](assistant.md)).
 | [`plans/spanish-copy.md`](plans/spanish-copy.md) | Landed (#94) — see [Outcome](plans/spanish-copy.md#outcome) |
 | [`plans/app-updates.md`](plans/app-updates.md) | Landed (#95) — see [Outcome](plans/app-updates.md#outcome) |
 | [`plans/redesign-night-shift.md`](plans/redesign-night-shift.md) | Landed (#101) — see [Outcome](plans/redesign-night-shift.md#outcome) |
-| [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | All four orchestrations built: 1 (server side and prototypes, fixed by 1b after [its audit](plans/project-ecosystem-audit.md)), 2 (the board's web), 3 (the team, the flow, memory and documents) and 4 (the assistant). 4 awaits its verification on the merged branch, then the owner's trial and one pull request to `main` — see [Outcome](plans/project-ecosystem.md#outcome) |
+| [`plans/tunnel.md`](plans/tunnel.md) | Landed (#110) — see [Outcome](plans/tunnel.md#outcome) and [tunnel.md](tunnel.md) |
+| [`plans/changes-review.md`](plans/changes-review.md) | Landed (#115) — see [Outcome](plans/changes-review.md#outcome) |
+| [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | All four orchestrations built: 1 (server side and prototypes, fixed by 1b after [its audit](plans/project-ecosystem-audit.md)), 2 (the board's web), 3 (the team, the flow, memory and documents) and 4 (the assistant). `main` (0.22.0) is merged into the branch; it awaits its e2e run on the merged branch, then the owner's trial and one pull request to `main` — see [Outcome](plans/project-ecosystem.md#outcome) |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.
@@ -122,10 +133,9 @@ pnpm test
 pnpm build && pnpm e2e
 ```
 
-`pnpm typecheck` and `pnpm test` pass on the `ecosystem-assistant` branch, after its review and its
-documentation. They were run on 2026-09-27, with 1,476 tests across the five packages and none
-failing. `pnpm e2e` runs in that orchestration's verification
-phase, on the merged branch. The last full e2e run on `main` (`d6269c4`) had three
+`pnpm typecheck`, `pnpm test` and `pnpm build` pass on `feat/project-ecosystem` with `main` (0.22.0)
+merged in, on 2026-09-28: 1,654 tests across the five packages and none failing. `pnpm e2e` runs on
+the merged branch before its pull request. The last full e2e run on `main` (`d6269c4`) had three
 specs that failed in the full suite and passed alone: see the plan's
 [Before launching](plans/redesign-night-shift.md#before-launching). The browser suite runs headless Chrome over CDP against an isolated
 wrapper, with a time limit per spec and per run so it cannot hang. CI runs all of it on every pull request, and additionally fails
@@ -156,5 +166,6 @@ possible to keep honest.
 [[knowledge-base.md]] · [[deploy.md]] · [[desktop.md]] · [[plans/roadmap-completion.md]] ·
 [[plans/post-roadmap.md]] · [[plans/ui-redesign.md]] · [[plans/agent-observability.md]] ·
 [[plans/agents-redesign.md]] · [[plans/mobile.md]] · [[plans/spanish-copy.md]] ·
-[[plans/app-updates.md]] · [[plans/redesign-night-shift.md]] · [[design-system.md]] ·
-[[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[projects.md]] · [[work-items.md]] · [[team-and-flow.md]] · [[assistant.md]]
+[[plans/app-updates.md]] · [[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] ·
+[[plans/tunnel.md]] · [[design-system.md]] · [[plans/project-ecosystem.md]] ·
+[[plans/project-ecosystem-audit.md]] · [[projects.md]] · [[work-items.md]] · [[team-and-flow.md]] · [[assistant.md]]

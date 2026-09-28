@@ -183,6 +183,8 @@ fails, the chat just started is stopped and the error returned, so no chat runs 
 `GET /work-items/:itemId/changes` and `…/changes/diff?path=` show what the item's branch changed,
 read by `changes.ts` exactly as a chat's worktree is: commits, files and what is not committed yet.
 Once the worktree is gone the branch is still read by name. There is no automatic pull request.
+Both take the scope (`?commit=`, `?uncommitted=1`) and the diff its `?context=`, as a chat's and a
+task's routes do since `main`'s changes review, so the review screen reads an item the same way.
 
 An item records the worktree and branch of **the last chat or node that worked on it**: "Work on it"
 records its own, and the automation records a node's when the node's status changes. So an item
@@ -359,7 +361,8 @@ the exact match.
 - **Toolbar.**
   - Search: `/` focuses it.
   - Filters: type, priority, label, assignee, epic and milestone, plus project on All projects. They
-    are kept in the address.
+    are kept in the address and, per project until Reset, in the browser, through the lists' shared
+    `useListParams` ([persistent-filters.md](persistent-filters.md)).
   - The Board / List / Milestones switch.
   - Select.
   - New task: the zone's one primary action. `N` opens it, and so does a column's `+`.
@@ -370,7 +373,7 @@ the exact match.
 - **A card opens its item.** On a desktop it opens in a 760 px panel beside the board (`?item=KEY`).
   On a phone it opens the item's page.
 - **Empty board.** It shows `Empty` with the `board` illustration and "Create the first task". The
-  FAB hides while that button is on screen, so the screen has only one gradient.
+  FAB steps aside while it is there (`FabStandIn`), so the screen has only one gradient.
 
 ### List, All projects and milestones
 
@@ -394,8 +397,9 @@ one over its limit). Other differences from the desktop:
 - the filters open in a sheet;
 - each row has a move sheet;
 - selection turns rows into pressed toggles, with a bottom bar;
-- the page holds the project chip, so the top bar leaves out its own selector on `/tasks`
-  (`pageHoldsScope`);
+- the project scope stays in the top bar, as on every page since `main`'s
+  [persistent filters](persistent-filters.md) moved it there for good (the page's own chip and
+  `pageHoldsScope` are gone);
 - Milestones has no FAB, because its header already has New milestone.
 
 <p align="center"><img src="media/board-mobile.png" alt="The same board on a phone: the column jump on In progress, the section marked over the limit, and the live card first, with the command its chat is running" width="320"></p>
@@ -415,7 +419,11 @@ the board. It shows:
 - **Relations** (*blocks*, *blocked by*), with add and remove.
 - **Links**: the chats and orchestration nodes that worked on the item, with the chat list's own
   state badges and what each did to the item.
-- **Changes**: the item's worktree, through the chat inspector's `SummaryView`.
+- **Changes**: the item's worktree, its branch and its files with a diffstat. Each file, and
+  **Review the changes**, open the review screen at `/tasks/:key/changes` (design system §5), which
+  reads the item by its result alone: several chats may have worked on its branch, so there is no
+  one transcript for Step by step. `SummaryView` and the editor link it used are gone with `main`'s
+  changes review.
 - **Activity**: the history told in sentences and interleaved with the comments. An automatic move
   names its cause.
 

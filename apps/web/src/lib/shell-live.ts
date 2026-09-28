@@ -173,18 +173,23 @@ export function hidesTabBar(pathname: string, search = ''): boolean {
   if (/^\/projects\/[^/]+\/assistant\/?$/.test(pathname)) return true;
   // A work item's page on a phone ends in its own bar ("Work on it", or the comment box)
   if (/^\/tasks\/[^/]+\/?$/.test(pathname) && !/^\/tasks\/milestones\/?$/.test(pathname)) return true;
+  // The review of a chat's, a task's or the integration branch's changes is a detail screen too:
+  // a file's own screen has a bar of its own at the bottom
+  if (/^\/chats\/[^/]+\/changes\/?$/.test(pathname)) return true;
+  if (/^\/orchestration\/[^/]+\/(?:tasks\/[^/]+\/)?changes\/?$/.test(pathname)) return true;
+  // A work item's branch is reviewed on the same screen
+  if (/^\/tasks\/[^/]+\/changes\/?$/.test(pathname)) return true;
   return /^\/orchestration\/[^/]+\/?$/.test(pathname);
 }
 
-/** What the phone's floating button starts on a page, and whether it has room for its words. */
+/** What the phone's floating button starts on a page. */
 export interface FabPlan {
   action: 'chat' | 'orchestration' | 'task';
-  labelled: boolean;
 }
 
 /**
- * The phone's one "start something" button. It follows the page: Home says it in words, the lists
- * keep only the icon so it covers less of them, and Orchestrations starts one of its own. Where
+ * The phone's one "start something" button: the same round "+" on every page that has it, so it
+ * reads as one control, starting a chat or, on Orchestrations and Tasks, one of those. Where
  * the tab bar steps aside the page has its own footer, so the button does too; on the other pages
  * a floating button would only cover a form or a table that has nothing to do with starting a chat.
  * A project's tab (`/?view=`) is one of those: its settings end in a Save the button sat on. The
@@ -194,11 +199,12 @@ export interface FabPlan {
 export function fabFor(pathname: string, search = ''): FabPlan | null {
   if (hidesTabBar(pathname, search)) return null;
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
-  if (path === '/') return new URLSearchParams(search).has('view') ? null : { action: 'chat', labelled: true };
-  if (path === '/chats' || path === '/projects') return { action: 'chat', labelled: false };
-  if (path === '/orchestration') return { action: 'orchestration', labelled: false };
+  // A project's tab is a page of its own, not the dashboard the button starts a chat from
+  if (path === '/') return new URLSearchParams(search).has('view') ? null : { action: 'chat' };
+  if (path === '/chats' || path === '/projects') return { action: 'chat' };
+  if (path === '/orchestration') return { action: 'orchestration' };
   // Tasks starts a task of its own on the board and the list, not on a work item's page
-  if (path === '/tasks') return { action: 'task', labelled: false };
+  if (path === '/tasks') return { action: 'task' };
   return null;
 }
 
@@ -286,16 +292,4 @@ export function moreNotes(input: MoreNotesInput): Record<string, MoreNote> {
     notes['/connectors'] = pending ? { kind: 'pending', value: pending } : { kind: 'count', value: total };
   }
   return notes;
-}
-
-/**
- * The pages that carry the project scope in their own header on a phone, as the reference draws
- * them. There the top bar leaves its selector out, so the page never has two of them.
- */
-export function pageHoldsScope(pathname: string): boolean {
-  const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
-  if (path === '/chats') return true;
-  // Tasks draws the scope as a chip beside its title (MobileTablero); its milestones name the
-  // project under theirs and leave the top bar's selector where it is
-  return path === '/tasks';
 }

@@ -103,6 +103,20 @@ export function formatCost(usd: number | null | undefined): string {
   ).format(usd || 0);
 }
 
+/**
+ * An amount where only a few characters fit (a phone's figure tile), without its currency: the
+ * words beside it say it, since "1,3 mil US$" does not fit a third of a phone in Spanish. Whole
+ * units, the language's short form past a thousand (1.3K, 1,3 mil), and cents only under one,
+ * where they are the whole figure.
+ */
+export function formatAmountShort(amount: number | null | undefined): string {
+  const value = amount || 0;
+  const digits = value > 0 && value < 1 ? 2 : value < 1000 ? 0 : 1;
+  return cached(`amount-short:${digits}`, (l) =>
+    new Intl.NumberFormat(l, { notation: 'compact', minimumFractionDigits: value > 0 && value < 1 ? 2 : 0, maximumFractionDigits: digits }),
+  ).format(value);
+}
+
 /** A plain number in the active language: 1,500 in English, 1.500 in Spanish. */
 export function formatNumber(value: number, options?: Intl.NumberFormatOptions): string {
   return cached(`number:${JSON.stringify(options ?? {})}`, (l) => new Intl.NumberFormat(l, options)).format(value);

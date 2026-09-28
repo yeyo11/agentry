@@ -94,7 +94,7 @@
     "detached": "detached",
     "from": "from {{base}}",
     "counts": "{{additions}} lines added, {{deletions}} removed",
-    "viewDiff": "View the diff",
+    "viewDiff": "Review the changes",
     "note": "What changed in the task's worktree. Nothing is merged and no pull request opens on its own:"
   },
   "activity": {

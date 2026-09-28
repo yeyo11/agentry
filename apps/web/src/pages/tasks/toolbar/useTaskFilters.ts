@@ -1,7 +1,8 @@
 import type { WorkItem, WorkItemFilter } from '@agentry/shared';
 import { useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { apiFilter, filtersFromSearch, filtersToSearch, hasFilters, inProjects, type TaskFilters } from '../../../lib/work-items';
+import { useListParams } from '../../../lib/list-params';
+import { ALL_PROJECTS, useProjectScope } from '../../../lib/project-scope';
+import { apiFilter, FILTER_PARAMS, filtersFromSearch, filtersToSearch, hasFilters, inProjects, type TaskFilters } from '../../../lib/work-items';
 import { NO_MILESTONE } from '../board/model';
 
 export interface TaskFilterState {
@@ -17,22 +18,30 @@ export interface TaskFilterState {
   narrow: <T extends Pick<WorkItem, 'projectId' | 'milestoneId'>>(items: readonly T[]) => T[];
 }
 
+/** The parameters the toolbar owns; the view, the scope and `?new=1` are not filters and are not kept */
+const OWNED: readonly string[] = Object.values(FILTER_PARAMS);
+
 /**
  * The toolbar's filters, kept in the address so a filtered board can be linked and survives a
- * reload. Every other parameter (the view, the scope, `?new=1`) is left as it was.
+ * reload, and kept per project until they are reset, as every list does (`useListParams`). Every
+ * other parameter (the view, the scope, `?new=1`) is left as it was.
  */
 export function useTaskFilters(): TaskFilterState {
-  const [params, setParams] = useSearchParams();
+  const { projectId, settled } = useProjectScope();
+  // Each project, and All projects, keeps its own; until the scope is known there is no telling whose
+  const { params, patch, reset } = useListParams('tasks', OWNED, settled ? (projectId ?? ALL_PROJECTS) : null);
   const search = params.toString();
   const filters = useMemo(() => filtersFromSearch(new URLSearchParams(search)), [search]);
   const noMilestone = filters.milestoneId === NO_MILESTONE;
 
   const set = useCallback(
-    (patch: Partial<TaskFilters>) =>
-      setParams((previous) => filtersToSearch({ ...filtersFromSearch(previous), ...patch }, previous), { replace: true }),
-    [setParams],
+    (change: Partial<TaskFilters>) => {
+      const next = filtersToSearch({ ...filters, ...change });
+      patch(Object.fromEntries(OWNED.map((name) => [name, next.get(name)])));
+    },
+    [filters, patch],
   );
-  const clear = useCallback(() => setParams((previous) => filtersToSearch({}, previous), { replace: true }), [setParams]);
+  const clear = reset;
 
   const query = useMemo(() => {
     const { milestoneId, ...rest } = apiFilter(filters);

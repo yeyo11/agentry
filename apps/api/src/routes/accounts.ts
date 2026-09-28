@@ -17,6 +17,12 @@ import type {
 export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   app.get<{ Querystring: { refresh?: string } }>('/accounts', (req) => core.accountsOverview(req.query.refresh === '1'));
 
+  // The install runs in the background and can take a while (uv may fetch Python too): the answer
+  // is the state it started in, and `GET /accounts` follows it from there.
+  app.post('/accounts/cswap/install', () => core.accounts.installCswap());
+
+  app.delete('/accounts/cswap', () => core.accounts.removeCswap());
+
   app.post<{ Body: SwitchAccountRequest }>('/accounts/switch', async (req) => {
     const { target, strategy } = req.body ?? {};
     return core.accounts.switch(target, strategy);

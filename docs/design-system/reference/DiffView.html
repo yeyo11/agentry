@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Comparador (componente)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+
+<div class="app dv dv-read" data-theme="dark" style="display: flex; width: 896px; height: 800px; overflow: hidden">
+<div style="flex: 1 1 auto; min-width: 0; overflow: hidden; padding: 10px 0 24px">
+
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">1</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">import</span><span class=""> { execFileSync } </span><span class="sx-kw">from</span><span class=""> </span><span class="sx-str">'node:child_process'</span><span class="">;</span></span></span></div>
+
+
+
+
+
+<div class="dv-row mod"><span class="dv-num">2</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">import</span><span class=""> </span><span class="sx-kw">type</span><span class=""> { </span><span class="sx-type">ChangedFile</span><span class="">, </span><span class="sx-type">Commit</span></span><span class="wd"><span class="">, </span><span class="sx-type">DiffContext</span></span><span class=""><span class=""> } </span><span class="sx-kw">from</span><span class=""> </span><span class="sx-str">'@agentry/shared'</span><span class="">;</span></span></span><button type="button" class="dv-ghost" aria-label="Mostrar lo quitado">−1</button></div>
+
+
+
+
+
+<div class="dv-row add"><span class="dv-num">3</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+
+<div class="dv-row add"><span class="dv-num">4</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-com">/** Lines of context that stand for "the whole file": git has no flag of its own for it. */</span></span></span></div>
+
+
+
+
+
+<div class="dv-row add"><span class="dv-num">5</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">const</span><span class=""> </span><span class="sx-type">WHOLE_FILE</span><span class=""> = </span><span class="sx-num">1_000_000</span><span class="">;</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">6</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">7</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-com">/** Runs git in `dir` and returns what it printed, without the last newline. */</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">8</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">git</span><span class="">(dir: string, args: string[]): string {</span></span></span></div>
+
+
+
+
+
+<div class="dv-row mod"><span class="dv-num">9</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">return</span><span class=""> </span><span class="sx-fn">execFileSync</span><span class="">(</span><span class="sx-str">'git'</span><span class="">, args, { cwd: dir, encoding: </span><span class="sx-str">'utf8'</span><span class="">, maxBuffer: </span></span><span class="wd"><span class="sx-num">64</span></span><span class=""><span class=""> * </span><span class="sx-num">1024</span><span class=""> * </span><span class="sx-num">1024</span><span class=""> }).</span><span class="sx-fn">replace</span><span class="">(/\n$/, </span><span class="sx-str">''</span><span class="">);</span></span></span><button type="button" class="dv-ghost" aria-label="Mostrar lo quitado">−1</button></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">10</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">}</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">11</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">12</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">export</span><span class=""> </span><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">isGitRepo</span><span class="">(dir: string): boolean {</span></span></span></div>
+
+
+
+<div class="dv-fold"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"></path></svg><span>21 líneas sin cambios</span><span class="fold-where">· en <span class="where">aheadCount()</span></span><button type="button" class="btn btn-ghost">Mostrar</button></div>
+
+
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">34</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">35</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-com">/**</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">36</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-com"> * One file's diff against `base`, exactly as git prints it. Without `ref` the working tree is the</span></span></span></div>
+
+
+
+
+
+<div class="dv-row mod"><span class="dv-num">37</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-com"> * other side, so what the worker has not committed yet is part of it. </span></span><span class="wd"><span class="sx-com">`context` is the number of</span></span></span><button type="button" class="dv-ghost" aria-label="Mostrar lo quitado">−1</button></div>
+
+
+
+
+
+<div class="dv-row add"><span class="dv-num">38</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-com"> * unchanged lines around each change, or `'full'` for the whole file in one hunk.</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">39</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-com"> */</span></span></span></div>
+
+
+
+
+
+<div class="dv-row mod"><span class="dv-num">40</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">export</span><span class=""> </span><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">fileDiff</span><span class="">(dir: string, base: string, ref: string | </span><span class="sx-kw">undefined</span><span class="">, paths: string[]</span></span><span class="wd"><span class="">, context: </span><span class="sx-type">DiffContext</span><span class=""> = </span><span class="sx-num">3</span></span><span class=""><span class="">): string {</span></span></span><button type="button" class="dv-ghost" aria-label="Mostrar lo quitado">−2</button></div>
+
+
+
+
+
+<div class="dv-row add"><span class="dv-num">41</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">const</span><span class=""> unified = context === </span><span class="sx-str">'full'</span><span class=""> ? </span><span class="sx-type">WHOLE_FILE</span><span class=""> : </span><span class="sx-type">Math</span><span class="">.</span><span class="sx-fn">max</span><span class="">(</span><span class="sx-num">0</span><span class="">, </span><span class="sx-type">Math</span><span class="">.</span><span class="sx-fn">min</span><span class="">(context, </span><span class="sx-num">500</span><span class="">));</span></span></span></div>
+
+
+
+
+
+<div class="dv-row mod"><span class="dv-num">42</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">const</span><span class=""> args = [</span><span class="sx-str">'diff'</span><span class="">, </span><span class="sx-str">'--no-color'</span><span class="">, </span><span class="sx-str">'--find-renames'</span><span class="">, </span></span><span class="wd"><span class="sx-str">`--unified=${unified}`</span><span class="">,</span></span><span class=""><span class=""> base];</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">43</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">if</span><span class=""> (ref) args.</span><span class="sx-fn">push</span><span class="">(ref);</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">44</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  args.</span><span class="sx-fn">push</span><span class="">(</span><span class="sx-str">'--'</span><span class="">, ...paths);</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">45</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">return</span><span class=""> </span><span class="sx-fn">git</span><span class="">(dir, args);</span></span></span></div>
+
+
+
+<div class="dv-fold"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"></path></svg><span>19 líneas sin cambios</span><span class="fold-where">· en <span class="where">diffFiles()</span></span><button type="button" class="btn btn-ghost">Mostrar</button></div>
+
+
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">65</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">66</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">parseNumstat</span><span class="">(line: string): </span><span class="sx-type">ChangedFile</span><span class=""> {</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">67</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">const</span><span class=""> [added = </span><span class="sx-str">'0'</span><span class="">, deleted = </span><span class="sx-str">'0'</span><span class="">, path = </span><span class="sx-str">''</span><span class="">] = line.</span><span class="sx-fn">split</span><span class="">(</span><span class="sx-str">'\t'</span><span class="">);</span></span></span></div>
+
+
+
+
+
+<div class="dv-row add"><span class="dv-num">68</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-com">// A binary file prints `-` for both counts: nothing to count, but still a change</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">69</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">return</span><span class=""> { path, status: </span><span class="sx-str">'modified'</span><span class="">, additions: </span><span class="sx-type">Number</span><span class="">(added) || </span><span class="sx-num">0</span><span class="">, deletions: </span><span class="sx-type">Number</span><span class="">(deleted) || </span><span class="sx-num">0</span><span class=""> };</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">70</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">}</span></span></span></div>
+
+
+
+
+
+
+
+
+</div>
+
+<div class="dv-map" aria-hidden="true"><div class="view" style="top: 0%; height: 46%"></div><i class="tick mod" style="top: 1.43%; height: 5.71%"></i><i class="tick mod cur" style="top: 11.43%; height: 1.43%"></i><i class="tick mod" style="top: 51.43%; height: 2.86%"></i><i class="tick mod" style="top: 55.71%; height: 4.29%"></i><i class="tick add" style="top: 95.71%; height: 1.43%"></i></div>
+
+</div>
+</body></html>

@@ -43,8 +43,14 @@
   --sel-mark: inset 2px 0 0 var(--accent);
   /* The smallest target a finger gets on a phone */
   --touch: 44px;
+  /* diff: solo lo que cambió lleva color; la sintaxis es tenue y nunca usa verde, rojo ni cian */
+  --diff-add: var(--ok);  --diff-add-bg: rgba(74, 222, 154, 0.055); --diff-add-word: rgba(74, 222, 154, 0.2);
+  --diff-del: var(--bad); --diff-del-bg: rgba(248, 123, 127, 0.06); --diff-del-word: rgba(248, 123, 127, 0.24);
+  --sx-kw: #b7a4d9; --sx-str: #d4bd8f; --sx-num: #93b4db; --sx-type: #e4e4e7; --sx-fn: #f4f4f5; --sx-com: var(--fg-3);
   /* forma */
   --r-xs: 4px; --r-sm: 6px; --r: 8px; --r-lg: 12px; --r-xl: 16px; --r-full: 999px;
+  /* One height for every control of a row (field, select, button, segmented); 44 under a finger */
+  --control-h: 36px; --control-h-sm: 30px;
   --shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.6);
   --shadow-pop: 0 18px 48px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--line-2);
   /* tipo */
@@ -83,6 +89,9 @@
   --bad: #b91c1c;   --bad-soft: rgba(185, 28, 28, 0.09);
   --info: #1d4ed8;  --info-soft: rgba(29, 78, 216, 0.09);
   --idle: #6d28d9;  --idle-soft: rgba(109, 40, 217, 0.09);
+  --diff-add-bg: rgba(21, 128, 61, 0.06); --diff-add-word: rgba(21, 128, 61, 0.16);
+  --diff-del-bg: rgba(185, 28, 28, 0.05); --diff-del-word: rgba(185, 28, 28, 0.15);
+  --sx-kw: #6a4a9e; --sx-str: #7c5a22; --sx-num: #2d5a93; --sx-type: #0c0b0a; --sx-fn: #0c0b0a;
   --shadow: 0 1px 2px rgba(20, 16, 10, 0.06), 0 8px 24px -14px rgba(20, 16, 10, 0.18);
   --shadow-pop: 0 18px 48px -12px rgba(20, 16, 10, 0.22), 0 0 0 1px var(--line-2);
   --on-accent: var(--bg);
@@ -142,7 +151,7 @@
 /* ---------- 5. Botones ---------- */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  height: 36px; padding: 0 14px; border-radius: var(--r);
+  height: var(--control-h); padding: 0 14px; border-radius: var(--r);
   font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer;
   border: 1px solid var(--line-2); background: var(--bg-3); color: var(--fg);
   transition: background var(--dur-fast), border-color var(--dur-fast), transform var(--dur-fast) var(--ease-out), box-shadow var(--dur);
@@ -158,7 +167,7 @@
 .btn-ghost:hover { background: var(--bg-3); color: var(--fg); border-color: transparent; }
 .btn-danger { background: var(--bad-soft); border-color: transparent; color: var(--bad); }
 .btn-danger:hover { background: var(--bad-soft); border-color: var(--bad); }
-.btn-sm { height: 30px; padding: 0 10px; font-size: 12.5px; border-radius: var(--r-sm); }
+.btn-sm { height: var(--control-h-sm); padding: 0 10px; font-size: 12.5px; border-radius: var(--r-sm); }
 .btn-lg { height: 44px; padding: 0 18px; font-size: 14.5px; border-radius: var(--r-lg); }
 .btn-icon { width: 36px; padding: 0; }
 .btn-icon.btn-sm { width: 30px; }
@@ -170,7 +179,7 @@
 
 /* ---------- 6. Campos ---------- */
 .field {
-  display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px;
+  display: flex; align-items: center; gap: 8px; height: var(--control-h); padding: 0 12px;
   border-radius: var(--r); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg-3);
   transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
 }
@@ -178,7 +187,7 @@
 .field input, .field textarea, .field select { flex: 1 1 auto; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--fg); font-size: 13.5px; resize: none; padding: 0; }
 .field input::placeholder, .field textarea::placeholder { color: var(--fg-3); }
 .field-lg { height: 44px; border-radius: var(--r-lg); }
-.select { appearance: none; height: 36px; padding: 0 32px 0 12px; border-radius: var(--r); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg); font-size: 13.5px; }
+.select { appearance: none; height: var(--control-h); padding: 0 32px 0 12px; border-radius: var(--r); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg); font-size: 13.5px; }
 
 /* ---------- 7. Chips, badges, puntos ---------- */
 .chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--r-full); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg-2); font-size: 12.5px; white-space: nowrap; cursor: pointer; }
@@ -253,6 +262,12 @@
 a.part-of { color: inherit; text-decoration: none; }
 .m-screen a.part-of { min-height: 52px; align-items: flex-start; }
 .part-of .segbar { flex: 0 1 160px; min-width: 64px; }
+/* Dirección pública de un túnel (Ajustes → Acceso remoto): la URL en mono con copiar y su código QR. Es de lo que va la pantalla mientras el túnel está abierto, así que lleva .grad-border. El QR es siempre oscuro sobre claro, en los dos temas: no todas las cámaras leen uno invertido. */
+.tunnel-address { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px; padding: 18px; border-radius: var(--r-lg); }
+.tunnel-address .url { font-family: var(--mono); font-size: 15px; color: var(--fg); overflow-wrap: anywhere; }
+.qr { display: block; flex: none; width: 168px; height: 168px; border-radius: var(--r); }
+.qr .paper { fill: #ffffff; }
+.qr .ink { fill: #09090b; }
 
 /* ---------- 10. Datos ---------- */
 .kpi { padding: 16px; display: flex; flex-direction: column; gap: 6px; }
@@ -670,7 +685,7 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 .link-ico .ico { width: 15px; height: 15px; }
 .diff-file { display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 0 12px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12px; }
 .diff-file:last-child { border-bottom: 0; }
-.diff-file .path { flex: 1 1 auto; min-width: 0; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.diff-file .path { flex: 1 1 auto; font-size: inherit; min-width: 0; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .diff-file .path.wrap { white-space: normal; padding: 6px 0; }
 .diff-file .n { color: var(--fg-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* Diffstat without status colours: added lines in --fg-2, removed ones in --line-3. */
@@ -708,7 +723,7 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 
 
 
-/* ==========================================================================
+/* ===================================================================
    16. Reserved for proto-team: the team, flow, memory and documents screens
    (role avatar, flow row, proposal row). proto-foundation leaves it empty.
    ========================================================================== */
@@ -957,3 +972,132 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 
 
 /* ---------- end of 17 ---------- */
+=======
+@media (pointer: coarse) {
+  :root { --control-h: 44px; --control-h-sm: 44px; }
+}
+
+/* ---------- 18. Comparador de diffs ----------
+   Tres reglas: solo lo que cambió lleva color (la sintaxis es tenue, el contexto se atenúa);
+   lo quitado se pliega en una píldora que se abre al pulsar (modo Lectura); una línea, un raíl
+   de 3 px, sin inundar filas enteras de rojo y verde. Filas de 20 px: los números cuadran. */
+.dv { font-family: var(--mono); font-size: 12.5px; line-height: 20px; color: var(--fg); background: var(--bg); --dv-num: 54px; }
+.dv-row { position: relative; display: grid; grid-template-columns: var(--dv-num) 3px minmax(0, 1fr); min-height: 20px; }
+.dv-num { padding-right: 16px; text-align: right; color: var(--fg-3); opacity: 0.65; font-size: 11.5px; font-variant-numeric: tabular-nums; user-select: none; }
+.dv-rail { border-radius: 2px; }
+.dv-code { padding-left: 18px; white-space: pre; overflow: hidden; }
+.dv-sign { color: var(--fg-3); user-select: none; text-align: center; }
+.dv-row.add .dv-rail, .dv-row.mod .dv-rail { background: var(--diff-add); }
+.dv-row.del .dv-rail { background: var(--diff-del); }
+.dv-row.add .dv-num, .dv-row.mod .dv-num { color: var(--diff-add); opacity: 1; }
+.dv-row.del .dv-num { color: var(--diff-del); opacity: 1; }
+.dv-row.del .dv-code { background: var(--diff-del-bg); }
+.dv-row.del .dv-code > span { opacity: 0.78; }
+.dv .wd { border-radius: 3px; padding: 1px 0; }
+.dv-row.add .wd, .dv-row.mod .wd, .dv-cell.add .wd { background: var(--diff-add-word); box-shadow: 0 0 0 1px var(--diff-add-word); }
+.dv-row.del .wd, .dv-cell.del .wd { background: var(--diff-del-word); box-shadow: 0 0 0 1px var(--diff-del-word); }
+/* Lectura: se lee el archivo como queda; el contexto se atenúa para que lo nuevo destaque solo */
+.dv-read .dv-row.ctx .dv-code { opacity: 0.58; }
+/* Unificado: tinte de fila muy bajo, y el signo en su columna */
+.dv-uni .dv-row { grid-template-columns: 42px 42px 3px 16px minmax(0, 1fr); }
+.dv-uni .dv-row .dv-code { padding-left: 4px; }
+.dv-uni .dv-row.add { background: var(--diff-add-bg); }
+.dv-uni .dv-row.del { background: var(--diff-del-bg); }
+.dv-uni .dv-row.del .dv-code { background: none; }
+.dv-uni .dv-row.ctx .dv-code { opacity: 0.8; }
+/* La píldora de lo quitado, sobre el número de la primera línea nueva */
+.dv-ghost { position: absolute; left: calc(var(--dv-num) + 1.5px); top: 3px; transform: translateX(-50%); z-index: 1; height: 14px; padding: 0 4px; border: 0; margin: 0; border-radius: var(--r-full); display: inline-flex; align-items: center; gap: 2px; font-size: 10px; line-height: 1; font-weight: 500; color: var(--diff-del); background: var(--bg-2); box-shadow: 0 0 0 1px color-mix(in srgb, var(--diff-del) 38%, transparent); cursor: pointer; }
+.dv-ghost:hover, .dv-ghost.open { background: var(--diff-del-bg); box-shadow: 0 0 0 1px var(--diff-del); }
+.dv-seam { position: relative; height: 12px; margin-left: calc(var(--dv-num) + 3px); }
+.dv-seam::before { content: ''; position: absolute; left: 0; right: 24px; top: 5px; border-top: 1px dashed color-mix(in srgb, var(--diff-del) 45%, transparent); }
+.dv-seam .dv-ghost { left: -1.5px; top: -1px; }
+.dv-fold { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 12px 0 calc(var(--dv-num) + 17px); margin: 4px 0; background: var(--bg-1); border-block: 1px solid var(--line); color: var(--fg-3); font-size: 11.5px; }
+.dv-fold .where { color: var(--fg-2); }
+.dv-fold .btn { height: 22px; padding: 0 8px; font-size: 11.5px; margin-left: auto; }
+/* Lado a lado: las líneas emparejadas se miran; el hueco del lado corto va rayado */
+.dv-split .dv-row { grid-template-columns: 40px 3px 14px minmax(0, 1fr) 1px 40px 3px 14px minmax(0, 1fr); }
+.dv-split .dv-num { padding-right: 8px; }
+.dv-uni .dv-num { padding-right: 8px; }
+.dv-split .dv-code { padding-left: 2px; }
+.dv-split .seam { background: var(--line-2); }
+.dv-cell.del { background: var(--diff-del-bg); }
+.dv-cell.add { background: var(--diff-add-bg); }
+.dv-cell.pad { background: repeating-linear-gradient(135deg, var(--line) 0 1px, transparent 1px 7px); }
+.dv-cell.ctx.dv-code { opacity: 0.8; }
+.dv-rail.add { background: var(--diff-add); } .dv-rail.del { background: var(--diff-del); }
+.dv-num.add { color: var(--diff-add); opacity: 1; } .dv-num.del { color: var(--diff-del); opacity: 1; }
+/* Sintaxis tenue */
+.sx-kw { color: var(--sx-kw); } .sx-str { color: var(--sx-str); } .sx-num { color: var(--sx-num); }
+.sx-type { color: var(--sx-type); } .sx-fn { color: var(--sx-fn); font-weight: 500; } .sx-com { color: var(--sx-com); }
+/* Riel de bloques: el archivo entero a escala, cada bloque una marca, la vista un rectángulo */
+.dv-map { position: relative; width: 14px; flex-shrink: 0; background: var(--bg-1); border-left: 1px solid var(--line); }
+.dv-map .view { position: absolute; left: 2px; right: 2px; border-radius: 3px; background: var(--bg-3); box-shadow: inset 0 0 0 1px var(--line-2); }
+.dv-map .tick { position: absolute; left: 4px; right: 4px; min-height: 3px; border-radius: 2px; background: var(--diff-add); }
+.dv-map .tick.del { background: var(--diff-del); }
+.dv-map .tick.mod { background: linear-gradient(90deg, var(--diff-del) 50%, var(--diff-add) 50%); }
+.dv-map .tick.cur { left: 2px; right: 2px; box-shadow: 0 0 0 1.5px var(--bg-1), 0 0 0 2.5px var(--fg-2); }
+/* Cabecera de archivo */
+.dv-head { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 12px 0 18px; border-bottom: 1px solid var(--line); background: var(--bg); flex-shrink: 0; }
+.path { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.path .dir { color: var(--fg-3); }
+.path .name { color: var(--fg); font-weight: 500; }
+.cnt { font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cnt .a { color: var(--diff-add); } .cnt .d { color: var(--diff-del); }
+.why { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.5; color: var(--fg-2); }
+.why .spark { width: 14px; height: 14px; margin-top: 2px; flex-shrink: 0; color: var(--accent); }
+.why q { quotes: '«' '»'; }
+/* Huella del cambio: cada archivo ocupa lo que cambió; verde lo añadido, rojo lo quitado */
+.fp { display: flex; gap: 2px; height: 6px; }
+.fp > i { display: block; height: 100%; border-radius: 2px; min-width: 4px; opacity: 0.5; background: linear-gradient(90deg, var(--diff-add) var(--a, 50%), var(--diff-del) var(--a, 50%)); }
+.fp > i.sel { opacity: 1; box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 2.5px var(--fg-2); }
+.fp > i.seen { opacity: 0.18; }
+/* Mapa de archivos */
+.fmap { display: flex; flex-direction: column; }
+.fdir { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 12px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); white-space: nowrap; overflow: hidden; }
+.frow { position: relative; display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 8px; height: 30px; padding: 0 12px 0 20px; border-radius: var(--r-sm); margin: 0 6px; font-family: var(--mono); font-size: 12.5px; color: var(--fg); cursor: pointer; }
+.frow:hover { background: var(--bg-3); }
+.frow.sel { background: var(--bg-3); }
+.frow.sel::before { content: ''; position: absolute; left: -6px; top: 7px; bottom: 7px; width: 3px; border-radius: 0 3px 3px 0; background: var(--grad); }
+.frow.seen .fname { color: var(--fg-3); }
+.frow .fname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st { font-family: var(--mono); font-size: 11px; font-weight: 600; text-align: center; color: var(--fg-2); }
+.st-a { color: var(--diff-add); } .st-d { color: var(--diff-del); } .st-r { color: var(--info); }
+.frow.live::after { content: ''; position: absolute; left: 6px; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--live); animation: rail-pulse var(--pulse-cycle) ease-in-out infinite; }
+/* Paso a paso: cada edición del agente, con lo que dijo justo antes */
+.edit-steps { position: relative; display: flex; flex-direction: column; gap: 2px; }
+.edit-step { position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; padding: 9px 12px 9px 10px; border-radius: var(--r); cursor: pointer; }
+.edit-step:hover { background: var(--bg-3); }
+.edit-step.sel { background: var(--bg-2); box-shadow: 0 0 0 1px var(--line-2); }
+.edit-step .dotcol { position: relative; display: flex; justify-content: center; padding-top: 4px; }
+.edit-step .sdot { z-index: 1; }
+.edit-step .dotcol::before { content: ''; position: absolute; top: 14px; bottom: -22px; left: 50%; width: 1px; background: var(--line-3); transform: translateX(-0.5px); }
+.edit-step:last-child .dotcol::before { display: none; }
+.edit-step .sdot { position: relative; width: 9px; height: 9px; border-radius: 50%; background: var(--bg); box-shadow: inset 0 0 0 1.5px var(--fg-3); }
+.edit-step.sel .sdot { background: var(--grad); box-shadow: none; }
+.edit-step.live .sdot { background: var(--live); box-shadow: 0 0 0 3px var(--live-soft); }
+.edit-step .intent { font-size: 12.5px; line-height: 1.45; color: var(--fg-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.edit-step.sel .intent { color: var(--fg); }
+.scrub { display: flex; align-items: center; gap: 6px; }
+.scrub > i { display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--bg-4); }
+.scrub > i.done { background: var(--fg-3); }
+.scrub > i.sel { width: 22px; border-radius: 4px; background: var(--grad); }
+.scrub > i.live { background: var(--live); box-shadow: 0 0 0 3px var(--live-soft); }
+.hatch { background: repeating-linear-gradient(135deg, var(--line) 0 1px, transparent 1px 7px); }
+@media (prefers-reduced-motion: reduce) { .frow.live::after { animation: none; opacity: 1; } }
+[data-motion="off"] .frow.live::after, [data-motion="subtle"] .frow.live::after { animation: none; opacity: 1; }
+/* En el móvil el código se ajusta al ancho: nadie lee un diff desplazándolo de lado con el pulgar */
+.dv-wrap { --dv-num: 40px; font-size: 12px; line-height: 19px; }
+.dv-wrap .dv-row { min-height: 19px; }
+.dv-wrap .dv-code { white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 10px; }
+.frow-rail { color: var(--fg-2); }
+.frow-rail:hover { background: var(--bg-3); }
+.frow-rail.sel { background: var(--bg-3); box-shadow: inset 0 0 0 1px var(--line-2); }
+.seg-compact > * { padding: 0 8px; }
+.seg-compact > * .lbl { display: none; }
+.seg-compact > .on .lbl { display: inline; }
+.dv-wrap.dv-uni .dv-row { grid-template-columns: 30px 30px 3px 14px minmax(0, 1fr); }
+.dv-wrap .dv-num { font-size: 11px; }
+.dv-wrap.dv-uni .dv-num { padding-right: 6px; }
+.dv-fold { white-space: nowrap; }
+.dv-wrap .dv-fold { padding-left: calc(var(--dv-num) + 10px); }
+.dv-wrap .dv-fold .fold-where { display: none; }

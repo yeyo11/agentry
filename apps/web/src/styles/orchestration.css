@@ -918,9 +918,15 @@
     gap: 6px;
     overflow-x: auto;
     scrollbar-width: none;
+    /* The far edge fades to say the strip goes on, as the lists' tab strip does */
+    mask-image: linear-gradient(to right, var(--mask-ink) calc(100% - 28px), transparent);
   }
   .stepper.is-pipeline .step-item {
     flex: none;
+  }
+  /* The last chip can scroll clear of the fade */
+  .stepper.is-pipeline .step-item:last-child {
+    margin-right: 28px;
   }
   .stepper.is-pipeline .step {
     flex-direction: row;
@@ -1101,6 +1107,16 @@
   overflow: hidden;
   font-size: 13px;
   font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A name that opens its chat is a button, a box of its own: the heading's ellipsis cannot reach
+   inside it, so without its own the name was cut off mid-word */
+.task-row.is-summary .task-name-btn {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

@@ -21,7 +21,8 @@ RUN pnpm --filter @agentry/web build \
 
 FROM node:22-bookworm-slim
 
-# Tools Claude Code relies on when working inside projects
+# Tools Claude Code relies on when working inside projects. openssh-client is also the tunnel's
+# ssh, which this image only runs once the operator sets AGENTRY_TUNNEL=on.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl git openssh-client procps ripgrep jq python3 \
  && rm -rf /var/lib/apt/lists/*
@@ -57,12 +58,15 @@ RUN curl -fsSL -o /tmp/claude-install.sh https://claude.ai/install.sh \
 ENV AGENTRY_CLAUDE_CODE_PINNED=${CLAUDE_CODE_VERSION}
 
 # claude-swap owns the account credentials when several accounts are registered (multi-account
-# rotation). Its own data dir is a volume, so the accounts survive a rebuild.
-ARG CLAUDE_SWAP_VERSION=
+# rotation). Its own data dir is a volume, so the accounts survive a rebuild. The default is the
+# version Agentry parses (CSWAP_VERSION in packages/core/src/cswap-pin.ts, checked by a test); an
+# empty build arg takes the latest release instead.
+ARG CLAUDE_SWAP_VERSION=0.26.0
 # astral.sh serves a separate installer per uv release, so this URL is immutable and its digest
 # only moves when UV_VERSION does: bump the two together, taking the new digest from
 # `curl -fsSL https://astral.sh/uv/<version>/install.sh | sha256sum`. Unpinned, the image would
-# take whatever uv shipped that morning, and an unverified script would install it.
+# take whatever uv shipped that morning, and an unverified script would install it. The desktop's
+# managed install downloads the same release (UV_VERSION in packages/core/src/cswap-pin.ts).
 ARG UV_VERSION=0.12.18
 ARG UV_INSTALLER_SHA256=e62a5ea089de9c6a9b1f767166c9f33194e18d350e9f375c6355fac3ba0fb42b
 RUN curl -fsSL -o /tmp/uv-install.sh https://astral.sh/uv/${UV_VERSION}/install.sh \
@@ -79,7 +83,9 @@ COPY --from=build --chown=node:node /app/apps/api/dist/api.mjs /app/api.mjs
 COPY --from=build --chown=node:node /app/apps/web/dist /app/web
 
 # Keeping .claude.json inside the config dir means one volume persists the whole account setup.
-# AGENTRY_DISTRIBUTION tells the UI that an update here is a new image, not something it can install.
+# AGENTRY_DISTRIBUTION tells the UI that an update here is a new image, not something it can install,
+# and keeps the tunnel off unless AGENTRY_TUNNEL=on: from inside the container it would reach the
+# server around the published port, the operator's proxy and its TLS (docs/plans/tunnel.md).
 ENV NODE_ENV=production \
     AGENTRY_PID_FILE=/tmp/agentry.pid \
     PORT=8787 \

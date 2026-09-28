@@ -9,6 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { createContext, runInContext } from 'node:vm';
 import { buildServiceWorker, shellId } from '../scripts/sw-shell.ts';
+import { TEST_PUSH_KEY_PREFIX } from '@agentry/shared';
 import { PUSH_STATE_CACHE, PUSH_STATE_KEY } from '../src/lib/push-model.ts';
 
 const WEB = path.join(import.meta.dirname, '..');
@@ -82,6 +83,8 @@ interface ClientSpec {
   url: string;
   /** The page a person is looking at right now: the one that shows the toast itself */
   visible?: boolean;
+  /** The page has the input focus; a backgrounded iOS app can be visible without it */
+  focused?: boolean;
   /** The page answers the worker's hand-off message, i.e. it routed the path itself */
   acks?: boolean;
   /** `navigate()` is refused for a window this worker does not control */
@@ -97,6 +100,7 @@ class FakeClient {
   constructor(private readonly spec: ClientSpec) {
     this.url = spec.url;
     this.visibilityState = spec.visible ? 'visible' : 'hidden';
+    this.focused = spec.focused ?? false;
   }
   focus(): Promise<FakeClient> {
     this.focused = true;
@@ -148,6 +152,8 @@ interface WorkerOptions {
   postOk?: boolean;
   /** Let the hand-off timer fire at once instead of never: the page that does not answer */
   fireTimers?: boolean;
+  /** The origin the worker was installed from; a tunnel address in the tests about domain changes */
+  origin?: string;
 }
 
 interface Worker {
@@ -171,7 +177,7 @@ interface Worker {
 
 /** Runs sw.js in a sandbox with the globals a service worker actually has. */
 function load(shell: readonly string[] = SHELL, options: WorkerOptions = {}): Worker {
-  const { broken = false, seeded = [], clients: specs = [], pushState = null, held = null, renewed = null, postOk = true, fireTimers = false } = options;
+  const { broken = false, seeded = [], clients: specs = [], pushState = null, held = null, renewed = null, postOk = true, fireTimers = false, origin = ORIGIN } = options;
   const handlers = new Map<string, (event: Record<string, unknown>) => void>();
   const fakeCaches = new FakeCaches(broken);
   for (const name of seeded) void fakeCaches.open(name);
@@ -202,7 +208,7 @@ function load(shell: readonly string[] = SHELL, options: WorkerOptions = {}): Wo
 
   const sandbox = {
     self: {
-      location: { origin: ORIGIN },
+      location: { origin },
       addEventListener: (type: string, handler: (event: Record<string, unknown>) => void) => handlers.set(type, handler),
       skipWaiting: () => Promise.resolve(),
       registration,
@@ -426,6 +432,7 @@ const WAITING = {
   title: 'fix the build needs your approval to use Bash',
   body: 'Bash',
   href: '/chats/run1?prompt=p1',
+  url: null,
   at: '2026-01-01T12:00:00.000Z',
   priority: 'high',
   runId: 'run1',
@@ -436,10 +443,34 @@ const FALLBACK = { title: 'Agentry', body: 'Something is waiting for you.' };
 // `QUJD` is `ABC`: enough to prove the key reaches `subscribe` as the bytes it was stored as
 const STATE = { applicationServerKey: 'QUJD', kinds: ['waiting', 'limit'], label: 'Android · Chrome · PWA', fallback: FALLBACK };
 
-test('a push arriving while a page of ours is visible shows nothing: that page has the toast', async () => {
-  const worker = await ready(SHELL, { clients: [{ url: `${ORIGIN}/chats`, visible: true }, { url: `${ORIGIN}/usage` }] });
+const FOCUSED = { url: `${ORIGIN}/chats`, visible: true, focused: true };
+
+test('a push arriving while a page of ours is focused shows nothing: that page has the toast', async () => {
+  const worker = await ready(SHELL, { clients: [FOCUSED, { url: `${ORIGIN}/usage` }] });
   await worker.push(WAITING);
   assert.deepEqual(worker.shown, [], 'the same news as a toast and as a notification is the news twice');
+});
+
+test('a page that says it is visible but has no focus does not swallow the push', async () => {
+  // What a backgrounded iOS app reports: taking its word for it hid every notification
+  const worker = await ready(SHELL, { clients: [{ url: `${ORIGIN}/chats`, visible: true }] });
+  await worker.push(WAITING);
+  assert.equal(worker.shown.length, 1);
+});
+
+test('a test push is shown even with the page in front: the page that asked has no toast for it', async () => {
+  const worker = await ready(SHELL, { clients: [FOCUSED] });
+  await worker.push({ ...WAITING, kind: 'activity', key: `${TEST_PUSH_KEY_PREFIX}2026-09-27T15:00:00.000Z` });
+  assert.equal(worker.shown.length, 1);
+});
+
+test("a push through Apple's service is always shown, or WebKit revokes the subscription as silent", async () => {
+  const worker = await ready(SHELL, { clients: [FOCUSED], held: subscription('https://web.push.apple.com/QOabc') });
+  await worker.push(WAITING);
+  assert.equal(worker.shown.length, 1);
+  const other = await ready(SHELL, { clients: [FOCUSED], held: subscription('https://fcm.googleapis.com/fcm/send/abc') });
+  await other.push(WAITING);
+  assert.deepEqual(other.shown, [], 'only Apple is held to that rule');
 });
 
 test('with no page visible the payload becomes the notification, tagged with its dedupe key', async () => {
@@ -453,7 +484,7 @@ test('with no page visible the payload becomes the notification, tagged with its
   assert.equal(shown?.options['tag'], WAITING.key);
   assert.equal(shown?.options['requireInteraction'], true, 'a question stays up until it is answered');
   // Spread first: the worker built this object in its own realm, where the prototype is another one
-  assert.deepEqual({ ...(shown?.options['data'] as object) }, { href: WAITING.href, key: WAITING.key });
+  assert.deepEqual({ ...(shown?.options['data'] as object) }, { href: WAITING.href, url: null, key: WAITING.key });
   assert.equal(shown?.options['timestamp'], Date.parse(WAITING.at));
 });
 
@@ -560,6 +591,76 @@ test('a subscription with no encryption keys is not registered: nothing could be
 test('the worker and the page name the same cache for the state they share', () => {
   assert.match(SOURCE, new RegExp(`const PUSH_STATE_CACHE = '${PUSH_STATE_CACHE}';`));
   assert.match(SOURCE, new RegExp(`const PUSH_STATE_KEY = '${PUSH_STATE_KEY}';`));
+  assert.match(SOURCE, new RegExp(`const TEST_PUSH_KEY_PREFIX = '${TEST_PUSH_KEY_PREFIX}';`));
   // The shell cache is dropped on every new build; this one holds what a rotation needs and is not
   assert.ok(!PUSH_STATE_CACHE.startsWith('agentry-shell-'));
+});
+
+// ---------- After the tunnel's address changed ----------
+//
+// localhost.run's free address changes, and a phone that installed Agentry on one keeps its worker
+// and its push subscription: both belong to the registration of the old origin, and the push service
+// delivers by endpoint, whatever that origin now answers. The server puts its current address in
+// every push; these are the rules the old worker follows with it.
+
+const OLD = 'https://0a1b2c3d4e5f60.lhr.life';
+const NEW = 'https://9f8e7d6c5b4a30.lhr.life';
+const MOVED = { ...WAITING, url: `${NEW}/chats/run1?prompt=p1` };
+
+test('a notification sent after the domain changed opens the new address', async () => {
+  const worker = await ready(SHELL, { origin: OLD });
+  await worker.push(MOVED);
+  const data = { ...(worker.shown[0]?.options['data'] as object) };
+  assert.deepEqual(data, { href: MOVED.href, url: MOVED.url, key: MOVED.key }, 'the current address travels with the notification');
+  await worker.click(data);
+  assert.deepEqual(worker.opened, [MOVED.url], 'not the old origin, which no longer answers');
+});
+
+test('a page still open on the old address is navigated to the new one, not handed a path', async () => {
+  const worker = await ready(SHELL, { origin: OLD, clients: [{ url: `${OLD}/usage`, acks: true }] });
+  await worker.click({ href: MOVED.href, url: MOVED.url });
+  const client = worker.clients[0];
+  assert.equal(client?.focused, true);
+  // The old page's router can only route within its own origin
+  assert.deepEqual(client?.messages, []);
+  assert.equal(client?.navigated, MOVED.url);
+  assert.deepEqual(worker.opened, []);
+});
+
+test('an old page the worker may not navigate gets a new window on the new address', async () => {
+  const worker = await ready(SHELL, { origin: OLD, clients: [{ url: `${OLD}/usage`, navigable: false }] });
+  await worker.click({ href: MOVED.href, url: MOVED.url });
+  assert.deepEqual(worker.opened, [MOVED.url]);
+});
+
+test('an install on the current address, or with no tunnel open, opens its own origin as before', async () => {
+  const current = await ready(SHELL, { origin: NEW });
+  await current.click({ href: MOVED.href, url: MOVED.url });
+  assert.deepEqual(current.opened, [MOVED.url]);
+
+  const stopped = await ready(SHELL, { origin: OLD });
+  await stopped.click({ href: MOVED.href, url: null });
+  assert.deepEqual(stopped.opened, [`${OLD}/chats/run1?prompt=p1`]);
+});
+
+test('an install at the desk or on the LAN is never sent through the tunnel', async () => {
+  for (const origin of [ORIGIN, 'http://localhost:8787', 'https://agentry.lan']) {
+    const worker = await ready(SHELL, { origin });
+    await worker.click({ href: MOVED.href, url: MOVED.url });
+    assert.deepEqual(worker.opened, [`${origin}/chats/run1?prompt=p1`], origin);
+  }
+});
+
+test('an address that is not another tunnel over https is not followed', async () => {
+  for (const url of [
+    'http://9f8e7d6c5b4a30.lhr.life/chats/run1',
+    'https://evil.example/chats/run1',
+    'https://lhr.life.evil.example/chats/run1',
+    'https://.lhr.life/chats/run1',
+    'not a url',
+  ]) {
+    const worker = await ready(SHELL, { origin: OLD });
+    await worker.click({ href: MOVED.href, url });
+    assert.deepEqual(worker.opened, [`${OLD}/chats/run1?prompt=p1`], url);
+  }
 });

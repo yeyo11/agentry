@@ -30,7 +30,8 @@
       "tools": "Tool presets",
       "security": "Security",
       "install": "Install",
-      "notifications": "Notifications"
+      "notifications": "Notifications",
+      "remote": "Remote access"
     },
     "groups": {
       "agentry": "Agentry",
@@ -178,6 +179,12 @@
   "cli": {
     "title": "Claude Code",
     "version": "In use",
+    "cswap": "claude-swap",
+    "cswapSource": {
+      "managed": "installed by Agentry",
+      "path": "on the PATH",
+      "env": "from CSWAP_BIN"
+    },
     "notInstalled": "not installed",
     "pinned": "Pinned by the image",
     "notPinned": "not pinned (the image installs whatever was current when it was built)",
@@ -186,8 +193,6 @@
     "checked": "Last checked {{when}}",
     "check": "Check for updates",
     "checking": "Checking…",
-    "upToDate": "Claude Code is up to date.",
-    "updateAvailable": "Claude Code {{latest}} is available.",
     "updateHow": "Agentry does not update the CLI inside a running container, so a restart always gives the same version. Rebuild the image with CLAUDE_CODE_VERSION={{latest}} (Docker Compose: set it in .env and run docker compose build), or pull a newer Agentry image. On a plain install, run claude update.",
     "checkFailed": "Could not check for updates",
     "note": "Checked when you ask and once a day, never when a page loads. It reads the npm registry, not claude.ai."
@@ -198,8 +203,6 @@
     "latest": "Newest release",
     "never": "not checked yet",
     "published": "published {{date}}",
-    "available": "Agentry {{latest}} is available.",
-    "upToDate": "Agentry is up to date.",
     "notes": "Release notes",
     "checked": "Last checked {{when}}",
     "check": "Check for updates",
@@ -238,7 +241,9 @@
       "waiting_other": "{{count}} chats are waiting for an answer",
       "running_one": "{{count}} orchestration is running",
       "running_other": "{{count}} orchestrations are running"
-    }
+    },
+    "availableTag": "Update available",
+    "upToDateTag": "Up to date"
   },
   "account": {
     "tokenSource": {
@@ -717,7 +722,7 @@
     "needsCswap": "Multi-account support needs claude-swap",
     "refreshUsage": "Refresh usage",
     "notInstalled": "claude-swap is not installed",
-    "notInstalledHint": "Several accounts and automatic rotation are delegated to <anchor>claude-swap</anchor>. Install it with <code>uv tool install claude-swap</code> (it ships in the Docker image), then register each account with a token from <code>claude setup-token</code>.",
+    "notInstalledHint": "Several accounts and automatic rotation are delegated to <anchor>claude-swap</anchor>. Once it is installed, each account is registered with a token from <code>claude setup-token</code>.",
     "switched": "Switched to {{email}}",
     "switchFailed": "Switched to {{email}} failed",
     "backInRotation": "{{email}} back in rotation",
@@ -1107,5 +1112,89 @@
     "startFailed": "Could not start the assistant",
     "stopFailed": "Could not stop the assistant",
     "decideFailed": "Could not change the proposal"
+  },
+  "remote": {
+    "title": "Tunnel through localhost.run",
+    "intro": "Open a public HTTPS address for this Agentry, to reach it from a phone or another network. It goes through localhost.run over this machine's ssh: no account, and nothing to install.",
+    "states": {
+      "stopped": "closed",
+      "starting": "opening",
+      "verifying": "checking",
+      "active": "open",
+      "stopping": "closing",
+      "failed": "failed"
+    },
+    "progress": {
+      "starting": "Waiting for localhost.run to hand out an address…",
+      "verifying": "Checking that Agentry answers through the new address before showing it…",
+      "stopping": "Closing the tunnel…"
+    },
+    "start": "Open tunnel",
+    "stop": "Close tunnel",
+    "retry": "Try again",
+    "caveat": "The free address changes from time to time. localhost.run terminates TLS, so it sees every request that crosses the tunnel, your token included.",
+    "failedTitle": "The tunnel failed",
+    "authRequired": {
+      "title": "Turn on authentication first",
+      "body": "While Agentry asks for no credential, anyone with the address would control this machine, so the tunnel stays closed. Turn on a token or OIDC in Security.",
+      "action": "Open Security"
+    },
+    "sshMissing": {
+      "tag": "no ssh",
+      "title": "ssh not found",
+      "body": "The tunnel runs through this machine's ssh, and none was found. Install the OpenSSH client ({{package}} on Debian and Ubuntu), then try again."
+    },
+    "disabled": {
+      "tag": "turned off",
+      "title": "The tunnel is turned off in this deploy",
+      "body": "Whoever runs this Agentry decides whether it may open a public address. They can turn it on with {{variable}} (tunnel.enabled in the Helm chart)."
+    },
+    "address": {
+      "label": "Public address",
+      "copy": "Copy address",
+      "since": "Opened {{time}}",
+      "scan": "Scan the code with your phone's camera to open it there.",
+      "qr": "QR code of {{url}}"
+    },
+    "startWith": {
+      "title": "On start",
+      "label": "Open the tunnel when Agentry starts",
+      "hint": "Off by default. It still needs authentication turned on and ssh installed."
+    },
+    "stopConfirm": {
+      "title": "Close the tunnel this page uses?",
+      "body": "This page reached Agentry through the tunnel, so closing it ends this page too. To open it again, use Agentry on its own machine."
+    },
+    "footnote": "Each new address is a new site for the browser: sign in there once. An app installed from an old address keeps opening that one; if you turn notifications on again at the new address, remove the old device under Notifications.",
+    "startFailed": "Could not open the tunnel",
+    "closedHere": {
+      "title": "Tunnel closed",
+      "body": "This page came through the tunnel, so its address no longer works. To open the tunnel again, use Agentry on its own machine or on your local network."
+    },
+    "stopFailed": "Could not close the tunnel",
+    "saveFailed": "Could not save the tunnel setting"
+  },
+  "appSettings": {
+    "fromEnv": "set by the environment",
+    "envHint": "Set by the environment ({{variable}}): change it where Agentry is deployed.",
+    "saveFailed": "Could not save the setting",
+    "hosts": {
+      "title": "Allowed hosts",
+      "intro": "Names this wrapper answers to besides localhost. A request for any other host is refused, which keeps a web page from reaching Agentry through a name it controls. A tunnel's address is added by itself while the tunnel is open.",
+      "label": "Hosts",
+      "hint": "One per line: a name, or *.example.com for the names under it. No ports.",
+      "placeholder": "agentry.example.com",
+      "none": "Only localhost",
+      "saved": "Allowed hosts saved"
+    },
+    "runs": {
+      "title": "Runs",
+      "intro": "What a new run gets unless it asks for something else. A change applies to the next run, without a restart.",
+      "mode": "Default permission mode",
+      "modeHint": "The --permission-mode of a chat, schedule or orchestration that does not choose one.",
+      "concurrent": "Runs at once",
+      "concurrentHint": "From {{min}} to {{max}}. A new chat past the limit is refused until one ends, and an orchestration runs no more workers than this at once.",
+      "saved": "Run defaults saved"
+    }
   }
 }

@@ -154,31 +154,42 @@ export default async ({ page, api, check, dirs }) => {
       const cut = await page.eval(`return [...document.querySelectorAll('.tabbar-label')].filter((l) => l.scrollWidth > l.clientWidth + 1).map((l) => l.textContent)`);
       check(cut.length === 0, `[390px ${path}] no tab label is truncated (${cut.join(', ')})`);
     }
-    // The FAB: New chat in words on Home, an icon on the lists, New orchestration on its page, none on Settings
+    // The FAB: the same round icon everywhere, named New chat, New orchestration on its page, none on
+    // Settings — and none where the page's own empty state already offers what it would start
     const fab = async (path) => {
       await page.goto(path, 900);
-      return page.eval(`const f = document.querySelector('.fab'); if (!f || !f.getClientRects().length) return null; const r = f.getBoundingClientRect(), t = document.querySelector('.tabbar').getBoundingClientRect(); return { text: f.innerText.trim(), name: f.getAttribute('aria-label') ?? f.innerText.trim(), above: t.top - r.bottom, height: r.height, width: r.width, right: innerWidth - r.right }`);
+      return page.eval(`const standIn = !!document.querySelector('main .state-empty .btn-primary'); const f = document.querySelector('.fab'); if (!f || !f.getClientRects().length) return { standIn, shown: false }; const r = f.getBoundingClientRect(), t = document.querySelector('.tabbar').getBoundingClientRect(); return { standIn, shown: true, text: f.innerText.trim(), name: f.getAttribute('aria-label') ?? f.innerText.trim(), above: t.top - r.bottom, height: r.height, width: r.width, right: innerWidth - r.right }`);
+    };
+    const expectFab = (seen, path, name) => {
+      if (seen.standIn) check(!seen.shown, `[390px ${path}] the empty state offers the action, so there is no FAB (${JSON.stringify(seen)})`);
+      else check(seen.shown && seen.text === '' && seen.name === name, `[390px ${path}] the FAB is an icon named ${name} (${JSON.stringify(seen)})`);
     };
     const home = await fab('/');
-    check(home?.text === 'New chat', `[390px /] the FAB says New chat (${home?.text})`);
-    check(home !== null && home.above >= 8 && home.height >= 44 && home.width >= 44 && home.right >= 8, `[390px /] the FAB sits above the tab bar, inside the screen, 44px or larger (${JSON.stringify(home)})`);
-    const list = await fab('/chats');
-    check(list?.text === '' && list?.name === 'New chat', `[390px /chats] the FAB is an icon named New chat (${JSON.stringify(list)})`);
+    expectFab(home, '/', 'New chat');
+    if (home.shown) check(home.above >= 8 && home.height >= 44 && home.width >= 44 && home.right >= 8, `[390px /] the FAB sits above the tab bar, inside the screen, 44px or larger (${JSON.stringify(home)})`);
+    expectFab(await fab('/chats'), '/chats', 'New chat');
     const orchestrations = await fab('/orchestration');
-    check(orchestrations?.name === 'New orchestration', `[390px /orchestration] the FAB starts an orchestration (${JSON.stringify(orchestrations)})`);
-    await page.click('.fab', undefined, 900);
-    check((await page.eval(`return location.pathname + location.search`)) === '/orchestration?new=1', 'the Orchestrations FAB opens the new orchestration form');
+    expectFab(orchestrations, '/orchestration', 'New orchestration');
+    if (orchestrations.shown) {
+      await page.click('.fab', undefined, 900);
+      check((await page.eval(`return location.pathname + location.search`)) === '/orchestration?new=1', 'the Orchestrations FAB opens the new orchestration form');
+    }
+    await page.goto('/orchestration?new=1', 900);
+    check(!(await page.eval(`return !!document.querySelector('.fab')`)), 'the new orchestration form is open, so the FAB steps aside');
     // Tasks is in the More sheet on a phone, and its FAB starts a task
     const tasksFab = await fab('/tasks');
-    check(tasksFab?.text === '' && tasksFab?.name === 'New task', `[390px /tasks] the FAB is an icon named New task (${JSON.stringify(tasksFab)})`);
+    expectFab(tasksFab, '/tasks', 'New task');
     check((await page.eval(`return document.querySelector('.tabbar-more')?.classList.contains('is-active')`)) === true, '[390px /tasks] More is the current tab, where Tasks lives');
-    await page.click('.fab', undefined, 900);
-    check((await page.eval(`return location.pathname + location.search`)) === '/tasks?new=1', 'the Tasks FAB opens the New task form');
-    check((await fab(`/tasks/${key}`)) === null, "[390px a work item] no FAB on a work item's page");
-    check((await fab('/settings')) === null, '[390px /settings] no FAB where there is nothing to start');
-    await fab('/');
-    await page.click('.fab', undefined, 900);
-    check((await page.eval(`return location.pathname`)) === '/chats/new', 'the Home FAB opens New chat');
+    if (tasksFab.shown) {
+      await page.click('.fab', undefined, 900);
+      check((await page.eval(`return location.pathname + location.search`)) === '/tasks?new=1', 'the Tasks FAB opens the New task form');
+    }
+    check(!(await fab(`/tasks/${key}`)).shown, "[390px a work item] no FAB on a work item's page");
+    check(!(await fab('/settings')).shown, '[390px /settings] no FAB where there is nothing to start');
+    if ((await fab('/')).shown) {
+      await page.click('.fab', undefined, 900);
+      check((await page.eval(`return location.pathname`)) === '/chats/new', 'the Home FAB opens New chat');
+    } else await page.goto('/chats/new', 900);
     check(!(await page.eval(`return !!document.querySelector('.fab')`)), 'New chat has its own composer, so the FAB steps aside');
     await page.goto('/orchestration', 900);
     check((await page.eval(`return document.querySelector('.tabbar a[href="/orchestration"]')?.classList.contains('is-active')`)) === true, 'the current tab is marked');

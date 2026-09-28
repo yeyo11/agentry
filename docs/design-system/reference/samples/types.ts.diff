@@ -1,0 +1,18 @@
+diff --git a/packages/shared/src/types.ts b/packages/shared/src/types.ts
+index 81dc5d0..779297a 100644
+--- a/packages/shared/src/types.ts
++++ b/packages/shared/src/types.ts
+@@ -1,7 +1,12 @@
+-/** One file's diff, unified, exactly as git prints it: the panel highlights it, nobody parses it. */
++/** How many unchanged lines a diff keeps around each change, or the whole file. */
++export type DiffContext = number | 'full';
++
++/** One file's diff, unified, exactly as git prints it. The comparator parses it in the browser. */
+ export interface FileDiff {
+   path: string;
+   diff: string;
++  /** True when the diff carries the whole file, so every fold can be opened without asking again */
++  full: boolean;
+ }
+ 
+ /** A file a chat wrote where git cannot answer, read from the chat's own transcript. */

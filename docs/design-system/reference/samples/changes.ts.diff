@@ -1,0 +1,26 @@
+diff --git a/apps/api/src/routes/changes.ts b/apps/api/src/routes/changes.ts
+index 9a14042..7584612 100644
+--- a/apps/api/src/routes/changes.ts
++++ b/apps/api/src/routes/changes.ts
+@@ -1,10 +1,18 @@
+ import type { FastifyInstance } from 'fastify';
+ import type { Changes } from '@agentry/core';
++import type { DiffContext } from '@agentry/shared';
++
++/** `?context=full` or a number of lines; anything else is the default of three. */
++function contextOf(value: string | undefined): DiffContext {
++  if (value === 'full') return 'full';
++  const lines = Number(value);
++  return Number.isInteger(lines) && lines >= 0 ? lines : 3;
++}
+ 
+ export function changesRoutes(app: FastifyInstance, changes: Changes): void {
+-  app.get<{ Params: { id: string }; Querystring: { path?: string } }>('/chats/:id/changes/diff', async (req, reply) => {
+-    const { path } = req.query;
++  app.get<{ Params: { id: string }; Querystring: { path?: string; context?: string } }>('/chats/:id/changes/diff', async (req, reply) => {
++    const { path, context } = req.query;
+     if (!path) return reply.code(400).send({ error: 'path is required' });
+-    return changes.chatDiff(req.params.id, path);
++    return changes.chatDiff(req.params.id, path, contextOf(context));
+   });
+ }

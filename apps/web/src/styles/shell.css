@@ -14,6 +14,11 @@
   transition: grid-template-columns var(--dur-slow) var(--ease-out);
 }
 
+/* The keyboard covers the home indicator: its inset left under the page is a gap above the keyboard */
+:root[data-keyboard='open'] .shell {
+  padding-bottom: 0;
+}
+
 .shell-rail {
   grid-template-columns: 68px minmax(0, 1fr);
 }
@@ -557,31 +562,6 @@
   white-space: nowrap;
 }
 
-/* The phone's Chats header: the scope as the reference's `.chip`, beside the title. Only a phone
-   renders it, so it keeps a 44 px target */
-.project-scope-chip {
-  flex: none;
-  max-width: 55vw;
-}
-
-.project-scope-chip .select-trigger.project-selector {
-  width: auto;
-  max-width: 100%;
-  min-height: 44px;
-  padding: 0 12px 0 14px;
-  gap: 6px;
-  border-color: var(--border-strong);
-  border-radius: var(--radius-pill);
-  background: var(--bg-elev);
-  color: var(--text-muted);
-  font: 500 14px var(--sans);
-}
-
-.project-scope-chip .select-trigger.project-selector:hover:not(:disabled) {
-  border-color: var(--line-3);
-  color: var(--text);
-}
-
 .topbar-actions {
   margin-left: auto;
   display: flex;
@@ -749,7 +729,7 @@ a.statusbar-item:focus-visible {
 .main {
   --main-pad-top: 26px;
   --main-pad-x: 28px;
-  --main-pad-bottom: 48px;
+  --main-pad-bottom: 28px;
   /* What lies under the phone's tab bar, which covers the bottom of the page */
   --main-covered-bottom: 0px;
   --stick-top: calc(-1 * var(--main-pad-top));
@@ -966,19 +946,19 @@ a.statusbar-item:focus-visible {
     scroll-padding-bottom: calc(var(--main-covered-bottom) + var(--main-pad-bottom));
   }
 
-  /* The FAB floats over the end of the page: the last row scrolls out from under it */
-  .shell-has-fab .main {
-    --main-covered-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 72px);
+  /* With the keyboard up (lib/viewport.ts) the tab bar and the FAB sit behind it, so they neither
+     show nor keep room: iOS scrolls a focused field above whatever the page keeps at its bottom */
+  :root[data-keyboard='open'] .main {
+    --main-covered-bottom: 0px;
+  }
+
+  :root[data-keyboard='open'] .tabbar,
+  :root[data-keyboard='open'] .fab {
+    display: none;
   }
 
   /* A page's own button for what the FAB starts would be the same action twice */
   .shell-has-fab .page-action-fab {
-    display: none;
-  }
-
-  /* An empty board's "Create the first task" is that action already, and the one gradient button
-     there (MobileTableroVacio draws no FAB) */
-  .shell-has-fab:has(.workitem-empty-new) .fab {
     display: none;
   }
 
@@ -1102,12 +1082,15 @@ a.statusbar-item:focus-visible {
     color: #fff;
     font: 600 15px var(--sans);
     cursor: pointer;
-    transition: transform var(--dur-base) var(--ease-spring), box-shadow var(--dur-base);
+    transition: transform var(--dur-base) var(--ease-spring), box-shadow var(--dur-base), opacity var(--dur-base);
   }
 
-  .fab.fab-labelled {
-    width: auto;
-    padding: 0 20px 0 18px;
+  /* Scrolling down it slides away below the tab bar's edge (Fab.tsx), so the page keeps no room for
+     it at its end; scrolling up brings it back. Motion off makes the slide instant (motion.css) */
+  .fab.is-away {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(calc(100% + 24px));
   }
 
   .fab:active {

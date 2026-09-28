@@ -1482,6 +1482,26 @@ area is documented:
   orchestration's `pnpm e2e` runs in its own verification phase. After that, the owner tries the
   feature and opens its one pull request to `main`.
 
+### Merging `main` (0.22.0) into the branch
+
+While the ecosystem was built, `main` gained managed claude-swap (#104), the pinned chat moved off
+an exhausted account (#106), `AGENTRY_API_URL` for every chat (#107), the localhost.run tunnel
+(#110), pushes on iOS (#111), lists that keep their filters and the phone layout polish (#113), and
+the changes review (#115). The merge keeps both sides; where they met, it settled these:
+
+- **The project scope stays in the top bar** on every page, as #113 decided. The Tasks header's own
+  chip and `pageHoldsScope` are gone, like the Chats one.
+- **Tasks keeps its filters** through the lists' shared `useListParams`, per project until Reset
+  ([persistent-filters.md](../persistent-filters.md)).
+- **The FAB is the same round "+" everywhere** (#113), Tasks included, and it steps aside through
+  `FabStandIn` on an empty or switched-off board and while New task is open.
+- **A work item's changes open the review screen** (`/tasks/:key/changes`), by result only, since
+  #115 removed the inspector's `SummaryView` and every editor link. The item's changes routes take
+  the scope and the context the chat's and the task's do.
+- **The light `--live` stays `#0b6680`**: `main` still had `#0e7490`, which reads 4.2:1 on its tint.
+- **`agentry-ds.css`**: the comparator is §18, after §15 to §17, and its step list is
+  `.edit-steps`/`.edit-step`, because the wizard's stepper already is `.steps`/`.step`.
+
 ## Related
 
 [[status.md]] · [[projects.md]] · [[work-items.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[design-system.md]] · [[plans/agents-redesign.md]] ·

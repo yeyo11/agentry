@@ -1,15 +1,12 @@
 import type { ChangedFile, WorkItemDetail } from '@agentry/shared';
 import { GitBranch, GitCompareArrows } from 'lucide-react';
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api, keys, useProjects, useWorkItemChanges } from '../../../api';
-import { Dialog } from '../../../components/Dialog';
+import { Link } from 'react-router-dom';
+import { useProjects, useWorkItemChanges } from '../../../api';
 import { ICON_SM } from '../../../components/icons';
-import { SummaryView, type ChangeSource } from '../../../components/observe/Changes';
-import { OpenWorktree } from '../../../components/observe/EditorLinks';
 import { ErrorBox, Loading } from '../../../components/ui';
+import { reviewLink, reviewPath } from '../../../lib/changes-summary';
 import { totalsOf } from '../../../lib/observe';
-import { isLive } from '../../../lib/work-items';
 import { diffstat, pathParts } from './model';
 
 /** The worktree as the project sees it (`.claude/worktrees/task-agn-2`), where it lies inside it. */
@@ -40,26 +37,20 @@ function Counts({ file }: { file: Pick<ChangedFile, 'additions' | 'deletions'> }
 }
 
 /**
- * What changed in the item's own worktree: its branch against where it started, the files with a
- * diffstat, and the chat's own Changes view (`SummaryView`) for the diff itself. Nothing is merged
- * and no pull request is opened on its own (decision 20).
+ * What changed in the item's own worktree: its branch against where it started and the files with a
+ * diffstat. The diff itself is the review screen's, as a chat's and a task's are (design system §5):
+ * each file opens there, and nothing links to an editor. Nothing is merged and no pull request is
+ * opened on its own (decision 20).
  */
 export function Changes({ item, compact = false, active = true }: { item: WorkItemDetail; compact?: boolean; active?: boolean }) {
   const { t } = useTranslation('workItem');
   const changes = useWorkItemChanges(item.id, active);
   const projects = useProjects(false);
-  const [open, setOpen] = useState(false);
   const project = projects.data?.find((p) => p.id === item.projectId);
   const summary = changes.data?.summary ?? null;
   const files = summary ? [...summary.files, ...summary.uncommitted.filter((u) => !summary.files.some((f) => f.path === u.path))] : [];
   const totals = totalsOf(files);
-  const source: ChangeSource = {
-    queryKey: keys.workItemChanges(item.id),
-    diff: (path) => api.workItemDiff(item.id, path),
-    dir: changes.data?.worktree ?? null,
-    compare: project?.path ?? null,
-    live: isLive(item),
-  };
+  const review = reviewPath.workItem(item.key);
 
   let body;
   if (changes.isLoading) body = <Loading />;
@@ -81,7 +72,7 @@ export function Changes({ item, compact = false, active = true }: { item: WorkIt
             files.map((file) => {
               const { dirs, name } = pathParts(file.path);
               return (
-                <button key={file.path} type="button" className="diff-file" onClick={() => setOpen(true)} aria-haspopup="dialog">
+                <Link key={file.path} to={reviewLink(review, { file: file.path })} className="diff-file">
                   {/* Cut at its slashes, so a narrow column wraps there and keeps the file name whole */}
                   <span className="diff-file-path">
                     {dirs.map((dir, i) => (
@@ -96,7 +87,7 @@ export function Changes({ item, compact = false, active = true }: { item: WorkIt
                     <Counts file={file} />
                     <Diffstat file={file} />
                   </span>
-                </button>
+                </Link>
               );
             })
           )}
@@ -106,13 +97,14 @@ export function Changes({ item, compact = false, active = true }: { item: WorkIt
             {t('changes.note')} <span className="mono">{relativeTo(changes.data.worktree, project?.path)}</span>
           </p>
         )}
-        <div className="changes-actions">
-          <button type="button" className={`btn ${compact ? '' : 'btn-small'} grow`.trim()} onClick={() => setOpen(true)} disabled={files.length === 0}>
-            <GitCompareArrows {...ICON_SM} />
-            {t('changes.viewDiff')}
-          </button>
-          {!compact && source.dir && <OpenWorktree dir={source.dir} />}
-        </div>
+        {files.length > 0 && (
+          <div className="changes-actions">
+            <Link to={review} className={`btn ${compact ? '' : 'btn-small'} grow`.trim()}>
+              <GitCompareArrows {...ICON_SM} />
+              {t('changes.viewDiff')}
+            </Link>
+          </div>
+        )}
       </>
     );
 
@@ -131,11 +123,6 @@ export function Changes({ item, compact = false, active = true }: { item: WorkIt
         </h2>
       )}
       {body}
-      {open && summary && (
-        <Dialog variant="drawer" width={820} title={<span className="mono">{summary.branch ?? t('changes.title')}</span>} onClose={() => setOpen(false)}>
-          <SummaryView summary={summary} source={source} inline />
-        </Dialog>
-      )}
     </section>
   );
 }

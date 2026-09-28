@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Menu } from '../../../components/controls/Menu';
 import { ICON_SM } from '../../../components/icons';
-import { ProjectSelector } from '../../../components/ProjectSelector';
 import { Segmented, usePageTitle } from '../../../components/ui';
 import { MILESTONES_PATH, TASKS_PATH, VIEW_PARAM } from '../../../lib/work-items';
 
@@ -132,8 +131,8 @@ export function TasksHeader({ subtitle, view, actions }: { subtitle: ReactNode; 
 }
 
 /**
- * The phone's header: the title with the project scope as a chip (the top bar leaves its own out
- * here) and an icon action, the views across the width under it. While choosing cards to
+ * The phone's header: the title (the project scope stays in the top bar, as on every page) and
+ * an icon action, the views across the width under it. While choosing cards to
  * orchestrate it becomes "2 chosen" with a way out.
  */
 export function PhoneTasksHeader({
@@ -170,7 +169,6 @@ export function PhoneTasksHeader({
           <h1>{title ?? t('title')}</h1>
           {subtitle && <span className="mono muted">{subtitle}</span>}
         </div>
-        {!subtitle && <ProjectSelector chip />}
         {action}
       </header>
       <ViewSwitch view={view} wide />

@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
+import { parseChangeScope, type Core } from '@agentry/core';
 import { WORK_ITEM_PRIORITIES, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@agentry/shared';
 import type {
   CheckAcceptanceCriterionRequest,
@@ -16,6 +16,7 @@ import type {
   WorkItemFilter,
   WorkOnWorkItemRequest,
 } from '@agentry/shared';
+import { diffOptions, type DiffQuery, type ScopeQuery } from './orchestrations.ts';
 
 /** A filter as a query string carries it: every list comma separated. */
 interface FilterQuery {
@@ -193,11 +194,14 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     reply.status(201).send(await core.workOnItem(req.params.itemId, bodyOf(req.body))),
   );
 
-  app.get<{ Params: { itemId: string } }>('/work-items/:itemId/changes', (req) => core.workItemChanges(req.params.itemId));
+  // Scoped and with its context as a chat's or a task's, so the review screen reads an item the same way
+  app.get<{ Params: { itemId: string }; Querystring: ScopeQuery }>('/work-items/:itemId/changes', (req) =>
+    core.workItemChanges(req.params.itemId, parseChangeScope(req.query)),
+  );
 
-  app.get<{ Params: { itemId: string }; Querystring: { path?: string } }>('/work-items/:itemId/changes/diff', (req) => {
+  app.get<{ Params: { itemId: string }; Querystring: DiffQuery }>('/work-items/:itemId/changes/diff', (req) => {
     if (!req.query.path) throw new Error('path is required');
-    return core.workItemDiff(req.params.itemId, req.query.path);
+    return core.workItemDiff(req.params.itemId, req.query.path, diffOptions(req.query));
   });
 
   app.post<{ Params: { id: string }; Body: CreateWorkItemFromMessageRequest }>('/chats/:id/work-items', async (req, reply) =>

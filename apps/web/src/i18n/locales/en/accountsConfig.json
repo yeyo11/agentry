@@ -133,5 +133,24 @@
     "sevenDay": "7d",
     "spent": "{{window}} exhausted",
     "used": "{{window}} {{pct}}%"
+  },
+  "cswap": {
+    "activate": "Activate multiple accounts",
+    "activateHint": "Agentry downloads claude-swap and installs it in its own folder (about 50–80 MB the first time). Nothing else on the system is touched.",
+    "downloadingUv": "Downloading uv…",
+    "installingCswap": "Installing claude-swap…",
+    "installStartFailed": "Could not start installing claude-swap",
+    "failed": "claude-swap could not be installed",
+    "retry": "Retry",
+    "incompatible": "claude-swap {{version}} is not a version Agentry has been tested with ({{pinned}}).",
+    "useManaged": "Use Agentry's version",
+    "installPinned": "Install claude-swap {{pinned}} to use the version Agentry is tested with.",
+    "managedSource": "installed by Agentry",
+    "more": "claude-swap",
+    "remove": "Remove claude-swap",
+    "removeTitle": "Remove claude-swap?",
+    "removeBody": "Agentry deletes the copy of claude-swap it installed. Your accounts are kept, and come back when claude-swap is installed again.",
+    "removed": "claude-swap removed",
+    "removeFailed": "Could not remove claude-swap"
   }
 }

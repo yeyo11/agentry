@@ -91,6 +91,9 @@ const env = {
   AGENTRY_UPDATE_CHECK: 'off',
   // The Updates card offers the Docker commands, the one distribution a browser run can stand for
   AGENTRY_DISTRIBUTION: 'docker',
+  // ...which turns the tunnel off by default; the Remote access specs need it offered. No spec can
+  // open a real one: the suite runs with authentication off, and the tunnel refuses to start then
+  AGENTRY_TUNNEL: 'on',
   // Live specs need the real login; everything else runs against an empty config dir
   ...(live ? {} : { CLAUDE_CONFIG_DIR: join(sandbox, 'claude'), CSWAP_BIN: join(sandbox, 'no-cswap') }),
 };

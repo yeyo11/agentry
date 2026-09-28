@@ -53,10 +53,12 @@ import type {
 import { WORK_ITEM_STATUSES } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
+import { AppSettingsStore } from './app-settings.ts';
 import { stateFromRun } from './chat-model.ts';
 import { chatLinkName, WorkItemError, WorkItemService, type WorkItemLinkState } from './work-items.ts';
 import { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentsPlace } from './documents.ts';
 import { canBranch, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
+import { TunnelManager } from './tunnel.ts';
 import { ChatService, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatRuntime, type RunResult } from './chats.ts';
 import { Connectors } from './connectors.ts';
@@ -67,7 +69,7 @@ import { ReleaseWatch } from './release-watch.ts';
 import { ConfigExplorer } from './config/explorer.ts';
 import { SettingsFiles } from './config/files.ts';
 import { ChangeWatcher } from './change-watcher.ts';
-import { Changes } from './changes.ts';
+import { Changes, type ChangeScope, type DiffOptions } from './changes.ts';
 import { CredentialStore, type StoredCredentials } from './credentials.ts';
 import { Db } from './db.ts';
 import { HealthMonitor, HealthService } from './health-service.ts';
@@ -78,7 +80,6 @@ import { modelOptions } from './models.ts';
 import { PermissionBroker } from './permissions.ts';
 import { PushService } from './push.ts';
 import { ChatTools, ToolPresetStore } from './chat-tools.ts';
-import { EditorSettingsStore } from './editor-settings.ts';
 import { McpConfig } from './config/mcp.ts';
 import { ConfigResources } from './config/resources.ts';
 import { projectScope, userScope, type ConfigScope } from './config/scope.ts';
@@ -106,15 +107,17 @@ import { encodeProjectId, Workspace } from './workspace.ts';
 
 export { parseMcpScope } from './config/mcp.ts';
 export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
-export { DEFAULT_EDITOR, parseEditorSettings, sanitizeEditor, templateProblem, type EditorTemplateProblem } from './editor-settings.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
-export { loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
+export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
+export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
+export { LOCALHOST_RUN_KNOWN_HOSTS, TunnelManager, TunnelRefusedError, parseTunnelUrl, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
 export { ChatConflictError, DEFAULT_ORIGINS, type ChatFilter, type Placement } from './chat-service.ts';
 export { compareVersions } from './version-check.ts';
 export { ReleaseWatch, type ReleaseWatchOptions } from './release-watch.ts';
 export { DEFAULT_AUTO_SWITCH } from './accounts.ts';
+export { CSWAP_VERSION, UV_VERSION } from './cswap-pin.ts';
 export {
   chatControl,
   chatState,
@@ -130,6 +133,7 @@ export {
 export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnapshot } from './usage.ts';
 export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 export { usageBreakdown, usageSeries } from './usage-series.ts';
+export { parseChangeScope, parseDiffContext, type ChangeScope, type DiffOptions } from './changes.ts';
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { deriveKeyPrefix, parseProjectSettings, parseProjectSetup } from './project-settings.ts';
 export { PROJECT_TEMPLATES } from './project-templates.ts';
@@ -222,13 +226,18 @@ export class Core {
   readonly memory: MemoryStore;
   readonly mcp: McpConfig;
   readonly toolPresets: ToolPresetStore;
-  /** Where file links open: `editor.json`, one document for every browser */
-  readonly editor: EditorSettingsStore;
   readonly connectors: Connectors;
   readonly resources: ConfigResources;
   readonly credentials: CredentialStore;
   /** How the API is guarded: the auth mode, the token hash and read-only */
   readonly security: AuthStore;
+  /**
+   * The settings that change at runtime (`app-settings.json` under the environment), and the exact
+   * hosts answered beside the allowlist. What applies now is read here, never from `config`
+   */
+  readonly appSettings: AppSettingsStore;
+  /** The tunnel through localhost.run: lends its verified host to `appSettings.runtimeHosts` */
+  readonly tunnel: TunnelManager;
   readonly uploads: UploadStore;
   readonly accounts: AccountManager;
   readonly cliVersion: CliVersionWatch;
@@ -282,6 +291,27 @@ export class Core {
         summary: 'Replace the token from AGENTRY_AUTH_TOKEN (AGENTRY_AUTH_TOKEN_RESET)',
       });
     }
+    this.appSettings = new AppSettingsStore(config, {
+      emit: (event) => {
+        // `system()` carries the default permission mode, and a cached copy would show the old one
+        this.forgetSystem();
+        this.events.emit(event);
+      },
+    });
+    this.tunnel = new TunnelManager({
+      dataDir: config.dataDir,
+      sshBin: config.sshBin,
+      enabled: config.tunnelEnabled,
+      security: this.security,
+      hosts: this.appSettings.runtimeHosts,
+      emit: (event) => this.events.emit(event),
+      // What the tunnel does by itself; what a person asks for is audited by the API's own hook
+      audit: (row) => this.db.appendAudit({ at: new Date().toISOString(), actor: 'agentry', status: 200, ...row }),
+    });
+    // The tunnel never outlives the guard: it is closed before the first unguarded request
+    this.security.beforeUnguarded = async () => {
+      await this.tunnel.stop('unguarded');
+    };
     this.workspace = new Workspace(config);
     this.cliVersion = new CliVersionWatch(config);
     this.release = new ReleaseWatch(config, { current: AGENTRY_VERSION, events: this.events });
@@ -298,6 +328,7 @@ export class Core {
     });
     this.uploads = new UploadStore(config.dataDir);
     this.runtime = new ChatManager(config, this.db);
+    this.runtime.defaults = this.appSettings;
     this.runtime.permissions = this.permissions;
     this.runtime.bus = this.events;
     this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events);
@@ -326,7 +357,6 @@ export class Core {
     this.orchestrator.workflowRecords = (sessionId) => this.sessions.workflows(sessionId, true);
     this.mcp = new McpConfig(config);
     this.toolPresets = new ToolPresetStore(config);
-    this.editor = new EditorSettingsStore(config);
     this.health = new HealthService(this.runtime, this.db);
     this.orchestrator.health = (task) => {
       const chat = task.runId ? this.runtime.get(task.runId) : null;
@@ -549,6 +579,11 @@ export class Core {
         reason: result.reason,
       });
     });
+    // A managed install (or its removal) can change who owns the credential
+    this.accounts.on('cswap', () => {
+      this.syncCredentialOwner();
+      this.forgetSystem();
+    });
     this.runtime.on('rate-limited', (run: ChatRuntime) => {
       this.events.emit({ type: 'run.rateLimited', title: `${run.name} hit its rate limit`, ...runRef(run) });
       void this.rotateAndResume(run);
@@ -574,13 +609,19 @@ export class Core {
   private async rotateAndResume(run: ChatRuntime): Promise<void> {
     if (!this.accounts.autoSwitch.rotateOnLimit || !this.accounts.managed) return;
     try {
-      // A project with a rotation policy moves within it; everything else uses the global rotation
+      // A pinned chat leaves its account; a project with a rotation policy moves within it; everything
+      // else uses the global rotation
       const reason = `run ${run.name} hit its rate limit`;
-      const result = (await this.accounts.rotateWithinPolicy({ account: run.account, cwd: run.cwd }, reason)) ?? (await this.accounts.rotate(reason));
+      const pinned = run.account;
+      const result = pinned
+        ? await this.accounts.rotatePinned({ account: pinned, cwd: run.cwd }, reason)
+        : ((await this.accounts.rotateWithinPolicy({ account: null, cwd: run.cwd }, reason)) ?? (await this.accounts.rotate(reason)));
       if (!result.switched) {
         this.runtime.notice(run.id, `Rate limit reached and no account with quota left${result.reason ? ` (${result.reason})` : ''}.`);
         return;
       }
+      // Kept, the pin would respawn the replay on the account that just ran out
+      if (pinned) this.runtime.unpin(run.id);
       this.forgetSystem();
       const target = result.to ?? 'another account';
       // An orchestration worker already handed its result to the orchestrator: rotating helps the
@@ -669,7 +710,7 @@ export class Core {
         auth,
         configDir: this.config.configDir,
         workspaceDir: this.config.workspaceDir,
-        defaultPermissionMode: this.config.defaultPermissionMode,
+        defaultPermissionMode: this.appSettings.defaultPermissionMode,
         version: AGENTRY_VERSION,
       };
       // A read that finished late never replaces a newer one
@@ -1515,15 +1556,15 @@ export class Core {
   }
 
   /** What the item's own branch changed, read as a chat's worktree is. */
-  async workItemChanges(itemId: string): Promise<WorkItemChanges> {
+  async workItemChanges(itemId: string, scope: ChangeScope = {}): Promise<WorkItemChanges> {
     const item = await this.workItemAccess(itemId, 'read');
     const path = this.projectStore.get(item.projectId)?.path ?? item.worktree ?? '';
-    return { worktree: item.worktree, branch: item.branch, summary: this.changes.itemChanges(path, item) };
+    return { worktree: item.worktree, branch: item.branch, summary: this.changes.itemChanges(path, item, scope) };
   }
 
-  async workItemDiff(itemId: string, path: string): Promise<FileDiff> {
+  async workItemDiff(itemId: string, path: string, opts: DiffOptions = {}): Promise<FileDiff> {
     const item = await this.workItemAccess(itemId, 'read');
-    return this.changes.itemDiff(this.projectStore.get(item.projectId)?.path ?? item.worktree ?? '', item, path);
+    return this.changes.itemDiff(this.projectStore.get(item.projectId)?.path ?? item.worktree ?? '', item, path, opts);
   }
 
   /**
@@ -1576,6 +1617,8 @@ export class Core {
   }
 
   shutdown(): void {
+    // First, while the database is still open for the row that says its host left
+    this.tunnel.shutdown();
     this.cliVersion.stop();
     this.release.stop();
     this.healthMonitor.stop();

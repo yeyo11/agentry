@@ -13,13 +13,13 @@ import { NARROW, useMediaQuery } from '../lib/media';
 import { setThemePreference, useThemePreference, type ThemePreference } from '../lib/theme';
 import { AccountTab } from './config/AccountTab';
 import { AppearanceTab } from './config/AppearanceTab';
-import { EditorTab } from './config/EditorTab';
 import { FilesTab } from './config/FilesTab';
 import { InstallTab } from './config/InstallTab';
 import { InstructionsTab } from './config/InstructionsTab';
 import { McpTab } from './config/McpTab';
 import { NotificationsTab } from './config/NotificationsTab';
 import { PluginsTab } from './config/PluginsTab';
+import { RemoteAccessTab } from './config/RemoteAccessTab';
 import { ResourcesTab } from './config/ResourcesTab';
 import { SecurityTab } from './config/SecurityTab';
 import { SettingsTab } from './config/SettingsTab';
@@ -32,7 +32,6 @@ const RESOURCE_TABS: ResourceKind[] = ['agents', 'skills', 'commands', 'output-s
 const TAB_LABELS = {
   appearance: 'shell:appearance.tab',
   notifications: 'config:config.tabs.notifications',
-  editor: 'observe:editor.tab',
   account: 'config:config.tabs.account',
   instructions: 'config:config.tabs.instructions',
   settings: 'config:config.tabs.settings',
@@ -50,6 +49,7 @@ const TAB_LABELS = {
   install: 'config:config.tabs.install',
   supervisor: 'observe:supervisor.tab',
   security: 'config:config.tabs.security',
+  remote: 'config:config.tabs.remote',
 } as const;
 
 type TabId = keyof typeof TAB_LABELS;
@@ -60,10 +60,10 @@ type TabId = keyof typeof TAB_LABELS;
  * deep link (the palette, the update dot, the docs) still lands where it did.
  */
 const GROUPS: ReadonlyArray<{ id: 'agentry' | 'claude' | 'extensions' | 'system'; tabs: readonly TabId[] }> = [
-  { id: 'agentry', tabs: ['appearance', 'notifications', 'editor', 'account'] },
+  { id: 'agentry', tabs: ['appearance', 'notifications', 'account'] },
   { id: 'claude', tabs: ['instructions', 'settings', 'memory', 'rules', 'output-styles'] },
   { id: 'extensions', tabs: ['mcp', 'plugins', 'skills', 'agents', 'commands', 'workflows', 'tools'] },
-  { id: 'system', tabs: ['files', 'install', 'supervisor', 'security'] },
+  { id: 'system', tabs: ['files', 'install', 'supervisor', 'security', 'remote'] },
 ];
 
 const TAB_ORDER: TabId[] = GROUPS.flatMap((group) => group.tabs);
@@ -162,11 +162,11 @@ function TabContent({ tab }: { tab: TabId }) {
       {tab === 'files' && <FilesTab scope={USER_SCOPE} />}
       {tab === 'memory' && <MemoryOverview />}
       {tab === 'plugins' && <PluginsTab />}
-      {tab === 'editor' && <EditorTab />}
       {tab === 'notifications' && <NotificationsTab />}
       {tab === 'install' && <InstallTab />}
       {tab === 'supervisor' && <SupervisorTab />}
       {tab === 'security' && <SecurityTab />}
+      {tab === 'remote' && <RemoteAccessTab />}
     </>
   );
 }

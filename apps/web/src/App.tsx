@@ -43,8 +43,7 @@ import { useDesktopNavigation } from './lib/desktop';
 import { useKeyboardInset } from './lib/viewport';
 import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
-import { NARROW, useMediaQuery } from './lib/media';
-import { fabFor, hidesTabBar, pageHoldsScope } from './lib/shell-live';
+import { fabFor, hidesTabBar } from './lib/shell-live';
 import { NEW_TASK_PATH, TASKS_PATH, normalizeKey } from './lib/work-items';
 import { Home } from './pages/Home';
 import { AssistantCrumbs, assistantProjectOf } from './pages/assistant/crumbs';
@@ -54,6 +53,11 @@ import { useRoleName } from './pages/team/RoleAvatar';
 // Only the landing pages ship in the main bundle; everything else loads on first visit
 const Accounts = lazyPage(() => import('./pages/Accounts').then((m) => m.Accounts));
 const ChatView = lazyPage(() => import('./pages/ChatView').then((m) => m.ChatView));
+const loadChangesReview = () => import('./pages/ChangesReview');
+const ChatChangesReview = lazyPage(() => loadChangesReview().then((m) => m.ChatChangesReview));
+const TaskChangesReview = lazyPage(() => loadChangesReview().then((m) => m.TaskChangesReview));
+const IntegrationChangesReview = lazyPage(() => loadChangesReview().then((m) => m.IntegrationChangesReview));
+const WorkItemChangesReview = lazyPage(() => loadChangesReview().then((m) => m.WorkItemChangesReview));
 const Connectors = lazyPage(() => import('./pages/Connectors').then((m) => m.Connectors));
 // Loaded ahead of a visit too: the list is where most visits go after the landing page
 const loadChats = () => import('./pages/Chats');
@@ -240,8 +244,8 @@ function Shell() {
   // A tab its modules hide lands on Summary, so the crumb may name it for a moment before that
   const projectTab = pathname === '/' && project ? (asProjectView(new URLSearchParams(search).get('view')) ?? 'summary') : null;
   const assistantProject = assistantProjectOf(pathname);
-  // A work item's page adds its key to the crumb: "Tasks / AGN-12"
-  const taskKey = pathname.startsWith(`${TASKS_PATH}/`) ? normalizeKey(decodeURIComponent(pathname.slice(TASKS_PATH.length + 1))) : null;
+  // A work item's page, and the review of its changes, add its key to the crumb: "Tasks / AGN-12"
+  const taskKey = pathname.startsWith(`${TASKS_PATH}/`) ? normalizeKey(decodeURIComponent(pathname.slice(TASKS_PATH.length + 1).split('/')[0] ?? '')) : null;
   // What else a person can start: behind "New chat ▾" in the top bar, and in the phone's More sheet
   const startEntries: MenuItem[] = [
     { id: 'run-workflow', label: t('shell.runWorkflow'), icon: Play, onSelect: () => setWorkflowOpen(true) },
@@ -260,11 +264,6 @@ function Shell() {
   );
 
   const tabBar = !hidesTabBar(pathname, search);
-  // On a phone the Chats header carries the scope, as a chip beside its title; a second selector
-  // up here would be two controls for one choice. Decided here, not hidden in CSS, so that exactly
-  // one is in the DOM
-  const phone = useMediaQuery(NARROW);
-  const scopeInPage = phone && pageHoldsScope(pathname);
   const fab = fabFor(pathname, search) !== null;
 
   // In the icon rail the labels are hidden, so they move into tooltips
@@ -365,7 +364,7 @@ function Shell() {
           </NavLink>
           {/* The scope is the crumb's root: every page below it is about that project */}
           <div className="crumbs">
-            {!scopeInPage && <ProjectSelector />}
+            <ProjectSelector />
             <span className="crumb-sep" aria-hidden>
               /
             </span>
@@ -418,14 +417,18 @@ function Shell() {
               <Route path="/chats" element={<Chats />} />
               <Route path="/chats/new" element={<NewChat />} />
               <Route path="/chats/:id" element={<ChatView />} />
+              <Route path="/chats/:id/changes" element={<ChatChangesReview />} />
               <Route path="/projects" element={<Projects />} />
               <Route path="/projects/new" element={<NewProject />} />
               <Route path="/projects/:id/assistant" element={<AssistantPage />} />
               <Route path="/tasks" element={<TasksBoard />} />
               <Route path="/tasks/milestones" element={<Milestones />} />
               <Route path="/tasks/:key" element={<WorkItemPage />} />
+              <Route path="/tasks/:key/changes" element={<WorkItemChangesReview />} />
               <Route path="/orchestration" element={<Orchestration />} />
               <Route path="/orchestration/:id" element={<OrchestrationDetail />} />
+              <Route path="/orchestration/:id/changes" element={<IntegrationChangesReview />} />
+              <Route path="/orchestration/:id/tasks/:taskId/changes" element={<TaskChangesReview />} />
               <Route path="/accounts" element={<Accounts />} />
               <Route path="/schedules" element={<Schedules />} />
               <Route path="/schedules/new" element={<ScheduleEditor />} />
@@ -460,7 +463,7 @@ function Shell() {
 
       {tabBar && (
         <>
-          <Fab pathname={pathname} search={search} onNewChat={newChat} onNewOrchestration={newOrchestration} onNewTask={newTask} />
+          <Fab pathname={pathname} search={search} scroller={mainRef} onNewChat={newChat} onNewOrchestration={newOrchestration} onNewTask={newTask} />
           <TabBar
             pathname={pathname}
             tabs={[home, chats, orchestrations]}

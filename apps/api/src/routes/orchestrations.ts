@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
+import { parseChangeScope, parseDiffContext, type Core, type DiffOptions } from '@agentry/core';
 import type {
   LaunchOrchestrationTemplateRequest,
   OrchestrationSpec,
@@ -18,6 +18,19 @@ const pathOf = (path: string | undefined): string => {
   if (!path) throw new Error('path is required');
   return path;
 };
+
+/** The part of a branch's work a summary or a diff is about: all of it, one commit, or what is not committed. */
+export interface ScopeQuery {
+  commit?: string;
+  uncommitted?: string;
+}
+
+export interface DiffQuery extends ScopeQuery {
+  path?: string;
+  context?: string;
+}
+
+export const diffOptions = (query: DiffQuery): DiffOptions => ({ ...parseChangeScope(query), context: parseDiffContext(query.context) });
 
 export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   app.get('/orchestrations', () => core.orchestrator.list().map((o) => core.orchestrator.view(o)));
@@ -116,22 +129,28 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
   );
 
   // What a worker actually did on disk, from git and from its transcript rather than from what it says
-  app.get<{ Params: { id: string; taskId: string } }>('/orchestrations/:id/tasks/:taskId/changes', (req) =>
-    core.changes.taskChanges(req.params.id, req.params.taskId),
+  app.get<{ Params: { id: string; taskId: string }; Querystring: ScopeQuery }>('/orchestrations/:id/tasks/:taskId/changes', (req) =>
+    core.changes.taskChanges(req.params.id, req.params.taskId, parseChangeScope(req.query)),
   );
 
-  app.get<{ Params: { id: string; taskId: string }; Querystring: { path?: string } }>('/orchestrations/:id/tasks/:taskId/changes/diff', (req) =>
-    core.changes.taskDiff(req.params.id, req.params.taskId, pathOf(req.query.path)),
+  app.get<{ Params: { id: string; taskId: string }; Querystring: DiffQuery }>('/orchestrations/:id/tasks/:taskId/changes/diff', (req) =>
+    core.changes.taskDiff(req.params.id, req.params.taskId, pathOf(req.query.path), diffOptions(req.query)),
+  );
+
+  app.get<{ Params: { id: string; taskId: string } }>('/orchestrations/:id/tasks/:taskId/changes/steps', (req) =>
+    core.changes.taskSteps(req.params.id, req.params.taskId),
   );
 
   app.get<{ Params: { id: string; taskId: string } }>('/orchestrations/:id/tasks/:taskId/checklist', (req) =>
     core.changes.taskChecklist(req.params.id, req.params.taskId),
   );
 
-  app.get<{ Params: { id: string } }>('/orchestrations/:id/integration/changes', (req) => core.changes.integrationChanges(req.params.id));
+  app.get<{ Params: { id: string }; Querystring: ScopeQuery }>('/orchestrations/:id/integration/changes', (req) =>
+    core.changes.integrationChanges(req.params.id, parseChangeScope(req.query)),
+  );
 
-  app.get<{ Params: { id: string }; Querystring: { path?: string } }>('/orchestrations/:id/integration/changes/diff', (req) =>
-    core.changes.integrationDiff(req.params.id, pathOf(req.query.path)),
+  app.get<{ Params: { id: string }; Querystring: DiffQuery }>('/orchestrations/:id/integration/changes/diff', (req) =>
+    core.changes.integrationDiff(req.params.id, pathOf(req.query.path), diffOptions(req.query)),
   );
 
   app.delete<{ Params: { id: string } }>('/orchestrations/:id', (req) => {

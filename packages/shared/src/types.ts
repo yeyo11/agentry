@@ -847,8 +847,11 @@ export interface ChatStartOptions {
   maxBudgetUsd?: number;
   /** `host` sends permissions, questions and plans to the panel; `none`, the default, denies them */
   permissionPrompts?: 'host' | 'none';
-  /** Pin it to a claude-swap account (slot number, email or alias) instead of the active one */
-  account?: string;
+  /**
+   * Pin it to a claude-swap account (slot number, email or alias) instead of the active one; `null`
+   * unpins a chat on a resume or a fork. A pinned chat that hits its limit is unpinned by the rotation.
+   */
+  account?: string | null;
 }
 
 /** Starts a new chat. */
@@ -2274,6 +2277,8 @@ export interface ChangedFile {
   deletions: number;
   /** Where a rename came from */
   previousPath?: string;
+  /** Git printed `-` for both counts: there are no lines to count, and no diff to draw */
+  binary?: boolean;
 }
 
 /** What a branch has done: the work it committed, and what it has not committed yet. */
@@ -2290,12 +2295,60 @@ export interface ChangeSummary {
   files: ChangedFile[];
   /** Working-tree changes that are in no commit, staged or not */
   uncommitted: ChangedFile[];
+  /**
+   * Every file that differs between `base` and the working tree, committed or not, untracked
+   * included, with those counts: what the default diff of a file shows. Left out of a summary
+   * scoped to one commit or to the uncommitted work.
+   */
+  working?: ChangedFile[];
 }
 
-/** One file's diff, unified, exactly as git prints it: the panel highlights it, nobody parses it. */
+/**
+ * How many unchanged lines a diff keeps around each change: a number (0–500), or `full` for the
+ * whole file.
+ */
+export type DiffContext = number | 'full';
+
+/** One file's diff, unified, exactly as git prints it. */
 export interface FileDiff {
   path: string;
   diff: string;
+  /** True when the diff carries the whole file: `context=full` was asked for and honoured */
+  full: boolean;
+}
+
+/** The tools whose calls become the steps of the Step by step lens. */
+export type EditStepTool = 'Edit' | 'MultiEdit' | 'Write' | 'NotebookEdit';
+
+/** One successful edit of a chat's main transcript, with the patch the CLI stored for it. */
+export interface EditStep {
+  /** The `tool_use` id */
+  id: string;
+  /** 1-based, in the order the calls were made */
+  index: number;
+  /** When the call was made (ISO 8601); null when the entry carries no timestamp */
+  at: string | null;
+  tool: EditStepTool;
+  /**
+   * Relative to the git top level when the chat works in a checkout, to the chat's directory
+   * otherwise; absolute when the file is outside it
+   */
+  path: string;
+  additions: number;
+  deletions: number;
+  /** Unified diff (`@@` hunks only); `''` when the transcript kept no patch */
+  diff: string;
+  /** A `Write` that created the file */
+  created: boolean;
+  /** The last thing the assistant wrote before the call, clipped to 280 characters; null when none */
+  intent: string | null;
+  /**
+   * 0-based index, in the space `GET /chats/:id` pages with sidechains off, of the entry that holds
+   * the `tool_use`; null when unknown
+   */
+  entryIndex: number | null;
+  /** The call has no result yet: the chat is still working on it */
+  pending: boolean;
 }
 
 /** A file a chat wrote where git cannot answer, read from the chat's own transcript. */
@@ -2347,32 +2400,6 @@ export interface Localized {
   params?: LocalizedParams;
   /** The English sentence, always present */
   text: string;
-}
-
-// ---------- Editor links ----------
-
-/**
- * How the panel turns a path and a line into something that opens the person's editor. It is a
- * setting because the wrapper often runs in a container while the editor does not, and because
- * nobody agrees on an editor: `vscode://file/{path}:{line}` is only the default.
- */
-export interface EditorSettings {
-  /** URL template; `{path}`, `{line}` and `{column}` are substituted */
-  template: string;
-  /** Command for a side-by-side diff, e.g. `code --diff {left} {right}`; no button when absent */
-  diffCommand?: string;
-  /** Container paths rewritten to host paths before the template is filled; first match wins */
-  pathMap?: Array<{ from: string; to: string }>;
-}
-
-/** Replaces the whole document (`PUT /settings/editor`): it is small and the form always holds all of it. */
-export type UpdateEditorSettingsRequest = EditorSettings;
-
-/** `GET /settings/editor` and the answer to a `PUT`: the settings, and whether any were ever saved. */
-export interface EditorSettingsDoc {
-  /** False until the first `PUT`: `settings` is then the shipped default, and a browser may migrate its own */
-  stored: boolean;
-  settings: EditorSettings;
 }
 
 // ---------- Orchestration ----------
@@ -2956,6 +2983,90 @@ export interface AuditPage {
   from: number;
 }
 
+// ---------- Layered settings ----------
+
+// Some settings used to be read from the environment once, at startup. They can now also be
+// changed at runtime from a JSON file the UI edits, with a fixed order of precedence: the
+// environment, then the file, then the default. A value the environment set is still shown, but
+// read-only, the same way `AGENTRY_AUTH_TOKEN` already works for the guard: whoever deployed the
+// install decided it, and the UI must not quietly override a deploy.
+
+/** Where a layered setting's current value comes from. `env` means the UI may show it but not change it. */
+export type AppSettingSource = 'env' | 'file' | 'default';
+
+/** The values of the settings that can change at runtime, without their sources. */
+export interface AppSettingValues {
+  /**
+   * Host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern with
+   * at least two labels below the wildcard. Only the configured part: the exact names a running
+   * tunnel adds for itself are not listed here, because nobody may edit them.
+   */
+  allowedHosts: string[];
+  /** How many runs may work at once; a change applies to the next run, without a restart */
+  maxConcurrentRuns: number;
+  /** The `--permission-mode` of a run that does not ask for one; applies to the next run */
+  defaultPermissionMode: PermissionMode;
+}
+
+/** `GET /settings/app`: every layered setting, and where each one's value comes from. */
+export interface AppSettings extends AppSettingValues {
+  sources: Record<keyof AppSettingValues, AppSettingSource>;
+}
+
+/**
+ * `PUT /settings/app`: the settings to change, and only those. A setting the environment set is
+ * refused rather than written to the file, where it would do nothing until the variable goes away
+ * and then change behaviour by surprise.
+ */
+export type UpdateAppSettingsRequest = Partial<AppSettingValues>;
+
+// ---------- Tunnel ----------
+
+// Reaching Agentry from a phone or another network through localhost.run, over the system's own
+// `ssh`: one provider, no account, nothing to install (docs/plans/tunnel.md). The tunnel only
+// exists while the guard asks for authentication, and only its exact host joins the allowlist.
+
+/**
+ * `verifying`: the provider handed out an address, and Agentry is checking that `GET /api/health`
+ * answers through it before showing it. A resolver asked too early caches the missing name, so an
+ * address shown before it works can look broken for a minute.
+ */
+export type TunnelState = 'stopped' | 'starting' | 'verifying' | 'active' | 'stopping' | 'failed';
+
+/** What the tunnel may be told to do beside starting and stopping it. */
+export interface TunnelSettings {
+  /** Open the tunnel whenever Agentry starts; off unless the person turns it on */
+  startWithAgentry: boolean;
+}
+
+/** `PUT /tunnel/settings`: the settings to change, and only those. */
+export type UpdateTunnelSettingsRequest = Partial<TunnelSettings>;
+
+/** `GET /tunnel`, and what `tunnel.changed` carries. */
+export interface TunnelStatus {
+  state: TunnelState;
+  /** The public HTTPS address; null unless `state` is `active`, so nobody is sent to one that does not answer yet */
+  url: string | null;
+  /**
+   * When the current address started working. The free domain changes regularly, and an installed
+   * PWA belongs to the origin it was installed from, so a client can tell how old the address is.
+   * Null unless `state` is `active`
+   */
+  since: string | null;
+  /** Why the tunnel failed, with a code a client translates; null unless `state` is `failed` */
+  reason: Localized | null;
+  /**
+   * Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`). Off by default in the Docker
+   * image and the Helm chart: the tunnel reaches the server from inside the container, around the
+   * published port, the operator's proxy and its TLS, so opening that path is the operator's call.
+   * While false, `start` is refused and the UI says who can turn it on instead of offering a button
+   */
+  enabled: boolean;
+  /** An `ssh` was found to run; without one the tunnel cannot start, and the UI says how to install it */
+  sshAvailable: boolean;
+  settings: TunnelSettings;
+}
+
 // ---------- Effective environment ----------
 
 /**
@@ -3111,12 +3222,39 @@ export interface ConnectorsOverview {
 
 // ---------- Accounts (claude-swap) ----------
 
+/**
+ * Where the `cswap` in use came from: `CSWAP_BIN`, the `PATH`, or the copy Agentry installed in its
+ * own data directory.
+ */
+export type CswapSource = 'env' | 'path' | 'managed';
+
+/** Progress of the copy of claude-swap Agentry installs itself. */
+export type CswapInstallState = 'absent' | 'installing' | 'installed' | 'failed';
+
+export interface CswapManagedInfo {
+  /** False in the Docker image (claude-swap is baked in), with `CSWAP_BIN`, or with `AGENTRY_CSWAP_MANAGED=0` */
+  available: boolean;
+  state: CswapInstallState;
+  /** While installing: fetching uv, or uv installing claude-swap (and Python, when the system lacks it) */
+  step?: 'uv' | 'claude-swap';
+  /** Version of the managed copy, when there is one */
+  version: string | null;
+  /** Why the last install failed */
+  error?: string;
+}
+
 /** The `cswap` binary that owns the account credentials, when it is installed. */
 export interface CswapInfo {
   installed: boolean;
   version: string | null;
   path: string | null;
   error?: string;
+  source: CswapSource | null;
+  /** The version is one whose `--json` output Agentry parses */
+  compatible: boolean;
+  /** The version Agentry installs and is tested against */
+  pinned: string;
+  managed: CswapManagedInfo;
 }
 
 /** One rate-limit window as claude-swap reports it. */
@@ -3576,6 +3714,13 @@ export interface PushPayload {
   body: string;
   /** Path to open, e.g. `/chats/<id>?prompt=<id>`; null when there is nothing but the app to open */
   href: string | null;
+  /**
+   * The same place as `href`, as an absolute URL on the tunnel's public address at the moment the
+   * push was sent; null while no tunnel is active. The free address changes, and an install made on
+   * an old one still receives its pushes, so its worker opens this instead of its own dead origin
+   * (docs/plans/tunnel.md, "Answer: notifications after a domain change")
+   */
+  url: string | null;
   at: string;
   priority: NotificationPriority;
   runId: string | null;
@@ -4102,6 +4247,21 @@ export interface AssistantProposalEvent extends AgentryEventBase {
   resource: { kind: AssistantResourceKind; name: string; scope: ConfigScopeKind } | null;
 }
 
+/** A layered setting changed, from the UI or the file: the whole document as it now stands. */
+export interface SettingsChangedEvent extends AgentryEventBase {
+  type: 'settings.changed';
+  settings: AppSettings;
+}
+
+/**
+ * The tunnel moved to another state, got a new address, or had its settings changed. Carries the
+ * whole status, so a client that follows the feed never has to refetch it.
+ */
+export interface TunnelChangedEvent extends AgentryEventBase {
+  type: 'tunnel.changed';
+  tunnel: TunnelStatus;
+}
+
 /** Everything the buffered feed carries, discriminated by `type`. */
 export type AgentryEvent =
   | RunCreatedEvent
@@ -4145,7 +4305,9 @@ export type AgentryEvent =
   | DocumentChangedEvent
   | FlowRunEvent
   | AssistantRunEvent
-  | AssistantProposalEvent;
+  | AssistantProposalEvent
+  | SettingsChangedEvent
+  | TunnelChangedEvent;
 
 export type AgentryEventType = AgentryEvent['type'];
 

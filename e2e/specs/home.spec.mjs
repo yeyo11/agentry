@@ -39,12 +39,12 @@ export default async ({ page, api, check, dirs }) => {
     check((await page.eval(`return document.querySelector('.project-selector')?.textContent ?? ''`)).includes('e2e-home'), 'the top bar selector shows the project');
     // Its tabs, Overview (the dashboard) first; a project imported by hand has no module on, so no Board or Memory
     check((await page.eval(tabsText)) === 'Overview,Resources,Worktrees,Settings', `the project page is a tab strip over its dashboard (${await page.eval(tabsText)})`);
-    await page.waitFor(`return !!document.querySelector('main [data-widget=quickStart] textarea')`, { label: 'the quick start widget' });
+    await page.waitFor(`return !!document.querySelector('main [data-widget=now]')`, { label: 'the project dashboard' });
+    // Quick start is out of the default: New chat in the header and the phone's FAB start a chat here
     check(
-      (await page.eval(widgetTypes)) === 'kpis,limits,now,quickStart,pickUp,export,today,schedules,memory,worktrees,resources',
+      (await page.eval(widgetTypes)) === 'kpis,limits,now,pickUp,export,today,schedules,memory,worktrees,resources',
       `the project draws its default layout (${await page.eval(widgetTypes)})`,
     );
-    check((await page.text('main [data-widget=quickStart]')).includes('MCP: CLI default'), 'the quick start options are one status line, closed');
 
     // The project's own screens are its tabs, also reached from their widgets
     await page.click('main [role=tab]', 'Settings', 800);

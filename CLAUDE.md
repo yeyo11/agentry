@@ -30,6 +30,10 @@ After changing `packages/shared/src/types.ts`, regenerate the OpenAPI schemas (C
 drift): `pnpm --filter @agentry/api openapi:schemas`. Every new route needs a summary and a tag in
 `apps/api/src/openapi/routes.ts`, and a row in the README's REST API tables.
 
+A chat started by Agentry has `AGENTRY_API_URL` (and `AGENTRY_CHAT_ID`) in its environment. Call
+the API there, never on a guessed port: the desktop app and a dev server often run side by side,
+each with its own data, and an orchestration launched on the other one does not show up in yours.
+
 ## Conventions
 
 - TypeScript strict, no `any`, respect `noUncheckedIndexedAccess`.
@@ -99,6 +103,15 @@ A change that breaks one of these rules is not done:
     meaning.
   - Don't add a library or third-party art. A new illustration joins the set, and its reference
     SVG goes into `docs/design-system/illustrations/`, in the same PR.
+- **Diffs.**
+  - Changes are reviewed inside Agentry. Never link to the person's editor, never hand out a
+    command to copy, and never add a diff library: a diff is drawn with `DiffView`
+    (`apps/web/src/components/changes`) from the unified text the API serves (design system §5).
+  - Only what changed carries colour: muted syntax (`--sx-*`, never green, red or cyan), dimmed
+    context, one 3 px rail per changed line, and one mark per changed phrase. Reading is the
+    default mode, and what was removed folds into a pill on the rail.
+  - Where there is a transcript, a change carries its why: the step that made it and the sentence
+    Claude wrote before it.
 - **Restyle, don't duplicate.** Style the classes the app already has (the doc maps each design
   component to them) and the controls in `apps/web/src/components/controls`. A new variant goes
   into `docs/design-system.md` and `agentry-ds.css` in the same PR. Keep the classes the e2e specs

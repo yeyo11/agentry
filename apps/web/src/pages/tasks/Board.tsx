@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useWorkItemBoard } from '../../api';
 import { ICON_SM } from '../../components/icons';
+import { FabStandIn } from '../../components/shell/Fab';
 import { Card, Empty, ErrorBox, Skeleton } from '../../components/ui';
 import { NARROW, useMediaQuery } from '../../lib/media';
 import { boardColumns, filtersToSearch, firstKey, NEW_TASK_PARAM, openCount, taskPath, TASKS_PATH, VIEW_PARAM, viewFromSearch } from '../../lib/work-items';
@@ -166,6 +167,8 @@ export function Board() {
   if (scope.boardOff && scope.project) {
     body = (
       <section className="card glow-top workitem-empty">
+        {/* Nothing can be started on a board that is off: no New task button floats over it */}
+        <FabStandIn />
         <Empty
           illustration="board"
           illustrationText={firstKey(scope.project)}
@@ -184,6 +187,7 @@ export function Board() {
   } else if (scope.allProjects && scope.settled && scope.boardProjects.length === 0) {
     body = (
       <section className="card glow-top workitem-empty">
+        <FabStandIn />
         <Empty
           illustration="board"
           size={phone ? 'md' : 'lg'}
@@ -209,6 +213,8 @@ export function Board() {
   } else if (empty) {
     body = (
       <section className="card glow-top workitem-empty">
+        {/* Its own primary is New task: the same action twice, one floating over the other, is noise */}
+        <FabStandIn />
         <Empty
           illustration="board"
           illustrationText={firstKey(scope.project)}
@@ -342,6 +348,8 @@ export function Board() {
 
       {suggesting && scope.project && <SuggestTasks project={scope.project} onClose={() => setSuggesting(false)} />}
 
+      {/* The form is open: a button to open it again would float over it */}
+      {creating && <FabStandIn />}
       {creating && (
         <NewTask
           projectId={creating.projectId}

@@ -1,0 +1,558 @@
+/* Step by step (docs/design-system.md §5, "Steps"; references DesktopCambiosPasos and MobilePasos):
+   the list of edits at 340 px on bg-1 with its dots on a vertical line, one step beside it, and the
+   scrubber under the header. The selected step takes the gradient dot, the pending one the live
+   dot: the braille spinner beside it is the lens's only moving part. */
+
+.changes-review .edit-steps {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.changes-review .edit-steps-grow {
+  flex: 1 1 auto;
+}
+
+.changes-review .edit-steps-note {
+  margin: 0;
+  padding: 8px 10px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-3);
+}
+
+/* ---- the list ---- */
+.changes-review .edit-steps-list {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: 340px;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.changes-review .edit-steps-head {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 8px;
+  height: 46px;
+  padding: 0 12px 0 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.changes-review .edit-steps-filter {
+  max-width: 190px;
+  min-height: 26px;
+}
+
+.changes-review .edit-steps-filter-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.changes-review .edit-steps-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 2px;
+  min-height: 0;
+  padding: 8px;
+  overflow: auto;
+}
+
+.changes-review .edit-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  padding: 9px 12px 9px 10px;
+  border-radius: var(--radius);
+  color: var(--fg-2);
+  text-decoration: none;
+}
+
+.changes-review .edit-step:hover {
+  background: var(--bg-3);
+  color: var(--fg-2);
+}
+
+.changes-review .edit-step.is-current {
+  background: var(--bg-2);
+  box-shadow: 0 0 0 1px var(--line-2);
+}
+
+.changes-review .edit-step-rail {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding-top: 5px;
+}
+
+/* The vertical line runs from each dot down to the next one */
+.changes-review .edit-step-rail::before {
+  content: '';
+  position: absolute;
+  top: 15px;
+  bottom: -22px;
+  left: 50%;
+  width: 1px;
+  background: var(--line-3);
+  transform: translateX(-0.5px);
+}
+
+.changes-review .edit-step:last-child .edit-step-rail::before {
+  display: none;
+}
+
+.changes-review .edit-step-dot {
+  position: relative;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1.5px var(--fg-3);
+}
+
+.changes-review .edit-step.is-current .edit-step-dot {
+  background: var(--grad);
+  box-shadow: none;
+}
+
+.changes-review .edit-step.is-live .edit-step-dot {
+  background: var(--live);
+  box-shadow: 0 0 0 3px var(--live-soft);
+}
+
+.changes-review .edit-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.changes-review .edit-step-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.changes-review .edit-step-time {
+  flex: none;
+  min-width: 34px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-3);
+}
+
+.changes-review .edit-step-head .badge {
+  flex: none;
+  min-height: 18px;
+  line-height: 1.5;
+}
+
+.changes-review .edit-step-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.changes-review .edit-step-head .spinner-glyph {
+  color: var(--live);
+}
+
+.changes-review .edit-step-intent {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--fg-2);
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.changes-review .edit-step.is-current .edit-step-intent {
+  color: var(--fg);
+}
+
+/* ---- one step ---- */
+.changes-review .edit-step-detail {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.changes-review .edit-step-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.changes-review .edit-step-bar .section-label {
+  flex: none;
+  white-space: nowrap;
+}
+
+.changes-review .edit-step-when {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+.changes-review .edit-step-when .edit-step-time {
+  min-width: 0;
+}
+
+.changes-review .edit-step-bar .badge {
+  flex: none;
+}
+
+.changes-review .edit-step-move {
+  flex: none;
+  gap: 4px;
+  text-decoration: none;
+}
+
+.changes-review .edit-step-move.is-prev {
+  border-color: transparent;
+  background: none;
+}
+
+.changes-review .edit-step-why {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 10px;
+  padding: 22px 28px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.changes-review .edit-step-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--fg);
+}
+
+.changes-review .edit-step-spark {
+  flex: none;
+  margin-top: 4px;
+  color: var(--accent);
+}
+
+.changes-review .edit-step-heading code {
+  padding: 1px 5px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-xs);
+  background: var(--bg-2);
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+.changes-review .edit-step-silent {
+  color: var(--fg-3);
+}
+
+.changes-review .edit-step-source {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: 30px;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.changes-review .edit-step-main {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 14px 28px 28px;
+}
+
+.changes-review .edit-step-patch {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+}
+
+.changes-review .edit-step-patch-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.changes-review .edit-step-lines {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.changes-review .edit-step-diff {
+  padding: 6px 0;
+  overflow-x: auto;
+}
+
+.changes-review .edit-step-nopatch {
+  padding: 16px 0 0;
+}
+
+.changes-review .edit-step-file {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.changes-review .edit-step-file-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.changes-review .edit-step-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.changes-review .edit-step-card {
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+  color: var(--fg-2);
+  text-decoration: none;
+}
+
+.changes-review a.edit-step-card:hover {
+  border-color: var(--line-3);
+  color: var(--fg-2);
+}
+
+.changes-review .edit-step-card.is-current {
+  color: var(--fg);
+}
+
+.changes-review .edit-step-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.changes-review .edit-step-card-n {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-3);
+}
+
+.changes-review .edit-step-card.is-current .edit-step-card-n {
+  color: var(--fg);
+}
+
+.changes-review .edit-step-this {
+  --tone: var(--accent);
+  --tone-soft: var(--accent-soft);
+  min-height: 18px;
+  line-height: 1.5;
+}
+
+.changes-review .edit-step-card-intent {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* ---- the scrubber ---- */
+.changes-review .edit-scrub-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 42px;
+}
+
+.changes-review .edit-scrub {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  /* Room for every step: past a few dozen the gap and the dots shrink rather than overflow */
+  gap: min(6px, calc(100% / var(--n, 1) / 2));
+  min-width: 0;
+  height: 14px;
+  cursor: pointer;
+}
+
+.changes-review .edit-scrub > i {
+  display: block;
+  flex: 0 1 8px;
+  min-width: 2px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-4);
+}
+
+.changes-review .edit-scrub > i.is-done {
+  background: var(--fg-3);
+}
+
+.changes-review .edit-scrub > i.is-current {
+  flex: 0 0 22px;
+  border-radius: var(--radius-xs);
+  background: var(--grad);
+}
+
+.changes-review .edit-scrub > i.is-live {
+  background: var(--live);
+  box-shadow: 0 0 0 3px var(--live-soft);
+}
+
+.changes-review .edit-scrub-keys {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+/* ---- phone: one step at a time ---- */
+.changes-review .edit-steps-phone {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.changes-review .edit-steps-phone .changes-phone-head {
+  border-bottom: 0;
+}
+
+.changes-review .edit-steps-phone-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.changes-review .edit-steps-phone .changes-live {
+  padding-right: 4px;
+  font-size: 13px;
+}
+
+.changes-review .edit-scrub.edit-scrub-phone {
+  flex: none;
+  justify-content: space-between;
+  height: 44px;
+  margin: 0 16px;
+}
+
+.changes-review .edit-scrub-phone > i.is-current {
+  flex-basis: 34px;
+}
+
+.changes-review .edit-steps-phone-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 14px;
+  min-height: 0;
+  padding: 0 16px 16px;
+  overflow-y: auto;
+}
+
+.changes-review .edit-steps-phone-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.changes-review .edit-steps-phone-meta .badge {
+  min-height: 18px;
+  line-height: 1.5;
+}
+
+.changes-review .edit-steps-phone .edit-step-where {
+  flex: none;
+  font-size: 14px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.changes-review .edit-steps-phone .edit-step-why {
+  padding: 0;
+  border-bottom: 0;
+}
+
+.changes-review .edit-steps-phone .edit-step-heading {
+  gap: 10px;
+  font-size: 15.5px;
+}
+
+.changes-review .edit-steps-phone .edit-step-source {
+  margin-left: 26px;
+  font-size: 13px;
+}
+
+.changes-review .edit-steps-phone .edit-step-source a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.changes-review .edit-steps-phone .edit-step-patch {
+  flex: none;
+}
+
+.changes-review .edit-steps-phone-bar {
+  gap: 10px;
+  padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
+}
+
+.changes-review .edit-steps-phone-bar .edit-step-move {
+  flex: 1 1 0;
+  justify-content: center;
+  min-height: 48px;
+  border-radius: var(--radius-lg);
+  font-size: 16px;
+}
+
+.changes-review .edit-steps-phone-bar .edit-step-move.is-prev {
+  border-color: var(--border-strong);
+  background: var(--bg-elev);
+}
+
+/* Step by step says what the list is in a sentence where Result lists the branch in mono */
+.changes-review .changes-meta.is-sentence {
+  font-family: var(--sans);
+}

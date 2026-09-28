@@ -557,9 +557,10 @@ a.work-link-name:hover {
   color: var(--fg-3);
 }
 
-/* ---- what changed in its worktree (.diff-file) ---- */
+/* ---- what changed in its worktree (.diff-file) ----
+   Under .workitem-card: the review screen has a .changes-head of its own (components/changes). */
 
-.changes-head {
+.workitem-card .changes-head {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -568,12 +569,12 @@ a.work-link-name:hover {
   color: var(--fg-3);
 }
 
-.changes-head .mono:first-of-type {
+.workitem-card .changes-head .mono:first-of-type {
   color: var(--fg);
   white-space: nowrap;
 }
 
-.changes-head .grow {
+.workitem-card .changes-head .grow {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -599,6 +600,7 @@ a.work-link-name:hover {
   font-family: var(--mono);
   font-size: 12px;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -629,7 +631,7 @@ a.work-link-name:hover {
   font-variant-numeric: tabular-nums;
 }
 
-.changes-head .diff-file-n {
+.workitem-card .changes-head .diff-file-n {
   color: var(--fg-2);
 }
 

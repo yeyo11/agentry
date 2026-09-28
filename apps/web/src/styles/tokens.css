@@ -61,6 +61,26 @@
   --live: #22d3ee;
   --live-soft: rgba(34, 211, 238, 0.12);
 
+  /* Diff comparator (design system §5): only what changed carries colour. The rails, numbers and
+     pills are the status colours; row tints and word marks are faint versions of them. */
+  --diff-add: var(--ok);
+  --diff-del: var(--bad);
+  --diff-add-bg: rgba(74, 222, 154, 0.055);
+  --diff-del-bg: rgba(248, 123, 127, 0.06);
+  --diff-add-word: rgba(74, 222, 154, 0.2);
+  --diff-del-word: rgba(248, 123, 127, 0.24);
+  --diff-rail-w: 3px;
+  --diff-rail-radius: 2px;
+  --diff-mark-radius: 3px;
+  /* Muted syntax, for code inside the comparator only: never green, red or cyan, which mean
+     added, removed and live there */
+  --sx-kw: #b7a4d9;
+  --sx-str: #d4bd8f;
+  --sx-num: #93b4db;
+  --sx-type: #e4e4e7;
+  --sx-fn: #f4f4f5;
+  --sx-com: var(--text-faint);
+
   /* Depth */
   --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.28);
   --shadow-md: 0 8px 24px -12px rgba(0, 0, 0, 0.6);
@@ -83,6 +103,9 @@
   --swatch-dark-bg: #09090b;
   --swatch-dark-line: #26262c;
   --swatch-dark-grad: linear-gradient(90deg, #ec8a66, #e0668f);
+  /* A QR code is dark on light in both themes: phone cameras do not all read one inverted */
+  --qr-ink: #09090b;
+  --qr-paper: #ffffff;
 
   /* Shape */
   --radius-xs: 4px;
@@ -137,6 +160,10 @@
   --rail-w: 2px;
   /* The phone's bottom tab bar, without the safe-area inset under it */
   --tabbar-h: 56px;
+  /* Every control of a row shares one height, so a field, a select, a button and a segmented
+     group side by side line up. The small one is for dense places; a finger gets 44 for both. */
+  --control-h: 36px;
+  --control-h-sm: 30px;
 
   /* Type */
   --mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -157,6 +184,13 @@
 
   /* Lets height:auto animate where the browser supports it */
   interpolate-size: allow-keywords;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --control-h: 44px;
+    --control-h-sm: 44px;
+  }
 }
 
 /*
@@ -201,6 +235,15 @@
   --idle-soft: rgba(109, 40, 217, 0.09);
   --live: #0b6680;
   --live-soft: rgba(11, 102, 128, 0.1);
+  --diff-add-bg: rgba(21, 128, 61, 0.06);
+  --diff-del-bg: rgba(185, 28, 28, 0.05);
+  --diff-add-word: rgba(21, 128, 61, 0.16);
+  --diff-del-word: rgba(185, 28, 28, 0.15);
+  --sx-kw: #6a4a9e;
+  --sx-str: #7c5a22;
+  --sx-num: #2d5a93;
+  --sx-type: #0c0b0a;
+  --sx-fn: #0c0b0a;
   --shadow-sm: 0 1px 2px rgba(20, 16, 10, 0.06);
   --shadow-md: 0 8px 24px -14px rgba(20, 16, 10, 0.18);
   --shadow-lg: 0 18px 48px -12px rgba(20, 16, 10, 0.22);
@@ -252,6 +295,15 @@
     --idle-soft: rgba(109, 40, 217, 0.09);
     --live: #0b6680;
     --live-soft: rgba(11, 102, 128, 0.1);
+    --diff-add-bg: rgba(21, 128, 61, 0.06);
+    --diff-del-bg: rgba(185, 28, 28, 0.05);
+    --diff-add-word: rgba(21, 128, 61, 0.16);
+    --diff-del-word: rgba(185, 28, 28, 0.15);
+    --sx-kw: #6a4a9e;
+    --sx-str: #7c5a22;
+    --sx-num: #2d5a93;
+    --sx-type: #0c0b0a;
+    --sx-fn: #0c0b0a;
     --shadow-sm: 0 1px 2px rgba(20, 16, 10, 0.06);
     --shadow-md: 0 8px 24px -14px rgba(20, 16, 10, 0.18);
     --shadow-lg: 0 18px 48px -12px rgba(20, 16, 10, 0.22);
