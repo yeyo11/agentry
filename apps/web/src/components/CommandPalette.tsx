@@ -45,67 +45,21 @@ import { api, keys } from '../api';
 import { LANGUAGES, setLanguage } from '../i18n';
 import { displayTitle } from '../lib/chat-model';
 import { assistantPath } from '../pages/assistant/model';
-import { setMotionPreference, type MotionLevel } from '../lib/motion';
+import { setMotionPreference } from '../lib/motion';
 import { useProjectScope } from '../lib/project-scope';
 import { liveSummary } from '../lib/shell-live';
 import { setThemePreference } from '../lib/theme';
 import { NEW_PROJECT_PATH, NEW_TASK_PATH, TASKS_PATH } from '../lib/work-items';
 import { statusText } from './ui';
 import '../palette.css';
+import { MAX_RECENT, MAX_RESULTS, MOTION_LEVELS, readRecent, RECENT_KEY, score, type Command, type Group } from './palette-model';
 
 const OPEN_EVENT = 'cw:open-command-palette';
 /** The workflow dialog lives in the shell, beside "New chat": the palette only asks for it. */
 export const RUN_WORKFLOW_EVENT = 'agentry:run-workflow';
 /** Opens the Orchestrations page with its "New orchestration" form already open. */
 export const NEW_ORCHESTRATION_PATH = '/orchestration?new=1';
-const RECENT_KEY = 'agentry-palette-recent';
-const MAX_RECENT = 5;
-const MAX_RESULTS = 40;
-
-type Group = 'live' | 'actions' | 'theme' | 'language' | 'motion' | 'goTo' | 'settings' | 'projects' | 'recentChats' | 'recent';
-
-const MOTION_LEVELS: MotionLevel[] = ['full', 'subtle', 'off'];
-
-interface Command {
-  id: string;
-  group: Group;
-  title: string;
-  hint?: string;
-  keywords?: string;
-  icon: LucideIcon;
-  run: () => void;
-}
-
 const isMac = typeof navigator !== 'undefined' && /mac|iphone|ipad/i.test(navigator.platform);
-
-/** Subsequence match with a bonus for word starts and contiguous runs; -1 when it does not match. */
-function score(query: string, text: string): number {
-  if (!query) return 0;
-  const q = query.toLowerCase();
-  const t = text.toLowerCase();
-  const direct = t.indexOf(q);
-  if (direct >= 0) return 1000 - direct - (t.length - q.length) * 0.1;
-  let total = 0;
-  let from = 0;
-  let streak = 0;
-  for (const ch of q) {
-    const at = t.indexOf(ch, from);
-    if (at < 0) return -1;
-    streak = at === from ? streak + 1 : 0;
-    total += 10 + streak * 5 + (at === 0 || /[\s/\-_.]/.test(t[at - 1] ?? '') ? 8 : 0) - (at - from);
-    from = at + 1;
-  }
-  return total;
-}
-
-function readRecent(): string[] {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
-  } catch {
-    return [];
-  }
-}
 
 /** A search field in the sidebar on a desktop, an icon in the top bar on a phone: `className` says which. */
 export function CommandPaletteTrigger({ className = '' }: { className?: string }) {
