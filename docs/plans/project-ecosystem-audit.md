@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T07:12:38.39333137Z
-updated_at: 2026-09-28T18:00:00Z
+updated_at: 2026-09-28T22:00:00Z
 tags:
     - audit
     - plan
@@ -299,8 +299,9 @@ and the automation; the modules that launch agents; the API; the web wiring; a h
 of the built app with the fake CLI), each reproducing what it could. The most serious items were
 checked again by hand in the code.
 
-Status: **fixed by `ecosystem-review-fixes` (orchestration 5) on 2026-09-28**, except what
-[Still open after orchestration 5](#still-open-after-orchestration-5) lists. Each finding is marked
+Status: **fixed by `ecosystem-review-fixes` (orchestration 5) on 2026-09-28**, and what it left
+([Still open after orchestration 5](#still-open-after-orchestration-5)) by `ecosystem-gaps`
+(orchestration 6) the same day. Each finding is marked
 **closed**, **partly closed** or **open** after an arrow, with the task that closed it and the test
 that covers it. `review-5` re-ran every reproduction on the merged branch of the six fix tasks.
 `pnpm typecheck` and `pnpm test` pass there; `pnpm build` and `pnpm e2e` run in the verification
@@ -412,6 +413,9 @@ phase, on the merged branch.
     latest run, so an older failed run's link reads as a normal one again (the comment stays), and
     the failed run's own chat page says nothing. Serving an item's runs from the core would close
     it.
+    → **Closed by orchestration 6** (gap 2): `GET /work-items/:itemId/runs` serves every run of the
+    item, the item's links read it, and a failed run's chat says the run failed and why. Tests:
+    `work-item-runs-ui.test.tsx`, `flow.test.ts`, `tasks-review.spec.mjs`.
 15. **Before the flow is saved, the Team screen draws a flow that does not exist** (columns per
     role shown while `settings.flow` is null).
     → **Closed** by `fix-web-team`: with `settings.flow` null the Team screen says the flow is not
@@ -465,6 +469,11 @@ phase, on the merged branch.
     **Open:** the "Work on it" prompt starts `KEY: title` rather than the plan's `KEY · title`, and
     the rest of it and the orchestration draft's prompts are English instructions for Claude; an
     assistant run relaunched after a restart is titled in English, as its language is not kept.
+    → **Closed by orchestration 6** (gaps 10 and 13): "Work on it" and each draft node open with
+    `KEY · title`, the draft's objective is in the person's language, a flow run's chat opens with
+    "<Role> · <KEY> · <title>", and an assistant run keeps its language across a restart. The
+    instructions for Claude after the first line stay in English, as the plan allows. Tests:
+    `assistant.test.ts` ("a run keeps its language…"), `flow.test.ts`, the work-links tests.
 26. **"Sugerir" on the Resources tab gives no feedback** when pressed from a kind section with a
     file open.
     → **Closed** by `fix-web-team`: "Sugerir" leaves the editor first (asking if it holds unsaved
@@ -513,6 +522,8 @@ phase, on the merged branch.
   naming `status` or `afterId` is a 400 pointing at `POST /work-items/:id/move`. **Open, on
   purpose:** `from-template` keeps its 200, since it answers the whole team and sending it twice
   changes nothing.
+  → **Closed by orchestration 6** (gap 18): `from-template` answers 201 when it added a member and
+  200 when nothing changed. Test: `team.test.ts`.
 - Two routes tie a document (`/documents` and `/links` with `kind=document`); `itemId` vs
   `otherId`; `/memory-proposals/:id` vs `/assistant/proposals/:id`.
   → **Closed as decided**: both routes stay, `/links` documented as the general form and
@@ -534,6 +545,10 @@ phase, on the merged branch.
   the index by `review-5` (a migration drops it; `db.test.ts`), core no longer has `FLOW_COLUMNS`,
   and `fix-web-team` dropped nineteen unread keys. **Open:** the web files over 400 lines were not
   split.
+  → **Closed by orchestration 6** (gap 24): the assistant, new project, resources, memory, task,
+  shell and palette files were split without changing behaviour. No file of the feature is over 400
+  lines; the files still over 400 (`Orchestration`, `Chats`, config tabs…) predate it, and it added
+  nothing to them.
 - Approved memory files get an unquoted YAML `description`; memory proposals are never
   de-duplicated; a flow result path like `./docs/x.md` is refused silently.
   → **Closed**: the description is written as a JSON string and a proposal of the same text for
@@ -557,11 +572,16 @@ verify chat's inspector said the item would move to In review (`work-item-links.
   → **Partly done**: "Crear las seleccionadas" says how many flow runs it queues, the role and how
   many run at a time (`review-5`; `team-model.test.ts`, a `suggest.spec.mjs` step). **Open:** a
   backlog card still costs two runs.
+  → **Closed by orchestration 6** (gap 4): the `todo` check runs only when the refine did not pass
+  or the item changed since. Test: `flow.test.ts`.
 - Page the Done column and the unbounded lists; leave descriptions out of board payloads; stop
   refetching `changes` (a git diff) on every run event.
   → **Partly done**: `changes` is read again only on a turn that ended or a node that moved
   (`fix-web-team`). **Open:** paging was left out by the plan's decision, and board payloads still
   carry descriptions, now capped at 100,000 characters (finding 27).
+  → **Closed by orchestration 6** (gap 20): cards carry `hasDescription` instead of the text, Done
+  holds its newest 20 with "y N más" loading the next page, and the lists page by 100 with a
+  cursor. Tests: the work-items store and API tests, `tasks-board.spec.mjs`.
 - Keep the Tasks filters when leaving and coming back; remove or explain the Done column limit;
   validate agent-file frontmatter before saving; let "Crear con IA" pick a free name.
   → **Done**: the filters are kept through `main`'s `useListParams`
@@ -571,14 +591,17 @@ verify chat's inspector said the item would move to In review (`work-item-links.
 
 ### Still open after orchestration 5
 
-- **14:** an older failed flow run's link on the item, and a failed run's own chat page.
+Nothing, since orchestration 6. What this section listed, each closed as
+[Orchestration 6](#orchestration-6-the-known-gaps-closed) below says:
+
+- **14:** an older failed flow run's link on the item, and a failed run's own chat page (gap 2).
 - **25:** the "Work on it" and orchestration draft prompts, and an assistant run relaunched after a
-  restart.
-- `from-template` answers 200, on purpose.
-- A backlog card costs two flow runs; board payloads carry descriptions; nothing is paged.
-- Web files over 400 lines, not split.
-- `writes` does not bound the shell in the flow's work stage (a known gap of
-  [team-and-flow.md](../team-and-flow.md#known-gaps)).
+  restart (gaps 13 and 10).
+- `from-template` answered 200 (gap 18).
+- A backlog card cost two flow runs (gap 4); board payloads carried descriptions and nothing was
+  paged (gap 20).
+- Web files over 400 lines (gap 24).
+- `writes` did not bound the shell in the flow's work stage (gap 7).
 
 ### Verified as sound
 
@@ -592,6 +615,57 @@ README complete with no drift, module-off refusals and cross-project refusals co
 event type wired to the queries it affects; Markdown never renders raw HTML and links are sanitised;
 no new raw colour or keyframe; keyboard drag announced. No console error on any page of the
 walkthrough, and every core journey could be finished.
+
+## Orchestration 6: the known gaps, closed
+
+On 2026-09-28 the owner asked for every gap the documents still listed to be closed before the pull
+request: the Known gaps of [work-items.md](../work-items.md), [team-and-flow.md](../team-and-flow.md)
+and [assistant.md](../assistant.md), and [Still open after orchestration 5](#still-open-after-orchestration-5).
+The plan numbered them 1 to 24 ([Orchestration 6](project-ecosystem.md#orchestration-6-ecosystem-gaps)),
+and `ecosystem-gaps` built them from `ad1d6cf` (main 0.22.1 merged). `gaps-review` re-checked all 24
+on the integrated branch, in both themes and both sizes, and fixed what was still open or broken
+between tasks: the web still sending Suggest tasks' focus as `description` (9), the assistant
+reachable only from the summary's phone head (8), a 30 px way back on the phone member and document
+screens (21), the "Sin límite" placeholder squeezed out of the spend field (5), a running row out of
+line in the team's activity (6), and the phone document editor's bar mid-screen (23).
+
+| # | Gap | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 | A card being refined or verified is live | Closed | `f9a8fa8` (core), `e02f111` ("Refinando", "Verificando"); `flow.test.ts`, `team-screens.test.tsx` |
+| 2 | Every run of an item from core; a failed run's chat says so | Closed | `0956313`, `1097606`; `work-item-runs-ui.test.tsx`, `tasks-review.spec.mjs` |
+| 3 | A rate-limited run waits for the rotation | Closed | `2a9251f`; `flow-cli.test.ts`, `flow.test.ts` |
+| 4 | A backlog card costs one refine run | Closed | `150f498`; `flow.test.ts` |
+| 5 | The Flow screen edits `maxParallel` and `maxCostUsd` | Closed | `3cf261f`, `4fc31de`; `team-screens.test.tsx`, `team-gaps.spec.mjs` |
+| 6 | "Ver todo" opens the team's activity | Closed | `0956313`, `d98f7e0`, `75def92`; `team-screens.test.tsx`, `a11y.spec.mjs` |
+| 7 | A member's `commands` bound the work stage's shell | Closed | `a204de8`, `3cf261f`; `flow.test.ts`, `team.test.ts`, `team-gaps.spec.mjs` |
+| 8 | The assistant from every tab and the palette | Closed | `8e5712b`, `8d2b294`; `project-head.test.tsx`, `team-gaps.spec.mjs` |
+| 9 | Suggest tasks' focus is its own field | Closed | `5d180cf`, `4e0beeb`; `assistant.test.ts`, `suggest-model.test.ts`, `suggest.spec.mjs` |
+| 10 | An assistant run keeps its language | Closed | `5d180cf`; `assistant.test.ts` |
+| 11 | `CLAUDE.md` shows once | Closed | `03dd0df`; `assistant.test.ts` |
+| 12 | "Crear con IA" streams | Closed | `b18cb87`, `0ac4b91`, `8b26570`; `assistant-screens.test.tsx`, `create-ai-stream.spec.mjs` |
+| 13 | Chats Agentry starts open in the person's language | Closed | `28a2e70`, `7fd7484`; `assistant.test.ts`, `flow.test.ts`, work-links tests |
+| 14 | Template responsibilities in the person's language | Closed | `3cf261f`; a test reads `project-templates.ts` |
+| 15 | A chat Agentry does not run is named by its title in the history | Closed | `354223b`; `work-item-history.test.ts` |
+| 16 | `GET /work-items/by-key/:key` | Closed | `683e8f5`; `ecosystem-gaps-client.test.ts`, `shell.spec.mjs` |
+| 17 | A generic start error answers 500 | Closed | `85691ec`; `chat-start-errors.test.ts` |
+| 18 | `from-template` answers 201 or 200 | Closed | `0c7af0f`; `team.test.ts` |
+| 19 | The `file` team action is emitted | Closed | `0c7af0f`; `team.test.ts` |
+| 20 | Cards without descriptions; Done and the lists paged | Closed | `683e8f5`, `07aa24a`; work-items tests, `tasks-board.spec.mjs` |
+| 21 | Phone detail screens head themselves | Closed | `972bca7`, `0dd17b6`; `shell-live.test.ts`, `team.spec.mjs`, `documents.spec.mjs` |
+| 22 | "Proyectos" and "Más" marked on a project | Closed | `8432874`; `shell-nav.test.ts` |
+| 23 | Small differences from the references | Closed but one detail | `08121bd`, `0ac4b91`, `8b8ada3`, `8402280`, `1847725`, `e9d7fe1`, `6f11b55`; `team-screens.test.tsx`, `documents.spec.mjs` |
+| 24 | Web files over 400 lines split | Closed | `ca8253c`, `3e52e86`, `335c2cc` |
+
+**The one detail left, in gap 23:** the member page writes the CLI's own name after the model
+("sonnet · Sonnet 5") only when the CLI's model list labels it. That list is the
+`additionalModelOptionsCache` the CLI writes in `.claude.json`, which lists only the models an
+account adds beyond the aliases; the aliases carry no label. So with today's CLI a member on
+`sonnet` shows the alias alone. Naming it otherwise needs a list of Agentry's own, which went stale
+with every CLI release, or reading the model a run's `system/init` event reports, which is not
+built. It is kept in [team-and-flow.md](../team-and-flow.md#known-gaps).
+
+`pnpm typecheck` and `pnpm test` pass on the integrated branch; `pnpm build` and `pnpm e2e` run in
+the verification phase, on the merged branch.
 
 ## Related
 
