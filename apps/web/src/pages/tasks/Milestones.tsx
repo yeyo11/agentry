@@ -157,7 +157,7 @@ export function Milestones() {
                 <Flag size={15} strokeWidth={1.75} aria-hidden className="milestone-flag" />
                 <span className="milestone-row-title">{t('milestones.noneRow', { count: loose.length })}</span>
                 {!phone && <StatusCounts counts={looseBy} />}
-                <Link to={`${TASKS_PATH}?view=list&milestone=${NO_MILESTONE}`} className="btn btn-small milestone-row-action">
+                <Link to={`${TASKS_PATH}?view=list&milestone=${NO_MILESTONE}`} className="btn btn-quiet btn-small milestone-row-action">
                   {t('milestones.viewList')}
                 </Link>
               </div>
@@ -281,7 +281,7 @@ function MilestoneCard({ milestone, project, featured, phone, onEdit }: { milest
         <MilestoneBar progress={progress} />
         {legend}
         <div className="milestone-phone-actions">
-          <Link to={`${TASKS_PATH}?milestone=${encodeURIComponent(milestone.id)}`} className="btn btn-small">
+          <Link to={`${TASKS_PATH}?milestone=${encodeURIComponent(milestone.id)}`} className="btn btn-quiet btn-small">
             {t('milestones.viewBoard')}
           </Link>
           {actions}
@@ -338,7 +338,7 @@ function ClosedRow({ milestone, project, phone }: { milestone: Milestone; projec
         {t('milestones.stateClosed')}
       </span>
       {!phone && (
-        <button type="button" className="btn btn-small milestone-row-action" disabled={change.isPending} onClick={() => change.mutate('open')}>
+        <button type="button" className="btn btn-quiet btn-small milestone-row-action" disabled={change.isPending} onClick={() => change.mutate('open')}>
           <RotateCcw size={13} strokeWidth={1.75} aria-hidden />
           {t('milestones.reopen')}
         </button>

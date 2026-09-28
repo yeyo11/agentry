@@ -32,6 +32,10 @@ export default async ({ page, api, check, dirs }) => {
     const flow = await page.eval(crumbs);
     check(flow.slice(-2).join(' / ') === 'Team / Flow', `the flow's crumb (${flow})`);
     check(await page.eval(`return !!document.querySelector('.topbar .crumbs a.crumb-page[href*="view=team"]')`), 'Team in the crumb leads back to the team');
+    await page.goto(`${base}&section=activity`, 1200);
+    await page.waitFor(`return !!document.querySelector('.flow-log-page')`, { label: 'the team activity' });
+    const activity = await page.eval(crumbs);
+    check(activity.slice(-2).join(' / ') === 'Team / Activity', `the activity's crumb (${activity})`);
 
     // ---- a member is a page of its own ----
     await page.goto(`${base}&member=developer`, 1200);

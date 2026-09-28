@@ -162,6 +162,8 @@ export function hidesTabBar(pathname: string, search = ''): boolean {
     const view = params.get('view');
     if (view === 'team' && (params.has('member') || params.get('section') === 'flow')) return true;
     if (view === 'documents' && params.has('doc')) return true;
+    // The project's settings end in "Guardar los cambios" at the bottom (MobileProyectoAjustes)
+    if (view === 'settings') return true;
     // So does a resource or an assistant's proposal open in the editor (MobileRecursoPropuesta)
     if (view === 'resources' && (params.has('res') || params.has('proposal'))) return true;
   }

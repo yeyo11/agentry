@@ -5,13 +5,14 @@
  *
  * Every key returned here is in the `workItem` namespace.
  */
-import type { FlowRun, FlowRunCause, FlowRunRef, FlowStep, WorkItemComment, WorkItemStatus } from '@agentry/shared';
+import { flowStepOf, type FlowRun, type FlowRunCause, type FlowRunRef, type FlowStep, type WorkItemComment, type WorkItemStatus } from '@agentry/shared';
 
-/** The stage as the person reads it, by the column it ran in; a run from before `step` was kept reads it from its stage. */
+/**
+ * The stage as the person reads it, by the column it ran in; a run from before `step` was kept reads
+ * it from its stage and column, by the same rule as Team activity (`flowStepOf`).
+ */
 export function runStep(run: Pick<FlowRun, 'stage' | 'column'> & { step?: FlowStep | null }): FlowStep {
-  if (run.step) return run.step;
-  if (run.stage === 'refine') return run.column === 'todo' ? 'check' : 'refine';
-  return run.stage;
+  return run.step ?? flowStepOf(run.stage, run.column);
 }
 
 /** Where a run stands, as one word: running and queued while it has not ended, its outcome once it has. */

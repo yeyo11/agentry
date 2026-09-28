@@ -496,26 +496,6 @@
   overflow-wrap: anywhere;
 }
 
-.doc-phone-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.doc-phone-head-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.doc-phone-head h1 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
 .doc-phone-view,
 .doc-phone-edit {
   display: flex;

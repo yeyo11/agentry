@@ -5,6 +5,7 @@ import {
   assistantPath,
   followingRun,
   latestRun,
+  pendingProposalCount,
   projectPath,
   proposalsOf,
   proposesByDefault,
@@ -131,4 +132,10 @@ test('each state of a run asks for its own screen', () => {
   assert.equal(stageOf(run({ status: 'stopped' })), 'stopped');
   assert.equal(stageOf(run({ empty: true })), 'empty');
   assert.equal(stageOf(run()), 'done');
+});
+
+test('the pending proposals of every run add up, whatever their kind', () => {
+  assert.equal(pendingProposalCount(undefined), 0);
+  const counts = (pending: number) => ({ 'team-member': { ...zero, pending }, resource: { ...zero, pending: 1 }, 'work-item': zero });
+  assert.equal(pendingProposalCount([run({ counts: counts(2) }), run({ id: 'r2', counts: counts(0) })]), 4);
 });

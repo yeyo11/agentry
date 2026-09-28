@@ -1500,13 +1500,15 @@ a.statusbar-item:focus-visible {
 
 /* A phone screen's own header (components/shell/PhoneHeader.tsx), drawn where the route is marked
    `phoneHeader: 'page'` and the top bar is hidden: Night Shift's `.m-head`. The back arrow sits 4 px
-   from the screen's edge and the header is 60 px tall, so it pulls itself out of the page's padding. */
+   from the screen's edge and the header is 60 px tall, so it pulls itself out of the page's padding.
+   Night Shift starts the body 4 px under it; the pages it heads stack with 12 to 18 px gaps, so it
+   takes 10 px of that gap back and the first thing under it lands within a few pixels of the reference. */
 .phone-head {
   display: flex;
   align-items: center;
   gap: 4px;
   min-height: 60px;
-  margin: calc(2px - var(--main-pad-top, 16px)) -8px 0 calc(4px - var(--main-pad-x, 16px));
+  margin: calc(2px - var(--main-pad-top, 16px)) -8px -10px calc(4px - var(--main-pad-x, 16px));
 }
 
 .phone-head .phone-head-back,

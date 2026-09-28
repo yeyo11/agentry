@@ -68,6 +68,17 @@ export function tally(proposals: readonly AssistantProposal[]): { accepted: numb
   };
 }
 
+/**
+ * The proposals of every run still waiting for the person, of any kind: what the project's
+ * assistant row on a phone says ("3 propuestas por revisar"). A run redone with "Suggest again"
+ * marks its pending ones superseded, so nothing is counted twice.
+ */
+export function pendingProposalCount(runs: readonly Pick<AssistantRun, 'counts'>[] | undefined): number {
+  let pending = 0;
+  for (const run of runs ?? []) for (const count of Object.values(run.counts)) pending += count.pending;
+  return pending;
+}
+
 /** How much a finished run read, for its one line: "after reading 61 files, 23 chats and docs/". */
 export function readSummary(sources: readonly AssistantSource[]): { files: number; chats: number; dirs: string[] } {
   let files = 0;

@@ -132,12 +132,13 @@ export function BounceFact({ item }: { item: Pick<WorkItem, 'bounces'> }) {
   const team = useBoardTeam();
   const count = item.bounces ?? 0;
   if (count === 0) return null;
-  const max = team?.maxBounces ?? count;
-  const said = t('card.bounceTitle', { count, max });
+  // With the Team module off there is no limit to count against: "1 de 1" would read as the last one
+  const max = team?.maxBounces;
+  const said = max === undefined ? t('card.bounceBareTitle', { count }) : t('card.bounceTitle', { count, max });
   return (
     <span className="workitem-fact bounce" title={said}>
       <CornerDownLeft size={12} strokeWidth={1.75} aria-hidden />
-      <span aria-hidden>{t('card.bounce', { n: count, max })}</span>
+      <span aria-hidden>{max === undefined ? t('card.bounceBare', { n: count }) : t('card.bounce', { n: count, max })}</span>
       <span className="sr-only">{said}</span>
     </span>
   );
