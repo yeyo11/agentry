@@ -58,6 +58,7 @@ function MissingAlert({ project }: { project: Project }) {
 /**
  * The figure each tab carries, neutral: open tasks on the board, the team's members, the documents,
  * the worktrees. Memory's is the proposals waiting for the person, which `IDLE_COUNT` draws in idle.
+ * A zero is left out, as the reference does: an empty tab says so once opened.
  */
 function useTabCounts(project: Project): Partial<Record<TabId, number>> {
   const open = useOpenTaskCount(project, true);
@@ -66,9 +67,9 @@ function useTabCounts(project: Project): Partial<Record<TabId, number>> {
   const proposals = usePendingProposalCount(project.id, project.modules.includes('memory'));
   const resources = useProjectResourceCount(project);
   return {
-    board: open,
+    board: open || undefined,
     team: team?.members.length || undefined,
-    documents,
+    documents: documents || undefined,
     memory: proposals || undefined,
     resources: resources || undefined,
     worktrees: project.worktrees.length || undefined,
