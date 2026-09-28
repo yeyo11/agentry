@@ -1,15 +1,19 @@
-import type { WorkItemComment, WorkItemDetail, WorkItemHistoryEntry, WorkItemPriority, WorkItemStatus, WorkItemType } from '@agentry/shared';
-import { ArrowRight, ArrowUp, Check, Hourglass, Link2, MessageSquare, Pencil, Play, Plus, type LucideIcon } from 'lucide-react';
+import type { FlowRun, WorkItemComment, WorkItemDetail, WorkItemHistoryEntry, WorkItemPriority, WorkItemStatus, WorkItemType } from '@agentry/shared';
+import { ArrowRight, ArrowUp, Check, Hourglass, Link2, MessageSquare, Pencil, Play, Plus, RotateCcw, type LucideIcon } from 'lucide-react';
 import { lazy, Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
+import { useWorkItemRuns } from '../../../api';
 import { Monogram } from '../../../components/icons';
 import { Segmented } from '../../../components/ui';
 import { formatDateTime, timeAgo } from '../../../lib/format';
 import { columnMeta, priorityMeta } from '../../../lib/work-items';
-import { useRoleName } from '../../team/RoleAvatar';
+import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 import { AgentMark } from './Criteria';
 import type { ItemActions } from './hooks';
 import { activityOf, causeLine, historyLine, shortId, type ActivityFilter, type HistoryLine } from './model';
+import { RunStatusBadge, useFailureReason } from './RunParts';
+import { commentRun, failureCommentRun, retriesOf, runStep } from './runs';
 
 const Markdown = lazy(() => import('../../../components/Markdown'));
 
@@ -70,31 +74,98 @@ function HistoryItem({ entry, person }: { entry: WorkItemHistoryEntry; person: s
   );
 }
 
-function CommentItem({ comment, person }: { comment: WorkItemComment; person: string }) {
+/**
+ * A person's retry of a failed flow run, as a history entry the core does not write: "Verification
+ * retried · yeyo · QA started chat 7c2e01", or queued while no chat has started yet.
+ */
+function RetryItem({ run, person }: { run: FlowRun; person: string }) {
+  const { t } = useTranslation('workItem');
+  const roleName = useRoleName();
+  const role = roleName(run.role);
+  const what = run.chatId ? t('run.retriedChat', { role, chat: shortId(run.chatId) }) : t('run.retriedQueued', { role });
+  return (
+    <li className="history-entry">
+      <span className="history-icon" aria-hidden>
+        <span>
+          <RotateCcw size={11} strokeWidth={2} />
+        </span>
+      </span>
+      <span className="history-text">
+        <span>{t(`run.retried.${runStep(run)}`)}</span>
+        <span className="history-cause">
+          {person} · {what}
+        </span>
+      </span>
+      <time dateTime={run.queuedAt} title={formatDateTime(run.queuedAt)}>
+        {timeAgo(run.queuedAt)}
+      </time>
+    </li>
+  );
+}
+
+/**
+ * The comment the core writes when a run fails is English ("This verification run failed and moved
+ * nothing: …"): drawn from the run instead, in the person's words, with the way to its chat.
+ */
+function FailureText({ run, column }: { run: FlowRun; column: WorkItemStatus }) {
+  const { t } = useTranslation('workItem');
+  const { t: tt } = useTranslation('tasks');
+  const reason = useFailureReason()(run);
+  return (
+    <p>
+      {t(`run.failedHead.${runStep(run)}`)} {reason} {t('run.stays', { column: tt(columnMeta(column).label) })}{' '}
+      {run.chatId && (
+        <Link to={`/chats/${run.chatId}`} className="comment-run-chat">
+          {t('run.seeChat')}
+        </Link>
+      )}
+    </p>
+  );
+}
+
+function CommentItem({ comment, person, runs }: { comment: WorkItemComment; person: string; runs: readonly FlowRun[] }) {
   const { t } = useTranslation('workItem');
   const roleName = useRoleName();
   const agent = comment.author.kind !== 'person';
+  const role = comment.author.kind === 'agent' ? comment.author.role : null;
   const chat = comment.source?.chatId;
+  // A flow run's comment names its run and how it ended; the agent's name already says who wrote it
+  const run = commentRun(comment, runs);
+  const failure = failureCommentRun(comment, runs);
   return (
     <li className={`comment ${agent ? 'agent' : ''}`.trim()}>
-      {agent ? <AgentMark size={28} /> : <Monogram name={person} size={28} />}
+      {role ? <RoleAvatar role={role} /> : agent ? <AgentMark size={28} label={t('actor.agent')} /> : <Monogram name={person} size={28} />}
       <div className="comment-body">
         <div className="comment-head">
-          <b>{agent ? (comment.author.role ? roleName(comment.author.role) : t('actor.agent')) : person}</b>
-          {agent && <span className="badge badge-muted">{t('actor.agentBadge')}</span>}
-          {agent && chat && <span className="mono small muted">{t('link.chat', { id: shortId(chat) })}</span>}
+          <b>{agent ? (role ? roleName(role) : t('actor.agent')) : person}</b>
+          {run && run.state === 'ended' && <RunStatusBadge run={run} />}
+          {agent && chat && <span className="mono small muted">{run ? `${t('run.flowRun')} · ${t('link.chat', { id: shortId(chat) })}` : t('link.chat', { id: shortId(chat) })}</span>}
           <time dateTime={comment.createdAt} title={formatDateTime(comment.createdAt)}>
             {timeAgo(comment.createdAt)}
           </time>
         </div>
         <div className="comment-text">
-          <Suspense fallback={<p>{comment.body}</p>}>
-            <Markdown text={comment.body} />
-          </Suspense>
+          {failure ? (
+            <FailureText run={failure} column={failure.column} />
+          ) : (
+            <Suspense fallback={<p>{comment.body}</p>}>
+              <Markdown text={comment.body} />
+            </Suspense>
+          )}
         </div>
       </div>
     </li>
   );
+}
+
+/**
+ * The item's flow runs, which tell its flow comments, and a person's retries among them, which are
+ * history of their own. Only fetched for an item the flow has worked on.
+ */
+export function useItemRuns(item: Pick<WorkItemDetail, 'id' | 'links'>): { runs: FlowRun[]; retries: FlowRun[] } {
+  const flowMade = item.links.some((link) => link.kind === 'chat' && Boolean(link.teamRole));
+  const runs = useWorkItemRuns(item.id, flowMade).data ?? [];
+  return { runs, retries: retriesOf(runs) };
 }
 
 /** The box a comment is written in; Ctrl/⌘ + Enter sends it as well as the button. */
@@ -136,10 +207,11 @@ export function CommentBox({ actions, compact = false }: { actions: ItemActions;
 export function Activity({ item, actions, person, compact = false }: { item: WorkItemDetail; actions: ItemActions; person: string; compact?: boolean }) {
   const { t } = useTranslation('workItem');
   const [filter, setFilter] = useState<ActivityFilter>('all');
-  const entries = activityOf(item.history, item.comments, filter);
+  const { runs, retries } = useItemRuns(item);
+  const entries = activityOf(item.history, item.comments, filter, retries);
   return (
     <section className="workitem-section workitem-activity" aria-labelledby={`activity-${item.id}`}>
-      <div className="workitem-section-head">
+      <div className={compact ? 'workitem-section-head is-bare' : 'workitem-section-head'}>
         <h2 id={`activity-${item.id}`} className={compact ? 'sr-only' : 'workitem-h2 grow'}>
           {t('activity.title')}
         </h2>
@@ -163,7 +235,7 @@ export function Activity({ item, actions, person, compact = false }: { item: Wor
                 value: 'history',
                 label: (
                   <>
-                    {t('activity.history')} <span className="segment-count">{item.history.length}</span>
+                    {t('activity.history')} <span className="segment-count">{item.history.length + retries.length}</span>
                   </>
                 ),
               },
@@ -178,8 +250,10 @@ export function Activity({ item, actions, person, compact = false }: { item: Wor
           {entries.map((entry) =>
             entry.kind === 'history' ? (
               <HistoryItem key={entry.entry.id} entry={entry.entry} person={person} />
+            ) : entry.kind === 'retry' ? (
+              <RetryItem key={`retry-${entry.run.id}`} run={entry.run} person={person} />
             ) : (
-              <CommentItem key={entry.comment.id} comment={entry.comment} person={person} />
+              <CommentItem key={entry.comment.id} comment={entry.comment} person={person} runs={runs} />
             ),
           )}
         </ol>

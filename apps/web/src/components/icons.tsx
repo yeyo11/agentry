@@ -180,18 +180,24 @@ export function EpicLabel({ epic }: { epic: Pick<WorkItemRef, 'id' | 'title'> })
 }
 
 /**
- * The letters of a monogram: the first of each of the first two words. A project always gets two, as
- * the references draw it ("claude-wrapper" CW, "nodo" NO), taking the second from a lone word; a
- * person keeps one, since their mark stands beside their name.
+ * The letters of a monogram: the first of each of the first two words. A project always gets two
+ * (design system, decision 10: `claude-wrapper` CW, `pagos-api` PA), taking the first two letters of
+ * a lone word (`notas` NO); a person keeps one, since their mark stands beside their name. Words are
+ * letters and digits in any script, so `señales-éxito` is SE and not a stray ASCII fragment.
  */
 export function monogramLetters(name: string, pair = false): string {
-  const words = name.match(/[A-Za-z0-9]+/g) ?? [name];
+  const words = name.match(/[\p{L}\p{N}]+/gu) ?? [];
   const [first = '', second] = words;
-  if (pair && second === undefined) return first.slice(0, 2).toUpperCase();
+  if (pair && second === undefined) return Array.from(first).slice(0, 2).join('').toUpperCase();
   return words
     .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
+    .map((part) => Array.from(part)[0]?.toUpperCase() ?? '')
     .join('');
+}
+
+/** A project's two letters, the one rule every project mark follows. */
+export function projectMonogram(name: string): string {
+  return monogramLetters(name, true);
 }
 
 export function Monogram({ name, size = 36, project = false }: { name: string; size?: number; /** Two letters even for one word */ project?: boolean }) {

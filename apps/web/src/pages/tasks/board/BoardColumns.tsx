@@ -1,6 +1,6 @@
 import type { BoardColumn, WorkItem, WorkItemStatus } from '@agentry/shared';
 import { WORK_ITEM_STATUSES } from '@agentry/shared';
-import { Plus, TriangleAlert } from 'lucide-react';
+import { ChevronDown, Plus, TriangleAlert } from 'lucide-react';
 import { Fragment, useLayoutEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ICON_SM, WorkItemStatusIcon } from '../../../components/icons';
@@ -42,6 +42,7 @@ export function BoardColumns({
   selection,
   moving = true,
   doneShown,
+  doneLoading = false,
   onMoreDone,
   onOpen,
   onNewTask,
@@ -56,6 +57,8 @@ export function BoardColumns({
   moving?: boolean;
   /** How many Done cards are drawn; "and N more" asks for the next page of them */
   doneShown: number;
+  /** The next page of Done is on its way: two skeleton cards hold its place */
+  doneLoading?: boolean;
   onMoreDone: () => void;
   onOpen: (item: WorkItem) => void;
   onNewTask?: ((status: WorkItemStatus) => void) | undefined;
@@ -257,10 +260,10 @@ export function BoardColumns({
               ))}
               {indicatorAt >= 0 && indicatorAt >= others.length && indicator}
               {shown.length === 0 && indicatorAt < 0 && <div className="workitem-col-slot">{dragId ? t('column.drop') : t('column.empty')}</div>}
-              {hidden > 0 && (
-                <button type="button" className="workitem-col-slot is-more" onClick={onMoreDone}>
-                  {t('column.more', { count: hidden })}
-                </button>
+              {status === 'done' && doneLoading && hidden > 0 ? (
+                <DonePageSkeleton />
+              ) : (
+                hidden > 0 && <MoreButton count={hidden} onClick={onMoreDone} />
               )}
             </div>
           </section>
@@ -268,6 +271,35 @@ export function BoardColumns({
       })}
       <div className="sr-only workitem-announce" role="status" aria-live="assertive">
         {said}
+      </div>
+    </div>
+  );
+}
+
+/** "Mostrar 9 más": the next page of Done, drawn in place. */
+export function MoreButton({ count, onClick, className = 'workitem-col-more' }: { count: number; onClick: () => void; className?: string }) {
+  const { t } = useTranslation('tasks');
+  return (
+    <button type="button" className={className} onClick={onClick}>
+      {t('column.more', { count })}
+      <ChevronDown size={13} strokeWidth={1.75} aria-hidden />
+    </button>
+  );
+}
+
+/** Two skeleton cards where the next page of Done lands, so the column does not jump when it arrives. */
+export function DonePageSkeleton() {
+  const { t } = useTranslation('tasks');
+  return (
+    <div className="workitem-col-loading" role="status" aria-busy="true">
+      <span className="sr-only">{t('column.loadingMore')}</span>
+      <div className="workitem-card is-skeleton" aria-hidden>
+        <span className="skeleton" style={{ width: '40%' }} />
+        <span className="skeleton" style={{ width: '85%' }} />
+      </div>
+      <div className="workitem-card is-skeleton" aria-hidden>
+        <span className="skeleton" style={{ width: '35%' }} />
+        <span className="skeleton" style={{ width: '70%' }} />
       </div>
     </div>
   );

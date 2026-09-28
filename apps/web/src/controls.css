@@ -2,6 +2,88 @@
 
 /* ---------- Floating menus (Select, Combobox) ---------- */
 
+/* The model a role runs (ModelPicker, the reference's `.model-pick`): the alias its file stores as a
+   `.model-tag` (styled in styles/team.css), then the model it resolves to today, "[sonnet] Sonnet 5" */
+.model-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  height: var(--control-h);
+  padding: 0 10px 0 6px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-base);
+}
+.model-pick:hover:not(:disabled) {
+  border-color: var(--line-3);
+}
+.model-pick:focus-visible,
+.model-pick[data-state='open'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.model-pick:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.model-pick .resolved {
+  min-width: 0;
+  color: var(--text);
+}
+.model-pick .ico {
+  display: inline-flex;
+  flex: none;
+  color: var(--fg-3);
+}
+.model-pick-empty {
+  padding-left: 4px;
+  color: var(--text-faint);
+}
+.model-pick-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.model-pick-sheet {
+  display: flex;
+  flex-direction: column;
+}
+.model-pick-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 4px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+.model-pick-option:last-child {
+  border-bottom: 0;
+}
+.model-pick-check {
+  margin-left: auto;
+  color: var(--text);
+}
+@media (pointer: coarse) {
+  .model-pick {
+    min-height: var(--touch);
+  }
+}
+
 .select-trigger {
   display: flex;
   align-items: center;

@@ -114,7 +114,9 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return ${param('dir')} === 'docs/specs'`, { label: 'the folder opens' });
     await page.click('.doc-cell', 'board.md', 1200);
     await page.waitFor(`return !!document.querySelector('.doc-phone-head h1') && !!document.querySelector('.doc-view')`, { label: 'the document screen' });
-    check(await page.eval(`return !document.querySelector('.project-head-phone')`), "the document heads its own screen, without the tab's bar");
+    check(await page.eval(`return !document.querySelector('.project-phone-head')`), "the document heads its own screen, without the tab's bar");
+    // MobileDocumento: its "⋯" holds what the desktop's pane menu does
+    check(await page.eval(`return !!document.querySelector('.doc-phone-head .phone-head-more')`), 'the document header has its "⋯"');
     check(!(await page.eval(`return document.querySelector('.topbar').getClientRects().length > 0`)), 'and without the top bar (MobileDocumento)');
     const docBack = await page.eval(`const r = document.querySelector('.doc-phone-head > .icon-btn').getBoundingClientRect(); return { w: r.width, h: r.height }`);
     check(docBack.w >= 44 && docBack.h >= 44, `its way back is a 44 px target (${JSON.stringify(docBack)})`);

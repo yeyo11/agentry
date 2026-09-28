@@ -3,7 +3,7 @@ import test from 'node:test';
 import en from '../src/i18n/locales/en/projects.json' with { type: 'json' };
 import es from '../src/i18n/locales/es/projects.json' with { type: 'json' };
 import { asProjectView, projectViews } from '../src/pages/dashboard/views.ts';
-import { columnLimitsOf, deriveKeyPrefix, FOLDER_NAME, LIMIT_STATUSES, folderNameFor, limitedColumns, normalizePrefix, prefixProblem, sameModules, toggleModule } from '../src/pages/projects/model.ts';
+import { columnLimitsOf, deriveKeyPrefix, FOLDER_NAME, LIMIT_STATUSES, folderNameFor, limitedColumns, moduleFigure, normalizePrefix, prefixProblem, sameModules, toggleModule } from '../src/pages/projects/model.ts';
 
 // The wizard previews the prefix the server will derive, and the settings refuse what the API
 // would refuse before sending it, so both have to agree with core's rules.
@@ -80,4 +80,17 @@ test('Done takes no limit: it only grows, so a limit there would warn for good',
   assert.deepEqual(LIMIT_STATUSES, ['backlog', 'todo', 'in_progress', 'in_review']);
   assert.deepEqual(columnLimitsOf({ in_review: 3, done: 10 }), { in_review: 3 });
   assert.deepEqual(limitedColumns({ columnLimits: { done: 5, todo: 2 } }), [{ status: 'todo', limit: 2 }]);
+});
+
+test("a module's settings line says what it holds, and nothing until that has loaded", () => {
+  const figures = { members: 5, documents: 23, journal: 86 };
+  assert.deepEqual(moduleFigure('team', figures), { key: 'members', count: 5 });
+  assert.deepEqual(moduleFigure('documents', figures), { key: 'documents', count: 23 });
+  assert.deepEqual(moduleFigure('memory', figures), { key: 'journal', count: 86 });
+  // The board has its own line, open and total
+  assert.equal(moduleFigure('board', figures), null);
+  assert.equal(moduleFigure('team', {}), null);
+  assert.deepEqual(moduleFigure('memory', { journal: 0 }), { key: 'journal', count: 0 });
+  assert.equal(es.general.moduleNote.journal_other, 'diario con {{n}} entradas');
+  assert.equal(en.general.moduleNote.members_other, '{{n}} members');
 });

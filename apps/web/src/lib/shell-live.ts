@@ -5,6 +5,7 @@
  * without a browser.
  */
 import type { AccountUsage, ChatState, OrchestrationStatus, OrchestrationTaskStatus } from '@agentry/shared';
+import { phoneHeaderOf } from '../components/shell/phone-header';
 import { displayTitle } from './chat-model';
 import type { TickerActivity } from './live';
 import type { ProgressCounts } from './progress';
@@ -161,6 +162,8 @@ export function hidesTabBar(pathname: string, search = ''): boolean {
     const view = params.get('view');
     if (view === 'team' && (params.has('member') || params.get('section') === 'flow')) return true;
     if (view === 'documents' && params.has('doc')) return true;
+    // The project's settings end in "Guardar los cambios" at the bottom (MobileProyectoAjustes)
+    if (view === 'settings') return true;
     // So does a resource or an assistant's proposal open in the editor (MobileRecursoPropuesta)
     if (view === 'resources' && (params.has('res') || params.has('proposal'))) return true;
   }
@@ -183,19 +186,11 @@ export function hidesTabBar(pathname: string, search = ''): boolean {
 }
 
 /**
- * Where a phone shows no top bar: the screens whose own header leads back, as their references draw
- * them (MobileTarea, MobileMiembro, MobileDocumento, MobileAsistente, MobileProyecto, MobileTablero,
- * MobileHitos). A project's page and its tabs (a member and a document among them) live at `/` with
- * a project in scope (`projectPage`), headed by the project and the way back to Projects; Tasks, its
- * milestones and a work item carry their own title, and Tasks the project scope beside it; the
- * assistant names its project. Everywhere else the bar holds the scope, search and the bell.
+ * Where a phone shows no top bar: the routes marked `phoneHeader: 'page'`
+ * (components/shell/phone-header.ts), whose pages draw their own header with the way back.
  */
 export function hidesTopBar(pathname: string, projectPage = false): boolean {
-  if (pathname === '/' && projectPage) return true;
-  if (/^\/projects\/[^/]+\/assistant\/?$/.test(pathname)) return true;
-  if (/^\/tasks\/?$/.test(pathname)) return true;
-  // The milestones, and a work item's page (not the review of its changes, a screen of its own)
-  return /^\/tasks\/[^/]+\/?$/.test(pathname);
+  return phoneHeaderOf(pathname, projectPage) === 'page';
 }
 
 /** What the phone's floating button starts on a page. */

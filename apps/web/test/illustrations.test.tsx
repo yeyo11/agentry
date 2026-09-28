@@ -97,3 +97,22 @@ test("the board draws the key it is given, the project's own first one, and fits
   assert.doesNotMatch(own, /textLength/);
   assert.match(renderToStaticMarkup(<Illustration name="board" text="LONGPREFIX-1" />), /textLength="40"/);
 });
+
+test('the redrawn board has the five fixed columns and the team the three roles, and neither a "+" disc', async () => {
+  // The Spanish copy, as the reference captions it
+  const { default: i18n } = await import('../src/i18n');
+  await i18n.changeLanguage('es');
+  const board = renderToStaticMarkup(<Illustration name="board" />);
+  // One rounded column per status, Backlog to Hecho, the last one headed by a check
+  assert.equal(board.match(/<rect x="\d+" y="30" width="36" height="104" rx="8" class="c0"/g)?.length, 5);
+  assert.equal(board.match(/class="ln-ok"/g)?.length, 1);
+  const team = renderToStaticMarkup(<Illustration name="team" />);
+  for (const role of ['PO', 'DEV', 'QA']) assert.match(team, new RegExp(`>${role}<`));
+  for (const stage of ['refinar', 'implementar', 'verificar']) assert.match(team, new RegExp(`>${stage}<`));
+  // The disc read as a button that did nothing (decision 9)
+  for (const html of [board, team]) {
+    assert.doesNotMatch(html, /a-pulse/);
+    assert.doesNotMatch(html, /class="ln-white"/);
+  }
+  await i18n.changeLanguage('en');
+});

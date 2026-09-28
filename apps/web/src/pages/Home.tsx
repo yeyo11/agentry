@@ -1,5 +1,5 @@
 import type { Project } from '@agentry/shared';
-import { BookText, ChevronLeft, ChevronRight, FileText, FolderX, GitFork, LayoutDashboard, Package, SlidersHorizontal, SquareKanban, Users, type LucideIcon } from 'lucide-react';
+import { BookText, ChevronRight, FileText, FolderX, GitFork, LayoutDashboard, Package, SlidersHorizontal, SquareKanban, Users, type LucideIcon } from 'lucide-react';
 import { lazy, Suspense, useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
@@ -14,7 +14,8 @@ import { Dashboard } from './dashboard/Dashboard';
 import { HomeHero } from './dashboard/Hero';
 import { defaultLayout } from './dashboard/registry';
 import { usePendingProposalCount } from './home/memory/Proposals';
-import { PhoneHead, PhoneViewHead, ProjectHead } from './home/ProjectHead';
+import { PhoneAssistantRow, PhoneHead, PhoneViewHead, ProjectHead } from './home/ProjectHead';
+import { useProjectResourceCount } from './home/resources/data';
 import { asProjectView, legacyTabRedirect, projectViews, type ProjectViewId } from './dashboard/views';
 
 // The dashboard is what most visits are for; the project's other tabs load when opened
@@ -63,14 +64,19 @@ function useTabCounts(project: Project): Partial<Record<TabId, number>> {
   const team = useTeam(project.modules.includes('team') ? project.id : null).data;
   const documents = useDocuments(project.modules.includes('documents') ? project.id : null).data?.fileCount;
   const proposals = usePendingProposalCount(project.id, project.modules.includes('memory'));
+  const resources = useProjectResourceCount(project);
   return {
     board: open,
     team: team?.members.length || undefined,
     documents,
     memory: proposals || undefined,
+    resources: resources || undefined,
     worktrees: project.worktrees.length || undefined,
   };
 }
+
+/** Tabs that are a form with their own primary (Save, Create): the header leaves its actions out there. */
+const FORM_TABS: ReadonlySet<TabId> = new Set(['settings', 'resources']);
 
 /** Tabs whose figure waits for the person: drawn in idle, and said in words to a screen reader. */
 const IDLE_COUNT: ReadonlySet<TabId> = new Set(['memory']);
@@ -187,7 +193,7 @@ function ProjectPage({ project }: { project: Project }) {
       <>
         {/* Team heads its own screens, and so does a document open on a phone, with its way back */}
         {view !== 'team' && !(view === 'documents' && params.has('doc')) && (
-          <PhoneViewHead project={project} view={view} onBack={() => open('summary')} />
+          <PhoneViewHead project={project} view={view} />
         )}
         <MissingAlert project={project} />
         <div className="tab-panel">
@@ -200,6 +206,7 @@ function ProjectPage({ project }: { project: Project }) {
         <MissingAlert project={project} />
         {/* The cells are how a phone reaches the board and the settings: under the whole dashboard
             they sat a dozen widgets down, where the reference has them near the top */}
+        <PhoneAssistantRow project={project} />
         <PhoneTabCells views={views} counts={counts} />
         <ProjectDashboard project={project} />
       </>
@@ -222,7 +229,7 @@ function ProjectPage({ project }: { project: Project }) {
   const tabs: TabId[] = ['summary', ...views];
   return (
     <>
-      <ProjectHead project={project} primaryTask={tab === 'summary'} />
+      <ProjectHead project={project} primaryTask={tab === 'summary'} actions={!FORM_TABS.has(tab)} />
       <MissingAlert project={project} />
       <div className="project-tabs">
         <Tabs

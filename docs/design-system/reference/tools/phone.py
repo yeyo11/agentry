@@ -115,8 +115,8 @@ def filters_sheet():
   body = ''.join([
     group('Tipo', [(tico('epic'), 'Épica', '2', False), (tico('story'), 'Historia', '6', False), (tico('task'), 'Tarea', '5', False), (tico('bug'), 'Bug', '4', False)]),
     group('Prioridad', [(prio('urgent'), 'Urgente', '1', False), (prio('high'), 'Alta', '6', False), (prio('medium'), 'Media', '7', False), (prio('low'), 'Baja', '3', False)]),
-    group('Épica', [('', 'Ecosistema de proyectos', '11', True), ('', 'Móvil', '1', False), ('', 'Coste y uso', '2', False)]),
-    group('Etiqueta', [('', 'web', '4', False), ('', 'core', '2', False), ('', 'api', '1', False), ('', 'docs', '1', False), ('', 'móvil', '1', False)]),
+    group('Épica', [('', 'Ecosistema de proyectos', '11', True), ('', 'Asistente de proyecto', '0', False)]),
+    group('Etiqueta', [('', 'web', '4', False), ('', 'core', '3', False), ('', 'api', '2', False), ('', 'docs', '1', False), ('', 'móvil', '1', False), ('', 'coste', '1', False), ('', 'uso', '1', False)]),
     group('Responsable', [(av(), 'yeyo', '4', False), ('', 'Sin responsable', '14', False)]),
     group('Hito', [('', 'v0.20', '15', False), ('', 'v0.21', '9', False), ('', 'Sin hito', '3', False)]),
   ])
@@ -141,7 +141,7 @@ def task_activity():
   inner = f'''{mtask_head()}
 <div class="m-body stack" style="gap: 14px">
 {mtask_top('activity')}
-<div class="activity">{activity()}</div>
+<div class="activity">{activity().replace(' <a href="DesktopChatFlujo.html" class="c-accent">Ver el chat</a></span>', '</span><a href="MobileChatFlujo.html" class="btn btn-ghost" style="align-self: flex-start; margin: -6px -12px -10px; color: var(--accent)">Ver el chat</a>')}</div>
 </div>
 <div class="m-foot" style="align-items: center"><label class="field field-lg grow">{ico('comment', 'ico ico-lg')}<input placeholder="Escribir un comentario" aria-label="Comentario" style="font-size: 16px"></label><button type="button" class="btn btn-lg btn-icon" aria-label="Enviar el comentario" style="flex: 0 0 auto">{ico('send', 'ico ico-lg')}</button></div>'''
   write('MobileTareaActividad.html', mobile('Tarea, actividad', inner))
@@ -168,7 +168,7 @@ def task_changes():
 
 
 # ---------- Tasks with All projects ----------
-# google-docs-mcp is a project DesktopProyectos already lists; its three open items join the 15
+# google-docs-mcp is a project DesktopProyectos already lists; its three open items join the 13
 OTHER = {
   'GDM-4': dict(t='task', title='Documentar los permisos de OAuth', s='backlog', p='low'),
   'GDM-7': dict(t='story', title='Crear documentos desde una plantilla', s='todo', p='medium'),
@@ -205,7 +205,7 @@ def all_projects():
   inner = f'''{mhead('Tareas', None, 'MobileMas.html', chip + '<span style="width: 8px"></span>')}
 <div class="m-body stack" style="gap: 12px; margin-bottom: 76px">
 {mview_seg('board')}
-<div class="callout" style="padding: 12px">{ico('folder', 'ico fg-3')}<span>18 abiertas en 2 proyectos. Sin límites por columna: cada proyecto tiene los suyos.</span></div>
+<div class="callout" style="padding: 12px">{ico('folder', 'ico fg-3')}<span>16 abiertas en 2 proyectos. Sin límites por columna: cada proyecto tiene los suyos.</span></div>
 {section('todo', todo, 5)}
 {section('in_progress', prog, 6)}
 </div>

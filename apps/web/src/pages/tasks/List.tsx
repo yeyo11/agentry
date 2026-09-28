@@ -10,9 +10,11 @@ import { Spinner } from '../../components/Spinner';
 import { Card, ErrorBox, Skeleton } from '../../components/ui';
 import { timeAgo } from '../../lib/format';
 import { useListKeys } from '../../lib/list-keys';
-import { columnMeta, listRowStep, priorityMeta, taskPath, workItemLiveState } from '../../lib/work-items';
+import { columnMeta, listRowStep, priorityMeta, stripInList, taskPath, workItemLiveState, workItemStrip } from '../../lib/work-items';
 import type { BoardSelection } from './board/BoardColumns';
-import { LiveLine, type LiveSources } from './board/LiveLine';
+import type { LiveSources } from './board/LiveLine';
+import { useStripRuns } from './board/team';
+import { WorkItemStrip } from './board/WorkItemStrip';
 import { DONE_SHOWN, openBlockers } from './board/model';
 import { listGroups, listMore } from './list-model';
 import { Assignee } from './board/WorkItemCard';
@@ -221,12 +223,14 @@ function Row({
   onOpen: (item: WorkItem) => void;
 }) {
   const { t } = useTranslation('tasks');
-  const working = workItemLiveState(item) === 'working';
+  const strip = workItemStrip(item, useStripRuns());
+  const working = item.status !== 'done' && (workItemLiveState(item) === 'working' || strip?.kind === 'run');
   const blockers = openBlockers(item);
   const total = item.acceptanceCriteria.length;
   const checked = item.acceptanceCriteria.filter((c) => c.checked).length;
   const classes = ['workitem-row', item.status === 'done' && 'is-done', working && 'live-rail', phone && 'is-phone'].filter(Boolean).join(' ');
-  const mark = working ? <Spinner variant="ring" className="workitem-card-spin" /> : <WorkItemTypeIcon type={item.type} />;
+  // The type leads every row, live or not: the rail and the strip in "Now" say it is at work
+  const mark = <WorkItemTypeIcon type={item.type} />;
 
   const cells = phone ? (
     <>
@@ -248,8 +252,8 @@ function Row({
         {project && <span className="workitem-row-project"> · {project}</span>}
       </span>
       <span className="workitem-row-now">
-        {working || item.activeLink ? (
-          <LiveLine item={item} sources={live} className="is-inline" />
+        {stripInList(strip) ? (
+          <WorkItemStrip item={item} strip={strip} sources={live} inline />
         ) : blockers.length > 0 ? (
           <span className="workitem-fact">{t('card.blockedByShort', { keys: blockers.map((b) => b.key).join(', ') })}</span>
         ) : null}

@@ -3,11 +3,13 @@ import type {
   DocumentChangeAction,
   DocumentKind,
   FlowRunAction,
+  FlowRunCause,
   FlowRunOutcome,
   FlowRunState,
   FlowRunStatus,
   FlowRun,
   FlowStage,
+  FlowStep,
   FlowVerdict,
   JournalChangeAction,
   JournalEntryKind,
@@ -95,6 +97,48 @@ export const FLOW_STAGE_OF_COLUMN = {
   in_review: 'verify',
   done: null,
 } as const satisfies Record<WorkItemStatus, FlowStage | null>;
+
+/** The stage as the person reads it in each column: the Product Owner refines in backlog and checks in todo. */
+export const FLOW_STEP_OF_COLUMN = {
+  backlog: 'refine',
+  todo: 'check',
+  in_progress: 'work',
+  in_review: 'verify',
+  done: null,
+} as const satisfies Record<WorkItemStatus, FlowStep | null>;
+
+export const FLOW_STEPS = valuesOf<FlowStep>()(['refine', 'check', 'work', 'verify']);
+
+/**
+ * A run's step: its column's, or its stage's own name for a column that has none (a run stored with
+ * a column that does not match its stage, which the flow never writes).
+ */
+export function flowStepOf(stage: FlowStage, column: WorkItemStatus): FlowStep {
+  const step = FLOW_STEP_OF_COLUMN[column];
+  return step && FLOW_STAGE_OF_COLUMN[column] === stage ? step : stage;
+}
+
+export const FLOW_RUN_CAUSES = valuesOf<FlowRunCause>()([
+  'budget',
+  'no-account',
+  'rate-limit',
+  'stopped',
+  'restarts',
+  'unreadable',
+  'no-verdict',
+  'not-started',
+  'not-continued',
+  'chat-ended',
+  'chat-failed',
+  'item-moved',
+  'item-removed',
+  'item-done',
+  'replaced',
+  'flow-off',
+  'no-member',
+  'refined',
+  'chat-busy',
+]);
 
 export const FLOW_RUN_STATES = valuesOf<FlowRunState>()(['queued', 'running', 'ended']);
 

@@ -85,17 +85,33 @@ palette, from the board ("Sugerir tareas") and from the Resources tab ("Sugerir"
   - **5** (`ecosystem-review-fixes`): the fixes of the review of the whole feature, each finding
     marked closed or open in [the audit](plans/project-ecosystem-audit.md#review-of-the-whole-feature-before-the-pull-request);
   - **6** (`ecosystem-gaps`): every gap the documents still listed after 5, 24 in all, closed
-    ([the plan](plans/project-ecosystem.md#orchestration-6-ecosystem-gaps)).
+    ([the plan](plans/project-ecosystem.md#orchestration-6-ecosystem-gaps)); the last detail of gap 23,
+    a member's model reading "sonnet · Sonnet 5", was closed after it by the plan's decision 41;
+  - **7** (`ecosystem-design`): the screens brought to the designer's official reference of the
+    ecosystem (2026-09-28): the card with its strip, failed runs told in the person's words with a
+    retry (`POST /flow-runs/:runId/retry`), Team activity, the Flow's Límites card, the model picker,
+    and phone headers on the ecosystem's screens. What it applied screen by screen, and what it
+    left, is at the end of [the review's note](design-system/ecosystem-review.md#applied-in-development).
 
   Each orchestration's `pnpm build` and `pnpm e2e` run in its verification phase, on the merged
-  branch. The Known gaps of [work-items.md](work-items.md#known-gaps) and
-  [assistant.md](assistant.md#known-gaps) are empty, and
-  [the audit](plans/project-ecosystem-audit.md#still-open-after-orchestration-5) has nothing left
-  open. One detail stays partly open, in [team-and-flow.md](team-and-flow.md#known-gaps): a
-  member's model reads "sonnet · Sonnet 5" only when the CLI's own model list names the alias, and
-  today's CLI does not.
+  branch. The Known gaps of [work-items.md](work-items.md#known-gaps),
+  [team-and-flow.md](team-and-flow.md#known-gaps) and [assistant.md](assistant.md#known-gaps) list
+  what stays open per area, and [the audit](plans/project-ecosystem-audit.md#still-open-after-orchestration-5)
+  has nothing left open.
 
   See the plan's [Outcome](plans/project-ecosystem.md#the-ecosystem-as-a-whole).
+- **Phone headers for the rest of the app, a separate job.** Night Shift draws every phone detail
+  screen with a back arrow, its title and a "⋯" sheet, and no app top bar; the app still shows the
+  global top bar on most of them. Orchestration 7 switched only the ecosystem's screens over (the
+  project and its tabs, Tasks, a work item, the assistant, the new project wizard), by the owner's
+  decision, since the incoherence predates the ecosystem. The rest waits: a chat, a task's chat and
+  a flow run's chat (the chat page, which keeps its own header with the ecosystem's rows under it),
+  an orchestration, accounts, changes and the other screens drawn with a back arrow. It is cheap
+  now: the shell decides by route (`PHONE_HEADER_ROUTES` in `apps/web/src/components/shell/phone-header.ts`,
+  where a route marked `phoneHeader: 'page'` hides `.topbar` on a phone), so each screen is one
+  entry there plus the page drawing `PhoneHeader` (back, title, "⋯" through `MoreActions`). Recorded
+  in [the plan](plans/project-ecosystem.md#separate-job-recorded-here-so-it-is-not-lost); not part
+  of the ecosystem's pull request.
 - **The editable dashboard.** Home renders any layout that validates, from a registry of widget
   types, but the layout is not editable or persisted per project, and the Documents and Flows
   widgets do not exist. Left out of the redesign deliberately — see
@@ -125,7 +141,7 @@ palette, from the board ("Sugerir tareas") and from the Resources tab ("Sugerir"
 | [`plans/redesign-night-shift.md`](plans/redesign-night-shift.md) | Landed (#101) — see [Outcome](plans/redesign-night-shift.md#outcome) |
 | [`plans/tunnel.md`](plans/tunnel.md) | Landed (#110) — see [Outcome](plans/tunnel.md#outcome) and [tunnel.md](tunnel.md) |
 | [`plans/changes-review.md`](plans/changes-review.md) | Landed (#115) — see [Outcome](plans/changes-review.md#outcome) |
-| [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | All six orchestrations built: 1 (server side and prototypes, fixed by 1b after [its audit](plans/project-ecosystem-audit.md)), 2 (the board's web), 3 (the team, the flow, memory and documents), 4 (the assistant), 5 (the review's fixes) and 6 (the known gaps). `main` (0.22.1) is merged into the branch; it awaits its e2e run on the merged branch, then the owner's trial and one pull request to `main` — see [Outcome](plans/project-ecosystem.md#outcome) |
+| [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | All seven orchestrations built: 1 (server side and prototypes, fixed by 1b after [its audit](plans/project-ecosystem-audit.md)), 2 (the board's web), 3 (the team, the flow, memory and documents), 4 (the assistant), 5 (the review's fixes), 6 (the known gaps) and 7 (the screens brought to the designer's reference). `main` (0.22.1) is merged into the branch; it awaits its e2e run on the merged branch, then the owner's trial and one pull request to `main` — see [Outcome](plans/project-ecosystem.md#outcome) |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.

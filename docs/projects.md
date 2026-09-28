@@ -125,7 +125,13 @@ translation.
 ## The screens
 
 Orchestration 2 built these from the validated `NuevoProyecto`, `Proyecto`, `ProyectoAjustes` and
-`Proyectos` prototypes, for desktop and phone, in dark and light.
+`Proyectos` prototypes, for desktop and phone, in dark and light. Orchestration 7 brought them to the
+designer's review of those screens; what it applied and left is at the end of
+[the review's note](design-system/ecosystem-review.md#applied-in-development).
+
+A project's monogram is the first letter of its first two words (`claude-wrapper` → CW), or the
+first two letters of a single word (`notas` → NO), in any script (`projectMonogram` in
+`components/icons.tsx`).
 
 ### The wizard: `/projects/new`
 
@@ -149,7 +155,9 @@ tasks it proposes are accepted one by one. With it off, the wizard leads to the 
 before. See [assistant.md](assistant.md).
 
 On a desktop the four parts are on one page. On a phone they are steps, and the tab bar is hidden
-(`hidesTabBar` in `lib/shell-live.ts`). When the Projects page offers a directory to import, it opens
+(`hidesTabBar` in `lib/shell-live.ts`). The wizard is a modal flow, so on a phone it draws
+`PhoneHeader` with "Cerrar" instead of a way back, in place of the app's top bar, and its step
+actions are pinned to the bottom of the window. When the Projects page offers a directory to import, it opens
 the wizard prefilled with `?path=`, so an import goes through the same template and module steps as
 a new project.
 
@@ -166,11 +174,13 @@ The project page (`/`, with a project selected) is a header over a strip of tabs
   - the number of chats and worktrees. The chats are counted from the list the project's Chats
     reads, so a "Work on it", flow or assistant chat this process runs counts before the CLI writes
     its transcript;
-  - New chat, plus New task while the Board is on, and "Asistente", which opens the
-    [project assistant](assistant.md) from every tab (orchestration 6, gap 8).
+  - a ghost "Asistente" with its sparkle, which leads to the [project assistant](assistant.md) from
+    every tab that has header actions (orchestration 6, gap 8), then New chat, plus New task while
+    the Board is on.
 
   New task takes the gradient only on Resumen. A tab that has a primary action of its own gets a
-  plain New task button instead. "Asistente" is always a plain button.
+  plain New task button instead. Ajustes and Recursos, forms with their own Save or Create, carry
+  no header actions.
 - **The tabs** each live at `/?view=<id>` (`apps/web/src/pages/dashboard/views.ts`):
   - Resumen: the dashboard that used to be the whole page, with no `view`;
   - Tablero (`board`);
@@ -182,23 +192,29 @@ The project page (`/`, with a project selected) is a header over a strip of tabs
   - Worktrees;
   - Ajustes (`settings`).
 
-  Tablero shows the number of open tasks, Equipo its members, Documentos its files and Worktrees
-  its own count, in neutral grey. Memoria shows the memory proposals waiting for the person, in the
+  Tablero shows the number of open tasks, Equipo its members, Documentos its files, Recursos and
+  Worktrees their own counts, in neutral grey. Memoria shows the memory proposals waiting for the person, in the
   idle colour.
 - **A tab exists only while its module is on.** Tablero follows the Board module, Equipo the Team
   module, Documentos the Documents module and Memoria Shared memory; the other tabs are always
   there. An address that names a hidden tab lands on Resumen, and old `?tab=` links still redirect
   to `?view=`.
 - **The top bar's breadcrumb** reads `Proyectos / <project> / <tab>`. Inside Equipo it goes one
-  level deeper, "Equipo / Flujo" or "Equipo / Desarrollador", with "Equipo" as a link back.
+  level deeper, "Equipo / Flujo", "Equipo / Actividad" or "Equipo / Desarrollador", with "Equipo" as
+  a link back.
 - **The shell marks Projects** on the page and every tab: the sidebar marks "Proyectos", and the
   phone's tab bar "Más", where Projects lives, as the references do (orchestration 6, gap 22). The
   page lives at `/`, so `components/shell/nav.ts` works out the current section, told when `/` is a
   project's page, and the links say it with `aria-current`.
-- **On a phone**, the strip becomes a card of cells right under the header, and each tab opens as its
-  own screen. The page and its tabs drop the app's top bar and head themselves: a 44 px way back, the
-  title, and a link to the assistant (`hidesTopBar` in `lib/shell-live.ts`, orchestration 6, gap 21).
-  The desktop app keeps the bar, which is also its window's title bar.
+- **On a phone** there is no app top bar (orchestration 6, gap 21): the project's page and its tabs
+  are routes the shell marks `phoneHeader: 'page'` (`components/shell/phone-header.ts`, read by
+  `hidesTopBar` in `lib/shell-live.ts`), and the page draws `PhoneHeader`, with a 44 px way back to
+  the projects, the monogram, the name over its key and path, and "⋯" as a sheet (New chat here, New
+  task). An "Asistente del proyecto" row sits above the sections, with the proposals waiting. The
+  strip becomes a card of cells, Worktrees among them, and each tab opens as its own screen, headed
+  the same way; Documentos and Recursos name the folder they read. Every tab's "⋯" starts with
+  "Asistente", so no tab is a dead end on the way to it (gap 8); on Ajustes and Recursos it is the
+  sheet's only entry. The desktop app keeps the bar, which is also its window's title bar.
 
 Memoria follows its module, as decision 6 says. An imported project starts with every module off, so
 it has no Memoria tab until someone switches Shared memory on. Until then the dashboard's Memory
@@ -213,11 +229,14 @@ settings, above the Claude Code settings it already edited:
 - **Key prefix**, checked the same way the API checks it. A clash with another project shows in the
   field before you save.
 - **Modules**: one switch each, with what switching it off means (the module is hidden and its data
-  kept).
+  kept). Under a module that is on, a mono line says what it holds: the board's open and total
+  ("13 abiertas · 25 en total"), the team's members, the documents, the journal's entries. A module
+  whose figure has not loaded, or that was just switched on, shows none rather than a zero.
 - **Column limits** for the board, while the Board module is on.
 - **Remove** the project from Agentry.
 
-On a phone, Save is a bar pinned to the bottom, just above the tab bar, and no FAB covers it.
+On a phone, Save is a bar pinned to the bottom, the tab bar steps aside for it, and no FAB covers
+it.
 
 ### The projects list
 

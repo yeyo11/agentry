@@ -5,11 +5,13 @@ import type { DatabaseSync } from 'node:sqlite';
 import {
   DEFAULT_FLOW_MAX_PARALLEL,
   DOCUMENT_KINDS,
+  FLOW_RUN_CAUSES,
   FLOW_RUN_STATUSES,
   FLOW_RUNS_PAGE,
   FLOW_RUNS_PAGE_MAX,
   FLOW_STAGE_OF_COLUMN,
   AGENTRY_LANGUAGES,
+  flowStepOf,
   isTeamCommandPattern,
   MAX_FLOW_RESTARTS,
   type AgentryEvent,
@@ -20,13 +22,16 @@ import {
   type FlowMemoryProposal,
   type FlowRun,
   type FlowRunAction,
+  type FlowRunCause,
   type FlowRunDocument,
   type FlowRunOutcome,
   type FlowRunPage,
   type FlowRunQuery,
+  type FlowRunRef,
   type FlowRunState,
   type FlowRunStatus,
   type FlowStage,
+  type FlowStep,
   type FlowVerdict,
   type MemoryProposalTargetKind,
   type PermissionMode,
@@ -112,7 +117,7 @@ const GIT_OUTPUT_DENIED = ['diff', 'log', 'show'].map((c) => `Bash(git ${c} *--o
 export class FlowError extends Error {
   constructor(
     message: string,
-    readonly statusCode: 400 | 404,
+    readonly statusCode: 400 | 404 | 409,
   ) {
     super(message);
   }
@@ -132,11 +137,18 @@ export function parseFlowRunQuery(raw: Record<string, unknown> | undefined): Flo
   };
   const agents = list(raw?.agent, 'agent');
   if (agents) query.agent = agents;
-  const statuses = list(raw?.status, 'status');
-  if (statuses) {
+  const roles = list(raw?.role, 'role');
+  if (roles) query.role = roles;
+  // `outcome` is the name the Team activity's filter goes by; both lists are alternatives of one filter
+  const statuses = [...(list(raw?.status, 'status') ?? []), ...(list(raw?.outcome, 'outcome') ?? [])];
+  if (statuses.length) {
     const unknown = statuses.filter((v) => !(FLOW_RUN_STATUSES as readonly string[]).includes(v));
     if (unknown.length) throw new FlowError(`unknown status ${unknown.join(', ')}; a run is ${FLOW_RUN_STATUSES.join(', ')}`, 400);
-    query.status = statuses as FlowRunStatus[];
+    query.status = [...new Set(statuses)] as FlowRunStatus[];
+  }
+  if (raw?.before !== undefined && raw.before !== '') {
+    if (typeof raw.before !== 'string' || Number.isNaN(Date.parse(raw.before))) throw new FlowError('before must be a date and time (ISO 8601)', 400);
+    query.before = new Date(raw.before).toISOString();
   }
   if (typeof raw?.itemId === 'string' && raw.itemId) query.itemId = raw.itemId;
   if (raw?.limit !== undefined && raw.limit !== '') {
@@ -253,6 +265,8 @@ interface RunRow {
   restarts: number;
   /** Null on a run stored before it was kept */
   language: string | null;
+  cause: string | null;
+  retry_of: string | null;
 }
 
 /** The structured result, read defensively: the CLI checks it against the schema, but a result can still be anything. */
@@ -584,9 +598,17 @@ export class FlowService {
       where.push('agent IN (SELECT value FROM json_each(?))');
       params.push(JSON.stringify(query.agent));
     }
+    if (query.role?.length) {
+      where.push('role IN (SELECT value FROM json_each(?))');
+      params.push(JSON.stringify(query.role));
+    }
     if (query.itemId) {
       where.push('item_id = ?');
       params.push(query.itemId);
+    }
+    if (query.before) {
+      where.push('queued_at < ?');
+      params.push(query.before);
     }
     if (query.status?.length) {
       const states = query.status.filter((v): v is 'queued' | 'running' => v === 'queued' || v === 'running');
@@ -621,6 +643,78 @@ export class FlowService {
     return !!this.sql.prepare("SELECT 1 FROM flow_runs WHERE chat_id = ? AND state = 'running' LIMIT 1").get(chatId);
   }
 
+  // ---------- a person's retry ----------
+
+  /**
+   * `POST /flow-runs/:runId/retry`: queues the failed run's step again on its item, as the member
+   * who answers for the column now. Only while the item is still in the run's column, and only once:
+   * a later run of the same step (a retry, or the card entering the column again) has taken its
+   * place. It counts as a person's move: the item starts a new round, as when a person moves it.
+   */
+  retry(runId: string): FlowRun {
+    const row = this.row(runId);
+    if (!row) throw new FlowError('flow run not found', 404);
+    const item = this.deps.items.find(row.item_id);
+    const refusal = (row.state !== 'ended' || (row.outcome ?? 'failed') !== 'failed' ? 'only a failed run can be retried' : null) ?? this.retryRefusal(row, item);
+    if (refusal) throw new FlowError(refusal, 409);
+    const project = this.deps.project(row.project_id);
+    const member = project ? memberOf(project.settings, project.settings.flow?.columns[row.column_name as WorkItemStatus] ?? '') : null;
+    if (!item || !member) throw new FlowError('nobody on the team answers for the column now', 409);
+    const now = new Date().toISOString();
+    const id = randomUUID();
+    let replaced: RunRow | undefined;
+    let taken = false;
+    this.write(() => {
+      // Checked again inside the transaction: two retries at once would otherwise both queue one
+      if (this.nextRun(row)) {
+        taken = true;
+        return;
+      }
+      replaced = this.sql.prepare("SELECT * FROM flow_runs WHERE item_id = ? AND state = 'queued'").get(row.item_id) as RunRow | undefined;
+      if (replaced) this.endRow(replaced.id, 'cancelled', null, 'the item moved again before it started', 'replaced', now);
+      this.sql
+        .prepare(
+          `INSERT INTO flow_runs (id, project_id, item_id, role, agent, model, stage, column_name, state, queued_at, retry_of, language)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)`,
+        )
+        .run(id, row.project_id, row.item_id, member.role, member.agent, member.model, row.stage, row.column_name, now, row.id, this.deps.language?.() ?? 'en');
+    });
+    if (taken) throw new FlowError('the run was retried already', 409);
+    try {
+      this.deps.items.setFlowState(item.id, { bounces: 0, waiting: null }, { actor: { kind: 'person' }, cause: null });
+    } catch {
+      // the run is queued; a round that cannot be reset must not undo it
+    }
+    if (replaced) this.announce(replaced.id, 'ended');
+    this.announce(id, 'queued');
+    this.dispatch();
+    const run = this.run(id);
+    if (!run) throw new FlowError('flow run not found', 404);
+    return run;
+  }
+
+  /** The first run of the same step on the item after this one, whatever started it. */
+  private nextRun(row: RunRow): RunRow | null {
+    return (
+      (this.sql
+        .prepare('SELECT * FROM flow_runs WHERE item_id = ? AND stage = ? AND column_name = ? AND seq > ? ORDER BY seq LIMIT 1')
+        .get(row.item_id, row.stage, row.column_name, row.seq) as RunRow | undefined) ?? null
+    );
+  }
+
+  /** Why a failed run with no later run cannot be queued again now; null when it can. */
+  private retryRefusal(row: RunRow, item: WorkItem | null, next: RunRow | null = this.nextRun(row)): string | null {
+    if (next) return 'the run was retried already';
+    if (!item) return 'the item was removed';
+    if (item.status !== row.column_name) return `the item left ${row.column_name}, the column the run was for`;
+    if (item.type === 'epic') return 'the flow does not run on epics';
+    const project = this.deps.project(row.project_id);
+    if (!project || !active(project.settings)) return 'the flow is off';
+    const role = project.settings.flow?.columns[row.column_name as WorkItemStatus];
+    if (!role || !memberOf(project.settings, role)) return 'nobody on the team answers for the column now';
+    return null;
+  }
+
   // ---------- what starts it ----------
 
   /** Everything on the feed goes through here; handlers swallow their failures, as they run inside someone else's event. */
@@ -630,11 +724,11 @@ export class FlowService {
         case 'workitem.moved':
           if (event.status === event.previousStatus) break;
           if (event.status === 'done') {
-            this.cancelQueued(event.itemId, 'the item was done');
+            this.cancelQueued(event.itemId, 'the item was done', 'item-done');
             break;
           }
           if (this.startsRuns(event.actor, event.cause)) this.trigger(event.itemId, event.status);
-          else this.cancelQueued(event.itemId, 'the item moved');
+          else this.cancelQueued(event.itemId, 'the item moved', 'item-moved');
           break;
         case 'workitem.created':
           // Every path that makes a card is a person's doing (the board, "create a task from this
@@ -643,8 +737,8 @@ export class FlowService {
           break;
         case 'workitem.removed':
           // A run on an item nobody can see any more would spend for nothing
-          this.cancelQueued(event.itemId, 'the item was removed');
-          this.stopRunning(event.itemId, 'the item was removed');
+          this.cancelQueued(event.itemId, 'the item was removed', 'item-removed');
+          this.stopRunning(event.itemId, 'the item was removed', 'item-removed');
           break;
         case 'project.updated':
           if (event.changes.includes('modules') || event.changes.includes('settings')) this.settingsChanged(event.projectId);
@@ -655,7 +749,7 @@ export class FlowService {
           this.dispatch();
           break;
         case 'run.removed':
-          this.chatEnded(event.runId, 'the chat was removed');
+          this.chatEnded(event.runId, 'the chat was removed', 'chat-ended');
           break;
         default:
           break;
@@ -682,14 +776,18 @@ export class FlowService {
     const stage = FLOW_STAGE_OF_COLUMN[column];
     const role = project?.settings.flow?.columns[column];
     const member = role && project ? memberOf(project.settings, role) : null;
-    if (!project || !active(project.settings) || !stage || !member || item.type === 'epic' || item.status !== column) {
-      this.cancelQueued(itemId, 'the item moved');
+    if (!project || !active(project.settings)) {
+      this.cancelQueued(itemId, 'the flow was switched off', 'flow-off');
+      return;
+    }
+    if (!stage || !member || item.type === 'epic' || item.status !== column) {
+      this.cancelQueued(itemId, 'the item moved', 'item-moved');
       return;
     }
     // The Product Owner refined it already and nothing has changed since: checking it again in todo
     // would be a second paid run to say the same
     if (this.refinedAlready(item, column, member.role)) {
-      this.cancelQueued(itemId, 'it was refined and has not changed since');
+      this.cancelQueued(itemId, 'it was refined and has not changed since', 'refined');
       return;
     }
     const now = new Date().toISOString();
@@ -697,7 +795,7 @@ export class FlowService {
     let replaced: RunRow | undefined;
     this.write(() => {
       replaced = this.sql.prepare("SELECT * FROM flow_runs WHERE item_id = ? AND state = 'queued'").get(itemId) as RunRow | undefined;
-      if (replaced) this.endRow(replaced.id, 'cancelled', null, 'the item moved again before it started', now);
+      if (replaced) this.endRow(replaced.id, 'cancelled', null, 'the item moved again before it started', 'replaced', now);
       this.sql
         .prepare(
           `INSERT INTO flow_runs (id, project_id, item_id, role, agent, model, stage, column_name, state, queued_at, language)
@@ -710,15 +808,15 @@ export class FlowService {
     this.dispatch();
   }
 
-  private cancelQueued(itemId: string, why: string): void {
+  private cancelQueued(itemId: string, why: string, cause: FlowRunCause): void {
     const rows = this.sql.prepare("SELECT id FROM flow_runs WHERE item_id = ? AND state = 'queued'").all(itemId) as Array<{ id: string }>;
-    for (const { id } of rows) this.end(id, 'cancelled', null, why);
+    for (const { id } of rows) this.end(id, 'cancelled', null, why, cause);
   }
 
-  private stopRunning(itemId: string, why: string): void {
+  private stopRunning(itemId: string, why: string, cause: FlowRunCause): void {
     const rows = this.sql.prepare("SELECT id, chat_id FROM flow_runs WHERE item_id = ? AND state = 'running'").all(itemId) as Array<{ id: string; chat_id: string | null }>;
     for (const row of rows) {
-      this.end(row.id, 'cancelled', null, why);
+      this.end(row.id, 'cancelled', null, why, cause);
       if (!row.chat_id) continue;
       try {
         this.deps.stop(row.chat_id);
@@ -741,7 +839,7 @@ export class FlowService {
     }
     const rows = this.sql.prepare("SELECT * FROM flow_runs WHERE project_id = ? AND state != 'ended' ORDER BY seq").all(projectId) as unknown as RunRow[];
     for (const row of rows) {
-      this.end(row.id, 'cancelled', null, 'the flow was switched off');
+      this.end(row.id, 'cancelled', null, 'the flow was switched off', 'flow-off');
       if (row.state === 'running' && row.chat_id) {
         try {
           this.deps.stop(row.chat_id);
@@ -782,23 +880,24 @@ export class FlowService {
   private claim(row: RunRow): { row: RunRow; item: WorkItem; member: ProjectTeamMember; project: FlowProject } | null {
     const project = this.deps.project(row.project_id);
     if (!project || !active(project.settings)) {
-      this.end(row.id, 'cancelled', null, 'the flow was switched off');
+      this.end(row.id, 'cancelled', null, 'the flow was switched off', 'flow-off');
       return null;
     }
     const item = this.deps.items.find(row.item_id);
     // The item left the column that started the run: a person's move wins over a queued run
     if (!item || item.status !== row.column_name) {
-      this.end(row.id, 'cancelled', null, item ? 'the item left the column before the run started' : 'the item was removed');
+      if (item) this.end(row.id, 'cancelled', null, 'the item left the column before the run started', 'item-moved');
+      else this.end(row.id, 'cancelled', null, 'the item was removed', 'item-removed');
       return null;
     }
     const member = memberOf(project.settings, row.role);
     if (!member || project.settings.flow?.columns[item.status] !== row.role) {
-      this.end(row.id, 'cancelled', null, 'nobody on the team answers for the column now');
+      this.end(row.id, 'cancelled', null, 'nobody on the team answers for the column now', 'no-member');
       return null;
     }
     // Queued while the refine it would repeat was still running: that one has spoken for it
     if (!row.chat_id && this.refinedAlready(item, item.status, row.role)) {
-      this.end(row.id, 'cancelled', null, 'it was refined and has not changed since');
+      this.end(row.id, 'cancelled', null, 'it was refined and has not changed since', 'refined');
       return null;
     }
     // The count and the claim in one transaction: two processes on one database could otherwise
@@ -827,7 +926,7 @@ export class FlowService {
     const own = new Set((this.sql.prepare('SELECT chat_id FROM flow_runs WHERE item_id = ? AND chat_id IS NOT NULL').all(item.id) as Array<{ chat_id: string }>).map((r) => r.chat_id));
     const busy = this.deps.items.links(item.id).find((l) => l.kind === 'chat' && l.chatId && !own.has(l.chatId) && this.deps.chatBusy(l.chatId));
     if (busy) {
-      this.end(row.id, 'cancelled', null, 'a chat is already working on the item');
+      this.end(row.id, 'cancelled', null, 'a chat is already working on the item', 'chat-busy');
       return;
     }
     // Only a run's own chat is continued: this run's, cut off by a restart, or the Developer's from
@@ -875,7 +974,8 @@ export class FlowService {
           .run(row.chat_id, row.chat_id, row.id);
         return;
       }
-      this.end(row.id, 'failed', null, continuing ? `its chat could not be continued after a restart: ${message}` : message);
+      if (continuing) this.end(row.id, 'failed', null, `its chat could not be continued after a restart: ${message}`, 'not-continued');
+      else this.end(row.id, 'failed', null, message, 'not-started');
     }
   }
 
@@ -917,7 +1017,7 @@ export class FlowService {
   }
 
   /** The chat's process ended; a run still going got no result, and failed, unless it waits for the rotation. */
-  chatEnded(chatId: string, error: string | null): void {
+  chatEnded(chatId: string, error: string | null, cause: FlowRunCause = error ? 'chat-failed' : 'chat-ended'): void {
     const row = this.sql.prepare("SELECT * FROM flow_runs WHERE chat_id = ? AND state = 'running'").get(chatId) as RunRow | undefined;
     if (!row) return;
     // The process the limit took down: the run goes on in this chat once the rotation replays it
@@ -926,7 +1026,7 @@ export class FlowService {
       this.awaitingRotation.add(chatId);
       return;
     }
-    this.end(row.id, 'failed', null, error ?? 'the chat ended without a result');
+    this.end(row.id, 'failed', null, error ?? 'the chat ended without a result', cause);
     this.dispatch();
   }
 
@@ -945,7 +1045,7 @@ export class FlowService {
       if (!this.awaitingRotation.delete(chatId) || outcome.resumed) return;
       const row = this.sql.prepare("SELECT * FROM flow_runs WHERE chat_id = ? AND state = 'running'").get(chatId) as RunRow | undefined;
       if (!row) return;
-      this.end(row.id, 'failed', null, `the account hit its rate limit and no other account could take the run over${outcome.reason ? ` (${outcome.reason})` : ''}`);
+      this.end(row.id, 'failed', null, `the account hit its rate limit and no other account could take the run over${outcome.reason ? ` (${outcome.reason})` : ''}`, 'no-account');
       this.dispatch();
     } catch {
       // heard from the core's rotation: a closed database (shutting down) must not become its error
@@ -959,14 +1059,19 @@ export class FlowService {
       return;
     }
     const parsed = result.isError ? null : parseResult(result.structuredOutput, row.stage as FlowStage);
-    const failure = result.isError ? chatFailure(result, this.deps.project(row.project_id)?.settings) : parsed ? null : 'the run ended without a readable structured result';
+    const failure = result.isError
+      ? chatFailure(result, this.deps.project(row.project_id)?.settings)
+      : parsed
+        ? null
+        : { error: 'the run ended without a readable structured result', cause: 'unreadable' as const };
     const verdictMissing = !!parsed && row.stage === 'verify' && !parsed.verdict;
     const item = this.deps.items.find(row.item_id);
     // QA passes an item only when every one of its criteria is met, whatever its verdict says
     const unmet = parsed && item && row.stage === 'verify' ? item.acceptanceCriteria.filter((c) => !parsed.criteria.some((r) => r.id === c.id && r.met)) : [];
     const outcome: FlowRunOutcome = failure || verdictMissing ? 'failed' : parsed?.verdict === 'fail' || unmet.length ? 'rejected' : 'passed';
     // Ended first, so the move below finds no run on the item and the next role can start
-    if (!this.end(row.id, outcome, parsed?.summary ?? null, failure ?? (verdictMissing ? 'verification ended without a verdict' : null))) return;
+    const why = failure ?? (verdictMissing ? { error: 'verification ended without a verdict', cause: 'no-verdict' as const } : null);
+    if (!this.end(row.id, outcome, parsed?.summary ?? null, why?.error ?? null, why?.cause ?? null)) return;
     try {
       if (parsed) await this.apply(row, parsed, outcome);
     } finally {
@@ -1111,7 +1216,7 @@ export class FlowService {
     for (const row of running) {
       if (row.chat_id && this.deps.chatBusy(row.chat_id)) continue;
       if (row.restarts >= MAX_FLOW_RESTARTS) {
-        this.end(row.id, 'failed', null, `Agentry restarted ${row.restarts + 1} times while this run worked; move the item again to start it over`);
+        this.end(row.id, 'failed', null, `Agentry restarted ${row.restarts + 1} times while this run worked; move the item again to start it over`, 'restarts');
         continue;
       }
       let requeued = false;
@@ -1125,7 +1230,7 @@ export class FlowService {
         requeued = true;
       });
       // A newer trigger for the item already waits, and replaces the run that was cut off
-      if (!requeued) this.end(row.id, 'cancelled', null, 'cut off by a restart, and the item moved since');
+      if (!requeued) this.end(row.id, 'cancelled', null, 'cut off by a restart, and the item moved since', 'item-moved');
     }
     this.recovered = true;
     this.dispatch();
@@ -1134,8 +1239,8 @@ export class FlowService {
   // ---------- rows ----------
 
   /** Ends a run that has not ended yet; false when it already had, so a late result changes nothing. */
-  private end(runId: string, outcome: FlowRunOutcome, summary: string | null, error: string | null): boolean {
-    const ended = this.endRow(runId, outcome, summary, error, new Date().toISOString());
+  private end(runId: string, outcome: FlowRunOutcome, summary: string | null, error: string | null, cause: FlowRunCause | null): boolean {
+    const ended = this.endRow(runId, outcome, summary, error, cause, new Date().toISOString());
     if (!ended) return false;
     // A run stopped while it waited for the rotation is not replayed once the rotation comes back
     const chatId = this.row(runId)?.chat_id;
@@ -1158,7 +1263,7 @@ export class FlowService {
       const source: WorkItemSource | null = row.chat_id ? { kind: 'chat', chatId: row.chat_id, orchestrationId: null, taskId: null } : null;
       this.deps.items.comment(
         item.id,
-        { body: `This ${stageNoun(row.stage as FlowStage)} run failed and moved nothing: ${row.error ?? 'no reason was given'}.` },
+        { body: `This ${stepNoun(flowStepOf(row.stage as FlowStage, row.column_name as WorkItemStatus))} run failed and moved nothing: ${row.error ?? 'no reason was given'}.` },
         { actor: { kind: 'agent', role: row.role }, source, cause: source ? { ...source, event: FLOW_CAUSE.failed } : null },
       );
     } catch {
@@ -1166,10 +1271,10 @@ export class FlowService {
     }
   }
 
-  private endRow(runId: string, outcome: FlowRunOutcome, summary: string | null, error: string | null, at: string): boolean {
+  private endRow(runId: string, outcome: FlowRunOutcome, summary: string | null, error: string | null, cause: FlowRunCause | null, at: string): boolean {
     const r = this.sql
-      .prepare("UPDATE flow_runs SET state = 'ended', outcome = ?, summary = ?, error = ?, ended_at = ? WHERE id = ? AND state != 'ended'")
-      .run(outcome, summary === null ? null : summary.slice(0, SUMMARY_MAX), error === null ? null : error.slice(0, 2000), at, runId);
+      .prepare("UPDATE flow_runs SET state = 'ended', outcome = ?, summary = ?, error = ?, cause = ?, ended_at = ? WHERE id = ? AND state != 'ended'")
+      .run(outcome, summary === null ? null : summary.slice(0, SUMMARY_MAX), error === null ? null : error.slice(0, 2000), cause, at, runId);
     return r.changes === 1;
   }
 
@@ -1196,6 +1301,9 @@ export class FlowService {
     const item = this.deps.items.find(row.item_id);
     const ref: WorkItemRef | null = item ? { id: item.id, key: item.key, title: item.title, type: item.type, status: item.status } : null;
     const state = row.state as FlowRunState;
+    const outcome = (row.outcome as FlowRunOutcome | null) ?? null;
+    const failed = state === 'ended' && (outcome ?? 'failed') === 'failed';
+    const next = failed ? this.nextRun(row) : null;
     return {
       id: row.id,
       projectId: row.project_id,
@@ -1205,13 +1313,18 @@ export class FlowService {
       agent: row.agent,
       model: row.model,
       stage: row.stage as FlowStage,
+      step: flowStepOf(row.stage as FlowStage, row.column_name as WorkItemStatus),
       column: row.column_name as WorkItemStatus,
       state,
       chatId: row.chat_id,
       ...(state === 'running' && row.chat_id && this.deps.activity ? { activity: this.deps.activity(row.chat_id) } : {}),
-      outcome: (row.outcome as FlowRunOutcome | null) ?? null,
+      outcome,
       summary: row.summary,
       error: row.error,
+      cause: state === 'ended' ? causeOf(row, outcome) : null,
+      retryOf: row.retry_of ?? null,
+      retriedBy: next ? refOf(next) : null,
+      retryable: failed && this.retryRefusal(row, item, next) === null,
       restarts: row.restarts ?? 0,
       ...(row.language ? { language: runLanguage(row) } : {}),
       queuedAt: row.queued_at,
@@ -1242,8 +1355,11 @@ export class FlowService {
         role: run.role,
         agent: run.agent,
         stage: run.stage,
+        step: run.step,
         chatId: run.chatId,
         outcome: run.outcome,
+        cause: run.cause,
+        retryOf: run.retryOf,
       });
     } catch {
       // the row is written; a broken listener must not undo the run
@@ -1265,19 +1381,73 @@ function maxCostUsd(settings: ProjectSettings): number | null {
   return settings.flow?.maxCostUsd ?? null;
 }
 
-function stageNoun(stage: FlowStage): string {
-  return stage === 'refine' ? 'refining' : stage === 'work' ? 'work' : 'verification';
+function stepNoun(step: FlowStep): string {
+  return step === 'refine' ? 'refining' : step === 'check' ? 'check' : step === 'work' ? 'work' : 'verification';
 }
 
-/** Why a chat that ended in error failed its run, in words a person reading the item can act on. */
-function chatFailure(result: FlowChatResult, settings: ProjectSettings | undefined): string {
+/**
+ * Why a chat that ended in error failed its run: the words a person reading the item can act on,
+ * and the code the panel words in their language.
+ */
+function chatFailure(result: FlowChatResult, settings: ProjectSettings | undefined): { error: string; cause: FlowRunCause } {
   if (result.cause === 'budget') {
     const budget = settings ? maxCostUsd(settings) : null;
-    return budget === null ? 'it reached its budget' : `it reached its budget of ${budget} USD (flow.maxCostUsd)`;
+    return { error: budget === null ? 'it reached its budget' : `it reached its budget of ${budget} USD (flow.maxCostUsd)`, cause: 'budget' };
   }
-  if (result.cause === 'rate-limit') return 'the account hit its rate limit';
-  if (result.cause === 'stopped') return 'its chat was stopped';
-  return result.result || 'the chat failed';
+  if (result.cause === 'rate-limit') return { error: 'the account hit its rate limit', cause: 'rate-limit' };
+  if (result.cause === 'stopped') return { error: 'its chat was stopped', cause: 'stopped' };
+  return { error: result.result || 'the chat failed', cause: 'chat-failed' };
+}
+
+/**
+ * The errors the flow wrote before it kept a cause, and the cause each reads as, so a run that ended
+ * before the upgrade still says why in the person's language. First match wins.
+ */
+const LEGACY_CAUSES: ReadonlyArray<readonly [RegExp, FlowRunCause]> = [
+  [/^it reached its budget/, 'budget'],
+  [/no other account could take the run over/, 'no-account'],
+  [/^the account hit its rate limit/, 'rate-limit'],
+  [/^its chat was stopped/, 'stopped'],
+  [/^Agentry restarted \d+ times/, 'restarts'],
+  [/^the run ended without a readable structured result/, 'unreadable'],
+  [/^verification ended without a verdict/, 'no-verdict'],
+  [/^its chat could not be continued after a restart/, 'not-continued'],
+  [/^the chat did not start/, 'not-started'],
+  [/^the chat (ended without a result|was removed)/, 'chat-ended'],
+  [/^the item moved again before it started/, 'replaced'],
+  [/^(the item moved|the item left the column|cut off by a restart, and the item moved)/, 'item-moved'],
+  [/^the item was removed/, 'item-removed'],
+  [/^the item was done/, 'item-done'],
+  [/^the flow was switched off/, 'flow-off'],
+  [/^nobody on the team answers for the column/, 'no-member'],
+  [/^it was refined and has not changed since/, 'refined'],
+  [/^a chat is already working on the item/, 'chat-busy'],
+];
+
+/**
+ * A stored cause, or the one an older run's error reads as. An older failure nothing matches is the
+ * chat's own error; an older cancellation nothing matches has none.
+ */
+function causeOf(row: RunRow, outcome: FlowRunOutcome | null): FlowRunCause | null {
+  if (row.cause && (FLOW_RUN_CAUSES as readonly string[]).includes(row.cause)) return row.cause as FlowRunCause;
+  const status = outcome ?? 'failed';
+  if (status !== 'failed' && status !== 'cancelled') return null;
+  const error = row.error ?? '';
+  const known = LEGACY_CAUSES.find(([pattern]) => pattern.test(error));
+  if (known) return known[1];
+  if (status === 'cancelled') return null;
+  return error ? 'chat-failed' : 'chat-ended';
+}
+
+function refOf(row: RunRow): FlowRunRef {
+  return {
+    id: row.id,
+    state: row.state as FlowRunState,
+    outcome: (row.outcome as FlowRunOutcome | null) ?? null,
+    chatId: row.chat_id,
+    queuedAt: row.queued_at,
+    endedAt: row.ended_at,
+  };
 }
 
 /** A run's comment: its summary, and for a verification, each criterion as QA found it. */

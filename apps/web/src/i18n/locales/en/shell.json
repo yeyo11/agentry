@@ -104,5 +104,11 @@
     "dismiss": "Dismiss",
     "stalePage": "This page belongs to an older version of Agentry",
     "stalePageHint": "The server was updated. Reload to open the current version."
+  },
+  "phoneHeader": {
+    "back": "Back",
+    "more": "More actions",
+    "cancel": "Cancel",
+    "close": "Close"
   }
 }

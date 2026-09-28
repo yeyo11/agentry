@@ -7122,6 +7122,9 @@
       "stage": {
         "$ref": "#/components/schemas/FlowStage"
       },
+      "step": {
+        "$ref": "#/components/schemas/FlowStep"
+      },
       "chatId": {
         "type": [
           "string",
@@ -7139,21 +7142,42 @@
           }
         ],
         "description": "Set when ended"
+      },
+      "cause": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FlowRunCause"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set when it failed or was cancelled"
+      },
+      "retryOf": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The failed run this one retries, when a person retried it"
       }
     },
     "required": [
       "action",
       "agent",
       "at",
+      "cause",
       "chatId",
       "id",
       "itemId",
       "key",
       "outcome",
       "projectId",
+      "retryOf",
       "role",
       "runId",
       "stage",
+      "step",
       "title",
       "type"
     ],
@@ -7176,6 +7200,16 @@
     ],
     "description": "What a flow run does, named after the link role its chat gets: `refine` in `backlog` and `todo`, `work` in `in_progress`, `verify` in `in_review`."
   },
+  "FlowStep": {
+    "type": "string",
+    "enum": [
+      "refine",
+      "check",
+      "work",
+      "verify"
+    ],
+    "description": "A stage as the person reads it, by the column it runs in: `refine` covers two, and what the Product Owner does differs between them. In `backlog` it refines the item (`refine`, \"refinado\"); in `todo` it only checks the item is ready (`check`, \"comprobación\"). `work` and `verify` are their stage. See `FLOW_STEP_OF_COLUMN`."
+  },
   "FlowRunOutcome": {
     "type": "string",
     "enum": [
@@ -7185,6 +7219,31 @@
       "cancelled"
     ],
     "description": "How a run ended: `passed`, it finished well (and for QA, the item held); `rejected`, QA's verdict failed the item; `failed`, the chat failed or its result was unreadable; `cancelled`, a person's move or the flow being switched off made it moot before it started."
+  },
+  "FlowRunCause": {
+    "type": "string",
+    "enum": [
+      "budget",
+      "no-account",
+      "rate-limit",
+      "stopped",
+      "restarts",
+      "unreadable",
+      "no-verdict",
+      "not-started",
+      "not-continued",
+      "chat-ended",
+      "chat-failed",
+      "item-moved",
+      "item-removed",
+      "item-done",
+      "replaced",
+      "flow-off",
+      "no-member",
+      "refined",
+      "chat-busy"
+    ],
+    "description": "Why a run failed or was cancelled, as a stable code a client words in the person's language; the run's `error` keeps the raw text beside it. A run stored before causes were kept gets the one its error reads as, or none.\n\nFailed:\n- `budget`: it reached `flow.maxCostUsd` (`--max-budget-usd`);\n- `no-account`: the account hit its rate limit and no other account could take the run over;\n- `rate-limit`: the account hit its rate limit and the rotation was off;\n- `stopped`: its chat was stopped;\n- `restarts`: Agentry restarted past `MAX_FLOW_RESTARTS` times while it worked;\n- `unreadable`: it ended without a readable structured result;\n- `no-verdict`: a verification ended without a verdict;\n- `not-started`: its chat did not start;\n- `not-continued`: its chat could not be continued after a restart;\n- `chat-ended`: its chat ended, or was removed, without a result;\n- `chat-failed`: its chat ended in an error the CLI reported (the error is the CLI's text).\n\nCancelled:\n- `item-moved`: the item left the column before the run started, or while a restart cut it off;\n- `item-removed` and `item-done`: the item was removed, or moved to `done`;\n- `replaced`: the item entered a column again before the run started, and the newer run took its place;\n- `flow-off`: the flow, the Team module or the Board module was switched off;\n- `no-member`: nobody on the team answers for the column any more;\n- `refined`: a todo check would repeat a refine that passed, on an item unchanged since;\n- `chat-busy`: a chat of the person's was already working on the item."
   },
   "AssistantRunEvent": {
     "type": "object",
@@ -13046,6 +13105,10 @@
       "stage": {
         "$ref": "#/components/schemas/FlowStage"
       },
+      "step": {
+        "$ref": "#/components/schemas/FlowStep",
+        "description": "The stage as the person reads it, by its column: `check` is a `refine` in `todo`"
+      },
       "column": {
         "$ref": "#/components/schemas/WorkItemStatus",
         "description": "The column the card entered that started it"
@@ -13094,7 +13157,40 @@
           "string",
           "null"
         ],
-        "description": "Why it failed or was cancelled, in English; null otherwise"
+        "description": "Why it failed or was cancelled, in English, as the core or the CLI said it; null otherwise"
+      },
+      "cause": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FlowRunCause"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why it failed or was cancelled, as a code to word; null otherwise, and on an old run whose error reads as none"
+      },
+      "retryOf": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The failed run a person retried with this one (`POST /flow-runs/:runId/retry`); null for a run a card entering its column started"
+      },
+      "retriedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FlowRunRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "On a run that did not pass, the next run of the same step on the item, whatever started it (a retry or the card entering the column again): what the person's retry, or the flow, did next. Null until there is one."
+      },
+      "retryable": {
+        "type": "boolean",
+        "description": "Whether `POST /flow-runs/:runId/retry` would queue it again now: it failed, nothing has run that step on the item since, the item is still in the run's column, and the flow is on with a member answering for the column."
       },
       "restarts": {
         "type": "number",
@@ -13129,12 +13225,17 @@
       "agent",
       "model",
       "stage",
+      "step",
       "column",
       "state",
       "chatId",
       "outcome",
       "summary",
       "error",
+      "cause",
+      "retryOf",
+      "retriedBy",
+      "retryable",
       "restarts",
       "queuedAt",
       "startedAt",
@@ -13150,6 +13251,51 @@
       "ended"
     ],
     "description": "`queued` waits for a place under `maxParallel`; `running` has its chat; `ended` has an outcome."
+  },
+  "FlowRunRef": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "state": {
+        "$ref": "#/components/schemas/FlowRunState"
+      },
+      "outcome": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FlowRunOutcome"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "queuedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "state",
+      "outcome",
+      "chatId",
+      "queuedAt",
+      "endedAt"
+    ],
+    "description": "Another run as a run refers to it: enough to say what it did and open its chat."
   },
   "AgentryLanguage": {
     "type": "string",

@@ -31,7 +31,7 @@ export function useResponsibility(): (member: Pick<TeamMember, 'role' | 'respons
  * A team role: a neutral squircle with its initials in mono, and the role's own hue only on the
  * diamond in its corner. A person stays a round monogram, so a board never mixes the two up.
  */
-export function RoleAvatar({ role, size = 'md', label }: { role: string; size?: 'sm' | 'md' | 'lg'; label?: string }) {
+export function RoleAvatar({ role, size = 'md', label }: { role: string; size?: 'xs' | 'sm' | 'md' | 'lg'; label?: string }) {
   const name = useRoleName()(role);
   const said = label ?? name;
   return (

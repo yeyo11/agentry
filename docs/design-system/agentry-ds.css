@@ -572,15 +572,30 @@ a.part-of { color: inherit; text-decoration: none; }
    move is never blocked. */
 .wi-board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: start; min-height: 0; }
 .wi-col { display: flex; flex-direction: column; gap: 8px; min-height: 0; padding: 6px 6px 8px; border-radius: var(--r-xl); border: 1px solid var(--line); background: var(--bg-1); }
-.wi-col-head { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 2px 0 8px; }
+.wi-col-head { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 2px 0 8px; white-space: nowrap; }
 .wi-col-head .t-label { color: var(--fg-2); }
 .wi-col-count { font-family: var(--mono); font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
 .wi-col-count b { font-weight: 500; color: var(--fg-2); }
-.wi-col-limit { display: flex; align-items: center; gap: 6px; margin: -2px 0 0; padding: 6px 8px; border-radius: var(--r-sm); background: var(--warn-soft); color: var(--warn); font-size: 12px; font-weight: 500; }
+.wi-col-limit { display: flex; align-items: center; gap: 6px; margin: -6px 0 0; padding: 0 8px 2px; color: var(--warn); font-size: 12px; font-weight: 500; }
 .wi-col-limit .ico { width: 13px; height: 13px; }
-.wi-col.over { border-color: color-mix(in srgb, var(--warn) 38%, transparent); }
+/* Over its limit a column says so twice, and quietly: its count in the warn colour, and one line of
+   words under the head. The warn hairline runs along the column's top edge only; the column keeps its
+   border, because the cards in it are not in trouble. */
+.wi-col.over { box-shadow: inset 0 2px 0 var(--warn); }
 .wi-col.over .wi-col-count, .wi-col.over .wi-col-count b { color: var(--warn); }
+/* The role that answers for the column while the flow is on (a person's monogram on Done) */
+.wi-col-head .role-av, .wi-col-head .wi-assignee { margin-right: 2px; }
+/* "Mostrar 9 más": the Done column and a long list load the next page in place. It is a button, not a
+   link to another view; while the page arrives, two skeleton cards hold its place. */
+.wi-col-more { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 34px; border-radius: var(--r); border: 1px solid var(--line); background: transparent; color: var(--fg-2); font-size: 12.5px; cursor: pointer; transition: background var(--dur-fast), color var(--dur-fast); }
+.wi-col-more:hover { background: var(--bg-3); color: var(--fg); }
+.wi-col-more .n { font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+.wi-card.skeleton-card { gap: 8px; box-shadow: none; cursor: default; }
+.wi-card.skeleton-card .skeleton { height: 10px; }
+.list-more { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 52px; font-size: 13px; color: var(--fg-3); }
 .wi-col-body { display: flex; flex-direction: column; gap: 8px; }
+/* A card never shrinks to fit: the column scrolls instead */
+.wi-col-body > * { flex-shrink: 0; }
 /* The board fills the page and a long column scrolls on its own, as the app's board does, so no card
    sits under the status bar or the selection bar. A page in selection mode keeps room for the bar. */
 .page > .wi-board { flex: 1 1 auto; grid-template-rows: minmax(0, 1fr); }
@@ -594,28 +609,54 @@ a.part-of { color: inherit; text-decoration: none; }
 .wi-col-slot { display: grid; place-items: center; height: 44px; border-radius: var(--r-lg); border: 1px dashed var(--line-2); color: var(--fg-3); font-size: 12px; }
 
 /* Work item card. */
-.wi-card { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 11px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-2); box-shadow: var(--shadow); cursor: grab; transition: border-color var(--dur-fast), transform var(--dur) var(--ease-out); }
+.wi-card { position: relative; display: flex; flex-direction: column; gap: 7px; padding: 10px 12px 11px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-2); box-shadow: var(--shadow); overflow: hidden; cursor: grab; transition: border-color var(--dur-fast), transform var(--dur) var(--ease-out); }
 .wi-card:hover { border-color: var(--line-3); }
 .wi-card-top { display: flex; align-items: center; gap: 7px; min-height: 16px; }
-.wi-card-title { margin: 0; font-size: 13px; font-weight: 500; line-height: 1.38; letter-spacing: -0.005em; color: var(--fg); }
-/* The meta row wraps instead of cutting the epic or a label */
-.wi-card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; row-gap: 5px; min-width: 0; }
-.wi-card-meta > .wi-label { flex-shrink: 0; }
-.wi-card-foot { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.wi-card-title { margin: 0; font-size: 13.5px; font-weight: 500; line-height: 1.38; letter-spacing: -0.01em; color: var(--fg); }
+/* The card's context, one quiet line that wraps: its epic by name with the epic's diamond, and its
+   labels as #tags. No pills: on a board of one epic, sixteen pills were the loudest thing on screen. */
+.wi-card-ctx { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 10px; min-width: 0; font-size: 12px; line-height: 1.4; color: var(--fg-3); }
+.wi-epic.bare { display: inline-flex; align-items: baseline; height: auto; line-height: inherit; padding: 0; border-radius: 0; background: none; white-space: normal; overflow: visible; font-weight: 500; }
+.wi-epic.bare::before { flex-shrink: 0; margin-right: 6px; vertical-align: 0; transform: translateY(-1px) rotate(45deg); }
+.wi-tag { font-family: var(--mono); font-size: 11px; color: var(--fg-3); white-space: nowrap; }
+.wi-tag::before { content: '#'; color: var(--line-3); }
+/* Acceptance criteria as a short bar and the figure. Complete is ok, the one status a checklist has. */
+.wi-crit { display: inline-flex; align-items: center; gap: 5px; }
+.wi-crit .bar { width: 28px; height: 4px; }
+.wi-crit .bar > i { background: var(--fg-2); }
+.wi-crit.full .bar > i { background: var(--ok); }
+.wi-card-foot .wi-assignee, .wi-card-foot .role-av { margin-left: auto; }
+.wi-card-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
 .wi-card-foot .ico { width: 12px; height: 12px; }
 .wi-fact { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.wi-card.done { gap: 5px; box-shadow: none; }
 .wi-card.done .wi-card-title { color: var(--fg-2); }
 .wi-card.rail-live { padding-left: 14px; }
+.wi-card.rail-live::before { top: 12px; bottom: 12px; }
+/* The strip: what is happening to the card now, glued to its foot. One of three, never two:
+   live (who works on it, the verb, the time, then what it runs), waiting for the person, or the last
+   run failed. The actor leads: a role is its squircle, the person their round monogram, an
+   orchestration its glyph, so a Product Owner refining never reads as your own chat. */
+.wi-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 6px; margin: 1px -12px -11px; padding: 7px 12px 8px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.4; min-width: 0; }
+.wi-card.rail-live .wi-strip { margin-left: -14px; padding-left: 14px; }
+.wi-strip .verb { flex: 1 1 0; min-width: 0; font-weight: 500; }
+.wi-strip time { flex-shrink: 0; font-family: var(--mono); font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.wi-strip .detail { flex-basis: 100%; padding-left: 23px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); overflow-wrap: anywhere; }
+.wi-strip .segbar { flex: 1 1 60px; height: 4px; }
+.wi-strip.live { background: color-mix(in srgb, var(--live-soft) 45%, transparent); }
+.wi-strip.live .verb { color: var(--live); }
+.wi-strip.wait { background: color-mix(in srgb, var(--idle-soft) 55%, transparent); }
+.wi-strip.wait .verb { color: var(--fg-2); font-weight: 400; }
+.wi-strip.wait .btn { flex-basis: 100%; margin-top: 5px; }
+.wi-strip.fail { background: color-mix(in srgb, var(--bad-soft) 55%, transparent); }
+.wi-strip.fail .verb { color: var(--fg-2); font-weight: 400; }
+.wi-strip.fail .verb b { color: var(--bad); font-weight: 600; }
+.wi-strip .ico { width: 13px; height: 13px; flex-shrink: 0; }
+.wi-strip .actor-orch { width: 16px; height: 16px; display: grid; place-items: center; color: var(--fg-3); }
+.wi-mrow .wi-strip { margin: 2px -14px -12px; padding: 8px 14px 9px; font-size: 13px; }
+.wi-mrow.rail-live .wi-strip { margin-left: -16px; padding-left: 16px; }
 /* Selection mode ("Orquestar"): the chosen cards take the accent ring and a checked box. */
 .wi-card.sel { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow); }
-/* The live line of a card whose chat or orchestration node is running: the same shape as the live
-   row of an orchestration task card. */
-.wi-card-live { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 6px 8px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg); font-size: 12px; }
-.wi-card-live .segbar { flex: 1 1 auto; height: 4px; min-width: 32px; }
-/* A live line with a command takes two lines: the verb and the time, then the command, so the command
-   is not cut on a 220 px card */
-.wi-card-live.two { flex-wrap: wrap; row-gap: 3px; }
-.wi-card-live.two .detail { flex-basis: 100%; padding-left: 18px; }
 /* An epic's card counts its children instead of carrying an epic label. */
 .wi-card-epic { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
 .wi-card-epic .ms-bar { flex: 1 1 auto; height: 4px; }
@@ -742,6 +783,9 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 /* A three-letter role (DEV) keeps 11 px text: the small tile grows sideways instead of shrinking it */
 .role-av.sm { width: auto; min-width: 22px; height: 22px; padding: 0 3px; border-radius: var(--r-xs); font-size: 11px; letter-spacing: 0; }
 .role-av.sm::after { width: 5px; height: 5px; border-width: 1px; right: -1.5px; bottom: -1.5px; }
+.role-av.xs { width: auto; min-width: 18px; height: 18px; padding: 0 2px; border-radius: var(--r-xs); font-size: 10px; letter-spacing: 0; }
+.role-av.xs::after { width: 4px; height: 4px; border-width: 1px; right: -1.5px; bottom: -1.5px; }
+.wi-assignee.xs { width: 18px; height: 18px; font-size: 10px; }
 .role-av.lg { width: 44px; height: 44px; border-radius: var(--r); font-size: 13px; }
 .role-av.lg::after { width: 9px; height: 9px; }
 /* The model of a role, in mono. Neutral: a model is a choice, not a state. */
@@ -762,7 +806,7 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 .member-file { font-family: var(--mono); font-size: 11px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .member-desc { margin: 0; font-size: 13px; line-height: 1.5; color: var(--fg-2); }
 .member-facts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--fg-3); }
-/* What the member is doing now: the live line (shape of .wi-card-live) or, at rest, its last work. */
+/* What the member is doing now: the live line (the words of a .wi-strip) or, at rest, its last work. */
 .member-now { display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 32px; padding: 6px 10px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg); font-size: 12px; color: var(--fg-3); }
 .member-now .wi-key { flex-shrink: 0; }
 
@@ -848,6 +892,54 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 .doc-row:last-child { border-bottom: 0; }
 .doc-row:hover { background: var(--bg-3); }
 .doc-kind { flex-shrink: 0; min-width: 28px; height: 28px; padding: 0 4px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--bg-3); color: var(--fg-2); font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0; }
+
+/* Runs of the flow: the Team activity view (every run, newest first), an item's links and a failed
+   run's own chat. A run says who ran it (the role's squircle), which stage, on which item, how it
+   ended in a word, and what it took. Outcomes keep their one meaning each: running is live, passed
+   is ok, failed is bad; sent back ("devuelta"), queued and cancelled are neutral, because none of
+   them is a fault. */
+.run-day { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--bg-1); }
+.run-day .t-label { color: var(--fg-2); }
+.run-row { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: start; gap: 4px 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); transition: background var(--dur-fast); }
+.run-row:hover { background: var(--bg-2); }
+.run-row:last-child { border-bottom: 0; }
+.run-row.rail-live { padding-left: 18px; }
+.run-row.rail-live::before { top: 12px; bottom: 12px; }
+.run-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.run-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; font-size: 14px; line-height: 1.4; }
+.run-title .who { font-weight: 600; }
+.run-title .stage { color: var(--fg-2); }
+.run-title .wi-key { font-size: 12px; }
+.run-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.run-side time { font-family: var(--mono); font-size: 11px; color: var(--fg-3); white-space: nowrap; }
+.run-now { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; min-width: 0; font-size: 12px; }
+.m-screen .run-row { color: inherit; font-size: 15px; }
+.m-screen .run-now { font-size: 13px; }
+.run-now .mono { font-size: 11px; color: var(--fg-3); overflow-wrap: anywhere; }
+/* Why a run failed, in the person's language, under it. The reason is the run's own error, never a
+   paraphrase that hides it: a budget, the accounts' limits, a restart, a result nobody could read. */
+.run-why { grid-column: 2 / -1; display: flex; align-items: flex-start; gap: 8px; margin-top: 4px; padding: 8px 10px; border-radius: var(--r); background: color-mix(in srgb, var(--bad-soft) 55%, transparent); box-shadow: inset 2px 0 0 var(--bad); font-size: 13px; line-height: 1.5; color: var(--fg-2); }
+.run-why .ico { flex-shrink: 0; width: 14px; height: 14px; margin-top: 3px; color: var(--bad); }
+.run-why b { color: var(--fg); font-weight: 500; }
+.run-why .mono { font-size: 11px; color: var(--fg-3); }
+/* The same failure at the head of the run's chat, and on the item: a banner, not a toast, because it
+   stays true until someone moves the item again. */
+.run-fail { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: var(--r-lg); background: color-mix(in srgb, var(--bad-soft) 55%, transparent); box-shadow: inset 3px 0 0 var(--bad); font-size: 13px; line-height: 1.5; color: var(--fg-2); }
+.run-fail > .ico { flex-shrink: 0; width: 16px; height: 16px; margin-top: 2px; color: var(--bad); }
+.run-fail b { color: var(--fg); font-weight: 600; }
+.run-fail .acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+/* A summary strip above the runs: today's count, what they cost, and how many failed */
+.run-sum { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--fg-2); }
+.run-sum b { font-family: var(--mono); font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
+/* A chip that filters by member carries the member's squircle */
+.chip .role-av.xs { margin-left: -3px; }
+
+/* The model a role runs: the alias its agent file stores, as a tag, then the model it resolves to
+   today. One form everywhere a model is picked: "sonnet · Sonnet 5". */
+.model-pick { display: inline-flex; align-items: center; gap: 8px; min-width: 0; height: var(--control-h); padding: 0 10px 0 6px; border-radius: var(--r); border: 1px solid var(--line-2); background: var(--bg-2); font-size: 13px; color: var(--fg); white-space: nowrap; cursor: pointer; }
+.model-pick:hover { border-color: var(--line-3); }
+.model-pick .resolved { color: var(--fg); }
+.model-pick .ico { width: 14px; height: 14px; color: var(--fg-3); }
 
 /* ---------- end of 16 ---------- */
 
@@ -972,7 +1064,7 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 
 
 /* ---------- end of 17 ---------- */
-=======
+
 @media (pointer: coarse) {
   :root { --control-h: 44px; --control-h-sm: 44px; }
 }

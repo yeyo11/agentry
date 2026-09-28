@@ -28,6 +28,7 @@ import { NotificationHost } from './components/Notifications';
 import { PageTransition, SlidingIndicator, StatusDot } from './components/motion';
 import { lazyPage, ReloadBanner } from './components/ReloadOffer';
 import { Fab } from './components/shell/Fab';
+import { phoneHeaderOf } from './components/shell/phone-header';
 import { LiveSection, useLive } from './components/shell/live';
 import { AccountCard, StatusBar, useConnection } from './components/shell/StatusBar';
 import { useRailCollapsed } from './components/shell/rail';
@@ -42,7 +43,7 @@ import { useDesktopNavigation } from './lib/desktop';
 import { useKeyboardInset } from './lib/viewport';
 import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
-import { fabFor, hidesTabBar, hidesTopBar } from './lib/shell-live';
+import { fabFor, hidesTabBar } from './lib/shell-live';
 import { NEW_TASK_PATH, TASKS_PATH } from './lib/work-items';
 import { Home } from './pages/Home';
 
@@ -214,15 +215,16 @@ function Shell() {
   );
 
   const tabBar = !hidesTabBar(pathname, search);
-  // A phone's detail screens are headed by their own way back instead (styles/shell.css)
-  const bare = hidesTopBar(pathname, projectPage);
+  // A phone's detail screens are headed by the page itself, by route (components/shell/phone-header.ts)
+  const phoneHeader = phoneHeaderOf(pathname, projectPage);
+  const bare = phoneHeader === 'page';
   const fab = fabFor(pathname, search) !== null;
 
   // In the icon rail the labels are hidden, so they move into tooltips
   const railTip = (label: string) => (collapsed ? label : undefined);
 
   return (
-    <div className={`shell ${collapsed ? 'shell-rail' : ''} ${tabBar ? 'shell-has-tabbar' : ''} ${fab ? 'shell-has-fab' : ''} ${bare ? 'shell-bare' : ''}`}>
+    <div className={`shell ${collapsed ? 'shell-rail' : ''} ${tabBar ? 'shell-has-tabbar' : ''} ${fab ? 'shell-has-fab' : ''} ${bare ? 'shell-bare' : ''}`} data-phone-header={phoneHeader}>
       <a
         href="#main"
         className="skip-link"

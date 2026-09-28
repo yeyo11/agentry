@@ -1,5 +1,5 @@
 import type { ChatSummary, WorkItemDetail, WorkItemLink, WorkItemStatus } from '@agentry/shared';
-import { FileText, MessageSquare, TriangleAlert, Workflow } from 'lucide-react';
+import { FileText, MessageSquare, Workflow } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useChats, useWorkItemRuns } from '../../../api';
@@ -9,7 +9,8 @@ import { StatusBadge } from '../../../components/ui';
 import { displayTitle, lastEnded } from '../../../lib/chat-model';
 import { formatCost } from '../../../lib/format';
 import { columnMeta } from '../../../lib/work-items';
-import { failedRunReason, linkEffect, linkRun, shortId, sortLinks } from './model';
+import { linkEffect, linkRun, shortId, sortLinks } from './model';
+import { latestOfStep, RunLinkRow } from './RunLink';
 
 const LINK_ICON = { chat: MessageSquare, orchestration: Workflow, document: FileText } as const;
 
@@ -34,7 +35,7 @@ function LinkState({ link, chat }: { link: WorkItemLink; chat: ChatSummary | und
   return state ? <StateBadge state={state} /> : null;
 }
 
-function LinkRow({ link, item, chat, failed }: { link: WorkItemLink; item: WorkItemDetail; chat: ChatSummary | undefined; failed: string | null }) {
+function LinkRow({ link, item, chat }: { link: WorkItemLink; item: WorkItemDetail; chat: ChatSummary | undefined }) {
   const { t } = useTranslation('workItem');
   const { t: tt } = useTranslation('tasks');
   const Icon = LINK_ICON[link.kind];
@@ -60,22 +61,12 @@ function LinkRow({ link, item, chat, failed }: { link: WorkItemLink; item: WorkI
           <span className="work-link-name">{name}</span>
         )}
         <span className="work-link-state">
-          {failed === null ? (
-            <LinkState link={link} chat={chat} />
-          ) : (
-            // The chat ended well enough to read "completed"; the run it was for did not
-            <span className="badge badge-bad">
-              <TriangleAlert size={12} strokeWidth={2} aria-hidden />
-              {t('link.runFailed')}
-            </span>
-          )}
+          <LinkState link={link} chat={chat} />
           {cost !== undefined && <span className="mono small muted tnum">{cost === null ? t('link.noCost') : formatCost(cost)}</span>}
         </span>
         <span className="work-link-meta">
-          {where} · {failed === null ? said : t('link.failedNoMove')}
+          {where} · {said}
         </span>
-        {/* The core's reason, as it wrote it: messages from the API are not translated */}
-        {failed ? <span className="work-link-why">{failed}</span> : null}
       </span>
     </div>
   );
@@ -108,15 +99,15 @@ export function Links({ item }: { item: WorkItemDetail }) {
         <p className="muted small workitem-none">{t('links.none')}</p>
       ) : (
         <div className="work-links">
-          {links.map((link) => (
-            <LinkRow
-              key={link.id}
-              link={link}
-              item={item}
-              chat={link.chatId ? byId.get(link.chatId) : undefined}
-              failed={link.teamRole ? failedRunReason(linkRun(link, runs)) : null}
-            />
-          ))}
+          {links.map((link) => {
+            const chat = link.chatId ? byId.get(link.chatId) : undefined;
+            const run = link.teamRole ? linkRun(link, runs) : null;
+            return run ? (
+              <RunLinkRow key={link.id} link={link} run={run} item={item} chat={chat} latest={latestOfStep(run, runs)} />
+            ) : (
+              <LinkRow key={link.id} link={link} item={item} chat={chat} />
+            );
+          })}
         </div>
       )}
     </section>

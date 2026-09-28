@@ -1879,7 +1879,30 @@ bar mid-screen.
 **What stays open**, with its reason, in [team-and-flow.md](../team-and-flow.md#known-gaps): the
 member page writes "sonnet · Sonnet 5" only when the CLI's model list labels the alias, and the list
 the CLI writes (`additionalModelOptionsCache`) does not label the aliases, so with today's CLI
-"sonnet" still reads alone. Everything else the gaps asked for is built.
+"sonnet" still reads alone. Everything else the gaps asked for is built. Decision 41 closed that
+last detail the same day: an alias is named after the model id a chat's `system/init` reported.
+
+### Orchestration 7: `ecosystem-design`
+
+Built on `feat/ecosystem-design-base` (orchestration 6's web work and the designer's patch) on
+2026-09-28, to be merged back into `feat/project-ecosystem`:
+
+- **Core and API** (`78940029`): a flow run's `cause`, its `step` by column (refine, check, work,
+  verify), `POST /flow-runs/:runId/retry` with `retryOf`, `retriedBy` and `retryable`, and the
+  `role`, `outcome` and `before` filters of `GET /projects/:id/flow/runs`.
+- **Shell and time**: `formatElapsed` reads `m:ss` from the first second, the phone header by route
+  (`phoneHeader: 'page'`, `PhoneHeader`), `ModelPicker`, the monogram rule, and the tokens `--touch`,
+  `--sel-*` and `--r-xs`.
+- **Screens**: the board's card and strip, the list's Now column, paging, the work item's runs and
+  activity, the failed run's banner on the chat page, Team activity, the Límites card, the project's
+  headers and settings, and the redrawn `board` and `team` illustrations.
+- **Final review**: 56 screens captured beside their references in both themes and sizes, and eight
+  drifts that crossed tasks fixed.
+
+What it applied and left, screen by screen, is at the end of
+[the review's note](../design-system/ecosystem-review.md#applied-in-development). The phone headers
+of the rest of the app are the separate job above, recorded in [status.md](../status.md#what-is-open).
+`pnpm e2e` runs once, in the verification of the merged branch.
 
 ## Related
 

@@ -1,18 +1,18 @@
-import type { Project, ProjectFlowSettings, Team, WorkItem, WorkItemStatus } from '@agentry/shared';
-import { DEFAULT_FLOW_MAX_PARALLEL, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL } from '@agentry/shared';
+import type { Project, ProjectFlowSettings, Team, WorkItemStatus } from '@agentry/shared';
+import { DEFAULT_FLOW_MAX_PARALLEL, MAX_FLOW_PARALLEL } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, CornerDownLeft, Info, Lock, Undo2 } from 'lucide-react';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { api, keys, useWorkItemBoard } from '../../api';
-import { NumberInput, Select, Switch } from '../../components/controls';
-import { ICON_SM, WorkItemKey, WorkItemStatusIcon } from '../../components/icons';
+import { api, keys } from '../../api';
+import { ModelPicker, NumberInput, Select, Switch } from '../../components/controls';
+import { ICON_SM, WorkItemStatusIcon } from '../../components/icons';
 import { useToast } from '../../components/Toast';
-import { ModelCombobox, Tag } from '../../components/ui';
+import { Tag } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
 import { NARROW, useMediaQuery } from '../../lib/media';
-import { columnMeta, taskPath } from '../../lib/work-items';
+import { columnMeta } from '../../lib/work-items';
 import { FLOW_COLUMNS, MAX_BOUNCES, memberBody, sameFlow, setColumnRole, settledFlow } from './model';
 import { PersonMark } from './parts';
 import { RoleAvatar, useRoleName } from './RoleAvatar';
@@ -36,15 +36,11 @@ function useColumnWords(): (status: WorkItemStatus) => { does: string; then: str
   };
 }
 
-/** Items QA sent back in their current round, and those that used every bounce and wait for the person. */
-function bounced(items: readonly WorkItem[]): WorkItem[] {
-  return items.filter((item) => (item.bounces ?? 0) > 0 || item.waiting === 'bounces').sort((a, b) => (b.bounces ?? 0) - (a.bounces ?? 0));
-}
-
 /**
- * The flow by column: on or off, which role answers for each column, how many times QA may send an
- * item back, and each role's model. Edited as a draft and saved whole, as the reference's "Save the
- * flow" does: the flow goes into the project's settings, each model into its member.
+ * The flow by column: on or off, which role answers for each column, its limits (bounces, runs at
+ * once, the cost of a run) and each role's model. Edited as a draft and saved whole, as the
+ * reference's "Save the flow" does: the flow goes into the project's settings, each model into its
+ * member. The items QA sent back are Team activity's "Devueltas", which "See runs" leads to.
  */
 export function FlowEditor({
   project,
@@ -52,6 +48,7 @@ export function FlowEditor({
   flow: saved,
   proposal,
   switcher,
+  activityHref,
   onChanges,
 }: {
   project: Project;
@@ -60,6 +57,7 @@ export function FlowEditor({
   /** For a project that never saved a flow, the template's: shown as a draft to save, not as the flow */
   proposal: ProjectFlowSettings | null;
   switcher: ReactNode;
+  activityHref: string;
   /** Hears how many changes wait to be saved: a phone says it under its title, as the reference does */
   onChanges?: (count: number) => void;
 }) {
@@ -75,8 +73,8 @@ export function FlowEditor({
   // The draft keeps the limits as typed, so "0." on the way to "0.5" is not wiped; what is compared and saved is settled
   const flow = draft ?? baseline;
   const next = settledFlow(flow);
-  const board = useWorkItemBoard(project.id, {}, project.modules.includes('board'));
-  const items = useMemo(() => bounced((board.data?.columns ?? []).flatMap((column) => column.items)), [board.data]);
+  // The cost as typed ("0," on the way to "0,5"), while the field has it; the draft keeps the number
+  const [costText, setCostText] = useState<string | null>(null);
 
   const modelChanges = team.members.filter((member) => models[member.agent] !== undefined && models[member.agent]?.trim() !== member.model);
   // What saving would write, the proposal included; leaving only warns about what the person edited
@@ -90,6 +88,7 @@ export function FlowEditor({
   const discard = () => {
     setDraft(null);
     setModels({});
+    setCostText(null);
   };
 
   const save = useMutation({
@@ -244,7 +243,8 @@ export function FlowEditor({
             )}
             <span className="flow-does">
               {!phone && <span>{does}</span>}
-              <span className="flow-then">{phone ? then.replace(/^→\s*/, '') : then}</span>
+              {/* On a phone Done says what it means, as MobileFlujo does, not that it is fixed */}
+              <span className="flow-then">{phone ? (status === 'done' ? t('flow.column.done.phone') : then.replace(/^→\s*/, '')) : then}</span>
             </span>
           </div>
         );
@@ -252,47 +252,52 @@ export function FlowEditor({
     </section>
   );
 
-  const bounceCard = (
-    <section className="card flow-bounces" aria-labelledby="flow-bounces-title">
-      <div className="flow-bounces-head">
-        <div className="flow-auto-text">
-          <h2 id="flow-bounces-title">{t('flow.bouncesTitle')}</h2>
-          <p>{phone ? t('flow.bouncesBodyShort') : t('flow.bouncesBody')}</p>
-        </div>
-        {phone && <NumberInput value={flow.maxBounces} min={0} max={MAX_BOUNCES} onChange={(value) => edit({ ...flow, maxBounces: value ?? 0 })} aria-label={t('flow.bouncesMax')} />}
-      </div>
-      {!phone && (
-        <div className="flow-bounces-input">
-          <NumberInput value={flow.maxBounces} min={0} max={MAX_BOUNCES} onChange={(value) => edit({ ...flow, maxBounces: value ?? 0 })} aria-label={t('flow.bouncesMax')} />
-          <span className="team-muted">{t('flow.atMost')}</span>
-        </div>
-      )}
-      {!phone && items.length > 0 && (
-        <ul className="flow-bounced">
-          {items.map((item) => (
-            <li key={item.id}>
-              <Link to={taskPath(item.key)} className="flow-bounced-row">
-                <WorkItemKey value={item.key} />
-                <span className="flow-bounced-title">{item.title}</span>
-                {item.waiting === 'bounces' && <span className="badge badge-idle">{t('card.waitsForYou')}</span>}
-                <span className="bounce">{t('flow.bounceOf', { n: item.bounces ?? 0, max: saved.maxBounces })}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+  const costField = (
+    <span className="flow-limit-cost">
+      <input
+        type="text"
+        inputMode="decimal"
+        value={costText ?? (flow.maxCostUsd === undefined ? '' : String(flow.maxCostUsd))}
+        placeholder={t('flow.noLimit')}
+        aria-label={t('flow.costLabel')}
+        onChange={(event) => {
+          const text = event.target.value;
+          setCostText(text);
+          const value = Number(text.replace(',', '.'));
+          edit(withCost(flow, text.trim() === '' || !Number.isFinite(value) ? undefined : value));
+        }}
+        onBlur={() => setCostText(null)}
+      />
+      <span className="flow-limit-unit">{t('flow.usd')}</span>
+    </span>
   );
 
+  // Bounces, runs at once and the cost of a run: the flow's three limits in one card, as steppers and a field
   const limitsCard = (
     <section className="card flow-limits" aria-labelledby="flow-limits-title">
-      <div className="flow-auto-text">
-        <h2 id="flow-limits-title">{t('flow.limitsTitle')}</h2>
+      {phone ? (
+        <h2 id="flow-limits-title" className="sr-only">
+          {t('flow.limitsTitle')}
+        </h2>
+      ) : (
+        <div className="flow-limits-head">
+          <h2 id="flow-limits-title">{t('flow.limitsTitle')}</h2>
+          <Link to={activityHref} className="team-link">
+            {t('flow.seeRuns')}
+          </Link>
+        </div>
+      )}
+      <div className="flow-limit-row">
+        <span className="flow-limit-text">
+          <span className="flow-limit-name">{t('flow.bouncesTitle')}</span>
+          <span className="field-hint">{phone ? t('flow.bouncesBodyShort') : t('flow.bouncesHint')}</span>
+        </span>
+        <NumberInput value={flow.maxBounces} min={0} max={MAX_BOUNCES} onChange={(value) => edit({ ...flow, maxBounces: value ?? 0 })} aria-label={t('flow.bouncesMax')} />
       </div>
       <div className="flow-limit-row">
         <span className="flow-limit-text">
-          <span className="flow-limit-name">{t('flow.parallel')}</span>
-          <span className="field-hint">{t('flow.parallelHint', { count: DEFAULT_FLOW_MAX_PARALLEL })}</span>
+          <span className="flow-limit-name">{phone ? t('flow.parallelShort') : t('flow.parallel')}</span>
+          <span className="field-hint">{t('flow.parallelHint')}</span>
         </span>
         <NumberInput
           value={flow.maxParallel ?? DEFAULT_FLOW_MAX_PARALLEL}
@@ -302,25 +307,22 @@ export function FlowEditor({
           aria-label={t('flow.parallel')}
         />
       </div>
-      <div className="flow-limit-row">
-        <span className="flow-limit-text">
-          <span className="flow-limit-name">{t('flow.cost')}</span>
-          <span className="field-hint">{t('flow.costHint')}</span>
-        </span>
-        <span className="flow-limit-cost">
-          <NumberInput
-            value={flow.maxCostUsd}
-            min={0}
-            max={MAX_FLOW_COST_USD}
-            step={0.5}
-            decimal
-            placeholder={t('flow.noLimit')}
-            onChange={(value) => edit(withCost(flow, value))}
-            aria-label={t('flow.costLabel')}
-          />
-          <span className="flow-limit-unit">{t('flow.usd')}</span>
-        </span>
-      </div>
+      {phone ? (
+        <label className="flow-limit-row is-stacked">
+          <span className="flow-limit-name">{t('flow.costPhone')}</span>
+          {costField}
+          <span className="field-hint">{t('flow.costHintPhone')}</span>
+        </label>
+      ) : (
+        <div className="flow-limit-row">
+          <span className="flow-limit-text">
+            <span className="flow-limit-name">{t('flow.cost')}</span>
+            <span className="field-hint">{t('flow.costHint')}</span>
+          </span>
+          {costField}
+        </div>
+      )}
+      {!phone && <p className="field-hint flow-limits-foot">{t('flow.limitsFoot')}</p>}
     </section>
   );
 
@@ -334,9 +336,12 @@ export function FlowEditor({
             <li key={member.agent} className="flow-model-row">
               <RoleAvatar role={member.role} size="sm" />
               <span className="grow">{roleName(member.role)}</span>
-              <span className="flow-model-input">
-                <ModelCombobox value={value} onChange={(model) => setModels((now) => ({ ...now, [member.agent]: model }))} aria-label={t('flow.modelFor', { role: roleName(member.role) })} />
-              </span>
+              <ModelPicker
+                className="flow-model-pick"
+                value={value}
+                onChange={(model) => setModels((now) => ({ ...now, [member.agent]: model }))}
+                aria-label={t('flow.modelFor', { role: roleName(member.role) })}
+              />
             </li>
           );
         })}
@@ -351,7 +356,7 @@ export function FlowEditor({
         {switcher}
         {autoCard}
         {rows}
-        {bounceCard}
+        <span className="section-label flow-limits-label">{t('flow.limitsTitle')}</span>
         {limitsCard}
         <div className="member-phone-foot">{actions}</div>
       </div>
@@ -371,7 +376,6 @@ export function FlowEditor({
           {rows}
         </div>
         <div className="team-side">
-          {bounceCard}
           {limitsCard}
           {modelCard}
         </div>

@@ -164,6 +164,11 @@
      group side by side line up. The small one is for dense places; a finger gets 44 for both. */
   --control-h: 36px;
   --control-h-sm: 30px;
+  /* The smallest target a finger gets on a phone (design system, decision 9) */
+  --touch: 44px;
+  /* A selected row: one fill and one accent mark for every list, tree and master column */
+  --sel-bg: var(--bg-3);
+  --sel-mark: inset 2px 0 0 var(--accent);
 
   /* Type */
   --mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -181,6 +186,7 @@
   --grad: var(--gradient-accent);
   --shadow: var(--shadow-card);
   --shadow-pop: var(--shadow-lg);
+  --r-xs: var(--radius-xs);
 
   /* Lets height:auto animate where the browser supports it */
   interpolate-size: allow-keywords;

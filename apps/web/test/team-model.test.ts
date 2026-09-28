@@ -12,11 +12,16 @@ import {
   commandsProblem,
   columnsOf,
   flowOf,
+  groupRuns,
   memberBody,
   proposedFlow,
   roleFallbackName,
   roleInitials,
+  runDay,
+  runDuration,
   runNote,
+  runReason,
+  runStep,
   sameFlow,
   sameWrites,
   savedFlow,
@@ -43,12 +48,17 @@ const run = (id: string, over: Partial<FlowRun> = {}): FlowRun => ({
   agent: 'developer',
   model: 'sonnet',
   stage: 'work',
+  step: 'work',
   column: 'in_progress',
   state: 'ended',
   chatId: null,
   outcome: 'passed',
   summary: null,
   error: null,
+  cause: null,
+  retryOf: null,
+  retriedBy: null,
+  retryable: false,
   restarts: 0,
   queuedAt: '2026-09-27T10:00:00.000Z',
   startedAt: null,
@@ -247,4 +257,61 @@ test("a responsibility still the template's is shown in the person's language; a
   // The English the web recognises is the English core writes, word for word
   const core = readFileSync(new URL('../../../packages/core/src/project-templates.ts', import.meta.url), 'utf8');
   for (const [role, text] of Object.entries(TEMPLATE_RESPONSIBILITIES)) assert.ok(core.includes(`responsibility: '${text}'`), `${role} drifted from core`);
+});
+
+test("a run's duration runs from its start to its end, and a run that never started or has not ended has none", () => {
+  assert.equal(runDuration({ startedAt: '2026-09-28T10:00:00.000Z', endedAt: '2026-09-28T10:03:40.000Z' }), 220_000);
+  assert.equal(runDuration({ startedAt: null, endedAt: '2026-09-28T10:03:40.000Z' }), null);
+  assert.equal(runDuration({ startedAt: '2026-09-28T10:00:00.000Z', endedAt: null }), null);
+});
+
+test('Team activity groups the runs: what runs or waits now first, then one group per day, newest first', () => {
+  const now = new Date(2026, 8, 28, 12, 0).getTime();
+  const at = (day: number, hour: number) => new Date(2026, 8, day, hour, 0).toISOString();
+  const runs = [
+    run('q', { state: 'queued', outcome: null }),
+    run('r', { state: 'running', outcome: null, startedAt: at(28, 11) }),
+    run('a', { endedAt: at(28, 10) }),
+    run('b', { endedAt: at(28, 9) }),
+    run('c', { endedAt: at(27, 18) }),
+    run('d', { endedAt: at(25, 16) }),
+  ];
+  assert.deepEqual(
+    groupRuns(runs, now).map((group) => [group.kind === 'now' ? 'now' : group.days, group.runs.map((r) => r.id).join('')]),
+    [
+      ['now', 'rq'],
+      [0, 'ab'],
+      [1, 'c'],
+      [3, 'd'],
+    ],
+  );
+  // No "Now" group when nothing runs or waits
+  assert.equal(groupRuns([run('a', { endedAt: at(28, 10) })], now)[0]?.kind, 'day');
+});
+
+test("today's figures count what runs or waits and what ended today, by member, failures apart", () => {
+  const now = new Date(2026, 8, 28, 12, 0).getTime();
+  const at = (day: number) => new Date(2026, 8, day, 10, 0).toISOString();
+  const day = runDay(
+    [
+      run('1', { state: 'running', outcome: null, agent: 'qa' }),
+      run('2', { state: 'queued', outcome: null, agent: 'developer' }),
+      run('3', { outcome: 'failed', agent: 'product-owner', endedAt: at(28) }),
+      run('4', { outcome: 'passed', agent: 'product-owner', endedAt: at(28) }),
+      run('5', { outcome: 'failed', agent: 'product-owner', endedAt: at(27) }),
+    ],
+    now,
+  );
+  assert.deepEqual({ runs: day.runs, running: day.running, queued: day.queued, failed: day.failed }, { runs: 4, running: 1, queued: 1, failed: 1 });
+  assert.deepEqual(day.byAgent['product-owner'], { runs: 2, failed: 1 });
+  assert.deepEqual(day.byAgent.qa, { runs: 1, failed: 0 });
+});
+
+test("a run's step is its column's, and its reason is its cause, or unknown, only when it failed or was cancelled", () => {
+  assert.equal(runStep({ step: 'check', stage: 'refine', column: 'todo' }), 'check');
+  assert.equal(runReason({ outcome: 'failed', cause: 'no-account' }), 'no-account');
+  assert.equal(runReason({ outcome: 'failed', cause: null }), 'unknown');
+  assert.equal(runReason({ outcome: 'cancelled', cause: 'item-removed' }), 'item-removed');
+  assert.equal(runReason({ outcome: 'passed', cause: null }), null);
+  assert.equal(runReason({ outcome: null, cause: null }), null);
 });

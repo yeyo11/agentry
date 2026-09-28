@@ -50,27 +50,31 @@ export default async ({ page, api, check, dirs }) => {
     });
     await page.waitFor(`return !!document.querySelector('.doc-view .md-h1')`, { label: 'the document renders' });
 
-    // ---- QA passed it: it waits for the person's approval ----
+    // ---- QA passed it: it waits for the person's approval (DesktopTarea) ----
+    // "Waits for you" beside the column, QA's word in the activity, and "Move to Done" as the approval:
+    // no panel of its own, which the reference does not draw
     await page.goto(`/tasks/${seeded.templates.key}?project=${projectId}`, 1500);
-    await page.waitFor(`return !!document.querySelector('.item-wait .badge-idle')`, { label: 'the waiting state' });
-    const approval = await page.text('.item-wait');
-    check(/waiting/i.test(approval) && approval.includes('QA passed it'), `it says what it waits for and why, in words (${approval})`);
-    check(approval.includes('Every criterion holds'), "QA's latest word is quoted");
-    check(approval.includes('bounce 1 of 3'), 'its bounces show, neutral');
-    await page.click('.item-wait .item-wait-approve', 'Approve and move to Done', 1000);
-    // Its criterion is unchecked in the seed: approving asks first, as "Move to Done" does
+    await page.waitFor(`return !!document.querySelector('.workitem-head .workitem-waiting-badge.badge-idle')`, { label: 'the waiting badge' });
+    const badge = await page.text('.workitem-head .workitem-waiting-badge');
+    check(/waits for you/i.test(badge), `it says it waits for the person, in words (${badge})`);
+    check(await page.eval(`return !document.querySelector('.item-wait:not(.is-quiet)')`), 'no approval panel repeats what the head says');
+    check((await page.text('.item-wait.is-quiet')).includes('bounce 1 of 3'), 'its bounces show, neutral');
+    check((await page.text('.workitem-activity')).includes('Every criterion holds'), "QA's latest word is in the activity");
+    await page.click('.workitem-head .workitem-done', 'Move to Done', 1000);
+    // Its criterion is unchecked in the seed: approving asks first
     await page.click('[role=dialog] .btn-primary', 'Move to Done', 1000);
     await until(async () => {
       const now = await item(seeded.templates.id);
       return now.status === 'done' && !now.waiting;
     }, "the person's approval moved it to Done and ended the wait");
-    await page.waitFor(`return !document.querySelector('.item-wait')`, { label: 'the waiting state is gone' });
+    await page.waitFor(`return !document.querySelector('.workitem-waiting-badge')`, { label: 'the waiting badge is gone' });
 
     // ---- QA sent it back three times of three: it waits for the person ----
     await page.goto(`/tasks/${seeded.cost.key}?project=${projectId}`, 1500);
     await page.waitFor(`return !!document.querySelector('.item-wait .badge-idle')`, { label: 'the last bounce waits' });
     const bounces = await page.text('.item-wait');
     check(/waiting for you/i.test(bounces) && bounces.includes('QA sent it back 3 times') && bounces.includes('bounce 3 of 3'), `it says it used its bounces (${bounces})`);
+    check(await page.eval(`return !!document.querySelector('.workitem-head .workitem-waiting-badge')`), 'and the head says it waits for the person too');
 
     // ---- the same on a phone: the actions are full-width, 44 px ----
     await page.viewport(390, 844);

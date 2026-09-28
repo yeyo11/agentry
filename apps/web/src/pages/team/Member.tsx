@@ -6,11 +6,12 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, keys, useMemoryProposals } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
-import { MoreActions } from '../../components/controls';
+import { ModelPicker, MoreActions } from '../../components/controls';
 import { useConfirm } from '../../components/Dialog';
 import { ICON, ICON_SM } from '../../components/icons';
+import { PhoneHeader } from '../../components/shell/PhoneHeader';
 import { useToast } from '../../components/Toast';
-import { ErrorBox, ModelCombobox, Skeleton, Tag } from '../../components/ui';
+import { ErrorBox, Skeleton, Tag } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
 import { timeAgo } from '../../lib/format';
 import { NARROW, useMediaQuery } from '../../lib/media';
@@ -31,7 +32,7 @@ import {
 } from './model';
 import { CommandsField, WritesField } from './MemberFields';
 import { NowAndBefore, RunRow } from './MemberRuns';
-import { ModelName, RoleAvatar, useResponsibility, useRoleName } from './RoleAvatar';
+import { RoleAvatar, useResponsibility, useRoleName } from './RoleAvatar';
 
 interface Draft {
   responsibility: string;
@@ -221,24 +222,30 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
       </div>
     );
 
-  const head = (
+  const removeEntry = { id: 'remove', label: t('remove.action'), icon: UserMinus, destructive: true, onSelect: askRemove };
+  // A phone heads the member as every pushed screen: back, the role, its file, and "⋯" as a sheet
+  const head = phone ? (
+    <PhoneHeader
+      title={name}
+      subtitle={member.file.path}
+      back={{ label: t('member.back'), fallback: backHref }}
+      more={[removeEntry]}
+      moreLabel={t('member.actions', { name })}
+    />
+  ) : (
     <header className="member-page-head">
       <Link to={backHref} className="icon-btn" aria-label={t('member.back')}>
         <ChevronLeft {...ICON} />
       </Link>
-      {!phone && <RoleAvatar role={member.role} size="lg" />}
+      <RoleAvatar role={member.role} size="lg" />
       <div className="member-page-title">
         <h1>{name}</h1>
         <span className="member-file">{member.file.path}</span>
       </div>
-      {!phone && (
-        <>
-          <FileState member={member} />
-          {unsaved}
-          {actions}
-        </>
-      )}
-      <MoreActions label={t('member.actions', { name })} entries={[{ id: 'remove', label: t('remove.action'), icon: UserMinus, destructive: true, onSelect: askRemove }]} />
+      <FileState member={member} />
+      {unsaved}
+      {actions}
+      <MoreActions label={t('member.actions', { name })} entries={[removeEntry]} />
     </header>
   );
 
@@ -267,10 +274,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
       )}
       <div className="prop-row">
         <span className="prop-key">{t('member.model')}</span>
-        <span className="member-model">
-          <ModelCombobox value={now.model} onChange={(model) => set({ model })} aria-label={t('member.model')} />
-          <ModelName model={now.model} />
-        </span>
+        <ModelPicker className="member-model-pick" value={now.model} onChange={(model) => set({ model })} aria-label={t('flow.modelFor', { role: name })} />
       </div>
       <div className="prop-row">
         <span className="prop-key">{t('member.column')}</span>

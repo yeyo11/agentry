@@ -98,7 +98,8 @@ export default async ({ page, api, check, dirs }) => {
     check(JSON.stringify(rows) === JSON.stringify(['backlog', 'todo', 'in_progress', 'in_review', 'done']), `a row per column (${rows})`);
     check(await page.eval(`return !!document.querySelector('.flow-row[data-status="done"] .flow-role.is-fixed')`), "Done is the person's, fixed");
     await page.click('.flow-auto [role=switch]', undefined, 400);
-    await page.click('.flow-bounces button[aria-label]', undefined, 300);
+    // Bounces are the first row of the one Limits card, a stepper
+    await page.click('.flow-limits .number-step', undefined, 300);
     await page.waitFor(`return document.querySelector('.team-toolbar .badge-warn')?.textContent.includes('unsaved changes')`, { label: 'the flow has unsaved changes' });
     await page.click('.team-toolbar .btn-primary', 'Save the flow', 1500);
     await page.waitFor(`return !document.querySelector('.team-toolbar .badge-warn')`, { label: 'the flow saved' });
@@ -121,7 +122,7 @@ export default async ({ page, api, check, dirs }) => {
     check(bounce?.startsWith('QA sent it back 1 time out of'), `a bounced card says so in words (${bounce})`);
     const assignee = await page.eval(`return document.querySelector('[data-item-id="${bounced.id}"] .workitem-card-foot .role-avatar')?.textContent`);
     check(assignee === 'DEV', `a role's card carries its squircle, not a person's monogram (${assignee})`);
-    const waiting = await page.eval(`return document.querySelector('[data-item-id="${approve.id}"] .workitem-waiting')?.textContent ?? ''`);
+    const waiting = await page.eval(`return document.querySelector('[data-item-id="${approve.id}"] .workitem-strip.is-wait')?.textContent ?? ''`);
     check(waiting.includes('waits') && waiting.includes('QA passed it'), `an item waiting for approval says why (${waiting})`);
     await page.click(`[data-item-id="${approve.id}"] .workitem-approve`, undefined, 1500);
     await page.waitFor(`return document.querySelector('.workitem-col[data-status="done"] [data-item-id="${approve.id}"]') !== null`, { label: 'approving moves it to Done' });
@@ -132,19 +133,24 @@ export default async ({ page, api, check, dirs }) => {
     await page.viewport(390, 844);
     await page.goto(`/?project=${project.id}&view=team`, 1500);
     await page.waitFor(`return document.querySelectorAll('.member-cell').length === 4`, { label: 'the phone members' });
-    check(await page.eval(`return !!document.querySelector('.team-page .project-head-phone h1')`), 'the phone Team screen heads itself');
+    check(await page.eval(`return document.querySelector('.team-page .phone-head h1')?.textContent === 'Team'`), 'the phone Team screen heads itself');
+    check(await page.eval(`return !!document.querySelector('.phone-head .phone-head-more')`), 'with its "⋯"');
     await page.click('.member-cell', 'QA', 1200);
     await page.waitFor(`return new URLSearchParams(location.search).get('member') === 'qa' && !!document.querySelector('.member-page.is-phone')`, { label: 'the phone member' });
     const target = await page.eval(`const b = document.querySelector('.member-phone-foot .btn-primary').getBoundingClientRect(); return b.height`);
     check(target >= 44, `the phone's Save is a 44 px target (${target})`);
     // Without a top bar, the head's way back is the screen's only way out (MobileMiembro, gap 21)
-    const memberBack = await page.eval(`const r = document.querySelector('.member-page-head > .icon-btn').getBoundingClientRect(); return { w: r.width, h: r.height, top: r.top }`);
+    const memberBack = await page.eval(`const r = document.querySelector('.member-page.is-phone .phone-head > .icon-btn').getBoundingClientRect(); return { w: r.width, h: r.height, top: r.top }`);
     check(memberBack.w >= 44 && memberBack.h >= 44 && memberBack.top < 80, `the member's way back is a 44 px target at the top (${JSON.stringify(memberBack)})`);
     check(!(await page.eval(`return document.querySelector('.topbar').getClientRects().length > 0`)), 'and no top bar sits over the member');
     // Every tab's phone head leads to the assistant (gap 8)
     await page.goto(`/?project=${project.id}&view=team`, 1200);
-    await page.waitFor(`return !!document.querySelector('.team-page .project-head-phone')`, { label: 'the phone Team head' });
-    check(await page.eval(`return !!document.querySelector('.project-head-phone .project-head-assistant')`), "the phone Team head leads to the project's assistant");
+    await page.waitFor(`return !!document.querySelector('.team-page .phone-head .phone-head-more')`, { label: 'the phone Team head' });
+    await page.click('.team-page .phone-head .phone-head-more', undefined, 600);
+    await page.waitFor(`return !!document.querySelector('.sheet-actions')`, { label: "the Team screen's sheet" });
+    check(await page.eval(`return [...document.querySelectorAll('.sheet-actions button')].some((b) => b.textContent.trim() === 'Assistant')`), "the phone Team head leads to the project's assistant");
+    await page.key('Escape');
+    await page.waitFor(`return !document.querySelector('.sheet-actions')`, { label: 'the sheet closes' });
 
     // ---- a team whose flow was never saved: nothing is drawn as if it were in force ----
     await page.viewport(1440, 900);

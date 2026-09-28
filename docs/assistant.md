@@ -226,8 +226,8 @@ What every run draws the same way lives in `apps/web/src/components/assistant/ru
 `styles/suggestion.css`:
 
 - the live head, with the verb, the braille spinner, the elapsed time and "Detener". The time reads
-  as the references write it, `0:41`, counting minutes and seconds from the first second so its width
-  does not jump at the minute (`formatRunClock`, orchestration 6, gap 23);
+  as the references write it, a running clock, `0:41`, counting minutes and seconds (`m:ss`) from the
+  first second so its width does not jump at the minute (orchestration 6, gap 23);
 - the facts line: model · time · cost · chat;
 - "Lo que ha leído" and what it found;
 - the proposal rows and phone cards.
@@ -267,10 +267,12 @@ Asistente".
 - **The Team screen.** "Pedir propuesta" is the empty team's primary action, with the template's
   team beside it, and sits beside "Añadir miembro" on a team that has members. If a run is already
   going (409), it leads to that run's page.
-- **The project header, on every tab** (orchestration 6, gap 8). "Asistente" sits beside "Nuevo chat
-  aquí" and "Nueva tarea", as a plain button, since the gradient stays on the tab's own primary. On a
-  phone, every tab's head ends with the same link as a named icon button (`PhoneAssistantLink` in
-  `pages/home/ProjectHead.tsx`).
+- **The project's header, on every tab** (orchestration 6, gap 8, and decision 3 of the design
+  review): a ghost "Asistente" with its sparkle, before "Nuevo chat aquí", since the gradient stays on
+  the tab's own primary. On a phone the project's screen has an "Asistente del proyecto" row above its
+  sections, which says how many proposals wait ("3 propuestas por revisar") or what the assistant
+  does, and every tab's screen offers "Asistente" first in its "⋯" sheet (`phoneViewMore` in
+  `pages/home/ProjectHead.tsx`), Team and its activity included.
 - **The command palette.** "Asistente del proyecto" for the selected project, and
   "<project> — asistente" among each project's entries.
 
@@ -317,10 +319,14 @@ on a phone.
 
 ### On a phone
 
+The assistant's page has no app top bar (orchestration 6, gap 21): its route is marked
+`phoneHeader: 'page'` (`components/shell/phone-header.ts`, read by `hidesTopBar`), so it draws
+`PhoneHeader` (`MobileAsistente`), with a 44 px way back to the project, its title over the
+project's name and key, and a "⋯" sheet once the run has finished. The Resources tab is a project
+tab and is headed the same way, naming the folder it reads.
+
 The assistant's page, and a resource or proposal open in the editor, hide the tab bar and end in
-their own bar with 44 px buttons (`hidesTabBar` in `lib/shell-live.ts`). The assistant's page also
-drops the app's top bar and heads itself with a 44 px way back and its title, as `MobileAsistente`
-draws it (`hidesTopBar`, orchestration 6, gap 21). A one-word project's monogram takes two letters
+their own bar with 44 px buttons (`hidesTabBar` in `lib/shell-live.ts`). A one-word project's monogram takes two letters
 ("NO", not "N"), on the header, the projects list, the wizard and here (gap 23). The proposals are cards with
 "Incluir" / "Incluida" in the accent, never checkboxes. The phone's Resources row keeps the short
 "Sugerir", because "Volver a sugerir" crowded out "Crear con IA".

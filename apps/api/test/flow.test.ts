@@ -221,6 +221,47 @@ test('a card entering in_progress is implemented by the developer, verified by Q
   assert.equal(argvs().length, before);
 });
 
+test('a failed run says why as a code, and a person retries it once while the item is in its column', async () => {
+  await settings((s) => ({ ...s, flow: { ...s.flow!, enabled: true, maxParallel: 1 } }));
+  const res = await app.inject({ method: 'POST', url: `/api/projects/${project.id}/work-items`, ...json({ title: 'Check the totals', status: 'in_review', description: 'FAKE-FAIL QA could not run the tests' }) });
+  assert.equal(res.statusCode, 201, res.body);
+  const created = res.json<WorkItem>();
+  const runsOf = async () => (await app.inject(`/api/work-items/${created.id}/runs`)).json<FlowRun[]>();
+  const [failed] = await until(runsOf, (r) => r[0]?.state === 'ended', 'QA to fail');
+  assert.ok(failed);
+  assert.deepEqual([failed.outcome, failed.cause, failed.error, failed.step, failed.retryable, failed.retriedBy], ['failed', 'chat-failed', 'QA could not run the tests', 'verify', true, null]);
+  const activity = (query: string) => app.inject(`/api/projects/${project.id}/flow/runs${query}`);
+  assert.deepEqual((await activity(`?role=qa&outcome=failed&itemId=${created.id}`)).json<FlowRunPage>().runs.map((r) => r.id), [failed.id]);
+  assert.equal((await activity(`?itemId=${created.id}&before=2000-01-01T00:00:00Z`)).json<FlowRunPage>().total, 0);
+  assert.equal((await activity('?before=never')).statusCode, 400);
+
+  // The retry passes this time
+  const verify = { summary: 'Totals hold', verdict: 'pass', criteria: [], memoryProposals: [], documents: [] };
+  const edited = await app.inject({ method: 'PATCH', url: `/api/work-items/${created.id}`, ...json({ description: `FAKE-RESULT-VERIFY ${JSON.stringify(verify)}` }) });
+  assert.equal(edited.statusCode, 200, edited.body);
+  const retried = await app.inject({ method: 'POST', url: `/api/flow-runs/${failed.id}/retry` });
+  assert.equal(retried.statusCode, 201, retried.body);
+  const retry = retried.json<FlowRun>();
+  assert.deepEqual([retry.retryOf, retry.stage, retry.column, retry.agent], [failed.id, 'verify', 'in_review', 'qa']);
+  assert.equal((await app.inject({ method: 'POST', url: `/api/flow-runs/${failed.id}/retry` })).statusCode, 409);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/flow-runs/nope/retry' })).statusCode, 404);
+  const done = await until(() => item(created.id), (i) => i.waiting === 'approval', 'the retry to pass');
+  assert.equal(done.status, 'in_review');
+  const after = (await runsOf()).find((r) => r.id === failed.id);
+  assert.deepEqual([after?.retriedBy?.id, after?.retriedBy?.outcome, after?.retryable], [retry.id, 'passed', false]);
+
+  // Once the item left the run's column, a failed run there is not retried
+  const other = await app.inject({ method: 'POST', url: `/api/projects/${project.id}/work-items`, ...json({ title: 'Round the totals', status: 'in_review', description: 'FAKE-FAIL no' }) });
+  const otherItem = other.json<WorkItem>();
+  const [otherFailed] = await until(async () => (await app.inject(`/api/work-items/${otherItem.id}/runs`)).json<FlowRun[]>(), (r) => r[0]?.state === 'ended', 'QA to fail again');
+  const moved = await app.inject({ method: 'POST', url: `/api/work-items/${otherItem.id}/move`, ...json({ status: 'done' }) });
+  assert.equal(moved.statusCode, 200, moved.body);
+  const refused = await app.inject({ method: 'POST', url: `/api/flow-runs/${otherFailed?.id}/retry` });
+  assert.equal(refused.statusCode, 409, refused.body);
+  assert.match(refused.body, /left in_review/);
+  await until(flowOf, (f) => !f.running.length && !f.queued.length, 'the flow to go quiet');
+});
+
 test("the person's language is the one the panel last named, and a request naming none leaves it", async () => {
   const say = (language: string) => app.inject({ url: '/api/projects', headers: { 'accept-language': language } });
   await say('es-ES,es;q=0.9,en;q=0.8');

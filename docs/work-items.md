@@ -30,6 +30,9 @@ the entry points in chats and orchestrations. See [The screens](#the-screens). O
 and the item's waiting state: see [team-and-flow.md](team-and-flow.md). Orchestrations 5
 (`ecosystem-review-fixes`) and 6 (`ecosystem-gaps`) fixed the whole on 2026-09-28; what 6 changed is
 marked with its gap's number from [the plan](plans/project-ecosystem.md#orchestration-6-ecosystem-gaps).
+Orchestration 7 (`ecosystem-design`) brought the screens to the designer's official reference: the
+card in five rows with a strip at its foot, failed runs told everywhere with a retry, and phone
+screens that head themselves.
 
 A board belongs to a project whose **Board** module is on; see [projects.md](projects.md).
 
@@ -366,6 +369,11 @@ exactly what `workitem.*`, `milestone.changed` and `project.updated` touch, so a
 shows up on an open board without a reload. Run events refresh the boards too: a failed turn
 changes no item, but it does end a live card.
 
+Since orchestration 7 the reference is the designer's review of those prototypes
+(`docs/design-system/reference/`, with [its change note](design-system/ecosystem-review.md) and
+`DSTablero`, the board's spec page). The note ends with what the app applied, screen by screen, and
+what it left.
+
 `apps/web/src/lib/work-items.ts` is the model every screen reads from:
 
 - the columns in order, with their glyph and label;
@@ -373,8 +381,9 @@ changes no item, but it does end a live card.
 - the filters, read from and written to the address;
 - grouping by column, and the open count;
 - what makes an item live: its chat or node `working` (the rail and the spinner), or `waiting` for
-  the person. Until the chat reports an activity, a card's live line takes its verb from the link's
-  role: "Refinando", "Trabajando" or "Verificando".
+  the person;
+- the card's strip, `workItemStrip()`: the one thing that happens to an item now, from the item and
+  the flow's runs (see [The board](#the-board)).
 
 ![The Tasks board of harbor-api in the dark theme: five columns, In progress over its limit of 3 with the words "Over the limit: 4 of 3", a live card with its ring spinner, live rail and the command its chat is running, an epic counting its tasks, a card blocked by another, and "and 2 more" in Done](media/board.png)
 
@@ -401,29 +410,38 @@ an imported one may take later, so the imported project's item wins.
 ### The board
 
 - **Columns.** There are five, each with its glyph, mono label, count and optional limit. A column
-  over its limit gets the warn hairline and the words "Over the limit: 4 of 3". It never refuses a
-  card. Done shows its first three cards and then "and N more", a button that draws the next
-  page in place.
+  over its limit is quiet (decision 1 of the design review): a 2 px warn hairline on top and one line
+  of warn text, "Over the limit: 4 of 3", with no tinted box and no warn border on its cards. It never
+  refuses a card. Done shows its newest cards and ends in "Mostrar N más", which loads the next page
+  in place, with two skeleton cards while it arrives.
 - **What a board holds** (orchestration 6, gap 20). The board, both lists, their pages and a chat's
   items leave each description out: `description` is `''` and `hasDescription` says whether there is
   one, since a description may run to 100,000 characters and no card shows it. The item's own page
   fetches it whole. The Done column holds its `doneLimit` most recently closed items (20 by default)
-  in rank order and counts the rest in `more`; once the board's own page is used up, "and N more"
+  in rank order and counts the rest in `more`; once the board's own page is used up, "Mostrar N más"
   asks for a larger `doneLimit`. The column counts stay over every item, so the limits and the
   sidebar count do not change with the page, and the header counts what Done leaves out. An epic's
   progress is read from its own page when the board holds only part of Done, since its closed
   children may be among what was left out.
-- **Cards** show:
-  - the key and the type;
-  - the priority mark (only `urgent` has a colour);
-  - the title;
-  - the epic and the labels;
-  - the assignee;
-  - the checklist's progress;
-  - what blocks the item.
+- **Cards** are read in five rows (`WorkItemCard`):
+  1. what it is: the type, the key and the priority mark (only `urgent` has a colour);
+  2. the title;
+  3. where it goes, the context line: the epic drawn bare and the labels as `#tags` (on All
+     projects, the project first);
+  4. the facts: the criteria bar, what blocks it, the bounces, and the assignee at the end;
+  5. the **strip** (`WorkItemStrip`): the one thing that happens to the card now.
 
-  An epic card counts its items instead. A card whose chat or node is working gets the live rail,
-  the ring spinner, and a line saying what the agent is doing (from the shell's own queries).
+  An epic card counts its items instead, or says "sin tareas todavía". A done card keeps two rows.
+- **The strip** is picked by `workItemStrip()` in `lib/work-items.ts`, in this order: a flow run at
+  work, the item's own chat or node at work, a chat waiting for the person, the item waiting for
+  approval or after its bounces, the newest failed run of the column it is in, QA's words on a card
+  it sent back, a run queued. Its first mark says who acts before the words do (decision 2): a
+  role's squircle with its stage verb (Refinando, Comprobando, Implementando, Verificando), the
+  person's round monogram with the chat's verb, or the orchestration glyph with its node. A live
+  strip carries the braille spinner and the running clock (`m:ss`), and the card the live rail. A
+  failed one is bad, with its word and its reason worded from the run's cause ("Falló al
+  comprobarla · ninguna cuenta tenía cupo"), and the raw error behind it. The foot leaves out an
+  assignee the strip already starts with (`stripNamesAssignee`).
 - **Moving a card.** On a desktop, drag it with the pointer, between columns or within one. From the
   keyboard: Space picks the card up, the arrows carry it, Space drops it and Escape cancels, and each
   step is announced. Every move names the card it lands after (`afterId`), so the order survives a
@@ -443,22 +461,27 @@ an imported one may take later, so the imported project's item wins.
   (`navigate('/orchestration', { state: { workItemDraft } })`).
 - **A card opens its item.** On a desktop it opens in a 760 px panel beside the board (`?item=KEY`).
   On a phone it opens the item's page.
-- **Empty board.** It shows `Empty` with the `board` illustration and "Create the first task". The
-  FAB steps aside while it is there (`FabStandIn`), so the screen has only one gradient.
+- **Empty board.** It shows `Empty` with the `board` illustration, redrawn with the five columns,
+  and "Create the first task". On a desktop its card reaches the status bar; on a phone it is the
+  page itself, with a full-width action. The FAB steps aside while it is there (`FabStandIn`), so
+  the screen has only one gradient.
+- **The header's views.** Board, List and Milestones, led by the flow's button when the project has
+  a team, with "Sugerir tareas" as its sparkle beside it.
 
 ### List, All projects and milestones
 
-- **List** (`?view=list`): the items grouped by column in board order. `J` and `K` move between rows.
-  The rows come 100 at a time (`GET /projects/:id/work-items/page`, and `GET /work-items/page` on All
-  projects), with a cursor that is a place in the list's order rather than an offset, so an item
-  created or moved while paging neither repeats nor pushes another out of view. The next page loads
-  as the end comes into view, or from "Cargar más"; each group's figures come from the board, so a
-  head does not grow as pages arrive.
+- **List** (`?view=list`): the items grouped by column in board order, the type glyph leading each
+  row. The Now column draws the card's strip: who runs the item, or that its run failed. `J` and `K`
+  move between rows. The rows come 100 at a time (`GET /projects/:id/work-items/page`, and
+  `GET /work-items/page` on All projects), with a cursor that is a place in the list's order rather
+  than an offset, so an item created or moved while paging neither repeats nor pushes another out of
+  view. The next page loads as the end comes into view, or from "Cargar más"; each group's figures
+  come from the board, so a head does not grow as pages arrive.
 - **All projects**: with All projects selected, every card names its project and no column shows a
   limit, as `GET /work-items/board` answers.
 - **Milestones** (`/tasks/milestones`):
   - the open milestones as cards with their progress; the first one gets the screen's `grad-border`;
-  - the closed ones as rows, with Reopen;
+  - the closed ones as rows, with Reopen; the rows' actions are ghost buttons;
   - the open items that have no milestone.
 
   There are no dates anywhere. The page title stays Tasks, and the view switch shows which view is
@@ -470,14 +493,21 @@ There is no horizontal board. The columns become sections of one list, and a seg
 jumps between them, showing the current column's name and every column's count (the warn colour for
 one over its limit). Other differences from the desktop:
 
+- there is no app top bar (orchestration 6, gap 21): Tasks, its milestones and a work item are routes
+  the shell marks `phoneHeader: 'page'` (`components/shell/phone-header.ts`, read by `hidesTopBar`
+  in `lib/shell-live.ts`; the desktop app keeps its bar, which is also the window's title bar), so
+  each draws `PhoneHeader`, as `MobileTablero`, `MobileHitos` and `MobileTarea` do: a 44 px way
+  back, the title and, on Tasks,
+  beside it, the project scope the top bar holds elsewhere
+  ([persistent filters](persistent-filters.md)). Milestones names its project under the title
+  instead;
+- the views go across the width under the header, and a board with a team gets one row with the
+  flow's state ("2 a la vez, 1 en cola");
+- a row keeps the card's context line, facts and strip;
 - the filters open in a sheet;
 - each row has a move sheet;
-- selection turns rows into pressed toggles, with a bottom bar;
-- Tasks, its milestones and a work item head themselves, without the app's top bar (orchestration
-  6, gap 21): a 44 px way back and the title, as `MobileTablero`, `MobileHitos` and `MobileTarea`
-  draw it, with the project scope that [persistent filters](persistent-filters.md) put in the top bar
-  now beside the title (`hidesTopBar` in `lib/shell-live.ts`; the desktop app keeps its bar, which is
-  also the window's title bar);
+- selection turns rows into pressed toggles: the header becomes "2 elegidas", with ✕ as the way
+  out, and the selection bar takes the tab bar's place at the bottom;
 - Milestones has no FAB, because its header already has New milestone.
 
 <p align="center"><img src="media/board-mobile.png" alt="The same board on a phone: the column jump on In progress, the section marked over the limit, and the live card first, with the command its chat is running" width="320"></p>
@@ -496,19 +526,26 @@ the board. It shows:
   a phone too. Each checked row says who checked it and when, read from the history.
 - **Relations** (*blocks*, *blocked by*), with add and remove.
 - **Links**: the chats and orchestration nodes that worked on the item, with the chat list's own
-  state badges and what each did to the item. A chat a flow run used reads its state from
-  `GET /work-items/:itemId/runs`, so every failed run's chat stays "Ejecución fallida", not only each
-  member's latest (orchestration 6, gap 2).
+  state badges and what each did to the item. Every flow run of the item is a link of its own, from
+  `GET /work-items/:itemId/runs`, led by the role's squircle ("QA verifica AGN-26"): its state as a
+  badge with its word and, for a failed one, its reason in the person's words, then "Reintentar"
+  while it can be retried, or what the retry did. Each opens the run's chat, and every failed run
+  stays failed, not only each member's latest (orchestration 6, gap 2).
 - **Changes**: the item's worktree, its branch and its files with a diffstat. Each file, and
   **Review the changes**, open the review screen at `/tasks/:key/changes` (design system §5), which
   reads the item by its result alone: several chats may have worked on its branch, so there is no
   one transcript for Step by step. `SummaryView` and the editor link it used are gone with `main`'s
   changes review.
 - **Activity**: the history told in sentences and interleaved with the comments. An automatic move
-  names its cause.
+  names its cause. A failed run's comment, which the core writes in English, is drawn from the run
+  instead: its reason in the person's words and "Ver el chat" (a 44 px button on a phone). A
+  person's retry is an entry of its own ("Verificación reintentada · yeyo"). An agent's comment is
+  headed by its role, without a repeated "agente" badge.
+- **"te espera"** beside the column in the header, while the item waits for the person.
 
-On a phone, Detalle, Actividad and Cambios are tabs. The page keeps its own bottom bar (the actions,
-or the comment box on Actividad), so `/tasks/:key` hides the tab bar, as a chat does.
+On a phone, Detalle, Actividad and Cambios are tabs. The page draws its own header, with the way
+back, instead of the app's top bar, and keeps its own bottom bar (the actions, or the comment box on
+Actividad), so `/tasks/:key` hides the tab bar, as a chat does.
 
 **"Trabajar en ella"** is the item's primary action. It opens the start options New chat offers (same
 fields, same copy), calls `POST /work-items/:itemId/work` and opens the chat.
@@ -533,7 +570,9 @@ On a desktop New task is a dialog. On a phone it is a full screen. It has these 
 - relations;
 - acceptance criteria.
 
-Relations are added once the item exists, since the API relates two existing items.
+Relations are added once the item exists, since the API relates two existing items. The header
+names the project and its key prefix ("claude-wrapper · AGN"), not the key the item will get: the
+client does not know the next number.
 
 ### From a chat and an orchestration
 
@@ -542,7 +581,11 @@ Relations are added once the item exists, since the API relates two existing ite
   project, or its project's Board is off, the menu item says why.
 - **The chat's header** names the item the chat works on, the way `PartOf` names an orchestration,
   and the whole row is the link. A chat that an item was created from says so. The inspector's
-  Summary shows the item's card.
+  Summary shows the item's card. A flow run's chat names its step and item ("Verificación de
+  AGN-26"). When the run failed, a banner at its head says why, from the run's cause, what did not
+  move and the raw error, with "Reintentar", or, once retried, what the next run did and its chat.
+  On a phone the chat page keeps its own header: it moves to the ecosystem's format with every other
+  chat, in a separate job (see [status.md](status.md#what-is-open)).
 - **The orchestration editor** opens the draft the board hands over in the router state. Each node
   shows its item's key, and blockers left outside the selection appear as a warning before launch.
   The nodes keep their `workItemId`, so launching links them.
@@ -559,10 +602,12 @@ key). The OpenAPI descriptions in `apps/api/src/openapi/routes.ts` carry the det
 Orchestration 3 added what `DesktopTableroEquipo` draws, on one project's board with the Team module
 on:
 
-- each column's responsible role while the flow is on;
-- the member at work on a card;
-- a card's bounces ("rebote 1 de 3");
-- an item waiting for the person, and why.
+- each column's responsible role in its head while the flow is on;
+- every state the team leaves a card in, as its strip: a role queued, at work, or failed with its
+  reason, QA's words on a card it sent back, and "te espera" with "Aprobar y pasar a Hecho" once QA
+  passed it;
+- a card's bounces ("rebote 1 de 3", or "rebote 1" with the Team module off, where there is no limit
+  to count against).
 
 A task can be assigned to a role: the task page, New task and the Assignee filter offer the team's
 members and draw a role as its squircle avatar with its translated name, where a person stays a round

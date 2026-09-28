@@ -8,8 +8,8 @@ import { ICON_SM, WorkItemKey } from '../../components/icons';
 import { Spinner } from '../../components/Spinner';
 import { formatNumber, timeAgo } from '../../lib/format';
 import { taskPath } from '../../lib/work-items';
-import { memberRuns, runNote } from './model';
-import { RunElapsed, RunOutcome, RunTicker, runTime } from './parts';
+import { memberRuns, runNote, runTimeOf } from './model';
+import { RunBadge, RunClock, RunNow, useRunReason } from './runs';
 
 /** Lines "now and before" lists: the member's latest; every run is on the team's activity. */
 const SHOWN = 5;
@@ -17,8 +17,10 @@ const SHOWN = 5;
 /** A line of "now and before": a run going now (live), queued, or ended, leading to its item. */
 export function RunRow({ run }: { run: FlowRun }) {
   const { t } = useTranslation('team');
+  const reason = useRunReason()(run);
   const live = run.state === 'running';
-  const note = runNote(run);
+  // A failure says its reason in the person's language; the raw text stays in the tooltip
+  const note = reason ? reason.short : runNote(run);
   const body = (
     <>
       {live ? <Spinner variant="ring" className="member-run-spin" /> : <MessageCircle {...ICON_SM} className="member-run-icon" />}
@@ -27,16 +29,14 @@ export function RunRow({ run }: { run: FlowRun }) {
           {run.item && <WorkItemKey value={run.item.key} />}
           <span className="member-run-name">{run.item?.title ?? t('member.itemGone')}</span>
         </span>
-        <span className="member-run-state">
-          {live ? <RunTicker run={run} showTime={false} /> : run.state === 'queued' ? t('outcome.queued') : <RunOutcome run={run} />}
-        </span>
+        <span className="member-run-state">{live ? <RunNow run={run} /> : <RunBadge run={run} />}</span>
         {note && (
-          <span className="member-run-note" title={note}>
+          <span className={`member-run-note ${reason ? 'is-failed' : ''}`.trim()} title={run.error ?? note}>
             {note}
           </span>
         )}
       </span>
-      {live ? run.startedAt && <RunElapsed since={run.startedAt} /> : <time className="member-run-time">{timeAgo(runTime(run))}</time>}
+      {live ? run.startedAt && <RunClock since={run.startedAt} className="team-live-time" /> : <time className="member-run-time">{timeAgo(runTimeOf(run))}</time>}
     </>
   );
   const className = `member-run ${live ? 'live-rail' : ''}`.trim();

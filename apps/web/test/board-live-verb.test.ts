@@ -1,13 +1,14 @@
-// A live card's verb on a narrow board column must end in an ellipsis rather than overflow the
-// card. That is CSS alone, so it is checked on the stylesheet: the rule on each verb class, and
-// the flex parents between the card and the verb that must be allowed to shrink below their text.
+// A live card's verb on a narrow board column must stay inside the card rather than overflow it.
+// Since orchestration 7 the card says it in its strip (`WorkItemStrip`), which wraps as the
+// reference's `.wi-strip` does. That is CSS alone, so it is checked on the stylesheet: the rule on
+// the verb, and the strip around it, which must let the verb shrink and wrap while the clock keeps
+// its width.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const BOARD = fileURLToPath(new URL('../src/styles/board.css', import.meta.url));
-const PRIMITIVES = fileURLToPath(new URL('../src/styles/primitives.css', import.meta.url));
 
 const stripComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '');
 
@@ -25,34 +26,29 @@ function rule(css: string, selector: string): Map<string, string> {
   return found;
 }
 
-function assertTruncates(declarations: Map<string, string>, what: string): void {
-  assert.equal(declarations.get('overflow'), 'hidden', `${what}: overflow`);
-  assert.equal(declarations.get('text-overflow'), 'ellipsis', `${what}: text-overflow`);
-  assert.equal(declarations.get('white-space'), 'nowrap', `${what}: white-space`);
-  // A flex item keeps its text's width unless told it may go below it
+/** A flex item that may go below its text's width, and whose text may break onto another line. */
+function assertGivesWay(declarations: Map<string, string>, what: string): void {
   assert.equal(declarations.get('min-width'), '0', `${what}: min-width`);
   const flex = declarations.get('flex');
   if (flex) assert.notEqual(flex.split(/\s+/)[1], '0', `${what}: it must be able to shrink`);
+  assert.notEqual(declarations.get('white-space'), 'nowrap', `${what}: it must be able to wrap`);
 }
 
 const board = readFileSync(BOARD, 'utf8');
 
-test("a card's stage verb (no ticker yet) truncates with an ellipsis on a narrow column", () => {
-  assertTruncates(rule(board, '.workitem-live-verb'), '.workitem-live-verb');
-  // Its flex parent, the live line, may be narrower than its content
-  assert.equal(rule(board, '.workitem-card-live').get('min-width'), '0');
-  assert.equal(rule(board, '.workitem-card-live').get('display'), 'flex');
+test("a card's live verb gives way inside its strip on a narrow column", () => {
+  const verb = rule(board, '.workitem-strip-verb');
+  assertGivesWay(verb, '.workitem-strip-verb');
+  assert.equal(verb.get('flex'), '1 1 0');
+  // Its flex parent, the strip, may be narrower than its content and wraps what does not fit
+  const strip = rule(board, '.workitem-strip');
+  assert.equal(strip.get('display'), 'flex');
+  assert.equal(strip.get('flex-wrap'), 'wrap');
+  assert.equal(strip.get('min-width'), '0');
 });
 
-test("a card's ticker verb truncates with an ellipsis, down to no width, and the time keeps its place", () => {
-  const verb = rule(board, '.workitem-card-live.has-ticker .ticker-verb');
-  assertTruncates(verb, 'ticker verb');
-  assert.equal(verb.get('flex'), '1 1 0');
-  // Every box between the live line and the verb may shrink
-  assert.equal(rule(board, '.workitem-card-live.has-ticker .ticker').get('min-width'), '0');
-  assert.equal(rule(board, '.workitem-card-live.has-ticker .ticker-line').get('min-width'), '0');
-  assert.equal(rule(board, '.workitem-card-live.has-ticker .ticker-what').get('display'), 'contents');
-  assert.equal(rule(board, '.workitem-card-live.has-ticker .ticker-elapsed').get('flex'), 'none');
+test("the strip's clock keeps its width beside the verb", () => {
+  assert.equal(rule(board, '.workitem-strip time').get('flex-shrink'), '0');
 });
 
 test('the guard reads rules as the stylesheet writes them', () => {
@@ -60,7 +56,6 @@ test('the guard reads rules as the stylesheet writes them', () => {
   assert.equal(rule(css, '.a').get('overflow'), 'hidden');
   assert.equal(rule(css, '.b .c').get('min-width'), '4px');
   assert.equal(rule(css, '.c').size, 0);
-  assert.throws(() => assertTruncates(rule('.v { overflow: hidden; white-space: nowrap; min-width: 0 }', '.v'), 'v'));
-  // The shared ticker's own verb does not shrink: the card's rule is what makes it
-  assert.equal(rule(readFileSync(PRIMITIVES, 'utf8'), '.ticker-verb').get('flex'), 'none');
+  assert.throws(() => assertGivesWay(rule('.v { min-width: 0; white-space: nowrap }', '.v'), 'v'));
+  assert.throws(() => assertGivesWay(rule('.v { flex: 1 0 auto; min-width: 0 }', '.v'), 'v'));
 });

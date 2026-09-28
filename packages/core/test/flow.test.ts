@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { Worker } from 'node:worker_threads';
 import { flowRunStatus, type AgentryEvent, type AgentryLanguage, type FlowRunDocument, type FlowMemoryProposal, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@agentry/shared';
-import { Db, FLOW_SCHEMA_VERSION, migrate } from '../src/db.ts';
+import { Db, FLOW_CAUSE_SCHEMA_VERSION, FLOW_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import { EventBus } from '../src/events.ts';
 import { FlowError, flowResultSchema, flowTitle, FlowService, parseFlowRunQuery, parseResult, stageRules, testCommandRules, type FlowChatResult, type FlowLaunch } from '../src/flow.ts';
 import { WorkItemService } from '../src/work-items.ts';
@@ -276,7 +276,7 @@ test('a todo check queued while the refine it would repeat was running is cancel
   assert.equal(s.launches.length, 1);
   assert.equal(queued(s).length + running(s).length, 0);
   const check = flowRuns(s).find((r) => r.column === 'todo');
-  assert.deepEqual([check?.outcome, check?.error], ['cancelled', 'it was refined and has not changed since']);
+  assert.deepEqual([check?.outcome, check?.error, check?.cause], ['cancelled', 'it was refined and has not changed since', 'refined']);
 });
 
 test('a developer run that ends well moves the item to review, and QA passing leaves it waiting for approval', async () => {
@@ -503,6 +503,7 @@ test('a person working in the item\'s chat makes the run moot', async () => {
   await s.flow.settled();
   assert.equal(s.launches.length, 0);
   assert.equal(flowRuns(s)[0]?.outcome, 'cancelled');
+  assert.equal(flowRuns(s).find((r) => r.column === 'in_progress')?.cause, 'chat-busy');
 });
 
 test('memory proposals and documents go through only with their modules on', async () => {
@@ -657,6 +658,7 @@ test('every run is held to the budget the project sets, when it sets one', async
   assert.equal(s.launches[0]?.inWorktree, true);
   await s.answer(it.id, {}, true, { cause: 'budget', result: 'budget reached' });
   assert.match(flowRuns(s).at(-1)?.error ?? '', /budget of 0.5 USD/);
+  assert.equal(flowRuns(s).at(-1)?.cause, 'budget');
 });
 
 test("a Developer's run never continues a person's own work chat, only the Developer's chat of an earlier round", async () => {
@@ -755,6 +757,7 @@ test('a restart continues a cut-off run in its own chat at most twice, keeping w
   await third.flow.settled();
   assert.equal(third.launches.length, 0);
   assert.equal(flowRuns(third)[0]?.outcome, 'failed');
+  assert.equal(flowRuns(third)[0]?.cause, 'restarts');
   assert.match(third.items.comments(it.id).at(-1)?.body ?? '', /restarted 3 times/);
 
   // Cut off once more, and its chat is gone: the run fails, and no chat without context starts
@@ -768,6 +771,7 @@ test('a restart continues a cut-off run in its own chat at most twice, keeping w
   assert.equal(again.launches.length, 1);
   assert.equal(flowRuns(again)[0]?.outcome, 'failed');
   assert.match(flowRuns(again)[0]?.error ?? '', /could not be continued after a restart: chat not found/);
+  assert.equal(flowRuns(again)[0]?.cause, 'not-continued');
   assert.match(again.items.comments(lost.id).at(-1)?.body ?? '', /could not be continued after a restart/);
 });
 
@@ -859,6 +863,7 @@ test('a rate limit fails the run when no account is left, when the rotation is o
   const failed = flowRuns(s).find((r) => r.itemId === a.id);
   assert.equal(failed?.outcome, 'failed');
   assert.match(failed?.error ?? '', /rate limit and no other account could take the run over \(no account with quota left\)/);
+  assert.equal(failed?.cause, 'no-account');
   assert.match(s.items.comments(a.id).at(-1)?.body ?? '', /failed and moved nothing/);
   assert.equal(s.items.find(a.id)?.status, 'in_progress');
 
@@ -866,6 +871,7 @@ test('a rate limit fails the run when no account is left, when the rotation is o
   const b = await item(s, 'in_progress', 'B');
   await s.answer(b.id, {}, true, RATE_LIMITED);
   assert.equal(flowRuns(s).find((r) => r.itemId === b.id)?.outcome, 'failed');
+  assert.equal(flowRuns(s).find((r) => r.itemId === b.id)?.cause, 'rate-limit');
 
   // Any other error fails it at once, rotation or not
   const c = await item(s, 'in_progress', 'C');
@@ -957,7 +963,14 @@ test('the query of the activity is checked', () => {
     itemId: 'i1',
   });
   assert.deepEqual(parseFlowRunQuery({}), {});
-  for (const bad of [{ status: 'ended' }, { limit: '0' }, { limit: '2.5' }, { limit: '201' }, { cursor: 'abc' }]) {
+  // The Team activity's names: members by role, `outcome` for `status`, and a moment to page back from
+  assert.deepEqual(parseFlowRunQuery({ role: 'qa', outcome: 'failed', status: 'failed,passed', before: '2026-09-28T10:00:00Z', limit: '50' }), {
+    role: ['qa'],
+    status: ['failed', 'passed'],
+    before: '2026-09-28T10:00:00.000Z',
+    limit: 50,
+  });
+  for (const bad of [{ status: 'ended' }, { outcome: 'ended' }, { limit: '0' }, { limit: '2.5' }, { limit: '201' }, { cursor: 'abc' }, { before: 'yesterday' }]) {
     assert.throws(() => parseFlowRunQuery(bad), (err: unknown) => err instanceof FlowError && err.statusCode === 400, JSON.stringify(bad));
   }
 });
@@ -1031,4 +1044,216 @@ test('a card is live while a Product Owner refines it or QA verifies it, as whil
   working.delete('qa');
   assert.equal(items.find(verified.id)?.activeLink, null);
   db.close();
+});
+
+test('every failed run carries the cause the panel words, beside the raw error', async () => {
+  const s = setup();
+  const last = (itemId: string) => s.flow.itemRuns(itemId)[0];
+  const a = await item(s, 'in_progress', 'A');
+  await s.answer(a.id, {}, true);
+  assert.deepEqual([last(a.id)?.cause, last(a.id)?.error], ['chat-failed', 'it broke']);
+  const b = await item(s, 'in_progress', 'B');
+  await s.answer(b.id, {}, true, { cause: 'stopped' });
+  assert.deepEqual([last(b.id)?.cause, last(b.id)?.error], ['stopped', 'its chat was stopped']);
+  const c = await item(s, 'in_progress', 'C');
+  await s.answer(c.id, { nothing: true });
+  assert.equal(last(c.id)?.cause, 'unreadable');
+  const d = await item(s, 'in_review', 'D');
+  await s.answer(d.id, ok('Looks fine'));
+  assert.equal(last(d.id)?.cause, 'no-verdict');
+  const e = await item(s, 'in_progress', 'E');
+  s.flow.chatEnded(s.chatOf(e.id), null);
+  assert.deepEqual([last(e.id)?.cause, last(e.id)?.error], ['chat-ended', 'the chat ended without a result']);
+  const f = await item(s, 'in_progress', 'F');
+  s.flow.chatEnded(s.chatOf(f.id), 'killed');
+  assert.equal(last(f.id)?.cause, 'chat-failed');
+  s.failNext.message = 'the agent file .claude/agents/developer.md is missing';
+  const g = await item(s, 'in_progress', 'G');
+  s.failNext.message = null;
+  assert.deepEqual([last(g.id)?.outcome, last(g.id)?.cause], ['failed', 'not-started']);
+  // A run still going or one that passed has no cause
+  const h = await item(s, 'in_progress', 'H');
+  assert.equal(last(h.id)?.cause, null);
+  await s.answer(h.id, ok());
+  assert.equal(s.flow.itemRuns(h.id).find((r) => r.stage === 'work')?.cause, null);
+  // The feed carries it, so a client that keeps the run from the event can word it
+  const ended = s.events.filter((ev) => ev.type === 'flow.run' && ev.action === 'ended' && ev.itemId === a.id).at(-1);
+  assert.equal(ended?.type === 'flow.run' ? ended.cause : undefined, 'chat-failed');
+});
+
+test('every cancelled run carries why: the item moved on, was done or removed, or the flow went off', async () => {
+  const s = setup({ settings: { ...settingsWith(), flow: { ...settingsWith().flow!, maxParallel: 1 } } });
+  const cause = (itemId: string, column: WorkItemStatus) => s.flow.itemRuns(itemId).find((r) => r.column === column)?.cause;
+  const a = await item(s, 'in_progress', 'A');
+  const b = await item(s, 'in_progress', 'B');
+  // b waits behind a; a person moving it to todo puts the todo check in its place
+  s.items.move(b.id, { status: 'todo' }, person);
+  await s.flow.settled();
+  assert.equal(cause(b.id, 'in_progress'), 'replaced');
+  s.items.move(b.id, { status: 'done' }, person);
+  await s.flow.settled();
+  assert.equal(cause(b.id, 'todo'), 'item-done');
+  const c = await item(s, 'in_progress', 'C');
+  s.items.remove(c.id, person);
+  await s.flow.settled();
+  assert.equal(cause(c.id, 'in_progress'), 'item-removed');
+  const d = await item(s, 'in_progress', 'D');
+  // A column nobody answers for: the queued run is moot
+  const { backlog: _backlog, ...columns } = s.state.settings.flow!.columns;
+  s.state.settings = { ...s.state.settings, flow: { ...s.state.settings.flow!, columns } };
+  s.items.move(d.id, { status: 'backlog' }, person);
+  await s.flow.settled();
+  assert.equal(cause(d.id, 'in_progress'), 'item-moved');
+  const e = await item(s, 'in_progress', 'E');
+  s.setModules(['board']);
+  await s.flow.settled();
+  assert.deepEqual([cause(a.id, 'in_progress'), cause(e.id, 'in_progress')], ['flow-off', 'flow-off']);
+});
+
+test("the Product Owner's refine is named by its column: refining in backlog, checking in todo", async () => {
+  const s = setup();
+  const refining = await item(s, 'backlog', 'Refine me');
+  const checking = await item(s, 'todo', 'Check me');
+  assert.deepEqual(
+    [s.flow.itemRuns(refining.id)[0]?.step, s.flow.itemRuns(checking.id)[0]?.step],
+    ['refine', 'check'],
+  );
+  assert.deepEqual(s.flow.itemRuns(checking.id).map((r) => r.stage), ['refine']);
+  await s.answer(checking.id, {}, true);
+  assert.match(s.items.comments(checking.id).at(-1)?.body ?? '', /^This check run failed and moved nothing/);
+  const work = await item(s, 'in_progress', 'Work');
+  const verify = await item(s, 'in_review', 'Verify');
+  assert.equal(s.flow.itemRuns(work.id)[0]?.step, 'work');
+  assert.equal(s.flow.itemRuns(verify.id)[0]?.step, 'verify');
+  const queuedEvent = s.events.find((ev) => ev.type === 'flow.run' && ev.itemId === checking.id);
+  assert.equal(queuedEvent?.type === 'flow.run' ? queuedEvent.step : undefined, 'check');
+});
+
+test("a person's retry queues the failed step again, once, while the item is still in the run's column", async () => {
+  const s = setup({ settings: { ...settingsWith(), flow: { ...settingsWith().flow!, maxBounces: 1 } } });
+  const it = await item(s, 'in_review');
+  // QA's first verification sends it back once; the Developer's rework passes; QA's second fails
+  await s.answer(it.id, ok('No', { verdict: 'fail' }));
+  await s.answer(it.id, ok('Fixed'));
+  assert.equal(s.items.find(it.id)?.bounces, 1);
+  await s.answer(it.id, {}, true);
+  const failed = s.flow.itemRuns(it.id)[0];
+  assert.ok(failed);
+  assert.deepEqual([failed.stage, failed.outcome, failed.retryable, failed.retriedBy], ['verify', 'failed', true, null]);
+  // Only a failed run: a passed or rejected one is not retried
+  const rejected = s.flow.itemRuns(it.id).find((r) => r.outcome === 'rejected');
+  assert.ok(rejected);
+  assert.equal(rejected.retryable, false);
+  assert.throws(() => s.flow.retry(rejected.id), (err: unknown) => err instanceof FlowError && err.statusCode === 409);
+  assert.throws(() => s.flow.retry('nope'), (err: unknown) => err instanceof FlowError && err.statusCode === 404);
+
+  const retry = s.flow.retry(failed.id);
+  await s.flow.settled();
+  assert.equal(retry.retryOf, failed.id);
+  assert.deepEqual([retry.stage, retry.column, retry.agent], ['verify', 'in_review', 'qa']);
+  assert.equal(running(s)[0]?.id, retry.id, 'the retry started');
+  // It counts as a person's move: a new round, with the bounces of the old one forgotten
+  assert.equal(s.items.find(it.id)?.bounces, 0);
+  const after = s.flow.run(failed.id);
+  assert.deepEqual([after?.retriedBy?.id, after?.retriedBy?.state, after?.retryable], [retry.id, 'running', false]);
+  // Once: the step has run again
+  assert.throws(() => s.flow.retry(failed.id), (err: unknown) => err instanceof FlowError && err.statusCode === 409 && /retried already/.test(err.message));
+  const queuedEvent = s.events.find((ev) => ev.type === 'flow.run' && ev.runId === retry.id && ev.action === 'queued');
+  assert.equal(queuedEvent?.type === 'flow.run' ? queuedEvent.retryOf : undefined, failed.id);
+
+  // The retry passes: the failed run now says what the step did next, and links its chat
+  await s.answer(it.id, ok('Holds', { verdict: 'pass', criteria: [] }));
+  const done = s.flow.run(failed.id)?.retriedBy;
+  assert.deepEqual([done?.outcome, done?.chatId], ['passed', s.flow.run(retry.id)?.chatId]);
+});
+
+test('a retry is refused once the item left the column, with the flow off, or on a run the step ran again after', async () => {
+  const s = setup();
+  const it = await item(s, 'in_progress');
+  await s.answer(it.id, {}, true);
+  const failed = s.flow.itemRuns(it.id)[0];
+  assert.ok(failed?.retryable);
+  s.setModules(['board']);
+  assert.equal(s.flow.run(failed.id)?.retryable, false);
+  assert.throws(() => s.flow.retry(failed.id), (err: unknown) => err instanceof FlowError && err.statusCode === 409 && /flow is off/.test(err.message));
+  s.setModules(['board', 'team', 'memory', 'documents']);
+  s.items.move(it.id, { status: 'todo' }, person);
+  await s.flow.settled();
+  assert.equal(s.flow.run(failed.id)?.retryable, false);
+  assert.throws(() => s.flow.retry(failed.id), (err: unknown) => err instanceof FlowError && err.statusCode === 409 && /left in_progress/.test(err.message));
+
+  // A card that entered the column again ran the step anew: the failed run points at that run
+  const other = await item(s, 'in_progress', 'Other');
+  await s.answer(other.id, {}, true);
+  const first = s.flow.itemRuns(other.id)[0];
+  s.items.move(other.id, { status: 'todo' }, person);
+  s.items.move(other.id, { status: 'in_progress' }, person);
+  await s.flow.settled();
+  const next = s.flow.run(first?.id ?? '');
+  assert.equal(next?.retriedBy?.id, s.flow.itemRuns(other.id)[0]?.id);
+  assert.equal(next?.retryable, false);
+  assert.equal(s.flow.itemRuns(other.id)[0]?.retryOf, null);
+});
+
+test('a failed todo check is retried as a check, by the Product Owner', async () => {
+  const s = setup({ settings: refineOnly() });
+  const it = await item(s, 'todo');
+  await s.answer(it.id, {}, true);
+  const failed = s.flow.itemRuns(it.id)[0];
+  assert.equal(failed?.step, 'check');
+  s.flow.retry(failed?.id ?? '');
+  await s.flow.settled();
+  assert.deepEqual([running(s)[0]?.retryOf, running(s)[0]?.step, running(s)[0]?.agent], [failed?.id, 'check', 'product-owner']);
+  assert.equal(s.launches.length, 2);
+});
+
+test("the team's activity filters by role and pages back from a moment", async () => {
+  const s = setup();
+  const a = await item(s, 'in_progress', 'A');
+  await s.answer(a.id, {}, true);
+  await new Promise((r) => setTimeout(r, 5));
+  const cut = new Date().toISOString();
+  await new Promise((r) => setTimeout(r, 5));
+  const b = await item(s, 'backlog', 'B');
+  assert.deepEqual(s.flow.page('p1', { role: ['developer'] }).runs.map((r) => r.itemId), [a.id]);
+  assert.deepEqual(s.flow.page('p1', { role: ['product-owner', 'developer'] }).total, 2);
+  assert.deepEqual(s.flow.page('p1', { before: cut }).runs.map((r) => r.itemId), [a.id]);
+  assert.deepEqual(s.flow.page('p1', { role: ['product-owner'], before: cut }).total, 0);
+  assert.ok(s.flow.page('p1').runs.some((r) => r.itemId === b.id));
+});
+
+test('a run ended before causes were kept reads its cause from its error, after the migration', () => {
+  const config = tempConfig();
+  mkdirSync(config.dataDir, { recursive: true });
+  const raw = new DatabaseSync(join(config.dataDir, 'wrapper.db'));
+  migrate(raw, FLOW_CAUSE_SCHEMA_VERSION - 1);
+  const insert = raw.prepare(
+    `INSERT INTO flow_runs (id, project_id, item_id, role, agent, model, stage, column_name, state, outcome, error, queued_at)
+     VALUES (?, 'p1', ?, 'qa', 'qa', 'sonnet', 'verify', 'in_review', 'ended', ?, ?, ?)`,
+  );
+  const rows: Array<[string, string, string | null]> = [
+    ['budget', 'failed', 'it reached its budget of 1 USD (flow.maxCostUsd)'],
+    ['account', 'failed', 'the account hit its rate limit and no other account could take the run over'],
+    ['restarts', 'failed', 'Agentry restarted 3 times while this run worked; move the item again to start it over'],
+    ['unreadable', 'failed', 'the run ended without a readable structured result'],
+    ['cli', 'failed', 'Error: something the CLI said'],
+    ['removed', 'cancelled', 'the item was removed'],
+    ['other', 'cancelled', 'something else'],
+    ['passed', 'passed', null],
+  ];
+  rows.forEach(([id, outcome, error], i) => insert.run(id, `i-${id}`, outcome, error, `2026-09-01T00:00:0${i}.000Z`));
+  raw.close();
+  const s = setup({ db: new Db(config) });
+  const causes = Object.fromEntries(rows.map(([id]) => [id, s.flow.run(id)?.cause]));
+  assert.deepEqual(causes, {
+    budget: 'budget',
+    account: 'no-account',
+    restarts: 'restarts',
+    unreadable: 'unreadable',
+    cli: 'chat-failed',
+    removed: 'item-removed',
+    other: null,
+    passed: null,
+  });
+  assert.equal(s.flow.run('budget')?.retryOf, null);
 });
