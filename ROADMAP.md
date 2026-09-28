@@ -212,6 +212,13 @@
   See [docs/assistant.md](docs/assistant.md). A review of the whole feature followed, and a fifth
   orchestration fixed its findings
   ([the audit](docs/plans/project-ecosystem-audit.md#review-of-the-whole-feature-before-the-pull-request)).
+  A sixth closed the 24 gaps the documents still listed: live cards while a member refines or
+  verifies, every run of an item and the team's whole activity, a run that waits for the account
+  rotation, one refine per backlog card, the flow's limits on screen, a member's shell commands,
+  the assistant from every tab, "Crear con IA" streaming its file, chats titled in the person's
+  language, a route by key, paged Done and lists, phone screens with their own heads, and the web
+  files over 400 lines split
+  ([the plan](docs/plans/project-ecosystem.md#orchestration-6-ecosystem-gaps)).
   The whole ecosystem reaches `main` in one pull request from `feat/project-ecosystem`, once the
   owner has tried it.
 
