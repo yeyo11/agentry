@@ -325,7 +325,7 @@ export class Core {
         const record = this.requireProject(id);
         return { ...record, settings: await this.projectSettings(id) };
       },
-      saveSettings: (id, settings) => this.saveProjectSettings(id, settings),
+      saveSettings: (id, settings) => this.saveTeamSettings(id, settings),
       emit: (event) => this.events.emit(event),
     });
     this.uploads = new UploadStore(config.dataDir);
@@ -1103,6 +1103,25 @@ export class Core {
     await this.projectSettingsStore.write(record, settings, active);
     this.projectUpdated(record, settingsChanges(before, settings), settings.modules);
     return settings;
+  }
+
+  /**
+   * What the team writes: only its team and its flow. The team hands back the whole document it
+   * read, and writing all of it would put back a module switched since that read, and replace a part
+   * a hand edit broke with the default the read answered for it.
+   */
+  private async saveTeamSettings(id: string, settings: ProjectSettings): Promise<ProjectSettings> {
+    const record = this.requireProject(id);
+    const { before, after } = await this.projectSettingsStore.update(
+      record,
+      (current) => {
+        const { team: _team, flow: _flow, ...rest } = current;
+        return parseProjectSettings({ ...rest, ...(settings.team ? { team: settings.team } : {}), ...(settings.flow ? { flow: settings.flow } : {}) });
+      },
+      this.projectStore.list(),
+    );
+    this.projectUpdated(record, settingsChanges(before, after), after.modules);
+    return after;
   }
 
   private requireProject(id: string): ProjectRecord {
