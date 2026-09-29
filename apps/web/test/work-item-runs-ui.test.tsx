@@ -14,7 +14,7 @@ import i18n from '../src/i18n';
 import { FailedFlowRunNote } from '../src/pages/chat/FailedFlowRun';
 import { Activity } from '../src/pages/tasks/item/Activity';
 import type { ItemActions } from '../src/pages/tasks/item/hooks';
-import { chatlessRuns } from '../src/pages/tasks/item/model';
+import { chatlessRuns, linkEntries } from '../src/pages/tasks/item/model';
 import { latestOfStep, RunLinkRow } from '../src/pages/tasks/item/RunLink';
 import { WaitingBadge } from '../src/pages/tasks/item/Waiting';
 
@@ -179,6 +179,53 @@ test("a run that failed before its chat started is on the item's links, with its
   const waiting = text(render(<RunLinkRow link={null} run={queued} item={item} chat={undefined} latest />));
   assert.match(waiting, /queued/);
   assert.doesNotMatch(waiting, /did not move/);
+});
+
+test("every run in a chat the Developer continued is a link of its own, so a failure a retry covered stays on the item", () => {
+  // CW-25 on claude-wrapper: four Developer runs in one chat, two of them failed (no account, then a
+  // rate limit) and each retried in that same chat; the item drew only the newest, which passed
+  const at = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+  const dev = (over: Partial<FlowRun>) => run({ role: 'developer', agent: 'developer', stage: 'work', step: 'work', column: 'in_progress', chatId: 'c-dev', ...over });
+  const runs = [
+    dev({ id: 'r4', retryOf: 'r3', queuedAt: at(10) }),
+    dev({ id: 'r3', outcome: 'failed', cause: 'rate-limit', error: 'the account hit its rate limit', queuedAt: at(20) }),
+    run({ id: 'r-qa', chatId: 'c-qa', outcome: 'rejected', queuedAt: at(30) }),
+    dev({ id: 'r2', retryOf: 'r1', queuedAt: at(40) }),
+    dev({ id: 'r1', outcome: 'failed', cause: 'no-account', error: 'no account with quota left', queuedAt: at(50) }),
+    run({ id: 'r-queued', chatId: null, state: 'queued', outcome: null, startedAt: null, endedAt: null, queuedAt: at(5) }),
+  ];
+  const links = [link('c-dev', { teamRole: 'developer', role: 'work', createdAt: at(50) }), link('c-qa', { createdAt: at(30) }), link('c-person', { teamRole: null, createdAt: at(60) })];
+  const entries = linkEntries(links, runs);
+  assert.deepEqual(
+    entries.map((e) => e.run?.id ?? e.link?.id),
+    ['r-queued', 'r4', 'r3', 'r-qa', 'r2', 'r1', 'l-c-person'],
+    'each run once, newest first, and a chat no run stands for as its own link',
+  );
+  assert.ok(entries.filter((e) => e.run?.chatId === 'c-dev').every((e) => e.link?.chatId === 'c-dev'), "the chat's runs all open that chat");
+  const failedRows = entries.flatMap((e) => (e.run?.outcome === 'failed' ? [render(<RunLinkRow link={e.link} run={e.run} item={item} chat={undefined} latest={latestOfStep(e.run, runs)} />)] : []));
+  assert.equal(failedRows.length, 2, 'both failures are drawn');
+  for (const html of failedRows) {
+    assert.match(text(html), /Developer implements AGN-26/);
+    assert.match(html, /badge-bad/);
+    assert.match(html, /href="\/chats\/c-dev"/, "a failed run's link opens the chat it ran in");
+  }
+  assert.match(text(failedRows[0] ?? ''), /reached its limit/);
+  assert.match(text(failedRows[1] ?? ''), /No account had quota left/);
+});
+
+test("a flow's chat link waits for the item's runs rather than flashing as a plain chat", () => {
+  // On claude-wrapper the links first read "idle" with no squircle, then turned into their runs
+  const links = [link('c-dev', { teamRole: 'developer' }), link('c-person', { teamRole: null, createdAt: '2026-09-27T09:00:00.000Z' })];
+  assert.deepEqual(
+    linkEntries(links, null).map((e) => e.link?.id),
+    ['l-c-person'],
+    "until the runs answer, only the links no flow run stands for",
+  );
+  assert.deepEqual(
+    linkEntries(links, []).map((e) => e.link?.id),
+    ['l-c-dev', 'l-c-person'],
+    'once they answered, a flow chat with no run on record is still drawn, as a chat',
+  );
 });
 
 test("the activity draws a failed run's comment from the run, names each flow comment's run, and tells the retry", () => {

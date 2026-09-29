@@ -332,9 +332,32 @@ export function chatlessRuns<R extends Pick<FlowRun, 'chatId'>>(links: readonly 
   return runs.filter((run) => !run.chatId || !chats.has(run.chatId));
 }
 
-/** Newest first: the chat working now, then the ones before it. */
-export function sortLinks<T extends Pick<WorkItemLink, 'createdAt'>>(links: readonly T[]): T[] {
-  return [...links].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+/**
+ * The rows of an item's links, newest first: one per flow run, and one per link no run stands for.
+ * The Developer continues its own chat from one run to the next (a retry, a round QA sent back), so
+ * a chat can hold several runs; each is a row of its own on that chat's link, or a failure the
+ * newest run in the chat covers would vanish from the item (CW-20, on claude-wrapper's real data).
+ * A run with no chat link (queued, or failed before its chat started) is a row without a link.
+ * `runs` is null until the item's runs have answered: a flow's chat link is left out meanwhile,
+ * since drawn as a plain chat it would read "idle" with no squircle and then turn into its runs.
+ */
+export function linkEntries<L extends Pick<WorkItemLink, 'kind' | 'chatId' | 'teamRole' | 'createdAt'>, R extends Pick<FlowRun, 'id' | 'chatId' | 'queuedAt'>>(
+  links: readonly L[],
+  runs: readonly R[] | null,
+): { at: string; link: L | null; run: R | null }[] {
+  if (runs === null) return links.filter((link) => !link.teamRole).map((link) => ({ at: link.createdAt, link, run: null })).sort((a, b) => b.at.localeCompare(a.at));
+  const drawn = new Set<string>();
+  const entries: { at: string; link: L | null; run: R | null }[] = [];
+  for (const link of links) {
+    const own = link.teamRole && link.kind === 'chat' && link.chatId ? runs.filter((run) => run.chatId === link.chatId && !drawn.has(run.id)) : [];
+    for (const run of own) {
+      drawn.add(run.id);
+      entries.push({ at: run.queuedAt, link, run });
+    }
+    if (own.length === 0) entries.push({ at: link.createdAt, link, run: null });
+  }
+  for (const run of chatlessRuns(links, runs)) entries.push({ at: run.queuedAt, link: null, run });
+  return entries.sort((a, b) => b.at.localeCompare(a.at));
 }
 
 // ---------- actions ----------
