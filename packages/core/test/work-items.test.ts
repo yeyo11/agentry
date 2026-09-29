@@ -920,7 +920,7 @@ test('the migration applies on top of a database at the previous version and kee
   const tables = (check.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND (name LIKE 'work_item%' OR name = 'milestones')").all() as Array<{ name: string }>).map(
     (t) => t.name,
   );
-  assert.deepEqual(tables.sort(), ['milestones', 'work_item_comments', 'work_item_counters', 'work_item_criteria', 'work_item_history', 'work_item_labels', 'work_item_links', 'work_item_relations', 'work_items']);
+  assert.deepEqual(tables.sort(), ['milestones', 'work_item_comments', 'work_item_counters', 'work_item_criteria', 'work_item_history', 'work_item_labels', 'work_item_links', 'work_item_pull_requests', 'work_item_relations', 'work_items']);
   const indexes = (check.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'work_items'").all() as Array<{ name: string }>).map((i) => i.name);
   assert.ok(indexes.includes('work_items_board'), 'indexed by project and status');
   check.close();
