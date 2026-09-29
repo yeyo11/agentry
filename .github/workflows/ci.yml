@@ -27,9 +27,11 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # The e2e suite has grown with the app: the job took 7.5 of its 10 minutes on #62. About 2.5x
-    # that, rounded up to 5 minutes, so a slow runner does not fail a run that was going to pass
-    timeout-minutes: 20
+    # The e2e suite has grown with the app: the job took 7.5 of its 10 minutes on #62, then 19.8 of
+    # its 20 on #124 after the project ecosystem, and #123 and #125 were cut off at 20 with nothing
+    # failing. Room until the suite is sharded (work item CW-3), so a slow runner does not fail a
+    # run that was going to pass
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v7
 
