@@ -1,8 +1,9 @@
 ---
 created_at: 2026-09-27T06:00:00Z
-updated_at: 2026-09-28T22:00:00Z
+updated_at: 2026-09-29T12:00:00Z
 tags:
     - work-items
+    - pull-request
     - board
     - milestones
     - orchestration
@@ -227,7 +228,8 @@ fails, the chat just started is stopped and the error returned, so no chat runs 
 
 `GET /work-items/:itemId/changes` and `…/changes/diff?path=` show what the item's branch changed,
 read by `changes.ts` exactly as a chat's worktree is: commits, files and what is not committed yet.
-Once the worktree is gone the branch is still read by name. There is no automatic pull request.
+Once the worktree is gone the branch is still read by name, so an item merged and cleaned up (see
+[its pull request](#approving-opens-its-pull-request)) still shows what it changed.
 Both take the scope (`?commit=`, `?uncommitted=1`) and the diff its `?context=`, as a chat's and a
 task's routes do since `main`'s changes review, so the review screen reads an item the same way.
 
@@ -236,6 +238,89 @@ automation records a node's when the node's status changes, but only while the i
 worktree of its own, which a node never takes over. So an item worked only by an orchestration shows
 the node's changes, and "Work on it" afterwards branches its own worktree from the node's branch.
 The changes are measured from where the branch left the project's checkout, not the main one's.
+
+### Approving opens its pull request
+
+The owner's decision of 2026-09-28 (option A, [plans/work-item-pull-requests.md](plans/work-item-pull-requests.md)):
+**approving an item opens its pull request**, the person merges it on GitHub as always (squash), and
+**a merged PR moves the item to Done and brings the checkout forward**. A local merge queue (B) was
+rejected because it changes `main` without a PR or CI, and warnings alone (C) because nothing would
+reach `main` without a person pushing each branch by hand.
+
+`PullRequestService` (`packages/core/src/pull-requests.ts`) runs `git` and `gh` itself, in Agentry's
+own process, as the person and only on their request, as `Orchestrator.pullRequest()` does for an
+integration branch. No agent ever pushes: every flow run keeps `git push` denied
+([team-and-flow.md](team-and-flow.md#what-a-run-may-do)).
+
+**Readiness.** `readiness(projectPath)` answers `ready` or one reason: `not-git`, `no-remote`,
+`not-github` (a host `gh` does not know), `no-gh`, `gh-unauthenticated` or `no-default-branch`. The
+default branch is `refs/remotes/origin/HEAD`, or else what `gh repo view` says. The answer is cached
+for 60 s per project, so a board read does not run `gh auth status` every time. It comes back on the
+project's board (`Board.pullRequestReadiness`) and on the item's page
+(`WorkItemDetail.pullRequestReadiness`). A project that is not ready says why on the card and in the
+waiting panel, in warn with words, and "Mover a Hecho" keeps working as before.
+
+**Approving.** `POST /work-items/:itemId/pull-request` is what "Aprobar y abrir PR" (the approval of
+an item QA passed, in a ready project) and "Abrir PR" (any item in `in_review`) call. It refuses an
+epic (400); an item not in `in_review`, one a chat or a flow run is working on, a branch with no
+commit ahead of the default branch and nothing uncommitted, or a project that is not ready (409, with
+the reason in `code`). With a PR open or being prepared it answers 200 with that PR and does nothing
+else. Otherwise it answers 202 at once, with `pullRequest.phase: 'preparing'`, and in the item's
+worktree:
+
+1. commits whatever QA verified and nobody committed, as `chore(<key>): keep the work QA verified`;
+2. fetches the default branch and merges `origin/<default>` into `task/<key>` (a merge, not a
+   rebase: the PR is squash-merged anyway, and what was pushed stays valid);
+3. pushes `task/<key>` (`git push -u origin`);
+4. opens the PR with `gh pr create --base <default> --body-file -`, and reads its number and URL back
+   with `gh pr view`. The title is `<type>: <title> (<KEY>)`, the type the item's first Conventional
+   label or else `fix` for a bug and `feat` for the rest. The body is the description, each criterion
+   as `[x]`/`[ ]` with QA's note from its newest passing verification (a verify run now keeps its
+   criteria, `flow_runs.criteria`), and a link to `<web origin>/tasks/<KEY>`.
+
+The item stays in `in_review` with `waiting: 'merge'`. A failed step records `phase: 'failed'` with
+its code (`commit`, `fetch`, `merge`, `push`, `create`) and git's or gh's first line of error, and the
+item waits for approval again. Each step reaches the feed as `workitem.updated`, with `pull_request`
+among its changes.
+
+**A conflict** when merging the default branch pushes nothing. The merge stays in progress in the
+worktree, markers and all, the PR row goes to `conflict` with the conflicting paths, and the item
+moves to `in_progress` as the person (the approval was theirs) with the cause `pr.conflict`; the
+history names the files. With the flow on, that move starts the Developer's run, whose prompt lists
+every path; when it ends, Agentry commits the merge if it is resolved but still open, or fails the run
+with `conflict-unresolved` if paths are left. The approval is remembered (`awaiting-verify`), so QA's
+pass opens the PR with no second click, unless a person moved the item meanwhile. Without a flow, the
+item waits in `in_progress` with the conflict on its page, and approving again after the person
+resolves it goes on from there.
+
+**The watcher.** GitHub cannot push events to a local CLI, so `PullRequestWatcher` is **the one
+deliberate poll** of the work item automation. For each open PR it runs
+`gh pr view <n> --json state,mergedAt,statusCheckRollup,url`, one at a time: every 60 s, once on
+start (after the chats are restored), and on `POST /work-items/:itemId/pull-request/refresh`, which
+the item's page calls when it opens. After a `gh` error it leaves that project alone for 5 minutes.
+`statusCheckRollup` becomes the CI state: `none` without checks, `failing` when one failed, was
+cancelled or timed out, `pending` while one is queued or running, and `passing` otherwise. Only a
+change is announced. Several wrapper processes share one database, so each check is claimed with a
+guarded update under `BEGIN IMMEDIATE`, and its outcome is written only while the row is still
+`open`: a merge is handled once.
+
+**Merged.** The item moves to Done from whatever column it is in, as the person (the merge on GitHub
+was their act, and decision 29 holds), with the cause `pr.merged` and the PR's number and URL in the
+history; its `closed` journal entry follows as for any move to Done. Its worktree is unlocked and
+removed only when nothing in it is uncommitted; otherwise it is kept and the PR says why
+(`error.code: 'worktree-kept'`). The local branch stays, so the item's Changes still read it. The
+main checkout then fetches the default branch and runs `git merge --ff-only origin/<default>` only
+when it is on the default branch with no change to a tracked file.
+
+**Closed without merging.** The PR is recorded as `closed` and the item stays in `in_review` with
+`waiting: 'approval'`; the card says "PR #N cerrada sin fusionar", and approving again opens a new
+PR. The closed one stays in the item's rows and history.
+
+**Storage.** A PR is an accumulating record: one row per PR in `work_item_pull_requests`, and
+`WorkItem.pullRequest` is the item's newest.
+
+Out of scope: updating the branches of other open items when `main` moves, hosts other than GitHub,
+webhooks, deleting the remote branch after a merge, and merging from Agentry.
 
 ### "Orchestrate"
 
@@ -312,7 +397,8 @@ it clears `waiting` and resets `bounces` to 0. See
 ## The automation
 
 `WorkItemAutomation` (`packages/core/src/work-links.ts`) moves items as the chats and nodes linked to
-them work. It listens to events that already exist, never polls:
+them work. It listens to events that already exist, never polls (the one poll of the automation is
+the [pull request watcher](#approving-opens-its-pull-request), since GitHub cannot reach a local CLI):
 
 | What happened | The item moves to | Cause code |
 | --- | --- | --- |
@@ -347,6 +433,11 @@ be updated must not break a chat. An item whose chat was cut by a restart stays 
 flow run is using is the flow's while the run goes on, and the automation leaves it alone. A move
 the automation makes (actor `system`) never starts a flow run, and the flow's own moves have the
 actor `agent` with the member's role. See [team-and-flow.md](team-and-flow.md#the-flow-by-column).
+
+**The item's pull request** moves it too, with causes of its own: `pr.conflict` (back to
+`in_progress`, as the person), `pr.merged` (to Done, as the person, from any column but Done), and
+`pr.opened` and `pr.closed` on its `waiting` (`merge`, then `approval` again). See
+[Approving opens its pull request](#approving-opens-its-pull-request).
 
 ## Events
 
@@ -409,6 +500,12 @@ an imported one may take later, so the imported project's item wins.
 
 ### The board
 
+- **The checkout line.** A project's board carries `checkout`, computed from local git only (no fetch
+  on read): the default branch, the checkout's branch, how many commits it is `behind`
+  `origin/<default>`, and why it was not brought forward (`not-on-default`, `dirty`, `diverged`).
+  When `behind > 0` the board shows one quiet warn line under its toolbar, such as "La copia de
+  trabajo va 3 commits por detrás de origin/main: tiene cambios sin confirmar". It names the reason
+  and never offers a command to copy. `checkout` is null for a project that cannot open PRs.
 - **Columns.** There are five, each with its glyph, mono label, count and optional limit. A column
   over its limit is quiet (decision 1 of the design review): a 2 px warn hairline on top and one line
   of warn text, "Over the limit: 4 of 3", with no tinted box and no warn border on its cards. It never
@@ -630,4 +727,4 @@ without descriptions, with Done and the lists paged (20).
 
 ## Related
 
-[[projects.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[projects.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/work-item-pull-requests.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T23:00:00Z
-updated_at: 2026-09-28T23:00:00Z
+updated_at: 2026-09-29T12:00:00Z
 tags:
     - work-items
     - flow
@@ -11,7 +11,7 @@ tags:
 ---
 # CW-22 · An approved card opens its pull request, and a merged one reaches Done
 
-**Status**: specified, not built. **Decision**: the owner's, 2026-09-28, option A.
+**Status**: built (CW-22, see [As built](#as-built)). **Decision**: the owner's, 2026-09-28, option A.
 
 ## Why
 
@@ -318,6 +318,33 @@ added: the page already has its primary action.
   - add `conflict-unresolved` to the causes;
   - add that the push is Agentry's own, while `git push` stays denied to every run.
 - **README**: add the two routes to the Work items table.
+
+## As built
+
+Where the build settled what the plan left open, or read it more narrowly:
+
+- **The module.** `PullRequestService` and `PullRequestWatcher` live in
+  `packages/core/src/pull-requests.ts`; `Core.pullRequests` holds the service and the watcher starts
+  once the runtime has restored its chats. git and gh run asynchronously (`execFile`, arguments, no
+  shell), with `GIT_TERMINAL_PROMPT=0` and `GH_PROMPT_DISABLED=1`, so nothing waits for a password.
+- **Readiness** is on the item's page (`WorkItemDetail.pullRequestReadiness`, where the plan said
+  `WorkItemPage`, the list's page type) and on a project's board (`Board.pullRequestReadiness`), as
+  `{ status: 'ready' | <reason>, detail, defaultBranch }`. A host other than `github.com` is
+  `not-github` unless `gh auth status --hostname <host>` knows it.
+- **The history** gains the change `pull_request`, whose value is `{ phase, number, url, conflicts }`,
+  for opened, conflicted, merged and closed; the `pr.*` causes are on it and on the moves and
+  `waiting` changes they make (`WORK_ITEM_PR_CAUSE` in `packages/shared/src/work-items.ts`). A cause
+  of the PR's own carries no chat.
+- **409s carry `code`**: `not-in-review`, `busy`, `nothing-to-propose`, or the readiness reason. The
+  API's error handler adds `code` to a deliberate refusal that names a `reason`.
+- **Step codes**: `commit`, `fetch`, `merge` (a merge that failed without a conflict, which is
+  aborted), `push`, `create`. On a merged PR, `worktree-kept` says the worktree had uncommitted work.
+- **QA's notes** are kept on the verify run (`flow_runs.criteria`, added by the same migration as
+  `work_item_pull_requests`), since the plan's body quotes them and runs kept only their summary.
+- **A remembered approval dropped** by a person's move deletes that attempt's row (no PR was ever
+  opened for it); its `pull_request` and status entries stay in the history.
+- **Without a flow**, a person who resolves the conflict by hand approves again; a conflicted path
+  still there sends the item back to `conflict` without committing anything.
 
 ## Related
 

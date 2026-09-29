@@ -13227,6 +13227,22 @@
     ],
     "description": "What the item's own branch changed, read from git the way a chat's worktree is."
   },
+  "WorkItemPullRequestResult": {
+    "type": "object",
+    "properties": {
+      "item": {
+        "$ref": "#/components/schemas/WorkItem"
+      },
+      "pullRequest": {
+        "$ref": "#/components/schemas/WorkItemPullRequest"
+      }
+    },
+    "required": [
+      "item",
+      "pullRequest"
+    ],
+    "description": "The answer of `POST /work-items/:itemId/pull-request`: 202 while it is prepared, 200 when one was open already."
+  },
   "Team": {
     "type": "object",
     "properties": {

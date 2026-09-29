@@ -61,7 +61,7 @@ const ROOT_TYPES = [
   'WorkItemPage', 'WorkItemPageQuery', 'BoardQuery',
   // Work items with chats and orchestrations
   'WorkOnWorkItemRequest', 'WorkOnWorkItemResult', 'OrchestrateWorkItemsRequest', 'WorkItemOrchestrationDraft', 'CreateWorkItemFromMessageRequest',
-  'WorkItemChanges',
+  'WorkItemChanges', 'WorkItemPullRequestResult',
   // Team, flow by column, journal, memory proposals and documents
   'Team', 'TeamMember', 'TeamFromTemplateRequest', 'PutTeamMemberRequest', 'ProjectFlow', 'FlowRun', 'FlowRunPage', 'FlowWaiting', 'FlowStartWaitingResult', 'FlowRunResult',
   'JournalPage', 'JournalEntry', 'CreateJournalEntryRequest', 'MemoryProposal', 'ApproveMemoryProposalRequest', 'RejectMemoryProposalRequest',
