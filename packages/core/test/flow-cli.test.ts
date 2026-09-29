@@ -158,6 +158,12 @@ test('each stage runs with its own rules, its budget and no recorded system prom
   const core = new Core(config);
   try {
     const dir = repo();
+    // A pnpm project: QA calls its check scripts by their short names (CW-26)
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'shop', scripts: { test: 'node --test', typecheck: 'tsc --noEmit', build: 'tsc' } }));
+    writeFileSync(join(dir, 'pnpm-lock.yaml'), '');
+    const git = (...args: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { stdio: 'pipe' });
+    git('add', '-A');
+    git('commit', '-q', '-m', 'pnpm');
     const project = await flowProject(core, dir, (s) => ({ ...s, flow: { ...s.flow!, maxCostUsd: 1.5, columns: { backlog: 'product-owner', in_progress: 'developer', in_review: 'qa' } } }));
     // A person's own agent file for QA: its tools as a block list, and a model its metadata does not say
     writeFileSync(join(dir, '.claude', 'agents', 'qa.md'), '---\nname: qa\ndescription: Verifies\nmodel: haiku\ntools:\n  - Read\n  - Grep\n  - Bash\n---\nVerify it.\n');
@@ -188,7 +194,8 @@ test('each stage runs with its own rules, its budget and no recorded system prom
     assert.ok(!flagOf(po, 'allowedTools').some((r) => r.startsWith('Bash') || r.startsWith('Web')));
     assert.ok(flagOf(dev, 'allowedTools').includes('WebFetch'));
     const qaTools = flagOf(qa, 'allowedTools');
-    assert.ok(qaTools.includes('Bash(npm run test)'));
+    for (const rule of ['Bash(pnpm test)', 'Bash(pnpm run test)', 'Bash(pnpm typecheck)', 'Bash(pnpm typecheck *)']) assert.ok(qaTools.includes(rule), rule);
+    assert.match(qa, /--permission-mode dontAsk/);
     assert.ok(!qaTools.some((r) => r === 'Bash' || r.startsWith('Web') || r.includes('build')));
 
     const agentsFile = /--agents (\S+\.json)/.exec(qa)?.[1];
