@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T01:59:47.104538408Z
-updated_at: 2026-09-28T22:00:00Z
+updated_at: 2026-09-28T22:45:00Z
 tags:
     - plan
     - projects
@@ -23,14 +23,14 @@ CONTRIBUTING.md and [docs/design-system.md](../design-system.md). Where a task p
 disagree, the plan wins; where the plan and the design system disagree on a visual detail, the
 design system wins.
 
-Status: **every orchestration built, on 2026-09-27.** Orchestration 1 (`ecosystem-foundation`) was
+Status: **merged into `main` in #118 on 2026-09-28.** Orchestration 1 (`ecosystem-foundation`) was
 fixed by 1b (`ecosystem-fixes`) after [its audit](project-ecosystem-audit.md). The owner validated
 the prototypes, and orchestrations 2 (`ecosystem-board-web`), 3 (`ecosystem-team`) and 4
 (`ecosystem-assistant`) built the web, the team and the assistant on them. On 2026-09-28
-orchestration 5 (`ecosystem-review-fixes`) fixed the review of the whole feature, and orchestration 6
-(`ecosystem-gaps`) closed the 24 gaps the documents still listed. Everything is on
-`feat/project-ecosystem`, waiting for the owner to try the whole feature before its one pull request
-to `main`. See [Outcome](#outcome).
+orchestration 5 (`ecosystem-review-fixes`) fixed the review of the whole feature, orchestration 6
+(`ecosystem-gaps`) closed the 24 gaps the documents still listed, and orchestration 7
+(`ecosystem-design`) brought the screens to the designer's reference. The ecosystem was merged into
+`main` in #118 on 2026-09-28 (`1eac40b8`) and released in 0.23.0. See [Outcome](#outcome).
 
 ## Why
 
@@ -1163,6 +1163,9 @@ Once the graph is integrated: `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm
 
 ## Outcome
 
+The whole ecosystem merged into `main` in #118 on 2026-09-28 (`1eac40b8`), in one pull request
+from `feat/project-ecosystem`. What each orchestration delivered follows.
+
 Orchestration 1 (`ecosystem-foundation`) delivered every task of Stages 0 to 4 on its integration
 branch. What it built is described in [projects.md](../projects.md) and
 [work-items.md](../work-items.md); this section says what each task delivered and where it went past
@@ -1691,9 +1694,12 @@ The four orchestrations delivered all 40 decisions. What they left open is close
   ([its section below](#orchestration-6-ecosystem-gaps-1)). One detail stays partly open, with its
   reason, in [team-and-flow.md](../team-and-flow.md#known-gaps): a member's model is followed by the
   CLI's name for it only when the CLI's own model list names it.
-- **The whole feature has not yet been verified end to end on `feat/project-ecosystem`.** Each
-  orchestration's `pnpm e2e` runs in its own verification phase. After that, the owner tries the
-  feature and opens its one pull request to `main`.
+- **The e2e run on merged `main`** (`cc08204e`, 0.23.0, on 2026-09-28) **failed**: 47 of 55 specs
+  passed, `chat.spec.mjs` was skipped, 6 failed and the run hit its 1,500 s limit before
+  `tasks-links.spec.mjs`. Run alone, `orchestration-v2`, `team`, `tasks-item` and `tasks-links`
+  pass; `home` (the figures are a strip under the hero), `paging` (no long tasks while typing) and
+  `shell` ("and on the project's tabs") fail alone too. `pnpm typecheck` and
+  `pnpm test` (1,898 tests) pass. See [status.md](../status.md#how-it-is-checked).
 
 ### Merging `main` (0.22.0) into the branch
 

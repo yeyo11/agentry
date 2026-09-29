@@ -215,6 +215,23 @@ export function commitAll(dir: string, message: string): string | null {
   return headCommit(dir);
 }
 
+/**
+ * Commits these paths, relative to `dir`, and nothing else: whatever else is staged or changed there
+ * stays as it was, since `commit -- <paths>` records only the paths it is given. Same identity and
+ * hooks as {@link commitAll}. Returns the new commit.
+ */
+export function commitPaths(dir: string, message: string, paths: string[]): string {
+  git(dir, ['--literal-pathspecs', 'add', '--', ...paths]);
+  try {
+    execFileSync('git', ['-C', dir, '--literal-pathspecs', ...identity(dir), 'commit', '--no-verify', '-q', '-m', message, '--', ...paths], { stdio: 'pipe', timeout: 60_000 });
+  } catch (err) {
+    const e = err as { stderr?: Buffer | string; stdout?: Buffer | string; message: string };
+    const detail = `${String(e.stderr ?? '')}\n${String(e.stdout ?? '')}`.trim() || e.message;
+    throw new Error(`git commit: ${detail.split('\n').slice(0, 6).join('\n')}`);
+  }
+  return headCommit(dir);
+}
+
 /** Deletes a branch whose work is being thrown away; one that is not there is already gone. */
 export function deleteBranch(repo: string, branch: string): void {
   if (branchExists(repo, branch)) git(repo, ['branch', '-D', branch]);

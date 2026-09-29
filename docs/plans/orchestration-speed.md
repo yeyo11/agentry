@@ -138,7 +138,7 @@ resuming, when another account has quota.
   gitignored file, so that every CI job computes the same split: see
   [verify-faster.md, What §1 built](verify-faster.md#what-1-built).
 - **Parallel groups** in `VerificationSpec.commands`: an entry can be a list of commands that run at
-  the same time, for example `[["pnpm typecheck", "pnpm test"], "pnpm build", "pnpm e2e"]`. This
+  the same time, for example `[ ["pnpm typecheck", "pnpm test"], "pnpm build", "pnpm e2e" ]`. This
   saves 2–4 min on every pass, and there are two passes whenever the fixer works. Re-running
   everything from the first check after a fix is kept, for the reason `checkAll` gives.
 - The fixer is told which specs failed, parsed from the `✗ <file>` lines of the runner. That way it
@@ -229,4 +229,4 @@ worker-checks ┘ graph-shape ──┘
 
 ## Related
 
-[[plans/agent-observability.md]] · [[orchestrations.md]] · [[pinned-chat-rotation.md]] · [[plans/post-roadmap.md]] · [[e2e]]
+[[plans/agent-observability.md]] · [[pinned-chat-rotation.md]] · [[plans/post-roadmap.md]] · [[status.md]]

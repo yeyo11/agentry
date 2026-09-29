@@ -27,6 +27,8 @@
 //
 //   FAKE_CLAUDE_SPAWNS=<file>     appends `<pid> <argv>` to <file> as it starts, so a test can count
 //                                 every process spawned, tracked or not
+//   FAKE_CLAUDE_PROMPTS=<file>    appends one JSON line `{ cwd, resume, prompt }` per turn it is sent, so a
+//                                 test can read what a run was told and where
 //   FAKE_CLAUDE_LINGER_MS=<ms>    stays up that long after stdin closes, the way the CLI does while
 //                                 background work finishes
 //
@@ -85,6 +87,7 @@ lines.on('line', (line) => {
   const prompt = typeof content === 'string' ? content : content.map((b) => b.text ?? '').join('\n');
   const sessionId = flag('--session-id') ?? flag('--resume') ?? randomUUID();
   out({ type: 'system', subtype: 'init', session_id: sessionId, cwd: dir, model: 'fake', tools: [] });
+  if (process.env.FAKE_CLAUDE_PROMPTS) appendFileSync(process.env.FAKE_CLAUDE_PROMPTS, `${JSON.stringify({ cwd: dir, resume: flag('--resume') ?? null, prompt })}\n`);
 
   for (const [, file, text] of prompt.matchAll(/^FAKE-WRITE (\S+) (.*)$/gm)) writeFileSync(join(dir, file), `${text}\n`);
   if (prompt.includes('You are integrating the work')) {
