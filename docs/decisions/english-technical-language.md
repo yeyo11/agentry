@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T13:20:05.451659371Z
-updated_at: 2026-09-28T22:45:00Z
+updated_at: 2026-09-29T12:00:00Z
 tags:
     - decision
     - language
@@ -12,7 +12,7 @@ tags:
 ---
 # Decision: everything technical is in English, including what agents record
 
-Decided by the owner on 2026-09-28 (option B of three), while discussing the [[plans/decision-engine.md|decision engine with Jev]]. Not yet written into CONTRIBUTING.md or CLAUDE.md. The decision deferred that until the project ecosystem reached main, which it did in #118 on 2026-09-28, so writing it in is now a follow-up of its own.
+Decided by the owner on 2026-09-28 (option B of three), while discussing the [decision engine with Jev](decision-engine.md). Not yet written into CONTRIBUTING.md or CLAUDE.md. The decision deferred that until the project ecosystem reached main, which it did in #118 on 2026-09-28, so writing it in is now a follow-up of its own.
 
 ## The rule
 
@@ -37,4 +37,4 @@ Options rejected: A) keep records in the conversation's language and measure in 
 
 ## Related
 
-[[plans/decision-engine.md]] · [[plans/spanish-copy.md]] · [[plans/project-ecosystem.md]]
+[[decisions/decision-engine.md]] · [[plans/spanish-copy.md]] · [[plans/project-ecosystem.md]]
