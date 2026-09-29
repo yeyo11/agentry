@@ -344,7 +344,9 @@ pnpm dev          # API on :8787, UI on :5173 (proxies /api)
 pnpm typecheck
 pnpm test         # unit tests (core, web, desktop) + API integration tests (node:test)
 pnpm build && pnpm e2e   # browser suite: isolated wrapper + headless Chrome, never touches ~/.claude
-                         # E2E_SPEC_TIMEOUT (180000 ms) and E2E_TIMEOUT (900000 ms) bound a spec and the run
+                         # E2E_SPEC_TIMEOUT (180000 ms) and E2E_TIMEOUT (1500000 ms) bound a spec and the run
+                         # E2E_SHARDS=N runs N isolated shards side by side (default: cores/2, at most 4);
+                         # E2E_SHARD=k/N runs only shard k, as each CI job does (split: e2e/timings.json)
 E2E_LIVE=1 pnpm e2e chat # specs that talk to Claude (logged-in CLI, costs a few tokens)
 pnpm media        # re-record the README's tour and stills (needs pnpm build first, ~2 min)
 ```
@@ -352,8 +354,8 @@ pnpm media        # re-record the README's tour and stills (needs pnpm build fir
 Locally the wrapper uses your real `~/.claude`. Point `CLAUDE_CONFIG_DIR` somewhere else to
 experiment with config writes safely.
 
-The browser suite boots its own wrapper on port 8799 with temporary config, workspace and data
-directories, seeds whatever each spec needs and drives headless Chrome over the DevTools
+The browser suite boots its own wrapper with temporary config, workspace and data directories (on
+port 8799 when it runs as one shard; each parallel shard gets its own port, sandbox and Chrome), seeds whatever each spec needs and drives headless Chrome over the DevTools
 protocol (no Playwright, no dependencies). A spec and the whole run each have a time limit, and Chrome
 and the wrapper are closed on every way out (a pass, a failure, a timeout, `SIGINT`, `SIGTERM`, a crash),
 by the pid the harness itself started. It covers every page in both themes and at phone

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T13:57:10.191855215Z
-updated_at: 2026-09-28T13:57:10.191855215Z
+updated_at: 2026-09-29T12:00:00Z
 tags:
     - plan
     - orchestration
@@ -134,6 +134,9 @@ resuming, when another account has quota.
   known duration, kept in a gitignored timings file, and the output is merged in spec order. Specs
   that ask for `fakeCli` stay together in one shard. The default comes from the CPU count, capped
   at 4. This targets the 15–18 min runs, and they should fall to about 5.
+  Built on 2026-09-29 with CI's matrix (CW-3), with a checked-in duration table instead of the
+  gitignored file, so that every CI job computes the same split: see
+  [verify-faster.md, What §1 built](verify-faster.md#what-1-built).
 - **Parallel groups** in `VerificationSpec.commands`: an entry can be a list of commands that run at
   the same time, for example `[["pnpm typecheck", "pnpm test"], "pnpm build", "pnpm e2e"]`. This
   saves 2–4 min on every pass, and there are two passes whenever the fixer works. Re-running

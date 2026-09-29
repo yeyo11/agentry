@@ -45,8 +45,11 @@ pnpm build
 pnpm e2e          # headless Chrome over CDP, against an isolated instance
 ```
 
-CI runs exactly these, plus a Docker image build. It also regenerates the OpenAPI component
-schemas and fails if they differ from what you committed, so if you touched a shared type:
+CI runs exactly these, plus a Docker image build: a `checks` job (audit, typecheck, tests, build
+and the e2e runner's own tests) beside four `e2e (k/4)` shards, and a `test` job that passes when
+they all did. A pull request that changes only documentation (`docs/`, `*.md`) skips the e2e shards.
+CI also regenerates the OpenAPI component schemas and fails if they differ from what you committed,
+so if you touched a shared type:
 
 ```bash
 pnpm --filter @agentry/api openapi:schemas
@@ -97,7 +100,7 @@ searches are documents nobody wrote.
   script in every page it loads uses `page.onNewDocument(source)`, and one that needs a file to fail
   to load uses `page.blockUrls(patterns)`; either way it calls the function returned before it
   finishes, so the next spec starts clean.
-- **Accessibility is checked, not asserted.** `e2e/specs/a11y.spec.mjs` runs axe-core over every
+- **Accessibility is checked, not asserted.** `e2e/specs/a11y-*.spec.mjs` run axe-core over every
   page in both themes and at phone width, over the overlays that open above them, and walks the
   keyboard; a violation fails the build. Status is never colour alone (words and an icon: reuse
   `StatusBadge` and `Tag`), every control is reachable and operable from the keyboard with a visible
