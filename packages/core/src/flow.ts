@@ -1566,10 +1566,6 @@ function stepNoun(step: FlowStep): string {
   return step === 'refine' ? 'refining' : step === 'check' ? 'check' : step === 'work' ? 'work' : 'verification';
 }
 
-/**
- * Why a chat that ended in error failed its run: the words a person reading the item can act on,
- * and the code the panel words in their language.
- */
 /** The paths `git status` lists in a directory, untracked ones included; none where git cannot say. */
 function uncommittedPaths(dir: string): string[] {
   if (!existsSync(dir)) return [];
@@ -1583,6 +1579,10 @@ function uncommittedPaths(dir: string): string[] {
   }
 }
 
+/**
+ * Why a chat that ended in error failed its run: the words a person reading the item can act on,
+ * and the code the panel words in their language.
+ */
 function chatFailure(result: FlowChatResult, settings: ProjectSettings | undefined): { error: string; cause: FlowRunCause } {
   if (result.cause === 'budget') {
     const budget = settings ? maxCostUsd(settings) : null;

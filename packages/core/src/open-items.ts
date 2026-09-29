@@ -45,15 +45,18 @@ const OFFERS = [
   /\bunless you (tell|say|want|prefer)\b/i,
 ];
 
+// Only the run's own next move: a "Next steps:" list or "I'm going to" in a report is often a
+// recommendation for later, and sending that back would spend a continuation for nothing
 const NEXT_STEPS = [
   /\bnext,? i('ll| will| am going to|'m going to)\b/i,
   /\bnow i('ll| will| am going to|'m going to)\b/i,
   /\bi('ll| will) now\b/i,
   /\blet me now\b/i,
   /\b(the )?next step (is|will be)\b/i,
-  /\bnext steps?:/i,
-  /\bi('m| am) (now )?going to\b/i,
 ];
+
+/** A question put to the person, not one the text asks itself: a verdict can end on a rhetorical one */
+const TO_THE_PERSON = /\b(you|your|should i|shall i|can i|may i|do i)\b/i;
 
 /** The last paragraph of a text, where it asks or announces something. */
 function tailOf(text: string): string {
@@ -78,7 +81,7 @@ export function openItems(input: OpenItemsInput): string[] {
   if (last) {
     if (OFFERS.some((re) => re.test(last))) {
       items.push('Your last message offers to continue instead of continuing. Nobody will answer it: carry on with the work.');
-    } else if (/\?\s*$/.test(last)) {
+    } else if (/\?\s*$/.test(last) && TO_THE_PERSON.test(last)) {
       items.push('Your last message asks a question nobody will answer. If it does not block you, choose, say in your report what you chose and why, and carry on; if it does block you, say what you need and stop.');
     }
     if (NEXT_STEPS.some((re) => re.test(last))) items.push('Your last message announces a next step without taking it. Take it now.');

@@ -134,8 +134,11 @@ test('a final text that offers to continue is open', () => {
 });
 
 test('a final text that asks a non-blocking question is open', () => {
-  const [item] = openItems({ ...none, finalText: 'The endpoint works.\n\nShould the error be a 409 or a 422?' });
+  const [item] = openItems({ ...none, finalText: 'The endpoint works.\n\nShould I return a 409 or a 422?' });
   assert.match(item ?? '', /asks a question nobody will answer/);
+  assert.match(openItems({ ...none, finalText: 'Which status code do you prefer?' })[0] ?? '', /asks a question/);
+  // A question the text asks itself is not put to anyone
+  assert.deepEqual(openItems({ ...none, finalText: 'All criteria hold. Is anything missing? No.\n\nWas the cache the cause?' }), []);
   // A question earlier in the text, answered by what follows, is not
   assert.deepEqual(openItems({ ...none, finalText: 'Was it the cache? Yes: I cleared it and the tests pass.' }), []);
 });
@@ -144,6 +147,12 @@ test('a final text that announces a next step without taking it is open', () => 
   for (const text of ['The schema is in place. Next, I will wire the route.', "Types are fixed. Now I'll run the tests.", 'The next step is to update the docs.']) {
     const items = openItems({ ...none, finalText: text });
     assert.ok(items.some((i) => /announces a next step/.test(i)), text);
+  }
+});
+
+test('a report that ends with recommendations for later is not sent back', () => {
+  for (const text of ['Done, and the tests pass.\n\nNext steps:\n- add caching\n- split the module', "The fix is in. In a later item I'm going to suggest caching."]) {
+    assert.deepEqual(openItems({ ...none, finalText: text }), [], text);
   }
 });
 
