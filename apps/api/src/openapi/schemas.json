@@ -3767,6 +3767,19 @@
         ],
         "description": "The synthesis run, so its report can be continued like any other conversation"
       },
+      "synthesisStartedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the synthesis run started and ended; absent on graphs stored before they were recorded"
+      },
+      "synthesisEndedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
       "engine": {
         "$ref": "#/components/schemas/OrchestrationEngine"
       },
@@ -4043,6 +4056,26 @@
       "status": {
         "$ref": "#/components/schemas/VerificationStatus"
       },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the checks started and ended; absent on graphs stored before they were recorded"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "fixes": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/VerificationFix"
+        },
+        "description": "Every fixer attempt, in order"
+      },
       "attempts": {
         "type": "number",
         "description": "Fixer attempts spent, over every command"
@@ -4103,7 +4136,15 @@
         "$ref": "#/components/schemas/VerificationStatus"
       },
       "durationMs": {
-        "type": "number"
+        "type": "number",
+        "description": "The last run's; every run is in `runs`"
+      },
+      "runs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/VerificationRun"
+        },
+        "description": "Every execution of this command, in order; absent on graphs stored before it was recorded"
       }
     },
     "required": [
@@ -4234,6 +4275,309 @@
       "id",
       "name",
       "prompt"
+    ]
+  },
+  "OrchestrationTimings": {
+    "type": "object",
+    "properties": {
+      "orchestrationId": {
+        "type": "string"
+      },
+      "at": {
+        "type": "string",
+        "description": "When the figures were computed; durations of what is still running count up to here"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "wallMs": {
+        "type": "number"
+      },
+      "phases": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/OrchestrationPhaseTiming"
+        },
+        "description": "Phases in order; one that did not happen is left out"
+      },
+      "afterTasksMs": {
+        "type": "number",
+        "description": "From the last task's end to the graph's end (or now)"
+      },
+      "parallelism": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Sum of every task's working time divided by the tasks phase"
+      },
+      "criticalPath": {
+        "type": "object",
+        "properties": {
+          "durationMs": {
+            "type": "number"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CriticalPathLink"
+            }
+          }
+        },
+        "required": [
+          "durationMs",
+          "links"
+        ]
+      },
+      "waits": {
+        "type": "object",
+        "properties": {
+          "slotMs": {
+            "type": "number"
+          },
+          "limitMs": {
+            "type": "number"
+          },
+          "retryMs": {
+            "type": "number"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskWait"
+            }
+          }
+        },
+        "required": [
+          "slotMs",
+          "limitMs",
+          "retryMs",
+          "items"
+        ]
+      },
+      "verification": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/VerificationTimings"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "missing": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Figures an older graph could not give, e.g. `integration.startedAt` or `verification.runs`"
+      }
+    },
+    "required": [
+      "orchestrationId",
+      "at",
+      "createdAt",
+      "endedAt",
+      "wallMs",
+      "phases",
+      "afterTasksMs",
+      "parallelism",
+      "criticalPath",
+      "waits",
+      "verification",
+      "missing"
+    ],
+    "description": "Where a graph's time went, computed on read from what it and its chats recorded."
+  },
+  "OrchestrationPhaseTiming": {
+    "type": "object",
+    "properties": {
+      "phase": {
+        "$ref": "#/components/schemas/OrchestrationPhaseName"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "durationMs": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "phase",
+      "startedAt",
+      "endedAt",
+      "durationMs"
+    ]
+  },
+  "OrchestrationPhaseName": {
+    "type": "string",
+    "enum": [
+      "tasks",
+      "integration",
+      "verification",
+      "synthesis"
+    ]
+  },
+  "CriticalPathLink": {
+    "type": "object",
+    "properties": {
+      "taskId": {
+        "type": "string"
+      },
+      "taskName": {
+        "type": "string"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "workMs": {
+        "type": "number",
+        "description": "Sum of the task's executions"
+      },
+      "waitBeforeMs": {
+        "type": "number",
+        "description": "From the previous link's end (or the graph's creation) to this link's first start"
+      },
+      "waits": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TaskWait"
+        }
+      }
+    },
+    "required": [
+      "taskId",
+      "taskName",
+      "startedAt",
+      "endedAt",
+      "workMs",
+      "waitBeforeMs",
+      "waits"
+    ]
+  },
+  "TaskWait": {
+    "type": "object",
+    "properties": {
+      "taskId": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/TaskWaitKind"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null while the wait goes on"
+      },
+      "durationMs": {
+        "type": "number"
+      },
+      "reason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The error that started a limit or retry wait"
+      }
+    },
+    "required": [
+      "taskId",
+      "kind",
+      "startedAt",
+      "endedAt",
+      "durationMs",
+      "reason"
+    ]
+  },
+  "TaskWaitKind": {
+    "type": "string",
+    "enum": [
+      "slot",
+      "limit",
+      "retry"
+    ],
+    "description": "- `slot`: ready (its dependencies done) but waiting for a free place under the concurrency\n- `limit`: an execution ended on a rate limit or with no account, until the next one started\n- `retry`: any other failed or interrupted execution, until a person or the automatic retry sent it again"
+  },
+  "VerificationTimings": {
+    "type": "object",
+    "properties": {
+      "checksMs": {
+        "type": "number",
+        "description": "Every run of every command"
+      },
+      "fixerMs": {
+        "type": "number",
+        "description": "Every fixer attempt"
+      },
+      "passes": {
+        "type": "number",
+        "description": "The highest pass"
+      },
+      "commands": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string"
+            },
+            "install": {
+              "type": "boolean"
+            },
+            "totalMs": {
+              "type": "number"
+            },
+            "runs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/VerificationRun"
+              }
+            }
+          },
+          "required": [
+            "command",
+            "install",
+            "totalMs",
+            "runs"
+          ]
+        }
+      },
+      "fixes": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/VerificationFix"
+        }
+      }
+    },
+    "required": [
+      "checksMs",
+      "fixerMs",
+      "passes",
+      "commands",
+      "fixes"
     ]
   },
   "PlanRequest": {
