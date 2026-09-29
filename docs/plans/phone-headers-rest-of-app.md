@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T22:00:00Z
-updated_at: 2026-09-28T22:00:00Z
+updated_at: 2026-09-29T20:00:00Z
 tags:
     - spec
     - web
@@ -8,11 +8,11 @@ tags:
     - design-system
     - shell
     - CW-8
-    - proposed
+    - built
 ---
 # Spec (CW-8): phone headers for the rest of the app, as Night Shift draws them
 
-Status: **refined**, ready to build. This is the separate job recorded by the owner's decision in
+Status: **built** in CW-8 (see [As built](#as-built)). This is the separate job recorded by the owner's decision in
 [project-ecosystem.md, decision 1 of orchestration 7](project-ecosystem.md#separate-job-recorded-here-so-it-is-not-lost)
 and listed as open in [status.md](../status.md#what-is-open):
 
@@ -117,6 +117,44 @@ inputs at 16 px, "⋯" as a `Sheet`, and no new header class when an existing on
 - Redrawing the chat header or the changes header as `PhoneHeader`.
 - Moving the tab roots (Home, Chats, Orchestrations) off the app's top bar.
 - Any desktop or Electron change. The desktop app keeps its title bar at any width.
+
+## As built
+
+- **The table.** `PHONE_HEADER_ROUTES` lists every route above; `/chats/new` comes before `/chats/:id`,
+  which it also matches. The tab roots and a path that matches nothing (the 404 page) stay `app`.
+  `test/shell-design.test.tsx` and `test/shell-live.test.ts` pin both lists.
+- **`PageHeader` carries the phone head.** Accounts, Projects, Schedules, the schedule editor, Usage
+  and Connectors were already built on `PageHeader`, so it takes an optional `phone` prop (the
+  `PhoneHeader` props, the title defaulting to the page's). With it, the page draws `PhoneHeader`
+  where `useOwnPhoneHeader()` is true and its desktop header everywhere else, the desktop app at any
+  width included; without it, `PageHeader` does not read the route and renders anywhere. One prop per
+  page, no second header component.
+  - Accounts: when the usage was read as the mono line, refresh and add as 44 px icons, cswap's
+    removal behind "⋯" when it can be removed.
+  - Projects: a new project as a 44 px icon; the FAB stays.
+  - Schedules: the project scope's selector (it filters the list by it) and a new schedule.
+  - Usage: the title alone, the periods' switch moved under it (MobileUso).
+  - Connectors: when the list was read, and "check again" as an icon.
+  - The schedule editor: a modal flow, "Cancelar" through the same `back` its form's own Cancel
+    uses. It has no dirty-state guard today, so there is none to go through; adding one is its own
+    change.
+- **The orchestration** draws `PhoneHeader` itself: its name, its state badge as the line under it,
+  and the menu the page builds behind "⋯"; relaunching joins that sheet on a phone, since the head
+  has no room for a second button.
+- **Settings** draws `PhoneHeader` on the list (history back, fallback `/`) and on a tab (title the
+  tab's name, back through `onBack`, the leave guard). `PhoneHeader`'s `back` gained `onBack`, passed
+  to `BackButton`, for that. Where the page does not head itself (the desktop app at a phone width),
+  the old `.settings-phone-head` stays.
+- **The chat and the changes screen** keep their headers. Their back links and "⋯" are 44 px under
+  900 px. The chat's "⋯" is `MoreActions` now, so it opens as a sheet on a phone with the same
+  entries. For that, `MoreActions`' sheet renders a download entry as a real `<a download>`, marks a
+  toggle with a check and `aria-pressed`, and writes a disabled entry's reason under the buttons.
+- **The project pill** that Tasks drew in its header is styled for any `.phone-head` holding
+  `.project-scope` (shell.css), so Schedules reuses it with no new class.
+- **Checks.** `e2e/specs/shell.spec.mjs` visits every new route at 390 px (no top bar, a 44 × 44 back
+  at the top, `data-phone-header="page"`, PhoneHeader's h1), the modal flows, the Settings tab's
+  back, the chat's sheet, the desktop app's class, and the same routes at 1440 px. `/projects` left
+  the "top bar stays" loop, which gained `/orchestration?new=1` and the 404 page.
 
 ## Related
 

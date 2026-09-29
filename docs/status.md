@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-10-06T12:00:00Z
+updated_at: 2026-10-07T12:00:00Z
 tags:
     - status
     - project-state
@@ -86,18 +86,6 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
   plan's [Outcome](plans/project-ecosystem.md#the-ecosystem-as-a-whole) and the Known gaps of
   [work-items.md](work-items.md#known-gaps), [team-and-flow.md](team-and-flow.md#known-gaps) and
   [assistant.md](assistant.md#known-gaps) for what stays open per area.
-- **Phone headers for the rest of the app, a separate job.** Night Shift draws every phone detail
-  screen with a back arrow, its title and a "⋯" sheet, and no app top bar; the app still shows the
-  global top bar on most of them. Orchestration 7 switched only the ecosystem's screens over (the
-  project and its tabs, Tasks, a work item, the assistant, the new project wizard), by the owner's
-  decision, since the incoherence predates the ecosystem. The rest waits: a chat, a task's chat and
-  a flow run's chat (the chat page, which keeps its own header with the ecosystem's rows under it),
-  an orchestration, accounts, changes and the other screens drawn with a back arrow. It is cheap
-  now: the shell decides by route (`PHONE_HEADER_ROUTES` in `apps/web/src/components/shell/phone-header.ts`,
-  where a route marked `phoneHeader: 'page'` hides `.topbar` on a phone), so each screen is one
-  entry there plus the page drawing `PhoneHeader` (back, title, "⋯" through `MoreActions`). Recorded
-  in [the plan](plans/project-ecosystem.md#separate-job-recorded-here-so-it-is-not-lost); left out
-  of #118, a separate job.
 - **The editable dashboard.** Home renders any layout that validates, from a registry of widget
   types, but the layout is not editable or persisted per project, and the Documents and Flows
   widgets do not exist. Left out of the redesign deliberately — see

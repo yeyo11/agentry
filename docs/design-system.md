@@ -1791,8 +1791,13 @@ Where §2 planned an app name and the app settled on another:
 - The skeleton cards are `.workitem-card.is-skeleton`, and the task list's foot is
   `.workitem-list-more`; Team activity's foot is `.list-more`.
 - `.m-head` is `PhoneHeader` (`.phone-head*`, `components/shell/`). Which routes it heads is one
-  table, `PHONE_HEADER_ROUTES` in `phone-header.ts`: the ecosystem's screens now, the rest of the app
-  in a separate job ([status.md](status.md#what-is-open)).
+  table, `PHONE_HEADER_ROUTES` in `phone-header.ts`: every phone detail screen, the tab roots keeping
+  the top bar ([phone-headers-rest-of-app.md](plans/phone-headers-rest-of-app.md)). A page built on
+  `PageHeader` heads itself on a phone through its `phone` prop; the chat (`.chat-head`) and the
+  review of changes (`.changes-head`) keep their own headers, with 44 px targets on a phone.
+- `.sheet-action-reason`: under a `MoreActions` sheet, a disabled entry's reason written out (a
+  finger has no hover to read a title by); `.sheet-action-gap` keeps an unchecked toggle's label in
+  line with a checked one's. A download entry stays a real link in the sheet.
 - Time follows decision 10 with the owner's rule for past moments: a relative time everywhere, and
   the bare hour ("17:44") only inside a list grouped by day, such as Team activity.
 
