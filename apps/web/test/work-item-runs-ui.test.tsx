@@ -154,7 +154,7 @@ test("the item's links name each flow run by its role and stage, with its outcom
   assert.match(oldest ?? '', /failed/);
   assert.match(oldest ?? '', /It was cut off 3 times/);
   assert.match(oldest ?? '', /did not move the task/);
-  assert.doesNotMatch(oldest ?? '', /cut off by a restart/, 'with a cause to word it by, the raw text stays on the chat');
+  assert.match(oldest ?? '', /cut off by a restart \(restarts: 2 of 2\)/, 'the raw error under the worded reason, as design-system.md tells a failure (CW-20)');
   assert.match(html, /role-avatar/, "a run's link leads with the role's squircle");
   assert.match(html, /badge-bad/);
   assert.match(html, /badge-ok/);

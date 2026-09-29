@@ -12,7 +12,7 @@ import { failureReason, runStatus } from './runs';
  * A chat the flow ran for one of its members, told by its run rather than by its chat (decision 8):
  * the role's squircle leads, the run is named by what the role does ("QA verifies AGN-26"), and its
  * badge is the run's outcome, since a failed run leaves its chat reading "completed". A failure says
- * why in the person's words; the core's raw text shows only when there is no cause to word it by.
+ * why in the person's words, with the core's raw text under it in mono.
  * A run no chat link stands for (queued, or failed before its chat started) is drawn the same way,
  * without a link: it says it has no chat instead of naming one.
  */
@@ -68,7 +68,9 @@ export function RunLinkRow({
           {cost !== undefined && <span className="mono small muted tnum">{cost === null ? t('link.noCost') : formatCost(cost)}</span>}
         </span>
         {reason && <span className="work-link-why">{reason}</span>}
-        {reason && failureReason(run)?.key === 'run.cause.unknown' && <RawError run={run} className="work-link-raw" />}
+        {/* Under the reason, as every failed run is told (design-system.md, "Copy"): the reason is
+            the person's words, the raw text is what the core or the CLI said, and both are kept */}
+        {reason && <RawError run={run} className="work-link-raw" />}
         <span className="work-link-meta">
           {chatId ? t('link.chat', { id: shortId(chatId) }) : t('run.noChat')} · {t('run.flowRun')} ·{' '}
           <time dateTime={at} title={formatDateTime(at)}>
