@@ -3,7 +3,7 @@ import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import test from 'node:test';
 import type { LiveSnapshot } from '../src/live.ts';
-import { LiveMonitor } from '../src/live-monitor.ts';
+import { LiveMonitor, retryAfterMs } from '../src/live-monitor.ts';
 
 /** A stand-in for the local API: the three list routes and the event feed, and a log of what was asked */
 async function fakeServer() {
@@ -99,4 +99,104 @@ test('a burst of events costs one read, and one more for what came during it', a
     monitor.stop();
     await server.close();
   }
+});
+
+/** A local API that refuses everything with `status`, and says when each request came */
+async function refusingServer(status: number, headers: Record<string, string> = {}) {
+  const hits: Array<{ path: string; at: number }> = [];
+  let answer = status;
+  const server = createServer((req, res) => {
+    const path = (req.url ?? '').split('?')[0] ?? '';
+    hits.push({ path, at: Date.now() });
+    if (answer !== 200) return void res.writeHead(answer, { 'content-type': 'application/json', ...headers }).end('{}');
+    if (path === '/api/overview') return void res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ counts: { chatsWorking: 0, chatsWaiting: 0, orchestrationsRunning: 0 } }));
+    res.writeHead(200, { 'content-type': 'text/event-stream' });
+    res.write(': hello\n\n');
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address() as AddressInfo;
+  return {
+    origin: `http://127.0.0.1:${port}`,
+    hits,
+    count: (path: string) => hits.filter((h) => h.path === path).length,
+    answer: (next: number) => void (answer = next),
+    close: () => {
+      server.closeAllConnections();
+      return new Promise<void>((resolve) => server.close(() => resolve()));
+    },
+  };
+}
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+test('a refused tray stops asking instead of polling, and says so once', async () => {
+  const server = await refusingServer(401);
+  const lines: string[] = [];
+  // A poll this fast would ask dozens of times in the half second below were the refusal ignored
+  const monitor = new LiveMonitor({ origin: server.origin, onSnapshot: () => undefined, log: (l) => lines.push(l), pollMs: 20, refreshGapMs: 10, refusedMs: 60_000 });
+  try {
+    monitor.start();
+    await until(() => server.count('/api/overview') >= 1 && server.count('/api/events') >= 1, 'the first attempts');
+    await pause(500);
+    assert.equal(server.count('/api/overview'), 1);
+    assert.equal(server.count('/api/events'), 1);
+    assert.equal(lines.filter((l) => l.includes('401')).length, 1, lines.join('\n'));
+    assert.match(lines[0] ?? '', /asks again in 60 s/);
+  } finally {
+    monitor.stop();
+    await server.close();
+  }
+});
+
+test('the wait after a refusal doubles up to its cap, and a success starts it over', async () => {
+  const server = await refusingServer(403);
+  const lines: string[] = [];
+  const monitor = new LiveMonitor({ origin: server.origin, onSnapshot: () => undefined, log: (l) => lines.push(l), pollMs: 10, refreshGapMs: 1, refusedMs: 100, refusedMaxMs: 400 });
+  try {
+    monitor.start();
+    // Quiet spells of 100, 200, 400 and 400 ms: the fifth attempt lands after about 1.1 s
+    await until(() => server.count('/api/overview') >= 6, 'six reads of the overview');
+    const at = server.hits.filter((h) => h.path === '/api/overview').map((h) => h.at);
+    const gaps = at.slice(1).map((t, i) => t - (at[i] ?? 0));
+    const [first = 0, second = 0, third = 0, fourth = 0, fifth = 0] = gaps;
+    assert.ok(first >= 90, `gaps ${gaps.join(', ')}`);
+    assert.ok(second >= 190 && third >= 380, `the wait doubles: gaps ${gaps.join(', ')}`);
+    // Uncapped these would be 800 and 1600. A spell can go to the feed's attempt instead of the
+    // overview's when both wake together, so one gap may be two spells long, never more
+    assert.ok(Math.max(fourth, fifth) < 1000, `and stops at its cap: gaps ${gaps.join(', ')}`);
+    // The feed keeps the same quiet spells: well under what polling every 10 ms would have asked
+    assert.ok(server.count('/api/events') <= 4, `${String(server.count('/api/events'))} feed requests`);
+    assert.equal(lines.filter((l) => l.includes('403')).length, 1, lines.join('\n'));
+
+    server.answer(200);
+    await until(() => lines.some((l) => l.includes('answers the tray again')), 'the recovery');
+  } finally {
+    monitor.stop();
+    await server.close();
+  }
+});
+
+test('a throttled tray waits as long as Retry-After says', async () => {
+  const server = await refusingServer(429, { 'retry-after': '1' });
+  const monitor = new LiveMonitor({ origin: server.origin, onSnapshot: () => undefined, pollMs: 20, refreshGapMs: 10, refusedMs: 60_000 });
+  try {
+    monitor.start();
+    await until(() => server.count('/api/overview') >= 1, 'the first attempt');
+    const first = server.hits[0]?.at ?? 0;
+    await pause(700);
+    assert.equal(server.count('/api/overview'), 1, 'nothing asked before the second is up');
+    await until(() => server.count('/api/overview') >= 2, 'the retry after the wait');
+    const retry = server.hits.filter((h) => h.path === '/api/overview')[1]?.at ?? 0;
+    assert.ok(retry - first >= 950, `retried after ${String(retry - first)} ms`);
+  } finally {
+    monitor.stop();
+    await server.close();
+  }
+});
+
+test('Retry-After is read as seconds or as a date', () => {
+  assert.equal(retryAfterMs('7'), 7000);
+  assert.equal(retryAfterMs(new Date(10_000).toUTCString(), 4_000), 6000);
+  assert.equal(retryAfterMs('soon'), undefined);
+  assert.equal(retryAfterMs(null), undefined);
 });
