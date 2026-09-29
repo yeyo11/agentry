@@ -3,6 +3,8 @@
 // Chrome and no server outlives the run. Each run gets its own TMPDIR, so the sandbox, the Chrome
 // profile and every process's command line can be told apart from anyone else's browser; the test
 // only looks at processes, it never kills by pattern (the runner kills by the PID it started).
+// The shard tests run the runner with E2E_SHARD=k/N and E2E_SHARDS=N over probe specs (e2e/shards.test.mjs
+// covers the split itself, without a browser).
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -39,7 +41,9 @@ const alive = (pids) => pids.filter((pid) => {
   }
 });
 
-let nextPort = 8900 + (process.pid % 50) * 4;
+// Four ports per run: a sharded run takes E2E_PORT and the ones after it
+const PORTS_PER_RUN = 4;
+let nextPort = 8900 + (process.pid % 25) * PORTS_PER_RUN * 2;
 
 /**
  * Runs the real runner over one spec, or over `specs` (file name → source). `beforeEnd(ctx)` is
@@ -53,9 +57,11 @@ async function run({ spec, specs: sources = { 'probe.spec.mjs': spec }, env = {}
   mkdirSync(specs);
   const ready = join(dir, 'ready');
   for (const [name, source] of Object.entries(sources)) writeFileSync(join(specs, name), source.replaceAll('READY', JSON.stringify(ready)));
-  const port = nextPort++;
+  const port = nextPort;
+  nextPort += PORTS_PER_RUN;
   const child = spawn(process.execPath, [runner], {
-    env: { ...process.env, TMPDIR: tmp, E2E_SPECS_DIR: specs, E2E_PORT: String(port), ...env },
+    // A shard set for the job that runs this test (CI's matrix) is not the test's to inherit
+    env: { ...process.env, E2E_SHARD: '', E2E_SHARDS: '', TMPDIR: tmp, E2E_SPECS_DIR: specs, E2E_PORT: String(port), ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
@@ -78,7 +84,8 @@ async function run({ spec, specs: sources = { 'probe.spec.mjs': spec }, env = {}
     killGroup(child.pid);
     assert.fail(`the runner outlived its limits:\n${output}`);
   }
-  const survivors = { chrome: alive(profiles()), server: await fetch(`http://127.0.0.1:${port}/api/system`).then(() => true, () => false) };
+  const answering = await Promise.all(Array.from({ length: PORTS_PER_RUN }, (_, i) => fetch(`http://127.0.0.1:${port + i}/api/system`).then(() => true, () => false)));
+  const survivors = { chrome: alive(profiles()), server: answering.some(Boolean) };
   const sandboxLeft = readdirSync(tmp).filter((e) => e.startsWith('agentry-e2e-') && !e.startsWith('agentry-e2e-chrome-'));
   rmSync(dir, { recursive: true, force: true });
   return { ...result, output, during, survivors, sandboxLeft };
@@ -140,7 +147,8 @@ test('only a spec that asks for the fake CLI gets it, after every other spec', {
     `${fake ? 'export const fakeCli = true;\n' : ''}export default async ({ api, fakeCli }) => {` +
     ` const { body } = await api.get('/system?refresh=1');` +
     ` console.log('CLI ${name} ' + JSON.stringify({ path: body.cli.path, version: body.cli.version, context: Boolean(fakeCli) })); };`;
-  const r = await run({ specs: { 'a-fake.spec.mjs': probe('a-fake', true), 'b-real.spec.mjs': probe('b-real', false) } });
+  // One shard: the order and the restart are what a single process does
+  const r = await run({ specs: { 'a-fake.spec.mjs': probe('a-fake', true), 'b-real.spec.mjs': probe('b-real', false) }, env: { E2E_SHARDS: '1' } });
   assert.equal(r.code, 0, r.output);
   const seen = [...r.output.matchAll(/^CLI (\S+) (.+)$/gm)].map(([, name, json]) => ({ name, ...JSON.parse(json) }));
   assert.deepEqual(seen.map((s) => s.name), ['b-real', 'a-fake']);
@@ -159,4 +167,80 @@ test('a failing spec still ends the run cleanly', { skip }, async () => {
   assert.equal(r.code, 1);
   assert.match(r.output, /nope/);
   assert.deepEqual(r.survivors, { chrome: [], server: false });
+});
+
+// ---------- shards ----------
+
+/** Probe specs that say they ran; two want the fake CLI and must share a shard */
+const probe = (name, { fake = false, fail = false } = {}) =>
+  `${fake ? 'export const fakeCli = true;\n' : ''}export default async () => { console.log('RAN ${name} ' + process.pid); ${fail ? `throw new Error('${name} failed on purpose');` : ''} };`;
+const probes = {
+  'a.spec.mjs': probe('a.spec.mjs'),
+  'b.spec.mjs': probe('b.spec.mjs'),
+  'c.spec.mjs': probe('c.spec.mjs'),
+  'x-fake.spec.mjs': probe('x-fake.spec.mjs', { fake: true }),
+  'y-fake.spec.mjs': probe('y-fake.spec.mjs', { fake: true }),
+};
+const ran = (output) => [...output.matchAll(/^RAN (\S+) (\d+)$/gm)].map(([, name, pid]) => ({ name, pid }));
+
+test('E2E_SHARD=k/N: the shards together run every spec once, the fakeCli specs in one, the same k/N the same specs', { skip }, async () => {
+  const count = 3;
+  const seen = [];
+  for (let k = 1; k <= count; k++) {
+    const r = await run({ specs: probes, env: { E2E_SHARD: `${k}/${count}` } });
+    assert.equal(r.code, 0, r.output);
+    assert.deepEqual(r.survivors, { chrome: [], server: false });
+    assert.deepEqual(r.sandboxLeft, []);
+    seen.push(ran(r.output).map((x) => x.name));
+  }
+  const all = seen.flat();
+  assert.deepEqual([...all].sort(), Object.keys(probes).sort(), `every spec exactly once: ${JSON.stringify(seen)}`);
+  const fakeShards = seen.filter((names) => names.some((n) => n.includes('fake')));
+  assert.equal(fakeShards.length, 1, `the fakeCli specs share one shard: ${JSON.stringify(seen)}`);
+  assert.deepEqual(fakeShards[0]?.filter((n) => n.includes('fake')), ['x-fake.spec.mjs', 'y-fake.spec.mjs']);
+  const again = await run({ specs: probes, env: { E2E_SHARD: `2/${count}` } });
+  assert.deepEqual(ran(again.output).map((x) => x.name), seen[1], 'the same shard runs the same specs again');
+  assert.deepEqual(again.survivors, { chrome: [], server: false });
+});
+
+test('an invalid E2E_SHARD or E2E_SHARDS stops before starting anything', { skip }, async () => {
+  for (const env of [{ E2E_SHARD: '4/3' }, { E2E_SHARD: 'x' }, { E2E_SHARDS: '0' }, { E2E_SHARDS: 'two' }]) {
+    const r = await run({ specs: probes, env });
+    assert.equal(r.code, 2, `${JSON.stringify(env)}\n${r.output}`);
+    assert.doesNotMatch(r.output, /^RAN /m);
+  }
+});
+
+test('E2E_SHARDS=N runs the shards side by side and reports them in the order of one run', { skip }, async () => {
+  const specs = { ...probes, 'b.spec.mjs': probe('b.spec.mjs', { fail: true }) };
+  const r = await run({ specs, env: { E2E_SHARDS: '3' } });
+  assert.equal(r.code, 1, r.output);
+  const runs = ran(r.output);
+  assert.deepEqual(runs.map((x) => x.name).sort(), Object.keys(specs).sort());
+  assert.equal(new Set(runs.map((x) => x.pid)).size, 3, 'three runner processes');
+  // The report is in a single run's order: the ordinary specs by name, then the fakeCli ones
+  const order = [...r.output.matchAll(/^[✓✗] (\S+\.spec\.mjs)/gm)].map(([, f]) => f);
+  assert.deepEqual(order.slice(0, 5), ['a.spec.mjs', 'b.spec.mjs', 'c.spec.mjs', 'x-fake.spec.mjs', 'y-fake.spec.mjs']);
+  assert.match(r.output, /✗ b\.spec\.mjs\n  b\.spec\.mjs failed on purpose/);
+  assert.match(r.output, /failed:\n✗ b\.spec\.mjs\n1 spec\(s\) failed\s*$/);
+  assert.match(r.output, /^shard 3\/3: /m);
+  assert.deepEqual(r.survivors, { chrome: [], server: false });
+  assert.deepEqual(r.sandboxLeft, []);
+});
+
+test('E2E_SHARDS=1 and a single spec run in this process, with no children', { skip }, async () => {
+  for (const [env, specs] of [[{ E2E_SHARDS: '1' }, probes], [{ E2E_SHARDS: '4' }, { 'a.spec.mjs': probes['a.spec.mjs'] }]]) {
+    const r = await run({ specs, env });
+    assert.equal(r.code, 0, r.output);
+    assert.doesNotMatch(r.output, /shards in parallel/);
+    assert.equal(new Set(ran(r.output).map((x) => x.pid)).size, 1);
+  }
+});
+
+test('SIGTERM to a sharded run closes every shard’s browser and server', { skip }, async () => {
+  const r = await run({ specs: { 'a.spec.mjs': probes['a.spec.mjs'], 'hang.spec.mjs': hang }, env: { E2E_SHARDS: '2', E2E_SPEC_TIMEOUT: '600000' }, beforeEnd: ({ child }) => child.kill('SIGTERM') });
+  assert.equal(r.code, 143, r.output);
+  assert.ok(r.during.length > 0);
+  assert.deepEqual(r.survivors, { chrome: [], server: false });
+  assert.deepEqual(r.sandboxLeft, []);
 });
