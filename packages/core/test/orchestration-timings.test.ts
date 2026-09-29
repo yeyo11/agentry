@@ -218,3 +218,17 @@ test('a running graph counts what is still going up to now, and has no end yet',
   assert.deepEqual(timings.waits.items.map((w) => [w.taskId, w.kind, w.endedAt, w.durationMs / MIN]), [['c', 'slot', null, 15]]);
   assert.equal(timings.verification, null);
 });
+
+test('a workflow graph, whose tasks are subagents of one session, answers from the tasks own spans', () => {
+  const orch = graph([task('a', { startedAt: t(1), endedAt: t(10), runId: null, sessionId: null }), task('b', { startedAt: t(10), endedAt: t(30), dependsOn: ['a'], runId: null, sessionId: null })], {
+    engine: 'workflow',
+    worktree: false,
+    endedAt: t(31),
+  });
+  const timings = orchestrationTimings(orch, [chat('__workflow__', [exec(0, 31)], 'wf')], new Date(t(40)));
+  assert.deepEqual(timings.phases.map((p) => [p.phase, p.durationMs / MIN]), [['tasks', 29]]);
+  assert.deepEqual(timings.criticalPath.links.map((l) => l.taskId), ['a', 'b']);
+  assert.equal(timings.afterTasksMs, MIN);
+  assert.equal(timings.verification, null);
+  assert.deepEqual(timings.missing, []);
+});
