@@ -7,6 +7,7 @@ import type {
   OrchestrationTaskState,
   OrchestrationTimings,
   TaskWait,
+  VerificationFix,
   VerificationTimings,
 } from '@agentry/shared';
 import { isRateLimitError } from './chats.ts';
@@ -178,12 +179,18 @@ export function orchestrationTimings(orch: Orchestration, chats: readonly Timing
   let verification: VerificationTimings | null = null;
   if (v && v.status !== 'pending') {
     if (v.commands.some((c) => c.runs === undefined)) missing.push('verification.runs');
-    if (v.fixes === undefined) missing.push('verification.fixes');
+    // An older graph did not keep its fixer attempts, but the fixer's chats say when they ran and what they cost
+    const fixerChats = own.filter((c) => c.orchestrationTaskId === ROLE_OF.verification);
+    const fallback: VerificationFix[] = fixerChats
+      .flatMap((c) => c.executions.map((e) => ({ runId: c.id, command: '', attempt: 0, startedAt: e.startedAt, endedAt: e.endedAt, costUsd: e.costUsd ?? 0 })))
+      .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+      .map((f, i) => ({ ...f, attempt: i + 1 }));
+    if (v.fixes === undefined && fallback.length === 0) missing.push('verification.fixes');
     const commands = v.commands.map((c) => {
       const runs = c.runs ?? [];
       return { command: c.command, install: c.install === true, totalMs: runs.length ? runs.reduce((sum, r) => sum + r.durationMs, 0) : c.durationMs, runs };
     });
-    const fixes = v.fixes ?? [];
+    const fixes = v.fixes ?? fallback;
     verification = {
       checksMs: commands.reduce((sum, c) => sum + c.totalMs, 0),
       fixerMs: fixes.reduce((sum, f) => sum + gap(f.startedAt, until(f.endedAt)), 0),

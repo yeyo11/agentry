@@ -189,6 +189,13 @@ test('a graph stored before the times were recorded falls back to its role chats
   // What an older check did record still counts
   assert.equal(timings.verification?.checksMs, 3 * MIN);
   assert.deepEqual(timings.verification?.commands[0]?.runs, []);
+
+  // With the fixer's chat still there, its executions stand in for the attempts it did not record
+  const withFixer = orchestrationTimings(orch, [chat('__synthesis__', [exec(50, 58)], 'synth'), chat('__verification__', [exec(30, 42)], 'fixer')], new Date(t(90)));
+  assert.deepEqual(withFixer.verification?.fixes.map((f) => [f.runId, f.attempt, f.startedAt, f.endedAt]), [['fixer', 1, t(30), t(42)]]);
+  assert.equal(withFixer.verification?.fixerMs, 12 * MIN);
+  // The fixer's chat also dates the verification phase, from its first execution
+  assert.ok(!withFixer.missing.includes('verification.fixes'));
 });
 
 test('a running graph counts what is still going up to now, and has no end yet', () => {
