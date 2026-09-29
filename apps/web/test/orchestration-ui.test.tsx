@@ -83,6 +83,8 @@ test('a graph of four stages shows its count and its chain, and no notice', asyn
   const { GraphShape } = await load();
   const html = renderToStaticMarkup(<GraphShape tasks={[spec('core'), spec('web', ['core']), spec('review', ['web']), spec('docs', ['review']), spec('extra')]} />);
   assert.match(plain(html), /4 stages in series · core → web → review → docs/);
+  // A label on a span without a role is prohibited ARIA; the chain is a named group
+  assert.match(html, /role="group" aria-label="Longest chain of dependencies"/);
   assert.doesNotMatch(html, /alert-info/);
   assert.doesNotMatch(html, /role="alert"/);
 });

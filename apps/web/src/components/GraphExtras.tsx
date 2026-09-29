@@ -145,7 +145,7 @@ export function GraphShape({ tasks }: { tasks: ReadonlyArray<Pick<OrchestrationT
         {shape.stages > 1 && (
           <>
             <span aria-hidden> · </span>
-            <span className="graph-shape-chain mono" aria-label={t('orchestration.shapeLabel')}>
+            <span className="graph-shape-chain mono" role="group" aria-label={t('orchestration.shapeLabel')}>
               {shape.chain.map((id, i) => (
                 <Fragment key={`${i}-${id}`}>
                   {i > 0 && <span aria-hidden>{' → '}</span>}
