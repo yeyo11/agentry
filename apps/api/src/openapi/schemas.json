@@ -2726,9 +2726,19 @@
       "commands": {
         "type": "array",
         "items": {
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
         },
-        "description": "Run in order on the integration branch, each one under a timeout"
+        "description": "Run in order on the integration branch, each one under a timeout. An entry that is a list runs its commands at the same time; the next entry starts once all of them have ended."
       },
       "fixer": {
         "type": "boolean",
@@ -2837,6 +2847,10 @@
       "install": {
         "type": "boolean",
         "description": "The install step that runs before the checks: detected from the lockfile, or the spec's `install`"
+      },
+      "group": {
+        "type": "number",
+        "description": "Index of the `commands` entry it came from; commands of one parallel group share it. Absent on the install step"
       },
       "status": {
         "$ref": "#/components/schemas/VerificationStatus"
