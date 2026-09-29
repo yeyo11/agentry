@@ -238,6 +238,25 @@ Filled in as the workstreams land and the graphs after them are measured.
 3. **Two big graphs at once.** Should the launch form warn, should the second one wait in a queue
    until the first one ends, or should the accounts be split between them?
 
+## The prompts the orchestration builds
+
+CW-24 rewrote the planner, worker, integrator, fixer, synthesis and workflow lead prompts for Opus
+5.5 and Sonnet 5.5. [prompts.md](../prompts.md) describes each one and the continuation. In short:
+
+- **Workers** carry the unattended instruction against the four premature stops, real
+  verification, scope and completion, and the frontend rules. `workerChecks` keeps its split. The
+  objective and the dependencies' results reach them as `<pasted_content>` blocks.
+- **A worker whose turn ends as a report** (it offers to continue, asks, or announces a next step)
+  goes back to its chat with a message naming what is open and a time signal: `elapsed Ns / budget
+  Ms` against `limits.maxMinutes`, or "Time matters here…". This happens at most three times,
+  counted in `OrchestrationTaskState.continuations`, and it is not an attempt.
+- **The integrator and the fixer** carry the unattended instruction and real verification, with the
+  objective, the task results and the check's output wrapped.
+- **The planner** reads the directory before it plans ("may inspect … first" is gone). It thinks
+  the problem through on Sonnet, and a plan whose turn stopped on `max_tokens` is refused.
+- **The workflow lead** ends with the time signal. A workflow has no budget, so it reads "Time
+  matters here…".
+
 ## Related
 
-[[plans/agent-observability.md]] · [[pinned-chat-rotation.md]] · [[plans/post-roadmap.md]] · [[status.md]]
+[[prompts.md]] · [[plans/agent-observability.md]] · [[pinned-chat-rotation.md]] · [[plans/post-roadmap.md]] · [[status.md]]

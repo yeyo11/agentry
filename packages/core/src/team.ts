@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { SCOPE_AND_COMPLETION } from './prompt-rules.ts';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -252,6 +253,11 @@ export function agentFileContent(member: ProjectTeamMember): string {
     `Your responsibility: ${member.responsibility}`,
     '',
     ...(guidance ? [guidance, ''] : []),
+    // The file is what the member reads in every chat, the flow's and a person's alike
+    '## How you work',
+    '',
+    SCOPE_AND_COMPLETION,
+    '',
     '## What you may write',
     '',
     ...writes,

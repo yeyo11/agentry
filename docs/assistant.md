@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T21:30:00Z
-updated_at: 2026-09-28T22:00:00Z
+updated_at: 2026-09-29T12:00:00Z
 tags:
     - assistant
     - ai-suggestions
@@ -119,6 +119,25 @@ end. Anything that was laid out and never read is dropped once the run ends, so 
 only what it read. **`CLAUDE.md` shows once** (orchestration 6, gap 11): a read of it by the chat, or
 in its answer, counts toward the entry for what Agentry handed the run, instead of adding a second
 and a third.
+
+### What it is told
+
+`assistantPrompt` follows the Opus 5.5 and Sonnet 5.5 guides ([prompts.md](prompts.md)):
+
+- what people wrote is marked as `<pasted_content id="…">` blocks: the description, the focus,
+  the recent chat titles, the commit messages and the work item list in the prompt, and `CLAUDE.md`
+  and the journal in the system prompt. `PASTED_NOTE` says what the tags mean;
+- it reads the project before it proposes anything, including the parts the request does not name.
+  The old "you do not need to read every file" is gone, since it discouraged reading;
+- on a Sonnet model (the default, `sonnet`), it ends with "Think the problem through before you
+  answer.";
+- **a member's model** is recommended as the guides place the two: `opus` for the roles that carry
+  the hardest long-horizon work, `sonnet` for the others. Each proposal's `reason` says why its
+  model fits (`MODEL_CHOICE`). Recommending a member's effort waits for CW-25.
+
+**An answer cut by the token limit fails the run.** A turn whose last `stop_reason` in the CLI's
+stream-json is `max_tokens` can still end with JSON that parses and is missing what it was writing.
+Such a run ends `failed` with the code `assistant.error.max-tokens`, and its error names the stop.
 
 ### The answer
 
@@ -379,4 +398,4 @@ chat has run on an alias, it shows the alias.
 
 ## Related
 
-[[team-and-flow.md]] · [[projects.md]] · [[work-items.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[team-and-flow.md]] · [[prompts.md]] · [[projects.md]] · [[work-items.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

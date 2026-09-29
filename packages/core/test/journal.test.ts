@@ -10,6 +10,7 @@ import { JOURNAL_HANDOFF_BYTES, JournalService } from '../src/journal.ts';
 import { MemoryProposalService, withText } from '../src/memory-proposals.ts';
 import { MemoryStore } from '../src/memory.ts';
 import { WorkItemError, WorkItemService } from '../src/work-items.ts';
+import { PASTED_NOTE } from '../src/prompt-rules.ts';
 import { tempConfig } from './helpers.ts';
 
 const PERSON: WorkItemActor = { kind: 'person', role: null };
@@ -160,6 +161,10 @@ test('a flow run is handed the newest entries that fit the cap, newest first and
   assert.ok(handed.text.indexOf('small, and newest') < handed.text.indexOf('middle'));
   assert.ok(!handed.text.includes('oldest'));
   assert.deepEqual(journal.page('p1').handed, { entries: 3, bytes: handed.bytes });
+  // The entries are people's words and runs' summaries: one pasted block, and the note after it
+  assert.match(handed.text, /^# Project journal\n[^]*\n<pasted_content id="([0-9a-f]{8})">\n- [^]*small, and newest[^]*\n<\/pasted_content id="\1">\n\n/);
+  assert.ok(handed.text.includes(PASTED_NOTE));
+  assert.equal(handed.bytes, Buffer.byteLength(handed.text));
 });
 
 test('removing an entry announces it and unknown ones are refused', () => {

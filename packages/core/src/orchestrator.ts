@@ -69,6 +69,9 @@ import {
   type InstallStep,
 } from './verification.ts';
 import { compileWorkflow, readCompiledResult, workflowName } from './workflow-engine.ts';
+import { continuationPrompt, MAX_TOKENS_ERROR, openItems, stoppedOnMaxTokens } from './open-items.ts';
+import { designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, scopeAndCompletion, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
+import { MAX_CONTINUATIONS } from '@agentry/shared';
 
 const ID_RE = /^[\w-]{1,40}$/;
 /** The planner's own name, which is how a past planner run is recognised later. */
@@ -78,6 +81,8 @@ export const PLANNER_RUN_NAME = 'orchestration-planner';
 const PROMPT_HEAD = 'Plan a multi-agent orchestration for this objective:\n\n';
 const PROMPT_TAIL = '\n\nSplit it into at most ';
 const MAX_DEP_CONTEXT = 6000;
+/** How every worker's prompt, and each message that sends it back to its chat, ends */
+const WORKER_CLOSING = 'Finish with a concise report of what you did and found; it is handed to the next workers.';
 const DEFAULT_ATTEMPTS = 2;
 const MAX_ATTEMPTS = 10;
 const MAX_ERROR_QUOTE = 2000;
@@ -767,12 +772,22 @@ export class Orchestrator {
 
   /** What every worker is told first; shared by both engines, so a task reads the same either way. */
   private workerHead(orch: Orchestration): string {
-    return orch.objective ? `You are one worker in a multi-agent orchestration.\nOverall objective: ${orch.objective}` : '';
+    return orch.objective ? `You are one worker in a multi-agent orchestration.\nOverall objective, as the person wrote it:\n${pasted(orch.objective)}` : '';
   }
 
   private workerTask(orch: Orchestration, task: OrchestrationTaskState): string {
-    // Said here, and not left to the objective: what each stage checks is Agentry's rule
-    return `Your task (${task.name}):\n${task.prompt}\n\n${workerChecks(!!orch.verificationSpec)}\n\nFinish with a concise report of what you did and found; it is handed to the next workers.`;
+    // Said here, and not left to the objective: what each stage checks, and how an unattended run
+    // ends, are Agentry's rules
+    return [
+      `Your task (${task.name}):\n${task.prompt}`,
+      workerChecks(!!orch.verificationSpec),
+      REAL_VERIFICATION,
+      frontend(designSources(orch.cwd)),
+      scopeAndCompletion(),
+      UNATTENDED,
+      PASTED_NOTE,
+      WORKER_CLOSING,
+    ].join('\n\n');
   }
 
   private buildPrompt(orch: Orchestration, task: OrchestrationTaskState, pendingMerge: PendingMerge | null = null): string {
@@ -786,7 +801,7 @@ export class Orchestrator {
     if (deps.length > 0) {
       parts.push(
         'Results from the tasks you depend on:\n' +
-          deps.map((d) => `<task id="${d.id}" name="${d.name}">\n${(d.result ?? '').slice(0, MAX_DEP_CONTEXT)}\n</task>`).join('\n'),
+          deps.map((d) => `<task id="${d.id}" name="${d.name}">\n${pasted((d.result ?? '').slice(0, MAX_DEP_CONTEXT))}\n</task>`).join('\n'),
       );
     }
     if (task.worktree && task.branch) {
@@ -963,11 +978,11 @@ export class Orchestrator {
    * everything the previous execution did. What it is told comes from what happened to it (the
    * error, or the interruption), never from the objective.
    */
-  private continueChat(orch: Orchestration, task: OrchestrationTaskState, chatId: string): boolean {
+  private continueChat(orch: Orchestration, task: OrchestrationTaskState, chatId: string, nudge: string | null = null): boolean {
     const key = `${orch.id}:${task.id}`;
     try {
       if (orch.worktree && !task.cwd) this.prepareWorktree(orch, task, worktreeName(orch, task));
-      const prompt = this.continuation(task);
+      const prompt = nudge ?? this.continuation(orch, task);
       const limits = effectiveLimits(orch.limits, task.limits);
       // The CLI's ceiling is per process, so an attempt gets what the allowance has left, not all of it again
       const remaining = remainingUsd(limits, task);
@@ -975,7 +990,8 @@ export class Orchestrator {
         throw new Error(`its cost limit of $${(limits?.maxCostUsd ?? 0).toFixed(2)} is spent`);
       }
       task.status = 'running';
-      task.attempts += 1;
+      // A continuation for work still owed is not a new attempt: nothing failed
+      if (nudge === null) task.attempts += 1;
       task.startedAt ??= now();
       if (!task.clockStartedAt) startClock(task, now());
       task.endedAt = null;
@@ -991,7 +1007,7 @@ export class Orchestrator {
           task.error = null;
         } catch (err) {
           task.status = 'pending';
-          task.attempts -= 1;
+          if (nudge === null) task.attempts -= 1;
           this.refuse(orch, task, err, 'run the task again');
         }
         this.persist();
@@ -1022,12 +1038,12 @@ export class Orchestrator {
   }
 
   /** What a chat is told when its task goes on after an execution that did not finish it. */
-  private continuation(task: OrchestrationTaskState): string {
-    const closing = 'Finish with a concise report of what you did and found; it is handed to the next workers.';
+  private continuation(orch: Orchestration, task: OrchestrationTaskState): string {
+    const time = this.timeOf(orch, task);
     if (!task.error) {
       return (
         'This orchestration was interrupted before you finished your task. Everything you did is still in place, in the same ' +
-        `working directory. Check where you stopped and carry on from there instead of starting over. ${closing}`
+        `working directory. Check where you stopped and carry on from there instead of starting over. ${WORKER_CLOSING}\n\n${time}`
       );
     }
     const quoted = task.error.length > MAX_ERROR_QUOTE ? `${task.error.slice(0, MAX_ERROR_QUOTE)}…` : task.error;
@@ -1038,8 +1054,14 @@ ${quoted}
 
 ` +
       'Everything you did is still in place, in the same working directory. Work out what went wrong, fix it, and carry on from ' +
-      `where you stopped instead of starting over. ${closing}`
+      `where you stopped instead of starting over. ${WORKER_CLOSING}\n\n${time}`
     );
+  }
+
+  /** The time signal a worker is handed back with: its elapsed time against its limit, when it has one. */
+  private timeOf(orch: Orchestration, task: OrchestrationTaskState): string {
+    const limits = effectiveLimits(orch.limits, task.limits);
+    return timeSignal(elapsedMs(task, Date.now()), limits?.maxMinutes !== undefined ? limits.maxMinutes * 60_000 : null);
   }
 
   /**
@@ -1053,6 +1075,16 @@ ${quoted}
       this.charge(orch, task, result);
       task.error = result.result;
       this.continueChat(orch, task, task.runId);
+      return this.persist();
+    }
+    // A turn that ended as a report with work still owed goes back to its chat, naming what is open.
+    // Agentry commits what a worker leaves uncommitted, so only its last message is read here
+    const open = result.isError || !task.runId || (task.continuations ?? 0) >= MAX_CONTINUATIONS ? [] : openItems({ schema: false, structured: true, uncommitted: [], finalText: result.result });
+    if (open.length && task.runId) {
+      this.charge(orch, task, result);
+      const count = (task.continuations ?? 0) + 1;
+      task.continuations = count;
+      this.continueChat(orch, task, task.runId, continuationPrompt(open, count, [WORKER_CLOSING, this.timeOf(orch, task)]));
       return this.persist();
     }
     this.record(orch, task, result);
@@ -1226,7 +1258,7 @@ ${quoted}
       {
         prompt:
           `You are integrating the work of a multi-agent orchestration into one branch.\n` +
-          `Objective: ${orch.objective ?? orch.name}\n\n` +
+          `Objective, as the person wrote it:\n${pasted(orch.objective ?? orch.name)}\n\n` +
           `You are in a git worktree at ${state.worktree}, on branch ${state.branch}, which already contains the work of: ` +
           `${state.merged.join(', ') || 'no task yet'}. Merging these branches conflicted:\n` +
           state.conflicts.map((c) => `- ${orch.tasks.find((t) => t.id === c.taskId)?.branch}: ${c.paths.join(', ')}`).join('\n') +
@@ -1235,8 +1267,9 @@ ${quoted}
           '\n\nResolve every conflict so that the intent of both sides survives; read the code on each branch to ' +
           'understand it. Commit each merge. Do not push, and do not change anything beyond what resolving needs. ' +
           'Finish with a short report of how each conflict was resolved.\n\n' +
+          `${REAL_VERIFICATION}\n\n${UNATTENDED}\n\n${PASTED_NOTE}\n\n` +
           'What each task did:\n' +
-          tasks.map((t) => `<task id="${t.id}" name="${t.name}">\n${(t.result ?? '').slice(0, MAX_DEP_CONTEXT)}\n</task>`).join('\n'),
+          tasks.map((t) => `<task id="${t.id}" name="${t.name}">\n${pasted((t.result ?? '').slice(0, MAX_DEP_CONTEXT))}\n</task>`).join('\n'),
         cwd: state.worktree ?? orch.cwd,
         model: orch.model ?? undefined,
         permissionMode: orch.permissionMode,
@@ -1284,7 +1317,7 @@ ${quoted}
         {
           prompt:
             `Synthesize the results of a multi-agent orchestration into one final report.\n` +
-            `Objective: ${orch.objective ?? orch.name}\n\n` +
+            `Objective, as the person wrote it:\n${pasted(orch.objective ?? orch.name)}\n\n` +
             (onBranch
               ? `All of the tasks' work has been merged into branch ${integration.branch}, checked out in your working ` +
                 'directory. Describe what is actually there and anything still missing; do not merge, push or open pull requests.\n\n'
@@ -1292,13 +1325,14 @@ ${quoted}
                 ? `Merging the tasks' branches into ${integration.branch} did not finish (${integration.error ?? integration.status}). Say so in the report.\n\n`
                 : '') +
             (orch.verification && orch.verification.status !== 'pending'
-              ? `Verification of the merged branch: ${orch.verification.status}. ${orch.verification.report}\n\n`
+              ? `Verification of the merged branch: ${orch.verification.status}.\n${pasted(orch.verification.report)}\n\n`
               : '') +
             (orch.tasks.some((t) => t.status === 'skipped')
               ? 'Tasks marked skipped were given up on purpose by a person: say what is missing because of them.\n\n'
               : '') +
+            `${PASTED_NOTE}\n\n` +
             orch.tasks
-              .map((t) => `<task id="${t.id}" name="${t.name}" status="${t.status}">\n${(t.result ?? t.error ?? '').slice(0, MAX_DEP_CONTEXT)}\n</task>`)
+              .map((t) => `<task id="${t.id}" name="${t.name}" status="${t.status}">\n${pasted((t.result ?? t.error ?? '').slice(0, MAX_DEP_CONTEXT))}\n</task>`)
               .join('\n'),
           cwd: onBranch ? this.integratedDir(orch, integration.worktree as string) : orch.cwd,
           model: orch.model ?? undefined,
@@ -1722,14 +1756,16 @@ ${quoted}
     const cwd = resolve(req.cwd ?? this.config.workspaceDir);
     return this.runs.start({
       prompt:
-        `${PROMPT_HEAD}${req.objective}${PROMPT_TAIL}` +
+        `${PROMPT_HEAD}${pasted(req.objective)}${PROMPT_TAIL}` +
         `${maxTasks} tasks. Each task is executed by an independent Claude Code agent working in ${cwd}, ` +
         `so every prompt must be self-contained. Maximize parallelism: only add a dependency when a task truly needs another task's output ` +
-        `(results of dependencies are passed along automatically). You may inspect the directory with read-only tools first. Do not perform the work itself.\n\n` +
+        `(results of dependencies are passed along automatically). Before you plan, read the directory with the read-only tools, as much as the objective needs, ` +
+        `so each task names the files and commands it concerns. Do not perform the work itself.\n\n` +
         `Also choose how it runs. "graph" is the default: every task is a separate Claude Code process that can get a git worktree ` +
         `and branch of its own, merged at the end; choose it whenever a task changes files. "workflow" runs every task as a subagent ` +
         `of one Claude Code session in ${cwd} itself: cheaper and resumable, but with no isolation, so choose it only when it is ` +
-        `clearly better, meaning no task modifies the repository (analysis, review, research, audits). Say why in engineReason.`,
+        `clearly better, meaning no task modifies the repository (analysis, review, research, audits). Say why in engineReason.\n\n` +
+        [PASTED_NOTE, ...thinkThrough(req.model)].join('\n\n'),
       cwd,
       model: req.model,
       permissionMode: 'manual',
@@ -1764,6 +1800,8 @@ ${quoted}
     if (run.name !== PLANNER_RUN_NAME) throw new Error('that run is not a planner run');
     const result = await this.runs.waitForResult(runId);
     if (result.isError) throw new Error(`planner failed: ${result.result}`);
+    // A plan cut by the token limit can parse and still be missing tasks
+    if (stoppedOnMaxTokens(result)) throw new Error(`planner failed: ${MAX_TOKENS_ERROR}`);
 
     let draft = result.structuredOutput as { name?: string; engine?: string; engineReason?: string; tasks?: OrchestrationTaskSpec[] } | undefined;
     if (!draft?.tasks) {
@@ -1780,7 +1818,7 @@ ${quoted}
     const canRunWorkflows = this.workflowsAvailable(run.cwd);
     const spec: OrchestrationSpec = {
       name: draft.name ?? 'orchestration',
-      objective: head === 0 && tail > 0 ? run.prompt.slice(PROMPT_HEAD.length, tail) : undefined,
+      objective: head === 0 && tail > 0 ? unpasted(run.prompt.slice(PROMPT_HEAD.length, tail)) : undefined,
       engine: engine === 'workflow' && canRunWorkflows ? 'workflow' : 'graph',
       ...(draft.engineReason
         ? { engineReason: engine === 'workflow' && !canRunWorkflows ? `${draft.engineReason} (as a graph: this CLI has no Workflow tool)` : draft.engineReason }
@@ -2075,7 +2113,7 @@ ${quoted}
         after: this.workerTask(orch, t),
       })),
       synthesis: orch.synthesize
-        ? `Synthesize the results of a multi-agent orchestration into one final report.\nObjective: ${orch.objective ?? orch.name}`
+        ? `Synthesize the results of a multi-agent orchestration into one final report.\nObjective, as the person wrote it:\n${pasted(orch.objective ?? orch.name)}\n\n${PASTED_NOTE}`
         : null,
     });
   }
@@ -2097,7 +2135,9 @@ ${quoted}
       const prompt =
         `Run the workflow Agentry generated for the orchestration "${orch.name}": call the Workflow tool with ` +
         `scriptPath "${scriptPath}"${resumeFrom ? ` and resumeFromRunId "${resumeFrom}"` : ''}, exactly as given, without editing the script. ` +
-        'I explicitly ask you to run this workflow. Wait for it to finish, then reply with one line saying whether it completed.';
+        'I explicitly ask you to run this workflow. Wait for it to finish, then reply with one line saying whether it completed.\n\n' +
+        // No budget for a workflow today: the signal says time matters all the same
+        timeSignal(Math.max(0, Date.now() - Date.parse(orch.createdAt)));
       const previous = orch.workflow?.runId ? this.runs.get(orch.workflow.runId) : null;
       if (resumeFrom && previous) {
         orch.workflow = { scriptPath, runId: previous.id, workflowRunId: resumeFrom };

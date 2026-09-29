@@ -9,6 +9,7 @@ import { Db } from '../src/db.ts';
 import { mainCheckout } from '../src/git.ts';
 import { itemWorktree, orchestrationDraft, titleFromMessage, WorkItemAutomation, workItemPrompt } from '../src/work-links.ts';
 import { WorkItemService } from '../src/work-items.ts';
+import { PASTED_NOTE, REAL_VERIFICATION, SCOPE_AND_COMPLETION, UNATTENDED } from '../src/prompt-rules.ts';
 import { tempConfig } from './helpers.ts';
 
 // The automation is fed the same events the bus carries and the results the runtime reports, over a
@@ -446,8 +447,16 @@ test('the prompt opens with the key and the title, and carries the description a
   const prompt = workItemPrompt(s.items.get(item.id));
   assert.match(prompt, /^AGN-2 · Cart loses items\n/);
   assert.match(prompt, /bug AGN-2 .*epic AGN-1 "Checkout"/);
-  assert.match(prompt, /Reload the page with items in the cart\./);
-  assert.match(prompt, /- \[ \] Items survive a reload\n- \[x\] A test covers it/);
+  // What people wrote on the board is pasted content; the title line stays bare, as the chat's title
+  assert.match(prompt, /Its description, as written on the board:\n<pasted_content id="([0-9a-f]{8})">\nReload the page with items in the cart\.\n<\/pasted_content id="\1">/);
+  assert.match(prompt, /Acceptance criteria:\n<pasted_content id="([0-9a-f]{8})">\n- \[ \] Items survive a reload\n- \[x\] A test covers it\n<\/pasted_content id="\1">/);
+  // "Work on it" is a person's chat: the note, scope and real verification, and no unattended rule
+  for (const text of [PASTED_NOTE, SCOPE_AND_COMPLETION, REAL_VERIFICATION]) assert.ok(prompt.includes(text), text.slice(0, 40));
+  assert.ok(!prompt.includes(UNATTENDED));
+  // A node is handed the item alone: its worker prompt carries the rules
+  const node = workItemPrompt(s.items.get(item.id), 'task');
+  assert.ok(!node.includes(SCOPE_AND_COMPLETION));
+  assert.match(node, /<pasted_content id="[0-9a-f]{8}">\nReload the page/);
 });
 
 test('a selection becomes a draft with one node per item and dependsOn from the blocks inside it', () => {

@@ -2293,6 +2293,10 @@
         "type": "number",
         "description": "Executions of its chat so far, the first included"
       },
+      "continuations": {
+        "type": "number",
+        "description": "Times the orchestrator sent the worker back to its chat because its turn ended as a report with work still owed (`openItems`), at most three; absent on a task that never needed it. These are not attempts: nothing failed."
+      },
       "runId": {
         "type": [
           "string",
@@ -7256,6 +7260,7 @@
       "restarts",
       "unreadable",
       "no-verdict",
+      "max-tokens",
       "not-started",
       "not-continued",
       "chat-ended",
@@ -7269,7 +7274,7 @@
       "refined",
       "chat-busy"
     ],
-    "description": "Why a run failed or was cancelled, as a stable code a client words in the person's language; the run's `error` keeps the raw text beside it. A run stored before causes were kept gets the one its error reads as, or none.\n\nFailed:\n- `budget`: it reached `flow.maxCostUsd` (`--max-budget-usd`);\n- `no-account`: the account hit its rate limit and no other account could take the run over;\n- `rate-limit`: the account hit its rate limit and the rotation was off;\n- `stopped`: its chat was stopped;\n- `restarts`: Agentry restarted past `MAX_FLOW_RESTARTS` times while it worked;\n- `unreadable`: it ended without a readable structured result;\n- `no-verdict`: a verification ended without a verdict;\n- `not-started`: its chat did not start;\n- `not-continued`: its chat could not be continued after a restart;\n- `chat-ended`: its chat ended, or was removed, without a result;\n- `chat-failed`: its chat ended in an error the CLI reported (the error is the CLI's text).\n\nCancelled:\n- `item-moved`: the item left the column before the run started, or while a restart cut it off;\n- `item-removed` and `item-done`: the item was removed, or moved to `done`;\n- `replaced`: the item entered a column again before the run started, and the newer run took its place;\n- `flow-off`: the flow, the Team module or the Board module was switched off;\n- `no-member`: nobody on the team answers for the column any more;\n- `refined`: a todo check would repeat a refine that passed, on an item unchanged since;\n- `chat-busy`: a chat of the person's was already working on the item."
+    "description": "Why a run failed or was cancelled, as a stable code a client words in the person's language; the run's `error` keeps the raw text beside it. A run stored before causes were kept gets the one its error reads as, or none.\n\nFailed:\n- `budget`: it reached `flow.maxCostUsd` (`--max-budget-usd`);\n- `no-account`: the account hit its rate limit and no other account could take the run over;\n- `rate-limit`: the account hit its rate limit and the rotation was off;\n- `stopped`: its chat was stopped;\n- `restarts`: Agentry restarted past `MAX_FLOW_RESTARTS` times while it worked;\n- `unreadable`: it ended without a readable structured result;\n- `no-verdict`: a verification ended without a verdict;\n- `max-tokens`: its last turn stopped on the output token limit, so its result is cut short even when it parses;\n- `not-started`: its chat did not start;\n- `not-continued`: its chat could not be continued after a restart;\n- `chat-ended`: its chat ended, or was removed, without a result;\n- `chat-failed`: its chat ended in an error the CLI reported (the error is the CLI's text).\n\nCancelled:\n- `item-moved`: the item left the column before the run started, or while a restart cut it off;\n- `item-removed` and `item-done`: the item was removed, or moved to `done`;\n- `replaced`: the item entered a column again before the run started, and the newer run took its place;\n- `flow-off`: the flow, the Team module or the Board module was switched off;\n- `no-member`: nobody on the team answers for the column any more;\n- `refined`: a todo check would repeat a refine that passed, on an item unchanged since;\n- `chat-busy`: a chat of the person's was already working on the item."
   },
   "FlowRunQueuedBy": {
     "type": "string",
@@ -13238,6 +13243,10 @@
         "type": "number",
         "description": "Times a restart cut it off and it went on in its chat; past `MAX_FLOW_RESTARTS` it fails"
       },
+      "continuations": {
+        "type": "number",
+        "description": "Times the flow sent it back to its chat because its turn ended with work still owed (no structured result, uncommitted changes, or a last message that offers, asks or announces instead of doing): at most `MAX_CONTINUATIONS`, after which the result it has is judged as it is"
+      },
       "language": {
         "$ref": "#/components/schemas/AgentryLanguage",
         "description": "The person's language, which the first line of its chat's prompt (`<Role> · <KEY>`, the title the chat is listed by) is written in, kept so a restart words it the same. Absent on a run stored before it was kept, which reads as `en`."
@@ -13280,6 +13289,7 @@
       "retriedBy",
       "retryable",
       "restarts",
+      "continuations",
       "queuedAt",
       "startedAt",
       "endedAt"

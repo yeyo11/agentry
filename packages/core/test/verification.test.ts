@@ -204,7 +204,11 @@ test('the fixer is told the failed spec files only when there are some, in words
   assert.match(without, /lint says no[\s\S]*unit says no/);
   const withSpecs = fixerPrompt({ ...base, failedSpecs: ['a.spec.mjs', 'b.spec.mjs'] });
   const paragraph = withSpecs.split('\n\n').find((p) => p.startsWith('These spec files failed')) ?? '';
-  assert.equal(paragraph, 'These spec files failed: a.spec.mjs, b.spec.mjs. Start with them, one at a time; do not run the whole suite to find them.');
+  // The names come from the checked project's output, so they are pasted content (CW-24)
+  assert.match(
+    paragraph,
+    /^These spec files failed \(read from the check's output\):\n<pasted_content id="([0-9a-f]{8})">\na\.spec\.mjs\nb\.spec\.mjs\n<\/pasted_content id="\1">\nStart with them, one at a time; do not run the whole suite to find them\.$/,
+  );
   assert.doesNotMatch(paragraph, /pnpm|e2e\/|port|\d{4}/);
 });
 
