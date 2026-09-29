@@ -23,6 +23,7 @@ const {
   listRequest,
   matchesFilters,
   originsToFetch,
+  roleOf,
   rowTags,
   SORTERS,
   stateCounts,
@@ -110,6 +111,19 @@ test('orchestration workers are out by default, and the synthesis is not one', (
   assert.equal(matchesFilters(worker(), filters()), false);
   assert.equal(matchesFilters(synthesis(), filters()), true);
   assert.equal(matchesFilters(worker(), filters({ workers: true })), true);
+});
+
+test('the integrator and the fixer are workers named by their role, not taken for the synthesis', async () => {
+  const { default: i18n } = await import('../src/i18n/index.ts');
+  const of = (role: 'integration' | 'verification') => chat({ origin: 'orchestration', orchestration: { id: 'o1', name: 'Release', role, taskId: null, taskName: null } });
+  assert.equal(isWorker(of('integration')), true);
+  assert.equal(isWorker(of('verification')), true);
+  assert.equal(roleOf({ role: 'integration' }), 'integration');
+  assert.equal(roleOf({ role: 'verification' }), 'verification');
+  assert.equal(roleOf({ role: 'synthesis' }), 'synthesis');
+  const words = (lng: string) => (['integration', 'verification', 'synthesis'] as const).map((r) => [i18n.t(`chats:list.role.${r}`, { lng }), i18n.t(`chat:view.role.${r}`, { lng })]);
+  assert.deepEqual(words('en'), [['integration', 'integration'], ['verification', 'verification'], ['synthesis', 'synthesis']]);
+  assert.deepEqual(words('es'), [['integración', 'integración'], ['verificación', 'verificación'], ['síntesis', 'síntesis']]);
 });
 
 test('internal chats need their own switch', () => {
