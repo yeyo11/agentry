@@ -64,10 +64,14 @@ import {
   tail,
   workerChecks,
   DEFAULT_VERIFY_MINUTES,
+  MAX_FAILED_SPECS,
   type CommandHandle,
   type InstallStep,
 } from './verification.ts';
 import { compileWorkflow, readCompiledResult, workflowName } from './workflow-engine.ts';
+import { continuationPrompt, MAX_TOKENS_ERROR, openItems, stoppedOnMaxTokens } from './open-items.ts';
+import { designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, scopeAndCompletion, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
+import { MAX_CONTINUATIONS } from '@agentry/shared';
 
 const ID_RE = /^[\w-]{1,40}$/;
 /** The planner's own name, which is how a past planner run is recognised later. */
@@ -77,6 +81,8 @@ export const PLANNER_RUN_NAME = 'orchestration-planner';
 const PROMPT_HEAD = 'Plan a multi-agent orchestration for this objective:\n\n';
 const PROMPT_TAIL = '\n\nSplit it into at most ';
 const MAX_DEP_CONTEXT = 6000;
+/** How every worker's prompt, and each message that sends it back to its chat, ends */
+const WORKER_CLOSING = 'Finish with a concise report of what you did and found; it is handed to the next workers.';
 const DEFAULT_ATTEMPTS = 2;
 const MAX_ATTEMPTS = 10;
 const MAX_ERROR_QUOTE = 2000;
@@ -84,13 +90,47 @@ const MAX_ERROR_QUOTE = 2000;
 const LIMITS_CHECK_MS = Number(process.env.AGENTRY_LIMITS_INTERVAL_MS ?? 10_000);
 const now = () => new Date().toISOString();
 
-const pendingCommand = (command: string): VerificationCommand => ({ command, status: 'pending', output: '', durationMs: 0 });
+const pendingCommand = (command: string, group?: number): VerificationCommand => ({
+  command,
+  ...(group !== undefined ? { group } : {}),
+  status: 'pending',
+  output: '',
+  durationMs: 0,
+});
+
+/** A spec's checks as the flat rows of its state, each one with the index of the entry it came from. */
+const checkRows = (spec: VerificationSpec): VerificationCommand[] =>
+  spec.commands.flatMap((entry, group) => (typeof entry === 'string' ? [pendingCommand(entry, group)] : entry.map((c) => pendingCommand(c, group))));
+
+/**
+ * The steps the checks run in, as indexes into the state's rows: the install step alone, then each
+ * entry of the spec, the commands of one parallel group together. Rows written before groups have
+ * none and are a step each.
+ */
+export function verificationSteps(rows: readonly VerificationCommand[]): number[][] {
+  const steps: number[][] = [];
+  rows.forEach((row, i) => {
+    const last = steps.at(-1);
+    const before = last === undefined ? undefined : rows[last[0] as number];
+    if (last && before && !row.install && !before.install && row.group !== undefined && row.group === before.group) last.push(i);
+    else steps.push([i]);
+  });
+  return steps;
+}
+
+/** The checks in the order they run, a parallel group as a list, for the fixer to read. */
+const commandsInOrder = (rows: readonly VerificationCommand[]): Array<string | string[]> =>
+  verificationSteps(rows).map((step) => {
+    const commands = step.map((i) => (rows[i] as VerificationCommand).command);
+    return commands.length === 1 ? (commands[0] as string) : commands;
+  });
 const usd = (n: number) => `$${n.toFixed(2)}`;
 
 /** What a stop reaches while a graph's checks are running. */
 interface VerificationControl {
   cancelled: boolean;
-  command: CommandHandle | null;
+  /** Every command running now: the install step alone, or all of a parallel group */
+  commands: Set<CommandHandle>;
   fixerRunId: string | null;
 }
 
@@ -732,12 +772,22 @@ export class Orchestrator {
 
   /** What every worker is told first; shared by both engines, so a task reads the same either way. */
   private workerHead(orch: Orchestration): string {
-    return orch.objective ? `You are one worker in a multi-agent orchestration.\nOverall objective: ${orch.objective}` : '';
+    return orch.objective ? `You are one worker in a multi-agent orchestration.\nOverall objective, as the person wrote it:\n${pasted(orch.objective)}` : '';
   }
 
   private workerTask(orch: Orchestration, task: OrchestrationTaskState): string {
-    // Said here, and not left to the objective: what each stage checks is Agentry's rule
-    return `Your task (${task.name}):\n${task.prompt}\n\n${workerChecks(!!orch.verificationSpec)}\n\nFinish with a concise report of what you did and found; it is handed to the next workers.`;
+    // Said here, and not left to the objective: what each stage checks, and how an unattended run
+    // ends, are Agentry's rules
+    return [
+      `Your task (${task.name}):\n${task.prompt}`,
+      workerChecks(!!orch.verificationSpec),
+      REAL_VERIFICATION,
+      frontend(designSources(orch.cwd)),
+      scopeAndCompletion(),
+      UNATTENDED,
+      PASTED_NOTE,
+      WORKER_CLOSING,
+    ].join('\n\n');
   }
 
   private buildPrompt(orch: Orchestration, task: OrchestrationTaskState, pendingMerge: PendingMerge | null = null): string {
@@ -751,7 +801,7 @@ export class Orchestrator {
     if (deps.length > 0) {
       parts.push(
         'Results from the tasks you depend on:\n' +
-          deps.map((d) => `<task id="${d.id}" name="${d.name}">\n${(d.result ?? '').slice(0, MAX_DEP_CONTEXT)}\n</task>`).join('\n'),
+          deps.map((d) => `<task id="${d.id}" name="${d.name}">\n${pasted((d.result ?? '').slice(0, MAX_DEP_CONTEXT))}\n</task>`).join('\n'),
       );
     }
     if (task.worktree && task.branch) {
@@ -928,11 +978,11 @@ export class Orchestrator {
    * everything the previous execution did. What it is told comes from what happened to it (the
    * error, or the interruption), never from the objective.
    */
-  private continueChat(orch: Orchestration, task: OrchestrationTaskState, chatId: string): boolean {
+  private continueChat(orch: Orchestration, task: OrchestrationTaskState, chatId: string, nudge: string | null = null): boolean {
     const key = `${orch.id}:${task.id}`;
     try {
       if (orch.worktree && !task.cwd) this.prepareWorktree(orch, task, worktreeName(orch, task));
-      const prompt = this.continuation(task);
+      const prompt = nudge ?? this.continuation(orch, task);
       const limits = effectiveLimits(orch.limits, task.limits);
       // The CLI's ceiling is per process, so an attempt gets what the allowance has left, not all of it again
       const remaining = remainingUsd(limits, task);
@@ -940,7 +990,8 @@ export class Orchestrator {
         throw new Error(`its cost limit of $${(limits?.maxCostUsd ?? 0).toFixed(2)} is spent`);
       }
       task.status = 'running';
-      task.attempts += 1;
+      // A continuation for work still owed is not a new attempt: nothing failed
+      if (nudge === null) task.attempts += 1;
       task.startedAt ??= now();
       if (!task.clockStartedAt) startClock(task, now());
       task.endedAt = null;
@@ -956,7 +1007,7 @@ export class Orchestrator {
           task.error = null;
         } catch (err) {
           task.status = 'pending';
-          task.attempts -= 1;
+          if (nudge === null) task.attempts -= 1;
           this.refuse(orch, task, err, 'run the task again');
         }
         this.persist();
@@ -987,12 +1038,12 @@ export class Orchestrator {
   }
 
   /** What a chat is told when its task goes on after an execution that did not finish it. */
-  private continuation(task: OrchestrationTaskState): string {
-    const closing = 'Finish with a concise report of what you did and found; it is handed to the next workers.';
+  private continuation(orch: Orchestration, task: OrchestrationTaskState): string {
+    const time = this.timeOf(orch, task);
     if (!task.error) {
       return (
         'This orchestration was interrupted before you finished your task. Everything you did is still in place, in the same ' +
-        `working directory. Check where you stopped and carry on from there instead of starting over. ${closing}`
+        `working directory. Check where you stopped and carry on from there instead of starting over. ${WORKER_CLOSING}\n\n${time}`
       );
     }
     const quoted = task.error.length > MAX_ERROR_QUOTE ? `${task.error.slice(0, MAX_ERROR_QUOTE)}…` : task.error;
@@ -1003,8 +1054,14 @@ ${quoted}
 
 ` +
       'Everything you did is still in place, in the same working directory. Work out what went wrong, fix it, and carry on from ' +
-      `where you stopped instead of starting over. ${closing}`
+      `where you stopped instead of starting over. ${WORKER_CLOSING}\n\n${time}`
     );
+  }
+
+  /** The time signal a worker is handed back with: its elapsed time against its limit, when it has one. */
+  private timeOf(orch: Orchestration, task: OrchestrationTaskState): string {
+    const limits = effectiveLimits(orch.limits, task.limits);
+    return timeSignal(elapsedMs(task, Date.now()), limits?.maxMinutes !== undefined ? limits.maxMinutes * 60_000 : null);
   }
 
   /**
@@ -1018,6 +1075,16 @@ ${quoted}
       this.charge(orch, task, result);
       task.error = result.result;
       this.continueChat(orch, task, task.runId);
+      return this.persist();
+    }
+    // A turn that ended as a report with work still owed goes back to its chat, naming what is open.
+    // Agentry commits what a worker leaves uncommitted, so only its last message is read here
+    const open = result.isError || !task.runId || (task.continuations ?? 0) >= MAX_CONTINUATIONS ? [] : openItems({ schema: false, structured: true, uncommitted: [], finalText: result.result });
+    if (open.length && task.runId) {
+      this.charge(orch, task, result);
+      const count = (task.continuations ?? 0) + 1;
+      task.continuations = count;
+      this.continueChat(orch, task, task.runId, continuationPrompt(open, count, [WORKER_CLOSING, this.timeOf(orch, task)]));
       return this.persist();
     }
     this.record(orch, task, result);
@@ -1191,7 +1258,7 @@ ${quoted}
       {
         prompt:
           `You are integrating the work of a multi-agent orchestration into one branch.\n` +
-          `Objective: ${orch.objective ?? orch.name}\n\n` +
+          `Objective, as the person wrote it:\n${pasted(orch.objective ?? orch.name)}\n\n` +
           `You are in a git worktree at ${state.worktree}, on branch ${state.branch}, which already contains the work of: ` +
           `${state.merged.join(', ') || 'no task yet'}. Merging these branches conflicted:\n` +
           state.conflicts.map((c) => `- ${orch.tasks.find((t) => t.id === c.taskId)?.branch}: ${c.paths.join(', ')}`).join('\n') +
@@ -1200,8 +1267,9 @@ ${quoted}
           '\n\nResolve every conflict so that the intent of both sides survives; read the code on each branch to ' +
           'understand it. Commit each merge. Do not push, and do not change anything beyond what resolving needs. ' +
           'Finish with a short report of how each conflict was resolved.\n\n' +
+          `${REAL_VERIFICATION}\n\n${UNATTENDED}\n\n${PASTED_NOTE}\n\n` +
           'What each task did:\n' +
-          tasks.map((t) => `<task id="${t.id}" name="${t.name}">\n${(t.result ?? '').slice(0, MAX_DEP_CONTEXT)}\n</task>`).join('\n'),
+          tasks.map((t) => `<task id="${t.id}" name="${t.name}">\n${pasted((t.result ?? '').slice(0, MAX_DEP_CONTEXT))}\n</task>`).join('\n'),
         cwd: state.worktree ?? orch.cwd,
         model: orch.model ?? undefined,
         permissionMode: orch.permissionMode,
@@ -1249,7 +1317,7 @@ ${quoted}
         {
           prompt:
             `Synthesize the results of a multi-agent orchestration into one final report.\n` +
-            `Objective: ${orch.objective ?? orch.name}\n\n` +
+            `Objective, as the person wrote it:\n${pasted(orch.objective ?? orch.name)}\n\n` +
             (onBranch
               ? `All of the tasks' work has been merged into branch ${integration.branch}, checked out in your working ` +
                 'directory. Describe what is actually there and anything still missing; do not merge, push or open pull requests.\n\n'
@@ -1257,13 +1325,14 @@ ${quoted}
                 ? `Merging the tasks' branches into ${integration.branch} did not finish (${integration.error ?? integration.status}). Say so in the report.\n\n`
                 : '') +
             (orch.verification && orch.verification.status !== 'pending'
-              ? `Verification of the merged branch: ${orch.verification.status}. ${orch.verification.report}\n\n`
+              ? `Verification of the merged branch: ${orch.verification.status}.\n${pasted(orch.verification.report)}\n\n`
               : '') +
             (orch.tasks.some((t) => t.status === 'skipped')
               ? 'Tasks marked skipped were given up on purpose by a person: say what is missing because of them.\n\n'
               : '') +
+            `${PASTED_NOTE}\n\n` +
             orch.tasks
-              .map((t) => `<task id="${t.id}" name="${t.name}" status="${t.status}">\n${(t.result ?? t.error ?? '').slice(0, MAX_DEP_CONTEXT)}\n</task>`)
+              .map((t) => `<task id="${t.id}" name="${t.name}" status="${t.status}">\n${pasted((t.result ?? t.error ?? '').slice(0, MAX_DEP_CONTEXT))}\n</task>`)
               .join('\n'),
           cwd: onBranch ? this.integratedDir(orch, integration.worktree as string) : orch.cwd,
           model: orch.model ?? undefined,
@@ -1318,7 +1387,7 @@ ${quoted}
     const control = this.verifying.get(id);
     if (!control) return;
     control.cancelled = true;
-    control.command?.cancel();
+    for (const handle of control.commands) handle.cancel();
     if (control.fixerRunId && this.runs.get(control.fixerRunId)) this.runs.stop(control.fixerRunId);
   }
 
@@ -1364,7 +1433,7 @@ ${quoted}
         status: 'failed',
         attempts: 0,
         // Only a given install is known here: detecting one needs the worktree that is not there
-        commands: [...(typeof spec.install === 'string' ? [{ ...pendingCommand(spec.install), install: true }] : []), ...spec.commands.map(pendingCommand)],
+        commands: [...(typeof spec.install === 'string' ? [{ ...pendingCommand(spec.install), install: true }] : []), ...checkRows(spec)],
         commits: [],
         commit: null,
         report: `Not run: ${why}.`,
@@ -1377,14 +1446,14 @@ ${quoted}
     if (before && (before.status === 'passed' || before.status === 'fixed') && before.commit === integration.commit) return;
 
     const root = integration.worktree;
-    const control: VerificationControl = { cancelled: false, command: null, fixerRunId: null };
+    const control: VerificationControl = { cancelled: false, commands: new Set(), fixerRunId: null };
     this.verifying.set(orch.id, control);
     const startHead = headCommit(root);
     const install = installStep(spec, root, this.integratedDir(orch, root));
     const state: VerificationState = (orch.verification = {
       status: 'running',
       attempts: 0,
-      commands: [...(install ? [{ ...pendingCommand(install.command), install: true }] : []), ...spec.commands.map(pendingCommand)],
+      commands: [...(install ? [{ ...pendingCommand(install.command), install: true }] : []), ...checkRows(spec)],
       commits: [],
       commit: startHead,
       report: '',
@@ -1420,8 +1489,10 @@ ${quoted}
   ): Promise<void> {
     const minutes = spec.timeoutMinutes ?? DEFAULT_VERIFY_MINUTES;
     const dir = this.integratedDir(orch, root);
+    const steps = verificationSteps(state.commands);
     const spent = state.commands.map(() => 0);
-    const said = state.commands.map<string[]>(() => []);
+    // What each fixer attempt said, and which checks it was at: an attempt at a group is at each of them
+    const notes: { covers: ReadonlySet<number>; note: string }[] = [];
     const mended = new Set<number>();
     const conclude = (status: 'passed' | 'fixed' | 'failed', headline: string) => {
       state.status = status;
@@ -1429,36 +1500,55 @@ ${quoted}
       state.report = [headline, left.length ? `Not run: ${left.map((c) => `\`${c}\``).join(', ')}.` : ''].filter(Boolean).join(' ');
     };
 
-    let i = 0;
-    while (i < state.commands.length) {
-      const entry = state.commands[i] as VerificationCommand;
-      entry.status = 'running';
+    let s = 0;
+    while (s < steps.length) {
+      const step = steps[s] as number[];
+      for (const i of step) (state.commands[i] as VerificationCommand).status = 'running';
       this.persist();
-      const outcome = await runCommand(entry.command, entry.install && install ? install.cwd : dir, minutes * 60_000, (handle) => {
-        control.command = handle;
-      });
-      control.command = null;
-      entry.output = outcome.output;
-      entry.durationMs = outcome.durationMs;
+      // A group runs at once and is waited for whole, so every failure in it is known before the fixer starts
+      const outcomes = await Promise.all(
+        step.map(async (i) => {
+          const entry = state.commands[i] as VerificationCommand;
+          let handle: CommandHandle | null = null;
+          const outcome = await runCommand(entry.command, entry.install && install ? install.cwd : dir, minutes * 60_000, (h) => {
+            handle = h;
+            control.commands.add(h);
+            // A stop that came while its siblings were starting finds this one too
+            if (control.cancelled) h.cancel();
+          });
+          if (handle) control.commands.delete(handle);
+          entry.output = outcome.output;
+          entry.durationMs = outcome.durationMs;
+          if (!control.cancelled) entry.status = outcome.ok ? (mended.has(i) ? 'fixed' : 'passed') : 'failed';
+          this.persist();
+          return { i, outcome };
+        }),
+      );
       if (control.cancelled) {
-        entry.status = 'failed';
+        for (const { i, outcome } of outcomes) if (!outcome.ok) (state.commands[i] as VerificationCommand).status = 'failed';
         return conclude('failed', 'Stopped before the checks finished.');
       }
-      if (outcome.ok) {
-        entry.status = mended.has(i) ? 'fixed' : 'passed';
-        i += 1;
-        this.persist();
+      const failed = outcomes
+        .filter(({ outcome }) => !outcome.ok)
+        .map(({ i, outcome }) => ({
+          i,
+          outcome,
+          why: outcome.timedOut ? `timed out after ${String(minutes)} min and was killed` : `exited with code ${String(outcome.exitCode ?? 'unknown')}`,
+        }));
+      if (failed.length === 0) {
+        s += 1;
         continue;
       }
 
-      entry.status = 'failed';
-      const why = outcome.timedOut ? `timed out after ${String(minutes)} min and was killed` : `exited with code ${String(outcome.exitCode ?? 'unknown')}`;
-      if (!spec.fixer) return conclude('failed', `\`${entry.command}\` ${why}. The fixer is off, so nothing was changed.`);
-      if ((spent[i] ?? 0) >= spec.maxAttempts) {
-        const last = said[i]?.at(-1);
+      const named = failed.map((f) => `\`${(state.commands[f.i] as VerificationCommand).command}\` ${f.why}`).join('; ');
+      if (!spec.fixer) return conclude('failed', `${named}. The fixer is off, so nothing was changed.`);
+      const spentOut = failed.filter((f) => (spent[f.i] ?? 0) >= spec.maxAttempts);
+      if (spentOut.length) {
+        const last = notes.filter((n) => spentOut.some((f) => n.covers.has(f.i))).at(-1)?.note;
+        const times = Math.max(...spentOut.map((f) => spent[f.i] ?? 0));
         return conclude(
           'failed',
-          `\`${entry.command}\` ${why} again after ${String(spent[i])} fixer attempt${spent[i] === 1 ? '' : 's'}, so Agentry stopped there.` +
+          `${spentOut.map((f) => `\`${(state.commands[f.i] as VerificationCommand).command}\` ${f.why}`).join('; ')} again after ${String(times)} fixer attempt${times === 1 ? '' : 's'}, so Agentry stopped there.` +
             (last ? ` The last thing the fixer said: ${last}` : ''),
         );
       }
@@ -1467,28 +1557,43 @@ ${quoted}
       if (left !== null && left <= 0) {
         return conclude(
           'failed',
-          `\`${entry.command}\` ${why}, and the fixer's cost limit of ${usd(spec.maxCostUsd ?? 0)} is spent (${usd(state.costUsd)} over ${String(state.attempts)} attempt${state.attempts === 1 ? '' : 's'}), so Agentry stopped there.`,
+          `${named}, and the fixer's cost limit of ${usd(spec.maxCostUsd ?? 0)} is spent (${usd(state.costUsd)} over ${String(state.attempts)} attempt${state.attempts === 1 ? '' : 's'}), so Agentry stopped there.`,
         );
       }
-      spent[i] = (spent[i] ?? 0) + 1;
+      // One attempt for the whole group, counted against each check it is at
+      for (const f of failed) spent[f.i] = (spent[f.i] ?? 0) + 1;
       state.attempts += 1;
       this.persist();
-      const attempt = await this.fix(orch, spec, state, root, dir, i, why, said[i] ?? [], left, control);
-      said[i]?.push(attempt.note);
+      const covers = new Set(failed.map((f) => f.i));
+      const earlier = notes.filter((n) => [...covers].some((i) => n.covers.has(i))).map((n) => n.note);
+      const attempt = await this.fix(
+        orch,
+        spec,
+        state,
+        root,
+        dir,
+        failed.map((f) => ({ index: f.i, failure: f.why })),
+        [...new Set(failed.flatMap((f) => f.outcome.failedSpecs))].slice(0, MAX_FAILED_SPECS),
+        Math.max(...failed.map((f) => spent[f.i] ?? 0)),
+        earlier,
+        left,
+        control,
+      );
+      notes.push({ covers, note: attempt.note });
       state.commits = commitsSince(root, startHead);
       if (control.cancelled) return conclude('failed', 'Stopped before the checks finished.');
       if (attempt.budget) {
         const made = state.commits.length;
         return conclude(
           'failed',
-          `\`${entry.command}\` ${why}, and the fixer's cost limit of ${usd(spec.maxCostUsd ?? 0)} ran out during attempt ${String(state.attempts)} (${usd(state.costUsd)} spent), so Agentry stopped there without checking again.` +
+          `${named}, and the fixer's cost limit of ${usd(spec.maxCostUsd ?? 0)} ran out during attempt ${String(state.attempts)} (${usd(state.costUsd)} spent), so Agentry stopped there without checking again.` +
             (made ? ` What the fixer committed is on the branch, unchecked: ${state.commits.map((c) => c.subject).join('; ')}.` : ''),
         );
       }
-      mended.add(i);
+      for (const f of failed) mended.add(f.i);
       // A fix for one check can break another: they all run again, from the first
       for (const c of state.commands) c.status = 'pending';
-      i = 0;
+      s = 0;
     }
 
     if (mended.size === 0) return conclude('passed', `All ${String(state.commands.length)} checks passed on the merged branch.`);
@@ -1501,20 +1606,27 @@ ${quoted}
     );
   }
 
-  /** One attempt of the fixer at one failing check: what it reported, trimmed, and whether its cost limit ended it. */
+  /**
+   * One attempt of the fixer at the checks of one step that failed (one, or several of a parallel
+   * group): what it reported, trimmed, and whether its cost limit ended it.
+   */
   private async fix(
     orch: Orchestration,
     spec: VerificationSpec,
     state: VerificationState,
     root: string,
     dir: string,
-    index: number,
-    failure: string,
+    failures: { index: number; failure: string }[],
+    failedSpecs: string[],
+    attemptNumber: number,
     earlier: string[],
     budgetUsd: number | null,
     control: VerificationControl,
   ): Promise<{ note: string; budget: boolean }> {
-    const entry = state.commands[index] as VerificationCommand;
+    const checks = failures.map(({ index, failure }) => {
+      const entry = state.commands[index] as VerificationCommand;
+      return { command: entry.command, failure: `It ${failure}.`, output: entry.output };
+    });
     let note: string;
     let budget = false;
     try {
@@ -1524,11 +1636,10 @@ ${quoted}
             objective: orch.objective ?? orch.name,
             branch: orch.integration?.branch ?? '',
             worktree: root,
-            command: entry.command,
-            commands: state.commands.map((c) => c.command),
-            failure: `It ${failure}.`,
-            output: entry.output,
-            attempt: earlier.length + 1,
+            commands: commandsInOrder(state.commands),
+            failed: checks,
+            ...(failedSpecs.length ? { failedSpecs } : {}),
+            attempt: attemptNumber,
             maxAttempts: spec.maxAttempts,
             earlier,
             tasks: orch.tasks
@@ -1561,7 +1672,8 @@ ${quoted}
     control.fixerRunId = null;
     try {
       // Asked to commit, agents often do not: what is left would be lost to the pull request
-      commitAll(root, `chore: keep what the verification fixer left uncommitted\n\nOrchestration ${orch.name} (${orch.id.slice(0, 8)}), check \`${entry.command}\`.`);
+      const named = checks.map((c) => `\`${c.command}\``).join(', ');
+      commitAll(root, `chore: keep what the verification fixer left uncommitted\n\nOrchestration ${orch.name} (${orch.id.slice(0, 8)}), check${checks.length === 1 ? '' : 's'} ${named}.`);
     } catch {
       // the fixer left the tree in a state git will not commit; the re-run says whether it matters
     }
@@ -1644,14 +1756,16 @@ ${quoted}
     const cwd = resolve(req.cwd ?? this.config.workspaceDir);
     return this.runs.start({
       prompt:
-        `${PROMPT_HEAD}${req.objective}${PROMPT_TAIL}` +
+        `${PROMPT_HEAD}${pasted(req.objective)}${PROMPT_TAIL}` +
         `${maxTasks} tasks. Each task is executed by an independent Claude Code agent working in ${cwd}, ` +
         `so every prompt must be self-contained. Maximize parallelism: only add a dependency when a task truly needs another task's output ` +
-        `(results of dependencies are passed along automatically). You may inspect the directory with read-only tools first. Do not perform the work itself.\n\n` +
+        `(results of dependencies are passed along automatically). Before you plan, read the directory with the read-only tools, as much as the objective needs, ` +
+        `so each task names the files and commands it concerns. Do not perform the work itself.\n\n` +
         `Also choose how it runs. "graph" is the default: every task is a separate Claude Code process that can get a git worktree ` +
         `and branch of its own, merged at the end; choose it whenever a task changes files. "workflow" runs every task as a subagent ` +
         `of one Claude Code session in ${cwd} itself: cheaper and resumable, but with no isolation, so choose it only when it is ` +
-        `clearly better, meaning no task modifies the repository (analysis, review, research, audits). Say why in engineReason.`,
+        `clearly better, meaning no task modifies the repository (analysis, review, research, audits). Say why in engineReason.\n\n` +
+        [PASTED_NOTE, ...thinkThrough(req.model)].join('\n\n'),
       cwd,
       model: req.model,
       permissionMode: 'manual',
@@ -1686,6 +1800,8 @@ ${quoted}
     if (run.name !== PLANNER_RUN_NAME) throw new Error('that run is not a planner run');
     const result = await this.runs.waitForResult(runId);
     if (result.isError) throw new Error(`planner failed: ${result.result}`);
+    // A plan cut by the token limit can parse and still be missing tasks
+    if (stoppedOnMaxTokens(result)) throw new Error(`planner failed: ${MAX_TOKENS_ERROR}`);
 
     let draft = result.structuredOutput as { name?: string; engine?: string; engineReason?: string; tasks?: OrchestrationTaskSpec[] } | undefined;
     if (!draft?.tasks) {
@@ -1702,7 +1818,7 @@ ${quoted}
     const canRunWorkflows = this.workflowsAvailable(run.cwd);
     const spec: OrchestrationSpec = {
       name: draft.name ?? 'orchestration',
-      objective: head === 0 && tail > 0 ? run.prompt.slice(PROMPT_HEAD.length, tail) : undefined,
+      objective: head === 0 && tail > 0 ? unpasted(run.prompt.slice(PROMPT_HEAD.length, tail)) : undefined,
       engine: engine === 'workflow' && canRunWorkflows ? 'workflow' : 'graph',
       ...(draft.engineReason
         ? { engineReason: engine === 'workflow' && !canRunWorkflows ? `${draft.engineReason} (as a graph: this CLI has no Workflow tool)` : draft.engineReason }
@@ -1997,7 +2113,7 @@ ${quoted}
         after: this.workerTask(orch, t),
       })),
       synthesis: orch.synthesize
-        ? `Synthesize the results of a multi-agent orchestration into one final report.\nObjective: ${orch.objective ?? orch.name}`
+        ? `Synthesize the results of a multi-agent orchestration into one final report.\nObjective, as the person wrote it:\n${pasted(orch.objective ?? orch.name)}\n\n${PASTED_NOTE}`
         : null,
     });
   }
@@ -2019,7 +2135,9 @@ ${quoted}
       const prompt =
         `Run the workflow Agentry generated for the orchestration "${orch.name}": call the Workflow tool with ` +
         `scriptPath "${scriptPath}"${resumeFrom ? ` and resumeFromRunId "${resumeFrom}"` : ''}, exactly as given, without editing the script. ` +
-        'I explicitly ask you to run this workflow. Wait for it to finish, then reply with one line saying whether it completed.';
+        'I explicitly ask you to run this workflow. Wait for it to finish, then reply with one line saying whether it completed.\n\n' +
+        // No budget for a workflow today: the signal says time matters all the same
+        timeSignal(Math.max(0, Date.now() - Date.parse(orch.createdAt)));
       const previous = orch.workflow?.runId ? this.runs.get(orch.workflow.runId) : null;
       if (resumeFrom && previous) {
         orch.workflow = { scriptPath, runId: previous.id, workflowRunId: resumeFrom };

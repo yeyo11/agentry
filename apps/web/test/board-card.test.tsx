@@ -68,6 +68,7 @@ const run = (itemId: string, over: Partial<FlowRun> = {}): FlowRun => ({
   retriedBy: null,
   retryable: false,
   restarts: 0,
+  continuations: 0,
   queuedAt: '2026-09-28T10:00:00.000Z',
   startedAt: new Date(Date.now() - 252_000).toISOString(),
   endedAt: null,

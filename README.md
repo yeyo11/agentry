@@ -1012,7 +1012,7 @@ every 3 s and only while a client listens.
 | GET | `/orchestrations/:id/integration/changes/diff?path=` | The unified diff of one file of the integration branch, with the same `?context=` and scopes |
 | DELETE | `/orchestrations/:id` | Delete a graph that is not running, with its worktrees; refused while a worktree holds uncommitted work |
 | POST | `/orchestrations/:id/integrate` | Merge the task branches into the integration branch again: after resolving by hand, or for a graph that predates integration |
-| POST | `/orchestrations/:id/verify` | `{ verification? }` — run the graph's checks (`verification.commands`, then a fixer if asked) on the integration branch, or again after it changed; outcome on `verification`: `passed`, `fixed` or `failed`. Returns at once |
+| POST | `/orchestrations/:id/verify` | `{ verification? }` — run the graph's checks (`verification.commands`, where an entry that is a list runs its commands in parallel, then a fixer if asked) on the integration branch, or again after it changed; outcome on `verification`: `passed`, `fixed` or `failed`. Returns at once |
 | POST | `/orchestrations/:id/pull-request` | Push the integration branch and open a pull request with `gh` → `{ branch, url, detail }` |
 | GET | `/orchestrations/:id/workflow` | The graph as a workflow script → `{ path, script }` |
 | POST | `/orchestrations/:id/workflow/save` | `{ name?, overwrite? }` — copy that script into the project's `.claude/workflows/` |

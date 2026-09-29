@@ -323,5 +323,13 @@ test('switching the flow on starts nothing until a person starts the waiting car
   assert.deepEqual(flow.queued.map((r) => [r.item?.title, r.queuedBy]), [['Second', 'person']]);
   assert.equal((await waitingOf()).total, 0);
 
+  // Both cards run a fake CLI that never answers (FAKE-HANG). Removing a card stops its run; the
+  // test waits for the flow to go quiet, as the others do, so no hung process outlives the file and
+  // keeps the test runner from exiting (it did on slower CI runners)
+  for (const card of [...flow.running, ...flow.queued]) {
+    const removed = await app.inject({ method: 'DELETE', url: `/api/work-items/${card.item!.id}` });
+    assert.ok(removed.statusCode < 300, removed.body);
+  }
+  await until(flowOf, (f) => !f.running.length && !f.queued.length, 'the flow to go quiet');
   await settings((s) => ({ ...s, flow: { ...s.flow!, enabled: false } }));
 });

@@ -13,6 +13,7 @@ import {
   AGENTRY_LANGUAGES,
   flowStepOf,
   isTeamCommandPattern,
+  MAX_CONTINUATIONS,
   MAX_FLOW_RESTARTS,
   WORK_ITEM_STATUSES,
   type AgentryEvent,
@@ -57,6 +58,9 @@ import type { AgentryEventInput } from './events.ts';
 import { roleTitle, roleTitleIn } from './team.ts';
 import { ItemDocumentsError } from './item-documents.ts';
 import { workItemPrompt } from './work-links.ts';
+import { continuationPrompt, MAX_TOKENS_ERROR, openItems, stoppedOnMaxTokens } from './open-items.ts';
+import { designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, scopeAndCompletion, thinkThrough, UNATTENDED, type DesignSources } from './prompt-rules.ts';
+import { gitRaw } from './git.ts';
 import type { WorkItemService } from './work-items.ts';
 
 /**
@@ -244,13 +248,18 @@ export interface FlowDeps {
   rotating?: (chatId: string) => boolean;
   stop: (chatId: string) => void;
   activity?: (chatId: string) => ChatActivity | null;
+  /**
+   * The paths with uncommitted changes in a directory: what a work run left undone in the item's
+   * worktree. Git's status by default
+   */
+  uncommitted?: (dir: string) => string[];
   /** The person's language, which the first line of a run's chat is written in; English without it */
   language?: () => AgentryLanguage;
   emit: (event: AgentryEventInput) => void;
 }
 
 /** What a run's chat ended with, as the runtime reports it. */
-export type FlowChatResult = Pick<RunResult, 'isError' | 'result' | 'structuredOutput' | 'cause'>;
+export type FlowChatResult = Pick<RunResult, 'isError' | 'result' | 'structuredOutput' | 'cause' | 'stopReason'>;
 
 interface RunRow {
   seq: number;
@@ -271,6 +280,8 @@ interface RunRow {
   started_at: string | null;
   ended_at: string | null;
   restarts: number;
+  /** Null on a database the migration has not reached (never in practice): read as 0 */
+  continuations: number | null;
   /** Null on a run stored before it was kept */
   language: string | null;
   cause: string | null;
@@ -538,19 +549,20 @@ export function flowTitle(item: Pick<WorkItem, 'key' | 'title'>, role: string, l
   return [roleTitleIn(role, language), item.key, ...(title ? [title] : [])].join(' · ');
 }
 
-/** The run's title, the stage's instructions, then the item as "Work on it" gives it. */
+/** The run's title, the item as "Work on it" gives it, the stage's instructions, then the rules every unattended run keeps. */
 export function flowPrompt(
   stage: FlowStage,
   column: WorkItemStatus,
   item: WorkItem,
   member: ProjectTeamMember,
-  extra: { documentsPath: string; rejection: string | null; language?: AgentryLanguage; checkCommands?: readonly CheckCommand[] },
+  extra: { documentsPath: string; rejection: string | null; language?: AgentryLanguage; design?: DesignSources | null; checkCommands?: readonly CheckCommand[] },
 ): string {
   const who = `You are the ${roleTitle(member.role)} of this project's team, started by Agentry's flow by column because ${item.key} entered ${column}.`;
-  const lines = [flowTitle(item, member.role, extra.language ?? 'en'), '', workItemPrompt(item), '', '---', '', who, ''];
+  const lines = [flowTitle(item, member.role, extra.language ?? 'en'), '', workItemPrompt(item, 'task'), '', '---', '', who, ''];
   if (stage === 'refine' && column === 'backlog') {
     lines.push(
       'Refine it so a developer can start without asking: complete its description and its acceptance criteria.',
+      EXPLORE,
       'Return the whole new description in `description` (leave it out to keep the current one) and the criteria to add in `acceptanceCriteria`.',
       `When a specification helps, write it as Markdown under \`${extra.documentsPath}/\` and report it in \`documents\` with kind \`spec\`.`,
       'Do not change the code. Agentry moves the item to todo once your run ends well.',
@@ -558,15 +570,22 @@ export function flowPrompt(
   } else if (stage === 'refine') {
     lines.push(
       'Check that it is ready to be worked on: its acceptance criteria are complete and testable, and nothing blocks it.',
+      EXPLORE,
       'Return anything missing in `description` or `acceptanceCriteria`, and say in `summary` whether it is ready. It stays in todo until a person moves it on.',
     );
   } else if (stage === 'work') {
     lines.push('Implement it here, in its worktree, and commit your work on its branch.');
-    if (extra.rejection) lines.push('', 'Verification sent it back with this comment; address every point:', '', extra.rejection);
+    if (extra.rejection) lines.push('', 'Verification sent it back with this comment; address every point:', pasted(extra.rejection));
     lines.push(
       '',
       `An architecture decision worth keeping goes under \`${extra.documentsPath}/\`, reported in \`documents\` with kind \`adr\`.`,
       'Agentry moves the item to in_review once your run ends well.',
+      '',
+      scopeAndCompletion(),
+      '',
+      REAL_VERIFICATION,
+      '',
+      frontend(extra.design ?? null),
     );
   } else {
     lines.push(
@@ -587,9 +606,7 @@ export function flowPrompt(
       );
     }
     if (item.acceptanceCriteria.length) {
-      lines.push('', 'Judge each of these criteria on its own, and return every one in `criteria` by its id, with `met` and a `note`:', '');
-      for (const c of item.acceptanceCriteria) lines.push(`- \`${c.id}\`: ${c.text}`);
-      lines.push('');
+      lines.push('', 'Judge each of these criteria on its own, and return every one in `criteria` by its id, with `met` and a `note`:', pasted(item.acceptanceCriteria.map((c) => `- \`${c.id}\`: ${c.text}`).join('\n')), '');
     } else {
       lines.push('', 'The item has no acceptance criteria: return `criteria` empty, and judge it by its description.');
     }
@@ -597,10 +614,23 @@ export function flowPrompt(
       'A criterion no run can meet (pushing, opening a pull request, a tool or MCP server this run does not have, or something only a person can judge) is returned with `met: false`, `needsPerson: true` and a `note` saying what the person must check. It is not a reason for `verdict: fail`: the person approving the item checks it.',
       'Give `verdict: pass` only when every criterion is met or needs a person; otherwise `fail`, and say in `summary` what is missing so the developer can fix it.',
       `A verification report, when useful, goes under \`${extra.documentsPath}/\` with kind \`report\`. Do not change the code.`,
+      '',
+      REAL_VERIFICATION,
     );
   }
+  lines.push('', UNATTENDED, '', PASTED_NOTE);
+  // Refining and verifying reason towards a structured verdict: Sonnet does better told to think first
+  if (stage !== 'work') lines.push(...thinkThrough(member.model).flatMap((t) => ['', t]));
   lines.push('', 'End with the structured result. Never move the item to done: a person approves that.');
   return lines.join('\n');
+}
+
+/** Refining starts from an item that may say little: what it touches is found by reading, not guessed. */
+const EXPLORE = 'Before you write anything, read the documents and the code the item concerns, including the parts it does not name, so what you add fits what is there.';
+
+/** What the run is told when the flow sends it back to its chat with work still owed. */
+export function flowContinuation(items: readonly string[], count: number): string {
+  return continuationPrompt(items, count, ['End with the structured result.']);
 }
 
 export class FlowService {
@@ -613,6 +643,12 @@ export class FlowService {
    * go on. In memory: a restart meanwhile continues the run in its chat anyway (`recover`).
    */
   private readonly awaitingRotation = new Set<string>();
+  /**
+   * Chats whose run ended its turn with work still owed, and what each is told when its process has
+   * exited: the run goes on in the same chat rather than end. In memory: a restart meanwhile
+   * continues the run in its chat anyway (`recover`).
+   */
+  private readonly nudges = new Map<string, string>();
 
   constructor(private readonly deps: FlowDeps) {
     this.sql = deps.db.connection;
@@ -1066,7 +1102,7 @@ export class FlowService {
     return { row: { ...row, state: 'running', started_at: row.started_at ?? now, agent: member.agent, model: member.model }, item, member, project };
   }
 
-  private async start(row: RunRow, item: WorkItem, member: ProjectTeamMember, project: FlowProject): Promise<void> {
+  private async start(row: RunRow, item: WorkItem, member: ProjectTeamMember, project: FlowProject, nudge: string | null = null): Promise<void> {
     const stage = row.stage as FlowStage;
     // A person working in the item's chat now is working on it: the run is moot. The flow's own chats
     // do not count: one whose run just ended is still closing its process as the next role starts
@@ -1087,14 +1123,17 @@ export class FlowService {
       run: this.runOf(row),
       item,
       member,
-      prompt: continuing
-        ? 'Agentry restarted while you were on this run. Carry on from where you were, and end with the structured result.'
-        : flowPrompt(stage, row.column_name as WorkItemStatus, item, member, {
-            documentsPath,
-            rejection: stage === 'work' && (item.bounces ?? 0) > 0 ? this.rejection(item.id, project.settings) : null,
-            language: runLanguage(row),
-            checkCommands,
-          }),
+      prompt:
+        nudge ??
+        (continuing
+          ? 'Agentry restarted while you were on this run. Carry on from where you were, and end with the structured result.'
+          : flowPrompt(stage, row.column_name as WorkItemStatus, item, member, {
+              documentsPath,
+              rejection: stage === 'work' && (item.bounces ?? 0) > 0 ? this.rejection(item.id, project.settings) : null,
+              language: runLanguage(row),
+              design: stage === 'work' ? designSources(project.path) : null,
+              checkCommands,
+            })),
       appendSystemPrompt: this.deps.handoff(item.projectId),
       jsonSchema: flowResultSchema(stage),
       permissionMode: rules.permissionMode,
@@ -1170,7 +1209,15 @@ export class FlowService {
   /** The chat's process ended; a run still going got no result, and failed, unless it waits for the rotation. */
   chatEnded(chatId: string, error: string | null, cause: FlowRunCause = error ? 'chat-failed' : 'chat-ended'): void {
     const row = this.sql.prepare("SELECT * FROM flow_runs WHERE chat_id = ? AND state = 'running'").get(chatId) as RunRow | undefined;
+    const nudge = this.nudges.get(chatId);
+    this.nudges.delete(chatId);
     if (!row) return;
+    // Its turn ended with work still owed, and its process is gone: it goes on in the same chat
+    // A process that ended in an error, or a chat removed, is not one to go on in
+    if (nudge !== undefined && error === null) {
+      void this.continueRun(row, nudge);
+      return;
+    }
     // The process the limit took down: the run goes on in this chat once the rotation replays it
     if (this.awaitingRotation.has(chatId)) return;
     if (this.deps.rotating?.(chatId)) {
@@ -1209,12 +1256,17 @@ export class FlowService {
       this.awaitingRotation.add(row.chat_id);
       return;
     }
-    const parsed = result.isError ? null : parseResult(result.structuredOutput, row.stage as FlowStage);
+    // A turn cut by the token limit can still end with JSON that parses: it is not the run's answer
+    const cut = !result.isError && stoppedOnMaxTokens(result);
+    const parsed = result.isError || cut ? null : parseResult(result.structuredOutput, row.stage as FlowStage);
+    if (!result.isError && !cut && this.continues(row, result, !!parsed)) return;
     const failure = result.isError
       ? chatFailure(result, this.deps.project(row.project_id)?.settings)
-      : parsed
-        ? null
-        : { error: 'the run ended without a readable structured result', cause: 'unreadable' as const };
+      : cut
+        ? { error: MAX_TOKENS_ERROR, cause: 'max-tokens' as const }
+        : parsed
+          ? null
+          : { error: 'the run ended without a readable structured result', cause: 'unreadable' as const };
     const verdictMissing = !!parsed && row.stage === 'verify' && !parsed.verdict;
     const item = this.deps.items.find(row.item_id);
     // QA passes an item only when every one of its criteria is met, whatever its verdict says; one no
@@ -1229,6 +1281,44 @@ export class FlowService {
       if (parsed) await this.apply(row, parsed, outcome);
     } finally {
       this.dispatch();
+    }
+  }
+
+  /**
+   * A turn that ended with work still owed is a report, not the end of the run (`openItems`): the run
+   * is sent back to its chat, naming what is open, at most `MAX_CONTINUATIONS` times, each one counted
+   * on its row. Past that, the result it has is judged as it is. The chat is continued once its
+   * process has exited (`chatEnded`), since a chat has one process at most.
+   */
+  private continues(row: RunRow, result: FlowChatResult, structured: boolean): boolean {
+    const done = row.continuations ?? 0;
+    if (!row.chat_id || done >= MAX_CONTINUATIONS) return false;
+    let uncommitted: string[] = [];
+    if (row.stage === 'work') {
+      const worktree = this.deps.items.find(row.item_id)?.worktree;
+      if (worktree) uncommitted = (this.deps.uncommitted ?? uncommittedPaths)(worktree);
+    }
+    const open = openItems({ schema: true, structured, uncommitted, finalText: result.result });
+    if (!open.length) return false;
+    const changed = this.sql.prepare("UPDATE flow_runs SET continuations = ? WHERE id = ? AND state = 'running' AND continuations = ?").run(done + 1, row.id, done).changes;
+    if (changed !== 1) return false;
+    this.nudges.set(row.chat_id, flowContinuation(open, done + 1));
+    return true;
+  }
+
+  /** Sends a run back to its own chat with what it still owes; a chat that cannot be continued fails it. */
+  private async continueRun(row: RunRow, prompt: string): Promise<void> {
+    try {
+      const project = this.deps.project(row.project_id);
+      const item = this.deps.items.find(row.item_id);
+      const member = project ? memberOf(project.settings, row.role) : undefined;
+      if (!project || !item || !member) {
+        this.end(row.id, 'failed', null, 'it ended with work still owed, and its item or member is gone', 'not-continued');
+        return;
+      }
+      await this.start(row, item, member, project, prompt);
+    } catch {
+      // start ends the run itself on anything it can say; a closed database has nobody to tell
     }
   }
 
@@ -1483,6 +1573,7 @@ export class FlowService {
       retriedBy: next ? refOf(next) : null,
       retryable: failed && this.retryRefusal(row, item, next) === null,
       restarts: row.restarts ?? 0,
+      continuations: row.continuations ?? 0,
       ...(row.language ? { language: runLanguage(row) } : {}),
       queuedAt: row.queued_at,
       startedAt: row.started_at,
@@ -1541,6 +1632,19 @@ function maxCostUsd(settings: ProjectSettings): number | null {
 
 function stepNoun(step: FlowStep): string {
   return step === 'refine' ? 'refining' : step === 'check' ? 'check' : step === 'work' ? 'work' : 'verification';
+}
+
+/** The paths `git status` lists in a directory, untracked ones included; none where git cannot say. */
+function uncommittedPaths(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  try {
+    return gitRaw(dir, ['status', '--porcelain', '--untracked-files=all'], { timeout: 15_000 })
+      .split('\n')
+      .filter((line) => line.length > 3)
+      .map((line) => line.slice(3).replace(/^"|"$/g, ''));
+  } catch {
+    return [];
+  }
 }
 
 /**

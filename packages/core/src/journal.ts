@@ -13,6 +13,7 @@ import {
 import type { Db } from './db.ts';
 import { DocumentPathError, pathSegments } from './document-paths.ts';
 import type { AgentryEventInput } from './events.ts';
+import { pasted, PASTED_NOTE } from './prompt-rules.ts';
 import { actorOf } from './work-item-rows.ts';
 import { PERSON, WorkItemError } from './work-item-validation.ts';
 
@@ -132,7 +133,8 @@ export class JournalService {
     const header =
       "# Project journal\n\nAgentry's record of this project: decisions taken and work items closed, newest first. The whole team shares it. Do not edit it: propose what the team should remember in your result's `memoryProposals`.\n";
     const lines: string[] = [];
-    let bytes = Buffer.byteLength(header);
+    // The block that marks the entries, and its note, count against the cap as well
+    let bytes = Buffer.byteLength(header) + Buffer.byteLength(`${pasted('', '00000000')}\n\n${PASTED_NOTE}\n`);
     // No entry renders under 16 bytes, so no more than this many can ever fit the cap
     const most = Math.ceil(JOURNAL_HANDOFF_BYTES / 16);
     const rows = this.sql.prepare(`SELECT * FROM journal_entries WHERE project_id = ? ORDER BY seq DESC LIMIT ${String(most)}`).all(projectId) as unknown as EntryRow[];
@@ -144,7 +146,9 @@ export class JournalService {
       lines.push(line);
     }
     if (!lines.length) return { text: '', entries: 0, bytes: 0 };
-    return { text: `${header}\n${lines.join('\n')}\n`, entries: lines.length, bytes };
+    // Entries are people's words and runs' summaries: marked as pasted content, and said so
+    const text = `${header}\n${pasted(lines.join('\n'))}\n\n${PASTED_NOTE}\n`;
+    return { text, entries: lines.length, bytes: Buffer.byteLength(text) };
   }
 
   // ---------- writing ----------

@@ -148,6 +148,7 @@ test("a member's live line follows its chat's activity, without a refetch", () =
     retriedBy: null,
     retryable: false,
     restarts: 0,
+    continuations: 0,
     queuedAt: base.at,
     startedAt: chatId ? base.at : null,
     endedAt: null,

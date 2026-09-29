@@ -45,6 +45,7 @@ const run = (id: string, over: Partial<FlowRun> = {}): FlowRun => ({
   retriedBy: null,
   retryable: false,
   restarts: 0,
+  continuations: 0,
   queuedAt: '2026-09-27T10:00:00.000Z',
   startedAt: '2026-09-27T10:00:00.000Z',
   endedAt: '2026-09-27T10:05:00.000Z',

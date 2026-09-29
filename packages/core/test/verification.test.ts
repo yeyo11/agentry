@@ -8,8 +8,8 @@ import { test } from 'node:test';
 import type { Orchestration, VerificationSpec } from '@agentry/shared';
 import { ChatManager } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
-import { Orchestrator } from '../src/orchestrator.ts';
-import { fixerPrompt, installStep, normalizeVerification, runCommand, tail, workerChecks } from '../src/verification.ts';
+import { Orchestrator, verificationSteps } from '../src/orchestrator.ts';
+import { failedSpecs, fixerPrompt, installStep, normalizeVerification, runCommand, tail, workerChecks } from '../src/verification.ts';
 import { tempConfig } from './helpers.ts';
 
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.meta.url));
@@ -104,10 +104,8 @@ test('the fixer is told Agentry’s rules, the failure and what its earlier atte
     objective: 'add notifications',
     branch: 'agentry/x',
     worktree: '/tmp/wt',
-    command: 'pnpm e2e',
     commands: ['pnpm build', 'pnpm e2e'],
-    failure: 'It timed out after 20 min and was killed.',
-    output: 'spec a failed',
+    failed: [{ command: 'pnpm e2e', failure: 'It timed out after 20 min and was killed.', output: 'spec a failed' }],
     attempt: 2,
     maxAttempts: 3,
     earlier: ['I changed the port'],
@@ -120,6 +118,98 @@ test('the fixer is told Agentry’s rules, the failure and what its earlier atte
   assert.match(prompt, /spec a failed/);
   assert.match(prompt, /Attempt 1: I changed the port/);
   assert.match(prompt, /<task id="ui" name="UI">/);
+});
+
+test('a parallel group in a verification spec is kept, a group of one is its command, and a bad entry is refused by its index', () => {
+  const spec = (commands: unknown): VerificationSpec => ({ commands, fixer: false, maxAttempts: 1 }) as VerificationSpec;
+  assert.deepEqual(normalizeVerification(spec([[' pnpm typecheck', 'pnpm test '], ['pnpm build'], 'pnpm e2e']))?.commands, [
+    ['pnpm typecheck', 'pnpm test'],
+    'pnpm build',
+    'pnpm e2e',
+  ]);
+  assert.throws(() => normalizeVerification(spec(['true', []])), /commands\[1\] is an empty list/);
+  assert.throws(() => normalizeVerification(spec([['true', ['nested']]])), /commands\[0\]\[1\].*does not nest/);
+  assert.throws(() => normalizeVerification(spec([['true', 3]])), /commands\[0\]\[1\] must be a shell command/);
+  assert.throws(() => normalizeVerification(spec(['true', 7])), /commands\[1\] must be a shell command/);
+  assert.throws(() => normalizeVerification(spec([['true', '  ']])), /empty command/);
+  // The limit is on commands, whatever the entries they are grouped in
+  assert.throws(() => normalizeVerification(spec([Array.from({ length: 7 }, () => 'true'), Array.from({ length: 6 }, () => 'true')])), /at most 12 commands/);
+  assert.equal(normalizeVerification(spec([Array.from({ length: 6 }, () => 'true'), Array.from({ length: 6 }, () => 'true')]))?.commands.flat().length, 12);
+});
+
+test('a detected install already in a parallel group of the checks is not added twice', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'agentry-install-'));
+  writeFileSync(join(repo, 'pnpm-lock.yaml'), '');
+  const spec: VerificationSpec = { commands: [['pnpm install --frozen-lockfile', 'pnpm lint'], 'pnpm test'], fixer: false, maxAttempts: 1 };
+  assert.equal(installStep(spec, repo, repo), null);
+});
+
+test('the checks run in steps: the install alone, a group together, and rows stored before groups one by one', () => {
+  const row = (command: string, extra: { group?: number; install?: boolean } = {}) => ({ command, status: 'pending' as const, output: '', durationMs: 0, ...extra });
+  assert.deepEqual(
+    verificationSteps([row('pnpm install', { install: true }), row('tc', { group: 0 }), row('test', { group: 0 }), row('build', { group: 1 }), row('e2e', { group: 2 })]),
+    [[0], [1, 2], [3], [4]],
+  );
+  assert.deepEqual(verificationSteps([row('a'), row('b')]), [[0], [1]]);
+});
+
+test('the spec files a runner reports as failed are read in order, once each, from the summary repeat too', () => {
+  const output = [
+    '✓ auth.spec.mjs (3.1s)',
+    '✗ chats.spec.mjs',
+    '  assertion failed: the title is the first prompt',
+    '  ✗ nested.spec.mjs is part of a message, not a failed spec',
+    '- live.spec.mjs (skipped: E2E_LIVE is not set)',
+    '✗ \u001b[31mconfig.spec.mjs\u001b[0m',
+    '✓ tunnel.spec.mjs (1.0s)',
+    '',
+    'failed:',
+    '✗ chats.spec.mjs',
+    '✗ config.spec.mjs',
+    '2 spec(s) failed',
+  ].join('\n');
+  assert.deepEqual(failedSpecs(output), ['chats.spec.mjs', 'config.spec.mjs']);
+  assert.deepEqual(failedSpecs('all 12 spec file(s) passed\n'), []);
+  assert.equal(failedSpecs(Array.from({ length: 30 }, (_, i) => `✗ s${String(i)}.spec.mjs`).join('\n')).length, 20);
+});
+
+test('a command reports the failed specs of all its output, not only of the tail it keeps', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'agentry-cmd-'));
+  const outcome = await runCommand("printf '✗ early.spec.mjs\\n'; head -c 60000 /dev/zero | tr '\\0' x; printf '\\n✗ late.spec.mjs\\n'; exit 1", dir, 30_000);
+  assert.equal(outcome.ok, false);
+  assert.doesNotMatch(outcome.output, /early\.spec/);
+  assert.deepEqual(outcome.failedSpecs, ['early.spec.mjs', 'late.spec.mjs']);
+});
+
+test('the fixer is told the failed spec files only when there are some, in words that fit any repository', () => {
+  const base = {
+    objective: 'x',
+    branch: 'b',
+    worktree: '/w',
+    commands: [['lint', 'unit'], 'suite'],
+    failed: [
+      { command: 'lint', failure: 'It exited with code 1.', output: 'lint says no' },
+      { command: 'unit', failure: 'It exited with code 2.', output: 'unit says no' },
+    ],
+    attempt: 1,
+    maxAttempts: 2,
+    earlier: [],
+    tasks: [],
+    timeoutMinutes: 20,
+  } satisfies Parameters<typeof fixerPrompt>[0];
+  const without = fixerPrompt(base);
+  assert.doesNotMatch(without, /These spec files failed/);
+  assert.match(without, /1\. at the same time: lint \| unit/);
+  assert.match(without, /ran at the same time and failed/);
+  assert.match(without, /lint says no[\s\S]*unit says no/);
+  const withSpecs = fixerPrompt({ ...base, failedSpecs: ['a.spec.mjs', 'b.spec.mjs'] });
+  const paragraph = withSpecs.split('\n\n').find((p) => p.startsWith('These spec files failed')) ?? '';
+  // The names come from the checked project's output, so they are pasted content (CW-24)
+  assert.match(
+    paragraph,
+    /^These spec files failed \(read from the check's output\):\n<pasted_content id="([0-9a-f]{8})">\na\.spec\.mjs\nb\.spec\.mjs\n<\/pasted_content id="\1">\nStart with them, one at a time; do not run the whole suite to find them\.$/,
+  );
+  assert.doesNotMatch(paragraph, /pnpm|e2e\/|port|\d{4}/);
 });
 
 test('workers are told the split of checks, whether or not a verification phase exists', () => {
@@ -263,6 +353,80 @@ test('a command that hangs is killed at its limit and fails with the reason', as
 
   assert.equal(orch.verification?.status, 'failed');
   assert.match(orch.verification?.report ?? '', /timed out after 0\.01 min and was killed/);
+  db.close();
+});
+
+test('the commands of a parallel group run at the same time, and the next entry waits for all of them', async () => {
+  const { db, repo, orchestrator } = fixture();
+  // Each passes only if the other started while it slept: run one after the other, the first fails
+  const a = 'touch a.started; sleep 1; test -f b.started; touch a.done';
+  const b = 'touch b.started; sleep 1; test -f a.started; touch b.done';
+  const started = launch(orchestrator, repo, { commands: [[a, b], 'test -f a.done && test -f b.done'], fixer: false, maxAttempts: 1 });
+  const orch = await settle(orchestrator, started.id);
+
+  const v = orch.verification;
+  assert.equal(v?.status, 'passed', v?.report ?? '');
+  assert.deepEqual(v?.commands.map((c) => [c.status, c.group]), [
+    ['passed', 0],
+    ['passed', 0],
+    ['passed', 1],
+  ]);
+  for (const c of v?.commands.slice(0, 2) ?? []) assert.ok(c.durationMs >= 900 && c.durationMs < 1900, `each keeps its own duration: ${String(c.durationMs)}`);
+  assert.match(v?.report ?? '', /All 3 checks passed/);
+  db.close();
+});
+
+test('a group with failures lets its other commands finish, and with no fixer the report names every failed one', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const started = launch(orchestrator, repo, { commands: [['echo lint broke; exit 3', 'sleep 0.3', 'echo unit broke; exit 4'], 'echo never'], fixer: false, maxAttempts: 1 });
+  const orch = await settle(orchestrator, started.id);
+
+  const v = orch.verification;
+  assert.equal(v?.status, 'failed');
+  assert.deepEqual(v?.commands.map((c) => c.status), ['failed', 'passed', 'failed', 'pending']);
+  assert.match(v?.commands[0]?.output ?? '', /lint broke/);
+  assert.match(v?.commands[2]?.output ?? '', /unit broke/);
+  assert.match(v?.report ?? '', /`echo lint broke; exit 3` exited with code 3; `echo unit broke; exit 4` exited with code 4\. The fixer is off/);
+  assert.match(v?.report ?? '', /Not run: `echo never`/);
+  db.close();
+});
+
+test('one fixer attempt covers every failed command of a group, and the checks all run again after it', async () => {
+  const { db, repo, orchestrator } = fixture();
+  // Each prints the line the stand-in for the CLI reads as an instruction, so one prompt carrying both outputs mends both
+  const lint = "echo 'FAKE-WRITE lint.txt ok'; test -f lint.txt";
+  const unit = "echo 'FAKE-WRITE unit.txt ok'; test -f unit.txt";
+  const started = launch(orchestrator, repo, { commands: ['true', [lint, unit]], fixer: true, maxAttempts: 1 });
+  const orch = await settle(orchestrator, started.id);
+
+  const v = orch.verification;
+  assert.equal(v?.status, 'fixed', v?.report ?? '');
+  // With maxAttempts 1, an attempt per command would have run out on the second one
+  assert.equal(v?.attempts, 1);
+  assert.deepEqual(v?.commands.map((c) => c.status), ['passed', 'fixed', 'fixed']);
+  assert.match(v?.report ?? '', /2 checks failed and were fixed in 1 attempt/);
+  db.close();
+});
+
+test('stopping the orchestration stops every command of the group that is running', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const dir = mkdtempSync(join(tmpdir(), 'agentry-pid-'));
+  const one = join(dir, 'one');
+  const two = join(dir, 'two');
+  const started = launch(orchestrator, repo, {
+    commands: [[`sleep 120 & echo $! > ${one}; wait`, `sleep 120 & echo $! > ${two}; wait`]],
+    fixer: true,
+    maxAttempts: 2,
+  });
+  await until(() => existsSync(one) && existsSync(two) && readFileSync(two, 'utf8').trim() !== '' && readFileSync(one, 'utf8').trim() !== '', 'both commands to be running');
+  const pids = [one, two].map((f) => Number(readFileSync(f, 'utf8').trim()));
+
+  orchestrator.stop(started.id);
+  await until(() => orchestrator.get(started.id)?.verification?.status === 'failed', 'the checks to end');
+  const v = orchestrator.get(started.id)?.verification;
+  assert.match(v?.report ?? '', /Stopped/);
+  assert.equal(v?.attempts, 0);
+  await until(() => pids.every((pid) => !alive(pid)), 'both commands’ processes to be gone');
   db.close();
 });
 
