@@ -541,3 +541,50 @@ test('the owner is served while something on the same machine polls without a cr
     assert.equal(owner.statusCode, 200, `round ${round + 1}`);
   }
 });
+
+const DESKTOP_SECRET = 'a-per-launch-secret-of-32-random-bytes';
+
+test("the desktop app's own secret lets its tray read from loopback, whatever token the owner chose", async (t) => {
+  const { app, core } = await wrapper({ AGENTRY_DESKTOP_TOKEN: DESKTOP_SECRET });
+  t.after(() => app.close());
+  await withToken(app);
+
+  // How the tray asks: from 127.0.0.1, to 127.0.0.1
+  const local = { remoteAddress: '127.0.0.1', headers: { host: '127.0.0.1:43123', authorization: `Bearer ${DESKTOP_SECRET}` } };
+  assert.equal((await app.inject({ url: '/api/overview', ...local })).statusCode, 200);
+  // The event feed takes it as a header like any other route
+  assert.equal((await app.inject({ url: '/api/chats?state=working&limit=10', ...local })).statusCode, 200);
+
+  // It reads and nothing else, and the refusal is written down under its name
+  const write = await app.inject({ method: 'POST', url: '/api/projects', ...local, payload: { name: 'x' } });
+  assert.equal(write.statusCode, 403);
+  const audit = core.db.auditPage({ path: '/api/projects' }).entries[0];
+  assert.equal(audit?.actor, 'desktop');
+
+  // No route hands it back
+  for (const url of ['/api/security/auth', '/api/system', '/api/overview']) {
+    const res = await app.inject({ url, ...local });
+    assert.equal(res.body.includes(DESKTOP_SECRET), false, url);
+  }
+});
+
+test("the desktop app's secret is refused from anywhere but this machine, and a wrong one is a guess", async (t) => {
+  const { app } = await wrapper({ AGENTRY_DESKTOP_TOKEN: DESKTOP_SECRET, AGENTRY_ALLOWED_HOSTS: 'agentry.example' });
+  t.after(() => app.close());
+  await withToken(app);
+  const withSecret = (secret: string) => ({ authorization: `Bearer ${secret}` });
+
+  // From another address
+  assert.equal((await app.inject({ url: '/api/overview', remoteAddress: '10.0.0.5', headers: { host: '127.0.0.1:43123', ...withSecret(DESKTOP_SECRET) } })).statusCode, 401);
+  // From loopback, but relayed: a proxy or a tunnel carries the name it was reached on
+  assert.equal((await app.inject({ url: '/api/overview', remoteAddress: '127.0.0.1', headers: { host: 'agentry.example', ...withSecret(DESKTOP_SECRET) } })).statusCode, 401);
+  // A secret that is not the one this launch was given
+  assert.equal((await app.inject({ url: '/api/overview', remoteAddress: '127.0.0.1', headers: { host: '127.0.0.1:43123', ...withSecret(`${DESKTOP_SECRET}x`) } })).statusCode, 401);
+});
+
+test('without a desktop secret configured, nothing is accepted in its place', async (t) => {
+  const { app } = await wrapper();
+  t.after(() => app.close());
+  await withToken(app);
+  assert.equal((await app.inject({ url: '/api/overview', ...bearer(DESKTOP_SECRET) })).statusCode, 401);
+});

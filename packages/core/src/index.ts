@@ -200,7 +200,7 @@ export {
 export { DEFAULT_DOCUMENTS_PATH, DOCUMENT_CONTENT_MAX, DocumentError, DocumentService, type DocumentServiceDeps, type DocumentsPlace, type TieOptions } from './documents.ts';
 export { DocumentPathError } from './document-paths.ts';
 export { orchestrationDraft, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt, type WorkItemAutomationDeps } from './work-links.ts';
-export { AuthStore } from './security/auth.ts';
+export { AuthStore, DESKTOP_ACTOR } from './security/auth.ts';
 export { OidcVerifier, type FetchLike } from './security/oidc.ts';
 export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './security/redact.ts';
 export { describeCron, nextFire, nextFires, parseCron } from './cron.ts';

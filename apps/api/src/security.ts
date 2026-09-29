@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { Core, RuntimeHosts } from '@agentry/core';
+import { DESKTOP_ACTOR, type Core, type RuntimeHosts } from '@agentry/core';
 import { ROUTE_DOCS } from './openapi/routes.ts';
 
 /**
@@ -112,6 +112,23 @@ function backoffKey(req: FastifyRequest, runtime: RuntimeHosts): string {
   const client = (Array.isArray(header) ? header.at(-1) : header)?.split(',').at(-1)?.trim();
   return client ? `runtime:${name}:${client}` : `runtime:${name}`;
 }
+
+/**
+ * Whether a request came from a process on this machine and was dialled there, which is the only
+ * place the desktop app's secret is ever sent from. A loopback socket is not enough on its own:
+ * a tunnel and a reverse proxy both arrive from loopback, carrying the public name they were
+ * reached on. `req.ip` is the socket's address, since the app does not trust proxy headers.
+ */
+function fromLocalMachine(req: FastifyRequest): boolean {
+  const host = req.headers.host;
+  return LOOPBACK.test(req.ip) && host !== undefined && LOOPBACK.test(hostNameOf(host));
+}
+
+/**
+ * The desktop app's secret exists to let its tray read what is live, so it reads and nothing
+ * else: a secret that has to sit in a second process's memory is kept to the least it needs.
+ */
+const DESKTOP_METHODS = new Set(['GET', 'HEAD']);
 
 /** Failed authentications a client address gets for free before it is asked to wait. */
 const FAILURES_BEFORE_WAIT = 10;
@@ -288,7 +305,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
         void reply.header('Retry-After', String(wait)).status(429).send({ error: 'too many failed authentications from this address', mode });
         return reply;
       }
-      const actor = await core.security.actorFor(credential);
+      const actor = await core.security.actorFor(credential, fromLocalMachine(req));
       if (!actor) {
         backoff.fail(client);
         void refuse();
@@ -296,6 +313,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       }
       backoff.succeed(client);
       req.actor = actor;
+      if (actor === DESKTOP_ACTOR && !DESKTOP_METHODS.has(req.method)) {
+        void reply.status(403).send({ error: "the desktop app's own credential only reads; sign in with the API token to change anything" });
+        return reply;
+      }
     }
     req.actor ??= 'local';
 
@@ -329,7 +350,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
 
 declare module 'fastify' {
   interface FastifyRequest {
-    /** Who made the request: a token id, an OIDC subject, or `local` when nothing guards the API */
+    /** Who made the request: a token id, an OIDC subject, `desktop`, or `local` when nothing guards the API */
     actor: string | null;
   }
 }

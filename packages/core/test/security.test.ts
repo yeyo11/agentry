@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
-import { generateKeyPairSync, sign, type KeyObject } from 'node:crypto';
+import { createHash, generateKeyPairSync, sign, type KeyObject } from 'node:crypto';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
@@ -87,6 +87,42 @@ test('rotating the token stops the previous one', async () => {
   assert.equal(second, 'a-token-of-my-own-24-chars');
   assert.equal(await store.actorFor(first), null);
   assert.ok(await store.actorFor(second));
+});
+
+test("the desktop app's secret names its tray, only from this machine, and never reaches the disk", async () => {
+  const config = tempConfig();
+  const secret = 'a-per-launch-secret-of-32-random-bytes';
+  const store = new AuthStore(config, { AGENTRY_DESKTOP_TOKEN: secret });
+  // Under `none` there is nothing to authenticate, and the secret changes nothing
+  assert.equal(await store.actorFor(secret, true), 'local');
+
+  await store.setToken();
+  await store.update({ mode: 'token' });
+  assert.equal(await store.actorFor(secret, true), 'desktop');
+  // Relayed from elsewhere (a tunnel, a proxy), it is a wrong token like any other
+  assert.equal(await store.actorFor(secret, false), null);
+  assert.equal(await store.actorFor(secret), null);
+  assert.equal(await store.actorFor(`${secret}x`, true), null);
+
+  // The guard the owner chose is what reaches the disk, and nothing of the secret with it
+  const onDisk = readFileSync(join(config.dataDir, 'auth.json'), 'utf8');
+  assert.equal(onDisk.includes(secret), false);
+  assert.equal(onDisk.includes(createHash('sha256').update(secret).digest('hex')), false);
+  assert.equal(JSON.stringify(store.config).includes(secret), false);
+
+  // A new launch without it (or with another) does not inherit the old one
+  assert.equal(await new AuthStore(config, {}).actorFor(secret, true), null);
+});
+
+test("the desktop app's secret also opens an OIDC wrapper without a call to the issuer", async () => {
+  const secret = 'a-per-launch-secret-of-32-random-bytes';
+  const store = new AuthStore(tempConfig(), { AGENTRY_DESKTOP_TOKEN: secret });
+  await store.update({ oidc: { issuer: 'http://127.0.0.1:9/never', audience: 'agentry', clientId: '' }, mode: 'oidc' });
+  assert.equal(await store.actorFor(secret, true), 'desktop');
+});
+
+test('a desktop secret too short to be one stops the start', () => {
+  assert.throws(() => new AuthStore(tempConfig(), { AGENTRY_DESKTOP_TOKEN: 'short' }), /AGENTRY_DESKTOP_TOKEN must be at least 24/);
 });
 
 test('a mode that would lock everyone out is refused', async () => {
