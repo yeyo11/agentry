@@ -209,7 +209,7 @@ export function WorkItemStrip({
 }
 
 /** The causes of a failed run, which the strip words; a cancellation's cause is never a failure's reason. */
-const FAILURE_CAUSES = ['budget', 'no-account', 'rate-limit', 'stopped', 'restarts', 'unreadable', 'no-verdict', 'not-started', 'not-continued', 'chat-ended', 'chat-failed'] as const;
+const FAILURE_CAUSES = ['budget', 'no-account', 'rate-limit', 'stopped', 'restarts', 'unreadable', 'no-verdict', 'max-tokens', 'not-started', 'not-continued', 'chat-ended', 'chat-failed'] as const;
 type FailureCause = (typeof FAILURE_CAUSES)[number];
 
 function isFailureCause(cause: FlowRunCause): cause is FailureCause & FlowRunCause {

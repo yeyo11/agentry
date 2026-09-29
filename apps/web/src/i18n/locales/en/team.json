@@ -382,6 +382,11 @@
       "body": "The verification ended without saying whether the item passes. The item stays in {{column}}, unchanged.",
       "short": "ended without a verdict"
     },
+    "max-tokens": {
+      "title": "It was cut off at the token limit.",
+      "body": "Its last turn stopped on the output token limit, so its result may be incomplete and was not used. The item stays in {{column}}, unchanged.",
+      "short": "cut off at the token limit"
+    },
     "not-started": {
       "title": "Its chat never started.",
       "body": "The CLI could not open the run's chat. The item stays in {{column}}, unchanged.",

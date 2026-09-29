@@ -42,6 +42,7 @@ const FAILURE_CAUSES = new Set<FlowRunCause>([
   'restarts',
   'unreadable',
   'no-verdict',
+  'max-tokens',
   'not-started',
   'not-continued',
   'chat-ended',

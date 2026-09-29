@@ -334,6 +334,7 @@
       "restarts": "Agentry restarted too many times",
       "unreadable": "it left no readable result",
       "no-verdict": "it ended without a verdict",
+      "max-tokens": "it was cut off at the token limit",
       "not-started": "its chat did not start",
       "not-continued": "its chat could not go on after a restart",
       "chat-ended": "its chat ended without a result",

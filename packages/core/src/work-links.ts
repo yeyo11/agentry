@@ -18,6 +18,7 @@ import {
   type WorkItemRef,
   type WorkItemStatus,
 } from '@agentry/shared';
+import { pasted, PASTED_NOTE, REAL_VERIFICATION, SCOPE_AND_COMPLETION } from './prompt-rules.ts';
 import { addWorktree, branchExists, git, headCommit, isGitRepo, isIgnored, lockWorktree, mainCheckout, topLevel, worktrees } from './git.ts';
 import { WorkItemError } from './work-item-validation.ts';
 import type { WorkItemService } from './work-items.ts';
@@ -59,18 +60,24 @@ export function workItemTitle(item: Pick<WorkItem, 'key' | 'title'>): string {
 }
 
 /**
- * The prompt a chat or a node starts from. It opens with the item's title line; the instructions for
- * Claude after it stay in English.
+ * The prompt a chat or a node starts from. It opens with the item's title line, which stays bare
+ * because a chat is listed by it; the instructions for Claude after it stay in English. What people
+ * wrote on the board (the description and the criteria) is marked as pasted content.
+ *
+ * `chat` is "Work on it", a person's own chat, which also gets the scope and verification rules; a
+ * node or a flow run is handed the item alone (`task`), and its own prompt says the rest.
  */
-export function workItemPrompt(item: WorkItem): string {
+export function workItemPrompt(item: WorkItem, mode: 'chat' | 'task' = 'chat'): string {
   const lines = [workItemTitle(item), ''];
   lines.push(`You are working on the ${item.type} ${item.key} of this project${item.epic ? `, part of the epic ${item.epic.key} "${item.epic.title}"` : ''}.`);
-  if (item.description.trim()) lines.push('', item.description.trim());
+  const description = item.description.trim();
+  if (description) lines.push('', 'Its description, as written on the board:', pasted(description));
   if (item.acceptanceCriteria.length) {
-    lines.push('', 'Acceptance criteria:');
-    for (const c of item.acceptanceCriteria) lines.push(`- [${c.checked ? 'x' : ' '}] ${c.text}`);
+    lines.push('', 'Acceptance criteria:', pasted(item.acceptanceCriteria.map((c) => `- [${c.checked ? 'x' : ' '}] ${c.text}`).join('\n')));
   }
-  lines.push('', 'When you are done, say what you changed and how each acceptance criterion is met.');
+  lines.push('', 'Do what the description and the criteria ask. When you are done, say what you changed and how each acceptance criterion is met.');
+  // A node's and a flow run's own prompt carries the note, and the rules it needs
+  if (mode === 'chat') lines.push('', PASTED_NOTE, '', SCOPE_AND_COMPLETION, '', REAL_VERIFICATION);
   return lines.join('\n');
 }
 
@@ -254,7 +261,7 @@ export function orchestrationDraft(
       id: nodeOf.get(item.id) ?? nodeId(item),
       // A linked node's chat is listed by its name: the orchestrator heads the node's prompt with it
       name: clip(workItemTitle(item), 80),
-      prompt: workItemPrompt(item),
+      prompt: workItemPrompt(item, 'task'),
       ...(dependsOn.length ? { dependsOn } : {}),
       workItemId: item.id,
     };
