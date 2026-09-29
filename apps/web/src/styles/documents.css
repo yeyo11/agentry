@@ -1025,6 +1025,14 @@
   background: none;
 }
 
+/* A pull request not opened yet is one quiet line, not a panel: the head already says the item
+   waits, so the line holds only the PR it can open, or why it cannot */
+.item-wait.is-quiet.item-pr-wait {
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
 .item-wait-head {
   display: flex;
   align-items: center;
@@ -1120,7 +1128,8 @@
     font-size: 15px;
   }
 
-  .item-wait-actions > .btn {
+  .item-wait-actions > .btn,
+  .item-pr-wait.is-quiet > .btn {
     flex: 1;
     min-height: 44px;
   }

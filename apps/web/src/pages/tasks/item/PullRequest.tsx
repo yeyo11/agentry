@@ -49,7 +49,12 @@ export function PullRequestRow({ pr }: { pr: WorkItemPullRequest | null | undefi
  * panel (`.item-wait`): being prepared, conflicted (with the paths in mono), approved until QA
  * passes, waiting for the person's merge with its CI, closed or failed (with the approval again), or
  * the offer to open one; in a project that cannot, why, in warn and in words, with git's or gh's
- * line in mono. Nothing here moves: Agentry prepares a PR, no agent works on it.
+ * line as its title. Nothing here moves: Agentry prepares a PR, no agent works on it.
+ *
+ * Before any PR exists (`offer`, `not-ready`) it is one quiet line, not a panel: the head already
+ * says the item waits for the person and carries "Move to Done", so a boxed panel with a status
+ * badge of its own would be a second headline for the same wait. The line adds only what the head
+ * does not say, the PR it can open or why it cannot (DesktopTarea draws no approval panel).
  */
 export function PullRequestState({ item }: { item: WorkItemDetail }) {
   const { t } = useTranslation(['workItem', 'tasks']);
@@ -140,18 +145,24 @@ export function PullRequestState({ item }: { item: WorkItemDetail }) {
       detail = pr?.error?.detail || null;
       break;
     case 'offer':
-      why = item.waiting === 'approval' ? t('pr.approveWhy', { base }) : t('pr.offerWhy', { base });
-      break;
     case 'not-ready':
-      badge = (
-        <span className="badge badge-warn">
-          <CircleAlert {...BADGE} />
-          {t('pr.noPrBadge')}
-        </span>
+      return (
+        <div className={`item-wait is-quiet item-pr-wait is-${panel}`}>
+          {panel === 'not-ready' ? (
+            <NotReadyNote readiness={readiness} />
+          ) : (
+            <>
+              <span className="item-wait-why">{item.waiting === 'approval' ? t('pr.approveWhy', { base }) : t('pr.offerWhy', { base })}</span>
+              {action && (
+                <button type="button" className="btn btn-small workitem-open-pr" disabled={open.isPending} onClick={() => open.mutate(item)}>
+                  <GitPullRequest {...ICON_SM} />
+                  {action === 'approve' ? t('tasks:pr.approve') : t('tasks:pr.open')}
+                </button>
+              )}
+            </>
+          )}
+        </div>
       );
-      why = t(`tasks:pr.notReady.${notReadyReason(readiness) ?? 'no-remote'}`);
-      detail = readiness?.detail || null;
-      break;
   }
   // A PR that closed or failed in a project that since lost what it needs says that too
   const lost = (panel === 'closed' || panel === 'failed') && notReadyReason(readiness);

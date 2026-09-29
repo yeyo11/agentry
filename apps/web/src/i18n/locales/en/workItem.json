@@ -337,7 +337,6 @@
     "keptWhy": "Its worktree was kept: it had uncommitted changes.",
     "readyBadge": "waits for you",
     "approveWhy": "Approving it opens its PR against {{base}}.",
-    "offerWhy": "Opening its PR pushes its branch and proposes it to {{base}}.",
-    "noPrBadge": "no PR"
+    "offerWhy": "Opening its PR pushes its branch and proposes it to {{base}}."
   }
 }

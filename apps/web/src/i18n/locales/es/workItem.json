@@ -337,7 +337,6 @@
     "keptWhy": "Se ha conservado su worktree: tenía cambios sin commit.",
     "readyBadge": "te espera",
     "approveWhy": "Aprobarla abre su PR hacia {{base}}.",
-    "offerWhy": "Abrir su PR sube su rama y la propone a {{base}}.",
-    "noPrBadge": "sin PR"
+    "offerWhy": "Abrir su PR sube su rama y la propone a {{base}}."
   }
 }

@@ -257,8 +257,10 @@ integration branch. No agent ever pushes: every flow run keeps `git push` denied
 default branch is `refs/remotes/origin/HEAD`, or else what `gh repo view` says. The answer is cached
 for 60 s per project, so a board read does not run `gh auth status` every time. It comes back on the
 project's board (`Board.pullRequestReadiness`) and on the item's page
-(`WorkItemDetail.pullRequestReadiness`). A project that is not ready says why on the card and in the
-waiting panel, in warn with words, and "Mover a Hecho" keeps working as before.
+(`WorkItemDetail.pullRequestReadiness`). A project that is not ready says why on the card and on the
+item page, in warn with words, and "Mover a Hecho" keeps working as before. On the item page, before
+any PR exists, that reason (or the offer to open one) is a quiet line under the head, not a panel: the
+head already says the item waits for the person.
 
 **Approving.** `POST /work-items/:itemId/pull-request` is what "Aprobar y abrir PR" (the approval of
 an item QA passed, in a ready project) and "Abrir PR" (any item in `in_review`) call. It refuses an

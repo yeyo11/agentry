@@ -449,20 +449,23 @@ test('the waiting panel explains a PR waiting for the merge, a conflict with its
   assert.match(failed, /<p class="item-wait-detail">fatal: unable to access<\/p>/);
   assert.match(text(failed), /Approve and open PR/);
 
+  // Before any PR exists it is a quiet line, not a panel: the head already says the item waits
   const notReady = wrap(<PullRequestState item={detail('in_review', { waiting: 'approval', pullRequestReadiness: NO_AUTH })} />);
-  assert.match(notReady, /class="badge badge-warn"/);
-  assert.match(text(notReady), /no PR gh is not signed in/);
-  assert.match(notReady, /<p class="item-wait-detail">You are not logged into any GitHub hosts/);
+  assert.match(notReady, /class="item-wait is-quiet item-pr-wait is-not-ready"/);
+  assert.doesNotMatch(notReady, /class="badge/, 'no status badge beside the head\'s own');
+  assert.match(notReady, /class="pr-not-ready" title="You are not logged into any GitHub hosts/);
+  assert.match(text(notReady), /No PR: gh is not signed in/);
   assert.doesNotMatch(notReady, /workitem-open-pr/, 'no PR button where it cannot open one: Move to Done stays in the head');
 
   const offer = wrap(<PullRequestState item={detail('in_review', { pullRequestReadiness: READY })} />);
+  assert.match(offer, /class="item-wait is-quiet item-pr-wait is-offer"/);
   assert.match(text(offer), /Opening its PR pushes its branch and proposes it to main\. Open PR/);
 
   await inSpanish();
   assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'merge', pullRequest: pr({ number: 12 }), pullRequestReadiness: READY })} />)), /La PR #12 espera que la fusiones en GitHub/);
   assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'approval', pullRequestReadiness: READY })} />)), /Aprobar y abrir PR/);
   assert.match(text(wrap(<PullRequestState item={detail('in_review', { pullRequestReadiness: READY })} />)), /Abrir PR/);
-  assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'approval', pullRequestReadiness: NO_AUTH })} />)), /sin PR gh no ha iniciado sesión/);
+  assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'approval', pullRequestReadiness: NO_AUTH })} />)), /Sin PR: gh no ha iniciado sesión/);
 });
 
 test("the item's PR row under Changes links to GitHub with its number in mono, its branch into the default one and its state in words", async () => {

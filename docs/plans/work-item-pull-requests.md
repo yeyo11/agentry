@@ -70,8 +70,10 @@ code the web words in en/es, and the raw detail in mono:
 The answer is cached per project for 60 s. `gh auth status` must not run on every board read.
 
 When the project is not ready, the approval does what it does today: the person moves the card to
-Done. The card and the waiting panel say **why no PR is offered**, in the warn colour with its
-words, and never fail silently.
+Done. The card and the item page say **why no PR is offered**, in the warn colour with its
+words, and never fail silently. On the item page that is one quiet line under the head, not a panel:
+the head already says the item waits for the person and carries "Mover a Hecho", so the line adds
+only what the head does not say. The same goes for the offer to open one in a ready project.
 
 ## Approving: `POST /work-items/:itemId/pull-request`
 
