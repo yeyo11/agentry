@@ -26,11 +26,22 @@ export function normalizeVerification(spec: VerificationSpec | null | undefined,
   if (spec === undefined || spec === null) return null;
   if (typeof spec !== 'object') throw new Error(`${label} must be an object`);
   if (!Array.isArray(spec.commands)) throw new Error(`${label}.commands must be a list of shell commands`);
-  const commands = spec.commands.map((c) => (typeof c === 'string' ? c.trim() : ''));
-  if (commands.length === 0) throw new Error(`${label}.commands needs at least one command`);
-  if (commands.length > MAX_COMMANDS) throw new Error(`${label}.commands takes at most ${String(MAX_COMMANDS)} commands`);
-  if (commands.some((c) => c === '')) throw new Error(`${label}.commands must not hold an empty command`);
-  if (commands.some((c) => c.length > MAX_COMMAND_LENGTH)) throw new Error(`${label}.commands: a command is at most ${String(MAX_COMMAND_LENGTH)} characters`);
+  const commands = spec.commands.map((entry: unknown, i): string | string[] => {
+    if (typeof entry === 'string') return entry.trim();
+    if (!Array.isArray(entry)) throw new Error(`${label}.commands[${String(i)}] must be a shell command or a list of commands that run at the same time`);
+    if (entry.length === 0) throw new Error(`${label}.commands[${String(i)}] is an empty list`);
+    const group = entry.map((c: unknown, j) => {
+      if (typeof c !== 'string') throw new Error(`${label}.commands[${String(i)}][${String(j)}] must be a shell command${Array.isArray(c) ? ': a parallel group does not nest' : ''}`);
+      return c.trim();
+    });
+    // A group of one is one command: kept as a string, the stored spec reads as it did before groups
+    return group.length === 1 ? (group[0] as string) : group;
+  });
+  const flat = commands.flat();
+  if (flat.length === 0) throw new Error(`${label}.commands needs at least one command`);
+  if (flat.length > MAX_COMMANDS) throw new Error(`${label}.commands takes at most ${String(MAX_COMMANDS)} commands`);
+  if (flat.some((c) => c === '')) throw new Error(`${label}.commands must not hold an empty command`);
+  if (flat.some((c) => c.length > MAX_COMMAND_LENGTH)) throw new Error(`${label}.commands: a command is at most ${String(MAX_COMMAND_LENGTH)} characters`);
 
   const attempts = spec.maxAttempts ?? DEFAULT_FIXER_ATTEMPTS;
   if (!Number.isInteger(attempts) || attempts < 1 || attempts > MAX_FIXER_ATTEMPTS) {
@@ -94,7 +105,7 @@ export function installStep(spec: VerificationSpec, root: string, dir: string): 
   let at = resolve(dir);
   for (;;) {
     const found = LOCKFILES.find(([file]) => existsSync(join(at, file)));
-    if (found) return spec.commands.includes(found[1]) ? null : { command: found[1], cwd: at };
+    if (found) return spec.commands.flat().includes(found[1]) ? null : { command: found[1], cwd: at };
     if (at === top) return null;
     const up = dirname(at);
     // Never above the worktree: a lockfile there belongs to some other checkout
@@ -110,6 +121,11 @@ export interface CommandOutcome {
   /** Set when the command was cut short by `cancel`, which is not a failure of the code */
   cancelled: boolean;
   output: string;
+  /**
+   * The spec files the output names as failed (`failedSpecs`), read from all of it before it was
+   * trimmed: a long suite prints them early, and the tail can miss them
+   */
+  failedSpecs: string[];
   durationMs: number;
 }
 
@@ -127,6 +143,55 @@ export function tail(text: string, max: number): string {
   const cut = clean.slice(clean.length - max);
   const newline = cut.indexOf('\n');
   return `…\n${(newline >= 0 && newline < 200 ? cut.slice(newline + 1) : cut).trim()}`;
+}
+
+/** How many failed spec files the fixer is told about: more than this is not one failure to mend */
+export const MAX_FAILED_SPECS = 20;
+/** The line a test runner prints for a spec file that failed: `✗ <file>`, first on its line (a failure message under it is indented, so it never reads as one) */
+const FAILED_SPEC = /^✗ (\S+)/;
+
+/**
+ * The spec files some output names as failed, from its `✗ <file>` lines, in order and once each
+ * (a runner's summary repeats them), at most 20.
+ */
+export function failedSpecs(output: string): string[] {
+  const reader = specFailures();
+  reader.push(output);
+  reader.end();
+  return reader.names();
+}
+
+/**
+ * Reads `✗ <file>` lines from output that arrives in chunks, without keeping the output: a suite
+ * prints for minutes, and only these lines are wanted from all of it.
+ */
+function specFailures(): { push(text: string): void; end(): void; names(): string[] } {
+  const found: string[] = [];
+  let partial = '';
+  const line = (raw: string) => {
+    if (found.length >= MAX_FAILED_SPECS) return;
+    const match = FAILED_SPEC.exec(raw.replace(ANSI, ''));
+    const name = match?.[1];
+    if (name && !found.includes(name)) found.push(name);
+  };
+  return {
+    push(text) {
+      const lines = (partial + text).split(/\r?\n|\r/);
+      partial = lines.pop() ?? '';
+      // A line longer than any spec name is not one; keeping it whole would keep the log
+      if (partial.length > 4096) partial = partial.slice(0, 4096);
+      for (const l of lines) line(l);
+    },
+    end() {
+      if (partial) line(partial);
+      partial = '';
+    },
+    names() {
+      if (partial) line(partial);
+      partial = '';
+      return [...found];
+    },
+  };
 }
 
 /** Signals what a command started, by the process the wrapper itself spawned and never by name. */
@@ -160,6 +225,7 @@ export function runCommand(command: string, cwd: string, timeoutMs: number, onSt
   const started = Date.now();
   return new Promise((resolve) => {
     let output = '';
+    const failures = specFailures();
     let timedOut = false;
     let cancelled = false;
     let settled = false;
@@ -180,12 +246,15 @@ export function runCommand(command: string, cwd: string, timeoutMs: number, onSt
         timedOut,
         cancelled,
         output: tail(output, OUTPUT_TAIL),
+        failedSpecs: failures.names(),
         durationMs: Date.now() - started,
       });
     };
     const collect = (chunk: Buffer) => {
-      // A suite can print for minutes: only the end of it is ever read
-      output = (output + chunk.toString('utf8')).slice(-OUTPUT_TAIL * 4);
+      const text = chunk.toString('utf8');
+      failures.push(text);
+      // A suite can print for minutes: only the end of it is kept
+      output = (output + text).slice(-OUTPUT_TAIL * 4);
     };
     child.stdout?.on('data', collect);
     child.stderr?.on('data', collect);
@@ -230,15 +299,23 @@ export function commitsSince(dir: string, base: string): Commit[] {
     });
 }
 
+/** A check the fixer is asked to mend: its command, why it failed, and what it printed. */
+export interface FailedCheck {
+  command: string;
+  failure: string;
+  output: string;
+}
+
 export interface FixerContext {
   objective: string;
   branch: string;
   worktree: string;
-  command: string;
-  /** All the checks, in the order they run, so the fixer knows what comes after this one */
-  commands: string[];
-  failure: string;
-  output: string;
+  /** All the checks, in the order they run, so the fixer knows what comes after this one; a list runs at the same time */
+  commands: Array<string | string[]>;
+  /** The checks that failed: one, or every one of a parallel group that failed together */
+  failed: FailedCheck[];
+  /** Spec files the failed output names, read from all of it; the tail alone can miss them */
+  failedSpecs?: string[];
   attempt: number;
   maxAttempts: number;
   /** What earlier attempts at this failure did, in their own words */
@@ -247,6 +324,8 @@ export interface FixerContext {
   tasks: { id: string; name: string; result: string }[];
   timeoutMinutes: number;
 }
+
+const failedCheck = (f: FailedCheck): string => `${f.command}\n${f.failure}\nThe end of its output:\n\`\`\`\n${tail(f.output, FIXER_OUTPUT)}\n\`\`\``;
 
 /**
  * What the agent that mends a failed check is told. The rules are Agentry's: they come from what
@@ -258,8 +337,15 @@ export function fixerPrompt(ctx: FixerContext): string {
     'You are the fixer of the verification phase of a multi-agent orchestration. The work of every task has been merged into one branch, and the checks that run on it once, after the merge, found a failure.',
     `Objective of the orchestration: ${ctx.objective}`,
     `You are in a git worktree at ${ctx.worktree}, on branch ${ctx.branch}. Do not push, and do not switch branches.`,
-    `The checks run in this order, each one under a limit of ${String(ctx.timeoutMinutes)} minutes:\n${ctx.commands.map((c, i) => `${String(i + 1)}. ${c}`).join('\n')}`,
-    `This one failed: ${ctx.command}\n${ctx.failure}\nThe end of its output:\n\`\`\`\n${tail(ctx.output, FIXER_OUTPUT)}\n\`\`\``,
+    `The checks run in this order, each one under a limit of ${String(ctx.timeoutMinutes)} minutes:\n${ctx.commands
+      .map((c, i) => `${String(i + 1)}. ${typeof c === 'string' ? c : `at the same time: ${c.join(' | ')}`}`)
+      .join('\n')}`,
+    ctx.failed.length === 1
+      ? `This one failed: ${failedCheck(ctx.failed[0] as FailedCheck)}`
+      : `These ran at the same time and failed, and this attempt is at all of them:\n\n${ctx.failed.map((f, i) => `${String(i + 1)}. ${failedCheck(f)}`).join('\n\n')}`,
+    ctx.failedSpecs?.length
+      ? `These spec files failed: ${ctx.failedSpecs.join(', ')}. Start with them, one at a time; do not run the whole suite to find them.`
+      : '',
     `This is attempt ${String(ctx.attempt)} of ${String(ctx.maxAttempts)} at this failure. After the last one Agentry stops and reports what is left, so do not spend an attempt on anything that is not the failure.` +
       (ctx.earlier.length ? `\nWhat the earlier attempts reported:\n${ctx.earlier.map((e, i) => `Attempt ${String(i + 1)}: ${e}`).join('\n')}` : ''),
     [
