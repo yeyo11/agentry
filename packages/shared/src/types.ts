@@ -636,11 +636,15 @@ export interface ChatWorktree {
   branch: string | null;
 }
 
+/** What a chat does for the orchestration it works for. */
+export type OrchestrationChatRole = 'task' | 'integration' | 'verification' | 'synthesis' | 'workflow';
+
 /** The orchestration a chat works for. */
 export interface ChatOrchestration {
   id: string;
   name: string;
-  /** Null for the synthesis report, which belongs to no task */
+  /** What the chat does for the graph; `task` is the only role with a taskId */
+  role: OrchestrationChatRole;
   taskId: string | null;
   taskName: string | null;
 }
@@ -3240,6 +3244,9 @@ export interface Orchestration {
   pullRequest?: OrchestrationPullRequest | null;
   /** The synthesis run, so its report can be continued like any other conversation */
   synthesisRunId?: string | null;
+  /** When the synthesis run started and ended; absent on graphs stored before they were recorded */
+  synthesisStartedAt?: string | null;
+  synthesisEndedAt?: string | null;
   engine?: OrchestrationEngine;
   engineReason?: string | null;
   /** The workflow engine's run and script, when the graph runs as a workflow */
@@ -3338,11 +3345,42 @@ export interface VerificationCommand {
   status: VerificationStatus;
   /** Tail of what it printed: enough to see why it failed, not the whole log */
   output: string;
+  /** The last run's; every run is in `runs` */
   durationMs: number;
+  /** Every execution of this command, in order; absent on graphs stored before it was recorded */
+  runs?: VerificationRun[];
+}
+
+/** One execution of a verification command. */
+export interface VerificationRun {
+  /** 1 for the first pass over the checks, one more each time a fix sends them all back to pending */
+  pass: number;
+  startedAt: string;
+  durationMs: number;
+  status: 'passed' | 'failed';
+  timedOut?: boolean;
+  cancelled?: boolean;
+}
+
+/** One attempt of the verification fixer. */
+export interface VerificationFix {
+  /** Null when the fixer could not start */
+  runId: string | null;
+  command: string;
+  /** 1-based, over every command */
+  attempt: number;
+  startedAt: string;
+  endedAt: string | null;
+  costUsd: number;
 }
 
 export interface VerificationState {
   status: VerificationStatus;
+  /** When the checks started and ended; absent on graphs stored before they were recorded */
+  startedAt?: string | null;
+  endedAt?: string | null;
+  /** Every fixer attempt, in order */
+  fixes?: VerificationFix[];
   /** Fixer attempts spent, over every command */
   attempts: number;
   commands: VerificationCommand[];
@@ -3396,6 +3434,81 @@ export interface OrchestrationIntegration {
   error: string | null;
   integratorRunId: string | null;
   pullRequestUrl?: string | null;
+  /** When the last integration started and ended; absent on graphs stored before they were recorded */
+  startedAt?: string | null;
+  endedAt?: string | null;
+}
+
+// ---------- Orchestration timings ----------
+
+export type OrchestrationPhaseName = 'tasks' | 'integration' | 'verification' | 'synthesis';
+/**
+ * - `slot`: ready (its dependencies done) but waiting for a free place under the concurrency
+ * - `limit`: an execution ended on a rate limit or with no account, until the next one started
+ * - `retry`: any other failed or interrupted execution, until a person or the automatic retry sent it again
+ */
+export type TaskWaitKind = 'slot' | 'limit' | 'retry';
+
+export interface TaskWait {
+  taskId: string;
+  kind: TaskWaitKind;
+  startedAt: string;
+  /** Null while the wait goes on */
+  endedAt: string | null;
+  durationMs: number;
+  /** The error that started a limit or retry wait */
+  reason: string | null;
+}
+
+export interface OrchestrationPhaseTiming {
+  phase: OrchestrationPhaseName;
+  startedAt: string;
+  endedAt: string | null;
+  durationMs: number;
+}
+
+export interface CriticalPathLink {
+  taskId: string;
+  taskName: string;
+  startedAt: string;
+  endedAt: string | null;
+  /** Sum of the task's executions */
+  workMs: number;
+  /** From the previous link's end (or the graph's creation) to this link's first start */
+  waitBeforeMs: number;
+  waits: TaskWait[];
+}
+
+export interface VerificationTimings {
+  /** Every run of every command */
+  checksMs: number;
+  /** Every fixer attempt */
+  fixerMs: number;
+  /** The highest pass */
+  passes: number;
+  commands: Array<{ command: string; install: boolean; totalMs: number; runs: VerificationRun[] }>;
+  fixes: VerificationFix[];
+}
+
+/** Where a graph's time went, computed on read from what it and its chats recorded. */
+export interface OrchestrationTimings {
+  orchestrationId: string;
+  /** When the figures were computed; durations of what is still running count up to here */
+  at: string;
+  createdAt: string;
+  endedAt: string | null;
+  wallMs: number;
+  /** Phases in order; one that did not happen is left out */
+  phases: OrchestrationPhaseTiming[];
+  /** From the last task's end to the graph's end (or now) */
+  afterTasksMs: number;
+  /** Sum of every task's working time divided by the tasks phase */
+  parallelism: number | null;
+  criticalPath: { durationMs: number; links: CriticalPathLink[] };
+  waits: { slotMs: number; limitMs: number; retryMs: number; items: TaskWait[] };
+  verification: VerificationTimings | null;
+  /** Figures an older graph could not give, e.g. `integration.startedAt` or `verification.runs` */
+  missing: string[];
 }
 
 /** A planner run's draft, kept so a plan is never lost with the response that carried it. */

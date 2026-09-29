@@ -622,12 +622,15 @@
       "name": {
         "type": "string"
       },
+      "role": {
+        "$ref": "#/components/schemas/OrchestrationChatRole",
+        "description": "What the chat does for the graph; `task` is the only role with a taskId"
+      },
       "taskId": {
         "type": [
           "string",
           "null"
-        ],
-        "description": "Null for the synthesis report, which belongs to no task"
+        ]
       },
       "taskName": {
         "type": [
@@ -639,10 +642,22 @@
     "required": [
       "id",
       "name",
+      "role",
       "taskId",
       "taskName"
     ],
     "description": "The orchestration a chat works for."
+  },
+  "OrchestrationChatRole": {
+    "type": "string",
+    "enum": [
+      "task",
+      "integration",
+      "verification",
+      "synthesis",
+      "workflow"
+    ],
+    "description": "What a chat does for the orchestration it works for."
   },
   "ChatFork": {
     "type": "object",
@@ -2438,6 +2453,19 @@
         ],
         "description": "The synthesis run, so its report can be continued like any other conversation"
       },
+      "synthesisStartedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the synthesis run started and ended; absent on graphs stored before they were recorded"
+      },
+      "synthesisEndedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
       "engine": {
         "$ref": "#/components/schemas/OrchestrationEngine"
       },
@@ -3080,6 +3108,19 @@
           "string",
           "null"
         ]
+      },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the last integration started and ended; absent on graphs stored before they were recorded"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
       }
     },
     "required": [
@@ -3406,6 +3447,26 @@
       "status": {
         "$ref": "#/components/schemas/VerificationStatus"
       },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the checks started and ended; absent on graphs stored before they were recorded"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "fixes": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/VerificationFix"
+        },
+        "description": "Every fixer attempt, in order"
+      },
       "attempts": {
         "type": "number",
         "description": "Fixer attempts spent, over every command"
@@ -3459,6 +3520,46 @@
     ],
     "description": "`fixed`: it failed, the fixer mended it, and the re-run passed."
   },
+  "VerificationFix": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null when the fixer could not start"
+      },
+      "command": {
+        "type": "string"
+      },
+      "attempt": {
+        "type": "number",
+        "description": "1-based, over every command"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "costUsd": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "runId",
+      "command",
+      "attempt",
+      "startedAt",
+      "endedAt",
+      "costUsd"
+    ],
+    "description": "One attempt of the verification fixer."
+  },
   "VerificationCommand": {
     "type": "object",
     "properties": {
@@ -3481,7 +3582,15 @@
         "description": "Tail of what it printed: enough to see why it failed, not the whole log"
       },
       "durationMs": {
-        "type": "number"
+        "type": "number",
+        "description": "The last run's; every run is in `runs`"
+      },
+      "runs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/VerificationRun"
+        },
+        "description": "Every execution of this command, in order; absent on graphs stored before it was recorded"
       }
     },
     "required": [
@@ -3490,6 +3599,41 @@
       "output",
       "durationMs"
     ]
+  },
+  "VerificationRun": {
+    "type": "object",
+    "properties": {
+      "pass": {
+        "type": "number",
+        "description": "1 for the first pass over the checks, one more each time a fix sends them all back to pending"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "durationMs": {
+        "type": "number"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "passed",
+          "failed"
+        ]
+      },
+      "timedOut": {
+        "type": "boolean"
+      },
+      "cancelled": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "pass",
+      "startedAt",
+      "durationMs",
+      "status"
+    ],
+    "description": "One execution of a verification command."
   },
   "Commit": {
     "type": "object",

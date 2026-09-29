@@ -73,8 +73,8 @@ const chat = (over: Partial<ChatSummary> = {}): ChatSummary => ({
 });
 
 const worker = (over: Partial<ChatSummary> = {}) =>
-  chat({ origin: 'orchestration', orchestration: { id: 'o1', name: 'Release', taskId: 't1', taskName: 'Write docs' }, ...over });
-const synthesis = () => chat({ origin: 'orchestration', orchestration: { id: 'o1', name: 'Release', taskId: null, taskName: null } });
+  chat({ origin: 'orchestration', orchestration: { id: 'o1', name: 'Release', role: 'task', taskId: 't1', taskName: 'Write docs' }, ...over });
+const synthesis = () => chat({ origin: 'orchestration', orchestration: { id: 'o1', name: 'Release', role: 'synthesis', taskId: null, taskName: null } });
 
 const filters = (over: Partial<ChatFilters> = {}): ChatFilters => ({ origins: new Set(ALL_ORIGINS), state: null, workers: false, internal: false, search: '', ...over });
 

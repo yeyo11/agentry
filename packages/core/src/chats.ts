@@ -55,6 +55,7 @@ import { ProviderLimits } from './providers/limits.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import type { SessionStore } from './sessions.ts';
 import type { UploadStore } from './uploads.ts';
+import { RATE_LIMIT_RE } from './providers/claude-code/stream.ts';
 
 // Every name `chats.ts` has ever exported stays importable from here
 export type { AdoptedChat, ChatConfinement, ChatPulse, ChatRuntime, ExecutionExtras, NewChat, ResolvedTools, RunMeta, RunningCommand, RunResult } from './live-chat.ts';
@@ -79,6 +80,12 @@ export interface ChatContinuationSpec {
 export { STRUCTURED_OUTPUT_TOOL } from './providers/claude-code/stream.ts';
 
 const MAX_PERSISTED_CHATS = 200;
+/**
+ * Whether an error is the account's limit rather than the work's: the classification that gives a
+ * result `cause: 'rate-limit'` (and so the flow its `rate-limit`/`no-account`), for the places that
+ * only have an execution's stored error to go on.
+ */
+export const isRateLimitError = (error: string | null | undefined): boolean => !!error && RATE_LIMIT_RE.test(error);
 /**
  * What starting or continuing a chat refuses on purpose (no prompt, the runtime full, the session
  * held elsewhere, a bad upload): the caller's to fix, with its 4xx. Anything else that goes wrong

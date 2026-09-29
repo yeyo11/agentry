@@ -24,6 +24,7 @@ import type {
   SaveOrchestrationTemplateRequest,
   SaveOrchestrationWorkflowRequest,
   VerificationCommand,
+  VerificationFix,
   VerificationSpec,
   VerificationState,
   VerifyOrchestrationRequest,
@@ -126,6 +127,7 @@ const pendingCommand = (command: string, group?: number): VerificationCommand =>
   status: 'pending',
   output: '',
   durationMs: 0,
+  runs: [],
 });
 
 /** A spec's checks as the flat rows of its state, each one with the index of the entry it came from. */
@@ -459,11 +461,16 @@ export class Orchestrator {
         o.verification.status = 'failed';
         o.verification.report = 'Interrupted by a wrapper restart before the checks finished; verify again to run them.';
         for (const c of o.verification.commands) if (c.status === 'running' || c.status === 'pending') c.status = 'pending';
+        // The restart is the latest it can have stopped at; without an end the timings would count it up for ever
+        if (o.verification.startedAt && !o.verification.endedAt) o.verification.endedAt = now();
+        for (const f of o.verification.fixes ?? []) f.endedAt ??= now();
       }
       if (o.integration && ['merging', 'resolving'].includes(o.integration.status)) {
         o.integration.status = 'failed';
         o.integration.error = 'interrupted by a restart; integrate again to finish it';
+        if (o.integration.startedAt && !o.integration.endedAt) o.integration.endedAt = now();
       }
+      if (o.synthesisStartedAt && !o.synthesisEndedAt) o.synthesisEndedAt = now();
       if (o.status === 'running') this.interrupt(o);
       this.items.set(o.id, o);
     }
@@ -1552,6 +1559,9 @@ ${quoted}
       error: null,
       integratorRunId: orch.integration?.integratorRunId ?? null,
       pullRequestUrl: orch.integration?.pullRequestUrl ?? null,
+      // A re-integration overwrites both: the phase is the last integration
+      startedAt: now(),
+      endedAt: null,
     });
     this.persist();
     try {
@@ -1594,6 +1604,7 @@ ${quoted}
       state.status = 'failed';
       state.error = (err as Error).message;
     }
+    state.endedAt = now();
     this.persist();
     // While the graph is finishing, finish() integrates again itself once it is done
     if (orch.status !== 'running' && this.lateArrivals.delete(orch.id)) await this.integrate(orch);
@@ -1662,6 +1673,8 @@ ${quoted}
   private async synthesize(orch: Orchestration): Promise<void> {
     const integration = orch.integration;
     const onBranch = integration?.status === 'merged' && integration.worktree && existsSync(integration.worktree);
+    orch.synthesisStartedAt = now();
+    orch.synthesisEndedAt = null;
     try {
       const run = this.runs.start(
         {
@@ -1701,6 +1714,7 @@ ${quoted}
     } catch (err) {
       orch.finalResult = `Synthesis failed: ${(err as Error).message}`;
     }
+    orch.synthesisEndedAt = now();
   }
 
   /** The graph's subdirectory inside the integration worktree, where the workers worked too. */
@@ -1779,8 +1793,12 @@ ${quoted}
     const before = orch.verification;
     if (!integration || integration.status !== 'merged' || !integration.worktree || !existsSync(integration.worktree)) {
       const why = integration ? `the work was not merged into ${integration.branch} (${integration.error ?? integration.status})` : 'no task left work to merge';
+      const at = now();
       orch.verification = {
         status: 'failed',
+        startedAt: at,
+        endedAt: at,
+        fixes: [],
         attempts: 0,
         // Only a given install is known here: detecting one needs the worktree that is not there
         commands: [...(typeof spec.install === 'string' ? [{ ...pendingCommand(spec.install), install: true }] : []), ...checkRows(spec)],
@@ -1802,6 +1820,9 @@ ${quoted}
     const install = installStep(spec, root, this.integratedDir(orch, root));
     const state: VerificationState = (orch.verification = {
       status: 'running',
+      startedAt: now(),
+      endedAt: null,
+      fixes: [],
       attempts: 0,
       commands: [...(install ? [{ ...pendingCommand(install.command), install: true }] : []), ...checkRows(spec)],
       commits: [],
@@ -1825,6 +1846,7 @@ ${quoted}
     } catch {
       // the worktree is gone; the outcome stands without a commit
     }
+    state.endedAt = now();
     this.persist();
   }
 
@@ -1851,6 +1873,8 @@ ${quoted}
     };
 
     let s = 0;
+    // Goes up each time a fix sends every check back to pending, so each run says which pass it was
+    let pass = 1;
     while (s < steps.length) {
       const step = steps[s] as number[];
       for (const i of step) (state.commands[i] as VerificationCommand).status = 'running';
@@ -1860,6 +1884,7 @@ ${quoted}
         step.map(async (i) => {
           const entry = state.commands[i] as VerificationCommand;
           let handle: CommandHandle | null = null;
+          const startedAt = now();
           const outcome = await runCommand(entry.command, entry.install && install ? install.cwd : dir, minutes * 60_000, (h) => {
             handle = h;
             control.commands.add(h);
@@ -1869,6 +1894,15 @@ ${quoted}
           if (handle) control.commands.delete(handle);
           entry.output = outcome.output;
           entry.durationMs = outcome.durationMs;
+          // History, not a replacement: a failing run a fix mended is what the timings are after
+          (entry.runs ??= []).push({
+            pass,
+            startedAt,
+            durationMs: outcome.durationMs,
+            status: outcome.ok && !control.cancelled ? 'passed' : 'failed',
+            ...(outcome.timedOut ? { timedOut: true } : {}),
+            ...(outcome.cancelled || control.cancelled ? { cancelled: true } : {}),
+          });
           if (!control.cancelled) entry.status = outcome.ok ? (mended.has(i) ? 'fixed' : 'passed') : 'failed';
           this.persist();
           return { i, outcome };
@@ -1953,6 +1987,7 @@ ${quoted}
       // A fix for one check can break another: they all run again, from the first
       for (const c of state.commands) c.status = 'pending';
       s = 0;
+      pass += 1;
     }
 
     if (mended.size === 0) return conclude('passed', `All ${String(state.commands.length)} checks passed on the merged branch.`);
@@ -2031,6 +2066,9 @@ ${quoted}
     });
     let note: string;
     let budget = false;
+    // One attempt can be at a parallel group's failed checks: the record names every one
+    const record: VerificationFix = { runId: null, command: checks.map((c) => c.command).join('; '), attempt: state.attempts, startedAt: now(), endedAt: null, costUsd: 0 };
+    (state.fixes ??= []).push(record);
     try {
       const run = this.runs.start(
         {
@@ -2065,14 +2103,19 @@ ${quoted}
         { orchestrationId: orch.id, orchestrationTaskId: '__verification__' },
       );
       control.fixerRunId = run.id;
+      // Kept past the attempt, so the fixer's chat stays findable from the graph
+      record.runId = run.id;
+      this.persist();
       const result = await this.runs.waitForResult(run.id);
       orch.costUsd += result.costUsd;
       state.costUsd += result.costUsd;
+      record.costUsd = result.costUsd;
       budget = result.cause === 'budget';
       note = budget ? 'its cost limit ran out before it finished' : result.isError ? `the fixer ended with an error: ${result.result}` : result.result;
     } catch (err) {
       note = `the fixer could not run: ${(err as Error).message}`;
     }
+    record.endedAt = now();
     control.fixerRunId = null;
     try {
       // Asked to commit, agents often do not: what is left would be lost to the pull request
