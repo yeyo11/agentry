@@ -338,8 +338,8 @@ result, or a verification without a verdict, is `failed` and moves nothing.
 **QA checks each criterion** (decision 18). Its prompt lists the item's criteria with their ids, and
 its result judges every one. A criterion found met is **checked on the item as QA** (`checkedBy` is
 the agent with its role). One found unmet is left as it is, so a person's own check stays. **The run
-passes only when every criterion of the item is met**, whatever its `verdict` says: a `pass` with a
-criterion unmet or left out is a rejection. QA's comment is its summary followed by each criterion as
+passes only when every criterion of the item is met or needs a person** (see below), whatever its
+`verdict` says: a `pass` with a criterion unmet or left out is a rejection. QA's comment is its summary followed by each criterion as
 `- [x]` or `- [ ]`, with QA's note, so the Developer who gets it back reads what is missing. An item
 with no criteria is judged by its verdict.
 
