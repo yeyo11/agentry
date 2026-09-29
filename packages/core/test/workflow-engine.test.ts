@@ -175,6 +175,8 @@ test('a graph on the workflow engine runs in one session and reads its results f
   const run = runs.get(orch.workflow?.runId ?? '');
   assert.ok(orch.tasks.every((t) => t.runId === run?.id));
   assert.match(resultText(runs, run?.id ?? ''), /--allowedTools=Workflow/);
+  // The lead is told time matters: a workflow has no budget to measure it against
+  assert.match(run?.prompt ?? '', /Time matters here/);
   // Finished on the workflow's own notification, not on the turn that launched it
   assert.match(orchestrator.workflowScript(orch.id).script, /const TASKS = /);
   runs.stopAll();

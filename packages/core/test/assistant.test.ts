@@ -13,7 +13,7 @@ import type {
   ProjectSettings,
   ProjectTeamMember,
 } from '@agentry/shared';
-import { assistantLanguage, parseAnswer, assistantSchema, assistantPrompt, type AssistantBrief, type AssistantGit } from '../src/assistant-answer.ts';
+import { assistantLanguage, parseAnswer, assistantSchema, assistantPrompt, MODEL_CHOICE, type AssistantBrief, type AssistantGit } from '../src/assistant-answer.ts';
 import { partialJson, resourceDraft } from '../src/assistant-draft.ts';
 import { ASSISTANT_ERRORS, AssistantService, DENIED_TOOLS, memberFile, READ_ONLY_TOOLS, type AssistantKnown, type AssistantLaunch } from '../src/assistant.ts';
 import { ASSISTANT_SCHEMA_VERSION, Db, migrate } from '../src/db.ts';
@@ -137,9 +137,16 @@ function setup(opts: { dir?: string; settings?: ProjectSettings; db?: Db; commit
   });
   bus.observe((e) => assistant.observe(e));
   /** Answers the run's chat with a structured result. */
-  const answer = (run: AssistantRunDetail, output: unknown, extra: { isError?: boolean; result?: string; costUsd?: number; cause?: 'stopped' } = {}) => {
+  const answer = (run: AssistantRunDetail, output: unknown, extra: { isError?: boolean; result?: string; costUsd?: number; cause?: 'stopped'; stopReason?: string } = {}) => {
     assert.ok(run.chatId, 'the run has a chat');
-    assistant.chatResult(run.chatId, { isError: extra.isError ?? false, result: extra.result ?? '', structuredOutput: output, costUsd: extra.costUsd ?? 0.07, ...(extra.cause ? { cause: extra.cause } : {}) });
+    assistant.chatResult(run.chatId, {
+      isError: extra.isError ?? false,
+      result: extra.result ?? '',
+      structuredOutput: output,
+      costUsd: extra.costUsd ?? 0.07,
+      ...(extra.cause ? { cause: extra.cause } : {}),
+      ...(extra.stopReason ? { stopReason: extra.stopReason } : {}),
+    });
     return assistant.run(run.id);
   };
   return { db, bus, events, state, dir, items, assistant, launches, stopped, busy, failNext, added, saved, failMember, answer };
@@ -173,6 +180,29 @@ const RESULT = {
     { type: 'bug', title: 'Retry webhooks', description: '', priority: 'weird', labels: [], acceptanceCriteria: [], epic: null, similarTo: null, reason: 'Stripe retries.' },
   ],
 };
+
+/** A brief as a run of a project with some history is handed. */
+function assistantBrief(): AssistantBrief {
+  return {
+    kind: 'project',
+    projectName: 'pagos-api',
+    description: null,
+    focus: null,
+    resourceKind: null,
+    empty: false,
+    proposes: ['team-member', 'resource', 'work-item'],
+    templateName: 'software',
+    templateTeam: [],
+    team: [],
+    resources: { agents: [], skills: [], commands: [] },
+    workItems: [],
+    moreWorkItems: 0,
+    milestones: [],
+    chats: ['Add the webhook'],
+    git: { branch: 'main', commits: ['a1b2c3d First'], changes: [], moreChanges: 0 },
+    language: 'en',
+  };
+}
 
 async function projectRun(s: Setup, extra: Record<string, unknown> = {}): Promise<AssistantRunDetail> {
   const run = await s.assistant.start('p1', { kind: 'project', ...extra });
@@ -442,6 +472,57 @@ test('a run that fails, answers nothing readable or loses its chat ends failed, 
   const unstarted = await projectRun(s);
   assert.equal(s.assistant.run(unstarted.id).status, 'failed');
   assert.equal(s.assistant.run(unstarted.id).error?.code, ASSISTANT_ERRORS.start);
+});
+
+test('an answer cut by the token limit fails the run even though its JSON parsed, and says it was the max-tokens stop', async () => {
+  const s = setup();
+  const cut = s.answer(await projectRun(s), RESULT, { stopReason: 'max_tokens' });
+  assert.equal(cut.status, 'failed');
+  assert.equal(cut.error?.code, ASSISTANT_ERRORS.maxTokens);
+  assert.match(cut.error?.text ?? '', /max_tokens/);
+  assert.equal(cut.proposals.length, 0);
+  // The same answer on a turn that ended on its own is taken
+  const whole = s.answer(await projectRun(s), RESULT, { stopReason: 'end_turn' });
+  assert.equal(whole.status, 'completed');
+});
+
+test('an assistant run on Sonnet is told to think the problem through, and one on Opus is not', async () => {
+  const brief = assistantBrief();
+  assert.ok(assistantPrompt(brief, 'sonnet').includes(THINK_THROUGH));
+  assert.ok(assistantPrompt(brief, 'claude-sonnet-5-5').includes(THINK_THROUGH));
+  assert.ok(!assistantPrompt(brief, 'opus').includes(THINK_THROUGH));
+  assert.ok(!assistantPrompt(brief, 'claude-opus-5-5').includes(THINK_THROUGH));
+  // Through the service: the run's own model decides
+  const s = setup();
+  s.answer(await projectRun(s, { model: 'sonnet' }), RESULT);
+  assert.ok(s.launches.at(-1)?.prompt.includes(THINK_THROUGH));
+  await projectRun(s, { model: 'opus', supersede: true });
+  assert.ok(!s.launches.at(-1)?.prompt.includes(THINK_THROUGH));
+});
+
+test("the assistant recommends Opus for the hardest long-horizon roles and Sonnet otherwise, and asks why in each member's reason", () => {
+  const prompt = assistantPrompt(assistantBrief());
+  assert.ok(prompt.includes(`For its \`model\`, ${MODEL_CHOICE}`));
+  assert.match(MODEL_CHOICE, /recommend opus for the roles that carry the hardest long-horizon work/);
+  assert.match(MODEL_CHOICE, /and sonnet for the others/);
+  assert.match(MODEL_CHOICE, /say in its reason why the model you chose fits the role/);
+  const member = ((assistantSchema({ kind: 'project', proposes: ['team-member'], resourceKind: null, description: null }).properties as Record<string, { items: { properties: Record<string, { description: string }> } }>).teamMembers?.items.properties) ?? {};
+  assert.ok(member.model?.description.includes(MODEL_CHOICE));
+  assert.match(member.reason?.description ?? '', /why its model fits the role/);
+  // Effort is not recommended yet: that waits for CW-25
+  assert.doesNotMatch(prompt, /effort/i);
+});
+
+test("the person's description, focus, chats and commits reach a run as pasted content, with the note", () => {
+  const prompt = assistantPrompt({ ...assistantBrief(), kind: 'work-items', description: 'A payments API', focus: 'the refunds' });
+  const blocks = [...prompt.matchAll(/^<pasted_content id="([0-9a-f]{8})">\n([\s\S]*?)\n<\/pasted_content id="\1">$/gm)].map((m) => m[2]);
+  assert.ok(blocks.includes('A payments API'));
+  assert.ok(blocks.includes('the refunds'));
+  assert.ok(blocks.includes('- Add the webhook'));
+  assert.ok(blocks.includes('- a1b2c3d First'));
+  assert.ok(prompt.includes(PASTED_NOTE));
+  // Explores before it proposes, including what the request does not name
+  assert.match(prompt, /Read the project before you propose anything[^\n]*the parts of it the request does not name/);
 });
 
 test('a stopped run stops its chat, proposes nothing, and a late result changes nothing', async () => {
