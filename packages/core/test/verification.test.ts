@@ -209,7 +209,8 @@ test('the fixer is told the failed spec files only when there are some, in words
     paragraph,
     /^These spec files failed \(read from the check's output\):\n<pasted_content id="([0-9a-f]{8})">\na\.spec\.mjs\nb\.spec\.mjs\n<\/pasted_content id="\1">\nStart with them, one at a time; do not run the whole suite to find them\.$/,
   );
-  assert.doesNotMatch(paragraph, /pnpm|e2e\/|port|\d{4}/);
+  // The block's random hex id can hold four digits in a row: only the words are checked for a port
+  assert.doesNotMatch(paragraph.replace(/ id="[0-9a-f]{8}"/g, ''), /pnpm|e2e\/|port|\d{4}/);
 });
 
 test('workers are told the split of checks, whether or not a verification phase exists', () => {
