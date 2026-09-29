@@ -1,17 +1,18 @@
 ---
 created_at: 2026-09-28T21:00:00Z
-updated_at: 2026-09-28T21:00:00Z
+updated_at: 2026-09-29T12:00:00Z
 tags:
     - plan
     - spec
     - security
     - chats
     - api
-    - proposed
+    - built
 ---
 # Spec: a chat Agentry starts gets its own API token (CW-10)
 
-Status: **proposed**. This spec builds section 2 of
+Status: **built** (CW-10). Under `mode: none` the actor stays `local` even with a chat token; the
+CW-17 amendment below is not part of this change. This spec builds section 2 of
 [flow-start-and-chat-token.md](flow-start-and-chat-token.md), which records the owner's decision
 (option A, 2026-09-28). The decision is not reopened here. This document turns it into something a
 developer can build without asking.

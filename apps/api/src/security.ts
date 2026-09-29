@@ -125,6 +125,40 @@ function fromLocalMachine(req: FastifyRequest): boolean {
 }
 
 /**
+ * Whether a chat token may be looked at: the socket peer is loopback, the name dialled is loopback,
+ * and nothing says the request was relayed. The tunnel (`ssh -R` to 127.0.0.1) and any local
+ * reverse proxy arrive from loopback too, so the peer alone would let a leaked chat token in from
+ * the internet; they are told apart by the public name they carry and the headers they add. The
+ * socket is read rather than `req.ip`, so trusting a proxy one day cannot widen this.
+ */
+function fromLocalChat(req: FastifyRequest, runtime: RuntimeHosts): boolean {
+  const peer = req.socket.remoteAddress;
+  const host = req.headers.host;
+  if (peer === undefined || !LOOPBACK.test(peer) || host === undefined) return false;
+  const name = hostNameOf(host);
+  // `localhost` is loopback by definition; a runtime host is refused even if it were named so
+  if (!LOOPBACK.test(name) || runtime.get(name) !== undefined) return false;
+  if (req.headers.forwarded !== undefined || req.headers['x-forwarded-for'] !== undefined) return false;
+  return !runtime.list().some((each) => {
+    const header = runtime.get(each)?.clientIpHeader;
+    return header !== undefined && req.headers[header] !== undefined;
+  });
+}
+
+/**
+ * What a chat's own token cannot do: administer the guard in front of it. A prompt injection
+ * holding it could otherwise rotate the owner's token, switch the guard off or open the tunnel.
+ * Stopping the tunnel stays allowed, because it only reduces exposure.
+ */
+const CHAT_FORBIDDEN = new Set([
+  `PUT ${API_PREFIX}/security/auth`,
+  `POST ${API_PREFIX}/security/token`,
+  `DELETE ${API_PREFIX}/security/token`,
+  `POST ${API_PREFIX}/tunnel/start`,
+  `PUT ${API_PREFIX}/tunnel/settings`,
+]);
+
+/**
  * The desktop app's secret exists to let its tray read what is live, so it reads and nothing
  * else: a secret that has to sit in a second process's memory is kept to the least it needs.
  */
@@ -305,7 +339,11 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
         void reply.header('Retry-After', String(wait)).status(429).send({ error: 'too many failed authentications from this address', mode });
         return reply;
       }
-      const actor = await core.security.actorFor(credential, fromLocalMachine(req));
+      const owner = await core.security.actorFor(credential, fromLocalMachine(req));
+      // The owner's credential first; a chat token is only ever the fallback, and fails the same
+      // way. Told apart by where it came from, not by its prefix: an OIDC subject could be anything
+      const chat = owner === null ? core.security.chatActorFor(credential, fromLocalChat(req, runtimeHosts)) : null;
+      const actor = owner ?? chat;
       if (!actor) {
         backoff.fail(client);
         void refuse();
@@ -315,6 +353,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       req.actor = actor;
       if (actor === DESKTOP_ACTOR && !DESKTOP_METHODS.has(req.method)) {
         void reply.status(403).send({ error: "the desktop app's own credential only reads; sign in with the API token to change anything" });
+        return reply;
+      }
+      if (chat !== null && CHAT_FORBIDDEN.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot change the API's authentication" });
         return reply;
       }
     }
@@ -350,7 +392,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
 
 declare module 'fastify' {
   interface FastifyRequest {
-    /** Who made the request: a token id, an OIDC subject, `desktop`, or `local` when nothing guards the API */
+    /** Who made the request: a token id, an OIDC subject, `desktop`, `chat:<chatId>`, or `local` when nothing guards the API */
     actor: string | null;
   }
 }

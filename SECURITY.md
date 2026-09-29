@@ -73,6 +73,16 @@ What is and is not protected:
 - **Secrets in MCP `env` and `headers`** (and in settings' `env`) are not returned by the API: a
   placeholder stands for the value.
 - **An audit log of writes**: who, what route, the status. Never the body. It can be narrowed by path (matched literally: `%` and `_` are not wildcards), method and status code or class.
+- **Chats get their own token, never yours.** Every CLI process Agentry spawns is handed a fresh
+  `AGENTRY_API_TOKEN` (32 random bytes, prefixed `agc_`) next to `AGENTRY_API_URL`, so a chat can call
+  the wrapper that started it when the guard is on. It is held in memory only, as its SHA-256; it is
+  revoked when that process exits, when Agentry shuts down or restarts, and after 24 hours at most. It
+  is accepted only from a loopback peer that dialled a loopback name with no `Forwarded`,
+  `X-Forwarded-For` or tunnel client-IP header, so it does not work through the tunnel or a proxy; any
+  other use answers the same `401` as a wrong token and counts toward the wait. It cannot administer
+  the guard: changing the auth mode or read-only, setting or removing the token, starting the tunnel
+  or changing its settings answer `403`. Read-only and the host allowlist apply to it, and its writes
+  are audited as `chat:<chatId>`. See [docs/plans/chat-api-token.md](docs/plans/chat-api-token.md).
 
 **Not protected, and still true with everything on:**
 
@@ -103,6 +113,11 @@ What is and is not protected:
   `/api/projects/:id/export`), so a proxy's access log may record it.
 - **There is one credential.** Everyone who holds the token is the same user; nothing isolates one
   person's chats from another's. OIDC validates a JWT, it does not sign anyone in.
+- **A running chat's token is readable by your own user.** Another process on the machine running as
+  the same user can read a live chat's environment (`/proc/<pid>/environ`) and use its
+  `AGENTRY_API_TOKEN` from loopback until that chat's process ends. That is the boundary `mode: none`
+  already has for a local user, only narrower in time; the guard is there against the network, not
+  against your own account.
 - **Chats default to `bypassPermissions` inside the container**, so a chat does what it is asked
   without prompting. The container is the sandbox.
 - **Account credentials live in the data volume**, and the API can write them.
