@@ -413,6 +413,7 @@ transpiler.
 | `AGENTRY_AUTH_MODE` | `none` | `none`, `token` or `oidc`. **Seeds** an install that has no `auth.json` yet; after that the setting saved from the UI wins. See [Securing it](#securing-it) |
 | `AGENTRY_AUTH_TOKEN` | – | The bearer token to seed with when the mode is `token`. Only its SHA-256 is stored |
 | `AGENTRY_AUTH_TOKEN_RESET` | – | `1` makes `AGENTRY_AUTH_TOKEN` replace the stored token on start, on an install that already has one. The change is audited with actor `env`, and a value already applied is not applied twice |
+| `AGENTRY_DESKTOP_TOKEN` | – | Set by the desktop app on the server it starts: a secret generated at each launch that its tray sends as a bearer token. Accepted only from loopback, dialled on a loopback name, as the read-only actor `desktop`; kept in memory, never stored, and removed from the environment chats inherit. See [docs/desktop.md](docs/desktop.md) |
 | `AGENTRY_READ_ONLY` | `false` | Seeds read-only mode |
 | `AGENTRY_OIDC_ISSUER` / `_AUDIENCE` / `_CLIENT_ID` | – | Seed the OIDC settings: the issuer whose JWKS validates a JWT, the `aud` it must carry and the client id. A configured client id refuses a token whose `azp` names another client, and accepts one that carries no `azp` at all |
 | `AGENTRY_CLI_UPDATE_CHECK` | on | `off` stops the daily check for a newer Claude Code (the button in Settings keeps working) |
@@ -462,6 +463,10 @@ directory it wins over the environment).
   host, never a pattern, for as long as it answers.
 - **Guessing is slowed down.** After ten failed authentications an address is answered `429` with a
   `Retry-After` that doubles from a second to a minute, and is forgotten after fifteen quiet minutes.
+  Only a credential that was presented and failed counts (a wrong bearer token, a wrong `?token=`, an
+  invalid JWT): a request carrying none is answered `401` and neither counted nor made to wait,
+  because on a local install every process shares `127.0.0.1` and something polling without a
+  credential would otherwise lock the owner out.
   A token you supply yourself must be at least 24 characters; one Agentry generates is 32 random
   bytes. The wait counts the peer's address, so behind a reverse proxy every client shares one
   count — see [SECURITY.md](SECURITY.md). Through the tunnel, which carries no trustworthy client
@@ -561,7 +566,7 @@ All routes are under `/api` and speak JSON. A refusal is `{ "error": "…" }` wi
 message meant to be read. Anything that fails for a reason nobody planned for is
 `500 { "error": "internal error" }` — the detail goes to the server log with the URL, never to the
 caller. Two refusals come from the guard rather than from a route: `421` when the `Host` is one this
-wrapper does not answer to, and `429` with `Retry-After` after repeated failed authentications.
+wrapper does not answer to, and `429` with `Retry-After` after repeated failed credentials (a request with none is only `401`).
 Types live in [`packages/shared/src/types.ts`](packages/shared/src/types.ts).
 
 ### System

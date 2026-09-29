@@ -47,6 +47,9 @@ export async function listenOn(app: FastifyInstance, port: number, host: string,
 export async function startServer(opts: StartServerOptions = {}): Promise<RunningServer> {
   const host = opts.host ?? '127.0.0.1';
   const core = new Core();
+  // Read into the guard by now. Every chat, command and check the server starts inherits
+  // `process.env`, and the desktop app's secret is not theirs to hold, nor to write to a transcript
+  delete process.env.AGENTRY_DESKTOP_TOKEN;
   const app = await buildApp(core, { webDist: opts.webDist });
   for (const stray of core.runtime.strays()) {
     app.log.warn(

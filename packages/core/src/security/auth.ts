@@ -27,6 +27,11 @@ interface StoredAuth {
 
 const DEFAULTS: StoredAuth = { mode: 'none', readOnly: false };
 
+/** Who a request made with the desktop app's per-launch secret is, in an audit row and to the guard. */
+export const DESKTOP_ACTOR = 'desktop';
+/** Same floor as a token someone chooses: the app generates 32 random bytes, and less is a mistake. */
+const MIN_SECRET_LENGTH = 24;
+
 const sha256 = (value: string): Buffer => createHash('sha256').update(value, 'utf8').digest();
 
 /** Compares digests, which are the same length, so the comparison cannot leak by timing out early. */
@@ -82,10 +87,21 @@ export class AuthStore {
    * is gone before the first unguarded request can arrive. Set by the owner of both, like the audit.
    */
   beforeUnguarded: (() => Promise<void>) | null = null;
+  /**
+   * SHA-256 of the secret the desktop app handed the server it spawned (`AGENTRY_DESKTOP_TOKEN`),
+   * so its tray can read the state under whatever guard the owner turned on from the Security
+   * panel, whose token the app never sees. It lives in this process only: it is not part of
+   * `StoredAuth`, so no write puts it on disk, and a new launch brings a new one.
+   */
+  private readonly desktopHash: string | null;
 
   constructor(config: CoreConfig, env: AuthEnv = config.authEnv, verifier = new OidcVerifier()) {
     this.file = join(config.dataDir, 'auth.json');
     this.oidcVerifier = verifier;
+    const desktop = env.AGENTRY_DESKTOP_TOKEN?.trim();
+    // Starting with a secret too short to be one would hand the guard a guessable way in
+    if (desktop && desktop.length < MIN_SECRET_LENGTH) throw new Error(`AGENTRY_DESKTOP_TOKEN must be at least ${String(MIN_SECRET_LENGTH)} characters`);
+    this.desktopHash = desktop ? sha256(desktop).toString('hex') : null;
     if (existsSync(this.file)) {
       try {
         this.stored = { ...DEFAULTS, ...(JSON.parse(readFileSync(this.file, 'utf8')) as StoredAuth) };
@@ -171,7 +187,7 @@ export class AuthStore {
   async setToken(request: SetAuthTokenRequest = {}): Promise<AuthTokenResult> {
     const given = typeof request.token === 'string' ? request.token.trim() : '';
     if (request.token !== undefined && typeof request.token !== 'string') throw new Error('token must be a string');
-    if (given && given.length < 24) throw new Error('a token of your own must be at least 24 characters, so that guessing it stays out of reach of an attacker who can try many');
+    if (given && given.length < MIN_SECRET_LENGTH) throw new Error('a token of your own must be at least 24 characters, so that guessing it stays out of reach of an attacker who can try many');
     const token = given || randomBytes(32).toString('base64url');
     const createdAt = new Date().toISOString();
     this.stored = {
@@ -195,13 +211,18 @@ export class AuthStore {
   }
 
   /**
-   * Who is knocking, from the credential they presented: a token id, an OIDC subject, or `local`
-   * when nothing guards the API. `null` means the credential is not good, and the caller answers
-   * 401 without saying which part of it was wrong.
+   * Who is knocking, from the credential they presented: a token id, an OIDC subject, `desktop`
+   * for the desktop app's own secret, or `local` when nothing guards the API. `null` means the
+   * credential is not good, and the caller answers 401 without saying which part of it was wrong.
+   *
+   * `fromLocalMachine` is the caller's word that the request came from this machine and was not
+   * relayed (a tunnel, a proxy): the desktop secret is only ever sent by the app beside the
+   * server, so anywhere else it is refused like any wrong token.
    */
-  async actorFor(credential: string | undefined): Promise<string | null> {
+  async actorFor(credential: string | undefined, fromLocalMachine = false): Promise<string | null> {
     if (this.stored.mode === 'none') return 'local';
     if (!credential) return null;
+    if (fromLocalMachine && this.desktopHash && sameSecret(credential, this.desktopHash)) return DESKTOP_ACTOR;
     if (this.stored.mode === 'token') {
       if (!this.stored.tokenHash || !sameSecret(credential, this.stored.tokenHash)) return null;
       return `token:${this.stored.tokenId ?? 'default'}`;

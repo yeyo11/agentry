@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { Core, RuntimeHosts } from '@agentry/core';
+import { DESKTOP_ACTOR, type Core, type RuntimeHosts } from '@agentry/core';
 import { ROUTE_DOCS } from './openapi/routes.ts';
 
 /**
@@ -92,8 +92,11 @@ function hostAllowed(authority: string | undefined, allowed: ReturnType<typeof a
 }
 
 /**
- * The key `FailureBackoff` counts a request under. Everything through a tunnel arrives from
- * loopback, so keyed by `req.ip` a stranger's ten wrong guesses would make the owner wait too.
+ * The key `FailureBackoff` counts a failed credential under. Only a presented credential gets
+ * here: for local traffic the key is `127.0.0.1`, shared by every process on the machine, so a
+ * request carrying none is refused without touching the count (see `FailureBackoff`).
+ * Everything through a tunnel arrives from loopback, so keyed by `req.ip` a stranger's ten wrong
+ * guesses would make the owner wait too.
  * A request on a runtime host is keyed by the header its owner said carries the client's address,
  * and only there: on any other host nobody vouches for that header, and anybody on the machine
  * could set it to spend someone else's budget. Without a header, or without a value in it, the
@@ -109,6 +112,23 @@ function backoffKey(req: FastifyRequest, runtime: RuntimeHosts): string {
   const client = (Array.isArray(header) ? header.at(-1) : header)?.split(',').at(-1)?.trim();
   return client ? `runtime:${name}:${client}` : `runtime:${name}`;
 }
+
+/**
+ * Whether a request came from a process on this machine and was dialled there, which is the only
+ * place the desktop app's secret is ever sent from. A loopback socket is not enough on its own:
+ * a tunnel and a reverse proxy both arrive from loopback, carrying the public name they were
+ * reached on. `req.ip` is the socket's address, since the app does not trust proxy headers.
+ */
+function fromLocalMachine(req: FastifyRequest): boolean {
+  const host = req.headers.host;
+  return LOOPBACK.test(req.ip) && host !== undefined && LOOPBACK.test(hostNameOf(host));
+}
+
+/**
+ * The desktop app's secret exists to let its tray read what is live, so it reads and nothing
+ * else: a secret that has to sit in a second process's memory is kept to the least it needs.
+ */
+const DESKTOP_METHODS = new Set(['GET', 'HEAD']);
 
 /** Failed authentications a client address gets for free before it is asked to wait. */
 const FAILURES_BEFORE_WAIT = 10;
@@ -136,6 +156,11 @@ interface Failures {
  *
  * The wait is per address and not per credential, so an honest client sharing an address with an
  * attacker pays it too: the cap is what keeps that to a minute instead of a lockout.
+ *
+ * Only a credential that was presented and failed is counted. A request with none at all is not a
+ * guess: it cannot get closer to the token by repeating itself, and on a local install every
+ * process on the machine shares 127.0.0.1, so a tray, a stale tab or a chat polling without a
+ * credential would otherwise make the owner's own authenticated window wait.
  */
 export class FailureBackoff {
   private readonly clients = new Map<string, Failures>();
@@ -205,7 +230,8 @@ const pathOf = (url: string): string => url.split('?')[0] ?? url;
 
 function credentialOf(req: FastifyRequest, path: string): string | undefined {
   const [scheme, ...rest] = (req.headers.authorization ?? '').split(' ');
-  if (scheme?.toLowerCase() === 'bearer' && rest.length) return rest.join(' ').trim();
+  // An empty bearer is no credential rather than a wrong one, so it is not counted as a guess
+  if (scheme?.toLowerCase() === 'bearer' && rest.length) return rest.join(' ').trim() || undefined;
   // A header that is not a bearer token (a proxy's own `Basic`, say) is not ours: fall through
   if (req.method !== 'GET' || !QUERY_TOKEN.some((re) => re.test(path))) return undefined;
   const token = (req.query as { token?: unknown } | undefined)?.token;
@@ -254,6 +280,23 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       return reply;
     }
     if (guarded && mode !== 'none') {
+      // Still audited when it is a write, and as what it was: nobody we could name
+      const refuse = () => {
+        req.actor = 'anonymous';
+        // The mode travels with the refusal: it is what tells the UI whether to ask for a token
+        // or to send the person to their identity provider, without an open route to ask first.
+        return reply
+          .header('WWW-Authenticate', mode === 'token' ? 'Bearer realm="Agentry"' : `Bearer realm="Agentry", error="invalid_token"`)
+          .status(401)
+          .send({ error: 'authentication required', mode });
+      };
+      const credential = credentialOf(req, path);
+      // Nothing to check is nothing guessed: neither counted nor made to wait, so a local process
+      // polling without a credential cannot lock the owner out of their own install
+      if (credential === undefined) {
+        void refuse();
+        return reply;
+      }
       const client = backoffKey(req, runtimeHosts);
       const wait = backoff.retryAfter(client);
       if (wait > 0) {
@@ -262,21 +305,18 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
         void reply.header('Retry-After', String(wait)).status(429).send({ error: 'too many failed authentications from this address', mode });
         return reply;
       }
-      const actor = await core.security.actorFor(credentialOf(req, path));
+      const actor = await core.security.actorFor(credential, fromLocalMachine(req));
       if (!actor) {
         backoff.fail(client);
-        // Still audited when it is a write, and as what it was: nobody we could name
-        req.actor = 'anonymous';
-        // The mode travels with the refusal: it is what tells the UI whether to ask for a token
-        // or to send the person to their identity provider, without an open route to ask first.
-        void reply
-          .header('WWW-Authenticate', mode === 'token' ? 'Bearer realm="Agentry"' : `Bearer realm="Agentry", error="invalid_token"`)
-          .status(401)
-          .send({ error: 'authentication required', mode });
+        void refuse();
         return reply;
       }
       backoff.succeed(client);
       req.actor = actor;
+      if (actor === DESKTOP_ACTOR && !DESKTOP_METHODS.has(req.method)) {
+        void reply.status(403).send({ error: "the desktop app's own credential only reads; sign in with the API token to change anything" });
+        return reply;
+      }
     }
     req.actor ??= 'local';
 
@@ -310,7 +350,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
 
 declare module 'fastify' {
   interface FastifyRequest {
-    /** Who made the request: a token id, an OIDC subject, or `local` when nothing guards the API */
+    /** Who made the request: a token id, an OIDC subject, `desktop`, or `local` when nothing guards the API */
     actor: string | null;
   }
 }

@@ -480,3 +480,111 @@ test('a credential that works clears the failures behind it', async (t) => {
     assert.equal((await app.inject({ url: '/api/overview', ...bearer('not-the-token') })).statusCode, 401, `after the success, attempt ${i + 1}`);
   }
 });
+
+test('a request that carries no credential is refused but never counted, however often it comes', async (t) => {
+  const { app } = await wrapper();
+  t.after(() => app.close());
+  await withToken(app);
+
+  // A tray or a stale tab polling without a credential is not guessing the token
+  for (let i = 0; i < 40; i += 1) {
+    const refused = await app.inject('/api/overview');
+    assert.equal(refused.statusCode, 401, `anonymous attempt ${i + 1}`);
+    assert.equal(refused.headers['retry-after'], undefined);
+  }
+  // Nor is an empty bearer, or a `?token=` on a route that never reads one
+  assert.equal((await app.inject({ url: '/api/overview', headers: { authorization: 'Bearer ' } })).statusCode, 401);
+  assert.equal((await app.inject('/api/overview?token=whatever')).statusCode, 401);
+  // A wrong token still has its whole allowance: nothing above spent any of it
+  for (let i = 0; i < 10; i += 1) {
+    assert.equal((await app.inject({ url: '/api/overview', ...bearer('not-the-token') })).statusCode, 401, `wrong token ${i + 1}`);
+  }
+  assert.equal((await app.inject({ url: '/api/overview', ...bearer('not-the-token') })).statusCode, 429);
+});
+
+test('a wrong token in the query string is a guess like any other', async (t) => {
+  const { app } = await wrapper();
+  t.after(() => app.close());
+  await withToken(app);
+
+  for (let i = 0; i < 10; i += 1) {
+    assert.equal((await app.inject('/api/chats/x/export?token=not-the-token')).statusCode, 401, `attempt ${i + 1}`);
+  }
+  assert.equal((await app.inject('/api/chats/x/export?token=not-the-token')).statusCode, 429);
+});
+
+test('an address blocked for wrong tokens stays blocked, and anonymous requests are only refused', async (t) => {
+  const { app } = await wrapper();
+  t.after(() => app.close());
+  const token = await withToken(app);
+
+  for (let i = 0; i < 10; i += 1) await app.inject({ url: '/api/overview', ...bearer('not-the-token') });
+  assert.equal((await app.inject({ url: '/api/overview', ...bearer('not-the-token') })).statusCode, 429);
+  assert.equal((await app.inject({ url: '/api/overview', ...bearer(token) })).statusCode, 429);
+  // Nothing to check, so nothing to wait for: the answer is the plain refusal
+  assert.equal((await app.inject('/api/overview')).statusCode, 401);
+  // And going without a credential is not a way to serve the wait sooner
+  assert.equal((await app.inject({ url: '/api/overview', ...bearer('not-the-token') })).statusCode, 429);
+});
+
+test('the owner is served while something on the same machine polls without a credential', async (t) => {
+  const { app } = await wrapper();
+  t.after(() => app.close());
+  const token = await withToken(app);
+
+  // What happened on the desktop: the tray polled every few seconds, all from 127.0.0.1
+  for (let round = 0; round < 5; round += 1) {
+    for (let i = 0; i < 20; i += 1) {
+      assert.equal((await app.inject({ url: i % 2 ? '/api/events' : '/api/overview', remoteAddress: '127.0.0.1' })).statusCode, 401);
+    }
+    const owner = await app.inject({ url: '/api/overview', remoteAddress: '127.0.0.1', ...bearer(token) });
+    assert.equal(owner.statusCode, 200, `round ${round + 1}`);
+  }
+});
+
+const DESKTOP_SECRET = 'a-per-launch-secret-of-32-random-bytes';
+
+test("the desktop app's own secret lets its tray read from loopback, whatever token the owner chose", async (t) => {
+  const { app, core } = await wrapper({ AGENTRY_DESKTOP_TOKEN: DESKTOP_SECRET });
+  t.after(() => app.close());
+  await withToken(app);
+
+  // How the tray asks: from 127.0.0.1, to 127.0.0.1
+  const local = { remoteAddress: '127.0.0.1', headers: { host: '127.0.0.1:43123', authorization: `Bearer ${DESKTOP_SECRET}` } };
+  assert.equal((await app.inject({ url: '/api/overview', ...local })).statusCode, 200);
+  // The event feed takes it as a header like any other route
+  assert.equal((await app.inject({ url: '/api/chats?state=working&limit=10', ...local })).statusCode, 200);
+
+  // It reads and nothing else, and the refusal is written down under its name
+  const write = await app.inject({ method: 'POST', url: '/api/projects', ...local, payload: { name: 'x' } });
+  assert.equal(write.statusCode, 403);
+  const audit = core.db.auditPage({ path: '/api/projects' }).entries[0];
+  assert.equal(audit?.actor, 'desktop');
+
+  // No route hands it back
+  for (const url of ['/api/security/auth', '/api/system', '/api/overview']) {
+    const res = await app.inject({ url, ...local });
+    assert.equal(res.body.includes(DESKTOP_SECRET), false, url);
+  }
+});
+
+test("the desktop app's secret is refused from anywhere but this machine, and a wrong one is a guess", async (t) => {
+  const { app } = await wrapper({ AGENTRY_DESKTOP_TOKEN: DESKTOP_SECRET, AGENTRY_ALLOWED_HOSTS: 'agentry.example' });
+  t.after(() => app.close());
+  await withToken(app);
+  const withSecret = (secret: string) => ({ authorization: `Bearer ${secret}` });
+
+  // From another address
+  assert.equal((await app.inject({ url: '/api/overview', remoteAddress: '10.0.0.5', headers: { host: '127.0.0.1:43123', ...withSecret(DESKTOP_SECRET) } })).statusCode, 401);
+  // From loopback, but relayed: a proxy or a tunnel carries the name it was reached on
+  assert.equal((await app.inject({ url: '/api/overview', remoteAddress: '127.0.0.1', headers: { host: 'agentry.example', ...withSecret(DESKTOP_SECRET) } })).statusCode, 401);
+  // A secret that is not the one this launch was given
+  assert.equal((await app.inject({ url: '/api/overview', remoteAddress: '127.0.0.1', headers: { host: '127.0.0.1:43123', ...withSecret(`${DESKTOP_SECRET}x`) } })).statusCode, 401);
+});
+
+test('without a desktop secret configured, nothing is accepted in its place', async (t) => {
+  const { app } = await wrapper();
+  t.after(() => app.close());
+  await withToken(app);
+  assert.equal((await app.inject({ url: '/api/overview', ...bearer(DESKTOP_SECRET) })).statusCode, 401);
+});

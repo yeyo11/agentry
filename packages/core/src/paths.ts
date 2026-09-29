@@ -16,6 +16,8 @@ const AUTH_ENV_KEYS = [
   'AGENTRY_OIDC_ISSUER',
   'AGENTRY_OIDC_AUDIENCE',
   'AGENTRY_OIDC_CLIENT_ID',
+  // The desktop app's per-launch secret for its own tray; held in memory, never seeded to disk
+  'AGENTRY_DESKTOP_TOKEN',
 ] as const;
 
 export type AuthEnv = Partial<Record<(typeof AUTH_ENV_KEYS)[number], string>>;
@@ -52,7 +54,10 @@ export interface CoreConfig {
    * for something like `mailto:agentry@localhost`, and every iPhone goes quiet with it.
    */
   pushSubject: string;
-  /** Seeds the guard of an install that has no `auth.json` yet; see `security/auth.ts` */
+  /**
+   * Seeds the guard of an install that has no `auth.json` yet, and carries the desktop app's
+   * per-launch secret, which is never written down; see `security/auth.ts`
+   */
   authEnv: AuthEnv;
   /**
    * Host names this wrapper answers to besides loopback, from `AGENTRY_ALLOWED_HOSTS`, each either

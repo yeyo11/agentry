@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import type { LogFile } from './log.ts';
 
@@ -10,6 +11,49 @@ export interface ServerSpawn {
   entry: string;
   env: NodeJS.ProcessEnv;
   cwd: string;
+}
+
+/**
+ * The secret the tray authenticates with, new at each launch. The owner can guard the server from
+ * its Security panel, which keeps only a hash of the token: the app never learns it, so without a
+ * credential of its own the tray would poll unauthenticated forever. It exists in this process and
+ * in the server's memory only, and is useless once the app quits.
+ */
+export function newDesktopSecret(): string {
+  return randomBytes(32).toString('base64url');
+}
+
+export interface ServerEnvOptions {
+  /** What the app inherited; everything the person set there reaches the server unchanged */
+  base: NodeJS.ProcessEnv;
+  PATH: string;
+  /** The port this install used last, or null on a first start */
+  rememberedPort: number | null;
+  webDist: string;
+  dataDir: string;
+  workspaceDir: string;
+  version: string;
+  distribution: string | undefined;
+  desktopSecret: string;
+}
+
+export function serverEnv(opts: ServerEnvOptions): NodeJS.ProcessEnv {
+  return {
+    ...opts.base,
+    PATH: opts.PATH,
+    // The port this install used last, so its address survives a restart; PORT still wins,
+    // and 0 on a first start lets the operating system choose one to remember
+    PORT: opts.base.PORT || String(opts.rememberedPort ?? 0),
+    HOST: '127.0.0.1',
+    AGENTRY_WEB_DIST: opts.webDist,
+    AGENTRY_DATA_DIR: opts.dataDir,
+    AGENTRY_WORKSPACE_DIR: opts.workspaceDir,
+    AGENTRY_VERSION: opts.version,
+    // The UI offers the install that fits: this app's own updater, or instructions
+    ...(opts.distribution ? { AGENTRY_DISTRIBUTION: opts.distribution } : {}),
+    AGENTRY_DESKTOP_TOKEN: opts.desktopSecret,
+    // The desktop is not a sandbox: AGENTRY_DEFAULT_PERMISSION_MODE stays unset (core default: acceptEdits)
+  };
 }
 
 /** Runs the bundled API on Electron's own Node (ELECTRON_RUN_AS_NODE) and tracks its lifecycle */
