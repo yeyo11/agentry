@@ -21,12 +21,31 @@ export function dependantsOf(tasks: OrchestrationTaskState[], taskId: string): s
   return tasks.filter((t) => affected.has(t.id)).map((t) => t.id);
 }
 
-/** One command per line, blanks dropped: how the verification commands are typed. */
-export function parseCommands(text: string): string[] {
-  return text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
+/** The mark of a line that runs at the same time as the one above: no shell command starts with `&`. */
+const PARALLEL = /^&\s+/;
+
+/**
+ * One command per line, blanks dropped: how the verification commands are typed. A line that starts
+ * with `& ` runs at the same time as the line above it, and they make one parallel group.
+ */
+export function parseCommands(text: string): Array<string | string[]> {
+  const entries: string[][] = [];
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    const joins = PARALLEL.test(line);
+    const command = line.replace(PARALLEL, '').trim();
+    if (!command || command === '&') continue;
+    const last = entries.at(-1);
+    // A mark on the first command has nothing to join, so it starts the list
+    if (joins && last) last.push(command);
+    else entries.push([command]);
+  }
+  return entries.map((group) => (group.length === 1 ? (group[0] as string) : group));
+}
+
+/** The commands box's text for a spec's commands: `parseCommands` read backwards. */
+export function commandsText(commands: ReadonlyArray<string | readonly string[]>): string {
+  return commands.map((entry) => (typeof entry === 'string' ? entry : entry.join('\n& '))).join('\n');
 }
 
 /**
@@ -82,7 +101,7 @@ export function draftOfVerification(spec: VerificationSpec | undefined): Verific
   if (!spec) return EMPTY_VERIFICATION;
   return {
     enabled: true,
-    commands: spec.commands.join('\n'),
+    commands: commandsText(spec.commands),
     fixer: spec.fixer,
     maxAttempts: spec.maxAttempts,
     model: spec.model ?? '',

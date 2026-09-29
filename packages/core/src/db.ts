@@ -448,6 +448,9 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // Who queued a flow run by hand: a person starting the cards that waited when the flow was
   // switched on. Null for a run a card entering its column queued
   `ALTER TABLE flow_runs ADD COLUMN queued_by TEXT;`,
+  // How many times the flow sent a run back to its chat because it ended with work still owed
+  // (`openItems`): capped, so a run that keeps stopping early cannot spend for ever
+  `ALTER TABLE flow_runs ADD COLUMN continuations INTEGER NOT NULL DEFAULT 0;`,
   // A work item's pull requests, one row per PR (docs/plans/work-item-pull-requests.md): they
   // accumulate, and the item reads its newest. `approved_at` is when the person approved it, and
   // `moved_at` when a conflict sent the item back to work, which a person's later move is measured

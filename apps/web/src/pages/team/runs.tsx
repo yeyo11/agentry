@@ -56,6 +56,7 @@ const FAILURES = [
   'stopped',
   'unreadable',
   'no-verdict',
+  'max-tokens',
   'not-started',
   'not-continued',
   'chat-ended',

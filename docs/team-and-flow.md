@@ -263,6 +263,34 @@ stayed after the run. After a bounce, its prompt carries QA's newest comment. Th
 the item as it starts, with the stage as the link's role (`refine`, `work`, `verify`) and the member's
 role as `teamRole`.
 
+### What a run is told
+
+`flowPrompt` builds the first prompt. It has the run's title line, then the item as "Work on it"
+gives it (`workItemPrompt(item, 'task')`), then the stage's instructions. The texts every stage
+shares come from `packages/core/src/prompt-rules.ts` ([prompts.md](prompts.md) checks each one
+against the Opus 5.5 and Sonnet 5.5 guides):
+
+- every stage carries `UNATTENDED`. It names the four premature stops (a summary that announces the
+  next step, an offer to continue, a list of non-blocking decisions, a milestone that felt like a
+  place to stop) and still asks before a risky or destructive action. It also carries
+  `PASTED_NOTE`;
+- what people wrote is marked as `<pasted_content id="…">` blocks: the description, the
+  criteria, the criteria QA judges, the comment that sent the item back, and the journal in the
+  system prompt. The title line stays bare, since the chat is listed by it;
+- refining reads the documents and the code the item concerns, including what it does not name,
+  before it writes;
+- work runs carry the scope-and-completion paragraph, `REAL_VERIFICATION`, and the frontend rules,
+  which point at the project's design system document and `CLAUDE.md` when it has them;
+- verify runs carry `REAL_VERIFICATION`;
+- refine and verify runs on a Sonnet model end with "Think the problem through before you answer.".
+
+**A run that ends with work still owed goes on in its chat.** When its result is read, `openItems`
+checks for a missing structured result, uncommitted changes in a work run's worktree, and a last
+message that offers to continue, asks a question or announces a next step. With open items, the run
+stays `running`, `continuations` counts up, and once the chat's process exits the same chat is
+resumed with a message that names them. This happens at most `MAX_CONTINUATIONS` (3) times. After
+that, the result it has decides, as before.
+
 ### What a run may do
 
 `stageRules` in `flow.ts` gives each stage its permission mode and rules:
@@ -395,8 +423,10 @@ meanwhile does not shift the pages after it.
 
 **A failed run keeps its cause as a code** (`FlowRunCause` in `packages/shared/src/types.ts`), beside
 the English `error`: `budget`, `no-account`, `rate-limit`, `stopped`, `restarts`, `unreadable`,
-`no-verdict`, `not-started`, `not-continued`, `chat-ended`, `chat-failed` or `conflict-unresolved` (a
-work run that was to resolve a merge of the default branch left conflicted paths), and for a cancelled run
+`no-verdict`, `max-tokens` (its last turn stopped on the output token limit, read from the CLI's
+stream-json, so its result was not trusted even when it parsed), `not-started`, `not-continued`,
+`chat-ended`, `chat-failed` or `conflict-unresolved` (a work run that was to resolve a merge of the
+default branch left conflicted paths), and for a cancelled run
 its reason (`item-moved`, `item-removed`, `item-done`, `replaced`, `flow-off`, `no-member`, `refined`,
 `chat-busy`). The web words the cause in the person's language, with the raw error under it in mono;
 the English comment on the item is never shown as it is. A run ended before causes were kept reads
@@ -785,4 +815,4 @@ described above where it now lives. The last detail, the model's name, was close
 
 ## Related
 
-[[projects.md]] · [[work-items.md]] · [[plans/flow-start-waiting.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/work-item-pull-requests.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[projects.md]] · [[prompts.md]] · [[work-items.md]] · [[plans/flow-start-waiting.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/work-item-pull-requests.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

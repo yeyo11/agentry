@@ -1910,6 +1910,7 @@ export type FlowRunOutcome = 'passed' | 'rejected' | 'failed' | 'cancelled';
  * - `restarts`: Agentry restarted past `MAX_FLOW_RESTARTS` times while it worked;
  * - `unreadable`: it ended without a readable structured result;
  * - `no-verdict`: a verification ended without a verdict;
+ * - `max-tokens`: its last turn stopped on the output token limit, so its result is cut short even when it parses;
  * - `not-started`: its chat did not start;
  * - `not-continued`: its chat could not be continued after a restart;
  * - `chat-ended`: its chat ended, or was removed, without a result;
@@ -1934,6 +1935,7 @@ export type FlowRunCause =
   | 'restarts'
   | 'unreadable'
   | 'no-verdict'
+  | 'max-tokens'
   | 'not-started'
   | 'not-continued'
   | 'chat-ended'
@@ -2011,6 +2013,12 @@ export interface FlowRun {
   retryable: boolean;
   /** Times a restart cut it off and it went on in its chat; past `MAX_FLOW_RESTARTS` it fails */
   restarts: number;
+  /**
+   * Times the flow sent it back to its chat because its turn ended with work still owed (no
+   * structured result, uncommitted changes, or a last message that offers, asks or announces instead
+   * of doing): at most `MAX_CONTINUATIONS`, after which the result it has is judged as it is
+   */
+  continuations: number;
   /**
    * The person's language, which the first line of its chat's prompt (`<Role> · <KEY>`, the title the
    * chat is listed by) is written in, kept so a restart words it the same. Absent on a run stored
@@ -2901,6 +2909,12 @@ export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   commit?: string | null;
   /** Executions of its chat so far, the first included */
   attempts: number;
+  /**
+   * Times the orchestrator sent the worker back to its chat because its turn ended as a report with
+   * work still owed (`openItems`), at most three; absent on a task that never needed it. These are
+   * not attempts: nothing failed.
+   */
+  continuations?: number;
   runId: string | null;
   sessionId: string | null;
   result: string | null;
@@ -2979,8 +2993,11 @@ export interface Orchestration {
 
 /** Checks to run once the graph is integrated, and what may happen to what fails. */
 export interface VerificationSpec {
-  /** Run in order on the integration branch, each one under a timeout */
-  commands: string[];
+  /**
+   * Run in order on the integration branch, each one under a timeout. An entry that is a list runs
+   * its commands at the same time; the next entry starts once all of them have ended.
+   */
+  commands: Array<string | string[]>;
   /** Launch an agent to fix what fails, instead of only reporting it */
   fixer: boolean;
   /** Fixer attempts per failing command before it stops and reports */
@@ -3017,6 +3034,8 @@ export interface VerificationCommand {
   command: string;
   /** The install step that runs before the checks: detected from the lockfile, or the spec's `install` */
   install?: boolean;
+  /** Index of the `commands` entry it came from; commands of one parallel group share it. Absent on the install step */
+  group?: number;
   status: VerificationStatus;
   /** Tail of what it printed: enough to see why it failed, not the whole log */
   output: string;

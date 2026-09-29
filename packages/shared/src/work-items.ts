@@ -126,6 +126,7 @@ export const FLOW_RUN_CAUSES = valuesOf<FlowRunCause>()([
   'restarts',
   'unreadable',
   'no-verdict',
+  'max-tokens',
   'not-started',
   'not-continued',
   'chat-ended',
@@ -174,6 +175,12 @@ export const MAX_FLOW_COST_USD = 100;
 
 /** Times a flow run cut off by a restart is continued in its chat before it fails */
 export const MAX_FLOW_RESTARTS = 2;
+
+/**
+ * Times an unattended run (a flow run, an orchestration worker) is sent back to its chat when its turn
+ * ended with work still owed. Past it, the run's result is judged as it is.
+ */
+export const MAX_CONTINUATIONS = 3;
 
 /** The most shell command patterns a member may list in `commands` */
 export const MAX_TEAM_COMMANDS = 50;

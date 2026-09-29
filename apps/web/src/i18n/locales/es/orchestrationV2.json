@@ -17,7 +17,7 @@
     "enable": "Verificar la rama de integración",
     "enableHint": "Los workers ejecutan el typecheck y los tests unitarios. Las comprobaciones lentas se ejecutan una sola vez aquí, sobre la rama ya fusionada, para no lanzar una suite entera en cada worktree a la vez.",
     "commands": "Comprobaciones",
-    "commandsHint": "Un comando por línea, ejecutados en orden sobre la rama de integración, cada uno con su tiempo límite.",
+    "commandsHint": "Un comando por línea, ejecutados en orden sobre la rama de integración, cada uno con su tiempo límite. Empieza una línea con “& ” para ejecutarla a la vez que la de arriba.",
     "commandsPlaceholder": "pnpm build",
     "fixer": "Lanzar un agente que arregle lo que falle",
     "attempts": "Intentos del agente",

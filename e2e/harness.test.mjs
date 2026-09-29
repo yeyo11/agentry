@@ -244,3 +244,13 @@ test('SIGTERM to a sharded run closes every shard’s browser and server', { ski
   assert.deepEqual(r.survivors, { chrome: [], server: false });
   assert.deepEqual(r.sandboxLeft, []);
 });
+
+test('the run limit of a sharded run closes every shard’s browser and server', { skip }, async () => {
+  // A spec that hangs in each shard, both within their own limit: only E2E_TIMEOUT in the parent ends them
+  const r = await run({ specs: { 'hang-a.spec.mjs': hang, 'hang-b.spec.mjs': hang }, env: { E2E_SHARDS: '2', E2E_SPEC_TIMEOUT: '600000', E2E_TIMEOUT: '30000' }, beforeEnd: () => {} });
+  assert.equal(r.code, 1, r.output);
+  assert.match(r.output, /the e2e run exceeded 30s/);
+  assert.ok(r.during.length > 0);
+  assert.deepEqual(r.survivors, { chrome: [], server: false });
+  assert.deepEqual(r.sandboxLeft, []);
+});

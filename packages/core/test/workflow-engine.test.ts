@@ -73,14 +73,15 @@ test('the script runs each task after its dependencies, within the concurrency, 
   assert.ok(report && report.startedAt > (byLabel.get('routes')?.endedAt ?? Infinity) && report.startedAt > (byLabel.get('schemas')?.endedAt ?? Infinity));
   assert.ok(report.startedAt < (byLabel.get('docs')?.endedAt ?? -1), 'report waited for a task it does not depend on');
   // Its prompt is the graph worker's, with the results of what it depends on in between
-  assert.match(report.prompt, /^HEAD\n\nResults from the tasks you depend on:\n<task id="routes" name="Routes">\nresult of routes\n<\/task>\n<task id="schemas"/);
+  // A dependency's result is marked as pasted content, with an id fixed when the script was generated
+  assert.match(report.prompt, /^HEAD\n\nResults from the tasks you depend on:\n<task id="routes" name="Routes">\n<pasted_content id="([0-9a-f]{8})">\nresult of routes\n<\/pasted_content id="\1">\n<\/task>\n<task id="schemas"/);
   assert.match(report.prompt, /TASK report$/);
   assert.equal(byLabel.get('schemas')?.opts.model, 'haiku');
   assert.equal(byLabel.get('routes')?.opts.model, undefined);
 
   const synthesis = byLabel.get('synthesis');
   assert.ok(synthesis?.prompt.startsWith('Synthesize the results.'));
-  assert.match(synthesis?.prompt ?? '', /<task id="docs" name="Docs" status="completed">\nresult of docs/);
+  assert.match(synthesis?.prompt ?? '', /<task id="docs" name="Docs" status="completed">\n<pasted_content id="([0-9a-f]{8})">\nresult of docs\n<\/pasted_content id="\1">/);
 
   assert.deepEqual(readCompiledResult(returned), {
     results: { routes: 'result of routes', schemas: 'result of schemas', docs: 'result of docs', report: 'result of report' },
@@ -174,6 +175,8 @@ test('a graph on the workflow engine runs in one session and reads its results f
   const run = runs.get(orch.workflow?.runId ?? '');
   assert.ok(orch.tasks.every((t) => t.runId === run?.id));
   assert.match(resultText(runs, run?.id ?? ''), /--allowedTools=Workflow/);
+  // The lead is told time matters: a workflow has no budget to measure it against
+  assert.match(run?.prompt ?? '', /Time matters here/);
   // Finished on the workflow's own notification, not on the turn that launched it
   assert.match(orchestrator.workflowScript(orch.id).script, /const TASKS = /);
   runs.stopAll();

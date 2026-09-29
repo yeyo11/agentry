@@ -15,6 +15,7 @@ import {
   type WorkItemPriority,
   type WorkItemType,
 } from '@agentry/shared';
+import { pasted, PASTED_NOTE, thinkThrough } from './prompt-rules.ts';
 import { MAX_SHORT as MEMBER_SHORT_MAX, MAX_TEXT as MEMBER_TEXT_MAX, roleTitle } from './team.ts';
 
 /**
@@ -124,6 +125,13 @@ const FRONTMATTER: Record<AssistantResourceKind, string> = {
   commands: '`description`, optionally `argument-hint`',
 };
 
+/**
+ * How a member's model is chosen, as the Opus 5.5 and Sonnet 5.5 guides place them. Effort is left
+ * out on purpose: recommending it waits for CW-25.
+ */
+export const MODEL_CHOICE =
+  'recommend opus for the roles that carry the hardest long-horizon work (deciding a design, refining large or vague items, working unattended across many files for a long time) and sonnet for the others, which it does well for less; say in its reason why the model you chose fits the role.';
+
 const nullableString = (description: string) => ({ type: ['string', 'null'], description });
 const strings = (description: string) => ({ type: 'array', items: { type: 'string' }, description });
 
@@ -133,12 +141,12 @@ function memberSchema(): Record<string, unknown> {
     properties: {
       role: { type: 'string', description: 'A short role id in kebab case, such as developer or qa' },
       agent: { type: 'string', description: 'The agent file name under .claude/agents/, without .md; usually the role' },
-      model: { type: 'string', description: 'opus for roles that decide (product owner, architect), sonnet for the others' },
+      model: { type: 'string', description: `opus or sonnet: ${MODEL_CHOICE}` },
       responsibility: { type: 'string', description: 'One line on what it answers for' },
       writes: strings('Paths relative to the project it may write, such as src/ or docs/; empty means it only works on work items'),
       description: { type: 'string', description: "The agent file's description: when the CLI should pick it" },
       instructions: { type: 'string', description: "The agent file's body in Markdown, specific to this project; empty lets Agentry write its standard one" },
-      reason: { type: 'string', description: 'Why this project needs it, in one or two sentences' },
+      reason: { type: 'string', description: 'Why this project needs it, and why its model fits the role, in two or three sentences' },
     },
     required: ['role', 'agent', 'model', 'responsibility', 'writes', 'description', 'instructions', 'reason'],
   };
@@ -241,7 +249,7 @@ export function assistantTitle(brief: Pick<AssistantBrief, 'kind' | 'projectName
 export const assistantLanguage: (value: unknown) => AssistantLanguage = agentryLanguage;
 
 /** The prompt of a run: who it is, that it writes nothing, what Agentry already knows, what to propose. */
-export function assistantPrompt(brief: AssistantBrief): string {
+export function assistantPrompt(brief: AssistantBrief, model: string | null = null): string {
   const lines: string[] = [
     assistantTitle(brief),
     '',
@@ -254,7 +262,7 @@ export function assistantPrompt(brief: AssistantBrief): string {
     lines.push('The directory has nothing to read yet: no files, no chats, no git history. Work from what the person described.', '');
   } else {
     lines.push(
-      "Read the project first: its README and manifests, its documents and the layout of its source. Its CLAUDE.md, if it has one, is in your system prompt, and its recent history is below. Read enough to be specific; you do not need to read every file.",
+      "Read the project before you propose anything: its README and manifests, its documents and the layout of its source, and the parts of it the request does not name, so each proposal is specific to what is there. Its CLAUDE.md, if it has one, is in your system prompt, and its recent history is below.",
       '',
     );
   }
@@ -266,19 +274,19 @@ export function assistantPrompt(brief: AssistantBrief): string {
   lines.push('', "### Resources in the project's .claude/");
   for (const kind of ASSISTANT_RESOURCE_KINDS) lines.push(`- ${kind}: ${list(brief.resources[kind])}`);
   lines.push('', `### Work items (${String(brief.workItems.length + brief.moreWorkItems)}): do not propose these again`);
-  if (brief.workItems.length) for (const w of brief.workItems) lines.push(`- ${w.key} [${w.type}, ${w.status}] ${w.title}`);
+  if (brief.workItems.length) lines.push(pasted(brief.workItems.map((w) => `- ${w.key} [${w.type}, ${w.status}] ${w.title}`).join('\n')));
   else lines.push('- none yet');
   if (brief.moreWorkItems) lines.push(`- and ${String(brief.moreWorkItems)} more, older`);
   lines.push('', `### Open milestones: ${list(brief.milestones)}`);
   if (brief.chats.length) {
     lines.push('', '### What recent Claude Code chats in this directory were about');
-    for (const c of brief.chats) lines.push(`- ${c}`);
+    lines.push(pasted(brief.chats.map((c) => `- ${c}`).join('\n')));
   }
   if (brief.git) {
     lines.push('', `### Git${brief.git.branch ? `: on ${brief.git.branch}` : ''}`);
     if (brief.git.commits.length) {
       lines.push('Recent commits, latest first:');
-      for (const c of brief.git.commits) lines.push(`- ${c}`);
+      lines.push(pasted(brief.git.commits.map((c) => `- ${c}`).join('\n')));
     } else lines.push('- no commits yet');
     if (brief.git.changes.length) {
       lines.push('Uncommitted changes:');
@@ -288,14 +296,14 @@ export function assistantPrompt(brief: AssistantBrief): string {
   }
   lines.push('', "The project's journal, if it has entries, is in your system prompt.", '');
 
-  if (brief.description && brief.kind !== 'resources') lines.push('## What the person says the project is for', '', brief.description, '');
+  if (brief.description && brief.kind !== 'resources') lines.push('## What the person says the project is for', '', pasted(brief.description), '');
   if (brief.focus && brief.kind === 'work-items') {
     lines.push(
       '## Where to look',
       '',
       'The person asks for work items in this area of the project. Read what concerns it closely, and propose work there rather than elsewhere:',
       '',
-      brief.focus,
+      pasted(brief.focus),
       '',
     );
   }
@@ -305,7 +313,7 @@ export function assistantPrompt(brief: AssistantBrief): string {
     lines.push(
       `Build exactly one ${singular(brief.resourceKind)} from this description, fitted to this project:`,
       '',
-      brief.description,
+      pasted(brief.description),
       '',
       `Return it in \`resources\` with its whole content. Its frontmatter carries ${FRONTMATTER[brief.resourceKind]}.`,
     );
@@ -318,6 +326,7 @@ export function assistantPrompt(brief: AssistantBrief): string {
           ? `  Start from the roles of the ${brief.templateName ?? 'project'} template, adapted to the project: ${template.join('; ')}. Add a role beyond them only where the project clearly needs it, and leave out a role the team already has.`
           : '  Leave out a role the team already has.',
         '  Give each one what it may write (`writes`), keeping the roles that decide or verify to documents and tests.',
+        `  For its \`model\`, ${MODEL_CHOICE}`,
       );
     }
     if (brief.proposes.includes('resource')) {
@@ -338,6 +347,9 @@ export function assistantPrompt(brief: AssistantBrief): string {
     }
     lines.push('', 'Give each proposal its reason, specific to what you read. Propose fewer, better things rather than many.');
   }
+  lines.push('', PASTED_NOTE);
+  // Every assistant run reasons towards a structured answer: Sonnet does better told to think first
+  for (const t of thinkThrough(model)) lines.push('', t);
   lines.push('', 'End with the structured result, and list in `read` what you read.');
   return lines.join('\n');
 }

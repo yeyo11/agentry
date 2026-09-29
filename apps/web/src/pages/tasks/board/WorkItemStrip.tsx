@@ -316,6 +316,7 @@ const FAILURE_CAUSES = [
   'restarts',
   'unreadable',
   'no-verdict',
+  'max-tokens',
   'not-started',
   'not-continued',
   'chat-ended',
