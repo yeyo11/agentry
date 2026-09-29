@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import type { LimitWait, Orchestration, OrchestrationSpec, OrchestrationTaskState, PermissionMode, ProviderMove } from '@agentry/shared';
 import { Db } from '../src/db.ts';
-import { Orchestrator, summarizeOrchestration, validateSpecSettings, validateTasks } from '../src/orchestrator.ts';
+import { Orchestrator, PLAN_SCHEMA, PLANNER_GRAPH_GUIDANCE, summarizeOrchestration, validateSpecSettings, validateTasks } from '../src/orchestrator.ts';
 import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
 import { effectiveLimits, remainingUsd } from '../src/task-limits.ts';
@@ -1585,5 +1585,48 @@ test('a restart leaves a task that waits for a limit to reset running: the rotat
   assert.equal(task.attempts, 1);
   assert.equal(runs.get(chat)?.executions.length, 1, 'no second execution was started on it');
   again.close();
+  db.close();
+});
+
+// ---------- the planner ----------
+
+test('the planner is told to keep graphs short: four stages, no types task, docs beside review, sonnet for prose, files named', () => {
+  assert.match(PLANNER_GRAPH_GUIDANCE, /four tasks or fewer/);
+  assert.match(PLANNER_GRAPH_GUIDANCE, /only writes shared types or a contract/);
+  assert.match(PLANNER_GRAPH_GUIDANCE, /documentation task depends on the implementation tasks, never on a review/);
+  assert.match(PLANNER_GRAPH_GUIDANCE, /review .* does not re-run the whole test suite/);
+  assert.match(PLANNER_GRAPH_GUIDANCE, /sonnet/);
+  assert.match(PLANNER_GRAPH_GUIDANCE, /files, modules or routes/);
+});
+
+test('a planner task may name a model and nothing else beyond its fields', () => {
+  const item = PLAN_SCHEMA.properties.tasks.items;
+  assert.equal(item.additionalProperties, false);
+  assert.equal(item.properties.model.type, 'string');
+  assert.match(item.properties.model.description, /sonnet/);
+  assert.ok(!(item.required as readonly string[]).includes('model'));
+});
+
+test('the planner prompt carries the guidance, and a draft keeps the model the planner gave a prose task', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
+  const plan = {
+    name: 'feature',
+    engine: 'graph',
+    engineReason: 'it writes files',
+    tasks: [
+      { id: 'core', name: 'Core', prompt: 'edit core', dependsOn: [] },
+      { id: 'docs', name: 'Docs', prompt: 'write docs', dependsOn: ['core'], model: 'sonnet' },
+      { id: 'web', name: 'Web', prompt: 'edit web', dependsOn: ['core'], model: 'not a model' },
+    ],
+  };
+  const run = orchestrator.startPlan({ objective: `Build it\nFAKE-RESULT-WORK ${JSON.stringify(plan)}`, cwd: config.workspaceDir });
+  assert.ok(run.prompt.includes(PLANNER_GRAPH_GUIDANCE));
+  const draft = await orchestrator.draft(run.id);
+  assert.equal(draft.tasks.find((t) => t.id === 'docs')?.model, 'sonnet');
+  assert.equal(draft.tasks.find((t) => t.id === 'core')?.model, undefined);
+  // A model the CLI would refuse is dropped, not kept to fail a worker later
+  assert.equal(draft.tasks.find((t) => t.id === 'web')?.model, undefined);
   db.close();
 });

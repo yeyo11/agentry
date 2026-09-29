@@ -289,7 +289,22 @@ interface PreparedWorktree {
   pendingMerge: PendingMerge | null;
 }
 
-const PLAN_SCHEMA = {
+/**
+ * How the planner should shape a graph. The task phase lasts as long as the longest chain of
+ * dependencies, not the sum of the tasks, so these rules shorten that chain; docs/orchestrations.md
+ * holds the same guidance, with the reasons, for people writing a graph by hand.
+ */
+export const PLANNER_GRAPH_GUIDANCE =
+  'Shape the graph so it finishes early: the orchestration takes as long as its longest chain of dependencies. ' +
+  'Keep the longest chain to four tasks or fewer. ' +
+  'Do not add a task that only writes shared types or a contract: put the contract in the prompts of the tasks that need it, ' +
+  'or in the first implementation task, so the others can start in parallel against it. ' +
+  'A documentation task depends on the implementation tasks, never on a review task, so it runs in parallel with the review. ' +
+  'A review task, when there is one, reviews the design and what automated checks cannot see, and does not re-run the whole test suite. ' +
+  'A task that only writes prose (documentation) sets model to "sonnet"; leave model out for every other task. ' +
+  'Every task prompt names the files, modules or routes it will touch, so its worker does not spend turns finding them.';
+
+export const PLAN_SCHEMA = {
   type: 'object',
   required: ['name', 'engine', 'engineReason', 'tasks'],
   additionalProperties: false,
@@ -313,6 +328,7 @@ const PLAN_SCHEMA = {
           name: { type: 'string' },
           prompt: { type: 'string', description: 'Self-contained instructions for the worker agent' },
           dependsOn: { type: 'array', items: { type: 'string' }, description: 'ids of tasks that must finish first' },
+          model: { type: 'string', description: 'Only "sonnet", and only for a task that only writes prose (documentation); leave it out otherwise' },
         },
       },
     },
@@ -2182,7 +2198,7 @@ ${quoted}
         `${PROMPT_HEAD}${pasted(req.objective)}${PROMPT_TAIL}` +
         `${maxTasks} tasks. Each task is executed by an independent Claude Code agent working in ${cwd}, ` +
         `so every prompt must be self-contained. Maximize parallelism: only add a dependency when a task truly needs another task's output ` +
-        `(results of dependencies are passed along automatically). Before you plan, read the directory with the read-only tools, as much as the objective needs, ` +
+        `(results of dependencies are passed along automatically). ${PLANNER_GRAPH_GUIDANCE} Before you plan, read the directory with the read-only tools, as much as the objective needs, ` +
         `so each task names the files and commands it concerns. Do not perform the work itself.\n\n` +
         `Also choose how it runs. "graph" is the default: every task is a separate Claude Code process that can get a git worktree ` +
         `and branch of its own, merged at the end; choose it whenever a task changes files. "workflow" runs every task as a subagent ` +
@@ -2236,6 +2252,9 @@ ${quoted}
     }
     if (!draft?.tasks) throw new Error('planner returned no tasks');
     validateTasks(draft.tasks);
+    // A model the CLI would refuse is dropped rather than failing the draft: the plan is still worth
+    // editing, and the task then runs on the graph's model.
+    const tasks = draft.tasks.map(({ model, ...task }) => (typeof model === 'string' && MODEL_RE.test(model.trim()) ? { ...task, model: model.trim() } : task));
     const head = run.prompt.indexOf(PROMPT_HEAD);
     const tail = run.prompt.indexOf(PROMPT_TAIL);
     // The planner only knows what a workflow is; whether this CLI can run one, its own init told us
@@ -2252,7 +2271,7 @@ ${quoted}
       model: run.model ?? undefined,
       concurrency: 3,
       synthesize: true,
-      tasks: draft.tasks,
+      tasks,
     };
     await this.suggestModels(spec, runId);
     this.db.savePlanDraft(runId, spec);

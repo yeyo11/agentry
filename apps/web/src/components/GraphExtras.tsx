@@ -1,5 +1,8 @@
-import type { TaskLimits } from '@agentry/shared';
+import type { OrchestrationTaskSpec, TaskLimits } from '@agentry/shared';
+import { Info } from 'lucide-react';
+import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
+import { graphShape } from '../lib/orchestration-steps';
 import { limitsOf, type InstallMode, type VerificationDraft } from '../lib/orchestration-v2';
 import { NumberInput, Select, Switch } from '@agentry/ui/components/controls';
 import { Field } from '@agentry/ui/components/ui';
@@ -119,6 +122,45 @@ export function VerificationFields({ value, onChange }: { value: VerificationDra
           </Switch>
           <p className="muted small">{t('verification.failGraphHint')}</p>
         </>
+      )}
+    </div>
+  );
+}
+
+/** Above this many stages in series the graph is worth reshaping (docs/orchestrations.md). */
+export const LONG_CHAIN_STAGES = 4;
+
+/**
+ * How many stages the graph being written runs in series, and its longest chain. A hint, never a
+ * block: the task phase lasts as long as this chain, and the person decides whether that is fine.
+ */
+export function GraphShape({ tasks }: { tasks: ReadonlyArray<Pick<OrchestrationTaskSpec, 'id' | 'dependsOn'>> }) {
+  const { t } = useTranslation('config');
+  const shape = graphShape(tasks.map((task) => ({ id: task.id.trim(), dependsOn: task.dependsOn })));
+  if (!shape) return null;
+  return (
+    <div className="graph-shape stack-tight" data-testid="graph-shape">
+      <p className="form-hint graph-shape-line">
+        <span className="mono">{t('orchestration.shape', { count: shape.stages })}</span>
+        {shape.stages > 1 && (
+          <>
+            <span aria-hidden> · </span>
+            <span className="graph-shape-chain mono" aria-label={t('orchestration.shapeLabel')}>
+              {shape.chain.map((id, i) => (
+                <Fragment key={`${i}-${id}`}>
+                  {i > 0 && <span aria-hidden>{' → '}</span>}
+                  <span className="graph-shape-id">{id}</span>
+                </Fragment>
+              ))}
+            </span>
+          </>
+        )}
+      </p>
+      {shape.stages > LONG_CHAIN_STAGES && (
+        <div className="alert alert-info graph-shape-note" role="note">
+          <Info size={16} strokeWidth={1.75} aria-hidden className="alert-icon" />
+          <div className="alert-body">{t('orchestration.shapeNote')}</div>
+        </div>
       )}
     </div>
   );
