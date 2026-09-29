@@ -1,7 +1,10 @@
 import type { FlowRun, FlowRunRef } from '@agentry/shared';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, X } from 'lucide-react';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { api, keys } from '../../../api';
+import { useToast } from '@agentry/ui/components/Toast';
 import { useRoleName } from '../../team/RoleAvatar';
 import { failureReason, rawError, RUN_STATUS_BADGE, runStatus, runStep } from './runs';
 
@@ -47,4 +50,19 @@ export function useFailureReason(): (run: Pick<FlowRun, 'state' | 'outcome' | 'c
 export function RawError({ run, className = '' }: { run: Pick<FlowRun, 'error'>; className?: string }) {
   const error = rawError(run);
   return error ? <span className={`run-raw mono ${className}`.trim()}>{error}</span> : null;
+}
+
+/** Queues a failed run's step again (`POST /flow-runs/:runId/retry`), from its chat's banner or its item's link. */
+export function useRetryRun(itemId: string) {
+  const { t } = useTranslation('workItem');
+  const toast = useToast();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (runId: string) => api.retryFlowRun(runId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: keys.workItem(itemId) });
+      void qc.invalidateQueries({ queryKey: keys.workItemRuns(itemId) });
+    },
+    onError: (error) => toast.error(t('run.retryFailed'), error),
+  });
 }

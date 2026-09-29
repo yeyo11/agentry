@@ -14,7 +14,7 @@ import i18n from '../src/i18n';
 import { FailedFlowRunNote } from '../src/pages/chat/FailedFlowRun';
 import { Activity } from '../src/pages/tasks/item/Activity';
 import type { ItemActions } from '../src/pages/tasks/item/hooks';
-import { chatlessRuns, linkEntries } from '../src/pages/tasks/item/model';
+import { chatlessRuns, failedRunOfChat, linkEntries } from '../src/pages/tasks/item/model';
 import { latestOfStep, RunLinkRow } from '../src/pages/tasks/item/RunLink';
 import { WaitingBadge } from '../src/pages/tasks/item/Waiting';
 
@@ -247,4 +247,37 @@ test('an item the flow left to the person says "waits for you" beside its column
   assert.match(text(render(<WaitingBadge item={{ waiting: 'approval' }} />)), /waits for you/);
   assert.match(render(<WaitingBadge item={{ waiting: 'bounces' }} />), /badge-idle/);
   assert.equal(render(<WaitingBadge item={{ waiting: null }} />), '');
+});
+
+test("a chat whose failed run was retried in that same chat still carries the banner, telling the retry without a link back to itself", () => {
+  // Chat d170a6 on claude-wrapper: the Developer's no-account failure and its passing retry share one
+  // chat, and the banner read only the newest run, so the chat never said a run in it had failed (CW-20)
+  const retry = { id: 'r-retry', state: 'ended', outcome: 'passed', chatId: 'c-dev', queuedAt: new Date(Date.now() - 1_200_000).toISOString(), endedAt: new Date(Date.now() - 600_000).toISOString() };
+  const shared = run({ id: 'r-fail', chatId: 'c-dev', outcome: 'failed', cause: 'no-account', error: 'no account with quota left', retriedBy: retry as FlowRun['retriedBy'] });
+  const newest = run({ id: 'r-retry', chatId: 'c-dev', retryOf: 'r-fail' });
+  assert.equal(failedRunOfChat('c-dev', [newest, shared]), shared, "the chat's newest failed run, though a later one passed");
+  assert.equal(failedRunOfChat('c-dev', [newest]), null, 'no banner for a chat none of whose runs failed');
+  assert.equal(failedRunOfChat('c-other', [newest, shared]), null);
+  const html = render(<FailedFlowRunNote item={item} run={shared} chatId="c-dev" />);
+  const said = text(html);
+  assert.match(said, /No account had quota left/);
+  assert.match(said, /Retried: passed/);
+  assert.doesNotMatch(said, /in chat/, 'the retry ran in the chat being read');
+  assert.doesNotMatch(html, /href="\/chats\/c-dev"/, 'no way back into the chat already open');
+});
+
+test("a failed run's link offers Retry while it can be queued again, and once retried says what the retry did", () => {
+  // work-items.md, "Links": the reason, then "Reintentar" while it can be retried, or what the retry did (CW-20)
+  const open = render(<RunLinkRow link={link('c-old')} run={{ ...failed, retryable: true }} item={item} chat={undefined} latest />);
+  assert.match(open, /work-link-retry/);
+  assert.match(text(open), /Retry/);
+  const stuck = render(<RunLinkRow link={link('c-old')} run={{ ...failed, retryable: false }} item={item} chat={undefined} latest />);
+  assert.doesNotMatch(stuck, /work-link-retry/, 'the item left the run column, so nothing can be retried');
+  const retriedBy = { id: 'r-new', state: 'ended', outcome: 'passed', chatId: 'c-new', queuedAt: passed.queuedAt, endedAt: passed.endedAt } as FlowRun['retriedBy'];
+  const done = text(render(<RunLinkRow link={link('c-old')} run={{ ...failed, retriedBy, retryable: false }} item={item} chat={undefined} latest={false} />));
+  assert.match(done, /Retried: passed/);
+  assert.match(done, /in chat c-new/);
+  assert.doesNotMatch(done, /Retry\b(?!ed)/, 'a run retried once offers no second retry');
+  const passedRow = render(<RunLinkRow link={link('c-new')} run={passed} item={item} chat={undefined} latest />);
+  assert.doesNotMatch(passedRow, /work-link-retr/, 'a run that passed says nothing of retries');
 });

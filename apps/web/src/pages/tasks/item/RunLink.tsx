@@ -1,12 +1,14 @@
 import type { ChatSummary, FlowRun, WorkItemDetail, WorkItemLink, WorkItemStatus } from '@agentry/shared';
+import { RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { ICON_SM } from '@agentry/ui/components/icons';
 import { formatCost, formatDateTime, timeAgo } from '@agentry/ui/lib/format';
 import { columnMeta } from '../../../lib/work-items';
 import { RoleAvatar } from '../../team/RoleAvatar';
 import { linkEffect, shortId } from './model';
-import { RawError, RunStatusBadge, useFailureReason, useRunTitle } from './RunParts';
-import { failureReason, runStatus } from './runs';
+import { RawError, RunStatusBadge, useFailureReason, useRetryRun, useRunTitle } from './RunParts';
+import { retryOutcome, runStatus } from './runs';
 
 /**
  * A chat the flow ran for one of its members, told by its run rather than by its chat (decision 8):
@@ -35,6 +37,8 @@ export function RunLinkRow({
   const reasonOf = useFailureReason();
   const status = runStatus(run);
   const reason = reasonOf(run);
+  const retry = useRetryRun(item.id);
+  const next = reason ? retryOutcome(run) : null;
   const effect = link ? linkEffect(link, item.history) : null;
   const at = run.endedAt ?? run.startedAt ?? run.queuedAt;
   const cost = chat ? chat.cost.usd : undefined;
@@ -71,6 +75,24 @@ export function RunLinkRow({
         {/* Under the reason, as every failed run is told (design-system.md, "Copy"): the reason is
             the person's words, the raw text is what the core or the CLI said, and both are kept */}
         {reason && <RawError run={run} className="work-link-raw" />}
+        {/* Then what comes of the failure (work-items.md, "Links"): what the retry did, or the retry
+            while the run can still be queued again */}
+        {next && (
+          <span className="work-link-retried">
+            {t('run.retriedLead')} <b className={next.status === 'passed' ? 'text-ok' : next.status === 'failed' ? 'text-bad' : ''}>{t(`run.status.${next.status}`)}</b>{' '}
+            {next.chatId && next.chatId !== run.chatId
+              ? t('run.retriedWhen', { when: next.at ? timeAgo(next.at) : '', chat: shortId(next.chatId) }).trimStart()
+              : t('run.retriedNoChat', { when: next.at ? timeAgo(next.at) : '' }).trimStart()}
+          </span>
+        )}
+        {reason && !next && run.retryable && (
+          <span className="work-link-acts">
+            <button type="button" className="btn btn-small work-link-retry" disabled={retry.isPending} onClick={() => retry.mutate(run.id)}>
+              <RotateCcw {...ICON_SM} />
+              {t('run.retry')}
+            </button>
+          </span>
+        )}
         <span className="work-link-meta">
           {chatId ? t('link.chat', { id: shortId(chatId) }) : t('run.noChat')} · {t('run.flowRun')} ·{' '}
           <time dateTime={at} title={formatDateTime(at)}>
