@@ -121,6 +121,11 @@ test('the integrator and the fixer are workers named by their role, not taken fo
   assert.equal(roleOf({ role: 'integration' }), 'integration');
   assert.equal(roleOf({ role: 'verification' }), 'verification');
   assert.equal(roleOf({ role: 'synthesis' }), 'synthesis');
+  // An older server sent no role: the chat without a task is the synthesis, for both helpers
+  const legacy = (taskId: string | null) => chat({ origin: 'orchestration', orchestration: { id: 'o1', name: 'Release', taskId, taskName: taskId } as never });
+  assert.equal(isWorker(legacy(null)), false);
+  assert.equal(roleOf({} as never), 'synthesis');
+  assert.equal(isWorker(legacy('t1')), true);
   const words = (lng: string) => (['integration', 'verification', 'synthesis'] as const).map((r) => [i18n.t(`chats:list.role.${r}`, { lng }), i18n.t(`chat:view.role.${r}`, { lng })]);
   assert.deepEqual(words('en'), [['integration', 'integration'], ['verification', 'verification'], ['synthesis', 'synthesis']]);
   assert.deepEqual(words('es'), [['integración', 'integración'], ['verificación', 'verificación'], ['síntesis', 'síntesis']]);

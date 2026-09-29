@@ -79,7 +79,16 @@ export const roleOf = (link: Pick<ChatOrchestration, 'role'>): Exclude<Orchestra
 
 /** An orchestration's synthesis is its deliverable; every other chat of an orchestration is a worker. */
 export const isWorker = (chat: Pick<ChatSummary, 'origin' | 'orchestration'>): boolean =>
-  chat.origin === 'orchestration' && chat.orchestration?.role !== 'synthesis';
+  chat.origin === 'orchestration' && !isSynthesis(chat.orchestration);
+
+/**
+ * The synthesis: its role says so, and an older server that sent no role linked only the synthesis
+ * without a task, which is how `roleOf` reads it too.
+ */
+function isSynthesis(link: Pick<ChatOrchestration, 'role' | 'taskId'> | null | undefined): boolean {
+  if (!link) return false;
+  return link.role ? link.role === 'synthesis' : link.taskId === null;
+}
 
 export type ChatOriginFilter = 'agentry' | 'external' | 'orchestration';
 

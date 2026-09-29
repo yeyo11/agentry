@@ -120,7 +120,7 @@ test('the panel words the phases, the critical path, the waits and the failed ru
   assert.match(es, /Sigue en curso/);
   assert.match(es, /Ruta crítica/);
   assert.ok(es.includes(`esperando un límite · ${d(18 * MIN)}`));
-  assert.ok(es.includes(`esperando turno · ${d(2 * MIN)}`));
+  assert.ok(es.includes(`esperando plaza libre · ${d(2 * MIN)}`));
   assert.ok(es.includes(`esperando un reintento · ${d(3 * MIN)}`));
   assert.ok(es.includes(`pasada 1 ${d(15 * MIN)} fallida`));
   assert.match(es, /Grafo antiguo: algunas fases no se registraron\./);

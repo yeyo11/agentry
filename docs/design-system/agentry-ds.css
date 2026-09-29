@@ -283,7 +283,7 @@ a.part-of { color: inherit; text-decoration: none; }
 .segbar > i.ok { background: var(--ok); } .segbar > i.bad { background: var(--bad); }
 .segbar > i.live { background: var(--live-soft); }
 .segbar > i.live::after { content: ''; position: absolute; inset: 0; width: var(--p, 40%); background: var(--live); border-radius: inherit; box-shadow: 0 0 10px var(--live); }
-/* "En qué se fue el tiempo" (página de una orquestación): historia, no algo en directo. La barra por fases usa dos tonos neutros que alternan de fase en fase; el color de estado solo va en las esperas y en las ejecuciones fallidas, siempre con su palabra. Sin degradado, sin borde de energía y sin movimiento. */
+/* "Where the time went" (an orchestration's page): history, not something live. The phase bar alternates two neutral tones from phase to phase; status colour goes only on waits and failed runs, always with its word. No gradient, no energy border, no motion. */
 .segbar > i.phase { background: var(--fg-3); } .segbar > i.phase.alt { background: var(--bg-4); }
 .timings { display: flex; flex-direction: column; gap: 18px; }
 .timings .legend { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }

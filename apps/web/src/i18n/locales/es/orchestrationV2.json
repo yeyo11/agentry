@@ -232,11 +232,11 @@
     "waitBefore": "{{duration}} antes de empezar",
     "waits": "Esperas",
     "wait": {
-      "slot": "esperando turno",
+      "slot": "esperando plaza libre",
       "limit": "esperando un límite",
       "retry": "esperando un reintento"
     },
-    "noWaits": "Ninguna tarea esperó turno, un límite ni un reintento.",
+    "noWaits": "Ninguna tarea esperó plaza libre, un límite ni un reintento.",
     "checks": "Comprobaciones",
     "checksTotal": "comprobaciones {{duration}}",
     "fixer_one": "agente {{duration}}, {{count}} intento",
