@@ -288,7 +288,33 @@ a group's failures with the fixer off, one fixer attempt for a whole group, a st
 command of a group) and `apps/web/test/orchestration-v2.test.ts` (the `& ` syntax and the round
 trip).
 
-Still open: the 40 % wall-time check of §1 (an `E2E_SHARDS=1` run was never timed) and the
+`e2e/harness.test.mjs` also gained **the run limit of a sharded run closes every shard's browser
+and server**: two specs that hang within their own limit under `E2E_SHARDS=2`, ended only by the
+parent's `E2E_TIMEOUT`, with no Chrome, server or sandbox left. Before it, only `SIGTERM` was proven
+on a sharded run.
+
+### Acceptance criteria that differ from what §1 shipped
+
+CW-14's criteria were written before #128 and still describe §1 as specified above. Three differ
+from what #128 shipped on purpose (see [What §1 built](#what-1-built)). The scope trim says not to
+rebuild the sharding, so they are left as shipped and need the product owner to amend them:
+
+| Criterion as written | As shipped in #128 | Why |
+|---|---|---|
+| Durations merged after each run into a gitignored `e2e/.timings.json` (in ms) | A checked-in `e2e/timings.json` in seconds, refreshed by hand from a CI run; the runner never writes it | Every CI matrix job computes the split from the checkout alone, so the weights must be in it. A file rewritten after each local run would dirty the tree and give every machine its own split |
+| With N > 1, a caller's `E2E_PORT` is ignored and the run says so | `E2E_PORT` is the first of N consecutive ports; unset, each child gets a free port | An orchestration that sets `E2E_PORT` to stay off another suite's port keeps that promise |
+| The timings criterion's split "weighted by `e2e/.timings.json`" | Weighted by `e2e/timings.json` | As above |
+
+The fourth gap QA named, a forced `E2E_TIMEOUT` on a sharded run, is now tested (above).
+
+A second attempt at the 40 % check, on 2026-09-30 after `pnpm build` of `task/cw-14`, could not
+be used. The machine was at a load average of about 50 on 12 cores (two local embedding servers and
+a runaway search from other sessions). The default 4-shard run took 549 s, and 46 specs failed
+because two shards' API servers never started and one spec passed its 300 s limit. The
+`E2E_SHARDS=1` run was stopped, since a time taken under that load compares nothing. The check has
+to be repeated on an idle machine.
+
+Still open: the 40 % wall-time check of §1 (an `E2E_SHARDS=1` run was never timed on an idle machine) and the
 25/40-minute target, both measured after the merge, into an Outcome section of
 [plans/orchestration-speed.md](orchestration-speed.md).
 

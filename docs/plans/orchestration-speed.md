@@ -216,6 +216,17 @@ worker-checks ┘ graph-shape ──┘
 - It is launched when no other big orchestration is running, and the next three graphs after it are
   measured with `scripts/orchestration-timings.mjs`. Their numbers go into an Outcome section here.
 
+## Outcome
+
+Filled in as the workstreams land and the graphs after them are measured.
+
+- **C. `verify-faster`** (CW-14): sharded e2e shipped in #128 (0.24.0; 4 shards ran the suite in
+  312 s on the dev machine, against about 17 min in one process on CI). Parallel groups in
+  `verification.commands` and the failed specs in the fixer's prompt were built in `task/cw-14`.
+  **Not measured yet:** the 25-minute (nothing to fix) and 40-minute (one fixer attempt) targets
+  after the last task, on the next graphs with verification on after the merge; and the
+  `E2E_SHARDS=1` wall time on an idle machine. See [plans/verify-faster.md](verify-faster.md).
+
 ## Open questions
 
 1. **Workers and e2e.** Should a worker run the one or two browser specs its change touches, on its
