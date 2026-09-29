@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T07:12:38.39333137Z
-updated_at: 2026-09-28T23:30:00Z
+updated_at: 2026-09-29T21:00:00Z
 tags:
     - audit
     - plan
@@ -724,13 +724,116 @@ how each was closed:
 
 **Stays open.**
 
-- Not verified in the capture, because the seed could not produce them: the team board view with the
-  flow on, a member's model with its resolved name, and run links with real chats.
+- Checked on claude-wrapper's real data on 2026-09-29 (CW-20, section below): the team board with the
+  flow on, desktop and phone, dark and light; a member's model with its resolved name; and run links
+  opening their real chats, with failures worded in en and es. Real data could not show three
+  states, which stay on their specs and tests: a failed run nobody retried yet ("Reintentar" and the
+  board's failed strip, since every real failure had been retried), and a chat whose newest run
+  failed (the failure banner). Two findings wait as cards for a decision (below).
 - Left as the reference review left them: the phone's "⋯" on every card and the "Flujo automático"
   row, and the wider search field.
 
 `pnpm typecheck` and `pnpm test` pass after the fixes, and `pnpm build` succeeds; `pnpm e2e` runs
 once, in the verification before the pull request, since an orchestration held port 8799.
+
+## Orchestration 7 on real data (CW-20)
+
+Run on 2026-09-29 over the three things the seed of the audit above could not produce, on the real
+data of `claude-wrapper`, where the flow by column now refines, works and verifies the CW cards
+(specification: [real-data-design-check.md](real-data-design-check.md)).
+
+**Instance.** The desktop app at `AGENTRY_API_URL` (`http://127.0.0.1:34331`, Agentry 0.24.0, deb),
+whose flow was running this very card. It guards its API with a token, and a chat Agentry starts
+does not get one yet (CW-10, in review), so the check could not read that server directly. It read
+its data instead, without touching it: a copy of its data dir taken at 2026-09-29T20:20:30Z, served
+by this branch's build (0.24.0 plus this card) in a `bwrap` sandbox where the whole disk is read
+only, with a stand-in `claude` that answers `system/init` and then waits, so the five running runs
+stayed running and the six queued ones stayed queued. The copy's `model-aliases.json` was checked
+unchanged after the run. Nothing on the real project was moved, retried, edited or deleted, and the
+captures (desktop 1440 × 900, phone 390 × 844, dark and light, es, plus en for the item and the
+chat) stayed in `/tmp`, out of the repository.
+
+What the real data held: 27 CW items; 146 flow runs, among them 5 running, 6 queued, 15 failed (14
+`no-account` and 1 `rate-limit`, every one retried), 7 cancelled as `replaced` before their chat
+started, and QA's rejections. Four cards waited for the person: two with "Aprobar y pasar a Hecho"
+and two that had used their bounces. `model-aliases.json` held `opus → claude-opus-5-5` and
+`sonnet → claude-sonnet-5`.
+
+| Screen | Size × theme | Result |
+| --- | --- | --- |
+| Board with the flow on, `/tasks` (`DesktopTableroEquipo`) | 1440 dark | Finding 1; otherwise matches |
+| Board with the flow on (`DesktopTableroEquipo`) | 1440 light | Finding 1; otherwise matches |
+| Board with the flow on (`MobileTableroEquipo`) | 390 dark | Finding 1; otherwise matches |
+| Board with the flow on (`MobileTableroEquipo`) | 390 light | Finding 1; otherwise matches |
+| Member, `/?view=team&member=developer` (`DesktopMiembro`) | 1440 dark, 1440 light | Matches: "opus" then "Opus 5.5" in Modelo |
+| Member (`MobileMiembro`) | 390 dark, 390 light | Matches: "opus · Opus 5.5" |
+| Work item's run links, `/tasks/CW-25`, `/tasks/CW-2` (`DesktopTarea`) | 1440 dark, 1440 light, es and en | Findings 2, 3 and 4 |
+| Work item (`MobileTarea`) | 390 dark, 390 light | Matches; the links as in the desktop rows |
+| A failed run's chat, `/chats/d170a6e9…` (`DesktopChatFlujo`, `MobileChatFlujo`) | all four | Finding 5; row, header and side panel match |
+
+On the board, as `DesktopTableroEquipo` draws it:
+
+- Each column head carries its role while the flow is on: PO on Backlog and Por hacer, DEV on En
+  curso, QA on En revisión.
+- The flow's button leads the views ("Flujo automático · ACTIVADO").
+- A running card shows the role, the braille spinner, "Implementando" and `m:ss` (31:07, 25:40…).
+- A queued card says "En cola: la verificará cuando quede sitio".
+- A sent-back card quotes QA's words (finding 1).
+- The four waiting cards say "te espera": "QA la dio por buena" with "Aprobar y pasar a Hecho", or
+  "QA la devolvió 3 veces" with no button.
+- On the phone, the flow is one row under the view switch: "Flujo automático · 5 a la vez, 6 en
+  cola · ACTIVADO".
+- Not seen on real data: a failed strip with its worded reason, since every failed run had been
+  retried and a retried failure leaves the strip. `board-card.test.tsx` keeps it.
+- Backlog's "0" above three epics is by design: counts leave epics out, as the reference's "Por
+  hacer 3" over four cards does.
+
+On the member page, the Developer's model reads the tag and then the name the CLI reported for it,
+"opus · Opus 5.5", in both sizes and themes. The page also warns that the agent file says
+`model: sonnet` while the team says `opus`. That is real: `.claude/agents/developer.md` was edited by
+hand, and the page keeps Save off, so it is not a finding.
+
+On the items, every run link leads with its role's squircle and a state word ("EN COLA", "PASÓ",
+"DEVUELTA", "FALLIDA", "CANCELADA"). Each one opens that run's real chat, or says "sin chat" for a
+run replaced before it started. This was checked for every run of CW-25 (8 runs) and CW-2 (4 runs).
+The failures are worded from their `FlowRunCause`:
+
+- es: "Ninguna cuenta tenía cupo: todas llegaron a su límite…" and "La cuenta llegó a su límite y la
+  rotación de cuentas está desactivada."
+- en: "No account had quota left…" and "The account reached its limit…".
+
+As decided, the raw error stays on the chat's banner: the e2e asserts the link leaves it out when a
+cause words it.
+
+| # | Finding | Kind | Fix or card |
+| --- | --- | --- | --- |
+| 1 | A sent-back card quotes QA's whole summary. On CW-4 it ran to about 1,100 characters and stretched the card to a page; the reference draws one sentence | Polish | `4889584b`: the quote keeps three lines (`-webkit-line-clamp`), and the whole of it is in the title and on the item. `board-live-verb.test.ts`, `team-screens.test.tsx` |
+| 2 | The item drew one link per chat, with its newest run. The Developer continues its own chat from run to run, so CW-25's two failures (`no-account`, `rate-limit`) and one of its passes, all in chat `d170a6`, were missing: 5 rows for 8 runs. This breaks "every flow run of the item is a link of its own" ([work-items.md](../work-items.md#a-work-item)) | Blocker | `459d511f`: `linkEntries` draws every run as its own row on its chat's link, newest first. `work-item-runs-ui.test.tsx` |
+| 3 | Until the item's runs answered, the flow's chat links showed as plain chats ("INACTIVO", no squircle) and then turned into run rows | Polish | `459d511f`: flow links wait for the runs. `work-item-runs-ui.test.tsx` |
+| 4 | work-items.md gives a failed run's link "Reintentar" while it can be retried, "or what the retry did". The app draws neither on the link, and `DesktopTarea` draws neither: only the chat's banner and Team activity offer the retry | Polish | Card to file (below): the owner decides whether the doc or the screen moves |
+| 5 | A failed run whose retry continued in the same chat has no failure banner in that chat. The banner reads the chat's newest run, which passed, so chat `d170a6` never says that two runs in it failed. `DesktopChatFlujo` draws the banner for a failed run's chat | Polish | Card to file (below): which failure the banner tells, and where in the transcript, is a design decision |
+
+**Cards to file.** This chat could not create cards on the real board, for the same reason it could
+not read it: it has no API token. These go to Backlog as written here:
+
+- *The item's run link offers "Reintentar", or says what the retry did.* Screen: work item, route
+  `/tasks/<key>`, reference `DesktopTarea` / `MobileTarea`. work-items.md ("Links") says a failed
+  run's link shows "Reintentar" while it can be retried, or what the retry did. The app and the
+  reference show only the reason (CW-25 on claude-wrapper, 2026-09-29). Decide whether the link
+  gets them or the doc drops them.
+- *A chat that holds a failed run and its retry says so.* Screen: chat, route `/chats/<id>` of a
+  Developer chat continued by a retry (`d170a6` on claude-wrapper), reference `DesktopChatFlujo` /
+  `MobileChatFlujo`. The failure banner reads only the chat's newest run, so a failure retried in
+  the same chat leaves no banner, and the chat never says it failed. Decide whether the banner tells
+  the failure and its retry, and where in the transcript.
+
+**Not seen on real data**, and kept by their specs:
+
+- a failed run that can still be retried: "Reintentar" on the banner (`work-item-runs-ui.test.tsx`)
+  and the board's failed strip with its worded reason (`board-card.test.tsx`);
+- a chat whose newest run failed, and so its banner (`tasks-item-runs.spec.mjs`).
+
+`pnpm typecheck` and `pnpm test` pass, and `pnpm build` succeeds.
 
 ## Related
 
