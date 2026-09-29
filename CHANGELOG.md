@@ -3,6 +3,25 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.24.0](https://github.com/yeyo11/agentry/compare/v0.23.1...v0.24.0) (2026-09-29)
+
+
+### Features
+
+* **flow:** offer to start the cards already waiting when the flow is switched on ([#123](https://github.com/yeyo11/agentry/issues/123)) ([faaa7f9](https://github.com/yeyo11/agentry/commit/faaa7f9c8b9641c18eb3e54d4497d09c02ce90bd))
+
+
+### Bug fixes
+
+* **flow:** bring an item's tied documents into its worktree before a flow run ([#124](https://github.com/yeyo11/agentry/issues/124)) ([b45538d](https://github.com/yeyo11/agentry/commit/b45538dd61b5a7341dfd3c753b209e7d277d66db))
+* stop the desktop tray from locking the owner out of a token-guarded server ([#129](https://github.com/yeyo11/agentry/issues/129)) ([fefd386](https://github.com/yeyo11/agentry/commit/fefd386cbfd680b07ff47c8599865cfce53d5919))
+* **web:** give the changes review its own cache key for a work item ([#122](https://github.com/yeyo11/agentry/issues/122)) ([aec6b38](https://github.com/yeyo11/agentry/commit/aec6b38a7ecb6bf86cdcfb2d1054421b6879755c))
+
+
+### Documentation
+
+* record the project ecosystem as merged in [#118](https://github.com/yeyo11/agentry/issues/118) ([#125](https://github.com/yeyo11/agentry/issues/125)) ([51a6c3a](https://github.com/yeyo11/agentry/commit/51a6c3a3abdf6ada1b222884b626a1e9f6cac78e))
+
 ## [0.23.1](https://github.com/yeyo11/agentry/compare/v0.23.0...v0.23.1) (2026-09-28)
 
 
