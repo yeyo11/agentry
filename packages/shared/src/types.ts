@@ -1352,7 +1352,9 @@ export interface WorkItemLink extends Omit<WorkItemSource, 'kind'> {
 /**
  * Why an item waits for the person under the flow by column: `approval`, an agent finished and asks
  * for the move to `done`, which only a person makes; `bounces`, verification sent it back more times
- * than the project allows. Either ends when a person moves it.
+ * than the project allows; `merge`, the person approved it and its pull request is open on GitHub,
+ * waiting for the person to merge it there. Each ends when a person moves it; `merge` also ends when
+ * the PR is merged (the item reaches `done`) or closed unmerged (back to `approval`).
  */
 export type WorkItemWaitReason = 'approval' | 'bounces' | 'merge';
 
@@ -1911,7 +1913,9 @@ export type FlowRunOutcome = 'passed' | 'rejected' | 'failed' | 'cancelled';
  * - `not-started`: its chat did not start;
  * - `not-continued`: its chat could not be continued after a restart;
  * - `chat-ended`: its chat ended, or was removed, without a result;
- * - `chat-failed`: its chat ended in an error the CLI reported (the error is the CLI's text).
+ * - `chat-failed`: its chat ended in an error the CLI reported (the error is the CLI's text);
+ * - `conflict-unresolved`: a work run that was to resolve the merge of the default branch into the
+ *   item's branch ended with conflicted paths left (the error names them).
  *
  * Cancelled:
  * - `item-moved`: the item left the column before the run started, or while a restart cut it off;
