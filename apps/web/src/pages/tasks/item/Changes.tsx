@@ -8,6 +8,7 @@ import { ErrorBox, Loading } from '../../../components/ui';
 import { reviewLink, reviewPath } from '../../../lib/changes-summary';
 import { totalsOf } from '../../../lib/observe';
 import { diffstat, pathParts } from './model';
+import { PullRequestRow } from './PullRequest';
 
 /** The worktree as the project sees it (`.claude/worktrees/task-agn-2`), where it lies inside it. */
 const relativeTo = (path: string, root: string | undefined): string => (root && path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path);
@@ -39,8 +40,8 @@ function Counts({ file }: { file: Pick<ChangedFile, 'additions' | 'deletions'> }
 /**
  * What changed in the item's own worktree: its branch against where it started and the files with a
  * diffstat. The diff itself is the review screen's, as a chat's and a task's are (design system §5):
- * each file opens there, and nothing links to an editor. Nothing is merged and no pull request is
- * opened on its own (decision 20).
+ * each file opens there, and nothing links to an editor. Nothing is merged on its own (decision 20):
+ * the person's approval opens the item's pull request, whose row closes the section.
  */
 export function Changes({ item, compact = false, active = true }: { item: WorkItemDetail; compact?: boolean; active?: boolean }) {
   const { t } = useTranslation('workItem');
@@ -123,6 +124,7 @@ export function Changes({ item, compact = false, active = true }: { item: WorkIt
         </h2>
       )}
       {body}
+      <PullRequestRow pr={item.pullRequest} />
     </section>
   );
 }

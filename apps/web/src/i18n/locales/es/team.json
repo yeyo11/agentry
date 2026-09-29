@@ -431,7 +431,12 @@
     "chat-busy": {
       "note": "No llegó a empezar: un chat tuyo ya trabajaba en la tarea"
     },
-    "cancelledUnknown": "No llegó a empezar"
+    "cancelledUnknown": "No llegó a empezar",
+    "conflict-unresolved": {
+      "title": "La fusión quedó en conflicto.",
+      "body": "La ejecución debía resolver la fusión de la rama predeterminada y dejó archivos en conflicto. La tarea sigue en {{column}}, sin cambios.",
+      "short": "la fusión quedó en conflicto"
+    }
   },
   "log": {
     "title": "Actividad",

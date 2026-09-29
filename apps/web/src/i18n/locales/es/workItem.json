@@ -141,7 +141,16 @@
     "waitingApproval": "Espera tu aprobación para pasar a Hecho",
     "waitingBounces": "Te espera: la han devuelto demasiadas veces",
     "waitingEnded": "Ya no espera",
-    "comment": "Comentario"
+    "comment": "Comentario",
+    "waitingMerge": "Espera que fusiones su PR",
+    "prOpened": "PR abierta",
+    "prConflict": "Al actualizar su rama quedaron conflictos en",
+    "prMerged": "PR fusionada",
+    "prClosed": "PR cerrada sin fusionar",
+    "prFailed": "No se ha podido abrir la PR",
+    "prPreparing": "PR aprobada: preparándola",
+    "prAwaiting": "Aprobada: su PR se abrirá cuando pase la verificación",
+    "prChanged": "PR actualizada"
   },
   "cause": {
     "chatStarted": "empezó el chat {{chat}}",
@@ -149,7 +158,11 @@
     "message": "desde un mensaje del chat {{chat}}",
     "taskStarted": "empezó el nodo del grafo",
     "taskCompleted": "terminó el nodo del grafo",
-    "other": "lo hizo un chat o una orquestación"
+    "other": "lo hizo un chat o una orquestación",
+    "prOpened": "se abrió su PR",
+    "prConflict": "al actualizar su rama hubo conflictos",
+    "prMerged": "se fusionó su PR en GitHub",
+    "prClosed": "se cerró su PR en GitHub"
   },
   "sections": {
     "label": "Secciones",
@@ -262,7 +275,8 @@
       "not-continued": "Su chat no se pudo retomar después de un reinicio.",
       "chat-ended": "Su chat terminó, o se borró, sin dejar un resultado.",
       "chat-failed": "Su chat terminó con un error de Claude Code.",
-      "unknown": "No dio ningún motivo."
+      "unknown": "No dio ningún motivo.",
+      "conflict-unresolved": "Terminó con la fusión de la rama predeterminada aún en conflicto."
     },
     "doing": {
       "refine": "refinaba",
@@ -290,5 +304,39 @@
     "seeChat": "Ver el chat",
     "retry": "Reintentar",
     "retryFailed": "No se ha podido reintentar la ejecución"
+  },
+  "pr": {
+    "title": "Pull request",
+    "branches": "{{branch}} → {{base}}",
+    "state": {
+      "merged": "fusionada",
+      "closed": "cerrada sin fusionar",
+      "preparing": "preparando",
+      "failed": "fallida"
+    },
+    "label": "Su pull request",
+    "mergeBadge": "espera tu fusión",
+    "mergeWhy": "La PR #{{number}} espera que la fusiones en GitHub",
+    "mergeWhyUnnumbered": "Su PR espera que la fusiones en GitHub",
+    "mergeHint": "Cuando se fusione, la tarea pasará sola a Hecho.",
+    "preparingBadge": "preparando",
+    "preparingWhy": "Agentry está actualizando su rama con {{base}}, subiéndola y abriendo la PR.",
+    "conflictBadge": "en conflicto",
+    "conflictWhy_one": "Al actualizar su rama con {{base}} quedó un conflicto en {{count}} archivo",
+    "conflictWhy_other": "Al actualizar su rama con {{base}} quedaron conflictos en {{count}} archivos",
+    "conflictHint": "La fusión sigue abierta en su worktree, con las marcas de conflicto, para resolverla ahí. Cuando esté resuelta y verificada, vuelve a aprobarla.",
+    "awaitingBadge": "aprobada",
+    "awaitingWhy": "Su PR se abrirá sin volver a aprobarla cuando pase la verificación.",
+    "closedBadge": "te espera",
+    "closedWhy": "La PR #{{number}} se cerró sin fusionar",
+    "closedHint": "Aprobarla de nuevo abre otra PR; la cerrada sigue en su historial.",
+    "failedBadge": "fallida",
+    "failedWhy": "No se ha podido abrir la PR: {{reason}}",
+    "keptBadge": "worktree conservado",
+    "keptWhy": "Se ha conservado su worktree: tenía cambios sin commit.",
+    "readyBadge": "te espera",
+    "approveWhy": "Aprobarla abre su PR hacia {{base}}.",
+    "offerWhy": "Abrir su PR sube su rama y la propone a {{base}}.",
+    "noPrBadge": "sin PR"
   }
 }

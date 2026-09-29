@@ -14,15 +14,19 @@ import {
   FLOW_STEP_OF_COLUMN,
   parseWorkItemKey,
   type Board,
+  type BoardCheckout,
   type BoardColumn,
   type ChatActivity,
   type FlowRun,
   type FlowRunCause,
   type FlowStep,
   type Project,
+  type PullRequestNotReadyReason,
+  type PullRequestReadiness,
   type WorkItem,
   type WorkItemFilter,
   type WorkItemPriority,
+  type WorkItemPullRequestCi,
   type WorkItemStatus,
   type WorkItemType,
 } from '@agentry/shared';
@@ -390,7 +394,12 @@ export type StripActor = { kind: 'role'; role: string } | { kind: 'person' } | {
  * - `approval` and `bounces`: it waits for the person's move (idle);
  * - `failed`: the last run of its column failed and nothing ran that step since (bad);
  * - `rejected`: QA sent it back, in QA's words (neutral: a bounce is not a failure);
- * - `queued`: a member waits for a place under the flow's limit (neutral).
+ * - `queued`: a member waits for a place under the flow's limit (neutral);
+ * - `pr-*`: its pull request (docs/plans/work-item-pull-requests.md): Agentry preparing it
+ *   (neutral: Agentry works, no agent does, so nothing moves), a conflict updating the branch (warn),
+ *   an approval kept until QA passes (neutral), open and waiting for the person's merge (idle),
+ *   closed without merging (idle, with the approval again) and failed to open (bad). A Done card
+ *   draws no strip, so a merged PR whose worktree was kept is told on the item's page.
  */
 export type WorkItemStripState =
   | { kind: 'run'; role: string; step: FlowStep; startedAt: string | null; activity: ChatActivity | null }
@@ -401,7 +410,13 @@ export type WorkItemStripState =
   | { kind: 'bounces'; count: number }
   | { kind: 'failed'; role: string; step: FlowStep; cause: FlowRunCause | null; error: string | null }
   | { kind: 'rejected'; role: string; quote: string | null }
-  | { kind: 'queued'; role: string; step: FlowStep };
+  | { kind: 'queued'; role: string; step: FlowStep }
+  | { kind: 'pr-preparing' }
+  | { kind: 'pr-conflict'; base: string; count: number }
+  | { kind: 'pr-awaiting'; base: string }
+  | { kind: 'pr-open'; number: number | null; url: string | null; ci: WorkItemPullRequestCi | null }
+  | { kind: 'pr-closed'; number: number | null }
+  | { kind: 'pr-failed'; code: string; detail: string | null };
 
 /** The flow runs a board knows, by item id: working now, waiting for a place, and the last one that did not pass. */
 export interface StripRuns {
@@ -411,7 +426,7 @@ export interface StripRuns {
   ended?: ReadonlyMap<string, FlowRun>;
 }
 
-type StripItem = Pick<WorkItem, 'id' | 'status' | 'activeLink' | 'waiting' | 'bounces'>;
+type StripItem = Pick<WorkItem, 'id' | 'status' | 'activeLink' | 'waiting' | 'bounces' | 'pullRequest'>;
 
 /** The step a flow link names, read by the column the item is in: the Product Owner only checks in Por hacer. */
 function linkStep(role: string | undefined, status: WorkItemStatus): FlowStep {
@@ -421,9 +436,36 @@ function linkStep(role: string | undefined, status: WorkItemStatus): FlowStep {
 }
 
 /**
+ * What the item's pull request says on its strip, where it still applies: the newest PR stays on the
+ * item after it closed or failed, so each phase speaks only in the column it leaves the item in.
+ */
+function pullRequestStrip(item: StripItem): WorkItemStripState | null {
+  const pr = item.pullRequest ?? null;
+  if (item.status === 'done') return null;
+  if (item.waiting === 'merge' || pr?.phase === 'open') return { kind: 'pr-open', number: pr?.number ?? null, url: pr?.url ?? null, ci: pr?.ci ?? null };
+  if (!pr) return null;
+  switch (pr.phase) {
+    case 'preparing':
+      return { kind: 'pr-preparing' };
+    case 'conflict':
+      // Back in In progress for the merge to be resolved; once it is in review again, it is approved again
+      return item.status === 'in_progress' ? { kind: 'pr-conflict', base: pr.base, count: pr.conflicts.length } : null;
+    case 'awaiting-verify':
+      return item.status === 'in_progress' || item.status === 'in_review' ? { kind: 'pr-awaiting', base: pr.base } : null;
+    case 'closed':
+      return item.status === 'in_review' && item.waiting !== 'bounces' ? { kind: 'pr-closed', number: pr.number } : null;
+    case 'failed':
+      return item.status === 'in_review' && item.waiting !== 'bounces' ? { kind: 'pr-failed', code: pr.error?.code ?? 'unknown', detail: pr.error?.detail || null } : null;
+    default:
+      return null;
+  }
+}
+
+/**
  * The one state a card's strip shows, most pressing first: something at work, then what waits for
- * the person, then a failure, then QA's words on a card it sent back (which win over waiting for a
- * place, as DSTablero draws it), then a place in the queue. A card in Done has none.
+ * the person (its pull request before a plain approval), then a failure, then QA's words on a card
+ * it sent back (which win over waiting for a place, as DSTablero draws it), then a place in the
+ * queue. A card in Done has none.
  */
 export function workItemStrip(item: StripItem, runs: StripRuns = {}): WorkItemStripState | null {
   if (item.status === 'done') return null;
@@ -437,6 +479,8 @@ export function workItemStrip(item: StripItem, runs: StripRuns = {}): WorkItemSt
     if (link.chatId) return { kind: 'chat', chatId: link.chatId };
   }
   if (live === 'waiting') return { kind: 'chat-waiting' };
+  const pullRequest = pullRequestStrip(item);
+  if (pullRequest) return pullRequest;
   if (item.waiting === 'approval') return { kind: 'approval' };
   if (item.waiting === 'bounces') return { kind: 'bounces', count: item.bounces ?? 0 };
   const ended = runs.ended?.get(item.id);
@@ -480,8 +524,11 @@ export function stripNamesAssignee(assignee: WorkItem['assignee'], strip: WorkIt
   return actor.kind === 'person';
 }
 
-/** The strip's tone, which is its class: live moves, wait takes the idle colour, fail the bad one; the rest is neutral. */
-export function stripTone(strip: WorkItemStripState): 'live' | 'wait' | 'fail' | null {
+/**
+ * The strip's tone, which is its class: live moves, wait takes the idle colour, fail the bad one,
+ * warn a conflict; the rest is neutral.
+ */
+export function stripTone(strip: WorkItemStripState): 'live' | 'wait' | 'fail' | 'warn' | null {
   switch (strip.kind) {
     case 'run':
     case 'chat':
@@ -490,9 +537,14 @@ export function stripTone(strip: WorkItemStripState): 'live' | 'wait' | 'fail' |
     case 'chat-waiting':
     case 'approval':
     case 'bounces':
+    case 'pr-open':
+    case 'pr-closed':
       return 'wait';
     case 'failed':
+    case 'pr-failed':
       return 'fail';
+    case 'pr-conflict':
+      return 'warn';
     default:
       return null;
   }
@@ -505,6 +557,64 @@ export function stripTone(strip: WorkItemStripState): 'live' | 'wait' | 'fail' |
  */
 export function stripInList(strip: WorkItemStripState | null): strip is WorkItemStripState {
   return strip !== null && (stripTone(strip) === 'live' || strip.kind === 'failed');
+}
+
+/** The strips that carry the approval button: QA passed it, or its pull request closed or failed and it can be proposed again. */
+export function stripOffersApproval(strip: WorkItemStripState | null): boolean {
+  return strip?.kind === 'approval' || strip?.kind === 'pr-closed' || strip?.kind === 'pr-failed';
+}
+
+// ---------- pull requests ----------
+
+/**
+ * Whether approving an item opens its pull request: only in a project whose readiness is `ready`.
+ * Anywhere else (not ready, or a board that does not say, as All projects) approving moves it to
+ * Done, as it did before pull requests.
+ */
+export function approvalOpensPullRequest(readiness: Pick<PullRequestReadiness, 'status'> | null | undefined): boolean {
+  return readiness?.status === 'ready';
+}
+
+/** Why the project offers no pull request, so the card and the item say it instead of failing silently; null when ready or unknown. */
+export function notReadyReason(readiness: Pick<PullRequestReadiness, 'status'> | null | undefined): PullRequestNotReadyReason | null {
+  return readiness && readiness.status !== 'ready' ? readiness.status : null;
+}
+
+const PULL_REQUEST_STEPS = ['fetch', 'merge', 'push', 'create', 'commit', 'worktree-kept'] as const;
+const NOT_READY_REASONS: readonly PullRequestNotReadyReason[] = ['not-git', 'no-remote', 'not-github', 'no-gh', 'gh-unauthenticated', 'no-default-branch'];
+
+/**
+ * The words for a pull request's error code (`tasks` namespace): the step that failed, or the
+ * readiness reason the project lost since. A code this version does not know still reads as a failure.
+ */
+export function pullRequestErrorKey(code: string): `pr.error.${(typeof PULL_REQUEST_STEPS)[number] | 'unknown'}` | `pr.notReady.${PullRequestNotReadyReason}` {
+  const step = PULL_REQUEST_STEPS.find((known) => known === code);
+  if (step) return `pr.error.${step}`;
+  const reason = NOT_READY_REASONS.find((known) => known === code);
+  return reason ? `pr.notReady.${reason}` : 'pr.error.unknown';
+}
+
+/** A CI state's badge colour: passing ok, failing bad; pending and none neutral, since no agent works on it and nothing is wrong yet. */
+export function ciTone(ci: WorkItemPullRequestCi): 'ok' | 'bad' | null {
+  return ci === 'passing' ? 'ok' : ci === 'failing' ? 'bad' : null;
+}
+
+/**
+ * The quiet line under the board's toolbar when the project's checkout is behind its default
+ * branch: how far, and why Agentry did not bring it forward. Null while it is up to date. The words
+ * are the `tasks` namespace's `checkout.*`; it never offers a command to copy.
+ */
+export interface CheckoutNote {
+  count: number;
+  base: string;
+  reason: 'not-on-default' | 'detached' | 'dirty' | 'diverged' | null;
+  branch: string | null;
+}
+
+export function checkoutNote(checkout: BoardCheckout | null | undefined): CheckoutNote | null {
+  if (!checkout || checkout.behind <= 0) return null;
+  const reason = checkout.reason === 'not-on-default' && checkout.branch === null ? 'detached' : checkout.reason;
+  return { count: checkout.behind, base: checkout.defaultBranch, reason, branch: checkout.branch };
 }
 
 /** The newest of each item's runs, from failed and rejected runs in any order: the one a card may still show. */

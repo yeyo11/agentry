@@ -1058,6 +1058,30 @@
   gap: 8px;
 }
 
+/* A pull request's conflicting paths and git's or gh's own line: ids and output, in mono */
+.item-wait-files {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-2);
+  overflow-wrap: anywhere;
+}
+
+.item-wait-detail {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-3);
+  overflow-wrap: anywhere;
+}
+
 /* The Memory tab's figure is the proposals waiting for the person: idle, not a neutral count */
 .count.count-idle {
   background: var(--idle-soft);

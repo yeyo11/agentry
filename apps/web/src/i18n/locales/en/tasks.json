@@ -337,7 +337,8 @@
       "not-started": "its chat did not start",
       "not-continued": "its chat could not go on after a restart",
       "chat-ended": "its chat ended without a result",
-      "chat-failed": "its chat ended in an error"
+      "chat-failed": "its chat ended in an error",
+      "conflict-unresolved": "the merge was left conflicted"
     },
     "waitsForYou": "waits for you",
     "passed": "{{role}} passed it",
@@ -353,5 +354,60 @@
     "quote": "“{{text}}”",
     "sentBackBy": "{{role}} sent it back"
   },
-  "flowRow": "{{parallel}} at once, {{queued}} queued"
+  "flowRow": "{{parallel}} at once, {{queued}} queued",
+  "pr": {
+    "number": "PR #{{number}}",
+    "unnumbered": "PR",
+    "preparing": "Preparing the PR",
+    "conflict_one": "Conflict with {{base}} · {{count}} file",
+    "conflict_other": "Conflict with {{base}} · {{count}} files",
+    "awaiting": "Approved · its PR opens when the verification passes",
+    "waitingMerge": "waiting for merge",
+    "closed": "closed without merging",
+    "failed": "Could not open the PR",
+    "link": "Open PR #{{number}} on GitHub",
+    "linkUnnumbered": "Open the PR on GitHub",
+    "approve": "Approve and open PR",
+    "open": "Open PR",
+    "noPr": "No PR: {{reason}}",
+    "ci": {
+      "none": "no CI",
+      "pending": "CI pending",
+      "passing": "CI passing",
+      "failing": "CI failing"
+    },
+    "error": {
+      "fetch": "the default branch could not be fetched",
+      "merge": "the default branch could not be merged into its branch",
+      "push": "its branch could not be pushed",
+      "create": "GitHub did not create it",
+      "commit": "what was left could not be committed",
+      "worktree-kept": "its worktree had uncommitted changes",
+      "unknown": "it gave no reason"
+    },
+    "notReady": {
+      "not-git": "the project is not a git repository",
+      "no-remote": "the project has no origin remote",
+      "not-github": "origin is not on GitHub",
+      "no-gh": "gh is not installed",
+      "gh-unauthenticated": "gh is not signed in",
+      "no-default-branch": "the default branch could not be found"
+    },
+    "refused": {
+      "not-in-review": "Only a task in In review opens its PR",
+      "busy": "A chat or a flow run is working on it",
+      "nothing-to-propose": "Its branch has nothing to propose: no commit ahead and nothing uncommitted"
+    }
+  },
+  "checkout": {
+    "behind_one": "The working copy is {{count}} commit behind origin/{{base}}",
+    "behind_other": "The working copy is {{count}} commits behind origin/{{base}}",
+    "withReason": "{{behind}}: {{reason}}",
+    "reason": {
+      "not-on-default": "it is on {{branch}}, not on {{base}}",
+      "detached": "it is not on any branch",
+      "dirty": "it has uncommitted changes",
+      "diverged": "it has commits origin/{{base}} does not have"
+    }
+  }
 }

@@ -62,7 +62,9 @@ export function WaitingState({ item, actions }: { item: WorkItemDetail; actions:
   // QA passing it asks nothing the head does not already offer: "waits for you" beside the column,
   // QA's own comment in the activity, and "Move to Done" as the approval (DesktopTarea)
   if (waiting === 'approval' && bounces === 0) return null;
-  if (!waiting || waiting === 'approval') {
+  // Waiting for a merge is its pull request's to explain (PullRequestState); only its bounces show here
+  if (waiting === 'merge' && bounces === 0) return null;
+  if (!waiting || waiting === 'approval' || waiting === 'merge') {
     return (
       <div className="item-wait is-quiet">
         <BounceMark bounces={bounces} max={max} />

@@ -7,6 +7,7 @@
  */
 import type {
   AcceptanceCriterion,
+  PullRequestReadiness,
   ChangedFile,
   FlowRun,
   WorkItem,
@@ -15,12 +16,14 @@ import type {
   WorkItemComment,
   WorkItemHistoryCriterion,
   WorkItemHistoryEntry,
+  WorkItemHistoryPullRequest,
   WorkItemHistoryRef,
   WorkItemHistoryValue,
   WorkItemLink,
   WorkItemRelation,
   WorkItemStatus,
 } from '@agentry/shared';
+import { WORK_ITEM_PR_CAUSE } from '@agentry/shared';
 import type en from '../../../i18n/locales/en/workItem.json';
 
 // ---------- the person ----------
@@ -50,6 +53,9 @@ const isRelation = (value: WorkItemHistoryValue): value is WorkItemRelation =>
 
 const isAssignee = (value: WorkItemHistoryValue): value is WorkItemAssignee => typeof value === 'object' && value !== null && !Array.isArray(value) && 'kind' in value;
 
+const isPullRequest = (value: WorkItemHistoryValue): value is WorkItemHistoryPullRequest =>
+  typeof value === 'object' && value !== null && !Array.isArray(value) && 'phase' in value && 'conflicts' in value;
+
 const text = (value: WorkItemHistoryValue): string => (typeof value === 'string' ? value : '');
 
 /** A key of the `workItem` namespace under `prefix`, checked against the English file. */
@@ -68,7 +74,7 @@ export interface HistoryLine {
    */
   strong?: string;
   /** The glyph beside it: what kind of change it was */
-  icon: 'created' | 'forward' | 'start' | 'done' | 'check' | 'edit' | 'relation' | 'link' | 'wait';
+  icon: 'created' | 'forward' | 'start' | 'done' | 'check' | 'edit' | 'relation' | 'link' | 'wait' | 'pr';
 }
 
 /** One entry told in a sentence. Values that name a column, a type or a priority are left as ids. */
@@ -124,10 +130,39 @@ export function historyLine(entry: Pick<WorkItemHistoryEntry, 'change' | 'from' 
       if (isRef(to)) return { key: 'history.linked', values: { name: to.label }, strong: 'name', icon: 'link' };
       return { key: 'history.unlinked', values: { name: isRef(from) ? from.label : '' }, strong: 'name', icon: 'link' };
     case 'waiting':
-      if (typeof to === 'string' && to) return { key: to === 'bounces' ? 'history.waitingBounces' : 'history.waitingApproval', values: {}, icon: 'wait' };
+      if (typeof to === 'string' && to)
+        return { key: to === 'bounces' ? 'history.waitingBounces' : to === 'merge' ? 'history.waitingMerge' : 'history.waitingApproval', values: {}, icon: 'wait' };
       return { key: 'history.waitingEnded', values: {}, icon: 'wait' };
+    case 'pull_request':
+      return pullRequestLine(to);
     case 'comment':
       return { key: 'history.comment', values: {}, icon: 'edit' };
+  }
+}
+
+/** A pull request's entry: its number (bold) where it has one, the conflicting files when it conflicted. */
+function pullRequestLine(to: WorkItemHistoryValue): HistoryLine {
+  if (!isPullRequest(to)) return { key: 'history.prChanged', values: {}, icon: 'pr' };
+  const number = to.number === null ? undefined : `#${to.number}`;
+  const withNumber = (key: HistoryKey, icon: HistoryLine['icon'] = 'pr'): HistoryLine =>
+    number ? { key, values: { number }, strong: 'number', icon } : { key, values: {}, icon };
+  switch (to.phase) {
+    case 'open':
+      return withNumber('history.prOpened');
+    case 'merged':
+      return withNumber('history.prMerged', 'done');
+    case 'closed':
+      return withNumber('history.prClosed');
+    case 'conflict':
+      return to.conflicts.length
+        ? { key: 'history.prConflict', values: { files: to.conflicts.join(', ') }, strong: 'files', icon: 'pr' }
+        : { key: 'history.prChanged', values: {}, icon: 'pr' };
+    case 'failed':
+      return { key: 'history.prFailed', values: {}, icon: 'pr' };
+    case 'preparing':
+      return { key: 'history.prPreparing', values: {}, icon: 'pr' };
+    case 'awaiting-verify':
+      return { key: 'history.prAwaiting', values: {}, icon: 'pr' };
   }
 }
 
@@ -146,6 +181,10 @@ const CAUSE_KEY: Record<string, CauseKey> = {
   'chat.message': 'cause.message',
   'orchestration.task.started': 'cause.taskStarted',
   'orchestration.task.completed': 'cause.taskCompleted',
+  [WORK_ITEM_PR_CAUSE.opened]: 'cause.prOpened',
+  [WORK_ITEM_PR_CAUSE.conflict]: 'cause.prConflict',
+  [WORK_ITEM_PR_CAUSE.merged]: 'cause.prMerged',
+  [WORK_ITEM_PR_CAUSE.closed]: 'cause.prClosed',
 };
 
 export function causeLine(cause: Pick<WorkItemCause, 'event' | 'chatId'> | null): ActorLine | null {
@@ -272,6 +311,45 @@ export function workOnBlocker(item: Pick<WorkItem, 'type' | 'status' | 'activeLi
   if (item.type === 'epic') return 'epic';
   if (item.status === 'done') return 'done';
   if (item.activeLink && (item.activeLink.chatState === 'working' || item.activeLink.chatState === 'waiting' || item.activeLink.taskStatus === 'running')) return 'busy';
+  return null;
+}
+
+/**
+ * What the item's page says about its pull request (docs/plans/work-item-pull-requests.md), in the
+ * panel beside the waiting one: the PR being prepared, a conflict, an approval kept until QA passes,
+ * an open PR waiting for the person's merge, one closed or failed, a merged one whose worktree was
+ * kept; or, for an item in In review with nothing working on it, the offer to open one, or why the
+ * project cannot. Null when there is nothing to say. Each phase speaks only in the column it leaves
+ * the item in, as on the card's strip.
+ */
+export type PullRequestPanel = 'preparing' | 'conflict' | 'awaiting' | 'merge' | 'closed' | 'failed' | 'kept' | 'offer' | 'not-ready';
+
+type PanelItem = Pick<WorkItem, 'type' | 'status' | 'waiting' | 'activeLink' | 'pullRequest'>;
+
+export function pullRequestPanel(item: PanelItem, readiness: Pick<PullRequestReadiness, 'status'> | null | undefined): PullRequestPanel | null {
+  const pr = item.pullRequest ?? null;
+  if (item.status === 'done') return pr?.phase === 'merged' && pr.error?.code === 'worktree-kept' ? 'kept' : null;
+  if (item.waiting === 'merge' || pr?.phase === 'open') return 'merge';
+  if (pr?.phase === 'preparing') return 'preparing';
+  if (pr?.phase === 'conflict' && item.status === 'in_progress') return 'conflict';
+  if (pr?.phase === 'awaiting-verify' && (item.status === 'in_progress' || item.status === 'in_review')) return 'awaiting';
+  if (item.status !== 'in_review' || item.type === 'epic' || workOnBlocker(item) === 'busy') return null;
+  if (pr?.phase === 'closed' && item.waiting !== 'bounces') return 'closed';
+  if (pr?.phase === 'failed' && item.waiting !== 'bounces') return 'failed';
+  if (!readiness) return null;
+  return readiness.status === 'ready' ? 'offer' : 'not-ready';
+}
+
+/**
+ * The button the panel offers: "Approve and open PR" where the item waits for the person's approval
+ * (QA passed it, or its PR closed or failed), "Open PR" on any other item in In review. Both call
+ * `POST /work-items/:itemId/pull-request`, and only in a ready project; "Move to Done" stays in the
+ * head as the person's own way out.
+ */
+export function pullRequestAction(item: Pick<WorkItem, 'waiting'>, panel: PullRequestPanel | null, readiness: Pick<PullRequestReadiness, 'status'> | null | undefined): 'approve' | 'open' | null {
+  if (readiness?.status !== 'ready') return null;
+  if (panel === 'closed' || panel === 'failed') return 'approve';
+  if (panel === 'offer') return item.waiting === 'approval' ? 'approve' : 'open';
   return null;
 }
 
