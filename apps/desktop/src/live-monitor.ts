@@ -17,6 +17,17 @@ const REQUEST_TIMEOUT_MS = 10_000;
  */
 const RELEVANT = ['run.', 'permission.', 'orchestration.', 'sessions.', 'stream.'];
 
+/**
+ * The tray's credential. The app's own per-launch secret comes first: the server it spawned always
+ * knows it, whatever guard the owner turned on since, while `AGENTRY_AUTH_TOKEN` only seeds a
+ * fresh install and goes stale the moment the token is rotated from the Security panel. The
+ * variable is still used when there is no secret to send.
+ */
+export function monitorHeaders(desktopSecret: string | undefined, env: NodeJS.ProcessEnv): Record<string, string> {
+  const token = desktopSecret?.trim() || env.AGENTRY_AUTH_TOKEN?.trim();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export interface LiveMonitorOptions {
   /** The local server the app started, e.g. http://127.0.0.1:43123 */
   origin: string;

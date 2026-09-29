@@ -6,13 +6,13 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type IpcMainEvent, ty
 import { AppImageUpdater, DebUpdater } from 'electron-updater';
 import { IPC, isAppPath } from './ipc.ts';
 import { EMPTY_SNAPSHOT, liveWords, progressOf, sameSnapshot, type LiveSnapshot, type TrayAction } from './live.ts';
-import { LiveMonitor } from './live-monitor.ts';
+import { LiveMonitor, monitorHeaders } from './live-monitor.ts';
 import { LogFile } from './log.ts';
 import { buildMenu } from './menu.ts';
 import { ACTION_SCHEME, errorUrl, splashUrl } from './pages.ts';
 import { missingResources, resolveResources } from './resources.ts';
 import { rememberedPort, rememberPort } from './server-port.ts';
-import { ServerProcess } from './server-process.ts';
+import { newDesktopSecret, ServerProcess, serverEnv } from './server-process.ts';
 import { resolveUserPath } from './shell-path.ts';
 import { SPLASH_TITLE_BAR, parseTitleBarTheme, titleBarOptions, type TitleBarTheme } from './title-bar.ts';
 import { LiveTray } from './tray.ts';
@@ -52,6 +52,8 @@ const RELEASES_URL = 'https://github.com/yeyo11/agentry/releases/latest';
 // electron-builder writes resources/package-type into the .deb
 const packageFacts = { appImage: process.env.APPIMAGE, packageType: readPackageType(process.resourcesPath) };
 const distribution = distributionOf(packageFacts);
+/** Once per launch, so a server restarted from the error page still knows the tray */
+const desktopSecret = newDesktopSecret();
 
 let win: BrowserWindow | undefined;
 let server: ServerProcess | undefined;
@@ -108,21 +110,17 @@ async function startServer(): Promise<void> {
       {
         entry: res.serverEntry,
         cwd: userData,
-        env: {
-          ...process.env,
+        env: serverEnv({
+          base: process.env,
           PATH,
-          // The port this install used last, so its address survives a restart; PORT still wins,
-          // and 0 on a first start lets the operating system choose one to remember
-          PORT: process.env.PORT || String(rememberedPort(userData) ?? 0),
-          HOST: '127.0.0.1',
-          AGENTRY_WEB_DIST: res.webDist,
-          AGENTRY_DATA_DIR: dataDir,
-          AGENTRY_WORKSPACE_DIR: workspaceDir,
-          AGENTRY_VERSION: app.getVersion(),
-          // The UI offers the install that fits: this app's own updater, or instructions
-          ...(distribution ? { AGENTRY_DISTRIBUTION: distribution } : {}),
-          // The desktop is not a sandbox: AGENTRY_DEFAULT_PERMISSION_MODE stays unset (core default: acceptEdits)
-        },
+          rememberedPort: rememberedPort(userData),
+          webDist: res.webDist,
+          dataDir,
+          workspaceDir,
+          version: app.getVersion(),
+          distribution,
+          desktopSecret,
+        }),
       },
       serverLog,
       (detail) => showError('The Agentry server stopped unexpectedly', detail),
@@ -156,11 +154,9 @@ function showLive(snapshot: LiveSnapshot): void {
 
 function startMonitor(origin: string): void {
   stopMonitor();
-  // A guarded server (AGENTRY_AUTH_TOKEN in the environment the app inherited) wants the same token from the tray
-  const token = process.env.AGENTRY_AUTH_TOKEN?.trim();
   monitor = new LiveMonitor({
     origin,
-    ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+    headers: monitorHeaders(desktopSecret, process.env),
     onSnapshot: showLive,
     log: (line) => desktopLog.line(line),
   });
