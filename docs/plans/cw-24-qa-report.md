@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T14:00:00Z
-updated_at: 2026-09-29T14:00:00Z
+updated_at: 2026-09-29T16:00:00Z
 tags:
     - qa
     - report
@@ -78,6 +78,48 @@ this branch. If all three pass, nothing else I found blocks a pass.
 - Assistant error codes (`assistant.error.*`, the new one included) have no `server:` keys in the
   web locales, so they show in English. This was true before CW-24, and the criterion does not
   require them.
+
+## Second round, at `236e0b8b`
+
+The fix commit acts on the first two observations:
+
+- `NEXT_STEPS` drops `next steps?:` and `I'm going to`.
+- A trailing question only counts when it is put to the person (`you`, `your`, `should I`, `can I`,
+  and so on).
+- The JSDoc is back on `chatFailure`.
+
+I read the new tests by hand against the regexes:
+
+- The announced-step cases still match: "Next, I will", "Now I'll", "The next step is".
+- A "Next steps:" list and a rhetorical question at the end now give no open items.
+- The worker test's `FAKE-TEXT-ONCE` text still matches.
+
+Nothing that depended on the removed patterns is left.
+
+**The verdict is still fail, for the same reason.** This session is in don't-ask mode, and every
+`pnpm` call is denied, `pnpm --version` included. So `564ce460` (typecheck and tests pass) is not
+verified for a second time. A person, or a QA run that is allowed to run `pnpm`, needs to run
+`pnpm typecheck`, `pnpm test` and `pnpm --filter @agentry/api openapi:schemas && git diff
+--exit-code apps/api/src/openapi`. If all three pass, the item passes.
+
+## The checks, run by the Developer on 236e0b8b (2026-09-29)
+
+The Developer's session can run `pnpm`, so these were run on the branch at `236e0b8b`:
+
+- `pnpm typecheck`: exit 0, no errors.
+- `pnpm --workspace-concurrency=1 test`: exit 0. That is `pnpm test` with the packages run one
+  after another instead of in parallel. The totals: shared 31, desktop 49, core 865, web 856,
+  api 174, and no failures.
+- `pnpm --filter @agentry/api openapi:schemas && git diff --exit-code apps/api/src/openapi`: no
+  drift.
+
+One web test fails in plain parallel `pnpm test` on this machine: `highlight.test.ts`, "the first
+block in a grammar shiki compiles on the spot is still coloured". That failure also stops the run
+before the api suite reports. The test compiles shiki's C++ grammar within a per-line time budget,
+so it misses the budget when the core suite loads the CPU at the same time. It passes whenever the
+web suite runs without that load. This branch's changes to `apps/web` are the cause lists, their
+en/es copy and test fixtures, none of them near highlighting. The test's timing belongs to another
+item.
 
 ## Related
 
