@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T18:00:00Z
-updated_at: 2026-09-29T12:00:00Z
+updated_at: 2026-09-29T18:00:00Z
 tags:
     - plan
     - spec
@@ -8,15 +8,17 @@ tags:
     - verification
     - e2e
     - performance
-    - in-progress
+    - built
 ---
 # Spec: a shorter verification phase (CW-14)
 
 This is workstream C (`verify-faster`) of [plans/orchestration-speed.md](orchestration-speed.md),
-story CW-14 of the epic CW-11 "Faster orchestrations". Status: **§1 (sharded e2e) built** on
-2026-09-29 in `ci/e2e-shards`, together with CW-3's CI matrix, with the deviations listed under
-[What §1 built](#what-1-built); §2 (parallel groups) and §3 (failed specs in the fixer's prompt) are
-not built.
+story CW-14 of the epic CW-11 "Faster orchestrations". Status: **built.** §1 (sharded e2e) was
+built on 2026-09-29 in `ci/e2e-shards` (#128), together with CW-3's CI matrix, with the deviations
+listed under [What §1 built](#what-1-built). §2 (parallel groups) and §3 (failed specs in the
+fixer's prompt) were built on 2026-09-29 in `task/cw-14`; see
+[What §2 and §3 built](#what-2-and-3-built). The target of the plan is measured after the merge
+(see [How the target is measured](#how-the-target-is-measured)).
 
 ## Why
 
@@ -248,6 +250,73 @@ This parses to `[["pnpm typecheck","pnpm test"],"pnpm build","pnpm e2e"]`.
 - `fix()` fills `failedSpecs` from the **full** output of the failing command. It must not use the
   6000-character `entry.output` tail, so `runCommand` has to hand the full text (or the parsed list)
   to the caller before it trims.
+
+## What §2 and §3 built
+
+Everything above, as written, with these choices where the spec left room:
+
+- **The steps come from the rows.** `verificationSteps(rows)` in `orchestrator.ts` groups the flat
+  `state.commands` into steps: the install row alone, then consecutive rows that share a `group`.
+  A row stored before groups has none and is a step of its own, so a verification recorded by an
+  older wrapper reads and re-runs as it did.
+- **A stop that lands while a group is starting** still reaches every command: each handle joins
+  `VerificationControl.commands` as it starts, and one that starts after the stop is cancelled at
+  once.
+- **Running out of attempts.** One attempt at a group adds one to the count of each failed command
+  in it. When any failed command of a step has spent its `maxAttempts`, the verification stops and
+  the report names those commands and the last thing an attempt that covered them said. The
+  "earlier attempts" the fixer is told about are those that covered any of the commands failing now.
+- **The fixer's prompt** takes `failed: FailedCheck[]` (command, why, output) instead of a single
+  `command`/`failure`/`output`: one failed check reads as before ("This one failed: …"); several read
+  as "These ran at the same time and failed, and this attempt is at all of them", each with its own
+  output tail. The list of checks shows a group as `at the same time: a | b`.
+- **The failed specs come from the whole output.** `runCommand` reads `✗ <file>` lines from every
+  chunk as it arrives (`CommandOutcome.failedSpecs`), without keeping the output, and trims only
+  after; `failedSpecs(output)` is the same reader over a string. The line must start with `✗ `: a
+  failure message the runner prints under a spec is indented, so it never reads as a spec. One
+  fixer attempt at a group gets the specs of all its failed commands, at most 20.
+- **Web.** `parseCommands` returns `Array<string | string[]>` and a new `commandsText` writes it
+  back, so `draftOfVerification` round-trips a group; a line of just `&` is no command. The
+  orchestration page's verification card lists rows as before; no class or token was added.
+- **Route docs.** No route changed. The description of `POST /orchestrations/:id/verify` in
+  `apps/api/src/openapi/routes.ts` and its README row say that an entry may be a parallel group.
+
+Tests: `packages/core/test/verification.test.ts` (groups in `normalizeVerification`, the install
+check against a group, `verificationSteps`, `failedSpecs` on runner output with its `failed:`
+repeat, the failed specs read beyond the kept tail, the prompt paragraph, a group running at once,
+a group's failures with the fixer off, one fixer attempt for a whole group, a stop reaching every
+command of a group) and `apps/web/test/orchestration-v2.test.ts` (the `& ` syntax and the round
+trip).
+
+`e2e/harness.test.mjs` also gained **the run limit of a sharded run closes every shard's browser
+and server**: two specs that hang within their own limit under `E2E_SHARDS=2`, ended only by the
+parent's `E2E_TIMEOUT`, with no Chrome, server or sandbox left. Before it, only `SIGTERM` was proven
+on a sharded run.
+
+### Acceptance criteria that differ from what §1 shipped
+
+CW-14's criteria were written before #128 and still describe §1 as specified above. Three differ
+from what #128 shipped on purpose (see [What §1 built](#what-1-built)). The scope trim says not to
+rebuild the sharding, so they are left as shipped and need the product owner to amend them:
+
+| Criterion as written | As shipped in #128 | Why |
+|---|---|---|
+| Durations merged after each run into a gitignored `e2e/.timings.json` (in ms) | A checked-in `e2e/timings.json` in seconds, refreshed by hand from a CI run; the runner never writes it | Every CI matrix job computes the split from the checkout alone, so the weights must be in it. A file rewritten after each local run would dirty the tree and give every machine its own split |
+| With N > 1, a caller's `E2E_PORT` is ignored and the run says so | `E2E_PORT` is the first of N consecutive ports; unset, each child gets a free port | An orchestration that sets `E2E_PORT` to stay off another suite's port keeps that promise |
+| The timings criterion's split "weighted by `e2e/.timings.json`" | Weighted by `e2e/timings.json` | As above |
+
+The fourth gap QA named, a forced `E2E_TIMEOUT` on a sharded run, is now tested (above).
+
+A second attempt at the 40 % check, on 2026-09-30 after `pnpm build` of `task/cw-14`, could not
+be used. The machine was at a load average of about 50 on 12 cores (two local embedding servers and
+a runaway search from other sessions). The default 4-shard run took 549 s, and 46 specs failed
+because two shards' API servers never started and one spec passed its 300 s limit. The
+`E2E_SHARDS=1` run was stopped, since a time taken under that load compares nothing. The check has
+to be repeated on an idle machine.
+
+Still open: the 40 % wall-time check of §1 (an `E2E_SHARDS=1` run was never timed on an idle machine) and the
+25/40-minute target, both measured after the merge, into an Outcome section of
+[plans/orchestration-speed.md](orchestration-speed.md).
 
 ### The fixer's prompt since CW-24
 

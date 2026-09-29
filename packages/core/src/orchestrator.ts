@@ -64,6 +64,7 @@ import {
   tail,
   workerChecks,
   DEFAULT_VERIFY_MINUTES,
+  MAX_FAILED_SPECS,
   type CommandHandle,
   type InstallStep,
 } from './verification.ts';
@@ -89,13 +90,47 @@ const MAX_ERROR_QUOTE = 2000;
 const LIMITS_CHECK_MS = Number(process.env.AGENTRY_LIMITS_INTERVAL_MS ?? 10_000);
 const now = () => new Date().toISOString();
 
-const pendingCommand = (command: string): VerificationCommand => ({ command, status: 'pending', output: '', durationMs: 0 });
+const pendingCommand = (command: string, group?: number): VerificationCommand => ({
+  command,
+  ...(group !== undefined ? { group } : {}),
+  status: 'pending',
+  output: '',
+  durationMs: 0,
+});
+
+/** A spec's checks as the flat rows of its state, each one with the index of the entry it came from. */
+const checkRows = (spec: VerificationSpec): VerificationCommand[] =>
+  spec.commands.flatMap((entry, group) => (typeof entry === 'string' ? [pendingCommand(entry, group)] : entry.map((c) => pendingCommand(c, group))));
+
+/**
+ * The steps the checks run in, as indexes into the state's rows: the install step alone, then each
+ * entry of the spec, the commands of one parallel group together. Rows written before groups have
+ * none and are a step each.
+ */
+export function verificationSteps(rows: readonly VerificationCommand[]): number[][] {
+  const steps: number[][] = [];
+  rows.forEach((row, i) => {
+    const last = steps.at(-1);
+    const before = last === undefined ? undefined : rows[last[0] as number];
+    if (last && before && !row.install && !before.install && row.group !== undefined && row.group === before.group) last.push(i);
+    else steps.push([i]);
+  });
+  return steps;
+}
+
+/** The checks in the order they run, a parallel group as a list, for the fixer to read. */
+const commandsInOrder = (rows: readonly VerificationCommand[]): Array<string | string[]> =>
+  verificationSteps(rows).map((step) => {
+    const commands = step.map((i) => (rows[i] as VerificationCommand).command);
+    return commands.length === 1 ? (commands[0] as string) : commands;
+  });
 const usd = (n: number) => `$${n.toFixed(2)}`;
 
 /** What a stop reaches while a graph's checks are running. */
 interface VerificationControl {
   cancelled: boolean;
-  command: CommandHandle | null;
+  /** Every command running now: the install step alone, or all of a parallel group */
+  commands: Set<CommandHandle>;
   fixerRunId: string | null;
 }
 
@@ -1352,7 +1387,7 @@ ${quoted}
     const control = this.verifying.get(id);
     if (!control) return;
     control.cancelled = true;
-    control.command?.cancel();
+    for (const handle of control.commands) handle.cancel();
     if (control.fixerRunId && this.runs.get(control.fixerRunId)) this.runs.stop(control.fixerRunId);
   }
 
@@ -1398,7 +1433,7 @@ ${quoted}
         status: 'failed',
         attempts: 0,
         // Only a given install is known here: detecting one needs the worktree that is not there
-        commands: [...(typeof spec.install === 'string' ? [{ ...pendingCommand(spec.install), install: true }] : []), ...spec.commands.map(pendingCommand)],
+        commands: [...(typeof spec.install === 'string' ? [{ ...pendingCommand(spec.install), install: true }] : []), ...checkRows(spec)],
         commits: [],
         commit: null,
         report: `Not run: ${why}.`,
@@ -1411,14 +1446,14 @@ ${quoted}
     if (before && (before.status === 'passed' || before.status === 'fixed') && before.commit === integration.commit) return;
 
     const root = integration.worktree;
-    const control: VerificationControl = { cancelled: false, command: null, fixerRunId: null };
+    const control: VerificationControl = { cancelled: false, commands: new Set(), fixerRunId: null };
     this.verifying.set(orch.id, control);
     const startHead = headCommit(root);
     const install = installStep(spec, root, this.integratedDir(orch, root));
     const state: VerificationState = (orch.verification = {
       status: 'running',
       attempts: 0,
-      commands: [...(install ? [{ ...pendingCommand(install.command), install: true }] : []), ...spec.commands.map(pendingCommand)],
+      commands: [...(install ? [{ ...pendingCommand(install.command), install: true }] : []), ...checkRows(spec)],
       commits: [],
       commit: startHead,
       report: '',
@@ -1454,8 +1489,10 @@ ${quoted}
   ): Promise<void> {
     const minutes = spec.timeoutMinutes ?? DEFAULT_VERIFY_MINUTES;
     const dir = this.integratedDir(orch, root);
+    const steps = verificationSteps(state.commands);
     const spent = state.commands.map(() => 0);
-    const said = state.commands.map<string[]>(() => []);
+    // What each fixer attempt said, and which checks it was at: an attempt at a group is at each of them
+    const notes: { covers: ReadonlySet<number>; note: string }[] = [];
     const mended = new Set<number>();
     const conclude = (status: 'passed' | 'fixed' | 'failed', headline: string) => {
       state.status = status;
@@ -1463,36 +1500,55 @@ ${quoted}
       state.report = [headline, left.length ? `Not run: ${left.map((c) => `\`${c}\``).join(', ')}.` : ''].filter(Boolean).join(' ');
     };
 
-    let i = 0;
-    while (i < state.commands.length) {
-      const entry = state.commands[i] as VerificationCommand;
-      entry.status = 'running';
+    let s = 0;
+    while (s < steps.length) {
+      const step = steps[s] as number[];
+      for (const i of step) (state.commands[i] as VerificationCommand).status = 'running';
       this.persist();
-      const outcome = await runCommand(entry.command, entry.install && install ? install.cwd : dir, minutes * 60_000, (handle) => {
-        control.command = handle;
-      });
-      control.command = null;
-      entry.output = outcome.output;
-      entry.durationMs = outcome.durationMs;
+      // A group runs at once and is waited for whole, so every failure in it is known before the fixer starts
+      const outcomes = await Promise.all(
+        step.map(async (i) => {
+          const entry = state.commands[i] as VerificationCommand;
+          let handle: CommandHandle | null = null;
+          const outcome = await runCommand(entry.command, entry.install && install ? install.cwd : dir, minutes * 60_000, (h) => {
+            handle = h;
+            control.commands.add(h);
+            // A stop that came while its siblings were starting finds this one too
+            if (control.cancelled) h.cancel();
+          });
+          if (handle) control.commands.delete(handle);
+          entry.output = outcome.output;
+          entry.durationMs = outcome.durationMs;
+          if (!control.cancelled) entry.status = outcome.ok ? (mended.has(i) ? 'fixed' : 'passed') : 'failed';
+          this.persist();
+          return { i, outcome };
+        }),
+      );
       if (control.cancelled) {
-        entry.status = 'failed';
+        for (const { i, outcome } of outcomes) if (!outcome.ok) (state.commands[i] as VerificationCommand).status = 'failed';
         return conclude('failed', 'Stopped before the checks finished.');
       }
-      if (outcome.ok) {
-        entry.status = mended.has(i) ? 'fixed' : 'passed';
-        i += 1;
-        this.persist();
+      const failed = outcomes
+        .filter(({ outcome }) => !outcome.ok)
+        .map(({ i, outcome }) => ({
+          i,
+          outcome,
+          why: outcome.timedOut ? `timed out after ${String(minutes)} min and was killed` : `exited with code ${String(outcome.exitCode ?? 'unknown')}`,
+        }));
+      if (failed.length === 0) {
+        s += 1;
         continue;
       }
 
-      entry.status = 'failed';
-      const why = outcome.timedOut ? `timed out after ${String(minutes)} min and was killed` : `exited with code ${String(outcome.exitCode ?? 'unknown')}`;
-      if (!spec.fixer) return conclude('failed', `\`${entry.command}\` ${why}. The fixer is off, so nothing was changed.`);
-      if ((spent[i] ?? 0) >= spec.maxAttempts) {
-        const last = said[i]?.at(-1);
+      const named = failed.map((f) => `\`${(state.commands[f.i] as VerificationCommand).command}\` ${f.why}`).join('; ');
+      if (!spec.fixer) return conclude('failed', `${named}. The fixer is off, so nothing was changed.`);
+      const spentOut = failed.filter((f) => (spent[f.i] ?? 0) >= spec.maxAttempts);
+      if (spentOut.length) {
+        const last = notes.filter((n) => spentOut.some((f) => n.covers.has(f.i))).at(-1)?.note;
+        const times = Math.max(...spentOut.map((f) => spent[f.i] ?? 0));
         return conclude(
           'failed',
-          `\`${entry.command}\` ${why} again after ${String(spent[i])} fixer attempt${spent[i] === 1 ? '' : 's'}, so Agentry stopped there.` +
+          `${spentOut.map((f) => `\`${(state.commands[f.i] as VerificationCommand).command}\` ${f.why}`).join('; ')} again after ${String(times)} fixer attempt${times === 1 ? '' : 's'}, so Agentry stopped there.` +
             (last ? ` The last thing the fixer said: ${last}` : ''),
         );
       }
@@ -1501,28 +1557,43 @@ ${quoted}
       if (left !== null && left <= 0) {
         return conclude(
           'failed',
-          `\`${entry.command}\` ${why}, and the fixer's cost limit of ${usd(spec.maxCostUsd ?? 0)} is spent (${usd(state.costUsd)} over ${String(state.attempts)} attempt${state.attempts === 1 ? '' : 's'}), so Agentry stopped there.`,
+          `${named}, and the fixer's cost limit of ${usd(spec.maxCostUsd ?? 0)} is spent (${usd(state.costUsd)} over ${String(state.attempts)} attempt${state.attempts === 1 ? '' : 's'}), so Agentry stopped there.`,
         );
       }
-      spent[i] = (spent[i] ?? 0) + 1;
+      // One attempt for the whole group, counted against each check it is at
+      for (const f of failed) spent[f.i] = (spent[f.i] ?? 0) + 1;
       state.attempts += 1;
       this.persist();
-      const attempt = await this.fix(orch, spec, state, root, dir, i, why, said[i] ?? [], left, control);
-      said[i]?.push(attempt.note);
+      const covers = new Set(failed.map((f) => f.i));
+      const earlier = notes.filter((n) => [...covers].some((i) => n.covers.has(i))).map((n) => n.note);
+      const attempt = await this.fix(
+        orch,
+        spec,
+        state,
+        root,
+        dir,
+        failed.map((f) => ({ index: f.i, failure: f.why })),
+        [...new Set(failed.flatMap((f) => f.outcome.failedSpecs))].slice(0, MAX_FAILED_SPECS),
+        Math.max(...failed.map((f) => spent[f.i] ?? 0)),
+        earlier,
+        left,
+        control,
+      );
+      notes.push({ covers, note: attempt.note });
       state.commits = commitsSince(root, startHead);
       if (control.cancelled) return conclude('failed', 'Stopped before the checks finished.');
       if (attempt.budget) {
         const made = state.commits.length;
         return conclude(
           'failed',
-          `\`${entry.command}\` ${why}, and the fixer's cost limit of ${usd(spec.maxCostUsd ?? 0)} ran out during attempt ${String(state.attempts)} (${usd(state.costUsd)} spent), so Agentry stopped there without checking again.` +
+          `${named}, and the fixer's cost limit of ${usd(spec.maxCostUsd ?? 0)} ran out during attempt ${String(state.attempts)} (${usd(state.costUsd)} spent), so Agentry stopped there without checking again.` +
             (made ? ` What the fixer committed is on the branch, unchecked: ${state.commits.map((c) => c.subject).join('; ')}.` : ''),
         );
       }
-      mended.add(i);
+      for (const f of failed) mended.add(f.i);
       // A fix for one check can break another: they all run again, from the first
       for (const c of state.commands) c.status = 'pending';
-      i = 0;
+      s = 0;
     }
 
     if (mended.size === 0) return conclude('passed', `All ${String(state.commands.length)} checks passed on the merged branch.`);
@@ -1535,20 +1606,27 @@ ${quoted}
     );
   }
 
-  /** One attempt of the fixer at one failing check: what it reported, trimmed, and whether its cost limit ended it. */
+  /**
+   * One attempt of the fixer at the checks of one step that failed (one, or several of a parallel
+   * group): what it reported, trimmed, and whether its cost limit ended it.
+   */
   private async fix(
     orch: Orchestration,
     spec: VerificationSpec,
     state: VerificationState,
     root: string,
     dir: string,
-    index: number,
-    failure: string,
+    failures: { index: number; failure: string }[],
+    failedSpecs: string[],
+    attemptNumber: number,
     earlier: string[],
     budgetUsd: number | null,
     control: VerificationControl,
   ): Promise<{ note: string; budget: boolean }> {
-    const entry = state.commands[index] as VerificationCommand;
+    const checks = failures.map(({ index, failure }) => {
+      const entry = state.commands[index] as VerificationCommand;
+      return { command: entry.command, failure: `It ${failure}.`, output: entry.output };
+    });
     let note: string;
     let budget = false;
     try {
@@ -1558,11 +1636,10 @@ ${quoted}
             objective: orch.objective ?? orch.name,
             branch: orch.integration?.branch ?? '',
             worktree: root,
-            command: entry.command,
-            commands: state.commands.map((c) => c.command),
-            failure: `It ${failure}.`,
-            output: entry.output,
-            attempt: earlier.length + 1,
+            commands: commandsInOrder(state.commands),
+            failed: checks,
+            ...(failedSpecs.length ? { failedSpecs } : {}),
+            attempt: attemptNumber,
             maxAttempts: spec.maxAttempts,
             earlier,
             tasks: orch.tasks
@@ -1595,7 +1672,8 @@ ${quoted}
     control.fixerRunId = null;
     try {
       // Asked to commit, agents often do not: what is left would be lost to the pull request
-      commitAll(root, `chore: keep what the verification fixer left uncommitted\n\nOrchestration ${orch.name} (${orch.id.slice(0, 8)}), check \`${entry.command}\`.`);
+      const named = checks.map((c) => `\`${c.command}\``).join(', ');
+      commitAll(root, `chore: keep what the verification fixer left uncommitted\n\nOrchestration ${orch.name} (${orch.id.slice(0, 8)}), check${checks.length === 1 ? '' : 's'} ${named}.`);
     } catch {
       // the fixer left the tree in a state git will not commit; the re-run says whether it matters
     }
