@@ -729,7 +729,9 @@ how each was closed:
   opening their real chats, with failures worded in en and es. Real data could not show three
   states, which stay on their specs and tests: a failed run nobody retried yet ("Reintentar" and the
   board's failed strip, since every real failure had been retried), and a chat whose newest run
-  failed (the failure banner). Two findings wait as cards for a decision (below).
+  failed (the failure banner). Two findings wait as cards for a decision; neither card is filed, and
+  the owner has yet to accept that the check read a copy of the live data (below, "Waits for the
+  owner").
 - Left as the reference review left them: the phone's "⋯" on every card and the "Flujo automático"
   row, and the wider search field.
 
@@ -767,7 +769,7 @@ and two that had used their bounces. `model-aliases.json` held `opus → claude-
 | Board with the flow on (`MobileTableroEquipo`) | 390 light | Finding 1; otherwise matches |
 | Member, `/?view=team&member=developer` (`DesktopMiembro`) | 1440 dark, 1440 light | Matches: "opus" then "Opus 5.5" in Modelo |
 | Member (`MobileMiembro`) | 390 dark, 390 light | Matches: "opus · Opus 5.5" |
-| Work item's run links, `/tasks/CW-25`, `/tasks/CW-2` (`DesktopTarea`) | 1440 dark, 1440 light, es and en | Findings 2, 3 and 4 |
+| Work item's run links, `/tasks/CW-25`, `/tasks/CW-2` (`DesktopTarea`) | 1440 dark, 1440 light, es and en | Findings 2, 3, 4 and 6 |
 | Work item (`MobileTarea`) | 390 dark, 390 light | Matches; the links as in the desktop rows |
 | A failed run's chat, `/chats/d170a6e9…` (`DesktopChatFlujo`, `MobileChatFlujo`) | all four | Finding 5; row, header and side panel match |
 
@@ -802,19 +804,21 @@ The failures are worded from their `FlowRunCause`:
   rotación de cuentas está desactivada."
 - en: "No account had quota left…" and "The account reached its limit…".
 
-As decided, the raw error stays on the chat's banner: the e2e asserts the link leaves it out when a
-cause words it.
+Under the reason, the link now shows the raw error in mono (finding 6).
 
 | # | Finding | Kind | Fix or card |
 | --- | --- | --- | --- |
 | 1 | A sent-back card quotes QA's whole summary. On CW-4 it ran to about 1,100 characters and stretched the card to a page; the reference draws one sentence | Polish | `4889584b`: the quote keeps three lines (`-webkit-line-clamp`), and the whole of it is in the title and on the item. `board-live-verb.test.ts`, `team-screens.test.tsx` |
 | 2 | The item drew one link per chat, with its newest run. The Developer continues its own chat from run to run, so CW-25's two failures (`no-account`, `rate-limit`) and one of its passes, all in chat `d170a6`, were missing: 5 rows for 8 runs. This breaks "every flow run of the item is a link of its own" ([work-items.md](../work-items.md#a-work-item)) | Blocker | `459d511f`: `linkEntries` draws every run as its own row on its chat's link, newest first. `work-item-runs-ui.test.tsx` |
 | 3 | Until the item's runs answered, the flow's chat links showed as plain chats ("INACTIVO", no squircle) and then turned into run rows | Polish | `459d511f`: flow links wait for the runs. `work-item-runs-ui.test.tsx` |
-| 4 | work-items.md gives a failed run's link "Reintentar" while it can be retried, "or what the retry did". The app draws neither on the link, and `DesktopTarea` draws neither: only the chat's banner and Team activity offer the retry | Polish | Card to file (below): the owner decides whether the doc or the screen moves |
-| 5 | A failed run whose retry continued in the same chat has no failure banner in that chat. The banner reads the chat's newest run, which passed, so chat `d170a6` never says that two runs in it failed. `DesktopChatFlujo` draws the banner for a failed run's chat | Polish | Card to file (below): which failure the banner tells, and where in the transcript, is a design decision |
+| 4 | work-items.md gives a failed run's link "Reintentar" while it can be retried, "or what the retry did". The app draws neither on the link, and `DesktopTarea` draws neither: only the chat's banner and Team activity offer the retry | Polish | Card not filed yet, key pending (below): the owner decides whether the doc or the screen moves |
+| 5 | A failed run whose retry continued in the same chat has no failure banner in that chat. The banner reads the chat's newest run, which passed, so chat `d170a6` never says that two runs in it failed. `DesktopChatFlujo` draws the banner for a failed run's chat | Polish | Card not filed yet, key pending (below): which failure the banner tells, and where in the transcript, is a design decision |
+| 6 | A failed run's link hid the raw error whenever a cause worded it, and `tasks-item-runs.spec.mjs` asserted that. design-system.md ("Copy"), the ecosystem review ("Failure text"), work-items.md and team-and-flow.md all put the raw error in mono under the worded reason, and no decision made the link an exception (QA on CW-20) | Polish | `e4a16a7a`: the link shows the raw error under the reason, in mono (`.run-raw.mono`), still three lines at most. `work-item-runs-ui.test.tsx`, `tasks-item-runs.spec.mjs` |
 
 **Cards to file.** This chat could not create cards on the real board, for the same reason it could
-not read it: it has no API token. These go to Backlog as written here:
+not read it: it has no API token, and that was still true when QA sent the card back. A person, or a
+chat once CW-10 gives it a token, files these in Backlog as written here and puts their keys in
+findings 4 and 5:
 
 - *The item's run link offers "Reintentar", or says what the retry did.* Screen: work item, route
   `/tasks/<key>`, reference `DesktopTarea` / `MobileTarea`. work-items.md ("Links") says a failed
@@ -832,6 +836,14 @@ not read it: it has no API token. These go to Backlog as written here:
 - a failed run that can still be retried: "Reintentar" on the banner (`work-item-runs-ui.test.tsx`)
   and the board's failed strip with its worded reason (`board-card.test.tsx`);
 - a chat whose newest run failed, and so its banner (`tasks-item-runs.spec.mjs`).
+
+**Waits for the owner.** Two points of CW-20 cannot be closed from a chat without an API token:
+
+- The two cards above are not filed yet, so findings 4 and 5 have no key.
+- The captures came from a read-only copy of the desktop app's data, not from the live instance at
+  `AGENTRY_API_URL`, which the criterion names. Either the owner accepts the copy as evidence, or the
+  captures are redone on the live instance once CW-10 lands; the procedure is the same, without the
+  copy and the sandbox.
 
 `pnpm typecheck` and `pnpm test` pass, and `pnpm build` succeeds.
 
