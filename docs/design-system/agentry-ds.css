@@ -1231,6 +1231,17 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 .flow-log-sheet-option { display: flex; align-items: center; gap: 12px; min-height: var(--touch); padding: 0 4px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--fg); font: 15px var(--sans); text-align: left; cursor: pointer; }
 .flow-log-sheet-option:first-child { border-top: 0; }
 .flow-log-sheet-option[aria-selected="true"] { font-weight: 600; }
+/* The Flow screen's prompt after a save switched the flow on: the waiting cards per column, neutral
+   (nothing is live until the person starts them); a Dialog on a desktop, a bottom Sheet on a phone */
+.flow-waiting { display: flex; flex-direction: column; gap: 12px; }
+.flow-waiting-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--r); }
+.flow-waiting-row { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-top: 1px solid var(--line); font-size: 13px; }
+.flow-waiting-row:first-child { border-top: 0; }
+.flow-waiting-col, .flow-waiting-role { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.flow-waiting-col { flex: 0 0 132px; font-weight: 500; }
+.flow-waiting-role { flex: 1 1 auto; color: var(--fg-2); }
+.flow-waiting-count { flex-shrink: 0; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--fg-2); }
+.flow-waiting-sheet .sheet-actions .btn { min-height: var(--touch); justify-content: center; }
 /* The failed run's banner (.run-fail, the app's .chat-run-failed): its secondary action, quiet; a
    phone drops it, since the row above the banner already opens the item */
 .btn.chat-run-failed-quiet { border-color: transparent; background: transparent; }

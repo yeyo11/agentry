@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T19:20:00Z
-updated_at: 2026-09-28T19:20:00Z
+updated_at: 2026-09-28T23:30:00Z
 tags:
     - plan
     - flow
@@ -13,6 +13,8 @@ tags:
 
 Status: **proposed**, decided with the owner on 2026-09-28, right after the project ecosystem
 (#118) was merged. Two small changes found on the first real use of the flow.
+
+Section 1 is **built** (CW-9, [spec](flow-start-waiting.md)); section 2 is still proposed.
 
 ## 1. Switching the flow on offers to start the cards already waiting
 

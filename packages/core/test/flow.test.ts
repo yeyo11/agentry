@@ -1257,3 +1257,106 @@ test('a run ended before causes were kept reads its cause from its error, after 
   });
   assert.equal(s.flow.run('budget')?.retryOf, null);
 });
+
+// ---------- the cards waiting when the flow is switched on ----------
+
+/** The flow's settings changed as a save does: the flow hears `project.updated` with `settings`. */
+function setFlow(s: Setup, flow: Partial<NonNullable<ProjectSettings['flow']>>) {
+  s.state.settings = { ...s.state.settings, flow: { ...s.state.settings.flow!, ...flow } };
+  s.bus.emit({ type: 'project.updated', title: '', projectId: 'p1', projectName: 'p', changes: ['settings'], modules: s.state.settings.modules });
+}
+
+function flowOff(flow: Partial<NonNullable<ProjectSettings['flow']>> = {}): ProjectSettings {
+  const settings = settingsWith();
+  return { ...settings, flow: { ...settings.flow!, enabled: false, ...flow } };
+}
+
+async function card(s: Setup, status: WorkItemStatus, title: string, type: 'task' | 'epic' = 'task') {
+  const created = s.items.create('p1', { title, status, type });
+  await s.flow.settled();
+  return created;
+}
+
+test('switching the flow on starts nothing, and counts the waiting cards per column, leaving out epics, done and columns nobody answers for', async () => {
+  const s = setup({ settings: flowOff({ columns: { backlog: 'product-owner', todo: 'product-owner', in_progress: 'developer', in_review: 'architect' } }) });
+  await card(s, 'backlog', 'One');
+  await card(s, 'backlog', 'Two');
+  await card(s, 'backlog', 'The epic', 'epic');
+  await card(s, 'in_progress', 'Three');
+  // No member plays the architect: in review waits for nobody
+  await card(s, 'in_review', 'Four');
+  await card(s, 'done', 'Five');
+  assert.deepEqual(s.flow.waiting('p1'), { total: 0, columns: [] }, 'nothing waits for a flow that is off');
+
+  setFlow(s, { enabled: true });
+  await s.flow.settled();
+  assert.equal(s.launches.length, 0, 'switching it on is not a card entering a column');
+  assert.deepEqual(s.flow.waiting('p1'), {
+    total: 3,
+    columns: [
+      { column: 'backlog', role: 'product-owner', count: 2 },
+      { column: 'in_progress', role: 'developer', count: 1 },
+    ],
+  });
+
+  s.setModules(['board', 'memory']);
+  assert.deepEqual(s.flow.waiting('p1'), { total: 0, columns: [] }, 'nothing waits with the Team module off');
+  assert.equal(s.flow.waiting('p2').total, 0, 'nor in a project the flow does not know');
+});
+
+test('starting the waiting cards queues one run each as a person, in board order then rank, and says how many start now', async () => {
+  const s = setup({ settings: flowOff({ maxParallel: 2 }) });
+  const working = await card(s, 'in_progress', 'Working');
+  const first = await card(s, 'backlog', 'First');
+  const second = await card(s, 'backlog', 'Second');
+  const ready = await card(s, 'todo', 'Ready');
+  // The person put Second above First on the board
+  s.items.move(second.id, { status: 'backlog', afterId: null }, person);
+  await card(s, 'backlog', 'The epic', 'epic');
+  setFlow(s, { enabled: true });
+  await s.flow.settled();
+
+  assert.deepEqual(s.flow.startWaiting('p1'), { queued: 4, startingNow: 2, waiting: 2 });
+  await s.flow.settled();
+  assert.deepEqual(running(s).map((r) => r.itemId), [second.id, first.id]);
+  assert.deepEqual(queued(s).map((r) => r.itemId), [ready.id, working.id]);
+  assert.ok(flowRuns(s).every((r) => r.queuedBy === 'person'));
+  assert.deepEqual(running(s).map((r) => r.stage), ['refine', 'refine']);
+  const announced = s.events.filter((e) => e.type === 'flow.run' && e.action === 'queued');
+  assert.equal(announced.length, 4);
+  assert.ok(announced.every((e) => e.type === 'flow.run' && e.queuedBy === 'person'));
+
+  // A second click, or a second tab, finds nothing left to start
+  assert.deepEqual(s.flow.startWaiting('p1'), { queued: 0, startingNow: 0, waiting: 0 });
+  assert.equal(flowRuns(s).length, 4);
+  assert.equal(s.flow.waiting('p1').total, 0);
+});
+
+test('a card with a run going and a todo card refined and unchanged since do not wait; the runs going hold places back', async () => {
+  const s = setup({ settings: refineOnly() });
+  const done = await refined(s, 'Refined');
+  const busy = await card(s, 'backlog', 'Busy');
+  const idle = await card(s, 'in_progress', 'Idle');
+  assert.equal(running(s).length, 1);
+  // The developer joins the flow: the card already in progress waits, the others do not
+  setFlow(s, { columns: { ...refineOnly().flow!.columns, in_progress: 'developer' } });
+  await s.flow.settled();
+  assert.deepEqual(s.flow.waiting('p1').columns, [{ column: 'in_progress', role: 'developer', count: 1 }]);
+
+  // A person commenting on the refined card is something to check again
+  s.items.comment(done.id, { body: 'Also keep the coupon' }, person);
+  assert.deepEqual(s.flow.waiting('p1').columns.map((c) => [c.column, c.count]), [['todo', 1], ['in_progress', 1]]);
+
+  assert.deepEqual(s.flow.startWaiting('p1'), { queued: 2, startingNow: 1, waiting: 1 }, 'one of the two places is taken');
+  await s.flow.settled();
+  assert.deepEqual(running(s).map((r) => r.itemId).sort(), [busy.id, done.id].sort());
+  assert.deepEqual(queued(s).map((r) => r.itemId), [idle.id]);
+  assert.equal(flowRuns(s).find((r) => r.itemId === busy.id)?.queuedBy, null, "a card's entry is not a person's start");
+});
+
+test('starting the waiting cards is refused while the flow is off', async () => {
+  const s = setup({ settings: flowOff() });
+  await card(s, 'backlog', 'One');
+  assert.throws(() => s.flow.startWaiting('p1'), (err: unknown) => err instanceof FlowError && err.statusCode === 409);
+  assert.equal(flowRuns(s).length, 0);
+});

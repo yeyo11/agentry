@@ -1890,6 +1890,12 @@ export interface FlowRun {
   /** The failed run a person retried with this one (`POST /flow-runs/:runId/retry`); null for a run a card entering its column started */
   retryOf: string | null;
   /**
+   * Who queued it when it was not a card entering its column: `person` for a run a person started
+   * from the Flow screen's "start the waiting cards" (`POST /projects/:id/flow/start-waiting`). Null
+   * for a run a card's entry queued, and for a retry, which `retryOf` names.
+   */
+  queuedBy: FlowRunQueuedBy | null;
+  /**
    * On a run that did not pass, the next run of the same step on the item, whatever started it (a
    * retry or the card entering the column again): what the person's retry, or the flow, did next.
    * Null until there is one.
@@ -1912,6 +1918,39 @@ export interface FlowRun {
   queuedAt: string;
   startedAt: string | null;
   endedAt: string | null;
+}
+
+/** Who queued a flow run by hand, when a card entering its column did not. */
+export type FlowRunQueuedBy = 'person';
+
+/** One column of {@link FlowWaiting}: how many of its cards wait, and the role that answers for it. */
+export interface FlowWaitingColumn {
+  column: WorkItemStatus;
+  /** The team role that answers for the column, matching {@link ProjectTeamRole.role} */
+  role: string;
+  count: number;
+}
+
+/**
+ * `GET /projects/:id/flow/waiting`: the cards a flow switched on would not start by itself. A card
+ * waits when it is not an epic nor done, its column has a role with a member playing it, it has no
+ * run queued or running, and, in todo, it was not refined and left unchanged since.
+ */
+export interface FlowWaiting {
+  /** 0 while the flow, the Team module or the Board module is off */
+  total: number;
+  /** In board order; only the columns with at least one waiting card */
+  columns: FlowWaitingColumn[];
+}
+
+/** `POST /projects/:id/flow/start-waiting`: what queuing the waiting cards did. */
+export interface FlowStartWaitingResult {
+  /** Runs queued, one per waiting card */
+  queued: number;
+  /** Of those, how many the project's `maxParallel` lets start now: `min(queued, maxParallel − running)` */
+  startingNow: number;
+  /** `queued − startingNow`: they start as places come free */
+  waiting: number;
 }
 
 /** `GET /projects/:id/flow`: what the flow is doing in a project now. */
@@ -4492,6 +4531,8 @@ export interface FlowRunEvent extends AgentryEventBase, WorkItemEventRef {
   cause: FlowRunCause | null;
   /** The failed run this one retries, when a person retried it */
   retryOf: string | null;
+  /** `person` when a person queued it from the waiting cards; null otherwise */
+  queuedBy: FlowRunQueuedBy | null;
 }
 
 /**

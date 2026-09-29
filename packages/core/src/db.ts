@@ -445,6 +445,9 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // English error stays beside it), and the failed run a person's retry queued it for
   `ALTER TABLE flow_runs ADD COLUMN cause TEXT;
    ALTER TABLE flow_runs ADD COLUMN retry_of TEXT;`,
+  // Who queued a flow run by hand: a person starting the cards that waited when the flow was
+  // switched on. Null for a run a card entering its column queued
+  `ALTER TABLE flow_runs ADD COLUMN queued_by TEXT;`,
 ];
 
 /**

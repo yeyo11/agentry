@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@agentry/core';
-import type { FlowRun, FlowRunPage, MemoryProposal, Project, ProjectFlow, ProjectSettings, Team, WorkItem, WorkItemDetail } from '@agentry/shared';
+import type { FlowRun, FlowRunPage, FlowStartWaitingResult, FlowWaiting, MemoryProposal, Project, ProjectFlow, ProjectSettings, Team, WorkItem, WorkItemDetail } from '@agentry/shared';
 import { buildApp } from '../src/app.ts';
 
 // The flow by column over HTTP and a real core, with the fake CLI standing in for Claude: it answers
@@ -289,4 +289,39 @@ test('with the flow switched off, a card entering a column starts nothing', asyn
   await sleep(300);
   assert.equal(argvs().length, before);
   assert.deepEqual((await flowOf()).queued, []);
+});
+
+test('switching the flow on starts nothing until a person starts the waiting cards, once each, as a person', async () => {
+  await settings((s) => ({ ...s, flow: { ...s.flow!, enabled: false } }));
+  const waitingOf = async () => (await app.inject(`/api/projects/${project.id}/flow/waiting`)).json<FlowWaiting>();
+  const start = () => app.inject({ method: 'POST', url: `/api/projects/${project.id}/flow/start-waiting` });
+  assert.equal((await app.inject('/api/projects/nope/flow/waiting')).statusCode, 404);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/projects/nope/flow/start-waiting' })).statusCode, 404);
+  assert.deepEqual(await waitingOf(), { total: 0, columns: [] }, 'nothing waits for a flow that is off');
+  assert.equal((await start()).statusCode, 409);
+
+  // Earlier tests' cards go to done, so only this test's cards wait
+  for (const card of (await app.inject(`/api/projects/${project.id}/work-items`)).json<WorkItem[]>()) {
+    const moved = await app.inject({ method: 'POST', url: `/api/work-items/${card.id}/move`, ...json({ status: 'done' }) });
+    assert.equal(moved.statusCode, 200, moved.body);
+  }
+  for (const title of ['First', 'Second']) {
+    const res = await app.inject({ method: 'POST', url: `/api/projects/${project.id}/work-items`, ...json({ title, status: 'in_progress', description: 'FAKE-HANG' }) });
+    assert.equal(res.statusCode, 201, res.body);
+  }
+  await settings((s) => ({ ...s, flow: { ...s.flow!, enabled: true, maxParallel: 1 } }));
+  await sleep(200);
+  assert.deepEqual([(await flowOf()).running, (await flowOf()).queued], [[], []], 'switching it on alone starts nothing');
+  assert.deepEqual(await waitingOf(), { total: 2, columns: [{ column: 'in_progress', role: 'developer', count: 2 }] });
+
+  const first = await start();
+  assert.equal(first.statusCode, 200, first.body);
+  assert.deepEqual(first.json<FlowStartWaitingResult>(), { queued: 2, startingNow: 1, waiting: 1 });
+  assert.deepEqual((await start()).json<FlowStartWaitingResult>(), { queued: 0, startingNow: 0, waiting: 0 }, 'a second click queues nothing');
+  const flow = await until(flowOf, (f) => f.running.length === 1, 'the first card to start');
+  assert.deepEqual(flow.running.map((r) => [r.item?.title, r.queuedBy]), [['First', 'person']]);
+  assert.deepEqual(flow.queued.map((r) => [r.item?.title, r.queuedBy]), [['Second', 'person']]);
+  assert.equal((await waitingOf()).total, 0);
+
+  await settings((s) => ({ ...s, flow: { ...s.flow!, enabled: false } }));
 });

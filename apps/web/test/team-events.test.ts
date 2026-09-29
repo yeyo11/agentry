@@ -107,6 +107,7 @@ test('a flow run starting refreshes who works on what, and the card it makes liv
     step: 'work',
     cause: null,
     retryOf: null,
+    queuedBy: null,
     chatId: 'c1',
     outcome: null,
   };
@@ -143,6 +144,7 @@ test("a member's live line follows its chat's activity, without a refetch", () =
     error: null,
     cause: null,
     retryOf: null,
+    queuedBy: null,
     retriedBy: null,
     retryable: false,
     restarts: 0,
@@ -195,6 +197,7 @@ test("a flow run or a chat moving reads its item again, but not the git diff of 
     step: 'work',
     cause: null,
     retryOf: null,
+    queuedBy: null,
     chatId: null,
     outcome: null,
   };

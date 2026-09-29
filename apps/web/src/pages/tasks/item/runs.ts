@@ -91,11 +91,13 @@ export function commentRun<R extends Pick<FlowRun, 'chatId'>>(comment: Pick<Work
 }
 
 /**
- * A person's retries as entries of the item's history: the core writes none, and the page says
- * "Verification retried · yeyo · QA started chat 7c2e01" at the moment it was queued. Oldest first.
+ * The runs a person started rather than a card's entry, as entries of the item's history: a retry
+ * ("Verification retried · yeyo · QA started chat 7c2e01") and a waiting card the person started
+ * when switching the flow on ("Refinement started · yeyo · …"). The core writes no history for
+ * either, so the page says it at the moment the run was queued. Oldest first.
  */
-export function retriesOf<R extends Pick<FlowRun, 'retryOf' | 'queuedAt'>>(runs: readonly R[]): R[] {
-  return runs.filter((run) => run.retryOf !== null).sort((a, b) => a.queuedAt.localeCompare(b.queuedAt));
+export function retriesOf<R extends Pick<FlowRun, 'retryOf' | 'queuedAt'> & Partial<Pick<FlowRun, 'queuedBy'>>>(runs: readonly R[]): R[] {
+  return runs.filter((run) => run.retryOf !== null || run.queuedBy === 'person').sort((a, b) => a.queuedAt.localeCompare(b.queuedAt));
 }
 
 /**

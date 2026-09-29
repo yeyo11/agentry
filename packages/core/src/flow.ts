@@ -14,6 +14,7 @@ import {
   flowStepOf,
   isTeamCommandPattern,
   MAX_FLOW_RESTARTS,
+  WORK_ITEM_STATUSES,
   type AgentryEvent,
   type AgentryLanguage,
   type ChatActivity,
@@ -28,11 +29,15 @@ import {
   type FlowRunPage,
   type FlowRunQuery,
   type FlowRunRef,
+  type FlowRunQueuedBy,
   type FlowRunState,
   type FlowRunStatus,
   type FlowStage,
+  type FlowStartWaitingResult,
   type FlowStep,
   type FlowVerdict,
+  type FlowWaiting,
+  type FlowWaitingColumn,
   type MemoryProposalTargetKind,
   type PermissionMode,
   type ProjectFlow,
@@ -61,7 +66,9 @@ import type { WorkItemService } from './work-items.ts';
  *
  * It starts paid agent runs on its own, so what it will not do matters as much as what it does:
  *
- * - Only a person's move, a new card, or the flow's own move starts a run. An item
+ * - Only a person's move, a new card, or the flow's own move starts a run, and a person's explicit
+ *   "start the waiting cards" after switching the flow on (`startWaiting`): switching it on alone
+ *   starts nothing. An item
  *   moved by a chat or an orchestration linked to it (the work-links automation) is already being
  *   worked on, and a run there would compete with it.
  * - At most `flow.maxParallel` runs of a project at once, one at a time per item, and one queued per
@@ -268,6 +275,8 @@ interface RunRow {
   language: string | null;
   cause: string | null;
   retry_of: string | null;
+  /** Null on a run a card's entry queued, and on every run stored before it was kept */
+  queued_by: string | null;
 }
 
 /** The structured result, read defensively: the CLI checks it against the schema, but a result can still be anything. */
@@ -714,6 +723,82 @@ export class FlowService {
     const role = project.settings.flow?.columns[row.column_name as WorkItemStatus];
     if (!role || !memberOf(project.settings, role)) return 'nobody on the team answers for the column now';
     return null;
+  }
+
+  // ---------- the cards waiting when the flow is switched on ----------
+
+  /**
+   * `GET /projects/:id/flow/waiting`: the cards that would start if they entered their column now.
+   * Switching the flow on is not an entry, so without a person's say they never start; the count is
+   * what the Flow screen asks that person about.
+   */
+  waiting(projectId: string): FlowWaiting {
+    const project = this.deps.project(projectId);
+    if (!project || !active(project.settings)) return { total: 0, columns: [] };
+    const columns: FlowWaitingColumn[] = [];
+    for (const card of this.waitingCards(projectId, project.settings)) {
+      const last = columns[columns.length - 1];
+      if (last && last.column === card.column) last.count += 1;
+      else columns.push({ column: card.column, role: card.member.role, count: 1 });
+    }
+    return { total: columns.reduce((n, c) => n + c.count, 0), columns };
+  }
+
+  /**
+   * `POST /projects/:id/flow/start-waiting`: queues one run per waiting card, as if each had just
+   * entered its column, in board order (columns left to right, then by rank), so the queue starts
+   * them top card first. A person's doing (`queued_by = 'person'`), never the flow's on its own.
+   *
+   * The waiting test runs again inside the write transaction: two clicks, or two tabs, would
+   * otherwise both see the same cards and queue each twice.
+   */
+  startWaiting(projectId: string): FlowStartWaitingResult {
+    const project = this.deps.project(projectId);
+    if (!project || !active(project.settings)) throw new FlowError('the flow is off', 409);
+    const settings = project.settings;
+    const now = new Date().toISOString();
+    const language = this.deps.language?.() ?? 'en';
+    const queuedBy: FlowRunQueuedBy = 'person';
+    const ids: string[] = [];
+    let running = 0;
+    this.write(() => {
+      running = (this.sql.prepare("SELECT COUNT(*) AS n FROM flow_runs WHERE project_id = ? AND state = 'running'").get(projectId) as { n: number }).n;
+      const insert = this.sql.prepare(
+        `INSERT INTO flow_runs (id, project_id, item_id, role, agent, model, stage, column_name, state, queued_at, language, queued_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)`,
+      );
+      for (const { item, column, stage, member } of this.waitingCards(projectId, settings)) {
+        const id = randomUUID();
+        insert.run(id, projectId, item.id, member.role, member.agent, member.model, stage, column, now, language, queuedBy);
+        ids.push(id);
+      }
+    });
+    for (const id of ids) this.announce(id, 'queued');
+    if (ids.length) this.dispatch();
+    const queued = ids.length;
+    const startingNow = Math.max(0, Math.min(queued, maxParallel(settings) - running));
+    return { queued, startingNow, waiting: queued - startingNow };
+  }
+
+  /** The waiting cards of a project whose flow is on, in board order; see {@link FlowWaiting} for the test. */
+  private waitingCards(projectId: string, settings: ProjectSettings): Array<{ item: WorkItem; column: WorkItemStatus; stage: FlowStage; member: ProjectTeamMember }> {
+    const busy = new Set(
+      (this.sql.prepare("SELECT item_id FROM flow_runs WHERE project_id = ? AND state IN ('queued', 'running')").all(projectId) as Array<{ item_id: string }>).map((r) => r.item_id),
+    );
+    const cards: Array<{ item: WorkItem; column: WorkItemStatus; stage: FlowStage; member: ProjectTeamMember }> = [];
+    for (const column of WORK_ITEM_STATUSES) {
+      const stage = FLOW_STAGE_OF_COLUMN[column];
+      const role = settings.flow?.columns[column];
+      const member = role ? memberOf(settings, role) : null;
+      if (!stage || !member) continue;
+      // `list` answers board order, so one column's items come by rank, the top card first
+      for (const item of this.deps.items.list({ projectId, status: [column] })) {
+        if (item.type === 'epic' || busy.has(item.id)) continue;
+        if (this.refinedAlready(item, column, member.role)) continue;
+        cards.push({ item, column, stage, member });
+      }
+    }
+    return cards;
   }
 
   // ---------- what starts it ----------
@@ -1326,6 +1411,7 @@ export class FlowService {
       error: row.error,
       cause: state === 'ended' ? causeOf(row, outcome) : null,
       retryOf: row.retry_of ?? null,
+      queuedBy: row.queued_by === 'person' ? 'person' : null,
       retriedBy: next ? refOf(next) : null,
       retryable: failed && this.retryRefusal(row, item, next) === null,
       restarts: row.restarts ?? 0,
@@ -1363,6 +1449,7 @@ export class FlowService {
         outcome: run.outcome,
         cause: run.cause,
         retryOf: run.retryOf,
+        queuedBy: run.queuedBy,
       });
     } catch {
       // the row is written; a broken listener must not undo the run
