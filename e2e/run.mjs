@@ -14,20 +14,27 @@
 // Agentry's own release check never reaches GitHub: AGENTRY_RELEASES_URL points at a fixture served
 // here, whose tag a spec sets through `releases.set(tag)`. The daily check is off, so only a spec
 // that presses Check for updates (or posts /system/release/check) learns of a release.
+// Shards: E2E_SHARD=k/N runs only shard k of N (1-based) in this process, which is what each CI
+// matrix job does. E2E_SHARDS=N runs all N at once as children, each with its own sandbox, port and
+// Chrome, and prints one report in the order a single run would (default: one shard per two cores,
+// at most 4, never more than there are groups; E2E_PORT, when set, is the first of N ports). The
+// split is greedy longest-first over e2e/timings.json (seconds per spec, checked in so every CI job
+// computes the same split; a spec missing from it weighs the median), and every fakeCli spec stays
+// in one shard, behind one restart of its server. See e2e/shards.mjs.
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { tmpdir } from 'node:os';
+import { availableParallelism, tmpdir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launch } from './driver.mjs';
+import { runShards } from './parallel.mjs';
 import { killGroup } from './processes.mjs';
+import { defaultShardCount, groupSpecs, loadTimings, parseCount, parseShard, splitSpecs } from './shards.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
-const PORT = Number(process.env.E2E_PORT ?? 8799);
-const baseUrl = `http://127.0.0.1:${PORT}`;
 const live = process.env.E2E_LIVE === '1';
 // A run that hangs holds a browser and a server: both have a limit, and both are closed on the way out
 function envMs(name, fallback) {
@@ -47,6 +54,52 @@ if (!existsSync(join(root, 'apps/web/dist/index.html'))) {
   console.error('apps/web/dist is missing: run `pnpm build` first.');
   process.exit(2);
 }
+
+const wanted = process.argv.slice(2);
+const allSpecs = readdirSync(specsDir)
+  .filter((f) => f.endsWith('.spec.mjs'))
+  .filter((f) => wanted.length === 0 || wanted.some((w) => f.startsWith(w)))
+  .sort();
+// Loaded up front, to know which want the fake CLI: those run last, behind one restart of the server,
+// and they are the one group the split keeps together
+const allLoaded = [];
+for (const file of allSpecs) {
+  try {
+    allLoaded.push({ file, spec: await import(join(specsDir, file)) });
+  } catch (error) {
+    allLoaded.push({ file, error });
+  }
+}
+const wantsFake = (entry) => entry.spec?.fakeCli === true;
+const entries = allLoaded.map((e) => ({ file: e.file, fake: wantsFake(e) }));
+const timings = loadTimings(resolve(specsDir, '..', 'timings.json'));
+
+const shardText = process.env.E2E_SHARD;
+const shard = shardText ? parseShard(shardText) : null;
+if (shardText && !shard) {
+  console.error(`E2E_SHARD must be k/N with 1 ≤ k ≤ N, got "${shardText}"`);
+  process.exit(2);
+}
+const countText = process.env.E2E_SHARDS;
+if (!shard && countText && !parseCount(countText)) {
+  console.error(`E2E_SHARDS must be a whole number of 1 or more, got "${countText}"`);
+  process.exit(2);
+}
+if (!shard) {
+  const groups = groupSpecs(entries, timings).length;
+  const count = Math.max(1, Math.min(countText ? Number(countText) : defaultShardCount(availableParallelism(), groups), groups));
+  if (count > 1) {
+    const order = [...entries.filter((e) => !e.fake), ...entries.filter((e) => e.fake)].map((e) => e.file);
+    const basePort = process.env.E2E_PORT ? Number(process.env.E2E_PORT) : undefined;
+    process.exit(await runShards({ runner: fileURLToPath(import.meta.url), args: wanted, shards: splitSpecs(entries, timings, count), order, basePort, runLimitMs: RUN_LIMIT_MS }));
+  }
+}
+const mine = shard ? new Set(splitSpecs(entries, timings, shard.count)[shard.index - 1]?.files) : null;
+const specs = mine ? allSpecs.filter((f) => mine.has(f)) : allSpecs;
+const loaded = mine ? allLoaded.filter((e) => mine.has(e.file)) : allLoaded;
+
+const PORT = Number(process.env.E2E_PORT || 8799);
+const baseUrl = `http://127.0.0.1:${PORT}`;
 
 // GitHub's latest-release shape, reduced to the fields the check reads
 const releases = {
@@ -184,26 +237,12 @@ function check(condition, message) {
   if (!condition) throw new Error(`assertion failed: ${message}`);
 }
 
-const wanted = process.argv.slice(2);
-const specs = readdirSync(specsDir)
-  .filter((f) => f.endsWith('.spec.mjs'))
-  .filter((f) => wanted.length === 0 || wanted.some((w) => f.startsWith(w)))
-  .sort();
-// Loaded up front, to know which want the fake CLI: those run last, behind one restart of the server
-const loaded = [];
-for (const file of specs) {
-  try {
-    loaded.push({ file, spec: await import(join(specsDir, file)) });
-  } catch (error) {
-    loaded.push({ file, error });
-  }
-}
-const wantsFake = (entry) => entry.spec?.fakeCli === true;
 const ordered = [...loaded.filter((e) => !wantsFake(e)), ...loaded.filter(wantsFake)];
 const firstToRun = ordered.find((e) => !(e.spec?.live && !live));
 startServer(firstToRun && wantsFake(firstToRun) ? 'fake' : 'real');
 
 let failed = 0;
+const failedFiles = [];
 let browser;
 try {
   await waitForServer();
@@ -212,6 +251,7 @@ try {
   for (const { file, spec, error } of ordered) {
     if (error) {
       failed++;
+      failedFiles.push(file);
       console.log(`✗ ${file}\n  could not be loaded: ${error.message}`);
       continue;
     }
@@ -239,6 +279,7 @@ try {
       console.log(`✓ ${file} (${((Date.now() - started) / 1000).toFixed(1)}s)`);
     } catch (error) {
       failed++;
+      failedFiles.push(file);
       console.log(`✗ ${file}\n  ${error.message.replaceAll('\n', '\n  ')}`);
       await browser.page.shot(`FAILED-${file}`).catch(() => {});
       // A spec that timed out is still running in the background: the browser is not safe to reuse
@@ -255,5 +296,7 @@ try {
   // The 'exit' handlers would do it too; closing here keeps the browser from lingering while the summary prints
   browser?.close();
 }
-console.log(failed ? `\n${failed} spec(s) failed` : `\nall ${specs.length} spec file(s) passed`);
+// The failed files come last, so the tail of the output (all a fixer may be shown) names them
+if (failedFiles.length) console.log(`\nfailed:\n${failedFiles.map((f) => `✗ ${f}`).join('\n')}`);
+console.log(failed ? `${failedFiles.length ? '' : '\n'}${failed} spec(s) failed` : `\nall ${specs.length} spec file(s) passed`);
 process.exit(failed ? 1 : 0);

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-09-28T20:00:00Z
+updated_at: 2026-09-29T12:00:00Z
 tags:
     - design-system
     - web
@@ -688,7 +688,7 @@ the file being edited is its only moving part.
 5. On a 390 px phone: touch targets are ≥ 44 px, inputs use 16 px text, and nothing scrolls
    sideways.
 6. Icon-only buttons have an `aria-label`, interactive elements are real `<button>` or `<a>`, focus
-   is visible, and `a11y.spec.mjs` stays green.
+   is visible, and the `a11y-*.spec.mjs` specs stay green.
 7. An empty, error or install state uses `Empty` with the matching illustration (§4), and uses at
    most one illustration per screen.
 8. A new variant or illustration is added to this document and to `agentry-ds.css` in the same PR.

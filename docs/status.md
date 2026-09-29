@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-09-28T22:45:00Z
+updated_at: 2026-09-29T12:00:00Z
 tags:
     - status
     - project-state
@@ -23,8 +23,8 @@ change gets in.
 | Runtime | Node >= 22, pnpm workspace |
 | Source | 703 tracked `.ts`/`.tsx` files on `main`; the API contract is 4,630 lines of `packages/shared/src/types.ts` |
 | REST | 24 route files, documented as OpenAPI 3.1 and served at `/docs` |
-| Tests | 188 unit and integration test files, plus 55 browser specs under `e2e/specs/` |
-| CI | `ci.yml` (typecheck, tests, advisories, OpenAPI drift, e2e, image smoke test), `desktop.yml`, `image.yml`, `release.yml` |
+| Tests | 188 unit and integration test files, plus 58 browser specs under `e2e/specs/` |
+| CI | `ci.yml` (a `checks` job: advisories, OpenAPI drift, typecheck, tests, build; four `e2e (k/4)` shards, skipped on docs-only pull requests; the `test` gate; the image smoke test), `desktop.yml`, `image.yml`, `release.yml` |
 
 The shape is unchanged: `packages/shared` holds the types every other package imports,
 `packages/core` drives the CLI and owns the store, `apps/api` serves Fastify over it, `apps/web` is
@@ -155,7 +155,10 @@ changes only documents and version numbers, so the results hold for the same cod
 
 The older run on `main` (`d6269c4`), with three specs that failed in the full suite and passed alone,
 is in [Before launching](plans/redesign-night-shift.md#before-launching). The browser suite runs headless Chrome over CDP against an isolated
-wrapper, with a time limit per spec and per run so it cannot hang. CI runs all of it on every pull request, and additionally fails
+wrapper, with a time limit per spec and per run so it cannot hang, split into shards that run side by
+side (`E2E_SHARDS`, [plans/verify-faster.md](plans/verify-faster.md#what-1-built)). CI runs all of it on
+every pull request, the e2e suite as four parallel shards, which it skips when a pull request changes
+only documentation ([plans/ci-e2e-shards.md](plans/ci-e2e-shards.md#what-was-built)), and additionally fails
 on a high-severity advisory in the dependency tree or on OpenAPI schemas that have drifted from the
 shared types — after changing `packages/shared/src/types.ts`, run
 `pnpm --filter @agentry/api openapi:schemas`.
