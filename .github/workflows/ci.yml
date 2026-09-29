@@ -25,11 +25,52 @@ env:
   GENERATED_RELEASE_PR: ${{ startsWith(github.head_ref, 'release-please--') }}
 
 jobs:
-  test:
+  # Which jobs a change needs. A pull request that touches only documentation (docs/, or Markdown
+  # anywhere) cannot change what the browser sees, so it skips the e2e shards and still gets its
+  # `test` check; the checks job runs anyway, since tests read the README and the docs. Anything
+  # that is not a pull request (the daily run, a manual one) runs everything, and release-please
+  # pull requests skip the e2e shards as they always have.
+  changes:
     runs-on: ubuntu-latest
-    # The e2e suite has grown with the app: the job took 7.5 of its 10 minutes on #62. About 2.5x
-    # that, rounded up to 5 minutes, so a slow runner does not fail a run that was going to pass
-    timeout-minutes: 20
+    timeout-minutes: 5
+    outputs:
+      e2e: ${{ steps.decide.outputs.e2e }}
+    steps:
+      # A pull request is checked out as its merge into main: the first parent is main, so the diff
+      # against it is exactly what the pull request changes, and two commits of history suffice
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$GENERATED_RELEASE_PR" = true ]; then
+            echo "release-please pull request: no e2e"
+            echo "e2e=false" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT" != pull_request ]; then
+            echo "$EVENT: everything runs"
+            echo "e2e=true" >> "$GITHUB_OUTPUT"
+          else
+            # No history to compare with (it should not happen) runs everything rather than nothing
+            files=$(git diff --name-only HEAD^1 HEAD || true)
+            printf 'changed:\n%s\n' "$files"
+            code=$(printf '%s\n' "$files" | grep -vE '^docs/|\.md$' | grep -v '^$' || true)
+            if [ -n "$files" ] && [ -z "$code" ]; then
+              echo "documentation only: no e2e"
+              echo "e2e=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "e2e=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+  checks:
+    runs-on: ubuntu-latest
+    # Install, audit, typecheck, the unit tests, a build and the harness's own test take about 4
+    # minutes. About 2.5x that, rounded up to 5 minutes, so a slow runner does not fail a run that
+    # was going to pass
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
@@ -57,12 +98,44 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+      # The e2e runner's own tests: the split without a browser, then the real runner over probe
+      # specs (limits, signals, shards, no survivors). They sit here rather than in a shard because
+      # this job has minutes to spare while the shards are the ones everybody waits for
+      - name: The e2e runner and its shards
+        run: node --test e2e/shards.test.mjs e2e/harness.test.mjs
+
+  # The e2e suite, cut into 4 shards that run side by side (e2e/shards.mjs balances them over
+  # e2e/timings.json, at about 4.5 of the suite's 17-18 minutes each). 4 is where a shard's suite
+  # stops being the longest part of the job: install, build and the CLI take about 2 minutes of it.
+  e2e:
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
+    name: e2e (${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    # About 6.5 minutes a shard (2 to set up, 4.5 of specs). About 2.5x that, rounded up to 5 minutes
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
       # The e2e suite needs the CLI binary (plugins, MCP) but no login: it runs on empty temp dirs.
       # The installer is checked against the digest the Dockerfile pins rather than a second copy of
       # it, so rotating the pin is one edit and the two can never disagree about which script is
       # trusted. The `docker` job builds the same pinned step, so this adds no new way to fail.
       - name: Install Claude Code
-        if: env.GENERATED_RELEASE_PR != 'true'
         run: |
           sha=$(sed -n 's/^ARG CLAUDE_CODE_INSTALLER_SHA256=//p' docker/Dockerfile)
           test -n "$sha"
@@ -71,17 +144,39 @@ jobs:
           bash /tmp/claude-install.sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: End-to-end (headless Chrome)
-        if: env.GENERATED_RELEASE_PR != 'true'
+      - name: End-to-end (headless Chrome), shard ${{ matrix.shard }} of 4
         run: pnpm e2e
         env:
+          E2E_SHARD: ${{ matrix.shard }}/4
           E2E_SHOTS: e2e-shots
 
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: e2e-screenshots
+          name: e2e-screenshots-${{ matrix.shard }}
           path: e2e-shots
+
+  # The one check main is protected on. It stands for the jobs above: the checks passed, and the e2e
+  # shards passed, or were skipped because the change did not need them. Named `test` so branch
+  # protection needs no change; it runs even when a job it needs failed, so it reports the failure
+  # instead of being skipped (a skipped required check would let a pull request merge).
+  test:
+    needs: [changes, checks, e2e]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checks passed, and the e2e shards passed or were not needed
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          CHECKS: ${{ needs.checks.result }}
+          E2E: ${{ needs.e2e.result }}
+          WANTED: ${{ needs.changes.outputs.e2e }}
+        run: |
+          echo "changes: $CHANGES, checks: $CHECKS, e2e: $E2E (needed: $WANTED)"
+          test "$CHANGES" = success
+          test "$CHECKS" = success
+          if [ "$WANTED" = true ]; then test "$E2E" = success; else test "$E2E" = skipped; fi
 
   docker:
     if: ${{ !startsWith(github.head_ref, 'release-please--') }}
