@@ -10,9 +10,18 @@ export default a11ySpec(async ({ page, problems, scan, fx }) => {
   // ---------- axe: phone width ----------
   await scanNarrow(
     page,
-    ['/', '/chats', '/chats/new', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/settings?tab=settings', '/settings?tab=install', '/settings?tab=notifications', '/settings?tab=remote'],
+    ['/', '/chats', '/chats/new', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/accounts', '/projects', '/schedules', '/schedules/new', '/usage', '/connectors', '/settings', '/settings?tab=settings', '/settings?tab=install', '/settings?tab=notifications', '/settings?tab=remote'],
     scan,
     problems,
+  );
+  // The screens that head themselves on a phone (CW-8), in the light theme too: their own headers
+  // replace the top bar there, so their contrast and names are checked in both
+  await scanNarrow(
+    page,
+    ['/chats/new', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/accounts', '/projects', '/schedules', '/schedules/new', '/usage', '/connectors', '/settings', '/settings?tab=install'],
+    scan,
+    problems,
+    'light',
   );
   await checkTablet(page, ['/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/'], problems);
 
