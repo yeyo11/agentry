@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T13:57:10.191855215Z
-updated_at: 2026-09-28T13:57:10.191855215Z
+updated_at: 2026-09-28T22:45:00Z
 tags:
     - plan
     - orchestration
@@ -135,7 +135,7 @@ resuming, when another account has quota.
   that ask for `fakeCli` stay together in one shard. The default comes from the CPU count, capped
   at 4. This targets the 15–18 min runs, and they should fall to about 5.
 - **Parallel groups** in `VerificationSpec.commands`: an entry can be a list of commands that run at
-  the same time, for example `[["pnpm typecheck", "pnpm test"], "pnpm build", "pnpm e2e"]`. This
+  the same time, for example `[ ["pnpm typecheck", "pnpm test"], "pnpm build", "pnpm e2e" ]`. This
   saves 2–4 min on every pass, and there are two passes whenever the fixer works. Re-running
   everything from the first check after a fix is kept, for the reason `checkAll` gives.
 - The fixer is told which specs failed, parsed from the `✗ <file>` lines of the runner. That way it
@@ -226,4 +226,4 @@ worker-checks ┘ graph-shape ──┘
 
 ## Related
 
-[[plans/agent-observability.md]] · [[orchestrations.md]] · [[pinned-chat-rotation.md]] · [[plans/post-roadmap.md]] · [[e2e]]
+[[plans/agent-observability.md]] · [[pinned-chat-rotation.md]] · [[plans/post-roadmap.md]] · [[status.md]]

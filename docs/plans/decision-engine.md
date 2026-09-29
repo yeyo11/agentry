@@ -1,16 +1,15 @@
 ---
 created_at: 2026-09-28T13:40:32.928075489Z
-updated_at: 2026-09-28T18:10:37.144581306Z
+updated_at: 2026-09-28T22:45:00Z
 tags:
     - decisions
     - jev
     - typesafe
-    - parked
     - research
 ---
-# Decision engine with Jev: parked until the project ecosystem is in main
+# Decision engine with Jev: design decisions closed, plan to be written on main
 
-Status: **parked on 2026-09-28 by the owner; design decisions being closed meanwhile.** The plan document (`docs/plans/decision-engine.md`) is written only once `feat/project-ecosystem` is merged into main, because the ecosystem (the project assistant and the new features of orchestrations 6 and 7) adds more places where Jev fits, and the plan has to start from that code. A first draft exists on the local branch `docs/decision-engine-plan` (commit 28f63c65, not pushed): input only.
+Status: **design decisions closed; plan to be written on main.** Parked by the owner on 2026-09-28 until the project ecosystem reached main, which it did in #118 the same day. The full plan is written from main, because the ecosystem (the project assistant and the new features of orchestrations 6 and 7) adds more places where Jev fits, and the plan has to start from that code. A first draft exists on the local branch `docs/decision-engine-plan` (commit 28f63c65, not pushed): input only.
 
 ## What Jev is
 
@@ -60,8 +59,10 @@ Order criteria: Claude quota saved, quality, how cleanly shadow can measure it, 
 
 **Also in the same delivery:** unexplained hunks in changes review (DiffView), natural-language command palette intent routing, `team.assign`, notification urgency.
 
-## When the ecosystem is merged
+## Now that the ecosystem is merged (#118)
 
 Write the English rule into CONTRIBUTING.md and CLAUDE.md and apply it to the ecosystem prompts; map every decision point again on main (assistant included, and the global Agentry assistant if it exists by then) and add any new ones; write `docs/plans/decision-engine.md` from scratch with the decisions above, as one delivery split into orchestrations landing on one feature branch; then prototypes.
 
-Related: [[plans/project-ecosystem.md]], [[plans/agent-observability.md]], [[decisions/english-technical-language.md]].
+## Related
+
+[[plans/project-ecosystem.md]] · [[plans/agent-observability.md]] · [[decisions/english-technical-language.md]]

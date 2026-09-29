@@ -69,6 +69,7 @@ import { AppSettingsStore } from './app-settings.ts';
 import { stateFromRun } from './chat-model.ts';
 import { chatLinkName, WorkItemError, WorkItemService, type WorkItemLinkState } from './work-items.ts';
 import { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentsPlace } from './documents.ts';
+import { documentsLine, ItemDocumentsError, syncItemDocuments, withDocumentsLine } from './item-documents.ts';
 import { canBranch, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
 import { TunnelManager } from './tunnel.ts';
 import { ChatService, ChatStartError, type Placement } from './chat-service.ts';
@@ -1415,7 +1416,8 @@ export class Core {
   /**
    * Starts a flow run's chat, as the member's agent with its model, the journal appended to the
    * system prompt, the stage's rules and budget, and the result held to the run's schema. Working
-   * and verifying happen in the item's own worktree; refining in the project's checkout. A
+   * and verifying happen in the item's own worktree, which first gets the item's tied documents from
+   * the checkout, where the refine wrote them (`syncItemDocuments`); refining in the checkout. A
    * Developer's run continues its own chat from an earlier round, or starts one if that chat cannot
    * be continued; a run a restart cut off continues in its chat or fails.
    */
@@ -1427,6 +1429,24 @@ export class Core {
     const place = launch.inWorktree ? itemWorktree(record.path, item) : null;
     if (place && (place.worktree !== item.worktree || place.branch !== item.branch)) {
       this.workItems.setWorktree(item.id, { worktree: place.worktree, branch: place.branch });
+    }
+    let prompt = launch.prompt;
+    if (place) {
+      // Before any chat: a resumed Developer's chat, or one a restart cut off, needs the spec too
+      const settings = await this.projectSettings(item.projectId);
+      const sync = await syncItemDocuments({
+        item,
+        links: this.workItems.links(item.id),
+        projectPath: record.path,
+        documentsRoot: settings.documents?.path ?? DEFAULT_DOCUMENTS_PATH,
+        place,
+      }).catch((err: unknown) => {
+        throw new ItemDocumentsError(`the item's documents could not be brought into its worktree: ${err instanceof Error ? err.message : String(err)}`);
+      });
+      for (const s of sync.skipped) console.warn(`[flow] ${item.key}: document ${s.path} not brought into the worktree: ${s.reason}`);
+      const line = documentsLine(sync.present);
+      // The short "carry on" prompt of a restart keeps to itself: the chat was already told
+      if (line && !launch.continuing) prompt = withDocumentsLine(prompt, line);
     }
     const options = {
       model: member.model,
@@ -1451,7 +1471,7 @@ export class Core {
       // Told first: the result is matched to the run by its chat, and may not wait for the resume to return
       onStart(chatId);
       try {
-        await this.chats.resume(chatId, { ...options, prompt: launch.prompt }, extras);
+        await this.chats.resume(chatId, { ...options, prompt }, extras);
         link(chatId);
         return;
       } catch (err) {
@@ -1460,7 +1480,7 @@ export class Core {
         // otherwise falls through to a chat of its own
       }
     }
-    await this.chats.create({ ...options, ...extras, prompt: launch.prompt, cwd: place?.cwd ?? record.path }, (started) => {
+    await this.chats.create({ ...options, ...extras, prompt, cwd: place?.cwd ?? record.path }, (started) => {
       onStart(started.id);
       link(started.id);
     });

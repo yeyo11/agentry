@@ -289,6 +289,16 @@ async function existingFile(place: DocumentsPlace, rel: string): Promise<string>
 }
 
 /**
+ * The real file of a document in a project, checked as a read of it is: its shape by
+ * `documentPath`, then its real path inside the real documents folder. Throws `DocumentError` when
+ * it is refused (400) or missing (404).
+ */
+export async function existingDocument(place: DocumentsPlace, path: unknown): Promise<{ path: string; file: string }> {
+  const rel = checked(path, place.root);
+  return { path: rel, file: await existingFile(place, rel) };
+}
+
+/**
  * Where a checked path may be written. The nearest part of it that exists is resolved: it must be
  * inside the documents folder, or, while the folder itself does not exist yet, inside the project.
  * The folders are then made, and the file's own folder checked again once it exists, so a link

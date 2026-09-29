@@ -55,6 +55,7 @@ import type { RunResult } from './chats.ts';
 import type { Db } from './db.ts';
 import type { AgentryEventInput } from './events.ts';
 import { roleTitle, roleTitleIn } from './team.ts';
+import { ItemDocumentsError } from './item-documents.ts';
 import { workItemPrompt } from './work-links.ts';
 import type { WorkItemService } from './work-items.ts';
 
@@ -1059,7 +1060,9 @@ export class FlowService {
           .run(row.chat_id, row.chat_id, row.id);
         return;
       }
-      if (continuing) this.end(row.id, 'failed', null, `its chat could not be continued after a restart: ${message}`, 'not-continued');
+      // Failed before any chat was touched: a restart's chat is not what went wrong
+      if (err instanceof ItemDocumentsError) this.end(row.id, 'failed', null, message, 'not-started');
+      else if (continuing) this.end(row.id, 'failed', null, `its chat could not be continued after a restart: ${message}`, 'not-continued');
       else this.end(row.id, 'failed', null, message, 'not-started');
     }
   }

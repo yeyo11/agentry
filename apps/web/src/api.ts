@@ -798,6 +798,11 @@ export const keys = {
   // A chat's changes sit under its scope: `changes.updated` never names a chat, but its own events
   // (and the panel's timer while it works) refresh everything there
   chatChanges: (id: string, scope: ChangeScope = {}) => ['chat', id, 'changes', scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,
+  /**
+   * The review screen caches the summary alone, while the chat's panel caches the whole response:
+   * one key for both served the panel's object to the review, which read `files` from it and threw.
+   */
+  chatChangesReview: (id: string, scope: ChangeScope = {}) => ['chat', id, 'changes', scope.commit ?? '', scope.uncommitted ? 'uncommitted' : '', 'review'] as const,
   chatDiff: (id: string, path: string, opts: DiffOptions = {}) =>
     ['chat', id, 'changes', 'diff', path, String(opts.context ?? ''), opts.commit ?? '', opts.uncommitted ? 'uncommitted' : ''] as const,
   chatSteps: (id: string) => ['chat', id, 'changes', 'steps'] as const,
@@ -891,6 +896,9 @@ export const keys = {
   /** Under the item, so `flow.run` and the item's own events refresh it with the page */
   workItemRuns: (itemId: string) => ['work-item', itemId, 'runs'] as const,
   workItemChanges: (itemId: string, scope: ChangeScope = {}) => ['work-item', itemId, 'changes', scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,
+  /** The review screen's summary alone; `workItemChanges` holds the item page's whole response (see `chatChangesReview`) */
+  workItemChangesReview: (itemId: string, scope: ChangeScope = {}) =>
+    ['work-item', itemId, 'changes', scope.commit ?? '', scope.uncommitted ? 'uncommitted' : '', 'review'] as const,
   workItemDiff: (itemId: string, path: string, opts: DiffOptions = {}) =>
     ['work-item', itemId, 'changes', 'diff', path, String(opts.context ?? ''), opts.commit ?? '', opts.uncommitted ? 'uncommitted' : ''] as const,
   milestonesAll: ['milestones'] as const,
