@@ -249,6 +249,16 @@ This parses to `[["pnpm typecheck","pnpm test"],"pnpm build","pnpm e2e"]`.
   6000-character `entry.output` tail, so `runCommand` has to hand the full text (or the parsed list)
   to the caller before it trims.
 
+### The fixer's prompt since CW-24
+
+`fixerPrompt` now also carries the unattended instruction (the four premature stops, with a stop
+still asked for before a risky step), `REAL_VERIFICATION`, and the pasted-content note. The
+objective, the failing command's output, the earlier attempts' reports and the task results reach
+it as `<pasted_content>` blocks. The paragraph this section adds goes before those rules. Its
+spec names come from the command's output, so they are wrapped too. Workers keep the split
+`workerChecks` states: unit checks while working, and the end-to-end suite once on the merged
+branch. See [prompts.md](../prompts.md#fixer-fixerprompt).
+
 ## Out of scope
 
 - CI sharding (`ci.yml`): CW-3.
@@ -275,4 +285,4 @@ when the fixer has nothing to do, and at most **40 min** with one fixer attempt.
 
 ## Related
 
-[[plans/orchestration-speed.md]] · [[plans/worker-checks.md]] · [[plans/agent-observability.md]] · [[plans/roadmap-completion.md]]
+[[plans/orchestration-speed.md]] · [[prompts.md]] · [[plans/worker-checks.md]] · [[plans/agent-observability.md]] · [[plans/roadmap-completion.md]]
