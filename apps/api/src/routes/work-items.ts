@@ -138,8 +138,7 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
   });
 
   app.get<{ Params: { id: string }; Querystring: BoardQueryString }>('/projects/:id/work-items/board', async (req) => {
-    await core.workItemProject(req.params.id, 'read');
-    return core.workItems.board(req.params.id, filterOf(req.query), boardOf(req.query));
+    return core.workItemBoard(req.params.id, filterOf(req.query), boardOf(req.query));
   });
 
   // A draft to review, not a launched graph: `POST /orchestrations` launches it. Its objective is
@@ -252,6 +251,15 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
   app.post<{ Params: { itemId: string }; Body: WorkOnWorkItemRequest }>('/work-items/:itemId/work', async (req, reply) =>
     reply.status(201).send(await core.workOnItem(req.params.itemId, bodyOf(req.body))),
   );
+
+  // The person's approval: 202 while the branch is updated, pushed and proposed in the background,
+  // 200 with the PR that is open already
+  app.post<{ Params: { itemId: string } }>('/work-items/:itemId/pull-request', async (req, reply) => {
+    const { status, item, pullRequest } = await core.approveWorkItem(req.params.itemId);
+    return reply.status(status).send({ item, pullRequest });
+  });
+
+  app.post<{ Params: { itemId: string } }>('/work-items/:itemId/pull-request/refresh', (req) => core.refreshWorkItemPullRequest(req.params.itemId));
 
   // Scoped and with its context as a chat's or a task's, so the review screen reads an item the same way
   app.get<{ Params: { itemId: string }; Querystring: ScopeQuery }>('/work-items/:itemId/changes', (req) =>

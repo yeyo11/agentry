@@ -247,6 +247,18 @@ export interface FlowDeps {
   /** The person's language, which the first line of a run's chat is written in; English without it */
   language?: () => AgentryLanguage;
   emit: (event: AgentryEventInput) => void;
+  /** The item's pull request, when approving one updated its branch into a conflict (docs/plans/work-item-pull-requests.md) */
+  pullRequests?: FlowPullRequests;
+}
+
+/** What the flow asks of an item's pull request: the merge a work run resolves, and the approval QA's pass completes. */
+export interface FlowPullRequests {
+  /** The default branch and the conflicting paths a work run on the item is to resolve; null when there is none */
+  conflictOf: (itemId: string) => { base: string; paths: string[] } | null;
+  /** A work run ended well: commits a resolved merge, or returns the paths still conflicted */
+  settleConflict: (itemId: string) => string[] | null;
+  /** QA passed the item: an approval remembered from a conflict opens the PR now */
+  verified: (itemId: string) => void;
 }
 
 /** What a run's chat ended with, as the runtime reports it. */
@@ -498,7 +510,7 @@ export function flowPrompt(
   column: WorkItemStatus,
   item: WorkItem,
   member: ProjectTeamMember,
-  extra: { documentsPath: string; rejection: string | null; language?: AgentryLanguage },
+  extra: { documentsPath: string; rejection: string | null; language?: AgentryLanguage; conflict?: { base: string; paths: readonly string[] } | null },
 ): string {
   const who = `You are the ${roleTitle(member.role)} of this project's team, started by Agentry's flow by column because ${item.key} entered ${column}.`;
   const lines = [flowTitle(item, member.role, extra.language ?? 'en'), '', workItemPrompt(item), '', '---', '', who, ''];
@@ -516,6 +528,19 @@ export function flowPrompt(
     );
   } else if (stage === 'work') {
     lines.push('Implement it here, in its worktree, and commit your work on its branch.');
+    if (extra.conflict) {
+      // The person approved it, and updating its branch conflicted: the merge waits in the worktree
+      lines.push(
+        '',
+        `## Resolve the merge of \`${extra.conflict.base}\` into this branch`,
+        '',
+        `The person approved this item, and Agentry merged \`origin/${extra.conflict.base}\` into its branch to open the pull request. The merge conflicted and is still in progress in this worktree. Resolve every conflict, keeping what both sides meant, run the checks, and commit the merge. These paths conflict:`,
+        '',
+        ...extra.conflict.paths.map((p) => `- \`${p}\``),
+        '',
+        'Do not push: Agentry pushes and opens the pull request once verification passes.',
+      );
+    }
     if (extra.rejection) lines.push('', 'Verification sent it back with this comment; address every point:', '', extra.rejection);
     lines.push(
       '',
@@ -646,6 +671,11 @@ export class FlowService {
     const runs = rows.slice(0, limit);
     const last = runs[runs.length - 1];
     return { runs: runs.map((r) => this.runOf(r)), total, nextCursor: more && last ? cursorOf(last.seq) : null };
+  }
+
+  /** A run of the flow is working on the item now. */
+  itemRunning(itemId: string): boolean {
+    return !!this.sql.prepare("SELECT 1 FROM flow_runs WHERE item_id = ? AND state = 'running' LIMIT 1").get(itemId);
   }
 
   /** A run's chat is the flow's while the run goes on: the work-links automation leaves it alone. */
@@ -1031,6 +1061,7 @@ export class FlowService {
             documentsPath,
             rejection: stage === 'work' && (item.bounces ?? 0) > 0 ? this.rejection(item.id, project.settings) : null,
             language: runLanguage(row),
+            conflict: stage === 'work' ? (this.deps.pullRequests?.conflictOf(item.id) ?? null) : null,
           }),
       appendSystemPrompt: this.deps.handoff(item.projectId),
       jsonSchema: flowResultSchema(stage),
@@ -1147,10 +1178,10 @@ export class FlowService {
       return;
     }
     const parsed = result.isError ? null : parseResult(result.structuredOutput, row.stage as FlowStage);
-    const failure = result.isError
+    const failure: { error: string; cause: FlowRunCause } | null = result.isError
       ? chatFailure(result, this.deps.project(row.project_id)?.settings)
       : parsed
-        ? null
+        ? this.unresolved(row)
         : { error: 'the run ended without a readable structured result', cause: 'unreadable' as const };
     const verdictMissing = !!parsed && row.stage === 'verify' && !parsed.verdict;
     const item = this.deps.items.find(row.item_id);
@@ -1160,10 +1191,49 @@ export class FlowService {
     // Ended first, so the move below finds no run on the item and the next role can start
     const why = failure ?? (verdictMissing ? { error: 'verification ended without a verdict', cause: 'no-verdict' as const } : null);
     if (!this.end(row.id, outcome, parsed?.summary ?? null, why?.error ?? null, why?.cause ?? null)) return;
+    // QA's notes per criterion, which the item's pull request quotes
+    if (parsed && row.stage === 'verify' && parsed.criteria.length) {
+      try {
+        this.sql.prepare('UPDATE flow_runs SET criteria = ? WHERE id = ?').run(JSON.stringify(parsed.criteria), row.id);
+      } catch {
+        // the run has ended; its notes are a nicety of the PR's body
+      }
+    }
     try {
       if (parsed) await this.apply(row, parsed, outcome);
     } finally {
       this.dispatch();
+    }
+  }
+
+  /**
+   * A work run on an item whose approval updated its branch into a conflict: the merge is committed
+   * when the run resolved every path, and the run fails when some are left.
+   */
+  private unresolved(row: RunRow): { error: string; cause: FlowRunCause } | null {
+    if (row.stage !== 'work' || !this.deps.pullRequests) return null;
+    try {
+      const left = this.deps.pullRequests.settleConflict(row.item_id);
+      if (!left?.length) return null;
+      return { error: `the merge of the default branch still has conflicted paths: ${left.slice(0, 20).join(', ')}`, cause: 'conflict-unresolved' };
+    } catch (err) {
+      return { error: `the merge of the default branch could not be committed: ${err instanceof Error ? err.message : String(err)}`, cause: 'conflict-unresolved' };
+    }
+  }
+
+  /** QA's criteria from the item's newest passing verification, for its pull request's body. */
+  verdicts(itemId: string): FlowCriterionResult[] {
+    const row = this.sql
+      .prepare("SELECT criteria FROM flow_runs WHERE item_id = ? AND stage = 'verify' AND outcome = 'passed' AND criteria IS NOT NULL ORDER BY seq DESC LIMIT 1")
+      .get(itemId) as { criteria: string } | undefined;
+    if (!row) return [];
+    try {
+      const parsed: unknown = JSON.parse(row.criteria);
+      return Array.isArray(parsed)
+        ? parsed.filter((c): c is FlowCriterionResult => isObject(c) && typeof c.id === 'string' && typeof c.met === 'boolean' && typeof c.note === 'string')
+        : [];
+    } catch {
+      return [];
     }
   }
 
@@ -1216,6 +1286,12 @@ export class FlowService {
       this.deps.items.move(item.id, { status: 'in_review' }, { actor, cause: cause(FLOW_CAUSE.worked) });
     } else if (row.stage === 'verify' && outcome === 'passed') {
       this.deps.items.setFlowState(item.id, { waiting: 'approval' }, { actor, cause: cause(FLOW_CAUSE.passed) });
+      // The person's approval, remembered from a conflict, needs no second click
+      try {
+        this.deps.pullRequests?.verified(item.id);
+      } catch {
+        // the item waits for approval, as it would without one
+      }
     } else if (row.stage === 'verify' && outcome === 'rejected') {
       const bounces = current.bounces ?? 0;
       const max = settings.flow?.maxBounces ?? 0;

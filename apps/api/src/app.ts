@@ -122,7 +122,9 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
     if (!refusal || status >= 500) app.log.error({ err, url: req.url }, 'request failed');
     // A server fault's message stays inside unless it was written for the person (`expose`)
     const exposed = (err as { expose?: unknown }).expose === true;
-    void reply.status(status).send({ error: status >= 500 && !exposed ? 'internal error' : err.message });
+    // A refusal a client acts on by its kind (why no pull request can be opened) names it as a code
+    const reason = refusal && status < 500 ? (err as { reason?: unknown }).reason : undefined;
+    void reply.status(status).send({ error: status >= 500 && !exposed ? 'internal error' : err.message, ...(typeof reason === 'string' ? { code: reason } : {}) });
   });
 
   // Core has no logger of its own, and a push that cannot be delivered is a log line rather than
