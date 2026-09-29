@@ -57,6 +57,8 @@ function Dismiss({ dismiss }: { dismiss: PhoneHeaderDismiss }) {
  * buttons through `MoreActions`. A modal flow has `dismiss` in place of the arrow. Drawn where
  * `useOwnPhoneHeader()` is true: the shell has hidden the top bar there.
  */
+export type PhoneHeaderProps = Parameters<typeof PhoneHeader>[0];
+
 export function PhoneHeader({
   title,
   subtitle,
@@ -74,8 +76,8 @@ export function PhoneHeader({
   subtitle?: ReactNode;
   /** Before the title: a project's monogram, an item's key */
   lead?: ReactNode;
-  /** The back arrow's name and where it goes when the screen was opened first */
-  back?: { label?: string; fallback?: string };
+  /** The back arrow's name, where it goes when the screen was opened first, or what it does instead */
+  back?: { label?: string; fallback?: string; onBack?: () => void };
   /** A modal flow's way out, instead of the back arrow */
   dismiss?: PhoneHeaderDismiss;
   /** The screen's own icon buttons, 44 px, before "⋯" */
@@ -90,7 +92,7 @@ export function PhoneHeader({
   const { t } = useTranslation('shell');
   return (
     <header className={`phone-head ${dismiss?.kind === 'cancel' ? 'is-modal' : ''} ${className}`.replace(/\s+/g, ' ').trim()}>
-      {dismiss ? <Dismiss dismiss={dismiss} /> : <BackButton label={back?.label ?? t('phoneHeader.back')} fallback={back?.fallback} className="phone-head-back" />}
+      {dismiss ? <Dismiss dismiss={dismiss} /> : <BackButton label={back?.label ?? t('phoneHeader.back')} fallback={back?.fallback} onBack={back?.onBack} className="phone-head-back" />}
       {lead && <span className="phone-head-lead">{lead}</span>}
       <div className="phone-head-text">
         <h1 className="ellipsis">{title}</h1>

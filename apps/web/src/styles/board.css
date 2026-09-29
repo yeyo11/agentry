@@ -1872,45 +1872,13 @@ button.workitem-mrow-more-link {
   color: var(--fg-2);
 }
 
-/* The Tasks phone header: the title keeps its width, and the project's pill takes what is left */
-.tasks-phone-head.has-scope .phone-head-text {
-  flex: 0 0 auto;
-}
-
+/* The Tasks phone header: its own buttons take the room the title leaves (the project's pill is
+   styled for every phone header in shell.css) */
 .tasks-phone-head .phone-head-actions {
   flex: 1 1 auto;
   justify-content: flex-end;
   min-width: 0;
   gap: 6px;
-}
-
-.tasks-phone-head .project-scope {
-  flex: 0 1 auto;
-  min-width: 0;
-}
-
-.tasks-phone-head .project-scope .select-trigger {
-  max-width: 100%;
-}
-
-.tasks-phone-head .project-scope-icon {
-  display: none;
-}
-
-.tasks-phone-head .select-trigger.project-selector {
-  width: auto;
-  min-width: 0;
-  min-height: var(--touch);
-  padding: 0 12px 0 16px;
-  gap: 6px;
-  border-radius: var(--radius-pill);
-  font-size: 15px;
-}
-
-.tasks-phone-head .select-trigger.project-selector .select-value {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* A row of the phone board: the title is the link, and its box covers the row */

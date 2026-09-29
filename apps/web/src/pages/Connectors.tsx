@@ -5,9 +5,10 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys, useConnectors } from '../api';
 import { Tooltip } from '@agentry/ui/components/controls';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { StatusDot } from '@agentry/ui/components/motion';
-import { Empty, ErrorBox, PageHeader, Skeleton, StatusBadge, Tag } from '@agentry/ui/components/ui';
+import { Empty, ErrorBox, Skeleton, StatusBadge, Tag } from '@agentry/ui/components/ui';
+import { PageHeader } from '../components/PageHeader';
 import { formatDateTime } from '@agentry/ui/lib/format';
 import { intlLocale } from '@agentry/ui/i18n/language';
 import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
@@ -151,6 +152,14 @@ export function Connectors() {
       <PageHeader
         title={t('title')}
         subtitle={narrow ? <span className="mono small connectors-checked">{checked}</span> : t('intro')}
+        phone={{
+          subtitle: checked,
+          actions: (
+            <button type="button" className="icon-btn connectors-refresh" onClick={() => refresh.mutate()} disabled={refresh.isPending || isFetching} aria-label={refresh.isPending ? t('refreshing') : t('refresh')}>
+              <RefreshCw {...ICON} />
+            </button>
+          ),
+        }}
         actions={
           <>
             {!narrow && <span className="mono small muted connectors-checked">{checked}</span>}

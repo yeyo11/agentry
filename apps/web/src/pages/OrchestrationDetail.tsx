@@ -10,6 +10,7 @@ import { CodeBlock } from '@agentry/ui/components/CodeBlock';
 import { Collapsible, MoreActions, Switch, type MenuEntry } from '@agentry/ui/components/controls';
 import { useConfirm } from '@agentry/ui/components/Dialog';
 import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { PhoneHeader, useOwnPhoneHeader } from '../components/shell/PhoneHeader';
 import { BoardStatusBadge, StageHead, TaskCard, TaskRow, WaitingNotice } from '../components/OrchestrationBoard';
 import { SaveTemplateDialog } from '../components/OrchestrationTemplates';
 import { RelaunchPanel } from '../components/RelaunchPanel';
@@ -715,6 +716,8 @@ export function OrchestrationDetail() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const narrow = useMediaQuery(NARROW);
+  // On a phone in a browser the page heads itself, with no top bar over it (MobileOrquestacion)
+  const ownHead = useOwnPhoneHeader();
   const panelTitleId = useId();
   const [params, setParams] = useSearchParams();
   // The list's "Resume" lands here with `?resume`: resuming is a choice of settings, made on this page
@@ -840,6 +843,8 @@ export function OrchestrationDetail() {
       : []
     : [
         ...(narrow && tree ? [worktreeEntry] : []),
+        // Its own head has no room for a second button: relaunching joins the sheet
+        ...(ownHead && canRelaunch(orch) ? [{ id: 'relaunch', label: tv('relaunch.button'), icon: Rocket, disabled: relaunching, onSelect: () => setRelaunching(true) }] : []),
         ...(unfinished > 0 && !resuming ? [{ id: 'resume', label: t('config:detail.resume', { count: unfinished }), icon: Play, onSelect: () => setResuming(true) }] : []),
         { id: 'template', label: tv('templates.saveAs'), icon: BookmarkPlus, onSelect: () => setSavingTemplate(true) },
         { id: 'sep', separator: true as const },
@@ -864,39 +869,50 @@ export function OrchestrationDetail() {
   return (
     // One box for the whole page, so the header can stick over all of it on a phone and the halo sits behind the header
     <div className="orch-detail glow-top">
-      <header className="orch-summary">
-        <Link to="/orchestration" className="icon-btn orch-back" aria-label={t('config:detail.back')}>
-          <ArrowLeft {...ICON} />
-        </Link>
-        <div className="orch-title-block">
-          <h1 className="orch-title">{orch.name}</h1>
-          <BoardStatusBadge status={orch.status} />
-        </div>
-        <div className="orch-actions">
-          {!narrow && tree && (
-            <button type="button" className="btn" onClick={openWorktree}>
-              <FolderGit2 {...ICON_SM} /> {t('viewWorktree')}
-            </button>
-          )}
-          {/* Waiting is stoppable but nothing else: resuming or deleting would throw away the decision it waits for */}
-          {live ? (
-            !narrow && (
-              <button className="btn btn-danger" disabled={stop.isPending} onClick={() => stop.mutate()}>
-                <Square {...ICON_SM} /> {t('config:detail.stop')}
+      {ownHead ? (
+        <PhoneHeader
+          className="orch-phone-head"
+          title={orch.name}
+          subtitle={<BoardStatusBadge status={orch.status} />}
+          back={{ label: t('config:detail.back'), fallback: '/orchestration' }}
+          more={menu}
+          moreLabel={t('moreActions')}
+          moreTitle={orch.name}
+        />
+      ) : (
+        <header className="orch-summary">
+          <Link to="/orchestration" className="icon-btn orch-back" aria-label={t('config:detail.back')}>
+            <ArrowLeft {...ICON} />
+          </Link>
+          <div className="orch-title-block">
+            <h1 className="orch-title">{orch.name}</h1>
+            <BoardStatusBadge status={orch.status} />
+          </div>
+          <div className="orch-actions">
+            {!narrow && tree && (
+              <button type="button" className="btn" onClick={openWorktree}>
+                <FolderGit2 {...ICON_SM} /> {t('viewWorktree')}
               </button>
-            )
-          ) : (
-            canRelaunch(orch) && (
-              <button className={`btn ${relaunchLit ? 'btn-primary' : ''}`.trim()} disabled={relaunching} onClick={() => setRelaunching(true)}>
-                <Rocket {...ICON_SM} /> {tv('relaunch.button')}
-              </button>
-            )
-          )}
-          {/* A menu by the button on a desktop, a sheet of big buttons on a phone */}
-          {menu.length > 0 && <MoreActions entries={menu} label={t('moreActions')} title={orch.name} />}
-        </div>
-      </header>
-
+            )}
+            {/* Waiting is stoppable but nothing else: resuming or deleting would throw away the decision it waits for */}
+            {live ? (
+              !narrow && (
+                <button className="btn btn-danger" disabled={stop.isPending} onClick={() => stop.mutate()}>
+                  <Square {...ICON_SM} /> {t('config:detail.stop')}
+                </button>
+              )
+            ) : (
+              canRelaunch(orch) && (
+                <button className={`btn ${relaunchLit ? 'btn-primary' : ''}`.trim()} disabled={relaunching} onClick={() => setRelaunching(true)}>
+                  <Rocket {...ICON_SM} /> {tv('relaunch.button')}
+                </button>
+              )
+            )}
+            {/* A menu by the button on a desktop, a sheet of big buttons on a phone */}
+            {menu.length > 0 && <MoreActions entries={menu} label={t('moreActions')} title={orch.name} />}
+          </div>
+        </header>
+      )}
       <div className="orch-overview">
         <section className="card orch-brief" aria-label={orch.objective ? undefined : t('settingsLabel')}>
           {orch.objective && <Objective text={orch.objective} />}

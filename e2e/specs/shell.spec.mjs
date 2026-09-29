@@ -17,6 +17,8 @@ const openNewMenu = async (page) => {
 
 export default async ({ page, api, check, dirs }) => {
   let projectId = null;
+  let chatId = null;
+  let orchestrationId = null;
   try {
     await page.viewport(1440, 900);
     await page.goto('/', 0);
@@ -206,6 +208,61 @@ export default async ({ page, api, check, dirs }) => {
       check(back !== null && back.top < 80 && back.h >= 44, `[390px ${path}] its header leads back, at the top, as a 44 px target (${JSON.stringify(back)})`);
       check((await page.eval(`return document.querySelector('.shell')?.dataset.phoneHeader`)) === 'page', `[390px ${path}] the shell marks the route phoneHeader: 'page'`);
     }
+    // The rest of the app heads itself too (CW-8): a chat (also a task's and a flow run's), an
+    // orchestration, the review of changes, and the screens reached from More
+    const chat = await api.post('/chats', { prompt: 'e2e-shell phone header', cwd: dirs.workspaceDir });
+    check(chat.status === 201 || chat.status === 202, `a chat to head (${chat.status})`);
+    chatId = chat.body?.id ?? null;
+    const orchestration = await api.post('/orchestrations', { name: 'e2e-shell-phone-head', objective: 'a phone header', cwd: dirs.workspaceDir, maxAttempts: 1, tasks: [{ id: 'one', name: 'One', prompt: 'Say hi' }] });
+    check(orchestration.status === 201, `an orchestration to head (${orchestration.status})`);
+    orchestrationId = orchestration.body?.id ?? null;
+    const headed = [`/chats/${chatId}`, `/chats/${chatId}/changes`, `/tasks/${key}/changes`, `/orchestration/${orchestrationId}`, `/orchestration/${orchestrationId}/changes`, '/accounts', '/projects', '/schedules', '/usage', '/connectors', '/settings', '/settings?tab=appearance'];
+    for (const path of headed) {
+      await page.goto(path, 1200);
+      await page.waitFor(`return !!document.querySelector('main h1')`, { label: `[390px ${path}] the page` });
+      check(!(await page.eval(topBarShown)), `[390px ${path}] no top bar over a screen that heads itself`);
+      const back = await page.eval(`const b = [...document.querySelectorAll('main button, main a')].find((e) => e.getAttribute('aria-label') && e.querySelector(':scope > svg.lucide-chevron-left')); if (!b) return null; const r = b.getBoundingClientRect(); return { top: r.top, h: r.height, w: r.width }`);
+      check(back !== null && back.top < 80 && back.h >= 44 && back.w >= 44, `[390px ${path}] its header leads back, at the top, as a 44 px target (${JSON.stringify(back)})`);
+      check((await page.eval(`return document.querySelector('.shell')?.dataset.phoneHeader`)) === 'page', `[390px ${path}] the shell marks the route phoneHeader: 'page'`);
+    }
+    // PhoneHeader's h1 is the screen's title on the screens it heads
+    for (const [path, title] of [['/accounts', 'Accounts'], ['/projects', 'Projects'], ['/schedules', 'Schedules'], ['/usage', 'Usage'], ['/connectors', 'Connectors'], ['/settings', 'Settings']]) {
+      await page.goto(path, 1200);
+      const h1 = await page.eval(`return document.querySelector('main .phone-head h1')?.textContent.trim() ?? null`);
+      check(h1 === title, `[390px ${path}] PhoneHeader names the screen (${h1})`);
+    }
+    await page.goto(`/orchestration/${orchestrationId}`, 1200);
+    check(await page.eval(`return document.querySelector('main .phone-head h1')?.textContent.trim() === 'e2e-shell-phone-head' && !document.querySelector('main .orch-summary')`), '[390px an orchestration] PhoneHeader carries its name, in place of the desktop summary');
+    // Schedules follows the project scope, so its selector comes into its own header
+    await page.goto('/schedules', 1200);
+    check(await page.eval(`return !!document.querySelector('main .phone-head .project-selector')?.getClientRects().length`), '[390px /schedules] the project scope is in the header');
+    // A Settings tab goes back to the list, not through history
+    await page.goto('/settings?tab=appearance', 1200);
+    await page.click('main .phone-head .phone-head-back', undefined, 900);
+    check((await page.eval(`return location.pathname + location.search`)) === '/settings', '[390px a Settings tab] back returns to the list');
+    // The chat keeps its own header, whose ⋯ opens as a sheet with the chat's entries
+    await page.goto(`/chats/${chatId}`, 1200);
+    check(await page.eval(`return !!document.querySelector('main .chat-head') && !document.querySelector('main .phone-head')`), '[390px a chat] the chat keeps its own header');
+    await page.click('main .chat-head .chat-more', undefined, 900);
+    await page.waitFor(`return !!document.querySelector('[role=dialog] .sheet-actions')`, { label: "[390px a chat] ⋯ opens a sheet" });
+    const sheet = await page.eval(`const d = document.querySelector('[role=dialog] .sheet-actions'); return { downloads: d.querySelectorAll('a[download]').length, buttons: [...d.querySelectorAll('button')].map((b) => b.textContent.trim()) }`);
+    check(sheet.downloads === 2 && sheet.buttons.some((b) => /fork/i.test(b)) && sheet.buttons.some((b) => /copy/i.test(b)) && sheet.buttons.some((b) => /delete/i.test(b)), `[390px a chat] the sheet has export, fork, copy id and delete (${JSON.stringify(sheet)})`);
+    await page.press('Escape');
+    // A new chat and the schedule editor are modal flows: ✕ and "Cancel", no arrow
+    await page.goto('/chats/new', 1200);
+    check(!(await page.eval(topBarShown)), '[390px /chats/new] no top bar over a new chat');
+    const close = await page.eval(`const b = document.querySelector('main .new-chat-head a[href="/chats"]'); if (!b) return null; const r = b.getBoundingClientRect(); return { top: r.top, h: r.height, w: r.width, x: !!b.querySelector('svg.lucide-x') }`);
+    check(close !== null && close.x && close.top < 80 && close.h >= 44 && close.w >= 44, `[390px /chats/new] a 44 px ✕ closes it, at the top (${JSON.stringify(close)})`);
+    await page.goto('/schedules/new', 1200);
+    check(!(await page.eval(topBarShown)), '[390px /schedules/new] no top bar over the editor');
+    check(await page.eval(`return !!document.querySelector('main .phone-head .phone-head-cancel') && !document.querySelector('main .phone-head svg.lucide-chevron-left')`), '[390px /schedules/new] "Cancel" leaves it, with no back arrow');
+    await page.click('main .phone-head .phone-head-cancel', undefined, 900);
+    check((await page.eval(`return location.pathname`)) === '/schedules', '[390px /schedules/new] Cancel goes back to the schedules');
+    // The desktop app keeps its top bar, the window's title bar, at any width
+    await page.goto('/accounts', 1200);
+    await page.eval(`document.documentElement.classList.add('is-desktop'); return true`);
+    check(await page.eval(topBarShown), '[390px /accounts, desktop app] the top bar stays');
+    await page.eval(`document.documentElement.classList.remove('is-desktop'); return true`);
     // The new project wizard is a modal flow: no top bar either, and a ✕ in place of the arrow
     await page.goto('/projects/new', 1200);
     await page.waitFor(`return !!document.querySelector('main h1')`, { label: '[390px /projects/new] the wizard' });
@@ -214,7 +271,7 @@ export default async ({ page, api, check, dirs }) => {
     // Tasks keeps the project scope, in its own header
     await page.goto('/tasks', 0);
     await page.waitFor(`return !!document.querySelector('main .tasks-phone-head .project-selector')?.getClientRects().length`, { label: '[390px /tasks] the project scope is in the header' });
-    for (const path of ['/chats', '/orchestration', '/projects', '/?project=all']) {
+    for (const path of ['/chats', '/orchestration', '/orchestration?new=1', '/?project=all', '/nowhere']) {
       await page.goto(path, 0);
       await page.waitFor(topBarShown, { label: `[390px ${path}] the top bar stays` });
       check((await page.eval(`return document.querySelector('.shell')?.dataset.phoneHeader`)) === 'app', `[390px ${path}] the route keeps the app's header`);
@@ -234,10 +291,19 @@ export default async ({ page, api, check, dirs }) => {
     check(!(await page.eval(`return !!document.querySelector('.fab')`)), 'New chat has its own composer, so the FAB steps aside');
     await page.goto('/orchestration', 900);
     check((await page.eval(`return document.querySelector('.tabbar a[href="/orchestration"]')?.classList.contains('is-active')`)) === true, 'the current tab is marked');
+    // A wide window keeps the app's top bar over the same screens: only a phone heads them itself
+    await page.viewport(1440, 900);
+    for (const path of [`/chats/${chatId}`, `/orchestration/${orchestrationId}`, '/accounts', '/settings', '/schedules/new']) {
+      await page.goto(path, 1200);
+      check(await page.eval(topBarShown), `[1440px ${path}] the top bar stays`);
+      check(!(await page.eval(`return !!document.querySelector('main .phone-head')`)), `[1440px ${path}] no phone header`);
+    }
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
     await page.eval(`localStorage.removeItem('agentry-theme'); localStorage.removeItem('agentry-motion'); localStorage.removeItem('agentry-language'); localStorage.removeItem('agentry-palette-recent'); localStorage.removeItem('agentry:project'); return true`).catch(() => {});
+    if (orchestrationId) await api.del(`/orchestrations/${orchestrationId}`).catch(() => {});
+    if (chatId) await api.del(`/chats/${chatId}`).catch(() => {});
     // Later specs count the projects
     if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
   }

@@ -7,6 +7,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api, keys, type Scope } from '../api';
 import { ICON } from '@agentry/ui/components/icons';
 import { Card, Empty, ErrorBox, Segmented, Skeleton, usePageTitle, useTabGroup } from '@agentry/ui/components/ui';
+import { PhoneHeader, useOwnPhoneHeader } from '../components/shell/PhoneHeader';
 import { DirtyProvider, useDirtyKeys, useLeaveGuard } from '../lib/dirty';
 import { timeAgo } from '@agentry/ui/lib/format';
 import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
@@ -236,11 +237,18 @@ function PhoneSettingsList() {
   const dirtyKeys = useDirtyKeys();
   const theme = useThemePreference();
 
+  const ownHead = useOwnPhoneHeader();
+
   return (
     <div className="settings-phone">
-      <header className="settings-phone-head">
-        <h1 className="settings-phone-title">{t('settings.title')}</h1>
-      </header>
+      {/* MobileAjustes: reached from Más, so its back goes to where it was opened from */}
+      {ownHead ? (
+        <PhoneHeader title={t('settings.title')} />
+      ) : (
+        <header className="settings-phone-head">
+          <h1 className="settings-phone-title">{t('settings.title')}</h1>
+        </header>
+      )}
 
       <section className="card settings-phone-theme" aria-labelledby="settings-phone-theme">
         <h2 id="settings-phone-theme" className="section-label">
@@ -286,14 +294,19 @@ function PhoneSettingsList() {
 function PhoneSettingsTab({ tab, section, onBack }: { tab: TabId; section?: DecisionsSection; onBack: () => void }) {
   const { t } = useTranslation(['home', 'config', 'observe', 'shell', 'primitives', 'decisions', 'providers', 'integrations']);
   const subtitle = useTabSubtitle(tab);
+  const ownHead = useOwnPhoneHeader();
   return (
     <div className={`settings-phone ${tab === 'install' ? 'glow-top settings-phone-install' : ''}`}>
-      <header className="settings-phone-head">
-        <button type="button" className="icon-btn settings-phone-back" aria-label={t('config:config.phone.back')} onClick={onBack}>
-          <ChevronLeft {...ICON} />
-        </button>
-        <h1 className="settings-phone-title">{t(TAB_LABELS[tab])}</h1>
-      </header>
+      {ownHead ? (
+        <PhoneHeader title={t(TAB_LABELS[tab])} back={{ label: t('config:config.phone.back'), onBack }} />
+      ) : (
+        <header className="settings-phone-head">
+          <button type="button" className="icon-btn settings-phone-back" aria-label={t('config:config.phone.back')} onClick={onBack}>
+            <ChevronLeft {...ICON} />
+          </button>
+          <h1 className="settings-phone-title">{t(TAB_LABELS[tab])}</h1>
+        </header>
+      )}
       {subtitle && <p className="settings-head-sub">{subtitle}</p>}
       <TabContent tab={tab} {...(section ? { section } : {})} />
     </div>
