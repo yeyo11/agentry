@@ -308,6 +308,7 @@ test("a member's flow runs come from the flow: running, queued and the last one 
       retriedBy: null,
       retryable: false,
       restarts: 0,
+      continuations: 0,
       queuedAt: '2026-09-27T10:00:00Z',
       startedAt: null,
       endedAt: null,

@@ -258,6 +258,7 @@
       "restarts_other": "It was cut off {{count}} times: Agentry restarted while it {{doing}}.",
       "unreadable": "It ended without a result Agentry could read.",
       "no-verdict": "It ended without giving its verdict.",
+      "max-tokens": "Its last turn was cut off at the output token limit, so its result was not trusted.",
       "not-started": "Its chat did not start.",
       "not-continued": "Its chat could not be picked up again after a restart.",
       "chat-ended": "Its chat ended, or was deleted, without leaving a result.",

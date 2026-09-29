@@ -96,6 +96,7 @@ test('a run row keeps who and the step together, so a narrow phone moves the bad
     retriedBy: null,
     retryable: false,
     restarts: 0,
+    continuations: 0,
     queuedAt: new Date().toISOString(),
     startedAt: new Date().toISOString(),
     endedAt: new Date().toISOString(),

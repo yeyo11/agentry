@@ -258,6 +258,7 @@
       "restarts_other": "Se cortó {{count}} veces: Agentry se reinició mientras {{doing}}.",
       "unreadable": "Terminó sin un resultado que Agentry pudiera leer.",
       "no-verdict": "Terminó sin dar su veredicto.",
+      "max-tokens": "Su último turno se cortó en el límite de tokens de salida, así que no se dio por bueno su resultado.",
       "not-started": "Su chat no llegó a empezar.",
       "not-continued": "Su chat no se pudo retomar después de un reinicio.",
       "chat-ended": "Su chat terminó, o se borró, sin dejar un resultado.",

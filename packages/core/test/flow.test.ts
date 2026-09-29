@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { Worker } from 'node:worker_threads';
-import { flowRunStatus, type AgentryEvent, type AgentryLanguage, type FlowRunDocument, type FlowMemoryProposal, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@agentry/shared';
+import { flowRunStatus, MAX_CONTINUATIONS, type AgentryEvent, type AgentryLanguage, type FlowRunDocument, type FlowMemoryProposal, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@agentry/shared';
 import { Db, FLOW_CAUSE_SCHEMA_VERSION, FLOW_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import { EventBus } from '../src/events.ts';
 import { FlowError, flowResultSchema, flowTitle, FlowService, parseFlowRunQuery, parseResult, stageRules, testCommandRules, type FlowChatResult, type FlowLaunch } from '../src/flow.ts';
@@ -91,11 +91,24 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean } 
     await flow.chatResult(chatOf(itemId), { isError, result: isError ? 'it broke' : '', structuredOutput: output, ...extra });
     await flow.settled();
   };
+  /**
+   * Answers the item's run until it ends: a result that leaves work owed sends the run back to its
+   * chat, which the flow continues once the chat's process has exited, as the runtime says it has
+   */
+  const answerToEnd = async (itemId: string, output: Record<string, unknown>, extra: Partial<FlowChatResult> = {}) => {
+    for (let i = 0; i <= MAX_CONTINUATIONS; i++) {
+      await answer(itemId, output, false, extra);
+      const run = flow.itemRuns(itemId)[0];
+      if (run?.state !== 'running' || !run.chatId) return;
+      flow.chatEnded(run.chatId, null);
+      await flow.settled();
+    }
+  };
   const setModules = (modules: ProjectModule[]) => {
     state.settings = { ...state.settings, modules };
     bus.emit({ type: 'project.updated', title: '', projectId: 'p1', projectName: 'p', changes: ['modules'], modules });
   };
-  return { db, file: join(config.dataDir, 'wrapper.db'), bus, events, state, items, flow, launches, proposals, ties, stopped, busy, rotating, failNext, answer, chatOf, setModules };
+  return { db, file: join(config.dataDir, 'wrapper.db'), bus, events, state, items, flow, launches, proposals, ties, stopped, busy, rotating, failNext, answer, answerToEnd, chatOf, setModules };
 }
 
 type Setup = ReturnType<typeof setup>;
@@ -455,8 +468,10 @@ test('a failed chat, an unreadable result or a verdict left out fail the run and
 
   s.items.move(it.id, { status: 'in_review' }, person);
   await s.flow.settled();
-  await s.answer(it.id, { nothing: true });
+  // No readable result is work still owed: the run is sent back to its chat first, then fails
+  await s.answerToEnd(it.id, { nothing: true });
   assert.equal(flowRuns(s).at(-1)?.outcome, 'failed');
+  assert.equal(flowRuns(s).at(-1)?.continuations, MAX_CONTINUATIONS);
   s.items.move(it.id, { status: 'todo' }, person);
   s.items.move(it.id, { status: 'in_review' }, person);
   await s.flow.settled();
@@ -1056,7 +1071,7 @@ test('every failed run carries the cause the panel words, beside the raw error',
   await s.answer(b.id, {}, true, { cause: 'stopped' });
   assert.deepEqual([last(b.id)?.cause, last(b.id)?.error], ['stopped', 'its chat was stopped']);
   const c = await item(s, 'in_progress', 'C');
-  await s.answer(c.id, { nothing: true });
+  await s.answerToEnd(c.id, { nothing: true });
   assert.equal(last(c.id)?.cause, 'unreadable');
   const d = await item(s, 'in_review', 'D');
   await s.answer(d.id, ok('Looks fine'));

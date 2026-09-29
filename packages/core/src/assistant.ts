@@ -59,6 +59,8 @@ import type { AgentryEventInput } from './events.ts';
 import { projectTemplate } from './project-templates.ts';
 import { agentFileContent, MAX_SHORT as MEMBER_SHORT_MAX, MAX_TEXT as MEMBER_TEXT_MAX, MAX_WRITES as MEMBER_WRITES_MAX, roleTitle, templateTeam } from './team.ts';
 import type { WorkItemService } from './work-items.ts';
+import { MAX_TOKENS_ERROR, stoppedOnMaxTokens } from './open-items.ts';
+import { pasted, PASTED_NOTE } from './prompt-rules.ts';
 
 /**
  * The project assistant (decisions 35 to 37 of docs/plans/project-ecosystem.md, orchestration 4).
@@ -160,6 +162,8 @@ export interface AssistantChatResult {
   structuredOutput: unknown;
   costUsd?: number;
   cause?: 'budget' | 'rate-limit' | 'stopped';
+  /** The main agent's last `stop_reason`, from the CLI's stream-json */
+  stopReason?: string;
 }
 
 /**
@@ -216,6 +220,7 @@ export const ASSISTANT_ERRORS = {
   unreadable: 'assistant.error.unreadable',
   ended: 'assistant.error.ended',
   restart: 'assistant.error.restart',
+  maxTokens: 'assistant.error.max-tokens',
 } as const;
 
 /** What each role of a template may write when it is offered as it is, as the references draw them. */
@@ -511,7 +516,7 @@ export class AssistantService {
       run: this.runOf(row),
       cwd: project.path,
       model: row.model,
-      prompt: resumeChatId ? RESUME_PROMPT : assistantPrompt(brief),
+      prompt: resumeChatId ? RESUME_PROMPT : assistantPrompt(brief, row.model),
       appendSystemPrompt: systemPrompt(known.journal, known.instructions),
       jsonSchema: assistantSchema(brief),
       permissionMode: 'dontAsk',
@@ -693,6 +698,11 @@ export class AssistantService {
     if (result.isError) {
       if (result.cause === 'stopped') this.end(row.id, 'stopped', null, cost);
       else this.end(row.id, 'failed', localized(ASSISTANT_ERRORS.chat, result.result || "The assistant's chat failed."), cost);
+      return;
+    }
+    // An answer cut by the token limit can parse and still be missing what it was writing
+    if (stoppedOnMaxTokens(result)) {
+      this.end(row.id, 'failed', localized(ASSISTANT_ERRORS.maxTokens, `The assistant's answer was not used: ${MAX_TOKENS_ERROR}.`), cost);
       return;
     }
     const proposes = parseJson<AssistantProposalKind[]>(row.proposes, []);
@@ -1193,8 +1203,10 @@ function systemPrompt(journal: string, instructions: string | null): string {
       [
         "# The project's CLAUDE.md",
         '',
-        cut ? instructions.slice(0, INSTRUCTIONS_MAX) : instructions,
+        pasted(cut ? instructions.slice(0, INSTRUCTIONS_MAX) : instructions),
         ...(cut ? ['', `[cut at ${String(INSTRUCTIONS_MAX)} characters: read CLAUDE.md for the rest]`] : []),
+        '',
+        PASTED_NOTE,
       ].join('\n'),
     );
   }

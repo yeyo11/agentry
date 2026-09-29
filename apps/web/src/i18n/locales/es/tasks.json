@@ -334,6 +334,7 @@
       "restarts": "Agentry se reinició demasiadas veces",
       "unreadable": "no dejó un resultado legible",
       "no-verdict": "terminó sin veredicto",
+      "max-tokens": "se cortó en el límite de tokens",
       "not-started": "su chat no llegó a empezar",
       "not-continued": "su chat no pudo seguir tras un reinicio",
       "chat-ended": "su chat terminó sin resultado",

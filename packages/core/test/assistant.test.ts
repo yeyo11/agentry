@@ -17,6 +17,7 @@ import { assistantLanguage, parseAnswer, assistantSchema, assistantPrompt, type 
 import { partialJson, resourceDraft } from '../src/assistant-draft.ts';
 import { ASSISTANT_ERRORS, AssistantService, DENIED_TOOLS, memberFile, READ_ONLY_TOOLS, type AssistantKnown, type AssistantLaunch } from '../src/assistant.ts';
 import { ASSISTANT_SCHEMA_VERSION, Db, migrate } from '../src/db.ts';
+import { PASTED_NOTE, THINK_THROUGH } from '../src/prompt-rules.ts';
 import { EventBus } from '../src/events.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { tempConfig } from './helpers.ts';
@@ -718,14 +719,17 @@ test('a run is handed what it would have run git for and the project CLAUDE.md, 
   assert.match(launch.prompt, /- a1b2c3d 2026-09-20 Add the webhook/);
   assert.match(launch.prompt, /- \?\? notes\.md\n- and 3 more/);
   assert.doesNotMatch(launch.prompt, /Bash|`git log`/);
-  assert.match(launch.appendSystemPrompt, /^# Project journal\n\n# The project's CLAUDE\.md\n\n# Pagos\n\nNever log a card\./);
+  // CLAUDE.md is the person's text: marked as pasted content, with the note that says what that means
+  assert.match(launch.appendSystemPrompt, /^# Project journal\n\n# The project's CLAUDE\.md\n\n<pasted_content id="([0-9a-f]{8})">\n# Pagos\n\nNever log a card\.\n\n<\/pasted_content id="\1">/);
+  assert.ok(launch.appendSystemPrompt.includes(PASTED_NOTE));
+  assert.match(launch.prompt, /Recent commits, latest first:\n<pasted_content id="([0-9a-f]{8})">\n- a1b2c3d 2026-09-20 Add the webhook\n- e4f5a6b 2026-09-19 First\n<\/pasted_content id="\1">/);
 
   const bare = setup();
   bare.state.git = null;
   bare.state.instructions = 'x'.repeat(50_000);
   await projectRun(bare);
   assert.doesNotMatch(bare.launches[0]?.prompt ?? '', /### Git/);
-  assert.match(bare.launches[0]?.appendSystemPrompt ?? '', /\[cut at 40000 characters: read CLAUDE\.md for the rest\]$/);
+  assert.match(bare.launches[0]?.appendSystemPrompt ?? '', /\[cut at 40000 characters: read CLAUDE\.md for the rest\]\n\n/);
 });
 
 test("a run's chat is titled in the person's language by the first line of its prompt", async () => {
@@ -814,7 +818,7 @@ test("Suggest tasks' focus is its own field, worded as where to look and not as 
   assert.equal(run.focus, "the checkout's error handling");
   assert.equal(run.description, null);
   const prompt = s.launches[0]?.prompt ?? '';
-  assert.match(prompt, /## Where to look\n\nThe person asks for work items in this area[^\n]*\n\nthe checkout's error handling/);
+  assert.match(prompt, /## Where to look\n\nThe person asks for work items in this area[^\n]*\n\n<pasted_content id="([0-9a-f]{8})">\nthe checkout's error handling\n<\/pasted_content id="\1">/);
   assert.match(prompt, /`workItems`: the next work items in the area above/);
   assert.doesNotMatch(prompt, /What the person says the project is for/);
   // Kept on the run, so it reads back with it and a restart words it the same

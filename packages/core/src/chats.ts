@@ -100,6 +100,8 @@ export interface RunResult {
    * ceiling), the account hit its limit (rotating accounts is the runner's job) or someone stopped it.
    */
   cause?: 'budget' | 'rate-limit' | 'stopped';
+  /** The main agent's last `stop_reason` in the turn (`end_turn`, `tool_use`, `max_tokens`…), when the CLI said */
+  stopReason?: string;
 }
 
 /** The CLI's result subtype for a ceiling set with `--max-budget-usd`. */
@@ -361,6 +363,11 @@ class LiveChat {
   lastUserTurn: { text: string; attachments: string[] } | null = null;
   /** The turn died against the account's rate limit */
   rateLimited = false;
+  /**
+   * The main agent's last `stop_reason` in this turn, from stream-json: a turn cut by `max_tokens`
+   * can still end with JSON that parses, and a reader of the result has to know it was cut
+   */
+  stopReason: string | null = null;
   /** A rotation was already asked for this attempt */
   rotationRequested = false;
   rotationRetries = 0;
@@ -1494,6 +1501,7 @@ export class ChatManager extends EventEmitter {
     chat.endedAt = null;
     chat.error = null;
     chat.rateLimited = false;
+    chat.stopReason = null;
     // Whatever the last process left open went with it
     chat.heartbeats.clear();
     chat.openCommands.clear();
@@ -1710,7 +1718,11 @@ export class ChatManager extends EventEmitter {
       // Token-level deltas of the main agent; the full block follows as a regular `assistant` event
       if (raw.parent_tool_use_id != null) return;
       const event = (raw.event ?? {}) as Record<string, unknown>;
-      if (event.type === 'content_block_start') {
+      if (event.type === 'message_delta') {
+        // The assistant events the CLI emits per block carry no stop reason yet: it arrives here
+        const reason = ((event.delta ?? {}) as Record<string, unknown>).stop_reason;
+        if (typeof reason === 'string') chat.stopReason = reason;
+      } else if (event.type === 'content_block_start') {
         const block = (event.content_block ?? {}) as Record<string, unknown>;
         const blockType = block.type;
         // The ticker reacts to the block, not to the message that closes it: a tool call is named
@@ -1763,6 +1775,8 @@ export class ChatManager extends EventEmitter {
         chat.setStatus('busy');
       }
       if (entry.role === 'assistant' && !entry.isSidechain) {
+        const reason = raw.parent_tool_use_id == null ? ((raw.message ?? {}) as Record<string, unknown>).stop_reason : undefined;
+        if (typeof reason === 'string') chat.stopReason = reason;
         const text = entryText(entry);
         if (text) chat.lastText = text.slice(0, 2000);
         // A slash command's reply comes from `<synthetic>`, which a resume would pass back as `--model`
@@ -1846,7 +1860,10 @@ export class ChatManager extends EventEmitter {
       const result = typeof raw.result === 'string' ? raw.result : '';
       if (isError && (raw.api_error_status === 429 || RATE_LIMIT_RE.test(result))) chat.rateLimited = true;
       const cause = !isError ? undefined : chat.interruptRequested || chat.stopRequested ? 'stopped' : subtype === BUDGET_SUBTYPE ? 'budget' : chat.rateLimited ? 'rate-limit' : undefined;
-      chat.lastResult = { isError, result, structuredOutput: raw.structured_output, costUsd: chat.costUsd, ...(cause ? { cause } : {}) };
+      const stopReason = typeof raw.stop_reason === 'string' ? raw.stop_reason : chat.stopReason;
+      // The next turn's reason is its own
+      chat.stopReason = null;
+      chat.lastResult = { isError, result, structuredOutput: raw.structured_output, costUsd: chat.costUsd, ...(cause ? { cause } : {}), ...(stopReason ? { stopReason } : {}) };
       // An interrupted turn ends as an error by the CLI's account, but nothing went wrong
       if (isError && !chat.interruptRequested) chat.error = result || String(subtype ?? 'error');
       chat.interruptRequested = false;
