@@ -121,6 +121,45 @@ web suite runs without that load. This branch's changes to `apps/web` are the ca
 en/es copy and test fixtures, none of them near highlighting. The test's timing belongs to another
 item.
 
+## Third round, at `b5850bee` (2026-09-29)
+
+The worktree is clean. The commits since the second round only add the Developer's record of the
+checks above. This QA run was also in don't-ask mode, and the Bash tool was denied outright. That
+means no `git diff`, no `pnpm` and no schema diff. The review was done with Read and Grep:
+
+- **`prompt-rules.ts`** still exports every required name, and `THINK_THROUGH` is exact.
+- **A grep of `packages/core/src`** finds none of the banned phrasings: "step by step", "think
+  carefully", "strictly necessary", "as little as possible", "minimise tool", "your reasoning" or
+  "may inspect".
+- **The workflow lead prompt**, in `orchestrator.ts` at around line 2062, carries `timeSignal()`
+  with no budget. The worker continuation carries it with the task's `maxMinutes`.
+- **The effort-free sentence for choosing a member's model** is in `assistant-answer.ts`.
+- **The Known gaps, CW-12 and CW-25** are all in `docs/prompts.md`.
+
+**The verdict is still fail, for one reason only.** `564ce460` asks for `pnpm typecheck` and
+`pnpm test` to pass, and QA has not been able to run either one in any of its three rounds. The
+only evidence is the Developer's own record. Nothing in the code needs fixing. Unblocking the item
+needs one of these:
+
+- a QA run whose session allows Bash and `pnpm`;
+- a person who runs the three commands above and accepts the Developer's record.
+
+## The checks, run again by the Developer on b5850bee (2026-09-29)
+
+This round's QA session could not run Bash, so the Developer ran the same three checks on the head
+QA read:
+
+- `pnpm typecheck`: exit 0.
+- `pnpm --workspace-concurrency=1 test`: exit 0. Totals: shared 31, desktop 49, core 865, web 856,
+  api 174, no failures.
+- `pnpm --filter @agentry/api openapi:schemas && git diff --exit-code apps/api/src/openapi`: no
+  drift.
+
+The web test `highlight.test.ts` still depends on load in a parallel run. That comes from
+`FIRST_TOKENIZE_BUDGET_MS` in `apps/web/src/components/highlight.ts`, which is older than this
+branch and belongs to its own item. What is left for this item is a verifier whose session can run
+`pnpm`.
+
 ## Related
 
 [[prompts.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/orchestration-speed.md]] · [[plans/verify-faster.md]]
