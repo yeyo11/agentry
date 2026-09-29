@@ -31,7 +31,11 @@ async function until<T>(read: () => T, done: (value: T) => boolean, what: string
   throw new Error(`timed out waiting for ${what}`);
 }
 
-const over = (core: Core, id: string) => until(() => core.orchestrator.get(id), (o): o is Orchestration => !!o && o.status !== 'running' && o.status !== 'waiting' && o.verification?.status !== 'running', 'the graph to finish');
+async function over(core: Core, id: string): Promise<Orchestration> {
+  const orch = await until(() => core.orchestrator.get(id), (o) => !!o && o.status !== 'running' && o.status !== 'waiting' && o.verification?.status !== 'running', 'the graph to finish');
+  assert.ok(orch);
+  return orch;
+}
 
 test('every chat of a graph is linked to it with its role, and the integrator and fixer costs count in its usage row', async () => {
   const core = new Core({ ...tempConfig(), claudeBin: FAKE_CLAUDE });
