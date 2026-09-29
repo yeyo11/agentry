@@ -62,7 +62,9 @@ What is and is not protected:
   and the built UI bundle stay open. `/docs` and `/openapi.json` are guarded.
 - **Guessing the token is slowed down.** Ten failed authentications from a client address are free;
   after that the answer is `429` with a `Retry-After` that doubles from one second to a minute, and an
-  address that stops failing is forgotten after fifteen quiet minutes. A token you choose yourself
+  address that stops failing is forgotten after fifteen quiet minutes. Only a presented credential that
+  fails counts: a request with no credential is answered `401` without being counted, since it guesses
+  nothing and every local process shares `127.0.0.1`. A token you choose yourself
   must now be at least 24 characters — that minimum and this wait are halves of the same defence. A
   token Agentry generates is 32 random bytes and was never in reach of guessing.
 - **Read-only mode**, which refuses every write except answering a permission prompt of **the chat in

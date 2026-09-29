@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-19T07:37:05Z
-updated_at: 2026-09-27T18:00:00Z
+updated_at: 2026-09-29T12:00:00Z
 tags:
     - desktop
     - electron
@@ -142,10 +142,24 @@ macOS, not on Windows.
 **Where the tray's data comes from.** Only the local server the app started: `/api/overview`, the
 working and waiting chat lists and `/api/orchestrations` (these only while the overview says
 something runs), re-read when the `/api/events` feed announces a change, at most every 1.5 s, and
-every 30 s while the feed is down. If `AGENTRY_AUTH_TOKEN` is set in the app's environment, the tray
-sends it as a bearer token. A token set only from Settings → Security is not known to the tray, so
-its requests are refused: it then shows nothing live and the failures go to `desktop.log`. The tray
-and the window menus are in English only.
+every 30 s while the feed is down. The tray and the window menus are in English only.
+
+**The tray's credential.** At each launch the app generates a secret (32 random bytes) and hands it
+to the server it starts as `AGENTRY_DESKTOP_TOKEN`; the tray sends it as its bearer token. It is
+what lets the tray read a server guarded from Settings → Security, whose token only exists as a
+hash and so is never known to the app. The server accepts the secret only from `127.0.0.1` dialled
+on a loopback name (not through the tunnel or a proxy), compares it in constant time, and treats it
+as the actor `desktop`, which may only read (`GET`/`HEAD`; anything else is `403`). It lives in the
+memory of the two processes only: it is never written to `auth.json` or a log, no route returns it,
+it is removed from the environment chats and commands inherit, and the next launch has another.
+Without a secret, `AGENTRY_AUTH_TOKEN` from the app's environment is sent instead.
+
+**When the server refuses it.** A `401` or `403` makes the tray stop asking for 5 minutes, then 10,
+up to 30, feed and polling alike; a `429` waits as long as `Retry-After` says. `desktop.log` gets
+one line when the refusals start and one when the server answers again, not one per attempt. Up to
+0.23.1 the tray polled a guarded server without a credential every 15 to 30 s, and because the
+server then counted every refused request against `127.0.0.1`, it locked the owner's own window
+and chats out with `429` ([decisions/requests-without-credential.md](decisions/requests-without-credential.md)).
 
 ## Updating
 
@@ -338,4 +352,4 @@ release.
 
 ## Related
 
-[[deploy.md]] · [[status.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]] · [[plans/managed-claude-swap.md]] · [[tunnel.md]]
+[[deploy.md]] · [[status.md]] · [[decisions/requests-without-credential.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]] · [[plans/managed-claude-swap.md]] · [[tunnel.md]]
