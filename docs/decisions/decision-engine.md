@@ -77,8 +77,10 @@ plan from scratch as one delivery split into orchestrations landing on one featu
 prototypes. As of 2026-09-29:
 
 - the plan is written: [plans/decision-engine.md](../plans/decision-engine.md) (CW-5);
-- the bounded exception of decision 16 is in [CONTRIBUTING.md](../CONTRIBUTING.md#the-one-rule)
-  (CW-5);
+- the bounded exception of decision 16 is **not yet** in CONTRIBUTING.md: CW-5's Developer role
+  cannot write that file, so the exact text waits in the plan's
+  [Amendment to CONTRIBUTING.md](../plans/decision-engine.md#amendment-to-contributingmd), for a
+  person to add under "The one rule";
 - the English rule of decision 4 is written into CONTRIBUTING.md and CLAUDE.md by its own work item
   (CW-2), not here.
 
