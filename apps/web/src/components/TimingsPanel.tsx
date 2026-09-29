@@ -8,6 +8,12 @@ import { Collapsible } from '@agentry/ui/components/controls';
 import { ProgressBar } from '@agentry/ui/components/ProgressBar';
 import { Tag } from '@agentry/ui/components/ui';
 
+/**
+ * On a link of the critical path, a gap shorter than this is scheduling, not a wait worth a word:
+ * the route keeps every second of it, and the totals under "Waits" still count it.
+ */
+const LINK_WAIT_MIN_MS = 60_000;
+
 /** A duration in mono, tabular figures, as every number of the panel is. */
 function Duration({ ms }: { ms: number }) {
   return <span className="mono tnum">{formatDuration(ms)}</span>;
@@ -85,8 +91,8 @@ export function TimingsBody({ timings, running }: { timings: OrchestrationTiming
               <li key={link.taskId} className="orch-timings-link">
                 <span className="orch-timings-link-name">{link.taskName}</span>
                 <span className="small muted mono tnum">{t('timings.work', { duration: formatDuration(link.workMs) })}</span>
-                {link.waitBeforeMs > 0 && <span className="small muted mono tnum">{t('timings.waitBefore', { duration: formatDuration(link.waitBeforeMs) })}</span>}
-                {link.waits.map((wait) => (
+                {link.waitBeforeMs >= LINK_WAIT_MIN_MS && <span className="small muted mono tnum">{t('timings.waitBefore', { duration: formatDuration(link.waitBeforeMs) })}</span>}
+                {link.waits.filter((wait) => wait.durationMs >= LINK_WAIT_MIN_MS).map((wait) => (
                   <WaitTag key={`${wait.kind}-${wait.startedAt}`} wait={wait} />
                 ))}
               </li>
