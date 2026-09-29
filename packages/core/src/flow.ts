@@ -61,7 +61,7 @@ import type { RunResult } from './chats.ts';
 import type { ChatWork } from './chat-service.ts';
 import type { Db } from './db.ts';
 import type { AgentryEventInput } from './events.ts';
-import { roleTitle, roleTitleIn } from './team.ts';
+import { RECORDS_IN_ENGLISH, roleTitle, roleTitleIn } from './team.ts';
 import { ItemDocumentsError } from './item-documents.ts';
 import { NoProviderError, openWaitOf } from './work-provider.ts';
 import { workItemPrompt } from './work-links.ts';
@@ -350,7 +350,7 @@ const UNCHANGING: ReadonlySet<WorkItemChange> = new Set<WorkItemChange>(['status
 /** The JSON Schema a run's result is held to (`--json-schema`); refining may also rewrite the item. */
 export function flowResultSchema(stage: FlowStage): Record<string, unknown> {
   const properties: Record<string, unknown> = {
-    summary: { type: 'string', description: 'What you did and found; it becomes your comment on the work item' },
+    summary: { type: 'string', description: 'What you did and found, in English; it becomes your comment on the work item' },
     memoryProposals: {
       type: 'array',
       description: 'What the team should remember; a person approves each one before it is written',
@@ -366,8 +366,8 @@ export function flowResultSchema(stage: FlowStage): Record<string, unknown> {
             },
             required: ['kind'],
           },
-          text: { type: 'string' },
-          reason: { type: 'string' },
+          text: { type: 'string', description: 'In English' },
+          reason: { type: 'string', description: 'In English' },
         },
         required: ['target', 'text', 'reason'],
       },
@@ -393,7 +393,7 @@ export function flowResultSchema(stage: FlowStage): Record<string, unknown> {
         properties: {
           id: { type: 'string' },
           met: { type: 'boolean' },
-          note: { type: 'string', description: 'What you checked, or what is missing' },
+          note: { type: 'string', description: 'What you checked, or what is missing, in English' },
           needsPerson: {
             type: 'boolean',
             description: 'true when no run can check this criterion (a push, a pull request, a tool or MCP server this run does not have): met is false and the note says what the person must check',
@@ -789,7 +789,8 @@ export function flowPrompt(
   lines.push('', UNATTENDED, '', PASTED_NOTE);
   // Refining and verifying reason towards a structured verdict: Sonnet does better told to think first
   if (stage !== 'work') lines.push(...thinkThrough(member.model).flatMap((t) => ['', t]));
-  lines.push('', 'End with the structured result. Never move the item to done: a person approves that.');
+  // Right before the closing line, so it is the last thing read before the result is written
+  lines.push('', RECORDS_IN_ENGLISH, '', 'End with the structured result. Never move the item to done: a person approves that.');
   return lines.join('\n');
 }
 

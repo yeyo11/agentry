@@ -43,6 +43,14 @@ const AGENT_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 export const MAX_SHORT = 100;
 export const MAX_TEXT = 500;
 export const MAX_WRITES = 50;
+
+/**
+ * Told to every run Agentry starts that leaves records behind (flow stages, agent files, the
+ * assistant). A Spanish item or chat quoted into a prompt otherwise pulls the answer into Spanish,
+ * and these records are state other agents read. See docs/decisions/english-technical-language.md.
+ */
+export const RECORDS_IN_ENGLISH =
+  "Write everything you record in English, whatever language the work item, the chat or the person uses: summaries, descriptions, acceptance criteria, criteria notes, journal entries, memory proposals, documents and agent files. Quote a person's words as they wrote them.";
 /** What a flow the template creates starts with; the person changes it on the Flow screen. */
 const DEFAULT_MAX_BOUNCES = 3;
 const ID = /^[A-Za-z0-9-]+$/;
@@ -272,6 +280,8 @@ export function agentFileContent(member: ProjectTeamMember): string {
     '- `criteria`: when you verify the item, each acceptance criterion by its id, `met` or not, with a note. The item passes only when every one is met;',
     '- `memoryProposals`: what the team should remember, each with its target, its text and why. Nothing is written until a person approves it;',
     '- `documents`: every document you wrote in the documents folder, with its kind (`spec`, `adr`, `report` or `doc`).',
+    '',
+    RECORDS_IN_ENGLISH,
     '',
     'Never move a work item to `done`: a person approves that.',
     '',

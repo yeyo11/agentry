@@ -16,7 +16,7 @@ import {
   type WorkItemType,
 } from '@agentry/shared';
 import { pasted, PASTED_NOTE, thinkThrough } from './prompt-rules.ts';
-import { MAX_SHORT as MEMBER_SHORT_MAX, MAX_TEXT as MEMBER_TEXT_MAX, roleTitle } from './team.ts';
+import { MAX_SHORT as MEMBER_SHORT_MAX, MAX_TEXT as MEMBER_TEXT_MAX, RECORDS_IN_ENGLISH, roleTitle } from './team.ts';
 
 /**
  * What an assistant run is asked and how its answer is read: the prompt, the JSON Schema its result
@@ -347,6 +347,11 @@ export function assistantPrompt(brief: AssistantBrief, model: string | null = nu
     }
     lines.push('', 'Give each proposal its reason, specific to what you read. Propose fewer, better things rather than many.');
   }
+  lines.push(
+    '',
+    RECORDS_IN_ENGLISH,
+    "That holds for every proposal here: team members' responsibilities, agent, skill and command files, work items with their title, description and acceptance criteria, and each reason.",
+  );
   lines.push('', PASTED_NOTE);
   // Every assistant run reasons towards a structured answer: Sonnet does better told to think first
   for (const t of thinkThrough(model)) lines.push('', t);

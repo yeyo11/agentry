@@ -224,7 +224,7 @@ export { parseChangeScope, parseDiffContext, type ChangeScope, type DiffOptions 
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { deriveKeyPrefix, parseProjectSettings, parseProjectSetup } from './project-settings.ts';
 export { PROJECT_TEMPLATES } from './project-templates.ts';
-export { agentFileContent, roleTitleIn, TeamError, TeamService, templateTeam, type TeamRunSource } from './team.ts';
+export { agentFileContent, RECORDS_IN_ENGLISH, roleTitleIn, TeamError, TeamService, templateTeam, type TeamRunSource } from './team.ts';
 export {
   ASSISTANT_ERRORS,
   AssistantError,

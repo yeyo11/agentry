@@ -15,7 +15,8 @@ import type {
   ProjectTeamMember,
   ProviderMove,
 } from '@agentry/shared';
-import { assistantLanguage, parseAnswer, assistantSchema, assistantPrompt, MODEL_CHOICE, type AssistantBrief, type AssistantGit } from '../src/assistant-answer.ts';
+import { assistantLanguage, parseAnswer, assistantSchema, assistantPrompt, assistantTitle, MODEL_CHOICE, type AssistantBrief, type AssistantGit } from '../src/assistant-answer.ts';
+import { RECORDS_IN_ENGLISH } from '../src/team.ts';
 import { partialJson, resourceDraft } from '../src/assistant-draft.ts';
 import { ASSISTANT_ERRORS, AssistantService, DENIED_TOOLS, memberFile, READ_ONLY_TOOLS, type AssistantKnown, type AssistantLaunch } from '../src/assistant.ts';
 import { ASSISTANT_SCHEMA_VERSION, Db, migrate } from '../src/db.ts';
@@ -790,6 +791,47 @@ test('the prompt and the schema say what a run is and is not', () => {
   assert.deepEqual(schema.required, ['summary', 'read', 'workItems']);
   assert.match(memberFile({ agent: 'dev', role: 'developer', model: 'sonnet', responsibility: 'Builds' }, 'Use pnpm.', 'When code changes'), /## In this project\n\nWhen to use it: When code changes\n\nUse pnpm\./);
   assert.equal(readFileSync.name, 'readFileSync');
+});
+
+test('every kind of run proposes in English, naming what it proposes, while a Spanish run keeps its title in Spanish', () => {
+  const base: AssistantBrief = {
+    kind: 'project',
+    projectName: 'pagos',
+    description: null,
+    focus: null,
+    resourceKind: null,
+    empty: false,
+    proposes: ['team-member', 'resource', 'work-item'],
+    templateName: null,
+    templateTeam: [],
+    team: [],
+    resources: { agents: [], skills: [], commands: [] },
+    workItems: [],
+    moreWorkItems: 0,
+    milestones: [],
+    chats: [],
+    git: null,
+    language: 'en',
+  };
+  const briefs: AssistantBrief[] = [
+    base,
+    { ...base, kind: 'work-items', proposes: ['work-item'] },
+    { ...base, kind: 'resources', proposes: ['resource'] },
+    { ...base, kind: 'resources', proposes: ['resource'], resourceKind: 'agents', description: 'Un agente que revise las migraciones' },
+  ];
+  for (const brief of briefs) {
+    const prompt = assistantPrompt(brief);
+    const proposing = prompt.slice(prompt.indexOf('## What to propose'));
+    assert.ok(proposing.includes(RECORDS_IN_ENGLISH), `${brief.kind} is told under "What to propose"`);
+    assert.match(proposing, /team members' responsibilities, agent, skill and command files, work items with their title, description and acceptance criteria/);
+  }
+  const es = assistantPrompt({ ...base, language: 'es' });
+  const [first, ...rest] = es.split('\n');
+  assert.equal(first, 'Asistente de pagos');
+  assert.equal(first, assistantTitle({ ...base, language: 'es' }));
+  // Only the title follows the person: the instructions are the English ones, word for word
+  assert.equal(rest.join('\n'), assistantPrompt(base).split('\n').slice(1).join('\n'));
+  assert.ok(rest.includes(RECORDS_IN_ENGLISH));
 });
 
 test('a run is handed what it would have run git for and the project CLAUDE.md, and has no shell to ask', async () => {
