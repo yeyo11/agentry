@@ -65,7 +65,8 @@ read it again within 100 ms: about a megabyte per task that moved, per open wind
   answer is an empty `304`. Attachments keep their `immutable` header.
 
 On the same data, the orchestration list goes from 1.04 MB to 111 KB as summaries, and to 21 KB
-once compressed (brotli 4): about fifty times less per read, and a burst of task events now folds into one read a second.
+once compressed (brotli 4): about fifty times less per read, and a burst of task events now folds
+into one read a second.
 
 The tests are in `apps/api/test/wire.test.ts`, `packages/core/test/orchestrator.test.ts` (the
 summary) and `apps/web/test/activity-feed.test.ts` (the patch and its delays).
