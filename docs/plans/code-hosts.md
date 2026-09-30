@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-09-30T17:02:08Z
+updated_at: 2026-09-30T17:03:50Z
 tags:
     - plan
     - git
@@ -240,6 +240,27 @@ comment.
 | Fields | GitHub's `state` `OPEN/MERGED/CLOSED`, `statusCheckRollup` (today's `ciOf`) | The [merge request API](https://docs.gitlab.com/api/merge_requests/) names `iid`, `web_url`, `state` (`opened`, `closed`, `merged`, `locked`), `merged_at` and `head_pipeline.status`. **Unconfirmed:** that `glab mr view -F json` prints that object with those names. |
 | Default branch | `git symbolic-ref refs/remotes/origin/HEAD`, else `gh repo view --json defaultBranchRef` (today) | the same `git symbolic-ref`, else `glab repo view -F json` → `default_branch` ([docs](https://docs.gitlab.com/cli/repo/view/), field from the Projects API; the same caveat on the JSON shape) |
 | Pipeline states | — | `created, waiting_for_resource, preparing, waiting_for_callback, pending, running, success, failed, canceling, canceled, skipped, manual, scheduled` ([pipelines API](https://docs.gitlab.com/api/pipelines/)) |
+
+#### Confirmed by running `glab` 1.120.0 (2026-09-30)
+
+`glab` 1.120.0 (`78790114c`) was installed user-local from its release tarball (checksum verified)
+and run against an empty `GLAB_CONFIG_DIR`, with `env -i` so no token leaked in. These replace the
+unconfirmed rows above; everything here is the real output of that run:
+
+| Fact | What `glab` 1.120.0 did |
+|---|---|
+| Version output | `glab --version` and `glab version` both print `glab 1.120.0 (78790114c)` on one line, exit 0 |
+| Signed out | `glab auth status` and `glab auth status --hostname gitlab.com` **exit 1**, print on stderr `x gitlab.com: API call failed: GET https://gitlab.com/api/v4/user: 401` and `! No token found (checked config file, keyring, and environment variables)`. So the exit code is a usable probe from this version on (older releases exited 0 when signed out, [glab issue 911](https://gitlab.com/gitlab-org/cli/-/issues/911)): the adapter reads "exit 0" as signed in only at or above the minimum version |
+| A host it does not know | `glab auth status --hostname gitlab.example.internal` exits 1 with `X <host> has not been authenticated with glab; run \`glab auth login --hostname <host>\``. The adapter never matches this text, it only reads the exit code |
+| Description from a file | `--description-file` exists on `glab mr create` (listed in its flags, with the example `glab mr create -t "Fix login bug" --description-file description.md`). Which release added it is still unknown; it is there in 1.120.0 |
+| `repo view -F json` | Works without signing in on a public project and prints the REST API's own field names unchanged (`default_branch`, `web_url`, `path_with_namespace`, `visibility`, `ssh_url_to_repo`, …) |
+| `mr view <iid> -R <project> -F json` | Prints the REST API's merge request object unchanged: 64 fields including `iid`, `state` (`merged` on a merged one), `merged_at`, `source_branch`, `target_branch`, `detailed_merge_status` (`not_open` on a merged one), `head_pipeline` (an object with `status`, `success` on the one checked), `has_conflicts`, `draft` and `merge_user`. A merge request that does not exist answers `{"error":{"message":"failed to get merge request 1: 404 Not Found"}}` on stdout and exits non-zero |
+| Flags `mr create` takes | `--allow-collaboration --attach --auto-merge --copy-issue-labels --create-source-branch --description-file --draft --fill-commit-body --no-editor --push --recover --remove-source-branch --reviewer --signoff --squash-before-merge --template --wip`, besides `--fill`, `--yes`, `-t`, `-s`, `-b` and `-R` documented in its help |
+
+Still to record, because it needs a signed-in account (owner's, see the open question on sign-in):
+the signed-in output of `glab auth status` (the account name the adapter shows), a real
+`glab mr create` against a scratch project, and `glab mr view` on an open merge request with a
+running pipeline.
 
 What this means for the code:
 
@@ -732,9 +753,11 @@ Outcome, `docs/status.md`, then one pull request to `main`.
   integration branch checks the whole once at the end. A worker between them is told to expect it.
 - **`pull-requests.ts` is large and central.** Only `c8` edits it. The adapters are written before
   it, beside it, and proved by the conformance suite, so `c8` is wiring, not new logic.
-- **The GitLab facts are partly unconfirmed.** The glab adapter is built against documented API
-  field names and marked `degraded: version-untested`. Owner question 1 turns this into recorded
-  truth.
+- **A few GitLab facts still need a signed-in account.** The signed-out behaviour, the version
+  format, the JSON field names and the flags are recorded from `glab` 1.120.0 (see "Confirmed by
+  running glab"). The signed-in `auth status` output and a real `mr create` are not, and wait for
+  the owner to sign in; the adapter reads them defensively until then, and `c5` sets `glab`'s
+  tested range from the versions actually recorded.
 - **`ssh -G` runs `Match exec`.** It runs the person's own config, as `git fetch` does. It gets a
   5 s timeout, and its failure keeps the alias.
 - **Reading the CLIs' config files could touch tokens.** The readers keep only host keys and `user`,
