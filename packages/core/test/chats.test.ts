@@ -11,6 +11,7 @@ import { chatsFromRuns, type LegacyRun } from '../src/chat-records.ts';
 import { ChatConflictError } from '../src/chat-service.ts';
 import { Db } from '../src/db.ts';
 import { Core } from '../src/index.ts';
+import { CHAT_TOKEN_MAX_AGE_MS, CHAT_TOKEN_PREFIX, ChatTokenStore } from '../src/security/chat-tokens.ts';
 import { drivesSession } from '../src/processes.ts';
 import { ModelAliasIds, modelOptions } from '../src/models.ts';
 import { encodeProjectId } from '../src/workspace.ts';
@@ -196,6 +197,146 @@ test('a chat is told which wrapper runs it, and never inherits the address of an
   } finally {
     if (inherited === undefined) delete process.env.AGENTRY_API_URL;
     else process.env.AGENTRY_API_URL = inherited;
+    core.shutdown();
+  }
+});
+
+// ---------- the chat's own API token ----------
+
+/**
+ * A CLI that writes `<chat id>|<AGENTRY_API_TOKEN>` and then either exits, or stays up while the
+ * file named by $HOLD_FILE exists, so a test can look at a token while its process lives.
+ */
+function tokenCli() {
+  const config = tempConfig();
+  const log = join(config.dataDir, 'env.log');
+  const hold = join(config.dataDir, 'hold');
+  const claude = join(config.dataDir, 'claude');
+  mkdirSync(config.dataDir, { recursive: true });
+  writeFileSync(claude, `#!/bin/sh\necho "$AGENTRY_CHAT_ID|$AGENTRY_API_TOKEN" >> "${log}"\nif [ -f "${hold}" ]; then exec sleep 30; fi\n`);
+  chmodSync(claude, 0o755);
+  const core = new Core({ ...config, claudeBin: claude });
+  core.runtime.apiUrl = 'http://127.0.0.1:34331/api';
+  const lines = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : []);
+  const tokenOf = async (n: number) => (await until(() => lines()[n], `launch ${String(n + 1)}`)).split('|')[1] ?? '';
+  return { core, hold, tokenOf };
+}
+
+type ProcOf = { chats: Map<string, { proc: import('node:child_process').ChildProcess | null }> };
+
+/** Whether the chat's process has exited, as its status tells after the exit was handled. */
+const exited = (core: Core, id: string) => ['completed', 'failed', 'stopped'].includes(core.runtime.get(id)?.status ?? '');
+
+test("a chat's process gets its own API token, never the one the wrapper inherited", async () => {
+  const inherited = process.env.AGENTRY_API_TOKEN;
+  // The wrapper itself was started from a chat of another one
+  process.env.AGENTRY_API_TOKEN = 'agc_the-other-wrappers-token';
+  const { core, tokenOf } = tokenCli();
+  try {
+    core.runtime.start({ prompt: 'hi', keepAlive: false });
+    const token = await tokenOf(0);
+    assert.ok(token.startsWith(CHAT_TOKEN_PREFIX), 'a recognisable prefix');
+    assert.notEqual(token, 'agc_the-other-wrappers-token');
+    // 32 random bytes in base64url
+    assert.equal(Buffer.from(token.slice(CHAT_TOKEN_PREFIX.length), 'base64url').length, 32);
+  } finally {
+    if (inherited === undefined) delete process.env.AGENTRY_API_TOKEN;
+    else process.env.AGENTRY_API_TOKEN = inherited;
+    core.shutdown();
+  }
+});
+
+test('a chat is handed no token while the wrapper has no API address', async () => {
+  const { core, tokenOf } = tokenCli();
+  core.runtime.apiUrl = null;
+  try {
+    core.runtime.start({ prompt: 'hi', keepAlive: false });
+    assert.equal(await tokenOf(0), '');
+    assert.equal(core.security.chatTokens.size, 0);
+  } finally {
+    core.shutdown();
+  }
+});
+
+test("a chat token works while its process lives and is revoked when it exits", async () => {
+  const { core, hold, tokenOf } = tokenCli();
+  try {
+    writeFileSync(hold, '');
+    const chat = core.runtime.start({ prompt: 'hi', keepAlive: false });
+    const token = await tokenOf(0);
+    // The guard reads the same store the process was minted from
+    assert.equal(core.security.chatTokens.verify(token), chat.id);
+    core.runtime.stop(chat.id);
+    await until(() => core.security.chatTokens.verify(token) === null, 'the token to be revoked');
+  } finally {
+    core.shutdown();
+  }
+});
+
+test('each turn of a chat gets a different token, and the earlier one is refused', async () => {
+  const { core, tokenOf } = tokenCli();
+  try {
+    const chat = core.runtime.start({ prompt: 'hi', keepAlive: false });
+    const first = await tokenOf(0);
+    await until(() => exited(core, chat.id), 'the first turn to end');
+    core.runtime.send(chat.id, 'again');
+    const second = await tokenOf(1);
+    assert.notEqual(second, first);
+    assert.equal(core.security.chatTokens.verify(first), null);
+  } finally {
+    core.shutdown();
+  }
+});
+
+test("a late exit from a chat's earlier process leaves the current process's token valid", async () => {
+  const { core, hold, tokenOf } = tokenCli();
+  try {
+    const chat = core.runtime.start({ prompt: 'hi', keepAlive: false });
+    await tokenOf(0);
+    await until(() => exited(core, chat.id), 'the first turn to end');
+    const earlier = (core.runtime as unknown as ProcOf).chats.get(chat.id)?.proc;
+    assert.ok(earlier);
+    writeFileSync(hold, '');
+    core.runtime.send(chat.id, 'again');
+    const current = await tokenOf(1);
+    // What an exit event arriving after the next process started looks like
+    earlier.emit('exit', 1, null);
+    assert.equal(core.security.chatTokens.verify(current), chat.id);
+  } finally {
+    core.shutdown();
+  }
+});
+
+test('stopping every chat revokes every chat token', async () => {
+  const { core, hold, tokenOf } = tokenCli();
+  try {
+    writeFileSync(hold, '');
+    core.runtime.start({ prompt: 'one', keepAlive: false });
+    core.runtime.start({ prompt: 'two', keepAlive: false });
+    const tokens = [await tokenOf(0), await tokenOf(1)];
+    assert.ok(tokens.every((token) => core.security.chatTokens.verify(token) !== null));
+    core.runtime.stopAll();
+    // At once, not when the processes get round to exiting
+    assert.ok(tokens.every((token) => core.security.chatTokens.verify(token) === null));
+  } finally {
+    core.shutdown();
+  }
+});
+
+test('a chat token older than its maximum age is refused even while its process lives', async () => {
+  const { core, hold, tokenOf } = tokenCli();
+  let clock = Date.now();
+  core.runtime.chatTokens = new ChatTokenStore(() => clock);
+  try {
+    writeFileSync(hold, '');
+    const chat = core.runtime.start({ prompt: 'hi', keepAlive: false });
+    const token = await tokenOf(0);
+    clock += CHAT_TOKEN_MAX_AGE_MS - 1;
+    assert.equal(core.runtime.chatTokens.verify(token), chat.id);
+    clock += 1;
+    assert.equal(core.runtime.chatTokens.verify(token), null);
+    assert.ok(!exited(core, chat.id), 'the process is still up');
+  } finally {
     core.shutdown();
   }
 });

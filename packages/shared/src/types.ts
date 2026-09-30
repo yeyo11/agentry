@@ -3284,7 +3284,11 @@ export const REDACTED = '__agentry_redacted__';
 export interface AuditEntry {
   id: string;
   at: string;
-  /** Token id or OIDC subject; `local` when no authentication is configured */
+  /**
+   * `token:<id>` for the owner's token, the OIDC subject, `desktop`, `chat:<chatId>` for a chat's own
+   * token (`AGENTRY_API_TOKEN`), `env` or `agentry` for what the wrapper did itself; `local` when no
+   * authentication is configured
+   */
   actor: string;
   method: string;
   path: string;
