@@ -117,7 +117,7 @@ palette, from the board ("Sugerir tareas") and from the Resources tab ("Sugerir"
 | [`plans/tunnel.md`](plans/tunnel.md) | Landed (#110) — see [Outcome](plans/tunnel.md#outcome) and [tunnel.md](tunnel.md) |
 | [`plans/changes-review.md`](plans/changes-review.md) | Landed (#115) — see [Outcome](plans/changes-review.md#outcome) |
 | [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | Landed (#118) — see [Outcome](plans/project-ecosystem.md#outcome) |
-| [`plans/decision-engine.md`](plans/decision-engine.md) | Design decisions closed; plan to be written on main |
+| [`plans/decision-engine.md`](plans/decision-engine.md) | Planned on `main` (CW-5): five orchestrations on `feat/decision-engine`, every point ships off; not started. The owner's 18 decisions are in [`decisions/decision-engine.md`](decisions/decision-engine.md) |
 | [`plans/orchestration-speed.md`](plans/orchestration-speed.md) | Proposed, not started |
 | [`plans/agentry-assistant.md`](plans/agentry-assistant.md) | Proposed, next after the ecosystem |
 | [`plans/flow-start-and-chat-token.md`](plans/flow-start-and-chat-token.md) | Proposed; part 1 (starting the waiting cards) built by CW-9 on its own branch, not yet on `main`; part 2 (the chat token) not started |
@@ -189,5 +189,5 @@ possible to keep honest.
 [[plans/app-updates.md]] · [[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] ·
 [[plans/tunnel.md]] · [[design-system.md]] · [[plans/project-ecosystem.md]] ·
 [[plans/project-ecosystem-audit.md]] · [[projects.md]] · [[work-items.md]] · [[team-and-flow.md]] · [[assistant.md]] ·
-[[plans/decision-engine.md]] · [[plans/orchestration-speed.md]] · [[plans/agentry-assistant.md]] ·
+[[plans/decision-engine.md]] · [[decisions/decision-engine.md]] · [[plans/orchestration-speed.md]] · [[plans/agentry-assistant.md]] ·
 [[decisions/english-technical-language.md]] · [[plans/flow-start-and-chat-token.md]]

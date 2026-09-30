@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T20:30:00Z
-updated_at: 2026-09-28T22:45:00Z
+updated_at: 2026-09-29T12:00:00Z
 tags:
     - plan
     - assistant
@@ -71,4 +71,4 @@ and can act on them.
 
 ## Related
 
-[[assistant.md]] · [[chat-environment.md]] · [[plans/project-ecosystem.md]] · [[plans/orchestration-speed.md]] · [[plans/decision-engine.md]]
+[[assistant.md]] · [[chat-environment.md]] · [[plans/project-ecosystem.md]] · [[plans/orchestration-speed.md]] · [[decisions/decision-engine.md]]
