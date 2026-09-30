@@ -1,0 +1,1 @@
+{"data":{"enablePullRequestAutoMerge":{"pullRequest":{"number":14,"autoMergeRequest":{"mergeMethod":"SQUASH","enabledAt":"2026-09-30T18:55:14Z","commitHeadline":"Auto-merged via GraphQL (#14)","commitBody":"Body set at enable time."}}}}}

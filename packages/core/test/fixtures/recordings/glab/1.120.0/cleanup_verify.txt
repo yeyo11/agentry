@@ -1,0 +1,32 @@
+branches:
+dependabot/npm_and_yarn/dev-dependencies-3786338114
+dependabot/npm_and_yarn/production-dependencies-63858eaa04
+feat/code-hosts
+feat/multi-provider-2
+feat/web-packages
+main
+MRs all:
+[]
+MRs via API any state:
+[]
+issues all:
+[]
+issues API:
+[]
+hooks:
+[]
+labels:
+[]
+milestones:
+[]
+environments:
+[]
+pipelines:
+[]
+local remote-tracking probe refs:
+  gitlab/probe/ci-ok
+  gitlab/probe/closes
+  gitlab/probe/rebase
+  gitlab/probe/squash
+main sha:
+9820eff3351d6b260adb095858280cc6155e7f01

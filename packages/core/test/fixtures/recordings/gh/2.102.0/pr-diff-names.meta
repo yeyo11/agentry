@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr diff 4 -R yeyo11/agentry-probe --name-only
+exit: 0
+secs: 1.365477479
+env: 

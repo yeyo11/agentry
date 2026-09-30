@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api repos/yeyo11/agentry/actions/runs/36736141177/logs
+exit: 0
+secs: 2.423441263
+env: 

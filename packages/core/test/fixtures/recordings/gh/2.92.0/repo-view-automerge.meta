@@ -1,0 +1,5 @@
+gh: 92
+argv: gh repo view yeyo11/agentry-probe --json autoMergeAllowed
+exit: 1
+secs: .269188683
+env: 

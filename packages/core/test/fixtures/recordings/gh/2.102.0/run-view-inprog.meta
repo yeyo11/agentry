@@ -1,0 +1,5 @@
+gh: 102
+argv: gh run view 36759652349 -R yeyo11/agentry-probe --json status,conclusion,attempt
+exit: 0
+secs: .959419569
+env: 

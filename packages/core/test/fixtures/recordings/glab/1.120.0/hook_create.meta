@@ -1,0 +1,5 @@
+glab: 1.120.0
+argv: glab api -X POST projects/87089091/hooks -f url=https://example.invalid/probe -f name=probe-hook -f token=probe-secret-not-real -F merge_requests_events=true -F pipeline_events=true -F note_events=true -F issues_events=true -F push_events=false -F job_events=false -F enable_ssl_verification=true
+exit: 0
+env: 
+stdin-sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855

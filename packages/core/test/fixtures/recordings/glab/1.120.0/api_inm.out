@@ -1,0 +1,31 @@
+HTTP/2.0 304 Not Modified
+Cache-Control: max-age=0, private, must-revalidate
+Cf-Cache-Status: BYPASS
+Cf-Ray: a43510c038358038-MAD
+Date: Wed, 30 Sep 2026 17:49:39 GMT
+Etag: W/"3a90c2a130f58d4cc4dd55741dde7952"
+Gitlab-Lb: haproxy-main-10-lb-gprd
+Gitlab-Sv: api-gke-us-east1-b
+Link: <https://gitlab.com/api/v4/projects/87089091/merge_requests/4/discussions?id=87089091&noteable_id=4&page=2&per_page=3>; rel="next", <https://gitlab.com/api/v4/projects/87089091/merge_requests/4/discussions?id=87089091&noteable_id=4&page=1&per_page=3>; rel="first", <https://gitlab.com/api/v4/projects/87089091/merge_requests/4/discussions?id=87089091&noteable_id=4&page=4&per_page=3>; rel="last"
+Nel: {"max_age": 0}
+Ratelimit-Limit: 2000
+Ratelimit-Name: throttle_authenticated_api
+Ratelimit-Observed: 2
+Ratelimit-Remaining: 1998
+Ratelimit-Reset: 1790790600
+Referrer-Policy: strict-origin-when-cross-origin
+Server: cloudflare
+Strict-Transport-Security: max-age=31536000
+Vary: Origin
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-Gitlab-Meta: {"correlation_id":"a43510c038358038-MAD","version":"1"}
+X-Next-Page: 2
+X-Page: 1
+X-Per-Page: 3
+X-Prev-Page: 
+X-Request-Id: a43510c038358038-MAD
+X-Runtime: 0.097139
+X-Total: 10
+X-Total-Pages: 4
+

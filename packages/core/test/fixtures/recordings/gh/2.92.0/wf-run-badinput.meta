@@ -1,0 +1,5 @@
+gh: 92
+argv: gh workflow run ci.yml -R yeyo11/agentry-probe --ref main -f nope=1
+exit: 1
+secs: .983141627
+env: 

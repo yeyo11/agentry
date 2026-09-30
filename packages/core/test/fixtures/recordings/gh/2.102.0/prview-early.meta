@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr view 1 -R yeyo11/agentry-probe --json mergeable,mergeStateStatus
+exit: 0
+secs: 1.002277464
+env: 

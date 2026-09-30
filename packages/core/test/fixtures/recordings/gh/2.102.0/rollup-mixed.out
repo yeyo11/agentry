@@ -1,0 +1,2 @@
+{"__typename":"CheckRun","completedAt":"2026-09-30T19:11:31Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/yeyo11/agentry-probe/actions/runs/36763795149/job/110052725417","name":"ok","startedAt":"2026-09-30T19:10:26Z","status":"COMPLETED","workflowName":"ci"}
+{"__typename":"StatusContext","context":"probe/status","startedAt":"2026-09-30T19:11:51Z","state":"PENDING","targetUrl":"https://example.invalid/probe"}

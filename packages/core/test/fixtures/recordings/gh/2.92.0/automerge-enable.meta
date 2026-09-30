@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr merge 13 -R yeyo11/agentry-probe --auto --squash
+exit: 0
+secs: 2.068514036
+env: 

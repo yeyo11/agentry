@@ -1,0 +1,5 @@
+gh: 92
+argv: gh run view 36760053094 -R yeyo11/agentry-probe --json jobs --jq [.jobs[]|{name,status}]
+exit: 0
+secs: 1.369542697
+env: 

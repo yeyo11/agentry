@@ -1,0 +1,7 @@
+          
+   ERROR  
+          
+  All attempts fail:                                                                                                  
+  #1: PUT https://gitlab.com/api/v4/projects/yeyo11%2Fagentry/merge_requests/4/merge: 409 {message: SHA does not match
+  HEAD of source branch: defa07ddc39df4789fa7601479900df9ca000f41}.                                                   
+

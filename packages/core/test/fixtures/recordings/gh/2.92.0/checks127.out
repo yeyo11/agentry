@@ -1,0 +1,5 @@
+test	fail	FAILURE
+e2e (${{ matrix.shard }}/4)	skipping	SKIPPED
+checks	cancel	CANCELLED
+changes	pass	SUCCESS
+docker	skipping	SKIPPED

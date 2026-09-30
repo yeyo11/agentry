@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr view 9 -R yeyo11/agentry-probe --json number,mergeable,mergeStateStatus,reviewDecision,isDraft
+exit: 0
+secs: .831100969
+env: 

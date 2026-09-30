@@ -1,0 +1,5 @@
+glab: 1.120.0
+argv: glab api -X POST projects/87089091/merge_requests/4/discussions -f body=probe api -F json-position discussion -F position={"position_type":"text","base_sha":"e37a9b0c59e110985000cab7b535e325431c9248","start_sha":"e37a9b0c59e110985000cab7b535e325431c9248","head_sha":"defa07ddc39df4789fa7601479900df9ca000f41","new_path":"probe-notes.txt","old_path":"probe-notes.txt","new_line":4,"old_line":4}
+exit: 0
+env: 
+stdin-sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855

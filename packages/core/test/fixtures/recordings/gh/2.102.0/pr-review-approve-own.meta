@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr review 12 -R yeyo11/agentry-probe --approve
+exit: 1
+secs: 1.306576609
+env: 

@@ -1,0 +1,18 @@
+diff --git a/probe-feat.txt b/probe-feat.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..3e757656cf36eca53338e520d134963a44f793f8
+--- /dev/null
++++ b/probe-feat.txt
+@@ -0,0 +1 @@
++new
+diff --git a/probe-notes.txt b/probe-notes.txt
+index 7b8ec19b7cccd6ca76a7cabcea3e729383bbff84..3f508c32fc63e7b27c96db3df2af9bc7097b60a8 100644
+--- a/probe-notes.txt
++++ b/probe-notes.txt
+@@ -1,5 +1,5 @@
+ probe line 1
+-probe line 2
++probe line 2 changed by feat
+ probe line 3
+ probe line 4
+ probe line 5

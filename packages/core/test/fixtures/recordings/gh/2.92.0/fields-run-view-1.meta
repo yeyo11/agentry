@@ -1,0 +1,5 @@
+gh: 92
+argv: gh run view 1 -R yeyo11/agentry --json
+exit: 1
+secs: .298236189
+env: 

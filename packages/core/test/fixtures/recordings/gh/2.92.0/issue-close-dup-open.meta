@@ -1,0 +1,5 @@
+gh: 92
+argv: gh issue close 22 -R yeyo11/agentry-probe --reason duplicate
+exit: 0
+secs: 2.458164151
+env: 

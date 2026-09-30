@@ -1,0 +1,5 @@
+gh: 92
+argv: gh workflow list -R yeyo11/agentry --json
+exit: 1
+secs: .106763615
+env: 

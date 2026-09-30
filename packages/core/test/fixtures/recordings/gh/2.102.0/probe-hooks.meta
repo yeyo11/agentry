@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api repos/yeyo11/agentry-probe/hooks
+exit: 0
+secs: .668924211
+env: 

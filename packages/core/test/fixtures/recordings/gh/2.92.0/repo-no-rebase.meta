@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api -X PATCH repos/yeyo11/agentry-probe -F allow_rebase_merge=false --jq .allow_rebase_merge
+exit: 0
+secs: 1.370549074
+env: 

@@ -1,0 +1,67 @@
+
+X dependabot/npm_and_yarn/dev-dependencies-3786338114 CI yeyo11/agentry#109 · 36736141177
+Triggered via pull_request about 3 hours ago
+
+JOBS
+✓ checks in 5m22s (ID 109958248729)
+✓ changes in 10s (ID 109958249223)
+✓ docker in 42s (ID 109958249285)
+✓ e2e (2/4) in 5m36s (ID 109958356173)
+X e2e (1/4) in 5m24s (ID 109958356198)
+  ✓ Set up job
+  ✓ Run actions/checkout@v7
+  ✓ Run pnpm/action-setup@v6
+  ✓ Run actions/setup-node@v7
+  ✓ Run pnpm install --frozen-lockfile
+  ✓ Run pnpm build
+  ✓ Install Claude Code
+  X End-to-end (headless Chrome), shard 1 of 4
+  ✓ Run actions/upload-artifact@v7
+  - Post Run actions/setup-node@v7
+  ✓ Post Run pnpm/action-setup@v6
+  ✓ Post Run actions/checkout@v7
+  ✓ Complete job
+✓ e2e (4/4) in 5m13s (ID 109958356221)
+✓ e2e (3/4) in 5m10s (ID 109958356229)
+X test in 3s (ID 109960858281)
+  ✓ Set up job
+  X Checks passed, and the e2e shards passed or were not needed
+  ✓ Complete job
+
+ANNOTATIONS
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+checks: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+changes: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+docker: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+e2e (2/4): .github#1
+
+X Process completed with exit code 1.
+e2e (1/4): .github#44
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+e2e (1/4): .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+e2e (4/4): .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+e2e (3/4): .github#1
+
+X Process completed with exit code 1.
+test: .github#15
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+test: .github#1
+
+
+ARTIFACTS
+e2e-screenshots-1
+
+To see what failed, try: gh run view 36736141177 --log-failed
+View this run on GitHub: https://github.com/yeyo11/agentry/actions/runs/36736141177

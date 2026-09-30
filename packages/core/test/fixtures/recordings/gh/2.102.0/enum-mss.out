@@ -1,0 +1,8 @@
+DIRTY	false	
+UNKNOWN	false	
+BLOCKED	false	
+BEHIND	false	
+DRAFT	true	DRAFT state will be removed from this enum and `isDraft` should be used instead Use PullRequest.isDraft instead. Removal on 2021-01-01 UTC.
+UNSTABLE	false	
+HAS_HOOKS	false	
+CLEAN	false	

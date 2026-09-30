@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr view 29 -R yeyo11/agentry-probe --json statusCheckRollup --jq .statusCheckRollup[]|select(.name=="ok" or .context=="probe/status")
+exit: 0
+secs: 1.150138843
+env: 

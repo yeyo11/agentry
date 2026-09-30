@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api -H Range: bytes=-500 repos/yeyo11/agentry-probe/actions/jobs/110040017298/logs
+exit: 1
+secs: 1.382549234
+env: 

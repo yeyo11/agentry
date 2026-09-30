@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api -i repos/yeyo11/agentry/pulls?state=all&per_page=1
+exit: 0
+secs: .765630973
+env: 

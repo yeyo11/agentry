@@ -1,0 +1,5 @@
+gh: 102
+argv: gh auth token --user yeyo11 --hostname github.com
+exit: 0
+secs: .416591449
+env: 

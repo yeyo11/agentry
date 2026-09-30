@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr close 4 -R yeyo11/agentry-probe --comment closing from 102
+exit: 0
+secs: 2.660922944
+env: 

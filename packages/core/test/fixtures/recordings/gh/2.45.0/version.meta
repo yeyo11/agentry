@@ -1,0 +1,4 @@
+gh: 2.45.0
+argv: gh --version
+exit: 0
+env: 

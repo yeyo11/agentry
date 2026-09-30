@@ -1,0 +1,64 @@
+bad	Fail when FAIL exists	﻿2026-09-30T18:37:36.0684452Z ##[debug]Evaluating condition for step: 'Fail when FAIL exists'
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0690092Z ##[debug]Evaluating: success()
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0691796Z ##[debug]Evaluating success:
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0693376Z ##[debug]=> true
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0695081Z ##[debug]Result: true
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0697459Z ##[debug]Starting: Fail when FAIL exists
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0727945Z ##[debug]Loading inputs
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0746540Z ##[debug]Evaluating: format('echo "::warning file=README.md,line=1::probe warning annotation"
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0748975Z ##[debug]printf ''\033[31mred text with an escape sequence\033[0m\n''
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0750713Z ##[debug]if [ -f FAIL ] || [ "{0}" = "true" ]; then
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0752913Z ##[debug]  echo "::error file=README.md,line=2,endLine=3,title=Probe failure::bad job failed on purpose"
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0755153Z ##[debug]  exit 1
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0756282Z ##[debug]fi
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0757236Z ##[debug]echo "bad job passed"
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0758365Z ##[debug]', inputs.fail)
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0759506Z ##[debug]Evaluating format:
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0764175Z ##[debug]..Evaluating String:
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0766176Z ##[debug]..=> 'echo "::warning file=README.md,line=1::probe warning annotation"
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0768295Z ##[debug]printf ''\033[31mred text with an escape sequence\033[0m\n''
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0770021Z ##[debug]if [ -f FAIL ] || [ "{0}" = "true" ]; then
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0772209Z ##[debug]  echo "::error file=README.md,line=2,endLine=3,title=Probe failure::bad job failed on purpose"
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0774288Z ##[debug]  exit 1
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0775397Z ##[debug]fi
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0776303Z ##[debug]echo "bad job passed"
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0777378Z ##[debug]'
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0789714Z ##[debug]..Evaluating Index:
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0790921Z ##[debug]....Evaluating inputs:
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0792078Z ##[debug]....=> Object
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0793126Z ##[debug]....Evaluating String:
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0794247Z ##[debug]....=> 'fail'
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0795581Z ##[debug]..=> null
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0798240Z ##[debug]=> 'echo "::warning file=README.md,line=1::probe warning annotation"
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0800340Z ##[debug]printf ''\033[31mred text with an escape sequence\033[0m\n''
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0802024Z ##[debug]if [ -f FAIL ] || [ "" = "true" ]; then
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0804135Z ##[debug]  echo "::error file=README.md,line=2,endLine=3,title=Probe failure::bad job failed on purpose"
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0806450Z ##[debug]  exit 1
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0807351Z ##[debug]fi
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0808241Z ##[debug]echo "bad job passed"
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0878106Z ##[debug]'
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0880852Z ##[debug]Result: 'echo "::warning file=README.md,line=1::probe warning annotation"
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0883331Z ##[debug]printf ''\033[31mred text with an escape sequence\033[0m\n''
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0885358Z ##[debug]if [ -f FAIL ] || [ "" = "true" ]; then
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0887544Z ##[debug]  echo "::error file=README.md,line=2,endLine=3,title=Probe failure::bad job failed on purpose"
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0889653Z ##[debug]  exit 1
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0890911Z ##[debug]fi
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0891799Z ##[debug]echo "bad job passed"
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0892876Z ##[debug]'
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0900363Z ##[debug]Loading env
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0927740Z ##[group]Run echo "::warning file=README.md,line=1::probe warning annotation"
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0930044Z ^[[36;1mecho "::warning file=README.md,line=1::probe warning annotation"^[[0m
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0932080Z ^[[36;1mprintf '\033[31mred text with an escape sequence\033[0m\n'^[[0m
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0933767Z ^[[36;1mif [ -f FAIL ] || [ "" = "true" ]; then^[[0m
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0936185Z ^[[36;1m  echo "::error file=README.md,line=2,endLine=3,title=Probe failure::bad job failed on purpose"^[[0m
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0938230Z ^[[36;1m  exit 1^[[0m
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0939136Z ^[[36;1mfi^[[0m
+bad	Fail when FAIL exists	2026-09-30T18:37:36.0940041Z ^[[36;1mecho "bad job passed"^[[0m
+bad	Fail when FAIL exists	2026-09-30T18:37:36.1231997Z shell: /usr/bin/bash -e {0}
+bad	Fail when FAIL exists	2026-09-30T18:37:36.1233533Z ##[endgroup]
+bad	Fail when FAIL exists	2026-09-30T18:37:36.1327204Z ##[debug]/usr/bin/bash -e /home/runner/work/_temp/38f50034-34b5-4c5e-a215-6fce3389b583.sh
+bad	Fail when FAIL exists	2026-09-30T18:37:36.1380299Z ##[warning]probe warning annotation
+bad	Fail when FAIL exists	2026-09-30T18:37:36.1390034Z ^[[31mred text with an escape sequence^[[0m
+bad	Fail when FAIL exists	2026-09-30T18:37:36.1394315Z ##[error]bad job failed on purpose
+bad	Fail when FAIL exists	2026-09-30T18:37:36.1401891Z ##[error]Process completed with exit code 1.
+bad	Fail when FAIL exists	2026-09-30T18:37:36.1414756Z ##[debug]Finishing: Fail when FAIL exists

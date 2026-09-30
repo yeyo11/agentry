@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api repos/yeyo11/agentry --jq .full_name
+exit: 1
+secs: .237317950
+env: 

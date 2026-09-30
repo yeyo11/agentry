@@ -1,0 +1,16 @@
+title:	Failing PR (edited 102)
+state:	OPEN
+author:	yeyo11 (Jose Antonio Garrido)
+labels:	probe-label
+assignees:	yeyo11 (Jose Antonio Garrido)
+reviewers:	
+projects:	
+milestone:	probe-ms
+number:	1
+url:	https://github.com/yeyo11/agentry-probe/pull/1
+additions:	1
+deletions:	0
+auto-merge:	disabled
+--
+Edited body from stdin (102).
+

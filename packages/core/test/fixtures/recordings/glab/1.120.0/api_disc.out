@@ -1,0 +1,34 @@
+HTTP/2.0 200 OK
+Cache-Control: max-age=0, private, must-revalidate
+Cf-Cache-Status: BYPASS
+Cf-Ray: a435108a9d825063-MAD
+Content-Security-Policy: default-src 'none'
+Content-Type: application/json
+Date: Wed, 30 Sep 2026 17:49:31 GMT
+Etag: W/"3a90c2a130f58d4cc4dd55741dde7952"
+Gitlab-Lb: haproxy-main-48-lb-gprd
+Gitlab-Sv: api-gke-us-east1-d
+Link: <https://gitlab.com/api/v4/projects/87089091/merge_requests/4/discussions?id=87089091&noteable_id=4&page=2&per_page=3>; rel="next", <https://gitlab.com/api/v4/projects/87089091/merge_requests/4/discussions?id=87089091&noteable_id=4&page=1&per_page=3>; rel="first", <https://gitlab.com/api/v4/projects/87089091/merge_requests/4/discussions?id=87089091&noteable_id=4&page=4&per_page=3>; rel="last"
+Nel: {"max_age": 0}
+Ratelimit-Limit: 2000
+Ratelimit-Name: throttle_authenticated_api
+Ratelimit-Observed: 1
+Ratelimit-Remaining: 1999
+Ratelimit-Reset: 1790790600
+Referrer-Policy: strict-origin-when-cross-origin
+Server: cloudflare
+Strict-Transport-Security: max-age=31536000
+Vary: Origin
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-Gitlab-Meta: {"correlation_id":"a435108a9d825063-MAD","version":"1"}
+X-Next-Page: 2
+X-Page: 1
+X-Per-Page: 3
+X-Prev-Page: 
+X-Request-Id: a435108a9d825063-MAD
+X-Runtime: 0.216792
+X-Total: 10
+X-Total-Pages: 4
+
+[{"id":"a8a9197fe8db085a1a8567f60d3fd3bf22d5f356","individual_note":true,"resolvable":false,"notes":[{"id":3932632009,"type":null,"body":"requested review from @yeyo11","author":{"id":12337531,"username":"yeyo11","public_email":"","name":"Jose Antonio Garrido","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/12337531/avatar.png?v=1790788476","web_url":"https://gitlab.com/yeyo11"},"created_at":"2026-09-30T17:46:43.118Z","updated_at":"2026-09-30T17:46:43.120Z","system":true,"noteable_id":541001356,"noteable_type":"MergeRequest","project_id":87089091,"resolvable":false,"confidential":false,"internal":false,"imported":false,"imported_from":"none","noteable_iid":4,"commands_changes":{}}]},{"id":"37d457dfbc98b58d2ed130e5b789b217a4fd2565","individual_note":true,"resolvable":false,"notes":[{"id":3932636913,"type":null,"body":"\u003cp\u003echanged title from \u003ccode class=\"idiff\"\u003eprobe feat mergeable\u003c/code\u003e to \u003ccode class=\"idiff\"\u003eprobe feat mergeable\u003cspan class=\"idiff left right addition\"\u003e (renamed)\u003c/span\u003e\u003c/code\u003e\u003c/p\u003e","author":{"id":12337531,"username":"yeyo11","public_email":"","name":"Jose Antonio Garrido","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/12337531/avatar.png?v=1790788476","web_url":"https://gitlab.com/yeyo11"},"created_at":"2026-09-30T17:47:56.842Z","updated_at":"2026-09-30T17:47:56.843Z","system":true,"noteable_id":541001356,"noteable_type":"MergeRequest","project_id":87089091,"resolvable":false,"confidential":false,"internal":false,"imported":false,"imported_from":"none","noteable_iid":4,"commands_changes":{}}]},{"id":"b6cc50dc1d9d8e7b3bd0ee6e7c710f0677036122","individual_note":true,"resolvable":false,"notes":[{"id":3932636916,"type":null,"body":"changed the description","author":{"id":12337531,"username":"yeyo11","public_email":"","name":"Jose Antonio Garrido","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/12337531/avatar.png?v=1790788476","web_url":"https://gitlab.com/yeyo11"},"created_at":"2026-09-30T17:47:56.866Z","updated_at":"2026-09-30T17:47:56.867Z","system":true,"noteable_id":541001356,"noteable_type":"MergeRequest","project_id":87089091,"resolvable":false,"confidential":false,"internal":false,"imported":false,"imported_from":"none","noteable_iid":4,"commands_changes":{}}]}]

@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr ready 3 -R yeyo11/agentry-probe
+exit: 0
+secs: 1.674416095
+env: 

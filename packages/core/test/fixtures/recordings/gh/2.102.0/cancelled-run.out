@@ -1,0 +1,1 @@
+{"conclusion":"cancelled","jobs":[{"conclusion":"success","name":"matrix (2)"},{"conclusion":"cancelled","name":"slow"},{"conclusion":"success","name":"long"},{"conclusion":"success","name":"matrix (1)"},{"conclusion":"success","name":"ok"},{"conclusion":"success","name":"bad"}],"status":"completed"}

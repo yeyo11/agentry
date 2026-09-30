@@ -1,0 +1,5 @@
+gh: 102
+argv: gh run delete 36760015935 -R yeyo11/agentry-probe
+exit: 0
+secs: 1.701790492
+env: 

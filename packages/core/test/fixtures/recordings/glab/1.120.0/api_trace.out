@@ -1,0 +1,53 @@
+2026-09-30T17:54:36.814482Z 00O [0KRunning with gitlab-runner 19.5.0~pre.2159.ga8432a3e (a8432a3e)[0;m
+2026-09-30T17:54:36.814535Z 00O [0K  on k8s.saas-linux-small-amd64.runners-manager.gitlab.com/default nezyxEJex, system ID: r_h0JPO6NyfdVf[0;m
+2026-09-30T17:54:36.814541Z 00O [0K  UUID: 019fd6c6-56c4-78a2-8961-bbb53e204387[0;m
+2026-09-30T17:54:36.814558Z 00O [0K  feature flags: FF_USE_GIT_PROACTIVE_AUTH:true, FF_HASH_CACHE_KEYS:true, FF_USE_JOB_ROUTER:true, FF_MACHINE_OPTIONS_EXPAND_ENV:true, FF_DOCKER_MACHINE_JSON_OUTPUT:true[0;m
+2026-09-30T17:54:36.814667Z 00O section_start:1790790876:prepare_executor[0K
+2026-09-30T17:54:36.814674Z 00O+[0K[36;1mPreparing the "docker+machine" executor[0;m[0;m
+2026-09-30T17:54:37.015172Z 00O [32;1mUsing default image[0;m
+2026-09-30T17:54:37.015213Z 00O [0KUsing Docker executor with image ruby:3.1 ...[0;m
+2026-09-30T17:54:37.015262Z 00O [0KUsing helper image:  registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e  (overridden, default would be  registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-v19.5.0 )[0;m
+2026-09-30T17:54:37.015271Z 00O [0KUsing effective pull policy of [always] for container registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e[0;m
+2026-09-30T17:54:37.015991Z 00O [0KAuthenticating with credentials from job payload (GitLab Registry)[0;m
+2026-09-30T17:54:37.016002Z 00O [0KPulling docker image registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e ...[0;m
+2026-09-30T17:54:38.325781Z 00O [0KUsing docker image sha256:6bb853b7a2cda0cf31469babeb7e0edbdf202c63c5221070cfcf756214613e31 for registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e with digest registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper@sha256:2a3ccd2182c1ebedd2fa8efd30198b39b62861240c9bd07f1ffe0fe67871588a ...[0;m
+2026-09-30T17:54:39.890692Z 00O [0KUsing helper image:  registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e  (overridden, default would be  registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-v19.5.0 )[0;m
+2026-09-30T17:54:39.890708Z 00O [0KUsing effective pull policy of [always] for container registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e[0;m
+2026-09-30T17:54:39.891689Z 00O [0KUsing docker image sha256:6bb853b7a2cda0cf31469babeb7e0edbdf202c63c5221070cfcf756214613e31 for registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e with digest registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper@sha256:2a3ccd2182c1ebedd2fa8efd30198b39b62861240c9bd07f1ffe0fe67871588a ...[0;m
+2026-09-30T17:54:39.891704Z 00O [32;1mUsing default image[0;m
+2026-09-30T17:54:39.891754Z 00O [0KUsing effective pull policy of [always] for container ruby:3.1[0;m
+2026-09-30T17:54:39.897188Z 00O [0KPulling docker image ruby:3.1 ...[0;m
+2026-09-30T17:54:49.301026Z 00O [0KUsing docker image sha256:9981df1d883b246c27c62f8ccb9b57d3e07d14cee8092299e102b4a69c35ea61 for ruby:3.1 with digest ruby@sha256:91627f55e8969006aab67d15c92fb930500ff73948803da1330b8a853fecebb5 ...[0;m
+2026-09-30T17:54:49.301186Z 00O section_end:1790790889:prepare_executor[0K
+2026-09-30T17:54:49.301328Z 00O+section_start:1790790889:prepare_script[0K
+2026-09-30T17:54:49.301334Z 00O+[0K[36;1mPreparing environment[0;m[0;m
+2026-09-30T17:54:49.301377Z 00O [0KUsing helper image:  registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e  (overridden, default would be  registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-v19.5.0 )[0;m
+2026-09-30T17:54:49.301400Z 00O [0KUsing effective pull policy of [always] for container registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e[0;m
+2026-09-30T17:54:49.302306Z 00O [0KUsing docker image sha256:6bb853b7a2cda0cf31469babeb7e0edbdf202c63c5221070cfcf756214613e31 for registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e with digest registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper@sha256:2a3ccd2182c1ebedd2fa8efd30198b39b62861240c9bd07f1ffe0fe67871588a ...[0;m
+2026-09-30T17:54:49.302334Z 00O [0KUsing effective pull policy of [always] for container sha256:6bb853b7a2cda0cf31469babeb7e0edbdf202c63c5221070cfcf756214613e31[0;m
+2026-09-30T17:54:54.486114Z 01O Running on runner-nezyxejex-project-87089091-concurrent-0 via runner-nezyxejex-s-l-s-amd64-1790790847-5afb2e2e...
+2026-09-30T17:54:54.619998Z 00O section_end:1790790894:prepare_script[0K
+2026-09-30T17:54:54.620749Z 00O+section_start:1790790894:get_sources[0K
+2026-09-30T17:54:54.620758Z 00O+[0K[36;1mGetting source from Git repository[0;m[0;m
+2026-09-30T17:54:54.897099Z 01O [32;1mGitaly correlation ID: 9ae1365101244dbf8575ed31d9fe9f5e[0;m
+2026-09-30T17:54:54.900513Z 01O [32;1mFetching changes with git depth set to 20...[0;m
+2026-09-30T17:54:54.902649Z 01O Initialized empty Git repository in /builds/yeyo11/agentry/.git/
+2026-09-30T17:54:54.903924Z 01O [32;1mCreated fresh repository.[0;m
+2026-09-30T17:54:58.032490Z 01O [32;1mChecking out b05cd70b as detached HEAD (ref is probe/ci)...[0;m
+2026-09-30T17:54:58.232297Z 01O 
+2026-09-30T17:54:58.232303Z 01O [32;1mSkipping Git submodules setup[0;m
+2026-09-30T17:54:58.232305Z 01O [32;1m$ git remote set-url origin "${CI_REPOSITORY_URL}" || echo 'Not a git repository; skipping'[0;m
+2026-09-30T17:54:58.612116Z 00O section_end:1790790898:get_sources[0K
+2026-09-30T17:54:58.613110Z 00O+section_start:1790790898:step_script[0K
+2026-09-30T17:54:58.613123Z 00O+[0K[36;1mExecuting "step_script" stage of the job script[0;m[0;m
+2026-09-30T17:54:58.613135Z 00O [32;1mUsing default image[0;m
+2026-09-30T17:54:58.613184Z 00O [0KUsing effective pull policy of [always] for container ruby:3.1[0;m
+2026-09-30T17:54:58.614385Z 00O [0KUsing docker image sha256:9981df1d883b246c27c62f8ccb9b57d3e07d14cee8092299e102b4a69c35ea61 for ruby:3.1 with digest ruby@sha256:91627f55e8969006aab67d15c92fb930500ff73948803da1330b8a853fecebb5 ...[0;m
+2026-09-30T17:54:58.896352Z 01O [32;1m$ echo "probe failing"[0;m
+2026-09-30T17:54:58.896395Z 01O probe failing
+2026-09-30T17:54:58.896396Z 01O [32;1m$ exit 3[0;m
+2026-09-30T17:54:59.022981Z 00O section_end:1790790899:step_script[0K
+2026-09-30T17:54:59.024272Z 00O+section_start:1790790899:cleanup_file_variables[0K
+2026-09-30T17:54:59.024281Z 00O+[0K[36;1mCleaning up project directory and file based variables[0;m[0;m
+2026-09-30T17:54:59.461402Z 00O section_end:1790790899:cleanup_file_variables[0K
+2026-09-30T17:54:59.473860Z 00O [31;1mERROR: Job failed: exit code 3[0;m

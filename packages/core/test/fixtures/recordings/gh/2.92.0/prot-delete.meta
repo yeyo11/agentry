@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api -X DELETE repos/yeyo11/agentry-probe/branches/main/protection
+exit: 0
+secs: 2.655406147
+env: 

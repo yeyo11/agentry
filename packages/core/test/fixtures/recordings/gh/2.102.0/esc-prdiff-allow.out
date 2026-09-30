@@ -1,0 +1,8 @@
+diff --git a/esc.txt b/esc.txt
+new file mode 100644
+index 0000000..1811c83
+--- /dev/null
++++ b/esc.txt
+@@ -0,0 +1,2 @@
++plain line
++[31mred line[0m

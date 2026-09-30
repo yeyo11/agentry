@@ -1,0 +1,5 @@
+gh: 92
+argv: gh run view 36759652349 -R yeyo11/agentry-probe --log-failed
+exit: 0
+secs: 3.672479385
+env: 

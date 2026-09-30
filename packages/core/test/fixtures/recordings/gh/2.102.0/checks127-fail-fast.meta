@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr checks 127 -R yeyo11/agentry --fail-fast
+exit: 1
+secs: .173763983
+env: 

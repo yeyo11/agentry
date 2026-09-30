@@ -1,0 +1,9 @@
+Specify one or more comma-separated fields for `--json`:
+  color
+  createdAt
+  description
+  id
+  isDefault
+  name
+  updatedAt
+  url

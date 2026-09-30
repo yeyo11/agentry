@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api --paginate repos/yeyo11/agentry/pulls/150/files?per_page=50 --jq length
+exit: 0
+secs: 3.153410815
+env: 

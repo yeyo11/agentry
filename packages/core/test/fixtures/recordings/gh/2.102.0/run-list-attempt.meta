@@ -1,0 +1,5 @@
+gh: 102
+argv: gh run list -R yeyo11/agentry-probe -b pr-fail --json databaseId,attempt,conclusion
+exit: 0
+secs: .987324637
+env: 

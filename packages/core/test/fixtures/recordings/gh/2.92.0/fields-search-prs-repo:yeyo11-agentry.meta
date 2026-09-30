@@ -1,0 +1,5 @@
+gh: 92
+argv: gh search prs repo:yeyo11/agentry --json
+exit: 1
+secs: .233312271
+env: 

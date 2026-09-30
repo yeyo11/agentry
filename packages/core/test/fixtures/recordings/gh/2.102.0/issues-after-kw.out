@@ -1,0 +1,6 @@
+{"closedBy":[],"number":26,"state":"OPEN","stateReason":""}
+{"closedBy":[],"number":25,"state":"OPEN","stateReason":""}
+{"closedBy":[24],"number":23,"state":"CLOSED","stateReason":"COMPLETED"}
+{"closedBy":[24],"number":22,"state":"CLOSED","stateReason":"COMPLETED"}
+{"closedBy":[],"number":21,"state":"CLOSED","stateReason":"COMPLETED"}
+{"closedBy":[24],"number":20,"state":"CLOSED","stateReason":"COMPLETED"}
