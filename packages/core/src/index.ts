@@ -117,6 +117,7 @@ import { AssistantError, AssistantService, type AssistantKnown, type AssistantLa
 import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo } from './git.ts';
 import { DecisionEngine } from './decisions/engine.ts';
+import { CliDecisionProvider } from './decisions/providers/cli.ts';
 import { DecisionCredentialStore, DecisionSettingsStore } from './decisions/settings.ts';
 import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
 export {
@@ -130,6 +131,7 @@ export {
   type EffectiveDecision,
   type ProviderResult,
 } from './decisions/engine.ts';
+export { CliDecisionProvider, decisionPrompt, decisionSchema, parseAnswers as parseDecisionAnswers } from './decisions/providers/cli.ts';
 export { DECISION_POINTS, decisionPoint, type DecisionPointDefinition, type DecisionSubject } from './decisions/points.ts';
 export { cutToBytes, maskSecrets, redactState, SECRET_MASK, stateBytes } from './decisions/redact.ts';
 export {
@@ -478,6 +480,7 @@ export class Core {
       db: this.db,
       projectDecisions: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.decisions ?? null,
     });
+    this.decisions.register(new CliDecisionProvider({ runtime: this.runtime, settings: this.decisionSettings }));
     this.decisions.startPruning();
     this.healthMonitor = new HealthMonitor({
       runtime: this.runtime,
