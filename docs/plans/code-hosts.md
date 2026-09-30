@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-09-30T18:00:00Z
+updated_at: 2026-09-30T17:02:08Z
 tags:
     - plan
     - git
@@ -747,16 +747,16 @@ Outcome, `docs/status.md`, then one pull request to `main`.
 
 ## Open
 
-- **Phase 1, for the owner** (asked 2026-09-30, answers go here):
-  1. How the glab facts marked unconfirmed become confirmed: install `glab`, sign in to gitlab.com
-     and record real outputs from a scratch project before `c5` (recommended), ship GitLab as
-     `degraded: version-untested` and record later, or hold GitLab out of phase 1.
-  2. The base of an orchestration's change request: the default branch, which is what `gh`
-     picks today without `--base` (recommended for phase 1), the branch the checkout was on
-     when the graph started, or a choice in the push dialog.
-  3. A project's host: detected only, shown in its settings (recommended for phase 1), or also
-     pinned there (host, and then remote) for a host both CLIs know or an alias `ssh -G` cannot
-     resolve.
+- **Phase 1, decided by the owner (2026-09-30)**, all three as recommended:
+  1. **The glab facts are confirmed by running `glab`.** `glab` is installed (user-local, no
+     root), signed in to gitlab.com, and its real outputs are recorded from a scratch project
+     before `c5`, in the table of facts with the release they came from. Rejected: shipping GitLab
+     as `degraded: version-untested`; holding GitLab out of phase 1.
+  2. **An orchestration's change request targets the default branch**, which is what `gh` picks
+     today without `--base`. A graph launched on a feature branch therefore targets `main`.
+     Rejected: the branch the checkout was on when the graph started; a choice in the push dialog.
+  3. **A project's host is detected only**, and shown in its settings. Rejected: pinning the host,
+     or the host and the remote.
 
 - Whether the multi-provider first-run step and this one's integrations line ship together, or
   this one waits for its own delivery.
