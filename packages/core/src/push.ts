@@ -41,7 +41,7 @@ import type { CoreConfig } from './paths.ts';
  */
 
 /** The push service keeps the message this long while the device is offline. */
-const TTL_SECONDS = 3600;
+export const TTL_SECONDS = 3600;
 
 /** A payload is capped by the push services at ~4 KB; this leaves room for the encryption overhead. */
 const MAX_PAYLOAD_BYTES = 3500;

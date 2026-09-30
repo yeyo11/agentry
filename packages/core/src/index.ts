@@ -62,7 +62,7 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@agentry/shared';
-import { AGENTRY_LANGUAGES, agentryLanguage } from '@agentry/shared';
+import { AGENTRY_LANGUAGES, agentryLanguage, type DecisionRecord } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
 import { AppSettingsStore } from './app-settings.ts';
@@ -1367,6 +1367,26 @@ export class Core {
     if (typeof header !== 'string') return;
     const named = header.split(',').some((tag) => (AGENTRY_LANGUAGES as readonly string[]).includes(tag.trim().toLowerCase().split(/[-_;]/)[0] ?? ''));
     if (named) this.language = agentryLanguage(header);
+  }
+
+  /**
+   * `POST /decisions/:id/palette-action`: what the palette's person did with the proposal. Null when
+   * the row is gone; the row unchanged on a later report. Throws for a row of another point.
+   */
+  reportPaletteAction(id: string, commandId: string | null): DecisionRecord | null {
+    const row = this.db.decision(id);
+    if (!row) return null;
+    if (row.point !== 'palette.intent') throw Object.assign(new Error(`decision ${id} is not a palette.intent row`), { statusCode: 400 });
+    const updated = this.db.setDecisionPaletteAction(id, commandId, new Date().toISOString());
+    this.decisionResolvers.soon();
+    return updated;
+  }
+
+  /** `POST /decisions/notification-opened`: the app was opened from the push with this key. */
+  reportNotificationOpened(key: string): string | null {
+    const id = this.db.markNotificationOpened(key, new Date().toISOString());
+    if (id) this.decisionResolvers.soon();
+    return id;
   }
 
   /** The person's language as the panel last said it. */

@@ -19,6 +19,7 @@ import {
   type AppNotification,
   type NotificationDraft,
 } from '../lib/notifications';
+import { takeNotificationParam } from '../lib/notification-open';
 import { pushIsActive, syncPush } from '../lib/push';
 import '../notifications.css';
 import { Tooltip } from './controls/Tooltip';
@@ -78,7 +79,7 @@ export function NotificationHost() {
   const toast = useToast();
   const { t } = useTranslation(['components', 'common']);
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const { pathname, search, hash } = useLocation();
   // Read at event time: the person may have moved since the last render
   const where = useRef(pathname);
   where.current = pathname;
@@ -143,6 +144,26 @@ export function NotificationHost() {
     navigator.serviceWorker.addEventListener('message', onMessage);
     return () => navigator.serviceWorker.removeEventListener('message', onMessage);
   }, [navigate]);
+
+  /*
+   * The signal `notification.urgency` waits for: the app was opened from a push. It comes by the
+   * hand-off above (which navigates here) or on a fresh load, both with `notification=<key>` on the
+   * address. Reported once, then the parameter goes, with a replace so Back does not return to it.
+   */
+  const reported = useRef<string | null>(null);
+  useEffect(() => {
+    const taken = takeNotificationParam(search);
+    if (taken.key === null && taken.search === search) {
+      // A later push with the same key is a new open: the guard only covers the effect running twice in a row
+      reported.current = null;
+      return;
+    }
+    if (taken.key !== null && reported.current !== taken.key) {
+      reported.current = taken.key;
+      void api.decisionNotificationOpened(taken.key).catch(() => undefined);
+    }
+    navigate({ pathname, search: taken.search, hash }, { replace: true });
+  }, [pathname, search, hash, navigate]);
 
   // What this browser is registered for, brought in line with what it holds: the subscription may
   // have been rotated or dropped while no page of ours was open.

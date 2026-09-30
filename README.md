@@ -845,6 +845,8 @@ The decision engine: a decision point puts typed questions to a provider (the Cl
 | GET | `/decisions/stats` | Per-point metrics plus Jev cost and Claude runs saved, over `?days=` (30) or `?since=` |
 | GET | `/decisions/:id` | One decision: state, questions, answers with probabilities, provider and outcome |
 | POST | `/decisions/:id/feedback` | `{ feedback: "useful" \| "not_useful" }` — the person's word on it |
+| POST | `/decisions/:id/palette-action` | `{ commandId: string \| null }` — what the palette did with a `palette.intent` proposal: the row records `proposed`, `other` or `dismissed`; the first report wins. `404` unknown id, `400` another point's row or a malformed `commandId`. Not open to a chat's token |
+| POST | `/decisions/notification-opened` | `{ key }` — the app was opened from the push with that key; sets `openedAt` on the newest `notification.urgency` row: `{ decisionId }`, null when none matches. Not open to a chat's token |
 | DELETE | `/decisions/:id` | Delete one row |
 | POST | `/decisions/palette` | `{ query, commands: [{ id, title }] }` — the `palette.intent` point: `{ commandId, confidence, decisionId }`, with `commandId` null when the point is off, unavailable or unsure |
 

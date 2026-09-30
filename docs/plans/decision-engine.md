@@ -1031,7 +1031,7 @@ merged branch. The feature is documented in [decision-engine.md](../decision-eng
   in `security.ts`.
 - **D2 · points.** All 22 points wired at their call sites, shipping `off`: the flow (`w1`), the
   project knowledge points (`w2`), the runtime (`w3`), the signals (`w4`), and the resolvers for
-  shadow accuracy (`w5`, `decisions/resolve.ts`, 19 points). Call sites go through `stanceOf`
+  shadow accuracy (`w5`, `decisions/resolve.ts`, 19 points; the last three came with CW-28). Call sites go through `stanceOf`
   (`decisions/stance.ts`): a point that is off costs nothing.
 - **D3 · UI.** The Decisions tab and the `?tab=supervisor` alias (`u1`); the consent dialog with the
   preview, per-point metrics and History (`u2`); the project override (`u3`); the "decided" mark and
@@ -1058,11 +1058,10 @@ merged branch. The feature is documented in [decision-engine.md](../decision-eng
 
 **What stays open:**
 
-- **Three points have no resolver:** `palette.intent` (whether the person runs the proposed command),
-  `notification.urgency` (an `opened_at` set when the app opens from a notification) and
-  `orchestration.model` (the person's edit of the task model before launch, and the task's outcome).
-  They record rows and take useful / not useful, but their shadow agreement stays empty until their
-  signals are stored.
+- **All 22 points have a resolver.** The last three (CW-28) read stored signals: the palette's
+  action (`palette_action`), a notification's open (`opened_at`, window one hour) and the model each
+  task of an orchestration launched from a planner draft ran with (`plannerRunId`). See
+  [Shadow accuracy](../decision-engine.md#shadow-accuracy).
 - **CW-4 seam.** `CliDecisionProvider.available()` is always true. When CW-4's pool-wide
   `exhaustedUntil` hold lands, it should be false while the hold is in the future and answer `no-quota`
   without starting a chat; today a rate-limited decision chat answers `rate-limited`. The

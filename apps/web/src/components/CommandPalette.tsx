@@ -52,7 +52,7 @@ import { setThemePreference } from '../lib/theme';
 import { NEW_PROJECT_PATH, NEW_TASK_PATH, TASKS_PATH } from '../lib/work-items';
 import { statusText } from './ui';
 import '../palette.css';
-import { MAX_RECENT, MAX_RESULTS, MOTION_LEVELS, readRecent, RECENT_KEY, score, type Command, type Group } from './palette-model';
+import { createPaletteReporter, MAX_RECENT, MAX_RESULTS, MOTION_LEVELS, readRecent, RECENT_KEY, score, type Command, type Group } from './palette-model';
 
 const OPEN_EVENT = 'cw:open-command-palette';
 /** The workflow dialog lives in the shell, beside "New chat": the palette only asks for it. */
@@ -101,9 +101,10 @@ export function CommandPalette() {
   const orchestrations = useQuery({ queryKey: keys.orchestrations, queryFn: api.orchestrations, enabled: open });
   const overview = useQuery({ queryKey: keys.overview, queryFn: api.overview, enabled: open });
 
-  // `palette.intent` only asks when it is active on Jev: the local ranking answers first either way
+  // `palette.intent` asks in shadow and active, on Jev only: the local ranking answers first either way, and
+  // in shadow the answer is never shown, the row only waits for what the person does
   const points = useQuery({ queryKey: keys.decisionPoints, queryFn: ({ signal }) => api.decisionPoints({ signal }), enabled: open });
-  const intentOn = (points.data ?? []).some((p) => p.id === 'palette.intent' && p.effective.mode === 'active' && !p.effective.limited && p.effective.provider === 'jev');
+  const intentOn = (points.data ?? []).some((p) => p.id === 'palette.intent' && (p.effective.mode === 'active' || p.effective.mode === 'shadow') && !p.effective.limited && p.effective.provider === 'jev');
 
   const close = useCallback(() => {
     setOpen(false);
@@ -252,6 +253,14 @@ export function CommandPalette() {
     retry: false,
   });
   const proposedId = wantsIntent ? intent.data?.commandId ?? null : null;
+  const decisionId = wantsIntent ? intent.data?.decisionId ?? null : null;
+  const decisionRef = useRef<string | null>(null);
+  decisionRef.current = decisionId;
+  const report = useRef(createPaletteReporter((id, commandId) => api.decisionPaletteAction(id, commandId))).current;
+  // Every way of closing lands here (Escape, a click outside, the shortcut, a command that ran): one report, the first one kept
+  useEffect(() => {
+    if (!open) report(decisionRef.current, null);
+  }, [open, report]);
   const proposed = proposedId ? commands.find((c) => c.id === proposedId) : undefined;
 
   const results = useMemo(() => {
@@ -287,8 +296,7 @@ export function CommandPalette() {
     } catch {
       // recents are a convenience only
     }
-    // Running what the model proposed is the word that it was right
-    if (intent.data?.decisionId && command.id === proposedId) void api.decisionFeedback(intent.data.decisionId, 'useful').catch(() => undefined);
+    report(decisionId, command.id);
     setOpen(false);
     command.run();
   };

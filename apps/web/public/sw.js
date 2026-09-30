@@ -195,6 +195,13 @@ const tunnelHost = (hostname) => hostname.endsWith(TUNNEL_SUFFIX) && hostname.le
  * provider.
  */
 function destination(data) {
+  const target = chooseTarget(data);
+  // The page reports the open (once) and removes this; it is how `notification.urgency` learns the push was read
+  if (data && typeof data.key === 'string' && data.key !== '') target.searchParams.set('notification', data.key);
+  return target;
+}
+
+function chooseTarget(data) {
   const own = new URL(self.location.origin);
   const here = new URL((data && data.href) || '/', own.origin);
   let current = null;

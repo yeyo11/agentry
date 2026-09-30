@@ -47,6 +47,8 @@ const record = (over: Partial<DecisionRecord> = {}): DecisionRecord => ({
   resolvedAt: null,
   feedback: null,
   feedbackAt: null,
+  openedAt: null,
+  paletteAction: null,
   at: '2026-09-30T10:00:00.000Z',
   ...over,
 });

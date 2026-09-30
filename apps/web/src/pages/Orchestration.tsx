@@ -189,7 +189,8 @@ function CreateForm({ onDone, template, boardDraft }: { onDone: () => void; temp
     const problem = validateGraph(name, tasks);
     setLocalError(problem);
     if (problem) return;
-    create.mutate(specOfForm());
+    // Only a form a planner's draft filled says so: it is how `orchestration.model` finds what was launched from its suggestion
+    create.mutate({ ...specOfForm(), ...(appliedRunId ? { plannerRunId: appliedRunId } : {}) });
   };
 
   const saveTemplate = () => {

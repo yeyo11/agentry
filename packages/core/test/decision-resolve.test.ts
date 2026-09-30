@@ -50,6 +50,8 @@ function setup() {
       resolvedAt: null,
       feedback: null,
       feedbackAt: null,
+      openedAt: null,
+      paletteAction: null,
       at: T0,
       ...over,
     };
@@ -205,4 +207,137 @@ test('rows that are unavailable, off the window, or resolved already are left al
   assert.equal(s.get(old.id)?.resolvedAt, null);
   assert.equal(s.get(first.id)?.agreed, true);
   assert.equal(s.resolvers.sweep(), 0, 'a resolved row is not resolved twice');
+});
+
+const action = (kind: 'proposed' | 'other' | 'dismissed', commandId: string | null) => ({ action: kind, commandId, at: T1 });
+const commands = [{ id: 'go.home', title: 'Home' }, { id: 'chat.new', title: 'New chat' }];
+
+test('palette.intent: a proposed command is right only when it ran, and waits for the person', () => {
+  const s = setup();
+  const answers = { command: choiceOf('go.home') };
+  const waiting = s.row('palette.intent', { kind: 'suggest', subjectKind: 'palette', answers, state: { commands } });
+  const ran = s.row('palette.intent', { kind: 'suggest', subjectKind: 'palette', answers, state: { commands }, paletteAction: action('proposed', 'go.home') });
+  const other = s.row('palette.intent', { kind: 'suggest', subjectKind: 'palette', answers, state: { commands }, paletteAction: action('other', 'chat.new') });
+  const dismissed = s.row('palette.intent', { kind: 'suggest', subjectKind: 'palette', answers, state: { commands }, paletteAction: action('dismissed', null) });
+  assert.equal(s.resolvers.sweep(), 3);
+  assert.equal(s.get(waiting.id)?.resolvedAt, null);
+  assert.equal(s.get(ran.id)?.agreed, true);
+  assert.equal(s.get(other.id)?.agreed, false);
+  assert.equal(s.get(dismissed.id)?.agreed, false);
+  assert.deepEqual(s.get(other.id)?.outcome?.detail, { action: 'other', commandId: 'chat.new' });
+});
+
+test('palette.intent: "none" is right when the palette was dismissed or ran a command it did not list', () => {
+  const s = setup();
+  const base = { kind: 'suggest' as const, subjectKind: 'palette' as const, answers: { command: choiceOf('none') }, state: { commands } };
+  const dismissed = s.row('palette.intent', { ...base, paletteAction: action('dismissed', null) });
+  const unlisted = s.row('palette.intent', { ...base, paletteAction: action('other', 'act:api-docs') });
+  const listed = s.row('palette.intent', { ...base, paletteAction: action('other', 'chat.new') });
+  s.resolvers.sweep();
+  assert.equal(s.get(dismissed.id)?.agreed, true);
+  assert.equal(s.get(unlisted.id)?.agreed, true);
+  assert.equal(s.get(listed.id)?.agreed, false, 'a listed command ran where none was proposed');
+});
+
+test("palette.intent: the person's word outranks the inference", () => {
+  const s = setup();
+  const r = s.row('palette.intent', { kind: 'suggest', subjectKind: 'palette', answers: { command: choiceOf('go.home') }, state: { commands }, paletteAction: action('proposed', 'go.home') });
+  s.db.setDecisionFeedback(r.id, 'not_useful', T1);
+  s.resolvers.sweep();
+  assert.equal(s.get(r.id)?.agreed, false);
+  assert.equal(s.get(r.id)?.outcome?.agreed, true);
+});
+
+test('notification.urgency: high is right when opened within the hour, wrong when never opened', () => {
+  const s = setup();
+  const answers = (value: string) => ({ urgency: choiceOf(value) });
+  const base = { kind: 'act' as const, subjectKind: 'notification' as const, subjectId: 'k' };
+  const highOpened = s.row('notification.urgency', { ...base, answers: answers('high'), openedAt: '2026-09-01T10:20:00.000Z' });
+  const normalOpened = s.row('notification.urgency', { ...base, answers: answers('normal'), openedAt: '2026-09-01T10:20:00.000Z' });
+  const highIgnored = s.row('notification.urgency', { ...base, answers: answers('high') });
+  const normalIgnored = s.row('notification.urgency', { ...base, answers: answers('normal') });
+  const openedLate = s.row('notification.urgency', { ...base, answers: answers('high'), openedAt: '2026-09-01T12:30:00.000Z' });
+  s.resolvers.sweep();
+  assert.equal(s.get(highOpened.id)?.agreed, true);
+  assert.equal(s.get(normalOpened.id)?.agreed, false);
+  assert.equal(s.get(highIgnored.id)?.agreed, false);
+  assert.equal(s.get(normalIgnored.id)?.agreed, true);
+  assert.equal(s.get(openedLate.id)?.agreed, false, 'an open after the window is not opened soon');
+  assert.equal(s.get(highOpened.id)?.outcome?.detail?.withinMs, 20 * 60_000);
+});
+
+test('notification.urgency: before the hour ends with no open there is no outcome yet', () => {
+  const s = setup();
+  // The clock of this rig is 2026-09-02T00:00Z
+  const recent = s.row('notification.urgency', { kind: 'act', subjectKind: 'notification', subjectId: 'k', answers: { urgency: choiceOf('normal') }, at: '2026-09-01T23:30:00.000Z' });
+  assert.equal(s.resolvers.sweep(), 0);
+  assert.equal(s.get(recent.id)?.resolvedAt, null);
+  s.db.markNotificationOpened('k', '2026-09-01T23:40:00.000Z');
+  s.resolvers.sweep();
+  assert.equal(s.get(recent.id)?.agreed, false, 'a normal push opened in time was raised in effect');
+});
+
+function orchestration(s: ReturnType<typeof setup>, id: string, plannerRunId: string | null, tasks: Array<{ id: string; status: string; model?: string }>, model: string | null = 'sonnet', createdAt = T1): void {
+  s.db.connection.prepare('INSERT INTO orchestrations (id, created_at, json) VALUES (?, ?, ?)').run(id, createdAt, JSON.stringify({ id, model, plannerRunId, tasks }));
+}
+const suggest = (s: ReturnType<typeof setup>, answers: Record<string, string>) =>
+  s.row('orchestration.model', { kind: 'suggest', subjectKind: 'task', subjectId: 'plan1', answers: Object.fromEntries(Object.entries(answers).map(([task, model]) => [task, choiceOf(model)])) });
+
+test('orchestration.model: waits for a launch from that planner run and for every task to settle', () => {
+  const s = setup();
+  const r = suggest(s, { a: 'sonnet' });
+  assert.equal(s.resolvers.sweep(), 0, 'nothing launched from it yet');
+  orchestration(s, 'o0', 'someone-else', [{ id: 'a', status: 'completed' }]);
+  orchestration(s, 'o-early', 'plan1', [{ id: 'a', status: 'completed' }], 'sonnet', '2026-08-01T00:00:00.000Z');
+  assert.equal(s.resolvers.sweep(), 0, 'another planner run, or one launched before the suggestion');
+  orchestration(s, 'o1', 'plan1', [{ id: 'a', status: 'running' }]);
+  assert.equal(s.resolvers.sweep(), 0);
+  s.db.connection.prepare('UPDATE orchestrations SET json = ? WHERE id = ?').run(JSON.stringify({ id: 'o1', model: 'sonnet', plannerRunId: 'plan1', tasks: [{ id: 'a', status: 'completed' }] }), 'o1');
+  s.resolvers.sweep();
+  assert.equal(s.get(r.id)?.agreed, true);
+});
+
+test('orchestration.model: kept, stronger and weaker suggestions are judged by how the task ended', () => {
+  const s = setup();
+  const kept = suggest(s, { a: 'sonnet', b: 'sonnet' });
+  orchestration(s, 'o1', 'plan1', [{ id: 'a', status: 'completed' }, { id: 'b', status: 'failed' }], 'sonnet');
+  s.resolvers.sweep();
+  const done = s.get(kept.id);
+  assert.equal(done?.agreed, true, 'one right, one wrong is a majority tie');
+  assert.deepEqual(done?.outcome?.detail, {
+    judged: 2,
+    right: 1,
+    tasks: [
+      { task: 'a', suggested: 'sonnet', launched: 'sonnet', kept: true, status: 'completed' },
+      { task: 'b', suggested: 'sonnet', launched: 'sonnet', kept: true, status: 'failed' },
+    ],
+  });
+
+  const s2 = setup();
+  const stronger = suggest(s2, { a: 'claude-opus-4', b: 'claude-opus-4' });
+  orchestration(s2, 'o1', 'plan1', [{ id: 'a', status: 'failed', model: 'haiku' }, { id: 'b', status: 'failed', model: 'haiku' }], 'sonnet');
+  s2.resolvers.sweep();
+  assert.equal(s2.get(stronger.id)?.agreed, true, 'a stronger model was suggested and the changed-down tasks failed');
+
+  const strongerDone = suggest(s2, { c: 'opus' });
+  orchestration(s2, 'o2', 'plan1', [{ id: 'c', status: 'completed', model: 'haiku' }], 'sonnet', '2026-09-01T12:00:00.000Z');
+  s2.db.connection.prepare("UPDATE orchestrations SET json = json_set(json, '$.plannerRunId', 'plan2') WHERE id = 'o1'").run();
+  s2.resolvers.sweep();
+  assert.equal(s2.get(strongerDone.id)?.agreed, false, 'the weaker model completed, so the stronger one was not needed');
+
+  const s3 = setup();
+  const weaker = suggest(s3, { a: 'haiku', b: 'haiku' });
+  orchestration(s3, 'o1', 'plan1', [{ id: 'a', status: 'completed', model: 'opus' }, { id: 'b', status: 'failed', model: 'opus' }], 'sonnet');
+  s3.resolvers.sweep();
+  const w = s3.get(weaker.id);
+  assert.equal(w?.agreed, false, 'a weaker suggestion that failed is wrong; the one that completed is not judged');
+  assert.equal(w?.outcome?.detail?.judged, 1);
+});
+
+test('orchestration.model: unranked ids that changed, skipped and stopped tasks judge nothing', () => {
+  const s = setup();
+  const r = suggest(s, { a: 'custom-x', b: 'sonnet', c: 'sonnet' });
+  orchestration(s, 'o1', 'plan1', [{ id: 'a', status: 'completed', model: 'custom-y' }, { id: 'b', status: 'skipped' }, { id: 'c', status: 'stopped' }], 'sonnet');
+  assert.equal(s.resolvers.sweep(), 0);
+  assert.equal(s.get(r.id)?.resolvedAt, null);
 });

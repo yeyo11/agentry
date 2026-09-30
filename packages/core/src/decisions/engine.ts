@@ -212,6 +212,8 @@ export class DecisionEngine {
       resolvedAt: null,
       feedback: null,
       feedbackAt: null,
+      openedAt: null,
+      paletteAction: null,
       at: this.now().toISOString(),
     };
     try {

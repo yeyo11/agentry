@@ -1293,3 +1293,22 @@ test('a plan cut by the token limit is refused even though its JSON parsed; one 
   assert.ok((runs.get(cut.id)?.prompt ?? '').includes(THINK_THROUGH));
   db.close();
 });
+
+test('an orchestration launched from a planner draft keeps its planner run, and a relaunch does not', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
+
+  const started = orchestrator.create({ name: 'Drafted', cwd: repo, worktree: false, plannerRunId: 'planner-7', tasks: [{ id: 'a', name: 'A', prompt: 'FAKE-WRITE a.txt x' }] });
+  assert.equal(started.plannerRunId, 'planner-7');
+  await settle(orchestrator, started.id);
+  assert.equal(orchestrator.get(started.id)?.plannerRunId, 'planner-7');
+
+  const plain = orchestrator.create({ name: 'Plain', cwd: repo, worktree: false, tasks: [{ id: 'a', name: 'A', prompt: 'FAKE-WRITE a.txt x' }] });
+  assert.equal(plain.plannerRunId, null);
+  const again = orchestrator.relaunch(started.id);
+  assert.equal(again.plannerRunId, null);
+  await settle(orchestrator, plain.id);
+  await settle(orchestrator, again.id);
+});

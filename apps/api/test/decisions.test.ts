@@ -74,6 +74,8 @@ const row = (id: string, over: Partial<DecisionRecord> = {}): DecisionRecord => 
   resolvedAt: null,
   feedback: null,
   feedbackAt: null,
+  openedAt: null,
+  paletteAction: null,
   at: new Date().toISOString(),
   ...over,
 });
@@ -228,6 +230,44 @@ test('the palette answers no command while its point is off, and refuses a malfo
   assert.equal((await app.inject({ method: 'POST', url: '/api/decisions/palette', ...json({ query: 'x', commands: [{ id: 1 }] }) })).statusCode, 400);
 });
 
+test('the palette action is classified against the answer, kept once, and refused when malformed', async () => {
+  const answers = { command: { kind: 'choice', value: 'go.home', probabilities: null, confidence: 0.9 } } as const;
+  core.db.insertDecision(row('pa-1', { point: 'palette.intent', kind: 'suggest', subjectKind: 'palette', subjectId: null, answers }));
+  core.db.insertDecision(row('pa-2', { point: 'palette.intent', kind: 'suggest', subjectKind: 'palette', subjectId: null, answers }));
+  core.db.insertDecision(row('pa-3', { point: 'palette.intent', kind: 'suggest', subjectKind: 'palette', subjectId: null, answers }));
+  const report = (id: string, body: unknown) => app.inject({ method: 'POST', url: `/api/decisions/${id}/palette-action`, ...json(body) });
+
+  assert.equal((await report('pa-1', { commandId: 'go.home' })).json<DecisionRecord>().paletteAction?.action, 'proposed');
+  assert.equal((await report('pa-2', { commandId: 'chat.new' })).json<DecisionRecord>().paletteAction?.action, 'other');
+  const dismissed = (await report('pa-3', { commandId: null })).json<DecisionRecord>();
+  assert.deepEqual({ action: dismissed.paletteAction?.action, commandId: dismissed.paletteAction?.commandId }, { action: 'dismissed', commandId: null });
+  // The first report wins
+  assert.equal((await report('pa-1', { commandId: null })).json<DecisionRecord>().paletteAction?.action, 'proposed');
+
+  assert.equal((await report('nope', { commandId: null })).statusCode, 404);
+  core.db.insertDecision(row('pa-other'));
+  assert.equal((await report('pa-other', { commandId: null })).statusCode, 400);
+  assert.equal((await report('pa-1', { commandId: 3 })).statusCode, 400);
+  assert.equal((await report('pa-1', {})).statusCode, 400);
+});
+
+test('an opened notification marks its newest decision once and answers null when none matches', async () => {
+  const push = (id: string, at: string) => row(id, { point: 'notification.urgency', kind: 'act', subjectKind: 'notification', subjectId: 'chat:c1:waiting', at });
+  core.db.insertDecision(push('no-1', '2026-01-01T00:00:00.000Z'));
+  core.db.insertDecision(push('no-2', '2026-01-02T00:00:00.000Z'));
+  const open = (key: unknown) => app.inject({ method: 'POST', url: '/api/decisions/notification-opened', ...json({ key }) });
+
+  assert.deepEqual((await open('chat:c1:waiting')).json(), { decisionId: 'no-2' });
+  const first = core.db.decision('no-2')?.openedAt;
+  assert.ok(first);
+  await new Promise((r) => setTimeout(r, 5));
+  assert.deepEqual((await open('chat:c1:waiting')).json(), { decisionId: 'no-2' });
+  assert.equal(core.db.decision('no-2')?.openedAt, first, 'a second open leaves the first');
+  assert.equal(core.db.decision('no-1')?.openedAt, null);
+  assert.deepEqual((await open('unknown')).json(), { decisionId: null });
+  assert.equal((await open('')).statusCode, 400);
+});
+
 test("a chat's token cannot change what the engine sends, but can read and rate", async () => {
   const created = await app.inject({ method: 'POST', url: '/api/security/token', ...json({}) });
   const { token } = created.json<{ token: string }>();
@@ -247,6 +287,8 @@ test("a chat's token cannot change what the engine sends, but can read and rate"
       ['PUT', '/api/decisions/credentials', { key: 'tsk_from_a_chat' }],
       ['DELETE', '/api/decisions/credentials', undefined],
       ['PUT', '/api/decisions/points/flow.bounce/consent', { granted: true, stateVersion: 1, providers: ['jev'] }],
+      ['POST', '/api/decisions/some-row/palette-action', { commandId: null }],
+      ['POST', '/api/decisions/notification-opened', { key: 'chat:c1:waiting' }],
     ];
     for (const [method, url, body] of forbidden) {
       const answer = await app.inject(fromChat(method, url, body));

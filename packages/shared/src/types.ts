@@ -2878,6 +2878,8 @@ export type OrchestrationEngine = 'graph' | 'workflow';
 
 export interface OrchestrationSpec {
   name: string;
+  /** The planner run whose draft filled this form; absent for a template, a relaunch or a work item */
+  plannerRunId?: string | null;
   objective?: string;
   /** Default `graph` */
   engine?: OrchestrationEngine;
@@ -3015,6 +3017,8 @@ export interface Orchestration {
   relaunchedFrom?: string | null;
   /** The template it was launched from, when it was */
   templateId?: string | null;
+  /** The planner run whose draft filled the form it was launched from; lets `orchestration.model` compare its suggestion */
+  plannerRunId?: string | null;
 }
 
 // ---------- Verification ----------
@@ -5038,6 +5042,14 @@ export interface DecisionPointInfo {
   };
 }
 
+/** What the palette's person did with the proposal, classified against the row's `command` answer */
+export interface DecisionPaletteAction {
+  action: 'proposed' | 'other' | 'dismissed';
+  /** The command that ran; null when the palette closed without one */
+  commandId: string | null;
+  at: string;
+}
+
 /** A row of the history as the API serves it */
 export interface DecisionRecord {
   id: string;
@@ -5075,6 +5087,10 @@ export interface DecisionRecord {
   resolvedAt: string | null;
   feedback: DecisionFeedback | null;
   feedbackAt: string | null;
+  /** When the app was opened from the notification this row was about; null until then */
+  openedAt: string | null;
+  /** What the palette's person did with the proposal; null until they ran or dismissed */
+  paletteAction: DecisionPaletteAction | null;
   at: string;
 }
 
@@ -5107,6 +5123,21 @@ export interface DecisionPage {
 
 export interface DecisionFeedbackRequest {
   feedback: DecisionFeedback;
+}
+
+/** What the palette did with the proposal: the command that ran, or null when it closed without one */
+export interface DecisionPaletteActionRequest {
+  commandId: string | null;
+}
+
+/** The app was opened from the push notification with this key */
+export interface DecisionNotificationOpenedRequest {
+  key: string;
+}
+
+/** The decision the open was recorded on; null when no row matched, which is not an error */
+export interface DecisionNotificationOpenedResult {
+  decisionId: string | null;
 }
 
 /** Grants or withdraws consent for a point, bound to the state version the person previewed */

@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { AgentryEvent, DecisionAnswer, DecisionPointId, DecisionRecord, DecisionResolution } from '@agentry/shared';
+import { TTL_SECONDS } from '../push.ts';
 
 /*
  * Shadow accuracy (docs/plans/decision-engine.md, "Shadow accuracy"). Each point has a resolver that
@@ -13,9 +14,30 @@ import type { AgentryEvent, DecisionAnswer, DecisionPointId, DecisionRecord, Dec
  */
 
 type Sql = DatabaseSync;
-type Resolver = (row: DecisionRecord, sql: Sql) => DecisionResolution | null;
+type Resolver = (row: DecisionRecord, sql: Sql, now: number) => DecisionResolution | null;
 
 const PERSON = 'person';
+
+/** How long a push lives at the push service: a notification not opened by then was not opened soon */
+const NOTIFICATION_WINDOW_MS = TTL_SECONDS * 1000;
+
+/** A task in one of these may still change, so the row waits */
+const STILL_GOING = new Set(['pending', 'running', 'blocked', 'interrupted']);
+
+const FAMILIES = ['haiku', 'sonnet', 'opus'];
+const rankOf = (model: string | null): number => (model ? FAMILIES.findIndex((f) => model.toLowerCase().includes(f)) : -1);
+
+/** Whether the suggestion was right for a task that ended; null when this task says nothing about it */
+function modelVerdict(suggested: string, launched: string | null, kept: boolean, completed: boolean): boolean | null {
+  if (kept) return completed;
+  const s = rankOf(suggested);
+  const l = rankOf(launched);
+  if (s < 0 || l < 0 || s === l) return null;
+  // A stronger model was suggested and the task failed: the suggestion was right. If it completed anyway, it was not needed
+  if (s > l) return completed ? false : true;
+  // A weaker one was suggested and the task failed: the suggestion was wrong; if it completed, it proves nothing
+  return completed ? null : false;
+}
 
 const verdict = (agreed: boolean, summary: string, detail?: Record<string, unknown>): DecisionResolution => ({ agreed, summary, ...(detail ? { detail } : {}) });
 
@@ -328,6 +350,66 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     const bad = run.outcome === 'failed' || run.outcome === 'cancelled';
     return verdict(bad, bad ? 'The run then failed or was stopped' : 'The run finished', { outcome: run.outcome });
   },
+
+  'palette.intent': (row) => {
+    const action = row.paletteAction;
+    const answer = choiceOf(row, 'command');
+    if (!action || !answer) return null;
+    const detail = { action: action.action, commandId: action.commandId };
+    if (answer !== 'none') {
+      const proposed = action.action === 'proposed';
+      return verdict(proposed, proposed ? 'The person ran the proposed command' : action.action === 'other' ? 'The person ran another command' : 'The person dismissed the palette', detail);
+    }
+    // "No command" is right when nothing listed ran: a dismissal, or a command the palette did not offer
+    const listed = Array.isArray(row.state.commands) ? (row.state.commands as Array<{ id?: unknown }>).some((c) => c.id === action.commandId) : false;
+    const right = action.action === 'dismissed' || (action.action === 'other' && !listed);
+    return verdict(right, right ? 'No command was proposed and none of the listed ones ran' : 'A listed command ran where none was proposed', detail);
+  },
+
+  'notification.urgency': (row, _sql, now) => {
+    const urgency = choiceOf(row, 'urgency');
+    if (!urgency) return null;
+    const start = Date.parse(row.at);
+    const opened = row.openedAt ? Date.parse(row.openedAt) : null;
+    const withinMs = opened !== null && Number.isFinite(opened) ? opened - start : null;
+    const inTime = withinMs !== null && withinMs <= NOTIFICATION_WINDOW_MS;
+    const detail = { urgency, openedAt: row.openedAt, withinMs };
+    if (inTime) return verdict(urgency === 'high', urgency === 'high' ? 'A raised notification was opened within the hour' : 'A normal notification was opened within the hour', detail);
+    // An open after the window counts as not opened soon; before the window ends there is still time
+    if (now < start + NOTIFICATION_WINDOW_MS) return null;
+    return verdict(urgency === 'normal', urgency === 'normal' ? 'A normal notification was not opened within the hour' : 'A raised notification was not opened within the hour', detail);
+  },
+
+  'orchestration.model': (row, sql) => {
+    if (!row.answers || !row.subjectId) return null;
+    const found = sql
+      .prepare("SELECT json FROM orchestrations WHERE created_at >= ? AND json_extract(json, '$.plannerRunId') = ? ORDER BY created_at LIMIT 1")
+      .get(row.at, row.subjectId) as { json: string } | undefined;
+    const orch = found ? parse(found.json) : null;
+    if (!orch) return null;
+    const tasks = Array.isArray(orch.tasks) ? (orch.tasks as Array<Record<string, unknown>>) : [];
+    const detail: Array<{ task: string; suggested: string; launched: string | null; kept: boolean; status: string }> = [];
+    let judged = 0;
+    let right = 0;
+    for (const [taskId, answer] of Object.entries(row.answers)) {
+      if (answer.kind !== 'choice') continue;
+      const task = tasks.find((t) => t.id === taskId);
+      if (!task) continue;
+      const status = String(task.status ?? '');
+      if (STILL_GOING.has(status)) return null;
+      const launched = typeof task.model === 'string' ? task.model : typeof orch.model === 'string' ? orch.model : null;
+      const kept = launched === answer.value;
+      detail.push({ task: taskId, suggested: answer.value, launched, kept, status });
+      if (status !== 'completed' && status !== 'failed') continue;
+      const completed = status === 'completed';
+      const verdictOf = modelVerdict(answer.value, launched, kept, completed);
+      if (verdictOf === null) continue;
+      judged += 1;
+      if (verdictOf) right += 1;
+    }
+    if (judged === 0) return null;
+    return verdict(right * 2 >= judged, `${right} of ${judged} model suggestions matched how the tasks ended`, { judged, right, tasks: detail });
+  },
 };
 
 // Both are judged on the card the chat worked on: QA rejecting on the change
@@ -342,8 +424,6 @@ const viaItemOfChat: Resolver = (row, sql) => {
 RESOLVERS['health.test-weakening'] = viaItemOfChat;
 RESOLVERS['changes.unexplained-hunk'] = viaItemOfChat;
 
-// No signal exists on main for these: `notification.urgency` needs the notification's open (not built),
-// `palette.intent` has no call site yet. Their rows keep only the person's word.
 export const RESOLVED_POINTS: readonly DecisionPointId[] = Object.keys(RESOLVERS) as DecisionPointId[];
 
 /** The events after which an outcome may have become known */
@@ -391,7 +471,7 @@ export class DecisionResolvers {
         const resolver = row ? RESOLVERS[row.point] : undefined;
         if (!row || !resolver) continue;
         try {
-          const outcome = resolver(row, this.deps.sql);
+          const outcome = resolver(row, this.deps.sql, now.getTime());
           if (outcome) {
             this.deps.engine.resolve(id, outcome);
             resolved += 1;
@@ -407,7 +487,12 @@ export class DecisionResolvers {
   }
 
   observe(event: AgentryEvent): void {
-    if (!EVENTS.test(event.type) || this.debounce) return;
+    if (EVENTS.test(event.type)) this.soon();
+  }
+
+  /** Schedules the debounced sweep; a signal recorded outside the event bus calls it too */
+  soon(): void {
+    if (this.debounce) return;
     this.debounce = setTimeout(() => {
       this.debounce = null;
       this.sweep();

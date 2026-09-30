@@ -52,3 +52,17 @@ export function readRecent(): string[] {
     return [];
   }
 }
+
+/**
+ * Tells the `palette.intent` row what the person did with the proposal: the command they ran, or
+ * null when the palette closed without one. The server keeps the first report, and so does this,
+ * so running a command and the close that follows it send one report. Errors are the caller's to ignore.
+ */
+export function createPaletteReporter(send: (decisionId: string, commandId: string | null) => Promise<unknown>) {
+  const told = new Set<string>();
+  return (decisionId: string | null, commandId: string | null): void => {
+    if (!decisionId || told.has(decisionId)) return;
+    told.add(decisionId);
+    void send(decisionId, commandId).catch(() => undefined);
+  };
+}

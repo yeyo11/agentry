@@ -3,6 +3,7 @@ import { decisionPoint, DECISION_POINTS, type Core } from '@agentry/core';
 import type {
   DecisionCredentialsResult,
   DecisionFeedback,
+  DecisionNotificationOpenedResult,
   DecisionPageQuery,
   DecisionPaletteResult,
   DecisionPointId,
@@ -154,6 +155,12 @@ export const decisionRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     return { commandId, confidence: commandId ? (answer?.confidence ?? null) : null, decisionId: outcome.decisionId };
   });
 
+  app.post<{ Body: { key?: unknown } | undefined }>('/decisions/notification-opened', (req): DecisionNotificationOpenedResult => {
+    const key = req.body?.key;
+    if (typeof key !== 'string' || key === '') throw new Error('key must be a non-empty string');
+    return { decisionId: core.reportNotificationOpened(key) };
+  });
+
   app.get<{ Params: { id: string } }>('/decisions/:id', (req) => {
     const found = core.db.decision(req.params.id);
     if (!found) throw fail(404, `decision ${req.params.id} not found`);
@@ -167,6 +174,14 @@ export const decisionRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
       throw fail(404, `decision ${req.params.id} not found`);
     }
     return core.db.decision(req.params.id);
+  });
+
+  app.post<{ Params: { id: string }; Body: { commandId?: unknown } | undefined }>('/decisions/:id/palette-action', (req) => {
+    const commandId = req.body?.commandId;
+    if (commandId !== null && typeof commandId !== 'string') throw new Error('commandId must be a string or null');
+    const found = core.reportPaletteAction(req.params.id, commandId);
+    if (!found) throw fail(404, `decision ${req.params.id} not found`);
+    return found;
   });
 
   app.delete<{ Params: { id: string } }>('/decisions/:id', (req) => {

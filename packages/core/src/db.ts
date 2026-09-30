@@ -9,6 +9,7 @@ import type {
   AutoSwitchEvent,
   DecisionAnswer,
   DecisionFeedback,
+  DecisionPaletteAction,
   DecisionFilter,
   DecisionPage,
   DecisionPageQuery,
@@ -534,6 +535,10 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    CREATE INDEX decisions_point_at ON decisions (point, at);
    CREATE INDEX decisions_project_at ON decisions (project_id, at);
    CREATE INDEX decisions_subject ON decisions (subject_kind, subject_id);`,
+  // Two signals a resolver reads (CW-28): when the app was opened from a notification, and what the
+  // palette's person did with the proposal. Columns of the history row, not of the state sent to a provider
+  `ALTER TABLE decisions ADD COLUMN opened_at TEXT;
+   ALTER TABLE decisions ADD COLUMN palette_action TEXT;`,
 ];
 
 /**
@@ -550,6 +555,9 @@ export const FLOW_CAUSE_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m ==
 export const DOCUMENT_LINKS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN document_path')) + 1;
 /** The version that added the assistant's runs and proposals, found the same way */
 export const ASSISTANT_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE assistant_runs')) + 1;
+
+/** The version that added the decisions' opened_at and palette_action, for the test that upgrades into it */
+export const DECISION_SIGNALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN palette_action')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by
@@ -1159,8 +1167,8 @@ export class Db {
       .prepare(
         `INSERT INTO decisions (id, point, kind, project_id, subject_kind, subject_id, provider, model, mode, status, unavailable,
            state, questions, answers, confidence, threshold, acted, visible, saved_run, latency_ms, input_tokens, cost_usd,
-           outcome, agreed, resolved_at, feedback, feedback_at, at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           outcome, agreed, resolved_at, feedback, feedback_at, opened_at, palette_action, at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         d.id,
@@ -1190,6 +1198,8 @@ export class Db {
         d.resolvedAt,
         d.feedback,
         d.feedbackAt,
+        d.openedAt,
+        d.paletteAction ? JSON.stringify(d.paletteAction) : null,
         d.at,
       );
   }
@@ -1223,6 +1233,34 @@ export class Db {
       .prepare('UPDATE decisions SET feedback = ?, feedback_at = ?, agreed = ?, resolved_at = COALESCE(resolved_at, ?) WHERE id = ?')
       .run(feedback, at, feedback === 'useful' ? 1 : 0, at, id);
     return Number(result.changes) > 0;
+  }
+
+  /**
+   * What the palette's person did with the proposal, classified against the row's `command` answer.
+   * The first report wins; returns the row (unchanged on a later report), or null when it is gone.
+   */
+  setDecisionPaletteAction(id: string, commandId: string | null, at: string): DecisionRecord | null {
+    const row = this.decision(id);
+    if (!row) return null;
+    if (row.paletteAction) return row;
+    const answer = row.answers?.command;
+    const proposed = answer?.kind === 'choice' ? answer.value : null;
+    const action: DecisionPaletteAction['action'] = commandId === null ? 'dismissed' : commandId === proposed ? 'proposed' : 'other';
+    this.db.prepare('UPDATE decisions SET palette_action = ? WHERE id = ? AND palette_action IS NULL').run(JSON.stringify({ action, commandId, at } satisfies DecisionPaletteAction), id);
+    return this.decision(id);
+  }
+
+  /**
+   * Marks the newest `notification.urgency` row for a push key as opened, if it is not yet and was
+   * recorded by now. Returns its id, or null when no row matches.
+   */
+  markNotificationOpened(key: string, at: string): string | null {
+    const found = this.db
+      .prepare("SELECT id FROM decisions WHERE point = 'notification.urgency' AND subject_kind = 'notification' AND subject_id = ? AND at <= ? ORDER BY seq DESC LIMIT 1")
+      .get(key, at) as { id: string } | undefined;
+    if (!found) return null;
+    this.db.prepare('UPDATE decisions SET opened_at = ? WHERE id = ? AND opened_at IS NULL').run(at, found.id);
+    return found.id;
   }
 
   /** Newest first. The cursor is the `seq` of the last row of the previous page. */
@@ -1486,6 +1524,8 @@ interface DecisionRow {
   resolved_at: string | null;
   feedback: string | null;
   feedback_at: string | null;
+  opened_at: string | null;
+  palette_action: string | null;
   at: string;
 }
 
@@ -1518,6 +1558,8 @@ function decisionOf(row: DecisionRow): DecisionRecord {
     resolvedAt: row.resolved_at,
     feedback: row.feedback as DecisionFeedback | null,
     feedbackAt: row.feedback_at,
+    openedAt: row.opened_at,
+    paletteAction: row.palette_action ? (JSON.parse(row.palette_action) as DecisionPaletteAction) : null,
     at: row.at,
   };
 }
