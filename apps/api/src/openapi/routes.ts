@@ -90,6 +90,11 @@ export const TAGS = [
       "The decision engine: typed questions a decision point puts to a provider (the Claude CLI, or TypeSafe's Jev with its own key) before it runs today's behaviour. Every point is off by default, then `shadow` (asked and recorded, never acted on) or `active`. A point sends nothing until the owner consents to it after previewing its state. A chat's token cannot change the settings, the key or a consent.",
   },
   {
+    name: 'Providers',
+    description:
+      "The agents Agentry can drive (Claude Code, Codex, Gemini, Copilot): what detection found on this machine, from one cache, and the settings that turn each on or off, order them and point at a binary. A chat's token cannot change the settings or force a detection.",
+  },
+  {
     name: 'Remote access',
     description:
       "A tunnel through localhost.run over the system's own `ssh`, so a phone or another network can reach this wrapper. Only opens while the API asks for authentication. localhost.run terminates TLS, so it sees every request, and its free address changes.",
@@ -329,6 +334,13 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'GET /settings/supervisor': d('Chats', 'Supervisor settings', { description: "The optional supervisor: a housekeeping chat of the CLI (`haiku` by default) that wakes once per signal per chat when a worker's health turns `bad`, reads the signal and the worker's last steps, and proposes a hint of a line or two. Off by default. Read from `supervisor.json` in the data directory; absent, the defaults.", ok: ref('SupervisorConfig') }),
   'PUT /settings/supervisor': d('Chats', 'Change the supervisor settings', { description: 'Replaces the whole document. `model` is what the housekeeping chat is started with (`--model`), `maxCostUsd` its `--max-budget-usd` (above 0, at most 5), and `autoSend` sends each proposal to the worker without waiting for a person.', body: ref('UpdateSupervisorConfigRequest'), ok: ref('SupervisorConfig') }),
   // ---- Decisions
+  // ---- Providers
+  'GET /providers': d('Providers', 'Every provider\'s status', { description: 'One status per provider in the order of the settings, from the detector\'s cache (5 minutes; a stale one is answered and re-detected in the background). `state` says whether it is ready and `reason` why not.', ok: list('ProviderStatus') }),
+  'POST /providers/refresh': d('Providers', 'Detect the providers again now', { description: 'Skips the cache and runs every enabled provider\'s probes, each under its own timeout. Emits `providers.changed` when a status differs. Refused to a chat\'s token with 403.', ok: list('ProviderStatus') }),
+  'GET /providers/settings': d('Providers', 'Provider settings', { description: 'The document from `providers.json`: per provider whether it is enabled and the binary to use instead of searching for one, the order the UI lists them in and the default provider. Absent until the first save, which reads as every provider on.', ok: ref('ProvidersSettings') }),
+  'PUT /providers/settings': d('Providers', 'Change the provider settings', { description: 'Replaces the document, validated: known provider ids, `binaryPath` absolute or null. A provider left out keeps the defaults and one missing from `order` is appended. Providers are detected again in the background and `providers.changed` follows. Refused to a chat\'s token with 403.', body: ref('ProvidersSettings'), ok: ref('ProvidersSettings') }),
+  'GET /providers/:id': d('Providers', 'One provider\'s status', { description: '404 for an id no manifest declares.', params: obj({ id: str('Provider id') }), ok: ref('ProviderStatus') }),
+
   'GET /decisions/settings': d('Decisions', 'Decision engine settings', { description: 'The global settings from `decisions.json`: the default provider, the `cli` model, effort and cost cap, each point\'s mode, threshold and consent, and how many days the history keeps. The Jev key is never returned, only `keySet` and the last four characters as `keyHint`.', ok: ref('DecisionSettings') }),
   'PUT /decisions/settings': d('Decisions', 'Change the decision engine settings', { description: "Replaces the whole document, validated. Consent is not part of it and is kept as it was: it changes only through the consent route. Refused to a chat's token with 403.", body: ref('DecisionSettingsUpdate'), ok: ref('DecisionSettings') }),
   'PUT /decisions/credentials': d('Decisions', 'Save the Jev key', { description: "Saved with mode 0600 and never returned. The answer carries the general privacy notice. Refused to a chat's token with 403.", body: ref('DecisionCredentialsUpdate'), ok: ref('DecisionCredentialsResult') }),

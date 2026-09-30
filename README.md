@@ -185,7 +185,7 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
 
 ## How it talks to Claude
 
-The wrapper drives Claude **only through the CLI** — no SDK, no terminal scraping:
+The wrapper drives Claude Code through its CLI, the interface Anthropic ships for programs — no terminal scraping, no undocumented endpoints:
 
 | Need | CLI surface used |
 | --- | --- |
@@ -826,6 +826,18 @@ One Server-Sent Events stream for the whole app, so a client never has to poll.
 curl -N localhost:8787/api/events
 ```
 
+### Providers
+
+The agents Agentry can drive, as detection finds them on this machine: one cache with one 5-minute TTL, refreshed by watchers and on demand, with `providers.changed` on the event stream when a status differs. A chat's token gets `403` on the settings write and the refresh.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/providers` | Every provider's status (state, reason, version, binary, config home, capabilities), from the cache |
+| GET | `/providers/:id` | One status; `404` for an unknown id |
+| POST | `/providers/refresh` | Detect again now. Not open to a chat's token |
+| GET | `/providers/settings` | The document from `providers.json`: enabled and binary override per provider, order, default |
+| PUT | `/providers/settings` | Replace it, validated; providers are detected again in the background. Not open to a chat's token |
+
 ### Decisions
 
 The decision engine: a decision point puts typed questions to a provider (the Claude CLI, or TypeSafe's Jev with its own key) and runs today's behaviour whenever the answer is missing or below its threshold. Every point is off by default. A point sends nothing until the owner consents to it after previewing its state, and consent names the providers it covers. A chat's token gets `403` on the settings, credentials and consent routes.
@@ -1407,7 +1419,7 @@ interactive `claude` session (`/mcp`) or in claude.ai's connector settings: Agen
 
 Bug reports, ideas and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the
 setup, the checks CI runs and the one architectural rule worth knowing before you write code:
-Agentry reaches Claude Code only through its CLI. [docs/status.md](docs/status.md) is where the
+Agentry reaches each agent only through the interface its vendor ships for programs. [docs/status.md](docs/status.md) is where the
 project stands today: what is built, what is still open, and where each plan ended.
 
 Vulnerabilities go through [private advisories](SECURITY.md), not public issues.

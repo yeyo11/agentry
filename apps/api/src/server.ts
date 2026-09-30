@@ -62,6 +62,8 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   core.release.startDaily();
 
   const system = await core.system();
+  // Installing or signing in in a terminal shows up on its own; the first full detection runs beside start-up
+  void core.providers.refresh().then(() => core.providers.startWatching()).catch(() => undefined);
   if (!system.cli.installed) app.log.error(`Claude Code CLI not detected: ${system.cli.error}`);
   else if (!system.auth.loggedIn) app.log.warn('Claude Code CLI detected but not logged in. Set CLAUDE_CODE_OAUTH_TOKEN (see `claude setup-token`) or configure it in the UI.');
   else app.log.info(`Claude Code ${system.cli.version} ready (auth: ${system.auth.tokenSource}, plan: ${system.auth.subscriptionType ?? 'n/a'})`);

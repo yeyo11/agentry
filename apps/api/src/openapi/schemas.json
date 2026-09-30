@@ -4266,6 +4266,9 @@
         "$ref": "#/components/schemas/SystemReleaseEvent"
       },
       {
+        "$ref": "#/components/schemas/ProvidersChangedEvent"
+      },
+      {
         "$ref": "#/components/schemas/ScheduleChangedEvent"
       },
       {
@@ -6070,6 +6073,182 @@
       "source"
     ],
     "description": "How this Agentry was installed, from `AGENTRY_DISTRIBUTION`: what decides which way to update it a client offers. `source` is a checkout run with pnpm, and whatever the variable does not name."
+  },
+  "ProvidersChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "providers.changed"
+      },
+      "providers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProviderStatus"
+        }
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "providers",
+      "title",
+      "type"
+    ],
+    "description": "A provider's detected status changed: it was installed, signed in, updated or removed, or the settings turned it on or off. Sent only when a status actually differs, so one listener keeps every page in step without polling."
+  },
+  "ProviderStatus": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "$ref": "#/components/schemas/ProviderId"
+      },
+      "label": {
+        "type": "string"
+      },
+      "state": {
+        "$ref": "#/components/schemas/ProviderReadinessState"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProviderReasonCode"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why the state is not `ready`; null when it is"
+      },
+      "version": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The installed version as the CLI reports it; null when there is no binary or it was unreadable"
+      },
+      "compatibleRange": {
+        "type": "string",
+        "description": "The version range the driver is tested against (semver range), shown next to an incompatible version"
+      },
+      "binaryPath": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The binary that was resolved: the override, or the first match on the PATH or an install directory"
+      },
+      "configHome": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The directory the provider keeps its state in, when it exists on this host"
+      },
+      "account": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The signed-in account's label, when the provider can tell one"
+      },
+      "capabilities": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProviderCapability"
+        },
+        "description": "The capabilities the handshake confirmed for the installed version (the declared ones until then)"
+      },
+      "checkedAt": {
+        "type": "string",
+        "description": "ISO timestamp of the detection this status came from"
+      }
+    },
+    "required": [
+      "id",
+      "label",
+      "state",
+      "reason",
+      "version",
+      "compatibleRange",
+      "binaryPath",
+      "configHome",
+      "account",
+      "capabilities",
+      "checkedAt"
+    ],
+    "description": "One provider's detected state on this host, as served from the detector's cache."
+  },
+  "ProviderId": {
+    "type": "string",
+    "description": "An agent provider, by the id its manifest declares (`claude-code`, `codex`, …). A string and not a closed union, so adding a provider is adding a folder in core and never a change here."
+  },
+  "ProviderReadinessState": {
+    "type": "string",
+    "enum": [
+      "ready",
+      "degraded",
+      "signed-out",
+      "incompatible",
+      "used-before",
+      "not-installed",
+      "unknown"
+    ],
+    "description": "Where a provider stands on this host. Detection returns one of these, never a raw error, so the UI can offer the one remedy that fits:\n- `ready`: installed, compatible version, signed in, handshake passed.\n- `degraded`: works, with a warning (version outside the tested range, a limit near).\n- `signed-out`: installed and compatible, no credentials.\n- `incompatible`: installed, but too old or too new for the driver.\n- `used-before`: its config home exists but the binary was not found.\n- `not-installed`: no trace of it.\n- `unknown`: the check could not run (timeout, permissions)."
+  },
+  "ProviderReasonCode": {
+    "type": "string",
+    "enum": [
+      "missing-credentials",
+      "stale-token",
+      "version-below-range",
+      "version-above-range",
+      "version-unreadable",
+      "probe-timeout",
+      "spawn-denied",
+      "spawn-failed",
+      "binary-not-found",
+      "config-home-only",
+      "missing-required-command",
+      "unsupported-platform",
+      "handshake-failed",
+      "no-probe",
+      "disabled"
+    ],
+    "description": "Why a provider is not `ready`, in one taxonomy for every provider. The UI words each code itself, so a state never shows the text of an exception."
+  },
+  "ProviderCapability": {
+    "type": "string",
+    "enum": [
+      "interactivePermissions",
+      "structuredOutput",
+      "resume",
+      "fork",
+      "interrupt",
+      "setModel",
+      "subagents",
+      "mcp",
+      "worktreeFlag",
+      "budgetLimit",
+      "effort",
+      "costReport",
+      "rateLimitWindows",
+      "multiAccount",
+      "transcriptFiles",
+      "workflowTool"
+    ],
+    "description": "What a provider's driver can do. Declared by its manifest and confirmed by the handshake for the installed version, so a feature asks for a capability and the UI hides or explains what is missing instead of failing."
   },
   "ScheduleChangedEvent": {
     "type": "object",
@@ -16082,6 +16261,64 @@
     },
     "additionalProperties": false,
     "description": "`PUT /tunnel/settings`: the settings to change, and only those."
+  },
+  "ProvidersSettings": {
+    "type": "object",
+    "properties": {
+      "providers": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/components/schemas/ProviderSettingsEntry"
+        },
+        "propertyNames": {
+          "description": "An agent provider, by the id its manifest declares (`claude-code`, `codex`, …). A string and not a closed union, so adding a provider is adding a folder in core and never a change here."
+        }
+      },
+      "order": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProviderId"
+        },
+        "description": "Provider ids in the order the UI lists them"
+      },
+      "defaultProvider": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProviderId"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The provider a new chat starts with; null takes the first ready one in `order`"
+      }
+    },
+    "required": [
+      "providers",
+      "order",
+      "defaultProvider"
+    ],
+    "description": "`providers.json` in the data directory: which providers are on, in what order they are offered, which one new work starts with, and where a binary lives when the search cannot find it."
+  },
+  "ProviderSettingsEntry": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "binaryPath": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Absolute path of the binary to use instead of searching for one; null searches"
+      }
+    },
+    "required": [
+      "enabled",
+      "binaryPath"
+    ],
+    "description": "What a person chose for one provider."
   },
   "DecisionSettings": {
     "type": "object",

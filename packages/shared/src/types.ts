@@ -4484,6 +4484,131 @@ export interface SessionsChangedEvent extends AgentryEventBase {
 }
 
 /**
+ * An agent provider, by the id its manifest declares (`claude-code`, `codex`, …). A string and not
+ * a closed union, so adding a provider is adding a folder in core and never a change here.
+ */
+export type ProviderId = string;
+
+/** How Agentry talks to a provider's CLI: each one needs its own driver to read events and send input. */
+export type ProviderTransport = 'stream-json' | 'json-rpc' | 'acp';
+
+/**
+ * What a provider's driver can do. Declared by its manifest and confirmed by the handshake for the
+ * installed version, so a feature asks for a capability and the UI hides or explains what is
+ * missing instead of failing.
+ */
+export type ProviderCapability =
+  | 'interactivePermissions'
+  | 'structuredOutput'
+  | 'resume'
+  | 'fork'
+  | 'interrupt'
+  | 'setModel'
+  | 'subagents'
+  | 'mcp'
+  | 'worktreeFlag'
+  | 'budgetLimit'
+  | 'effort'
+  | 'costReport'
+  | 'rateLimitWindows'
+  | 'multiAccount'
+  | 'transcriptFiles'
+  | 'workflowTool';
+
+/**
+ * Where a provider stands on this host. Detection returns one of these, never a raw error, so the
+ * UI can offer the one remedy that fits:
+ * - `ready`: installed, compatible version, signed in, handshake passed.
+ * - `degraded`: works, with a warning (version outside the tested range, a limit near).
+ * - `signed-out`: installed and compatible, no credentials.
+ * - `incompatible`: installed, but too old or too new for the driver.
+ * - `used-before`: its config home exists but the binary was not found.
+ * - `not-installed`: no trace of it.
+ * - `unknown`: the check could not run (timeout, permissions).
+ */
+export type ProviderReadinessState =
+  | 'ready'
+  | 'degraded'
+  | 'signed-out'
+  | 'incompatible'
+  | 'used-before'
+  | 'not-installed'
+  | 'unknown';
+
+/**
+ * Why a provider is not `ready`, in one taxonomy for every provider. The UI words each code itself,
+ * so a state never shows the text of an exception.
+ */
+export type ProviderReasonCode =
+  | 'missing-credentials'
+  | 'stale-token'
+  | 'version-below-range'
+  | 'version-above-range'
+  | 'version-unreadable'
+  | 'probe-timeout'
+  | 'spawn-denied'
+  | 'spawn-failed'
+  | 'binary-not-found'
+  | 'config-home-only'
+  | 'missing-required-command'
+  | 'unsupported-platform'
+  | 'handshake-failed'
+  | 'no-probe'
+  | 'disabled';
+
+/** One provider's detected state on this host, as served from the detector's cache. */
+export interface ProviderStatus {
+  id: ProviderId;
+  label: string;
+  state: ProviderReadinessState;
+  /** Why the state is not `ready`; null when it is */
+  reason: ProviderReasonCode | null;
+  /** The installed version as the CLI reports it; null when there is no binary or it was unreadable */
+  version: string | null;
+  /** The version range the driver is tested against (semver range), shown next to an incompatible version */
+  compatibleRange: string;
+  /** The binary that was resolved: the override, or the first match on the PATH or an install directory */
+  binaryPath: string | null;
+  /** The directory the provider keeps its state in, when it exists on this host */
+  configHome: string | null;
+  /** The signed-in account's label, when the provider can tell one */
+  account: string | null;
+  /** The capabilities the handshake confirmed for the installed version (the declared ones until then) */
+  capabilities: ProviderCapability[];
+  /** ISO timestamp of the detection this status came from */
+  checkedAt: string;
+}
+
+/** What a person chose for one provider. */
+export interface ProviderSettingsEntry {
+  enabled: boolean;
+  /** Absolute path of the binary to use instead of searching for one; null searches */
+  binaryPath: string | null;
+}
+
+/**
+ * `providers.json` in the data directory: which providers are on, in what order they are offered,
+ * which one new work starts with, and where a binary lives when the search cannot find it.
+ */
+export interface ProvidersSettings {
+  providers: Record<ProviderId, ProviderSettingsEntry>;
+  /** Provider ids in the order the UI lists them */
+  order: ProviderId[];
+  /** The provider a new chat starts with; null takes the first ready one in `order` */
+  defaultProvider: ProviderId | null;
+}
+
+/**
+ * A provider's detected status changed: it was installed, signed in, updated or removed, or the
+ * settings turned it on or off. Sent only when a status actually differs, so one listener keeps
+ * every page in step without polling.
+ */
+export interface ProvidersChangedEvent extends AgentryEventBase {
+  type: 'providers.changed';
+  providers: ProviderStatus[];
+}
+
+/**
  * A release check found a newer Agentry than the last one it announced. Sent once per version, and
  * never a notification: a release is not worth waking a phone for.
  */
@@ -4781,6 +4906,7 @@ export type AgentryEvent =
   | HealthChangedEvent
   | SessionsChangedEvent
   | SystemReleaseEvent
+  | ProvidersChangedEvent
   | ScheduleChangedEvent
   | ScheduleFiredEvent
   | SupervisorProposedEvent
