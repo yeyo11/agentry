@@ -6223,6 +6223,7 @@
       "missing-required-command",
       "unsupported-platform",
       "handshake-failed",
+      "no-probe",
       "disabled"
     ],
     "description": "Why a provider is not `ready`, in one taxonomy for every provider. The UI words each code itself, so a state never shows the text of an exception."

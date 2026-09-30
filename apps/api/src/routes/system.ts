@@ -7,9 +7,7 @@ export const systemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { co
   // and measures, or a burst against it becomes a burst of `claude` processes. The authenticated
   // routes, which do measure, are what keeps that reading fresh.
   app.get('/health', () => {
-    const system = core.systemKnown();
-    const cli = system?.cli.installed ?? false;
-    const loggedIn = system?.auth.loggedIn ?? false;
+    const { cli, loggedIn } = core.claudeHealth();
     return { ok: cli && loggedIn, cli, loggedIn };
   });
 
