@@ -4553,6 +4553,7 @@ export type ProviderReasonCode =
   | 'missing-required-command'
   | 'unsupported-platform'
   | 'handshake-failed'
+  | 'no-probe'
   | 'disabled';
 
 /** One provider's detected state on this host, as served from the detector's cache. */
