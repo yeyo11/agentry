@@ -168,7 +168,7 @@ export class ProviderDetector {
   private followUp: Promise<ProviderStatus[]> | null = null;
   /** Bumped by every detection that starts, so an older one that finishes late never overwrites a newer */
   private seq = 0;
-  private applied = 0;
+  private readonly applied = new Map<ProviderId, number>();
   private watchers = new Map<string, FSWatcher>();
   private watching = false;
   private timer: NodeJS.Timeout | null = null;
@@ -289,10 +289,12 @@ export class ProviderDetector {
     const settings = this.deps.settings?.() ?? null;
     const searchPath = await this.searchPath();
     const manifests = this.registry.list().filter((m) => !options.only || options.only.includes(m.id));
-    const fresh = await Promise.all(manifests.map((m) => this.detectOne(m, settings, searchPath, options.claude)));
-    // A detection that finished late must not put an older reading over a newer one
-    if (seq < this.applied) return this.known() ?? fresh;
-    this.applied = seq;
+    const read = await Promise.all(manifests.map((m) => this.detectOne(m, settings, searchPath, options.claude)));
+    // A detection that finished late must not put an older reading over a newer one. Newer is per
+    // provider: a reading of Claude Code alone, taken meanwhile, wins for Claude Code only, and the
+    // rest of this detection still lands
+    const fresh = read.filter((status) => (this.applied.get(status.id) ?? 0) < seq);
+    for (const status of fresh) this.applied.set(status.id, seq);
 
     const before = this.cache?.statuses;
     const next = new Map(before ?? []);

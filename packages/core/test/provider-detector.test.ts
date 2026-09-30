@@ -270,6 +270,23 @@ describe('ProviderDetector', () => {
     }
   });
 
+  it('lands a full detection that ends after a newer reading of Claude Code alone', async () => {
+    const release = join(root, `release${n}`);
+    await fake('claude', CLAUDE('2.1.285', false));
+    await fake('codex', `case "$1" in --version) echo "codex-cli 0.5.0";; login) while [ ! -e "${release}" ]; do /bin/sleep 0.05; done; exit 0;; esac`);
+    const d = detector();
+    const full = d.refresh();
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    await d.refresh({
+      only: ['claude-code'],
+      claude: { cli: { installed: true, version: '2.1.285', path: join(bin, 'claude') }, auth: { loggedIn: true, tokenSource: 'none' } },
+    });
+    await writeFile(release, '');
+    await full;
+    assert.equal(d.knownOne('codex')?.state, 'ready', 'the older full detection still lands for the providers the newer one did not read');
+    assert.equal(d.knownOne('claude-code')?.state, 'ready', 'and the newer reading of Claude Code stays');
+  });
+
   it('takes Claude Code from a reading already made, without spawning it again', async () => {
     await fake('claude', 'echo spawned >> "$0.log"; exit 9');
     const d = detector();

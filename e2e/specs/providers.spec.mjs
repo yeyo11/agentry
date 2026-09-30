@@ -67,13 +67,15 @@ export default async ({ page, api, check, dirs }) => {
     await api.put('/settings/app', { providersStepSeen: false });
     state('codex', { version: '0.50.0', signedIn: true });
     await api.post('/providers/refresh');
+    // The theme lives in the app's localStorage, which a blank page does not have: open the app first
+    await page.goto('/', 300);
     await theme(page, 'dark');
     await page.goto('/', 300);
     await page.waitFor(`return !!document.querySelector('[data-step="list"]')`, { label: 'the first-run step' });
     check((await page.eval(`return !!document.querySelector('.sidebar, #sidebar, .statusbar')`)) === false, 'the step has no shell around it');
     check((await page.text('.prov-first h1')).includes('These are the agents on your machine'), 'the step says what it found');
     const groups = await page.eval(`return [...document.querySelectorAll('.prov-group-head h2')].map((h) => h.textContent.trim())`);
-    check(groups[0] === 'Ready' && groups.includes('Used before'), `the groups run from ready to used before (${groups.join(', ')})`);
+    check(groups[0] === 'Ready' && groups.includes('Used before'), `the groups run from ready to used before (${groups.join(', ')}; api: ${(await api.get('/providers')).body.map((p) => `${p.id}=${p.state}/${p.reason}`).join(' ')})`);
     check((await page.eval(rowState('codex'))) === 'ready', 'codex is listed as ready');
     check((await page.eval(rowState('gemini'))) === 'used-before', 'gemini is listed as used before');
     const primary = await page.text('[data-action="continue"]');
