@@ -3,6 +3,14 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.27.1](https://github.com/yeyo11/agentry/compare/v0.27.0...v0.27.1) (2026-09-30)
+
+
+### Documentation
+
+* **plans:** plan code hosts and issue trackers through their CLIs ([#149](https://github.com/yeyo11/agentry/issues/149)) ([6dcb3b2](https://github.com/yeyo11/agentry/commit/6dcb3b253a37d0fb679b78577b12b01775f90692))
+* **plans:** plan multiple agent providers ([#147](https://github.com/yeyo11/agentry/issues/147)) ([4735d55](https://github.com/yeyo11/agentry/commit/4735d55673185920f48dea3a340e04c062d254a1))
+
 ## [0.27.0](https://github.com/yeyo11/agentry/compare/v0.26.0...v0.27.0) (2026-09-30)
 
 
