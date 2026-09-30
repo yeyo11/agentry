@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-09-30T17:03:50Z
+updated_at: 2026-09-30T17:14:31Z
 tags:
     - plan
     - git
@@ -234,7 +234,7 @@ comment.
 | Version | `gh --version`, first line `gh version 2.45.0 (…)`: checked on the owner's machine (gh 2.45.0) | `glab version` ([docs](https://docs.gitlab.com/cli/version/)); the **output format is not documented**, so the version is the first `x.y.z` in it, and none found reads as version `unknown` |
 | Auth probe | `gh auth status --hostname <h>`, exit code (`gh auth status --help`; what `PullRequestService` runs today) | `glab auth status --hostname <h>` ([docs](https://docs.gitlab.com/cli/auth/status/)). The docs say nothing about the exit code. Older glab exited 0 on a failed login ([issue 911](https://gitlab.com/gitlab-org/cli/-/issues/911)), fixed by [MR !1453](https://gitlab.com/gitlab-org/cli/-/merge_requests/1453) in a **release that is not confirmed**. |
 | Known hosts | top-level keys of `hosts.yml` in `GH_CONFIG_DIR`, else `~/.config/gh` (checked on the owner's machine) | the `hosts:` map of `config.yml` in `GLAB_CONFIG_DIR`, then `~/.config/glab-cli`, then `XDG_CONFIG_HOME/glab-cli` ([configuration](https://docs.gitlab.com/cli/configuration/)) |
-| No prompts, no noise | `GH_PROMPT_DISABLED=1`, `GH_NO_UPDATE_NOTIFIER=1` (today's env) | `NO_PROMPT=1`, `GLAB_CHECK_UPDATE=false`, `GLAB_SEND_TELEMETRY=false`, `NO_COLOR=1` ([configuration](https://docs.gitlab.com/cli/configuration/)) |
+| No prompts, no noise | `GH_PROMPT_DISABLED=1`, `GH_NO_UPDATE_NOTIFIER=1` (today's env) | `GLAB_NO_PROMPT=1` (`NO_PROMPT` is deprecated and warns on stderr in 1.120.0, see below), `GLAB_CHECK_UPDATE=false`, `GLAB_SEND_TELEMETRY=false`, `NO_COLOR=1` ([configuration](https://docs.gitlab.com/cli/configuration/)) |
 | Create | `gh pr create --head --base --title --body-file -` (today) | `glab mr create --source-branch --target-branch --title --description-file - --yes` ([docs](https://docs.gitlab.com/cli/mr/create/): `--description-file -` reads stdin; `--yes` skips the confirmation). The glab release that added `--description-file` is **not confirmed**. |
 | View | `gh pr view <n\|branch> --json number,url,state,mergedAt,statusCheckRollup` (today) | `glab mr view <id\|branch> -F json` ([docs](https://docs.gitlab.com/cli/mr/view/)) |
 | Fields | GitHub's `state` `OPEN/MERGED/CLOSED`, `statusCheckRollup` (today's `ciOf`) | The [merge request API](https://docs.gitlab.com/api/merge_requests/) names `iid`, `web_url`, `state` (`opened`, `closed`, `merged`, `locked`), `merged_at` and `head_pipeline.status`. **Unconfirmed:** that `glab mr view -F json` prints that object with those names. |
@@ -257,22 +257,47 @@ unconfirmed rows above; everything here is the real output of that run:
 | `mr view <iid> -R <project> -F json` | Prints the REST API's merge request object unchanged: 64 fields including `iid`, `state` (`merged` on a merged one), `merged_at`, `source_branch`, `target_branch`, `detailed_merge_status` (`not_open` on a merged one), `head_pipeline` (an object with `status`, `success` on the one checked), `has_conflicts`, `draft` and `merge_user`. A merge request that does not exist answers `{"error":{"message":"failed to get merge request 1: 404 Not Found"}}` on stdout and exits non-zero |
 | Flags `mr create` takes | `--allow-collaboration --attach --auto-merge --copy-issue-labels --create-source-branch --description-file --draft --fill-commit-body --no-editor --push --recover --remove-source-branch --reviewer --signoff --squash-before-merge --template --wip`, besides `--fill`, `--yes`, `-t`, `-s`, `-b` and `-R` documented in its help |
 
-Still to record, because it needs a signed-in account (owner's, see the open question on sign-in):
-the signed-in output of `glab auth status` (the account name the adapter shows), a real
-`glab mr create` against a scratch project, and `glab mr view` on an open merge request with a
-running pipeline.
+#### Recorded with a signed-in account (owner's, gitlab.com, 2026-09-30)
+
+Run against a private project the owner created for this (`yeyo11/agentry`, a mirror of the
+GitHub repository), with throwaway merge requests that were deleted afterwards (the project ended
+with no merge requests and only the mirrored branches). Streams were measured separately:
+
+| Fact | What `glab` 1.120.0 did |
+|---|---|
+| Signed in | `glab auth status` **exits 0** and writes all of it to **stderr**, `stdout` empty: `✓ Logged in to gitlab.com as <user> (<source>)` (`keyring` here), then the git and API protocol lines. The account name is display only: the adapter reads the exit code, never this text |
+| A host with no login while another has one | `glab auth status --hostname <other>` exits 1 |
+| Create | `glab mr create -R <project> --source-branch <b> --target-branch <t> --title <s> --description-file - --yes` with the description on stdin exits 0 and prints **only the merge request URL on stdout**, one line (`https://gitlab.com/<project>/-/merge_requests/<iid>`). The banner `Creating merge request for <b> into <t> in <project>` goes to stderr |
+| Create when one already exists for the branch | Exits **1**, `stdout` empty, and stderr says `Failed to create merge request.` and `Created recovery file: ~/.config/glab-cli/recover/<project>/mr.json`. The recovery file is a side effect in the person's own `glab` directory and is only used with `--recover`, which the adapter never passes; it does not clean the file up, and says nothing about it |
+| View by iid or by source branch | `glab mr view 1 -R <project> -F json` and `glab mr view <source-branch> -R <project> -F json` both answer with the merge request object on stdout, nothing on stderr |
+| An open merge request | `state` is `opened` (not `open`), `draft` false, `detailed_merge_status` `mergeable`, `has_conflicts` false, `merged_at` null; **`head_pipeline` and `pipeline` are `null` when the project has no CI configuration**, so "no pipeline" reads as CI `none`, not as a failure |
+| After `glab mr close` | `state` is `closed` |
+| A merge request that does not exist | Exits 1, prints `{"error":{"message":"failed to get merge request 999: 404 Not Found"}}` on stdout and the same in words on stderr |
+| Changing the description | `glab mr update <iid> --description-file <file>` works; `glab mr close` and `glab mr delete` exist |
+| Environment | `NO_PROMPT` is **deprecated in 1.120.0**: every call prints `DEPRECATION WARNING: The environment variable NO_PROMPT has been deprecated … Use GLAB_NO_PROMPT instead.` on stderr. The documentation this plan was written from still lists `NO_PROMPT`, so it is behind the release: use `GLAB_NO_PROMPT=1` |
+| Project creation (not used by Agentry) | `glab repo create` makes an **internal** project by default, visible to any signed-in GitLab user, and inside a git checkout it rewrites the `origin` remote. Anything Agentry ever builds on it must pass the visibility explicitly and never run it in a person's checkout |
+| Pushing | `glab auth status` says git over SSH is configured, and that says nothing about whether the person's SSH key is on GitLab: here it was not (`Permission denied (publickey)`) and the push worked over HTTPS with `glab auth git-credential` as the credential helper. Signed in to the CLI and able to push are two different things |
 
 What this means for the code:
 
-- `glab`'s manifest ships with `versions.range: null` and `minimum: null`. Its status is
-  `degraded` with the reason `version-untested`, which does **not** stop a project from opening
-  merge requests, and says so in Settings → Integrations.
+- `glab`'s manifest sets `versions.minimum` to **1.120.0**, the release every fact above was
+  recorded on: older releases answer "signed out" with exit 0 (issue 911), so they are
+  `below-minimum` and cannot open merge requests. A newer release reads as `degraded` with the
+  reason `version-untested` until `c5` records it, which does **not** stop a project from opening
+  merge requests, and says so in Settings → Integrations. The tested versions are a list in the
+  manifest, not a range.
+- Every call sets `GLAB_NO_PROMPT=1`, `GLAB_CHECK_UPDATE=false`, `GLAB_SEND_TELEMETRY=false` and
+  `NO_COLOR=1`, reads **only stdout** for JSON and for the created URL, and treats stderr as text
+  for the person, never for parsing.
 - The glab adapter reads `glab mr view` JSON defensively. A missing `iid` or `web_url` fails the
   `create` step with the line glab printed. A missing `head_pipeline` reads as CI `none`, and an
   unknown pipeline status as `pending`, never as `passing`.
 - It never matches glab's error text. After a failed `mr create`, it runs `mr view <branch>`, and an
   open MR for that branch is the one to watch, as gh's "already exists" is today.
-- These gaps close with owner question 1: fixtures recorded from a real `glab`.
+- The fixtures of the fake `glab` are these recorded runs, stream by stream (stdout, stderr and the
+  exit code of each call), so a change in a later release shows as a failing test, not as a guess.
+- A failed **push** is reported as the `push` step of the pull request flow, with git's first line,
+  as today. It is not a readiness reason: the CLI being signed in does not mean git can push.
 
 ### The `CodeHost` interface
 
@@ -753,11 +778,10 @@ Outcome, `docs/status.md`, then one pull request to `main`.
   integration branch checks the whole once at the end. A worker between them is told to expect it.
 - **`pull-requests.ts` is large and central.** Only `c8` edits it. The adapters are written before
   it, beside it, and proved by the conformance suite, so `c8` is wiring, not new logic.
-- **A few GitLab facts still need a signed-in account.** The signed-out behaviour, the version
-  format, the JSON field names and the flags are recorded from `glab` 1.120.0 (see "Confirmed by
-  running glab"). The signed-in `auth status` output and a real `mr create` are not, and wait for
-  the owner to sign in; the adapter reads them defensively until then, and `c5` sets `glab`'s
-  tested range from the versions actually recorded.
+- **The GitLab facts are recorded from one release.** Everything the adapter relies on was run on
+  `glab` 1.120.0, signed out and signed in (see "Confirmed by running glab" and "Recorded with a
+  signed-in account"). A later release may differ, which is why newer versions are `degraded:
+  version-untested` until `c5` records them, and why the fake `glab` replays real runs.
 - **`ssh -G` runs `Match exec`.** It runs the person's own config, as `git fetch` does. It gets a
   5 s timeout, and its failure keeps the alias.
 - **Reading the CLIs' config files could touch tokens.** The readers keep only host keys and `user`,
@@ -771,9 +795,10 @@ Outcome, `docs/status.md`, then one pull request to `main`.
 ## Open
 
 - **Phase 1, decided by the owner (2026-09-30)**, all three as recommended:
-  1. **The glab facts are confirmed by running `glab`.** `glab` is installed (user-local, no
-     root), signed in to gitlab.com, and its real outputs are recorded from a scratch project
-     before `c5`, in the table of facts with the release they came from. Rejected: shipping GitLab
+  1. **The glab facts are confirmed by running `glab`.** `glab` 1.120.0 is installed (user-local,
+     no root), signed in to gitlab.com, and its real outputs were recorded on 2026-09-30 from a
+     private project that mirrors this repository, with the release they came from. One
+     correction to the plan's own sources came out of it: `NO_PROMPT` is deprecated. Rejected: shipping GitLab
      as `degraded: version-untested`; holding GitLab out of phase 1.
   2. **An orchestration's change request targets the default branch**, which is what `gh` picks
      today without `--base`. A graph launched on a feature branch therefore targets `main`.
