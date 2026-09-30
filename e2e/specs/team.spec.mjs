@@ -35,7 +35,7 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---- an empty team offers the template's ----
     await page.goto(`/?project=${project.id}&view=team`, 1200);
-    await page.waitFor(`return !!document.querySelector('.team-empty')`, { label: 'the empty team' });
+    await page.waitFor(`return !!document.querySelector('.team-empty') && document.querySelectorAll('.team-template-chip').length > 0`, { label: 'the empty team' });
     const offer = await page.eval(`return [...document.querySelectorAll('.team-template-chip')].map((c) => c.textContent)`);
     check(offer.length === 4 && offer[0].includes('Product Owner') && offer[0].includes('opus'), `the template's four roles with their models (${offer})`);
     check(await page.eval(`return !!document.querySelector('.team-empty svg[aria-hidden]')`), 'the empty state has its illustration');

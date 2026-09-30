@@ -197,6 +197,7 @@ The wrapper drives Claude **only through the CLI** — no SDK, no terminal scrap
 | Session history & projects | transcripts in `$CLAUDE_CONFIG_DIR/projects/*/*.jsonl` |
 | MCP servers | `claude mcp add-json` / `claude mcp remove` (user scope) |
 | Orchestration planner | `--json-schema` structured output |
+| Decision engine, `cli` provider | one housekeeping chat per batch of typed questions: `--json-schema` for the answers, `--effort`, `--max-budget-usd`, and no tools, settings or API token in it ([docs/decision-engine.md](docs/decision-engine.md)) |
 | Multiple accounts | [claude-swap](https://github.com/realiti4/claude-swap): `cswap list / switch / auto --json`, and `cswap run` for a run pinned to one account; an account with its own config directory runs `claude` with that `CLAUDE_CONFIG_DIR` |
 | Tool presets and per-chat MCP servers | `--allowedTools` / `--disallowedTools`, and `--mcp-config` with `--strict-mcp-config` over a file holding only the chosen servers |
 | Spending and time limits | `--max-budget-usd` for a cost limit; the time limit is Agentry's own clock |

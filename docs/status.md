@@ -69,8 +69,19 @@ after the wizard, from the Team screen, from the project header's "Asistente" on
 palette, from the board ("Sugerir tareas") and from the Resources tab ("Sugerir", "Crear con IA")
 ([assistant.md](assistant.md)).
 
+The **decision engine** is built on `feat/decision-engine` and goes to `main` as one pull request.
+It gives the small judgments Agentry makes (refine or not, retry or not, which journal entries an
+agent reads, a hint for a stuck worker) one home: three typed questions, two providers (the Claude
+Code CLI by default, TypeSafe's Jev with the owner's own key), a mode per point (`off`, `shadow`,
+`active`) and a Decisions tab in Settings. All 22 points ship `off`; nothing is sent anywhere until
+the owner consents to a point. See [decision-engine.md](decision-engine.md).
+
 ## What is open
 
+- **The decision engine's shadow period.** Nothing has been measured yet. Three points have no
+  resolver (`palette.intent`, `notification.urgency`, `orchestration.model`), and the `cli` provider
+  waits for CW-4's quota hold and CW-25's effort control; see the plan's
+  [Outcome](plans/decision-engine.md#outcome).
 - **The project ecosystem** was merged into `main` in #118 and is no longer open as a whole; see the
   plan's [Outcome](plans/project-ecosystem.md#the-ecosystem-as-a-whole) and the Known gaps of
   [work-items.md](work-items.md#known-gaps), [team-and-flow.md](team-and-flow.md#known-gaps) and
@@ -117,7 +128,7 @@ palette, from the board ("Sugerir tareas") and from the Resources tab ("Sugerir"
 | [`plans/tunnel.md`](plans/tunnel.md) | Landed (#110) — see [Outcome](plans/tunnel.md#outcome) and [tunnel.md](tunnel.md) |
 | [`plans/changes-review.md`](plans/changes-review.md) | Landed (#115) — see [Outcome](plans/changes-review.md#outcome) |
 | [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | Landed (#118) — see [Outcome](plans/project-ecosystem.md#outcome) |
-| [`plans/decision-engine.md`](plans/decision-engine.md) | Planned on `main` (CW-5): five orchestrations on `feat/decision-engine`, every point ships off; not started. The owner's 18 decisions are in [`decisions/decision-engine.md`](decisions/decision-engine.md) |
+| [`plans/decision-engine.md`](plans/decision-engine.md) | Built on `feat/decision-engine`, one pull request to `main`: the engine, both providers, 22 points (all ship off) and the Decisions tab. See [Outcome](plans/decision-engine.md#outcome) and [decision-engine.md](decision-engine.md). The owner's 18 decisions are in [`decisions/decision-engine.md`](decisions/decision-engine.md) |
 | [`plans/orchestration-speed.md`](plans/orchestration-speed.md) | Proposed, not started |
 | [`plans/agentry-assistant.md`](plans/agentry-assistant.md) | Proposed, next after the ecosystem |
 | [`plans/flow-start-and-chat-token.md`](plans/flow-start-and-chat-token.md) | Proposed; part 1 (starting the waiting cards) built by CW-9 on its own branch, not yet on `main`; part 2 (the chat token) not started |
@@ -189,5 +200,5 @@ possible to keep honest.
 [[plans/app-updates.md]] · [[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] ·
 [[plans/tunnel.md]] · [[design-system.md]] · [[plans/project-ecosystem.md]] ·
 [[plans/project-ecosystem-audit.md]] · [[projects.md]] · [[work-items.md]] · [[team-and-flow.md]] · [[assistant.md]] ·
-[[plans/decision-engine.md]] · [[decisions/decision-engine.md]] · [[plans/orchestration-speed.md]] · [[plans/agentry-assistant.md]] ·
+[[decision-engine.md]] · [[plans/decision-engine.md]] · [[decisions/decision-engine.md]] · [[plans/orchestration-speed.md]] · [[plans/agentry-assistant.md]] ·
 [[decisions/english-technical-language.md]] · [[plans/flow-start-and-chat-token.md]]

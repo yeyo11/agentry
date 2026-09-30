@@ -146,6 +146,10 @@ export default async ({ page, api, check, dirs }) => {
     await page.eval(`const main=document.querySelector('.run-scroll');main.scrollTop=main.scrollHeight;return true`);
     await settle(page);
     await page.focus('textarea[placeholder^="Send a message"]');
+    // On a loaded machine late work (layout, image and font loads) lands after the first settle; let it drain so
+    // the observer measures typing and not the tail of the scroll
+    await page.sleep(1500);
+    await settle(page);
     // Without support the observer would see nothing and the check below would pass vacuously
     check(await page.eval(`return PerformanceObserver.supportedEntryTypes.includes('longtask')`), 'the browser reports long tasks');
     await page.eval(
