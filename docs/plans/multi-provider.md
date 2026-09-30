@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T12:43:36.708551256Z
-updated_at: 2026-09-30T13:51:15Z
+updated_at: 2026-09-30T13:55:37Z
 tags:
     - plan
     - providers
@@ -202,6 +202,22 @@ The decision engine's exception for Jev stays as it is.
    - **OpenCode** (owner, 2026-09-30, the fifth provider): `opencode acp` is an ACP server over
      stdin/stdout, so it goes through the ACP driver too. Sign-in is read from the `auth.json` its
      login writes in its data directory.
+     - **Its transcripts are in SQLite, not files** (owner: "important", 2026-09-30). OpenCode keeps
+       sessions, messages, parts and todos as tables (`session`, `message`, `part`, `todo`, …) of
+       one database in its data directory: `opencode.db`, or `opencode-<channel>.db` on channels
+       other than latest, beta and prod, or the path in `OPENCODE_DB`; it runs in WAL mode (source:
+       `packages/core/src/database/database.ts` and `packages/core/src/session/sql.ts` in
+       github.com/anomalyco/opencode). So its `TranscriptStore` and its usage read that database,
+       not JSONL:
+       - open it **read-only** and never write, lock or checkpoint it: OpenCode is writing to it;
+       - read through the WAL (a read-only connection that still sees the `-wal` file), and treat a
+         busy or locked read as "try again", never as an empty session;
+       - find the file the same way OpenCode does (the variable, then the channel name), and pin
+         the schema version the store understands: a table or column it does not know makes the
+         transcript `unknown`, not wrong;
+       - watch the database and its `-wal` file to learn that a session changed, as the Claude
+         store watches the projects directory.
+       This is reading "the files the CLI writes", inside the rule; a write would not be.
 
 Agents that only have a terminal interface are not providers. A later "terminal" tab could host
 them, but they cannot run orchestration stages.

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:00:00Z
-updated_at: 2026-09-30T13:51:15Z
+updated_at: 2026-09-30T13:55:37Z
 tags:
     - providers
     - detection
@@ -132,6 +132,14 @@ Claude Code's probes reuse `detectCli` and `getAuthStatus` in `packages/core/src
 `PUT /providers/settings`; chat tokens get `403` on the writes. Settings live in `providers.json` in
 the data directory: enabled, order, default and binary override per provider. The default is the
 first `ready` provider in the person's order.
+
+## Where transcripts live
+
+Not every provider writes its transcripts as files. Claude Code writes JSONL under its projects
+directory; OpenCode keeps sessions, messages and parts as tables of one SQLite database in its data
+directory (`opencode.db`, WAL mode). A provider's `TranscriptStore` reads whatever its CLI writes,
+always read-only: it never writes, locks or checkpoints another program's database, and a busy
+read is retried, never taken for an empty session. See the plan's note under OpenCode.
 
 ## How to add a provider
 
