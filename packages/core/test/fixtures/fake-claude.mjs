@@ -24,6 +24,7 @@
 //                                 (REFINE, WORK, VERIFY) is read off the schema as a flow run's
 //                                 differs by stage, so one item's description can script each role;
 //                                 ASSISTANT is an assistant run's, whose schema asks for `read`
+//   FAKE-RESULT-DECISION <json>   the same for a decision chat, whatever its schema asks for
 //   FAKE-STREAM-HOLD <file>       with a FAKE-RESULT, streams it first as the CLI does, as the input of
 //                                 its StructuredOutput tool call: the first half, then, once <file>
 //                                 exists, the rest, and only then the result
@@ -33,6 +34,8 @@
 //
 //   FAKE_CLAUDE_SPAWNS=<file>     appends `<pid> <argv>` to <file> as it starts, so a test can count
 //                                 every process spawned, tracked or not
+//   FAKE_CLAUDE_ENVS=<file>       appends one JSON line `{ url, token }` per spawn: the AGENTRY_API_URL and
+//                                 AGENTRY_API_TOKEN the process was given
 //   FAKE_CLAUDE_PROMPTS=<file>    appends one JSON line `{ cwd, resume, prompt }` per turn it is sent, so a
 //                                 test can read what a run was told and where
 //   FAKE_CLAUDE_LINGER_MS=<ms>    stays up that long after stdin closes, the way the CLI does while
@@ -47,6 +50,7 @@ import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 
 const args = process.argv.slice(2);
+if (process.env.FAKE_CLAUDE_ENVS) appendFileSync(process.env.FAKE_CLAUDE_ENVS, `${JSON.stringify({ url: process.env.AGENTRY_API_URL ?? null, token: process.env.AGENTRY_API_TOKEN ?? null })}\n`);
 if (process.env.FAKE_CLAUDE_SPAWNS) appendFileSync(process.env.FAKE_CLAUDE_SPAWNS, `${process.pid} ${args.join(' ')}\n`);
 // Core lists the CLI's own sessions with this; without an answer it waits for stdin to close, and a
 // chat started through the API waits a minute for it
@@ -156,7 +160,7 @@ lines.on('line', (line) => {
   if (schema) {
     const props = JSON.parse(schema).properties ?? {};
     const stage = props.read ? 'ASSISTANT' : props.verdict ? 'VERIFY' : props.acceptanceCriteria ? 'REFINE' : 'WORK';
-    const scripted = new RegExp(`^FAKE-RESULT-${stage} (.*)$`, 'm').exec(prompt);
+    const scripted = /^FAKE-RESULT-DECISION (.*)$/m.exec(prompt) ?? new RegExp(`^FAKE-RESULT-${stage} (.*)$`, 'm').exec(prompt);
     if (scripted) {
       const hold = /^FAKE-STREAM-HOLD (\S+)$/m.exec(prompt);
       if (hold) {
