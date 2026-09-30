@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.26.0](https://github.com/yeyo11/agentry/compare/v0.25.1...v0.26.0) (2026-09-30)
+
+
+### Features
+
+* decision engine with TypeSafe's Jev (beta) ([#141](https://github.com/yeyo11/agentry/issues/141)) ([6eec081](https://github.com/yeyo11/agentry/commit/6eec081b9769c1dac5e8bf2c50662ae503953730))
+
 ## [0.25.1](https://github.com/yeyo11/agentry/compare/v0.25.0...v0.25.1) (2026-09-30)
 
 
