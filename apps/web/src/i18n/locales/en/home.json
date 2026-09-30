@@ -40,12 +40,6 @@
   },
   "activity": {
     "waitingForYou": "Waiting for you",
-    "cliMissing": "Claude Code CLI not detected",
-    "cliMissingHint": "The `claude` binary is not available in PATH: install it or set CLAUDE_BIN.",
-    "openSettings": "Open settings",
-    "notLoggedIn": "Claude Code is not logged in",
-    "noCredentials": "No valid credentials were found.",
-    "addCredential": "Add a credential",
     "waiting": {
       "generic": "is waiting for you",
       "plan": "wants your approval of a plan",
@@ -82,7 +76,13 @@
     "usageLimits": "Usage limits",
     "limit": "{{name}} limit",
     "resets": "resets {{when}}",
-    "allChats": "All chats"
+    "allChats": "All chats",
+    "noAgent": "No agent found",
+    "noAgentHint": "Agentry looks for Claude Code, Codex, Gemini CLI and Copilot on your terminal's PATH. Install one and it will pick it up by itself, without pressing Refresh.",
+    "seeProviders": "See providers",
+    "signedOut": "{{label}} is signed out",
+    "needsAttention": "{{label}} · {{state}}",
+    "signedOutHint": "{{label}} is installed but not signed in."
   },
   "dashboard": {
     "label": "Dashboard of {{name}}",

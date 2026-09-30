@@ -23,7 +23,7 @@
 // in one shard, behind one restart of its server. See e2e/shards.mjs.
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { availableParallelism, tmpdir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
@@ -128,8 +128,28 @@ const dirs = {
   workspaceDir: join(sandbox, 'workspace'),
   dataDir: join(sandbox, 'data'),
 };
+// The other providers' state lives in the sandbox too, never in the real home: the homes are named
+// here and created by the specs that need a provider that was "used before" (e2e/specs/providers.spec.mjs)
+const providerHomes = { codex: join(sandbox, 'codex-home'), gemini: join(sandbox, 'gemini-home'), copilot: join(sandbox, 'copilot-home'), xdgConfig: join(sandbox, 'xdg-config'), xdgData: join(sandbox, 'xdg-data') };
+// Without a provider that works, the first-run Providers step stands in for the app on every page
+// load, and no other spec could see the app. So the sandbox starts as a machine that finished that
+// step (`providersStepSeen`) and has one agent ready: Codex, a fake (e2e/fake-providers) reached by
+// the override in providers.json, not by PATH. The providers spec restores both before it ends.
+mkdirSync(dirs.dataDir, { recursive: true });
+writeFileSync(join(dirs.dataDir, 'app-settings.json'), `${JSON.stringify({ providersStepSeen: true }, null, 2)}\n`);
+writeFileSync(
+  join(dirs.dataDir, 'providers.json'),
+  `${JSON.stringify({ providers: { codex: { enabled: true, binaryPath: join(here, 'fake-providers', 'codex') } }, order: ['claude-code', 'codex', 'gemini', 'copilot', 'opencode'], defaultProvider: null }, null, 2)}\n`,
+);
 const env = {
   ...process.env,
+  CODEX_HOME: providerHomes.codex,
+  GEMINI_CLI_HOME: providerHomes.gemini,
+  COPILOT_HOME: providerHomes.copilot,
+  // OpenCode keeps its config and data under the XDG directories, so the server's point at the
+  // sandbox and a real ~/.config/opencode never makes it "used before" here
+  XDG_CONFIG_HOME: providerHomes.xdgConfig,
+  XDG_DATA_HOME: providerHomes.xdgData,
   PORT: String(PORT),
   HOST: '127.0.0.1',
   LOG_LEVEL: 'error',

@@ -1,0 +1,572 @@
+/* Providers (docs/plans/multi-provider.md, P2): readiness rows, first run, order and binary. Ported
+   from the validated prototype (agentry-ds.css, "Providers"). Nothing here is live and nothing takes
+   a gradient: the state is a badge with its word, the remedy a neutral button, and the only gradient
+   on a screen is the one the screen already had. */
+.prov-row {
+  display: grid;
+  grid-template-columns: 20px 36px minmax(0, 250px) minmax(0, 1fr) auto 34px;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.prov-row:last-child {
+  border-bottom: 0;
+}
+
+/* First run: no handle and no switch, the person is only reading what was found */
+.prov-row.compact {
+  grid-template-columns: 36px minmax(0, 250px) minmax(0, 1fr) auto;
+}
+
+.prov-row .monogram {
+  font-size: 12px;
+}
+
+.prov-row.open {
+  background: var(--bg-1);
+  border-bottom: 0;
+}
+
+.prov-row.lifted {
+  background: var(--bg-3);
+  box-shadow: var(--shadow-pop);
+  border-radius: var(--radius);
+  position: relative;
+  z-index: 1;
+}
+
+.prov-drop {
+  height: 2px;
+  margin: -1px 18px;
+  border-radius: var(--radius-xs);
+  background: var(--accent);
+}
+
+.prov-grip {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 36px;
+  color: var(--fg-3);
+  cursor: grab;
+}
+
+.prov-id {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.prov-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.prov-account {
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.prov-meta {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+
+.prov-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.prov-reason {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fg-2);
+}
+
+.prov-checking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--fg-3);
+}
+
+.prov-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* A secondary remedy beside the state's own: the same button without its border */
+.btn.prov-quiet {
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  color: var(--fg-2);
+}
+
+.btn.prov-quiet:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--bg-3);
+  color: var(--fg);
+}
+
+.prov-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.prov-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+/* The binary override, open under its row: the path Agentry uses instead of looking on PATH */
+.prov-bin {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 18px 16px 88px;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--line);
+}
+
+.prov-bin-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Phone: a cell per provider that stacks, and the order list of the Sheet */
+.prov-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.prov-cell:last-child {
+  border-bottom: 0;
+}
+
+.prov-cell-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.prov-cell-head .prov-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prov-cell-head .prov-id {
+  flex: 1 1 0;
+}
+
+.prov-cell .prov-reason {
+  font-size: 14px;
+}
+
+.prov-cell .prov-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.prov-cell .btn {
+  min-height: var(--touch);
+}
+
+.prov-order-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--touch);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.prov-order-row:last-child {
+  border-bottom: 0;
+}
+
+.prov-order-row .prov-grip {
+  width: 24px;
+}
+
+.prov-radio {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--line-3);
+  display: grid;
+  place-items: center;
+}
+
+.prov-radio.on {
+  border-color: var(--accent-2);
+}
+
+.prov-radio.on::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-2);
+}
+
+/* First run: a full page with no shell, the list narrow and centred */
+.prov-first {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.prov-step-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--fg-3);
+}
+
+/* The step stands in for the whole app: it scrolls on its own and keeps the halo the sign-in has */
+.prov-first-page {
+  min-height: 100vh;
+  padding: 32px 24px 40px;
+  background: var(--glow-top) no-repeat, var(--bg);
+}
+
+.prov-first-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+}
+
+.prov-first-name {
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
+.prov-first-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.prov-first-intro h1 {
+  margin: 0;
+}
+
+.prov-first-intro p {
+  margin: 0;
+  max-width: 620px;
+  line-height: 1.55;
+  color: var(--fg-2);
+}
+
+/* The groups' cards hold rows edge to edge; the row brings its own padding */
+.prov-list {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.prov-first-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.prov-first-skip {
+  display: flex;
+  justify-content: center;
+}
+
+/* "Or pick another": the other agents' install pages, small and out of the way of the primary */
+.prov-others {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.prov-others-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.prov-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-pill);
+  background: var(--bg-2);
+  color: var(--fg-2);
+  font-size: 12.5px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.prov-chip:hover {
+  border-color: var(--line-3);
+  color: var(--fg);
+}
+
+/* A phone: the way out is a foot that stays under the list, buttons stacked and 44 px tall */
+@media (max-width: 900px) {
+  .prov-first-page {
+    padding: 20px 16px 0;
+  }
+
+  .prov-first-intro h1 {
+    font-size: 24px;
+    line-height: 1.2;
+  }
+
+  .prov-first-foot {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    margin: 0 -16px;
+    padding: 10px 16px calc(16px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: var(--bg-1);
+  }
+
+  .prov-first-foot .prov-step-note {
+    display: none;
+  }
+
+  .prov-first-foot .btn {
+    min-height: var(--touch);
+    justify-content: center;
+  }
+
+  .prov-first-page .prov-chip {
+    min-height: var(--touch);
+    padding: 0 12px;
+  }
+}
+
+/* Settings → Providers: the page, the default row, the list of rows and the sheets of the phone */
+.prov-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.prov-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.prov-checked {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* The rows carry their own padding: the card gives up its own and clips the rows to its corners */
+.prov-card {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.prov-card > .card-head {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.prov-summary {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.prov-default {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.prov-default-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.prov-default-title {
+  font-weight: 500;
+}
+
+.prov-default-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.prov-default-select {
+  flex: 0 0 230px;
+  width: 230px;
+}
+
+/* Each row sits in an item so the binary editor can open right under it */
+.prov-list .prov-item > .prov-row {
+  border-bottom: 1px solid var(--line);
+}
+
+.prov-list .prov-item:last-child > .prov-row:last-child {
+  border-bottom: 0;
+}
+
+.prov-list .prov-row:has(+ .prov-bin) {
+  background: var(--bg-1);
+  border-bottom: 0;
+}
+
+.prov-list .prov-item:last-child > .prov-bin {
+  border-bottom: 0;
+}
+
+.prov-grip {
+  border: 0;
+  background: none;
+  padding: 0;
+}
+
+.prov-grip:active {
+  cursor: grabbing;
+}
+
+.prov-bin .field-error {
+  margin: 0;
+}
+
+.prov-bin-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prov-switch {
+  display: inline-flex;
+}
+
+/* Phone */
+.prov-order-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 56px;
+  padding: 10px 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.prov-order-cell-name {
+  font-weight: 500;
+}
+
+.prov-order-cell-sub,
+.prov-order-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.prov-order-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.prov-order {
+  display: flex;
+  flex-direction: column;
+}
+
+.prov-order-row .icon-btn {
+  min-width: var(--touch);
+  min-height: var(--touch);
+}
+
+.prov-sheet .btn,
+.prov-sheet input {
+  min-height: var(--touch);
+}
+
+.prov-sheet input {
+  font-size: 16px;
+}
+
+.prov-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.prov-sheet-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  font-weight: 500;
+}
+
+.prov-sheet-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prov-sheet-row {
+  display: flex;
+  gap: 8px;
+}
+
+.prov-sheet-row .btn:last-child:not(:only-child) {
+  flex: 0 0 auto;
+}
+
+.prov-sheet-row .btn:only-child,
+.prov-sheet-row .btn:first-child {
+  flex: 1 1 0;
+  justify-content: center;
+}

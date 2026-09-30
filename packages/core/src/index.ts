@@ -88,6 +88,8 @@ import { Db } from './db.ts';
 import { HealthMonitor, HealthService } from './health-service.ts';
 import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
 import { EventBus } from './events.ts';
+import { ProviderDetector } from './providers/detector.ts';
+import { ProvidersSettingsStore } from './providers/settings.ts';
 import { Locator } from './locations.ts';
 import { modelOptions } from './models.ts';
 import { PermissionBroker } from './permissions.ts';
@@ -248,8 +250,21 @@ export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './secur
 export { describeCron, nextFire, nextFires, parseCron } from './cron.ts';
 export { previewCron, Scheduler, SLOT_GRACE_MS, type ScheduleLauncher } from './schedules.ts';
 export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
+export { PROVIDERS_TTL_MS, ProviderDetector, satisfiesRange, type ClaudeReading, type ProviderDetectorDeps } from './providers/detector.ts';
+export { ProvidersSettingsStore, defaultProvidersSettings } from './providers/settings.ts';
+export { PROVIDER_MANIFESTS, ProviderRegistry, type ProviderManifest } from './providers/registry.ts';
 export { JOURNAL_HANDOFF_BYTES, JournalService, type JournalHandoff, type JournalWrite } from './journal.ts';
 export { MemoryProposalService, type ProposalOrigin } from './memory-proposals.ts';
+export {
+  installDirs,
+  nvmBinDirs,
+  probeLoginShellPath,
+  resolveCommand,
+  resolveUserPath,
+  SHELL_PATH_PROBE_ENV,
+  type ShellPathFailure,
+  type ShellPathResult,
+} from './providers/path.ts';
 export { idOfEndpoint, parseRegistration, payloadOf, PushService, truncateEndpoint, type PushTransport } from './push.ts';
 export {
   DEFAULT_SUPERVISOR,
@@ -276,6 +291,14 @@ export class Core {
   readonly db: Db;
   /** Every change worth telling a client about; what `GET /api/events` streams */
   readonly events = new EventBus();
+  /**
+   * Which agents are on this machine and whether each is ready: one cache, one TTL, and
+   * `providers.changed` when a status changes. Claude Code's reading is the system read below, so the
+   * CLI is asked once for both.
+   */
+  readonly providers: ProviderDetector;
+  /** Which providers are on, their order, the default and binary overrides (`providers.json`) */
+  readonly providersSettings: ProvidersSettingsStore;
   readonly permissions: PermissionBroker;
   /** Processes and live streams of the chats Agentry drives */
   readonly runtime: ChatManager;
@@ -364,6 +387,17 @@ export class Core {
 
   constructor(config: CoreConfig = loadConfig()) {
     this.config = config;
+    this.providersSettings = new ProvidersSettingsStore(config);
+    this.providers = new ProviderDetector({
+      config,
+      settings: () => this.providersSettings.get(),
+      emit: (event) => this.events.emit(event),
+      commandAliases: { 'claude-code': [config.claudeBin] },
+      readClaude: async () => {
+        const { cli, auth } = await this.system();
+        return { cli, auth };
+      },
+    });
     this.db = new Db(config);
     this.permissions = new PermissionBroker();
     // Must run before anything spawns the CLI: it injects stored credentials into process.env
@@ -858,9 +892,19 @@ export class Core {
   }
 
   /**
-   * What the last read saw, whatever its age, without starting one. `GET /api/health` is reachable
-   * with no credential: were it to measure, a burst against it would become a burst of processes.
+   * `cli` and `loggedIn` for `GET /api/health`, which is reachable with no credential: were it to
+   * measure, a burst against it would become a burst of processes. So it reads Claude Code's provider
+   * status as the last detection left it and never starts one.
    */
+  claudeHealth(): { cli: boolean; loggedIn: boolean } {
+    const status = this.providers.knownOne('claude-code');
+    return {
+      cli: status !== null && status.binaryPath !== null && status.version !== null,
+      loggedIn: status !== null && this.providers.knownSignedIn('claude-code') === true,
+    };
+  }
+
+  /** What the last system read saw, whatever its age, without starting one */
   systemKnown(): SystemInfo | null {
     return this.systemCache ? this.withUptime(this.systemCache.value) : null;
   }
@@ -904,7 +948,11 @@ export class Core {
         version: AGENTRY_VERSION,
       };
       // A read that finished late never replaces a newer one
-      if (gen === this.systemGen && (!this.systemCache || this.systemCache.at <= at)) this.systemCache = { at, gen, value };
+      if (gen === this.systemGen && (!this.systemCache || this.systemCache.at <= at)) {
+        this.systemCache = { at, gen, value };
+        // The reading is already taken: the provider status is derived from it, not from a second spawn
+        await this.providers.refresh({ only: ['claude-code'], claude: { cli, auth } }).catch(() => undefined);
+      }
       return value;
     })().finally(() => {
       if (this.systemPending?.promise === promise) this.systemPending = null;
@@ -2093,6 +2141,7 @@ export class Core {
     this.cliVersion.stop();
     this.release.stop();
     this.healthMonitor.stop();
+    this.providers.close();
     this.decisionResolvers.stop();
     this.decisions.stop();
     this.orchestrator.close();

@@ -704,6 +704,13 @@ a.statusbar-item:focus-visible {
   color: var(--live);
 }
 
+/* A provider's tooltip: its state, where it is, and what to do, one line each */
+.statusbar-tip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .statusbar-spacer {
   flex: 1;
 }

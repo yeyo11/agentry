@@ -156,6 +156,9 @@ const CHAT_FORBIDDEN = new Set([
   `DELETE ${API_PREFIX}/security/token`,
   `POST ${API_PREFIX}/tunnel/start`,
   `PUT ${API_PREFIX}/tunnel/settings`,
+  // It names a binary Agentry will run, so a prompt injection must not be able to point it at one
+  `PUT ${API_PREFIX}/providers/settings`,
+  `POST ${API_PREFIX}/providers/refresh`,
 ]);
 
 /**

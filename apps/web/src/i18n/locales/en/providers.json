@@ -1,0 +1,133 @@
+{
+  "state": {
+    "ready": "Ready",
+    "degraded": "Warnings",
+    "signed-out": "Signed out",
+    "incompatible": "Incompatible",
+    "used-before": "Used before",
+    "not-installed": "Not installed",
+    "unknown": "Not checked",
+    "disabled": "Off",
+    "checking": "Checking"
+  },
+  "readyReason": "Installed, signed in and answering.",
+  "reason": {
+    "missing-credentials": "Installed, but not signed in.",
+    "stale-token": "Its sign-in has expired. Sign in again.",
+    "version-below-range": "It works, but {{version}} is older than the versions Agentry has been tested with ({{range}}).",
+    "version-above-range": "{{version}} is newer than what Agentry knows how to use ({{range}}). Install an earlier one and choose it here.",
+    "version-unreadable": "Its version could not be read, so Agentry cannot tell whether it is compatible.",
+    "probe-timeout": "It could not be checked: it did not answer in time.",
+    "spawn-denied": "This system does not let Agentry run the program. Check its permissions.",
+    "spawn-failed": "The program was found but would not start.",
+    "binary-not-found": "There is no trace of {{label}} on this machine.",
+    "config-home-only": "There is configuration in {{home}}, but the program cannot be found.",
+    "missing-required-command": "A command it needs is missing on this machine.",
+    "unsupported-platform": "It does not run on this operating system.",
+    "handshake-failed": "It started but did not answer the way Agentry expects.",
+    "no-probe": "Agentry cannot check this one yet.",
+    "disabled": "It is not searched for or checked while it is off."
+  },
+  "row": {
+    "default": "Default",
+    "noAccount": "No account",
+    "checking": "Reading the version and the sign-in…",
+    "signIn": "Sign in",
+    "install": "Install",
+    "update": "Update",
+    "chooseBinary": "Choose binary",
+    "retry": "Retry",
+    "opensNewTab": "opens in a new tab"
+  },
+  "firstRun": {
+    "label": "First start",
+    "title": "These are the agents on your machine",
+    "checkingTitle": "Looking for agents on your machine",
+    "intro": "Agentry looked in your terminal's PATH and the usual install folders. You start with the first one that is ready; the order and the rest you change later in Settings.",
+    "introPhone": "You start with the first one that is ready. The order and the rest you change later in Settings.",
+    "group": {
+      "ready": "Ready",
+      "signed-out": "Signed out",
+      "attention": "Needs attention",
+      "used-before": "Used before",
+      "not-installed": "Not installed"
+    },
+    "watching": "Agentry keeps watching your folders: what you install or sign in to in a terminal shows up here by itself.",
+    "checking": "Checking…",
+    "recheck": "Check again",
+    "skip": "Skip for now",
+    "continue": "Continue",
+    "continueWith": "Continue with {{name}}",
+    "empty": {
+      "title": "No agent found",
+      "body": "Agentry looked in your terminal's PATH and the usual install folders, and there is none. Install one and it will show up here by itself.",
+      "install": "See how to install Claude Code",
+      "others": "Or pick another"
+    }
+  },
+  "tab": "Providers",
+  "intro": "The coding agents Agentry finds on this machine. If you install one or sign in from a terminal, this list updates on its own.",
+  "checkedAgo": "Checked {{time}}",
+  "notChecked": "Not checked yet",
+  "refresh": "Check again",
+  "refreshFailed": "Could not check the providers",
+  "loadFailed": "Could not read the providers",
+  "saveFailed": "Could not save the providers",
+  "list": {
+    "title": "Providers",
+    "aria": "Providers",
+    "total_one": "{{count}} provider",
+    "total_other": "{{count}} providers",
+    "ready_one": "{{count}} ready",
+    "ready_other": "{{count}} ready"
+  },
+  "default": {
+    "title": "Default provider",
+    "hint": "New chats use it. With “Automatic” it is the first one that is ready, in the order of this list: drag the handle to change the order.",
+    "hintPhone": "New chats use it. Move a provider up or down to change the order.",
+    "auto": "Automatic (the first ready)",
+    "autoShort": "Automatic",
+    "autoHint": "The first ready, in this order",
+    "autoRow": "Automatic, the first ready",
+    "rowFor": "{{name}} as default",
+    "cell": "Default and order",
+    "position": "{{name}} · {{position}} of {{total}}",
+    "autoPosition": "Automatic · the first ready",
+    "positionState": "{{position}} · {{state}}",
+    "sheetTitle": "Default and order",
+    "group": "Default provider"
+  },
+  "order": {
+    "handle": "Move {{name}}. Use the up and down arrows to change its place.",
+    "up": "Move {{name}} up",
+    "down": "Move {{name}} down"
+  },
+  "enable": {
+    "on": "Turn off {{name}}",
+    "off": "Turn on {{name}}",
+    "label": "On"
+  },
+  "bin": {
+    "title": "{{name}} binary",
+    "path": "Path of the {{name}} binary",
+    "placeholder": "/path/to/{{id}}",
+    "hint": "Agentry uses this program instead of searching the PATH. Before saving it, it reads its version and checks it is inside the tested range ({{range}}).",
+    "hintNoRange": "Agentry uses this program instead of searching the PATH. Before saving it, it reads its version and checks it works.",
+    "check": "Check and save",
+    "checking": "Checking…",
+    "cancel": "Cancel",
+    "usePath": "Use the one on PATH",
+    "rejected": "Not saved. {{reason}}",
+    "saved": "{{name}} binary saved",
+    "cleared": "{{name}} now uses the one on PATH"
+  },
+  "sheet": {
+    "save": "Save",
+    "cancel": "Cancel"
+  },
+  "statusbar": {
+    "version": "version {{version}}",
+    "checking": "Checking agents…",
+    "none": "No agent detected"
+  }
+}

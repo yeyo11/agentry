@@ -13,7 +13,7 @@ import { ACTION_SCHEME, errorUrl, splashUrl } from './pages.ts';
 import { missingResources, resolveResources } from './resources.ts';
 import { rememberedPort, rememberPort } from './server-port.ts';
 import { newDesktopSecret, ServerProcess, serverEnv } from './server-process.ts';
-import { resolveUserPath } from './shell-path.ts';
+import { resolveUserPath } from '@agentry/core/providers/path';
 import { SPLASH_TITLE_BAR, parseTitleBarTheme, titleBarOptions, type TitleBarTheme } from './title-bar.ts';
 import { LiveTray } from './tray.ts';
 import {

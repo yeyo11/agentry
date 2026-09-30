@@ -47,6 +47,7 @@ export interface CoreConfig {
   workspaceDir: string;
   dataDir: string;
   defaultPermissionMode: PermissionMode;
+  providersStepSeen: boolean;
   maxConcurrentRuns: number;
   /**
    * VAPID `sub` claim of every push the server signs: a `mailto:` or `https:` the push service can
@@ -117,11 +118,19 @@ function parseTunnelSwitch(value: string | undefined, fallback: boolean): boolea
   throw new Error(`AGENTRY_TUNNEL: '${value}' is neither on nor off`);
 }
 
+function parseSeenSwitch(value: string): boolean {
+  const word = value.trim().toLowerCase();
+  if (['on', '1', 'true'].includes(word)) return true;
+  if (['off', '0', 'false'].includes(word)) return false;
+  throw new Error(`AGENTRY_PROVIDERS_STEP_SEEN: '${value}' is neither on nor off`);
+}
+
 /** What a layered setting is when neither the environment nor `app-settings.json` says otherwise. */
 export const DEFAULT_APP_SETTINGS: Readonly<AppSettingValues> = Object.freeze({
   allowedHosts: [],
   maxConcurrentRuns: 8,
   defaultPermissionMode: 'acceptEdits',
+  providersStepSeen: false,
 });
 
 /** pnpm runs scripts from the package dir; default state dirs belong at the monorepo root instead. */
@@ -144,6 +153,7 @@ export const APP_SETTING_ENV = {
   allowedHosts: 'AGENTRY_ALLOWED_HOSTS',
   maxConcurrentRuns: 'AGENTRY_MAX_CONCURRENT_RUNS',
   defaultPermissionMode: 'AGENTRY_DEFAULT_PERMISSION_MODE',
+  providersStepSeen: 'AGENTRY_PROVIDERS_STEP_SEEN',
 } as const satisfies Record<keyof AppSettingValues, string>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
@@ -169,6 +179,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     workspaceDir,
     dataDir,
     defaultPermissionMode: isSet(env.AGENTRY_DEFAULT_PERMISSION_MODE) ? (env.AGENTRY_DEFAULT_PERMISSION_MODE.trim() as PermissionMode) : DEFAULT_APP_SETTINGS.defaultPermissionMode,
+    providersStepSeen: isSet(env.AGENTRY_PROVIDERS_STEP_SEEN) ? parseSeenSwitch(env.AGENTRY_PROVIDERS_STEP_SEEN) : DEFAULT_APP_SETTINGS.providersStepSeen,
     maxConcurrentRuns: isSet(env.AGENTRY_MAX_CONCURRENT_RUNS) ? Number(env.AGENTRY_MAX_CONCURRENT_RUNS) : DEFAULT_APP_SETTINGS.maxConcurrentRuns,
     pushSubject: env.AGENTRY_PUSH_SUBJECT?.trim() || 'https://github.com/yeyo11/agentry',
     allowedHosts: parseAllowedHosts(env.AGENTRY_ALLOWED_HOSTS),

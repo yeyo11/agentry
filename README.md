@@ -185,7 +185,7 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
 
 ## How it talks to Claude
 
-The wrapper drives Claude **only through the CLI** — no SDK, no terminal scraping:
+The wrapper drives Claude Code through its CLI, the interface Anthropic ships for programs — no terminal scraping, no undocumented endpoints:
 
 | Need | CLI surface used |
 | --- | --- |
@@ -410,6 +410,7 @@ transpiler.
 | `AGENTRY_DATA_DIR` | `./data` | Wrapper state |
 | `AGENTRY_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | Mode for runs that do not set one. Without the variable it is editable in Settings → Security and applies to the next run; set, it is shown read-only there. Empty counts as unset |
 | `AGENTRY_MAX_CONCURRENT_RUNS` | `8` | Max simultaneous `claude` processes (1 to 64). Editable in Settings → Security unless set here, like the mode above. Empty counts as unset |
+| `AGENTRY_PROVIDERS_STEP_SEEN` | off | `on` records that the first-run Providers step was answered, so it is only shown again when no provider is ready. Without the variable the step writes it to `app-settings.json` when it is continued or skipped. Empty counts as unset |
 | `AGENTRY_PUSH_SUBJECT` | `https://github.com/yeyo11/agentry` | The VAPID `sub` claim of every Web Push this server signs: a `mailto:` or `https:` a push service can complain to, naming a real domain — Apple refuses the whole JWT with `403 BadJwtToken` for something like `mailto:agentry@localhost`. Changing it takes effect on the next start, keypair and registered installs untouched |
 | `AGENTRY_AUTH_MODE` | `none` | `none`, `token` or `oidc`. **Seeds** an install that has no `auth.json` yet; after that the setting saved from the UI wins. See [Securing it](#securing-it) |
 | `AGENTRY_AUTH_TOKEN` | – | The bearer token to seed with when the mode is `token`. Only its SHA-256 is stored |
@@ -826,6 +827,18 @@ One Server-Sent Events stream for the whole app, so a client never has to poll.
 curl -N localhost:8787/api/events
 ```
 
+### Providers
+
+The agents Agentry can drive, as detection finds them on this machine: one cache with one 5-minute TTL, refreshed by watchers and on demand, with `providers.changed` on the event stream when a status differs. A chat's token gets `403` on the settings write and the refresh.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/providers` | Every provider's status (state, reason, version, binary, config home, capabilities), from the cache |
+| GET | `/providers/:id` | One status; `404` for an unknown id |
+| POST | `/providers/refresh` | Detect again now. Not open to a chat's token |
+| GET | `/providers/settings` | The document from `providers.json`: enabled and binary override per provider, order, default |
+| PUT | `/providers/settings` | Replace it, validated; providers are detected again in the background. Not open to a chat's token |
+
 ### Decisions
 
 The decision engine: a decision point puts typed questions to a provider (the Claude CLI, or TypeSafe's Jev with its own key) and runs today's behaviour whenever the answer is missing or below its threshold. Every point is off by default. A point sends nothing until the owner consents to it after previewing its state, and consent names the providers it covers. A chat's token gets `403` on the settings, credentials and consent routes.
@@ -1133,7 +1146,7 @@ Claude Code precedence is local > project > user.
 | PUT | `/config/tool-presets/default` | `{ defaultPresetId }` — the preset a new chat takes when it names neither `toolPreset` nor `allowedTools` (`toolPreset: null` opts out); `null` clears it |
 | POST | `/config/tool-presets/restore` | Rewrite the three shipped presets as they ship; every other preset and the default are left alone |
 | PUT / DELETE | `/config/tool-presets/:id` | Create, replace or delete a preset — body `{ name, description?, allowedTools, disallowedTools? }` |
-| GET / PUT | `/settings/app` | Settings that change without a restart (`app-settings.json`): `{ allowedHosts, maxConcurrentRuns, defaultPermissionMode, sources }`, where each source is `env`, `file` or `default`. The `PUT` body names only what changes; a setting the environment set is refused, and so is a pattern such as `*.com`. Emits `settings.changed` |
+| GET / PUT | `/settings/app` | Settings that change without a restart (`app-settings.json`): `{ allowedHosts, maxConcurrentRuns, defaultPermissionMode, providersStepSeen, sources }`, where each source is `env`, `file` or `default`. The `PUT` body names only what changes; a setting the environment set is refused, and so is a pattern such as `*.com`. Emits `settings.changed` |
 | GET / PUT / DELETE | `/config/resources/:kind/:name?project=` | Markdown content (a script for `workflows`, whose `format` is `javascript`) — body `{ content }` |
 
 ### Config file explorer
@@ -1407,7 +1420,7 @@ interactive `claude` session (`/mcp`) or in claude.ai's connector settings: Agen
 
 Bug reports, ideas and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the
 setup, the checks CI runs and the one architectural rule worth knowing before you write code:
-Agentry reaches Claude Code only through its CLI. [docs/status.md](docs/status.md) is where the
+Agentry reaches each agent only through the interface its vendor ships for programs. [docs/status.md](docs/status.md) is where the
 project stands today: what is built, what is still open, and where each plan ended.
 
 Vulnerabilities go through [private advisories](SECURITY.md), not public issues.

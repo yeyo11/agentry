@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T12:43:36.708551256Z
-updated_at: 2026-09-30T12:50:08Z
+updated_at: 2026-09-30T14:49:29Z
 tags:
     - plan
     - providers
@@ -11,8 +11,8 @@ tags:
 ---
 # Multiple agent providers
 
-Status: **planned** (2026-09-30). Nothing here is built yet. The owner answered the open questions
-the same day; see "Decisions" at the end.
+Status: **phase 1 built** on `feat/multi-provider` (2026-09-30); phases 2 to 4 planned. The owner answered the open questions the same day; see "Decisions"
+at the end, and "Outcome of phase 1".
 
 On 2026-09-30 the owner decided that Agentry is no longer a wrapper around Claude Code: it has grown
 into an orchestrator of its own, and it should drive other coding agents too. On a clean install it
@@ -197,8 +197,27 @@ The decision engine's exception for Jev stays as it is.
      `CODEX_HOME` for accounts.
    - **Agent Client Protocol (ACP):** one driver for every agent that speaks it (Gemini CLI among
      them). Which agents do, and how stable their support is, is checked first.
-   - **GitHub Copilot CLI:** installed on the owner's machine. Its interface for programs (ACP, a
-     server mode, or none) is checked first; without one it waits.
+   - **GitHub Copilot CLI:** installed on the owner's machine; `copilot --help` lists `--acp`, so
+     it goes through the ACP driver.
+   - **OpenCode** (owner, 2026-09-30, the fifth provider): `opencode acp` is an ACP server over
+     stdin/stdout, so it goes through the ACP driver too. Sign-in is read from the `auth.json` its
+     login writes in its data directory.
+     - **Its transcripts are in SQLite, not files** (owner: "important", 2026-09-30). OpenCode keeps
+       sessions, messages, parts and todos as tables (`session`, `message`, `part`, `todo`, …) of
+       one database in its data directory: `opencode.db`, or `opencode-<channel>.db` on channels
+       other than latest, beta and prod, or the path in `OPENCODE_DB`; it runs in WAL mode (source:
+       `packages/core/src/database/database.ts` and `packages/core/src/session/sql.ts` in
+       github.com/anomalyco/opencode). So its `TranscriptStore` and its usage read that database,
+       not JSONL:
+       - open it **read-only** and never write, lock or checkpoint it: OpenCode is writing to it;
+       - read through the WAL (a read-only connection that still sees the `-wal` file), and treat a
+         busy or locked read as "try again", never as an empty session;
+       - find the file the same way OpenCode does (the variable, then the channel name), and pin
+         the schema version the store understands: a table or column it does not know makes the
+         transcript `unknown`, not wrong;
+       - watch the database and its `-wal` file to learn that a session changed, as the Claude
+         store watches the projects directory.
+       This is reading "the files the CLI writes", inside the rule; a write would not be.
 
 Agents that only have a terminal interface are not providers. A later "terminal" tab could host
 them, but they cannot run orchestration stages.
@@ -214,9 +233,166 @@ them, but they cannot run orchestration stages.
    `RunEvent`; shared types without Claude aliases; a **conformance suite** every driver must pass,
    with a fake for each.
 3. **Codex, ACP and Copilot drivers**, in parallel, each with its fake for e2e.
+4. **Rotation between providers**, and claude-swap retired (see "Rotation moves to providers").
 
 Each phase keeps `pnpm typecheck`, `pnpm test` and `pnpm e2e` green, regenerates the OpenAPI schemas
 and adds its README rows.
+
+## Phase 1: orchestrations and task graph
+
+Phase 1 is one delivery on one feature branch, **`feat/multi-provider`**, cut from `main` at
+`4735d556` and squash-merged once. It is split into three orchestrations, each landing on that
+branch. Every code-writing worker runs on `claude-sonnet-5-5` (the exact id, never the `sonnet`
+alias). Every task runs `pnpm typecheck` and the tests of the packages it touches; no worker runs
+`pnpm e2e`. The full `pnpm test`, `pnpm build` and `pnpm e2e` run once, at the end, on the branch.
+
+Scope limits of phase 1:
+
+- **Detection only.** No provider other than Claude Code starts a chat. Chats, flows and
+  orchestrations keep running exactly as today.
+- **Sign in:** Claude Code's action opens the account flow Agentry already has (Settings →
+  Account). Every other provider links to its vendor's sign-in page; signing in from Agentry comes
+  with its driver.
+- **Handshakes spend nothing.** A handshake that would cost tokens or quota is not run; the
+  provider's readiness then rests on version and auth.
+- **Facts about other vendors' CLIs are checked, not guessed.** Each manifest cites where its
+  command names, config homes, version flag and auth probe come from (the vendor's docs or `--help`
+  output). What cannot be confirmed is left out and its readiness says `unknown` with the reason
+  `no-probe`, never a made-up command.
+
+### P0 · `providers-prototypes` (design; gates P2)
+
+- `p1`: the first-run **Providers** step and **Settings → Providers**, dark and light, desktop and
+  phone.
+  - One row per provider: icon, name, version, account, and the readiness state as a status colour
+    **with** a word; the one primary action per state (Sign in, Install page, Update, Retry,
+    Choose binary); the reason in plain words under it.
+  - The states of section 2 each shown once: a machine with Claude `ready`, Copilot `signed-out`,
+    Codex and Gemini `used-before`, and one `not-installed`; plus the nothing-found `Empty` state
+    and a `checking…` state.
+  - Default provider and order (drag handle on desktop, a `Sheet` on phone), enable/disable, and the
+    binary override.
+  - Files: `docs/design-system/reference/DesktopProveedores.html`, `MobileProveedores.html`,
+    `DesktopPrimerArranque.html`, `MobilePrimerArranque.html`, their screenshots, and the reference
+    index. A new variant, if any, goes into `docs/design-system.md` and `agentry-ds.css`.
+- `p2`: the status bar with one dot per enabled provider, and the Home setup rows that today say
+  "Claude Code CLI not detected", both states. Files: the Home references (`Main.html`, `MobileInicio.html`) and `StatusBar.html`,
+  updated.
+- Check: the prototype tools pass, and **the owner validates** before P2 starts.
+
+### P1 · `providers-core` (runs beside P0)
+
+- `c1` (shared types), dependsOn none.
+  - `ProviderId` (a string), `ProviderTransport`, `ProviderCapability`, `ProviderReadinessState`
+    (the seven of section 2), `ProviderReasonCode`, `ProviderStatus` (id, label, state, reason,
+    version, compatible range, binary path, config home, account, capabilities, checkedAt),
+    `ProvidersSettings` (enabled, order, default, binary override per provider), and the
+    `providers.changed` event (`AgentryEventBase`, like `system.release`).
+  - Files: `packages/shared/src/types.ts`, `apps/api/src/openapi/schemas*` (regenerated).
+  - Checks: shared tests, `pnpm --filter @agentry/api openapi:schemas` with no drift.
+- `c2` (the user's PATH), dependsOn none.
+  - Move `apps/desktop/src/shell-path.ts` into `packages/core/src/providers/path.ts` and extend it:
+    login-shell PATH with sentinels, a timeout and a typed failure
+    (`no-shell | timeout | spawn-error | empty-path`), a fast-path marker in the environment
+    (`AGENTRY_SHELL_PATH_PROBE=1`) that rc files can test; resolving a command with `fs` (`X_OK`,
+    no `which` spawn); the install-directory fallback (nvm ordered by its `default` alias, volta,
+    asdf, mise, bun, pnpm, npm-global, `~/.local/bin`, `~/.claude/local`, Homebrew, nix, snap).
+    The desktop app imports it from core. The server uses it at start, so a server started from a
+    desktop session or a service finds what the person's terminal finds.
+  - Files: `packages/core/src/providers/path.ts` and tests, `apps/desktop/src/main.ts`,
+    `apps/desktop/src/shell-path.ts` (removed), `docs/desktop.md` ("The CLI is not detected").
+  - Check: core and desktop tests.
+- `c3` (manifests and registry), dependsOn c1.
+  - `packages/core/src/providers/registry.ts`, and one folder per provider with its
+    `manifest.ts`: `claude-code`, `codex`, `gemini`, `copilot`, and `opencode` (added by the owner
+    after P1). Each declares commands and aliases,
+    required commands, unsupported platforms, config homes and the variable that moves them,
+    version flag and tested range, auth probe, install and sign-in pages, transport, and
+    capabilities (none for providers without a driver yet), each fact with its source in a comment.
+  - Check: core tests, including one that fails when two manifests share a command or an id.
+- `c4` (detector), dependsOn c1, c2, c3.
+  - `packages/core/src/providers/detector.ts`: runs every enabled manifest's probes in parallel,
+    each with its own timeout; resolves the binary (override, then PATH, then install
+    directories); reads the version and compares it with the range; runs the auth probe;
+    recognises `used-before` from config homes; produces a `ProviderStatus` per provider with the
+    state and reason code of section 2.
+  - One cache with one TTL, invalidated by a refresh, by a settings change, and by watchers on the
+    PATH directories and config homes (debounced), which re-detect and emit `providers.changed`
+    only when a status actually changed.
+  - Claude Code's probes reuse `detectCli` and `getAuthStatus` from `packages/core/src/cli.ts`;
+    `/health` keeps its shape (`cli`, `loggedIn`), now read from the Claude provider's status.
+  - Files: `detector.ts`, `packages/core/src/index.ts` wiring, tests with fake binaries on a
+    temporary PATH and fake config homes.
+  - Check: core tests.
+- `c5` (settings and API), dependsOn c4.
+  - `providers.json` in the data directory for `ProvidersSettings` (a settings-shaped document, like
+    `decisions.json`).
+  - Routes: `GET /providers` (every status, from the cache), `GET /providers/:id`,
+    `POST /providers/refresh` (re-detects now), `GET /providers/settings`,
+    `PUT /providers/settings`. Chat tokens get `403` on the writes.
+  - Files: `apps/api/src/routes/providers.ts`, `apps/api/src/app.ts`,
+    `apps/api/src/openapi/routes.ts` (summary and tag per route), `apps/api/src/security.ts`,
+    `README.md` REST tables, API tests.
+  - Check: API tests, the summary-and-tag test included.
+- `c6` (the rule and the docs), dependsOn none.
+  - Rewrite the one rule in `CLAUDE.md` and `CONTRIBUTING.md` as section 8 says, keeping the decision
+    engine's exception; fix every other document that quotes the old wording as a rule in force.
+  - Write `docs/providers.md`: what a provider is, the readiness states and reason codes, how
+    detection finds a binary, and how to add a provider.
+  - Check: the docs read on GitHub; no code changes.
+
+### P2 · `providers-web`, dependsOn P0 (validated) and P1
+
+- `u1`: the first-run Providers step: shown when no provider is `ready` or on the first start after
+  install, and skippable; uses `GET /providers` and `providers.changed`; `Empty` with an
+  illustration when nothing is found.
+- `u2`: Settings → Providers, from the validated prototype: the list, actions per state, default
+  and order, enable/disable, binary override (`PUT /providers/settings`), and **Refresh**.
+- `u3`: the status bar's dot per enabled provider, and Home's setup rows reading provider statuses;
+  the `cli-missing` illustration stops naming `claude`.
+- Every string through i18n with `en`/`es` parity and the glossary; phone layout, both themes and
+  motion levels per the design system. e2e specs for the step and the settings page, using the fake
+  CLI for Claude and fake binaries for the others (written by the tasks, run once at the end).
+- Files: `apps/web/src/pages/config/ProvidersTab.tsx`, `settingsTabs.ts`, the first-run component,
+  `components/shell/StatusBar.tsx`, `pages/dashboard/widgets/live.tsx`, locales, `e2e/`.
+- Check: web tests, including the tokens test.
+
+When P2 is merged into the branch: the full checks, the plan's Outcome, `docs/status.md`, then one
+pull request to `main`.
+
+## Outcome of phase 1
+
+Built on `feat/multi-provider` on 2026-09-30, in three orchestrations launched on the owner's
+desktop app, every code-writing worker on `claude-sonnet-5-5`:
+
+| Orchestration | Tasks | Cost | Result |
+|---|---|---|---|
+| P0 `providers-prototypes` | p1, p2 | 5.21 USD | Validated by the owner. Its check ran `lint.py` on every screen, and `main` already had 312 findings; the 16 new screens lint clean and pass `check.mjs` |
+| P1 `providers-core` | c1–c6 | ~4 USD | Every check passed |
+| P2 `providers-web` | u0–u4 | 7.24 USD | Every check passed; its e2e spec had never run |
+
+Added by hand after P1: **OpenCode as the fifth provider** (owner, 2026-09-30), with a `file` auth
+probe that reads the `auth.json` its login writes, `~/.opencode/bin` among the install directories,
+and a note that its transcripts live in SQLite (under "Providers, in order").
+
+Running the providers e2e spec, which no worker ran, found four real bugs, fixed on the branch:
+
+1. **A refresh during a detection got the old answer.** A settings change or **Refresh** that
+   arrived while a detection ran was answered by it, though it had read the settings and the files
+   before the change. Requests in the same tick still share one detection; later ones share one
+   follow-up that starts after it.
+2. **A reading of Claude Code alone threw away a full detection.** Core re-reads Claude Code when
+   it reads the system info, with a newer sequence number, and a full detection that ended after it
+   was dropped whole. Readings are now compared per provider.
+3. **The first-run step hid Settings.** With no provider ready it stood in for every page, including
+   the one where a provider gets fixed. Once seen, it leaves `/settings` alone; Home and the status
+   bar still say nothing is ready.
+4. **The step had no main landmark** (axe).
+
+The spec itself was fixed to count five providers, to name GitHub Copilot as the app does, and to
+open the app before setting the theme. One unit test, the shiki one in `highlight.test.ts`, fails
+only when the whole suite runs at once: it measures a per-line time budget, and this branch does
+not touch it.
 
 ## Decisions (owner, 2026-09-30)
 
@@ -236,6 +412,53 @@ and adds its README rows.
    Refresh after installing.
 4. **All providers after Claude, in parallel:** Codex, ACP and Copilot. Rejected: one at a time.
 5. **Still open:** which CLIs the Docker image ships (Claude Code only today).
+
+## Rotation moves to providers (owner, 2026-09-30)
+
+Agentry used to rotate between several Claude Code accounts through claude-swap (`cswap auto`,
+`rotateAndResume` in `packages/core/src/index.ts`, `FlowService.awaitsRotation`) so work went on
+when one account ran out. That ends. Rotation now happens **between providers**: each vendor sees
+one account used normally, which keeps Agentry within every vendor's terms, and the person's work
+goes on in another agent instead of stopping.
+
+6. **One account per provider.** Agentry uses the account the person signed in with in each
+   provider's CLI. claude-swap, managed accounts and automatic account switching are retired:
+   `accounts.ts`, `account-config.ts`, `cswap-install.ts`, `cswap-pin.ts`, the claude-swap parts of
+   `chats.ts` and the Accounts page. Rejected: several accounts without rotation; keeping
+   claude-swap as an advanced option.
+7. **What happens at a limit is the person's choice**, because models differ between providers and
+   a model may have no counterpart in another one. Settings, global with a per-project override:
+   - **on limit**: continue on the next ready provider, with a handoff (what was asked, what was
+     done, what is left, from the transcript) in the same worktree; restart the task on the next
+     provider from its original prompt, in the same worktree; or wait for the provider's reset;
+   - **model mapping**: which model of each provider stands in for a model of another (for example,
+     a Claude model to a Codex model). A run whose model has no mapping for the next provider waits
+     for the reset instead of switching, and says why;
+   - a chat or task that moves keeps a link to every execution it ran on, on each provider.
+8. **Order: global and per project.** The global order of Settings → Providers (phase 1), which a
+   project can override. Rejected: an order per role or stage; a single global order.
+
+9. **The decision engine decides within the person's settings** (owner, 2026-09-30). Rotation is
+   made of the small typed judgments the [decision engine](../decision-engine.md) exists for, so
+   phase 4 adds these points to its catalogue (`packages/core/src/decisions/points.ts`), each
+   shipping `off`, with consent and a state preview like every other point:
+   - `provider.on-limit` (act, project): continue with a handoff, restart, or wait, for the run that
+     hit a limit. State: the task's kind and stage, how far it got (checklist, files changed), the
+     model and whether it has a mapping, and the other providers' readiness and headroom. Outcome
+     for shadow accuracy: whether the moved work passed its checks, and what it cost.
+   - `provider.pick` (act, project): which ready provider runs a new task or stage, among the ones
+     the project's order allows. It sits beside `orchestration.model`, which already suggests a model per task.
+   - `provider.model-map` (suggest, global): proposes a counterpart when a model has none on the
+     next provider; a person accepts it into the mapping.
+
+   The person's settings bound every answer: a point only chooses among the options the person
+   allowed, never a provider outside the order, and never a model without a mapping. With the point
+   `off`, or unavailable, the setting decides, as today. The `cli` decision provider stops meaning
+   "Claude Code": it runs on the first ready provider that declares `structuredOutput`.
+
+This lands after the drivers: rotation needs at least two providers that can run work. It is its
+own phase, after phase 3, and it retires claude-swap in the same pull request, so there is never a
+release with neither kind of rotation.
 
 ## Related
 

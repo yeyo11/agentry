@@ -1,10 +1,15 @@
 // Entrypoint of the single-file bundle (`node dist/server.mjs`) that the desktop app runs as a child process.
+import { resolveUserPath } from '@agentry/core';
 import { startServer } from './server.ts';
 
 // The desktop app starts this bundle on Electron's binary with ELECTRON_RUN_AS_NODE=1. Electron reads
 // it once, at launch, so it is done with here; left in, every chat, command and Electron app the
 // server starts would inherit it and run as plain Node
 delete process.env.ELECTRON_RUN_AS_NODE;
+
+// A service or a launcher starts this without the profile files that set up the person's PATH. The
+// desktop app has already resolved it, and a second login shell would only slow the start down
+if (!process.env.AGENTRY_DESKTOP_TOKEN) process.env.PATH = await resolveUserPath();
 
 const server = await startServer({
   port: Number(process.env.PORT ?? 0),

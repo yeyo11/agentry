@@ -1,0 +1,133 @@
+{
+  "state": {
+    "ready": "Listo",
+    "degraded": "Con avisos",
+    "signed-out": "Sin sesión",
+    "incompatible": "Incompatible",
+    "used-before": "Usado antes",
+    "not-installed": "No instalado",
+    "unknown": "Sin comprobar",
+    "disabled": "Desactivado",
+    "checking": "Comprobando"
+  },
+  "readyReason": "Instalado, con sesión iniciada y respondiendo.",
+  "reason": {
+    "missing-credentials": "Instalado, pero sin sesión iniciada.",
+    "stale-token": "Su sesión ha caducado. Inicia sesión de nuevo.",
+    "version-below-range": "Funciona, pero la {{version}} es anterior a las versiones con las que Agentry se ha probado ({{range}}).",
+    "version-above-range": "La {{version}} es más nueva de lo que Agentry sabe usar ({{range}}). Instala una anterior y elígela aquí.",
+    "version-unreadable": "No se ha podido leer su versión, así que Agentry no sabe si es compatible.",
+    "probe-timeout": "No se ha podido comprobar: no ha respondido a tiempo.",
+    "spawn-denied": "El sistema no deja que Agentry ejecute el programa. Revisa sus permisos.",
+    "spawn-failed": "Se ha encontrado el programa, pero no arranca.",
+    "binary-not-found": "No hay rastro de {{label}} en este equipo.",
+    "config-home-only": "Hay configuración en {{home}}, pero no se encuentra el programa.",
+    "missing-required-command": "Falta en este equipo un comando que necesita.",
+    "unsupported-platform": "No funciona en este sistema operativo.",
+    "handshake-failed": "Ha arrancado, pero no responde como Agentry espera.",
+    "no-probe": "Agentry todavía no puede comprobar este proveedor.",
+    "disabled": "No se busca ni se comprueba mientras esté desactivado."
+  },
+  "row": {
+    "default": "Predeterminado",
+    "noAccount": "Sin cuenta",
+    "checking": "Leyendo la versión y la sesión…",
+    "signIn": "Iniciar sesión",
+    "install": "Instalar",
+    "update": "Actualizar",
+    "chooseBinary": "Elegir binario",
+    "retry": "Reintentar",
+    "opensNewTab": "se abre en una pestaña nueva"
+  },
+  "firstRun": {
+    "label": "Primer arranque",
+    "title": "Estos son los agentes de tu equipo",
+    "checkingTitle": "Buscando agentes en tu equipo",
+    "intro": "Agentry los ha buscado en el PATH de tu terminal y en las carpetas de instalación habituales. Empiezas con el primero que esté listo; el orden y el resto los cambias luego en Ajustes.",
+    "introPhone": "Empiezas con el primero que esté listo. El orden y el resto los cambias luego en Ajustes.",
+    "group": {
+      "ready": "Listos",
+      "signed-out": "Sin sesión",
+      "attention": "Requieren atención",
+      "used-before": "Usados antes",
+      "not-installed": "Sin instalar"
+    },
+    "watching": "Agentry vigila tus carpetas: lo que instales o inicies en una terminal aparece aquí solo.",
+    "checking": "Comprobando…",
+    "recheck": "Volver a comprobar",
+    "skip": "Omitir por ahora",
+    "continue": "Continuar",
+    "continueWith": "Continuar con {{name}}",
+    "empty": {
+      "title": "No se ha encontrado ningún agente",
+      "body": "Agentry ha buscado en el PATH de tu terminal y en las carpetas de instalación habituales, y no hay ninguno. Instala uno y aparecerá aquí solo.",
+      "install": "Ver cómo instalar Claude Code",
+      "others": "O elige otro"
+    }
+  },
+  "tab": "Proveedores",
+  "intro": "Los agentes de programación que Agentry encuentra en este equipo. Si instalas uno o inicias sesión en una terminal, esta lista se actualiza sola.",
+  "checkedAgo": "Comprobado {{time}}",
+  "notChecked": "Sin comprobar todavía",
+  "refresh": "Volver a comprobar",
+  "refreshFailed": "No se han podido comprobar los proveedores",
+  "loadFailed": "No se han podido leer los proveedores",
+  "saveFailed": "No se han podido guardar los proveedores",
+  "list": {
+    "title": "Proveedores",
+    "aria": "Proveedores",
+    "total_one": "{{count}} proveedor",
+    "total_other": "{{count}} proveedores",
+    "ready_one": "{{count}} listo",
+    "ready_other": "{{count}} listos"
+  },
+  "default": {
+    "title": "Proveedor predeterminado",
+    "hint": "Lo usan los chats nuevos. Con «Automático» es el primero que esté listo, en el orden de esta lista: arrastra por el asa para cambiarlo.",
+    "hintPhone": "Lo usan los chats nuevos. Sube o baja un proveedor para cambiar el orden.",
+    "auto": "Automático (el primero listo)",
+    "autoShort": "Automático",
+    "autoHint": "El primero listo, en este orden",
+    "autoRow": "Automático, el primero listo",
+    "rowFor": "{{name}} como predeterminado",
+    "cell": "Predeterminado y orden",
+    "position": "{{name}} · {{position}}.º de {{total}}",
+    "autoPosition": "Automático · el primero listo",
+    "positionState": "{{position}}.º · {{state}}",
+    "sheetTitle": "Predeterminado y orden",
+    "group": "Proveedor predeterminado"
+  },
+  "order": {
+    "handle": "Mover {{name}}. Usa las flechas arriba y abajo para cambiar su lugar.",
+    "up": "Subir {{name}}",
+    "down": "Bajar {{name}}"
+  },
+  "enable": {
+    "on": "Desactivar {{name}}",
+    "off": "Activar {{name}}",
+    "label": "Activado"
+  },
+  "bin": {
+    "title": "Binario de {{name}}",
+    "path": "Ruta del binario de {{name}}",
+    "placeholder": "/ruta/a/{{id}}",
+    "hint": "Agentry usa este programa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que está dentro del rango probado ({{range}}).",
+    "hintNoRange": "Agentry usa este programa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que funciona.",
+    "check": "Comprobar y guardar",
+    "checking": "Comprobando…",
+    "cancel": "Cancelar",
+    "usePath": "Usar el del PATH",
+    "rejected": "No se ha guardado. {{reason}}",
+    "saved": "Binario de {{name}} guardado",
+    "cleared": "{{name}} usa ahora el del PATH"
+  },
+  "sheet": {
+    "save": "Guardar",
+    "cancel": "Cancelar"
+  },
+  "statusbar": {
+    "version": "versión {{version}}",
+    "checking": "Comprobando agentes…",
+    "none": "Ningún agente detectado"
+  }
+}

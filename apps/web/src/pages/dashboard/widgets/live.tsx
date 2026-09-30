@@ -29,6 +29,8 @@ import { displayTitle } from '../../../lib/chat-model';
 import { detailHref } from '../../../lib/detail';
 import { formatCost, formatDuration, formatNumber, timeAgo, timeUntil, truncate } from '../../../lib/format';
 import { formatElapsed } from '../../../lib/live';
+import { CLAUDE_CODE_ID, SIGN_IN_SETTINGS_PATH, stateLabelKey } from '../../../lib/provider-state';
+import { PROVIDERS_SETTINGS_PATH, providerSetup, reasonText, useEnabledProviders } from '../../../lib/provider-status';
 import { useClockTick } from '../../../lib/motion';
 import { inProject } from '../../../lib/project-scope';
 import { configCount } from '../layout';
@@ -92,6 +94,12 @@ interface AttentionRow {
   detail?: ReactNode;
   to: string;
   action: string;
+}
+
+/** An attention row about the agents themselves: its words are plain strings, so a card can headline one. */
+interface SetupRow extends AttentionRow {
+  what: string;
+  detail: string;
 }
 
 /** An orchestration's tasks, one segment each: done, on, and still ahead. */
@@ -228,6 +236,7 @@ function WorkingChat({ chat, showProject }: { chat: ChatSummary; showProject: bo
  */
 export function NowWidget({ project, title, id }: WidgetProps) {
   const { t } = useTranslation(['home', 'common']);
+  const { t: tp } = useTranslation('providers');
   const scope = project?.id;
   const overview = useOverview();
   const orchestrations = useOrchestrations();
@@ -242,29 +251,36 @@ export function NowWidget({ project, title, id }: WidgetProps) {
 
   const scoped = (orchestrations.data ?? []).filter((o) => !project || inProject(project, o.cwd));
   const liveOrchestrations = orchestrationsToShow(scoped, 20).filter((o) => o.status === 'running' || o.status === 'waiting');
-  const system = overview.data?.system;
   const rows: AttentionRow[] = [];
-  // The CLI's own trouble, kept apart: when it is all there is to say, it is the whole card
-  const setup: 'cli' | 'auth' | null = system && !system.cli.installed ? 'cli' : system && !system.auth.loggedIn ? 'auth' : null;
-  if (setup === 'cli' && system) {
-    rows.push({
-      key: 'cli',
+  // The agents' own trouble, kept apart: when it is all there is to say, it is the whole card
+  const enabled = useEnabledProviders();
+  const setup = enabled.statuses ? providerSetup(enabled.statuses) : null;
+  const setupKind = setup?.kind === 'none' || setup?.kind === 'blocked' ? setup.kind : null;
+  const setupRows: SetupRow[] = [];
+  if (setup?.kind === 'none') {
+    setupRows.push({
+      key: 'providers',
       icon: CircleAlert,
-      what: t('activity.cliMissing'),
-      detail: system.cli.error ?? t('activity.cliMissingHint'),
-      to: '/settings?tab=account',
-      action: t('activity.openSettings'),
-    });
-  } else if (setup === 'auth' && system) {
-    rows.push({
-      key: 'auth',
-      icon: KeyRound,
-      what: t('activity.notLoggedIn'),
-      detail: system.auth.error ?? t('activity.noCredentials'),
-      to: '/settings?tab=account',
-      action: t('activity.addCredential'),
+      what: t('activity.noAgent'),
+      detail: t('activity.noAgentHint'),
+      to: PROVIDERS_SETTINGS_PATH,
+      action: t('activity.seeProviders'),
     });
   }
+  for (const p of setup?.problems ?? []) {
+    const signedOut = p.state === 'signed-out';
+    setupRows.push({
+      key: `provider:${p.id}`,
+      icon: signedOut ? KeyRound : CircleAlert,
+      what: signedOut
+        ? t('activity.signedOut', { label: p.label })
+        : t('activity.needsAttention', { label: p.label, state: tp(stateLabelKey(p.state)).toLowerCase() }),
+      detail: signedOut ? t('activity.signedOutHint', { label: p.label }) : reasonText(tp, p),
+      to: signedOut && p.id === CLAUDE_CODE_ID ? SIGN_IN_SETTINGS_PATH : PROVIDERS_SETTINGS_PATH,
+      action: signedOut ? tp('row.signIn') : t('activity.seeProviders'),
+    });
+  }
+  rows.push(...setupRows);
   waiting.forEach((chat, i) => {
     const { kind, tool, more, detail } = waitingFor(permissions[i]?.data);
     const words = t(`activity.waiting.${kind}`, { tool });
@@ -341,7 +357,7 @@ export function NowWidget({ project, title, id }: WidgetProps) {
   const running = working.length + liveOrchestrations.filter((o) => o.status === 'running').length;
   const unreachable = overview.isError && !overview.data;
   const newChat = project ? `/chats/new?cwd=${encodeURIComponent(project.path)}` : '/chats/new';
-  const onlySetup = setup !== null && rows.length === 1 && working.length === 0 && liveOrchestrations.length === 0;
+  const onlySetup = setupKind !== null && rows.length === 1 && working.length === 0 && liveOrchestrations.length === 0;
   const empty = rows.length === 0 && working.length === 0 && liveOrchestrations.length === 0;
 
   const aside =
@@ -376,23 +392,23 @@ export function NowWidget({ project, title, id }: WidgetProps) {
         </Empty>
       </>
     );
-  else if (onlySetup && system)
+  else if (onlySetup && setup)
     body = (
       <>
-        {/* Without the CLI or a credential a chat cannot start: the fix is the one action */}
+        {/* Without an agent that can start work a chat cannot start: the fix is the one action */}
         <FabStandIn />
         <Empty
-          illustration={setup === 'cli' ? 'cli-missing' : 'signed-out'}
+          illustration={setupKind === 'none' ? 'cli-missing' : 'signed-out'}
           tone="warn"
           size="sm"
-          title={setup === 'cli' ? t('activity.cliMissing') : t('activity.notLoggedIn')}
+          title={setupRows[0]?.what ?? ''}
           action={
-            <Link to="/settings?tab=account" className="btn btn-primary">
-              {setup === 'cli' ? t('activity.openSettings') : t('activity.addCredential')}
+            <Link to={setupRows[0]?.to ?? PROVIDERS_SETTINGS_PATH} className="btn btn-primary">
+              {setupRows[0]?.action}
             </Link>
           }
         >
-          {setup === 'cli' ? (system.cli.error ?? t('activity.cliMissingHint')) : (system.auth.error ?? t('activity.noCredentials'))}
+          {setupRows[0]?.detail}
         </Empty>
       </>
     );

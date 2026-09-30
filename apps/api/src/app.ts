@@ -27,6 +27,7 @@ import { securityRoutes } from './routes/security.ts';
 import { scheduleRoutes } from './routes/schedules.ts';
 import { supervisorRoutes } from './routes/supervisor.ts';
 import { decisionRoutes } from './routes/decisions.ts';
+import { providerRoutes } from './routes/providers.ts';
 import { systemRoutes } from './routes/system.ts';
 import { teamRoutes } from './routes/team.ts';
 import { toolPresetRoutes } from './routes/tool-presets.ts';
@@ -168,6 +169,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(scheduleRoutes, { core });
       await api.register(supervisorRoutes, { core });
       await api.register(decisionRoutes, { core });
+      await api.register(providerRoutes, { core });
       await api.register(pushRoutes, { core });
     },
     { prefix: '/api' },
