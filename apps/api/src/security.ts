@@ -168,6 +168,9 @@ const CHAT_FORBIDDEN_DECISIONS = new Set([
   `PUT ${API_PREFIX}/decisions/credentials`,
   `DELETE ${API_PREFIX}/decisions/credentials`,
   `PUT ${API_PREFIX}/decisions/points/:point/consent`,
+  // What the person did is theirs to report: a chat must not write the signal a resolver judges by
+  `POST ${API_PREFIX}/decisions/:id/palette-action`,
+  `POST ${API_PREFIX}/decisions/notification-opened`,
 ]);
 
 /**

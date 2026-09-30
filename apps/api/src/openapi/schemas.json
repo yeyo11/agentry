@@ -2192,6 +2192,13 @@
           "null"
         ],
         "description": "The template it was launched from, when it was"
+      },
+      "plannerRunId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The planner run whose draft filled the form it was launched from; lets `orchestration.model` compare its suggestion"
       }
     },
     "required": [
@@ -2904,6 +2911,13 @@
     "properties": {
       "name": {
         "type": "string"
+      },
+      "plannerRunId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The planner run whose draft filled this form; absent for a template, a relaunch or a work item"
       },
       "objective": {
         "type": "string"
@@ -9681,6 +9695,13 @@
         "properties": {
           "name": {
             "type": "string"
+          },
+          "plannerRunId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The planner run whose draft filled this form; absent for a template, a relaunch or a work item"
           },
           "objective": {
             "type": "string"
@@ -16828,6 +16849,24 @@
           "null"
         ]
       },
+      "openedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the app was opened from the notification this row was about; null until then"
+      },
+      "paletteAction": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/DecisionPaletteAction"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What the palette's person did with the proposal; null until they ran or dismissed"
+      },
       "at": {
         "type": "string"
       }
@@ -16860,6 +16899,8 @@
       "resolvedAt",
       "feedback",
       "feedbackAt",
+      "openedAt",
+      "paletteAction",
       "at"
     ],
     "description": "A row of the history as the API serves it"
@@ -17142,6 +17183,35 @@
     ],
     "description": "The person's word on a decision (D13)"
   },
+  "DecisionPaletteAction": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "proposed",
+          "other",
+          "dismissed"
+        ]
+      },
+      "commandId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The command that ran; null when the palette closed without one"
+      },
+      "at": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "action",
+      "commandId",
+      "at"
+    ],
+    "description": "What the palette's person did with the proposal, classified against the row's `command` answer"
+  },
   "DecisionPage": {
     "type": "object",
     "properties": {
@@ -17272,6 +17342,48 @@
     "required": [
       "feedback"
     ]
+  },
+  "DecisionPaletteActionRequest": {
+    "type": "object",
+    "properties": {
+      "commandId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "commandId"
+    ],
+    "description": "What the palette did with the proposal: the command that ran, or null when it closed without one"
+  },
+  "DecisionNotificationOpenedRequest": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "key"
+    ],
+    "description": "The app was opened from the push notification with this key"
+  },
+  "DecisionNotificationOpenedResult": {
+    "type": "object",
+    "properties": {
+      "decisionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "decisionId"
+    ],
+    "description": "The decision the open was recorded on; null when no row matched, which is not an error"
   },
   "DecisionClearResult": {
     "type": "object",

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { DecisionRecord, Execution } from '@agentry/shared';
 import type { LegacyRun, StoredChat } from '../src/chat-records.ts';
-import { Db, migrate, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
+import { Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, migrate, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
 import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
@@ -418,6 +418,8 @@ function decisionRow(id: string, over: Partial<DecisionRecord> = {}): DecisionRe
     resolvedAt: null,
     feedback: null,
     feedbackAt: null,
+    openedAt: null,
+    paletteAction: null,
     at: at(1),
     ...over,
   };
@@ -444,6 +446,47 @@ test('decisions round-trip, resolve once, and let feedback outrank the inference
   // The person's word is a resolution too, so the stats count the row as resolved
   assert.equal(db.decision('d2')?.resolvedAt, at(5));
   assert.equal(db.decision('d1')?.resolvedAt, at(2));
+  db.close();
+});
+
+test('an older database migrates with the decisions signals empty, and a new row keeps them', () => {
+  const version = MIGRATIONS_WITH_SIGNALS;
+  const old = new DatabaseSync(':memory:');
+  migrate(old, version - 1);
+  old.exec(
+    `INSERT INTO decisions (id, point, kind, subject_kind, provider, model, mode, status, state, questions, acted, visible, saved_run, latency_ms, at)
+     VALUES ('old', 'palette.intent', 'suggest', 'palette', 'jev', 'm', 'shadow', 'answered', '{}', '[]', 0, 0, 0, 1, '2026-01-01T00:00:00.000Z')`,
+  );
+  migrate(old);
+  const columns = (old.prepare('PRAGMA table_info(decisions)').all() as Array<{ name: string }>).map((c) => c.name);
+  assert.ok(columns.includes('opened_at') && columns.includes('palette_action'));
+  const row = old.prepare('SELECT opened_at, palette_action FROM decisions WHERE id = ?').get('old');
+  assert.deepEqual({ ...row }, { opened_at: null, palette_action: null });
+  old.close();
+});
+
+test('the palette action classifies against the answer and the first report stands', () => {
+  const db = new Db(tempConfig());
+  const answered = (id: string) => decisionRow(id, { point: 'palette.intent', subjectKind: 'palette', subjectId: null, answers: { command: { kind: 'choice', value: 'go.home', probabilities: null, confidence: 1 } } });
+  for (const id of ['a', 'b', 'c']) db.insertDecision(answered(id));
+  assert.equal(db.setDecisionPaletteAction('a', 'go.home', at(2))?.paletteAction?.action, 'proposed');
+  assert.equal(db.setDecisionPaletteAction('b', 'chat.new', at(2))?.paletteAction?.action, 'other');
+  assert.deepEqual(db.setDecisionPaletteAction('c', null, at(2))?.paletteAction, { action: 'dismissed', commandId: null, at: at(2) });
+  assert.equal(db.setDecisionPaletteAction('a', null, at(3))?.paletteAction?.action, 'proposed');
+  assert.equal(db.setDecisionPaletteAction('nope', null, at(3)), null);
+  db.close();
+});
+
+test('a notification open marks the newest row for its key once', () => {
+  const db = new Db(tempConfig());
+  const push = (id: string, when: number) => decisionRow(id, { point: 'notification.urgency', subjectKind: 'notification', subjectId: 'k1', at: at(when) });
+  db.insertDecision(push('n1', 1));
+  db.insertDecision(push('n2', 2));
+  assert.equal(db.markNotificationOpened('k1', at(5)), 'n2');
+  assert.equal(db.markNotificationOpened('k1', at(9)), 'n2');
+  assert.equal(db.decision('n2')?.openedAt, at(5));
+  assert.equal(db.decision('n1')?.openedAt, null);
+  assert.equal(db.markNotificationOpened('other', at(9)), null);
   db.close();
 });
 

@@ -541,6 +541,15 @@ test('a window this worker may not navigate gets a new one, and so does having n
   assert.deepEqual(closed.opened, [`${ORIGIN}/chats/run1?prompt=p1`]);
 });
 
+test('a click adds the notification key to what it opens and keeps the existing query', async () => {
+  const worker = await ready(SHELL);
+  await worker.click({ href: WAITING.href, key: 'waiting:run1:p1' });
+  assert.deepEqual(worker.opened, [`${ORIGIN}/chats/run1?prompt=p1&notification=waiting%3Arun1%3Ap1`]);
+  const plain = await ready(SHELL);
+  await plain.click({ href: '/usage', key: 'usage:1' });
+  assert.deepEqual(plain.opened, [`${ORIGIN}/usage?notification=usage%3A1`]);
+});
+
 test('a notification with nowhere in particular to go opens the app', async () => {
   const worker = await ready(SHELL);
   await worker.click(undefined);
@@ -613,7 +622,8 @@ test('a notification sent after the domain changed opens the new address', async
   const data = { ...(worker.shown[0]?.options['data'] as object) };
   assert.deepEqual(data, { href: MOVED.href, url: MOVED.url, key: MOVED.key }, 'the current address travels with the notification');
   await worker.click(data);
-  assert.deepEqual(worker.opened, [MOVED.url], 'not the old origin, which no longer answers');
+  // The push key rides along so the page can tell `notification.urgency` that it was opened
+  assert.deepEqual(worker.opened, [`${MOVED.url}&notification=${encodeURIComponent(MOVED.key)}`], 'not the old origin, which no longer answers');
 });
 
 test('a page still open on the old address is navigated to the new one, not handed a path', async () => {

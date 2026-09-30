@@ -13,6 +13,7 @@ import type {
   DecisionFilter,
   DecisionPage,
   DecisionPageQuery,
+  DecisionNotificationOpenedResult,
   DecisionPaletteRequest,
   DecisionPaletteResult,
   DecisionPointId,
@@ -621,6 +622,9 @@ export const api = {
   decisionPalette: (query: string, commands: DecisionPaletteRequest['commands'], o: ReadOptions = {}) =>
     request<DecisionPaletteResult>('/decisions/palette', { method: 'POST', body: { query, commands }, ...o }),
   decisionFeedback: (id: string, feedback: DecisionFeedback) => request<DecisionRecord>(`/decisions/${enc(id)}/feedback`, { method: 'POST', body: { feedback } }),
+  decisionPaletteAction: (id: string, commandId: string | null) =>
+    request<DecisionRecord>(`/decisions/${enc(id)}/palette-action`, { method: 'POST', body: { commandId } }),
+  decisionNotificationOpened: (key: string) => request<DecisionNotificationOpenedResult>('/decisions/notification-opened', { method: 'POST', body: { key } }),
   deleteDecision: (id: string) => request<{ ok: true }>(`/decisions/${enc(id)}`, { method: 'DELETE' }),
   clearDecisions: (filter: DecisionFilter = {}) => {
     const params = new URLSearchParams();

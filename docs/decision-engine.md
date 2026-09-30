@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T18:00:00Z
-updated_at: 2026-09-30T18:00:00Z
+updated_at: 2026-09-30T20:00:00Z
 tags:
     - decisions
     - decision-engine
@@ -149,9 +149,36 @@ rejected, a task's status) and writes `outcome`, `agreed` and `resolved_at`. A s
 after the relevant events and every five minutes. The person's word outranks the inference: useful /
 not useful on the "decided" mark (active) or on a History row (shadow) sets `agreed`.
 
-Nineteen points have a resolver. `palette.intent`, `notification.urgency` and `orchestration.model`
-do not yet (see [the plan's Outcome](plans/decision-engine.md#outcome)); they still record rows and
-take feedback.
+All 22 points have a resolver. The last three read a signal the app stores for them (CW-28):
+
+- **`palette.intent`**: the palette asks in shadow as well as active (Jev only), shows nothing in
+  shadow, and reports what the person did through `POST /decisions/:id/palette-action`
+  (`{ commandId }`, or null when the palette closed without one). The row keeps it in
+  `palette_action` as `proposed`, `other` or `dismissed`; the first report wins. A proposed id is
+  agreed only when that command ran; "none" is agreed when the palette was dismissed or the command
+  that ran was not among the listed ones. The palette no longer sends `useful` by itself: useful /
+  not useful is the person's explicit word.
+- **`notification.urgency`**: the service worker adds `notification=<key>` to what a click opens; the
+  app reports it once with `POST /decisions/notification-opened` (`{ key }`) and removes the parameter.
+  That sets `opened_at` on the newest row of that key. The window is the push TTL, one hour: `high`
+  is agreed when opened within it and `normal` when not; before the hour ends with no open the row
+  waits, and an open after it counts as not opened soon. A push the worker did not show because a
+  focused window was open can never be opened, so it counts as not opened.
+- **`orchestration.model`**: an orchestration launched from a planner's draft carries
+  `plannerRunId`. The resolver finds the first one created after the row with that planner run and,
+  for each task the row answered, compares the launched model (`task.model ?? orchestration.model`)
+  with the suggested one. A kept model is right if the task completed and wrong if it failed; a
+  stronger suggestion (haiku < sonnet < opus, by family name in the id) is right if the task failed
+  and wrong if it completed; a weaker suggestion is wrong if it failed and not judged if it
+  completed; unranked ids that changed, and `skipped` or `stopped` tasks, are not judged. The row
+  waits while any answered task is `pending`, `running`, `blocked` or `interrupted`; the verdict is
+  a majority (`right * 2 >= judged`) and the detail lists per task the suggested and launched model,
+  whether it was kept, and the final status. A draft that is never launched stays unresolved until
+  retention prunes it.
+
+The signals are two columns of the history row (`opened_at`, `palette_action`), not part of any
+point's state, so no `stateVersion` changes and consent is not asked again. Recording either signal
+schedules the same debounced sweep as the events do. Both routes are refused to a chat's token.
 
 The tab shows, per point: count, share acted, mean confidence (a dash for `cli`), agreement with
 the outcome with its n, useful and not useful, unavailable, cost and Claude runs saved. Nothing
@@ -173,8 +200,8 @@ switches a point to `active` by itself.
   a chat, and unexplained hunks in the diff.
 - **Usage**: a line "Decisions · Jev $0.004 · 37 Claude runs saved", hidden when the window has no
   decision.
-- **Command palette**: with `palette.intent` active on Jev, a query that ranks nothing locally asks
-  `POST /decisions/palette`; the local score always answers first and nothing blocks typing.
+- **Command palette**: with `palette.intent` active or in shadow on Jev, a query that ranks nothing locally asks
+  `POST /decisions/palette` (in shadow nothing is proposed); the local score always answers first and nothing blocks typing.
 
 ## Settings and storage
 
@@ -207,6 +234,8 @@ All under tag `decisions`; the full table is in the README's [REST API](../READM
 | `GET` `DELETE` | `/decisions/:id` | One decision; delete it |
 | `POST` | `/decisions/:id/feedback` | Useful or not useful |
 | `POST` | `/decisions/palette` | Route a palette query (`palette.intent`) |
+| `POST` | `/decisions/:id/palette-action` | What the palette did with the proposal; a chat's token gets `403` |
+| `POST` | `/decisions/notification-opened` | The app was opened from a push; a chat's token gets `403` |
 | `POST` | `/projects/:id/work-items/triage` | `board.triage` for a draft being typed |
 
 ## How it is tested

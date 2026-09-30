@@ -617,6 +617,8 @@ export class Orchestrator {
       verification: null,
       relaunchedFrom: origin.relaunchedFrom ?? null,
       templateId: origin.templateId ?? null,
+      // Only a launch from a planner's draft names it; a relaunch or a template never does
+      plannerRunId: origin.relaunchedFrom || origin.templateId ? null : (spec.plannerRunId ?? null),
       tasks: spec.tasks.map<OrchestrationTaskState>((t, i) => ({
         ...(taskLimits[i] ? { limits: taskLimits[i] } : {}),
         id: t.id,
