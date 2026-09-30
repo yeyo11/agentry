@@ -410,6 +410,7 @@ transpiler.
 | `AGENTRY_DATA_DIR` | `./data` | Wrapper state |
 | `AGENTRY_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | Mode for runs that do not set one. Without the variable it is editable in Settings → Security and applies to the next run; set, it is shown read-only there. Empty counts as unset |
 | `AGENTRY_MAX_CONCURRENT_RUNS` | `8` | Max simultaneous `claude` processes (1 to 64). Editable in Settings → Security unless set here, like the mode above. Empty counts as unset |
+| `AGENTRY_PROVIDERS_STEP_SEEN` | off | `on` records that the first-run Providers step was answered, so it is only shown again when no provider is ready. Without the variable the step writes it to `app-settings.json` when it is continued or skipped. Empty counts as unset |
 | `AGENTRY_PUSH_SUBJECT` | `https://github.com/yeyo11/agentry` | The VAPID `sub` claim of every Web Push this server signs: a `mailto:` or `https:` a push service can complain to, naming a real domain — Apple refuses the whole JWT with `403 BadJwtToken` for something like `mailto:agentry@localhost`. Changing it takes effect on the next start, keypair and registered installs untouched |
 | `AGENTRY_AUTH_MODE` | `none` | `none`, `token` or `oidc`. **Seeds** an install that has no `auth.json` yet; after that the setting saved from the UI wins. See [Securing it](#securing-it) |
 | `AGENTRY_AUTH_TOKEN` | – | The bearer token to seed with when the mode is `token`. Only its SHA-256 is stored |
@@ -1145,7 +1146,7 @@ Claude Code precedence is local > project > user.
 | PUT | `/config/tool-presets/default` | `{ defaultPresetId }` — the preset a new chat takes when it names neither `toolPreset` nor `allowedTools` (`toolPreset: null` opts out); `null` clears it |
 | POST | `/config/tool-presets/restore` | Rewrite the three shipped presets as they ship; every other preset and the default are left alone |
 | PUT / DELETE | `/config/tool-presets/:id` | Create, replace or delete a preset — body `{ name, description?, allowedTools, disallowedTools? }` |
-| GET / PUT | `/settings/app` | Settings that change without a restart (`app-settings.json`): `{ allowedHosts, maxConcurrentRuns, defaultPermissionMode, sources }`, where each source is `env`, `file` or `default`. The `PUT` body names only what changes; a setting the environment set is refused, and so is a pattern such as `*.com`. Emits `settings.changed` |
+| GET / PUT | `/settings/app` | Settings that change without a restart (`app-settings.json`): `{ allowedHosts, maxConcurrentRuns, defaultPermissionMode, providersStepSeen, sources }`, where each source is `env`, `file` or `default`. The `PUT` body names only what changes; a setting the environment set is refused, and so is a pattern such as `*.com`. Emits `settings.changed` |
 | GET / PUT / DELETE | `/config/resources/:kind/:name?project=` | Markdown content (a script for `workflows`, whose `format` is `javascript`) — body `{ content }` |
 
 ### Config file explorer

@@ -33,7 +33,8 @@ test('an install that sets nothing runs on the defaults it always had, and write
     allowedHosts: [],
     maxConcurrentRuns: 8,
     defaultPermissionMode: 'acceptEdits',
-    sources: { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'default' },
+    providersStepSeen: false,
+    sources: { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', providersStepSeen: 'default' },
   });
   // The environment's view is what it was before the settings had layers
   assert.deepEqual([c.allowedHosts, c.maxConcurrentRuns, c.defaultPermissionMode], [[], 8, 'acceptEdits']);
@@ -44,7 +45,7 @@ test('an install that sets nothing runs on the defaults it always had, and write
 test('an empty variable is not a setting, so a compose file passing VAR= through does not lock the UI', () => {
   const c = config({ AGENTRY_ALLOWED_HOSTS: '', AGENTRY_MAX_CONCURRENT_RUNS: ' ', AGENTRY_DEFAULT_PERMISSION_MODE: '' });
   assert.equal(c.settingsFromEnv.size, 0);
-  assert.deepEqual(new AppSettingsStore(c).get().sources, { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'default' });
+  assert.deepEqual(new AppSettingsStore(c).get().sources, { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', providersStepSeen: 'default' });
   // An empty count used to become `Number('') === 0`, a wrapper that could start no run at all
   assert.equal(c.maxConcurrentRuns, 8);
   assert.equal(c.defaultPermissionMode, 'acceptEdits');
@@ -59,7 +60,8 @@ test('a value in the environment beats the file, and the file cannot be written 
     allowedHosts: ['agentry.example.com'],
     maxConcurrentRuns: 3,
     defaultPermissionMode: 'plan',
-    sources: { allowedHosts: 'env', maxConcurrentRuns: 'env', defaultPermissionMode: 'file' },
+    providersStepSeen: false,
+    sources: { allowedHosts: 'env', maxConcurrentRuns: 'env', defaultPermissionMode: 'file', providersStepSeen: 'default' },
   });
 
   const before = readFileSync(fileOf(c), 'utf8');
@@ -79,7 +81,7 @@ test('a change is written to the file, survives a restart, and goes out on the e
 
   const changed = await store.update({ maxConcurrentRuns: 2, allowedHosts: [' Agentry.Example.com ', '*.preview.example.com', 'agentry.example.com'] });
   assert.deepEqual(changed.allowedHosts, ['agentry.example.com', '*.preview.example.com'], 'trimmed, lowercased and without repeats');
-  assert.deepEqual(changed.sources, { allowedHosts: 'file', maxConcurrentRuns: 'file', defaultPermissionMode: 'default' });
+  assert.deepEqual(changed.sources, { allowedHosts: 'file', maxConcurrentRuns: 'file', defaultPermissionMode: 'default', providersStepSeen: 'default' });
   // Only what was set is stored: a default the person never chose keeps following the default
   assert.deepEqual(JSON.parse(readFileSync(fileOf(c), 'utf8')), { maxConcurrentRuns: 2, allowedHosts: ['agentry.example.com', '*.preview.example.com'] });
 
@@ -186,4 +188,19 @@ test('a new orchestration takes the default mode and the run limit as they stand
   assert.equal(graph.permissionMode, 'dontAsk');
   assert.equal(graph.concurrency, 2);
   core.orchestrator.stop(graph.id);
+});
+
+test('the first-run step is remembered in the file, refused for a non-boolean, and owned by the environment when it sets it', async () => {
+  const c = config();
+  const store = new AppSettingsStore(c);
+  assert.equal(store.get().providersStepSeen, false);
+  await assert.rejects(store.update({ providersStepSeen: 'yes' }), /providersStepSeen must be true or false/);
+  const saved = await store.update({ providersStepSeen: true });
+  assert.deepEqual([saved.providersStepSeen, saved.sources.providersStepSeen], [true, 'file']);
+  assert.equal(new AppSettingsStore(c).get().providersStepSeen, true);
+
+  const owned = config({ AGENTRY_PROVIDERS_STEP_SEEN: 'on' });
+  const ownedStore = new AppSettingsStore(owned);
+  assert.deepEqual([ownedStore.get().providersStepSeen, ownedStore.get().sources.providersStepSeen], [true, 'env']);
+  await assert.rejects(ownedStore.update({ providersStepSeen: true }), /AGENTRY_PROVIDERS_STEP_SEEN/);
 });

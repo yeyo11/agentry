@@ -3470,6 +3470,12 @@ export interface AppSettingValues {
   maxConcurrentRuns: number;
   /** The `--permission-mode` of a run that does not ask for one; applies to the next run */
   defaultPermissionMode: PermissionMode;
+  /**
+   * The first-run Providers step was shown and answered (continued or skipped). Kept here rather than
+   * in the browser so a second browser, a phone or the desktop app does not ask again; the step still
+   * returns whenever no provider is ready.
+   */
+  providersStepSeen: boolean;
 }
 
 /** `GET /settings/app`: every layered setting, and where each one's value comes from. */

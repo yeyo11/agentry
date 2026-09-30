@@ -246,7 +246,8 @@ test('the tunnel and the settings are written whole from their events, and a new
     allowedHosts: [],
     maxConcurrentRuns: 4,
     defaultPermissionMode: 'plan',
-    sources: { allowedHosts: 'default', maxConcurrentRuns: 'file', defaultPermissionMode: 'file' },
+    providersStepSeen: false,
+    sources: { allowedHosts: 'default', maxConcurrentRuns: 'file', defaultPermissionMode: 'file', providersStepSeen: 'default' },
   };
   const event = { id: 2, at: '', type: 'settings.changed', settings } as Parameters<typeof patchSettings>[1];
   patchSettings(client, event);
@@ -260,7 +261,8 @@ const layered = (sources: Partial<AppSettings['sources']> = {}): AppSettings => 
   allowedHosts: ['agentry.example.com'],
   maxConcurrentRuns: 8,
   defaultPermissionMode: 'acceptEdits',
-  sources: { allowedHosts: 'file', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', ...sources },
+  providersStepSeen: false,
+  sources: { allowedHosts: 'file', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', providersStepSeen: 'default', ...sources },
 });
 
 test('a save sends only what moved, and never a key the environment set', () => {
