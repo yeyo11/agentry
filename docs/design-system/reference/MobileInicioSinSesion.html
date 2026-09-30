@@ -1,22 +1,30 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><title>Agentry · Inicio (móvil)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Inicio con un proveedor sin sesión (móvil)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:var(--bg)}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background="var(--bg)"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
 
 <div class="app m-screen glow-top" data-theme="dark" style="background-size: 100% 360px">
 <header class="m-head">
-<span style="width: 28px; height: 28px; border-radius: 8px; background: var(--grad); display: grid; place-items: center; color: #fff; margin-right: 6px"><svg class="ico ico-sm" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span>
+<span style="width: 28px; height: 28px; border-radius: var(--r); background: var(--grad); display: grid; place-items: center; color: #fff; margin-right: 6px"><svg class="ico ico-sm" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span>
 <button type="button" class="btn btn-ghost btn-sm grow" style="justify-content: flex-start; padding: 0 6px; font-size: 15px; font-weight: 600; color: var(--fg)">Todos los proyectos<svg class="ico ico-sm fg-3" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Buscar"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg></button>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Notificaciones" style="position: relative"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"></path></svg><span class="dot" style="position: absolute; top: 11px; right: 12px; width: 7px; height: 7px; background: var(--accent)"></span></button>
 </header>
 
 <div class="m-body" style="gap: 18px">
-<div class="col" style="gap: 4px; padding-top: 4px"><h1 class="t-display" style="margin: 0; font-size: 28px">Todo en marcha,<br><span class="grad-text">nada te espera</span></h1></div>
+<div class="col" style="gap: 4px; padding-top: 4px"><h1 class="t-display" style="margin: 0; font-size: 28px">Todo en marcha,<br><span class="grad-text">salvo Copilot</span></h1></div>
 
 <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
 <div class="card col" style="padding: 12px; gap: 6px"><span class="spin-braille" style="font-size: 16px"></span><span class="t-num" style="font-size: 22px; font-weight: 600">3</span><span class="t-xs fg-3">agentes</span></div>
 <div class="card col" style="padding: 12px; gap: 6px"><span class="dot dot-ok" style="margin: 4px 0"></span><span class="t-num" style="font-size: 22px; font-weight: 600">0</span><span class="t-xs fg-3">esperan</span></div>
 <div class="card grad-border col" style="padding: 12px; gap: 6px"><span class="t-label" style="font-size: 10px">hoy</span><span class="t-num grad-text" style="font-size: 20px; font-weight: 600">3,41 $</span><span class="t-xs fg-3">gastado</span></div>
 </div>
+
+<section class="col" style="gap: 8px">
+<div class="row"><span class="t-label grow">Proveedores</span><a href="MobileProveedores.html" class="t-xs fg-2" style="min-height: 44px; display: inline-flex; align-items: center">Ver todos</a></div>
+<div class="card col" style="padding: 14px; gap: 12px">
+<div class="row" style="gap: 10px"><span class="proj" style="background: var(--warn-soft); color: var(--warn)"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M15 7.5a4.5 4.5 0 1 1-3.4 7.5L4 22v-3H2v-2h2l1-1 1.5 1.5L8 16l-2-2 5.6-5.6A4.5 4.5 0 0 1 15 7.5z"></path></svg></span><span class="col grow" style="gap: 1px"><span style="font-weight: 600">Copilot sin sesión</span><span class="mono t-xs fg-3">faltan credenciales</span></span></div>
+<a href="MobileProveedores.html" class="btn btn-primary" style="justify-content: center">Iniciar sesión</a>
+</div>
+</section>
 
 <section class="col" style="gap: 8px">
 <div class="row"><span class="t-label grow">En marcha</span><a href="MobileOrquestaciones.html" class="t-xs fg-2" style="min-height: 44px; display: inline-flex; align-items: center">Ver todo</a></div>
@@ -40,7 +48,7 @@
 
 <section class="card row" style="padding: 12px 14px; gap: 12px">
 <span class="ring ring-grad" style="--p: 45; width: 40px; height: 40px">45%</span>
-<span class="col grow" style="gap: 2px"><span class="t-sm" style="font-weight: 500">yeyo@inmoseo.net</span><span class="mono t-xs fg-3">5h 45% · 7d 5% · vuelve en 4 h 49</span><span class="row mono t-xs fg-3" style="gap: 12px; padding-top: 2px"><a href="MobileProveedores.html" class="row" style="gap: 6px; min-height: 44px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>Claude Code</a><a href="MobileProveedores.html" class="row" style="gap: 6px; min-height: 44px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>Copilot</a></span></span>
+<span class="col grow" style="gap: 2px"><span class="t-sm" style="font-weight: 500">yeyo@inmoseo.net</span><span class="mono t-xs fg-3">5h 45% · 7d 5% · vuelve en 4 h 49</span><span class="row mono t-xs fg-3" style="gap: 12px; padding-top: 2px"><a href="MobileProveedores.html" class="row" style="gap: 6px; min-height: 44px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>Claude Code</a><a href="MobileProveedores.html" class="row c-warn" style="gap: 6px; min-height: 44px"><span class="dot dot-warn" style="width: 6px; height: 6px"></span>Copilot · sin sesión</a></span></span>
 </section>
 </div>
 

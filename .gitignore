@@ -10,3 +10,4 @@ e2e-shots
 .claude/worktrees/
 .claude/settings.local.json
 .pando
+__pycache__/

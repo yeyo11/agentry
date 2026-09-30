@@ -48,6 +48,18 @@
     "h": 1060
   },
   {
+    "file": "DesktopInicioSinSesion.html",
+    "title": "Desktop · Inicio, un proveedor sin sesión",
+    "w": 1440,
+    "h": 1060
+  },
+  {
+    "file": "DesktopInicioSinAgentes.html",
+    "title": "Desktop · Inicio, ningún agente",
+    "w": 1440,
+    "h": 1060
+  },
+  {
     "file": "DesktopChats.html",
     "title": "Desktop · Chats",
     "w": 1440,
@@ -116,6 +128,18 @@
   {
     "file": "MobileInicio.html",
     "title": "Móvil · Inicio",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileInicioSinSesion.html",
+    "title": "Móvil · Inicio, un proveedor sin sesión",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileInicioSinAgentes.html",
+    "title": "Móvil · Inicio, ningún agente",
     "w": 390,
     "h": 844
   },
