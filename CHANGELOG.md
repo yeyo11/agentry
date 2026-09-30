@@ -3,7 +3,12 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
-## [0.27.1](https://github.com/yeyo11/agentry/compare/v0.27.0...v0.27.1) (2026-09-30)
+## [0.28.0](https://github.com/yeyo11/agentry/compare/v0.27.0...v0.28.0) (2026-09-30)
+
+
+### Features
+
+* detect agent providers, with a first-run step and Settings → Providers ([#150](https://github.com/yeyo11/agentry/issues/150)) ([48bd066](https://github.com/yeyo11/agentry/commit/48bd066f933109dc8211840847ce403bdff25187))
 
 
 ### Documentation
