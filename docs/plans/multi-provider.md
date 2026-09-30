@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T12:43:36.708551256Z
-updated_at: 2026-09-30T14:49:29Z
+updated_at: 2026-09-30T15:00:02Z
 tags:
     - plan
     - providers
@@ -190,8 +190,8 @@ The decision engine's exception for Jev stays as it is.
 
 ## Providers, in order
 
-1. **Claude Code**, rebuilt on the **Claude Agent SDK** (decision 2) behind the driver interface,
-   with the behaviour Agentry has today. This is the proof the interface is right.
+1. **Claude Code**, on its CLI's stream-json control protocol (decision 2), moved behind the driver
+   interface with the behaviour Agentry has today. This is the proof the interface is right.
 2. **Every other provider, in parallel** (decision 4), each in its own PR once the interface exists:
    - **Codex:** `codex app-server` (JSON-RPC over JSONL, with an `initialize` handshake), and
      `CODEX_HOME` for accounts.
@@ -229,7 +229,7 @@ them, but they cannot run orchestration stages.
    event, the Providers step and settings page. Visible on its own: a clean install lists every
    provider on the machine and says why each one is or is not ready. The same PR rewrites the one
    rule in `CLAUDE.md` and `CONTRIBUTING.md` (decision 1).
-2. **Driver interface and Claude on the SDK.** `provider` column on chats; `ToolPolicy`; neutral
+2. **Driver interface, with Claude behind it.** `provider` column on chats; `ToolPolicy`; neutral
    `RunEvent`; shared types without Claude aliases; a **conformance suite** every driver must pass,
    with a fake for each.
 3. **Codex, ACP and Copilot drivers**, in parallel, each with its fake for e2e.
@@ -398,15 +398,20 @@ not touch it.
 
 1. **The one rule is generalised** as in section 8. Rejected: relaxing it to allow internal
    endpoints and terminal scraping; and dropping it.
-2. **The Claude Agent SDK is the base of the Claude driver.** The recommendation was to keep
-   Agentry's own stream-json control protocol, which the SDK wraps; the owner chose the SDK.
-   Consequences to handle in phase 2:
-   - the SDK pins a protocol version while the CLI updates itself, so the manifest's `versions`
-     range and contract tests against the pinned SDK are required;
-   - the SDK is pointed at the person's installed CLI (`pathToClaudeCodeExecutable`), so detection
-     stays the source of which binary runs, and accounts keep their `CLAUDE_CONFIG_DIR`;
-   - Anthropic's terms for offering claude.ai login in third-party products are checked before
-     release.
+2. **The Claude driver stays on the CLI, without the Agent SDK** (owner, 2026-09-30, reversing the
+   first answer the same day). The first answer chose the SDK. Checking its terms before building,
+   as this decision required, found that the SDK's documentation says: *"Unless previously approved,
+   Anthropic does not allow third party developers to offer claude.ai login or rate limits for their
+   products, including agents built on the Claude Agent SDK. Use the API key authentication methods
+   described in the Quickstart instead"*, and that its branding guidelines do not permit calling an
+   integrating product "Claude Code". On the SDK, a person with a Pro or Max subscription could not
+   use Claude in Agentry without an approval, and the UI would lose the name. The same page points
+   to running the CLI as a subprocess with `-p` as the way to drive the agent from another program,
+   which is what Agentry does, and the control protocol it already speaks (`control_request` for
+   `can_use_tool`, `interrupt`, `set_permission_mode`, `set_model`) gives what the SDK would. So the
+   Claude driver is `chats.ts`'s protocol, moved behind the driver interface. Rejected: the SDK with
+   API keys only; the SDK while asking Anthropic for an approval. The generalised rule keeps "the
+   vendor's official SDK" for other vendors, whose terms are read before one is used.
 3. **Install is a link to the vendor's page.** Rejected: running the install from
    Agentry, and showing the command. Detection's watchers make up for it: the person does not press
    Refresh after installing.
