@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><title>Agentry · Inicio con un proveedor sin sesión (desktop)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Inicio con un proveedor sin sesión (desktop)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:var(--bg)}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background="var(--bg)"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
 
 <div class="app shell" data-theme="dark" style="width: 1440px; height: 1060px">
 <div class="side">
@@ -8,7 +8,7 @@
 
 <div class="row" style="padding: 0 4px; height: 32px; gap: 10px">
 <a href="Main.html" class="row" style="gap: 10px; flex: 1 1 auto">
-<span style="width: 26px; height: 26px; border-radius: 8px; background: var(--grad); display: grid; place-items: center; color: #fff; box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset, 0 4px 14px -4px rgba(176,74,94,0.7)"><svg class="ico ico-sm" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span>
+<span style="width: 26px; height: 26px; border-radius: var(--r); background: var(--grad); display: grid; place-items: center; color: #fff; box-shadow: var(--shadow)"><svg class="ico ico-sm" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span>
 <span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Agentry</span>
 </a>
 <button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Plegar barra lateral"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 4v16"></path></svg></button>
@@ -76,8 +76,8 @@
 <a href="DesktopOrquestaciones.html" class="chip" style="gap: 8px; border-color: transparent; background: var(--live-soft); color: var(--live); font-family: var(--mono); font-size: 11.5px"><span class="dot dot-live dot-ping" style="width: 6px; height: 6px"></span>3 agentes trabajando</a>
 <button type="button" class="btn btn-ghost btn-icon" aria-label="Notificaciones" style="position: relative"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"></path></svg><span class="dot" style="position: absolute; top: 8px; right: 9px; width: 6px; height: 6px; background: var(--accent)"></span></button>
 <div class="row" style="gap: 0">
-<a href="DesktopNuevoChat.html" class="btn btn-primary" style="border-radius: 8px 0 0 8px"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Nuevo chat</a>
-<button type="button" class="btn btn-primary btn-icon" aria-label="Más formas de empezar" style="border-radius: 0 8px 8px 0; width: 30px; margin-left: 1px"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button>
+<a href="DesktopNuevoChat.html" class="btn btn-primary" style="border-radius: var(--r) 0 0 var(--r)"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Nuevo chat</a>
+<button type="button" class="btn btn-primary btn-icon" aria-label="Más formas de empezar" style="border-radius: 0 var(--r) var(--r) 0; width: 30px; margin-left: 1px"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button>
 </div>
 </header>
 
@@ -121,13 +121,13 @@
 <div class="row" style="gap: 10px"><span class="proj" style="background: var(--accent-soft); color: var(--accent)">SC</span><span class="col grow" style="gap: 1px"><span style="font-weight: 600">spanish-copy</span><span class="t-xs fg-3 mono">orquestación · sonnet · 4 en paralelo</span></span><span class="t-num t-sm">5,61 US$</span><span class="badge">20:32</span></div>
 <div class="segbar"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 70%"></i><i class="live" style="--p: 45%"></i><i class="live" style="--p: 20%"></i><i></i></div>
 <div class="row t-xs" style="gap: 14px"><span class="row fg-2" style="gap: 6px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>2 hechas</span><span class="row fg-2" style="gap: 6px"><span class="dot dot-live" style="width: 6px; height: 6px"></span>3 en curso</span><span class="row fg-3" style="gap: 6px"><span class="dot dot-idle" style="width: 6px; height: 6px"></span>1 pendiente</span><span class="grow"></span><span class="mono fg-3">etapa 2 de 3</span></div>
-<div class="row t-sm" style="gap: 8px; background: var(--bg-1); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px"><span class="spin-braille"></span><span class="c-live">Ejecutando</span><span class="mono t-xs fg-2 ellipsis grow">pnpm --filter @agentry/web test</span><span class="mono t-xs fg-3">copy-config · 1:08</span></div>
+<div class="row t-sm" style="gap: 8px; background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px"><span class="spin-braille"></span><span class="c-live">Ejecutando</span><span class="mono t-xs fg-2 ellipsis grow">pnpm --filter @agentry/web test</span><span class="mono t-xs fg-3">copy-config · 1:08</span></div>
 </a>
 
 <a href="DesktopOrquestaciones.html" class="col" style="padding: 16px 18px; gap: 12px; border-bottom: 1px solid var(--line)">
 <div class="row" style="gap: 10px"><span class="proj" style="background: var(--idle-soft); color: var(--idle)">AU</span><span class="col grow" style="gap: 1px"><span style="font-weight: 600">app-updates</span><span class="t-xs fg-3 mono">orquestación · 2 en paralelo</span></span><span class="t-num t-sm">0,00 US$</span><span class="badge">3 min</span></div>
 <div class="segbar"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 35%"></i><i></i><i></i></div>
-<div class="row t-sm" style="gap: 8px; background: var(--bg-1); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px"><span class="spin-braille"></span><span class="shimmer">Pensando</span><span class="t-xs fg-2 ellipsis grow">Server-side release check</span><span class="mono t-xs fg-3">11s</span></div>
+<div class="row t-sm" style="gap: 8px; background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px"><span class="spin-braille"></span><span class="shimmer">Pensando</span><span class="t-xs fg-2 ellipsis grow">Server-side release check</span><span class="mono t-xs fg-3">11s</span></div>
 </a>
 
 <a href="DesktopChat.html" class="row" style="padding: 14px 18px; gap: 10px">
