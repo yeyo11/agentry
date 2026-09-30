@@ -8,6 +8,7 @@ import { useUsageNow } from '../../lib/usage-now';
 import { StatusDot, usageTone, type DotTone } from '../motion';
 import { Spinner } from '../Spinner';
 import { Tooltip } from '../controls/Tooltip';
+import { ProviderDots } from './ProviderDots';
 
 type Now = ReturnType<typeof useUsageNow>;
 
@@ -143,8 +144,7 @@ export function AccountCard({ now, connection }: { now: Now; connection: Connect
  * took over the sidebar footer's job. Text and dots only: it sits beside every page.
  */
 export function StatusBar({ now, connection, agents }: { now: Now; connection: Connection; agents: number }) {
-  const { t } = useTranslation(['shell', 'components']);
-  const cli = now.overview.data?.system.cli;
+  const { t } = useTranslation('shell');
   return (
     <footer className="statusbar" aria-label={t('statusbar.label')}>
       <Tooltip content={[connection.title, connection.detail].filter(Boolean).join(' · ')} side="top">
@@ -167,7 +167,7 @@ export function StatusBar({ now, connection, agents }: { now: Now; connection: C
           {now.todayCost === null ? t('statusbar.todayNone') : t('statusbar.today', { cost: formatCost(now.todayCost) })}
         </NavLink>
       )}
-      {cli?.installed && cli.version && <span className="statusbar-item">{t('components:shell.claudeCode', { version: cli.version })}</span>}
+      <ProviderDots />
     </footer>
   );
 }

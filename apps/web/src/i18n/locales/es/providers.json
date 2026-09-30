@@ -124,5 +124,10 @@
   "sheet": {
     "save": "Guardar",
     "cancel": "Cancelar"
+  },
+  "statusbar": {
+    "version": "versión {{version}}",
+    "checking": "Comprobando agentes…",
+    "none": "Ningún agente detectado"
   }
 }
