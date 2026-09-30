@@ -133,6 +133,11 @@ export interface NewChat extends NewChatRequest {
   keepAlive?: boolean;
   /** Housekeeping: no transcript is written (`--no-session-persistence`), so it cannot be resumed */
   internal?: boolean;
+  /**
+   * `false` leaves `AGENTRY_API_URL` out of the environment and mints no `AGENTRY_API_TOKEN`: a run
+   * that never calls the API back (a decision chat) holds no credential to it.
+   */
+  api?: false;
   toolConfig?: ChatToolConfig | null;
   /** Held to a closed set of tools and no settings file: the project assistant's read-only runs */
   confine?: ChatConfinement;
@@ -1529,7 +1534,7 @@ export class ChatManager extends EventEmitter {
     // token is another wrapper's credential: neither is ever passed through
     delete env.AGENTRY_API_TOKEN;
     let token: string | null = null;
-    if (this.apiUrl) {
+    if (this.apiUrl && chat.opts.api !== false) {
       env.AGENTRY_API_URL = this.apiUrl;
       // Minted whatever the mode: a guard switched on mid-turn still finds the turn holding a credential
       token = this.chatTokens.mint(chat.id);

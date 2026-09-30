@@ -18,9 +18,11 @@
     "loop": {
       "command": "`{{command}}` ran {{count}} times with the same result.",
       "call": "The same {{tool}} call ran {{count}} times with the same result.",
-      "error": "The same error came back {{count}} times: \"{{error}}\""
+      "error": "The same error came back {{count}} times: \"{{error}}\"",
+      "semantic": "The last {{count}} steps look like the same attempt again (a suggestion: no step repeated exactly)."
     },
     "weakenedTest": {
+      "judged": "`{{file}}` was edited and the edit may assert less than before (a suggestion, not a certainty).",
       "assertionsRemoved_one": "`{{file}}` was edited so that it asserts less: {{count}} assertion removed.",
       "assertionsRemoved_other": "`{{file}}` was edited so that it asserts less: {{count}} assertions removed.",
       "skipped": "`{{file}}` was edited so that it asserts less: a test is skipped.",

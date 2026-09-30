@@ -1,0 +1,1257 @@
+/* Settings → Decisions (docs/design-system/reference/DesktopAjustesDecisiones*.html). A decision is
+   not a status and nothing here is live, so nothing takes a gradient or motion. The Slider is the
+   app's own control, drawn quiet: a dozen of them on one page cannot each carry the gradient. */
+
+.dp-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.dp-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* A card whose rows run to its edges, with the head as its first row */
+.dp-card {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  scroll-margin-top: 16px;
+  /* The point rows lay out by the card's width, not the window's: the sidebar and the settings nav
+     take a different share of the window on each screen */
+  container: dp-card / inline-size;
+}
+
+.dp-card > .card-head {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dp-card > .card-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.dp-card-sub {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.dp-block {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dp-block:last-child {
+  border-bottom: 0;
+}
+
+.dp-setting {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dp-setting-label {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 4px;
+  width: 240px;
+}
+
+.dp-setting-label > span:first-child {
+  font-weight: 500;
+}
+
+.dp-setting-label > span:last-child {
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.dp-setting-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dp-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.dp-model {
+  width: 220px;
+}
+
+.dp-cost {
+  width: 150px;
+}
+
+.dp-key {
+  width: 340px;
+  max-width: 100%;
+}
+
+.dp-mono {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.dp-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 20px;
+  background: var(--bg-1);
+}
+
+.dp-note-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dp-note-card > strong {
+  font-weight: 500;
+}
+
+/* One decision point: name and id, kind, mode, threshold and consent on one line */
+.dp-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.dp-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.dp-group-head .section-label {
+  flex: 1 1 auto;
+}
+
+.dp-group-count {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.dp-row {
+  display: grid;
+  /* The consent cell holds a dot, the word, the version and "Retirar": sized by its content, it no
+     longer pushes the button past the card's edge; the point's name gives way instead */
+  grid-template-columns: minmax(0, 1fr) 84px 206px 140px auto;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dp-group:last-child .dp-row:last-child {
+  border-bottom: 0;
+}
+
+.dp-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dp-name > span:first-child {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.dp-id {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-3);
+  overflow-wrap: anywhere;
+}
+
+.dp-kind {
+  display: flex;
+  flex-direction: column;
+  font-size: 12.5px;
+  color: var(--fg-2);
+}
+
+.dp-kind small {
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.dp-thr {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dp-thr .slider {
+  flex: 1 1 auto;
+}
+
+.dp-thr .slider-range {
+  background: var(--fg-2);
+}
+
+.dp-thr .slider-thumb {
+  background: var(--fg);
+}
+
+.dp-thr output {
+  flex: none;
+  width: 34px;
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-2);
+}
+
+.dp-none {
+  font-size: 13px;
+  color: var(--fg-3);
+}
+
+.dp-consent {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 7px;
+  min-width: 0;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--fg-2);
+}
+
+.dp-consent.is-none {
+  color: var(--fg-3);
+}
+
+.dp-consent .dot {
+  width: 6px;
+  height: 6px;
+}
+
+.dp-consent .mono {
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+
+.dp-note {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--warn);
+}
+
+.dp-intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.dp-intro p {
+  flex: 1 1 320px;
+  margin: 0;
+}
+
+.dp-empty {
+  padding: 18px 20px;
+}
+
+.dp-key-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.dp-key-state .mono {
+  font-size: 11.5px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .dp-card > .card-head {
+    padding: 12px 14px;
+  }
+
+  .dp-setting {
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .dp-setting-label {
+    width: auto;
+  }
+
+  .dp-block {
+    padding: 14px;
+  }
+
+  .dp-model,
+  .dp-cost,
+  .dp-key {
+    width: 100%;
+  }
+
+  .dp-foot {
+    padding: 12px 14px;
+  }
+
+  .dp-group-head {
+    min-height: var(--touch);
+    padding: 0 14px;
+  }
+
+  /* A card per point: the name, then the mode full width at 44 px, then the rest */
+  .dp-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  .dp-name {
+    grid-column: 1;
+  }
+
+  .dp-kind {
+    grid-column: 2;
+    align-items: flex-end;
+    text-align: right;
+  }
+
+  .dp-row > .segmented,
+  .dp-thr,
+  .dp-none,
+  .dp-consent {
+    grid-column: 1 / -1;
+  }
+
+  .dp-row > .segmented {
+    display: flex;
+  }
+
+  .dp-row > .segmented .segment {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: var(--touch);
+  }
+
+  .dp-thr .slider {
+    height: var(--touch);
+  }
+
+  .dp-intro {
+    padding: 12px 14px;
+  }
+}
+
+/* ---------- Metrics, consent and History (D3 u2) ---------- */
+
+/* A point's week under its row: nine figures, and the way into its History */
+.dp-metrics-line {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.dp-metrics {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, auto));
+  justify-content: space-between;
+  gap: 8px 14px;
+  min-width: 0;
+}
+
+.dp-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dp-metric > span:first-child,
+.dp-fact > span:first-child {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.dp-metric > span:first-child {
+  white-space: nowrap;
+}
+
+.dp-metric > span:last-child {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dp-metric-n {
+  color: var(--fg-3);
+}
+
+/* The consent dialog: the state that goes out, exactly as it goes */
+.dp-consent-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.dp-consent-sub {
+  display: block;
+  margin-bottom: 12px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+
+.dp-consent-state {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Scrolls rather than cuts: consent is to what was seen, so all of it can be seen */
+.dp-preview {
+  margin: 0;
+  padding: 12px 14px;
+  max-height: 236px;
+  overflow: auto;
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fg-2);
+  white-space: pre;
+}
+
+.dp-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+}
+
+.dp-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dp-fact > span:last-child {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.dp-consent-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.dp-consent-actions .btn-primary {
+  flex: 1 1 auto;
+}
+
+/* History: a row per decision, and its answer opened under it */
+.dp-hist-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dp-hist-filters .select-trigger {
+  width: auto;
+  min-width: 132px;
+  max-width: 200px;
+}
+
+.dp-hist-spacer {
+  flex: 1 1 auto;
+}
+
+.dp-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  background: var(--bad-soft);
+  color: var(--bad);
+  font-size: 13px;
+}
+
+.dp-confirm .grow {
+  flex: 1 1 320px;
+  color: var(--fg);
+}
+
+.dp-confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.dp-hist-head,
+.dp-hist-row {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1.5fr) minmax(0, 1.1fr) minmax(0, 1.4fr) 44px 92px 72px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px;
+}
+
+.dp-hist-head {
+  height: 32px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.dp-hist-row {
+  min-height: 52px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.dp-hist-row.open {
+  background: var(--bg-1);
+  border-bottom: 0;
+}
+
+.dp-hist-row .mono {
+  font-size: 12px;
+}
+
+.dp-when,
+.dp-conf {
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.dp-conf {
+  color: var(--fg-2);
+}
+
+.dp-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dp-sub {
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+
+.dp-unavailable {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.dp-result {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-2);
+}
+
+.dp-result .dot {
+  width: 6px;
+  height: 6px;
+}
+
+.dp-rating {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.dp-rated {
+  display: inline-flex;
+  color: var(--fg-2);
+}
+
+.dp-chevron {
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.dp-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.dp-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 18px 16px 114px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.dp-answer-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dp-question {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.dp-prob {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dp-prob > span:last-child {
+  text-align: right;
+}
+
+.dp-answer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.dp-answer-actions .btn[aria-pressed='true'] {
+  background: var(--bg-3);
+  border-color: var(--border-strong);
+}
+
+.dp-hist-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dp-chevron {
+    transition: none;
+  }
+}
+
+[data-motion='subtle'] .dp-chevron,
+[data-motion='off'] .dp-chevron {
+  transition: none;
+}
+
+@media (max-width: 900px) {
+  .dp-metrics-line {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dp-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    justify-content: stretch;
+  }
+
+  .dp-metrics-line .btn {
+    min-height: var(--touch);
+  }
+
+  .dp-hist-filters {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 12px 14px;
+  }
+
+  .dp-hist-filters .select-trigger {
+    width: 100%;
+    max-width: none;
+    min-height: var(--touch);
+  }
+
+  .dp-hist-filters .btn {
+    min-height: var(--touch);
+  }
+
+  .dp-hist-spacer {
+    display: none;
+  }
+
+  .dp-confirm {
+    padding: 12px 14px;
+  }
+
+  .dp-confirm-actions {
+    width: 100%;
+  }
+
+  .dp-confirm-actions .btn {
+    flex: 1 1 0;
+    min-height: var(--touch);
+  }
+
+  .dp-hist-head {
+    display: none;
+  }
+
+  /* A card per decision: the point and when, the answer, then provider, confidence, result, rating */
+  .dp-hist-row {
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      'point point point when'
+      'answer answer answer answer'
+      'provider conf result rating';
+    gap: 6px 10px;
+    padding: 12px 14px;
+    align-items: center;
+  }
+
+  .dp-cell-point {
+    grid-area: point;
+  }
+
+  .dp-when {
+    grid-area: when;
+    text-align: right;
+  }
+
+  .dp-cell-answer {
+    grid-area: answer;
+  }
+
+  .dp-cell-provider {
+    grid-area: provider;
+  }
+
+  .dp-conf {
+    grid-area: conf;
+  }
+
+  .dp-result {
+    grid-area: result;
+  }
+
+  .dp-rating {
+    grid-area: rating;
+  }
+
+  .dp-toggle {
+    min-width: var(--touch);
+    min-height: var(--touch);
+  }
+
+  .dp-answer {
+    padding: 4px 14px 16px;
+  }
+
+  .dp-answer-actions .btn {
+    flex: 1 1 auto;
+    min-height: var(--touch);
+  }
+
+  .dp-hist-foot {
+    padding: 12px 14px;
+  }
+
+  .dp-consent-actions .btn {
+    min-height: var(--touch);
+  }
+
+  .dp-preview {
+    max-height: 200px;
+    font-size: 11.5px;
+  }
+}
+
+/* Project override: the provider block, a value not yet overridden, and the phone's folding groups */
+.dp-block:has(> .segmented) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.dp-thr.is-inherited .slider-range {
+  background: var(--fg-3);
+}
+
+.dp-thr.is-inherited output {
+  color: var(--fg-3);
+}
+
+.dp-foot > .project-general-actions {
+  flex: 1 1 auto;
+}
+
+.dp-fold {
+  border-top: 1px solid var(--line);
+}
+
+.dp-fold > .collapsible-trigger {
+  width: 100%;
+  gap: 10px;
+  min-height: var(--touch);
+  padding: 0 14px;
+  background: var(--bg-1);
+}
+
+.dp-fold > .collapsible-trigger .section-label {
+  flex: 1 1 auto;
+  text-align: left;
+}
+
+/* The "decided" mark and its answer (docs/design-system/reference/DesktopTableroDecidido.html).
+   A decision is not a status, so nothing here takes a status colour, a gradient or motion. The mark
+   is a transparent button whose face is the small mono label; on a phone the button is the 44 px
+   target and its negative margin leaves the row as tall as the label. */
+.decided {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg-2);
+  font: inherit;
+  cursor: pointer;
+}
+
+.decided-face {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--line-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transition:
+    color var(--dur-fast),
+    border-color var(--dur-fast),
+    background var(--dur-fast);
+}
+
+.decided:hover .decided-face {
+  color: var(--fg);
+  border-color: var(--line-3);
+}
+
+.decided[aria-expanded='true'] .decided-face {
+  color: var(--fg);
+  border-color: var(--line-3);
+  background: var(--bg-3);
+}
+
+.decided:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.decided-pop {
+  z-index: 60;
+  width: 340px;
+  max-width: calc(100vw - 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  background: var(--bg-2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  animation: pop-in var(--dur-base) var(--ease-out);
+}
+
+.decided-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.decided-head > .col {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 3px;
+}
+
+.decided-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.decided-point {
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.decided-block {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+}
+
+.decided-block p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fg-2);
+}
+
+.decided-block p.is-answer {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.decided-odds {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.decided-odd {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--fg-2);
+}
+
+.decided-odd.is-chosen {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.decided-odd .meter-fill {
+  background: var(--fg-3);
+}
+
+.decided-odd.is-chosen .meter-fill {
+  background: var(--fg);
+}
+
+.decided-odd .t-num {
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.decided-meta {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 14px;
+  margin: 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.decided-meta dt {
+  color: var(--fg-3);
+}
+
+.decided-meta dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.decided-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.decided-foot .ask {
+  flex: 1 1 100%;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.decided-foot .btn[aria-pressed='true'] {
+  background: var(--bg-4);
+  border-color: var(--line-3);
+  color: var(--fg);
+}
+
+.decided-foot a {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--accent);
+}
+
+.decided-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .decided {
+    min-height: var(--touch);
+    min-width: var(--touch);
+    justify-content: center;
+    margin: -12px -6px;
+  }
+
+  .decided-foot .btn {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: var(--touch);
+  }
+
+  .decided-foot a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1 1 100%;
+    min-height: var(--touch);
+    margin: 0;
+  }
+}
+
+/* Jev's name with its Beta badge, on one line, in the provider switch and the key's heading */
+.dp-beta-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Bulk mode: one control for every point and one per group, and one consent listing what has none */
+.dp-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dp-bulk-label {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+
+.dp-bulk-note {
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+.dp-bulk-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.dp-bulk-item + .dp-bulk-item {
+  border-top: 1px solid var(--line);
+}
+
+.dp-bulk-head {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  text-align: left;
+}
+
+.dp-bulk-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.dp-bulk-meta {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+}
+
+.dp-bulk-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 12px 12px;
+}
+
+.dp-bulk-version {
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+
+@media (max-width: 900px) {
+  .dp-bulk {
+    padding: 10px 14px;
+  }
+
+  /* The group's control sits in a 44 px head, so it takes the same target */
+  .dp-bulk-trigger {
+    min-height: var(--touch);
+  }
+
+  .dp-bulk-item .collapsible-trigger {
+    min-height: var(--touch);
+  }
+}
+
+/* A card too narrow for a point's name beside its five controls (a laptop with the sidebar open):
+   the name takes the first line and the controls the second, so neither is squeezed, and the nine
+   metrics fold into two rows instead of writing over each other */
+@container dp-card (max-width: 1040px) {
+  .dp-row {
+    grid-template-columns: 84px 206px minmax(0, 1fr) auto;
+  }
+
+  .dp-name {
+    grid-column: 1 / -1;
+  }
+
+  .dp-metrics {
+    grid-template-columns: repeat(5, minmax(0, auto));
+  }
+}
+
+
+/* A group's head folds and unfolds it: the whole label is the target, the bulk menu stays beside it */
+.dp-group-toggle {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dp-group-toggle .section-label {
+  flex: none;
+}
+
+.dp-group-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.dp-group-chevron {
+  flex: none;
+  color: var(--fg-3);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.dp-group-toggle[aria-expanded='true'] .dp-group-chevron {
+  transform: rotate(90deg);
+}
+
+.dp-group-summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--fg-2);
+}
+
+.dp-group-head:has(.dp-group-toggle[aria-expanded='false']) {
+  border-bottom-color: var(--line);
+}
+
+.dp-toggle-all {
+  margin-left: auto;
+}
+
+@media (pointer: coarse) {
+  .dp-group-toggle {
+    min-height: var(--touch);
+  }
+}

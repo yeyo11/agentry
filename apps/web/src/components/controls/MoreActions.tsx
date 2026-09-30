@@ -1,4 +1,4 @@
-import { Ellipsis } from 'lucide-react';
+import { ChevronDown, Ellipsis } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NARROW, useMediaQuery } from '../../lib/media';
@@ -22,6 +22,7 @@ export function MoreActions({
   title,
   align = 'end',
   className = '',
+  text,
 }: {
   entries: MenuEntry[];
   label?: string;
@@ -30,17 +31,39 @@ export function MoreActions({
   align?: 'start' | 'center' | 'end';
   /** On the trigger, in both forms */
   className?: string;
+  /** Turns the `⋯` into a labelled button, for a menu that says what it does ("Set all to…") */
+  text?: string;
 }) {
   const { t } = useTranslation('primitives');
   const narrow = useMediaQuery(NARROW);
   const [open, setOpen] = useState(false);
   const name = label ?? t('menu.more');
-  if (!narrow) return <Menu entries={entries} label={name} align={align} className={className} />;
+  const labelled = text !== undefined;
+  if (!narrow && !labelled) return <Menu entries={entries} label={name} align={align} className={className} />;
+  if (!narrow)
+    return (
+      <Menu
+        entries={entries}
+        label={name}
+        align={align}
+        trigger={
+          <button type="button" className={`btn btn-small ${className}`.trim()}>
+            {text} <ChevronDown {...ICON_SM} />
+          </button>
+        }
+      />
+    );
   return (
     <>
-      <button type="button" className={`icon-btn ${className}`.trim()} aria-label={name} aria-haspopup="dialog" onClick={() => setOpen(true)}>
-        <Ellipsis {...ICON_SM} />
-      </button>
+      {labelled ? (
+        <button type="button" className={`btn btn-small ${className}`.trim()} aria-haspopup="dialog" onClick={() => setOpen(true)}>
+          {text} <ChevronDown {...ICON_SM} />
+        </button>
+      ) : (
+        <button type="button" className={`icon-btn ${className}`.trim()} aria-label={name} aria-haspopup="dialog" onClick={() => setOpen(true)}>
+          <Ellipsis {...ICON_SM} />
+        </button>
+      )}
       <Sheet open={open} onOpenChange={setOpen} title={title ?? name} side="bottom">
         <div className="sheet-actions">
           {itemsOf(entries).map((item) => {

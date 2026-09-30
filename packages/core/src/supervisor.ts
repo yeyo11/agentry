@@ -11,6 +11,7 @@ import type { AgentryEventInput } from './events.ts';
 import type { TaskContext } from './health-service.ts';
 import type { CoreConfig } from './paths.ts';
 import { pasted, PASTED_NOTE } from './prompt-rules.ts';
+import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
 
 // The optional supervisor of docs/plans/agent-observability.md §3. When a worker's health turns
 // bad, a small model reads the signal and the worker's last steps and drafts a hint of a line or
@@ -110,6 +111,8 @@ export interface SupervisorDeps {
   emit: (event: AgentryEventInput) => void;
   /** Adds what the supervisor spent on a task's worker to its graph */
   charge: (orchestrationId: string, costUsd: number) => void;
+  /** The decision engine `supervisor.intervene` asks; absent, the point is off */
+  decisions?: DecisionAsker;
 }
 
 /** Where a proposal is acted on from: the chat, or the task of the graph whose worker it is. */
@@ -120,7 +123,7 @@ export class SupervisorConflictError extends Error {
 }
 
 /** How much of the worker's recent history the supervisor reads. */
-const STEPS = { calls: 12, inputChars: 300, resultLines: 6, resultChars: 600, messageChars: 1200 } as const;
+const STEPS = { calls: 12, inputChars: 300, resultLines: 6, resultChars: 600, messageChars: 1200, errorChars: 200 } as const;
 /** A hint is a line or two; what comes back past that is cut rather than sent to the worker. */
 const HINT_MAX_CHARS = 400;
 
@@ -163,6 +166,26 @@ export function lastSteps(entries: readonly TranscriptEntry[]): string {
   }
   if (message) out.push('', 'Its last message:', cut(message, STEPS.messageChars));
   return out.join('\n') || '(nothing recorded yet)';
+}
+
+/** The tool calls `supervisor.intervene` reads: names and the head of an error, never inputs or file contents */
+export function callsOf(entries: readonly TranscriptEntry[]): Array<{ tool: string; error?: string }> {
+  const calls: Array<{ tool: string; error?: string }> = [];
+  const byId = new Map<string, (typeof calls)[number]>();
+  for (const entry of entries) {
+    if (entry.isSidechain) continue;
+    for (const block of entry.blocks) {
+      if (block.type === 'tool_use') {
+        const call = { tool: block.name };
+        calls.push(call);
+        byId.set(block.id, call);
+      } else if (block.type === 'tool_result' && block.isError) {
+        const call = byId.get(block.toolUseId);
+        if (call) Object.assign(call, { error: cut(block.content.trim(), STEPS.errorChars) });
+      }
+    }
+  }
+  return calls.slice(-STEPS.calls);
 }
 
 export function supervisorPrompt(signal: HealthSignal, steps: string, task: TaskContext | null): string {
@@ -233,7 +256,13 @@ export class Supervisor {
     const key = `${chat.id}:${signal.kind}`;
     this.asking.add(key);
     try {
-      const steps = lastSteps(await this.deps.steps(chat.id).catch(() => []));
+      const entries = await this.deps.steps(chat.id).catch((): TranscriptEntry[] => []);
+      // A worker the decision says no hint can help gets none; the signal itself stays on the chat
+      if (await this.declined(chat, signal, entries)) {
+        this.failed.add(key);
+        return null;
+      }
+      const steps = lastSteps(entries);
       const answer = await this.deps.ask({ prompt: supervisorPrompt(signal, steps, task), cwd: chat.workingDir, model: config.model, maxCostUsd: config.maxCostUsd });
       const costUsd = Number.isFinite(answer.costUsd) && answer.costUsd > 0 ? answer.costUsd : 0;
       // Spent whether or not the answer is usable, so it counts either way
@@ -276,6 +305,23 @@ export class Supervisor {
     } finally {
       this.asking.delete(key);
     }
+  }
+
+  /**
+   * `supervisor.intervene`: whether the decision, active and above its threshold, says a hint would
+   * not get this worker out. Shadow, and every other outcome, leave the hint to be asked for as today.
+   * Wakes already run in the background, so shadow is not awaited: nothing here waits for a row.
+   */
+  private async declined(chat: ChatRuntime, signal: HealthSignal, entries: readonly TranscriptEntry[]): Promise<boolean> {
+    const engine = this.deps.decisions;
+    const stance = stanceOf(engine, 'supervisor.intervene', null);
+    if (!engine || stance === 'off') return false;
+    const asked = engine
+      .ask('supervisor.intervene', { kind: 'chat', id: chat.id, data: { signal: signal.kind, detail: signal.detail ?? signal.reason, calls: callsOf(entries) } }, { projectId: null })
+      .catch(() => null);
+    if (stance === 'watch') return false;
+    const answer = (await asked)?.answers?.intervene;
+    return answer?.kind === 'noul' && !answer.value;
   }
 
   private owned(id: string, owner: ProposalOwner): SupervisorProposal {

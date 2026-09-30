@@ -1,5 +1,6 @@
 from data import *
 from board import mhead
+from decision_parts import *
 
 MODS = [
   ('board', 'board', 'Tablero', 'Tareas en cinco columnas, hitos, y su enlace con chats y orquestaciones.'),
@@ -171,8 +172,9 @@ def project_settings_desktop():
 <div class="row" style="justify-content: flex-end; gap: 8px"><button type="button" class="btn btn-ghost">Descartar</button><button type="button" class="btn btn-primary">Guardar los cambios</button></div>
 </div>
 </div>
+{override_card()}
 </main>'''
-  write('DesktopProyectoAjustes.html', desktop('Ajustes del proyecto', 'projects', pcrumb('claude-wrapper', ('Ajustes', '')), main))
+  write('DesktopProyectoAjustes.html', tall(desktop('Ajustes del proyecto', 'projects', pcrumb('claude-wrapper', ('Ajustes', '')), main), 2100))
 
 
 def project_settings_mobile():
@@ -197,10 +199,33 @@ def project_settings_mobile():
 </div>
 <div class="callout" style="padding: 12px">{ico('eyeoff', 'ico fg-3')}<span>Desactivar un módulo oculta su pestaña y conserva sus datos. Al activarlo vuelve todo.</span></div>
 </div>
-<a href="#" class="card cell" style="min-height: 56px; border-bottom: 1px solid var(--line)"><span class="grow" style="font-weight: 500">Límites del tablero</span><span class="mono t-xs fg-3">en curso 3 · revisión 3</span>{ico('right', 'ico fg-3')}</a>
+<div class="card" style="overflow: hidden"><a href="#" class="cell" style="min-height: 52px"><span class="grow" style="font-weight: 500">Límites del tablero</span><span class="mono t-xs fg-3">en curso 3 · revisión 3</span>{ico('right', 'ico fg-3')}</a>
+<a href="MobileProyectoAjustesDecisiones.html" class="cell" style="min-height: 52px"><span class="grow" style="font-weight: 500">Decisiones</span><span class="mono t-xs fg-3">heredado · 3 distintos</span>{ico('right', 'ico fg-3')}</a></div>
 </div>
 <div class="m-foot"><button type="button" class="btn btn-primary btn-lg">Guardar los cambios</button></div>'''
   write('MobileProyectoAjustes.html', mobile('Ajustes del proyecto', inner))
+
+
+def project_decisions_mobile():
+  # The override is its own screen on a phone: a card per point, the mode under its name at 44 px.
+  # Flow and Orchestrations are open; the rest fold, as on the desktop.
+  groups = ''
+  for area, icon, pts in POINTS:
+    if icon not in ('flow', 'orch'):
+      n = len(pts)
+      groups += f'<div class="card" style="overflow: hidden"><button type="button" class="decision-group" style="width: 100%; border: 0; border-top: 0; text-align: left; color: var(--fg); font-family: var(--sans)" aria-expanded="false">{ico("right", "ico ico-sm")}{area}<span class="grow"></span><span class="n"><b>{n}</b> {"punto" if n == 1 else "puntos"}</span></button></div>'
+      continue
+    cards = ''.join(mpoint_card(p, cli=False) for p in pts[:4])
+    groups += (f'<div class="card" style="overflow: hidden"><button type="button" class="decision-group" style="width: 100%; border: 0; border-top: 0; text-align: left; color: var(--fg); font-family: var(--sans)" aria-expanded="true">{ico("down", "ico ico-sm")}{area}<span class="grow"></span><span class="n"><b>{len(pts)}</b> puntos</span></button>{cards}</div>')
+  inner = f'''{mhead('Decisiones', 'claude-wrapper', 'MobileProyectoAjustes.html')}
+<div class="m-body stack" style="gap: 14px; overflow-y: auto">
+<div class="col" style="gap: 8px"><span class="t-label" style="padding: 0 4px">Proveedor</span>
+<div class="seg" role="radiogroup" aria-label="Proveedor de las decisiones del proyecto" style="display: flex"><button type="button" role="radio" aria-checked="true" class="on" style="flex: 1 1 0; justify-content: center">Heredar</button><button type="button" role="radio" aria-checked="false" style="flex: 1 1 0; justify-content: center">CLI</button><button type="button" role="radio" aria-checked="false" style="flex: 1 1 0; justify-content: center">Jev</button></div>
+<span class="form-hint" style="padding: 0 4px">Hereda Jev. Cada punto usa el ajuste global hasta que lo cambias aquí; el consentimiento sigue siendo global.</span></div>
+{groups}
+</div>
+<div class="m-foot"><button type="button" class="btn btn-primary btn-lg">Guardar los cambios</button></div>'''
+  write('MobileProyectoAjustesDecisiones.html', mobile('Decisiones del proyecto', inner))
 
 
 def dist_rows():
@@ -299,5 +324,5 @@ def project_page_mobile():
 
 if __name__ == '__main__':
   new_project_desktop(); new_project_mobile()
-  project_settings_desktop(); project_settings_mobile()
+  project_settings_desktop(); project_settings_mobile(); project_decisions_mobile()
   project_page_desktop(); project_page_mobile()

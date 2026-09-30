@@ -81,5 +81,12 @@
     "label": "{{metric}} · {{range}}",
     "pick": "Chart another figure",
     "peak": "peak {{value}} · {{period}}"
+  },
+  "decisions": {
+    "label": "Decisions",
+    "jev": "Jev {{cost}}",
+    "saved_one": "{{count}} Claude run saved",
+    "saved_other": "{{count}} Claude runs saved",
+    "history": "See the history"
   }
 }

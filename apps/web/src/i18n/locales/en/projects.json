@@ -235,5 +235,24 @@
     "refine": "refine",
     "work": "build",
     "verify": "verify"
+  },
+  "decisions": {
+    "title": "Decisions",
+    "intro": "What Agentry decides for you in this project. Each point inherits the global setting until you change it here; consent stays global.",
+    "saved": "Decisions saved",
+    "provider": "Provider",
+    "providerLabel": "Provider of this project's decisions",
+    "inherit": "Inherit · {{provider}}",
+    "inheritShort": "Inherit",
+    "jevAvailable": "Jev is available: a global key is saved.",
+    "jevNeedsKey": "Jev needs a key: save one in Settings → Decisions.",
+    "groupCount_one": "{{n}} point · {{differing}} different from global",
+    "groupCount_other": "{{n}} points · {{differing}} different from global",
+    "inherited": "Inherited",
+    "global": "global: {{mode}}",
+    "useGlobal": "Use global",
+    "summaryInherited": "inherited",
+    "summaryDiffering_one": "{{n}} different",
+    "summaryDiffering_other": "{{n}} different"
   }
 }

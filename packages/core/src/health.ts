@@ -160,6 +160,25 @@ export function loop(trace: Trace): HealthSignal | null {
   return null;
 }
 
+// ---------- a loop that is not an exact repeat ----------
+
+/** Calls the semantic loop point needs in its window before it is worth asking about. */
+export const SEMANTIC_LOOP_MIN_CALLS = 8;
+
+/**
+ * What the `health.semantic-loop` point sends, or null when the exact rule already says loop or the
+ * worker has not done enough to judge. The point only ever adds a signal to what {@link loop} finds.
+ */
+export function semanticLoopState(trace: Trace): { lastCallId: string; firstAt: string; calls: Array<Record<string, string>> } | null {
+  const recent = trace.calls.filter((c) => c.endedAt && !BOOKKEEPING.has(c.name)).slice(-WINDOW);
+  if (recent.length < SEMANTIC_LOOP_MIN_CALLS || loop(trace)) return null;
+  return {
+    lastCallId: (recent[recent.length - 1] as ToolCall).id,
+    firstAt: (recent[0] as ToolCall).at,
+    calls: recent.map((c) => ({ name: c.name, input: JSON.stringify(c.input).slice(0, 200), result: oneLine(c.result, 160) })),
+  };
+}
+
 // ---------- tests bent to pass ----------
 
 /** A file a test lives in: by name (`x.spec.ts`, `x_test.go`, `test_x.py`) or by directory. */
@@ -262,6 +281,35 @@ export function weakenedTests(trace: Trace): HealthSignal[] {
     detail: path,
     toolUseId: call.id,
   }));
+}
+
+/**
+ * The edits to test files that {@link weakenedTests} let pass and that touched an assertion: what the
+ * `health.test-weakening` point may judge. The point only ever adds a signal, never removes one the
+ * rules found, because the agent under judgment wrote the text it is judged on.
+ */
+export function unflaggedTestEdits(trace: Trace): Array<{ key: string; path: string; before: string; after: string; call: ToolCall }> {
+  const found: Array<{ key: string; path: string; before: string; after: string; call: ToolCall }> = [];
+  for (const call of trace.calls) {
+    if (call.isError) continue;
+    editsOf(call).forEach(({ path, before, after }, i) => {
+      if (!TEST_FILE.test(path) || before === after || weaknessOf(before, after) || count(stripComments(before), ASSERTION) === 0) return;
+      found.push({ key: `${call.id}:${String(i)}`, path, before, after, call });
+    });
+  }
+  return found;
+}
+
+/** A test edit the point judged weakening, in the words a signal carries. */
+export function judgedWeakening(path: string, call: ToolCall): HealthSignal {
+  return {
+    kind: 'weakened-test',
+    level: 'warn',
+    ...said('health.weakenedTest.judged', { file: path }, 'health.hint.weakenedTest'),
+    since: call.at,
+    detail: path,
+    toolUseId: call.id,
+  };
 }
 
 // ---------- busy without progress ----------

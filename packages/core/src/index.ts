@@ -116,7 +116,33 @@ import { PullRequestService, PullRequestWatcher, type ApproveResult } from './pu
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
 import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo } from './git.ts';
+import { DecisionEngine } from './decisions/engine.ts';
+import { DecisionResolvers } from './decisions/resolve.ts';
+import { CliDecisionProvider } from './decisions/providers/cli.ts';
+import { JevProvider } from './decisions/providers/jev.ts';
+import { DecisionCredentialStore, DecisionSettingsStore } from './decisions/settings.ts';
 import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
+export {
+  DecisionEngine,
+  DEADLINE_MS,
+  lowestConfidence,
+  type DecisionEngineDeps,
+  type DecisionOutcome,
+  type DecisionProvider,
+  type DecisionRequest,
+  type EffectiveDecision,
+  type ProviderResult,
+} from './decisions/engine.ts';
+export { CliDecisionProvider, decisionPrompt, decisionSchema, parseAnswers as parseDecisionAnswers } from './decisions/providers/cli.ts';
+export { DECISION_POINTS, decisionPoint, type DecisionPointDefinition, type DecisionSubject } from './decisions/points.ts';
+export { cutToBytes, maskSecrets, redactState, SECRET_MASK, stateBytes } from './decisions/redact.ts';
+export {
+  DecisionCredentialStore,
+  DecisionSettingsStore,
+  DEFAULT_DECISION_SETTINGS,
+  parseDecisionSettings,
+  parseProjectDecisions,
+} from './decisions/settings.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
 
@@ -264,6 +290,12 @@ export class Core {
   private readonly healthMonitor: HealthMonitor;
   /** The optional model that drafts a hint when a worker's health turns bad; off unless `supervisor.json` says so */
   readonly supervisor: Supervisor;
+  /** The decision engine's settings (`decisions.json`) and its Jev key (`decision-credentials.json`, never returned) */
+  readonly decisionSettings: DecisionSettingsStore;
+  readonly decisionCredentials: DecisionCredentialStore;
+  /** The one door every decision point asks through; providers register themselves on it */
+  readonly decisions: DecisionEngine;
+  private readonly decisionResolvers: DecisionResolvers;
   readonly schedules: Scheduler;
   /** Web Push: the VAPID keypair, the installs registered to be woken, and the sender behind them */
   readonly push: PushService;
@@ -443,7 +475,32 @@ export class Core {
       },
       emit: (event) => this.events.emit(event),
       charge: (orchestrationId, costUsd) => this.orchestrator.chargeSupervisor(orchestrationId, costUsd),
+      // The engine is built just below; a call only ever comes after the constructor
+      decisions: { ask: (...args) => this.decisions.ask(...args), effective: (...args) => this.decisions.effective(...args) },
     });
+    this.decisionCredentials = new DecisionCredentialStore(config);
+    this.decisionSettings = new DecisionSettingsStore(config, this.decisionCredentials);
+    this.decisions = new DecisionEngine({
+      settings: this.decisionSettings,
+      db: this.db,
+      projectDecisions: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.decisions ?? null,
+    });
+    this.decisions.register(new CliDecisionProvider({ runtime: this.runtime, settings: this.decisionSettings }));
+    // c6 left this wiring to the routes' worker: without it `jev` is never registered
+    this.decisions.register(new JevProvider({ getKey: () => this.decisionCredentials.getKey() }));
+    this.decisions.startPruning();
+    this.decisionResolvers = new DecisionResolvers({
+      sql: this.db.connection,
+      db: this.db,
+      engine: this.decisions,
+      historyDays: () => this.decisionSettings.get().historyDays,
+    });
+    this.events.observe((event) => this.decisionResolvers.observe(event));
+    this.decisionResolvers.start();
+    this.orchestrator.decisions = this.decisions;
+    this.orchestrator.projectOf = (cwd) => this.projectOf(resolve(cwd)).project?.id ?? null;
+    this.push.decisions = this.decisions;
+    this.health.decisions = this.decisions;
     this.healthMonitor = new HealthMonitor({
       runtime: this.runtime,
       health: this.health,
@@ -469,6 +526,7 @@ export class Core {
       chats: this.chats,
       sessions: this.sessions,
       runtime: this.runtime,
+      decisions: this.decisions,
       // A chat on a work item works in the item's worktree, cut from the project's checkout
       forkedFrom: (chatId) => {
         const itemId = this.workItems.linksOfChat(chatId).find((l) => l.kind === 'chat' && l.role !== 'origin')?.itemId;
@@ -496,6 +554,7 @@ export class Core {
       },
       emit: (event) => this.events.emit(event),
       linkState: (link) => this.workItemLinkState(link),
+      decisions: this.decisions,
     });
     this.documents = new DocumentService({
       items: this.workItems,
@@ -521,6 +580,7 @@ export class Core {
       db: this.db,
       emit: (event) => this.events.emit(event),
       item: itemRef,
+      decisions: this.decisions,
       sources: (id) =>
         this.workItems
           .links(id)
@@ -539,6 +599,7 @@ export class Core {
       },
       emit: (event) => this.events.emit(event),
       item: itemRef,
+      decisions: this.decisions,
     });
     this.pullRequests = new PullRequestService({
       db: this.db,
@@ -566,6 +627,13 @@ export class Core {
         conflictOf: (itemId) => this.pullRequests.conflictOf(itemId),
         settleConflict: (itemId) => this.pullRequests.settleConflict(itemId),
         verified: (itemId) => this.pullRequests.verified(itemId),
+        awaitingVerify: (itemId) => this.pullRequests.awaitingVerify(itemId),
+      },
+      decisions: this.decisions,
+      workDone: (item) => {
+        const path = this.projectStore.get(item.projectId)?.path;
+        const summary = path ? this.changes.itemChanges(path, item) : null;
+        return summary ? { commits: summary.commits.map((c) => c.subject), paths: summary.files.map((f) => f.path) } : null;
       },
       items: this.workItems,
       project: (id) => {
@@ -573,7 +641,7 @@ export class Core {
         const settings = record ? this.projectSettingsStore.stored(id, record.name) : null;
         return record && settings ? { path: record.path, settings } : null;
       },
-      handoff: (id) => this.journal.handoff(id).text,
+      handoff: async (id, topic) => (await this.journal.handoffFor(id, topic)).text,
       propose: (id, proposal, origin) => void this.memoryProposals.propose(id, proposal, origin),
       tie: async (itemId, document, options) => {
         await this.documents.tie(itemId, document, { ...options, requireFile: false });
@@ -611,6 +679,7 @@ export class Core {
         await this.resources.save(this.assistantScope(project, scope), kind, name, content);
       },
       emit: (event) => this.events.emit(event),
+      decisions: this.decisions,
     });
     this.events.observe((event) => this.assistant.observe(event));
     // Every result, not only a run's first: a chat worked on by hand ends many turns. The automation
@@ -1936,6 +2005,10 @@ export class Core {
   async workItemChanges(itemId: string, scope: ChangeScope = {}): Promise<WorkItemChanges> {
     const item = await this.workItemAccess(itemId, 'read');
     const path = this.projectStore.get(item.projectId)?.path ?? item.worktree ?? '';
+    // The scope-drift point flags in the background; the page never waits for it
+    if (!scope.commit && !scope.uncommitted) {
+      void this.changes.scopeDrift(path, item, { id: item.id, projectId: item.projectId, title: item.title, criteria: item.acceptanceCriteria.map((c) => c.text) });
+    }
     return { worktree: item.worktree, branch: item.branch, summary: this.changes.itemChanges(path, item, scope) };
   }
 
@@ -2000,6 +2073,8 @@ export class Core {
     this.cliVersion.stop();
     this.release.stop();
     this.healthMonitor.stop();
+    this.decisionResolvers.stop();
+    this.decisions.stop();
     this.orchestrator.close();
     this.schedules.close();
     this.sessionsWatcher.close();

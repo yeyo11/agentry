@@ -210,6 +210,10 @@
     "delete": "Could not delete the task"
   },
   "newTask": {
+    "triage": {
+      "filled": "Type and priority suggested",
+      "duplicate": "An open task may already cover this"
+    },
     "title": "New task",
     "into": "{{project}} · {{prefix}}",
     "project": "Project",

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
 import { ProposedWorkItemMeta } from '../../components/assistant/run';
+import { DecisionMark } from '../../components/DecisionMark';
 import { ICON, ICON_SM, WorkItemKey } from '../../components/icons';
 import { useToast } from '../../components/Toast';
 import { ModelTag, RoleAvatar, useRoleName } from '../team/RoleAvatar';
@@ -111,6 +112,7 @@ export function WorkItemProposalRow({ proposal, decide, phone }: { proposal: Ass
     <li className={rowClass(proposal, phone)} data-proposal={proposal.id} data-status={proposal.status}>
       <div className="suggestion-main">
         <span className="suggestion-title">{item.title}</span>
+        <DecisionMark subjectKind="assistant_run" subjectId={proposal.runId} />
         <ProposedWorkItemMeta item={item} />
         {proposal.reason && <p className="suggestion-reason">{proposal.reason}</p>}
       </div>

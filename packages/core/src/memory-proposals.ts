@@ -19,6 +19,7 @@ import {
 } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
 import type { Db } from './db.ts';
+import type { DecisionEngine } from './decisions/engine.ts';
 import type { AgentryEventInput } from './events.ts';
 import type { JournalService } from './journal.ts';
 import { JOURNAL_ENTRY_MAX } from './journal.ts';
@@ -56,7 +57,14 @@ export interface MemoryProposalServiceDeps {
   project: (projectId: string) => ProposalProject | null;
   emit?: (event: AgentryEventInput) => void;
   item?: (itemId: string) => WorkItemRef | null;
+  /** The decision engine, for `memory.triage`; without it the list stays in arrival order */
+  decisions?: Pick<DecisionEngine, 'ask' | 'effective'>;
 }
+
+/** How a triaged proposal is ordered: the higher its usefulness, the earlier the person sees it */
+const TRIAGE_RANK: Record<string, number> = { high: 3, medium: 2, low: 1, duplicate: 0 };
+const TRIAGE_TITLES_MAX = 40;
+const TRIAGE_TEXT_MAX = 300;
 
 /** Where a proposal came from: the member, its chat, its flow run and the item it worked on. */
 export interface ProposalOrigin {
@@ -112,7 +120,65 @@ export class MemoryProposalService {
     const rows = this.sql
       .prepare(`SELECT * FROM memory_proposals WHERE project_id = ?${params.length > 1 ? ' AND status = ?' : ''} ORDER BY seq DESC`)
       .all(...params) as unknown as ProposalRow[];
-    return rows.map((r) => this.proposalOf(r));
+    return this.triaged(projectId, rows).map((r) => this.proposalOf(r));
+  }
+
+  /**
+   * `memory.triage`, active: the pending proposals ordered by the usefulness the engine scored them,
+   * each in a place a pending proposal already had, so decided ones do not move. Only a suggestion:
+   * nothing is hidden, merged or decided by it.
+   */
+  private triaged(projectId: string, rows: ProposalRow[]): ProposalRow[] {
+    const engine = this.deps.decisions;
+    if (!engine) return rows;
+    const now = engine.effective('memory.triage', projectId);
+    if (now.mode !== 'active' || now.limited) return rows;
+    const scored = this.sql
+      .prepare("SELECT subject_id, answers FROM decisions WHERE point = 'memory.triage' AND project_id = ? AND acted = 1 ORDER BY seq")
+      .all(projectId) as unknown as Array<{ subject_id: string | null; answers: string | null }>;
+    const rank = new Map<string, number>();
+    for (const r of scored) {
+      try {
+        const level = (JSON.parse(r.answers ?? '{}') as Record<string, { value?: unknown }>).usefulness?.value;
+        if (r.subject_id && typeof level === 'string' && level in TRIAGE_RANK) rank.set(r.subject_id, TRIAGE_RANK[level] ?? 0);
+      } catch {
+        // An unreadable answer is an unscored proposal
+      }
+    }
+    const pending = rows.filter((r) => r.status === 'pending' && rank.has(r.id));
+    if (pending.length < 2) return rows;
+    // Stable: equal scores keep arrival order (newest first)
+    const ordered = [...pending].sort((a, b) => (rank.get(b.id) ?? 0) - (rank.get(a.id) ?? 0));
+    const queue = [...ordered];
+    return rows.map((r) => (r.status === 'pending' && rank.has(r.id) ? (queue.shift() ?? r) : r));
+  }
+
+  /**
+   * Asks `memory.triage` about a proposal that was just recorded. Never awaited by the proposer, and
+   * never a reason for it to fail: the row is written and the person decides it either way.
+   */
+  private triage(proposal: MemoryProposal): void {
+    const engine = this.deps.decisions;
+    if (!engine || engine.effective('memory.triage', proposal.projectId).mode === 'off') return;
+    void (async () => {
+      const project = this.deps.project(proposal.projectId);
+      const memory = project ? await this.deps.memory.list(project.memoryKey).catch(() => []) : [];
+      const journal = this.deps.journal.page(proposal.projectId, { limit: 20 }).entries;
+      await engine.ask(
+        'memory.triage',
+        {
+          kind: 'memory_proposal',
+          id: proposal.id,
+          data: {
+            proposal: proposal.text.slice(0, TRIAGE_TEXT_MAX * 2),
+            target: proposal.target.file ?? proposal.target.section ?? proposal.target.kind,
+            memoryTitles: memory.filter((f) => !f.isIndex).map((f) => f.description ?? f.name).slice(0, TRIAGE_TITLES_MAX),
+            journalTitles: journal.map((e) => e.text.split('\n')[0]?.slice(0, TRIAGE_TEXT_MAX) ?? ''),
+          },
+        },
+        { projectId: proposal.projectId },
+      );
+    })().catch(() => undefined);
   }
 
   find(proposalId: string): MemoryProposal | null {
@@ -150,6 +216,7 @@ export class MemoryProposalService {
     }
     const created = this.mustFind(id);
     this.announce(created, 'created');
+    this.triage(created);
     return created;
   }
 

@@ -197,6 +197,7 @@ The wrapper drives Claude **only through the CLI** — no SDK, no terminal scrap
 | Session history & projects | transcripts in `$CLAUDE_CONFIG_DIR/projects/*/*.jsonl` |
 | MCP servers | `claude mcp add-json` / `claude mcp remove` (user scope) |
 | Orchestration planner | `--json-schema` structured output |
+| Decision engine, `cli` provider | one housekeeping chat per batch of typed questions: `--json-schema` for the answers, `--effort`, `--max-budget-usd`, and no tools, settings or API token in it ([docs/decision-engine.md](docs/decision-engine.md)) |
 | Multiple accounts | [claude-swap](https://github.com/realiti4/claude-swap): `cswap list / switch / auto --json`, and `cswap run` for a run pinned to one account; an account with its own config directory runs `claude` with that `CLAUDE_CONFIG_DIR` |
 | Tool presets and per-chat MCP servers | `--allowedTools` / `--disallowedTools`, and `--mcp-config` with `--strict-mcp-config` over a file holding only the chosen servers |
 | Spending and time limits | `--max-budget-usd` for a cost limit; the time limit is Agentry's own clock |
@@ -765,6 +766,7 @@ event feed. Filters take comma-separated lists: `status`, `type`, `priority`, `l
 | GET | `/projects/:id/work-items/page?…&limit=&cursor=` | The same list a page at a time (100 by default, 500 at most): `{ items, total, nextCursor }` |
 | POST | `/projects/:id/work-items` | `{ title, type?, description?, status?, priority?, labels?, assignee?, epicId?, milestoneId?, acceptanceCriteria? }` — create one; it takes the next number of the project, never reused. Emits `workitem.created` |
 | GET | `/projects/:id/work-items/board?…&doneLimit=` | The five columns, each with its limit, its real count, whether it is over the limit, and the items that pass the filter in rank order, descriptions left out. Done holds its newest `doneLimit` items (20 by default) and `more` counts the rest |
+| POST | `/projects/:id/work-items/triage` | `{ title, description? }` — what `board.triage` would prefill for a draft: `{ triage: { type, priority, duplicate, decisionId } \| null }`, null unless the point is active and answered in time. Creates nothing |
 | POST | `/projects/:id/work-items/orchestrate` | `{ itemIds }` — a draft orchestration to review, not launched: one node per item, `dependsOn` from `blocks` inside the selection, and the blockers left outside it. `POST /orchestrations` launches it |
 | GET | `/projects/:id/milestones` | The project's milestones, each with its progress derived from its items |
 | POST | `/projects/:id/milestones` | `{ name, description? }` — create a milestone, open, with no date. Emits `milestone.changed` |
@@ -823,6 +825,28 @@ One Server-Sent Events stream for the whole app, so a client never has to poll.
 ```bash
 curl -N localhost:8787/api/events
 ```
+
+### Decisions
+
+The decision engine: a decision point puts typed questions to a provider (the Claude CLI, or TypeSafe's Jev with its own key) and runs today's behaviour whenever the answer is missing or below its threshold. Every point is off by default. A point sends nothing until the owner consents to it after previewing its state, and consent names the providers it covers. A chat's token gets `403` on the settings, credentials and consent routes.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/decisions/settings` | The global settings from `decisions.json`; the Jev key is never returned, only `keySet` and `keyHint` |
+| PUT | `/decisions/settings` | Replace them whole, validated. Consent is kept as it was. Not open to a chat's token |
+| PUT | `/decisions/credentials` | `{ key }` — save the Jev key (mode 600); the answer carries the general privacy notice. Not open to a chat's token |
+| DELETE | `/decisions/credentials` | Remove the key; points on `jev` fall back to off-behaviour. Not open to a chat's token |
+| POST | `/decisions/test` | `{ provider }` — one small fixed question: `{ ok, latencyMs, model, reason }`. Nothing is recorded |
+| GET | `/decisions/points` | The catalogue with the settings in force, optionally for `?projectId=` |
+| GET | `/decisions/points/:point/preview` | The exact state of the point's last request, or the fields it may carry, built locally and not sent |
+| PUT | `/decisions/points/:point/consent` | `{ granted, stateVersion, providers }` — grant or withdraw consent for what was previewed (`409` when the state changed since). Not open to a chat's token |
+| GET | `/decisions` | History, newest first, filtered by `point`, `projectId`, `subjectKind`, `subjectId`, `visible`, `provider`, `mode`, `status`, `since`, `until` and paged with `cursor` and `limit` |
+| DELETE | `/decisions` | Delete the rows matching the same filter (every row when none) |
+| GET | `/decisions/stats` | Per-point metrics plus Jev cost and Claude runs saved, over `?days=` (30) or `?since=` |
+| GET | `/decisions/:id` | One decision: state, questions, answers with probabilities, provider and outcome |
+| POST | `/decisions/:id/feedback` | `{ feedback: "useful" \| "not_useful" }` — the person's word on it |
+| DELETE | `/decisions/:id` | Delete one row |
+| POST | `/decisions/palette` | `{ query, commands: [{ id, title }] }` — the `palette.intent` point: `{ commandId, confidence, decisionId }`, with `commandId` null when the point is off, unavailable or unsure |
 
 ### Push
 

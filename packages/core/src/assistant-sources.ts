@@ -97,15 +97,34 @@ export function projectIsEmpty(path: string, facts: Pick<AssistantFacts, 'chats'
   return !entries(path).some(visible) && !facts.commits && !facts.chats;
 }
 
-/** The list as a run starts it: everything Agentry hands it is read, the directory is still to read. */
-export function initialSources(path: string, facts: AssistantFacts, empty: boolean): AssistantSource[] {
+/** The top-level files a run would be shown, in the order it is shown them, with their sizes: `assistant.sources` judges these. */
+export function topFiles(path: string): Array<{ name: string; bytes: number | null }> {
+  return entries(path)
+    .filter(visible)
+    .filter((e) => e.isFile() && !LOCK_FILE.test(e.name) && e.name !== 'CLAUDE.md')
+    .sort((a, b) => fileRank(a.name) - fileRank(b.name) || a.name.localeCompare(b.name))
+    .map((e) => {
+      try {
+        return { name: e.name, bytes: statSync(join(path, e.name)).size };
+      } catch {
+        return { name: e.name, bytes: null };
+      }
+    });
+}
+
+/**
+ * The list as a run starts it: everything Agentry hands it is read, the directory is still to read.
+ * `dropped` names top-level files `assistant.sources` judged the run will not need: they leave the
+ * list, and the room they held goes to the next files. A file the run then reads is listed anyway.
+ */
+export function initialSources(path: string, facts: AssistantFacts, empty: boolean, dropped: ReadonlySet<string> | null = null): AssistantSource[] {
   const sources: AssistantSource[] = [];
   const source = (s: Partial<AssistantSource> & Pick<AssistantSource, 'kind' | 'state'>): void => {
     sources.push({ path: null, count: null, total: null, unit: null, names: [], ...s });
   };
   const top = entries(path).filter(visible);
   // CLAUDE.md has an entry of its own below, as what the run is handed
-  const files = top.filter((e) => e.isFile() && !LOCK_FILE.test(e.name) && e.name !== 'CLAUDE.md').sort((a, b) => fileRank(a.name) - fileRank(b.name) || a.name.localeCompare(b.name));
+  const files = top.filter((e) => e.isFile() && !LOCK_FILE.test(e.name) && e.name !== 'CLAUDE.md' && !dropped?.has(e.name)).sort((a, b) => fileRank(a.name) - fileRank(b.name) || a.name.localeCompare(b.name));
   for (const f of files.slice(0, FILES_MAX)) source({ kind: 'file', path: f.name, state: 'pending', count: lines(join(path, f.name)), unit: 'lines' });
   const dirs = top.filter((e) => e.isDirectory()).sort((a, b) => a.name.localeCompare(b.name));
   for (const d of dirs.slice(0, DIRS_MAX)) {

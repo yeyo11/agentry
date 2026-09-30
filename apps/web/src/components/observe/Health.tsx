@@ -7,6 +7,7 @@ import { api } from '../../api';
 import { cancellable, healthWord, type HealthWord } from '../../lib/observe';
 import { healthReason, signalHint, signalReason } from '../../lib/server-strings';
 import { Tooltip } from '../controls/Tooltip';
+import { DecisionMark } from '../DecisionMark';
 import { useConfirm } from '../Dialog';
 import { ICON_SM } from '../icons';
 import { useToast } from '../Toast';
@@ -77,6 +78,7 @@ function ProposalRow({
       <div className="obs-signal-line">
         <Lightbulb {...ICON_SM} />
         <span className="strong">{t('observe:supervisor.proposes')}</span>
+        <DecisionMark subjectKind="chat" subjectId={proposal.chatId} />
       </div>
       <p className="small break obs-proposal-text">{proposal.hint}</p>
       {!editing && (

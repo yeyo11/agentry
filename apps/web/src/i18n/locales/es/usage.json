@@ -81,5 +81,12 @@
     "label": "{{metric}} · {{range}}",
     "pick": "Ver otra cifra en la gráfica",
     "peak": "pico {{value}} · {{period}}"
+  },
+  "decisions": {
+    "label": "Decisiones",
+    "jev": "Jev {{cost}}",
+    "saved_one": "{{count}} ejecución de Claude ahorrada",
+    "saved_other": "{{count}} ejecuciones de Claude ahorradas",
+    "history": "Ver el historial"
   }
 }

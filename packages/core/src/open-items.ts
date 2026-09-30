@@ -59,15 +59,18 @@ const NEXT_STEPS = [
 const TO_THE_PERSON = /\b(you|your|should i|shall i|can i|may i|do i)\b/i;
 
 /** The last paragraph of a text, where it asks or announces something. */
-function tailOf(text: string): string {
+export function tailOf(text: string): string {
   const trimmed = text.trim();
   const end = trimmed.slice(-TAIL_CHARS);
   const paragraphs = end.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
   return paragraphs.at(-1) ?? '';
 }
 
-/** Each thing the run still owes, as a sentence addressed to it; empty when nothing is open. */
-export function openItems(input: OpenItemsInput): string[] {
+/**
+ * What the run owes that is a fact: no structured result to read, paths nobody committed. Code
+ * always decides these; no decision point can waive them.
+ */
+export function structuralItems(input: Omit<OpenItemsInput, 'finalText'>): string[] {
   const items: string[] = [];
   if (input.schema && !input.structured) items.push('You have not returned the structured result this run asks for. Finish the work, then return it.');
   if (input.uncommitted.length) {
@@ -77,7 +80,16 @@ export function openItems(input: OpenItemsInput): string[] {
       `These paths have changes that are not committed: ${named.join(', ')}${more > 0 ? `, and ${String(more)} more` : ''}. Commit what belongs to the work on this branch, and restore what does not.`,
     );
   }
-  const last = tailOf(input.finalText);
+  return items;
+}
+
+/**
+ * What the last paragraph of the final text says is still owed, read off a phrase list. This is the
+ * part the `run.continuation` decision point can replace; {@link structuralItems} is not.
+ */
+export function phraseItems(finalText: string): string[] {
+  const items: string[] = [];
+  const last = tailOf(finalText);
   if (last) {
     if (OFFERS.some((re) => re.test(last))) {
       items.push('Your last message offers to continue instead of continuing. Nobody will answer it: carry on with the work.');
@@ -87,6 +99,14 @@ export function openItems(input: OpenItemsInput): string[] {
     if (NEXT_STEPS.some((re) => re.test(last))) items.push('Your last message announces a next step without taking it. Take it now.');
   }
   return items;
+}
+
+/** The item a decision adds when it says work is owed and no phrase of the list caught it */
+export const OWES_WORK_ITEM = 'Your last message says work is still owed without doing it. Do it now.';
+
+/** Each thing the run still owes, as a sentence addressed to it; empty when nothing is open. */
+export function openItems(input: OpenItemsInput): string[] {
+  return [...structuralItems(input), ...phraseItems(input.finalText)];
 }
 
 /**

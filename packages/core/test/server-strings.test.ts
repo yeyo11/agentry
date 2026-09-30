@@ -25,10 +25,12 @@ const REASON_CODES = [
   'health.loop.command',
   'health.loop.call',
   'health.loop.error',
+  'health.loop.semantic',
   'health.weakenedTest.assertionsRemoved',
   'health.weakenedTest.skipped',
   'health.weakenedTest.tautology',
   'health.weakenedTest.weakMatchers',
+  'health.weakenedTest.judged',
   'health.noProgress',
   'health.budget.timeNear',
   'health.budget.timePast',
@@ -141,7 +143,9 @@ test('every health text has a code, and the code with its params says the same t
     for (const value of Object.values(signal.params ?? {})) assert.ok(typeof value === 'number' ? Number.isFinite(value) : value.length > 0, code);
   }
   // Every sentence of the catalogue is one a rule really says: a code no rule uses is a dead key
-  assert.deepEqual([...reasons].sort(), REASON_CODES.filter((c) => c !== 'health.ok').sort());
+  // (the two the decision engine raises are the exception: no rule says them)
+  const byEngine = ['health.ok', 'health.loop.semantic', 'health.weakenedTest.judged'];
+  assert.deepEqual([...reasons].sort(), REASON_CODES.filter((c) => !byEngine.includes(c)).sort());
   assert.deepEqual([...hints].sort(), [...HINT_CODES].sort());
 });
 

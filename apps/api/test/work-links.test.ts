@@ -265,6 +265,19 @@ test('an epic is not worked on directly, and a project with its board off refuse
   await app.inject({ method: 'DELETE', url: `/api/projects/${other.id}` });
 });
 
+// ---------- board.triage ----------
+
+test('triage answers null while the point is off, refuses a draft without a title, and asks nothing of a board that is off', async () => {
+  const off = await app.inject({ method: 'POST', url: `/api/projects/${project.id}/work-items/triage`, ...json({ title: 'Fix the login redirect' }) });
+  assert.equal(off.statusCode, 200, off.body);
+  assert.deepEqual(off.json(), { triage: null });
+  assert.equal((await app.inject({ method: 'POST', url: `/api/projects/${project.id}/work-items/triage`, ...json({ title: '  ' }) })).statusCode, 400);
+
+  const other = (await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: repoWithCommit(), name: 'Triage off', modules: [] }) })).json<Project>();
+  assert.equal((await app.inject({ method: 'POST', url: `/api/projects/${other.id}/work-items/triage`, ...json({ title: 'Anything' }) })).statusCode, 409);
+  await app.inject({ method: 'DELETE', url: `/api/projects/${other.id}` });
+});
+
 // ---------- orchestrate a selection ----------
 
 test('a selection becomes a draft, and launching it makes each item follow its node', async () => {

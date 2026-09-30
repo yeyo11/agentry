@@ -29,6 +29,7 @@
 @import './styles/suggestion.css';
 @import './styles/documents.css';
 @import './styles/editors.css';
+@import './styles/decisions.css';
 @import './styles/suggest.css';
 @import './styles/diff.css';
 @import './styles/overlays.css';

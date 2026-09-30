@@ -133,6 +133,7 @@ the result.
 | Templates | `orchestration-templates.ts` | template tasks | none of its own: a template stores a spec, and its tasks run as workers | the template's model |
 | Workflow lead | `orchestrator.ts` · `launchWorkflow`; the script from `workflow-engine.ts` · `compileWorkflow` | workflow lead session | first prompt; the script's `agent()` prompts | the graph's model |
 | Supervisor | `supervisor.ts` · `supervisorPrompt` | supervisor run (housekeeping) | first prompt | `haiku` (`DEFAULT_SUPERVISOR`) |
+| Decision (cli provider) | `decisions/providers/cli.ts` · `decisionPrompt`, `decisionSchema` | one housekeeping chat per batch of questions, one turn, no tools | first prompt, `--json-schema`, `--effort`, `--max-budget-usd`, `--restricted --tools= --setting-sources=` | `haiku` (`cli.model`), effort `low` |
 | Work on it | `work-links.ts` · `workItemPrompt(item)` (mode `chat`) | a person's chat from a work item | first prompt | the chat's model |
 | Orchestration draft of work items | `work-links.ts` · `orchestrationDraft` → `workItemPrompt(item, 'task')` | becomes each node's task prompt | — | the draft's |
 | Team agent files | `team.ts` · `agentFileContent`; `assistant.ts` · `memberFile` | `.claude/agents/*.md` body | a file the CLI reads (`--agents`) | the member's model |
@@ -298,6 +299,27 @@ explicitly ask you to run this workflow" is kept, because the CLI's tool asks fo
 
 Points 2, 3 and 5–12 are n/a: it is a one-shot hint on `haiku`.
 
+### Decision, `cli` provider (`decisionPrompt`)
+
+The prompt is: one line asking for one answer per question in the structured result, `PASTED_NOTE`,
+the point's state in one `pasted()` block, the questions with their options or levels, and
+`thinkThrough(model)`.
+
+1. The schema (`decisionSchema`) has an enum per choice or score and a boolean per yes/no, and no
+   `reason` or `explanation` field. The prompt never asks for written reasoning.
+2. No "think carefully" or "step by step". `thinkThrough` is point 7's sentence, not a stage list.
+3. n/a: one turn, so it carries neither `UNATTENDED` nor a continuation, and `openItems` is never
+   applied to it. A result without a readable `structured_output` is `unavailable: 'invalid-answer'`.
+4. The state is redacted and wrapped, and `PASTED_NOTE` is present. Both providers get the same
+   wrapped text.
+7. A Sonnet model is told "Think the problem through before you answer."; Haiku, the default, is
+   told nothing. A stop on `max_tokens` is `unavailable: 'max-tokens'`, even when the JSON parses.
+8. The chat is started with no tool at all (`--tools=`), so there is nothing to discourage.
+
+Points 5, 6 and 9–12 are n/a: it neither writes code nor works over several turns. It gets no
+`AGENTRY_API_URL` or `AGENTRY_API_TOKEN`, so it cannot call back. See
+[decision-engine.md](decision-engine.md).
+
 ### Work on it (`workItemPrompt(item)`, mode `chat`)
 
 3. n/a: it is a person's own chat.
@@ -359,9 +381,12 @@ line belongs in CW-12, in `prompt-rules.ts` beside the others.
   a planner cut by `max_tokens` whose stop reason came from stream-json.
 - `assistant.test.ts`: the `max_tokens` failure, `THINK_THROUGH` both ways, the model
   recommendation sentence, and what is wrapped.
+- `decisions/providers/cli` tests: the prompt's `pasted()` block and note, `thinkThrough` on Sonnet
+  only, the schema without a reason field, and the `max-tokens`, `rate-limited` and `invalid-answer`
+  outcomes over the fake CLI.
 - `supervisor`, `journal`, `team`, `work-links` and `workflow-engine` tests pin their wrapping and
   texts.
 
 ## Related
 
-[[team-and-flow.md]] · [[assistant.md]] · [[plans/orchestration-speed.md]] · [[plans/verify-faster.md]] · [[plans/agentry-assistant.md]] · [[design-system.md]]
+[[decision-engine.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/orchestration-speed.md]] · [[plans/verify-faster.md]] · [[plans/agentry-assistant.md]] · [[design-system.md]]

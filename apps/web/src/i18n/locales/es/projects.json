@@ -235,5 +235,24 @@
     "refine": "refinar",
     "work": "implementar",
     "verify": "verificar"
+  },
+  "decisions": {
+    "title": "Decisiones",
+    "intro": "Qué decide Agentry por ti en este proyecto. Cada punto hereda el ajuste global hasta que lo cambias aquí; el consentimiento sigue siendo global.",
+    "saved": "Decisiones guardadas",
+    "provider": "Proveedor",
+    "providerLabel": "Proveedor de las decisiones del proyecto",
+    "inherit": "Heredar · {{provider}}",
+    "inheritShort": "Heredar",
+    "jevAvailable": "Jev está disponible: hay una clave global guardada.",
+    "jevNeedsKey": "Jev necesita una clave: guarda una en Ajustes → Decisiones.",
+    "groupCount_one": "{{n}} punto · {{differing}} distinto del global",
+    "groupCount_other": "{{n}} puntos · {{differing}} distintos del global",
+    "inherited": "Heredado",
+    "global": "global: {{mode}}",
+    "useGlobal": "Usar la global",
+    "summaryInherited": "heredado",
+    "summaryDiffering_one": "{{n}} distinto",
+    "summaryDiffering_other": "{{n}} distintos"
   }
 }

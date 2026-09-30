@@ -11,6 +11,8 @@ import type {
   CreateWorkItemRequest,
   MoveWorkItemRequest,
   OrchestrateWorkItemsRequest,
+  TriageWorkItemRequest,
+  TriageWorkItemResult,
   UpdateMilestoneRequest,
   UpdateWorkItemRequest,
   WorkItemFilter,
@@ -135,6 +137,15 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
   app.post<{ Params: { id: string }; Body: CreateWorkItemRequest }>('/projects/:id/work-items', async (req, reply) => {
     await core.workItemProject(req.params.id, 'write');
     return reply.status(201).send(core.workItems.create(req.params.id, bodyOf(req.body)));
+  });
+
+  // `board.triage` for a draft being typed: a prefill for the form and a duplicate warning, or null
+  app.post<{ Params: { id: string }; Body: TriageWorkItemRequest }>('/projects/:id/work-items/triage', async (req): Promise<TriageWorkItemResult> => {
+    await core.workItemProject(req.params.id, 'write');
+    const { title, description } = bodyOf(req.body);
+    if (typeof title !== 'string' || title.trim() === '') throw new Error('title must be a non-empty string');
+    if (description !== undefined && typeof description !== 'string') throw new Error('description must be a string');
+    return { triage: await core.workItems.triage(req.params.id, { title, ...(description === undefined ? {} : { description }) }) };
   });
 
   app.get<{ Params: { id: string }; Querystring: BoardQueryString }>('/projects/:id/work-items/board', async (req) => {

@@ -53,7 +53,8 @@ import {
   type AssistantLanguage,
 } from './assistant-answer.ts';
 import { resourceDraft } from './assistant-draft.ts';
-import { addReads, initialSources, NO_READS, projectIsEmpty, projectPath, sameReads, sourcesOf, type AssistantFacts, type AssistantReads, type ReadingNow } from './assistant-sources.ts';
+import type { DecisionEngine } from './decisions/engine.ts';
+import { addReads, initialSources, NO_READS, projectIsEmpty, projectPath, sameReads, sourcesOf, topFiles, type AssistantFacts, type AssistantReads, type ReadingNow } from './assistant-sources.ts';
 import type { Db } from './db.ts';
 import type { AgentryEventInput } from './events.ts';
 import { projectTemplate } from './project-templates.ts';
@@ -153,7 +154,13 @@ export interface AssistantDeps {
   resourceExists(project: AssistantProject, scope: ConfigScopeKind, kind: AssistantResourceKind, name: string): Promise<boolean>;
   saveResource(project: AssistantProject, scope: ConfigScopeKind, kind: AssistantResourceKind, name: string, content: string): Promise<void>;
   emit(event: AgentryEventInput): void;
+  /** The decision engine, for `assistant.sources` and `assistant.rerank`; without it both are today's behaviour */
+  decisions?: Pick<DecisionEngine, 'ask' | 'effective'>;
 }
+
+/** The order an assistant proposal is shown in within its kind, by the value the engine scored it */
+const RERANK_RANK: Record<string, number> = { key: 3, useful: 2, minor: 1, covered: 0 };
+const SUMMARY_MAX = 300;
 
 /** What a run's chat ended with, as the runtime reports it. */
 export interface AssistantChatResult {
@@ -364,7 +371,7 @@ export class AssistantService {
     );
     const known = await this.deps.known(project);
     const empty = projectIsEmpty(project.path, known.facts);
-    const base = initialSources(project.path, known.facts, empty);
+    const base = initialSources(project.path, known.facts, empty, empty ? null : await this.unneededFiles(projectId, project.path, request));
     const offered = templateOffered(project.settings);
     // With nothing to read and nothing described there is nothing to ask a model: the template's team
     // is offered as it is, and a description is asked for before anything else is proposed
@@ -737,7 +744,92 @@ export class AssistantService {
       completed = true;
       this.insertAnswer(row, answer, project, now);
     });
-    if (completed) this.ended(row.id);
+    // Read before `ended` forgets it: what the project already has is what a proposal can be covered by
+    const covered = { known: this.knownResources.get(row.id), settings: project };
+    if (completed) {
+      this.ended(row.id);
+      this.rerank(row.id, row.project_id, covered.known, covered.settings);
+    }
+  }
+
+  /**
+   * `assistant.sources`: the top-level files the run will not need to read, which leave the list it
+   * is shown. One question per file, on names and sizes only. Nothing is dropped unless the engine
+   * acts (active, every answer above the threshold); the run keeps its own tools either way.
+   */
+  private async unneededFiles(projectId: string, path: string, request: { description: string | null; focus: string | null; kind: string }): Promise<ReadonlySet<string> | null> {
+    const engine = this.deps.decisions;
+    if (!engine || engine.effective('assistant.sources', projectId).mode === 'off') return null;
+    try {
+      const files = topFiles(path);
+      if (files.length < 2) return null;
+      const outcome = await engine.ask(
+        'assistant.sources',
+        {
+          kind: 'assistant_run',
+          id: null,
+          data: { brief: (request.description ?? request.focus ?? request.kind).slice(0, SUMMARY_MAX * 2), files: files.map((f) => ({ id: f.name, name: f.name, bytes: f.bytes })) },
+        },
+        { projectId },
+      );
+      if (!outcome.act || !outcome.answers) return null;
+      const answers = outcome.answers;
+      const dropped = files.filter((f) => {
+        const a = answers[f.name];
+        return a?.kind === 'noul' && !a.value;
+      });
+      return dropped.length ? new Set(dropped.map((f) => f.name)) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * `assistant.rerank`: asks how valuable each proposal of a finished run is, and when the engine
+   * acts, moves the better ones up inside their kind. Only the order changes: every proposal stays,
+   * still pending, for the person to accept or discard. Never awaited and never a failure of the run.
+   */
+  private rerank(runId: string, projectId: string, known: Record<AssistantResourceKind, string[]> | undefined, settings: ProjectSettings | null): void {
+    const engine = this.deps.decisions;
+    if (!engine || engine.effective('assistant.rerank', projectId).mode === 'off') return;
+    void (async () => {
+      const rows = this.sql.prepare("SELECT * FROM assistant_proposals WHERE run_id = ? AND status = 'pending' ORDER BY seq").all(runId) as unknown as ProposalRow[];
+      if (rows.length < 2) return;
+      const proposals = rows.map((r) => this.proposalOf(r)).map((p) => ({
+        id: p.id,
+        kind: p.kind,
+        title: p.kind === 'team-member' ? roleTitle(p.member.role) : p.kind === 'resource' ? p.resource.name : p.workItem.title,
+        summary: p.reason.slice(0, SUMMARY_MAX),
+      }));
+      const outcome = await engine.ask(
+        'assistant.rerank',
+        {
+          kind: 'assistant_run',
+          id: runId,
+          data: {
+            proposals,
+            agents: known?.agents ?? [],
+            skills: known?.skills ?? [],
+            commands: known?.commands ?? [],
+            members: (settings?.team?.members ?? []).map((m) => m.role),
+          },
+        },
+        { projectId },
+      );
+      if (!outcome.act || !outcome.answers) return;
+      const answers = outcome.answers;
+      const rank = (id: string): number => {
+        const a = answers[id];
+        return a?.kind === 'score' ? (RERANK_RANK[a.value] ?? 1) : 1;
+      };
+      this.write(() => {
+        for (const kind of ASSISTANT_PROPOSAL_KINDS) {
+          const ofKind = rows.filter((r) => r.kind === kind).sort((a, b) => rank(b.id) - rank(a.id) || a.position - b.position);
+          ofKind.forEach((r, i) => this.sql.prepare('UPDATE assistant_proposals SET position = ? WHERE id = ?').run(i, r.id));
+        }
+      });
+      this.announce(runId, 'ended');
+    })().catch(() => undefined);
   }
 
   /** The proposals of an answer, leaving out what the project already has. */
