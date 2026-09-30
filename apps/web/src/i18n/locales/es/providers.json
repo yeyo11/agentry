@@ -64,5 +64,70 @@
       "install": "Ver cómo instalar Claude Code",
       "others": "O elige otro"
     }
+  },
+  "tab": "Proveedores",
+  "intro": "Los agentes de programación que Agentry encuentra en este equipo. Si instalas uno o inicias sesión en una terminal, esta lista se actualiza sola.",
+  "checkedAgo": "Comprobado {{time}}",
+  "notChecked": "Sin comprobar todavía",
+  "refresh": "Volver a comprobar",
+  "refreshFailed": "No se han podido comprobar los proveedores",
+  "loadFailed": "No se han podido leer los proveedores",
+  "saveFailed": "No se han podido guardar los proveedores",
+  "list": {
+    "title": "Proveedores",
+    "aria": "Proveedores",
+    "total_one": "{{count}} proveedor",
+    "total_other": "{{count}} proveedores",
+    "ready_one": "{{count}} listo",
+    "ready_other": "{{count}} listos"
+  },
+  "default": {
+    "title": "Proveedor predeterminado",
+    "hint": "Lo usan los chats nuevos. Con «Automático» es el primero que esté listo, en el orden de esta lista: arrastra por el asa para cambiarlo.",
+    "hintPhone": "Lo usan los chats nuevos. Sube o baja un proveedor para cambiar el orden.",
+    "auto": "Automático (el primero listo)",
+    "autoShort": "Automático",
+    "autoHint": "El primero listo, en este orden",
+    "autoRow": "Automático, el primero listo",
+    "rowFor": "{{name}} como predeterminado",
+    "cell": "Predeterminado y orden",
+    "position": "{{name}} · {{position}}.º de {{total}}",
+    "autoPosition": "Automático · el primero listo",
+    "positionState": "{{position}}.º · {{state}}",
+    "sheetTitle": "Predeterminado y orden",
+    "group": "Proveedor predeterminado"
+  },
+  "order": {
+    "handle": "Mover {{name}}. Usa las flechas arriba y abajo para cambiar su lugar.",
+    "up": "Subir {{name}}",
+    "down": "Bajar {{name}}"
+  },
+  "enable": {
+    "on": "Desactivar {{name}}",
+    "off": "Activar {{name}}",
+    "label": "Activado"
+  },
+  "bin": {
+    "title": "Binario de {{name}}",
+    "path": "Ruta del binario de {{name}}",
+    "placeholder": "/ruta/a/{{id}}",
+    "hint": "Agentry usa este programa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que está dentro del rango probado ({{range}}).",
+    "hintNoRange": "Agentry usa este programa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que funciona.",
+    "check": "Comprobar y guardar",
+    "checking": "Comprobando…",
+    "cancel": "Cancelar",
+    "usePath": "Usar el del PATH",
+    "rejected": "No se ha guardado. {{reason}}",
+    "saved": "Binario de {{name}} guardado",
+    "cleared": "{{name}} usa ahora el del PATH"
+  },
+  "sheet": {
+    "save": "Guardar",
+    "cancel": "Cancelar"
+  },
+  "statusbar": {
+    "version": "versión {{version}}",
+    "checking": "Comprobando agentes…",
+    "none": "Ningún agente detectado"
   }
 }

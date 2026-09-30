@@ -37,7 +37,7 @@ export default async ({ page, api, check, dirs }) => {
     );
     const status = await page.eval(`const s = document.querySelector('.statusbar'); if (!s) return null; const r = s.getBoundingClientRect(); return { height: r.height, bottom: r.bottom, text: s.innerText }`);
     check(status !== null && Math.round(status.height) === 30 && Math.abs(status.bottom - 900) <= 1, `the status bar is 30px at the bottom (${JSON.stringify(status)})`);
-    check(/Claude Code|CLI not detected|Not logged in|Connecting|unreachable/.test(status?.text ?? ''), `the status bar says the connection or the CLI (${status?.text})`);
+    check(/Claude Code|Codex|Checking agents|No agent detected|signed out|Connecting|unreachable/.test(status?.text ?? ''), `the status bar says the connection or the agents (${status?.text})`);
     check((await page.text('.topbar-new .split-btn-main')).trim() === 'New chat', 'the primary action is New chat');
 
     await openNewMenu(page);

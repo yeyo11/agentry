@@ -64,5 +64,70 @@
       "install": "See how to install Claude Code",
       "others": "Or pick another"
     }
+  },
+  "tab": "Providers",
+  "intro": "The coding agents Agentry finds on this machine. If you install one or sign in from a terminal, this list updates on its own.",
+  "checkedAgo": "Checked {{time}}",
+  "notChecked": "Not checked yet",
+  "refresh": "Check again",
+  "refreshFailed": "Could not check the providers",
+  "loadFailed": "Could not read the providers",
+  "saveFailed": "Could not save the providers",
+  "list": {
+    "title": "Providers",
+    "aria": "Providers",
+    "total_one": "{{count}} provider",
+    "total_other": "{{count}} providers",
+    "ready_one": "{{count}} ready",
+    "ready_other": "{{count}} ready"
+  },
+  "default": {
+    "title": "Default provider",
+    "hint": "New chats use it. With “Automatic” it is the first one that is ready, in the order of this list: drag the handle to change the order.",
+    "hintPhone": "New chats use it. Move a provider up or down to change the order.",
+    "auto": "Automatic (the first ready)",
+    "autoShort": "Automatic",
+    "autoHint": "The first ready, in this order",
+    "autoRow": "Automatic, the first ready",
+    "rowFor": "{{name}} as default",
+    "cell": "Default and order",
+    "position": "{{name}} · {{position}} of {{total}}",
+    "autoPosition": "Automatic · the first ready",
+    "positionState": "{{position}} · {{state}}",
+    "sheetTitle": "Default and order",
+    "group": "Default provider"
+  },
+  "order": {
+    "handle": "Move {{name}}. Use the up and down arrows to change its place.",
+    "up": "Move {{name}} up",
+    "down": "Move {{name}} down"
+  },
+  "enable": {
+    "on": "Turn off {{name}}",
+    "off": "Turn on {{name}}",
+    "label": "On"
+  },
+  "bin": {
+    "title": "{{name}} binary",
+    "path": "Path of the {{name}} binary",
+    "placeholder": "/path/to/{{id}}",
+    "hint": "Agentry uses this program instead of searching the PATH. Before saving it, it reads its version and checks it is inside the tested range ({{range}}).",
+    "hintNoRange": "Agentry uses this program instead of searching the PATH. Before saving it, it reads its version and checks it works.",
+    "check": "Check and save",
+    "checking": "Checking…",
+    "cancel": "Cancel",
+    "usePath": "Use the one on PATH",
+    "rejected": "Not saved. {{reason}}",
+    "saved": "{{name}} binary saved",
+    "cleared": "{{name}} now uses the one on PATH"
+  },
+  "sheet": {
+    "save": "Save",
+    "cancel": "Cancel"
+  },
+  "statusbar": {
+    "version": "version {{version}}",
+    "checking": "Checking agents…",
+    "none": "No agent detected"
   }
 }
