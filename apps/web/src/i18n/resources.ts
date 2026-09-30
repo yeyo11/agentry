@@ -17,6 +17,7 @@ import enOrchestrationDetail from './locales/en/orchestrationDetail.json';
 import enOrchestrationV2 from './locales/en/orchestrationV2.json';
 import enPrimitives from './locales/en/primitives.json';
 import enProjects from './locales/en/projects.json';
+import enProviders from './locales/en/providers.json';
 import enSchedules from './locales/en/schedules.json';
 import enServer from './locales/en/server.json';
 import enShell from './locales/en/shell.json';
@@ -44,6 +45,7 @@ import esOrchestrationDetail from './locales/es/orchestrationDetail.json';
 import esOrchestrationV2 from './locales/es/orchestrationV2.json';
 import esPrimitives from './locales/es/primitives.json';
 import esProjects from './locales/es/projects.json';
+import esProviders from './locales/es/providers.json';
 import esSchedules from './locales/es/schedules.json';
 import esServer from './locales/es/server.json';
 import esShell from './locales/es/shell.json';
@@ -67,6 +69,7 @@ export const en = {
   chats: enChats,
   home: enHome,
   projects: enProjects,
+  providers: enProviders,
   orchestration: enOrchestration,
   orchestrationDetail: enOrchestrationDetail,
   observe: enObserve,
@@ -102,6 +105,7 @@ export const es = {
   chats: esChats,
   home: esHome,
   projects: esProjects,
+  providers: esProviders,
   orchestration: esOrchestration,
   orchestrationDetail: esOrchestrationDetail,
   observe: esObserve,

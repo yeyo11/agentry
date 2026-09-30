@@ -1,0 +1,42 @@
+{
+  "state": {
+    "ready": "Ready",
+    "degraded": "Warnings",
+    "signed-out": "Signed out",
+    "incompatible": "Incompatible",
+    "used-before": "Used before",
+    "not-installed": "Not installed",
+    "unknown": "Not checked",
+    "disabled": "Off",
+    "checking": "Checking"
+  },
+  "readyReason": "Installed, signed in and answering.",
+  "reason": {
+    "missing-credentials": "Installed, but not signed in.",
+    "stale-token": "Its sign-in has expired. Sign in again.",
+    "version-below-range": "It works, but {{version}} is older than the versions Agentry has been tested with ({{range}}).",
+    "version-above-range": "{{version}} is newer than what Agentry knows how to use ({{range}}). Install an earlier one and choose it here.",
+    "version-unreadable": "Its version could not be read, so Agentry cannot tell whether it is compatible.",
+    "probe-timeout": "It could not be checked: it did not answer in time.",
+    "spawn-denied": "This system does not let Agentry run the program. Check its permissions.",
+    "spawn-failed": "The program was found but would not start.",
+    "binary-not-found": "There is no trace of {{label}} on this machine.",
+    "config-home-only": "There is configuration in {{home}}, but the program cannot be found.",
+    "missing-required-command": "A command it needs is missing on this machine.",
+    "unsupported-platform": "It does not run on this operating system.",
+    "handshake-failed": "It started but did not answer the way Agentry expects.",
+    "no-probe": "Agentry cannot check this one yet.",
+    "disabled": "It is not searched for or checked while it is off."
+  },
+  "row": {
+    "default": "Default",
+    "noAccount": "No account",
+    "checking": "Reading the version and the sign-in…",
+    "signIn": "Sign in",
+    "install": "Install",
+    "update": "Update",
+    "chooseBinary": "Choose binary",
+    "retry": "Retry",
+    "opensNewTab": "opens in a new tab"
+  }
+}

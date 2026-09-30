@@ -296,8 +296,8 @@ export function targetsFor(event: AgentryEvent): Target[] {
       // Reading it back costs nothing: the server answers from release.json, not from GitHub
       return [[keys.release, NOW]];
     case 'providers.changed':
-      // No page reads providers yet; the providers page will name its query here
-      return [];
+      // The statuses and the settings share the ['providers'] prefix; a status change is what the event carries
+      return [[keys.providers, NOW]];
     case 'project.created':
     case 'project.removed':
       // The projects' lists, and the All projects views, which take a project's items in or leave them out

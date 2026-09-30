@@ -1,0 +1,42 @@
+{
+  "state": {
+    "ready": "Listo",
+    "degraded": "Con avisos",
+    "signed-out": "Sin sesión",
+    "incompatible": "Incompatible",
+    "used-before": "Usado antes",
+    "not-installed": "No instalado",
+    "unknown": "Sin comprobar",
+    "disabled": "Desactivado",
+    "checking": "Comprobando"
+  },
+  "readyReason": "Instalado, con sesión iniciada y respondiendo.",
+  "reason": {
+    "missing-credentials": "Instalado, pero sin sesión iniciada.",
+    "stale-token": "Su sesión ha caducado. Inicia sesión de nuevo.",
+    "version-below-range": "Funciona, pero la {{version}} es anterior a las versiones con las que Agentry se ha probado ({{range}}).",
+    "version-above-range": "La {{version}} es más nueva de lo que Agentry sabe usar ({{range}}). Instala una anterior y elígela aquí.",
+    "version-unreadable": "No se ha podido leer su versión, así que Agentry no sabe si es compatible.",
+    "probe-timeout": "No se ha podido comprobar: no ha respondido a tiempo.",
+    "spawn-denied": "El sistema no deja que Agentry ejecute el programa. Revisa sus permisos.",
+    "spawn-failed": "Se ha encontrado el programa, pero no arranca.",
+    "binary-not-found": "No hay rastro de {{label}} en este equipo.",
+    "config-home-only": "Hay configuración en {{home}}, pero no se encuentra el programa.",
+    "missing-required-command": "Falta en este equipo un comando que necesita.",
+    "unsupported-platform": "No funciona en este sistema operativo.",
+    "handshake-failed": "Ha arrancado, pero no responde como Agentry espera.",
+    "no-probe": "Agentry todavía no puede comprobar este proveedor.",
+    "disabled": "No se busca ni se comprueba mientras esté desactivado."
+  },
+  "row": {
+    "default": "Predeterminado",
+    "noAccount": "Sin cuenta",
+    "checking": "Leyendo la versión y la sesión…",
+    "signIn": "Iniciar sesión",
+    "install": "Instalar",
+    "update": "Actualizar",
+    "chooseBinary": "Elegir binario",
+    "retry": "Reintentar",
+    "opensNewTab": "se abre en una pestaña nueva"
+  }
+}
