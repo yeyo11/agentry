@@ -125,7 +125,7 @@
       "review": "Review",
       "notifications": "Notifications",
       "palette": "Palette",
-    "other": "Other"
+      "other": "Other"
     }
   },
   "supervisor": {
@@ -134,6 +134,127 @@
   "sections": {
     "engine": "Engine",
     "points": "Decision points",
-    "supervisor": "Supervisor"
+    "supervisor": "Supervisor",
+    "history": "History"
+  },
+  "consent": {
+    "title": "Before moving to {{mode}}",
+    "leavesTitle": "This content leaves your machine",
+    "leavesBody": "It goes to an external TypeSafe service ({{host}}) with your key. Jev keeps nothing only on the enterprise plan. If the shape of the state changes, Agentry asks you again.",
+    "staysTitle": "Nothing leaves your machine",
+    "staysBody": "With the Claude Code CLI the question is asked in an internal chat with your account, like the rest of your chats. What you see below is what that chat reads.",
+    "stateLast": "Exact state of the last request",
+    "stateBuilt": "What this point would send",
+    "stateLabel": "State that is sent",
+    "builtHint": "Nothing has been sent yet: this is built here, field by field, with the values empty.",
+    "goesTo": "Goes to",
+    "goesToJev": "Jev · {{host}}",
+    "goesToCli": "this machine (internal CLI chat)",
+    "size": "Size",
+    "sizeValue": "{{size}} · ≈ {{tokens}} tokens",
+    "version": "State version",
+    "withdraw": "You can withdraw it whenever you want from the point's row.",
+    "cancel": "Cancel",
+    "agree": "Consent and move to {{mode}}",
+    "saving": "Saving…",
+    "withdrawAction": "Withdraw",
+    "withdrawPoint": "Withdraw the consent of {{point}}",
+    "withdrawn": "Consent withdrawn"
+  },
+  "metrics": {
+    "label": "Metrics of the last {{days}} days",
+    "count": "Decisions",
+    "acted": "Acted",
+    "confidence": "Confidence",
+    "agreement": "Agreement",
+    "n": "n {{n}}",
+    "useful": "Useful",
+    "notUseful": "Not useful",
+    "unavailable": "Unavailable",
+    "cost": "Cost",
+    "saved": "Runs saved",
+    "inHistory": "See in History"
+  },
+  "history": {
+    "title": "History",
+    "sub": "{{days}} days · set above",
+    "filters": {
+      "point": "Point",
+      "project": "Project",
+      "provider": "Provider",
+      "mode": "Mode",
+      "status": "Status",
+      "allPoints": "All points",
+      "allProjects": "All projects",
+      "anyProvider": "Provider: all",
+      "anyMode": "Mode: all",
+      "anyStatus": "Status: all"
+    },
+    "status": {
+      "answered": "Answered",
+      "unavailable": "Unavailable"
+    },
+    "resetFilters": "Reset filters",
+    "clear": "Clear…",
+    "clearTitle": "Clear the history",
+    "clearBody": "The decisions that match will be deleted.",
+    "clearBodyCount_one": "{{formatted}} decision will be deleted.",
+    "clearBodyCount_other": "{{formatted}} decisions will be deleted.",
+    "clearFiltered": "Only those that match the filters.",
+    "clearAll": "No filter is set, so all of them.",
+    "clearWarning": "This cannot be undone.",
+    "cancel": "Cancel",
+    "confirm": "Delete",
+    "confirmCount_one": "Delete {{formatted}}",
+    "confirmCount_other": "Delete {{formatted}}",
+    "clearing": "Deleting…",
+    "cleared_one": "{{count}} decision deleted",
+    "cleared_other": "{{count}} decisions deleted",
+    "none": "No decision has been recorded yet. A point in shadow or active leaves a row here.",
+    "noneFiltered": "No decision matches these filters.",
+    "cols": {
+      "when": "When",
+      "point": "Point",
+      "provider": "Provider",
+      "answer": "Answer",
+      "confidence": "Conf.",
+      "result": "Result",
+      "rating": "Rating"
+    },
+    "outcome": {
+      "match": "Matches",
+      "differs": "Differs",
+      "pending": "No result",
+      "asUsual": "As usual"
+    },
+    "feedback": {
+      "useful": "Useful",
+      "not_useful": "Not useful"
+    },
+    "show": "Show the answer of {{point}}",
+    "hide": "Hide the answer of {{point}}",
+    "answerOf": "Answer of {{point}}",
+    "unavailableBody": "The provider gave no answer, so the point did what it always did.",
+    "question": "Question",
+    "probabilities": "Probabilities",
+    "yes": "yes",
+    "no": "no",
+    "facts": {
+      "provider": "Provider",
+      "mode": "Mode",
+      "threshold": "Threshold",
+      "latency": "Latency",
+      "cost": "Cost",
+      "result": "Result"
+    },
+    "useful": "Useful",
+    "notUseful": "Not useful",
+    "delete": "Delete",
+    "shown_one": "{{formatted}} decision",
+    "shown_other": "{{formatted}} decisions",
+    "shownMore_one": "{{formatted}} decision loaded",
+    "shownMore_other": "{{formatted}} decisions loaded",
+    "more": "Load more",
+    "loading": "Loading…"
   }
 }
