@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T12:43:36.708551256Z
-updated_at: 2026-09-30T13:04:59Z
+updated_at: 2026-09-30T13:27:30Z
 tags:
     - plan
     - providers
@@ -214,6 +214,7 @@ them, but they cannot run orchestration stages.
    `RunEvent`; shared types without Claude aliases; a **conformance suite** every driver must pass,
    with a fake for each.
 3. **Codex, ACP and Copilot drivers**, in parallel, each with its fake for e2e.
+4. **Rotation between providers**, and claude-swap retired (see "Rotation moves to providers").
 
 Each phase keeps `pnpm typecheck`, `pnpm test` and `pnpm e2e` green, regenerates the OpenAPI schemas
 and adds its README rows.
@@ -357,6 +358,35 @@ pull request to `main`.
    Refresh after installing.
 4. **All providers after Claude, in parallel:** Codex, ACP and Copilot. Rejected: one at a time.
 5. **Still open:** which CLIs the Docker image ships (Claude Code only today).
+
+## Rotation moves to providers (owner, 2026-09-30)
+
+Agentry used to rotate between several Claude Code accounts through claude-swap (`cswap auto`,
+`rotateAndResume` in `packages/core/src/index.ts`, `FlowService.awaitsRotation`) so work went on
+when one account ran out. That ends. Rotation now happens **between providers**: each vendor sees
+one account used normally, which keeps Agentry within every vendor's terms, and the person's work
+goes on in another agent instead of stopping.
+
+6. **One account per provider.** Agentry uses the account the person signed in with in each
+   provider's CLI. claude-swap, managed accounts and automatic account switching are retired:
+   `accounts.ts`, `account-config.ts`, `cswap-install.ts`, `cswap-pin.ts`, the claude-swap parts of
+   `chats.ts` and the Accounts page. Rejected: several accounts without rotation; keeping
+   claude-swap as an advanced option.
+7. **What happens at a limit is the person's choice**, because models differ between providers and
+   a model may have no counterpart in another one. Settings, global with a per-project override:
+   - **on limit**: continue on the next ready provider, with a handoff (what was asked, what was
+     done, what is left, from the transcript) in the same worktree; restart the task on the next
+     provider from its original prompt, in the same worktree; or wait for the provider's reset;
+   - **model mapping**: which model of each provider stands in for a model of another (for example,
+     a Claude model to a Codex model). A run whose model has no mapping for the next provider waits
+     for the reset instead of switching, and says why;
+   - a chat or task that moves keeps a link to every execution it ran on, on each provider.
+8. **Order: global and per project.** The global order of Settings → Providers (phase 1), which a
+   project can override. Rejected: an order per role or stage; a single global order.
+
+This lands after the drivers: rotation needs at least two providers that can run work. It is its
+own phase, after phase 3, and it retires claude-swap in the same pull request, so there is never a
+release with neither kind of rotation.
 
 ## Related
 
