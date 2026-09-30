@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T12:00:00Z
-updated_at: 2026-09-29T12:00:00Z
+updated_at: 2026-09-30T12:00:00Z
 tags:
     - plan
     - decisions
@@ -26,9 +26,13 @@ The owner's eighteen decisions of 2026-09-28 are recorded in
 [decisions/decision-engine.md](../decisions/decision-engine.md) and are not repeated here, only
 cited as *D1…D18*. Where this plan and that record disagree, the record wins.
 
-Status: **planned on 2026-09-29 (CW-5), not built.** Every location below was checked on `main` at
-`80916ccc` (0.24.0). The first draft, on the local branch `docs/decision-engine-plan` (28f63c65),
-was input only. Its open questions are all answered by the decisions record.
+Status: **planned on 2026-09-29 (CW-5), not built.** Every location below was first checked on
+`main` at `80916ccc` (0.24.0), then **checked again on `main` at `e7519f86` (after 0.25.0) on
+2026-09-30**; what that second pass changed is listed in
+[Reconciled with main](#reconciled-with-main-on-2026-09-30-e7519f86). The first draft, on the local
+branch `docs/decision-engine-plan` (28f63c65), was input only. Its open questions are all answered by
+the decisions record; the one question the reconciliation raised is in
+[Open question for the owner](#open-question-for-the-owner).
 
 ## Goal and non-goals
 
@@ -111,7 +115,8 @@ interface DecisionRequest {
 type ProviderResult =
   | { status: 'answered'; answers: Record<string, DecisionAnswer>; latencyMs: number;
       inputTokens: number | null; costUsd: number | null; model: string }
-  | { status: 'unavailable'; reason: 'no-key' | 'timeout' | 'rate-limited' | 'server-error' | 'network' | 'invalid-answer';
+  | { status: 'unavailable';
+      reason: 'no-key' | 'timeout' | 'rate-limited' | 'no-quota' | 'max-tokens' | 'server-error' | 'network' | 'invalid-answer';
       latencyMs: number };
 
 type DecisionProviderId = 'cli' | 'jev';
@@ -131,10 +136,40 @@ interface DecisionProvider {
 - It launches through the existing `chats.ts` `buildArgs` path (`opts.jsonSchema`), the way the
   planner (`orchestrator.ts` `startPlan`), the flow (`flow.ts`, `flowResultSchema`) and the project
   assistant (`assistant.ts` `launch`) already do.
-- It runs on the `read-only` preset, on the configured model (`haiku` by default), with a cost cap
-  per request.
+- It runs on the configured model (`haiku` by default) and effort (`low` by default, through the
+  `--effort` flag `chats.ts` `buildArgs` already passes), with a cost cap per request
+  (`--max-budget-usd`).
+- **It needs no tool and no callback.** The state is in the prompt and the answer comes back as
+  `structured_output`, so the chat is started `internal: true` (housekeeping: no transcript, hidden,
+  never supervised: `supervisor.ts` skips `origin === 'internal'`), `uploads: false`,
+  `keepAlive: false`, and confined with `confine: { tools: [], settingSources: [] }` (no built-in
+  tool, no settings file, so no hook or MCP server of the person's). Since CW-10 every chat gets
+  `AGENTRY_API_URL` and a per-chat `AGENTRY_API_TOKEN` (`chats.ts`, `security/chat-tokens.ts`
+  `ChatTokenStore`); a decision chat gets neither: `NewChat` gains `api?: false`, which leaves both
+  out of the environment and mints no token. A decision chat never calls the API back.
+- **Its prompt follows the shared rules of CW-24** (`prompt-rules.ts`, [prompts.md](../prompts.md)):
+  - the point's state goes inside one `pasted()` block, followed by `PASTED_NOTE`. That is the
+    marking of untrusted content the [Risks](#risks) rely on; no point writes its own framing text;
+  - `thinkThrough(model)` is appended, so a Sonnet model is told "Think the problem through before you
+    answer." and Haiku (the default) is told nothing;
+  - the schema asks for the typed answers only, never a `reason` or `explanation` field, and the
+    prompt never asks for written reasoning (point 1 of `prompts.md`; the banned-phrase test in
+    `packages/core/test/prompt-rules.test.ts` scans every file under `src/`, `decisions/` included);
+  - it carries neither `UNATTENDED` nor a continuation: a decision chat is one turn, and
+    `openItems` is never applied to it. A result without a readable `structured_output` is
+    `unavailable: 'invalid-answer'`;
+  - a result with `stoppedOnMaxTokens(result)` (`open-items.ts`) is `unavailable: 'max-tokens'`, even
+    when its JSON parses, as the flow, the planner and the assistant already do.
+- **No quota.** A decision chat that hits the rate limit is not rotated and resumed as a person's
+  chat is (`index.ts` `rotateAndResume` may still rotate the account for others): the provider aborts
+  it and answers `unavailable: 'rate-limited'` at once. Once CW-4 lands its pool-wide
+  `exhaustedUntil` hold ([orchestration-speed.md](orchestration-speed.md), the owner's answer of
+  2026-09-30), `available()` is false while the hold is in the future and the answer is
+  `unavailable: 'no-quota'` without starting a chat. A decision never waits for quota and is never
+  "waiting for quota" itself; see the [open question](#open-question-for-the-owner).
 - Probabilities and confidence come back `null`.
-- This provider is Claude Code through its CLI and nothing else, so it is inside the one rule.
+- This provider is Claude Code through its CLI and nothing else, so it is inside the one rule. Its
+  prompt joins the inventory in `docs/prompts.md`.
 
 **The `jev` provider** (`decisions/providers/jev.ts`, optional, D5, D11):
 
@@ -221,6 +256,9 @@ interface DecisionEngine {
   orchestrator, supervisor).
 - On `unavailable`, `ask` returns `act: false`, so the caller runs today's behaviour right away. The
   row is written with `status: 'unavailable'` and the reason.
+- The `cli` provider's `no-quota` and `rate-limited` answers are unavailable like any other: the
+  point runs today's behaviour, and the flow run or task that asked goes on (or waits for quota, once
+  CW-4 lands) exactly as it would with the point off.
 - There is **no fallback from `jev` to `cli`**. A CLI run in place of a 0.2 s call would silently
   turn a free-ish decision into a paid, slow one.
 - The Decisions tab warns (status colour `warn` plus the words "Provider unavailable") when three or
@@ -247,7 +285,7 @@ interface DecisionEngine {
   ```ts
   interface DecisionSettings {
     provider: DecisionProviderId;                       // global default: 'cli'
-    cli: { model: string; maxCostUsd: number };         // 'haiku', 0.02
+    cli: { model: string; effort: string; maxCostUsd: number };  // 'haiku', 'low', 0.02
     jev: { model: 'jev-1.13.0'; keySet: boolean; keyHint: string | null };  // keyHint: last 4 chars
     points: Partial<Record<DecisionPointId, DecisionPointSettings>>;
     historyDays: number;                                // 30 by default, editable 1..365 (D9)
@@ -256,7 +294,7 @@ interface DecisionEngine {
     mode: DecisionMode;                                 // default 'off' for every point
     threshold: number;                                  // act points only, 0.5..0.99
     /** D12: set when the owner consents after seeing the preview; cleared when the state shape changes. */
-    consent: { at: string; stateVersion: number } | null;
+    consent: { at: string; stateVersion: number; providers: DecisionProviderId[] } | null;
   }
   ```
 - **Per-project overrides** go in the project's settings, which today live inside `projects.json`
@@ -376,8 +414,21 @@ After changing them, run `pnpm --filter @agentry/api openapi:schemas`. CI fails 
 | `DELETE` | `/decisions` | Clears the rows matching a filter |
 | `POST` | `/decisions/palette` | Intent routing for the command palette: the query and the command ids, answered with a choice (the `palette.intent` point) |
 
+**A chat's token cannot change them.** Since CW-10 a chat Agentry starts holds its own
+`AGENTRY_API_TOKEN`, and `apps/api/src/security.ts` refuses a chat token only on the routes in
+`CHAT_FORBIDDEN` (the guard and the tunnel). Consent is the owner's (D12), so the routes that widen
+what leaves the machine join a second set with its own `403` message ("a chat's token cannot change
+what the decision engine sends"): `PUT /decisions/settings`, `PUT` and `DELETE /decisions/credentials`,
+and `PUT /decisions/points/:point/consent`. Without it, a prompt injection in any chat could consent
+to a point or switch the provider to Jev. The desktop app's per-launch credential (#129) already only
+reads. The Agentry assistant's write tools (CW-17) do not include these routes either.
+
 The per-project override travels in the existing `GET` and `PUT /projects/:id/settings`, so no new
-route is needed for it. Every new route gets **a summary and the `decisions` tag in
+route is needed for it. Because that route also takes a chat token, a project override can set a
+point's mode or the project's provider but never consent, which stays global and owner-only. A point
+without consent stays off whatever the override says, and consent names the providers it was given
+for (`consent.providers`): consent given while the point's provider was `cli` ("nothing leaves the
+machine") does not cover `jev`, so switching a project to Jev asks again before anything is sent. Every new route gets **a summary and the `decisions` tag in
 `apps/api/src/openapi/routes.ts`** (a test enforces it) and **a row in the README's REST API
 tables**, and the OpenAPI schemas are regenerated in the same change (the `add-rest-route` skill).
 
@@ -407,7 +458,8 @@ Reference: `DesktopAjustes.html` and `MobileAjustes.html`, plus new prototypes
   - the "Provider unavailable" warning when it repeats (D10);
   - `historyDays`.
 - **Decision points** section: one row per point, grouped by area (Project flow, Board, Memory,
-  Assistant, Orchestrations, Health and supervisor, Review, Notifications, Palette). Each row has:
+  Assistant, Orchestrations, Health and supervisor, Review, Notifications, Palette), with
+  `run.continuation` under Orchestrations although it also serves the flow. Each row has:
   - the kind (a word: "Suggests" / "Acts");
   - the mode (`Segmented` off / shadow / active; `active` disabled with a reason for an act point on
     the CLI);
@@ -482,29 +534,32 @@ Columns:
 
 - **Kind**: suggest or act.
 - **Scope**: **G** global only, **P** can also be set per project.
-- **Where**: the file and function on `main` at `80916ccc`.
-- **New**: the point is not in the decisions record of 2026-09-28.
+- **Where**: the file and function on `main` at `e7519f86` (checked again after 0.25.0; no line
+  numbers, since #130, #131 and #134 moved most of them).
+- **New**: the point is not in the decisions record of 2026-09-28. **(new, 2026-09-30)**: added by
+  the reconciliation with main.
 
 Every point ships `off`.
 
 | Id | Kind | Scope | Where on main (file · function) | Today | Outcome signal | Shadow measure | State sent |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `flow.refine-needed` | act | P | `packages/core/src/flow.ts` · `FlowService.trigger`, beside `refinedAlready` | A card entering `backlog`/`todo` queues a Product Owner refine run unless the flow is off, the item is an epic or `refinedAlready` holds | the refine run's `flow_runs.outcome`; later `work_item_history` edits of description or criteria by a person; a later bounce | "ready, skip refine" was right when the refine changed no criteria and the card was not bounced for missing criteria | title, description, type, acceptance criteria, labels, size estimate (no comments) |
-| `flow.bounce` | act | P | `packages/core/src/flow.ts` · `FlowService.apply` (the `maxBounces` check, line 1221 at the plan's commit) | After QA rejects, bounce back to `in_progress` until `bounces >= maxBounces` (default 3, `team.ts` `DEFAULT_MAX_BOUNCES`), then wait for a person | the next `verify` run's `flow_runs.outcome`; `work_items.waiting = 'bounces'`; a person's move | `fixable` was right when the next QA passed; `needs-person` when the card ended waiting or a person intervened | QA's last comment (`rejection`), unmet criteria, bounce count |
-| `orchestration.retry` | act | P | `packages/core/src/orchestrator.ts` · `settle` | Any error without a cause is retried in the same chat until `maxAttempts` | the retry's `OrchestrationTaskState.status` and `attempts` in `orchestrations` | `permanent` was right when every retry still failed; `transient`/`fixable` when a retry completed | the error text (redacted), the task name, the attempt number |
-| `supervisor.intervene` | act | G | `packages/core/src/supervisor.ts` · `Supervisor.wake` (from `health-service.ts` `HealthMonitor.announce`) | Every first `bad` signal per chat asks the supervisor's Haiku for a hint | `supervisor_proposals.status` (`sent` / `dismissed`) | "needs a hint" was right when the hint was sent (by the person or `autoSend`), wrong when dismissed | the signal, its detail, the last tool calls' names and errors (no file contents) |
+| `flow.bounce` | act | P | `packages/core/src/flow.ts` · `FlowService.apply`, the `outcome === 'rejected'` branch of the verify stage (the `maxBounces` check). `outcome` is set in `FlowService.finish` | After QA rejects (verdict `fail`, or a criterion neither `met` nor `needsPerson`), bounce back to `in_progress` until `bounces >= maxBounces` (default 3, `team.ts` `DEFAULT_MAX_BOUNCES`), then wait for a person (`waiting = 'bounces'`) | the next `verify` run's `flow_runs.outcome` and `flow_runs.criteria`; `work_items.waiting = 'bounces'`; a person's move | `fixable` was right when the next QA passed; `needs-person` when the card ended waiting or a person intervened | QA's last comment (`rejection`), QA's per-criterion notes from `flow_runs.criteria` (unmet ones only; a `needsPerson` criterion is not a reason to bounce and is left out), bounce count as words |
+| `orchestration.retry` | act | P | `packages/core/src/orchestrator.ts` · `Orchestrator.settle`, its first branch (`result.isError && !result.cause && attempts < maxAttempts`) | Any error without a cause is retried in the same chat (`continueChat`) until `maxAttempts`. A rate-limit error has a cause and is never asked about; nor is a continuation (below), which is not an attempt | the retry's `OrchestrationTaskState.status` and `attempts` in `orchestrations` (a `continuations` bump is not a retry; once CW-4 lands, a `limited` task is neither) | `permanent` was right when every retry still failed; `transient`/`fixable` when a retry completed | the error text (redacted), the task name, the attempt number as words |
+| `supervisor.intervene` | act | G | `packages/core/src/supervisor.ts` · `Supervisor.wake` (from `health-service.ts` `HealthMonitor.announce`) | Every first `bad` signal per chat (never on an `internal` chat, so never on a decision chat) asks the supervisor's Haiku for a hint; since CW-24 its prompt (`supervisorPrompt`) carries the task name and last steps as `pasted()` blocks | `supervisor_proposals.status` (`sent` / `dismissed`) | "needs a hint" was right when the hint was sent (by the person or `autoSend`), wrong when dismissed | the signal, its detail, the last tool calls' names and errors (no file contents) |
 | `memory.triage` | suggest | P | `packages/core/src/memory-proposals.ts` · `MemoryProposalService.propose` and `list` | Proposals are deduplicated only by exact text (`sameProposal`) and listed in arrival order | `memory_proposals.status`, `approved_text`, `reject_reason` | predicted duplicate or low-usefulness items were rejected, high-scored items approved | the proposal text and target, the titles of the project's memory entries and last journal entries |
 | `assistant.rerank` | suggest | P | `packages/core/src/assistant.ts` · `AssistantService.insertAnswer` | Proposals are inserted in the model's order; only exact existing roles and resources are filtered | `assistant_proposals.status` (`accepted` / `discarded`) | top-ranked proposals were accepted, predicted "already covered" were discarded | the proposals (kind, title, summary), the names of existing agents, skills, commands and members |
 | `assistant.sources` **(new)** | act | P | `packages/core/src/assistant-sources.ts` · `initialSources` | Top-level files ranked by a fixed `fileRank`, capped at `FILES_MAX` / `DIRS_MAX` | `assistant_runs.reads` (what the run opened on its own) | a file the engine dropped and the run then read counts as a miss | the brief, file names and sizes (no contents) |
-| `journal.relevance` | act | P | `packages/core/src/journal.ts` · `JournalService.handoff` | Newest entries first, up to 16 KB (`JOURNAL_HANDOFF_BYTES`); older decisions fall off | the run's `flow_runs.outcome`; a later bounce whose comment cites a journal decision | an entry scored irrelevant that QA or the person then cites counts as a miss | the card or task title and criteria, each entry's title and first lines |
-| `board.triage` | suggest | P | `packages/core/src/work-items.ts` · `WorkItemService.create` (and the web New work item dialog) | The person fills type, priority and epic (defaults `task`, `medium`); no duplicate check | `work_item_history`: edits of type, priority or epic after creation; a `duplicates` relation or removal | the prefill was right when the person kept it; the duplicate warning when the item was removed or linked | the draft title and description, open items' titles, epic titles |
-| `team.assign` | suggest | P | `packages/core/src/flow.ts` · `memberOf` (fed by `FlowService.trigger`; columns filled in `team.ts` `TeamService`) | The member is fixed by the column's role | `work_item_history` reassignments; the run's `flow_runs.outcome` | the proposed member matched the person's reassignment, or the fixed member's run failed where the proposal differed | the card's title, type and criteria, members' roles and responsibilities |
+| `journal.relevance` | act | P | `packages/core/src/journal.ts` · `JournalService.handoff` | Newest entries first, up to 16 KB (`JOURNAL_HANDOFF_BYTES`), the `pasted()` block and `PASTED_NOTE` counted against it since CW-24; older decisions fall off. The engine only reorders the entries; code still wraps them and applies the budget | the run's `flow_runs.outcome`; a later bounce whose comment cites a journal decision | an entry scored irrelevant that QA or the person then cites counts as a miss | the card or task title and criteria, each entry's title and first lines |
+| `board.triage` | suggest | P | `packages/core/src/work-items.ts` · `WorkItemService.create` (and the web New work item dialog) | The person fills type, priority and epic (defaults `task`, `medium`); no duplicate check. Since CW-22 the type also picks the pull request's Conventional type (`pull-requests.ts` `pullRequestTitle`: `fix` for a bug, `feat` otherwise, unless a label names one) | `work_item_history`: edits of type, priority or epic after creation; a `duplicates` relation or removal | the prefill was right when the person kept it; the duplicate warning when the item was removed or linked | the draft title and description, open items' titles, epic titles |
+| `team.assign` | suggest | P | `packages/core/src/flow.ts` · `memberOf` (fed by `FlowService.trigger`; columns filled in `team.ts` `TeamService`) | The member is fixed by the column's role. Not asked for a work run that resolves a PR conflict (`FlowPullRequests.conflictOf` returns one): that run is the Developer's by design (CW-22) | `work_item_history` reassignments; the run's `flow_runs.outcome` | the proposed member matched the person's reassignment, or the fixed member's run failed where the proposal differed | the card's title, type and criteria, members' roles and responsibilities |
 | `flow.scope-drift` | suggest | P | `packages/core/src/changes.ts` · `Changes.itemChanges` (per commit, from `summarize`) | Nothing compares a commit with the card | QA's rejection comment naming out-of-scope work; the person's useful / not useful | a drift flag followed by a QA rejection or "useful" counts as right | the card title and criteria, each commit's message and changed file paths (no diff contents) |
-| `flow.criteria-precheck` | act | P | `packages/core/src/flow.ts` · `FlowService.trigger` for the verify stage (criteria enforced later in `FlowService.finish`) | Every card entering `in_review` queues a QA run; unmet criteria are only caught after it | the QA run's verdict and `unmet` criteria in `FlowService.finish` | "a criterion is clearly unmet" was right when QA then rejected on it. It can only send back before QA; it never passes a card | criteria, the Developer's summary, commit messages and changed paths |
+| `flow.criteria-precheck` | act | P | `packages/core/src/flow.ts` · `FlowService.trigger` for the verify stage (criteria enforced later in `FlowService.finish`, the `unmet` filter) | Every card entering `in_review` queues a QA run; unmet criteria are only caught after it | the QA run's verdict, `unmet` criteria in `FlowService.finish` and its `flow_runs.criteria` | "a criterion is clearly unmet" was right when QA then rejected on it. It can only send back before QA; it never passes a card. Per criterion the answer is a choice `met-or-unknown` / `needs-a-person` / `clearly-unmet`, and only `clearly-unmet` sends back: a criterion no run can check (CW-26 `needsPerson`) is never a reason. Not asked when the item's pull request is `awaiting-verify` (the Developer only resolved a merge an approval conflicted; QA re-verifies it) | criteria, the Developer's summary, commit messages and changed paths |
 | `flow.criteria-merge` **(new)** | suggest | P | `packages/core/src/flow.ts` · `refineItem` | Proposed criteria merge by exact lower-case text, so near-duplicates get through | a person deleting or editing a merged criterion in `work_item_history` | a pair flagged as duplicate that the person then removed | the existing and proposed criteria texts |
 | `flow.restart` **(new)** | act | P | `packages/core/src/flow.ts` · `FlowService.recover` | A run cut by a restart is requeued up to `MAX_FLOW_RESTARTS` | the requeued run's `flow_runs.outcome` and `restarts` | "do not requeue" was right when the requeued run failed again | the run's stage, cause, restart count, last error |
-| `orchestration.model` | suggest | P | `packages/core/src/orchestrator.ts` · `draftFrom` (after `startPlan`) | Every task in the draft gets the plan's one model | per-task `status`, `attempts` and `costUsd`; the person's edit of the task model before launch | a cheaper model proposed for a task that then completed on the first attempt, or a person keeping the prefill | the task names and prompts' first lines, `dependsOn`, the model options |
-| `orchestration.fixer` **(new)** | act | P | `packages/core/src/orchestrator.ts` · `checkAll` | The fixer loop runs until `maxAttempts` or `maxCostUsd` | the next fixer attempt's check results | "stop" was right when the remaining attempts still failed the checks | the failing check's name and output tail (redacted), the attempt number |
+| `run.continuation` **(new, 2026-09-30)** | act | P | `packages/core/src/open-items.ts` · `openItems`, the final-text part (`OFFERS`, the question to the person, `NEXT_STEPS` over `tailOf`), called by `flow.ts` `FlowService.continues` and `orchestrator.ts` `Orchestrator.settle` | Since CW-24 a turn whose last paragraph matches a phrase list is a report, and the run goes back to its chat, at most `MAX_CONTINUATIONS` (3). The structural items (a schema run with no structured result, uncommitted paths) are not asked about and always continue | whether the continuation produced new commits, edits or a changed structured result (`flow_runs.continuations`, `OrchestrationTaskState.continuations`, the task's commits); for a run not continued, a later QA rejection, failed check or a person continuing the chat | "done" was right when a continuation changed nothing; "owes work" when it did, or when an uncontinued run was then rejected or continued by a person | the task or card title, the last paragraph of the final text (cut to 600 chars, as `tailOf` does), the continuation count as words |
+| `orchestration.model` | suggest | P | `packages/core/src/orchestrator.ts` · `Orchestrator.draftFrom` (after `startPlan`) | Every task in the draft gets the plan's one model (`spec.model = run.model`) | per-task `status`, `attempts`, `continuations` and `costUsd`; the person's edit of the task model (and effort, once CW-25 lands) before launch | a cheaper model proposed for a task that then completed on the first attempt, or a person keeping the prefill | the task names and prompts' first lines, `dependsOn`, the model options; once CW-25 lands, a second choice per task over the effort levels |
+| `orchestration.fixer` **(new)** | act | P | `packages/core/src/orchestrator.ts` · `Orchestrator.checkAll`, before each `fix` call (after the `spentOut` and cost checks) | Since CW-14 the checks run in steps (`verificationSteps`: install alone, then each entry, a parallel group together); a failed step gets one fixer attempt for all its failed checks, counted per check, until a check reaches `maxAttempts` or `maxCostUsd` is spent; the fixer is told which spec files failed (`verification.ts` `failedSpecs`) | the next fixer attempt's check results for the same step | "stop" was right when the remaining attempts still failed the same checks | the failed checks' commands and output tails (redacted), the failed spec file names, the earlier attempts' notes, the attempt number as words |
 | `health.semantic-loop` | suggest | G | `packages/core/src/health.ts` · `loop` (read by `HealthService.read`) | Only exact repeats of tool, input and result (or error text) count as a loop | a supervisor hint sent, the person stopping the chat, or the task failing | a flagged loop followed by a stop, hint or failure counts as right | the last 12 tool calls' names, inputs cut to 200 chars, result heads |
 | `health.test-weakening` | suggest | G | `packages/core/src/health.ts` · `weaknessOf` (via `weakening` / `weakenedTests`) | Regexes (`ASSERTION`, `WEAK`, `TAUTOLOGY`, `SKIP`) over the edit | the person's useful / not useful; QA rejecting on test changes | a flagged edit marked useful or followed by a QA rejection on it. **Suggest only**: the content is written by the agent it judges ([Risks](#risks)) | the test file path, the before and after of the edited hunk |
 | `changes.unexplained-hunk` | suggest | P | `packages/core/src/changes.ts` · `Changes.chatSteps` / `taskSteps`, with `edit-steps.ts` `editStepsOf`; web `components/changes/DiffView.tsx` `DiffView` | Hunks are linked to transcript steps; nothing flags a hunk no step explains | the person's useful / not useful on the flag; QA rejecting on that file | a flagged hunk marked useful counts as right | the hunk text (cut), the step's sentence before it, the card title |
@@ -515,6 +570,32 @@ The global **Agentry assistant** ([plans/agentry-assistant.md](agentry-assistant
 `main`, so it has no point yet. When it is built, choosing which of its tools to call first is a
 candidate, and it is added to this table then. The project assistant of
 [assistant.md](../assistant.md) is covered by `assistant.rerank` and `assistant.sources`.
+
+**In flight on the board, not on `main`: the plan knows them and depends on none.**
+
+- **CW-6 / CW-17 / CW-18, the Agentry assistant** (MCP server, write tools, global entry). Its tool
+  choice stays the future candidate above. CW-18 adds an always-present "Agentry assistant" entry to
+  the command palette; once it is on `main`, `palette.intent` gets that entry as one more option, so a
+  free question that matches no command can be routed to it. CW-17's write tools must not reach the
+  decision settings, credentials or consent routes ([API](#api-and-shared-types)).
+- **CW-4, a run with no account left waits for quota.** It adds the `limited` task status and the
+  pool-wide `exhaustedUntil` hold. It is not a decision point (it is timer arithmetic over reset
+  times), but the `cli` provider reads the hold (`no-quota`) and the `orchestration.retry` and
+  `run.continuation` resolvers ignore `limited` executions.
+- **CW-25, effort wherever a model is chosen.** `--effort` already reaches the CLI (`chats.ts`
+  `buildArgs`), so the `cli` provider's `effort` setting does not wait for it. The Decisions tab's
+  effort control reuses CW-25's control when CW-25 is merged first; otherwise the tab adds it and
+  CW-25 adopts it. `orchestration.model` suggests an effort per task only once CW-25 lets a task
+  carry one.
+- **CW-15, worker checks and the `e2e-specs` task** (the owner's answer C in
+  [orchestration-speed.md](orchestration-speed.md)). Choosing which browser specs a graph's changes
+  touch is a candidate point (a choice over the spec files, suggest only) once that task exists. Not
+  in this table until then.
+- **CW-13, orchestration timings.** A `cli` decision chat is a chat like any other; when CW-13 links
+  chats to an orchestration with a role, decision chats asked for a task are linked with the role
+  `decision`, so their seconds show as their own line instead of inside the task's.
+- **CW-19 and CW-27** are test flakes (`chats.test.ts`, a `pnpm test` hang in CI). They change no
+  decision point; CW-27 matters only to D5's full `pnpm test`.
 
 **Renamed from the record:**
 
@@ -531,7 +612,24 @@ candidate, and it is added to this table then. The project assistant of
 
 - `accounts.ts` `rotate` is arithmetic over headroom.
 - `flow.ts` `retry` and `retryRefusal` are the person's action.
-- `flow.ts` `causeOf` is a fixed mapping of error codes.
+- `flow.ts` `causeOf` is a fixed mapping of error codes (it gained `max-tokens`,
+  `conflict-unresolved` and `not-continued` with CW-22 and CW-24; still a mapping).
+- **A criterion "needing a person"** (CW-26, `needsPerson` in `flowResultSchema`) is part of QA's
+  verdict: it lets a card pass with a criterion left to the person. That grants, so it is QA's and
+  never the engine's. The engine only reads it (`flow.bounce`, `flow.criteria-precheck`).
+- **QA's check commands** (`flow.ts` `testCommands`, `checkCommandRules`) are a permission list.
+- **The pull request steps of CW-22** (`pull-requests.ts`): the conflict that sends a card back to
+  the Developer is git's (`conflictedPaths`), opening the PR is the person's approval, and a merged
+  PR reaching Done is a fact the watcher reads. `pullRequestTitle`'s type follows the card's type,
+  which `board.triage` already prefills.
+- **The fixer's failed-spec focus** (CW-14, `verification.ts` `failedSpecs`) parses `✗ <file>`
+  lines; the decision it feeds is `orchestration.fixer`.
+- **The structural part of `openItems`** (no structured result, uncommitted paths) is a fact. Only
+  the phrase part is `run.continuation`.
+- **The member model the project assistant recommends** (`assistant-answer.ts` `MODEL_CHOICE`) is
+  already a Claude run's judgment, inside its answer; `assistant.rerank` ranks the proposal it is in.
+- **The launch warning for two big graphs** (the owner's answer of 2026-09-30 in
+  [orchestration-speed.md](orchestration-speed.md)) is arithmetic over the accounts' quota.
 
 ## Shadow accuracy
 
@@ -585,8 +683,8 @@ the full `pnpm test` and `pnpm build && pnpm e2e` once, at the end.
   - Files: `packages/core/src/db.ts` and its tests.
   - Check: `pnpm --filter @agentry/core test`.
 - `c3` (settings and credentials), dependsOn c1.
-  - Files: `packages/core/src/decisions/settings.ts`, `packages/core/src/project-settings.ts`
-    (`decisions` field), tests.
+  - Files: `packages/core/src/decisions/settings.ts` (with `cli.effort` and `consent.providers`),
+    `packages/core/src/project-settings.ts` (`decisions` field), tests.
   - Check: core tests.
 - `c4` (engine, redact, point catalogue), dependsOn c2, c3.
   - Files: `packages/core/src/decisions/engine.ts`, `redact.ts`, `points.ts`, `index.ts` wiring,
@@ -594,8 +692,14 @@ the full `pnpm test` and `pnpm build && pnpm e2e` once, at the end.
   - Check: core tests.
 - `c5` (`cli` provider), dependsOn c4.
   - Files: `packages/core/src/decisions/providers/cli.ts` (through `chats.ts` `buildArgs`
-    `jsonSchema`), tests with a fake CLI.
-  - Check: core tests.
+    `jsonSchema`, `effort`, `maxBudgetUsd`, `confine`), `packages/core/src/chats.ts` (the
+    `NewChat.api?: false` option: no `AGENTRY_API_URL`, no minted `AGENTRY_API_TOKEN`), the prompt
+    built from `prompt-rules.ts` `pasted`, `PASTED_NOTE` and `thinkThrough`, tests with a fake CLI.
+  - Check: core tests, `prompt-rules.test.ts` included (its banned-phrase scan covers
+    `decisions/`).
+  - Soft dependency on CW-4: until its `exhaustedUntil` hold is on `main`, `no-quota` is never
+    answered and a rate-limited decision chat answers `rate-limited`. The task that lands second
+    wires the hold into `available()`.
 - `c6` (`jev` provider and adapter), dependsOn c4.
   - Files: `packages/core/src/decisions/providers/jev.ts`, `packages/core/package.json` (exact
     `@typesafe-ai/sdk`), tests with the SDK stubbed.
@@ -603,22 +707,29 @@ the full `pnpm test` and `pnpm build && pnpm e2e` once, at the end.
   - Note: no test ever calls TypeSafe.
 - `c7` (API routes), dependsOn c4, c5, c6.
   - Files: `apps/api/src/routes/decisions.ts`, `apps/api/src/app.ts`, `apps/api/src/openapi/routes.ts`,
+    `apps/api/src/security.ts` (the chat-token `403` set for settings, credentials and consent),
     `README.md` REST tables, API tests.
   - Checks: `pnpm --filter @agentry/api test` (the summary-and-tag test included).
 
 **D2 · `decision-points`** (every point wired in, shipping `off`), all dependsOn D1:
 
 - `w1` (flow): `flow.refine-needed`, `flow.bounce`, `flow.criteria-precheck`, `flow.criteria-merge`,
-  `flow.restart`, `team.assign`.
-  - Files: `packages/core/src/flow.ts`, `packages/core/src/team.ts`, the builders in
-    `decisions/points.ts`, tests.
+  `flow.restart`, `team.assign`, and the flow side of `run.continuation` (`FlowService.continues`).
+  - Files: `packages/core/src/flow.ts`, `packages/core/src/team.ts`, `packages/core/src/open-items.ts`
+    (the phrase part split out so the point can replace it), the builders in `decisions/points.ts`,
+    tests. `flow.test.ts` grew with CW-22 and CW-26 (PR conflicts, `needsPerson`): the new tests sit
+    beside those, and the `awaiting-verify` skip of `flow.criteria-precheck` has its own.
 - `w2` (project knowledge): `memory.triage`, `journal.relevance`, `board.triage`,
   `assistant.rerank`, `assistant.sources`.
   - Files: `memory-proposals.ts`, `journal.ts`, `work-items.ts`, `assistant.ts`,
     `assistant-sources.ts`, tests.
 - `w3` (runtime): `orchestration.retry`, `orchestration.model`, `orchestration.fixer`,
-  `supervisor.intervene`.
-  - Files: `orchestrator.ts`, `supervisor.ts`, tests.
+  `supervisor.intervene`, and the orchestrator side of `run.continuation` (`Orchestrator.settle`).
+  dependsOn w1 for `run.continuation` only (the `open-items.ts` split).
+  - Files: `orchestrator.ts`, `supervisor.ts`, tests. `orchestration.fixer` is asked per failed step
+    (CW-14's parallel groups), so its test covers a group of two failing checks.
+  - Soft dependency on CW-4 and CW-25, as in [In flight](#decision-points-on-main): the resolvers
+    ignore `limited` once CW-4 lands; the effort choice of `orchestration.model` waits for CW-25.
 - `w4` (signals): `health.semantic-loop`, `health.test-weakening`, `notification.urgency`,
   `flow.scope-drift`, `changes.unexplained-hunk`.
   - Files: `health.ts`, `health-service.ts`, `push.ts`, `packages/shared/src/notifications.ts`,
@@ -638,6 +749,8 @@ Each task's checks are core tests plus a test per point:
 - `u1`: Decisions tab, the `GROUPS` move and the `?tab=supervisor` alias.
   - Files: `apps/web/src/pages/Settings.tsx`, `pages/config/DecisionsTab.tsx`, `SupervisorTab.tsx`
     (embedded), i18n `en`/`es`, tests.
+  - The CLI model picker sits beside an effort picker: CW-25's control when it is merged first,
+    otherwise a `Segmented` from `components/controls` that CW-25 then reuses.
 - `u2`: consent dialog and preview, metrics, History. dependsOn u1.
   - Files: `pages/config/decisions/*`, i18n, tests.
 - `u3`: project override. dependsOn u1.
@@ -667,9 +780,11 @@ Check: that spec alone.
 
 **D5 · `decisions-docs-verify`**, dependsOn D1–D4:
 
-- a feature document `docs/decision-engine.md`, this plan's Outcome, `docs/status.md` and the README
-  "How it talks to Claude" table (the `cli` provider only);
-- the full checks: `pnpm typecheck`, `pnpm test`, `pnpm build && pnpm e2e`.
+- a feature document `docs/decision-engine.md`, this plan's Outcome, `docs/status.md`, the README
+  "How it talks to Claude" table (the `cli` provider only), and the `cli` provider's prompt in the
+  inventory and the twelve-point check of `docs/prompts.md`;
+- the full checks: `pnpm typecheck`, `pnpm test`, `pnpm build && pnpm e2e` (sharded as CI runs it
+  since #128; run under `timeout`, since CW-27's `pnpm test` hang is not fixed on `main` yet).
 
 ```mermaid
 graph TD
@@ -683,6 +798,7 @@ graph TD
   c5 --> c7
   c6 --> c7
   c7 --> w1 & w2 & w3 & w4
+  w1 --> w3
   w1 & w2 & w3 & w4 --> w5
   p2 --> u1
   c7 --> u1
@@ -721,7 +837,17 @@ CW-5's pull request):
   - No point grants anything, and `flow.criteria-precheck` can only send a card back, never pass it.
   - Act points need a threshold, and they act only in directions that cost a person a look, never
     a skipped safeguard.
-  - Every state is framed as data in the question ("the following is untrusted content").
+  - Every state goes into the question inside one `pasted()` block with `PASTED_NOTE`
+    (`prompt-rules.ts`, CW-24), for both providers: the `cli` provider's prompt carries it as the
+    other runs' prompts do, and the Jev adapter sends the same wrapped text as the state. A text
+    cannot close the block early, because it cannot know the block's random id.
+  - `run.continuation` judges the last paragraph of the very run it decides for. Its worst case is a
+    run judged as it is, one continuation early, which QA, the checks or the synthesis still judge;
+    it never skips a structural item (a missing structured result, uncommitted paths), which code
+    keeps deciding.
+  - A chat's own `AGENTRY_API_TOKEN` (CW-10) cannot change the decision settings, the key or consent
+    (the second `403` set in [API](#api-and-shared-types)), so an injected instruction in any chat
+    cannot widen what leaves the machine.
 - **Jev is weak at numbers, counting and dates.** No question asks Jev to compare numbers or dates.
   Code does that arithmetic: bounce counts, attempts, byte budgets and ages stay in code, and the
   state carries them as words only when needed ("third attempt"). `journal.relevance` scores each
@@ -738,7 +864,8 @@ CW-5's pull request):
   - with the `cli` provider nothing leaves beyond what Claude Code already sends.
 - **Spanish content.** Jev is optimised for English. Questions are English (D4), and shadow
   accuracy is split per project so a Spanish project's numbers show on their own.
-- **Cost of the CLI provider.** Each CLI request is a Haiku run (cents, seconds). Points batch all
+- **Cost of the CLI provider.** Each CLI request is a Haiku run at `low` effort (cents, seconds),
+  and it draws on the same accounts' quota as every run. Points batch all
   their questions into one run, and `shadow` with the CLI on busy points shows its cost in the
   metrics before anyone leaves it on.
 - **Latency.** The palette needs `needsLowLatency`, so `palette.intent` is offered only with Jev.
@@ -754,14 +881,18 @@ CW-5's pull request):
   - Deadline and fallback on every `unavailable` reason.
   - The migration, retention pruning, stats and resolvers.
 - **Providers.**
-  - `cli` against the fake CLI the core tests already use (a `--json-schema` answer, and an invalid
-    one).
+  - `cli` against the fake CLI the core tests already use: a `--json-schema` answer, an invalid
+    one, a `max_tokens` stop whose JSON parses (`unavailable: 'max-tokens'`), a rate-limited turn
+    (`rate-limited`, not resumed), the state inside a `pasted()` block with `PASTED_NOTE`,
+    `THINK_THROUGH` only on a Sonnet model, and no `AGENTRY_API_URL` or `AGENTRY_API_TOKEN` in the
+    decision chat's environment.
   - `jev` with the SDK stubbed behind the adapter (answers, 429 then success, timeout).
   - No test reaches TypeSafe or Anthropic.
 - **Per point**, the four-mode test from D2.
 - **API tests** (Fastify inject):
   - every route, including validation errors;
   - the key never being returned;
+  - a chat token refused with `403` on settings, credentials and consent;
   - the summary-and-tag test;
   - no OpenAPI drift.
 - **Web tests.**
@@ -776,6 +907,87 @@ CW-5's pull request):
 - **Shadow period.** After merge, the owner runs chosen points in `shadow` on their own projects,
   then moves points to `active` one at a time from `/decisions/stats`.
 
+## Reconciled with main on 2026-09-30 (e7519f86)
+
+The plan was written against `80916ccc` (0.24.0). On 2026-09-30 every decision point was checked
+again on `main` at `e7519f86` (0.25.0 plus #137 and #138), reading each merged diff that touches one.
+The owner's eighteen decisions are unchanged.
+
+**What main changed, and what the plan does about it:**
+
+- **#134 (CW-14), parallel verification groups and failed specs.** `Orchestrator.checkAll` now runs
+  steps (`verificationSteps`), gives a failed step one fixer attempt counted per check, and hands the
+  fixer the failed spec files (`verification.ts` `failedSpecs`). `orchestration.fixer` is asked per
+  failed step and sends the failed specs and earlier notes; its outcome is judged on the same step.
+  The spec parsing itself is left out (a parser).
+- **#131 (CW-24), prompts per the Opus 5.5 and Sonnet 5.5 guides.**
+  - The `cli` provider's prompt uses `pasted()` and `PASTED_NOTE` for the state, `thinkThrough(model)`
+    for Sonnet, no reasoning field, and treats a `max_tokens` stop as `unavailable: 'max-tokens'`
+    (a new reason). It is one turn, never continued. Its prompt joins `docs/prompts.md` in D5.
+  - The injection mitigation in [Risks](#risks) is now the shared `pasted()` block rather than a
+    sentence of the plan's own.
+  - Continuations are a **new point, `run.continuation`**: the phrase part of `open-items.ts`
+    `openItems`, used by `FlowService.continues` and `Orchestrator.settle`. The structural part stays
+    code.
+  - `orchestration.retry`: a continuation is not an attempt and is not asked about;
+    `journal.relevance`: the budget now counts the `pasted()` wrapper, and the engine only reorders.
+  - `supervisor.intervene`: only its prompt changed (`pasted()` blocks). Internal chats are never
+    supervised, so decision chats are not either.
+- **#136**: a test fix; nothing in the plan.
+- **#132 (CW-26), QA's check commands and criteria needing a person.** `flow.bounce` now reads QA's
+  per-criterion notes (`flow_runs.criteria`, from #130) and leaves `needsPerson` criteria out;
+  `flow.criteria-precheck` answers per criterion with a `needs-a-person` option that never sends a
+  card back. `needsPerson` itself and `testCommands` are added to "left out" (they grant).
+- **#133 (CW-10), per-chat API token.** A decision chat gets no `AGENTRY_API_URL` and no token
+  (`NewChat.api?: false`) and no tools (`confine`); the answer comes back as `structured_output`, so
+  it never calls back. The decision settings, credentials and consent routes join a chat-token `403`
+  set in `apps/api/src/security.ts`, and consent names the providers it covers.
+- **#130 (CW-22), pull requests from approved cards.** New flow causes (`conflict-unresolved`) keep
+  `causeOf` a mapping. `flow.criteria-precheck` is skipped on an `awaiting-verify` pull request,
+  `team.assign` on a conflict-resolution run. `board.triage`'s type prefill now also sets the PR's
+  Conventional type. The PR steps themselves are left out (git facts and the person's approval).
+- **#137, the owner's answers in `orchestration-speed.md`.** No account left means a run waits for
+  quota (CW-4); a decision does not wait: the `cli` provider answers `rate-limited`, or `no-quota`
+  from CW-4's hold, and the point runs today's behaviour. That reading of D10 is the
+  [open question](#open-question-for-the-owner). The `e2e-specs` task (CW-15) is a future candidate;
+  the launch warning is arithmetic.
+- **#129, #128, #123, #124** (before `80916ccc`, after the first draft): the desktop app's
+  per-launch credential only reads, so the Decisions tab writes with the owner's token like every
+  other setting; D5 runs e2e sharded as CI does. No point changed.
+- **Stale references fixed:** `flow.bounce` no longer cites line 1221 (now the rejected branch of
+  `FlowService.apply`); `Where` names classes (`Orchestrator.settle`, `Orchestrator.checkAll`,
+  `Orchestrator.draftFrom`) and drops line numbers. Every other `Where` was found where the plan said
+  (`refinedAlready`, `refineItem`, `recover`, `memberOf`, `initialSources`, `insertAnswer`,
+  `sameProposal`, `handoff`, `WorkItemService.create`, `itemChanges`, `chatSteps` / `taskSteps`,
+  `editStepsOf`, `loop`, `weaknessOf`, `PushService.onEvent`, `notificationsFor`, `score`,
+  `TAB_LABELS` / `GROUPS` / `isTab`).
+
+**Split and dependencies:** `c3` gains `cli.effort` and `consent.providers`; `c5` touches `chats.ts`
+and softly depends on CW-4; `c7` touches `security.ts`; `w1` and `w3` share `run.continuation`
+(`w1 --> w3`); `u1` reuses CW-25's effort control if it is merged first. No task waits for an
+unmerged item: CW-4, CW-25, CW-15, CW-13 and CW-6/17/18 are wired in by whichever change lands
+second.
+
+## Open question for the owner
+
+**What does a decision do when no account has quota?** On 2026-09-30 the owner decided that a run
+with no account left waits and resumes by itself ("waiting for quota", CW-4). D10 says a provider
+that is unavailable falls back to today's behaviour without waiting, but it was written about Jev.
+A `cli` decision is a small Claude run, so the two can be read against each other. The plan follows
+option A until the owner answers.
+
+- **A (recommended): unavailable at once.** A `cli` decision with no quota answers `no-quota` (or
+  `rate-limited`), today's behaviour runs, and the row is written as unavailable; the run that asked
+  then waits for quota on its own if it has to. Nothing waits on a decision, as D10 asks, and a
+  shadow point loses only that sample.
+- **B: the decision waits with its run.** When the run that asked is itself going to wait for quota
+  (a limited task being retried, a flow run cut), the point asks again when the run resumes, before
+  it acts. More samples and active act points keep working, at the price of a second queue tied to
+  CW-4's timers.
+- **C: ask later, for shadow only.** The skipped question is kept and asked once quota returns, and
+  its answer is recorded for the metrics but never acted on. Shadow accuracy keeps its n, and the
+  cost is spent after the fact on answers nothing uses.
+
 ## Related
 
 - [[decisions/decision-engine.md]]: the owner's eighteen decisions this plan builds.
@@ -784,5 +996,9 @@ CW-5's pull request):
   serve.
 - [[plans/agent-observability.md]]: the health signals and the supervisor.
 - [[plans/agentry-assistant.md]]: the global assistant, a future point.
+- [[prompts.md]]: the prompt rules the `cli` provider follows (CW-24).
+- [[plans/orchestration-speed.md]]: the owner's quota answer behind the open question.
+- [[plans/work-item-pull-requests.md]]: the pull request steps left out, and `flow_runs.criteria`.
+- [[plans/chat-api-token.md]]: the per-chat token a decision chat does not get.
 - [[layered-settings.md]]: how settings are layered today.
 - [[assistant.md]] · [[team-and-flow.md]] · [[work-items.md]] · [[design-system.md]]
