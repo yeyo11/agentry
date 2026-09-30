@@ -6,8 +6,11 @@ changing code.
 
 ## The one rule
 
-Agentry reaches Claude Code **only through its CLI** (flags, subcommands, stream-json events, files
-the CLI writes). No SDK, no HTTP calls to Anthropic, no terminal scraping.
+Agentry reaches each agent **only through the interface its vendor ships for programs**: CLI
+flags, the vendor's official SDK, a documented stream or RPC protocol, the files the CLI writes. No
+terminal scraping, no undocumented HTTP endpoints, no second login of our own. Today the only
+provider that runs is Claude Code, reached through its CLI. [docs/providers.md](docs/providers.md)
+describes what a provider is.
 
 ## Layout
 
