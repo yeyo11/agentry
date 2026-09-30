@@ -222,6 +222,25 @@ describe('ProviderDetector', () => {
     assert.equal(lines(), 2);
   });
 
+  it('answers a refresh asked while another runs with a detection that starts after it', async () => {
+    const state = join(root, `state${n}`);
+    const release = join(root, `release${n}`);
+    // Each login probe reads the state as it starts, then the first one waits for the test to let it
+    // go, so the first detection is still running when the state changes
+    await fake('codex', `case "$1" in --version) echo "codex-cli 0.5.0";; login) s=$(/bin/cat "${state}"); while [ ! -e "${release}" ]; do /bin/sleep 0.05; done; exit "$s";; esac`);
+    await writeFile(state, '1');
+    const d = detector();
+    const first = d.refresh();
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const second = d.refresh();
+    const third = d.refresh();
+    assert.equal(second, third, 'everyone asking meanwhile shares one follow-up');
+    await writeFile(state, '0');
+    await writeFile(release, '');
+    assert.equal((await first).find((s) => s.id === 'codex')?.state, 'signed-out');
+    assert.equal((await second).find((s) => s.id === 'codex')?.state, 'ready', 'the follow-up read the change');
+  });
+
   it('re-detects on its own when a binary lands on the PATH', async () => {
     const events: AgentryEventInput[] = [];
     const d = detector({ events });

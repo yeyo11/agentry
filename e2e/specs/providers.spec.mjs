@@ -58,7 +58,8 @@ export default async ({ page, api, check, dirs }) => {
     state('codex', { version: '0.50.0', signedIn: false });
     await api.put('/providers/settings', { providers: { codex: savedSettings.providers.codex, gemini: { enabled: true, binaryPath: NOWHERE.gemini }, copilot: { enabled: true, binaryPath: NOWHERE.copilot } }, order: ['claude-code', 'codex', 'gemini', 'copilot', 'opencode'], defaultProvider: null });
     await api.post('/providers/refresh');
-    check((await statusOf('codex')).state === 'signed-out', 'codex is signed out');
+    const codexAtStart = await statusOf('codex');
+    check(codexAtStart.state === 'signed-out', `codex is signed out (${codexAtStart.state}, ${codexAtStart.reason})`);
     check((await statusOf('gemini')).state === 'used-before', `gemini is used before (${(await statusOf('gemini')).state})`);
     check((await statusOf('copilot')).state === 'used-before', 'copilot is used before');
 

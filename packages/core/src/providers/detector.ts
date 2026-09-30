@@ -164,6 +164,8 @@ export class ProviderDetector {
    */
   private readonly signedIn = new Map<ProviderId, boolean>();
   private pending: Promise<ProviderStatus[]> | null = null;
+  private pendingJoinable = false;
+  private followUp: Promise<ProviderStatus[]> | null = null;
   /** Bumped by every detection that starts, so an older one that finishes late never overwrites a newer */
   private seq = 0;
   private applied = 0;
@@ -204,7 +206,8 @@ export class ProviderDetector {
    * answer older than the TTL is served while its replacement is on its way.
    */
   async statuses(): Promise<ProviderStatus[]> {
-    if (!this.cache?.full) return this.refresh();
+    // A reader only needs a full reading, not one newer than this call: it joins the one on its way
+    if (!this.cache?.full) return this.pending ?? this.refresh();
     if (this.now() - this.cache.at > this.ttlMs) void this.refresh().catch(() => undefined);
     return this.known() ?? [];
   }
@@ -219,11 +222,30 @@ export class ProviderDetector {
    */
   refresh(options: { only?: ProviderId[]; claude?: ClaudeReading } = {}): Promise<ProviderStatus[]> {
     const full = !options.only && !options.claude;
-    if (full && this.pending) return this.pending;
+    if (full && this.pending) {
+      // Asked in the same tick, the running detection has not read anything yet and answers both.
+      // Asked later, something may have changed since it read the settings and the files (a new
+      // binary override, a login), so the answer is a detection that starts after it, one shared
+      // by everyone who asks meanwhile.
+      if (this.pendingJoinable) return this.pending;
+      this.followUp ??= this.pending
+        .catch(() => undefined)
+        .then(() => {
+          this.followUp = null;
+          return this.refresh();
+        });
+      return this.followUp;
+    }
     const run = this.detect(options).finally(() => {
       if (this.pending === run) this.pending = null;
     });
-    if (full) this.pending = run;
+    if (full) {
+      this.pending = run;
+      this.pendingJoinable = true;
+      queueMicrotask(() => {
+        if (this.pending === run) this.pendingJoinable = false;
+      });
+    }
     return run;
   }
 
