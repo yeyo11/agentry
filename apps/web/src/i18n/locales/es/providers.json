@@ -38,5 +38,10 @@
     "chooseBinary": "Elegir binario",
     "retry": "Reintentar",
     "opensNewTab": "se abre en una pestaña nueva"
+  },
+  "statusbar": {
+    "version": "versión {{version}}",
+    "checking": "Comprobando agentes…",
+    "none": "Ningún agente detectado"
   }
 }
