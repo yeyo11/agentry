@@ -907,6 +907,16 @@ CW-5's pull request):
 - **Shadow period.** After merge, the owner runs chosen points in `shadow` on their own projects,
   then moves points to `active` one at a time from `/decisions/stats`.
 
+## Who builds it (owner, 2026-09-30)
+
+Implementing this plan is the owner's top priority. **The Developer that builds it is Claude
+Sonnet 5.5, named by its exact id `claude-sonnet-5-5`**, not by the `sonnet` alias: on the owner's
+machine the alias resolves to `claude-sonnet-5` (Agentry's `model-aliases.json` records what each
+alias ran on). Checked on 2026-09-30: the CLI accepts `--model claude-sonnet-5-5` and reports usage
+on it; `claude-sonnet-5.5` is refused. Every worker of the orchestrations below that writes code,
+and the team's Developer on any work item of this plan, runs with `claude-sonnet-5-5`. Review and
+verification roles keep their own models.
+
 ## Reconciled with main on 2026-09-30 (e7519f86)
 
 The plan was written against `80916ccc` (0.24.0). On 2026-09-30 every decision point was checked
