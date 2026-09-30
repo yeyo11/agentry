@@ -374,3 +374,40 @@
     padding: 12px 14px;
   }
 }
+
+/* Project override: the provider block, a value not yet overridden, and the phone's folding groups */
+.dp-block:has(> .segmented) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.dp-thr.is-inherited .slider-range {
+  background: var(--fg-3);
+}
+
+.dp-thr.is-inherited output {
+  color: var(--fg-3);
+}
+
+.dp-foot > .project-general-actions {
+  flex: 1 1 auto;
+}
+
+.dp-fold {
+  border-top: 1px solid var(--line);
+}
+
+.dp-fold > .collapsible-trigger {
+  width: 100%;
+  gap: 10px;
+  min-height: var(--touch);
+  padding: 0 14px;
+  background: var(--bg-1);
+}
+
+.dp-fold > .collapsible-trigger .section-label {
+  flex: 1 1 auto;
+  text-align: left;
+}
