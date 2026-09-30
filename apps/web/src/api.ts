@@ -6,6 +6,22 @@ import type {
   AgentTranscript,
   AgentryReleaseInfo,
   AddAccountTokenRequest,
+  DecisionClearResult,
+  DecisionConsentRequest,
+  DecisionCredentialsResult,
+  DecisionFeedback,
+  DecisionFilter,
+  DecisionPage,
+  DecisionPageQuery,
+  DecisionPointId,
+  DecisionPointInfo,
+  DecisionPreview,
+  DecisionRecord,
+  DecisionStats,
+  DecisionSettings,
+  DecisionSettingsUpdate,
+  DecisionTestResult,
+  DecisionProviderId,
   ApiError,
   AuditFilter,
   AuditPage,
@@ -580,6 +596,30 @@ export const api = {
   deleteToolPreset: (id: string) => request<{ ok: true }>(`/config/tool-presets/${enc(id)}`, { method: 'DELETE' }),
   supervisorConfig: (o: ReadOptions = {}) => request<SupervisorConfig>('/settings/supervisor', o),
   putSupervisorConfig: (config: UpdateSupervisorConfigRequest) => request<SupervisorConfig>('/settings/supervisor', { method: 'PUT', body: config }),
+  decisionSettings: (o: ReadOptions = {}) => request<DecisionSettings>('/decisions/settings', o),
+  putDecisionSettings: (settings: DecisionSettingsUpdate) => request<DecisionSettings>('/decisions/settings', { method: 'PUT', body: settings }),
+  decisionPoints: (o: ReadOptions = {}) => request<DecisionPointInfo[]>('/decisions/points', o),
+  putDecisionKey: (key: string) => request<DecisionCredentialsResult>('/decisions/credentials', { method: 'PUT', body: { key } }),
+  deleteDecisionKey: () => request<DecisionCredentialsResult>('/decisions/credentials', { method: 'DELETE' }),
+  testDecisionProvider: (provider: DecisionProviderId) => request<DecisionTestResult>('/decisions/test', { method: 'POST', body: { provider } }),
+  decisions: (query: DecisionPageQuery = {}, o: ReadOptions = {}) => {
+    const params = new URLSearchParams();
+    for (const [name, value] of Object.entries(query)) if (value !== undefined && value !== '') params.set(name, String(value));
+    const qs = params.toString();
+    return request<DecisionPage>(`/decisions${qs ? `?${qs}` : ''}`, o);
+  },
+  decisionPreview: (point: DecisionPointId, o: ReadOptions = {}) => request<DecisionPreview>(`/decisions/points/${enc(point)}/preview`, o),
+  putDecisionConsent: (point: DecisionPointId, consent: DecisionConsentRequest) =>
+    request<DecisionSettings>(`/decisions/points/${enc(point)}/consent`, { method: 'PUT', body: consent }),
+  decisionStats: (days: number, o: ReadOptions = {}) => request<DecisionStats>(`/decisions/stats?days=${days}`, o),
+  decisionFeedback: (id: string, feedback: DecisionFeedback) => request<DecisionRecord>(`/decisions/${enc(id)}/feedback`, { method: 'POST', body: { feedback } }),
+  deleteDecision: (id: string) => request<{ ok: true }>(`/decisions/${enc(id)}`, { method: 'DELETE' }),
+  clearDecisions: (filter: DecisionFilter = {}) => {
+    const params = new URLSearchParams();
+    for (const [name, value] of Object.entries(filter)) if (value !== undefined && value !== '') params.set(name, String(value));
+    const qs = params.toString();
+    return request<DecisionClearResult>(`/decisions${qs ? `?${qs}` : ''}`, { method: 'DELETE' });
+  },
   resources: (scope: Scope, kind: ResourceKind) =>
     request<ConfigResource[]>(`/config/resources/${kind}${scoped(scope)}`),
   resource: (scope: Scope, kind: ResourceKind, name: string) =>
@@ -853,6 +893,12 @@ export const keys = {
   mcp: (scope: Scope) => ['config', 'mcp', scope.projectId ?? 'user'] as const,
   toolPresets: ['config', 'tool-presets'] as const,
   supervisor: ['settings', 'supervisor'] as const,
+  decisionSettings: ['decisions', 'settings'] as const,
+  decisionPoints: ['decisions', 'points'] as const,
+  decisionsRecent: (query: DecisionPageQuery) => ['decisions', 'recent', query] as const,
+  decisionStats: (days: number) => ['decisions', 'stats', days] as const,
+  decisionPreview: (point: DecisionPointId) => ['decisions', 'preview', point] as const,
+  decisionHistory: (filter: DecisionFilter) => ['decisions', 'history', filter] as const,
   resources: (scope: Scope, kind: ResourceKind) => ['config', 'resources', scope.projectId ?? 'user', kind] as const,
   fileRoots: ['config', 'files', 'roots'] as const,
   fileTree: (root: string) => ['config', 'files', 'tree', root] as const,
