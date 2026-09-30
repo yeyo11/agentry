@@ -14,7 +14,9 @@
   "dependencies": {
     "@agentry/core": "workspace:*",
     "@agentry/shared": "workspace:*",
+    "@fastify/compress": "^8.3.1",
     "@fastify/cors": "^11.3.0",
+    "@fastify/etag": "^6.2.0",
     "@fastify/static": "^10.1.4",
     "@fastify/swagger": "^9.8.1",
     "@scalar/fastify-api-reference": "^1.69.0",
