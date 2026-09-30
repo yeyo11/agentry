@@ -53,3 +53,14 @@ test('the line is hidden when no decision was recorded in the window', async () 
   assert.equal(render(stats(0)), '');
   assert.equal(render({ ...stats(0), points: [] }), '');
 });
+
+test('the line shows a Jev cost below a cent to four decimals, in English and Spanish', async () => {
+  setLanguage('en');
+  await i18n.changeLanguage('en');
+  assert.match(render(stats(12, { jevCostUsd: 0.0032 })), /Jev \$0\.0032/);
+  setLanguage('es');
+  await i18n.changeLanguage('es');
+  assert.match(render(stats(12, { jevCostUsd: 0.0032 })), /Jev 0,0032\u00a0US\$/);
+  setLanguage('en');
+  await i18n.changeLanguage('en');
+});

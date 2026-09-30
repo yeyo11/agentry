@@ -295,6 +295,10 @@ switches a point to `active` by itself.
   answers, confidence, threshold, `acted`, `visible`, `saved_run`, latency, tokens, cost, outcome,
   `agreed`, feedback. Rows older than `historyDays` are pruned at start-up and once a day. Consent is
   a setting, not a row.
+- **Jev's cost is derived, not reported.** TypeSafe answers with input tokens only. `JevProvider`
+  records `tokens × JEV_PRICE_USD_PER_INPUT_TOKEN` (0.042 US$ per million input tokens, output free;
+  `decisions/settings.ts`), and `null` when the answer carried no tokens. A migration priced the
+  rows stored before this with the same literal price. `decisionStats` only sums `cost_usd`.
 
 ## Routes
 

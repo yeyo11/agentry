@@ -66,6 +66,12 @@ export const DECISION_PROVIDERS: readonly DecisionProviderId[] = ['cli', 'jev'];
 export const DECISION_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 
 export const JEV_MODEL = 'jev-1.13.0';
+/**
+ * TypeSafe's published price for the pinned model: 0.042 US$ per million input tokens, output free.
+ * TypeSafe reports tokens, never a price, so a request's cost is derived from this. Revisit it
+ * whenever the price or JEV_MODEL changes.
+ */
+export const JEV_PRICE_USD_PER_INPUT_TOKEN = 0.042 / 1_000_000;
 export const MIN_THRESHOLD = 0.5;
 export const MAX_THRESHOLD = 0.99;
 export const DEFAULT_THRESHOLD = 0.85;
