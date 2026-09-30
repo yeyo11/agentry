@@ -88,5 +88,6 @@ export default async ({ page, api, check }) => {
 
   // The shell the worker now serves is the app, not a stale page from another build
   await page.goto('/chats', 1200);
+  await page.waitFor(`return (document.querySelector('main')?.innerText.trim().length ?? 0) > 10`, { label: 'the app rendered' }).catch(() => null);
   check((await page.text('main')).trim().length > 10, 'the app still renders from the shell the worker serves');
 };

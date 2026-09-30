@@ -37,6 +37,7 @@ export default async ({ page, api, check }) => {
   const project = (await api.post('/projects', { name: 'e2e-project' })).body;
   await api.put(`/config/instructions?project=${encodeURIComponent(project.id)}`, { content: '# E2E project rules\n' });
   await page.goto(`/?project=${encodeURIComponent(project.id)}&view=settings`, 1800);
+  await page.waitFor(`return !!document.querySelector('[role=tabpanel]')?.innerText.includes('E2E project rules')`, { label: 'project-scope instructions' });
   check((await page.text('[role=tabpanel]')).includes('E2E project rules'), 'project-scope instructions shown');
   check(!(await page.text('[role=tablist]')).includes('Account'), 'Account tab is user-scope only');
 };
