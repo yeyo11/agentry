@@ -210,6 +210,10 @@
     "delete": "No se ha podido eliminar la tarea"
   },
   "newTask": {
+    "triage": {
+      "filled": "Tipo y prioridad sugeridos",
+      "duplicate": "Puede que una tarea abierta ya cubra esto"
+    },
     "title": "Nueva tarea",
     "into": "{{project}} · {{prefix}}",
     "project": "Proyecto",

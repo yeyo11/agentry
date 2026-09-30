@@ -765,6 +765,7 @@ event feed. Filters take comma-separated lists: `status`, `type`, `priority`, `l
 | GET | `/projects/:id/work-items/page?…&limit=&cursor=` | The same list a page at a time (100 by default, 500 at most): `{ items, total, nextCursor }` |
 | POST | `/projects/:id/work-items` | `{ title, type?, description?, status?, priority?, labels?, assignee?, epicId?, milestoneId?, acceptanceCriteria? }` — create one; it takes the next number of the project, never reused. Emits `workitem.created` |
 | GET | `/projects/:id/work-items/board?…&doneLimit=` | The five columns, each with its limit, its real count, whether it is over the limit, and the items that pass the filter in rank order, descriptions left out. Done holds its newest `doneLimit` items (20 by default) and `more` counts the rest |
+| POST | `/projects/:id/work-items/triage` | `{ title, description? }` — what `board.triage` would prefill for a draft: `{ triage: { type, priority, duplicate, decisionId } \| null }`, null unless the point is active and answered in time. Creates nothing |
 | POST | `/projects/:id/work-items/orchestrate` | `{ itemIds }` — a draft orchestration to review, not launched: one node per item, `dependsOn` from `blocks` inside the selection, and the blockers left outside it. `POST /orchestrations` launches it |
 | GET | `/projects/:id/milestones` | The project's milestones, each with its progress derived from its items |
 | POST | `/projects/:id/milestones` | `{ name, description? }` — create a milestone, open, with no date. Emits `milestone.changed` |

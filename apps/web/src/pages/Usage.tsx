@@ -1,8 +1,10 @@
 import type { UsageBucket, UsagePoint, UsageSlice } from '@agentry/shared';
+import { useQuery } from '@tanstack/react-query';
 import { Fragment, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useUsageBreakdown, useUsageSeries, type UsageRange } from '../api';
+import { api, keys, useUsageBreakdown, useUsageSeries, type UsageRange } from '../api';
 import { BarChart } from '../components/BarChart';
+import { DecisionsLineView } from '../components/DecisionsLine';
 import { ProjectExportCard } from '../components/ProjectExport';
 import { DatePicker } from '../components/controls';
 import { Card, Empty, ErrorBox, PageHeader, Segmented, Skeleton } from '../components/ui';
@@ -168,6 +170,8 @@ export function Usage() {
         </div>
       )}
 
+      <DecisionsLine range={applied} />
+
       <Card
         className="usage-over"
         title={t('over.per', { metric: t(`metrics.${metric}`), bucket: t(`buckets.${bucket}`).toLowerCase() })}
@@ -209,6 +213,23 @@ export function Usage() {
       {project && <ProjectExportCard project={project} wholeProject />}
     </>
   );
+}
+
+/** The start of the page's window as the decision stats take it; "all time" reaches back to the epoch. */
+function sinceOf(range: UsageRange): string {
+  const day = range.from ? parseDay(range.from) : null;
+  return (day ?? new Date(0)).toISOString();
+}
+
+/**
+ * What the decision engine spent and saved over the page's window (the stats have a start and no
+ * end, so a range that ends before today still counts what came after). Nothing shows when no
+ * decision was recorded, so a wrapper that never turned the engine on looks as it did.
+ */
+function DecisionsLine({ range }: { range: UsageRange }) {
+  const since = sinceOf(range);
+  const stats = useQuery({ queryKey: keys.decisionStatsSince(since), queryFn: ({ signal }) => api.decisionStatsSince(since, { signal }) });
+  return stats.data ? <DecisionsLineView stats={stats.data} /> : null;
 }
 
 function TileSkeleton() {

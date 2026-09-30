@@ -412,6 +412,7 @@ After changing them, run `pnpm --filter @agentry/api openapi:schemas`. CI fails 
 | `POST` | `/decisions/:id/feedback` | Useful / not useful on a decision (D13) |
 | `DELETE` | `/decisions/:id` | Deletes one row |
 | `DELETE` | `/decisions` | Clears the rows matching a filter |
+| `POST` | `/projects/:id/work-items/triage` | `board.triage` for a draft being typed: `{ triage: { type, priority, duplicate, decisionId } \| null }`. The New task form fills the fields the person has not touched and marks them decided |
 | `POST` | `/decisions/palette` | Intent routing for the command palette: the query and the command ids, answered with a choice (the `palette.intent` point) |
 
 **A chat's token cannot change them.** Since CW-10 a chat Agentry starts holds its own

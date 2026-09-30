@@ -13,6 +13,8 @@ import type {
   DecisionFilter,
   DecisionPage,
   DecisionPageQuery,
+  DecisionPaletteRequest,
+  DecisionPaletteResult,
   DecisionPointId,
   DecisionPointInfo,
   DecisionPreview,
@@ -153,6 +155,8 @@ import type {
   ProjectTemplate,
   UpdateMilestoneRequest,
   UpdateProjectRequest,
+  TriageWorkItemRequest,
+  TriageWorkItemResult,
   UpdateWorkItemRequest,
   WorkItem,
   WorkItemChanges,
@@ -612,6 +616,10 @@ export const api = {
   putDecisionConsent: (point: DecisionPointId, consent: DecisionConsentRequest) =>
     request<DecisionSettings>(`/decisions/points/${enc(point)}/consent`, { method: 'PUT', body: consent }),
   decisionStats: (days: number, o: ReadOptions = {}) => request<DecisionStats>(`/decisions/stats?days=${days}`, o),
+  decisionStatsSince: (since: string, o: ReadOptions = {}) => request<DecisionStats>(`/decisions/stats?since=${encodeURIComponent(since)}`, o),
+  decision: (id: string, o: ReadOptions = {}) => request<DecisionRecord>(`/decisions/${enc(id)}`, o),
+  decisionPalette: (query: string, commands: DecisionPaletteRequest['commands'], o: ReadOptions = {}) =>
+    request<DecisionPaletteResult>('/decisions/palette', { method: 'POST', body: { query, commands }, ...o }),
   decisionFeedback: (id: string, feedback: DecisionFeedback) => request<DecisionRecord>(`/decisions/${enc(id)}/feedback`, { method: 'POST', body: { feedback } }),
   deleteDecision: (id: string) => request<{ ok: true }>(`/decisions/${enc(id)}`, { method: 'DELETE' }),
   clearDecisions: (filter: DecisionFilter = {}) => {
@@ -710,6 +718,8 @@ export const api = {
   workItem: (itemId: string, o?: ReadOptions) => request<WorkItemDetail>(`/work-items/${enc(itemId)}`, o),
   /** Every flow run of the item, newest first, failed ones included */
   workItemRuns: (itemId: string, o?: ReadOptions) => request<FlowRun[]>(`/work-items/${enc(itemId)}/runs`, o),
+  triageWorkItem: (projectId: string, draft: TriageWorkItemRequest, o: ReadOptions = {}) =>
+    request<TriageWorkItemResult>(`/projects/${enc(projectId)}/work-items/triage`, { method: 'POST', body: draft, ...o }),
   createWorkItem: (projectId: string, req: CreateWorkItemRequest) =>
     request<WorkItem>(`/projects/${enc(projectId)}/work-items`, { method: 'POST', body: req }),
   updateWorkItem: (itemId: string, req: UpdateWorkItemRequest) => request<WorkItem>(`/work-items/${enc(itemId)}`, { method: 'PATCH', body: req }),
@@ -895,8 +905,10 @@ export const keys = {
   supervisor: ['settings', 'supervisor'] as const,
   decisionSettings: ['decisions', 'settings'] as const,
   decisionPoints: ['decisions', 'points'] as const,
+  decision: (id: string) => ['decisions', 'one', id] as const,
   decisionsRecent: (query: DecisionPageQuery) => ['decisions', 'recent', query] as const,
   decisionStats: (days: number) => ['decisions', 'stats', days] as const,
+  decisionStatsSince: (since: string) => ['decisions', 'stats', 'since', since] as const,
   decisionPreview: (point: DecisionPointId) => ['decisions', 'preview', point] as const,
   decisionHistory: (filter: DecisionFilter) => ['decisions', 'history', filter] as const,
   resources: (scope: Scope, kind: ResourceKind) => ['config', 'resources', scope.projectId ?? 'user', kind] as const,

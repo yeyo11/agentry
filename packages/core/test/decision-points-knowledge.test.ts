@@ -230,7 +230,7 @@ test('board.triage active: the draft gets a suggestion, and create itself is unc
   await s.rig.configure('board.triage', 'active');
   s.rig.provider.script = triaged(true);
   const suggestion = await s.items.triage('p1', DRAFT);
-  assert.deepEqual(suggestion, { type: 'bug', priority: 'high', duplicate: true });
+  assert.deepEqual(suggestion, { type: 'bug', priority: 'high', duplicate: true, decisionId: s.rig.rows('board.triage')[0]?.id });
   const item = s.items.create('p1', DRAFT);
   assert.deepEqual([item.type, item.priority], ['task', 'medium'], 'only the person fills the fields');
   const rows = s.rig.rows('board.triage');
@@ -238,7 +238,9 @@ test('board.triage active: the draft gets a suggestion, and create itself is unc
   assert.ok(rows[0]?.acted && rows[0].visible);
   // The CLI has no confidence: a suggest point still prepares its suggestion
   s.rig.provider.script = () => ({ type: choiceOf('story', null), priority: choiceOf('low', null), duplicate: noulOf(false, null) });
-  assert.deepEqual(await s.items.triage('p1', DRAFT), { type: 'story', priority: 'low', duplicate: false });
+  const second = await s.items.triage('p1', DRAFT);
+  assert.deepEqual([second?.type, second?.priority, second?.duplicate], ['story', 'low', false]);
+  assert.ok(second?.decisionId);
 });
 
 test('board.triage unavailable, no quota included: no suggestion, at once, and create works', async () => {

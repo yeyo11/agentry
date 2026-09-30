@@ -59,6 +59,13 @@ const OPEN_EVENT = 'cw:open-command-palette';
 export const RUN_WORKFLOW_EVENT = 'agentry:run-workflow';
 /** Opens the Orchestrations page with its "New orchestration" form already open. */
 export const NEW_ORCHESTRATION_PATH = '/orchestration?new=1';
+/** A query whose best local rank is under this matched no title, group, keyword or hint as a substring. */
+const INTENT_FLOOR = 500;
+const INTENT_MIN_CHARS = 3;
+/** Typing is never held up: the model is asked only once the person pauses. */
+const INTENT_DELAY_MS = 350;
+/** The commands worth routing to: pages, actions and settings tabs, not every project and chat. */
+const INTENT_GROUPS: readonly Group[] = ['actions', 'goTo', 'settings'];
 const isMac = typeof navigator !== 'undefined' && /mac|iphone|ipad/i.test(navigator.platform);
 
 /** A search field in the sidebar on a desktop, an icon in the top bar on a phone: `className` says which. */
@@ -75,13 +82,14 @@ export function CommandPaletteTrigger({ className = '' }: { className?: string }
 
 export function CommandPalette() {
   const navigate = useNavigate();
-  const { t } = useTranslation(['components', 'connectors', 'shell']);
+  const { t } = useTranslation(['components', 'connectors', 'shell', 'decisions']);
   const { project: selected } = useProjectScope();
   const reduced = useReducedMotion();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const [recent, setRecent] = useState<string[]>(readRecent);
+  const [settled, setSettled] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const restoreFocus = useRef<HTMLElement | null>(null);
@@ -92,6 +100,10 @@ export function CommandPalette() {
   const waiting = useQuery({ queryKey: keys.chatList({ state: 'waiting' }), queryFn: ({ signal }) => api.chats({ state: 'waiting' }, { signal }), enabled: open });
   const orchestrations = useQuery({ queryKey: keys.orchestrations, queryFn: api.orchestrations, enabled: open });
   const overview = useQuery({ queryKey: keys.overview, queryFn: api.overview, enabled: open });
+
+  // `palette.intent` only asks when it is active on Jev: the local ranking answers first either way
+  const points = useQuery({ queryKey: keys.decisionPoints, queryFn: ({ signal }) => api.decisionPoints({ signal }), enabled: open });
+  const intentOn = (points.data ?? []).some((p) => p.id === 'palette.intent' && p.effective.mode === 'active' && !p.effective.limited && p.effective.provider === 'jev');
 
   const close = useCallback(() => {
     setOpen(false);
@@ -212,6 +224,36 @@ export function CommandPalette() {
     return list;
   }, [navigate, t, selected, projects.data, working.data, waiting.data, orchestrations.data, overview.data]);
 
+  const ranked = useMemo(() => {
+    const q = query.trim();
+    if (!q) return [];
+    return commands
+      .map((command) => ({
+        command,
+        rank: Math.max(score(q, command.title), score(q, `${t(`palette.groups.${command.group}`)} ${command.title}`) - 5, score(q, command.keywords ?? '') - 20, score(q, command.hint ?? '') - 30),
+      }))
+      .filter((r) => r.rank > 0)
+      .sort((a, b) => b.rank - a.rank);
+  }, [commands, query, t]);
+
+  const trimmed = query.trim();
+  useEffect(() => {
+    if (!intentOn || trimmed.length < INTENT_MIN_CHARS) return setSettled('');
+    const timer = window.setTimeout(() => setSettled(trimmed), INTENT_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [intentOn, trimmed]);
+  const intentCommands = useMemo(() => commands.filter((c) => INTENT_GROUPS.includes(c.group)).map((c) => ({ id: c.id, title: c.title })), [commands]);
+  const wantsIntent = intentOn && settled !== '' && settled === trimmed && (ranked[0]?.rank ?? 0) < INTENT_FLOOR;
+  const intent = useQuery({
+    queryKey: ['decisions', 'palette', settled, intentCommands.length],
+    queryFn: ({ signal }) => api.decisionPalette(settled, intentCommands, { signal }),
+    enabled: open && wantsIntent,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const proposedId = wantsIntent ? intent.data?.commandId ?? null : null;
+  const proposed = proposedId ? commands.find((c) => c.id === proposedId) : undefined;
+
   const results = useMemo(() => {
     const q = query.trim();
     if (!q) {
@@ -222,16 +264,10 @@ export function CommandPalette() {
       const rest = commands.filter((c) => !idle.has(c.group) && !recent.includes(c.id));
       return [...recents, ...rest].slice(0, MAX_RESULTS);
     }
-    return commands
-      .map((command) => ({
-        command,
-        rank: Math.max(score(q, command.title), score(q, `${t(`palette.groups.${command.group}`)} ${command.title}`) - 5, score(q, command.keywords ?? '') - 20, score(q, command.hint ?? '') - 30),
-      }))
-      .filter((r) => r.rank > 0)
-      .sort((a, b) => b.rank - a.rank)
-      .slice(0, MAX_RESULTS)
-      .map((r) => r.command);
-  }, [commands, query, recent, t]);
+    const local = ranked.map((r) => r.command);
+    // The proposed command leads; whatever the local search found follows
+    return (proposed ? [proposed, ...local.filter((c) => c.id !== proposed.id)] : local).slice(0, MAX_RESULTS);
+  }, [commands, query, recent, ranked, proposed]);
 
   // While searching, results are ranked globally; grouping only applies to the idle list
   const grouped = !query.trim();
@@ -251,6 +287,8 @@ export function CommandPalette() {
     } catch {
       // recents are a convenience only
     }
+    // Running what the model proposed is the word that it was right
+    if (intent.data?.decisionId && command.id === proposedId) void api.decisionFeedback(intent.data.decisionId, 'useful').catch(() => undefined);
     setOpen(false);
     command.run();
   };
@@ -358,6 +396,9 @@ export function CommandPalette() {
                           <span className="palette-option-title">{command.title}</span>
                           {command.hint && <span className="palette-option-hint">{command.hint}</span>}
                         </span>
+                        {command.id === proposedId && intent.data?.confidence != null && (
+                          <span className="decided-face palette-decided">{t('decisions:mark.decided', { confidence: intent.data.confidence.toFixed(2) })}</span>
+                        )}
                         {!grouped && <span className="palette-option-group">{t(`palette.groups.${command.group}`)}</span>}
                         {selected && <CornerDownLeft className="palette-option-enter" size={14} strokeWidth={1.75} aria-hidden />}
                       </div>

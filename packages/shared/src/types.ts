@@ -1761,6 +1761,29 @@ export interface WorkOnWorkItemResult {
   link: WorkItemLink;
 }
 
+/** A draft work item to triage: what the person has typed so far. */
+export interface TriageWorkItemRequest {
+  title: string;
+  description?: string;
+}
+
+/**
+ * What `board.triage` suggests for a draft: a prefill for the person to keep or change, and a
+ * warning. It is the answer of the decision `decisionId`, which the form marks as decided.
+ */
+export interface WorkItemTriage {
+  type: Exclude<WorkItemType, 'epic'>;
+  priority: WorkItemPriority;
+  /** An open item already seems to cover the draft; the warning does not name which */
+  duplicate: boolean;
+  decisionId: string | null;
+}
+
+/** `triage` is null unless the point is active and answered in time: the form then stays as it is. */
+export interface TriageWorkItemResult {
+  triage: WorkItemTriage | null;
+}
+
 /** A selection of work items of one project to orchestrate, in the order they were picked. */
 export interface OrchestrateWorkItemsRequest {
   itemIds: string[];
