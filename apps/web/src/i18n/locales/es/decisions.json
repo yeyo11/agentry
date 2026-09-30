@@ -294,5 +294,20 @@
       "notificationUrgency": "Fijó la urgencia",
       "paletteIntent": "Eligió el comando"
     }
+  },
+  "bulk": {
+    "trigger": "Cambiar modo",
+    "label": "Cambiar el modo de {{scope}}",
+    "setTo": "Poner en {{mode}}",
+    "all": "Los {{count}} puntos",
+    "allScope": "todos los puntos",
+    "result": "Puestos en {{mode}}: {{count}}.",
+    "unchanged": "Ya estaban así: {{count}}.",
+    "kept": "Se quedan en {{mode}}: {{count}} (un punto que actúa necesita Jev para estar activo).",
+    "saveHint": "Guarda para aplicar."
+  },
+  "bulkConsent": {
+    "title": "Antes de pasar {{count}} puntos",
+    "agree": "Consentir todos y aplicar"
   }
 }

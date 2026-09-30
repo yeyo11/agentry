@@ -541,6 +541,15 @@ or motion. The rules are under "Decisions" in [agentry-ds.css](design-system/age
   decision was recorded in it. On a phone the title leads a line and the link to the history is
   left out.
 
+- **Bulk mode (`.dp-bulk`, `.dp-bulk-list`).** A variant of the Decision points card added at the
+  owner's request (2026-09-30). One small "Cambiar modo" button under the card's intro (all points)
+  and one on every group head open a menu, Apagado / Sombra / Activo (`MoreActions` with a text
+  trigger: a dropdown on a desktop, a sheet of 44 px buttons on a phone). A quiet line below says
+  how many were set, were already there or stayed at Sombra (an act point on the CLI cannot be
+  active), and to save. When points need consent, one dialog (a `Sheet` on a phone) lists each with
+  its name, id, target mode and size, its exact state folded in a `Collapsible`, and one primary
+  "Consentir todos y aplicar". No new colour, gradient or motion.
+
 Reference screens: `DesktopProyectoAjustes`, `MobileProyectoAjustes`, `MobileProyectoAjustesDecisiones`,
 `DesktopTablero` and `MobileTablero` (marks closed), `DesktopTableroDecidido` and
 `MobileTableroDecidido` (answer open, Jev), `DesktopMemoria` (answer open, CLI), `MobileMemoria` and

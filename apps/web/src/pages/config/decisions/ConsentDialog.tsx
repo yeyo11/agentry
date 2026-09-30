@@ -1,4 +1,4 @@
-import type { DecisionMode, DecisionPointInfo, DecisionPointSettings, DecisionProviderId } from '@agentry/shared';
+import type { DecisionMode, DecisionPointInfo, DecisionPreview, DecisionPointSettings, DecisionProviderId } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ShieldCheck, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -56,47 +56,15 @@ export function ConsentDialog({
   const title = t('consent.title', { mode: t(`points.modes.${mode}`).toLowerCase() });
   const leaves = provider === 'jev';
   const data = preview.data;
-  const json = data ? JSON.stringify(data.state, null, 2) : '';
 
   const body = (
     <div className="dp-consent-body">
-      <div className={`alert ${leaves ? 'alert-warn' : 'alert-info'}`} role="note">
-        {leaves ? <TriangleAlert className="alert-icon" {...ICON} /> : <ShieldCheck className="alert-icon" {...ICON} />}
-        <div className="alert-body dp-note-card">
-          <strong>{leaves ? t('consent.leavesTitle') : t('consent.staysTitle')}</strong>
-          <span>{leaves ? t('consent.leavesBody', { host: JEV_HOST }) : t('consent.staysBody')}</span>
-        </div>
-      </div>
+      <ConsentNotice leaves={leaves} />
       <ErrorBox error={preview.error ?? grant.error} />
       {preview.isPending ? (
         <Skeleton rows={4} />
       ) : (
-        data && (
-          <>
-            <div className="dp-consent-state">
-              <span className="section-label">{data.source === 'last' ? t('consent.stateLast') : t('consent.stateBuilt')}</span>
-              {/* Focusable so the keyboard can scroll it: the state is read in full or not at all */}
-              <pre className="dp-preview" tabIndex={0} aria-label={t('consent.stateLabel')}>
-                {json}
-              </pre>
-              {data.source === 'built' && <span className="form-hint">{t('consent.builtHint')}</span>}
-            </div>
-            <div className="dp-facts">
-              <span className="dp-fact">
-                <span>{t('consent.goesTo')}</span>
-                <span>{leaves ? t('consent.goesToJev', { host: JEV_HOST }) : t('consent.goesToCli')}</span>
-              </span>
-              <span className="dp-fact">
-                <span>{t('consent.size')}</span>
-                <span>{t('consent.sizeValue', { size: formatBytes(data.bytes), tokens: formatNumber(approxTokens(data.bytes)) })}</span>
-              </span>
-              <span className="dp-fact">
-                <span>{t('consent.version')}</span>
-                <span>v{data.stateVersion}</span>
-              </span>
-            </div>
-          </>
-        )
+        data && <PreviewBody data={data} leaves={leaves} />
       )}
       <span className="form-hint">{t('consent.withdraw')}</span>
     </div>
@@ -127,5 +95,51 @@ export function ConsentDialog({
       </span>
       {body}
     </Dialog>
+  );
+}
+
+/** The exact state a point sends, where it goes and how big it is: shared by the single and the bulk consent. */
+export function PreviewBody({ data, leaves }: { data: DecisionPreview; leaves: boolean }) {
+  const { t } = useTranslation('decisions');
+  const json = JSON.stringify(data.state, null, 2);
+  return (
+    <>
+    <div className="dp-consent-state">
+      <span className="section-label">{data.source === 'last' ? t('consent.stateLast') : t('consent.stateBuilt')}</span>
+      {/* Focusable so the keyboard can scroll it: the state is read in full or not at all */}
+      <pre className="dp-preview" tabIndex={0} aria-label={t('consent.stateLabel')}>
+        {json}
+      </pre>
+      {data.source === 'built' && <span className="form-hint">{t('consent.builtHint')}</span>}
+    </div>
+    <div className="dp-facts">
+      <span className="dp-fact">
+        <span>{t('consent.goesTo')}</span>
+        <span>{leaves ? t('consent.goesToJev', { host: JEV_HOST }) : t('consent.goesToCli')}</span>
+      </span>
+      <span className="dp-fact">
+        <span>{t('consent.size')}</span>
+        <span>{t('consent.sizeValue', { size: formatBytes(data.bytes), tokens: formatNumber(approxTokens(data.bytes)) })}</span>
+      </span>
+      <span className="dp-fact">
+        <span>{t('consent.version')}</span>
+        <span>v{data.stateVersion}</span>
+      </span>
+    </div>
+    </>
+  );
+}
+
+/** Whether the state leaves the machine (Jev) or stays on it (the CLI): said before anything else. */
+export function ConsentNotice({ leaves }: { leaves: boolean }) {
+  const { t } = useTranslation('decisions');
+  return (
+    <div className={`alert ${leaves ? 'alert-warn' : 'alert-info'}`} role="note">
+      {leaves ? <TriangleAlert className="alert-icon" {...ICON} /> : <ShieldCheck className="alert-icon" {...ICON} />}
+      <div className="alert-body dp-note-card">
+        <strong>{leaves ? t('consent.leavesTitle') : t('consent.staysTitle')}</strong>
+        <span>{leaves ? t('consent.leavesBody', { host: JEV_HOST }) : t('consent.staysBody')}</span>
+      </div>
+    </div>
   );
 }

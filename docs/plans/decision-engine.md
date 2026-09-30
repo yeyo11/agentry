@@ -473,6 +473,13 @@ Reference: `DesktopAjustes.html` and `MobileAjustes.html`, plus new prototypes
     with its size and the provider it goes to.
   - Consent is recorded with the state version. A point whose state shape changes asks again.
   - With the `cli` provider nothing leaves the machine, and the dialog says so.
+- **Bulk mode** (the owner asked for it on 2026-09-30, after turning 22 points to active one by
+  one). The Decision points section has a "Set mode" menu for all points and one per group. A point
+  that cannot take the mode keeps its allowed maximum (an act point on the CLI stays in shadow) and
+  the page says how many were set and how many kept a lower mode. Points that would leave `off`
+  without consent for the provider open one consent dialog listing each (name, id, size, state
+  folded); "Consent to all and apply" records a consent per point through the existing route, then
+  applies the modes to the draft, which is saved in the one `PUT /decisions/settings` as before.
 - **Per-point metrics** (D14): count, share acted, mean confidence (or "—" for the CLI), shadow
   agreement with the outcome (with its n), useful / not useful, unavailable, cost, runs saved. The
   numbers are tabular and in mono.

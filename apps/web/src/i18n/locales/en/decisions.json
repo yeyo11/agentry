@@ -294,5 +294,20 @@
       "notificationUrgency": "Set the urgency",
       "paletteIntent": "Picked the command"
     }
+  },
+  "bulk": {
+    "trigger": "Set mode",
+    "label": "Set the mode of {{scope}}",
+    "setTo": "Set to {{mode}}",
+    "all": "All {{count}} points",
+    "allScope": "all points",
+    "result": "Set to {{mode}}: {{count}}.",
+    "unchanged": "Already there: {{count}}.",
+    "kept": "Kept at {{mode}}: {{count}} (an acting point needs Jev to be active).",
+    "saveHint": "Save to apply."
+  },
+  "bulkConsent": {
+    "title": "Before moving {{count}} points",
+    "agree": "Consent to all and apply"
   }
 }

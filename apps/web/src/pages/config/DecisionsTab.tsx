@@ -21,9 +21,11 @@ import { useToast } from '../../components/Toast';
 import { ErrorBox, ModelCombobox, Segmented, Skeleton, Tag } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
 import { formatNumber, timeAgo } from '../../lib/format';
+import { BulkConsentDialog } from './decisions/BulkConsentDialog';
+import { BulkMode } from './decisions/BulkMode';
 import { ConsentDialog } from './decisions/ConsentDialog';
 import { DecisionHistory } from './decisions/DecisionHistory';
-import { needsConsent } from './decisions/model';
+import { type BulkPlan, activeBlocked, needsConsent, planBulk } from './decisions/model';
 import { METRICS_DAYS, PointMetrics } from './decisions/PointMetrics';
 import { SupervisorTab } from './SupervisorTab';
 import type { DecisionsSection } from './settingsTabs';
@@ -190,6 +192,31 @@ function DecisionsForm({ saved, catalogue, onHistory }: { saved: DecisionSetting
     if (mode !== 'off' && info && needsConsent(info, saved.points[id]?.consent ?? null, draft.provider)) setAsking({ id, mode });
     else setMode(id, mode);
   };
+
+  // Setting many points at once: what it did is said under the control until the next change
+  const [bulkAsking, setBulkAsking] = useState<{ plan: BulkPlan; mode: DecisionMode } | null>(null);
+  const [bulkNote, setBulkNote] = useState<{ mode: DecisionMode; set: number; unchanged: number; kept: number; keptMode: DecisionMode } | null>(null);
+  const applyPlan = (plan: BulkPlan, mode: DecisionMode) => {
+    setDraft((current) => {
+      const points = { ...current.points };
+      for (const change of plan.changes) points[change.id] = { ...pointOf(current, catalogue, change.id), mode: change.mode };
+      return { ...current, points };
+    });
+    // A point kept at shadow counts once, as kept: it is neither "set" to the asked mode nor merely "already there"
+    const kept = new Set(plan.capped);
+    setBulkNote({
+      mode,
+      set: plan.changes.filter((change) => change.mode === mode).length,
+      unchanged: plan.unchanged.filter((id) => !kept.has(id)).length,
+      kept: kept.size,
+      keptMode: 'shadow',
+    });
+  };
+  const onBulk = (ids: readonly DecisionPointId[], mode: DecisionMode) => {
+    const plan = planBulk(catalogue, ids, mode, (id) => draft.points[id]?.mode ?? 'off', (id) => saved.points[id]?.consent ?? null, draft.provider);
+    if (plan.needConsent.length > 0) setBulkAsking({ plan, mode });
+    else applyPlan(plan, mode);
+  };
   const askedInfo = asking ? catalogue.find((point) => point.id === asking.id) : undefined;
 
   const patch = (next: Partial<Draft>) => setDraft((current) => ({ ...current, ...next }));
@@ -230,6 +257,8 @@ function DecisionsForm({ saved, catalogue, onHistory }: { saved: DecisionSetting
         settings={saved}
         draft={draft}
         onMode={onMode}
+        onBulk={onBulk}
+        bulkNote={bulkNote}
         onHistory={onHistory}
         onThreshold={(id, threshold) =>
           setDraft((current) => ({ ...current, points: { ...current.points, [id]: { ...pointOf(current, catalogue, id), threshold } } }))
@@ -246,6 +275,22 @@ function DecisionsForm({ saved, catalogue, onHistory }: { saved: DecisionSetting
           onGranted={() => {
             setMode(asking.id, asking.mode);
             setAsking(null);
+          }}
+        />
+      )}
+      {bulkAsking && (
+        <BulkConsentDialog
+          provider={draft.provider}
+          items={bulkAsking.plan.needConsent.flatMap(({ id, mode }) => {
+            const info = catalogue.find((point) => point.id === id);
+            return info
+              ? [{ info, mode, name: t(`points.names.${POINT_KEY[id] ?? id}`, { defaultValue: id }), consent: saved.points[id]?.consent ?? null }]
+              : [];
+          })}
+          onClose={() => setBulkAsking(null)}
+          onGranted={() => {
+            applyPlan(bulkAsking.plan, bulkAsking.mode);
+            setBulkAsking(null);
           }}
         />
       )}
@@ -586,6 +631,8 @@ function PointsSection({
   settings,
   draft,
   onMode,
+  onBulk,
+  bulkNote,
   onThreshold,
   onHistory,
 }: {
@@ -593,6 +640,8 @@ function PointsSection({
   settings: DecisionSettings;
   draft: Draft;
   onMode: (id: DecisionPointId, mode: DecisionMode) => void;
+  onBulk: (ids: readonly DecisionPointId[], mode: DecisionMode) => void;
+  bulkNote: { mode: DecisionMode; set: number; unchanged: number; kept: number; keptMode: DecisionMode } | null;
   onThreshold: (id: DecisionPointId, threshold: number) => void;
   onHistory: (point: DecisionPointId) => void;
 }) {
@@ -627,6 +676,20 @@ function PointsSection({
       <div className="dp-intro">
         <p>{t('points.intro')}</p>
       </div>
+      {groups.length > 0 && (
+        <div className="dp-bulk">
+          <span className="dp-bulk-label">{t('bulk.all', { count: catalogue.length })}</span>
+          <BulkMode scope={t('bulk.allScope')} onApply={(mode) => onBulk(catalogue.map((info) => info.id), mode)} />
+          {bulkNote && (
+            <p className="dp-bulk-note small muted" role="status">
+              {t('bulk.result', { count: bulkNote.set, mode: t(`points.modes.${bulkNote.mode}`) })}
+              {bulkNote.unchanged > 0 && ` ${t('bulk.unchanged', { count: bulkNote.unchanged })}`}
+              {bulkNote.kept > 0 && ` ${t('bulk.kept', { count: bulkNote.kept, mode: t(`points.modes.${bulkNote.keptMode}`) })}`}
+              {` ${t('bulk.saveHint')}`}
+            </p>
+          )}
+        </div>
+      )}
       <ErrorBox error={withdraw.error} />
       {groups.length === 0 && <p className="small muted dp-empty">{t('points.none')}</p>}
       {groups.map((group) => (
@@ -634,6 +697,7 @@ function PointsSection({
           <div className="dp-group-head">
             <span className="section-label">{t(`points.areas.${group.id}`)}</span>
             <span className="dp-group-count">{formatNumber(group.points.length)}</span>
+            <BulkMode scope={t(`points.areas.${group.id}`)} onApply={(mode) => onBulk(group.points, mode)} />
           </div>
           {group.points.map((id) => {
             const info = byId.get(id);
@@ -687,7 +751,7 @@ export function PointRow({
   const consent = settings.points[info.id]?.consent ?? null;
   const consentState = !consent ? 'none' : consent.stateVersion === info.stateVersion ? 'given' : 'stale';
   // An act point changes what happens, so on the CLI (no calibrated confidence) it cannot be active
-  const activeBlocked = info.kind === 'act' && provider === 'cli';
+  const blocked = activeBlocked(info, provider);
   const off = point.mode === 'off';
 
   return (
@@ -707,7 +771,7 @@ export function PointRow({
         options={MODES.map((mode) => ({
           value: mode,
           label: t(`points.modes.${mode}`),
-          ...(mode === 'active' && activeBlocked ? { disabled: true, title: t('points.activeNeedsJev') } : {}),
+          ...(mode === 'active' && blocked ? { disabled: true, title: t('points.activeNeedsJev') } : {}),
         }))}
       />
       {info.kind === 'act' ? (

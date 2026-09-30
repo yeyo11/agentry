@@ -1,4 +1,4 @@
-import type { DecisionPointInfo, DecisionPointSettings, DecisionProviderId, DecisionRecord } from '@agentry/shared';
+import type { DecisionMode, DecisionPointId, DecisionPointInfo, DecisionPointSettings, DecisionProviderId, DecisionRecord } from '@agentry/shared';
 
 /** Rough size of a request in tokens: the consent dialog says "about", so four bytes a token is enough. */
 export const approxTokens = (bytes: number) => Math.ceil(bytes / 4);
@@ -15,6 +15,50 @@ export function needsConsent(info: Pick<DecisionPointInfo, 'stateVersion'>, cons
 export function consentProviders(info: Pick<DecisionPointInfo, 'stateVersion'>, consent: DecisionPointSettings['consent'], provider: DecisionProviderId): DecisionProviderId[] {
   const before = consent && consent.stateVersion === info.stateVersion ? consent.providers : [];
   return before.includes(provider) ? [...before] : [...before, provider];
+}
+
+/** An act point changes what happens, so on the CLI (no calibrated confidence) it cannot be active. */
+export const activeBlocked = (info: Pick<DecisionPointInfo, 'kind'>, provider: DecisionProviderId) => info.kind === 'act' && provider === 'cli';
+
+export interface BulkPlan {
+  /** The mode each point that changes ends up in */
+  changes: Array<{ id: DecisionPointId; mode: DecisionMode }>;
+  /** Points that already sit in the mode that would result: nothing to do */
+  unchanged: DecisionPointId[];
+  /** Points that keep a lower mode than the one asked for, because they cannot be active */
+  capped: DecisionPointId[];
+  /** Changes that leave `off` without consent for what they send now: they wait for the person to see it */
+  needConsent: Array<{ id: DecisionPointId; mode: Exclude<DecisionMode, 'off'> }>;
+}
+
+/**
+ * What setting many points to one mode does, point by point. A point that cannot be active keeps
+ * shadow (its allowed maximum) instead of failing the whole batch, and only points that actually
+ * change are asked for consent: one already in shadow is not asked again by a batch.
+ */
+export function planBulk(
+  catalogue: readonly DecisionPointInfo[],
+  ids: readonly DecisionPointId[],
+  mode: DecisionMode,
+  current: (id: DecisionPointId) => DecisionMode,
+  consentOf: (id: DecisionPointId) => DecisionPointSettings['consent'],
+  provider: DecisionProviderId,
+): BulkPlan {
+  const plan: BulkPlan = { changes: [], unchanged: [], capped: [], needConsent: [] };
+  for (const id of ids) {
+    const info = catalogue.find((point) => point.id === id);
+    if (!info) continue;
+    const capped = mode === 'active' && activeBlocked(info, provider);
+    const result: DecisionMode = capped ? 'shadow' : mode;
+    if (capped) plan.capped.push(id);
+    if (current(id) === result) {
+      plan.unchanged.push(id);
+      continue;
+    }
+    plan.changes.push({ id, mode: result });
+    if (result !== 'off' && needsConsent(info, consentOf(id), provider)) plan.needConsent.push({ id, mode: result });
+  }
+  return plan;
 }
 
 /** A share as a whole percentage, or null while there is nothing to divide by. */
