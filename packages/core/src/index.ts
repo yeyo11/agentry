@@ -89,6 +89,7 @@ import { HealthMonitor, HealthService } from './health-service.ts';
 import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
 import { EventBus } from './events.ts';
 import { ProviderDetector } from './providers/detector.ts';
+import { ProvidersSettingsStore } from './providers/settings.ts';
 import { Locator } from './locations.ts';
 import { modelOptions } from './models.ts';
 import { PermissionBroker } from './permissions.ts';
@@ -250,6 +251,7 @@ export { describeCron, nextFire, nextFires, parseCron } from './cron.ts';
 export { previewCron, Scheduler, SLOT_GRACE_MS, type ScheduleLauncher } from './schedules.ts';
 export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
 export { PROVIDERS_TTL_MS, ProviderDetector, satisfiesRange, type ClaudeReading, type ProviderDetectorDeps } from './providers/detector.ts';
+export { ProvidersSettingsStore, defaultProvidersSettings } from './providers/settings.ts';
 export { PROVIDER_MANIFESTS, ProviderRegistry, type ProviderManifest } from './providers/registry.ts';
 export { JOURNAL_HANDOFF_BYTES, JournalService, type JournalHandoff, type JournalWrite } from './journal.ts';
 export { MemoryProposalService, type ProposalOrigin } from './memory-proposals.ts';
@@ -295,6 +297,8 @@ export class Core {
    * CLI is asked once for both.
    */
   readonly providers: ProviderDetector;
+  /** Which providers are on, their order, the default and binary overrides (`providers.json`) */
+  readonly providersSettings: ProvidersSettingsStore;
   readonly permissions: PermissionBroker;
   /** Processes and live streams of the chats Agentry drives */
   readonly runtime: ChatManager;
@@ -383,8 +387,10 @@ export class Core {
 
   constructor(config: CoreConfig = loadConfig()) {
     this.config = config;
+    this.providersSettings = new ProvidersSettingsStore(config);
     this.providers = new ProviderDetector({
       config,
+      settings: () => this.providersSettings.get(),
       emit: (event) => this.events.emit(event),
       commandAliases: { 'claude-code': [config.claudeBin] },
       readClaude: async () => {

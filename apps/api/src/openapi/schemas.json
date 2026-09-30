@@ -16262,6 +16262,64 @@
     "additionalProperties": false,
     "description": "`PUT /tunnel/settings`: the settings to change, and only those."
   },
+  "ProvidersSettings": {
+    "type": "object",
+    "properties": {
+      "providers": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/components/schemas/ProviderSettingsEntry"
+        },
+        "propertyNames": {
+          "description": "An agent provider, by the id its manifest declares (`claude-code`, `codex`, …). A string and not a closed union, so adding a provider is adding a folder in core and never a change here."
+        }
+      },
+      "order": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProviderId"
+        },
+        "description": "Provider ids in the order the UI lists them"
+      },
+      "defaultProvider": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProviderId"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The provider a new chat starts with; null takes the first ready one in `order`"
+      }
+    },
+    "required": [
+      "providers",
+      "order",
+      "defaultProvider"
+    ],
+    "description": "`providers.json` in the data directory: which providers are on, in what order they are offered, which one new work starts with, and where a binary lives when the search cannot find it."
+  },
+  "ProviderSettingsEntry": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "binaryPath": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Absolute path of the binary to use instead of searching for one; null searches"
+      }
+    },
+    "required": [
+      "enabled",
+      "binaryPath"
+    ],
+    "description": "What a person chose for one provider."
+  },
   "DecisionSettings": {
     "type": "object",
     "properties": {
