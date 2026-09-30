@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T12:43:36.708551256Z
-updated_at: 2026-09-30T13:55:37Z
+updated_at: 2026-09-30T14:49:29Z
 tags:
     - plan
     - providers
@@ -11,8 +11,8 @@ tags:
 ---
 # Multiple agent providers
 
-Status: **planned** (2026-09-30). Nothing here is built yet. The owner answered the open questions
-the same day; see "Decisions" at the end.
+Status: **phase 1 built** on `feat/multi-provider` (2026-09-30); phases 2 to 4 planned. The owner answered the open questions the same day; see "Decisions"
+at the end, and "Outcome of phase 1".
 
 On 2026-09-30 the owner decided that Agentry is no longer a wrapper around Claude Code: it has grown
 into an orchestrator of its own, and it should drive other coding agents too. On a clean install it
@@ -359,6 +359,40 @@ Scope limits of phase 1:
 
 When P2 is merged into the branch: the full checks, the plan's Outcome, `docs/status.md`, then one
 pull request to `main`.
+
+## Outcome of phase 1
+
+Built on `feat/multi-provider` on 2026-09-30, in three orchestrations launched on the owner's
+desktop app, every code-writing worker on `claude-sonnet-5-5`:
+
+| Orchestration | Tasks | Cost | Result |
+|---|---|---|---|
+| P0 `providers-prototypes` | p1, p2 | 5.21 USD | Validated by the owner. Its check ran `lint.py` on every screen, and `main` already had 312 findings; the 16 new screens lint clean and pass `check.mjs` |
+| P1 `providers-core` | c1–c6 | ~4 USD | Every check passed |
+| P2 `providers-web` | u0–u4 | 7.24 USD | Every check passed; its e2e spec had never run |
+
+Added by hand after P1: **OpenCode as the fifth provider** (owner, 2026-09-30), with a `file` auth
+probe that reads the `auth.json` its login writes, `~/.opencode/bin` among the install directories,
+and a note that its transcripts live in SQLite (under "Providers, in order").
+
+Running the providers e2e spec, which no worker ran, found four real bugs, fixed on the branch:
+
+1. **A refresh during a detection got the old answer.** A settings change or **Refresh** that
+   arrived while a detection ran was answered by it, though it had read the settings and the files
+   before the change. Requests in the same tick still share one detection; later ones share one
+   follow-up that starts after it.
+2. **A reading of Claude Code alone threw away a full detection.** Core re-reads Claude Code when
+   it reads the system info, with a newer sequence number, and a full detection that ended after it
+   was dropped whole. Readings are now compared per provider.
+3. **The first-run step hid Settings.** With no provider ready it stood in for every page, including
+   the one where a provider gets fixed. Once seen, it leaves `/settings` alone; Home and the status
+   bar still say nothing is ready.
+4. **The step had no main landmark** (axe).
+
+The spec itself was fixed to count five providers, to name GitHub Copilot as the app does, and to
+open the app before setting the theme. One unit test, the shiki one in `highlight.test.ts`, fails
+only when the whole suite runs at once: it measures a per-line time budget, and this branch does
+not touch it.
 
 ## Decisions (owner, 2026-09-30)
 
