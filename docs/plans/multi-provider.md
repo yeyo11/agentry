@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T12:43:36.708551256Z
-updated_at: 2026-09-30T12:50:08Z
+updated_at: 2026-09-30T13:04:59Z
 tags:
     - plan
     - providers
@@ -217,6 +217,127 @@ them, but they cannot run orchestration stages.
 
 Each phase keeps `pnpm typecheck`, `pnpm test` and `pnpm e2e` green, regenerates the OpenAPI schemas
 and adds its README rows.
+
+## Phase 1: orchestrations and task graph
+
+Phase 1 is one delivery on one feature branch, **`feat/multi-provider`**, cut from `main` at
+`4735d556` and squash-merged once. It is split into three orchestrations, each landing on that
+branch. Every code-writing worker runs on `claude-sonnet-5-5` (the exact id, never the `sonnet`
+alias). Every task runs `pnpm typecheck` and the tests of the packages it touches; no worker runs
+`pnpm e2e`. The full `pnpm test`, `pnpm build` and `pnpm e2e` run once, at the end, on the branch.
+
+Scope limits of phase 1:
+
+- **Detection only.** No provider other than Claude Code starts a chat. Chats, flows and
+  orchestrations keep running exactly as today.
+- **Sign in:** Claude Code's action opens the account flow Agentry already has (Settings →
+  Account). Every other provider links to its vendor's sign-in page; signing in from Agentry comes
+  with its driver.
+- **Handshakes spend nothing.** A handshake that would cost tokens or quota is not run; the
+  provider's readiness then rests on version and auth.
+- **Facts about other vendors' CLIs are checked, not guessed.** Each manifest cites where its
+  command names, config homes, version flag and auth probe come from (the vendor's docs or `--help`
+  output). What cannot be confirmed is left out and its readiness says `unknown` with the reason
+  `no-probe`, never a made-up command.
+
+### P0 · `providers-prototypes` (design; gates P2)
+
+- `p1`: the first-run **Providers** step and **Settings → Providers**, dark and light, desktop and
+  phone.
+  - One row per provider: icon, name, version, account, and the readiness state as a status colour
+    **with** a word; the one primary action per state (Sign in, Install page, Update, Retry,
+    Choose binary); the reason in plain words under it.
+  - The states of section 2 each shown once: a machine with Claude `ready`, Copilot `signed-out`,
+    Codex and Gemini `used-before`, and one `not-installed`; plus the nothing-found `Empty` state
+    and a `checking…` state.
+  - Default provider and order (drag handle on desktop, a `Sheet` on phone), enable/disable, and the
+    binary override.
+  - Files: `docs/design-system/reference/DesktopProveedores.html`, `MobileProveedores.html`,
+    `DesktopPrimerArranque.html`, `MobilePrimerArranque.html`, their screenshots, and the reference
+    index. A new variant, if any, goes into `docs/design-system.md` and `agentry-ds.css`.
+- `p2`: the status bar with one dot per enabled provider, and the Home setup rows that today say
+  "Claude Code CLI not detected", both states. Files: the Home references (`Main.html`, `MobileInicio.html`) and `StatusBar.html`,
+  updated.
+- Check: the prototype tools pass, and **the owner validates** before P2 starts.
+
+### P1 · `providers-core` (runs beside P0)
+
+- `c1` (shared types), dependsOn none.
+  - `ProviderId` (a string), `ProviderTransport`, `ProviderCapability`, `ProviderReadinessState`
+    (the seven of section 2), `ProviderReasonCode`, `ProviderStatus` (id, label, state, reason,
+    version, compatible range, binary path, config home, account, capabilities, checkedAt),
+    `ProvidersSettings` (enabled, order, default, binary override per provider), and the
+    `providers.changed` event (`AgentryEventBase`, like `system.release`).
+  - Files: `packages/shared/src/types.ts`, `apps/api/src/openapi/schemas*` (regenerated).
+  - Checks: shared tests, `pnpm --filter @agentry/api openapi:schemas` with no drift.
+- `c2` (the user's PATH), dependsOn none.
+  - Move `apps/desktop/src/shell-path.ts` into `packages/core/src/providers/path.ts` and extend it:
+    login-shell PATH with sentinels, a timeout and a typed failure
+    (`no-shell | timeout | spawn-error | empty-path`), a fast-path marker in the environment
+    (`AGENTRY_SHELL_PATH_PROBE=1`) that rc files can test; resolving a command with `fs` (`X_OK`,
+    no `which` spawn); the install-directory fallback (nvm ordered by its `default` alias, volta,
+    asdf, mise, bun, pnpm, npm-global, `~/.local/bin`, `~/.claude/local`, Homebrew, nix, snap).
+    The desktop app imports it from core. The server uses it at start, so a server started from a
+    desktop session or a service finds what the person's terminal finds.
+  - Files: `packages/core/src/providers/path.ts` and tests, `apps/desktop/src/main.ts`,
+    `apps/desktop/src/shell-path.ts` (removed), `docs/desktop.md` ("The CLI is not detected").
+  - Check: core and desktop tests.
+- `c3` (manifests and registry), dependsOn c1.
+  - `packages/core/src/providers/registry.ts`, and one folder per provider with its
+    `manifest.ts`: `claude-code`, `codex`, `gemini`, `copilot`. Each declares commands and aliases,
+    required commands, unsupported platforms, config homes and the variable that moves them,
+    version flag and tested range, auth probe, install and sign-in pages, transport, and
+    capabilities (none for providers without a driver yet), each fact with its source in a comment.
+  - Check: core tests, including one that fails when two manifests share a command or an id.
+- `c4` (detector), dependsOn c1, c2, c3.
+  - `packages/core/src/providers/detector.ts`: runs every enabled manifest's probes in parallel,
+    each with its own timeout; resolves the binary (override, then PATH, then install
+    directories); reads the version and compares it with the range; runs the auth probe;
+    recognises `used-before` from config homes; produces a `ProviderStatus` per provider with the
+    state and reason code of section 2.
+  - One cache with one TTL, invalidated by a refresh, by a settings change, and by watchers on the
+    PATH directories and config homes (debounced), which re-detect and emit `providers.changed`
+    only when a status actually changed.
+  - Claude Code's probes reuse `detectCli` and `getAuthStatus` from `packages/core/src/cli.ts`;
+    `/health` keeps its shape (`cli`, `loggedIn`), now read from the Claude provider's status.
+  - Files: `detector.ts`, `packages/core/src/index.ts` wiring, tests with fake binaries on a
+    temporary PATH and fake config homes.
+  - Check: core tests.
+- `c5` (settings and API), dependsOn c4.
+  - `providers.json` in the data directory for `ProvidersSettings` (a settings-shaped document, like
+    `decisions.json`).
+  - Routes: `GET /providers` (every status, from the cache), `GET /providers/:id`,
+    `POST /providers/refresh` (re-detects now), `GET /providers/settings`,
+    `PUT /providers/settings`. Chat tokens get `403` on the writes.
+  - Files: `apps/api/src/routes/providers.ts`, `apps/api/src/app.ts`,
+    `apps/api/src/openapi/routes.ts` (summary and tag per route), `apps/api/src/security.ts`,
+    `README.md` REST tables, API tests.
+  - Check: API tests, the summary-and-tag test included.
+- `c6` (the rule and the docs), dependsOn none.
+  - Rewrite the one rule in `CLAUDE.md` and `CONTRIBUTING.md` as section 8 says, keeping the decision
+    engine's exception; fix every other document that quotes the old wording as a rule in force.
+  - Write `docs/providers.md`: what a provider is, the readiness states and reason codes, how
+    detection finds a binary, and how to add a provider.
+  - Check: the docs read on GitHub; no code changes.
+
+### P2 · `providers-web`, dependsOn P0 (validated) and P1
+
+- `u1`: the first-run Providers step: shown when no provider is `ready` or on the first start after
+  install, and skippable; uses `GET /providers` and `providers.changed`; `Empty` with an
+  illustration when nothing is found.
+- `u2`: Settings → Providers, from the validated prototype: the list, actions per state, default
+  and order, enable/disable, binary override (`PUT /providers/settings`), and **Refresh**.
+- `u3`: the status bar's dot per enabled provider, and Home's setup rows reading provider statuses;
+  the `cli-missing` illustration stops naming `claude`.
+- Every string through i18n with `en`/`es` parity and the glossary; phone layout, both themes and
+  motion levels per the design system. e2e specs for the step and the settings page, using the fake
+  CLI for Claude and fake binaries for the others (written by the tasks, run once at the end).
+- Files: `apps/web/src/pages/config/ProvidersTab.tsx`, `settingsTabs.ts`, the first-run component,
+  `components/shell/StatusBar.tsx`, `pages/dashboard/widgets/live.tsx`, locales, `e2e/`.
+- Check: web tests, including the tokens test.
+
+When P2 is merged into the branch: the full checks, the plan's Outcome, `docs/status.md`, then one
+pull request to `main`.
 
 ## Decisions (owner, 2026-09-30)
 
