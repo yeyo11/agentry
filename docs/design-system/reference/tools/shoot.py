@@ -8,7 +8,7 @@ LOOK = os.environ.get('NS_LOOK') or os.path.join(tempfile.gettempdir(), 'ns-look
 CHROME = os.environ.get('CHROME_BIN', '/usr/bin/google-chrome')
 SIZES = {'Desktop': (1440, 1024, 1), 'Mobile': (390, 844, 2), 'DS': (1440, None, 1)}
 # The shell pieces are captured at their own size
-PIECES = {'Sidebar': (256, 1024, 2), 'TabBar': (390, 84, 2), 'Topbar': (1184, 52, 1), 'StatusBar': (1184, 30, 1),
+PIECES = {'Sidebar': (256, 1024, 2), 'TabBar': (390, 84, 2), 'Topbar': (1184, 52, 1), 'StatusBar': (1184, 444, 1),
           'Illustration': (240, 160, 2), 'Main': (1440, 1060, 1)}
 
 

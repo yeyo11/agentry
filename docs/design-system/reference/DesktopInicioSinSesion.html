@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><title>Agentry · Inicio (desktop)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Inicio con un proveedor sin sesión (desktop)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
 
 <div class="app shell" data-theme="dark" style="width: 1440px; height: 1060px">
 <div class="side">
@@ -86,8 +86,8 @@
 <div class="page-head">
 <div class="col" style="gap: 6px">
 <span class="t-label">Viernes · 25 sep</span>
-<h1 class="t-display" style="margin: 0">Todo en marcha, <span class="grad-text">nada te espera</span></h1>
-<p class="fg-2" style="margin: 0">3 agentes trabajando en 2 orquestaciones y 1 chat. Ningún permiso ni pregunta pendiente.</p>
+<h1 class="t-display" style="margin: 0">Todo en marcha, <span class="grad-text">salvo Copilot</span></h1>
+<p class="fg-2" style="margin: 0">3 agentes trabajando en 2 orquestaciones y 1 chat. Copilot necesita que inicies sesión antes de poder recibir trabajo.</p>
 </div>
 <div class="row">
 <a href="DesktopNuevoChat.html" class="btn">Nueva orquestación</a>
@@ -104,6 +104,15 @@
 
 <div style="display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start">
 <div class="col" style="gap: 16px">
+
+<section class="card">
+<div class="card-head"><h2 class="t-h2 grow">Proveedores</h2><span class="badge b-warn">1 sin sesión</span><a href="DesktopProveedores.html" class="btn btn-ghost btn-sm">Ver proveedores<svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></a></div>
+<div class="row" style="padding: 14px 18px; gap: 12px">
+<span class="proj" style="background: var(--warn-soft); color: var(--warn)"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M15 7.5a4.5 4.5 0 1 1-3.4 7.5L4 22v-3H2v-2h2l1-1 1.5 1.5L8 16l-2-2 5.6-5.6A4.5 4.5 0 0 1 15 7.5z"></path></svg></span>
+<span class="col grow" style="gap: 1px"><span style="font-weight: 600">Copilot no tiene sesión iniciada</span><span class="t-xs fg-3 mono">0.0.353 instalado · faltan credenciales · Claude Code sigue listo</span></span>
+<a href="DesktopProveedores.html" class="btn btn-primary btn-sm">Iniciar sesión</a>
+</div>
+</section>
 
 <section class="card energy">
 <div class="card-head"><h2 class="t-h2 grow">En marcha</h2><span class="badge b-live"><span class="dot dot-live dot-ping" style="width: 6px; height: 6px"></span>en vivo</span><a href="DesktopOrquestaciones.html" class="btn btn-ghost btn-sm">Ver todo<svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></a></div>
@@ -171,7 +180,7 @@
 <span class="row" style="gap: 6px"><span class="spin-braille"></span>3 en marcha</span>
 <span>hoy 3,41 US$</span>
 <a href="DesktopProveedores.html" class="row" style="gap: 6px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>Claude Code 2.1.282</a>
-<a href="DesktopProveedores.html" class="row" style="gap: 6px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>Copilot 0.0.353</a>
+<a href="DesktopProveedores.html" class="row c-warn" style="gap: 6px"><span class="dot dot-warn" style="width: 6px; height: 6px"></span>Copilot · sin sesión</a>
 </footer>
 
 </div>

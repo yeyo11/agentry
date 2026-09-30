@@ -233,7 +233,12 @@ status bar (30 px).
   - the 5 h and 7 d bars,
   - the number of agents running,
   - today's spend,
-  - the CLI version.
+  - one dot per enabled provider, at the right end (planned, [plans/multi-provider.md](plans/multi-provider.md)):
+    the dot in the status colour, the provider's name and its version, and a word when it is not
+    ready ("sin sesión"). Ready is `ok`, signed out or degraded `warn`, and nothing detected a neutral
+    `idle` dot. Its tooltip gives the state, the version against the tested range, and the remedy; a
+    click opens Settings → Providers. While the first check runs, the braille spinner and "Comprobando
+    agentes…". Prototype: `StatusBar.html`.
 
   It takes over the sidebar footer's job, and `e2e/specs/events.spec.mjs` now reads the connection
   from `.statusbar-conn`.
