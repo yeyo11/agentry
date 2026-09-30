@@ -1,8 +1,8 @@
 import { Check } from 'lucide-react';
 import { cloneElement, useState, type ReactElement, type ReactNode } from 'react';
-import { Menu, Sheet } from '../../../components/controls';
-import { ICON_SM } from '../../../components/icons';
-import { NARROW, useMediaQuery } from '../../../lib/media';
+import { Menu, Sheet } from '@agentry/ui/components/controls';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 
 export interface PickerOption<T extends string> {
   value: T;

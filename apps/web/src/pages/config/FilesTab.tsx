@@ -5,14 +5,14 @@ import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, ApiRequestError, keys, type Scope } from '../../api';
 import { CodeEditor, languageForPath } from '../../components/CodeEditor';
-import { Select, Switch, Tooltip } from '../../components/controls';
-import { Dialog, useConfirm } from '../../components/Dialog';
-import { fileIcon, ICON_SM } from '../../components/icons';
-import { Collapse } from '../../components/motion';
-import { useToast } from '../../components/Toast';
-import { Card, CopyButton, Empty, ErrorBox, Field, Skeleton, Tag } from '../../components/ui';
+import { Select, Switch, Tooltip } from '@agentry/ui/components/controls';
+import { Dialog, useConfirm } from '@agentry/ui/components/Dialog';
+import { fileIcon, ICON_SM } from '@agentry/ui/components/icons';
+import { Collapse } from '@agentry/ui/components/motion';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Card, CopyButton, Empty, ErrorBox, Field, Skeleton, Tag } from '@agentry/ui/components/ui';
 import { useDirty, useLeaveGuard } from '../../lib/dirty';
-import { errorMessage, formatBytes, timeAgo } from '../../lib/format';
+import { errorMessage, formatBytes, timeAgo } from '@agentry/ui/lib/format';
 
 // Labels live in the `config` locale under files.templates
 const TEMPLATES = [

@@ -5,8 +5,8 @@ import { useTranslation } from 'react-i18next';
 import type { TranscriptEntry } from '@agentry/shared';
 import { api } from '../../api';
 import { currentActivity } from '../../lib/observe';
-import { formatDuration, toMs } from '../../lib/format';
-import { ICON_SM } from '../icons';
+import { formatDuration, toMs } from '@agentry/ui/lib/format';
+import { ICON_SM } from '@agentry/ui/components/icons';
 
 /** A clock that re-renders its reader every second while `on`: an age on screen has to move. */
 function useNow(on: boolean): number {

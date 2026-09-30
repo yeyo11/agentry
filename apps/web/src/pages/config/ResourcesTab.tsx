@@ -5,11 +5,11 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, type Scope } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
-import { useConfirm } from '../../components/Dialog';
-import { useToast } from '../../components/Toast';
-import { Card, Empty, ErrorBox, PathLabel, Skeleton, Tag } from '../../components/ui';
+import { useConfirm } from '@agentry/ui/components/Dialog';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Card, Empty, ErrorBox, PathLabel, Skeleton, Tag } from '@agentry/ui/components/ui';
 import { useDirty, useLeaveGuard } from '../../lib/dirty';
-import { timeAgo } from '../../lib/format';
+import { timeAgo } from '@agentry/ui/lib/format';
 import { frontmatterProblem } from './frontmatter';
 
 // The starting file content is not translated: it is what the CLI reads, and the frontmatter keys are

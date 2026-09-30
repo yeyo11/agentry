@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { usageTone } from '../src/components/motion.tsx';
+import { usageTone } from '@agentry/ui/components/motion';
 
 test('usage bars are neutral below 60 %, warn from 60 % and bad from 75 % or when exhausted', () => {
   assert.equal(usageTone(0), 'neutral');

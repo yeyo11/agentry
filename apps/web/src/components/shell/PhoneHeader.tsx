@@ -2,11 +2,11 @@ import { X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation } from 'react-router-dom';
-import { NARROW, useMediaQuery } from '../../lib/media';
+import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { useProjectScope } from '../../lib/project-scope';
-import { MoreActions } from '../controls/MoreActions';
-import type { MenuEntry } from '../controls/Menu';
-import { ICON } from '../icons';
+import { MoreActions } from '@agentry/ui/components/controls/MoreActions';
+import type { MenuEntry } from '@agentry/ui/components/controls/Menu';
+import { ICON } from '@agentry/ui/components/icons';
 import { BackButton } from './BackButton';
 import { phoneHeaderOf, type PhoneHeaderMark } from './phone-header';
 

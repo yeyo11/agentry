@@ -3,8 +3,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { ProgressBar } from '../src/components/ProgressBar';
-import { Stepper } from '../src/components/Stepper';
+import { ProgressBar } from '@agentry/ui/components/ProgressBar';
+import { Stepper } from '@agentry/ui/components/Stepper';
 
 // The orchestration screens draw progress as a cell per task and their steps as a pipeline of bars
 // (docs/design-system.md §3). Both keep saying in words what the colours say.

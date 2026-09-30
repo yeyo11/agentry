@@ -3,19 +3,19 @@ import { CircleCheck, Info, TriangleAlert } from 'lucide-react';
 import { useId, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { AnimatedNumber } from '../../components/AnimatedNumber';
-import { BranchStatus, ControlBadge, LastOutcome, OriginBadge, OutcomeBadge, StateBadge } from '../../components/ChatBadges';
-import { Collapsible } from '../../components/controls/Collapsible';
+import { AnimatedNumber } from '@agentry/ui/components/AnimatedNumber';
+import { BranchStatus, ControlBadge, LastOutcome, OriginBadge, OutcomeBadge, StateBadge } from '@agentry/chat-ui/components/ChatBadges';
+import { Collapsible } from '@agentry/ui/components/controls/Collapsible';
 import { HealthBadge, HealthPanel, isStepIn } from '../../components/observe/Health';
 import { EnvironmentBody } from '../../components/EnvironmentPanel';
-import { ICON_SM } from '../../components/icons';
-import { ProgressRing } from '../../components/motion';
-import { CopyButton } from '../../components/ui';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { ProgressRing } from '@agentry/ui/components/motion';
+import { CopyButton } from '@agentry/ui/components/ui';
 import { WorkflowCard } from '../../components/WorkflowCard';
 import { api } from '../../api';
-import { contextLevel, contextShare, formatPercent, formatTokens } from '../../lib/chat-model';
+import { contextLevel, contextShare, formatPercent, formatTokens } from '@agentry/chat-ui/lib/chat-model';
 import { useDetailPanel } from '../../lib/detail';
-import { durationBetween, formatCost, formatDateTime, formatNumber, timeAgo } from '../../lib/format';
+import { durationBetween, formatCost, formatDateTime, formatNumber, timeAgo } from '@agentry/ui/lib/format';
 import { healthReason, signalReason } from '../../lib/server-strings';
 
 /**
@@ -67,7 +67,7 @@ export function UsageCard({ chat }: { chat: Chat }) {
         </div>
       </Section>
       <Section
-        title={t('work:runView.cost')}
+        title={t('chat:runView.cost')}
         actions={
           cost.usd === null ? (
             <span className="small muted">{money(null)}</span>
@@ -82,7 +82,7 @@ export function UsageCard({ chat }: { chat: Chat }) {
             <caption className="sr-only">{t('side.usage.tokensCaption')}</caption>
             <thead>
               <tr>
-                <th scope="col">{t('work:shared.model')}</th>
+                <th scope="col">{t('chat:shared.model')}</th>
                 <th scope="col">{t('side.usage.input')}</th>
                 <th scope="col">{t('side.usage.output')}</th>
                 <th scope="col">{t('side.usage.cache')}</th>
@@ -215,7 +215,7 @@ export function BranchesCard({ chat }: { chat: Chat }) {
         <div className="stack">
           {subagents.length > 0 && (
             <section aria-label={t('side.branches.subagents')} className="stack-tight">
-              <h3 className="dialog-section">{t('work:runView.subagents', { n: subagents.length })}</h3>
+              <h3 className="dialog-section">{t('chat:runView.subagents', { n: subagents.length })}</h3>
               {subagents.map((sub) => (
                 <div key={sub.id} className="side-item">
                   <div className="side-item-head">
@@ -243,7 +243,7 @@ export function BranchesCard({ chat }: { chat: Chat }) {
           )}
           {backgroundTasks.length > 0 && (
             <section aria-label={t('side.branches.backgroundTasks')} className="stack-tight">
-              <h3 className="dialog-section">{t('work:runView.backgroundTasks', { n: backgroundTasks.length })}</h3>
+              <h3 className="dialog-section">{t('chat:runView.backgroundTasks', { n: backgroundTasks.length })}</h3>
               {backgroundTasks.map((task) => (
                 <div key={task.id} className="side-item">
                   <div className="side-item-head">
@@ -263,7 +263,7 @@ export function BranchesCard({ chat }: { chat: Chat }) {
           )}
           {workflows.length > 0 && (
             <section aria-label={t('side.branches.workflows')} className="stack-tight">
-              <h3 className="dialog-section">{t('work:runView.workflows', { n: workflows.length })}</h3>
+              <h3 className="dialog-section">{t('chat:runView.workflows', { n: workflows.length })}</h3>
               {workflows.map((workflow) => (
                 <WorkflowCard key={workflow.id} workflow={workflow} chatId={chat.id} />
               ))}
@@ -331,15 +331,15 @@ export function FactsCard({ chat }: { chat: Chat }) {
         <OriginBadge origin={chat.origin} label={origin} />
       </div>
       <dl className="insp-facts">
-        <dt>{t('work:runView.permissions')}</dt>
+        <dt>{t('chat:runView.permissions')}</dt>
         <dd>
-          <span className="badge insp-mode">{live?.permissionMode ?? chat.executions.at(-1)?.permissionMode ?? t('work:shared.default')}</span>
+          <span className="badge insp-mode">{live?.permissionMode ?? chat.executions.at(-1)?.permissionMode ?? t('chat:shared.default')}</span>
         </dd>
-        <dt>{t('work:shared.model')}</dt>
-        <dd className="mono">{live?.model ?? chat.model ?? t('work:shared.default')}</dd>
-        <dt>{t('work:shared.project')}</dt>
+        <dt>{t('chat:shared.model')}</dt>
+        <dd className="mono">{live?.model ?? chat.model ?? t('chat:shared.default')}</dd>
+        <dt>{t('chat:shared.project')}</dt>
         <dd>{chat.project ? chat.project.name : t('side.facts.noProject')}</dd>
-        <dt>{t('work:runView.directory')}</dt>
+        <dt>{t('chat:runView.directory')}</dt>
         <dd className="mono break">{chat.cwd || '—'}</dd>
         {chat.worktree && (
           <>
@@ -347,7 +347,7 @@ export function FactsCard({ chat }: { chat: Chat }) {
             <dd className="mono break">{chat.worktree.branch ?? chat.worktree.name ?? chat.worktree.path}</dd>
           </>
         )}
-        <dt>{t('work:runView.session')}</dt>
+        <dt>{t('chat:runView.session')}</dt>
         <dd className="mono insp-id">
           <span className="ellipsis">{chat.id}</span> <CopyButton text={chat.id} label={t('view.copyId')} />
         </dd>
@@ -355,8 +355,8 @@ export function FactsCard({ chat }: { chat: Chat }) {
         <dd>{t('view.messages', { count: chat.messageCount })}</dd>
         {live && (
           <>
-            <dt>{t('work:runView.prompts')}</dt>
-            <dd>{t('work:runView.promptsHost')}</dd>
+            <dt>{t('chat:runView.prompts')}</dt>
+            <dd>{t('chat:runView.promptsHost')}</dd>
           </>
         )}
         {chat.derivedFrom && (
@@ -372,14 +372,14 @@ export function FactsCard({ chat }: { chat: Chat }) {
         )}
         {chat.orchestration && (
           <>
-            <dt>{t('work:runView.orchestration')}</dt>
+            <dt>{t('chat:runView.orchestration')}</dt>
             <dd>
               <Link to={`/orchestration/${chat.orchestration.id}`}>{chat.orchestration.name}</Link>
               <div className="small muted">{chat.orchestration.taskName ?? t('view.synthesis')}</div>
             </dd>
           </>
         )}
-        <dt>{t('work:runView.started')}</dt>
+        <dt>{t('chat:runView.started')}</dt>
         <dd>{formatDateTime(chat.startedAt)}</dd>
         <dt>{t('side.facts.updated')}</dt>
         <dd>{formatDateTime(chat.updatedAt)}</dd>
@@ -401,8 +401,8 @@ export function EnvironmentCard({ chat }: { chat: Chat }) {
       className="fold insp-fold"
       title={
         <>
-          <span className="fold-card-title">{t('work:runView.loadedByClaude')}</span>
-          <span className="small muted">{t('work:runView.loadedHint')}</span>
+          <span className="fold-card-title">{t('chat:runView.loadedByClaude')}</span>
+          <span className="small muted">{t('chat:runView.loadedHint')}</span>
         </>
       }
     >

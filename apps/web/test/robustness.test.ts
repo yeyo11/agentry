@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { highlight, PALETTE, type Highlighted } from '../src/components/highlight.ts';
+import { highlight, PALETTE, type Highlighted } from '@agentry/ui/components/highlight';
 
 /** Every language the lighter highlighter takes, by the name a fence uses */
 const LANGS = ['ts', 'tsx', 'js', 'jsx', 'json', 'css', 'yaml', 'markdown', 'bash', 'python', 'html', 'diff'];

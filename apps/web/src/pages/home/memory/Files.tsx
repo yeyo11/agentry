@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';
 import { CodeEditor } from '../../../components/CodeEditor';
-import { useConfirm } from '../../../components/Dialog';
-import { useToast } from '../../../components/Toast';
-import { Card, Empty, ErrorBox, PathLabel, Skeleton, Tag } from '../../../components/ui';
+import { useConfirm } from '@agentry/ui/components/Dialog';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Card, Empty, ErrorBox, PathLabel, Skeleton, Tag } from '@agentry/ui/components/ui';
 import { useDirty, useLeaveGuard } from '../../../lib/dirty';
-import { timeAgo } from '../../../lib/format';
+import { timeAgo } from '@agentry/ui/lib/format';
 
 const TYPE_TONE: Record<string, string> = { user: 'info', feedback: 'warn', project: 'idle', reference: 'ok' };
 const NAME_RE = /^[\w.-]{1,80}\.md$/;

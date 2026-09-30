@@ -4,10 +4,11 @@ import { Save } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { NumberInput, Switch } from '../../components/controls';
-import { ICON_SM } from '../../components/icons';
-import { useToast } from '../../components/Toast';
-import { Card, ErrorBox, Field, ModelCombobox, Skeleton } from '../../components/ui';
+import { NumberInput, Switch } from '@agentry/ui/components/controls';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Card, ErrorBox, Field, Skeleton } from '@agentry/ui/components/ui';
+import { ModelCombobox } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
 
 /** The server refuses a ceiling outside (0, 5]: a supervisor reads a few lines and writes two. */

@@ -1,7 +1,7 @@
 import type { Project } from '@agentry/shared';
 import { Component, Suspense, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ErrorBox, Skeleton } from '../../components/ui';
+import { ErrorBox, Skeleton } from '@agentry/ui/components/ui';
 import type { DashboardLayout, LayoutWidget } from './layout';
 import { WIDGET_AREAS, widgetDefinition, type WidgetArea } from './registry';
 

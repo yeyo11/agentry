@@ -4,12 +4,13 @@ import { useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useOverview } from '../../api';
-import { formatCost, formatDuration, formatNumber, timeAgo } from '../../lib/format';
-import { elapsedSince } from '../../lib/live';
-import { useClockTick } from '../../lib/motion';
-import { ActivityTicker } from '../ActivityTicker';
-import { EpicLabel, ICON_SM, PriorityMark, WorkItemTypeIcon } from '../icons';
-import { Spinner } from '../Spinner';
+import { formatCost, formatDuration, formatNumber, timeAgo } from '@agentry/ui/lib/format';
+import { elapsedSince } from '@agentry/ui/lib/live';
+import { useClockTick } from '@agentry/ui/lib/motion';
+import { ActivityTicker } from '@agentry/ui/components/ActivityTicker';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { EpicLabel, PriorityMark, WorkItemTypeIcon } from '../work-item-icons';
+import { Spinner } from '@agentry/ui/components/Spinner';
 
 /*
  * The parts every suggestion run draws the same way, whoever started it: the project assistant, "Suggest

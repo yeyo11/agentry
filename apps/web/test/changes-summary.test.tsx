@@ -8,7 +8,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { ChangesSummary } from '../src/components/observe/Changes';
 import i18n from '../src/i18n';
 import { editChips, liveFile, reviewLink, reviewPath, statusLetter, stepFiles, workFiles } from '../src/lib/changes-summary';
-import type { StepPart } from '../src/lib/chat-steps';
+import type { StepPart } from '@agentry/chat-ui/lib/chat-steps';
 
 // The compact summary (the reference's `DesktopChatCambios`): the files the whole work touched, the
 // one being edited now, the latest step, and the chips a tool group of the transcript shows.

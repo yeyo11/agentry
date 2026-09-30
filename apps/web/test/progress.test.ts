@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { currentStepIndex, progressBlocks, progressSegments, progressTotal, stepCounts, type StepState } from '../src/lib/progress.ts';
+import { currentStepIndex, progressBlocks, progressSegments, progressTotal, stepCounts, type StepState } from '@agentry/ui/lib/progress';
 
 // A segmented bar is read at a glance: it has to fill its track exactly, and a single failure among
 // seventeen tasks has to be visible even when the bar is five characters wide.

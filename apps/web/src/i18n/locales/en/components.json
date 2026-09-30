@@ -38,30 +38,6 @@
     "runWorkflow": "Run workflow",
     "skipToContent": "Skip to content"
   },
-  "ui": {
-    "loadingShort": "Loading",
-    "copy": "Copy",
-    "copied": "Copied",
-    "copyPath": "Copy path",
-    "copyCode": "Copy code",
-    "requestFailed": "Request failed",
-    "unsavedChangesLabel": "unsaved changes",
-    "claudeIsWorking": "Claude is working"
-  },
-  "controls": {
-    "decrease": "Decrease",
-    "increase": "Increase"
-  },
-  "dialog": {
-    "close": "Close dialog",
-    "confirm": "Confirm",
-    "areYouSure": "Are you sure?"
-  },
-  "toast": {
-    "region": "Notifications",
-    "showOutput": "Show output",
-    "dismiss": "Dismiss notification"
-  },
   "editors": {
     "add": "Add",
     "none": "None",
@@ -78,25 +54,6 @@
   },
   "codeEditor": {
     "loading": "Loading editor…"
-  },
-  "markdown": {
-    "taskDone": "done",
-    "taskTodo": "to do",
-    "table": "Table"
-  },
-  "scrollJump": {
-    "transcript": {
-      "group": "Jump within the transcript",
-      "start": "Jump to the start of the transcript",
-      "end": "Jump to the end of the transcript"
-    },
-    "output": {
-      "group": "Jump within the output",
-      "start": "Jump to the start of the output",
-      "end": "Jump to the end of the output"
-    },
-    "oldest": "Oldest (top)",
-    "newest": "Newest (bottom)"
   },
   "runSettings": {
     "permissionMode": "Permission mode",
@@ -179,34 +136,6 @@
     "script": "Script",
     "agentsDoneLabel": "Agents done"
   },
-  "transcript": {
-    "thinking": "Thinking",
-    "thinkingNow": "Thinking…",
-    "toolError": "Tool error",
-    "toolResult": "Tool result",
-    "empty": "(empty)",
-    "moreChars": "… [{{count}} more chars]",
-    "user": "User",
-    "subagent": "subagent",
-    "streamingThinking": "thinking",
-    "streamingWriting": "writing",
-    "tools_one": "{{count}} tool",
-    "tools_other": "{{count}} tools",
-    "failedCalls_one": "{{count}} failed",
-    "failedCalls_other": "{{count}} failed",
-    "stepCurrent": "in progress",
-    "callFailed": "failed",
-    "callRunning": "running",
-    "callWaiting": "Waiting for the result…",
-    "openSubagent": "Open the subagent's transcript",
-    "notice": {
-      "task": "Background task",
-      "reminder": "System note",
-      "command": "Command",
-      "output": "Command output",
-      "interrupt": "Interrupted"
-    }
-  },
   "detail": {
     "status": "Status",
     "byYou": "by you",
@@ -250,40 +179,6 @@
     "openChat": "Open the chat",
     "earlierInChat_one": "{{count}} earlier entry in the chat",
     "earlierInChat_other": "{{count}} earlier entries in the chat"
-  },
-  "permissions": {
-    "waitingForYou": "Waiting for you",
-    "wantsToRun": "wants to run",
-    "allow": "Allow",
-    "allowAnd": "Allow and {{what}}",
-    "deny": "Deny",
-    "denyReason": "Why not? (sent to the model when denying)",
-    "switchTo": "switch to {{mode}}",
-    "alwaysAllow": "always allow {{rules}}",
-    "allowDirectories": "allow {{directories}}",
-    "claudeIsAsking": "Claude is asking",
-    "answeredCount": "{{answered}} of {{total}} answered",
-    "questions": "Questions",
-    "answered": "answered",
-    "question": "Question {{n}}",
-    "pickAny": "pick any",
-    "otherAnswer": "Other answer…",
-    "declineReason": "Why not? (optional, sent to the model)",
-    "decline": "Decline",
-    "backToQuestions": "Back to the questions",
-    "previous": "Previous",
-    "next": "Next",
-    "answer": "Answer",
-    "answerProgress": "Answer ({{answered}}/{{total}})",
-    "planReady": "Plan ready for review",
-    "approve": "Approve",
-    "approveAcceptEditsHint": "Approve and let it edit files without asking for the rest of the session",
-    "approveAcceptEdits": "Approve and accept edits",
-    "keepPlanning": "Keep planning",
-    "planFeedback": "What should change? (sent to the model)",
-    "otherAnswerTo": "Other answer to: {{question}}",
-    "whatItWantsToRun": "What it wants to run",
-    "plan": "Plan"
   },
   "palette": {
     "trigger": "Search or run…",
@@ -353,33 +248,6 @@
     "language": "Language: {{name}}",
     "motion": "Motion: {{level}}"
   },
-  "find": {
-    "button": "Search",
-    "buttonHint": "Search the whole transcript ({{shortcut}})",
-    "field": "Search the whole transcript",
-    "failed": "Search failed",
-    "searching": "Searching…",
-    "noMatches": "No matches",
-    "counter": "{{n}} of {{total}}",
-    "older": "Older match",
-    "olderHint": "Older match (Enter)",
-    "newer": "Newer match",
-    "newerHint": "Newer match (Shift+Enter)",
-    "close": "Close search",
-    "closeHint": "Close (Esc)",
-    "transcript": "Transcript"
-  },
-  "attachments": {
-    "image": "image",
-    "imageTitle": "Image",
-    "document": "Document",
-    "pasted": "pasted",
-    "attachFiles": "Attach files",
-    "attachHint": "Attach files, or drop or paste them here. Images and PDFs are shown to Claude; anything else it reads from disk.",
-    "attach": "Attach",
-    "uploading": "Uploading",
-    "remove": "Remove {{name}}"
-  },
   "theme": {
     "system": "System theme",
     "light": "Light theme",
@@ -421,19 +289,6 @@
     "fromSubagent": "Started by a subagent.",
     "supervisorProposed": "{{name}}: the supervisor proposes a hint"
   },
-  "codeBlock": {
-    "label": "Code",
-    "labelLang": "{{lang}} code"
-  },
-  "combobox": {
-    "suggestions": "Suggestions"
-  },
-  "datePicker": {
-    "open": "Open the calendar for {{field}}",
-    "previousMonth": "Previous month",
-    "nextMonth": "Next month",
-    "today": "Today"
-  },
   "projectExport": {
     "title": "Export {{name}}",
     "body": "Every chat of the project in one file, oldest first, with the cost the CLI reported.",
@@ -459,24 +314,6 @@
       "unconfigured": "This server has no signing key for push, so nothing it sent could be delivered. Its log says why.",
       "denied": "Notifications are blocked for this site. Allow them in the browser's own settings, and this switch comes back."
     }
-  },
-  "viewer": {
-    "close": "Close",
-    "download": "Download",
-    "openTab": "Open in a new tab",
-    "previous": "Previous file",
-    "next": "Next file",
-    "count": "{{n}} of {{total}}",
-    "noPreview": "This file can only be downloaded"
-  },
-  "illustrations": {
-    "noResults": "0 matches",
-    "notFound": "this way?",
-    "weekday": "Mon"
-  },
-  "slashMenu": {
-    "label": "Slash commands",
-    "skill": "skill"
   },
   "diff": {
     "lineUnchanged": "line {{n}}",

@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useUsage } from '../../../api';
-import { Skeleton } from '../../../components/ui';
-import { formatNumber } from '../../../lib/format';
+import { Skeleton } from '@agentry/ui/components/ui';
+import { formatNumber } from '@agentry/ui/lib/format';
 import { localDay } from '../pulse';
 import type { WidgetProps } from '../registry';
 import { WidgetCard } from '../WidgetCard';
@@ -14,7 +14,7 @@ const compact = (n: number) => formatNumber(n, { notation: 'compact', maximumFra
  * is a figure of the strip on top, so this is the breakdown, and the Usage page has the rest.
  */
 export function TodayWidget({ project, title, id }: WidgetProps) {
-  const { t } = useTranslation(['home', 'work']);
+  const { t } = useTranslation(['home', 'chat']);
   const today = localDay();
   const usage = useUsage({ from: today, to: today });
   const row = project ? usage.data?.projects.find((p) => p.project?.id === project.id) : usage.data?.total;
@@ -38,7 +38,7 @@ export function TodayWidget({ project, title, id }: WidgetProps) {
           <table className="today-table">
             <thead>
               <tr>
-                <th scope="col">{t('work:shared.model')}</th>
+                <th scope="col">{t('chat:shared.model')}</th>
                 <th scope="col" className="num">{t('activity.input')}</th>
                 <th scope="col" className="num">{t('activity.output')}</th>
                 <th scope="col" className="num">{t('activity.cache')}</th>

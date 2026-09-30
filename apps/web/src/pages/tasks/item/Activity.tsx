@@ -4,9 +4,9 @@ import { lazy, Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useWorkItemRuns } from '../../../api';
-import { Monogram } from '../../../components/icons';
-import { Segmented } from '../../../components/ui';
-import { formatDateTime, timeAgo } from '../../../lib/format';
+import { Monogram } from '@agentry/ui/components/icons';
+import { Segmented } from '@agentry/ui/components/ui';
+import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
 import { columnMeta, priorityMeta } from '../../../lib/work-items';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 import { AgentMark } from './Criteria';
@@ -15,7 +15,7 @@ import { activityOf, causeLine, historyLine, shortId, type ActivityFilter, type 
 import { RunStatusBadge, useFailureReason } from './RunParts';
 import { commentRun, failureCommentRun, retriesOf, runStep } from './runs';
 
-const Markdown = lazy(() => import('../../../components/Markdown'));
+const Markdown = lazy(() => import('@agentry/ui/components/Markdown'));
 
 const HISTORY_ICON: Record<HistoryLine['icon'], LucideIcon> = {
   created: Plus,

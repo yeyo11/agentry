@@ -2,9 +2,9 @@ import type { AcceptanceCriterion, AcceptanceCriterionInput, WorkItemDetail, Wor
 import { Pencil, Plus, X } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Checkbox } from '../../../components/controls';
-import { ICON_SM, Monogram } from '../../../components/icons';
-import { formatDateTime, timeAgo } from '../../../lib/format';
+import { Checkbox } from '@agentry/ui/components/controls';
+import { ICON_SM, Monogram } from '@agentry/ui/components/icons';
+import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 import type { ItemActions } from './hooks';
 import { criteriaProgress, shortId } from './model';

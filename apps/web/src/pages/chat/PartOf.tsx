@@ -3,8 +3,8 @@ import { Workflow } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useOrchestration } from '../../api';
-import { ICON_SM } from '../../components/icons';
-import { ProgressBar } from '../../components/ProgressBar';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { ProgressBar } from '@agentry/ui/components/ProgressBar';
 import { orchestrationProgress, taskStage } from '../../lib/orchestration-steps';
 
 /**

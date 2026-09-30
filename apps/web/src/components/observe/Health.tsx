@@ -6,12 +6,12 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../../api';
 import { cancellable, healthWord, type HealthWord } from '../../lib/observe';
 import { healthReason, signalHint, signalReason } from '../../lib/server-strings';
-import { Tooltip } from '../controls/Tooltip';
+import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
 import { DecisionMark } from '../DecisionMark';
-import { useConfirm } from '../Dialog';
-import { ICON_SM } from '../icons';
-import { useToast } from '../Toast';
-import { ErrorBox, Field } from '../ui';
+import { useConfirm } from '@agentry/ui/components/Dialog';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { useToast } from '@agentry/ui/components/Toast';
+import { ErrorBox, Field } from '@agentry/ui/components/ui';
 
 const TONE: Record<HealthWord, string> = { ok: 'ok', slow: 'warn', stuck: 'bad', looping: 'bad' };
 // A shape per word besides the colour and the text: it still reads in greyscale

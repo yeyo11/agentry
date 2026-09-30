@@ -3,12 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ShieldCheck, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';
-import { Sheet } from '../../../components/controls';
-import { Dialog } from '../../../components/Dialog';
-import { ICON } from '../../../components/icons';
-import { ErrorBox, Skeleton } from '../../../components/ui';
-import { formatBytes, formatNumber } from '../../../lib/format';
-import { NARROW, useMediaQuery } from '../../../lib/media';
+import { Sheet } from '@agentry/ui/components/controls';
+import { Dialog } from '@agentry/ui/components/Dialog';
+import { ICON } from '@agentry/ui/components/icons';
+import { ErrorBox, Skeleton } from '@agentry/ui/components/ui';
+import { formatBytes, formatNumber } from '@agentry/ui/lib/format';
+import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { approxTokens, consentProviders } from './model';
 
 /** Where Jev runs; the dialog names it so nobody has to guess where the state goes. */

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useBlocker } from 'react-router-dom';
-import { useConfirm } from '../components/Dialog';
+import { useConfirm } from '@agentry/ui/components/Dialog';
 
 interface DirtyApi {
   keys: ReadonlySet<string>;

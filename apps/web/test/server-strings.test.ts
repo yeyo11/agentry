@@ -5,7 +5,7 @@ import type { HealthSignal } from '@agentry/shared';
 import { CONNECTOR_GUIDE, CONNECTOR_LIMITS, parseConnectors } from '../../../packages/core/src/connectors.ts';
 import { HEALTH_HINTS, HEALTH_REASONS, hintText, reasonText } from '../../../packages/core/src/health-strings.ts';
 import { setLanguage } from '../src/i18n/index.ts';
-import { currentLanguage } from '../src/i18n/language.ts';
+import { currentLanguage } from '@agentry/ui/i18n/language';
 import { connectorActionLabel, connectorLimitName, healthReason, localized, serverText, shownParams, signalHint } from '../src/lib/server-strings.ts';
 
 // Every figure any sentence names, twice: once past each threshold of the formatting, once below

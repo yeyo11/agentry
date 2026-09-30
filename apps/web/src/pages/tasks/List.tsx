@@ -4,11 +4,11 @@ import { Check, ChevronDown, ListOrdered, TriangleAlert, User } from 'lucide-rea
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { hasOpenLayer } from '../../components/controls/layer';
-import { PriorityMark, WorkItemKey, WorkItemStatusIcon, WorkItemTypeIcon } from '../../components/icons';
-import { Spinner } from '../../components/Spinner';
-import { Card, ErrorBox, Skeleton } from '../../components/ui';
-import { timeAgo } from '../../lib/format';
+import { hasOpenLayer } from '@agentry/ui/components/controls/layer';
+import { PriorityMark, WorkItemKey, WorkItemStatusIcon, WorkItemTypeIcon } from '../../components/work-item-icons';
+import { Spinner } from '@agentry/ui/components/Spinner';
+import { Card, ErrorBox, Skeleton } from '@agentry/ui/components/ui';
+import { timeAgo } from '@agentry/ui/lib/format';
 import { useListKeys } from '../../lib/list-keys';
 import { columnMeta, listRowStep, priorityMeta, stripInList, taskPath, workItemLiveState, workItemStrip } from '../../lib/work-items';
 import type { BoardSelection } from './board/BoardColumns';

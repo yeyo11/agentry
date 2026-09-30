@@ -4,8 +4,8 @@ import { CircleSlash, Workflow } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../../api';
-import { ICON_SM } from '../../../components/icons';
-import { useToast } from '../../../components/Toast';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { useToast } from '@agentry/ui/components/Toast';
 import { blocksWithin } from './model';
 
 /**

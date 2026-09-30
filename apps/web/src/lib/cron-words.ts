@@ -1,6 +1,6 @@
 import { describeCronIn, parseCron, type CronWords } from '@agentry/shared';
 import i18n from '../i18n';
-import { intlLocale } from '../i18n/language';
+import { intlLocale } from '@agentry/ui/i18n/language';
 
 /*
  * A cron expression in the UI language. The API describes it too, but only in English: it has no

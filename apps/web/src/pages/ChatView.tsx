@@ -4,32 +4,32 @@ import type { Chat, EditStep } from '@agentry/shared';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ActivityTicker } from '../components/ActivityTicker';
-import { Tooltip } from '../components/controls/Tooltip';
-import { useDeleteChat } from '../components/ChatDelete';
-import { PermissionPrompts } from '../components/PermissionPrompts';
-import { ICON, ICON_SM } from '../components/icons';
-import { AnimatePresence, motion } from '../components/motion';
-import { useToast } from '../components/Toast';
-import { endsWithAssistant, StreamingEntry, Transcript, type MessageActions, type SubagentLink, type TranscriptEdits, type WorkflowLaunches } from '../components/Transcript';
-import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind, type FindTarget } from '../components/TranscriptSearch';
+import { ActivityTicker } from '@agentry/ui/components/ActivityTicker';
+import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
+import { useDeleteChat } from '@agentry/chat-ui/components/ChatDelete';
+import { PermissionPrompts } from '@agentry/chat-ui/components/PermissionPrompts';
+import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { AnimatePresence, motion } from '@agentry/ui/components/motion';
+import { useToast } from '@agentry/ui/components/Toast';
+import { endsWithAssistant, StreamingEntry, Transcript, type MessageActions, type SubagentLink, type TranscriptEdits, type WorkflowLaunches } from '@agentry/chat-ui/components/Transcript';
+import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind, type FindTarget } from '@agentry/chat-ui/components/TranscriptSearch';
 import { entryParam } from '../components/changes/steps/steps-model';
 import '../components/changes/steps/at-jump.css';
-import { Empty, ErrorBox, Loading, PageHeader, Skeleton, usePageTitle } from '../components/ui';
+import { Empty, ErrorBox, Loading, PageHeader, Skeleton, usePageTitle } from '@agentry/ui/components/ui';
 import { api, ApiRequestError, keys, useProjects } from '../api';
-import { tickerActivity } from '../lib/chat-live';
-import { displayTitle } from '../lib/chat-model';
-import { subagentFor, transcriptRows } from '../lib/chat-steps';
-import type { ChatStreamStore } from '../lib/chat-stream';
-import { useChatStream, useChatTranscript, useStreamSnapshot } from '../lib/chats';
+import { tickerActivity } from '@agentry/chat-ui/lib/chat-live';
+import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
+import { subagentFor, transcriptRows } from '@agentry/chat-ui/lib/chat-steps';
+import type { ChatStreamStore } from '@agentry/chat-ui/lib/chat-stream';
+import { useChatStream, useChatTranscript, useStreamSnapshot } from '@agentry/chat-ui/lib/chats';
 import { useDetailPanel } from '../lib/detail';
 import { taskPath } from '../lib/work-items';
-import { Composer, type ComposerKind } from './chat/Composer';
+import { Composer, type ComposerKind } from '@agentry/chat-ui/composer/Composer';
 import { ChatHeader, type HeaderActions } from './chat/Header';
 import { Inspector, useInspector } from './chat/Inspector';
 import { PartOf } from './chat/PartOf';
-import { useQueuedMessages } from './chat/queued';
-import { useStickToBottom } from './chat/stick-to-bottom';
+import { useQueuedMessages } from '@agentry/chat-ui/composer/queued';
+import { useStickToBottom } from '@agentry/chat-ui/composer/stick-to-bottom';
 import { useChatItemLinks, WorkItemPartOf } from './chat/WorkItemLinks';
 
 /** How long the entry a link opened the chat at stays marked */
@@ -283,7 +283,7 @@ export function ChatView() {
             ) : (
               !forking && (
                 <button className="btn btn-small" onClick={() => setForking(true)}>
-                  <GitFork {...ICON_SM} /> {t('work:sessionView.continueCopy')}
+                  <GitFork {...ICON_SM} /> {t('chat:sessionView.continueCopy')}
                 </button>
               )
             )}
@@ -314,7 +314,7 @@ export function ChatView() {
                   <Skeleton rows={3} height={5} />
                 ) : (
                   <button type="button" className="btn btn-small" onClick={transcript.loadEarlier}>
-                    {t('work:sessionView.loadEarlier', { n: transcript.from })}
+                    {t('chat:sessionView.loadEarlier', { n: transcript.from })}
                   </button>
                 )}
               </div>
@@ -350,14 +350,14 @@ export function ChatView() {
                 exit={{ opacity: 0, y: 8 }}
                 transition={{ duration: 0.16 }}
               >
-                <ArrowDown {...ICON_SM} /> {t('work:runView.jumpToLatest')}
+                <ArrowDown {...ICON_SM} /> {t('chat:runView.jumpToLatest')}
               </motion.button>
             )}
           </AnimatePresence>
         </div>
 
         {composer === 'fork' && (
-          <div className="chat-fork" role="group" aria-label={t('work:sessionView.continueCopy')}>
+          <div className="chat-fork" role="group" aria-label={t('chat:sessionView.continueCopy')}>
             <div className="chat-fork-head">
               <GitFork {...ICON_SM} aria-hidden />
               <span className="small">{t('view.forkIntro')}</span>

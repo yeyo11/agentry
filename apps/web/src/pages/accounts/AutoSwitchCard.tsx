@@ -3,9 +3,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { NumberInput, Slider, Switch } from '../../components/controls';
-import { useToast } from '../../components/Toast';
-import { Segmented, Tag } from '../../components/ui';
+import { NumberInput, Slider, Switch } from '@agentry/ui/components/controls';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Segmented, Tag } from '@agentry/ui/components/ui';
 
 const STRATEGIES = ['best', 'consume-first'] as const;
 

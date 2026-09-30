@@ -3,9 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { NumberInput, Select } from '../../components/controls';
-import { useToast } from '../../components/Toast';
-import { Card, ErrorBox, Field, PERMISSION_MODES, Skeleton, Tag } from '../../components/ui';
+import { NumberInput, Select } from '@agentry/ui/components/controls';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Card, ErrorBox, Field, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { PERMISSION_MODES } from '../../components/ui';
 
 /** The variable that sets each one, named where the UI says it cannot change it. */
 export const APP_SETTING_ENV: Record<keyof AppSettingValues, string> = {

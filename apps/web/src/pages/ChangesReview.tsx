@@ -26,11 +26,11 @@ import { LIVE_REFRESH_MS, type ReviewSource } from '../components/changes/source
 import { StepScrubber, StepsLens } from '../components/changes/steps/StepsLens';
 import { currentStep } from '../components/changes/steps/steps-model';
 import '../components/changes/changes.css';
-import { Menu, MoreActions, Tooltip, type MenuEntry } from '../components/controls';
-import { ICON_SM } from '../components/icons';
-import { Spinner } from '../components/Spinner';
-import { Empty, ErrorBox, Segmented, Skeleton, usePageTitle } from '../components/ui';
-import { NARROW, useMediaQuery } from '../lib/media';
+import { Menu, MoreActions, Tooltip, type MenuEntry } from '@agentry/ui/components/controls';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { Spinner } from '@agentry/ui/components/Spinner';
+import { Empty, ErrorBox, Segmented, Skeleton, usePageTitle } from '@agentry/ui/components/ui';
+import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import {
   effectiveMode,
   isMode,

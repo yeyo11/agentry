@@ -6,10 +6,11 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
 import { cleanTask, specOfTask } from '../lib/orchestration-v2';
-import { NumberInput } from './controls';
-import { ICON_SM } from './icons';
+import { NumberInput } from '@agentry/ui/components/controls';
+import { ICON_SM } from '@agentry/ui/components/icons';
 import { removeTaskAt, renameTask, TaskEditor, validateGraph } from './TaskEditor';
-import { Card, ErrorBox, Field, ModelCombobox } from './ui';
+import { Card, ErrorBox, Field } from '@agentry/ui/components/ui';
+import { ModelCombobox } from './ui';
 
 /**
  * Corrects a finished graph and runs it again as a new orchestration. The original stays as it was:

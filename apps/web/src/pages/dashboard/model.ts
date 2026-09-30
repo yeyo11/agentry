@@ -13,7 +13,7 @@ import type {
   PermissionRequest,
   Schedule,
 } from '@agentry/shared';
-import type { ProgressCounts, ProgressStatus, StepState } from '../../lib/progress';
+import type { ProgressCounts, ProgressStatus, StepState } from '@agentry/ui/lib/progress';
 
 /** What a chat stopped for, described so the component words it in the active language. */
 export interface WaitingReason {

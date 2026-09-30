@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { UsageSlice } from '@agentry/shared';
-import { bucketFor, customRangeError, labelStride, niceScale, parseDay, presetRange, sumMetric, toDay, topSlices } from '../src/lib/usage-view.ts';
+import { bucketFor, customRangeError, labelStride, niceScale, presetRange, sumMetric, topSlices } from '../src/lib/usage-view.ts';
+import { parseDay, toDay } from '@agentry/ui/lib/calendar';
 
 const slice = (key: string, costUsd: number | null, tokens = 0, chats = 1): UsageSlice => ({ key, label: key, costUsd, tokens, chats });
 

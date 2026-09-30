@@ -4,9 +4,10 @@ import { useDeferredValue, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useWorkItemList } from '../../../api';
-import { Dialog } from '../../../components/Dialog';
-import { ICON_SM, WorkItemKey, WorkItemStatusIcon } from '../../../components/icons';
-import { Segmented } from '../../../components/ui';
+import { Dialog } from '@agentry/ui/components/Dialog';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { WorkItemKey, WorkItemStatusIcon } from '../../../components/work-item-icons';
+import { Segmented } from '@agentry/ui/components/ui';
 import { columnMeta, taskPath } from '../../../lib/work-items';
 
 /**

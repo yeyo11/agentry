@@ -4,11 +4,11 @@ import { ChevronDown, ThumbsDown, ThumbsUp, Trash2, TriangleAlert } from 'lucide
 import { useEffect, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';
-import { Select } from '../../../components/controls';
-import { ICON, ICON_SM } from '../../../components/icons';
-import { useToast } from '../../../components/Toast';
-import { ErrorBox, Skeleton } from '../../../components/ui';
-import { formatCost, formatDateTime, formatNumber, timeAgo } from '../../../lib/format';
+import { Select } from '@agentry/ui/components/controls';
+import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { useToast } from '@agentry/ui/components/Toast';
+import { ErrorBox, Skeleton } from '@agentry/ui/components/ui';
+import { formatCost, formatDateTime, formatNumber, timeAgo } from '@agentry/ui/lib/format';
 import { answerLines, outcomeOf, type AnswerLine, type HistoryOutcome } from './model';
 
 const PAGE = 20;

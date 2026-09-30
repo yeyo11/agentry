@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { CircleCheck, CircleDashed, Loader } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { checklistProgress } from '../../lib/observe';
-import { ICON_SM } from '../icons';
-import { ErrorBox } from '../ui';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { ErrorBox } from '@agentry/ui/components/ui';
 
 const ICON = { completed: CircleCheck, in_progress: Loader, pending: CircleDashed } as const;
 

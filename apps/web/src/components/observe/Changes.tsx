@@ -5,13 +5,13 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
 import { baseName, liveFile, reviewLink, reviewPath, statusLetter, stepFiles, workFiles } from '../../lib/changes-summary';
-import { formatDateTime, timeAgo } from '../../lib/format';
-import type { TickerActivity } from '../../lib/live';
+import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
+import type { TickerActivity } from '@agentry/ui/lib/live';
 import { totalsOf } from '../../lib/observe';
 import { Fingerprint } from '../changes/Fingerprint';
-import { ICON_SM } from '../icons';
-import { Spinner } from '../Spinner';
-import { ErrorBox, Loading } from '../ui';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { Spinner } from '@agentry/ui/components/Spinner';
+import { ErrorBox, Loading } from '@agentry/ui/components/ui';
 
 /*
  * The compact summary of what a chat, a task or the integration branch changed: the totals, the

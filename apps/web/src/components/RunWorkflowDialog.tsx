@@ -5,9 +5,10 @@ import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
-import { Dialog } from './Dialog';
-import { ICON_SM } from './icons';
-import { Empty, ErrorBox, Field, Loading, ModelCombobox, Tag } from './ui';
+import { Dialog } from '@agentry/ui/components/Dialog';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { Empty, ErrorBox, Field, Loading, Tag } from '@agentry/ui/components/ui';
+import { ModelCombobox } from './ui';
 
 /** Arguments for one saved workflow, and the chat that runs it. */
 function RunForm({ workflow, cwd, onCancel }: { workflow: WorkflowDefinition; cwd: string | undefined; onCancel: () => void }) {

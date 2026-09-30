@@ -3,10 +3,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatToolsPicker } from '../../components/ChatToolsPicker';
-import { Select } from '../../components/controls';
-import { ErrorBox, ModelCombobox, PERMISSION_MODES, Tag } from '../../components/ui';
+import { Select } from '@agentry/ui/components/controls';
+import { ErrorBox, Tag } from '@agentry/ui/components/ui';
+import { ModelCombobox, PERMISSION_MODES } from '../../components/ui';
 import { api, keys } from '../../api';
-import type { StartChoices } from './Composer';
+import type { StartChoices } from '@agentry/chat-ui/lib/context';
 
 /*
  * The controls built on Radix selects, in one module so the chat page can load them lazily.
@@ -14,7 +15,7 @@ import type { StartChoices } from './Composer';
 
 /** Permission mode and model of a live execution, changed in place: it switches at once. */
 export function LiveSettings({ chat }: { chat: Chat }) {
-  const { t } = useTranslation(['work', 'components']);
+  const { t } = useTranslation(['chat', 'components']);
   const queryClient = useQueryClient();
   const [model, setModel] = useState('');
   const update = useMutation({
@@ -27,7 +28,7 @@ export function LiveSettings({ chat }: { chat: Chat }) {
   const current = chat.execution;
   return (
     <>
-      <dt>{t('work:runView.permissions')}</dt>
+      <dt>{t('chat:runView.permissions')}</dt>
       <dd>
         <Select<PermissionMode>
           aria-label={t('components:runSettings.permissionMode')}
@@ -37,7 +38,7 @@ export function LiveSettings({ chat }: { chat: Chat }) {
           options={PERMISSION_MODES.map((m) => ({ value: m, label: m }))}
         />
       </dd>
-      <dt>{t('work:shared.model')}</dt>
+      <dt>{t('chat:shared.model')}</dt>
       <dd>
         <form
           className="inline-form"
@@ -46,7 +47,7 @@ export function LiveSettings({ chat }: { chat: Chat }) {
             if (model.trim()) update.mutate({ model: model.trim() });
           }}
         >
-          <ModelCombobox aria-label={t('work:shared.model')} placeholder={current?.model ?? chat.model ?? t('work:shared.default')} value={model} onChange={setModel} />
+          <ModelCombobox aria-label={t('chat:shared.model')} placeholder={current?.model ?? chat.model ?? t('chat:shared.default')} value={model} onChange={setModel} />
           {model.trim() && (
             <button type="submit" className="btn btn-small" disabled={update.isPending}>
               {t('components:runSettings.set')}
@@ -91,7 +92,7 @@ export function StartOptions({ chat, value, onChange, forking }: { chat: Chat; v
   return (
     <div className="chat-options">
       <label>
-        {t('work:runView.permissions')}
+        {t('chat:runView.permissions')}
         <Select<PermissionMode | ''>
           aria-label={t('controls.permissionModeNew')}
           value={value.permissionMode ?? ''}
@@ -100,10 +101,10 @@ export function StartOptions({ chat, value, onChange, forking }: { chat: Chat; v
         />
       </label>
       <label>
-        {t('work:shared.model')}
+        {t('chat:shared.model')}
         <ModelCombobox
           aria-label={t('controls.modelNew')}
-          placeholder={last?.model ?? chat.model ?? t('work:shared.default')}
+          placeholder={last?.model ?? chat.model ?? t('chat:shared.default')}
           value={value.model ?? ''}
           onChange={(model) => onChange({ ...value, model: model.trim() ? model : undefined })}
         />

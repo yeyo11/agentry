@@ -5,17 +5,17 @@ import { lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useMemoryProposals } from '../../../api';
-import { MoreActions } from '../../../components/controls';
+import { MoreActions } from '@agentry/ui/components/controls';
 import { DecisionMark } from '../../../components/DecisionMark';
-import { ICON_SM } from '../../../components/icons';
-import { useToast } from '../../../components/Toast';
-import { ErrorBox, Skeleton } from '../../../components/ui';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { useToast } from '@agentry/ui/components/Toast';
+import { ErrorBox, Skeleton } from '@agentry/ui/components/ui';
 import { useDirty } from '../../../lib/dirty';
-import { formatNumber, timeAgo } from '../../../lib/format';
+import { formatNumber, timeAgo } from '@agentry/ui/lib/format';
 import { taskPath } from '../../../lib/work-items';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 
-const Markdown = lazy(() => import('../../../components/Markdown'));
+const Markdown = lazy(() => import('@agentry/ui/components/Markdown'));
 
 /** Where an approved proposal is written, as its card says it: `CLAUDE.md · Conventions`, `memory · tests.md`, `journal`. */
 export function TargetLine({ target }: { target: MemoryProposalTarget }) {

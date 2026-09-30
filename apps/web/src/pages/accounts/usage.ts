@@ -1,6 +1,6 @@
 import type { AccountSummary, AccountUsageWindow } from '@agentry/shared';
-import { currentLanguage, intlLocale } from '../../i18n/language';
-import { formatDuration, toMs } from '../../lib/format';
+import { currentLanguage, intlLocale } from '@agentry/ui/i18n/language';
+import { formatDuration, toMs } from '@agentry/ui/lib/format';
 
 /** A window is spent once it reports its whole share used. */
 export const windowExhausted = (win: AccountUsageWindow | null | undefined): boolean => !!win && win.pct >= 100;

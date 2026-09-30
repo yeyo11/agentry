@@ -1,7 +1,7 @@
 import { Folder } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Select } from './controls/Select';
-import { ICON_SM } from './icons';
+import { Select } from '@agentry/ui/components/controls/Select';
+import { ICON_SM } from '@agentry/ui/components/icons';
 import { ALL_PROJECTS, useProjectScope } from '../lib/project-scope';
 
 /**
@@ -10,14 +10,14 @@ import { ALL_PROJECTS, useProjectScope } from '../lib/project-scope';
  * form field. One place, so it is always where the person last found it.
  */
 export function ProjectSelector() {
-  const { t } = useTranslation(['home', 'work']);
+  const { t } = useTranslation(['home', 'chat']);
   const { project, projects, select } = useProjectScope();
   return (
     <span className="project-scope">
       <Folder {...ICON_SM} className="project-scope-icon" />
       <Select
         className="project-selector"
-        aria-label={t('work:shared.project')}
+        aria-label={t('chat:shared.project')}
         value={project?.id ?? ALL_PROJECTS}
         onChange={(id) => select(id === ALL_PROJECTS ? null : id)}
         options={[

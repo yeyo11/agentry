@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { LANGUAGES, setLanguage, type Language } from '../i18n';
-import { Select } from './controls/Select';
+import { Select } from '@agentry/ui/components/controls/Select';
 
 const OPTIONS = LANGUAGES.map(({ code, name }) => ({ value: code, label: <span lang={code}>{name}</span> }));
 

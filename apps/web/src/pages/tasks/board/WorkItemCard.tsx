@@ -4,7 +4,8 @@ import type { CSSProperties, DragEvent, KeyboardEvent, MouseEvent, ReactNode } f
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { DecisionMarkOf, useVisibleDecisions } from '../../../components/DecisionMark';
-import { Monogram, nameHue, PriorityMark, WorkItemKey, WorkItemTypeIcon } from '../../../components/icons';
+import { Monogram, nameHue } from '@agentry/ui/components/icons';
+import { PriorityMark, WorkItemKey, WorkItemTypeIcon } from '../../../components/work-item-icons';
 import { stripNamesAssignee, taskPath, workItemLiveState, workItemStrip, type WorkItemStripState } from '../../../lib/work-items';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 import type { LiveSources } from './LiveLine';

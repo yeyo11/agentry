@@ -2,10 +2,13 @@
  * Internationalisation of the web UI: English (default) and Spanish, through i18next.
  *
  * Adding a string
- * 1. Pick the namespace by where the string lives:
+ * 1. Pick the namespace by where the string lives (`common` and `primitives` belong to
+ *    @agentry/ui, under packages/ui/src/locales, and `chat` to @agentry/chat-ui, under
+ *    packages/chat-ui/src/locales; the rest are this app's):
  *    - `common`: words shared across the app (`actions.*`, status names, times). A string that
  *      three screens spell the same way belongs here, not copied into each namespace.
- *    - `chat`: the chat page (ChatView, pages/chat/*, ChatBadges, ChatDelete)
+ *    - `chat`: the chat page and the conversation (ChatView, pages/chat/*, Transcript, Composer,
+ *      ChatBadges, ChatDelete)
  *    - `chats`: the chat list, New chat, the run-workflow dialog and lib/chat-model
  *    - `home`: Home, its Activity tab, the project selector and Settings
  *    - `projects`: Projects and the project tabs (memory, worktrees, settings, resources)
@@ -68,10 +71,10 @@
  */
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import { currentLanguage, storeLanguage, type Language } from './language';
+import { currentLanguage, storeLanguage, type Language } from '@agentry/ui/i18n/language';
 import { defaultNS, en, resources, type Namespace } from './resources';
 
-export { LANGUAGES, type Language } from './language';
+export { LANGUAGES, type Language } from '@agentry/ui/i18n/language';
 
 declare module 'i18next' {
   interface CustomTypeOptions {
