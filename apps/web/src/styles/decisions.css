@@ -21,6 +21,9 @@
   padding: 0;
   overflow: hidden;
   scroll-margin-top: 16px;
+  /* The point rows lay out by the card's width, not the window's: the sidebar and the settings nav
+     take a different share of the window on each screen */
+  container: dp-card / inline-size;
 }
 
 .dp-card > .card-head {
@@ -1173,3 +1176,21 @@
     min-height: var(--touch);
   }
 }
+
+/* A card too narrow for a point's name beside its five controls (a laptop with the sidebar open):
+   the name takes the first line and the controls the second, so neither is squeezed, and the nine
+   metrics fold into two rows instead of writing over each other */
+@container dp-card (max-width: 1040px) {
+  .dp-row {
+    grid-template-columns: 84px 206px minmax(0, 1fr) auto;
+  }
+
+  .dp-name {
+    grid-column: 1 / -1;
+  }
+
+  .dp-metrics {
+    grid-template-columns: repeat(5, minmax(0, auto));
+  }
+}
+
