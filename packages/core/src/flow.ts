@@ -19,6 +19,7 @@ import {
   type AgentryEvent,
   type AgentryLanguage,
   type ChatActivity,
+  type DecisionPointId,
   type DocumentKind,
   type FlowCriterionResult,
   type FlowMemoryProposal,
@@ -58,7 +59,9 @@ import type { AgentryEventInput } from './events.ts';
 import { roleTitle, roleTitleIn } from './team.ts';
 import { ItemDocumentsError } from './item-documents.ts';
 import { workItemPrompt } from './work-links.ts';
-import { continuationPrompt, MAX_TOKENS_ERROR, openItems, stoppedOnMaxTokens } from './open-items.ts';
+import { continuationPrompt, MAX_TOKENS_ERROR, OWES_WORK_ITEM, phraseItems, stoppedOnMaxTokens, structuralItems, tailOf } from './open-items.ts';
+import type { DecisionEngine, DecisionOutcome } from './decisions/engine.ts';
+import type { DecisionSubject } from './decisions/points.ts';
 import { designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, scopeAndCompletion, thinkThrough, UNATTENDED, type DesignSources } from './prompt-rules.ts';
 import { gitRaw } from './git.ts';
 import type { WorkItemService } from './work-items.ts';
@@ -258,6 +261,10 @@ export interface FlowDeps {
   emit: (event: AgentryEventInput) => void;
   /** The item's pull request, when approving one updated its branch into a conflict (docs/plans/work-item-pull-requests.md) */
   pullRequests?: FlowPullRequests;
+  /** The decision engine; without it every decision point is off and the flow behaves as it always did */
+  decisions?: Pick<DecisionEngine, 'ask' | 'effective' | 'resolve'>;
+  /** The commit subjects and changed paths of what the item's branch did, for the `flow.criteria-precheck` state */
+  workDone?: (item: WorkItem) => { commits: string[]; paths: string[] } | null;
 }
 
 /** What the flow asks of an item's pull request: the merge a work run resolves, and the approval QA's pass completes. */
@@ -268,6 +275,8 @@ export interface FlowPullRequests {
   settleConflict: (itemId: string) => string[] | null;
   /** QA passed the item: an approval remembered from a conflict opens the PR now */
   verified: (itemId: string) => void;
+  /** The Developer resolved a merge an approval conflicted and QA re-verifies it: nothing to pre-check */
+  awaitingVerify?: (itemId: string) => boolean;
 }
 
 /** What a run's chat ended with, as the runtime reports it. */
@@ -681,6 +690,8 @@ export class FlowService {
    * continues the run in its chat anyway (`recover`).
    */
   private readonly nudges = new Map<string, string>();
+  /** Decisions being asked, so `settled` can wait for them */
+  private readonly deciding = new Set<Promise<unknown>>();
 
   constructor(private readonly deps: FlowDeps) {
     this.sql = deps.db.connection;
@@ -1010,6 +1021,20 @@ export class FlowService {
       this.cancelQueued(itemId, 'it was refined and has not changed since', 'refined');
       return;
     }
+    // A work run that resolves a merge is the Developer's by design, whoever else could take it
+    if (!(stage === 'work' && this.deps.pullRequests?.conflictOf(itemId))) this.watchAssignment(item, project, member);
+    const gate = this.gate(item, stage);
+    if (!gate) {
+      this.queueRun(item, column, stage, member);
+      return;
+    }
+    // The run waits for the answer, so an older queued one must not start meanwhile
+    this.cancelQueued(itemId, 'the item moved again before its run was decided', 'replaced');
+    this.track(gate.then((verdict) => this.afterGate(item.id, column, stage, member, verdict)));
+  }
+
+  private queueRun(item: WorkItem, column: WorkItemStatus, stage: FlowStage, member: ProjectTeamMember): void {
+    const itemId = item.id;
     const now = new Date().toISOString();
     const id = randomUUID();
     let replaced: RunRow | undefined;
@@ -1026,6 +1051,123 @@ export class FlowService {
     if (replaced) this.announce(replaced.id, 'ended');
     this.announce(id, 'queued');
     this.dispatch();
+  }
+
+  // ---------- decision points ----------
+  // Every point ships off. Shadow asks in the background and today's behaviour decides; active waits
+  // for the answer only where the flow can act on it, and any other outcome (unavailable, below the
+  // threshold, no consent, the CLI) is today's behaviour at once.
+
+  /** Not at all, in the background, or with the flow waiting for the answer */
+  private stance(point: DecisionPointId, projectId: string): 'off' | 'watch' | 'wait' {
+    const engine = this.deps.decisions;
+    if (!engine) return 'off';
+    try {
+      const effective = engine.effective(point, projectId);
+      if (effective.mode === 'off') return 'off';
+      return effective.mode === 'active' && !effective.limited ? 'wait' : 'watch';
+    } catch {
+      return 'off';
+    }
+  }
+
+  /** Never rejects: an engine that fails is an answer that never came */
+  private async ask(point: DecisionPointId, subject: DecisionSubject, projectId: string): Promise<DecisionOutcome | null> {
+    try {
+      return (await this.deps.decisions?.ask(point, subject, { projectId })) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private track<T>(promise: Promise<T>): void {
+    const tracked = promise.catch(() => undefined).finally(() => this.deciding.delete(tracked));
+    this.deciding.add(tracked);
+  }
+
+  /** Asks in the background: the answer is recorded and nothing waits for it */
+  private watch(point: DecisionPointId, subject: DecisionSubject, projectId: string): void {
+    if (this.stance(point, projectId) === 'off') return;
+    this.track(this.ask(point, subject, projectId));
+  }
+
+  /** `team.assign` suggests a member for the card; who runs is still the column's role */
+  private watchAssignment(item: WorkItem, project: FlowProject, column: ProjectTeamMember): void {
+    const members = (project.settings.team?.members ?? []).map((m) => ({ id: m.role, role: m.role, responsibilities: m.responsibility }));
+    this.watch('team.assign', { kind: 'work_item', id: item.id, data: { ...itemState(item), members, assigned: column.role } }, item.projectId);
+  }
+
+  /**
+   * The decisions that stand between a card entering a column and its run: `flow.refine-needed` for
+   * a refine, `flow.criteria-precheck` for a verify. Null when the run is queued now, as today.
+   */
+  private gate(item: WorkItem, stage: FlowStage): Promise<Verdict> | null {
+    let point: DecisionPointId;
+    let subject: DecisionSubject;
+    if (stage === 'refine') {
+      point = 'flow.refine-needed';
+      subject = { kind: 'work_item', id: item.id, data: itemState(item) };
+    } else if (stage === 'verify') {
+      point = 'flow.criteria-precheck';
+      // The Developer only resolved a merge and QA re-verifies it: there is no new work to pre-check
+      if (!item.acceptanceCriteria.length || this.deps.pullRequests?.awaitingVerify?.(item.id)) return null;
+      const done = this.deps.workDone?.(item);
+      const summary = this.sql.prepare("SELECT summary FROM flow_runs WHERE item_id = ? AND stage = 'work' AND outcome = 'passed' ORDER BY seq DESC LIMIT 1").get(item.id) as { summary: string | null } | undefined;
+      subject = { kind: 'work_item', id: item.id, data: { criteria: item.acceptanceCriteria.map((c) => ({ id: c.id, text: c.text })), summary: summary?.summary ?? '', commits: done?.commits ?? [], paths: done?.paths ?? [] } };
+    } else {
+      return null;
+    }
+    const stance = this.stance(point, item.projectId);
+    if (stance === 'off') return null;
+    const asked = this.ask(point, subject, item.projectId);
+    if (stance === 'watch') {
+      this.track(asked);
+      return null;
+    }
+    return asked.then((outcome): Verdict => {
+      const answers = outcome?.act ? outcome.answers : null;
+      if (!answers) return null;
+      if (point === 'flow.refine-needed') return answers.refine?.kind === 'choice' && answers.refine.value === 'ready' ? { skip: 'the card is ready as written' } : null;
+      // Only a criterion clearly unmet sends the card back; one nobody can check never does
+      const unmet = item.acceptanceCriteria.filter((c) => {
+        const a = answers[c.id];
+        return a?.kind === 'choice' && a.value === 'clearly-unmet';
+      });
+      return unmet.length ? { sendBack: unmet.map((c) => c.text) } : null;
+    });
+  }
+
+  /** What the gate's answer does once the flow has looked at the card again */
+  private afterGate(itemId: string, column: WorkItemStatus, stage: FlowStage, member: ProjectTeamMember, verdict: Verdict): void {
+    const item = this.deps.items.find(itemId);
+    const project = item ? this.deps.project(item.projectId) : null;
+    if (!item || !project || !active(project.settings) || item.status !== column) return;
+    if (verdict && 'skip' in verdict) {
+      this.cancelQueued(itemId, verdict.skip, 'refined');
+      return;
+    }
+    if (verdict && 'sendBack' in verdict) {
+      // The bounce limit stays code's: a card that has used its bounces is verified as it always was
+      const bounces = item.bounces ?? 0;
+      if (bounces < (project.settings.flow?.maxBounces ?? 0) && this.sendBack(item, member, verdict.sendBack)) return;
+    }
+    this.queueRun(item, column, stage, member);
+  }
+
+  /** QA's seat sends the card back to the Developer before any QA run, with the criteria it found unmet */
+  private sendBack(item: WorkItem, member: ProjectTeamMember, unmet: readonly string[]): boolean {
+    try {
+      const actor: WorkItemActor = { kind: 'agent', role: member.role };
+      const source: WorkItemSource = { kind: 'chat', chatId: null, orchestrationId: null, taskId: null };
+      const cause: WorkItemCause = { ...source, event: FLOW_CAUSE.rejected };
+      const body = ['Sent back before verification: the work described does not meet these acceptance criteria.', '', ...unmet.map((t) => `- [ ] ${t}`)].join('\n');
+      this.deps.items.comment(item.id, { body }, { actor, source, cause });
+      this.deps.items.setFlowState(item.id, { bounces: (item.bounces ?? 0) + 1, waiting: null }, { actor, cause });
+      this.deps.items.move(item.id, { status: 'in_progress' }, { actor, cause });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private cancelQueued(itemId: string, why: string, cause: FlowRunCause): void {
@@ -1082,8 +1224,13 @@ export class FlowService {
   }
 
   /** Waits for every dispatch asked for so far; for tests and for shutting down cleanly. */
-  settled(): Promise<void> {
-    return this.dispatching;
+  async settled(): Promise<void> {
+    // A decision that comes back may queue a run, which dispatches again: wait until both are quiet
+    for (;;) {
+      const dispatching = this.dispatching;
+      await Promise.all([dispatching, ...this.deciding]);
+      if (dispatching === this.dispatching && this.deciding.size === 0) return;
+    }
   }
 
   private async dispatchNow(): Promise<void> {
@@ -1297,7 +1444,7 @@ export class FlowService {
     // A turn cut by the token limit can still end with JSON that parses: it is not the run's answer
     const cut = !result.isError && stoppedOnMaxTokens(result);
     const parsed = result.isError || cut ? null : parseResult(result.structuredOutput, row.stage as FlowStage);
-    if (!result.isError && !cut && this.continues(row, result, !!parsed)) return;
+    if (!result.isError && !cut && (await this.continues(row, result, !!parsed))) return;
     // A readable result still fails while the merge an approval left in its worktree is unresolved
     const failure: { error: string; cause: FlowRunCause } | null = result.isError
       ? chatFailure(result, this.deps.project(row.project_id)?.settings)
@@ -1368,7 +1515,7 @@ export class FlowService {
    * on its row. Past that, the result it has is judged as it is. The chat is continued once its
    * process has exited (`chatEnded`), since a chat has one process at most.
    */
-  private continues(row: RunRow, result: FlowChatResult, structured: boolean): boolean {
+  private async continues(row: RunRow, result: FlowChatResult, structured: boolean): Promise<boolean> {
     const done = row.continuations ?? 0;
     if (!row.chat_id || done >= MAX_CONTINUATIONS) return false;
     let uncommitted: string[] = [];
@@ -1376,12 +1523,35 @@ export class FlowService {
       const worktree = this.deps.items.find(row.item_id)?.worktree;
       if (worktree) uncommitted = (this.deps.uncommitted ?? uncommittedPaths)(worktree);
     }
-    const open = openItems({ schema: true, structured, uncommitted, finalText: result.result });
+    // A missing structured result and uncommitted paths are facts: code always decides them
+    const open = [...structuralItems({ schema: true, structured, uncommitted }), ...(await this.phraseOwed(row, result.result, done))];
     if (!open.length) return false;
     const changed = this.sql.prepare("UPDATE flow_runs SET continuations = ? WHERE id = ? AND state = 'running' AND continuations = ?").run(done + 1, row.id, done).changes;
     if (changed !== 1) return false;
     this.nudges.set(row.chat_id, flowContinuation(open, done + 1));
     return true;
+  }
+
+  /**
+   * What the last paragraph says is owed: the phrase list, unless `run.continuation` is active, above
+   * its threshold, and replaces it with its own reading of the paragraph.
+   */
+  private async phraseOwed(row: RunRow, finalText: string, done: number): Promise<string[]> {
+    const phrases = phraseItems(finalText);
+    const tail = tailOf(finalText);
+    const stance = tail ? this.stance('run.continuation', row.project_id) : 'off';
+    if (stance === 'off') return phrases;
+    const words = ['no continuation yet', 'one continuation so far', 'two continuations so far'][done] ?? 'several continuations so far';
+    const title = this.deps.items.find(row.item_id)?.title ?? '';
+    const asked = this.ask('run.continuation', { kind: 'flow_run', id: row.id, data: { title, tail, continuations: words } }, row.project_id);
+    if (stance === 'watch') {
+      this.track(asked);
+      return phrases;
+    }
+    const answer = (await asked)?.answers?.report;
+    if (answer?.kind !== 'choice') return phrases;
+    if (answer.value === 'done') return [];
+    return phrases.length ? phrases : [OWES_WORK_ITEM];
   }
 
   /** Sends a run back to its own chat with what it still owes; a chat that cannot be continued fails it. */
@@ -1429,7 +1599,7 @@ export class FlowService {
       this.deps.items.comment(item.id, { body }, { actor, source, cause: cause(`flow.${row.stage}`) });
     }
     if (board && row.stage === 'verify') this.checkCriteria(item, result.criteria, actor, cause(`flow.${row.stage}`));
-    if (board && row.stage === 'refine') this.refineItem(item, result, actor, cause(FLOW_CAUSE.refined), row.started_at ?? row.queued_at);
+    if (board && row.stage === 'refine') this.watchMerge(row, item, this.refineItem(item, result, actor, cause(FLOW_CAUSE.refined), row.started_at ?? row.queued_at));
     if (settings.modules.includes('memory')) {
       for (const proposal of result.memoryProposals) {
         try {
@@ -1458,7 +1628,14 @@ export class FlowService {
     } else if (row.stage === 'verify' && outcome === 'rejected') {
       const bounces = current.bounces ?? 0;
       const max = settings.flow?.maxBounces ?? 0;
-      if (bounces >= max) {
+      // `maxBounces` stays code's: the point only ends a round sooner, for a person to look at
+      const needsPerson = bounces < max && (await this.bounceNeedsPerson(row, result, bounces));
+      if (needsPerson) {
+        // It waited for the answer: a person may have moved the card meanwhile
+        const latest = this.deps.items.find(item.id);
+        if (!latest || latest.status !== row.column_name || this.personMovedSince(item.id, row.started_at ?? row.queued_at)) return;
+      }
+      if (bounces >= max || needsPerson) {
         this.deps.items.setFlowState(item.id, { waiting: 'bounces' }, { actor, cause: cause(FLOW_CAUSE.exhausted) });
       } else {
         this.deps.items.setFlowState(item.id, { bounces: bounces + 1, waiting: null }, { actor, cause: cause(FLOW_CAUSE.rejected) });
@@ -1467,14 +1644,34 @@ export class FlowService {
     }
   }
 
-  /** The Product Owner's description and criteria, unless a person edited them while it worked. */
-  private refineItem(item: WorkItem, result: ParsedResult, actor: WorkItemActor, cause: WorkItemCause, since: string): void {
+  /**
+   * `flow.bounce`: whether what QA reported needs a person rather than another Developer run. True
+   * only when the point is active, above its threshold, and says so; every other outcome bounces.
+   */
+  private async bounceNeedsPerson(row: RunRow, result: ParsedResult, bounces: number): Promise<boolean> {
+    const stance = this.stance('flow.bounce', row.project_id);
+    if (stance === 'off') return false;
+    // A criterion only a person can check is not a reason to bounce, so it is not sent either
+    const unmet = result.criteria.filter((c) => !c.met && !c.needsPerson).map((c) => ({ id: c.id, note: c.note }));
+    const words = ['never before', 'once before', 'twice before', 'three times before'][bounces] ?? 'many times before';
+    const asked = this.ask('flow.bounce', { kind: 'flow_run', id: row.id, data: { rejection: result.summary, criteria: unmet, bounces: `this card was bounced ${words}` } }, row.project_id);
+    if (stance === 'watch') {
+      this.track(asked);
+      return false;
+    }
+    const answer = (await asked)?.answers?.bounce;
+    return answer?.kind === 'choice' && answer.value === 'needs-person';
+  }
+
+  /** The Product Owner's description and criteria, unless a person edited them while it worked. Returns the criteria it added. */
+  private refineItem(item: WorkItem, result: ParsedResult, actor: WorkItemActor, cause: WorkItemCause, since: string): string[] {
     const history = this.deps.items.history(item.id).filter((e) => e.actor.kind === 'person' && e.createdAt >= since);
     const changes: { description?: string; acceptanceCriteria?: Array<{ id?: string; text: string }> } = {};
+    let added: string[] = [];
     if (result.description !== null && !history.some((e) => e.change === 'description')) changes.description = result.description;
     if (result.acceptanceCriteria.length && !history.some((e) => e.change === 'criterion')) {
       const have = new Set(item.acceptanceCriteria.map((c) => c.text.trim().toLowerCase()));
-      const added = result.acceptanceCriteria.filter((t) => {
+      added = result.acceptanceCriteria.filter((t) => {
         const key = t.trim().toLowerCase();
         if (have.has(key)) return false;
         have.add(key);
@@ -1482,12 +1679,24 @@ export class FlowService {
       });
       if (added.length) changes.acceptanceCriteria = [...item.acceptanceCriteria.map((c) => ({ id: c.id, text: c.text })), ...added.map((text) => ({ text }))];
     }
-    if (changes.description === undefined && changes.acceptanceCriteria === undefined) return;
+    if (changes.description === undefined && changes.acceptanceCriteria === undefined) return [];
     try {
       this.deps.items.update(item.id, changes, { actor, cause });
     } catch {
       // too many criteria, or a text the store refuses: the comment still says what was proposed
+      return [];
     }
+    return added;
+  }
+
+  /**
+   * `flow.criteria-merge`: which of the criteria a refine just added repeat one the card already
+   * had. It only flags them (a person decides whether to delete one), so every criterion is kept.
+   */
+  private watchMerge(row: RunRow, before: WorkItem, added: readonly string[]): void {
+    if (!added.length) return;
+    const data = { existing: before.acceptanceCriteria.map((c) => ({ id: c.id, text: c.text })), proposed: added.map((text, i) => ({ id: `proposed-${String(i + 1)}`, text })) };
+    this.watch('flow.criteria-merge', { kind: 'flow_run', id: row.id, data }, row.project_id);
   }
 
   /**
@@ -1549,20 +1758,48 @@ export class FlowService {
         this.end(row.id, 'failed', null, `Agentry restarted ${row.restarts + 1} times while this run worked; move the item again to start it over`, 'restarts');
         continue;
       }
-      let requeued = false;
-      this.write(() => {
-        const queued = this.sql.prepare("SELECT 1 FROM flow_runs WHERE item_id = ? AND state = 'queued'").get(row.item_id);
-        if (queued) return;
-        // It keeps when it started, and the chat it continues in: a run with no chat yet starts afresh
-        this.sql
-          .prepare("UPDATE flow_runs SET state = 'queued', restarts = restarts + 1, started_at = CASE WHEN chat_id IS NULL THEN NULL ELSE started_at END WHERE id = ?")
-          .run(row.id);
-        requeued = true;
-      });
-      // A newer trigger for the item already waits, and replaces the run that was cut off
-      if (!requeued) this.end(row.id, 'cancelled', null, 'cut off by a restart, and the item moved since', 'item-moved');
+      const stance = this.stance('flow.restart', row.project_id);
+      if (stance === 'wait') {
+        // The run stays as it is until the answer comes; nothing else waits for it
+        this.track(this.restartDecided(row));
+        continue;
+      }
+      if (stance === 'watch') this.track(this.ask('flow.restart', this.restartSubject(row), row.project_id));
+      this.requeue(row);
     }
     this.recovered = true;
+    this.dispatch();
+  }
+
+  /** Puts a run a restart cut off back in the queue, unless a newer trigger for the item already waits */
+  private requeue(row: RunRow): void {
+    let requeued = false;
+    this.write(() => {
+      const queued = this.sql.prepare("SELECT 1 FROM flow_runs WHERE item_id = ? AND state = 'queued'").get(row.item_id);
+      if (queued) return;
+      // It keeps when it started, and the chat it continues in: a run with no chat yet starts afresh
+      this.sql
+        .prepare("UPDATE flow_runs SET state = 'queued', restarts = restarts + 1, started_at = CASE WHEN chat_id IS NULL THEN NULL ELSE started_at END WHERE id = ?")
+        .run(row.id);
+      requeued = true;
+    });
+    // A newer trigger for the item already waits, and replaces the run that was cut off
+    if (!requeued) this.end(row.id, 'cancelled', null, 'cut off by a restart, and the item moved since', 'item-moved');
+  }
+
+  private restartSubject(row: RunRow): DecisionSubject {
+    const words = ['never restarted before', 'restarted once before', 'restarted twice before'][row.restarts] ?? 'restarted many times before';
+    return { kind: 'flow_run', id: row.id, data: { stage: row.stage, cause: 'Agentry restarted while the run worked', restarts: words, error: row.error ?? '' } };
+  }
+
+  /** `flow.restart`, active: a run judged not worth running again fails like one past `MAX_FLOW_RESTARTS` does */
+  private async restartDecided(row: RunRow): Promise<void> {
+    const answer = (await this.ask('flow.restart', this.restartSubject(row), row.project_id))?.answers?.requeue;
+    const current = this.row(row.id);
+    if (current?.state === 'running') {
+      if (answer?.kind === 'noul' && !answer.value) this.end(row.id, 'failed', null, 'Agentry restarted while this run worked, and it was judged not worth running again; move the item again to start it over', 'restarts');
+      else this.requeue(current);
+    }
     this.dispatch();
   }
 
@@ -1831,6 +2068,14 @@ function documentPathOf(path: string, roots: readonly string[]): string {
   while (rel.startsWith('./')) rel = rel.slice(2);
   return rel;
 }
+
+/** What a decision about a card may read of it; the point's own field list cuts the rest */
+function itemState(item: WorkItem): Record<string, unknown> {
+  return { title: item.title, description: item.description, type: item.type, criteria: item.acceptanceCriteria.map((c) => ({ id: c.id, text: c.text })), labels: item.labels };
+}
+
+/** What a gate decided for a card about to start a run; null is today's behaviour */
+type Verdict = { skip: string } | { sendBack: string[] } | null;
 
 function memberOf(settings: ProjectSettings, role: string): ProjectTeamMember | null {
   return settings.team?.members.find((m) => m.role === role) ?? null;

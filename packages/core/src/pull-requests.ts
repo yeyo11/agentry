@@ -577,6 +577,11 @@ export class PullRequestService {
 
   // ---------- the flow's side of a conflict ----------
 
+  /** The Developer resolved a merge an approval conflicted, and QA's next pass re-verifies it. */
+  awaitingVerify(itemId: string): boolean {
+    return this.newestRow(itemId)?.phase === 'awaiting-verify';
+  }
+
   /** The merge a work run is to resolve: the default branch and the conflicting paths. */
   conflictOf(itemId: string): { base: string; paths: string[] } | null {
     const row = this.newestRow(itemId);
