@@ -5,8 +5,11 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { Worker } from 'node:worker_threads';
-import { flowRunStatus, MAX_CONTINUATIONS, type AgentryEvent, type AgentryLanguage, type FlowRunDocument, type FlowMemoryProposal, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@agentry/shared';
+import { flowRunStatus, MAX_CONTINUATIONS, type DecisionAnswer, type DecisionPointId, type AgentryEvent, type AgentryLanguage, type FlowRunDocument, type FlowMemoryProposal, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@agentry/shared';
 import { Db, FLOW_CAUSE_SCHEMA_VERSION, FLOW_SCHEMA_VERSION, migrate } from '../src/db.ts';
+import { DecisionEngine, type DecisionProvider, type DecisionRequest, type ProviderResult } from '../src/decisions/engine.ts';
+import { decisionPoint } from '../src/decisions/points.ts';
+import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS } from '../src/decisions/settings.ts';
 import { EventBus } from '../src/events.ts';
 import { checkCommandRules, FlowError, flowPrompt, flowResultSchema, flowTitle, FlowService, parseFlowRunQuery, parseResult, stageRules, testCommandRules, testCommands, type FlowChatResult, type FlowLaunch, type FlowPullRequests } from '../src/flow.ts';
 import { WorkItemService } from '../src/work-items.ts';
@@ -34,7 +37,7 @@ function settingsWith(modules: ProjectModule[] = ['board', 'team', 'memory', 'do
   };
 }
 
-function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; pullRequests?: FlowPullRequests; path?: string; uncommitted?: (dir: string) => string[] } = {}) {
+function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; pullRequests?: FlowPullRequests; path?: string; uncommitted?: (dir: string) => string[]; decisions?: DecisionEngine } = {}) {
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
   const db = opts.db ?? new Db(config);
@@ -81,6 +84,7 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; p
     stop: (id) => void stopped.push(id),
     emit: (e) => bus.emit(e),
     ...(opts.pullRequests ? { pullRequests: opts.pullRequests } : {}),
+    ...(opts.decisions ? { decisions: opts.decisions, workDone: () => ({ commits: ['add the cart route'], paths: ['src/cart.ts'] }) } : {}),
   });
   bus.observe((e) => flow.observe(e));
   if (opts.recover !== false) flow.recover();
@@ -1731,4 +1735,430 @@ test('a run sent back whose chat then ends in an error fails as any chat would',
   await s.flow.settled();
   const run = s.flow.itemRuns(it.id)[0];
   assert.deepEqual([run?.outcome, run?.cause, run?.continuations], ['failed', 'chat-failed', 1]);
+});
+
+// ---------- decision points (docs/plans/decision-engine.md, D2 w1) ----------
+// Every point ships off. Each has the four tests the plan asks for: off changes nothing and calls no
+// provider; shadow records a row while today's behaviour decides; active acts only above the
+// threshold; and an unavailable provider (no quota included) is today's behaviour at once.
+
+type Reply = (request: DecisionRequest) => ProviderResult;
+
+/** Answers every question with `pick(questionId, index)`, at one confidence */
+const replying =
+  (pick: (id: string, index: number) => string | boolean, confidence: number | null = 0.99): Reply =>
+  (request) => {
+    const answers: Record<string, DecisionAnswer> = {};
+    request.questions.forEach((q, i) => {
+      const value = pick(q.id, i);
+      answers[q.id] = q.kind === 'noul' ? { kind: 'noul', value: value === true, probability: null, confidence } : { kind: q.kind, value: String(value), probabilities: null, confidence };
+    });
+    return { status: 'answered', answers, latencyMs: 5, inputTokens: 10, costUsd: 0, model: 'jev-test' };
+  };
+const noQuota: Reply = () => ({ status: 'unavailable', reason: 'no-quota', latencyMs: 1 });
+
+/** A real engine over a real store, with one point set and a provider that only records and answers */
+async function deciding(point: DecisionPointId, mode: 'off' | 'shadow' | 'active', reply: Reply) {
+  const config = tempConfig();
+  mkdirSync(config.dataDir, { recursive: true });
+  const db = new Db(config);
+  const settings = new DecisionSettingsStore(config, new DecisionCredentialStore(config));
+  const engine = new DecisionEngine({ settings, db, projectDecisions: () => null });
+  const calls: DecisionRequest[] = [];
+  const provider: DecisionProvider = {
+    id: 'jev',
+    available: () => true,
+    ask: (request) => {
+      calls.push(request);
+      return Promise.resolve(reply(request));
+    },
+  };
+  engine.register(provider);
+  if (mode !== 'off') {
+    await settings.set({ ...structuredClone(DEFAULT_DECISION_SETTINGS), provider: 'jev', points: { [point]: { mode, threshold: 0.85, consent: null } } });
+    await settings.setConsent(point, { granted: true, stateVersion: decisionPoint(point)?.stateVersion ?? 1, providers: ['jev'] });
+  }
+  return { db, engine, calls, rows: () => db.listDecisions().items };
+}
+
+const verifies = (s: Setup) => s.launches.filter((l) => l.run.stage === 'verify');
+const refines = (s: Setup) => s.launches.filter((l) => l.run.stage === 'refine');
+
+test('flow.refine-needed: off refines as before and asks nothing', async () => {
+  const d = await deciding('flow.refine-needed', 'off', replying(() => 'ready'));
+  const s = setup({ db: d.db, decisions: d.engine });
+  await item(s, 'backlog');
+  assert.equal(refines(s).length, 1);
+  assert.equal(d.calls.length, 0);
+  assert.equal(d.rows().length, 0);
+});
+
+test('flow.refine-needed: shadow records the answer and the refine still runs', async () => {
+  const d = await deciding('flow.refine-needed', 'shadow', replying(() => 'ready'));
+  const s = setup({ db: d.db, decisions: d.engine });
+  await item(s, 'backlog');
+  assert.equal(refines(s).length, 1);
+  const [row] = d.rows();
+  assert.equal(d.rows().length, 1);
+  assert.deepEqual([row?.mode, row?.acted, row?.subjectKind], ['shadow', false, 'work_item']);
+  assert.equal(d.calls[0]?.state.title, 'Fix the cart');
+});
+
+test('flow.refine-needed: active skips the refine only above the threshold', async () => {
+  const sure = await deciding('flow.refine-needed', 'active', replying(() => 'ready', 0.99));
+  const a = setup({ db: sure.db, decisions: sure.engine });
+  await item(a, 'backlog');
+  assert.equal(a.launches.length, 0);
+  assert.equal(flowRuns(a).length, 0);
+  assert.deepEqual([sure.rows()[0]?.acted, sure.rows()[0]?.savedRun], [true, true]);
+  const unsure = await deciding('flow.refine-needed', 'active', replying(() => 'ready', 0.5));
+  const b = setup({ db: unsure.db, decisions: unsure.engine });
+  await item(b, 'backlog');
+  assert.equal(refines(b).length, 1);
+  assert.equal(unsure.rows()[0]?.acted, false);
+  // "Needs refining" is today's behaviour too
+  const vague = await deciding('flow.refine-needed', 'active', replying(() => 'refine', 0.99));
+  const c = setup({ db: vague.db, decisions: vague.engine });
+  await item(c, 'backlog');
+  assert.equal(refines(c).length, 1);
+});
+
+test('flow.refine-needed: an unavailable provider, no quota included, refines at once', async () => {
+  const d = await deciding('flow.refine-needed', 'active', noQuota);
+  const s = setup({ db: d.db, decisions: d.engine });
+  await item(s, 'backlog');
+  assert.equal(refines(s).length, 1);
+  assert.deepEqual([d.rows()[0]?.status, d.rows()[0]?.unavailable, d.rows()[0]?.acted], ['unavailable', 'no-quota', false]);
+});
+
+const withCriteria = (s: Setup) => s.items.create('p1', { title: 'Cart', status: 'in_review', acceptanceCriteria: [{ text: 'Lines survive a reload' }, { text: 'Totals in cents' }] });
+/** The first criterion gets `first`, the others are met or unknown */
+const precheck = (first: string, confidence = 0.99) => replying((_id, i) => (i === 0 ? first : 'met-or-unknown'), confidence);
+
+test('flow.criteria-precheck: off queues QA as before and asks nothing', async () => {
+  const d = await deciding('flow.criteria-precheck', 'off', precheck('clearly-unmet'));
+  const s = setup({ db: d.db, decisions: d.engine });
+  withCriteria(s);
+  await s.flow.settled();
+  assert.equal(verifies(s).length, 1);
+  assert.equal(d.calls.length, 0);
+  assert.equal(d.rows().length, 0);
+});
+
+test('flow.criteria-precheck: shadow records the answer and QA still runs', async () => {
+  const d = await deciding('flow.criteria-precheck', 'shadow', precheck('clearly-unmet'));
+  const s = setup({ db: d.db, decisions: d.engine });
+  const it = withCriteria(s);
+  await s.flow.settled();
+  assert.equal(verifies(s).length, 1);
+  assert.equal(s.items.find(it.id)?.status, 'in_review');
+  assert.deepEqual([d.rows().length, d.rows()[0]?.acted], [1, false]);
+  assert.deepEqual(d.calls[0]?.state.paths, ['src/cart.ts']);
+});
+
+test('flow.criteria-precheck: active sends the card back before QA only for a criterion clearly unmet, above the threshold', async () => {
+  const sure = await deciding('flow.criteria-precheck', 'active', precheck('clearly-unmet'));
+  const a = setup({ db: sure.db, decisions: sure.engine });
+  const it = withCriteria(a);
+  await a.flow.settled();
+  assert.equal(verifies(a).length, 0, 'no QA run is paid for');
+  const back = a.items.find(it.id);
+  assert.deepEqual([back?.status, back?.bounces], ['in_progress', 1]);
+  assert.equal(a.launches.at(-1)?.run.stage, 'work');
+  assert.match(a.items.comments(it.id).at(-1)?.body ?? '', /Lines survive a reload/);
+
+  const unsure = await deciding('flow.criteria-precheck', 'active', precheck('clearly-unmet', 0.5));
+  const b = setup({ db: unsure.db, decisions: unsure.engine });
+  withCriteria(b);
+  await b.flow.settled();
+  assert.equal(verifies(b).length, 1);
+
+  // A criterion only a person can check never sends a card back, however sure the answer is
+  const person = await deciding('flow.criteria-precheck', 'active', precheck('needs-a-person'));
+  const c = setup({ db: person.db, decisions: person.engine });
+  withCriteria(c);
+  await c.flow.settled();
+  assert.equal(verifies(c).length, 1);
+});
+
+test("flow.criteria-precheck: the bounce limit stays code's, so a card out of bounces is verified", async () => {
+  const d = await deciding('flow.criteria-precheck', 'active', precheck('clearly-unmet'));
+  const s = setup({ db: d.db, decisions: d.engine, settings: { ...settingsWith(), flow: { ...settingsWith().flow!, maxBounces: 0 } } });
+  withCriteria(s);
+  await s.flow.settled();
+  assert.equal(verifies(s).length, 1);
+});
+
+test('flow.criteria-precheck: an unavailable provider, no quota included, queues QA at once', async () => {
+  const d = await deciding('flow.criteria-precheck', 'active', noQuota);
+  const s = setup({ db: d.db, decisions: d.engine });
+  withCriteria(s);
+  await s.flow.settled();
+  assert.equal(verifies(s).length, 1);
+  assert.equal(d.rows()[0]?.status, 'unavailable');
+});
+
+test('flow.criteria-precheck: a card whose pull request awaits verification goes straight to QA, without a question', async () => {
+  const d = await deciding('flow.criteria-precheck', 'active', precheck('clearly-unmet'));
+  const { hooks } = conflictHooks([]);
+  const s = setup({ db: d.db, decisions: d.engine, pullRequests: { ...hooks, conflictOf: () => null, awaitingVerify: () => true } });
+  withCriteria(s);
+  await s.flow.settled();
+  assert.equal(verifies(s).length, 1);
+  assert.equal(d.calls.length, 0);
+});
+
+/** An item through its work run, and QA failing it with `summary` */
+async function rejected(s: Setup, summary = 'The totals are wrong') {
+  const it = s.items.create('p1', { title: 'Cart', status: 'todo', acceptanceCriteria: [{ text: 'Totals in cents' }] });
+  s.items.move(it.id, { status: 'in_progress' }, person);
+  await s.flow.settled();
+  await s.answer(it.id, ok('Implemented'));
+  await s.answer(it.id, ok(summary, { verdict: 'fail' }));
+  return it;
+}
+const needsPerson = replying(() => 'needs-person');
+
+test('flow.bounce: off bounces as before and asks nothing', async () => {
+  const d = await deciding('flow.bounce', 'off', needsPerson);
+  const s = setup({ db: d.db, decisions: d.engine });
+  const it = await rejected(s);
+  assert.deepEqual([s.items.find(it.id)?.status, s.items.find(it.id)?.bounces], ['in_progress', 1]);
+  assert.equal(d.calls.length, 0);
+});
+
+test('flow.bounce: shadow records the answer and the card still bounces', async () => {
+  const d = await deciding('flow.bounce', 'shadow', needsPerson);
+  const s = setup({ db: d.db, decisions: d.engine });
+  const it = await rejected(s);
+  assert.deepEqual([s.items.find(it.id)?.status, s.items.find(it.id)?.waiting], ['in_progress', null]);
+  assert.deepEqual([d.rows().length, d.rows()[0]?.acted, d.rows()[0]?.subjectKind], [1, false, 'flow_run']);
+  assert.equal(d.calls[0]?.state.rejection, 'The totals are wrong');
+  assert.equal(d.calls[0]?.state.bounces, 'this card was bounced never before');
+});
+
+test('flow.bounce: active waits for a person only above the threshold, and never bounces past maxBounces', async () => {
+  const sure = await deciding('flow.bounce', 'active', needsPerson);
+  const a = setup({ db: sure.db, decisions: sure.engine });
+  const it = await rejected(a);
+  const held = a.items.find(it.id);
+  assert.deepEqual([held?.status, held?.waiting, held?.bounces], ['in_review', 'bounces', 0]);
+  assert.equal(sure.rows()[0]?.acted, true);
+
+  const unsure = await deciding('flow.bounce', 'active', replying(() => 'needs-person', 0.5));
+  const b = setup({ db: unsure.db, decisions: unsure.engine });
+  const other = await rejected(b);
+  assert.equal(b.items.find(other.id)?.status, 'in_progress');
+
+  const fixable = await deciding('flow.bounce', 'active', replying(() => 'fixable'));
+  const c = setup({ db: fixable.db, decisions: fixable.engine });
+  const third = await rejected(c);
+  assert.equal(c.items.find(third.id)?.status, 'in_progress');
+
+  // Out of bounces, it waits as it always did and nothing is asked
+  const spent = await deciding('flow.bounce', 'active', replying(() => 'fixable'));
+  const e = setup({ db: spent.db, decisions: spent.engine, settings: { ...settingsWith(), flow: { ...settingsWith().flow!, maxBounces: 0 } } });
+  const last = await rejected(e);
+  assert.equal(e.items.find(last.id)?.waiting, 'bounces');
+  assert.equal(spent.calls.length, 0);
+});
+
+test('flow.bounce: an unavailable provider, no quota included, bounces at once', async () => {
+  const d = await deciding('flow.bounce', 'active', noQuota);
+  const s = setup({ db: d.db, decisions: d.engine });
+  const it = await rejected(s);
+  assert.equal(s.items.find(it.id)?.status, 'in_progress');
+  assert.equal(d.rows()[0]?.unavailable, 'no-quota');
+});
+
+/** A run cut off by a restart, and the flow that comes back up over the same store */
+async function restarted(d: Awaited<ReturnType<typeof deciding>>) {
+  const first = setup({ db: d.db });
+  const it = await item(first, 'in_progress');
+  const second = setup({ db: first.db, settings: first.state.settings, recover: false, decisions: d.engine });
+  second.flow.recover();
+  await second.flow.settled();
+  return { it, second };
+}
+const requeue = (value: boolean, confidence = 0.99) => replying(() => value, confidence);
+
+test('flow.restart: off requeues the cut-off run and asks nothing', async () => {
+  const d = await deciding('flow.restart', 'off', requeue(false));
+  const { second } = await restarted(d);
+  assert.equal(second.launches.length, 1);
+  assert.equal(d.calls.length, 0);
+});
+
+test('flow.restart: shadow records the answer and the run is requeued anyway', async () => {
+  const d = await deciding('flow.restart', 'shadow', requeue(false));
+  const { second } = await restarted(d);
+  assert.equal(second.launches.length, 1);
+  assert.deepEqual([d.rows().length, d.rows()[0]?.acted], [1, false]);
+  assert.equal(d.calls[0]?.state.stage, 'work');
+});
+
+test('flow.restart: active fails a run judged not worth running again only above the threshold', async () => {
+  const sure = await deciding('flow.restart', 'active', requeue(false));
+  const a = await restarted(sure);
+  assert.equal(a.second.launches.length, 0);
+  const run = a.second.flow.itemRuns(a.it.id)[0];
+  assert.deepEqual([run?.state, run?.outcome, run?.cause], ['ended', 'failed', 'restarts']);
+
+  const unsure = await deciding('flow.restart', 'active', requeue(false, 0.5));
+  assert.equal((await restarted(unsure)).second.launches.length, 1);
+
+  const worth = await deciding('flow.restart', 'active', requeue(true));
+  assert.equal((await restarted(worth)).second.launches.length, 1);
+});
+
+test('flow.restart: an unavailable provider, no quota included, requeues at once', async () => {
+  const d = await deciding('flow.restart', 'active', noQuota);
+  const { second } = await restarted(d);
+  assert.equal(second.launches.length, 1);
+  assert.equal(d.rows()[0]?.unavailable, 'no-quota');
+});
+
+/** A refine of a card that has a criterion, which proposes a near-duplicate of it */
+async function refinedWithNearDuplicate(s: Setup) {
+  const it = s.items.create('p1', { title: 'Cart', status: 'backlog', acceptanceCriteria: [{ text: 'Totals are in cents' }] });
+  await s.flow.settled();
+  await s.answer(it.id, ok('Refined', { description: 'A cart', acceptanceCriteria: ['Totals are shown in cents'] }));
+  return it;
+}
+const duplicate = replying(() => true);
+
+test('flow.criteria-merge: off adds what was proposed and asks nothing', async () => {
+  const d = await deciding('flow.criteria-merge', 'off', duplicate);
+  const s = setup({ db: d.db, decisions: d.engine });
+  const it = await refinedWithNearDuplicate(s);
+  assert.equal(s.items.find(it.id)?.acceptanceCriteria.length, 2);
+  assert.equal(d.calls.length, 0);
+});
+
+test('flow.criteria-merge: shadow records the flag and every criterion is kept', async () => {
+  const d = await deciding('flow.criteria-merge', 'shadow', duplicate);
+  const s = setup({ db: d.db, decisions: d.engine });
+  const it = await refinedWithNearDuplicate(s);
+  assert.equal(s.items.find(it.id)?.acceptanceCriteria.length, 2);
+  assert.deepEqual([d.rows().length, d.rows()[0]?.acted, d.rows()[0]?.subjectKind], [1, false, 'flow_run']);
+  assert.deepEqual((d.calls[0]?.state.proposed as Array<{ text: string }>).map((c) => c.text), ['Totals are shown in cents']);
+});
+
+test('flow.criteria-merge: active only flags (a suggestion a person decides), so no criterion is dropped', async () => {
+  const d = await deciding('flow.criteria-merge', 'active', duplicate);
+  const s = setup({ db: d.db, decisions: d.engine });
+  const it = await refinedWithNearDuplicate(s);
+  assert.equal(s.items.find(it.id)?.acceptanceCriteria.length, 2);
+  assert.equal(d.rows()[0]?.acted, true);
+});
+
+test('flow.criteria-merge: an unavailable provider, no quota included, changes nothing', async () => {
+  const d = await deciding('flow.criteria-merge', 'active', noQuota);
+  const s = setup({ db: d.db, decisions: d.engine });
+  const it = await refinedWithNearDuplicate(s);
+  assert.equal(s.items.find(it.id)?.acceptanceCriteria.length, 2);
+  assert.equal(d.rows()[0]?.unavailable, 'no-quota');
+});
+
+const assign = replying(() => 'developer');
+
+test('team.assign: off asks nothing', async () => {
+  const d = await deciding('team.assign', 'off', assign);
+  const s = setup({ db: d.db, decisions: d.engine });
+  await item(s, 'backlog');
+  assert.equal(d.calls.length, 0);
+  assert.equal(d.rows().length, 0);
+});
+
+test('team.assign: shadow records a proposal and the column still decides who runs', async () => {
+  const d = await deciding('team.assign', 'shadow', assign);
+  const s = setup({ db: d.db, decisions: d.engine });
+  await item(s, 'backlog');
+  assert.equal(s.launches[0]?.member.agent, 'product-owner');
+  assert.deepEqual([d.rows().length, d.rows()[0]?.acted], [1, false]);
+  assert.deepEqual((d.calls[0]?.state.members as Array<{ id: string }>).map((m) => m.id), ['product-owner', 'developer', 'qa']);
+});
+
+test('team.assign: active still only suggests, whatever the confidence, and a merge-resolving run is not asked about', async () => {
+  const d = await deciding('team.assign', 'active', replying(() => 'developer', 0.5));
+  const { hooks } = conflictHooks(['src/cart.ts']);
+  const s = setup({ db: d.db, decisions: d.engine, pullRequests: hooks });
+  await item(s, 'backlog');
+  assert.equal(s.launches[0]?.member.agent, 'product-owner');
+  assert.equal(d.rows()[0]?.acted, true);
+  const asked = d.calls.length;
+  const done = await item(s, 'done');
+  s.items.move(done.id, { status: 'in_progress' }, { actor: { kind: 'person' }, cause: { kind: 'chat', chatId: null, orchestrationId: null, taskId: null, event: 'pr.conflict' } });
+  await s.flow.settled();
+  assert.equal(s.launches.at(-1)?.run.stage, 'work');
+  assert.equal(d.calls.length, asked);
+});
+
+test('team.assign: an unavailable provider, no quota included, changes nothing', async () => {
+  const d = await deciding('team.assign', 'active', noQuota);
+  const s = setup({ db: d.db, decisions: d.engine });
+  await item(s, 'backlog');
+  assert.equal(s.launches.length, 1);
+  assert.equal(d.rows()[0]?.unavailable, 'no-quota');
+});
+
+const offer = { result: 'The route is in. Let me know if you want me to add the tests too.' };
+const report = (value: 'done' | 'owes-work', confidence = 0.99) => replying(() => value, confidence);
+
+test('run.continuation: off leaves the phrase list in charge and asks nothing', async () => {
+  const d = await deciding('run.continuation', 'off', report('done'));
+  const s = setup({ db: d.db, decisions: d.engine });
+  const it = await item(s, 'in_progress');
+  await s.answer(it.id, ok('Implemented'), false, offer);
+  assert.equal(s.flow.itemRuns(it.id)[0]?.continuations, 1);
+  assert.equal(d.calls.length, 0);
+});
+
+test('run.continuation: shadow records the reading of the last paragraph and the phrase list still decides', async () => {
+  const d = await deciding('run.continuation', 'shadow', report('done'));
+  const s = setup({ db: d.db, decisions: d.engine });
+  const it = await item(s, 'in_progress');
+  await s.answer(it.id, ok('Implemented'), false, offer);
+  assert.equal(s.flow.itemRuns(it.id)[0]?.continuations, 1);
+  assert.deepEqual([d.rows().length, d.rows()[0]?.acted], [1, false]);
+  assert.match(String(d.calls[0]?.state.tail), /Let me know if you want me to add the tests/);
+});
+
+test('run.continuation: active replaces the phrase list only above the threshold, and a structural item always continues', async () => {
+  const sure = await deciding('run.continuation', 'active', report('done'));
+  const a = setup({ db: sure.db, decisions: sure.engine });
+  const it = await item(a, 'in_progress');
+  await a.answer(it.id, ok('Implemented'), false, offer);
+  const ended = a.flow.itemRuns(it.id).find((r) => r.stage === 'work');
+  assert.deepEqual([ended?.state, ended?.outcome, ended?.continuations], ['ended', 'passed', 0]);
+  assert.equal(sure.rows()[0]?.savedRun, true);
+
+  const unsure = await deciding('run.continuation', 'active', report('done', 0.5));
+  const b = setup({ db: unsure.db, decisions: unsure.engine });
+  const other = await item(b, 'in_progress');
+  await b.answer(other.id, ok('Implemented'), false, offer);
+  assert.equal(b.flow.itemRuns(other.id)[0]?.continuations, 1);
+
+  // No phrase matches, and the point says work is owed
+  const owes = await deciding('run.continuation', 'active', report('owes-work'));
+  const c = setup({ db: owes.db, decisions: owes.engine });
+  const third = await item(c, 'in_progress');
+  await c.answer(third.id, ok('Implemented'), false, { result: 'The route is in for now.' });
+  assert.equal(c.flow.itemRuns(third.id)[0]?.continuations, 1);
+
+  // A missing structured result and uncommitted paths stay code's, whatever the point says
+  const fact = await deciding('run.continuation', 'active', report('done'));
+  const f = setup({ db: fact.db, decisions: fact.engine });
+  const fifth = await item(f, 'in_progress');
+  await f.answer(fifth.id, { nonsense: true }, false, { result: 'All done.' });
+  assert.equal(f.flow.itemRuns(fifth.id)[0]?.continuations, 1);
+});
+
+test('run.continuation: an unavailable provider, no quota included, leaves the phrase list in charge at once', async () => {
+  const d = await deciding('run.continuation', 'active', noQuota);
+  const s = setup({ db: d.db, decisions: d.engine });
+  const it = await item(s, 'in_progress');
+  await s.answer(it.id, ok('Implemented'), false, offer);
+  assert.equal(s.flow.itemRuns(it.id)[0]?.continuations, 1);
+  assert.equal(d.rows()[0]?.unavailable, 'no-quota');
 });

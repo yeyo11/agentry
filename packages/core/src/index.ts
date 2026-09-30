@@ -607,6 +607,13 @@ export class Core {
         conflictOf: (itemId) => this.pullRequests.conflictOf(itemId),
         settleConflict: (itemId) => this.pullRequests.settleConflict(itemId),
         verified: (itemId) => this.pullRequests.verified(itemId),
+        awaitingVerify: (itemId) => this.pullRequests.awaitingVerify(itemId),
+      },
+      decisions: this.decisions,
+      workDone: (item) => {
+        const path = this.projectStore.get(item.projectId)?.path;
+        const summary = path ? this.changes.itemChanges(path, item) : null;
+        return summary ? { commits: summary.commits.map((c) => c.subject), paths: summary.files.map((f) => f.path) } : null;
       },
       items: this.workItems,
       project: (id) => {
