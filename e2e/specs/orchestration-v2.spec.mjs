@@ -125,11 +125,11 @@ export default async ({ page, api, check, dirs }) => {
     await page.fill('input[aria-label="Time limit in minutes for task survey"]', '15');
     await clickButton('Relaunch 2 tasks');
     await page.waitFor(`return location.pathname.startsWith('/orchestration/') && location.pathname !== '/orchestration/${source}'`, { label: 'the relaunched graph opened' });
-    const listed = (await api.get('/orchestrations')).body.find((o) => o.relaunchedFrom === source);
-    check(listed, 'a new orchestration records where it came from');
-    made.push(listed.id);
+    const listedRelaunch = (await api.get('/orchestrations')).body.find((o) => o.relaunchedFrom === source);
+    check(listedRelaunch, 'a new orchestration records where it came from');
+    made.push(listedRelaunch.id);
     // The list leaves the prompts out; the graph's own route has them
-    const relaunched = await orchestration(listed.id);
+    const relaunched = await orchestration(listedRelaunch.id);
     const survey = relaunched.tasks.find((t) => t.id === 'survey');
     check(survey?.prompt === 'Survey the code twice', 'the corrected prompt was relaunched');
     check(survey?.limits?.maxMinutes === 15, 'the time limit was relaunched');
