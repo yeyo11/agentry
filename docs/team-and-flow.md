@@ -300,7 +300,7 @@ that, the result it has decides, as before.
 | refine | `dontAsk` | `Read`, `Glob`, `Grep`; edits under the documents folder | `git push` |
 | work, no `writes`, no `commands` | `acceptEdits` | the read tools, `Bash`, `WebFetch`, `WebSearch`, edits anywhere | `git push` |
 | work, with `writes` or `commands` | `dontAsk` | the read tools, `WebFetch`, `WebSearch`; `Bash` whole, or `Bash(<pattern>)` for each of `commands`; edits under `writes` and the documents folder, or anywhere without `writes` | `git push` |
-| verify | `dontAsk` | the read tools; `git status`, `diff`, `log`, `show`; the project's test commands; edits under the documents folder | `git push`; `--output` on those git commands, which writes a file |
+| verify | `dontAsk` | the read tools; `git status`, `diff`, `log`, `show`; the project's check commands, short forms included (`pnpm typecheck`, `yarn lint`), each named in the verify prompt; edits under the documents folder | `git push`; `--output` on those git commands, which writes a file |
 
 - **`git push` is denied** as `Bash(git push)` and `Bash(git push *)`: a member's work stays on the
   item's branch until a person takes it further.
@@ -309,10 +309,24 @@ that, the result it has decides, as before.
   document there (a specification, an architecture decision, a report). A member with `writes: []`
   writes nothing of the project but that. Its agent file says so ("You write none of the project's
   files"); before, it said "no limit", the opposite of what the flow did.
-- **The test commands a project declares** (`testCommandRules`) are what verifying may run: the
-  `test`, `test:*`, `typecheck`, `lint` and `check` scripts of its `package.json`, run with the package
-  manager its lockfile names; `make test` when the Makefile has that target; `cargo test`, `go test`
-  or `pytest` for such a project. A `build`, `deploy` or `publish` script is never one of them.
+- **The test commands a project declares** (`testCommands`, as rules by `checkCommandRules`) are
+  what verifying may run: the `test`, `tests`, `test:*`, `typecheck`, `type-check`, `lint` and
+  `check` scripts of its `package.json`, run with the package manager its lockfile names; `make test`
+  when the Makefile has that target; `cargo test`, `go test` or `pytest` for such a project. A
+  `build`, `deploy` or `publish` script is never one of them. Each script is allowed alone and
+  followed by arguments, in these forms:
+
+  | Manager (from the lockfile) | Forms of a check script `<name>` |
+  | --- | --- |
+  | pnpm (`pnpm-lock.yaml`), yarn (`yarn.lock`) | `<m> run <name>` and the short `<m> <name>` |
+  | bun (`bun.lock`, `bun.lockb`) | `bun run <name>`; `bun test` for `test` only, since bun's own subcommands win over script names and a short form could run something else |
+  | npm (no lockfile) | `npm run <name>`; `npm test` for `test` only |
+
+  **The verify prompt lists the exact commands** the rules allow, from the same function, so what QA
+  is told and what the permission mode lets through cannot disagree; a project with none is told so
+  and judged by reading the changes. Before (CW-26), only `pnpm run typecheck` was allowed while QA
+  ran `pnpm typecheck`, and QA rejected CW-21 eight times because the typecheck it was denied "could
+  not be run"; CW-1 bounced the same way on a criterion no run could meet (a pull request, pando).
 - **`dontAsk` denies whatever is not allowed outright.** The CLI's rules cannot say "every path but
   these", so the paths are allowed rather than the rest denied (the plan said `--disallowedTools`). A
   path the flag's syntax cannot carry (a comma, a parenthesis, a space, `..`, an absolute path) is
@@ -339,7 +353,7 @@ Every run ends with a result held to its stage's schema:
 | --- | --- | --- |
 | `summary` | all | The member's comment on the item |
 | `verdict` | verify, required | `pass` or `fail` |
-| `criteria` | verify, required | Each acceptance criterion by its id, `met` or not, with a `note` |
+| `criteria` | verify, required | Each acceptance criterion by its id, `met` or not, with a `note`; `needsPerson: true` when no run can check it |
 | `memoryProposals` | all | Proposals waiting for the person, while Shared memory is on |
 | `documents` | all | Document ties on the item (`spec`, `adr`, `report` or `doc`), while Documents is on |
 | `description`, `acceptanceCriteria` | refine | The item's new description, and criteria to add |
@@ -352,10 +366,18 @@ result, or a verification without a verdict, is `failed` and moves nothing.
 **QA checks each criterion** (decision 18). Its prompt lists the item's criteria with their ids, and
 its result judges every one. A criterion found met is **checked on the item as QA** (`checkedBy` is
 the agent with its role). One found unmet is left as it is, so a person's own check stays. **The run
-passes only when every criterion of the item is met**, whatever its `verdict` says: a `pass` with a
-criterion unmet or left out is a rejection. QA's comment is its summary followed by each criterion as
+passes only when every criterion of the item is met or needs a person** (see below), whatever its
+`verdict` says: a `pass` with a criterion unmet or left out is a rejection. QA's comment is its summary followed by each criterion as
 `- [x]` or `- [ ]`, with QA's note, so the Developer who gets it back reads what is missing. An item
 with no criteria is judged by its verdict.
+
+**A criterion no run can meet needs a person** (CW-26, refines decision 18). Pushing, opening a pull
+request, or a tool or MCP server the run does not have are beyond any flow run, so QA returns such a
+criterion with `met: false`, `needsPerson: true` and a note saying what the person must check; the
+verify prompt says it is no reason for `verdict: fail`. It does not count as unmet: a `pass` whose
+criteria are all met or need a person passes. It is never checked on the item, and QA's comment shows
+it as `- [?] <text> — needs a person: <note>`, so the person approving the item sees what is left for
+them. Only a plain `true` counts (`parseResult`); a criterion `met: false` without it still rejects.
 
 ### What a run's end moves
 
@@ -367,7 +389,7 @@ move since the run started**. Otherwise the run leaves its comment and moves not
 | Refine in `backlog` | well | Moves to `todo` |
 | Refine in `todo` | well | Stays: the summary says whether it is ready, and a person moves it on |
 | Work | well | Moves to `in_review` |
-| Verify | `pass` | Stays in `in_review`, **waiting for approval** (`waiting: 'approval'`) |
+| Verify | `pass` | Stays in `in_review`, **waiting for approval** (`waiting: 'approval'`); a criterion that needs a person stays unchecked for them (refines decision 18) |
 | Verify | `fail`, with bounces left | Back to `in_progress`, `bounces` + 1, and the Developer's chat resumes with QA's comment |
 | Verify | `fail`, no bounces left | Stays, **waiting for the person** (`waiting: 'bounces'`) |
 | any | failed or stopped | Nothing; a failed run says why in a comment |

@@ -346,7 +346,7 @@ export function flowResultSchema(stage: FlowStage): Record<string, unknown> {
   };
   const required = ['summary', 'memoryProposals', 'documents'];
   if (stage === 'verify') {
-    properties.verdict = { type: 'string', enum: ['pass', 'fail'], description: 'pass only when every acceptance criterion is met' };
+    properties.verdict = { type: 'string', enum: ['pass', 'fail'], description: 'pass only when every acceptance criterion is met or needs a person' };
     properties.criteria = {
       type: 'array',
       description: 'Every acceptance criterion listed in the prompt, by its id, each judged on its own',
@@ -356,6 +356,10 @@ export function flowResultSchema(stage: FlowStage): Record<string, unknown> {
           id: { type: 'string' },
           met: { type: 'boolean' },
           note: { type: 'string', description: 'What you checked, or what is missing' },
+          needsPerson: {
+            type: 'boolean',
+            description: 'true when no run can check this criterion (a push, a pull request, a tool or MCP server this run does not have): met is false and the note says what the person must check',
+          },
         },
         required: ['id', 'met', 'note'],
       },
@@ -404,7 +408,8 @@ function editRules(paths: readonly string[]): string[] {
  *   too, and none at all for an empty list. A shell command can still write files; `writes` bounds
  *   the edit tools, as the member's screen says, and `commands` is what bounds the shell;
  * - **verify** reads, asks git what changed, runs the test commands the project declares
- *   (`testCommandRules`), and writes only under the documents folder, where its report goes.
+ *   (`testCommands`, as rules by `checkCommandRules`; its prompt lists the same commands), and
+ *   writes only under the documents folder, where its report goes.
  *
  * Refining and verifying run in `dontAsk` whatever `writes` says, and `git push` is denied to all.
  */
@@ -443,13 +448,28 @@ const SCRIPT_NAME = /^[A-Za-z0-9][\w:.-]{0,63}$/;
 const CHECK_SCRIPT = /^(test|tests|typecheck|type-check|lint|check)(:[\w.-]+)?$/;
 
 /**
- * The test commands a project declares, as rules verifying may run: the check scripts of its
- * `package.json` (with the package manager its lockfile names), `make test` when its Makefile has
- * that target, and the test runner of a Cargo, Go or Python project. Nothing else, so QA cannot run
- * a deploy or a publish script by calling it a test.
+ * A check command verifying may run: `alone` allows it as written, `withArgs` allows it followed by
+ * arguments. Go's runner is only ever `go test <packages>`, `make test` only alone.
  */
-export function testCommandRules(dir: string): string[] {
-  const rules: string[] = [];
+export interface CheckCommand {
+  command: string;
+  alone: boolean;
+  withArgs: boolean;
+}
+
+/**
+ * The check commands a project declares: the check scripts of its `package.json` (with the package
+ * manager its lockfile names), `make test` when its Makefile has that target, and the test runner of
+ * a Cargo, Go or Python project. Nothing else, so QA cannot run a deploy or a publish script by
+ * calling it a test. The verify prompt lists these and its rules are built from them, so what QA is
+ * told it may run and what the permission mode lets through cannot disagree (CW-26).
+ */
+export function testCommands(dir: string): CheckCommand[] {
+  const commands = new Map<string, CheckCommand>();
+  const add = (command: string, alone: boolean, withArgs: boolean): void => {
+    const had = commands.get(command);
+    commands.set(command, { command, alone: alone || !!had?.alone, withArgs: withArgs || !!had?.withArgs });
+  };
   const read = (name: string): string | null => {
     try {
       return readFileSync(join(dir, name), 'utf8');
@@ -475,17 +495,43 @@ export function testCommandRules(dir: string): string[] {
           : 'npm';
     for (const name of Object.keys(scripts)) {
       if (!SCRIPT_NAME.test(name) || !CHECK_SCRIPT.test(name)) continue;
-      rules.push(`Bash(${manager} run ${name})`, `Bash(${manager} run ${name} *)`);
-      if (name === 'test') rules.push(`Bash(${manager} test)`, `Bash(${manager} test *)`);
+      // pnpm and yarn run a script by its bare name, and that is how people (and QA) call it. bun's
+      // own subcommands win over script names, and npm has no bare form but `test`, so theirs could
+      // run something other than the script
+      const short = manager === 'pnpm' || manager === 'yarn' || name === 'test';
+      if (short) add(`${manager} ${name}`, true, true);
+      add(`${manager} run ${name}`, true, true);
     }
   }
-  if (/^test\s*:/m.test(read('Makefile') ?? '')) rules.push('Bash(make test)');
-  if (existsSync(join(dir, 'Cargo.toml'))) rules.push('Bash(cargo test)', 'Bash(cargo test *)');
-  if (existsSync(join(dir, 'go.mod'))) rules.push('Bash(go test *)');
+  if (/^test\s*:/m.test(read('Makefile') ?? '')) add('make test', true, false);
+  if (existsSync(join(dir, 'Cargo.toml'))) add('cargo test', true, true);
+  if (existsSync(join(dir, 'go.mod'))) add('go test', false, true);
   if (['pyproject.toml', 'pytest.ini', 'setup.cfg', 'tox.ini'].some((f) => existsSync(join(dir, f)))) {
-    rules.push('Bash(pytest)', 'Bash(pytest *)', 'Bash(python -m pytest *)');
+    add('pytest', true, true);
+    add('python -m pytest', false, true);
+  }
+  return [...commands.values()];
+}
+
+/** Check commands as the CLI's rules: `Bash(<command>)` and `Bash(<command> *)` as each allows. */
+export function checkCommandRules(commands: readonly CheckCommand[]): string[] {
+  const rules: string[] = [];
+  for (const c of commands) {
+    if (c.alone) rules.push(`Bash(${c.command})`);
+    if (c.withArgs) rules.push(`Bash(${c.command} *)`);
   }
   return [...new Set(rules)];
+}
+
+/** The test commands a project declares, as rules verifying may run (`testCommands`). */
+export function testCommandRules(dir: string): string[] {
+  return checkCommandRules(testCommands(dir));
+}
+
+/** How the verify prompt names a check command: `pnpm test`, `pnpm test <args>`, or both. */
+function checkCommandText(c: CheckCommand): string {
+  if (c.alone && c.withArgs) return `\`${c.command}\` (alone or followed by arguments)`;
+  return c.alone ? `\`${c.command}\`` : `\`${c.command} <arguments>\``;
 }
 
 /** The language a run's chat is titled in, as it was stored; English for a run stored before it was kept. */
@@ -509,7 +555,7 @@ export function flowPrompt(
   column: WorkItemStatus,
   item: WorkItem,
   member: ProjectTeamMember,
-  extra: { documentsPath: string; rejection: string | null; language?: AgentryLanguage; design?: DesignSources | null },
+  extra: { documentsPath: string; rejection: string | null; language?: AgentryLanguage; design?: DesignSources | null; checkCommands?: readonly CheckCommand[] },
 ): string {
   const who = `You are the ${roleTitle(member.role)} of this project's team, started by Agentry's flow by column because ${item.key} entered ${column}.`;
   const lines = [flowTitle(item, member.role, extra.language ?? 'en'), '', workItemPrompt(item, 'task'), '', '---', '', who, ''];
@@ -544,14 +590,29 @@ export function flowPrompt(
   } else {
     lines.push(
       'Verify it against each acceptance criterion, on this worktree and its branch: read the changes (`git diff`, `git log`), run the tests the project declares.',
+      '',
     );
+    const checks = extra.checkCommands ?? [];
+    if (checks.length) {
+      lines.push('You may run only these check commands:', '');
+      for (const c of checks) lines.push(`- ${checkCommandText(c)}`);
+      lines.push(
+        '',
+        "Any other command is denied by this run's permission mode; do not fail the item because a command you were not given could not run.",
+      );
+    } else {
+      lines.push(
+        "The project declares no check command this run may run, and any command is denied by this run's permission mode: judge the item by reading the changes.",
+      );
+    }
     if (item.acceptanceCriteria.length) {
       lines.push('', 'Judge each of these criteria on its own, and return every one in `criteria` by its id, with `met` and a `note`:', pasted(item.acceptanceCriteria.map((c) => `- \`${c.id}\`: ${c.text}`).join('\n')), '');
     } else {
-      lines.push('The item has no acceptance criteria: return `criteria` empty, and judge it by its description.');
+      lines.push('', 'The item has no acceptance criteria: return `criteria` empty, and judge it by its description.');
     }
     lines.push(
-      'Give `verdict: pass` only when every criterion is met; otherwise `fail`, and say in `summary` what is missing so the developer can fix it.',
+      'A criterion no run can meet (pushing, opening a pull request, a tool or MCP server this run does not have, or something only a person can judge) is returned with `met: false`, `needsPerson: true` and a `note` saying what the person must check. It is not a reason for `verdict: fail`: the person approving the item checks it.',
+      'Give `verdict: pass` only when every criterion is met or needs a person; otherwise `fail`, and say in `summary` what is missing so the developer can fix it.',
       `A verification report, when useful, goes under \`${extra.documentsPath}/\` with kind \`report\`. Do not change the code.`,
       '',
       REAL_VERIFICATION,
@@ -1056,7 +1117,8 @@ export class FlowService {
     const continuing = row.chat_id !== null;
     const resumeChatId = row.chat_id ?? (stage === 'work' ? this.workChat(item.id) : null);
     const documentsPath = project.settings.documents?.path ?? 'docs';
-    const rules = stageRules(stage, member.writes, { documentsPath, testCommands: stage === 'verify' ? testCommandRules(project.path) : [], commands: member.commands });
+    const checkCommands = stage === 'verify' ? testCommands(project.path) : [];
+    const rules = stageRules(stage, member.writes, { documentsPath, testCommands: checkCommandRules(checkCommands), commands: member.commands });
     const launch: FlowLaunch = {
       run: this.runOf(row),
       item,
@@ -1070,6 +1132,7 @@ export class FlowService {
               rejection: stage === 'work' && (item.bounces ?? 0) > 0 ? this.rejection(item.id, project.settings) : null,
               language: runLanguage(row),
               design: stage === 'work' ? designSources(project.path) : null,
+              checkCommands,
             })),
       appendSystemPrompt: this.deps.handoff(item.projectId),
       jsonSchema: flowResultSchema(stage),
@@ -1206,8 +1269,10 @@ export class FlowService {
           : { error: 'the run ended without a readable structured result', cause: 'unreadable' as const };
     const verdictMissing = !!parsed && row.stage === 'verify' && !parsed.verdict;
     const item = this.deps.items.find(row.item_id);
-    // QA passes an item only when every one of its criteria is met, whatever its verdict says
-    const unmet = parsed && item && row.stage === 'verify' ? item.acceptanceCriteria.filter((c) => !parsed.criteria.some((r) => r.id === c.id && r.met)) : [];
+    // QA passes an item only when every one of its criteria is met, whatever its verdict says; one no
+    // run can check is left to the person who approves the item, not held against the Developer
+    const unmet =
+      parsed && item && row.stage === 'verify' ? item.acceptanceCriteria.filter((c) => !parsed.criteria.some((r) => r.id === c.id && (r.met || r.needsPerson))) : [];
     const outcome: FlowRunOutcome = failure || verdictMissing ? 'failed' : parsed?.verdict === 'fail' || unmet.length ? 'rejected' : 'passed';
     // Ended first, so the move below finds no run on the item and the next role can start
     const why = failure ?? (verdictMissing ? { error: 'verification ended without a verdict', cause: 'no-verdict' as const } : null);
@@ -1341,10 +1406,13 @@ export class FlowService {
     }
   }
 
-  /** Every criterion QA found met is checked on the item, as QA; one it found unmet is left as it is. */
+  /**
+   * Every criterion QA found met is checked on the item, as QA; one it found unmet, or one only a
+   * person can check, is left as it is for that person.
+   */
   private checkCriteria(item: WorkItem, criteria: readonly FlowCriterionResult[], actor: WorkItemActor, cause: WorkItemCause): void {
     for (const criterion of item.acceptanceCriteria) {
-      if (criterion.checked || !criteria.some((c) => c.id === criterion.id && c.met)) continue;
+      if (criterion.checked || !criteria.some((c) => c.id === criterion.id && c.met && !c.needsPerson)) continue;
       try {
         this.deps.items.checkCriterion(item.id, criterion.id, { checked: true }, { actor, cause });
       } catch {
@@ -1650,6 +1718,10 @@ function commentOf(item: WorkItem, result: ParsedResult): string {
   const lines = [result.summary, ''];
   for (const criterion of item.acceptanceCriteria) {
     const judged = result.criteria.find((c) => c.id === criterion.id);
+    if (judged?.needsPerson) {
+      lines.push(`- [?] ${criterion.text} — needs a person${judged.note ? `: ${judged.note}` : ''}`);
+      continue;
+    }
     const mark = judged?.met ? 'x' : ' ';
     const note = judged?.note ? ` — ${judged.note}` : judged ? '' : ' — not judged';
     lines.push(`- [${mark}] ${criterion.text}${note}`);
@@ -1693,7 +1765,9 @@ export function parseResult(raw: unknown, stage: FlowStage): ParsedResult | null
   const criteria: FlowCriterionResult[] = [];
   for (const c of stage === 'verify' && Array.isArray(value.criteria) ? value.criteria.slice(0, CRITERIA_MAX) : []) {
     if (!isObject(c) || typeof c.id !== 'string' || typeof c.met !== 'boolean') continue;
-    criteria.push({ id: c.id, met: c.met, note: typeof c.note === 'string' ? c.note.trim().slice(0, CRITERION_MAX) : '' });
+    const note = typeof c.note === 'string' ? c.note.trim().slice(0, CRITERION_MAX) : '';
+    // Only a plain true: anything else a model might send reads as a criterion it judged itself
+    criteria.push(c.needsPerson === true ? { id: c.id, met: c.met, note, needsPerson: true } : { id: c.id, met: c.met, note });
   }
   const memoryProposals: FlowMemoryProposal[] = [];
   for (const p of Array.isArray(value.memoryProposals) ? value.memoryProposals.slice(0, PROPOSALS_MAX) : []) {

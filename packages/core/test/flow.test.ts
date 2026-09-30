@@ -8,7 +8,7 @@ import { Worker } from 'node:worker_threads';
 import { flowRunStatus, MAX_CONTINUATIONS, type AgentryEvent, type AgentryLanguage, type FlowRunDocument, type FlowMemoryProposal, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@agentry/shared';
 import { Db, FLOW_CAUSE_SCHEMA_VERSION, FLOW_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import { EventBus } from '../src/events.ts';
-import { FlowError, flowPrompt, flowResultSchema, flowTitle, FlowService, parseFlowRunQuery, parseResult, stageRules, testCommandRules, type FlowChatResult, type FlowLaunch } from '../src/flow.ts';
+import { checkCommandRules, FlowError, flowPrompt, flowResultSchema, flowTitle, FlowService, parseFlowRunQuery, parseResult, stageRules, testCommandRules, testCommands, type FlowChatResult, type FlowLaunch } from '../src/flow.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { FRONTEND, PASTED_NOTE, REAL_VERIFICATION, SCOPE_AND_COMPLETION, THINK_THROUGH, UNATTENDED } from '../src/prompt-rules.ts';
 import { tempConfig } from './helpers.ts';
@@ -34,7 +34,7 @@ function settingsWith(modules: ProjectModule[] = ['board', 'team', 'memory', 'do
   };
 }
 
-function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; uncommitted?: (dir: string) => string[] } = {}) {
+function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; path?: string; uncommitted?: (dir: string) => string[] } = {}) {
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
   const db = opts.db ?? new Db(config);
@@ -56,7 +56,7 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; u
   const flow = new FlowService({
     db,
     items,
-    project: (id) => (id === 'p1' ? { path: '/nowhere/p1', settings: state.settings } : null),
+    project: (id) => (id === 'p1' ? { path: opts.path ?? '/nowhere/p1', settings: state.settings } : null),
     handoff: () => '# Project journal',
     propose: (_id, proposal) => void proposals.push(proposal),
     tie: async (_item, doc) => void ties.push(doc),
@@ -658,15 +658,98 @@ test("a member's commands reach the work run it is launched with", async () => {
   assert.deepEqual(launch?.allowedTools.filter((r) => r.startsWith('Bash')), ['Bash(npm test)']);
 });
 
-test('the test commands a project declares are the only commands verifying may run', () => {
+/** A project with the check scripts of CW-26's fixture, and the lockfile of one package manager. */
+function scriptsProject(lockfile: string | null, extra: Record<string, string> = {}): string {
   const dir = mkdtempSync(join(tmpdir(), 'agentry-flow-tests-'));
-  writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'node --test', 'test:unit': 'x', typecheck: 'tsc', deploy: 'rm -rf /', 'bad name': 'x', build: 'tsc' } }));
-  writeFileSync(join(dir, 'pnpm-lock.yaml'), '');
+  const scripts = { test: 'node --test', 'test:unit': 'x', typecheck: 'tsc', lint: 'eslint', build: 'tsc', deploy: 'rm -rf /', 'bad name': 'x', ...extra };
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts }));
+  if (lockfile) writeFileSync(join(dir, lockfile), '');
+  return dir;
+}
+
+test('the test commands a project declares are the only commands verifying may run', () => {
+  const dir = scriptsProject('pnpm-lock.yaml');
   writeFileSync(join(dir, 'Makefile'), 'build:\n\ttrue\ntest:\n\ttrue\n');
   const rules = testCommandRules(dir);
   for (const rule of ['Bash(pnpm run test)', 'Bash(pnpm test)', 'Bash(pnpm run test:unit *)', 'Bash(pnpm run typecheck)', 'Bash(make test)']) assert.ok(rules.includes(rule), rule);
   assert.ok(!rules.some((r) => r.includes('deploy') || r.includes('build') || r.includes('bad')));
+  assert.equal(new Set(rules).size, rules.length, 'no rule twice');
   assert.deepEqual(testCommandRules(join(dir, 'missing')), []);
+});
+
+test('pnpm and yarn projects may run every check script by its short name too, as people call it', () => {
+  const pnpm = testCommandRules(scriptsProject('pnpm-lock.yaml'));
+  for (const rule of ['Bash(pnpm typecheck)', 'Bash(pnpm typecheck *)', 'Bash(pnpm lint)', 'Bash(pnpm test:unit *)', 'Bash(pnpm run typecheck)', 'Bash(pnpm test)']) {
+    assert.ok(pnpm.includes(rule), rule);
+  }
+  assert.ok(!pnpm.some((r) => r.includes('build') || r.includes('deploy')));
+
+  const yarn = testCommandRules(scriptsProject('yarn.lock'));
+  for (const rule of ['Bash(yarn typecheck)', 'Bash(yarn typecheck *)', 'Bash(yarn run typecheck)', 'Bash(yarn run typecheck *)', 'Bash(yarn lint)', 'Bash(yarn test)']) {
+    assert.ok(yarn.includes(rule), rule);
+  }
+  assert.ok(!yarn.some((r) => r.includes('build') || r.includes('deploy') || r.includes('pnpm')));
+});
+
+test('a bun project gets no short form but test, since bun runs its own subcommand before a script of that name', () => {
+  for (const lockfile of ['bun.lock', 'bun.lockb']) {
+    const rules = testCommandRules(scriptsProject(lockfile));
+    for (const rule of ['Bash(bun run typecheck)', 'Bash(bun run typecheck *)', 'Bash(bun run lint)', 'Bash(bun test)', 'Bash(bun test *)']) assert.ok(rules.includes(rule), `${lockfile}: ${rule}`);
+    assert.ok(!rules.includes('Bash(bun typecheck)') && !rules.includes('Bash(bun lint)') && !rules.includes('Bash(bun test:unit)'), lockfile);
+    assert.ok(!rules.some((r) => r.includes('build') || r.includes('deploy')));
+  }
+});
+
+test('an npm project keeps npm run for its check scripts and the short form for test only', () => {
+  const rules = testCommandRules(scriptsProject(null));
+  for (const rule of ['Bash(npm run typecheck)', 'Bash(npm run typecheck *)', 'Bash(npm run test)', 'Bash(npm test)', 'Bash(npm test *)']) assert.ok(rules.includes(rule), rule);
+  assert.ok(!rules.includes('Bash(npm typecheck)') && !rules.includes('Bash(npm lint)'));
+  assert.ok(!rules.some((r) => r.includes('build') || r.includes('deploy')));
+});
+
+test('a verify run of a pnpm project may run pnpm typecheck, and its prompt lists exactly the commands its rules allow', async () => {
+  const dir = scriptsProject('pnpm-lock.yaml');
+  const verify = stageRules('verify', undefined, { documentsPath: 'docs', testCommands: testCommandRules(dir) });
+  assert.equal(verify.permissionMode, 'dontAsk');
+  assert.ok(verify.allowedTools.includes('Bash(pnpm typecheck)'));
+
+  const s = setup({ path: dir });
+  const it = await item(s, 'in_progress');
+  await s.answer(it.id, ok('Implemented'));
+  const launch = s.launches.at(-1);
+  assert.equal(launch?.run.stage, 'verify');
+  assert.equal(launch?.permissionMode, 'dontAsk');
+  assert.ok(launch?.allowedTools.includes('Bash(pnpm typecheck)'));
+  assert.ok(launch?.allowedTools.includes('Bash(pnpm typecheck *)'));
+
+  const prompt = launch?.prompt ?? '';
+  const block = prompt.slice(prompt.indexOf('You may run only these check commands'), prompt.indexOf('Any other command is denied'));
+  const listed = [...block.matchAll(/^- `([^`]+)`/gm)].map((m) => (m[1] ?? '').replace(/ <arguments>$/, ''));
+  assert.ok(listed.includes('pnpm typecheck'));
+  // Each command the prompt names is one the rules let through, and every declared one is named
+  for (const command of listed) assert.ok(launch?.allowedTools.includes(`Bash(${command})`) || launch?.allowedTools.includes(`Bash(${command} *)`), command);
+  assert.deepEqual(listed, testCommands(dir).map((c) => c.command));
+  assert.deepEqual(checkCommandRules(testCommands(dir)), testCommandRules(dir));
+  assert.match(prompt, /do not fail the item because a command you were not given could not run/);
+});
+
+test('a verify prompt says so when the project declares no check command', async () => {
+  const s = setup();
+  const it = await item(s, 'in_progress');
+  await s.answer(it.id, ok('Implemented'));
+  const prompt = s.launches.at(-1)?.prompt ?? '';
+  assert.match(prompt, /The project declares no check command/);
+  assert.doesNotMatch(prompt, /You may run only these check commands/);
+});
+
+test('the verify prompt tells QA that a criterion no run can meet needs a person and is no reason to fail', () => {
+  const s = setup({ settings: { ...settingsWith(), flow: { ...settingsWith().flow!, enabled: false } } });
+  const it = s.items.create('p1', { title: 'Ship', status: 'in_review', acceptanceCriteria: [{ text: 'A pull request is open' }] });
+  const member = MEMBERS[2]!;
+  const prompt = flowPrompt('verify', 'in_review', it, member, { documentsPath: 'docs', rejection: null, checkCommands: [] });
+  assert.match(prompt, /pushing, opening a pull request, a tool or MCP server this run does not have/);
+  assert.match(prompt, /`met: false`, `needsPerson: true` and a `note`/);
+  assert.match(prompt, /It is not a reason for `verdict: fail`/);
 });
 
 test('every run is held to the budget the project sets, when it sets one', async () => {
@@ -750,6 +833,66 @@ test('QA judges each criterion: a met one is checked as QA, and one left unmet s
   const passed = s.items.find(it.id);
   assert.equal(passed?.waiting, 'approval');
   assert.ok(passed?.acceptanceCriteria.every((c) => c.checked && c.checkedBy?.role === 'qa'));
+});
+
+test('a criterion only a person can check passes the run, stays unchecked and is named for the person approving the item', async () => {
+  const s = setup();
+  const it = s.items.create('p1', { title: 'Cart', status: 'todo', acceptanceCriteria: [{ text: 'Lines survive a reload' }, { text: 'A pull request is open' }] });
+  const [first, second] = it.acceptanceCriteria;
+  assert.ok(first && second);
+  s.items.move(it.id, { status: 'in_progress' }, person);
+  await s.flow.settled();
+  await s.answer(it.id, ok('Implemented'));
+  await s.answer(
+    it.id,
+    ok('Holds', { verdict: 'pass', criteria: [{ id: first.id, met: true, note: 'reloaded' }, { id: second.id, met: false, needsPerson: true, note: 'push the branch and open the PR' }] }),
+  );
+  assert.equal(flowRuns(s).filter((r) => r.stage === 'verify').at(-1)?.outcome, 'passed');
+  const after = s.items.find(it.id);
+  assert.equal(after?.status, 'in_review');
+  assert.equal(after?.waiting, 'approval');
+  assert.deepEqual(after?.acceptanceCriteria.map((c) => c.checked), [true, false]);
+  const comment = s.items.comments(it.id).find((c) => c.author.role === 'qa');
+  assert.match(comment?.body ?? '', /- \[\?\] A pull request is open — needs a person: push the branch and open the PR/);
+});
+
+test('a criterion QA found unmet without saying it needs a person still sends the item back', async () => {
+  const s = setup();
+  const it = s.items.create('p1', { title: 'Cart', status: 'todo', acceptanceCriteria: [{ text: 'Lines survive a reload' }, { text: 'Totals in cents' }] });
+  const [first, second] = it.acceptanceCriteria;
+  assert.ok(first && second);
+  s.items.move(it.id, { status: 'in_progress' }, person);
+  await s.flow.settled();
+  await s.answer(it.id, ok('Implemented'));
+  // A needsPerson that is not a plain true counts for nothing
+  await s.answer(it.id, ok('Holds', { verdict: 'pass', criteria: [{ id: first.id, met: true, note: '' }, { id: second.id, met: false, needsPerson: 'yes', note: 'floats' }] }));
+  assert.equal(flowRuns(s).filter((r) => r.stage === 'verify').at(-1)?.outcome, 'rejected');
+  assert.equal(s.items.find(it.id)?.status, 'in_progress');
+});
+
+test('a result keeps needsPerson only when it is true', () => {
+  const parsed = parseResult(
+    {
+      summary: 's',
+      verdict: 'pass',
+      memoryProposals: [],
+      documents: [],
+      criteria: [
+        { id: 'a', met: false, needsPerson: true, note: 'open the PR' },
+        { id: 'b', met: false, needsPerson: 'true', note: '' },
+        { id: 'c', met: true, needsPerson: false, note: '' },
+      ],
+    },
+    'verify',
+  );
+  assert.deepEqual(parsed?.criteria, [
+    { id: 'a', met: false, note: 'open the PR', needsPerson: true },
+    { id: 'b', met: false, note: '' },
+    { id: 'c', met: true, note: '' },
+  ]);
+  const schema = flowResultSchema('verify') as { properties: { criteria: { items: { properties: Record<string, { type: string }>; required: string[] } } } };
+  assert.equal(schema.properties.criteria.items.properties.needsPerson?.type, 'boolean');
+  assert.ok(!schema.properties.criteria.items.required.includes('needsPerson'));
 });
 
 test('a restart continues a cut-off run in its own chat at most twice, keeping when it started, and a chat that cannot be continued fails it', async () => {

@@ -13603,6 +13603,10 @@
       "note": {
         "type": "string",
         "description": "What was checked, or what is missing"
+      },
+      "needsPerson": {
+        "type": "boolean",
+        "description": "No flow run can check it: it needs a push, a pull request, a tool or service the run does not have, or a person's eyes. It is left unchecked for the person who approves the item and does not reject the run (refines decision 18)."
       }
     },
     "required": [
@@ -13610,7 +13614,7 @@
       "met",
       "note"
     ],
-    "description": "QA's judgement of one acceptance criterion. A met criterion is checked on the item as the agent; the run passes only when every criterion of the item is met."
+    "description": "QA's judgement of one acceptance criterion. A met criterion is checked on the item as the agent; the run passes only when every criterion of the item is met or needs a person."
   },
   "FlowMemoryProposal": {
     "type": "object",

@@ -2019,7 +2019,7 @@ export type FlowVerdict = 'pass' | 'fail';
 
 /**
  * QA's judgement of one acceptance criterion. A met criterion is checked on the item as the agent;
- * the run passes only when every criterion of the item is met.
+ * the run passes only when every criterion of the item is met or needs a person.
  */
 export interface FlowCriterionResult {
   /** The criterion's id, as the run's prompt lists it */
@@ -2027,6 +2027,12 @@ export interface FlowCriterionResult {
   met: boolean;
   /** What was checked, or what is missing */
   note: string;
+  /**
+   * No flow run can check it: it needs a push, a pull request, a tool or service the run does not
+   * have, or a person's eyes. It is left unchecked for the person who approves the item and does not
+   * reject the run (refines decision 18).
+   */
+  needsPerson?: boolean;
 }
 
 /** A memory entry a flow run proposes, as its result carries it. */
