@@ -51,7 +51,7 @@ export function ProvidersStep({ statuses, onFinish }: { statuses: ProviderStatus
     const others = statuses.filter((status) => status.id !== CLAUDE_CODE_ID && providerLink(status.id, 'install'));
     return (
       <div className="prov-first-page" data-step="empty">
-        <div className="prov-first">
+        <main className="prov-first">
           {head}
           <Empty
             illustration="install"
@@ -87,7 +87,7 @@ export function ProvidersStep({ statuses, onFinish }: { statuses: ProviderStatus
             </div>
           )}
           <div className="prov-first-skip">{skip}</div>
-        </div>
+        </main>
       </div>
     );
   }
@@ -119,7 +119,7 @@ export function ProvidersStep({ statuses, onFinish }: { statuses: ProviderStatus
 
   return (
     <div className="prov-first-page" data-step="list" data-checking={checking || undefined}>
-      <div className="prov-first">
+      <main className="prov-first">
         {head}
         <div className="prov-first-intro">
           <h1 className="text-display">{checking ? t('firstRun.checkingTitle') : t('firstRun.title')}</h1>
@@ -147,7 +147,7 @@ export function ProvidersStep({ statuses, onFinish }: { statuses: ProviderStatus
           </div>
         ))}
         <div className={phone ? 'prov-first-foot' : 'prov-first-actions'}>{actions}</div>
-      </div>
+      </main>
     </div>
   );
 }

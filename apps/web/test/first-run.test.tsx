@@ -39,6 +39,8 @@ test('the step shows on the first start, and whenever nothing can run', () => {
   assert.equal(shouldShowFirstRun(true, [claude()]), false, 'answered before, and something is ready');
   assert.equal(shouldShowFirstRun(true, [claude('signed-out'), status('codex', 'Codex', 'not-installed')]), true, 'answered before, nothing ready');
   assert.equal(shouldShowFirstRun(true, [claude('degraded')]), false, 'a provider working with a warning can start a chat');
+  assert.equal(shouldShowFirstRun(true, [claude('signed-out')], '/settings'), false, 'once seen, it never hides Settings, where a provider gets fixed');
+  assert.equal(shouldShowFirstRun(false, [claude('signed-out')], '/settings'), true, 'the very first start still opens on it');
 });
 
 test('providers are grouped by what is left to do, in a fixed order', () => {

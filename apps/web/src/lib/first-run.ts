@@ -1,6 +1,7 @@
 import type { AppSettings, ProviderReadinessState, ProviderStatus } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api, keys } from '../api';
 import { isUsable } from './provider-state';
 import { useProviders } from './providers';
@@ -36,9 +37,12 @@ export const nothingFound = (statuses: ProviderStatus[]): boolean => statuses.le
 
 /**
  * The step is for the first start, and for every start where nothing could run a chat: a wrapper
- * with no ready provider cannot do anything else, so its answer is worth putting first.
+ * with no ready provider cannot do anything else, so its answer is worth putting first. Once seen,
+ * it never stands in front of Settings, which is where a provider gets fixed (a binary override, a
+ * provider turned on); Home and the status bar still say nothing is ready.
  */
-export const shouldShowFirstRun = (seen: boolean, statuses: ProviderStatus[]): boolean => !seen || !statuses.some(isUsable);
+export const shouldShowFirstRun = (seen: boolean, statuses: ProviderStatus[], path = '/'): boolean =>
+  !seen || (!statuses.some(isUsable) && !path.startsWith('/settings'));
 
 export type FirstRun = { state: 'pending' | 'hidden' } | { state: 'shown'; statuses: ProviderStatus[]; finish: () => void };
 
@@ -53,6 +57,7 @@ export function useFirstRun(): FirstRun {
   const providers = useProviders();
   const queryClient = useQueryClient();
   const [dismissed, setDismissed] = useState(false);
+  const { pathname } = useLocation();
   const save = useMutation({
     mutationFn: () => api.updateAppSettings({ providersStepSeen: true }),
     onSuccess: (next: AppSettings) => queryClient.setQueryData(keys.appSettings, next),
@@ -61,7 +66,7 @@ export function useFirstRun(): FirstRun {
   if (dismissed || settings.isError || providers.isError) return { state: 'hidden' };
   if (!settings.data || !providers.data) return { state: 'pending' };
   const seen = settings.data.providersStepSeen;
-  if (!shouldShowFirstRun(seen, providers.data)) return { state: 'hidden' };
+  if (!shouldShowFirstRun(seen, providers.data, pathname)) return { state: 'hidden' };
   return {
     state: 'shown',
     statuses: providers.data,

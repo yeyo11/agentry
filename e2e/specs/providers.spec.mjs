@@ -133,7 +133,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.viewport(1440, 900);
     await theme(page, 'dark');
     await page.goto('/settings?tab=providers', 300);
-    await page.waitFor(`return document.querySelectorAll('.prov-row[data-provider]').length === 4`, { label: 'the four rows' });
+    await page.waitFor(`return document.querySelectorAll('.prov-row[data-provider]').length === 5`, { label: 'the five rows' });
     check(JSON.stringify(await page.eval(ids)) === JSON.stringify(['claude-code', 'codex', 'gemini', 'copilot', 'opencode']), 'the rows follow the order of providers.json');
     check((await page.eval(rowState('codex'))) === 'ready', 'codex is ready');
     check((await page.eval(rowState('gemini'))) === 'used-before' && (await page.eval(rowState('copilot'))) === 'used-before', 'gemini and copilot are used before');
@@ -142,29 +142,30 @@ export default async ({ page, api, check, dirs }) => {
     await scan(page, check, 'Settings → Providers, dark');
     await theme(page, 'light');
     await page.goto('/settings?tab=providers', 300);
-    await page.waitFor(`return document.querySelectorAll('.prov-row[data-provider]').length === 4`, { label: 'the rows, light' });
+    await page.waitFor(`return document.querySelectorAll('.prov-row[data-provider]').length === 5`, { label: 'the rows, light' });
     await scan(page, check, 'Settings → Providers, light');
     await page.shot('providers-settings-light');
     await theme(page, 'dark');
     await page.goto('/settings?tab=providers', 300);
-    await page.waitFor(`return document.querySelectorAll('.prov-row[data-provider]').length === 4`, { label: 'the rows, dark again' });
+    await page.waitFor(`return document.querySelectorAll('.prov-row[data-provider]').length === 5`, { label: 'the rows, dark again' });
 
     // States follow the machine: Codex signs out in a terminal, and the page learns it without a click
     state('codex', { version: '0.50.0', signedIn: false });
     await page.click('.prov-toolbar .btn', undefined, 200);
     await page.waitFor(rowIs('codex', 'signed-out'), { label: 'codex signed out on the page' });
     check((await page.text('.prov-row[data-provider="codex"] .prov-actions')).includes('Sign in'), 'a signed-out provider offers Sign in');
-    check((await page.text('.prov-checked')).startsWith('Checked'), 'the page says when it checked');
+    const checkedText = await page.text('.prov-checked');
+    check(checkedText.startsWith('Checked'), `the page says when it checked (${checkedText})`);
     state('codex', { version: '0.50.0', signedIn: true });
     await page.click('.prov-toolbar .btn', undefined, 200);
     await page.waitFor(rowIs('codex', 'ready'), { label: 'codex ready again' });
 
     // The switch turns a provider off: it is shown as off and its remedies go
-    await page.click('[aria-label="Turn off Copilot"]', undefined, 600);
+    await page.click('[aria-label="Turn off GitHub Copilot"]', undefined, 600);
     check((await api.get('/providers/settings')).body.providers.copilot.enabled === false, 'the switch saves the provider as off');
     await page.waitFor(rowIs('copilot', 'disabled'), { label: 'copilot shown as off' });
     check((await page.eval(`return document.querySelector('.prov-row[data-provider="copilot"] .prov-actions')?.children.length ?? 0`)) === 0, 'a provider that is off offers no remedy');
-    await page.click('[aria-label="Turn on Copilot"]', undefined, 600);
+    await page.click('[aria-label="Turn on GitHub Copilot"]', undefined, 600);
     check((await api.get('/providers/settings')).body.providers.copilot.enabled === true, 'and back on');
 
     // Reorder from the keyboard: the arrow keys on the handle
@@ -235,12 +236,12 @@ export default async ({ page, api, check, dirs }) => {
     check((await api.get('/providers/settings')).body.providers.copilot.binaryPath === null, 'Use the one on PATH clears the override');
 
     // ---- The same page on a phone ----
-    await api.put('/providers/settings', { providers: { codex: savedSettings.providers.codex, gemini: { enabled: true, binaryPath: NOWHERE.gemini }, copilot: { enabled: true, binaryPath: NOWHERE.copilot } }, order: ['claude-code', 'codex', 'gemini', 'copilot'], defaultProvider: null });
+    await api.put('/providers/settings', { providers: { codex: savedSettings.providers.codex, gemini: { enabled: true, binaryPath: NOWHERE.gemini }, copilot: { enabled: true, binaryPath: NOWHERE.copilot } }, order: ['claude-code', 'codex', 'gemini', 'copilot', 'opencode'], defaultProvider: null });
     await api.post('/providers/refresh');
     await page.viewport(390, 844);
     await theme(page, 'dark');
     await page.goto('/settings?tab=providers', 300);
-    await page.waitFor(`return document.querySelectorAll('.prov-cell[data-provider]').length === 4`, { label: 'the four cells' });
+    await page.waitFor(`return document.querySelectorAll('.prov-cell[data-provider]').length === 5`, { label: 'the five cells' });
     check((await page.eval(overflow)) <= 0, 'the phone page does not scroll sideways');
     const small = await page.eval(`return [...document.querySelectorAll('.prov-cell .btn, .prov-order-cell')].filter((b) => b.getBoundingClientRect().height < 44).map((b) => (b.getAttribute('aria-label') || b.textContent).trim())`);
     check(small.length === 0, `the phone targets are at least 44 px (${small.join(', ')})`);
@@ -252,7 +253,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.click('.prov-order-cell', undefined, 500);
     await page.waitFor(`return !!document.querySelector('[role=dialog] [role=radiogroup]')`, { label: 'the order sheet' });
     await page.click('[role=dialog] [aria-label="Move Codex up"]', undefined, 200);
-    check(JSON.stringify((await api.get('/providers/settings')).body.order) === JSON.stringify(['claude-code', 'codex', 'gemini', 'copilot']), 'moving inside the sheet saves nothing yet');
+    check(JSON.stringify((await api.get('/providers/settings')).body.order) === JSON.stringify(['claude-code', 'codex', 'gemini', 'copilot', 'opencode']), 'moving inside the sheet saves nothing yet');
     await scan(page, check, 'the order sheet, dark');
     await page.click('[role=dialog] .btn-primary', 'Save', 600);
     await page.waitFor(`return fetch('/api/providers/settings').then((r) => r.json()).then((s) => s.order[0] === 'codex')`, { label: 'Save writes the order' });
@@ -266,7 +267,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.key('Escape');
     await theme(page, 'light');
     await page.goto('/settings?tab=providers', 300);
-    await page.waitFor(`return document.querySelectorAll('.prov-cell[data-provider]').length === 4`, { label: 'the cells, light' });
+    await page.waitFor(`return document.querySelectorAll('.prov-cell[data-provider]').length === 5`, { label: 'the cells, light' });
     await scan(page, check, 'Settings → Providers on a phone, light');
     await page.shot('providers-settings-phone-light');
   } finally {
