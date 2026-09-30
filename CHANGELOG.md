@@ -3,6 +3,26 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.25.0](https://github.com/yeyo11/agentry/compare/v0.24.0...v0.25.0) (2026-09-30)
+
+
+### Features
+
+* **chats:** give every chat Agentry starts its own API token ([#133](https://github.com/yeyo11/agentry/issues/133)) ([8c1406d](https://github.com/yeyo11/agentry/commit/8c1406dad92ee0dfad6a4bcbabd8ea3f53a51095))
+* **orchestration:** run verification checks in parallel groups and tell the fixer which specs failed ([#134](https://github.com/yeyo11/agentry/issues/134)) ([59c00d4](https://github.com/yeyo11/agentry/commit/59c00d4f3818bb1b290e80ba5c377eea4a3517b3))
+* **prompts:** follow the Opus 5.5 and Sonnet 5.5 prompting guides in every prompt Agentry writes ([#131](https://github.com/yeyo11/agentry/issues/131)) ([7d8ed6c](https://github.com/yeyo11/agentry/commit/7d8ed6cc433d1b7debf89fac69cb89742da35c9c))
+* **work-items:** an approved card opens its pull request, and a merged one reaches Done ([#130](https://github.com/yeyo11/agentry/issues/130)) ([e58ea57](https://github.com/yeyo11/agentry/commit/e58ea57a1d9edbf14c41f25c7aec1dce0cad6a7b))
+
+
+### Bug fixes
+
+* **flow:** let QA run the project's check scripts in their short form ([#132](https://github.com/yeyo11/agentry/issues/132)) ([cf353ab](https://github.com/yeyo11/agentry/commit/cf353ab08ecf389d1e24be757fa343f8d997b813))
+
+
+### Documentation
+
+* **plans:** record the owner's answers to the three open questions of faster orchestrations ([#137](https://github.com/yeyo11/agentry/issues/137)) ([a9919e2](https://github.com/yeyo11/agentry/commit/a9919e288261e3c2a08d26f0731528de26b43809))
+
 ## [0.24.0](https://github.com/yeyo11/agentry/compare/v0.23.1...v0.24.0) (2026-09-29)
 
 
