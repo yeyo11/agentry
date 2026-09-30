@@ -11,6 +11,7 @@ import type {
   OrchestrationEngine,
   OrchestrationIntegration,
   OrchestrationSpec,
+  OrchestrationSummary,
   OrchestrationTaskSpec,
   OrchestrationTaskState,
   OrchestrationTemplate,
@@ -139,6 +140,19 @@ export function verificationSteps(rows: readonly VerificationCommand[]): number[
     else steps.push([i]);
   });
   return steps;
+}
+
+/** What a list serves of a graph: everything but its long texts, which its own page reads. */
+export function summarizeOrchestration(orch: Orchestration): OrchestrationSummary {
+  const { tasks, finalResult, verification, ...rest } = orch;
+  return {
+    ...rest,
+    tasks: tasks.map(({ prompt: _prompt, result: _result, ...task }) => task),
+    hasFinalResult: Boolean(finalResult),
+    ...(verification === undefined
+      ? {}
+      : { verification: verification && { ...verification, commands: verification.commands.map(({ output: _output, ...row }) => row) } }),
+  };
 }
 
 /** The checks in the order they run, a parallel group as a list, for the fixer to read. */

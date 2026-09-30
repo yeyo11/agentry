@@ -1,4 +1,4 @@
-import type { ChatWorkflow, ChatWorkflowAgent, Orchestration, OrchestrationStatus, OrchestrationTaskState } from '@agentry/shared';
+import type { ChatWorkflow, ChatWorkflowAgent, Orchestration, OrchestrationStatus, OrchestrationTaskState, OrchestrationTaskSummary } from '@agentry/shared';
 import { currentStepIndex, type ProgressCounts, type StepState } from './progress';
 import { pullRequestHeld } from './orchestration-v2';
 
@@ -26,7 +26,7 @@ function settled(status: OrchestrationStatus): boolean {
 }
 
 /** Groups tasks by topological level (longest dependency chain). Cycles are tolerated. */
-export function layerTasks(tasks: OrchestrationTaskState[]): OrchestrationTaskState[][] {
+export function layerTasks<T extends Pick<OrchestrationTaskState, 'id' | 'dependsOn'>>(tasks: readonly T[]): T[][] {
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const levels = new Map<string, number>();
   const visiting = new Set<string>();
@@ -41,7 +41,7 @@ export function layerTasks(tasks: OrchestrationTaskState[]): OrchestrationTaskSt
     levels.set(id, level);
     return level;
   };
-  const layers: OrchestrationTaskState[][] = [];
+  const layers: T[][] = [];
   for (const task of tasks) {
     const level = levelOf(task.id);
     (layers[level] ??= []).push(task);
@@ -203,7 +203,7 @@ export function followedStep(steps: readonly OrchestrationStep[]): Orchestration
  * The tasks as a segmented bar counts them. Blocked, stopped and interrupted tasks have not run to
  * an end, so they are still to do; a skipped one was given up on purpose and is shown apart.
  */
-export function orchestrationProgress(tasks: readonly OrchestrationTaskState[]): ProgressCounts {
+export function orchestrationProgress(tasks: readonly OrchestrationTaskSummary[]): ProgressCounts {
   const counts: ProgressCounts = {};
   const add = (key: keyof ProgressCounts) => (counts[key] = (counts[key] ?? 0) + 1);
   for (const task of tasks) {
@@ -220,9 +220,9 @@ export function orchestrationProgress(tasks: readonly OrchestrationTaskState[]):
  * The running task a one-line summary speaks for, with the stage it is in: one that reports an
  * activity if any does, since "Editing src/…" says more than a task name alone.
  */
-export function liveTask(orch: Orchestration): { task: OrchestrationTaskState; stage: number } | null {
+export function liveTask<T extends OrchestrationTaskSummary>(orch: { tasks: readonly T[] }): { task: T; stage: number } | null {
   const layers = layerTasks(orch.tasks);
-  let found: { task: OrchestrationTaskState; stage: number } | null = null;
+  let found: { task: T; stage: number } | null = null;
   for (const [index, layer] of layers.entries()) {
     for (const task of layer) {
       if (task.status !== 'running') continue;

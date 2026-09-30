@@ -1,6 +1,6 @@
 import { ArrowLeft, Ban, CircleCheck, CircleX, CirclePause, LayoutTemplate, Play, Plus, Square, TriangleAlert, Zap } from 'lucide-react';
 import type {
-  Orchestration as OrchestrationRecord,
+  OrchestrationSummary as OrchestrationRecord,
   OrchestrationEngine,
   OrchestrationSpec,
   OrchestrationTemplate,

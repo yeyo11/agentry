@@ -1,4 +1,4 @@
-import type { ChatSummary, Orchestration } from '@agentry/shared';
+import type { ChatSummary, Orchestration, OrchestrationSummary } from '@agentry/shared';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import {
   CalendarClock,
@@ -103,7 +103,7 @@ interface SetupRow extends AttentionRow {
 }
 
 /** An orchestration's tasks, one segment each: done, on, and still ahead. */
-function TaskSegments({ orchestration: o }: { orchestration: Orchestration }) {
+function TaskSegments({ orchestration: o }: { orchestration: OrchestrationSummary }) {
   const { t } = useTranslation('home');
   const counts = taskCounts(o.tasks);
   return (
@@ -134,7 +134,7 @@ function Elapsed({ from, to }: { from: string; to: string | null }) {
  * One orchestration as it goes: who it is, what it cost and how long it has run, a segment per task,
  * the counts in words, and the command its running task is on right now.
  */
-function OrchestrationItem({ orchestration: o }: { orchestration: Orchestration }) {
+function OrchestrationItem({ orchestration: o }: { orchestration: OrchestrationSummary }) {
   const { t } = useTranslation('home');
   const stages = orchestrationStages(o);
   const counts = taskCounts(o.tasks);

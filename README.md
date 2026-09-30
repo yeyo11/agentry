@@ -1022,7 +1022,7 @@ every 3 s and only while a client listens.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/orchestrations` | List |
+| GET | `/orchestrations` | List, each graph as a summary: task prompts and results, the synthesis and check output are left to `GET /orchestrations/:id` |
 | POST | `/orchestrations` | Launch. Body: `OrchestrationSpec`; a task naming a `workItemId` is linked to that item, which follows its status |
 | POST | `/orchestrations/plan/start` | `{ objective, cwd?, model?, maxTasks? }` → the planner chat (housekeeping), returned at once so it can be streamed at `/chats/:id/stream` |
 | GET | `/orchestrations/plans` | Plans generated but not launched; each is kept when its planner finishes |

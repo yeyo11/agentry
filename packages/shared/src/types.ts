@@ -3021,6 +3021,28 @@ export interface Orchestration {
   plannerRunId?: string | null;
 }
 
+/** A task as a list shows it: its prompt and its result are left out, and the graph's own page has them. */
+export type OrchestrationTaskSummary = Omit<OrchestrationTaskState, 'prompt' | 'result'>;
+
+/** A check as a list shows it: what it printed is left out. */
+export type VerificationCommandSummary = Omit<VerificationCommand, 'output'>;
+
+export interface VerificationSummary extends Omit<VerificationState, 'commands'> {
+  commands: VerificationCommandSummary[];
+}
+
+/**
+ * An orchestration as `GET /orchestrations` serves it. The long texts (each task's prompt and
+ * result, the synthesis, what the checks printed) were over nine tenths of the list, and every
+ * screen that shows it wants statuses, counts and costs; `GET /orchestrations/:id` has them whole.
+ */
+export interface OrchestrationSummary extends Omit<Orchestration, 'tasks' | 'finalResult' | 'verification'> {
+  tasks: OrchestrationTaskSummary[];
+  /** Whether the graph has a synthesis, which its own page shows */
+  hasFinalResult: boolean;
+  verification?: VerificationSummary | null;
+}
+
 // ---------- Verification ----------
 //
 // Workers run typecheck and unit tests; the whole suite runs once, here, on the integration branch.

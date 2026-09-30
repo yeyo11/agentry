@@ -14,6 +14,9 @@ import type {
   FlowRun,
   MemoryProposalEvent,
   Orchestration,
+  OrchestrationSummary,
+  OrchestrationTaskEvent,
+  OrchestrationTaskSummary,
   Overview,
   ProjectFlow,
   RunStatus,
@@ -267,7 +270,9 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'orchestration.removed':
       return [[keys.orchestrations, NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW]];
     case 'orchestration.task':
-      return [[keys.orchestrations, NOW], [keys.orchestration(event.orchestrationId), NOW], [keys.chats, LISTS], ...liveCards(true)];
+      // `patchOrchestrationTask` has already moved the task in the list; the read that follows only
+      // brings the figures the event does not carry (cost, times), so it can wait like the chat lists
+      return [[keys.orchestrations, LISTS], [keys.orchestration(event.orchestrationId), NOW], [keys.chats, LISTS], ...liveCards(true)];
     case 'changes.updated':
       // Whatever the board reads about this graph's branches sits under its key, changes included
       return [[keys.orchestration(event.orchestrationId), NOW]];
@@ -285,7 +290,7 @@ export function targetsFor(event: AgentryEvent): Target[] {
       // Health is read with the chat, and with the graph for a worker; a proposal hangs on it
       return [
         [keys.chats, LISTS], [['chat', event.runId], NOW],
-        ...(event.orchestrationId ? ([[keys.orchestration(event.orchestrationId), NOW], [keys.orchestrations, NOW]] as Target[]) : []),
+        ...(event.orchestrationId ? ([[keys.orchestration(event.orchestrationId), NOW], [keys.orchestrations, LISTS]] as Target[]) : []),
       ];
     case 'sessions.changed':
       // Chats begun in a terminal are read from disk, so their tasks, subagents and workflows move with it
@@ -416,10 +421,26 @@ export function patchActivity(client: QueryClient, event: ChatActivityEvent): vo
   );
   client.setQueriesData<AssistantRunDetail>({ queryKey: keys.assistantRunEach }, (run) => (run?.chatId === chatId ? patchAssistant(run) : run));
   if (!event.orchestrationId || !event.taskId) return;
-  const patchGraph = (orch: Orchestration): Orchestration =>
+  const patchGraph = <O extends Orchestration | OrchestrationSummary>(orch: O): O =>
     orch.id === event.orchestrationId ? { ...orch, tasks: orch.tasks.map((task) => (task.id === event.taskId ? { ...task, activity } : task)) } : orch;
   client.setQueriesData<Orchestration>({ queryKey: keys.orchestration(event.orchestrationId) }, (orch) => (orch ? patchGraph(orch) : orch));
-  client.setQueriesData<Orchestration[]>({ queryKey: keys.orchestrations }, (list) => list?.map(patchGraph));
+  client.setQueriesData<OrchestrationSummary[]>({ queryKey: keys.orchestrations }, (list) => list?.map(patchGraph));
+}
+
+/**
+ * Moves a task to the status an `orchestration.task` event announces, in the list of graphs, so
+ * its cards and segmented bars change with the event instead of after a read of every graph. A
+ * task that ended has nothing left to say it is doing.
+ */
+export function patchOrchestrationTask(client: QueryClient, event: OrchestrationTaskEvent): void {
+  const ended = event.status !== 'running';
+  const patchTask = (task: OrchestrationTaskSummary): OrchestrationTaskSummary =>
+    task.id === event.taskId ? { ...task, status: event.status, runId: event.runId, error: event.error, ...(ended ? { activity: null, health: null } : {}) } : task;
+  client.setQueriesData<OrchestrationSummary[]>({ queryKey: keys.orchestrations }, (list) =>
+    list?.some((orch) => orch.id === event.orchestrationId)
+      ? list.map((orch) => (orch.id === event.orchestrationId ? { ...orch, tasks: orch.tasks.map(patchTask) } : orch))
+      : list,
+  );
 }
 
 /**
@@ -529,6 +550,7 @@ function startEventFeed(client: QueryClient): () => void {
     if (event.id <= lastId) return;
     lastId = event.id;
     if (event.type === 'chat.activity') patchActivity(client, event);
+    if (event.type === 'orchestration.task') patchOrchestrationTask(client, event);
     if (event.type === 'settings.changed' || event.type === 'tunnel.changed') patchSettings(client, event);
     if (event.type === 'run.updated' && event.previousStatus === null && patchRun(client, event)) {
       invalidations.schedule([[keys.chats, LISTS], [keys.overview, OVERVIEW]]);

@@ -8,6 +8,7 @@ import type {
   ChatSummary,
   Orchestration,
   OrchestrationTaskState,
+  OrchestrationTaskSummary,
   OrchestrationTaskStatus,
   Overview,
   PermissionRequest,
@@ -62,7 +63,7 @@ export function taskCounts(tasks: readonly Pick<OrchestrationTaskState, 'status'
 export interface OrchestrationStage {
   /** Zero-based: stage 1 is the tasks that depend on nothing */
   index: number;
-  tasks: OrchestrationTaskState[];
+  tasks: OrchestrationTaskSummary[];
   state: StepState;
   done: number;
 }
@@ -72,10 +73,10 @@ export interface OrchestrationStage {
  * dependency on a task the graph does not have is ignored, and a cycle (which the server refuses,
  * but a stored graph is data) stops at the task that closes it instead of recursing for ever.
  */
-export function orchestrationStages(orch: Pick<Orchestration, 'status' | 'tasks'>): OrchestrationStage[] {
+export function orchestrationStages(orch: { status: Orchestration['status']; tasks: readonly OrchestrationTaskSummary[] }): OrchestrationStage[] {
   const byId = new Map(orch.tasks.map((task) => [task.id, task]));
   const levels = new Map<string, number>();
-  const levelOf = (task: OrchestrationTaskState, path: Set<string>): number => {
+  const levelOf = (task: OrchestrationTaskSummary, path: Set<string>): number => {
     const known = levels.get(task.id);
     if (known !== undefined) return known;
     if (path.has(task.id)) return 0;
@@ -89,7 +90,7 @@ export function orchestrationStages(orch: Pick<Orchestration, 'status' | 'tasks'
     levels.set(task.id, level);
     return level;
   };
-  const stages: OrchestrationTaskState[][] = [];
+  const stages: OrchestrationTaskSummary[][] = [];
   for (const task of orch.tasks) {
     const level = levelOf(task, new Set());
     (stages[level] ??= []).push(task);
@@ -102,7 +103,7 @@ export function orchestrationStages(orch: Pick<Orchestration, 'status' | 'tasks'
     });
 }
 
-function stageState(tasks: readonly OrchestrationTaskState[], status: Orchestration['status']): StepState {
+function stageState(tasks: readonly OrchestrationTaskSummary[], status: Orchestration['status']): StepState {
   const has = (...statuses: OrchestrationTaskStatus[]) => tasks.some((task) => statuses.includes(task.status));
   if (has('running')) return 'current';
   // A failure the graph is holding for a person is a question to answer, not the end of it
@@ -113,10 +114,10 @@ function stageState(tasks: readonly OrchestrationTaskState[], status: Orchestrat
   return 'pending';
 }
 
-const newestFirst = (a: Orchestration, b: Orchestration) => b.createdAt.localeCompare(a.createdAt);
+const newestFirst = (a: Pick<Orchestration, 'createdAt'>, b: Pick<Orchestration, 'createdAt'>) => b.createdAt.localeCompare(a.createdAt);
 
 /** The running ones, newest first; when nothing runs, the latest one, so the widget says how it ended. */
-export function orchestrationsToShow(list: readonly Orchestration[], limit: number): Orchestration[] {
+export function orchestrationsToShow<T extends Pick<Orchestration, 'status' | 'createdAt'>>(list: readonly T[], limit: number): T[] {
   const live = list.filter((o) => o.status === 'running' || o.status === 'waiting').sort(newestFirst);
   if (live.length > 0) return live.slice(0, limit);
   const latest = [...list].sort(newestFirst)[0];

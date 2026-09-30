@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { parseChangeScope, parseDiffContext, type Core, type DiffOptions } from '@agentry/core';
+import { parseChangeScope, parseDiffContext, summarizeOrchestration, type Core, type DiffOptions } from '@agentry/core';
 import type {
   LaunchOrchestrationTemplateRequest,
   OrchestrationSpec,
@@ -35,7 +35,7 @@ export interface DiffQuery extends ScopeQuery {
 export const diffOptions = (query: DiffQuery): DiffOptions => ({ ...parseChangeScope(query), context: parseDiffContext(query.context) });
 
 export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
-  app.get('/orchestrations', () => core.orchestrator.list().map((o) => core.orchestrator.view(o)));
+  app.get('/orchestrations', () => core.orchestrator.list().map((o) => summarizeOrchestration(core.orchestrator.view(o))));
 
   // Through core rather than the orchestrator: a node that names a work item is checked and linked
   app.post<{ Body: OrchestrationSpec }>('/orchestrations', async (req, reply) =>
