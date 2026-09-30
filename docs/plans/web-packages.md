@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T18:00:00Z
-updated_at: 2026-09-30T18:00:00Z
+updated_at: 2026-09-30T15:32:53Z
 tags:
     - plan
     - web
@@ -648,27 +648,19 @@ When W2 and W3 are merged into the branch: the full `pnpm typecheck`, `pnpm test
 | Phase 2 lands a change on a moved file | `u1`, merge | The model block keeps its path; web tests stay in `apps/web/test`; whoever lands second re-runs the full checks |
 | A stale `ALLOWED` entry, or a hard-coded `/api/uploads` left in the package | `c2b`, `c2c` | The hard-coded strings test fails on stale entries; the chat boundaries test forbids `apps/`, and the client builds every URL |
 
-## Decisions for the owner
+## Decisions (owner, 2026-09-30)
 
-1. **Where the shared renderers live** (`Markdown`, `CodeBlock`, `highlight`). (a) In `@agentry/ui`,
-   as their own subpaths, **recommended**: the diff view, documents, work items and the detail panel
-   use them without a chat, and the chat package already depends on the primitives. (b) In
-   `@agentry/chat-ui`, exported for the app: fewer files in the primitives, but the diff view would
-   import a chat package to colour code. (c) A third package for renderers: the cleanest dependency
-   graph, one more package and one more set of guards for nine files.
-2. **How much of the chat page moves.** (a) The conversation only — transcript, composer, prompts,
-   hooks, models — while the header, inspector and side cards stay in the app, **recommended**: they
-   draw observe cards, work items, orchestrations and the environment, and `ChatView` composes them
-   already. (b) The whole page, with the inspector's tabs and cards as render props: a complete
-   package, about a dozen slots, and more drift to prove. (c) The conversation now, the chrome as a
-   later step once phase 3 shows what a second provider's inspector needs.
-3. **Chat copy that names Claude** (seven `chat.json` values, "Claude is asking", the transcript's
-   author). (a) Keep the words; the code of the package names no vendor, the author comes from
-   `agentName`, and the copy is revisited in phase 3 when a second provider runs chats,
-   **recommended**: it is what "no English string changes" means. (b) Interpolate `{{agent}}` in
-   those values now: the rendered English stays the same, but the stored strings and the snapshot
-   change. (c) Keep those keys in an app namespace and pass the sentences in as props: no vendor in
-   the package's locales, at the cost of props that exist only for copy.
+All three as recommended:
+
+1. **`Markdown`, `CodeBlock` and the highlighter go into `@agentry/ui`**, as their own subpaths.
+   Rejected: `@agentry/chat-ui`, which the diff view would then import to colour code; a third
+   package for nine files.
+2. **Only the conversation moves**: transcript, composer, prompts, hooks and models. The header,
+   inspector and side cards stay in the app. Rejected: the whole page with a dozen render props;
+   the conversation now and the chrome after phase 3.
+3. **The chat copy that names Claude keeps its words** for now: the package's code names no vendor,
+   the author comes from `agentName`, and the copy is revisited in phase 3. Rejected: interpolating
+   `{{agent}}` now; keeping those keys in the app and passing sentences as props.
 
 ## Related
 
