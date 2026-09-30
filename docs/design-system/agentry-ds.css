@@ -874,6 +874,93 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 .proposal-to { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11px; color: var(--fg-2); }
 .proposal-actions { display: flex; align-items: center; gap: 6px; }
 
+/* ---------- Decisions: the "decided" mark, its answer, the project override and the Usage line ----------
+   A decision is not a status, so nothing here takes a status colour, a gradient or motion. */
+/* The mark: a button, transparent, whose face is the small mono label. On a phone the button is the
+   44 px target and its negative block margin leaves the row as tall as the label. */
+.decided { display: inline-flex; align-items: center; flex-shrink: 0; padding: 0; border: 0; background: transparent; color: var(--fg-2); font: inherit; cursor: pointer; }
+.decided-face { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: var(--r-xs); border: 1px solid var(--line-2); font-family: var(--mono); font-size: 11px; line-height: 1; letter-spacing: 0.01em; white-space: nowrap; font-variant-numeric: tabular-nums; transition: color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast); }
+.decided:hover .decided-face { color: var(--fg); border-color: var(--line-3); }
+.decided[aria-expanded="true"] .decided-face { color: var(--fg); border-color: var(--line-3); background: var(--bg-3); }
+.decided:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-xs); }
+.m-screen .decided { min-height: var(--touch); min-width: var(--touch); justify-content: center; margin: -12px -6px; }
+/* Its answer: a popover on a desktop, the content of a Sheet on a phone */
+.decided-pop { position: absolute; z-index: 15; width: 340px; display: flex; flex-direction: column; gap: 14px; padding: 16px; background: var(--bg-2); border-radius: var(--r-lg); box-shadow: var(--shadow-pop); animation: pop-in var(--dur) var(--ease-out); }
+.decided-head { display: flex; align-items: flex-start; gap: 10px; }
+.decided-head > .col { flex: 1 1 auto; min-width: 0; gap: 3px; }
+.decided-block { display: flex; flex-direction: column; gap: 5px; margin: 0; }
+.decided-block p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--fg-2); }
+.decided-block p.is-answer { font-size: 14px; font-weight: 500; color: var(--fg); }
+.decided-odds { display: flex; flex-direction: column; gap: 7px; }
+.decided-odd { display: grid; grid-template-columns: 76px minmax(0, 1fr) 36px; align-items: center; gap: 10px; font-size: 12.5px; color: var(--fg-2); }
+.decided-odd.is-chosen { color: var(--fg); font-weight: 500; }
+.decided-odd .bar { height: 4px; }
+.decided-odd .bar > i { background: var(--fg-3); }
+.decided-odd.is-chosen .bar > i { background: var(--fg); }
+.decided-odd .t-num { text-align: right; font-family: var(--mono); font-size: 12px; }
+.decided-meta { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; margin: 0; padding: 10px 0 0; border-top: 1px solid var(--line); font-size: 12px; }
+.decided-meta dt { color: var(--fg-3); }
+.decided-meta dd { margin: 0; font-family: var(--mono); font-size: 11.5px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.decided-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.decided-foot .ask { flex: 1 1 100%; font-size: 12px; color: var(--fg-3); }
+.decided-foot .btn[aria-pressed="true"] { background: var(--bg-4); border-color: var(--line-3); color: var(--fg); }
+.decided-foot a { margin-left: auto; font-size: 12.5px; color: var(--accent); }
+.decided-sheet { display: flex; flex-direction: column; gap: 16px; }
+.m-screen .decided-foot .btn { flex: 1 1 0; justify-content: center; }
+.m-screen .decided-foot a { display: flex; align-items: center; justify-content: center; flex: 1 1 100%; min-height: var(--touch); margin: 0; }
+/* Project settings → Decisions: one row per point that can be set per project. The inherited value
+   shows dimmed until it is changed; a changed row names the global value and offers "Usar la global". */
+.decision-provider { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.decision-group { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 18px; border-top: 1px solid var(--line); background: var(--bg-1); font-size: 13px; font-weight: 500; }
+.decision-group .ico { color: var(--fg-3); }
+.decision-group .n { font-family: var(--mono); font-size: 11.5px; font-weight: 400; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.decision-group .n b { font-weight: 500; color: var(--fg-2); }
+.decision-row { display: grid; grid-template-columns: minmax(0, 1fr) 76px 232px 168px 128px; align-items: center; gap: 14px; min-height: 52px; padding: 6px 18px; border-top: 1px solid var(--line); }
+.decision-head { min-height: 34px; padding-top: 0; padding-bottom: 0; }
+.decision-point { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.decision-point .name { font-size: 13px; font-weight: 500; }
+.decision-point .id { font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+.decision-kind { font-family: var(--mono); font-size: 11.5px; color: var(--fg-2); }
+.decision-mode.is-inherited > .on { background: var(--bg-3); color: var(--fg-2); box-shadow: none; font-weight: 400; }
+.seg > [disabled] { opacity: 0.45; cursor: not-allowed; }
+.decision-state { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 0; font-family: var(--mono); font-size: 11.5px; color: var(--fg-3); white-space: nowrap; }
+.decision-state .btn, .decision-card .btn { font-family: var(--sans); }
+.decision-why { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-3); }
+.decision-why .ico { width: 13px; height: 13px; flex-shrink: 0; }
+/* The threshold: the app's Slider (.slider, .slider-track, .slider-range, .slider-thumb) drawn quiet.
+   Its range is a gradient there, and a row each would put a dozen gradient surfaces on the page. */
+.threshold { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.threshold-track { position: relative; flex: 1 1 auto; height: 4px; border-radius: var(--r-full); background: var(--bg-4); }
+.threshold-range { position: absolute; left: 0; top: 0; bottom: 0; border-radius: inherit; background: var(--fg-3); }
+.threshold-thumb { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: var(--r-full); border: 2px solid var(--bg-2); background: var(--fg); box-shadow: var(--shadow); }
+.threshold.is-inherited .threshold-range { background: var(--bg-4); }
+.threshold.is-inherited .threshold-thumb { background: var(--fg-3); }
+.threshold-value { flex: 0 0 34px; text-align: right; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.threshold-none { font-family: var(--mono); font-size: 12px; color: var(--fg-3); }
+.m-screen .threshold { min-height: var(--touch); }
+/* The phone's override: a card per point, the mode as a full-width control under its name */
+.decision-card { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.decision-card:last-child { border-bottom: 0; }
+.decision-card .seg { display: flex; }
+.decision-card .seg > * { flex: 1 1 0; justify-content: center; }
+.decision-card-top { display: flex; align-items: center; gap: 10px; }
+.decision-card-top .decision-point { flex: 1 1 auto; }
+.decision-card .btn { align-self: flex-start; }
+.m-screen .decision-group { min-height: var(--touch); padding: 0 14px; }
+/* Usage: one line, over the page's window, hidden when nothing was decided in it */
+.usage-decisions { flex-shrink: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 40px; padding: 0 16px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-1); font-size: 13px; color: var(--fg-2); }
+.usage-decisions .ico { flex-shrink: 0; color: var(--fg-3); }
+.usage-decisions .lead { font-weight: 500; color: var(--fg); }
+.usage-decisions .mono { font-size: 12.5px; color: var(--fg); font-variant-numeric: tabular-nums; }
+.usage-decisions .sep { color: var(--fg-3); }
+.usage-decisions a { margin-left: auto; font-size: 12.5px; color: var(--accent); }
+/* On a phone the title leads a line of its own and the facts follow; the link to the history stays
+   on the desktop, since Usage is a summary and the phone page has no room for a 44 px row more */
+.m-screen .usage-decisions { padding: 10px 14px; gap: 2px 8px; }
+.m-screen .usage-decisions .lead { flex: 1 1 calc(100% - 28px); }
+.m-screen .usage-decisions .lead + .sep, .m-screen .usage-decisions a { display: none; }
+/* ---------- end of decisions ---------- */
+
 /* File tree of a folder (the app's .tree-row, .tree-icon, .tree-size in editors.css). --depth
    indents; the open file takes the accent inset of a selected row. */
 .tree { display: flex; flex-direction: column; padding: 6px; }
@@ -1271,3 +1358,56 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
 .doc-origin-phone .doc-origin-text { flex: 1; min-width: 0; }
 .doc-origin-phone .doc-origin-chevron { flex-shrink: 0; color: var(--fg-3); }
 /* ---------- end of 19 ---------- */
+
+/* ---------- Decisions tab (Settings → Agentry → Decisions; plans/decision-engine.md, UI) ---------- */
+/* The app's Slider (components/controls). Quiet here: 13 of them sit on one page, and the gradient is
+   for the screen's one primary action, so the range is neutral and the thumb is the ink colour. */
+.slider { position: relative; display: flex; align-items: center; width: 100%; height: 22px; }
+.slider-track { position: relative; flex: 1; height: 6px; border-radius: var(--r-full); background: var(--bg-4); overflow: hidden; }
+.slider-range { position: absolute; left: 0; top: 0; bottom: 0; background: var(--fg-2); }
+.slider-thumb { position: absolute; top: 3px; width: 16px; height: 16px; border-radius: var(--r-full); border: 2px solid var(--bg-2); background: var(--fg); box-shadow: var(--shadow); }
+.slider.off { opacity: 0.45; }
+.m-screen .slider { height: var(--touch); }
+.m-screen .slider-thumb { top: 14px; }
+/* One decision point: name and id, kind, mode, threshold and consent on the first line, the week's
+   metrics under it. A row whose point is off has no metrics line. */
+.dp-group { display: flex; flex-direction: column; }
+.dp-group-head { display: flex; align-items: center; gap: 10px; padding: 9px 18px; background: var(--bg-1); border-bottom: 1px solid var(--line); }
+.dp-row { display: grid; grid-template-columns: minmax(0, 1fr) 84px 206px 140px 132px; gap: 6px 14px; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+.dp-row:last-child { border-bottom: 0; }
+.dp-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dp-name > span:first-child { font-size: 13.5px; font-weight: 500; }
+.dp-id { font-family: var(--mono); font-size: 11.5px; color: var(--fg-3); }
+.dp-kind { font-size: 12.5px; color: var(--fg-2); }
+.dp-thr { display: flex; align-items: center; gap: 10px; }
+.dp-thr .slider { flex: 1 1 auto; }
+.dp-thr output { flex-shrink: 0; width: 34px; text-align: right; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--fg-2); }
+.dp-consent { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--fg-2); min-width: 0; }
+.dp-note { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--fg-3); }
+.dp-note.warn { color: var(--warn); }
+.dp-metrics { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(9, minmax(0, auto)); justify-content: space-between; gap: 8px 14px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.dp-metric { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dp-metric > span:first-child { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); white-space: nowrap; }
+.dp-metric > span:last-child { font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dp-metrics.grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); justify-content: stretch; border-top: 0; padding-top: 0; }
+/* The consent dialog's state preview: the exact JSON, read-only, cut where the point cuts it */
+.dp-preview { margin: 0; padding: 12px 14px; max-height: 236px; overflow: hidden; border-radius: var(--r); background: var(--bg-1); border: 1px solid var(--line); font-family: var(--mono); font-size: 12px; line-height: 1.6; color: var(--fg-2); white-space: pre; position: relative; }
+.dp-preview b { font-weight: 400; color: var(--fg); }
+.dp-preview::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 44px; background: linear-gradient(to bottom, transparent, var(--bg-1)); }
+.dp-facts { display: flex; flex-wrap: wrap; gap: 6px 22px; }
+.dp-fact { display: flex; flex-direction: column; gap: 2px; }
+.dp-fact > span:first-child { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); }
+.dp-fact > span:last-child { font-family: var(--mono); font-size: 12.5px; }
+/* History: a row per decision, and its answer opened under it */
+.dp-hist-head, .dp-hist-row { display: grid; grid-template-columns: 84px minmax(0, 1.5fr) minmax(0, 1.1fr) minmax(0, 1.4fr) 44px 92px 64px; gap: 12px; align-items: center; padding: 0 18px; }
+.dp-hist-head { height: 32px; border-bottom: 1px solid var(--line); background: var(--bg-1); }
+.dp-hist-row { min-height: 52px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.dp-hist-row.open { background: var(--bg-1); border-bottom: 0; }
+.dp-hist-row .mono { font-size: 12px; }
+.dp-answer { display: flex; flex-direction: column; gap: 14px; padding: 4px 18px 16px 114px; background: var(--bg-1); border-bottom: 1px solid var(--line); }
+.dp-prob { display: grid; grid-template-columns: 96px minmax(0, 1fr) 40px; gap: 10px; align-items: center; font-family: var(--mono); font-size: 12px; }
+.dp-confirm { display: flex; align-items: center; gap: 12px; padding: 12px 18px; background: var(--bad-soft); color: var(--bad); font-size: 13px; }
+.dp-confirm .grow { color: var(--fg); }
+.m-screen .dp-confirm { flex-wrap: wrap; }
+.m-screen .field-lg input { min-height: var(--touch); }
+/* ---------- end of Decisions tab ---------- */
