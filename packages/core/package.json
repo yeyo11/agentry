@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@agentry/shared": "workspace:*",
+    "@typesafe-ai/sdk": "0.6.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
