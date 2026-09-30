@@ -3,6 +3,163 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.29.0](https://github.com/yeyo11/agentry/compare/v0.28.0...v0.29.0) (2026-09-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* chats, projects and Agentry's own model ([#60](https://github.com/yeyo11/agentry/issues/60))
+* **api:** GET /api/system returns `version` instead of `wrapperVersion`.
+
+### Features
+
+* answer a run's permission prompts from the panel ([e641538](https://github.com/yeyo11/agentry/commit/e6415382f6d3e6b6274a2f2bcab664ad6411ae58))
+* **api:** extract startServer so the API can be embedded ([4940af7](https://github.com/yeyo11/agentry/commit/4940af77e5d0afb9472fee4ea95dec2c1ff721d2))
+* **api:** rename SystemInfo.wrapperVersion to version ([996289b](https://github.com/yeyo11/agentry/commit/996289b67d1bb1916989eed45023cb876e47cb9f))
+* **chat:** attach files to messages ([efa4614](https://github.com/yeyo11/agentry/commit/efa4614daa224ddb89205cefc4ecc1831c31c70a))
+* **chat:** attach files to messages ([c24ed5e](https://github.com/yeyo11/agentry/commit/c24ed5e03b2e4e4205e0abde554ab7be2cf1000e))
+* chats, projects and Agentry's own model ([#60](https://github.com/yeyo11/agentry/issues/60)) ([f78fab7](https://github.com/yeyo11/agentry/commit/f78fab7b057c613190f60f5c380b8a5164f058d6))
+* **chats:** give every chat Agentry starts its own API token ([#133](https://github.com/yeyo11/agentry/issues/133)) ([8c1406d](https://github.com/yeyo11/agentry/commit/8c1406dad92ee0dfad6a4bcbabd8ea3f53a51095))
+* close what the roadmap left open after [#60](https://github.com/yeyo11/agentry/issues/60) and [#62](https://github.com/yeyo11/agentry/issues/62) ([#64](https://github.com/yeyo11/agentry/issues/64)) ([161cff2](https://github.com/yeyo11/agentry/commit/161cff2af7930fab299f51573d25b8039b6fbd43))
+* continue a terminal session in Agentry, or in a copy of it ([#41](https://github.com/yeyo11/agentry/issues/41)) ([2246e54](https://github.com/yeyo11/agentry/commit/2246e5491156d1fcde79c5d68059a66b288c487b))
+* **core:** tell every chat which wrapper runs it ([#107](https://github.com/yeyo11/agentry/issues/107)) ([3bd4c04](https://github.com/yeyo11/agentry/commit/3bd4c04ce2384d6b6bab61a6b7287fbd08777744))
+* decision engine with TypeSafe's Jev (beta) ([#141](https://github.com/yeyo11/agentry/issues/141)) ([6eec081](https://github.com/yeyo11/agentry/commit/6eec081b9769c1dac5e8bf2c50662ae503953730))
+* **decisions:** shadow-accuracy resolvers for palette.intent, notification.urgency and orchestration.model ([#144](https://github.com/yeyo11/agentry/issues/144)) ([b1c29ec](https://github.com/yeyo11/agentry/commit/b1c29ec26191eb8b01b0f4d21a98802c6d3fa79b))
+* **desktop:** Linux desktop app (AppImage and .deb) ([41ab148](https://github.com/yeyo11/agentry/commit/41ab14872c2ec5b9327903475cf542756218f727))
+* **desktop:** one-line installer ([5255811](https://github.com/yeyo11/agentry/commit/52558115ad93252076cea9879f55abdd5c0ee0ae))
+* **desktop:** package an AppImage and a .deb and publish them on release ([87ccdd3](https://github.com/yeyo11/agentry/commit/87ccdd3ead0ebb4ecb2b11ebe17201a4d35fba10))
+* detect agent providers, with a first-run step and Settings → Providers ([#150](https://github.com/yeyo11/agentry/issues/150)) ([48bd066](https://github.com/yeyo11/agentry/commit/48bd066f933109dc8211840847ce403bdff25187))
+* finish the roadmap's Next section ([#62](https://github.com/yeyo11/agentry/issues/62)) ([db276e6](https://github.com/yeyo11/agentry/commit/db276e65e25a0a6740d70e7e69ee2e358ea0c0af))
+* **flow:** offer to start the cards already waiting when the flow is switched on ([#123](https://github.com/yeyo11/agentry/issues/123)) ([faaa7f9](https://github.com/yeyo11/agentry/commit/faaa7f9c8b9641c18eb3e54d4497d09c02ce90bd))
+* full control of runs from the panel through the CLI control protocol ([#37](https://github.com/yeyo11/agentry/issues/37)) ([a79cb39](https://github.com/yeyo11/agentry/commit/a79cb39ae367c5a9980b0253e40bb1e0f818d4c4))
+* improve task orchestration, transcript performance, and i18n [#54](https://github.com/yeyo11/agentry/issues/54)) ([0ffa2c7](https://github.com/yeyo11/agentry/commit/0ffa2c7c5111644f9d2ca794ed14a61291371f0b))
+* install a pinned claude-swap from the app for multiple accounts ([#104](https://github.com/yeyo11/agentry/issues/104)) ([815d9bd](https://github.com/yeyo11/agentry/commit/815d9bdfd70c235fe015705716dd4a4f6d71c81c))
+* install Agentry on a phone, and push to it with the app closed ([#76](https://github.com/yeyo11/agentry/issues/76)) ([7ef73d9](https://github.com/yeyo11/agentry/commit/7ef73d9aa118b259556c4bbe1bba5880d074e891))
+* interruption level for notifications, and mobile layout fixes ([#93](https://github.com/yeyo11/agentry/issues/93)) ([5b05df2](https://github.com/yeyo11/agentry/commit/5b05df2b41bad5e1196ef7e03bb672974bcc8a77))
+* live event feed, notifications and full execution detail ([#47](https://github.com/yeyo11/agentry/issues/47)) ([c772df7](https://github.com/yeyo11/agentry/commit/c772df751c21648b0f27df1fadc501e7ac0ebc20))
+* **orchestration:** deliver one integrated branch ([4d09c4b](https://github.com/yeyo11/agentry/commit/4d09c4b876d2ea25607c28d7bb6f8e4b60a04921))
+* **orchestration:** deliver one integrated branch ([0d20cf1](https://github.com/yeyo11/agentry/commit/0d20cf17965f35fc593b58419895011df25aa7d8))
+* **orchestration:** give each task its own git worktree ([3109982](https://github.com/yeyo11/agentry/commit/3109982d67979079d05c5c132d4febb33b3ded1e))
+* **orchestration:** pre-authorise the tools workers may use ([b3e0cfd](https://github.com/yeyo11/agentry/commit/b3e0cfdb40420621072246509313bcb10d9ebd48))
+* **orchestration:** record planner drafts and let the UI watch and recover them ([2b3c0eb](https://github.com/yeyo11/agentry/commit/2b3c0eb6148fccd73e11bfb4fe9e652ebc13672e))
+* **orchestration:** remove the worktrees a graph left behind ([a6e76eb](https://github.com/yeyo11/agentry/commit/a6e76ebb0e63f1041f8a0cdca6c7b2b0897c0fc0))
+* **orchestration:** resume a graph that was interrupted ([a6f993f](https://github.com/yeyo11/agentry/commit/a6f993f702700df54b8b6a3f5410c1ec72a094ce))
+* **orchestration:** resume with corrected settings, delete, honest progress ([afabe9c](https://github.com/yeyo11/agentry/commit/afabe9cdb941581596368bbf4f480c190f9931b1))
+* **orchestration:** resume with corrected settings, delete, honest progress ([51b23e7](https://github.com/yeyo11/agentry/commit/51b23e7f626518b714f25f2936cb3741cbc540db))
+* **orchestration:** run a graph as a Claude Code workflow ([#44](https://github.com/yeyo11/agentry/issues/44)) ([63442bc](https://github.com/yeyo11/agentry/commit/63442bcfa19c560563c837cad2765a131d1c9394))
+* **orchestration:** run verification checks in parallel groups and tell the fixer which specs failed ([#134](https://github.com/yeyo11/agentry/issues/134)) ([59c00d4](https://github.com/yeyo11/agentry/commit/59c00d4f3818bb1b290e80ba5c377eea4a3517b3))
+* page long transcripts from the API and window them in the UI ([3f79a06](https://github.com/yeyo11/agentry/commit/3f79a0690588418405afbf0d455b86fb9a1ad040))
+* project ecosystem with boards, team and flow, documents and the project assistant ([#118](https://github.com/yeyo11/agentry/issues/118)) ([1eac40b](https://github.com/yeyo11/agentry/commit/1eac40b8ced0a0525771b6f9ded690e5b4a94dad))
+* **projects:** nest worktrees under their repository and show where work happens ([c99075d](https://github.com/yeyo11/agentry/commit/c99075d95c006b7bf2bd3702fe13b225ca876e89))
+* **projects:** nest worktrees under their repository and show where work happens ([f60fce3](https://github.com/yeyo11/agentry/commit/f60fce3f2f51bc1c1d8866096f6159cb477c3003))
+* **prompts:** follow the Opus 5.5 and Sonnet 5.5 prompting guides in every prompt Agentry writes ([#131](https://github.com/yeyo11/agentry/issues/131)) ([7d8ed6c](https://github.com/yeyo11/agentry/commit/7d8ed6cc433d1b7debf89fac69cb89742da35c9c))
+* **runs:** let a run name who answers its permission prompts ([13d5a42](https://github.com/yeyo11/agentry/commit/13d5a42a7bbe36c2ca1668a0c922917195aed7ee))
+* **sessions:** open a transcript on its newest message and add a jump control ([2438cae](https://github.com/yeyo11/agentry/commit/2438cae062b6f6f03a4781182dd2ed0a90787251))
+* show the background agents of sessions started from a terminal ([243e8af](https://github.com/yeyo11/agentry/commit/243e8af76e335b9d71b8fbc59b18c2e6f41c56d5))
+* show the background agents of sessions started from a terminal ([a258c85](https://github.com/yeyo11/agentry/commit/a258c85a35e5f87fc1d53a87fb806bc09d5f3e07))
+* tell Claude Code's tasks apart and show its workflows ([#42](https://github.com/yeyo11/agentry/issues/42)) ([da0339d](https://github.com/yeyo11/agentry/commit/da0339d5d25ee9581cb5bd30fdab361dc854b334))
+* use the CLI for background sessions, project state and budgets ([a801cb9](https://github.com/yeyo11/agentry/commit/a801cb9bd1aeef809edb9ee9d14d8ec1842136c6))
+* **web:** add Radix-based form control primitives ([66a2451](https://github.com/yeyo11/agentry/commit/66a245138e7fbaf18e82dc1afe454f4272e724d9))
+* **web:** lists keep their filters until reset, and phone layout polish ([#113](https://github.com/yeyo11/agentry/issues/113)) ([71d693b](https://github.com/yeyo11/agentry/commit/71d693b5dfd812323949ca903432425e6073486b))
+* **web:** move every native control onto the Radix primitives ([7717d71](https://github.com/yeyo11/agentry/commit/7717d719ef7e0bce090ae84eeeec491fefa32b7b))
+* **web:** offer the slash commands when a message starts with / ([#99](https://github.com/yeyo11/agentry/issues/99)) ([1e77220](https://github.com/yeyo11/agentry/commit/1e77220e8bae970d29c79565606e076b35c88416))
+* **web:** render Claude's answers as markdown with highlighted code ([#38](https://github.com/yeyo11/agentry/issues/38)) ([47ad9f8](https://github.com/yeyo11/agentry/commit/47ad9f889a2d5bff7f9e4c1d438128f3443fcaf3))
+* **web:** the chat on a phone, and the models the CLI really offers ([e4d6064](https://github.com/yeyo11/agentry/commit/e4d6064943e799307daa03e34290dc2408110867))
+* **work-items:** an approved card opens its pull request, and a merged one reaches Done ([#130](https://github.com/yeyo11/agentry/issues/130)) ([e58ea57](https://github.com/yeyo11/agentry/commit/e58ea57a1d9edbf14c41f25c7aec1dce0cad6a7b))
+
+
+### Bug fixes
+
+* **agents:** locate isolated subagents in their own worktree ([d048284](https://github.com/yeyo11/agentry/commit/d048284a18a2dd45e16ba6a8606ddc04e4ad2922))
+* **api:** an allowed host may be a `*.domain` pattern ([#80](https://github.com/yeyo11/agentry/issues/80)) ([3e5d21c](https://github.com/yeyo11/agentry/commit/3e5d21c1ea96939c15081a20f6bfeb4056fed307))
+* app-updates follow-up — AppImage relaunch, Docker commands, .deb elevation, ELECTRON_RUN_AS_NODE ([#97](https://github.com/yeyo11/agentry/issues/97)) ([306d605](https://github.com/yeyo11/agentry/commit/306d6054b9000f262a2bebe27b6a70a89867d415))
+* bind to loopback, refuse an unknown Host, and stop handing out the credentials ([#77](https://github.com/yeyo11/agentry/issues/77)) ([17e76d1](https://github.com/yeyo11/agentry/commit/17e76d132f8e90eaeb3af8924185c946d238b3e5))
+* chat inspector drawer flush to the edge, and the chat stream opens at once ([#67](https://github.com/yeyo11/agentry/issues/67)) ([015bc51](https://github.com/yeyo11/agentry/commit/015bc51d11e28ad36a9dae34e9cb848aeaf79364))
+* **core:** judge a command by the stage that does the work, not a trailing echo ([#63](https://github.com/yeyo11/agentry/issues/63)) ([d130694](https://github.com/yeyo11/agentry/commit/d130694c47ac00b422bf117c8b44f7fdb48aef4e))
+* **core:** list monitors started by CLI sessions as background tasks ([#52](https://github.com/yeyo11/agentry/issues/52)) ([f645950](https://github.com/yeyo11/agentry/commit/f64595085bd7c10f96003903705f43057c2ba3ba))
+* **core:** move a pinned chat off the account that hit its limit ([#106](https://github.com/yeyo11/agentry/issues/106)) ([2614ef1](https://github.com/yeyo11/agentry/commit/2614ef1eee6ee0a36ca3f8a757e6f044fb673248))
+* **core:** restore the Core facade the 0.7.0 release commit reverted ([b05b2ee](https://github.com/yeyo11/agentry/commit/b05b2ee76ebccf02b620280c010921e5a489ad5c))
+* **core:** restore the Core facade the 0.7.0 release commit reverted ([e357fdd](https://github.com/yeyo11/agentry/commit/e357fdda9814a1ff43514d70c465e4e85030494a))
+* **desktop:** keep the port the app listened on, instead of a new one each launch ([#82](https://github.com/yeyo11/agentry/issues/82)) ([0bd7cea](https://github.com/yeyo11/agentry/commit/0bd7cea035564a1edc21df4123176328ece009c5))
+* **desktop:** show the app icon on the running window ([22123ea](https://github.com/yeyo11/agentry/commit/22123eae5c07cac9158f9f1607b7115ef52f2986))
+* **flow:** bring an item's tied documents into its worktree before a flow run ([#124](https://github.com/yeyo11/agentry/issues/124)) ([b45538d](https://github.com/yeyo11/agentry/commit/b45538dd61b5a7341dfd3c753b209e7d277d66db))
+* **flow:** let QA run the project's check scripts in their short form ([#132](https://github.com/yeyo11/agentry/issues/132)) ([cf353ab](https://github.com/yeyo11/agentry/commit/cf353ab08ecf389d1e24be757fa343f8d997b813))
+* **push:** a VAPID subject Apple accepts, and the reason when it does not ([#85](https://github.com/yeyo11/agentry/issues/85)) ([3981af3](https://github.com/yeyo11/agentry/commit/3981af36f833255a1fed4aa6f1b08538a6e3432b))
+* read background work from disk so no screen depends on the live stream ([df9ae76](https://github.com/yeyo11/agentry/commit/df9ae76bf47319822897f0a179603613a3e6cd83))
+* read background work from disk so no screen depends on the live stream ([56a203c](https://github.com/yeyo11/agentry/commit/56a203cb08d2ba2405c304984405dd97bdcf7fe8))
+* **release:** attach the packages before publishing an immutable release ([#40](https://github.com/yeyo11/agentry/issues/40)) ([25386ac](https://github.com/yeyo11/agentry/commit/25386acdfde87aff61de9e8608c4944c7a018175))
+* **release:** publish the version tags on the image ([b5097be](https://github.com/yeyo11/agentry/commit/b5097be79148ed54e2ee6ba16f8e05f28c71a25a))
+* **release:** stop the release PR from rewriting source to bump the version ([1b8a738](https://github.com/yeyo11/agentry/commit/1b8a738328db41446a467376ca47ec94e931a27b))
+* **release:** stop the release PR from rewriting source to bump the version ([0697b9d](https://github.com/yeyo11/agentry/commit/0697b9d503304e7d16e871c0ae4442f0836ac20f))
+* resolve waitForResult for a run that already ended ([7f92a5d](https://github.com/yeyo11/agentry/commit/7f92a5dc2bfb1b21e255449993804c5a05a9ca54))
+* **runs:** keep internal runs across a restart so the planner stops vanishing ([2ca484e](https://github.com/yeyo11/agentry/commit/2ca484ef5c832457b6ab857d3194faf6b1b0132a))
+* show the output of slash commands and keep the chat's model ([#98](https://github.com/yeyo11/agentry/issues/98)) ([aaa771a](https://github.com/yeyo11/agentry/commit/aaa771a1ba4ed3fc9447fa10ddc77aa734c5ae79))
+* stop the desktop tray from locking the owner out of a token-guarded server ([#129](https://github.com/yeyo11/agentry/issues/129)) ([fefd386](https://github.com/yeyo11/agentry/commit/fefd386cbfd680b07ff47c8599865cfce53d5919))
+* the recovery paths, which the happy path had been hiding ([#83](https://github.com/yeyo11/agentry/issues/83)) ([cc939f7](https://github.com/yeyo11/agentry/commit/cc939f75141a2212ad6b5cdf5bb2e7dfe010fe1b))
+* **web:** colour code blocks the way shiki does, measured ([#56](https://github.com/yeyo11/agentry/issues/56)) ([d6560e1](https://github.com/yeyo11/agentry/commit/d6560e19a390704d538a883167bd6deff94bfa98))
+* **web:** count live sessions on the Sessions nav item ([c51923e](https://github.com/yeyo11/agentry/commit/c51923e6918b0b042011ed323996546b2b54d13c))
+* **web:** give the changes review its own cache key for a work item ([#122](https://github.com/yeyo11/agentry/issues/122)) ([aec6b38](https://github.com/yeyo11/agentry/commit/aec6b38a7ecb6bf86cdcfb2d1054421b6879755c))
+* **web:** keep the changes summary inside its panel and make the lens switch keyboard-reachable ([#116](https://github.com/yeyo11/agentry/issues/116)) ([d85446e](https://github.com/yeyo11/agentry/commit/d85446eaa57ea73ce80208ce9c421aafbd6d8770))
+* **web:** let a tooltip come and go without remounting its child ([4a9fe0c](https://github.com/yeyo11/agentry/commit/4a9fe0c255a8d7629885e399ff529407c0c9dce9))
+* **web:** show pushes on iOS and test pushes while the app is open ([#111](https://github.com/yeyo11/agentry/issues/111)) ([9a087b6](https://github.com/yeyo11/agentry/commit/9a087b6289c499b43db7780d4be9620d9c49e345))
+* **web:** sticky bars flush with the page's edges, chat header under the top bar, logo on phones ([#69](https://github.com/yeyo11/agentry/issues/69)) ([2868ed4](https://github.com/yeyo11/agentry/commit/2868ed437784f3febf02ccab2835338f3c0793df))
+* **web:** stop the run view freezing while typing a message ([#50](https://github.com/yeyo11/agentry/issues/50)) ([0209347](https://github.com/yeyo11/agentry/commit/020934737f9c2ab98b70b5c5520e674f26fb2710))
+* **web:** the chat takes the whole width, so its drawer reaches the edge ([#71](https://github.com/yeyo11/agentry/issues/71)) ([0e179c7](https://github.com/yeyo11/agentry/commit/0e179c7884e26614d244d7ac98299b7e0fe0ab09))
+* **web:** the pages of a chat read back survive leaving it ([#87](https://github.com/yeyo11/agentry/issues/87)) ([695bccb](https://github.com/yeyo11/agentry/commit/695bccbf2408f555f36a62e3c7b0b6ea5819e867))
+
+
+### Performance
+
+* **core:** chats list and chat detail stop re-reading the machine on every request ([#72](https://github.com/yeyo11/agentry/issues/72)) ([73aca06](https://github.com/yeyo11/agentry/commit/73aca06b17ad4ad51631fbfe30c03950a87d4d53))
+* **web:** keep the lazy form controls out of the first paint ([9f2668e](https://github.com/yeyo11/agentry/commit/9f2668e82775efa3e5c7b427d0458ccee9efff98))
+* **web:** merge highlighted tokens into coloured runs ([dea38a3](https://github.com/yeyo11/agentry/commit/dea38a33ad8421e214b784bda21350eba76a65d4))
+* **web:** render answers with @tanstack/markdown instead of react-markdown ([e7c2c25](https://github.com/yeyo11/agentry/commit/e7c2c2543a8699072499fcb5ea918f9844f461fe))
+* **web:** the chat view streams without re-rendering or re-reading the page ([#73](https://github.com/yeyo11/agentry/issues/73)) ([567c045](https://github.com/yeyo11/agentry/commit/567c0452955b9e1c970dd6851f385cfec3d07694))
+* **web:** the chats list stops rereading itself on every event ([#74](https://github.com/yeyo11/agentry/issues/74)) ([7ea9407](https://github.com/yeyo11/agentry/commit/7ea9407f52f73606d39799a11d3449d8982b7be4))
+
+
+### Refactoring
+
+* **core:** keep the upload store wiring apart from neighbouring changes ([7d7f743](https://github.com/yeyo11/agentry/commit/7d7f7435323cd153e9ba1b6db80dc812824684d6))
+* **orchestration:** let the CLI create the worktrees ([684799f](https://github.com/yeyo11/agentry/commit/684799fe8b58bb6188356d8b78274b6477c6f784))
+* **web:** build the scope picker on the Radix popover ([b213ba6](https://github.com/yeyo11/agentry/commit/b213ba67d9adcbc97112c235f5b82d752a818567))
+
+
+### Documentation
+
+* describe the themed form controls and when to use each one ([e8a515f](https://github.com/yeyo11/agentry/commit/e8a515f518346b406842ebace40955bd8730e157))
+* describe what landed since the first release ([0e17de3](https://github.com/yeyo11/agentry/commit/0e17de3bb83ba3f9750cc38c8710090cffb5ae0b))
+* **desktop:** document the Linux desktop app ([8f99700](https://github.com/yeyo11/agentry/commit/8f9970014ca0b26d1b749e3d446d58daf73892fa))
+* note what 0.11.0 left for the observability work ([#49](https://github.com/yeyo11/agentry/issues/49)) ([0d38623](https://github.com/yeyo11/agentry/commit/0d38623990aada865b7f5a67c551cd3c311fa1a8))
+* note which modules may import the controls barrel ([f96c9b8](https://github.com/yeyo11/agentry/commit/f96c9b8dcbe6d406c92c517d5c10b23e1eaecf59))
+* plan agent observability and make it the top roadmap priority ([#46](https://github.com/yeyo11/agentry/issues/46)) ([c25acd3](https://github.com/yeyo11/agentry/commit/c25acd372206097210ca28151aa09cd3f285162d))
+* plan the decision engine on main, and add its bounded exception to the one rule ([#138](https://github.com/yeyo11/agentry/issues/138)) ([e7519f8](https://github.com/yeyo11/agentry/commit/e7519f86765b8f497bc5f4d5e1e5e6a6801590b1))
+* **plans:** plan code hosts and issue trackers through their CLIs ([#149](https://github.com/yeyo11/agentry/issues/149)) ([6dcb3b2](https://github.com/yeyo11/agentry/commit/6dcb3b253a37d0fb679b78577b12b01775f90692))
+* **plans:** plan multiple agent providers ([#147](https://github.com/yeyo11/agentry/issues/147)) ([4735d55](https://github.com/yeyo11/agentry/commit/4735d55673185920f48dea3a340e04c062d254a1))
+* **plans:** record the owner's answers to the three open questions of faster orchestrations ([#137](https://github.com/yeyo11/agentry/issues/137)) ([a9919e2](https://github.com/yeyo11/agentry/commit/a9919e288261e3c2a08d26f0731528de26b43809))
+* re-record the tour and the accounts still with the themed controls ([a545f3f](https://github.com/yeyo11/agentry/commit/a545f3ff051718b6215d464e6731f9e0f5fab71a))
+* record the project ecosystem as merged in [#118](https://github.com/yeyo11/agentry/issues/118) ([#125](https://github.com/yeyo11/agentry/issues/125)) ([51a6c3a](https://github.com/yeyo11/agentry/commit/51a6c3a3abdf6ada1b222884b626a1e9f6cac78e))
+* record the queued plans and the English-language decision ([#120](https://github.com/yeyo11/agentry/issues/120)) ([6412c44](https://github.com/yeyo11/agentry/commit/6412c44ce3cd57522d556b3356c298c298f07c0c))
+* **reports:** Jev in shadow, first measurements ([#143](https://github.com/yeyo11/agentry/issues/143)) ([75a6664](https://github.com/yeyo11/agentry/commit/75a6664a98d01d8f9fe4487035c3de79356635e6))
+* sync the documentation with the code ([#35](https://github.com/yeyo11/agentry/issues/35)) ([b93e0fa](https://github.com/yeyo11/agentry/commit/b93e0fa55526fe5d98fecabafef005ce1da96fe2))
+* where the project stands, and the knowledge base that keeps it ([#89](https://github.com/yeyo11/agentry/issues/89)) ([90f46c0](https://github.com/yeyo11/agentry/commit/90f46c0746046b1c96628d7913cb0b7c4ccc851c))
+
+
+### Build and packaging
+
+* automate releases with release-please ([85f4d4b](https://github.com/yeyo11/agentry/commit/85f4d4b10e66cff545112b9a25e9ecdf2b1e539d))
+* **deps:** bump actions/attest-build-provenance from 2 to 4 ([45df85c](https://github.com/yeyo11/agentry/commit/45df85cd4f70193f52e8524380469d2dd91429c6))
+* **deps:** bump actions/attest-build-provenance from 2 to 4 ([443b605](https://github.com/yeyo11/agentry/commit/443b6054bcda5519e15ce6f35fbd6f13c6f80441))
+* **deps:** bump actions/checkout from 4 to 7 ([02aa7f6](https://github.com/yeyo11/agentry/commit/02aa7f6ae367d51ddd07561301c2835b5354157b))
+* **deps:** bump actions/checkout from 4 to 7 ([77c3abe](https://github.com/yeyo11/agentry/commit/77c3abe9a21b7d69ae470ecd004760a9b6f20518))
+* **deps:** bump docker/build-push-action from 6 to 7 ([8439b6c](https://github.com/yeyo11/agentry/commit/8439b6c16ee7197093e4621571f01bc8a52984c3))
+* **deps:** bump docker/build-push-action from 6 to 7 ([4600a72](https://github.com/yeyo11/agentry/commit/4600a7234889db6dd92cd29250ff3e5e85fa1e60))
+* **deps:** bump docker/metadata-action from 5 to 6 ([d526aa3](https://github.com/yeyo11/agentry/commit/d526aa3f6f4922646d7b3e9ef7f0b596c46d6e65))
+* **deps:** bump docker/metadata-action from 5 to 6 ([180aa2b](https://github.com/yeyo11/agentry/commit/180aa2bd9a419d62194df33ca1b80a866f17957c))
+* **deps:** bump docker/setup-buildx-action from 3 to 4 ([7ee9ef9](https://github.com/yeyo11/agentry/commit/7ee9ef9b51034fb1786ca1a2c866f3f454770733))
+* **deps:** bump docker/setup-buildx-action from 3 to 4 ([3b7495f](https://github.com/yeyo11/agentry/commit/3b7495f1a2fff0b7a0d5e5ac8f3a8837b4cbb43a))
+* grant the image permissions on the calling jobs ([a213867](https://github.com/yeyo11/agentry/commit/a213867d8f60b416854cec3d125bc227e8fc2fbf))
+
 ## [0.28.0](https://github.com/yeyo11/agentry/compare/v0.27.0...v0.28.0) (2026-09-30)
 
 
