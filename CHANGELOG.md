@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.25.1](https://github.com/yeyo11/agentry/compare/v0.25.0...v0.25.1) (2026-09-30)
+
+
+### Documentation
+
+* plan the decision engine on main, and add its bounded exception to the one rule ([#138](https://github.com/yeyo11/agentry/issues/138)) ([e7519f8](https://github.com/yeyo11/agentry/commit/e7519f86765b8f497bc5f4d5e1e5e6a6801590b1))
+
 ## [0.25.0](https://github.com/yeyo11/agentry/compare/v0.24.0...v0.25.0) (2026-09-30)
 
 
