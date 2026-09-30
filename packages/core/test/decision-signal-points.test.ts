@@ -314,7 +314,11 @@ test('notification.urgency: on the CLI an active point only records, and the pus
   const { push, events, sent } = pushOf(engine, 'all');
   const today = await pushed(null, 'all');
   events.emit(waiting);
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  // The push must go out while the decision is still held back. How long the delivery takes depends on
+  // the machine (a fixed 50 ms failed on a loaded CI runner), so wait for it, up to a generous limit,
+  // instead of guessing an interval; the gate stays closed the whole time
+  const deadline = Date.now() + 5000;
+  while (sent.length < today.length && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 10));
   assert.deepEqual(sent, today, 'delivered while the decision is still pending');
   release();
   await push.idle();
