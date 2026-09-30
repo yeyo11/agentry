@@ -250,6 +250,16 @@ export { previewCron, Scheduler, SLOT_GRACE_MS, type ScheduleLauncher } from './
 export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
 export { JOURNAL_HANDOFF_BYTES, JournalService, type JournalHandoff, type JournalWrite } from './journal.ts';
 export { MemoryProposalService, type ProposalOrigin } from './memory-proposals.ts';
+export {
+  installDirs,
+  nvmBinDirs,
+  probeLoginShellPath,
+  resolveCommand,
+  resolveUserPath,
+  SHELL_PATH_PROBE_ENV,
+  type ShellPathFailure,
+  type ShellPathResult,
+} from './providers/path.ts';
 export { idOfEndpoint, parseRegistration, payloadOf, PushService, truncateEndpoint, type PushTransport } from './push.ts';
 export {
   DEFAULT_SUPERVISOR,
