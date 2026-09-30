@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-09-29T12:00:00Z
+updated_at: 2026-09-30T12:51:28Z
 tags:
     - design-system
     - web
@@ -30,7 +30,7 @@ string in i18n: `en` is the source and `es` follows `apps/web/src/i18n/GLOSSARY.
 
 ## Idea
 
-The base is near-black neutrals and IDE density; the reference was Orca (onorca.dev). On top of it
+The base is near-black neutrals and IDE density. On top of it
 sits what makes Agentry recognisable, carried over from v1:
 
 - the terracotta → rose **gradient** on what matters,
@@ -228,7 +228,7 @@ status bar (30 px).
   - The icon-rail mode is kept.
 - **Top bar.** Project scope and crumb, the live chip ("N agentes trabajando"), the bell, and the
   "New chat" split button.
-- **Status bar.** Its style comes from Orca. It is always visible on desktop and shows:
+- **Status bar.** It is always visible on desktop and shows:
   - the connection dot and the active account,
   - the 5 h and 7 d bars,
   - the number of agents running,

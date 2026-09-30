@@ -132,6 +132,7 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 | [`plans/orchestration-speed.md`](plans/orchestration-speed.md) | Proposed, not started |
 | [`plans/agentry-assistant.md`](plans/agentry-assistant.md) | Proposed, next after the ecosystem |
 | [`plans/flow-start-and-chat-token.md`](plans/flow-start-and-chat-token.md) | Proposed; part 1 (starting the waiting cards) built by CW-9 on its own branch, not yet on `main`; part 2 (the chat token) not started |
+| [`plans/multi-provider.md`](plans/multi-provider.md) | Planned (2026-09-30): Agentry drives more agents than Claude Code — provider manifests, readiness detection and a first-run Providers step, then Claude on the Agent SDK, then Codex, ACP and Copilot. Owner's decisions at the end of the plan |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:29:53.447735844Z
-updated_at: 2026-09-25T18:55:39Z
+updated_at: 2026-09-30T12:51:28Z
 tags:
     - plan
     - design-system
@@ -50,7 +50,7 @@ the UI reads as flat and dull:
 ## Direction
 
 The base is near-black neutrals with Geist / Geist Mono, IDE density, hairline borders, mono labels
-and a status bar, as in Orca. On top of it we keep what makes Agentry recognisable: the terracotta →
+and a status bar. On top of it we keep what makes Agentry recognisable: the terracotta →
 rose gradient, the energy border on what is alive, the braille spinner, the live rail, and cyan
 reserved for live work. The design system has the tokens, the component map and the rules.
 
