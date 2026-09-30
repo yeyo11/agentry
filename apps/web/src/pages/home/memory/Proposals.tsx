@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useMemoryProposals } from '../../../api';
 import { MoreActions } from '../../../components/controls';
+import { DecisionMark } from '../../../components/DecisionMark';
 import { ICON_SM } from '../../../components/icons';
 import { useToast } from '../../../components/Toast';
 import { ErrorBox, Skeleton } from '../../../components/ui';
@@ -90,6 +91,7 @@ function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boo
       <span>
         · <time dateTime={proposal.createdAt}>{timeAgo(proposal.createdAt)}</time>
       </span>
+      <DecisionMark subjectKind="memory_proposal" subjectId={proposal.id} />
     </div>
   );
 

@@ -8,6 +8,7 @@ import type {
   DecisionPointId,
   DecisionPreview,
   DecisionProviderId,
+  DecisionSubjectKind,
 } from '@agentry/shared';
 
 /**
@@ -19,6 +20,8 @@ import type {
 /** Said on every write of the key (D12): the general notice, before any point's own preview */
 const PRIVACY_NOTICE =
   'A decision point set to Jev sends a redacted summary of its state (titles, descriptions, short excerpts) to TypeSafe, which runs the model. Nothing is sent until you consent to that point after previewing what it sends, and secrets are masked before anything leaves this machine.';
+
+const SUBJECT_KINDS: readonly DecisionSubjectKind[] = ['work_item', 'flow_run', 'task', 'chat', 'memory_proposal', 'assistant_run', 'notification', 'palette'];
 
 const DEFAULT_STATS_DAYS = 30;
 const DAY_MS = 86_400_000;
@@ -53,8 +56,12 @@ function filterOf(query: FilterQuery): Omit<DecisionPageQuery, 'cursor' | 'limit
   const status = oneOf(query.status, ['answered', 'unavailable'] as const, 'status');
   const since = isoOf(query.since, 'since');
   const until = isoOf(query.until, 'until');
+  const subjectKind = oneOf<DecisionSubjectKind>(query.subjectKind, SUBJECT_KINDS, 'subjectKind');
   return {
     ...(point ? { point } : {}),
+    ...(subjectKind ? { subjectKind } : {}),
+    ...(query.subjectId ? { subjectId: query.subjectId } : {}),
+    ...(query.visible === 'true' || query.visible === '1' ? { visible: true } : {}),
     ...(query.projectId ? { projectId: query.projectId } : {}),
     ...(provider ? { provider } : {}),
     ...(mode ? { mode } : {}),

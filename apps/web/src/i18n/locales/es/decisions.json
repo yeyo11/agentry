@@ -256,5 +256,42 @@
     "shownMore_other": "{{formatted}} decisiones cargadas",
     "more": "Cargar más",
     "loading": "Cargando…"
+  },
+  "mark": {
+    "decided": "decidido · {{confidence}}",
+    "suggested": "sugerido",
+    "labelDecided": "Decidido por Agentry, confianza {{confidence}}: {{answer}}. Ver la respuesta",
+    "labelSuggested": "Sugerido por Agentry: {{answer}}. Ver la respuesta",
+    "popoverLabel": "Respuesta de Agentry",
+    "close": "Cerrar",
+    "answer": "Respuesta",
+    "modeThreshold": "{{mode}} · umbral {{threshold}}",
+    "pending": "Aún no se sabe",
+    "ask": "¿Te ha servido?",
+    "history": "Ver en el historial",
+    "titles": {
+      "flowRefineNeeded": "Decidió que la tarjeta necesitaba refinarse",
+      "flowBounce": "Devolvió la tarjeta",
+      "flowScopeDrift": "Detectó trabajo fuera del alcance",
+      "flowCriteriaPrecheck": "Comprobó los criterios antes de QA",
+      "flowCriteriaMerge": "Fusionó criterios casi idénticos",
+      "flowRestart": "Volvió a encolar una ejecución",
+      "boardTriage": "Clasificó la tarea",
+      "teamAssign": "Propuso un miembro del equipo",
+      "memoryTriage": "Ordenó la propuesta",
+      "journalRelevance": "Eligió las entradas del diario",
+      "assistantRerank": "Reordenó las propuestas",
+      "assistantSources": "Eligió qué leer primero",
+      "orchestrationRetry": "Reintentó la tarea",
+      "orchestrationModel": "Propuso un modelo",
+      "orchestrationFixer": "Eligió al corrector",
+      "runContinuation": "Continuó la ejecución",
+      "supervisorIntervene": "Sugirió una intervención",
+      "healthSemanticLoop": "Detectó un bucle",
+      "healthTestWeakening": "Marcó un test debilitado",
+      "changesUnexplainedHunk": "Marcó un cambio sin explicar",
+      "notificationUrgency": "Fijó la urgencia",
+      "paletteIntent": "Eligió el comando"
+    }
   }
 }

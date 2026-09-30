@@ -384,7 +384,7 @@ export class DecisionResolvers {
     try {
       const points = RESOLVED_POINTS.map(() => '?').join(',');
       const ids = this.deps.sql
-        .prepare(`SELECT id FROM decisions WHERE resolved_at IS NULL AND status = 'answered' AND answers IS NOT NULL AND at >= ? AND point IN (${points}) ORDER BY seq DESC LIMIT ${SWEEP_MAX}`)
+        .prepare(`SELECT id FROM decisions WHERE outcome IS NULL AND status = 'answered' AND answers IS NOT NULL AND at >= ? AND point IN (${points}) ORDER BY seq DESC LIMIT ${SWEEP_MAX}`)
         .all(since, ...RESOLVED_POINTS) as unknown as Array<{ id: string }>;
       for (const { id } of ids) {
         const row = this.deps.db.decision(id);

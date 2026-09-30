@@ -1201,24 +1201,27 @@ export class Db {
 
   /**
    * Records what really happened. A person's feedback outranks the inference, so `agreed` is left
-   * alone once there is some. False when the row is gone or was already resolved: a point may report
+   * alone once there is some. False when the row is gone or already has an outcome (a rating alone does not count): a point may report
    * twice, and the first word stands.
    */
   resolveDecision(id: string, outcome: DecisionResolution, at: string): boolean {
     const result = this.db
       .prepare(
-        `UPDATE decisions SET outcome = ?, resolved_at = ?, agreed = CASE WHEN feedback IS NULL THEN ? ELSE agreed END
-         WHERE id = ? AND resolved_at IS NULL`,
+        `UPDATE decisions SET outcome = ?, resolved_at = COALESCE(resolved_at, ?), agreed = CASE WHEN feedback IS NULL THEN ? ELSE agreed END
+         WHERE id = ? AND outcome IS NULL`,
       )
       .run(JSON.stringify(outcome), at, outcome.agreed ? 1 : 0, id);
     return Number(result.changes) > 0;
   }
 
-  /** Useful agrees with the answer and not useful disagrees (D13); the latest word replaces the last. */
+  /**
+   * Useful agrees with the answer and not useful disagrees (D13); the latest word replaces the last.
+   * A person's word is also a resolution, so `resolved_at` is set unless something already set it.
+   */
   setDecisionFeedback(id: string, feedback: DecisionFeedback, at: string): boolean {
     const result = this.db
-      .prepare('UPDATE decisions SET feedback = ?, feedback_at = ?, agreed = ? WHERE id = ?')
-      .run(feedback, at, feedback === 'useful' ? 1 : 0, id);
+      .prepare('UPDATE decisions SET feedback = ?, feedback_at = ?, agreed = ?, resolved_at = COALESCE(resolved_at, ?) WHERE id = ?')
+      .run(feedback, at, feedback === 'useful' ? 1 : 0, at, id);
     return Number(result.changes) > 0;
   }
 
@@ -1529,6 +1532,9 @@ function decisionWhere(filter: DecisionFilter): { where: string[]; params: SQLIn
   };
   add('point = ?', filter.point);
   add('project_id = ?', filter.projectId);
+  add('subject_kind = ?', filter.subjectKind);
+  add('subject_id = ?', filter.subjectId);
+  if (filter.visible) where.push('visible = 1');
   add('provider = ?', filter.provider);
   add('mode = ?', filter.mode);
   add('status = ?', filter.status);

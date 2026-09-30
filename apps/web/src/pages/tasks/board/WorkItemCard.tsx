@@ -3,6 +3,7 @@ import { Ban, Check, Folder } from 'lucide-react';
 import type { CSSProperties, DragEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { DecisionMarkOf, useVisibleDecisions } from '../../../components/DecisionMark';
 import { Monogram, nameHue, PriorityMark, WorkItemKey, WorkItemTypeIcon } from '../../../components/icons';
 import { stripNamesAssignee, taskPath, workItemLiveState, workItemStrip, type WorkItemStripState } from '../../../lib/work-items';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
@@ -105,7 +106,7 @@ export function CardContext({
   trailing,
   phone = false,
 }: {
-  item: Pick<WorkItem, 'type' | 'epic' | 'labels'>;
+  item: Pick<WorkItem, 'id' | 'type' | 'epic' | 'labels'>;
   project?: string | undefined;
   trailing?: ReactNode;
   /** A phone row names the project by its monogram, as MobileTareasTodos does */
@@ -114,7 +115,8 @@ export function CardContext({
   const { t } = useTranslation('tasks');
   const labels = item.type === 'epic' ? [] : item.labels;
   const epic = item.type === 'epic' ? null : item.epic;
-  if (!project && !epic && labels.length === 0 && !trailing) return null;
+  const decided = useVisibleDecisions('work_item').get(item.id);
+  if (!project && !epic && labels.length === 0 && !trailing && !decided) return null;
   return (
     <div className="workitem-context">
       {project && (
@@ -137,6 +139,7 @@ export function CardContext({
           ))}
         </span>
       )}
+      {decided && <DecisionMarkOf decision={decided} />}
       {trailing && (
         <>
           <span className="grow" />
