@@ -489,6 +489,8 @@ export class Core {
     this.decisions.startPruning();
     this.orchestrator.decisions = this.decisions;
     this.orchestrator.projectOf = (cwd) => this.projectOf(resolve(cwd)).project?.id ?? null;
+    this.push.decisions = this.decisions;
+    this.health.decisions = this.decisions;
     this.healthMonitor = new HealthMonitor({
       runtime: this.runtime,
       health: this.health,
@@ -514,6 +516,7 @@ export class Core {
       chats: this.chats,
       sessions: this.sessions,
       runtime: this.runtime,
+      decisions: this.decisions,
       // A chat on a work item works in the item's worktree, cut from the project's checkout
       forkedFrom: (chatId) => {
         const itemId = this.workItems.linksOfChat(chatId).find((l) => l.kind === 'chat' && l.role !== 'origin')?.itemId;
@@ -1992,6 +1995,10 @@ export class Core {
   async workItemChanges(itemId: string, scope: ChangeScope = {}): Promise<WorkItemChanges> {
     const item = await this.workItemAccess(itemId, 'read');
     const path = this.projectStore.get(item.projectId)?.path ?? item.worktree ?? '';
+    // The scope-drift point flags in the background; the page never waits for it
+    if (!scope.commit && !scope.uncommitted) {
+      void this.changes.scopeDrift(path, item, { id: item.id, projectId: item.projectId, title: item.title, criteria: item.acceptanceCriteria.map((c) => c.text) });
+    }
     return { worktree: item.worktree, branch: item.branch, summary: this.changes.itemChanges(path, item, scope) };
   }
 

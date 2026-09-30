@@ -38,6 +38,10 @@ export const HEALTH_REASONS = {
   'health.loop.command': (p: { command: string; count: number }) => `\`${p.command}\` ran ${String(p.count)} times with the same result.`,
   'health.loop.call': (p: { tool: string; count: number }) => `The same ${p.tool} call ran ${String(p.count)} times with the same result.`,
   'health.loop.error': (p: { error: string; count: number }) => `The same error came back ${String(p.count)} times: "${p.error}"`,
+  'health.loop.semantic': (p: { count: number }) =>
+    `The last ${String(p.count)} steps look like the same attempt again (a suggestion: no step repeated exactly).`,
+  'health.weakenedTest.judged': (p: { file: string }) =>
+    `\`${p.file}\` was edited and the edit may assert less than before (a suggestion, not a certainty).`,
   'health.weakenedTest.assertionsRemoved': (p: { file: string; count: number }) =>
     `\`${p.file}\` was edited so that it asserts less: ${String(p.count)} ${p.count === 1 ? 'assertion' : 'assertions'} removed.`,
   'health.weakenedTest.skipped': (p: { file: string }) => `\`${p.file}\` was edited so that it asserts less: a test is skipped.`,

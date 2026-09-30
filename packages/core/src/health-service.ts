@@ -6,8 +6,9 @@ import type { Db } from './db.ts';
 import { runRef } from './event-sources.ts';
 import type { AgentryEventInput } from './events.ts';
 import { git, headCommit, isGitRepo } from './git.ts';
-import { HEALTH_REASONS } from './health-strings.ts';
-import { budget, lastFileChangeAt, loop, noProgress, repeatStall, runningCommands, weakenedTests } from './health.ts';
+import { HEALTH_REASONS, said } from './health-strings.ts';
+import type { DecisionEngine } from './decisions/engine.ts';
+import { budget, judgedWeakening, lastFileChangeAt, loop, noProgress, repeatStall, runningCommands, semanticLoopState, unflaggedTestEdits, weakenedTests, type ToolCall, type Trace } from './health.ts';
 
 /** What a chat's health needs beyond what its process shows: the parts only the chat service knows. */
 export interface HealthBase {
@@ -34,6 +35,16 @@ export class HealthService {
   /** What a worktree looked like when last read, and since when it has looked like that */
   private readonly worktrees = new Map<string, { execution: string; fingerprint: string; changedAt: string; checkedAt: number }>();
   private readonly repos = new Map<string, boolean>();
+  /**
+   * The decision engine, set once it exists. Both points below are suggestions that only ever add a
+   * signal, so a worker's own edits can never talk one away.
+   */
+  decisions: Pick<DecisionEngine, 'ask' | 'effective'> | null = null;
+  /** Per chat: the semantic loop point's last question and what it answered */
+  private readonly loops = new Map<string, { asked: string; callsAtAsk: number; inFlight: boolean; flagged: { count: number; since: string } | null }>();
+  /** Per chat: the test edits the weakening point has been asked about, and those it flagged */
+  private readonly tests = new Map<string, { asked: Set<string>; flagged: Map<string, ToolCall> }>();
+  private readonly pending = new Set<Promise<unknown>>();
 
   constructor(
     private readonly runtime: ChatManager,
@@ -85,6 +96,61 @@ export class HealthService {
 
   forget(id: string): void {
     this.worktrees.delete(id);
+    this.loops.delete(id);
+    this.tests.delete(id);
+  }
+
+  /** Resolves once every decision asked in the background is over: what a test waits on instead of a clock */
+  async idle(): Promise<void> {
+    while (this.pending.size) await Promise.allSettled([...this.pending]);
+  }
+
+  private track(work: Promise<unknown>): void {
+    this.pending.add(work);
+    void work.finally(() => this.pending.delete(work));
+  }
+
+  /** A judgment is never waited for: `read` is polled, so a point asks in the background and a later read shows what it said. */
+  private semanticLoop(chatId: string, trace: Trace): HealthSignal | null {
+    const engine = this.decisions;
+    if (!engine || engine.effective('health.semantic-loop', null).mode === 'off') return null;
+    const entry = this.loops.get(chatId) ?? { asked: '', callsAtAsk: 0, inFlight: false, flagged: null };
+    this.loops.set(chatId, entry);
+    const state = semanticLoopState(trace);
+    // Only worth asking after the worker has done several new steps since the last question
+    if (state && !entry.inFlight && state.lastCallId !== entry.asked && trace.calls.length - entry.callsAtAsk >= 4) {
+      entry.inFlight = true;
+      entry.asked = state.lastCallId;
+      entry.callsAtAsk = trace.calls.length;
+      const asking = engine.ask('health.semantic-loop', { kind: 'chat', id: chatId, data: { calls: state.calls } }, { projectId: null }).then((outcome) => {
+        const answer = outcome.answers?.loop;
+        entry.flagged = outcome.act && answer?.kind === 'noul' && answer.value ? { count: state.calls.length, since: state.firstAt } : null;
+      }).finally(() => {
+        entry.inFlight = false;
+      });
+      this.track(asking);
+    }
+    if (!entry.flagged || !state) return null;
+    return { kind: 'loop', level: 'warn', ...said('health.loop.semantic', { count: entry.flagged.count }, 'health.hint.loop'), since: entry.flagged.since };
+  }
+
+  private judgedTests(chatId: string, trace: Trace): HealthSignal[] {
+    const engine = this.decisions;
+    if (!engine || engine.effective('health.test-weakening', null).mode === 'off') return [];
+    const entry = this.tests.get(chatId) ?? { asked: new Set<string>(), flagged: new Map<string, ToolCall>() };
+    this.tests.set(chatId, entry);
+    const fresh = unflaggedTestEdits(trace).filter((e) => !entry.asked.has(e.key)).slice(0, 3);
+    for (const edit of fresh) {
+      entry.asked.add(edit.key);
+      const asking = engine
+        .ask('health.test-weakening', { kind: 'chat', id: chatId, data: { path: edit.path, before: edit.before, after: edit.after } }, { projectId: null })
+        .then((outcome) => {
+          const answer = outcome.answers?.weakened;
+          if (outcome.act && answer?.kind === 'noul' && answer.value && !entry.flagged.has(edit.path)) entry.flagged.set(edit.path, edit.call);
+        });
+      this.track(asking);
+    }
+    return [...entry.flagged].map(([path, call]) => judgedWeakening(path, call));
   }
 
   /** The chat's health at a moment; the clock is a parameter because what it measures is a stretch of time. */
@@ -115,6 +181,8 @@ export class HealthService {
     };
 
     const busy: Array<HealthSignal | null> = [repeatStall(trace, { fallbackMs: HUNG_COMMAND_MS, usualOf }, nowMs), loop(trace)];
+    // The exact rule comes first: the judged one only speaks where it is silent
+    if (!busy[1]) busy.push(this.semanticLoop(id, trace));
     // Progress is only asked of a chat that is working: one waiting for a person is not slow
     if (base.state === 'working') {
       const written = lastFileChangeAt(trace);
@@ -123,8 +191,10 @@ export class HealthService {
     }
     facts.extra = busy.filter((s): s is HealthSignal => s !== null);
     // What a worker did to its tests, and how much of its allowance is left, stay true while it waits
+    const weakened = weakenedTests(trace);
     facts.standing = [
-      ...weakenedTests(trace),
+      ...weakened,
+      ...this.judgedTests(id, trace).filter((j) => !weakened.some((w) => w.detail === j.detail)),
       ...(base.limits ? [budget(base.limits, { elapsedMs: base.taskElapsedMs ?? 0, costUsd: base.taskSpentUsd ?? 0 })] : []),
     ].filter((s): s is HealthSignal => s !== null);
     const health = chatHealth(facts, nowMs);
