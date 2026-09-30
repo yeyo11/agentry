@@ -271,12 +271,19 @@ A launcher does not start the app from a login shell, so it would not see a `PAT
 shell profile (nvm, npm prefixes, `~/.local/bin`). To find the CLI the app builds the server's
 `PATH` from, in order:
 
-1. The `PATH` of your login shell, read with `$SHELL -ilc` (5 second timeout).
+1. The `PATH` of your login shell, read with `$SHELL -ilc` (5 second timeout). The output is
+   read between delimiters, so a banner printed by an rc file does not matter, and the shell runs
+   with `AGENTRY_SHELL_PATH_PROBE=1` set, which an rc file can test to skip prompts and plugins.
+   When it cannot be read (no `$SHELL`, a timeout, a shell that does not start or one that prints
+   no `PATH`) the app carries on with the next two.
 2. The `PATH` the app itself was started with.
-3. Common install locations: `~/.local/bin`, `~/.npm-global/bin`, `~/.bun/bin`, `~/.volta/bin`,
-   `~/.claude/local`, `/usr/local/bin`, `/usr/bin` and `/bin`.
+3. Install locations: `~/.local/bin`, `~/.claude/local`, `~/.npm-global/bin`, `~/.bun/bin`,
+   `~/.volta/bin`, the asdf and mise shims, pnpm's home, every nvm version (the one `nvm alias default`
+   points at first, then the newest), Homebrew, nix, `/snap/bin`, `/usr/local/bin`, `/usr/bin` and `/bin`.
 
-Directories that do not exist are dropped. If the UI still says **Claude Code CLI not detected**:
+The commands are then looked up in those directories with the file system alone (an executable
+file), without spawning `which`. The server does the same when it starts on its own (`pnpm dev`, a
+service, the standalone bundle), so it finds what your terminal finds. Directories that do not exist are dropped. If the UI still says **Claude Code CLI not detected**:
 
 1. Run `which claude` in a terminal. If that finds nothing, install the CLI first.
 2. Check `~/.config/Agentry/logs/desktop.log`, and `server.log` for the server's own output.
