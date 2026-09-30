@@ -1,4 +1,5 @@
 from data import *
+from decisions import *
 
 
 def view_seg(on):
@@ -47,9 +48,28 @@ def epics_first(keys):
   return sorted(keys, key=lambda k: (W[k]['t'] != 'epic', RANK.index(k) if k in RANK else 0))
 
 
+# Cards a decision changed: AGN-39 was classified by Jev (bug, urgent) and AGN-44 by the CLI, which
+# gives no confidence, so it reads "sugerido". Nothing shows on the others: the mark is only where
+# a decision changed something the person sees.
+def marks(open_key=None):
+  return {'AGN-39': mark('0,93', open_key == 'AGN-39', 'bug, urgente'), 'AGN-44': mark(None, open_key == 'AGN-44', 'tarea, prioridad baja')}
+
+
+def board_decided_desktop():
+  cols = ''.join(col(s, epics_first(by_col(s)), marks=marks('AGN-39')) for s, _ in COLS)
+  pop = popover('left: 126px; top: 426px', **dict(TRIAGE), useful=None)
+  main = f'''<main class="page" style="gap: 16px; position: relative">
+{head('claude-wrapper · 13 abiertas · clave <span class="mono">AGN</span>')}
+{toolbar()}
+<div class="wi-board">{cols}</div>
+{pop}
+</main>'''
+  write('DesktopTableroDecidido.html', desktop('Tablero · decidido', 'tasks', '<span style="font-weight: 500">Tareas</span>', main))
+
+
 def board_desktop():
   selected = ('AGN-36', 'AGN-33')
-  cols = ''.join(col(s, epics_first(by_col(s)), sel_mode=True, selected=selected) for s, _ in COLS)
+  cols = ''.join(col(s, epics_first(by_col(s)), sel_mode=True, selected=selected, marks=marks()) for s, _ in COLS)
   main = f'''<main class="page selecting" style="gap: 16px; position: relative">
 {head('claude-wrapper · 13 abiertas · clave <span class="mono">AGN</span>', select=True)}
 {toolbar()}
@@ -71,7 +91,7 @@ def mhead(title, sub=None, back=None, right=''):
   return f'<header class="m-head" style="padding-left: {4 if back else 16}px">{b}<span class="col grow" style="gap: 1px"><h1 class="t-h1">{title}</h1>{s}</span>{right}</header>'
 
 
-def mrow(k, show_status=False, strip=None, who=None, lead=(), crit=None):
+def mrow(k, show_status=False, strip=None, who=None, lead=(), crit=None, mark=''):
   """A work item on the phone board: the card's anatomy in a full-width row. The title wraps; the
   strip at its foot says what is happening to it, as on the desktop card."""
   w = W[k]
@@ -104,20 +124,20 @@ def mrow(k, show_status=False, strip=None, who=None, lead=(), crit=None):
   ctx_html = f'<span class="wi-card-ctx" style="font-size: 13px">{"".join(ctx)}</span>' if ctx else ''
   foot = f'<span class="wi-card-foot" style="font-size: 12px">{"".join(facts)}{assignee}</span>' if (facts or assignee) else ''
   return f'''<a href="MobileTarea.html" class="{cls}">
-<span class="row" style="gap: 8px">{st}{tico(w['t'])}<span class="wi-key">{k}</span><span class="grow"></span>{prio(w['p'])}</span>
+<span class="row" style="gap: 8px">{st}{tico(w['t'])}<span class="wi-key">{k}</span><span class="grow"></span>{mark}{prio(w['p'])}</span>
 <span style="font-weight: 500; font-size: 15px; line-height: 1.35">{w['title']}</span>
 {ctx_html}{foot}{strip}
 </a>'''
 
 
-def msection(s, keys, first=False, rows_html=None, head_right=''):
+def msection(s, keys, first=False, rows_html=None, head_right='', marks=None):
   n = len(counted(keys)) + (DONE_MORE if s == 'done' else 0)
   lim = LIMITS.get(s)
   over = lim is not None and n > lim
   cnt = f'<span class="wi-col-count"><b>{n}</b>/{lim}</span>' if lim else f'<span class="wi-col-count"><b>{n}</b></span>'
   # Over the limit: the count in the warn colour and the words, as the desktop column says it
   warn = f'<span class="row t-xs c-warn" style="gap: 5px; font-weight: 500">{ico("warn", "ico", "width: 12px; height: 12px")}Sobre el límite: {n} de {lim}</span>' if over else ''
-  rows = rows_html if rows_html is not None else ''.join(mrow(k) for k in keys)
+  rows = rows_html if rows_html is not None else ''.join(mrow(k, mark=(marks or {}).get(k, '')) for k in keys)
   return f'''<section class="col" style="gap: 8px" aria-label="{COL_WORD[s]}">
 <div class="row" style="gap: 8px; padding: 0 2px; flex-wrap: wrap">{sico(s)}<span class="t-label" style="color: var(--fg-2)">{COL_WORD[s]}</span><span class="{'c-warn ' if over else ''}wi-col-count">{cnt}</span><span class="grow"></span>{head_right}{warn}</div>
 <div class="card" style="overflow: hidden">{rows}</div>
@@ -164,7 +184,7 @@ def board_mobile():
 {mview_seg('board')}
 {mtoolbar()}
 {jump('todo')}
-{msection('todo', by_col('todo'))}
+{msection('todo', by_col('todo'), marks=marks())}
 {msection('in_progress', by_col('in_progress'))}
 </div>
 <a href="MobileNuevaTarea.html" class="fab" aria-label="Nueva tarea" style="padding: 0; width: 56px">{ico('plus', 'ico ico-lg', 'stroke-width: 2.2')}</a>
@@ -172,6 +192,22 @@ def board_mobile():
   write('MobileTablero.html', mobile('Tablero', inner, 'has-fab'))
 
 
+def board_decided_mobile():
+  # The same screen with the mark pressed: the answer is a bottom Sheet
+  sel = f'<a href="MobileTableroSeleccion.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Seleccionar para orquestar">{ico("tasks", "ico ico-lg")}</a>'
+  inner = f'''{mhead('Tareas', None, 'MobileMas.html', mproject_chip() + sel)}
+<div class="m-body stack" style="gap: 12px; margin-bottom: 76px">
+{mview_seg('board')}
+{mtoolbar()}
+{jump('todo')}
+{msection('todo', by_col('todo'), marks=marks('AGN-39'))}
+</div>
+{sheet(**dict(TRIAGE))}'''
+  write('MobileTableroDecidido.html', mobile('Tablero · decidido', inner))
+
+
 if __name__ == '__main__':
   board_desktop()
   board_mobile()
+  board_decided_desktop()
+  board_decided_mobile()

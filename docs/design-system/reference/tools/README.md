@@ -28,6 +28,7 @@ Python 3.12 or later (the generators use backslashes inside f-strings) with Pill
 | `chat.py` | `DesktopChatTarea`, `MobileChatTarea` |
 | `ai.py` | the assistant, suggested tasks and resources with AI, both sizes |
 | `team.py` | the screens the design review added: Team activity (`DesktopEquipoActividad`, `MobileEquipoActividad`), a failed flow run's chat (`DesktopChatFlujo`, `MobileChatFlujo`), the phone board while the team works it (`MobileTableroEquipo`, hand-drawn before) and the board's spec page `DSTablero`. Run after `desktop.py`; it imports it |
+| `decisions.py` | the decision engine's pieces: the mark, its popover and Sheet, the project override and the Usage line. Imported by `board.py` and `projects.py`; `DesktopMemoria`, `MobileMemoria*` and the Uso screens carry the same markup, edited as HTML |
 | `desktop.py` | desktop only: the board while the team works it (`DesktopTableroEquipo`, hand-drawn before), Tasks with All projects (`DesktopTareasTodos`), suggestions while they run (`DesktopSugerirTareasEnCurso`) and the assistant on an empty project (`DesktopAsistenteVacio`). `DesktopDocumentoEditar` has no generator: it is `DesktopDocumentos` with the editor open, edited as HTML |
 
 ```bash

@@ -92,7 +92,7 @@ def crit_fact(a, b):
   return (f'<span class="wi-fact wi-crit{full}" title="Criterios de aceptación: {a} de {b}"><span class="bar"><i style="width: {a / b * 100:.0f}%"></i></span>{a}/{b}</span>')
 
 
-def card(k, sel=None, who=None, strip=None, lead_facts=(), crit=None, comments=None, show_epic=True, proj=None):
+def card(k, sel=None, who=None, strip=None, lead_facts=(), crit=None, comments=None, show_epic=True, proj=None, mark=''):
   """One work item on the board, in the order a person reads it: what it is (type, key, priority),
   its title, where it belongs (epic, labels), its facts (criteria, blockers, comments) with its
   assignee, and what is happening to it now in the strip at its foot."""
@@ -116,6 +116,8 @@ def card(k, sel=None, who=None, strip=None, lead_facts=(), crit=None, comments=N
     ctx_bits.append(f'<span class="wi-epic bare" style="--hue: {h}">{n}</span>')
   if w.get('labels'):
     ctx_bits.append('<span class="row" style="gap: 6px">' + ''.join(f'<span class="wi-tag">{l}</span>' for l in w['labels']) + '</span>')
+  # The mark sits with where the card belongs, not in the top row, which is full at a card's width
+  if mark: ctx_bits.append(mark)
   ctx = f'<div class="wi-card-ctx">{"".join(ctx_bits)}</div>' if ctx_bits else ''
   body = ''
   if epic_card:
@@ -144,7 +146,7 @@ def card(k, sel=None, who=None, strip=None, lead_facts=(), crit=None, comments=N
   return f'<article class="{cls}" aria-label="{k} · {w["title"]}">{top}{title}{ctx}{body}{foot}{strip}</article>'
 
 
-def col(s, keys, sel_mode=False, selected=(), extra='', role_head='', cards=None, limits=True, more=None, add=True):
+def col(s, keys, sel_mode=False, selected=(), extra='', role_head='', cards=None, limits=True, more=None, add=True, marks=None):
   name = COL_WORD[s]
   real = counted(keys)
   n = len(real) + (DONE_MORE if s == 'done' else 0)
@@ -155,7 +157,7 @@ def col(s, keys, sel_mode=False, selected=(), extra='', role_head='', cards=None
   head = f'<div class="wi-col-head">{sico(s)}<span class="t-label">{name}</span>{cnt}<span class="grow"></span>{role_head}{plus}</div>'
   warn = f'<div class="wi-col-limit" role="status">{ico("warn")}Sobre el límite: {n} de {lim}</div>' if over else ''
   if cards is None:
-    cards = ''.join(card(k, (k in selected) if sel_mode and s != 'done' and W[k]['t'] != 'epic' else None) for k in keys)
+    cards = ''.join(card(k, (k in selected) if sel_mode and s != 'done' and W[k]['t'] != 'epic' else None, mark=(marks or {}).get(k, '')) for k in keys)
   if more is None and s == 'done':
     more = DONE_MORE
   more_btn = f'<button type="button" class="wi-col-more">Mostrar {more} más{ico("down", "ico ico-sm")}</button>' if more else ''
