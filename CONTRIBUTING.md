@@ -12,6 +12,16 @@ subcommand, a stream-json event, a file the CLI writes — it does not belong he
 
 This is what keeps the project honest: whatever Claude Code does, Agentry does, and nothing more.
 
+**One bounded exception: typed decision services.** Agentry may call an optional outside service
+that only answers small typed questions (a choice, a score, a yes/no) for its decision engine.
+Today there is exactly one, TypeSafe's Jev. It is allowed only while all of this holds: it is off
+by default and used with the owner's own key; it never replaces or reaches Claude Code (it writes
+no text or code, runs no agent and makes no call to Anthropic); it receives only the state a
+decision point declares, after the owner has consented to that point having seen a preview of it;
+and Agentry works in full with the `cli` provider alone, which asks the same questions through the
+Claude Code CLI (`--json-schema`). See
+[docs/decisions/decision-engine.md](docs/decisions/decision-engine.md).
+
 ## Getting set up
 
 You need Node >= 22, pnpm, and the Claude Code CLI on your `PATH`.

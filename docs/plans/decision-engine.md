@@ -698,8 +698,8 @@ D2 and D0 run in parallel with each other. D3 starts as soon as both D0 and `c7`
 
 ## Amendment to CONTRIBUTING.md
 
-This is D16. CW-5 asked for this text under "The one rule" in CONTRIBUTING.md. The Developer role
-that wrote this plan cannot write that file, so the text waits here for whoever applies it:
+This is D16. The text below is in CONTRIBUTING.md under "The one rule" since 2026-09-30 (added with
+CW-5's pull request):
 
 > **One bounded exception: typed decision services.** Agentry may call an optional outside service
 > that only answers small typed questions (a choice, a score, a yes/no) for its decision engine.

@@ -74,13 +74,12 @@ re-map every point, with file and function on `main`.
 The record said, at the time: write the English rule into CONTRIBUTING.md and CLAUDE.md and apply it
 to the ecosystem prompts; map every decision point again on main and add any new ones; write the
 plan from scratch as one delivery split into orchestrations landing on one feature branch; then
-prototypes. As of 2026-09-29:
+prototypes. As of 2026-09-30:
 
 - the plan is written: [plans/decision-engine.md](../plans/decision-engine.md) (CW-5);
-- the bounded exception of decision 16 is **not yet** in CONTRIBUTING.md: CW-5's Developer role
-  cannot write that file, so the exact text waits in the plan's
-  [Amendment to CONTRIBUTING.md](../plans/decision-engine.md#amendment-to-contributingmd), for a
-  person to add under "The one rule";
+- the bounded exception of decision 16 is in CONTRIBUTING.md under "The one rule" (added on
+  2026-09-30 with CW-5's pull request; text in the plan's
+  [Amendment to CONTRIBUTING.md](../plans/decision-engine.md#amendment-to-contributingmd));
 - the English rule of decision 4 is written into CONTRIBUTING.md and CLAUDE.md by its own work item
   (CW-2), not here.
 
