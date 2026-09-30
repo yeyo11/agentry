@@ -31,8 +31,8 @@ import type { DecisionsSection } from './settingsTabs';
 /** The server refuses a ceiling outside (0, 5] and a history outside 1..365 days. */
 const MAX_COST = 5;
 const MAX_HISTORY_DAYS = 365;
-const THRESHOLD_MIN = 0.5;
-const THRESHOLD_MAX = 0.99;
+export const THRESHOLD_MIN = 0.5;
+export const THRESHOLD_MAX = 0.99;
 /** Where Jev runs; the privacy notice names it so nobody has to guess where the state goes. */
 const JEV_HOST = 'api.typesafe.ai';
 /** "When it repeats" (D10): this many of the last `RECENT` Jev requests failing raises the warning. */
@@ -41,10 +41,10 @@ const REPEATS = 3;
 const EFFORTS = ['low', 'medium', 'high'] as const;
 type Effort = (typeof EFFORTS)[number];
 const isEffort = (value: string): value is Effort => (EFFORTS as readonly string[]).includes(value);
-const MODES: DecisionMode[] = ['off', 'shadow', 'active'];
+export const MODES: DecisionMode[] = ['off', 'shadow', 'active'];
 
 /** The ids hold dots, which i18next reads as nesting, so each point has a flat camelCase key. */
-const POINT_KEY: Record<DecisionPointId, string> = {
+export const POINT_KEY: Record<DecisionPointId, string> = {
   'flow.refine-needed': 'flowRefineNeeded',
   'flow.bounce': 'flowBounce',
   'flow.scope-drift': 'flowScopeDrift',
@@ -69,10 +69,10 @@ const POINT_KEY: Record<DecisionPointId, string> = {
   'palette.intent': 'paletteIntent',
 };
 
-type AreaId = 'flow' | 'board' | 'memory' | 'assistant' | 'orchestrations' | 'health' | 'review' | 'notifications' | 'palette';
+export type AreaId = 'flow' | 'board' | 'memory' | 'assistant' | 'orchestrations' | 'health' | 'review' | 'notifications' | 'palette';
 
 /** `run.continuation` sits under Orchestrations although it also serves the flow (the plan's call). */
-const AREAS: ReadonlyArray<{ id: AreaId; points: readonly DecisionPointId[] }> = [
+export const AREAS: ReadonlyArray<{ id: AreaId; points: readonly DecisionPointId[] }> = [
   { id: 'flow', points: ['flow.refine-needed', 'flow.bounce', 'flow.scope-drift', 'flow.criteria-precheck', 'flow.criteria-merge', 'flow.restart'] },
   { id: 'board', points: ['board.triage', 'team.assign'] },
   { id: 'memory', points: ['memory.triage', 'journal.relevance'] },

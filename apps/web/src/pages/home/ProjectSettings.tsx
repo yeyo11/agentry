@@ -9,6 +9,7 @@ import { FilesTab } from '../config/FilesTab';
 import { InstructionsTab } from '../config/InstructionsTab';
 import { McpTab } from '../config/McpTab';
 import { SettingsTab } from '../config/SettingsTab';
+import { ProjectDecisions } from './ProjectDecisions';
 import { ProjectGeneral } from './ProjectGeneral';
 
 // The ids double as the dirty keys the tabs register, which is what marks a section as unsaved
@@ -47,6 +48,7 @@ export function ProjectSettings({ project }: { project: Project }) {
   return (
     <>
       <ProjectGeneral project={project} />
+      <ProjectDecisions project={project} />
 
       <div className="project-cli-head">
         <h2>{t('settings.cliTitle')}</h2>
