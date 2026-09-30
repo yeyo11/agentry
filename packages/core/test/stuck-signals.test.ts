@@ -139,7 +139,11 @@ test('a command that ends well is recorded with how long it took, by kind', asyn
     await until(() => core.db.commandRuns('sleep').length === 1 && core.db.commandRuns('sleep'), 'the run to be recorded');
     const [run] = core.db.commandRuns('sleep');
     assert.equal(run?.outcome, 'ok');
-    assert.ok((run?.durationMs ?? 0) >= 900 && (run?.durationMs ?? 0) < 6000, `took ${String(run?.durationMs)} ms`);
+    // The clock starts when the host handles the event, and the fake starts its `sleep 1` right after
+    // writing it, so a busy machine only ever makes the recorded time shorter: 900 left a margin of
+    // 100 ms and failed at 848 ms on a loaded runner. What matters is that it is the time of the
+    // command, about a second, and not a timestamp or a count
+    assert.ok((run?.durationMs ?? 0) >= 500 && (run?.durationMs ?? 0) < 6000, `took ${String(run?.durationMs)} ms`);
     await until(() => core.runtime.get(chat.id)?.status === 'idle', 'the turn to end');
     // The same event twice (a replay) is one run, not two. `commandRuns` does not return the tool
     // use id, so the replay is told apart by a duration the real `sleep 1` above cannot produce
