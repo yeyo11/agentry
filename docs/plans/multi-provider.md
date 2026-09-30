@@ -393,7 +393,7 @@ goes on in another agent instead of stopping.
      model and whether it has a mapping, and the other providers' readiness and headroom. Outcome
      for shadow accuracy: whether the moved work passed its checks, and what it cost.
    - `provider.pick` (act, project): which ready provider runs a new task or stage, among the ones
-     the project's order allows. Extends `orchestration.model`, which already picks a model.
+     the project's order allows. It sits beside `orchestration.model`, which already suggests a model per task.
    - `provider.model-map` (suggest, global): proposes a counterpart when a model has none on the
      next provider; a person accepts it into the mapping.
 
