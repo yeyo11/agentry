@@ -1,4 +1,4 @@
-import type { ChangedFile, ChangeSummary, EditStep } from '@agentry/shared';
+import type { ChangedFile, ChangeSummary, DecisionRecord, EditStep } from '@agentry/shared';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
@@ -14,6 +14,7 @@ import {
   stableOrder,
   statusLetter,
   stepsFor,
+  unexplainedOf,
   workingFiles,
 } from '../src/components/changes/review-model.ts';
 
@@ -168,4 +169,29 @@ test('the fingerprint folds the smallest files into one segment once they do not
   // Ties fold the later file first
   const tied = printSegments([{ path: 'x', additions: 1, deletions: 0 }, { path: 'y', additions: 1, deletions: 0 }, { path: 'z', additions: 1, deletions: 0 }], 10);
   assert.deepEqual(tied.shown.map((f) => f.path), ['x']);
+});
+
+test('unexplainedOf flags the step whose sentence and patch a "yes" was given for, and only that one', () => {
+  const step = { diff: '@@ -1 +1 @@\n-a\n+b', intent: 'Rename a to b' };
+  const row = (over: Partial<DecisionRecord> & { value?: boolean } = {}): DecisionRecord =>
+    ({
+      point: 'changes.unexplained-hunk',
+      status: 'answered',
+      state: { hunk: step.diff, step: step.intent, title: 'x' },
+      answers: { unexplained: { kind: 'noul', value: over.value ?? true, confidence: 0.9 } },
+      at: '2026-09-30T10:00:00.000Z',
+      ...over,
+    }) as unknown as DecisionRecord;
+  assert.equal(unexplainedOf([row()], step)?.at, '2026-09-30T10:00:00.000Z');
+  // A "no" explains it; another step's row, another point and an unavailable row flag nothing
+  assert.equal(unexplainedOf([row({ value: false })], step), null);
+  assert.equal(unexplainedOf([row()], { ...step, intent: 'Something else' }), null);
+  assert.equal(unexplainedOf([row()], { diff: '@@ -2 +2 @@\n-c\n+d', intent: step.intent }), null);
+  assert.equal(unexplainedOf([row({ point: 'flow.scope-drift' })], step), null);
+  assert.equal(unexplainedOf([row({ status: 'unavailable' })], step), null);
+  assert.equal(unexplainedOf([row()], { diff: '', intent: step.intent }), null);
+  // The newest row of the step stands: a later "no" lifts the flag
+  assert.equal(unexplainedOf([row(), row({ value: false, at: '2026-09-30T11:00:00.000Z' })], step), null);
+  // No sentence before the edit compares as empty on both sides
+  assert.ok(unexplainedOf([{ ...row(), state: { hunk: step.diff, step: '' } }], { diff: step.diff, intent: null }));
 });

@@ -1,6 +1,6 @@
 // The review screen's decisions that do not need React: which files a scope lists, how the map
 // groups them, which one the agent is editing now, and what the transcript says about each.
-import type { ChangedFile, ChangeSummary, EditStep } from '@agentry/shared';
+import type { ChangedFile, ChangeSummary, DecisionPointId, DecisionRecord, EditStep } from '@agentry/shared';
 
 /** What part of the branch is reviewed: all the work, one commit, or what is not committed yet */
 export type ReviewScope = { kind: 'all' } | { kind: 'commit'; sha: string } | { kind: 'uncommitted' };
@@ -203,4 +203,29 @@ export function printSegments<T extends { additions: number; deletions: number }
     .map((x) => x.at);
   const kept = new Set(byChurn);
   return { shown: files.filter((_, at) => kept.has(at)), rest: files.filter((_, at) => !kept.has(at)) };
+}
+
+/** How much of a patch the engine was shown (core's `HUNK_CHARS`): what it was asked is compared as cut */
+const HUNK_CHARS = 3000;
+
+/** The point that judges whether the sentence before an edit explains it */
+export const UNEXPLAINED_POINT: DecisionPointId = 'changes.unexplained-hunk';
+
+/**
+ * The decision that flagged a step's patch as unexplained, or null. The engine's rows are per chat,
+ * not per step, so a row belongs to the step whose sentence and patch it was sent; only a "yes" to
+ * "does the sentence fail to explain it" flags, and the newest row of a step stands.
+ */
+export function unexplainedOf(decisions: readonly DecisionRecord[], step: Pick<EditStep, 'diff' | 'intent'>): DecisionRecord | null {
+  if (!step.diff) return null;
+  const hunk = step.diff.slice(0, HUNK_CHARS);
+  const said = step.intent ?? '';
+  let found: DecisionRecord | null = null;
+  for (const row of decisions) {
+    if (row.point !== UNEXPLAINED_POINT || row.status !== 'answered') continue;
+    if (row.state.hunk !== hunk || (row.state.step ?? '') !== said) continue;
+    if (!found || row.at > found.at) found = row;
+  }
+  const answer = found?.answers?.unexplained;
+  return found && answer?.kind === 'noul' && answer.value ? found : null;
 }

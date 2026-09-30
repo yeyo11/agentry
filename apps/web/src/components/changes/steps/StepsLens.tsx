@@ -12,7 +12,8 @@ import { Empty, ErrorBox, Skeleton } from '../../ui';
 import { DiffView } from '../DiffView';
 import { Intent } from '../Intent';
 import { Counts } from '../FileMap';
-import { hourMinute, splitPath } from '../review-model';
+import { hourMinute, splitPath, unexplainedOf } from '../review-model';
+import { useUnexplainedRows } from '../useUnexplained';
 import {
   conversationHref,
   patchSpan,
@@ -242,7 +243,7 @@ function StepDetail({ steps, current, prev, next, hrefOf, conversation, resultHr
       </div>
       <Why step={current} conversation={conversation} />
       <div className="edit-step-main">
-        <Patch step={current} wrap={false} />
+        <Patch step={current} wrap={false} conversation={conversation} />
         <SameFile steps={steps} current={current} hrefOf={hrefOf} resultHref={resultHref} />
       </div>
     </section>
@@ -295,8 +296,10 @@ function Why({ step, conversation, compact = false }: { step: EditStep; conversa
 }
 
 /** The step's own patch, in Unified, as the file was at that moment */
-function Patch({ step, wrap }: { step: EditStep; wrap: boolean }) {
+function Patch({ step, wrap, conversation }: { step: EditStep; wrap: boolean; conversation: string | null }) {
   const { t } = useTranslation('changes');
+  const rows = useUnexplainedRows(conversation);
+  const unexplained = useMemo(() => unexplainedOf(rows, step), [rows, step]);
   const diff = useMemo(() => (step.diff ? parseUnified(step.diff) : null), [step.diff]);
   const span = diff ? patchSpan(diff) : null;
   if (!diff || diff.hunks.length === 0)
@@ -310,7 +313,7 @@ function Patch({ step, wrap }: { step: EditStep; wrap: boolean }) {
           <span>{t('steps.asThen')}</span>
         </div>
       )}
-      <DiffView key={step.id} diff={diff} mode="unified" path={step.path} wrap={wrap} trimEdges className="edit-step-diff" />
+      <DiffView key={step.id} diff={diff} mode="unified" path={step.path} wrap={wrap} trimEdges unexplained={unexplained} className="edit-step-diff" />
     </div>
   );
 }
@@ -416,7 +419,7 @@ function PhoneStep({ steps, current, prev, next, hrefOf, conversation, live, bac
         </div>
         <StepPath path={current.path} />
         <Why step={current} conversation={conversation} compact />
-        <Patch step={current} wrap />
+        <Patch step={current} wrap conversation={conversation} />
       </div>
       <nav className="changes-phone-bar edit-steps-phone-bar" aria-label={t('steps.label')}>
         <StepMove to={prev} dir={-1} hrefOf={hrefOf} big />

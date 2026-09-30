@@ -197,3 +197,17 @@ test('the fingerprint is a link per file, as wide as its churn', () => {
   assert.match(html, /style="flex:1 1 0;--a:50%"/);
   assert.match(html, /href="\/chats\/c1\/changes\?file=a.ts"/);
 });
+
+test('a patch judged unexplained carries a note and the decided mark; without a decision there is none', () => {
+  const decision = {
+    id: 'd1',
+    point: 'changes.unexplained-hunk',
+    questions: [{ kind: 'noul', id: 'unexplained', question: 'Does it?' }],
+    answers: { unexplained: { kind: 'noul', value: true, confidence: 0.8 } },
+    confidence: 0.8,
+  } as unknown as Parameters<typeof DiffView>[0]['unexplained'];
+  const flagged = renderToStaticMarkup(<DiffView diff={GIT} mode="unified" path={PATH} syntax={null} unexplained={decision} />);
+  assert.match(flagged, /class="diff-unexplained"><span>What Claude wrote before this change does not explain it\./);
+  assert.match(flagged, /class="decided"[^>]*data-decision="d1"/);
+  assert.equal(count(renderToStaticMarkup(<DiffView diff={GIT} mode="unified" path={PATH} syntax={null} />), /diff-unexplained/g), 0);
+});

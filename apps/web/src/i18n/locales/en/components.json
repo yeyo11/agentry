@@ -494,6 +494,7 @@
     "binary": "Binary file: there is no text to compare.",
     "tooLarge": "This diff is too large to show.",
     "truncated": "The diff is cut here: the rest is too long to show.",
+    "unexplained": "What Claude wrote before this change does not explain it.",
     "onlyRenamed": "Only renamed: no line changed.",
     "noChanges": "No line changed.",
     "fingerprint": "Change fingerprint: each file as wide as what changed in it",
