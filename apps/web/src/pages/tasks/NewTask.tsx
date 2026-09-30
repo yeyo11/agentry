@@ -21,6 +21,7 @@ import { CriterionInput, LabelsInput, RemoveCriterion } from './new-task/Fields'
 import { blank, type Draft } from './new-task/model';
 import { useNewTaskPickers } from './new-task/pickers';
 import { Cell, FieldButton } from './new-task/Triggers';
+import { TriageNote, useTriage } from './new-task/triage';
 
 export interface NewTaskProps {
   /** The project the task goes into; with All projects, the form asks for one */
@@ -65,7 +66,13 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
     if (!offered.includes(draft.type)) set('type', firstType);
   }, [offered.join(','), firstType]);
 
-  const pickers = useNewTaskPickers(draft, set, person, project?.id ?? null);
+  const { triage, own } = useTriage({ projectId: project?.id ?? null, title: draft.title, description: draft.description, offered, set });
+  // The person's own choice of type or priority stops the suggestion from filling it again
+  const setByPerson: typeof set = (key, value) => {
+    if (key === 'type' || key === 'priority') own(key, value as Draft['type'] | Draft['priority']);
+    set(key, value);
+  };
+  const pickers = useNewTaskPickers(draft, setByPerson, person, project?.id ?? null);
 
   const create = useMutation({
     mutationFn: async () => {
@@ -116,7 +123,7 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
     <Segmented<WorkItemType>
       label={t('fields.type')}
       value={draft.type}
-      onChange={(type) => set('type', type)}
+      onChange={(type) => setByPerson('type', type)}
       options={WORK_ITEM_TYPE_META.filter((m) => offered.includes(m.type)).map((m) => ({
         value: m.type,
         label: (
@@ -210,6 +217,7 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
         <form id="newtask-form" className="newtask-form is-phone" onSubmit={submit}>
           {projectControl}
           {typeControl}
+          <TriageNote triage={triage} />
           {titleField}
           {descriptionField}
           <div className="newtask-cells">
@@ -289,6 +297,7 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
       <form id="newtask-form" className="newtask-form" onSubmit={submit}>
         {projectControl}
         {typeControl}
+        <TriageNote triage={triage} />
         {titleField}
         <div className="form-row">
           <span className="newtask-row-head">

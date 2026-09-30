@@ -265,3 +265,8 @@
     display: none;
   }
 }
+
+/* The mark of the command the model proposed: it sits before the group, as on a board card */
+.palette-decided {
+  flex: none;
+}

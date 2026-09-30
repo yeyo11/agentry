@@ -47,6 +47,7 @@ import {
   type WorkItemRelation,
   type WorkItemSource,
   type WorkItemStatus,
+  type WorkItemTriage,
   type WorkItemType,
   type WorkItemHistoryPullRequest,
   type WorkItemPullRequest,
@@ -147,14 +148,6 @@ export interface WorkItemServiceDeps {
   linkState?: (link: WorkItemLink) => WorkItemLinkState | null;
   /** The decision engine, for `board.triage`; without it nothing is suggested */
   decisions?: Pick<DecisionEngine, 'ask' | 'effective'>;
-}
-
-/** What `board.triage` suggests for a draft: a prefill for the person to keep or change, and a warning */
-export interface WorkItemTriage {
-  type: Exclude<WorkItemType, 'epic'>;
-  priority: WorkItemPriority;
-  /** An open item already seems to cover the draft; the warning does not name which */
-  duplicate: boolean;
 }
 
 const TRIAGE_ITEMS_MAX = 60;
@@ -459,7 +452,7 @@ export class WorkItemService {
       const { type, priority, duplicate } = outcome.answers ?? {};
       if (!outcome.act || type?.kind !== 'choice' || priority?.kind !== 'choice' || duplicate?.kind !== 'noul') return null;
       const kind = oneOf(type.value, ['task', 'bug', 'story'] as const, 'type');
-      return { type: kind, priority: oneOf(priority.value, WORK_ITEM_PRIORITIES, 'priority'), duplicate: duplicate.value };
+      return { type: kind, priority: oneOf(priority.value, WORK_ITEM_PRIORITIES, 'priority'), duplicate: duplicate.value, decisionId: outcome.decisionId };
     } catch {
       return null;
     }

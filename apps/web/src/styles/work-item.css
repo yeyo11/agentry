@@ -1400,6 +1400,20 @@ input.workitem-label-input {
   min-width: 0;
 }
 
+/* What board.triage did to the form: its mark and the duplicate warning, neutral since neither is a status */
+.newtask-triage {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.newtask-triage-dup {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-2);
+}
+
 .newtask-where {
   margin-left: auto;
   padding-right: 8px;

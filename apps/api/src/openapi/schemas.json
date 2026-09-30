@@ -13496,6 +13496,73 @@
     ],
     "description": "A selection of work items of one project to orchestrate, in the order they were picked."
   },
+  "TriageWorkItemRequest": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "title"
+    ],
+    "description": "A draft work item to triage: what the person has typed so far."
+  },
+  "TriageWorkItemResult": {
+    "type": "object",
+    "properties": {
+      "triage": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemTriage"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "triage"
+    ],
+    "description": "`triage` is null unless the point is active and answered in time: the form then stays as it is."
+  },
+  "WorkItemTriage": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string",
+        "enum": [
+          "story",
+          "task",
+          "bug"
+        ]
+      },
+      "priority": {
+        "$ref": "#/components/schemas/WorkItemPriority"
+      },
+      "duplicate": {
+        "type": "boolean",
+        "description": "An open item already seems to cover the draft; the warning does not name which"
+      },
+      "decisionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "type",
+      "priority",
+      "duplicate",
+      "decisionId"
+    ],
+    "description": "What `board.triage` suggests for a draft: a prefill for the person to keep or change, and a warning. It is the answer of the decision `decisionId`, which the form marks as decided."
+  },
   "WorkItemOrchestrationDraft": {
     "type": "object",
     "properties": {

@@ -1340,6 +1340,52 @@
 .usage-slices {
   margin-top: 16px;
 }
+/* The decision engine's spend, one quiet line: it is not a figure of the page, so no tile */
+.usage-decisions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-height: 40px;
+  margin-bottom: 16px;
+  padding: 0 16px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: var(--bg-1);
+  font-size: 13px;
+  color: var(--fg-2);
+}
+.usage-decisions svg {
+  flex-shrink: 0;
+  color: var(--fg-3);
+}
+.usage-decisions .lead {
+  font-weight: 500;
+  color: var(--fg);
+}
+.usage-decisions .sep {
+  color: var(--fg-3);
+}
+.usage-decisions a {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--accent);
+}
+@media (max-width: 900px) {
+  /* The title leads a line and the facts follow; the history link stays on the desktop */
+  .usage-decisions {
+    padding: 10px 14px;
+    gap: 2px 8px;
+  }
+  .usage-decisions .lead {
+    flex: 1 1 100%;
+  }
+  .usage-decisions .lead + .sep,
+  .usage-decisions a {
+    display: none;
+  }
+}
 
 .usage-table .num,
 .usage-table th.num {

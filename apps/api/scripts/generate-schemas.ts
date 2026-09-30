@@ -60,7 +60,7 @@ const ROOT_TYPES = [
   // The lists a page at a time, and the board's Done column
   'WorkItemPage', 'WorkItemPageQuery', 'BoardQuery',
   // Work items with chats and orchestrations
-  'WorkOnWorkItemRequest', 'WorkOnWorkItemResult', 'OrchestrateWorkItemsRequest', 'WorkItemOrchestrationDraft', 'CreateWorkItemFromMessageRequest',
+  'WorkOnWorkItemRequest', 'WorkOnWorkItemResult', 'OrchestrateWorkItemsRequest', 'TriageWorkItemRequest', 'TriageWorkItemResult', 'WorkItemOrchestrationDraft', 'CreateWorkItemFromMessageRequest',
   'WorkItemChanges', 'WorkItemPullRequestResult',
   // Team, flow by column, journal, memory proposals and documents
   'Team', 'TeamMember', 'TeamFromTemplateRequest', 'PutTeamMemberRequest', 'ProjectFlow', 'FlowRun', 'FlowRunPage', 'FlowWaiting', 'FlowStartWaitingResult', 'FlowRunResult',
