@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { TooltipProvider } from '../src/components/controls/Tooltip';
 import i18n from '../src/i18n';
 import { PointRow } from '../src/pages/config/DecisionsTab';
-import { GROUPS, resolveTab } from '../src/pages/Settings';
+import { GROUPS, resolveTab } from '../src/pages/config/settingsTabs';
 
 // Settings → Decisions (D3 u1): where the tab lives, where the old Supervisor link lands, and what a
 // point's row says about what it may do.

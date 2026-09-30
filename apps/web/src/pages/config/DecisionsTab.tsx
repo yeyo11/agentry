@@ -21,6 +21,7 @@ import { ErrorBox, ModelCombobox, Segmented, Skeleton } from '../../components/u
 import { useDirty } from '../../lib/dirty';
 import { formatNumber, timeAgo } from '../../lib/format';
 import { SupervisorTab } from './SupervisorTab';
+import type { DecisionsSection } from './settingsTabs';
 
 /** The server refuses a ceiling outside (0, 5] and a history outside 1..365 days. */
 const MAX_COST = 5;
@@ -79,7 +80,6 @@ const AREAS: ReadonlyArray<{ id: AreaId; points: readonly DecisionPointId[] }> =
 ];
 
 /** The sections of the tab, in order: the ids are what `?tab=supervisor` and the chips scroll to. */
-export type DecisionsSection = 'engine' | 'points' | 'supervisor';
 const SECTIONS: readonly DecisionsSection[] = ['engine', 'points', 'supervisor'];
 export const sectionId = (section: DecisionsSection) => `decisions-${section}`;
 
