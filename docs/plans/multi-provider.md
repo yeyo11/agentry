@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T12:43:36.708551256Z
-updated_at: 2026-09-30T13:27:30Z
+updated_at: 2026-09-30T13:29:37Z
 tags:
     - plan
     - providers
@@ -383,6 +383,24 @@ goes on in another agent instead of stopping.
    - a chat or task that moves keeps a link to every execution it ran on, on each provider.
 8. **Order: global and per project.** The global order of Settings → Providers (phase 1), which a
    project can override. Rejected: an order per role or stage; a single global order.
+
+9. **The decision engine decides within the person's settings** (owner, 2026-09-30). Rotation is
+   made of the small typed judgments the [decision engine](../decision-engine.md) exists for, so
+   phase 4 adds these points to its catalogue (`packages/core/src/decisions/points.ts`), each
+   shipping `off`, with consent and a state preview like every other point:
+   - `provider.on-limit` (act, project): continue with a handoff, restart, or wait, for the run that
+     hit a limit. State: the task's kind and stage, how far it got (checklist, files changed), the
+     model and whether it has a mapping, and the other providers' readiness and headroom. Outcome
+     for shadow accuracy: whether the moved work passed its checks, and what it cost.
+   - `provider.pick` (act, project): which ready provider runs a new task or stage, among the ones
+     the project's order allows. Extends `orchestration.model`, which already picks a model.
+   - `provider.model-map` (suggest, global): proposes a counterpart when a model has none on the
+     next provider; a person accepts it into the mapping.
+
+   The person's settings bound every answer: a point only chooses among the options the person
+   allowed, never a provider outside the order, and never a model without a mapping. With the point
+   `off`, or unavailable, the setting decides, as today. The `cli` decision provider stops meaning
+   "Claude Code": it runs on the first ready provider that declares `structuredOutput`.
 
 This lands after the drivers: rotation needs at least two providers that can run work. It is its
 own phase, after phase 3, and it retires claude-swap in the same pull request, so there is never a
