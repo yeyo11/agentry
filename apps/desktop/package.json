@@ -25,6 +25,7 @@
     "esbuild": "^0.25.12"
   },
   "dependencies": {
+    "@agentry/core": "workspace:*",
     "electron-updater": "^6.8.9"
   }
 }
