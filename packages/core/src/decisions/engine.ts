@@ -9,6 +9,7 @@ import type {
   DecisionRecord,
   DecisionResolution,
   DecisionSettings,
+  DecisionTestResult,
   DecisionUnavailableReason,
   ProjectDecisionSettings,
 } from '@agentry/shared';
@@ -241,6 +242,25 @@ export class DecisionEngine {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  /**
+   * One small fixed question to a provider, for `POST /decisions/test`. No row is written and no
+   * consent is needed: the state is a constant and carries nothing of the person's.
+   */
+  async test(id: DecisionProviderId): Promise<DecisionTestResult> {
+    const provider = this.providers.get(id);
+    const model = id === 'jev' ? JEV_MODEL : this.deps.settings.get().cli.model;
+    if (!provider?.available()) {
+      return { provider: id, ok: false, latencyMs: 0, model, reason: provider?.whyUnavailable?.() ?? (id === 'jev' ? 'no-key' : 'server-error') };
+    }
+    const questions: DecisionQuestion[] = [
+      { kind: 'choice', id: 'reply', question: 'Which of the two options is the word "yes"?', options: [{ id: 'yes', label: 'yes' }, { id: 'no', label: 'no' }] },
+    ];
+    const result = await this.call(provider, { point: 'palette.intent', state: { query: 'connection test' }, questions }, DEADLINE_MS[id]);
+    return result.status === 'answered'
+      ? { provider: id, ok: true, latencyMs: Math.round(result.latencyMs), model: result.model, reason: null }
+      : { provider: id, ok: false, latencyMs: Math.round(result.latencyMs), model, reason: result.reason };
   }
 
   /** Called by the point when what happened becomes known (shadow accuracy) */

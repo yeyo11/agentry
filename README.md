@@ -824,6 +824,28 @@ One Server-Sent Events stream for the whole app, so a client never has to poll.
 curl -N localhost:8787/api/events
 ```
 
+### Decisions
+
+The decision engine: a decision point puts typed questions to a provider (the Claude CLI, or TypeSafe's Jev with its own key) and runs today's behaviour whenever the answer is missing or below its threshold. Every point is off by default. A point sends nothing until the owner consents to it after previewing its state, and consent names the providers it covers. A chat's token gets `403` on the settings, credentials and consent routes.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/decisions/settings` | The global settings from `decisions.json`; the Jev key is never returned, only `keySet` and `keyHint` |
+| PUT | `/decisions/settings` | Replace them whole, validated. Consent is kept as it was. Not open to a chat's token |
+| PUT | `/decisions/credentials` | `{ key }` — save the Jev key (mode 600); the answer carries the general privacy notice. Not open to a chat's token |
+| DELETE | `/decisions/credentials` | Remove the key; points on `jev` fall back to off-behaviour. Not open to a chat's token |
+| POST | `/decisions/test` | `{ provider }` — one small fixed question: `{ ok, latencyMs, model, reason }`. Nothing is recorded |
+| GET | `/decisions/points` | The catalogue with the settings in force, optionally for `?projectId=` |
+| GET | `/decisions/points/:point/preview` | The exact state of the point's last request, or the fields it may carry, built locally and not sent |
+| PUT | `/decisions/points/:point/consent` | `{ granted, stateVersion, providers }` — grant or withdraw consent for what was previewed (`409` when the state changed since). Not open to a chat's token |
+| GET | `/decisions` | History, newest first, filtered by `point`, `projectId`, `provider`, `mode`, `status`, `since`, `until` and paged with `cursor` and `limit` |
+| DELETE | `/decisions` | Delete the rows matching the same filter (every row when none) |
+| GET | `/decisions/stats` | Per-point metrics plus Jev cost and Claude runs saved, over `?days=` (30) or `?since=` |
+| GET | `/decisions/:id` | One decision: state, questions, answers with probabilities, provider and outcome |
+| POST | `/decisions/:id/feedback` | `{ feedback: "useful" \| "not_useful" }` — the person's word on it |
+| DELETE | `/decisions/:id` | Delete one row |
+| POST | `/decisions/palette` | `{ query, commands: [{ id, title }] }` — the `palette.intent` point: `{ commandId, confidence, decisionId }`, with `commandId` null when the point is off, unavailable or unsure |
+
 ### Push
 
 Web Push over VAPID, signed and sent by this server: a chat that stops for a permission prompt reaches a phone whose app is closed. The keypair is made on first use and kept as `push.json` in the data directory (mode 600); the private half never leaves the server, and there is no third-party push account. What is worth a notification is decided by the same function the browser runs on the same event, so the in-page toast and the notification on a lock screen cannot disagree.
