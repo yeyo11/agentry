@@ -473,6 +473,8 @@ export class Core {
       },
       emit: (event) => this.events.emit(event),
       charge: (orchestrationId, costUsd) => this.orchestrator.chargeSupervisor(orchestrationId, costUsd),
+      // The engine is built just below; a call only ever comes after the constructor
+      decisions: { ask: (...args) => this.decisions.ask(...args), effective: (...args) => this.decisions.effective(...args) },
     });
     this.decisionCredentials = new DecisionCredentialStore(config);
     this.decisionSettings = new DecisionSettingsStore(config, this.decisionCredentials);
@@ -485,6 +487,8 @@ export class Core {
     // c6 left this wiring to the routes' worker: without it `jev` is never registered
     this.decisions.register(new JevProvider({ getKey: () => this.decisionCredentials.getKey() }));
     this.decisions.startPruning();
+    this.orchestrator.decisions = this.decisions;
+    this.orchestrator.projectOf = (cwd) => this.projectOf(resolve(cwd)).project?.id ?? null;
     this.healthMonitor = new HealthMonitor({
       runtime: this.runtime,
       health: this.health,
