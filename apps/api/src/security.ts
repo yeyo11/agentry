@@ -159,6 +159,18 @@ const CHAT_FORBIDDEN = new Set([
 ]);
 
 /**
+ * Consent is the owner's (D12): these widen what the decision engine sends off the machine, so a
+ * prompt injection in a chat must not be able to consent to a point or switch the provider to Jev.
+ * A project's own override, which does not touch consent, stays open through the project settings.
+ */
+const CHAT_FORBIDDEN_DECISIONS = new Set([
+  `PUT ${API_PREFIX}/decisions/settings`,
+  `PUT ${API_PREFIX}/decisions/credentials`,
+  `DELETE ${API_PREFIX}/decisions/credentials`,
+  `PUT ${API_PREFIX}/decisions/points/:point/consent`,
+]);
+
+/**
  * The desktop app's secret exists to let its tray read what is live, so it reads and nothing
  * else: a secret that has to sit in a second process's memory is kept to the least it needs.
  */
@@ -357,6 +369,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       }
       if (chat !== null && CHAT_FORBIDDEN.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot change the API's authentication" });
+        return reply;
+      }
+      if (chat !== null && CHAT_FORBIDDEN_DECISIONS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot change what the decision engine sends" });
         return reply;
       }
     }

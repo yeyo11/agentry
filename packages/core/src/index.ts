@@ -118,6 +118,7 @@ import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo } from './git.ts';
 import { DecisionEngine } from './decisions/engine.ts';
 import { CliDecisionProvider } from './decisions/providers/cli.ts';
+import { JevProvider } from './decisions/providers/jev.ts';
 import { DecisionCredentialStore, DecisionSettingsStore } from './decisions/settings.ts';
 import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
 export {
@@ -481,6 +482,8 @@ export class Core {
       projectDecisions: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.decisions ?? null,
     });
     this.decisions.register(new CliDecisionProvider({ runtime: this.runtime, settings: this.decisionSettings }));
+    // c6 left this wiring to the routes' worker: without it `jev` is never registered
+    this.decisions.register(new JevProvider({ getKey: () => this.decisionCredentials.getKey() }));
     this.decisions.startPruning();
     this.healthMonitor = new HealthMonitor({
       runtime: this.runtime,
