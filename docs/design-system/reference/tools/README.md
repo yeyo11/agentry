@@ -30,38 +30,4 @@ Python 3.12 or later (the generators use backslashes inside f-strings) with Pill
 | `team.py` | the screens the design review added: Team activity (`DesktopEquipoActividad`, `MobileEquipoActividad`), a failed flow run's chat (`DesktopChatFlujo`, `MobileChatFlujo`), the phone board while the team works it (`MobileTableroEquipo`, hand-drawn before) and the board's spec page `DSTablero`. Run after `desktop.py`; it imports it |
 | `decisions.py` | the Decisions tab of Settings: its sections, the consent dialog, History and the provider warning, both sizes. Runs on its own |
 | `providers.py` | Settings → Providers and the first-run step of [plans/multi-provider.md](../../../plans/multi-provider.md), both sizes: the list with Codex's binary override open, other states and a row being dragged, the phone's order and binary Sheets, and first run found, checking and nothing found. Runs on its own (imports `common.py` and `decisions.py`) |
-| `hosts.py` | the code hosts' screens of [plans/code-hosts.md](../../../plans/code-hosts.md): Settings → Integrations (the list with GitLab's binary override open, the other states, nothing installed), both sizes, and the phone's binary Sheet. Runs on its own; imports `providers.py` for the shared pieces |
-| `decision_parts.py` | the decision engine's pieces: the mark, its popover and Sheet, the project override and the Usage line. Imported by `board.py` and `projects.py`; `DesktopMemoria`, `MobileMemoria*` and the Uso screens carry the same markup, edited as HTML |
-| `desktop.py` | desktop only: the board while the team works it (`DesktopTableroEquipo`, hand-drawn before), Tasks with All projects (`DesktopTareasTodos`), suggestions while they run (`DesktopSugerirTareasEnCurso`) and the assistant on an empty project (`DesktopAsistenteVacio`). `DesktopDocumentoEditar` has no generator: it is `DesktopDocumentos` with the editor open, edited as HTML |
-
-```bash
-python3 board.py && python3 tasks.py && python3 projects.py && python3 chat.py && python3 ai.py \
-  && python3 desktop.py && python3 phone.py && python3 team.py
-NS_OUT=/tmp/ns-out python3 board.py   # write somewhere else, to diff against the committed HTML
-```
-
-Every rule a screen needs lives in `agentry-ds.css`: a page's own `<style>` holds only the body
-background, and inline styles are for layout. A rule two screens share goes into the stylesheet and
-into §2 of `docs/design-system.md`.
-
-## Checks
-
-- `python3 lint.py [Screen …]`: tokens only. No hex but `#fff` (text on the gradient), no `rgb()`,
-  `hsl()`, pixel radius or millisecond value in a screen. With no names it reads every screen and
-  shell piece; the screens from before the ecosystem still carry raw values in their inline styles.
-- `node check.mjs [Screen …]`: opens each screen in headless Chrome, in both themes, and lists text
-  under 4.5:1 (3:1 at 24 px or more) against the solid fills under it, and on the phone every
-  control under 44 × 44 px. Text on a gradient is not measured. A control inside a bigger one (a
-  switch inside its cell) counts as the bigger one. Exit code 1 when it finds anything.
-
-## Screenshots
-
-```bash
-python3 shoot.py DesktopTablero MobileTablero DSComponentes:1620 DSTablero:2300
-python3 sheet.py board-sheet.png MobileTablero-dark MobileTablero-light
-```
-
-`shoot.py` captures `reference/screenshots/<Screen>-dark.webp` and `-light.webp` at 1440 × 1024
-(desktop) or 390 × 844 at 2× (phone), and the shell pieces at their own size; a `DS*` page needs its
-height after a colon. It keeps a PNG of each in `$NS_LOOK` (default `/tmp/ns-look`), which
-`sheet.py` lays out side by side. Look at every capture before you finish.
+| `hosts.py` | the code hosts' screens of [plans/code-hosts.md](../../../plans/code-hosts.md): Settings → Integrations (the list with GitLab's binary override open, the other states, nothing installed), both sizes, and the phone's binary Sheet, plus `DSIntegraciones` (the states sheet of the project's host line; the line itself is drawn by `projects.py`). Runs on its own; imports `providers.py` and `projects.py` for the shared pieces |
