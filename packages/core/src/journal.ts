@@ -11,6 +11,7 @@ import {
   type WorkItemSource,
 } from '@agentry/shared';
 import type { Db } from './db.ts';
+import type { DecisionEngine } from './decisions/engine.ts';
 import { DocumentPathError, pathSegments } from './document-paths.ts';
 import type { AgentryEventInput } from './events.ts';
 import { pasted, PASTED_NOTE } from './prompt-rules.ts';
@@ -47,7 +48,21 @@ export interface JournalServiceDeps {
   item?: (itemId: string) => WorkItemRef | null;
   /** The chats and orchestration tasks that worked on an item, for its `closed` entry */
   sources?: (itemId: string) => WorkItemSource[];
+  /** The decision engine, for `journal.relevance`; without it the handoff is newest first */
+  decisions?: Pick<DecisionEngine, 'ask'>;
 }
+
+/** What a run is about, for `journal.relevance`: the card or task it is handed the journal for */
+export interface JournalTopic {
+  title: string;
+  criteria: string[];
+}
+
+/** Most relevant first: what the engine scored an entry decides only where it stands in the handoff */
+const RELEVANCE_RANK: Record<string, number> = { essential: 3, relevant: 2, related: 1, irrelevant: 0 };
+/** As many entries as the point's question batch holds (`points.ts`); older ones follow, newest first */
+const RELEVANCE_ENTRIES = 40;
+const RELEVANCE_LINES_MAX = 240;
 
 /** What {@link JournalService.handoff} hands a flow run: the prompt text and what it holds. */
 export interface JournalHandoff {
@@ -130,14 +145,68 @@ export class JournalService {
    * reads is always the recent story without a hole in it.
    */
   handoff(projectId: string): JournalHandoff {
+    return this.hand(this.recent(projectId));
+  }
+
+  /**
+   * The handoff for a run about `topic`. With `journal.relevance` active the engine only orders the
+   * newest entries by how much the topic needs them; this code still renders, wraps and cuts them to
+   * the byte budget, so nothing the engine says can grow the handoff or drop the wrapper. Anything
+   * short of a confident answer is {@link handoff}.
+   */
+  async handoffFor(projectId: string, topic: JournalTopic): Promise<JournalHandoff> {
+    const rows = this.recent(projectId);
+    const engine = this.deps.decisions;
+    if (!engine || rows.length < 2) return this.hand(rows);
+    try {
+      const head = rows.slice(0, RELEVANCE_ENTRIES);
+      const outcome = await engine.ask(
+        'journal.relevance',
+        {
+          kind: 'work_item',
+          id: null,
+          data: {
+            title: topic.title,
+            criteria: topic.criteria,
+            entries: head.map((row) => {
+              const entry = this.entryOf(row);
+              return { id: row.id, title: `${entry.kind}${entry.item ? ` ${entry.item.key}` : ''}`, lines: entry.text.trim().split('\n').slice(0, 3).join(' ').slice(0, RELEVANCE_LINES_MAX) };
+            }),
+          },
+        },
+        { projectId },
+      );
+      if (!outcome.act || !outcome.answers) return this.hand(rows);
+      const answers = outcome.answers;
+      const rank = (row: EntryRow): number => {
+        const answer = answers[row.id];
+        return answer?.kind === 'score' ? (RELEVANCE_RANK[answer.value] ?? 1) : 1;
+      };
+      // Array.sort is stable: equal scores keep the newest first
+      const ordered = [...head].sort((a, b) => rank(b) - rank(a));
+      return this.hand([...ordered, ...rows.slice(RELEVANCE_ENTRIES)], 'the ones this work needs most first');
+    } catch {
+      return this.hand(rows);
+    }
+  }
+
+  /** The newest rows, as many as could ever fit the cap */
+  private recent(projectId: string): EntryRow[] {
+    // No entry renders under 16 bytes, so no more than this many can ever fit the cap
+    const most = Math.ceil(JOURNAL_HANDOFF_BYTES / 16);
+    return this.sql.prepare(`SELECT * FROM journal_entries WHERE project_id = ? ORDER BY seq DESC LIMIT ${String(most)}`).all(projectId) as unknown as EntryRow[];
+  }
+
+  /**
+   * The entries in the order given, up to {@link JOURNAL_HANDOFF_BYTES}. It stops at the first entry
+   * that does not fit rather than skipping it, so what a run reads has no hole in its order.
+   */
+  private hand(rows: readonly EntryRow[], order = 'newest first'): JournalHandoff {
     const header =
-      "# Project journal\n\nAgentry's record of this project: decisions taken and work items closed, newest first. The whole team shares it. Do not edit it: propose what the team should remember in your result's `memoryProposals`.\n";
+      `# Project journal\n\nAgentry's record of this project: decisions taken and work items closed, ${order}. The whole team shares it. Do not edit it: propose what the team should remember in your result's \`memoryProposals\`.\n`;
     const lines: string[] = [];
     // The block that marks the entries, and its note, count against the cap as well
     let bytes = Buffer.byteLength(header) + Buffer.byteLength(`${pasted('', '00000000')}\n\n${PASTED_NOTE}\n`);
-    // No entry renders under 16 bytes, so no more than this many can ever fit the cap
-    const most = Math.ceil(JOURNAL_HANDOFF_BYTES / 16);
-    const rows = this.sql.prepare(`SELECT * FROM journal_entries WHERE project_id = ? ORDER BY seq DESC LIMIT ${String(most)}`).all(projectId) as unknown as EntryRow[];
     for (const row of rows) {
       const line = this.render(this.entryOf(row));
       const size = Buffer.byteLength(line) + 1;
