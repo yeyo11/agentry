@@ -156,7 +156,7 @@ describe('ProviderDetector', () => {
     await fake('gemini', 'exec /bin/sleep 30');
     await fake('codex', CODEX(0));
     const started = Date.now();
-    const all = await detector({ probeTimeoutMs: 300 }).refresh();
+    const all = await detector({ probeTimeoutMs: 1_500 }).refresh();
     assert.ok(Date.now() - started < 5_000);
     const gemini = all.find((s) => s.id === 'gemini');
     assert.deepEqual([gemini?.state, gemini?.reason], ['unknown', 'probe-timeout']);

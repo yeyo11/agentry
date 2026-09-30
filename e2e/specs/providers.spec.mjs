@@ -56,7 +56,7 @@ export default async ({ page, api, check, dirs }) => {
     mkdirSync(homes.gemini, { recursive: true });
     mkdirSync(homes.copilot, { recursive: true });
     state('codex', { version: '0.50.0', signedIn: false });
-    await api.put('/providers/settings', { providers: { codex: savedSettings.providers.codex, gemini: { enabled: true, binaryPath: NOWHERE.gemini }, copilot: { enabled: true, binaryPath: NOWHERE.copilot } }, order: ['claude-code', 'codex', 'gemini', 'copilot'], defaultProvider: null });
+    await api.put('/providers/settings', { providers: { codex: savedSettings.providers.codex, gemini: { enabled: true, binaryPath: NOWHERE.gemini }, copilot: { enabled: true, binaryPath: NOWHERE.copilot } }, order: ['claude-code', 'codex', 'gemini', 'copilot', 'opencode'], defaultProvider: null });
     await api.post('/providers/refresh');
     check((await statusOf('codex')).state === 'signed-out', 'codex is signed out');
     check((await statusOf('gemini')).state === 'used-before', `gemini is used before (${(await statusOf('gemini')).state})`);
@@ -131,7 +131,7 @@ export default async ({ page, api, check, dirs }) => {
     await theme(page, 'dark');
     await page.goto('/settings?tab=providers', 300);
     await page.waitFor(`return document.querySelectorAll('.prov-row[data-provider]').length === 4`, { label: 'the four rows' });
-    check(JSON.stringify(await page.eval(ids)) === JSON.stringify(['claude-code', 'codex', 'gemini', 'copilot']), 'the rows follow the order of providers.json');
+    check(JSON.stringify(await page.eval(ids)) === JSON.stringify(['claude-code', 'codex', 'gemini', 'copilot', 'opencode']), 'the rows follow the order of providers.json');
     check((await page.eval(rowState('codex'))) === 'ready', 'codex is ready');
     check((await page.eval(rowState('gemini'))) === 'used-before' && (await page.eval(rowState('copilot'))) === 'used-before', 'gemini and copilot are used before');
     check((await page.eval(`return document.querySelectorAll('.card.grad-border').length`)) === 1, 'the list is the screen\'s one gradient surface');
@@ -168,7 +168,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.focus('.prov-row[data-provider="codex"] .prov-grip');
     await page.press('ArrowUp');
     await page.waitFor(`return fetch('/api/providers/settings').then((r) => r.json()).then((s) => s.order[0] === 'codex')`, { label: 'codex moved up' });
-    check(JSON.stringify(await page.eval(ids)) === JSON.stringify(['codex', 'claude-code', 'gemini', 'copilot']), 'the list shows the new order');
+    check(JSON.stringify(await page.eval(ids)) === JSON.stringify(['codex', 'claude-code', 'gemini', 'copilot', 'opencode']), 'the list shows the new order');
     // ...and by dragging the handle: the events a drag makes, on the row and the list
     await page.eval(`
       const grip = document.querySelector('.prov-row[data-provider="copilot"] .prov-grip');
@@ -182,7 +182,7 @@ export default async ({ page, api, check, dirs }) => {
       fire(list, 'drop'); await tick();
       return true;`);
     await page.waitFor(`return fetch('/api/providers/settings').then((r) => r.json()).then((s) => s.order[0] === 'copilot')`, { label: 'copilot dragged to the top' });
-    check(JSON.stringify(await page.eval(ids)) === JSON.stringify(['copilot', 'codex', 'claude-code', 'gemini']), 'the drop puts the row where the line was');
+    check(JSON.stringify(await page.eval(ids)) === JSON.stringify(['copilot', 'codex', 'claude-code', 'gemini', 'opencode']), 'the drop puts the row where the line was');
 
     // The default provider: a choice, and back to Automatic
     await page.select('.prov-default-select', 'Codex');
