@@ -12,6 +12,7 @@ import type {
   TranscriptEntry,
 } from '@agentry/shared';
 import type { ChatService } from './chat-service.ts';
+import type { DecisionEngine } from './decisions/engine.ts';
 import type { ChatManager } from './chats.ts';
 import { editStepsFromEntries, editStepsOf } from './edit-steps.ts';
 import {
@@ -202,14 +203,99 @@ export interface ChangesDeps {
    * the work item the chat works on, which may itself be a linked worktree on another branch
    */
   forkedFrom?: (chatId: string) => string | null;
+  /** The decision engine: both points here are suggestions, prepared in the background and never waited for */
+  decisions?: Pick<DecisionEngine, 'ask' | 'effective'>;
 }
+
+/** What a question was already asked about, so a page that polls does not pay for the same answer twice */
+const MAX_ASKED = 2000;
+/** Steps asked about per read, and what is sent of one: a hunk must leave room for the sentence before it */
+const HUNKS_PER_READ = 5;
+const HUNK_CHARS = 3000;
+const COMMITS_ASKED = 20;
+const PATHS_PER_COMMIT = 40;
 
 /**
  * What a branch or a chat has actually done on disk, read from git and from the transcript rather
  * than from what the agent says it did.
  */
 export class Changes {
+  private readonly asked = new Set<string>();
+  private readonly pending = new Set<Promise<unknown>>();
+
   constructor(private readonly deps: ChangesDeps) {}
+
+  /** Resolves once every question asked in the background is over: what a test waits on instead of a clock */
+  async idle(): Promise<void> {
+    while (this.pending.size) await Promise.allSettled([...this.pending]);
+  }
+
+  /** True the first time a key is seen */
+  private firstTime(key: string): boolean {
+    if (this.asked.has(key)) return false;
+    this.asked.add(key);
+    if (this.asked.size > MAX_ASKED) for (const old of [...this.asked].slice(0, MAX_ASKED / 2)) this.asked.delete(old);
+    return true;
+  }
+
+  /**
+   * `flow.scope-drift`: which commits of a work item's branch do more than the card asks. Nothing
+   * compares a commit with its card today, so this only adds a flag: the answer is a row a person
+   * reads (and rates), never a change to the branch. Returns the hashes it flagged, and nothing
+   * unless the point acted.
+   */
+  async scopeDrift(
+    projectPath: string,
+    place: { worktree: string | null; branch: string | null },
+    item: { id: string; projectId: string; title: string; criteria: readonly string[] },
+  ): Promise<string[]> {
+    const engine = this.deps.decisions;
+    if (!engine || engine.effective('flow.scope-drift', item.projectId).mode === 'off') return [];
+    let commits: Array<{ id: string; message: string; paths: string[] }>;
+    try {
+      const summary = this.itemChanges(projectPath, place);
+      const tip = summary?.commits[0];
+      if (!summary || !tip || !this.firstTime(`drift:${item.id}:${tip.hash}`)) return [];
+      // Paths only, never the diff: what a commit touched says enough about what it set out to do
+      commits = summary.commits.slice(0, COMMITS_ASKED).map((c) => ({
+        id: c.hash,
+        message: c.subject,
+        paths: (this.itemChanges(projectPath, place, { commit: c.hash })?.files ?? []).slice(0, PATHS_PER_COMMIT).map((f) => f.path),
+      }));
+    } catch {
+      return [];
+    }
+    const outcome = await engine.ask(
+      'flow.scope-drift',
+      { kind: 'work_item', id: item.id, data: { title: item.title, criteria: item.criteria, commits } },
+      { projectId: item.projectId },
+    );
+    if (!outcome.act) return [];
+    return commits.filter((c) => {
+      const answer = outcome.answers?.[c.id];
+      return answer?.kind === 'noul' && answer.value;
+    }).map((c) => c.id);
+  }
+
+  /**
+   * `changes.unexplained-hunk`: asks, in the background, whether the sentence a chat wrote before
+   * an edit explains it. The answer is a row the review reads; nothing here waits for it.
+   */
+  private flagHunks(chat: ChatSummary, steps: readonly EditStep[]): void {
+    const engine = this.deps.decisions;
+    const projectId = chat.project?.id ?? null;
+    if (!engine || engine.effective('changes.unexplained-hunk', projectId).mode === 'off') return;
+    const fresh = steps.filter((s) => s.diff && !s.pending && this.firstTime(`hunk:${chat.id}:${s.id}`)).slice(0, HUNKS_PER_READ);
+    for (const step of fresh) {
+      const work = engine.ask(
+        'changes.unexplained-hunk',
+        { kind: 'chat', id: chat.id, data: { hunk: step.diff.slice(0, HUNK_CHARS), step: step.intent ?? '', title: chat.firstPrompt ?? chat.title } },
+        { projectId },
+      );
+      this.pending.add(work);
+      void work.finally(() => this.pending.delete(work));
+    }
+  }
 
   private orchestration(id: string): Orchestration {
     const orch = this.deps.orchestrator.get(id);
@@ -349,10 +435,15 @@ export class Changes {
     const chat = await this.chatOf(id);
     const opts = { root: this.stepRoot(chat), running: chat.execution !== null };
     const fromDisk = await this.deps.sessions.editSteps(id);
-    if (fromDisk) return editStepsOf(fromDisk, opts);
-    // No transcript yet, or never one: what the process streamed names the edits, without patches
-    const streamed: TranscriptEntry[] | null = this.deps.runtime.messages(id);
-    return streamed ? editStepsOf(editStepsFromEntries(streamed), opts) : [];
+    let steps: EditStep[];
+    if (fromDisk) steps = editStepsOf(fromDisk, opts);
+    else {
+      // No transcript yet, or never one: what the process streamed names the edits, without patches
+      const streamed: TranscriptEntry[] | null = this.deps.runtime.messages(id);
+      steps = streamed ? editStepsOf(editStepsFromEntries(streamed), opts) : [];
+    }
+    this.flagHunks(chat, steps);
+    return steps;
   }
 
   /** A task's edits are its chat's; a task that has not started has made none. */

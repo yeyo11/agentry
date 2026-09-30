@@ -22,6 +22,7 @@ import {
   type RegisterPushSubscriptionRequest,
 } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
+import type { DecisionEngine } from './decisions/engine.ts';
 import type { Db, PushSubscriptionRecord } from './db.ts';
 import type { EventBus } from './events.ts';
 import type { CoreConfig } from './paths.ts';
@@ -228,6 +229,11 @@ export class PushService {
   private making: Promise<PushDoc | null> | null = null;
   /** Keyed by the draft's dedupe key: the same news inside its window is not pushed twice. */
   private readonly recent = new Map<string, number>();
+  /**
+   * The decision engine, set once it exists. `notification.urgency` only ever raises a normal
+   * notification to high: a person is never spared one, so the point cannot hide news.
+   */
+  decisions: Pick<DecisionEngine, 'ask' | 'effective'> | null = null;
   /** Nothing in core has a logger; the API hands it one, and until then a failure is silent. */
   log: (line: string) => void = () => undefined;
 
@@ -378,12 +384,58 @@ export class PushService {
     if (!subscriptions.length) return;
     for (const draft of drafts) {
       if (!this.claim(draft)) continue;
-      const targets = subscriptions.filter((record) => record.kinds.includes(draft.kind) && interrupts(draft, record.level));
-      if (!targets.length) continue;
-      // The bus calls this synchronously: the sending is deliberately not awaited, and every
-      // failure inside it is already a log line rather than a rejection.
-      this.track(this.deliver(targets, payloadOf(draft, this.publicUrl)));
+      const urgency = this.urgencyOf(draft);
+      // Only a decision that can act holds the push, and only for the engine's own deadline
+      if (urgency === 'wait') {
+        this.track(this.raiseThenDeliver(draft, subscriptions));
+        continue;
+      }
+      if (urgency === 'record') this.track(this.askUrgency(draft));
+      this.send(draft, subscriptions);
     }
+  }
+
+  private send(draft: NotificationDraft, subscriptions: readonly PushSubscriptionRecord[]): void {
+    const targets = subscriptions.filter((record) => record.kinds.includes(draft.kind) && interrupts(draft, record.level));
+    if (!targets.length) return;
+    // The bus calls this synchronously: the sending is deliberately not awaited, and every
+    // failure inside it is already a log line rather than a rejection.
+    this.track(this.deliver(targets, payloadOf(draft, this.publicUrl)));
+  }
+
+  /**
+   * `none` while the point is off or has nothing to raise; `record` in shadow, and when the point is
+   * active on a provider that cannot act (the CLI has no confidence), where today's push goes out at
+   * once and the answer is only recorded; `wait` when a fast provider may raise it.
+   */
+  private urgencyOf(draft: NotificationDraft): 'none' | 'record' | 'wait' {
+    const engine = this.decisions;
+    // A high one has nothing to raise, and a low one is never an interruption
+    if (!engine || draft.priority !== 'normal') return 'none';
+    const eff = engine.effective('notification.urgency', null);
+    if (eff.mode === 'off') return 'none';
+    return eff.mode === 'active' && !eff.limited && eff.provider === 'jev' ? 'wait' : 'record';
+  }
+
+  private async askUrgency(draft: NotificationDraft): Promise<boolean> {
+    if (!this.decisions) return false;
+    const outcome = await this.decisions.ask(
+      'notification.urgency',
+      { kind: 'notification', id: draft.key, data: { kind: draft.kind, title: draft.title, body: draft.body } },
+      { projectId: null },
+    );
+    const answer = outcome.answers?.urgency;
+    return outcome.act && answer?.kind === 'choice' && answer.value === 'high';
+  }
+
+  private async raiseThenDeliver(draft: NotificationDraft, subscriptions: readonly PushSubscriptionRecord[]): Promise<void> {
+    let raised = false;
+    try {
+      raised = await this.askUrgency(draft);
+    } catch {
+      // Whatever went wrong, today's push goes out as it is
+    }
+    this.send(raised ? { ...draft, priority: 'high' } : draft, subscriptions);
   }
 
   // Work nothing awaits (sends the bus started, a subject written back), kept so `idle` can wait on it
