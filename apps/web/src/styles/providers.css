@@ -250,3 +250,195 @@
   font-size: 12.5px;
   color: var(--fg-3);
 }
+
+/* Settings → Providers: the page, the default row, the list of rows and the sheets of the phone */
+.prov-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.prov-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.prov-checked {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* The rows carry their own padding: the card gives up its own and clips the rows to its corners */
+.prov-card {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.prov-card > .card-head {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.prov-summary {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.prov-default {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.prov-default-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.prov-default-title {
+  font-weight: 500;
+}
+
+.prov-default-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.prov-default-select {
+  flex: 0 0 230px;
+  width: 230px;
+}
+
+/* Each row sits in an item so the binary editor can open right under it */
+.prov-list .prov-item > .prov-row {
+  border-bottom: 1px solid var(--line);
+}
+
+.prov-list .prov-item:last-child > .prov-row:last-child {
+  border-bottom: 0;
+}
+
+.prov-list .prov-row:has(+ .prov-bin) {
+  background: var(--bg-1);
+  border-bottom: 0;
+}
+
+.prov-list .prov-item:last-child > .prov-bin {
+  border-bottom: 0;
+}
+
+.prov-grip {
+  border: 0;
+  background: none;
+  padding: 0;
+}
+
+.prov-grip:active {
+  cursor: grabbing;
+}
+
+.prov-bin .field-error {
+  margin: 0;
+}
+
+.prov-bin-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prov-switch {
+  display: inline-flex;
+}
+
+/* Phone */
+.prov-order-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 56px;
+  padding: 10px 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.prov-order-cell-name {
+  font-weight: 500;
+}
+
+.prov-order-cell-sub,
+.prov-order-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.prov-order-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.prov-order {
+  display: flex;
+  flex-direction: column;
+}
+
+.prov-order-row .icon-btn {
+  min-width: var(--touch);
+  min-height: var(--touch);
+}
+
+.prov-sheet .btn,
+.prov-sheet input {
+  min-height: var(--touch);
+}
+
+.prov-sheet input {
+  font-size: 16px;
+}
+
+.prov-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.prov-sheet-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  font-weight: 500;
+}
+
+.prov-sheet-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prov-sheet-row {
+  display: flex;
+  gap: 8px;
+}
+
+.prov-sheet-row .btn:last-child:not(:only-child) {
+  flex: 0 0 auto;
+}
+
+.prov-sheet-row .btn:only-child,
+.prov-sheet-row .btn:first-child {
+  flex: 1 1 0;
+  justify-content: center;
+}
