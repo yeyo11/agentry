@@ -329,6 +329,19 @@
   color: var(--fg-3);
 }
 
+/* A patch the sentence before it does not explain: a plain note with the decided mark, no status colour */
+.diff-unexplained {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 8px 16px;
+  border-bottom: 1px dashed var(--line-2);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--fg-2);
+}
+
 /* The block rail: the whole file to scale, a mark per block, the viewport as a box */
 .diff-rail {
   position: relative;

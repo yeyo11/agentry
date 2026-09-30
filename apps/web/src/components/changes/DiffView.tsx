@@ -1,3 +1,4 @@
+import type { DecisionRecord } from '@agentry/shared';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronsUpDown } from 'lucide-react';
 import type { TFunction } from 'i18next';
@@ -20,6 +21,7 @@ import {
 import { Lru } from '../../lib/lru';
 import { wordDiff, type Range, type WordDiff } from '../../lib/word-diff';
 import { highlightRoles, languageOfPath, SYNTAX_CLASS, type Role, type RoleLine } from '../highlight';
+import { DecisionMarkOf } from '../DecisionMark';
 import { ICON_SM } from '../icons';
 
 // One file's diff, drawn the three ways of design system §5: Reading (the file as it is now, what
@@ -63,6 +65,8 @@ export interface DiffViewProps {
   trimEdges?: boolean;
   /** The element that scrolls the diff, for the rows of a long one; the nearest scroll root otherwise */
   scrollRef?: RefObject<HTMLElement | null>;
+  /** The decision that judged this patch unexplained by the sentence before it: a note over the rows */
+  unexplained?: DecisionRecord | null;
   className?: string;
 }
 
@@ -80,6 +84,7 @@ export function DiffView({
   syntax: given,
   trimEdges = false,
   scrollRef,
+  unexplained,
   className,
 }: DiffViewProps) {
   const { t } = useTranslation('components');
@@ -127,6 +132,12 @@ export function DiffView({
 
   return (
     <div className={cls} ref={host} data-mode={mode}>
+      {unexplained && (
+        <div className="diff-unexplained">
+          <span>{t('diff.unexplained')}</span>
+          <DecisionMarkOf decision={unexplained} />
+        </div>
+      )}
       {mode === 'split' && (
         <div className="diff-row diff-split-head">
           <span />
