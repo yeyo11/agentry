@@ -1100,6 +1100,8 @@ export interface ProjectSettings {
   team?: ProjectTeamSettings;
   flow?: ProjectFlowSettings;
   documents?: ProjectDocumentsSettings;
+  /** Per-project overrides of the decision engine; consent is never here, it stays global */
+  decisions?: ProjectDecisionSettings;
 }
 
 /**
@@ -4800,3 +4802,338 @@ export interface StreamResyncEvent {
 
 /** Names of the SSE `event:` lines the feed uses besides the ones of {@link AgentryEventType}. */
 export type StreamControlEventType = StreamHelloEvent['type'] | StreamResyncEvent['type'];
+
+// ---------- Decision engine ----------
+
+/** The three typed questions, named as Jev names them: a choice, a score on a rubric, a yes/no. */
+export type DecisionPrimitive = 'choice' | 'score' | 'noul';
+export type DecisionProviderId = 'cli' | 'jev';
+/** `off` asks nothing, `shadow` asks and records, `active` may change what happens (or, for a suggestion, what is shown) */
+export type DecisionMode = 'off' | 'shadow' | 'active';
+/** A suggest point prepares something a person decides; an act point changes what happens next */
+export type DecisionPointKind = 'suggest' | 'act';
+/** `global`: settings only global; `project`: a project may override them */
+export type DecisionScope = 'global' | 'project';
+
+export type DecisionPointId =
+  | 'flow.refine-needed'
+  | 'flow.bounce'
+  | 'orchestration.retry'
+  | 'supervisor.intervene'
+  | 'memory.triage'
+  | 'assistant.rerank'
+  | 'assistant.sources'
+  | 'journal.relevance'
+  | 'board.triage'
+  | 'team.assign'
+  | 'flow.scope-drift'
+  | 'flow.criteria-precheck'
+  | 'flow.criteria-merge'
+  | 'flow.restart'
+  | 'run.continuation'
+  | 'orchestration.model'
+  | 'orchestration.fixer'
+  | 'health.semantic-loop'
+  | 'health.test-weakening'
+  | 'changes.unexplained-hunk'
+  | 'palette.intent'
+  | 'notification.urgency';
+
+/** What a decision was about; the `subject_kind` column of the history */
+export type DecisionSubjectKind =
+  | 'work_item'
+  | 'flow_run'
+  | 'task'
+  | 'chat'
+  | 'memory_proposal'
+  | 'assistant_run'
+  | 'notification'
+  | 'palette';
+
+/** Questions and rubrics are English (D4): providers read `label` and `description`, never a translation */
+export interface DecisionChoiceQuestion {
+  kind: 'choice';
+  id: string;
+  question: string;
+  /** 2..255 options; ids are stable, labels are what the provider reads */
+  options: Array<{ id: string; label: string }>;
+}
+
+export interface DecisionScoreQuestion {
+  kind: 'score';
+  id: string;
+  question: string;
+  /** A rubric of 2..10 levels, lowest first */
+  levels: Array<{ id: string; description: string }>;
+}
+
+export interface DecisionNoulQuestion {
+  kind: 'noul';
+  id: string;
+  /** Answered yes/no */
+  question: string;
+}
+
+export type DecisionQuestion = DecisionChoiceQuestion | DecisionScoreQuestion | DecisionNoulQuestion;
+
+/**
+ * Every answer is a value plus a confidence in [0, 1]. The `cli` provider has no calibrated
+ * confidence, so it always returns null, and a null never clears a threshold.
+ */
+export interface DecisionChoiceAnswer {
+  kind: 'choice';
+  value: string;
+  probabilities: Record<string, number> | null;
+  confidence: number | null;
+}
+
+export interface DecisionScoreAnswer {
+  kind: 'score';
+  value: string;
+  probabilities: Record<string, number> | null;
+  confidence: number | null;
+}
+
+export interface DecisionNoulAnswer {
+  kind: 'noul';
+  value: boolean;
+  probability: number | null;
+  confidence: number | null;
+}
+
+export type DecisionAnswer = DecisionChoiceAnswer | DecisionScoreAnswer | DecisionNoulAnswer;
+
+/** Why a provider gave no answer; the point then runs today's behaviour */
+export type DecisionUnavailableReason =
+  | 'no-key'
+  | 'timeout'
+  | 'rate-limited'
+  | 'no-quota'
+  | 'max-tokens'
+  | 'server-error'
+  | 'network'
+  | 'invalid-answer';
+
+/** What a point tells the engine once what really happened is known (shadow accuracy) */
+export interface DecisionResolution {
+  /** What happened, in words the History row shows; the point's resolver writes it */
+  summary: string;
+  /** True when the answer matched what happened; the person's feedback overrides the inference */
+  agreed: boolean;
+  /** Point-specific facts (a status, a count), for the row's detail */
+  detail?: Record<string, unknown>;
+}
+
+/** The person's word on a decision (D13) */
+export type DecisionFeedback = 'useful' | 'not_useful';
+
+export interface DecisionPointSettings {
+  /** Absent reads as `off` for every point */
+  mode: DecisionMode;
+  /** Act points only, 0.5..0.99; absent reads as the point's default */
+  threshold: number;
+  /**
+   * Set when the owner consents after seeing the preview; cleared when the state shape changes.
+   * `providers` names what the consent covers: consent given while the point ran on `cli` does not
+   * cover `jev`.
+   */
+  consent: { at: string; stateVersion: number; providers: DecisionProviderId[] } | null;
+}
+
+export interface DecisionSettings {
+  /** The global default provider */
+  provider: DecisionProviderId;
+  cli: { model: string; effort: string; maxCostUsd: number };
+  /** The key itself is never returned, only whether one is saved and its last four characters */
+  jev: { model: 'jev-1.13.0'; keySet: boolean; keyHint: string | null };
+  points: Partial<Record<DecisionPointId, DecisionPointSettings>>;
+  /** Days of history kept, 1..365 */
+  historyDays: number;
+}
+
+/** `PUT /decisions/settings` replaces the whole document; the key travels apart, in the credentials */
+export interface DecisionSettingsUpdate {
+  provider: DecisionProviderId;
+  cli: { model: string; effort: string; maxCostUsd: number };
+  points: Partial<Record<DecisionPointId, DecisionPointSettings>>;
+  historyDays: number;
+}
+
+/** Only points of scope `project` accept an override; consent is never part of it */
+export interface ProjectDecisionSettings {
+  /** `jev` is allowed while the global provider is `cli`, using the global key */
+  provider?: 'inherit' | DecisionProviderId;
+  points?: Partial<Record<DecisionPointId, Partial<Pick<DecisionPointSettings, 'mode' | 'threshold'>>>>;
+}
+
+export interface DecisionCredentialsUpdate {
+  /** The Jev key; saved with mode 0600 and never returned */
+  key: string;
+}
+
+export interface DecisionCredentialsResult {
+  keySet: boolean;
+  keyHint: string | null;
+  /** The general privacy notice (D12): what leaves the machine when a point runs on Jev */
+  notice: string;
+}
+
+export interface DecisionTestRequest {
+  provider: DecisionProviderId;
+}
+
+export interface DecisionTestResult {
+  provider: DecisionProviderId;
+  ok: boolean;
+  latencyMs: number;
+  model: string | null;
+  /** Set when `ok` is false */
+  reason: DecisionUnavailableReason | null;
+}
+
+/** The catalogue entry the UI needs, with the settings in force for a scope */
+export interface DecisionPointInfo {
+  id: DecisionPointId;
+  kind: DecisionPointKind;
+  scope: DecisionScope;
+  primitives: DecisionPrimitive[];
+  defaultThreshold: number;
+  /** True when acting on it avoids a Claude run (feeds "Claude runs saved") */
+  savesRun: boolean;
+  /** The provider must be fast enough for the call site (the palette needs Jev) */
+  needsLowLatency: boolean;
+  /** Bumps when the shape of the state changes, which clears the consent given for an older one */
+  stateVersion: number;
+  /** Mode, threshold and consent after project, then global, then the point's defaults */
+  effective: {
+    mode: DecisionMode;
+    threshold: number;
+    provider: DecisionProviderId;
+    consent: DecisionPointSettings['consent'];
+    /** True when the mode is `active` but the point behaves as `shadow` (act point on `cli`, or no consent) */
+    limited: boolean;
+  };
+}
+
+/** A row of the history as the API serves it */
+export interface DecisionRecord {
+  id: string;
+  point: DecisionPointId;
+  kind: DecisionPointKind;
+  projectId: string | null;
+  subjectKind: DecisionSubjectKind;
+  subjectId: string | null;
+  provider: DecisionProviderId;
+  model: string;
+  /** `off` writes no row */
+  mode: 'shadow' | 'active';
+  status: 'answered' | 'unavailable';
+  unavailable: DecisionUnavailableReason | null;
+  /** The exact state that was sent */
+  state: Record<string, unknown>;
+  questions: DecisionQuestion[];
+  answers: Record<string, DecisionAnswer> | null;
+  /** The lowest confidence of the batch; null for `cli` */
+  confidence: number | null;
+  /** The threshold in force, act points only */
+  threshold: number | null;
+  /** True when the answer changed what happened */
+  acted: boolean;
+  /** True when it changed something a person sees (shows the mark) */
+  visible: boolean;
+  /** True when acting avoided a Claude run */
+  savedRun: boolean;
+  latencyMs: number;
+  inputTokens: number | null;
+  costUsd: number | null;
+  outcome: DecisionResolution | null;
+  /** Null while unknown */
+  agreed: boolean | null;
+  resolvedAt: string | null;
+  feedback: DecisionFeedback | null;
+  feedbackAt: string | null;
+  at: string;
+}
+
+export interface DecisionFilter {
+  point?: DecisionPointId;
+  projectId?: string;
+  provider?: DecisionProviderId;
+  mode?: 'shadow' | 'active';
+  status?: 'answered' | 'unavailable';
+  /** ISO timestamps, inclusive */
+  since?: string;
+  until?: string;
+}
+
+export interface DecisionPageQuery extends DecisionFilter {
+  cursor?: string;
+  limit?: number;
+}
+
+export interface DecisionPage {
+  items: DecisionRecord[];
+  /** Pass as `cursor` for the next page; null at the end */
+  nextCursor: string | null;
+}
+
+export interface DecisionFeedbackRequest {
+  feedback: DecisionFeedback;
+}
+
+/** Grants or withdraws consent for a point, bound to the state version the person previewed */
+export interface DecisionConsentRequest {
+  granted: boolean;
+  stateVersion: number;
+  providers: DecisionProviderId[];
+}
+
+export interface DecisionClearResult {
+  deleted: number;
+}
+
+export interface DecisionPointStats {
+  point: DecisionPointId;
+  count: number;
+  acted: number;
+  unavailable: number;
+  /** Mean confidence of the rows that have one; null when none do */
+  meanConfidence: number | null;
+  resolved: number;
+  agreed: number;
+  useful: number;
+  notUseful: number;
+  costUsd: number;
+  runsSaved: number;
+}
+
+export interface DecisionStats {
+  /** ISO start of the window the numbers cover */
+  since: string;
+  points: DecisionPointStats[];
+  jevCostUsd: number;
+  claudeRunsSaved: number;
+}
+
+/** The state a point would send, or sent last, and where it would go */
+export interface DecisionPreview {
+  point: DecisionPointId;
+  provider: DecisionProviderId;
+  stateVersion: number;
+  /** `last` is what the latest request sent; `built` is built locally now and not sent */
+  source: 'last' | 'built';
+  state: Record<string, unknown>;
+  bytes: number;
+}
+
+export interface DecisionPaletteRequest {
+  query: string;
+  commands: Array<{ id: string; title: string }>;
+}
+
+export interface DecisionPaletteResult {
+  /** The command the query most likely means; null when the point is off, unavailable or unsure */
+  commandId: string | null;
+  confidence: number | null;
+  decisionId: string | null;
+}

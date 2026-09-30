@@ -11091,6 +11091,10 @@
       },
       "documents": {
         "$ref": "#/components/schemas/ProjectDocumentsSettings"
+      },
+      "decisions": {
+        "$ref": "#/components/schemas/ProjectDecisionSettings",
+        "description": "Per-project overrides of the decision engine; consent is never here, it stays global"
       }
     },
     "required": [
@@ -11253,6 +11257,331 @@
       "path"
     ],
     "description": "The Documents module: the repository's documents folder, and documents tied to work items."
+  },
+  "ProjectDecisionSettings": {
+    "type": "object",
+    "properties": {
+      "provider": {
+        "anyOf": [
+          {
+            "type": "string",
+            "const": "inherit"
+          },
+          {
+            "$ref": "#/components/schemas/DecisionProviderId"
+          }
+        ],
+        "description": "`jev` is allowed while the global provider is `cli`, using the global key"
+      },
+      "points": {
+        "type": "object",
+        "properties": {
+          "flow.refine-needed": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "flow.bounce": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "orchestration.retry": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "supervisor.intervene": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "memory.triage": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "assistant.rerank": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "assistant.sources": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "journal.relevance": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "board.triage": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "team.assign": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "flow.scope-drift": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "flow.criteria-precheck": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "flow.criteria-merge": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "flow.restart": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "run.continuation": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "orchestration.model": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "orchestration.fixer": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "health.semantic-loop": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "health.test-weakening": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "changes.unexplained-hunk": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "palette.intent": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "notification.urgency": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          }
+        }
+      }
+    },
+    "description": "Only points of scope `project` accept an override; consent is never part of it"
+  },
+  "DecisionProviderId": {
+    "type": "string",
+    "enum": [
+      "cli",
+      "jev"
+    ]
+  },
+  "DecisionMode": {
+    "type": "string",
+    "enum": [
+      "off",
+      "shadow",
+      "active"
+    ],
+    "description": "`off` asks nothing, `shadow` asks and records, `active` may change what happens (or, for a suggestion, what is shown)"
   },
   "ProjectTemplate": {
     "type": "object",
@@ -15665,5 +15994,1346 @@
     },
     "additionalProperties": false,
     "description": "`PUT /tunnel/settings`: the settings to change, and only those."
+  },
+  "DecisionSettings": {
+    "type": "object",
+    "properties": {
+      "provider": {
+        "$ref": "#/components/schemas/DecisionProviderId",
+        "description": "The global default provider"
+      },
+      "cli": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "effort": {
+            "type": "string"
+          },
+          "maxCostUsd": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "model",
+          "effort",
+          "maxCostUsd"
+        ]
+      },
+      "jev": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "const": "jev-1.13.0"
+          },
+          "keySet": {
+            "type": "boolean"
+          },
+          "keyHint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "model",
+          "keySet",
+          "keyHint"
+        ],
+        "description": "The key itself is never returned, only whether one is saved and its last four characters"
+      },
+      "points": {
+        "type": "object",
+        "properties": {
+          "flow.refine-needed": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "flow.bounce": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "orchestration.retry": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "supervisor.intervene": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "memory.triage": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "assistant.rerank": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "assistant.sources": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "journal.relevance": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "board.triage": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "team.assign": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "flow.scope-drift": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "flow.criteria-precheck": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "flow.criteria-merge": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "flow.restart": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "run.continuation": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "orchestration.model": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "orchestration.fixer": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "health.semantic-loop": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "health.test-weakening": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "changes.unexplained-hunk": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "palette.intent": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "notification.urgency": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          }
+        }
+      },
+      "historyDays": {
+        "type": "number",
+        "description": "Days of history kept, 1..365"
+      }
+    },
+    "required": [
+      "provider",
+      "cli",
+      "jev",
+      "points",
+      "historyDays"
+    ]
+  },
+  "DecisionPointSettings": {
+    "type": "object",
+    "properties": {
+      "mode": {
+        "$ref": "#/components/schemas/DecisionMode",
+        "description": "Absent reads as `off` for every point"
+      },
+      "threshold": {
+        "type": "number",
+        "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+      },
+      "consent": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "at": {
+                "type": "string"
+              },
+              "stateVersion": {
+                "type": "number"
+              },
+              "providers": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DecisionProviderId"
+                }
+              }
+            },
+            "required": [
+              "at",
+              "stateVersion",
+              "providers"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set when the owner consents after seeing the preview; cleared when the state shape changes. `providers` names what the consent covers: consent given while the point ran on `cli` does not cover `jev`."
+      }
+    },
+    "required": [
+      "mode",
+      "threshold",
+      "consent"
+    ]
+  },
+  "DecisionSettingsUpdate": {
+    "type": "object",
+    "properties": {
+      "provider": {
+        "$ref": "#/components/schemas/DecisionProviderId"
+      },
+      "cli": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "effort": {
+            "type": "string"
+          },
+          "maxCostUsd": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "model",
+          "effort",
+          "maxCostUsd"
+        ]
+      },
+      "points": {
+        "type": "object",
+        "properties": {
+          "flow.refine-needed": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "flow.bounce": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "orchestration.retry": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "supervisor.intervene": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "memory.triage": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "assistant.rerank": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "assistant.sources": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "journal.relevance": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "board.triage": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "team.assign": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "flow.scope-drift": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "flow.criteria-precheck": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "flow.criteria-merge": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "flow.restart": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "run.continuation": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "orchestration.model": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "orchestration.fixer": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "health.semantic-loop": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "health.test-weakening": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "changes.unexplained-hunk": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "palette.intent": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "notification.urgency": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          }
+        }
+      },
+      "historyDays": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "provider",
+      "cli",
+      "points",
+      "historyDays"
+    ],
+    "description": "`PUT /decisions/settings` replaces the whole document; the key travels apart, in the credentials"
+  },
+  "DecisionCredentialsUpdate": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string",
+        "description": "The Jev key; saved with mode 0600 and never returned"
+      }
+    },
+    "required": [
+      "key"
+    ]
+  },
+  "DecisionCredentialsResult": {
+    "type": "object",
+    "properties": {
+      "keySet": {
+        "type": "boolean"
+      },
+      "keyHint": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "notice": {
+        "type": "string",
+        "description": "The general privacy notice (D12): what leaves the machine when a point runs on Jev"
+      }
+    },
+    "required": [
+      "keySet",
+      "keyHint",
+      "notice"
+    ]
+  },
+  "DecisionTestRequest": {
+    "type": "object",
+    "properties": {
+      "provider": {
+        "$ref": "#/components/schemas/DecisionProviderId"
+      }
+    },
+    "required": [
+      "provider"
+    ]
+  },
+  "DecisionTestResult": {
+    "type": "object",
+    "properties": {
+      "provider": {
+        "$ref": "#/components/schemas/DecisionProviderId"
+      },
+      "ok": {
+        "type": "boolean"
+      },
+      "latencyMs": {
+        "type": "number"
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/DecisionUnavailableReason"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set when `ok` is false"
+      }
+    },
+    "required": [
+      "provider",
+      "ok",
+      "latencyMs",
+      "model",
+      "reason"
+    ]
+  },
+  "DecisionUnavailableReason": {
+    "type": "string",
+    "enum": [
+      "no-key",
+      "timeout",
+      "rate-limited",
+      "no-quota",
+      "max-tokens",
+      "server-error",
+      "network",
+      "invalid-answer"
+    ],
+    "description": "Why a provider gave no answer; the point then runs today's behaviour"
+  },
+  "DecisionPointInfo": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "$ref": "#/components/schemas/DecisionPointId"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/DecisionPointKind"
+      },
+      "scope": {
+        "$ref": "#/components/schemas/DecisionScope"
+      },
+      "primitives": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DecisionPrimitive"
+        }
+      },
+      "defaultThreshold": {
+        "type": "number"
+      },
+      "savesRun": {
+        "type": "boolean",
+        "description": "True when acting on it avoids a Claude run (feeds \"Claude runs saved\")"
+      },
+      "needsLowLatency": {
+        "type": "boolean",
+        "description": "The provider must be fast enough for the call site (the palette needs Jev)"
+      },
+      "stateVersion": {
+        "type": "number",
+        "description": "Bumps when the shape of the state changes, which clears the consent given for an older one"
+      },
+      "effective": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/DecisionMode"
+          },
+          "threshold": {
+            "type": "number"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/DecisionProviderId"
+          },
+          "consent": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "at": {
+                    "type": "string"
+                  },
+                  "stateVersion": {
+                    "type": "number"
+                  },
+                  "providers": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/DecisionProviderId"
+                    }
+                  }
+                },
+                "required": [
+                  "at",
+                  "stateVersion",
+                  "providers"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the owner consents after seeing the preview; cleared when the state shape changes. `providers` names what the consent covers: consent given while the point ran on `cli` does not cover `jev`."
+          },
+          "limited": {
+            "type": "boolean",
+            "description": "True when the mode is `active` but the point behaves as `shadow` (act point on `cli`, or no consent)"
+          }
+        },
+        "required": [
+          "mode",
+          "threshold",
+          "provider",
+          "consent",
+          "limited"
+        ],
+        "description": "Mode, threshold and consent after project, then global, then the point's defaults"
+      }
+    },
+    "required": [
+      "id",
+      "kind",
+      "scope",
+      "primitives",
+      "defaultThreshold",
+      "savesRun",
+      "needsLowLatency",
+      "stateVersion",
+      "effective"
+    ],
+    "description": "The catalogue entry the UI needs, with the settings in force for a scope"
+  },
+  "DecisionPointId": {
+    "type": "string",
+    "enum": [
+      "flow.refine-needed",
+      "flow.bounce",
+      "orchestration.retry",
+      "supervisor.intervene",
+      "memory.triage",
+      "assistant.rerank",
+      "assistant.sources",
+      "journal.relevance",
+      "board.triage",
+      "team.assign",
+      "flow.scope-drift",
+      "flow.criteria-precheck",
+      "flow.criteria-merge",
+      "flow.restart",
+      "run.continuation",
+      "orchestration.model",
+      "orchestration.fixer",
+      "health.semantic-loop",
+      "health.test-weakening",
+      "changes.unexplained-hunk",
+      "palette.intent",
+      "notification.urgency"
+    ]
+  },
+  "DecisionPointKind": {
+    "type": "string",
+    "enum": [
+      "suggest",
+      "act"
+    ],
+    "description": "A suggest point prepares something a person decides; an act point changes what happens next"
+  },
+  "DecisionScope": {
+    "type": "string",
+    "enum": [
+      "global",
+      "project"
+    ],
+    "description": "`global`: settings only global; `project`: a project may override them"
+  },
+  "DecisionPrimitive": {
+    "type": "string",
+    "enum": [
+      "choice",
+      "score",
+      "noul"
+    ],
+    "description": "The three typed questions, named as Jev names them: a choice, a score on a rubric, a yes/no."
+  },
+  "DecisionPreview": {
+    "type": "object",
+    "properties": {
+      "point": {
+        "$ref": "#/components/schemas/DecisionPointId"
+      },
+      "provider": {
+        "$ref": "#/components/schemas/DecisionProviderId"
+      },
+      "stateVersion": {
+        "type": "number"
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "last",
+          "built"
+        ],
+        "description": "`last` is what the latest request sent; `built` is built locally now and not sent"
+      },
+      "state": {
+        "type": "object",
+        "additionalProperties": {}
+      },
+      "bytes": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "point",
+      "provider",
+      "stateVersion",
+      "source",
+      "state",
+      "bytes"
+    ],
+    "description": "The state a point would send, or sent last, and where it would go"
+  },
+  "DecisionConsentRequest": {
+    "type": "object",
+    "properties": {
+      "granted": {
+        "type": "boolean"
+      },
+      "stateVersion": {
+        "type": "number"
+      },
+      "providers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DecisionProviderId"
+        }
+      }
+    },
+    "required": [
+      "granted",
+      "stateVersion",
+      "providers"
+    ],
+    "description": "Grants or withdraws consent for a point, bound to the state version the person previewed"
+  },
+  "DecisionRecord": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "point": {
+        "$ref": "#/components/schemas/DecisionPointId"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/DecisionPointKind"
+      },
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "subjectKind": {
+        "$ref": "#/components/schemas/DecisionSubjectKind"
+      },
+      "subjectId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "provider": {
+        "$ref": "#/components/schemas/DecisionProviderId"
+      },
+      "model": {
+        "type": "string"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "shadow",
+          "active"
+        ],
+        "description": "`off` writes no row"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "answered",
+          "unavailable"
+        ]
+      },
+      "unavailable": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/DecisionUnavailableReason"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "state": {
+        "type": "object",
+        "additionalProperties": {},
+        "description": "The exact state that was sent"
+      },
+      "questions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DecisionQuestion"
+        }
+      },
+      "answers": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DecisionAnswer"
+            }
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "confidence": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "The lowest confidence of the batch; null for `cli`"
+      },
+      "threshold": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "The threshold in force, act points only"
+      },
+      "acted": {
+        "type": "boolean",
+        "description": "True when the answer changed what happened"
+      },
+      "visible": {
+        "type": "boolean",
+        "description": "True when it changed something a person sees (shows the mark)"
+      },
+      "savedRun": {
+        "type": "boolean",
+        "description": "True when acting avoided a Claude run"
+      },
+      "latencyMs": {
+        "type": "number"
+      },
+      "inputTokens": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "outcome": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/DecisionResolution"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "agreed": {
+        "type": [
+          "boolean",
+          "null"
+        ],
+        "description": "Null while unknown"
+      },
+      "resolvedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "feedback": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/DecisionFeedback"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "feedbackAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "at": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "point",
+      "kind",
+      "projectId",
+      "subjectKind",
+      "subjectId",
+      "provider",
+      "model",
+      "mode",
+      "status",
+      "unavailable",
+      "state",
+      "questions",
+      "answers",
+      "confidence",
+      "threshold",
+      "acted",
+      "visible",
+      "savedRun",
+      "latencyMs",
+      "inputTokens",
+      "costUsd",
+      "outcome",
+      "agreed",
+      "resolvedAt",
+      "feedback",
+      "feedbackAt",
+      "at"
+    ],
+    "description": "A row of the history as the API serves it"
+  },
+  "DecisionSubjectKind": {
+    "type": "string",
+    "enum": [
+      "work_item",
+      "flow_run",
+      "task",
+      "chat",
+      "memory_proposal",
+      "assistant_run",
+      "notification",
+      "palette"
+    ],
+    "description": "What a decision was about; the `subject_kind` column of the history"
+  },
+  "DecisionQuestion": {
+    "anyOf": [
+      {
+        "$ref": "#/components/schemas/DecisionChoiceQuestion"
+      },
+      {
+        "$ref": "#/components/schemas/DecisionScoreQuestion"
+      },
+      {
+        "$ref": "#/components/schemas/DecisionNoulQuestion"
+      }
+    ]
+  },
+  "DecisionChoiceQuestion": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "const": "choice"
+      },
+      "id": {
+        "type": "string"
+      },
+      "question": {
+        "type": "string"
+      },
+      "options": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "label"
+          ]
+        },
+        "description": "2..255 options; ids are stable, labels are what the provider reads"
+      }
+    },
+    "required": [
+      "kind",
+      "id",
+      "question",
+      "options"
+    ],
+    "description": "Questions and rubrics are English (D4): providers read `label` and `description`, never a translation"
+  },
+  "DecisionScoreQuestion": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "const": "score"
+      },
+      "id": {
+        "type": "string"
+      },
+      "question": {
+        "type": "string"
+      },
+      "levels": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "description"
+          ]
+        },
+        "description": "A rubric of 2..10 levels, lowest first"
+      }
+    },
+    "required": [
+      "kind",
+      "id",
+      "question",
+      "levels"
+    ]
+  },
+  "DecisionNoulQuestion": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "const": "noul"
+      },
+      "id": {
+        "type": "string"
+      },
+      "question": {
+        "type": "string",
+        "description": "Answered yes/no"
+      }
+    },
+    "required": [
+      "kind",
+      "id",
+      "question"
+    ]
+  },
+  "DecisionAnswer": {
+    "anyOf": [
+      {
+        "$ref": "#/components/schemas/DecisionChoiceAnswer"
+      },
+      {
+        "$ref": "#/components/schemas/DecisionScoreAnswer"
+      },
+      {
+        "$ref": "#/components/schemas/DecisionNoulAnswer"
+      }
+    ]
+  },
+  "DecisionChoiceAnswer": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "const": "choice"
+      },
+      "value": {
+        "type": "string"
+      },
+      "probabilities": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "confidence": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "kind",
+      "value",
+      "probabilities",
+      "confidence"
+    ],
+    "description": "Every answer is a value plus a confidence in [0, 1]. The `cli` provider has no calibrated confidence, so it always returns null, and a null never clears a threshold."
+  },
+  "DecisionScoreAnswer": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "const": "score"
+      },
+      "value": {
+        "type": "string"
+      },
+      "probabilities": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "confidence": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "kind",
+      "value",
+      "probabilities",
+      "confidence"
+    ]
+  },
+  "DecisionNoulAnswer": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "const": "noul"
+      },
+      "value": {
+        "type": "boolean"
+      },
+      "probability": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "confidence": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "kind",
+      "value",
+      "probability",
+      "confidence"
+    ]
+  },
+  "DecisionResolution": {
+    "type": "object",
+    "properties": {
+      "summary": {
+        "type": "string",
+        "description": "What happened, in words the History row shows; the point's resolver writes it"
+      },
+      "agreed": {
+        "type": "boolean",
+        "description": "True when the answer matched what happened; the person's feedback overrides the inference"
+      },
+      "detail": {
+        "type": "object",
+        "additionalProperties": {},
+        "description": "Point-specific facts (a status, a count), for the row's detail"
+      }
+    },
+    "required": [
+      "summary",
+      "agreed"
+    ],
+    "description": "What a point tells the engine once what really happened is known (shadow accuracy)"
+  },
+  "DecisionFeedback": {
+    "type": "string",
+    "enum": [
+      "useful",
+      "not_useful"
+    ],
+    "description": "The person's word on a decision (D13)"
+  },
+  "DecisionPage": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DecisionRecord"
+        }
+      },
+      "nextCursor": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Pass as `cursor` for the next page; null at the end"
+      }
+    },
+    "required": [
+      "items",
+      "nextCursor"
+    ]
+  },
+  "DecisionPageQuery": {
+    "type": "object",
+    "properties": {
+      "point": {
+        "$ref": "#/components/schemas/DecisionPointId"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "provider": {
+        "$ref": "#/components/schemas/DecisionProviderId"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "shadow",
+          "active"
+        ]
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "answered",
+          "unavailable"
+        ]
+      },
+      "since": {
+        "type": "string",
+        "description": "ISO timestamps, inclusive"
+      },
+      "until": {
+        "type": "string"
+      },
+      "cursor": {
+        "type": "string"
+      },
+      "limit": {
+        "type": "number"
+      }
+    }
+  },
+  "DecisionFilter": {
+    "type": "object",
+    "properties": {
+      "point": {
+        "$ref": "#/components/schemas/DecisionPointId"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "provider": {
+        "$ref": "#/components/schemas/DecisionProviderId"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "shadow",
+          "active"
+        ]
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "answered",
+          "unavailable"
+        ]
+      },
+      "since": {
+        "type": "string",
+        "description": "ISO timestamps, inclusive"
+      },
+      "until": {
+        "type": "string"
+      }
+    }
+  },
+  "DecisionFeedbackRequest": {
+    "type": "object",
+    "properties": {
+      "feedback": {
+        "$ref": "#/components/schemas/DecisionFeedback"
+      }
+    },
+    "required": [
+      "feedback"
+    ]
+  },
+  "DecisionClearResult": {
+    "type": "object",
+    "properties": {
+      "deleted": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "deleted"
+    ]
+  },
+  "DecisionStats": {
+    "type": "object",
+    "properties": {
+      "since": {
+        "type": "string",
+        "description": "ISO start of the window the numbers cover"
+      },
+      "points": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DecisionPointStats"
+        }
+      },
+      "jevCostUsd": {
+        "type": "number"
+      },
+      "claudeRunsSaved": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "since",
+      "points",
+      "jevCostUsd",
+      "claudeRunsSaved"
+    ]
+  },
+  "DecisionPointStats": {
+    "type": "object",
+    "properties": {
+      "point": {
+        "$ref": "#/components/schemas/DecisionPointId"
+      },
+      "count": {
+        "type": "number"
+      },
+      "acted": {
+        "type": "number"
+      },
+      "unavailable": {
+        "type": "number"
+      },
+      "meanConfidence": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Mean confidence of the rows that have one; null when none do"
+      },
+      "resolved": {
+        "type": "number"
+      },
+      "agreed": {
+        "type": "number"
+      },
+      "useful": {
+        "type": "number"
+      },
+      "notUseful": {
+        "type": "number"
+      },
+      "costUsd": {
+        "type": "number"
+      },
+      "runsSaved": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "point",
+      "count",
+      "acted",
+      "unavailable",
+      "meanConfidence",
+      "resolved",
+      "agreed",
+      "useful",
+      "notUseful",
+      "costUsd",
+      "runsSaved"
+    ]
+  },
+  "DecisionPaletteRequest": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string"
+      },
+      "commands": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "title"
+          ]
+        }
+      }
+    },
+    "required": [
+      "query",
+      "commands"
+    ]
+  },
+  "DecisionPaletteResult": {
+    "type": "object",
+    "properties": {
+      "commandId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The command the query most likely means; null when the point is off, unavailable or unsure"
+      },
+      "confidence": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "decisionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "commandId",
+      "confidence",
+      "decisionId"
+    ]
   }
 }
