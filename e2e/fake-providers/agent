@@ -1,0 +1,34 @@
+#!/bin/sh
+# One script behind the three names: the name it is called by picks its state file. See README.md.
+name=$(basename "$0")
+file="${AGENTRY_DATA_DIR:-.}/fake-providers/$name.json"
+
+read_key() {
+  [ -f "$file" ] || return 0
+  sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\{0,1\}\([^\",}]*\)\"\{0,1\}.*/\1/p" "$file" | head -n 1
+}
+
+version=$(read_key version)
+version=${version:-0.50.0}
+case "$1" in
+  --version|-v)
+    code=$(read_key versionExit)
+    if [ -n "$code" ] && [ "$code" != 0 ]; then
+      echo "fake $name: broken" >&2
+      exit "$code"
+    fi
+    echo "$name $version"
+    ;;
+  login)
+    if [ "$2" = status ] && [ "$(read_key signedIn)" != false ]; then
+      echo "Logged in (fake)"
+      exit 0
+    fi
+    echo "Not logged in" >&2
+    exit 1
+    ;;
+  *)
+    echo "fake $name: $* is not part of the fake" >&2
+    exit 1
+    ;;
+esac

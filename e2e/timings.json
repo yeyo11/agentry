@@ -34,6 +34,7 @@
   "paging.spec.mjs": 9.1,
   "palette.spec.mjs": 5.4,
   "projects-wizard.spec.mjs": 23.0,
+  "providers.spec.mjs": 45.0,
   "push.spec.mjs": 1.6,
   "pwa.spec.mjs": 5.1,
   "reload.spec.mjs": 11.3,
