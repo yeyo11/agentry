@@ -162,3 +162,46 @@ def col(s, keys, sel_mode=False, selected=(), extra='', role_head='', cards=None
     more = DONE_MORE
   more_btn = f'<button type="button" class="wi-col-more">Mostrar {more} más{ico("down", "ico ico-sm")}</button>' if more else ''
   return f'<section class="wi-col{" over" if over else ""}" aria-label="{name}">{head}{warn}<div class="wi-col-body">{cards}{more_btn}{extra}</div></section>'
+
+
+# ---------- Pull requests and merge requests on a card (docs/plans/code-hosts.md, phase 1) ----------
+# Pieces the board, the item page and the readiness sheet share. The noun and the number follow the host:
+# "MR !12" on GitLab, "PR #12" on GitHub.
+EXT_PATH = 'M14 4h6v6M20 4l-8 8M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5'
+
+
+def ext_ico(cls='ico ico-sm'):
+  P.setdefault('ext', EXT_PATH)
+  return ico('ext', cls)
+
+
+def ci_badge(ci):
+  """A PR's checks as a badge with its word: passing ok, failing bad, pending neutral and still."""
+  word, cls, icon = {'passing': ('CI superada', ' b-ok', 'check'), 'failing': ('CI fallida', ' b-bad', 'x'),
+                     'pending': ('CI pendiente', '', 'wait'), 'none': ('sin CI', '', 'block')}[ci]
+  return f'<span class="badge pr-ci{cls}" data-ci="{ci}">{ico(icon, "ico ico-sm")}{word}</span>'
+
+
+def pr_ref(host, n):
+  return f'{"MR" if host == "gitlab" else "PR"} {"!" if host == "gitlab" else "#"}{n}'
+
+
+def pr_strip(host, n, verb, ci=None, link=True):
+  """An open PR or MR on a card's strip: the number in mono, what it waits for, the CI badge and an
+  icon link to the host that never opens the card."""
+  ref = pr_ref(host, n)
+  name = 'GitLab' if host == 'gitlab' else 'GitHub'
+  lnk = f'<a href="#" class="pr-link" aria-label="Abrir {ref} en {name}" target="_blank" rel="noreferrer">{ext_ico()}</a>' if link else ''
+  return f'<div class="wi-strip wait"><span class="pr-num" style="white-space: nowrap">{ref}</span><span class="verb" style="flex: 1 1 auto; min-width: 8em">{verb}</span>{ci_badge(ci) if ci else ""}{lnk}</div>'
+
+
+def no_pr_line(text, remedy=None):
+  """The warn line of a not-ready project, with its remedies (label, opens the host's site) as links under it."""
+  r = ''.join(f'<a href="#" class="pr-remedy">{label}{ext_ico() if out else ""}</a>' for label, out in (remedy or ()))
+  return f'<span class="no-pr">{ico("warn", "ico")}<span>{text}</span></span>{r}'
+
+
+def approve_strip(text, label, note=''):
+  """A card that waits for the person: why, and the approval with its wording for the project."""
+  return (f'<div class="wi-strip wait"><span class="badge b-idle">te espera</span><span class="verb">{text}</span>{note}'
+          f'<button type="button" class="btn btn-sm">{ico("check", "ico ico-sm")}{label}</button></div>')
