@@ -133,6 +133,7 @@ the result.
 | Templates | `orchestration-templates.ts` | template tasks | none of its own: a template stores a spec, and its tasks run as workers | the template's model |
 | Workflow lead | `orchestrator.ts` · `launchWorkflow`; the script from `workflow-engine.ts` · `compileWorkflow` | workflow lead session | first prompt; the script's `agent()` prompts | the graph's model |
 | Supervisor | `supervisor.ts` · `supervisorPrompt` | supervisor run (housekeeping) | first prompt | `haiku` (`DEFAULT_SUPERVISOR`) |
+| Decision (cli provider) | `decisions/providers/cli.ts` · `decisionPrompt`, `decisionSchema` | one housekeeping chat per batch of questions, one turn, no tools | first prompt, `--json-schema`, `--effort`, `--max-budget-usd`, `--tools=` | `haiku` (`cli.model`), effort `low` |
 | Work on it | `work-links.ts` · `workItemPrompt(item)` (mode `chat`) | a person's chat from a work item | first prompt | the chat's model |
 | Orchestration draft of work items | `work-links.ts` · `orchestrationDraft` → `workItemPrompt(item, 'task')` | becomes each node's task prompt | — | the draft's |
 | Team agent files | `team.ts` · `agentFileContent`; `assistant.ts` · `memberFile` | `.claude/agents/*.md` body | a file the CLI reads (`--agents`) | the member's model |
