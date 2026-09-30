@@ -60,7 +60,8 @@
     "save": "Save",
     "saving": "Saving…",
     "saved": "Decision settings saved",
-    "discard": "Discard"
+    "discard": "Discard",
+    "beta": "Beta"
   },
   "points": {
     "title": "Decision points",

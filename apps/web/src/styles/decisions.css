@@ -1073,3 +1073,10 @@
     margin: 0;
   }
 }
+
+/* Jev's name with its Beta badge, on one line, in the provider switch and the key's heading */
+.dp-beta-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

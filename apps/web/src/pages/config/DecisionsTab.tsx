@@ -18,7 +18,7 @@ import { NumberInput, Slider } from '../../components/controls';
 import { useConfirm } from '../../components/Dialog';
 import { ICON, ICON_SM } from '../../components/icons';
 import { useToast } from '../../components/Toast';
-import { ErrorBox, ModelCombobox, Segmented, Skeleton } from '../../components/ui';
+import { ErrorBox, ModelCombobox, Segmented, Skeleton, Tag } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
 import { formatNumber, timeAgo } from '../../lib/format';
 import { ConsentDialog } from './decisions/ConsentDialog';
@@ -304,7 +304,7 @@ function EngineSection({
             onChange={(provider) => patch({ provider })}
             options={[
               { value: 'cli', label: t('engine.cli') },
-              { value: 'jev', label: t('engine.jev') },
+              { value: 'jev', label: <JevLabel /> },
             ]}
           />
           <span className="form-hint">{t('engine.providerProjects')}</span>
@@ -401,6 +401,21 @@ function EngineSection({
   );
 }
 
+/** Jev ships as a beta: an outside service still being measured in shadow, so it says so wherever it is chosen. */
+function BetaTag() {
+  const { t } = useTranslation('decisions');
+  return <Tag tone="info">{t('engine.beta')}</Tag>;
+}
+
+function JevLabel() {
+  const { t } = useTranslation('decisions');
+  return (
+    <span className="dp-beta-title">
+      {t('engine.jev')} <BetaTag />
+    </span>
+  );
+}
+
 /** The warning of D10: shown when the last Jev requests keep failing, and only while Jev is the provider. */
 function JevUnavailable({ provider }: { provider: DecisionProviderId }) {
   const { t } = useTranslation('decisions');
@@ -487,7 +502,9 @@ function JevKey({ saved }: { saved: DecisionSettings }) {
   return (
     <div className="dp-setting">
       <div className="dp-setting-label">
-        <span>{t('engine.jevKey')}</span>
+        <span className="dp-beta-title">
+          {t('engine.jevKey')} <BetaTag />
+        </span>
         <span>{t('engine.jevKeyHint')}</span>
       </div>
       <div className="dp-setting-body">

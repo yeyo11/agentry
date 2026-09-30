@@ -60,7 +60,8 @@
     "save": "Guardar",
     "saving": "Guardando…",
     "saved": "Ajustes de las decisiones guardados",
-    "discard": "Descartar"
+    "discard": "Descartar",
+    "beta": "Beta"
   },
   "points": {
     "title": "Puntos de decisión",
