@@ -7741,6 +7741,10 @@
         "$ref": "#/components/schemas/PermissionMode",
         "description": "The `--permission-mode` of a run that does not ask for one; applies to the next run"
       },
+      "providersStepSeen": {
+        "type": "boolean",
+        "description": "The first-run Providers step was shown and answered (continued or skipped). Kept here rather than in the browser so a second browser, a phone or the desktop app does not ask again; the step still returns whenever no provider is ready."
+      },
       "sources": {
         "type": "object",
         "properties": {
@@ -7752,12 +7756,16 @@
           },
           "defaultPermissionMode": {
             "$ref": "#/components/schemas/AppSettingSource"
+          },
+          "providersStepSeen": {
+            "$ref": "#/components/schemas/AppSettingSource"
           }
         },
         "required": [
           "allowedHosts",
           "maxConcurrentRuns",
-          "defaultPermissionMode"
+          "defaultPermissionMode",
+          "providersStepSeen"
         ]
       }
     },
@@ -7765,6 +7773,7 @@
       "allowedHosts",
       "defaultPermissionMode",
       "maxConcurrentRuns",
+      "providersStepSeen",
       "sources"
     ],
     "description": "`GET /settings/app`: every layered setting, and where each one's value comes from."
@@ -16247,6 +16256,10 @@
       "defaultPermissionMode": {
         "$ref": "#/components/schemas/PermissionMode",
         "description": "The `--permission-mode` of a run that does not ask for one; applies to the next run"
+      },
+      "providersStepSeen": {
+        "type": "boolean",
+        "description": "The first-run Providers step was shown and answered (continued or skipped). Kept here rather than in the browser so a second browser, a phone or the desktop app does not ask again; the step still returns whenever no provider is ready."
       }
     },
     "description": "`PUT /settings/app`: the settings to change, and only those. A setting the environment set is refused rather than written to the file, where it would do nothing until the variable goes away and then change behaviour by surprise."

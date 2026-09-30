@@ -17,6 +17,7 @@ Agentry runs, from Settings → Security:
 | `allowedHosts` | `AGENTRY_ALLOWED_HOSTS` | none (loopback only) | the next request |
 | `maxConcurrentRuns` | `AGENTRY_MAX_CONCURRENT_RUNS` | `8` (1 to 64) | the next chat or orchestration worker |
 | `defaultPermissionMode` | `AGENTRY_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | the next run that does not choose one |
+| `providersStepSeen` | `AGENTRY_PROVIDERS_STEP_SEEN` (`on` or `off`) | `off` | the next start: the first-run Providers step is shown only when it is off, or when no provider is ready |
 
 ## Which value wins
 

@@ -34,7 +34,9 @@ import { AccountCard, StatusBar, useConnection } from './components/shell/Status
 import { useRailCollapsed } from './components/shell/rail';
 import { TopBar } from './components/shell/TopBar';
 import { isActive, NavDot, navTarget, TabBar, type NavItem } from './components/shell/TabBar';
+import { ProvidersStep } from './components/ProvidersStep';
 import { SignIn } from './components/SignIn';
+import { useFirstRun } from './lib/first-run';
 import { Empty, Skeleton } from './components/ui';
 import { useUsageNow } from './lib/usage-now';
 import { useAuthChallenge, useAuthSettled } from './lib/auth';
@@ -89,6 +91,15 @@ export function App() {
   const settled = useAuthSettled();
   if (challenge) return <SignIn mode={challenge} />;
   if (!settled) return null;
+  return <FirstRunGate />;
+}
+
+/** The first-run Providers step in place of the app, until it is answered or skipped */
+function FirstRunGate() {
+  const firstRun = useFirstRun();
+  // Held back for the two reads, as the sign-in is, so the shell does not flash and then vanish
+  if (firstRun.state === 'pending') return null;
+  if (firstRun.state === 'shown') return <ProvidersStep statuses={firstRun.statuses} onFinish={firstRun.finish} />;
   // The project selector scopes pages far from the top bar, so it lives above all of them
   return (
     <ProjectScopeProvider>

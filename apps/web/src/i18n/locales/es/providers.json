@@ -38,5 +38,31 @@
     "chooseBinary": "Elegir binario",
     "retry": "Reintentar",
     "opensNewTab": "se abre en una pestaña nueva"
+  },
+  "firstRun": {
+    "label": "Primer arranque",
+    "title": "Estos son los agentes de tu equipo",
+    "checkingTitle": "Buscando agentes en tu equipo",
+    "intro": "Agentry los ha buscado en el PATH de tu terminal y en las carpetas de instalación habituales. Empiezas con el primero que esté listo; el orden y el resto los cambias luego en Ajustes.",
+    "introPhone": "Empiezas con el primero que esté listo. El orden y el resto los cambias luego en Ajustes.",
+    "group": {
+      "ready": "Listos",
+      "signed-out": "Sin sesión",
+      "attention": "Requieren atención",
+      "used-before": "Usados antes",
+      "not-installed": "Sin instalar"
+    },
+    "watching": "Agentry vigila tus carpetas: lo que instales o inicies en una terminal aparece aquí solo.",
+    "checking": "Comprobando…",
+    "recheck": "Volver a comprobar",
+    "skip": "Omitir por ahora",
+    "continue": "Continuar",
+    "continueWith": "Continuar con {{name}}",
+    "empty": {
+      "title": "No se ha encontrado ningún agente",
+      "body": "Agentry ha buscado en el PATH de tu terminal y en las carpetas de instalación habituales, y no hay ninguno. Instala uno y aparecerá aquí solo.",
+      "install": "Ver cómo instalar Claude Code",
+      "others": "O elige otro"
+    }
   }
 }

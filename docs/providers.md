@@ -147,6 +147,19 @@ first `ready` provider in the person's order.
    [status.md](status.md).
 7. The driver, its conformance suite and its capabilities are a separate PR (phase 2 onwards).
 
+## The first-run step
+
+`apps/web/src/components/ProvidersStep.tsx` stands in for the whole app, with no shell, and lists what
+the detector found grouped by state (ready, signed out, needs attention, used before, not installed).
+It is shown when `providersStepSeen` in the app settings is off (the first start), and on every start
+where no provider is usable, so a wrapper that cannot run a chat says why first. The primary action is
+"Continue with" the first ready provider; "Skip for now" is always there and, like Continue, records
+the step as seen (`PUT /settings/app`, or `AGENTRY_PROVIDERS_STEP_SEEN=on` from the environment).
+Skipping while nothing is ready hides it for that page load only. When every provider is missing the
+page is an `Empty` state with the install link for Claude Code and the others as chips. "Check again"
+calls `POST /providers/refresh`, and an install or sign-in made in a terminal arrives through
+`providers.changed`.
+
 ## Related
 
 [[plans/multi-provider.md]] · [[status.md]] · [[decision-engine.md]] · [[desktop.md]] · [[deploy.md]] · [[knowledge-base.md]]
