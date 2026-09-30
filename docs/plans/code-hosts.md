@@ -739,7 +739,7 @@ when it is not); phase 6 needs phase 1. The recommended order is the list's.
 ## Phase 1: orchestrations and task graph
 
 Phase 1 is one delivery on one feature branch, **`feat/code-hosts`**, cut from `main` at
-`9820eff3` (release 0.29.0, with multi-provider phase 1 merged) and squash-merged once. It is split
+`31905a30` (multi-provider phase 2, the provider driver, merged in #155) and squash-merged once. It is split
 into three orchestrations, each landing on that branch: prototypes (P0), core (P1) and web (P2).
 
 ### What phase 1 delivers, and what it does not
