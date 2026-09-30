@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.29.1](https://github.com/yeyo11/agentry/compare/v0.29.0...v0.29.1) (2026-09-30)
+
+
+### Bug fixes
+
+* **decisions:** score notification.urgency only when the push was opened ([#153](https://github.com/yeyo11/agentry/issues/153)) ([aec1bab](https://github.com/yeyo11/agentry/commit/aec1bab2262a6b12b81b71a0901ed543ac0f5d5e))
+
 ## [0.29.0](https://github.com/yeyo11/agentry/compare/v0.28.0...v0.29.0) (2026-09-30)
 
 
