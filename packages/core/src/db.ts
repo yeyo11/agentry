@@ -33,7 +33,7 @@ import type {
   UsageHistoryPoint,
   UsageWindowKind,
 } from '@agentry/shared';
-import { chatsFromRuns, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
+import { chatsFromRuns, LEGACY_PROVIDER, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { CoreConfig } from './paths.ts';
 
 /**
@@ -539,6 +539,10 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // palette's person did with the proposal. Columns of the history row, not of the state sent to a provider
   `ALTER TABLE decisions ADD COLUMN opened_at TEXT;
    ALTER TABLE decisions ADD COLUMN palette_action TEXT;`,
+  // Which provider drives a chat (docs/plans/multi-provider.md). Every chat so far is a Claude Code
+  // session, so the default is what an old process, which never writes the column, leaves behind
+  `ALTER TABLE chats ADD COLUMN provider TEXT NOT NULL DEFAULT 'claude-code';
+   CREATE INDEX chats_provider ON chats (provider, created_at DESC);`,
 ];
 
 /**
@@ -558,6 +562,9 @@ export const ASSISTANT_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m ===
 
 /** The version that added the decisions' opened_at and palette_action, for the test that upgrades into it */
 export const DECISION_SIGNALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN palette_action')) + 1;
+
+/** The version that added the chats' provider column, for the test that upgrades a database from the one before */
+export const CHAT_PROVIDER_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE INDEX chats_provider')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by
@@ -938,8 +945,8 @@ export class Db {
    */
   saveChats(chats: StoredChat[], keep: number | null): void {
     const upsertChat = this.db.prepare(
-      `INSERT INTO chats (id, created_at, json) VALUES (?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET created_at = excluded.created_at, json = excluded.json`,
+      `INSERT INTO chats (id, created_at, provider, json) VALUES (?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET created_at = excluded.created_at, provider = excluded.provider, json = excluded.json`,
     );
     const upsertExecution = this.db.prepare(
       `INSERT INTO executions (id, chat_id, started_at, json) VALUES (?, ?, ?, ?)
@@ -947,7 +954,8 @@ export class Db {
     );
     this.tx(() => {
       for (const { record, executions } of chats) {
-        upsertChat.run(record.id, record.createdAt, JSON.stringify(record));
+        const provider = record.provider ?? LEGACY_PROVIDER;
+        upsertChat.run(record.id, record.createdAt, provider, JSON.stringify({ ...record, provider }));
         for (const execution of executions) upsertExecution.run(execution.id, record.id, execution.startedAt, JSON.stringify(execution));
       }
       if (keep !== null) this.db.prepare('DELETE FROM chats WHERE id NOT IN (SELECT id FROM chats ORDER BY created_at DESC LIMIT ?)').run(keep);
@@ -980,9 +988,10 @@ export class Db {
       }
     }
     const out: StoredChat[] = [];
-    for (const row of this.db.prepare('SELECT json FROM chats ORDER BY created_at DESC').all() as unknown as JsonRow[]) {
+    for (const row of this.db.prepare('SELECT provider, json FROM chats ORDER BY created_at DESC').all() as unknown as Array<JsonRow & { provider: string }>) {
       try {
-        const record = JSON.parse(row.json) as ChatRecord;
+        // The column is the truth; the JSON copy follows it
+        const record = { ...(JSON.parse(row.json) as ChatRecord), provider: row.provider };
         out.push({ record, executions: byChat.get(record.id) ?? [] });
       } catch {
         // one unreadable row must not cost the caller the rest of its history

@@ -89,3 +89,28 @@ test('a known refusal while "Work on it" creates its chat keeps its 4xx', async 
   const agents = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hi', agentsFile: '/etc/passwd' }) });
   assert.equal(agents.statusCode, 400, agents.body);
 });
+
+test('a chat on a provider with no session driver is refused with a 400', async () => {
+  const res = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hi', provider: 'codex' }) });
+  assert.equal(res.statusCode, 400, res.body);
+  assert.match(res.json<{ error: string }>().error, /cannot run chats/);
+  const bad = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hi', provider: 7 }) });
+  assert.equal(bad.statusCode, 400, bad.body);
+});
+
+test('a request the provider cannot honour is refused by capability, and a listed chat has a provider', async () => {
+  const manifest = core.runtime.providers.get('claude-code');
+  assert.ok(manifest);
+  const declared = manifest.capabilities;
+  try {
+    manifest.capabilities = declared.filter((c) => c !== 'budgetLimit');
+    const refused = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hi', maxBudgetUsd: 1 }) });
+    assert.equal(refused.statusCode, 400, refused.body);
+    assert.match(refused.json<{ error: string }>().error, /"budgetLimit" capability/);
+  } finally {
+    manifest.capabilities = declared;
+  }
+  const list = await app.inject({ method: 'GET', url: '/api/chats' });
+  assert.equal(list.statusCode, 200, list.body);
+  for (const chat of list.json<Array<{ provider?: string }>>()) assert.equal(chat.provider, 'claude-code');
+});

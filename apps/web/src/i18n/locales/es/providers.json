@@ -25,6 +25,7 @@
     "missing-required-command": "Falta en este equipo un comando que necesita.",
     "unsupported-platform": "No funciona en este sistema operativo.",
     "handshake-failed": "Ha arrancado, pero no responde como Agentry espera.",
+    "capability-missing": "Le falta algo que Agentry necesita en esta versión.",
     "no-probe": "Agentry todavía no puede comprobar este proveedor.",
     "disabled": "No se busca ni se comprueba mientras esté desactivado."
   },

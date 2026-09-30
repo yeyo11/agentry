@@ -1,0 +1,139 @@
+{
+  "summary": {
+    "id": "<id>",
+    "provider": "claude-code",
+    "name": "golden",
+    "cwd": "<root>/workspace",
+    "workingDir": "<root>/workspace",
+    "origin": "agentry",
+    "derivedFrom": null,
+    "model": "claude-opus-5",
+    "permissionMode": "acceptEdits",
+    "status": "completed",
+    "processStartedAt": null,
+    "createdAt": "<time>",
+    "updatedAt": "<time>",
+    "endedAt": "<time>",
+    "turns": 2,
+    "costUsd": 1.01,
+    "prompt": "REPLAY-RAW <fixtures>/replay/budget.jsonl",
+    "lastText": "Halfway.",
+    "error": "budget reached",
+    "orchestrationId": null,
+    "orchestrationTaskId": null,
+    "account": null,
+    "permissionPrompts": "none",
+    "pendingPrompts": 0,
+    "activity": null,
+    "tools": null,
+    "executions": [
+      {
+        "id": "<id>",
+        "startedAt": "<time>",
+        "endedAt": "<time>",
+        "outcome": "completed",
+        "error": "budget reached",
+        "permissionMode": "acceptEdits",
+        "model": "claude-opus-5",
+        "account": null,
+        "maxBudgetUsd": 1,
+        "costUsd": 1.01,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "total": 0
+        },
+        "turns": 2,
+        "modelCosts": {
+          "claude-opus-5[1m]": 0.02
+        }
+      }
+    ],
+    "backgroundTasks": [],
+    "subagents": [],
+    "workflows": []
+  },
+  "events": [
+    {
+      "kind": "message",
+      "entry": {
+        "uuid": "<id>",
+        "role": "user",
+        "timestamp": "<time>",
+        "model": null,
+        "isSidechain": false,
+        "parentToolUseId": null,
+        "blocks": [
+          {
+            "type": "text",
+            "text": "REPLAY-RAW <fixtures>/replay/budget.jsonl"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "status",
+      "status": "busy"
+    },
+    {
+      "kind": "init",
+      "init": {
+        "sessionId": "<id>",
+        "model": "fake",
+        "cwd": "<root>/workspace",
+        "permissionMode": "acceptEdits",
+        "tools": [],
+        "mcpServers": []
+      }
+    },
+    {
+      "kind": "message",
+      "entry": {
+        "uuid": "",
+        "role": "assistant",
+        "timestamp": null,
+        "model": "claude-opus-5",
+        "isSidechain": false,
+        "parentToolUseId": null,
+        "blocks": [
+          {
+            "type": "text",
+            "text": "Halfway."
+          }
+        ]
+      }
+    },
+    {
+      "kind": "result",
+      "text": "budget reached",
+      "outcome": {
+        "isError": true,
+        "turns": 2,
+        "costUsd": 1.01,
+        "permissionDenials": [],
+        "cause": "budget"
+      }
+    },
+    {
+      "kind": "other",
+      "text": "this line is not the protocol"
+    },
+    {
+      "kind": "status",
+      "status": "completed"
+    }
+  ],
+  "heard": [
+    [
+      "chat-result",
+      {
+        "isError": true,
+        "result": "budget reached",
+        "costUsd": 1.01,
+        "cause": "budget"
+      }
+    ]
+  ]
+}

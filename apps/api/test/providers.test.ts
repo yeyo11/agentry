@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@agentry/core';
-import type { ProviderStatus, ProvidersSettings } from '@agentry/shared';
+import type { ModelOption, ProviderStatus, ProvidersSettings } from '@agentry/shared';
 import { buildApp } from '../src/app.ts';
 
 // The providers over HTTP. Nothing real is needed: the routes are exercised against whatever this
@@ -116,11 +116,19 @@ test("a chat's token can read the providers but not change the settings or force
 test('every provider route is documented with a summary and the Providers tag', async () => {
   const spec = (await app.inject('/openapi.json')).json<{ paths: Record<string, Record<string, { summary?: string; tags?: string[] }>> }>();
   const routes = Object.entries(spec.paths).filter(([path]) => path === '/api/providers' || path.startsWith('/api/providers/'));
-  assert.equal(routes.reduce((n, [, methods]) => n + Object.keys(methods).length, 0), 5);
+  assert.equal(routes.reduce((n, [, methods]) => n + Object.keys(methods).length, 0), 6);
   for (const [path, methods] of routes) {
     for (const [method, op] of Object.entries(methods)) {
       assert.ok(op.summary, `${method} ${path} has no summary`);
       assert.deepEqual(op.tags, ['Providers'], `${method} ${path}`);
     }
   }
+});
+
+test('a provider\'s catalog is served with its tiers, and one with no driver is 404', async () => {
+  const models = (await app.inject('/api/providers/claude-code/models')).json<ModelOption[]>();
+  assert.deepEqual(models.map((m) => m.value).slice(0, 4), ['fable', 'opus', 'sonnet', 'haiku']);
+  assert.equal(models.find((m) => m.value === 'haiku')?.tier, 'fast');
+  assert.equal((await app.inject('/api/providers/codex/models')).statusCode, 404);
+  assert.equal((await app.inject('/api/providers/nope/models')).statusCode, 404);
 });

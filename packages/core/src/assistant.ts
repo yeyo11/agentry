@@ -31,6 +31,7 @@ import {
   type ProjectTemplateId,
   type ProposedResource,
   type ProposedTeamMember,
+  type ToolPolicy,
   type StartAssistantRunRequest,
   type WorkItem,
   type WorkItemActor,
@@ -62,6 +63,7 @@ import { agentFileContent, MAX_SHORT as MEMBER_SHORT_MAX, MAX_TEXT as MEMBER_TEX
 import type { WorkItemService } from './work-items.ts';
 import { MAX_TOKENS_ERROR, stoppedOnMaxTokens } from './open-items.ts';
 import { pasted, PASTED_NOTE } from './prompt-rules.ts';
+import { rulesFor } from './tool-policy.ts';
 
 /**
  * The project assistant (decisions 35 to 37 of docs/plans/project-ecosystem.md, orchestration 4).
@@ -125,6 +127,8 @@ export interface AssistantLaunch {
   appendSystemPrompt: string;
   jsonSchema: Record<string, unknown>;
   permissionMode: PermissionMode;
+  /** What the chat may do, in Agentry's words; the lists below are this policy as the provider's rules */
+  policy: ToolPolicy;
   /** The only tools the chat has (`--tools`); it loads no settings source and no uploads directory */
   tools: string[];
   allowedTools: string[];
@@ -174,41 +178,65 @@ export interface AssistantChatResult {
 }
 
 /**
- * The tools a run has, and may use: reading. No shell, since no allow rule for one can be told apart
- * from a write (`git log --output=<file>` writes); git's answers are handed in the prompt instead.
+ * What a run may not read even inside the project: secrets, keys and credentials, and the
+ * repository's own directory, whose config may hold a remote's token. Path globs, which a provider
+ * turns into its own read rules (for Claude, `Grep` and `Glob` obey them as well).
  */
-export const READ_ONLY_TOOLS = ['Read', 'Grep', 'Glob'];
-/**
- * What a run may not read even inside the project: secrets, keys and credentials, and git's own
- * directory, whose config may hold a remote's token. Read rules rule on `Grep` and `Glob` as well.
- */
-export const DENIED_READS = [
-  'Read(./**/.env)',
-  'Read(./**/.env.*)',
-  'Read(./**/*.env)',
-  'Read(./**/.envrc)',
-  'Read(./**/*.pem)',
-  'Read(./**/*.key)',
-  'Read(./**/*.p12)',
-  'Read(./**/*.pfx)',
-  'Read(./**/*.jks)',
-  'Read(./**/*.keystore)',
-  'Read(./**/id_rsa*)',
-  'Read(./**/id_ecdsa*)',
-  'Read(./**/id_ed25519*)',
-  'Read(./**/.ssh/**)',
-  'Read(./**/.aws/**)',
-  'Read(./**/.npmrc)',
-  'Read(./**/.pypirc)',
-  'Read(./**/.netrc)',
-  'Read(./**/.git-credentials)',
-  'Read(./**/credentials*)',
-  'Read(./**/secrets/**)',
-  'Read(./**/settings.local.json)',
-  'Read(./.git/**)',
+const DENIED_READ_PATHS = [
+  './**/.env',
+  './**/.env.*',
+  './**/*.env',
+  './**/.envrc',
+  './**/*.pem',
+  './**/*.key',
+  './**/*.p12',
+  './**/*.pfx',
+  './**/*.jks',
+  './**/*.keystore',
+  './**/id_rsa*',
+  './**/id_ecdsa*',
+  './**/id_ed25519*',
+  './**/.ssh/**',
+  './**/.aws/**',
+  './**/.npmrc',
+  './**/.pypirc',
+  './**/.netrc',
+  './**/.git-credentials',
+  './**/credentials*',
+  './**/secrets/**',
+  './**/settings.local.json',
+  './.git/**',
 ];
-/** Denied outright as well, so a CLI that let another tool through still could not run, write or delegate. */
-export const DENIED_TOOLS = ['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Task', 'Agent', 'WebFetch', 'WebSearch', ...DENIED_READS];
+
+/**
+ * What a run may do: read, and nothing else. No shell, since no allow rule for one can be told
+ * apart from a write (`git log --output=<file>` writes); the repository's answers are handed in the
+ * prompt instead. Denied outright as well, so a CLI that let another tool through still could not
+ * run, write or delegate. Exclusive: no settings source, hook or server of the person's reaches it.
+ */
+export function assistantPolicy(): ToolPolicy {
+  return {
+    read: { allow: true, denyPaths: [...DENIED_READ_PATHS] },
+    edit: { allow: 'none', deny: true },
+    commands: { allow: 'none', deny: 'all' },
+    network: 'deny',
+    delegate: 'deny',
+    gitPush: 'omit',
+    exclusive: true,
+  };
+}
+
+/** The policy as the CLI's rules, with the read tools in the order the command line has always carried them */
+function assistantRules(): ReturnType<typeof rulesFor> {
+  const rules = rulesFor('claude-code', assistantPolicy());
+  const order = (tools: string[]) => ['Read', 'Grep', 'Glob'].filter((t) => tools.includes(t));
+  return { ...rules, allowedTools: order(rules.allowedTools), tools: order(rules.tools ?? []) };
+}
+
+/** The tools a run has, and may use: reading */
+export const READ_ONLY_TOOLS = assistantRules().allowedTools;
+export const DENIED_READS = DENIED_READ_PATHS.map((path) => `Read(${path})`);
+export const DENIED_TOOLS = assistantRules().disallowedTools;
 
 const RUNS_LISTED = 50;
 const DESCRIPTION_MAX = 4000;
@@ -519,6 +547,8 @@ export class AssistantService {
 
   /** Starts the run's chat; a run whose chat could not start has failed. */
   private async launch(row: RunRow, project: AssistantProject, brief: AssistantBrief, known: Pick<AssistantKnown, 'journal' | 'instructions'>, resumeChatId: string | null): Promise<void> {
+    const policy = assistantPolicy();
+    const rules = assistantRules();
     const launch: AssistantLaunch = {
       run: this.runOf(row),
       cwd: project.path,
@@ -527,9 +557,10 @@ export class AssistantService {
       appendSystemPrompt: systemPrompt(known.journal, known.instructions),
       jsonSchema: assistantSchema(brief),
       permissionMode: 'dontAsk',
-      tools: [...READ_ONLY_TOOLS],
-      allowedTools: [...READ_ONLY_TOOLS],
-      disallowedTools: [...DENIED_TOOLS],
+      policy,
+      tools: rules.tools ?? [],
+      allowedTools: rules.allowedTools,
+      disallowedTools: rules.disallowedTools,
       resumeChatId,
     };
     let started = false;

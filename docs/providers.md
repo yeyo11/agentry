@@ -15,8 +15,9 @@ reference for what a provider is, how Agentry decides whether one is ready, how 
 and how to add one. The reasons and the order of work are in
 [plans/multi-provider.md](plans/multi-provider.md).
 
-Status: phase 1 (detection only) is being built on `feat/multi-provider`. Until phase 2, no provider
-other than Claude Code starts a chat; the others are detected and reported, nothing more. The type
+Status: phase 1 (detection) is done. Phase 2 puts Claude Code behind the driver interface and adds the
+conformance suite every driver must pass; no provider other than Claude Code starts a chat yet, the
+others are detected and reported, nothing more. The type
 names below are the ones phase 1 defines in `packages/shared/src/types.ts`; if they differ from the
 code, the code wins and this document is stale.
 
@@ -156,7 +157,18 @@ read is retried, never taken for an empty session. See the plan's note under Ope
    the real agent.
 6. **Update the docs** in the same PR: the table in this document if a field or state changed, and
    [status.md](status.md).
-7. The driver, its conformance suite and its capabilities are a separate PR (phase 2 onwards).
+7. **Write the driver** (`providers/<id>/driver.ts`) against the `ProviderDriver` interface in
+   `packages/core/src/providers/driver.ts`: `launch`, `attach`, `translatePolicy`, `models`,
+   `confirm` and the rest. Events come out neutral (`RunEvent`); Agentry's `ToolPolicy` goes in and
+   the provider's own rules come out, and a part the provider cannot enforce is listed in
+   `unsupported`, never dropped. The policy table is in
+   [plans/multi-provider.md](plans/multi-provider.md), phase 2.
+8. **Pass the conformance suite.** Add a fake of the provider's CLI that speaks its protocol, then
+   a test file like `packages/core/test/conformance-claude-code.test.ts` that calls
+   `driverConformance(name, harness)` from `packages/core/test/conformance/suite.ts`. The harness
+   gives the driver, the environment its fake needs, and how to script a turn. A case whose
+   capability the manifest does not declare is skipped with that reason, so the manifest's
+   capabilities are what the suite holds the driver to.
 
 ## The first-run step
 

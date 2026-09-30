@@ -325,7 +325,7 @@ test('a worker that turns bad gets a proposal from a read-only housekeeping chat
     assert.equal(flag('--model'), 'haiku');
     assert.equal(flag('--max-budget-usd'), '0.03');
     assert.ok(argv.some((a) => a.startsWith('--allowedTools=Read,Glob,Grep,')), argv.join(' '));
-    assert.ok(argv.includes('--disallowedTools=Edit,Write,NotebookEdit'), argv.join(' '));
+    assert.ok(argv.includes('--disallowedTools=Edit,Write,MultiEdit,NotebookEdit'), argv.join(' '));
     // It is gone once it answered: the proposal is its record
     await until(() => !core.runtime.list().some((r) => r.origin === 'internal'), 'the housekeeping chat to be removed');
 

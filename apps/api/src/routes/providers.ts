@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@agentry/core';
-import type { ProviderStatus, ProvidersSettings } from '@agentry/shared';
+import type { ModelOption, ProviderStatus, ProvidersSettings } from '@agentry/shared';
 
 /**
  * The agents Agentry can drive: what each one's detection found (served from the detector's cache),
@@ -25,5 +25,11 @@ export const providerRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     const status = (await core.providers.statuses()).find((s) => s.id === req.params.id);
     if (!status) throw Object.assign(new Error(`provider ${req.params.id} not found`), { statusCode: 404 });
     return status;
+  });
+
+  app.get<{ Params: { id: string } }>('/providers/:id/models', (req): ModelOption[] => {
+    const driver = core.runtime.providers.driverFor(req.params.id);
+    if (!driver) throw Object.assign(new Error(`provider ${req.params.id} has no driver`), { statusCode: 404 });
+    return driver.models();
   });
 };

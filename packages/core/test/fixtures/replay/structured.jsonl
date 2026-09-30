@@ -1,0 +1,6 @@
+{"type":"stream_event","parent_tool_use_id":null,"event":{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_so","name":"StructuredOutput","input":{}}}}
+{"type":"stream_event","parent_tool_use_id":null,"event":{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"verdict\":\"pa"}}}
+{"type":"stream_event","parent_tool_use_id":null,"event":{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"ss\",\"notes\":[\"a\",\"b\"]}"}}}
+{"type":"stream_event","parent_tool_use_id":null,"event":{"type":"content_block_stop","index":0}}
+{"type":"stream_event","parent_tool_use_id":null,"event":{"type":"message_delta","delta":{"stop_reason":"max_tokens","stop_sequence":null}}}
+{"type":"result","subtype":"success","is_error":false,"num_turns":1,"total_cost_usd":0.02,"modelUsage":{"claude-opus-5[1m]":{"inputTokens":10,"outputTokens":5,"costUSD":0.02,"contextWindow":1000000}},"result":"","structured_output":{"verdict":"pass","notes":["a","b"]}}

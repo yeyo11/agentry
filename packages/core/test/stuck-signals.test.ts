@@ -62,7 +62,7 @@ test('the CLI heartbeat for a running command is kept with it, and does not fill
     assert.equal(command.command, 'sleep 60');
     assert.ok(command.toolUseId.startsWith('toolu_sleep_'));
     // A beat is state, not an event: one every 30 s per command would drown the events of the chat
-    assert.equal(core.runtime.events(chat.id).some((e) => e.type === 'tool_progress'), false);
+    assert.equal(core.runtime.events(chat.id).some((e) => e.kind === 'other'), false);
   } finally {
     core.shutdown();
   }

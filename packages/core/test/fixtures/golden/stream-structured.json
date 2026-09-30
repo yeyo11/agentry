@@ -1,0 +1,140 @@
+{
+  "summary": {
+    "id": "<id>",
+    "provider": "claude-code",
+    "name": "golden",
+    "cwd": "<root>/workspace",
+    "workingDir": "<root>/workspace",
+    "origin": "agentry",
+    "derivedFrom": null,
+    "model": "fake",
+    "permissionMode": "acceptEdits",
+    "status": "completed",
+    "processStartedAt": null,
+    "createdAt": "<time>",
+    "updatedAt": "<time>",
+    "endedAt": "<time>",
+    "turns": 1,
+    "costUsd": 0.02,
+    "prompt": "REPLAY-RAW <fixtures>/replay/structured.jsonl",
+    "lastText": null,
+    "error": null,
+    "orchestrationId": null,
+    "orchestrationTaskId": null,
+    "account": null,
+    "permissionPrompts": "none",
+    "pendingPrompts": 0,
+    "activity": null,
+    "tools": null,
+    "executions": [
+      {
+        "id": "<id>",
+        "startedAt": "<time>",
+        "endedAt": "<time>",
+        "outcome": "completed",
+        "error": null,
+        "permissionMode": "acceptEdits",
+        "model": "fake",
+        "account": null,
+        "maxBudgetUsd": null,
+        "costUsd": 0.02,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "total": 0
+        },
+        "turns": 1,
+        "modelCosts": {
+          "claude-opus-5[1m]": 0.02
+        }
+      }
+    ],
+    "backgroundTasks": [],
+    "subagents": [],
+    "workflows": []
+  },
+  "events": [
+    {
+      "kind": "message",
+      "entry": {
+        "uuid": "<id>",
+        "role": "user",
+        "timestamp": "<time>",
+        "model": null,
+        "isSidechain": false,
+        "parentToolUseId": null,
+        "blocks": [
+          {
+            "type": "text",
+            "text": "REPLAY-RAW <fixtures>/replay/structured.jsonl"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "status",
+      "status": "busy"
+    },
+    {
+      "kind": "init",
+      "init": {
+        "sessionId": "<id>",
+        "model": "fake",
+        "cwd": "<root>/workspace",
+        "permissionMode": "acceptEdits",
+        "tools": [],
+        "mcpServers": []
+      }
+    },
+    {
+      "kind": "result",
+      "text": "",
+      "outcome": {
+        "isError": false,
+        "turns": 1,
+        "costUsd": 0.02,
+        "structuredOutput": {
+          "verdict": "pass",
+          "notes": [
+            "a",
+            "b"
+          ]
+        },
+        "permissionDenials": [],
+        "stopReason": "max_tokens"
+      }
+    },
+    {
+      "kind": "status",
+      "status": "completed"
+    }
+  ],
+  "heard": [
+    [
+      "chat-structured",
+      "{\"verdict\":\"pa"
+    ],
+    [
+      "chat-structured",
+      "{\"verdict\":\"pass\",\"notes\":[\"a\",\"b\"]}"
+    ],
+    [
+      "chat-result",
+      {
+        "isError": false,
+        "result": "",
+        "structuredOutput": {
+          "verdict": "pass",
+          "notes": [
+            "a",
+            "b"
+          ]
+        },
+        "costUsd": 0.02,
+        "stopReason": "max_tokens"
+      }
+    ]
+  ]
+}

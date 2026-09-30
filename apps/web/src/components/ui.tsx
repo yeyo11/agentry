@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MODEL_ALIASES } from '@agentry/shared';
 import i18n from '../i18n';
 import { useOverview } from '../api';
 import { errorMessage } from '../lib/format';
@@ -458,14 +457,13 @@ export function Field({ label, hint, children }: { label: string; hint?: ReactNo
 
 export const PERMISSION_MODES = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'] as const;
 
-/** Until the wrapper has heard from the CLI: the aliases it always takes. */
-export const MODEL_OPTIONS: ComboboxOption[] = MODEL_ALIASES.map((value) => ({ value }));
+const NO_MODELS: ComboboxOption[] = [];
 
 /**
  * The models to offer: what the CLI says this account may run (`SystemInfo.models`, read from the
  * CLI's own state file), with its names and the line it shows under each. The ones it names but
- * cannot run are left out — a suggestion nobody can pick is a trap — and the aliases stand alone
- * until the overview has been read.
+ * cannot run are left out — a suggestion nobody can pick is a trap. The provider's catalog starts
+ * with its aliases, so nothing is offered until the overview has been read.
  */
 export function useModelOptions(): ComboboxOption[] {
   const models = useOverview().data?.system.models;
@@ -473,7 +471,7 @@ export function useModelOptions(): ComboboxOption[] {
     () =>
       models && models.length > 0
         ? models.filter((model) => !model.disabled).map((model) => ({ value: model.value, label: model.label ?? model.value, hint: model.description }))
-        : MODEL_OPTIONS,
+        : NO_MODELS,
     [models],
   );
 }

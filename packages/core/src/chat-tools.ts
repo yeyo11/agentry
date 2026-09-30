@@ -2,47 +2,57 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { ChatStartOptions, ChatToolConfig, McpSelection, ToolPreset, ToolPresetsConfig, ToolPresetsOverview } from '@agentry/shared';
+import type { ChatStartOptions, ChatToolConfig, CommandRule, McpSelection, ToolPolicy, ToolPreset, ToolPresetsConfig, ToolPresetsOverview } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
 import type { McpConfig } from './config/mcp.ts';
 import { projectScope } from './config/scope.ts';
 import type { CoreConfig } from './paths.ts';
+import { rulesFor } from './tool-policy.ts';
 
 const PRESET_ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const MAX_TOOL_RULES = 200;
 /** `PUT /config/tool-presets/default` sets the default, so no preset can be written under that id */
 const RESERVED_IDS = new Set(['default']);
 
+/** A shipped preset: its policy, and the Claude rules derived from it, which is what gets stored. */
+function shipped(id: string, name: string, description: string, policy: ToolPolicy): ToolPreset {
+  const { allowedTools, disallowedTools } = rulesFor('claude-code', policy);
+  return { id, name, description, allowedTools, disallowedTools, policy, builtIn: true };
+}
+
 /**
  * What a fresh install offers. They are ordinary presets once stored: edit or delete any of them.
- * A tool rule is what `--allowedTools` takes, so `Bash(git log:*)` allows that one command.
+ * Each states what it allows as a `ToolPolicy`; its `allowedTools` and `disallowedTools` are that
+ * policy in Claude's rules, where `Bash(git log:*)` allows that one command.
  */
 export const DEFAULT_TOOL_PRESETS: readonly ToolPreset[] = [
-  {
-    id: 'read-only',
-    name: 'Read only',
-    description: 'Look around and read git history; nothing can be written or changed',
-    allowedTools: ['Read', 'Glob', 'Grep', 'Bash(git status:*)', 'Bash(git diff:*)', 'Bash(git log:*)', 'Bash(git show:*)'],
-    disallowedTools: ['Edit', 'Write', 'NotebookEdit'],
-    builtIn: true,
-  },
-  {
-    id: 'no-network',
-    name: 'No network',
-    description: 'Everything local, without web tools or curl/wget. A script can still open a socket',
-    allowedTools: ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'NotebookEdit', 'Bash'],
-    disallowedTools: ['WebFetch', 'WebSearch', 'Bash(curl:*)', 'Bash(wget:*)'],
-    builtIn: true,
-  },
-  {
-    id: 'everything',
-    name: 'Everything',
-    description: 'Every built-in tool, web included, without asking',
-    allowedTools: ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'NotebookEdit', 'Bash', 'WebFetch', 'WebSearch'],
-    disallowedTools: [],
-    builtIn: true,
-  },
+  shipped('read-only', 'Read only', 'Look around and read git history; nothing can be written or changed', {
+    read: { allow: true },
+    edit: { allow: 'none', deny: true },
+    commands: { allow: ['status', 'diff', 'log', 'show'].map((c): CommandRule => ({ command: `git ${c}`, args: 'prefix' })) },
+    network: 'omit',
+    gitPush: 'omit',
+  }),
+  shipped('no-network', 'No network', 'Everything local, without web tools or curl/wget. A script can still open a socket', {
+    read: { allow: true },
+    edit: { allow: 'any' },
+    commands: { allow: 'any', deny: ['curl', 'wget'].map((c): CommandRule => ({ command: c, args: 'prefix' })) },
+    network: 'deny',
+    gitPush: 'omit',
+  }),
+  shipped('everything', 'Everything', 'Every built-in tool, web included, without asking', {
+    read: { allow: true },
+    edit: { allow: 'any' },
+    commands: { allow: 'any' },
+    network: 'allow',
+    gitPush: 'omit',
+  }),
 ];
+
+/** A shipped preset as it is stored and served: rules a person can edit, without the policy they came from */
+function asStored({ policy: _policy, ...preset }: ToolPreset): ToolPreset {
+  return { ...preset, allowedTools: [...preset.allowedTools], disallowedTools: [...(preset.disallowedTools ?? [])] };
+}
 
 function rules(value: unknown, field: string): string[] {
   if (value === undefined || value === null) return [];
@@ -148,7 +158,7 @@ export class ToolPresetStore {
     const doc = this.read();
     const presets = [...doc.presets];
     for (const shipped of DEFAULT_TOOL_PRESETS) {
-      const copy = { ...shipped, allowedTools: [...shipped.allowedTools], disallowedTools: [...(shipped.disallowedTools ?? [])] };
+      const copy = asStored(shipped);
       const at = presets.findIndex((p) => p.id === shipped.id);
       if (at >= 0) presets[at] = copy;
       else presets.push(copy);
@@ -158,7 +168,7 @@ export class ToolPresetStore {
   }
 
   private read(): PresetsDocument {
-    if (!existsSync(this.file)) return { presets: DEFAULT_TOOL_PRESETS.map((p) => ({ ...p })), defaultPresetId: null };
+    if (!existsSync(this.file)) return { presets: DEFAULT_TOOL_PRESETS.map(asStored), defaultPresetId: null };
     let doc: { presets?: unknown; defaultPresetId?: unknown };
     try {
       doc = JSON.parse(readFileSync(this.file, 'utf8')) as { presets?: unknown; defaultPresetId?: unknown };

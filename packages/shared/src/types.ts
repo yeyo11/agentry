@@ -89,13 +89,6 @@ export interface SystemInfo {
   uptimeSec: number;
 }
 
-/**
- * The aliases the CLI always takes, each the latest model of its line (`claude --help`). What an
- * account may run beyond them depends on its subscription, and the CLI says so itself: see
- * `ModelOption`.
- */
-export const MODEL_ALIASES = ['fable', 'opus', 'sonnet', 'haiku'] as const;
-
 /** One choice for `--model`. */
 export interface ModelOption {
   /** What the flag takes: an alias (`opus`) or a model's full name (`claude-fable-5-1[1m]`) */
@@ -109,7 +102,12 @@ export interface ModelOption {
   description?: string;
   /** The CLI names it but cannot run it (it is too old for it, say); `description` says why */
   disabled?: boolean;
+  /** How capable it is among its provider's models, where the provider says; a model with no rank has none */
+  tier?: ModelTier;
 }
+
+/** A provider's models by how fast or how strong they are; what model mapping across providers builds on. */
+export type ModelTier = 'fast' | 'balanced' | 'strong';
 
 export interface RateLimitWindow {
   utilization: number;
@@ -302,15 +300,61 @@ export interface RunEvent {
   seq: number;
   ts: string;
   kind: RunEventKind;
-  /** Original type/subtype of the stream-json event */
-  type: string;
-  subtype?: string;
+  /** For `message` events */
   entry?: TranscriptEntry;
+  /** For `status` events */
   status?: RunStatus;
+  /** For `partial`, `result`, `stderr`, `notice` and `other` events; for `other`, a stdout line the driver could not read */
   text?: string;
   /** For `partial` events: which kind of block is streaming */
   block?: 'text' | 'thinking';
+  /** For `init` events, in the provider's neutral words */
+  init?: RunInit;
+  /** For `result` events */
+  outcome?: RunOutcome;
+  /** For `task` events */
+  task?: RunTaskChange;
+  /** For `notice` events only: Agentry's own words, never a provider's */
   data?: Record<string, unknown>;
+}
+
+/** What a session reports about itself when it starts. */
+export interface RunInit {
+  sessionId: string;
+  model: string;
+  cwd: string;
+  permissionMode: string;
+  /** The names of the tools the session has, as the provider calls them */
+  tools: string[];
+  mcpServers: Array<{ name: string; status: string }>;
+}
+
+/** How a turn ended. */
+export interface RunOutcome {
+  isError: boolean;
+  turns: number;
+  durationMs: number;
+  costUsd: number;
+  structuredOutput?: unknown;
+  permissionDenials: Array<{ toolName: string; toolUseId: string }>;
+  /**
+   * Why a failed result is not one to try again blindly: the budget ran out, the account hit its
+   * limit or someone stopped it.
+   */
+  cause?: 'budget' | 'rate-limit' | 'stopped';
+  /** The main agent's last stop reason in the turn (`end_turn`, `tool_use`, `max_tokens`…), when the provider said */
+  stopReason?: string;
+}
+
+/** A background task starting, moving or ending, or the whole list being replaced. */
+export interface RunTaskChange {
+  /** Absent for a change of the whole list */
+  taskId?: string;
+  change: 'started' | 'updated' | 'progress' | 'ended' | 'listed';
+  taskKind: 'command' | 'agent' | 'workflow' | 'other';
+  status?: string;
+  description?: string;
+  summary?: string;
 }
 
 // ---------- Chats, executions and projects (Agentry's own model) ----------
@@ -715,6 +759,8 @@ export interface Chat {
   /** The session id */
   id: string;
   title: string;
+  /** The provider that runs the chat; a chat read from Claude's transcripts is `claude-code` */
+  provider: ProviderId;
   firstPrompt: string | null;
   messageCount: number;
   startedAt: string | null;
@@ -797,6 +843,45 @@ export interface McpSelection {
   config?: string;
 }
 
+/** A shell command a policy allows or denies, in Agentry's words. */
+export type CommandRule =
+  /** Exactly this command, no arguments */
+  | { command: string; args: 'none' }
+  /** This command followed by arguments */
+  | { command: string; args: 'some' }
+  /** Anything starting with these words */
+  | { command: string; args: 'prefix' }
+  /** A command line with `*` wildcards */
+  | { pattern: string };
+
+/**
+ * What a session may do, in Agentry's words. Each provider's driver translates it into its own
+ * rules and lists the parts it cannot enforce.
+ */
+export interface ToolPolicy {
+  /** `denyPaths` are path globs never read */
+  read: { allow: boolean; denyPaths?: string[] };
+  /** Paths are relative to the project; `deny` is denial outright, for a mode that would otherwise ask */
+  edit: { allow: 'none' | 'any' | string[]; deny?: boolean };
+  commands: { allow: 'none' | 'any' | CommandRule[]; deny?: 'all' | CommandRule[] };
+  /** Web fetch and search tools */
+  network: 'allow' | 'omit' | 'deny';
+  /** Subagents */
+  delegate?: 'deny';
+  /** The orchestrator's workflow engine */
+  workflow?: 'allow';
+  gitPush: 'deny' | 'omit';
+  /** Nothing outside the policy exists for the session: no person's settings, hooks or servers */
+  exclusive?: boolean;
+}
+
+/** A policy in a provider's own terms, and the parts it cannot enforce. */
+export interface PolicyTranslation {
+  rules: { allowedTools: string[]; disallowedTools: string[]; tools?: string[] };
+  /** The policy parts the provider cannot enforce, by field (`gitPush`, `commands`…) */
+  unsupported: string[];
+}
+
 /** A named set of `--allowedTools` / `--disallowedTools`, picked when a chat starts or resumes. */
 export interface ToolPreset {
   id: string;
@@ -805,6 +890,8 @@ export interface ToolPreset {
   description?: string;
   allowedTools: string[];
   disallowedTools?: string[];
+  /** What a shipped preset states in Agentry's words; each provider translates it into its own rules */
+  policy?: ToolPolicy;
   /** Shipped with Agentry. Editable like any other, but a fresh install has it again. */
   builtIn?: boolean;
 }
@@ -832,6 +919,8 @@ export interface ChatToolConfig {
 
 /** What can be chosen when a process starts on a chat, whether it is new, resumed or a fork. */
 export interface ChatStartOptions {
+  /** The provider to run on; the first one in the person's order that can run chats when absent */
+  provider?: ProviderId;
   model?: string;
   effort?: string;
   permissionMode?: PermissionMode;
@@ -4559,6 +4648,7 @@ export type ProviderReasonCode =
   | 'missing-required-command'
   | 'unsupported-platform'
   | 'handshake-failed'
+  | 'capability-missing'
   | 'no-probe'
   | 'disabled';
 
@@ -4581,6 +4671,8 @@ export interface ProviderStatus {
   account: string | null;
   /** The capabilities the handshake confirmed for the installed version (the declared ones until then) */
   capabilities: ProviderCapability[];
+  /** What the first event of a real session confirmed for the installed version; null until one has */
+  confirmed?: { at: string; version: string; capabilities: ProviderCapability[] } | null;
   /** ISO timestamp of the detection this status came from */
   checkedAt: string;
 }
