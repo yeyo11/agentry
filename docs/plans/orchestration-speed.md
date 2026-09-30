@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T13:57:10.191855215Z
-updated_at: 2026-09-29T12:00:00Z
+updated_at: 2026-09-30T06:00:00Z
 tags:
     - plan
     - orchestration
@@ -233,10 +233,22 @@ Filled in as the workstreams land and the graphs after them are measured.
    own port? This catches breakage before the merge, at the cost of a build and one spec per worker.
    The alternatives are to keep "no e2e in workers" and rely on sharding alone, or to add a
    dedicated `e2e-specs` task before integration.
+
+   **Answered on 2026-09-30: a dedicated `e2e-specs` task (option C).** Workers keep running no e2e;
+   before integration a task runs the browser specs that the graph's changes touch, on its own
+   port. This is what CW-15 builds.
 2. **No account left.** Should the graph wait for the reset and resume by itself, stop for a
    decision, or wait only up to a limit (for example 30 min) and then stop?
+
+   **Answered on 2026-09-30: wait and resume by itself (option A).** A task or flow run with no
+   account left is *waiting for quota* (warn, with the time the first account resets), never
+   failed, and Agentry resumes it in its own chat as soon as an account has room. While it waits,
+   nothing new starts on the exhausted pool. This is what CW-4 builds.
 3. **Two big graphs at once.** Should the launch form warn, should the second one wait in a queue
    until the first one ends, or should the accounts be split between them?
+
+   **Answered on 2026-09-30: warn at launch (option A).** The launch form says the graphs share the
+   accounts' quota and how much is left; the person decides.
 
 ## The prompts the orchestration builds
 
