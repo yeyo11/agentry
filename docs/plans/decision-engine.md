@@ -980,6 +980,10 @@ second.
 
 ## Open question for the owner
 
+**Answered on 2026-09-30: option A.** With no account that has quota, a decision is unavailable at
+once: today's behaviour runs, and the run that asked waits for quota on its own if it has to (#137).
+A decision never waits and never blocks a run.
+
 **What does a decision do when no account has quota?** On 2026-09-30 the owner decided that a run
 with no account left waits and resumes by itself ("waiting for quota", CW-4). D10 says a provider
 that is unavailable falls back to today's behaviour without waiting, but it was written about Jev.
