@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFil
 import { join, relative, resolve } from 'node:path';
 import type {
   ChatActivity,
+  DecisionPointId,
   Health,
   LaunchOrchestrationTemplateRequest,
   Orchestration,
@@ -69,7 +70,10 @@ import {
   type InstallStep,
 } from './verification.ts';
 import { compileWorkflow, readCompiledResult, workflowName } from './workflow-engine.ts';
-import { continuationPrompt, MAX_TOKENS_ERROR, openItems, stoppedOnMaxTokens } from './open-items.ts';
+import { continuationPrompt, MAX_TOKENS_ERROR, OWES_WORK_ITEM, phraseItems, stoppedOnMaxTokens, structuralItems, tailOf } from './open-items.ts';
+import type { DecisionOutcome } from './decisions/engine.ts';
+import type { DecisionSubject } from './decisions/points.ts';
+import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
 import { designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, scopeAndCompletion, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
 import { MAX_CONTINUATIONS } from '@agentry/shared';
 
@@ -84,6 +88,25 @@ const MAX_DEP_CONTEXT = 6000;
 /** How every worker's prompt, and each message that sends it back to its chat, ends */
 const WORKER_CLOSING = 'Finish with a concise report of what you did and found; it is handed to the next workers.';
 const DEFAULT_ATTEMPTS = 2;
+/** The words a decision's state counts attempts in: Jev is weak at numbers, so code keeps the arithmetic */
+const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth'];
+/** What a decision's state carries of an error or a check's output: the end of it, where it says what failed */
+const MAX_DECISION_TEXT = 1500;
+
+/** What each model is for, as a decision reads it; a model outside this list is shown by its id */
+const MODEL_LABELS: Readonly<Record<string, string>> = {
+  haiku: 'haiku: the cheapest and fastest, for small mechanical work',
+  sonnet: 'sonnet: balanced, for most implementation work',
+  opus: 'opus: the most capable, for hard design or debugging',
+};
+
+/** What the decisions that stand before a task's result say about it; empty is today's behaviour */
+interface SettleVerdict {
+  /** `orchestration.retry` judged the error permanent: no retry */
+  permanent?: boolean;
+  /** `run.continuation`'s reading of the last paragraph, in place of the phrase list */
+  phrases?: string[];
+}
 const MAX_ATTEMPTS = 10;
 const MAX_ERROR_QUOTE = 2000;
 /** How often running tasks are checked against their time limit; the limits are in minutes */
@@ -345,6 +368,12 @@ export class Orchestrator {
   private readonly verifying = new Map<string, VerificationControl>();
   /** Graphs saved to be launched again on another objective */
   readonly templates: OrchestrationTemplates;
+  /** The decision engine the points of docs/plans/decision-engine.md ask; set by Core. Absent, every point is off */
+  decisions: DecisionAsker | null = null;
+  /** The project a working directory belongs to, which a decision's project override is read for; set by Core */
+  projectOf: ((cwd: string) => string | null) | null = null;
+  /** Decisions being asked, so a test (and a shutdown) can wait for them */
+  private readonly deciding = new Set<Promise<unknown>>();
 
   constructor(
     private readonly config: CoreConfig,
@@ -1071,7 +1100,16 @@ ${quoted}
    */
   private settle(orch: Orchestration, task: OrchestrationTaskState, result: RunResult): void {
     if (task.status !== 'running') return; // stopped meanwhile
-    if (result.isError && !result.cause && task.attempts < orch.maxAttempts && task.runId) {
+    const deciding = this.decide(orch, task, result);
+    if (!deciding) return this.settleNow(orch, task, result, {});
+    void deciding.then((verdict) => {
+      // A decision that took its time may have been overtaken by a stop
+      if (task.status === 'running') this.settleNow(orch, task, result, verdict);
+    });
+  }
+
+  private settleNow(orch: Orchestration, task: OrchestrationTaskState, result: RunResult, verdict: SettleVerdict): void {
+    if (result.isError && !result.cause && task.attempts < orch.maxAttempts && task.runId && !verdict.permanent) {
       this.charge(orch, task, result);
       task.error = result.result;
       this.continueChat(orch, task, task.runId);
@@ -1079,7 +1117,10 @@ ${quoted}
     }
     // A turn that ended as a report with work still owed goes back to its chat, naming what is open.
     // Agentry commits what a worker leaves uncommitted, so only its last message is read here
-    const open = result.isError || !task.runId || (task.continuations ?? 0) >= MAX_CONTINUATIONS ? [] : openItems({ schema: false, structured: true, uncommitted: [], finalText: result.result });
+    const open =
+      result.isError || !task.runId || (task.continuations ?? 0) >= MAX_CONTINUATIONS
+        ? []
+        : [...structuralItems({ schema: false, structured: true, uncommitted: [] }), ...(verdict.phrases ?? phraseItems(result.result))];
     if (open.length && task.runId) {
       this.charge(orch, task, result);
       const count = (task.continuations ?? 0) + 1;
@@ -1089,6 +1130,84 @@ ${quoted}
     }
     this.record(orch, task, result);
     this.schedule(orch);
+  }
+
+  // ---------- decision points ----------
+  // Every point ships off. Shadow asks in the background and today's behaviour decides; active waits
+  // for the answer only where the graph can act on it, and any other outcome (unavailable, below the
+  // threshold, no consent, the CLI) is today's behaviour at once.
+
+  private projectIdOf(cwd: string): string | null {
+    try {
+      return this.projectOf?.(cwd) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Never rejects: an engine that fails is an answer that never came */
+  private async ask(point: DecisionPointId, subject: DecisionSubject, projectId: string | null): Promise<DecisionOutcome | null> {
+    try {
+      return (await this.decisions?.ask(point, subject, { projectId })) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private track<T>(promise: Promise<T>): void {
+    const tracked = promise.catch(() => undefined).finally(() => this.deciding.delete(tracked));
+    this.deciding.add(tracked);
+  }
+
+  /** Waits for the decisions asked so far; for tests and for shutting down cleanly */
+  async decided(): Promise<void> {
+    while (this.deciding.size) await Promise.all([...this.deciding]);
+  }
+
+  /**
+   * The decisions that stand between a task's result and what happens to it: `orchestration.retry`
+   * for an error, `run.continuation` for a report. Null when the result is taken now, as today. A
+   * rate limit (it has a cause), a task out of attempts and a continuation are never asked about.
+   */
+  private decide(orch: Orchestration, task: OrchestrationTaskState, result: RunResult): Promise<SettleVerdict> | null {
+    if (!task.runId) return null;
+    const projectId = this.projectIdOf(orch.cwd);
+    const id = `${orch.id}:${task.id}`;
+    if (result.isError) {
+      if (result.cause || task.attempts >= orch.maxAttempts) return null;
+      const stance = stanceOf(this.decisions, 'orchestration.retry', projectId);
+      if (stance === 'off') return null;
+      const attempt = `${ORDINALS[task.attempts - 1] ?? 'a later'} attempt`;
+      const asked = this.ask('orchestration.retry', { kind: 'task', id, data: { error: tail(result.result, MAX_DECISION_TEXT), task: task.name, attempt } }, projectId);
+      if (stance === 'watch') {
+        this.track(asked);
+        return null;
+      }
+      // Only a permanent error stops the retry; anything else is today's behaviour
+      return asked.then((outcome): SettleVerdict => {
+        const answer = outcome?.answers?.retry;
+        return answer?.kind === 'choice' && answer.value === 'permanent' ? { permanent: true } : {};
+      });
+    }
+    const done = task.continuations ?? 0;
+    const last = tailOf(result.result);
+    if (done >= MAX_CONTINUATIONS || !last) return null;
+    const stance = stanceOf(this.decisions, 'run.continuation', projectId);
+    if (stance === 'off') return null;
+    const words = ['no continuation yet', 'one continuation so far', 'two continuations so far'][done] ?? 'several continuations so far';
+    const asked = this.ask('run.continuation', { kind: 'task', id, data: { title: task.name, tail: last, continuations: words } }, projectId);
+    if (stance === 'watch') {
+      this.track(asked);
+      return null;
+    }
+    // Only the phrase part is the decision's; the structural items stay code's (see settleNow)
+    return asked.then((outcome): SettleVerdict => {
+      const answer = outcome?.answers?.report;
+      if (answer?.kind !== 'choice') return {};
+      if (answer.value === 'done') return { phrases: [] };
+      const phrases = phraseItems(result.result);
+      return { phrases: phrases.length ? phrases : [OWES_WORK_ITEM] };
+    });
   }
 
   /** The chat's total, so the graph adds only what this execution cost on top of what it already counted. */
@@ -1560,6 +1679,15 @@ ${quoted}
           `${named}, and the fixer's cost limit of ${usd(spec.maxCostUsd ?? 0)} is spent (${usd(state.costUsd)} over ${String(state.attempts)} attempt${state.attempts === 1 ? '' : 's'}), so Agentry stopped there.`,
         );
       }
+      // Asked once per failed step, with all of its failed checks; "stop" only ends the fixing, and the checks stay failed
+      if (await this.fixerGivenUp(orch, state, failed, notes, spent)) {
+        const last = notes.filter((n) => failed.some((f) => n.covers.has(f.i))).at(-1)?.note;
+        return conclude(
+          'failed',
+          `${named}, and the decision engine judged another fixer attempt unlikely to help, so Agentry stopped there after ${String(state.attempts)} attempt${state.attempts === 1 ? '' : 's'}.` +
+            (last ? ` The last thing the fixer said: ${last}` : ''),
+        );
+      }
       // One attempt for the whole group, counted against each check it is at
       for (const f of failed) spent[f.i] = (spent[f.i] ?? 0) + 1;
       state.attempts += 1;
@@ -1604,6 +1732,49 @@ ${quoted}
         (made ? `with ${String(made)} commit${made === 1 ? '' : 's'} on the branch: ${state.commits.map((c) => c.subject).join('; ')}. ` : 'without a commit: the re-run passed on its own. ') +
         `All ${String(state.commands.length)} checks pass now.`,
     );
+  }
+
+  /**
+   * `orchestration.fixer`: whether the decision, active and above its threshold, says another fixer
+   * attempt will not make the failed checks of this step pass. Shadow and every other outcome leave
+   * the fixer to run as today.
+   */
+  private async fixerGivenUp(
+    orch: Orchestration,
+    state: VerificationState,
+    failed: ReadonlyArray<{ i: number; outcome: { failedSpecs: string[] }; why: string }>,
+    notes: ReadonlyArray<{ covers: ReadonlySet<number>; note: string }>,
+    spent: readonly number[],
+  ): Promise<boolean> {
+    const projectId = this.projectIdOf(orch.cwd);
+    const stance = stanceOf(this.decisions, 'orchestration.fixer', projectId);
+    if (stance === 'off') return false;
+    const attempt = Math.max(...failed.map((f) => spent[f.i] ?? 0)) + 1;
+    const checks = failed.map((f) => {
+      const entry = state.commands[f.i] as VerificationCommand;
+      return { id: String(f.i), command: entry.command, failure: `It ${f.why}.`, output: tail(entry.output, MAX_DECISION_TEXT) };
+    });
+    const earlier = notes.filter((n) => failed.some((f) => n.covers.has(f.i))).map((n) => tail(n.note, MAX_DECISION_TEXT));
+    const asked = this.ask(
+      'orchestration.fixer',
+      {
+        kind: 'task',
+        id: `${orch.id}:__verification__`,
+        data: {
+          checks,
+          failedSpecs: [...new Set(failed.flatMap((f) => f.outcome.failedSpecs))].slice(0, MAX_FAILED_SPECS),
+          notes: earlier,
+          attempt: `${ORDINALS[attempt - 1] ?? 'a later'} attempt`,
+        },
+      },
+      projectId,
+    );
+    if (stance === 'watch') {
+      this.track(asked);
+      return false;
+    }
+    const answer = (await asked)?.answers?.['another-attempt'];
+    return answer?.kind === 'noul' && !answer.value;
   }
 
   /**
@@ -1829,8 +2000,30 @@ ${quoted}
       synthesize: true,
       tasks: draft.tasks,
     };
+    await this.suggestModels(spec, runId);
     this.db.savePlanDraft(runId, spec);
     return spec;
+  }
+
+  /**
+   * `orchestration.model`, a suggestion: which model each task needs at least. Today every task
+   * takes the plan's one model; active prefills a task's own model where the answer differs, and the
+   * person edits it before launching. The effort per task waits for CW-25, which lets a task carry one.
+   */
+  private async suggestModels(spec: OrchestrationSpec, runId: string): Promise<void> {
+    const projectId = this.projectIdOf(spec.cwd ?? this.config.workspaceDir);
+    const stance = stanceOf(this.decisions, 'orchestration.model', projectId);
+    if (stance === 'off') return;
+    const models = [...new Set(['haiku', 'sonnet', 'opus', ...(spec.model ? [spec.model] : [])])].map((id) => ({ id, label: MODEL_LABELS[id] ?? id }));
+    const tasks = spec.tasks.map((t) => ({ id: t.id, name: t.name, prompt: t.prompt.split('\n').slice(0, 3).join('\n'), dependsOn: t.dependsOn ?? [] }));
+    const asked = this.ask('orchestration.model', { kind: 'task', id: runId, data: { tasks, models } }, projectId);
+    if (stance === 'watch') return this.track(asked);
+    const outcome = await asked;
+    if (!outcome?.act || !outcome.answers) return;
+    for (const task of spec.tasks) {
+      const answer = outcome.answers[task.id];
+      if (answer?.kind === 'choice' && answer.value !== spec.model && models.some((m) => m.id === answer.value)) task.model = answer.value;
+    }
   }
 
   /** A draft this planner run produced, from the live run or from the store once it is gone. */
