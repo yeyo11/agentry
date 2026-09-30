@@ -15,6 +15,7 @@ import type {
 } from '@agentry/shared';
 import { isTeamCommandPattern, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
+import { parseProjectDecisions } from './decisions/settings.ts';
 import type { CoreConfig } from './paths.ts';
 import { projectTemplate } from './project-templates.ts';
 import type { ProjectRecord } from './projects.ts';
@@ -263,6 +264,10 @@ export function parseProjectSettings(input: unknown): ProjectSettings {
   if (input.team !== undefined && input.team !== null) settings.team = parseTeam(input.team);
   if (input.flow !== undefined && input.flow !== null) settings.flow = parseFlow(input.flow);
   if (input.documents !== undefined && input.documents !== null) settings.documents = parseDocuments(input.documents);
+  if (input.decisions !== undefined && input.decisions !== null) {
+    const decisions = parseProjectDecisions(input.decisions);
+    if (Object.keys(decisions).length > 0) settings.decisions = decisions;
+  }
   return settings;
 }
 
@@ -293,6 +298,8 @@ function sanitizeSettings(value: unknown, fallbackPrefix: string): ProjectSettin
   if (team) settings.team = team;
   if (flow) settings.flow = flow;
   if (documents) settings.documents = documents;
+  const decisions = attempt(() => (raw.decisions == null ? null : parseProjectDecisions(raw.decisions)), null);
+  if (decisions && Object.keys(decisions).length > 0) settings.decisions = decisions;
   return settings;
 }
 
