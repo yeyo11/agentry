@@ -537,6 +537,7 @@ export class Core {
       },
       emit: (event) => this.events.emit(event),
       linkState: (link) => this.workItemLinkState(link),
+      decisions: this.decisions,
     });
     this.documents = new DocumentService({
       items: this.workItems,
@@ -562,6 +563,7 @@ export class Core {
       db: this.db,
       emit: (event) => this.events.emit(event),
       item: itemRef,
+      decisions: this.decisions,
       sources: (id) =>
         this.workItems
           .links(id)
@@ -580,6 +582,7 @@ export class Core {
       },
       emit: (event) => this.events.emit(event),
       item: itemRef,
+      decisions: this.decisions,
     });
     this.pullRequests = new PullRequestService({
       db: this.db,
@@ -614,7 +617,7 @@ export class Core {
         const settings = record ? this.projectSettingsStore.stored(id, record.name) : null;
         return record && settings ? { path: record.path, settings } : null;
       },
-      handoff: (id) => this.journal.handoff(id).text,
+      handoff: async (id, topic) => (await this.journal.handoffFor(id, topic)).text,
       propose: (id, proposal, origin) => void this.memoryProposals.propose(id, proposal, origin),
       tie: async (itemId, document, options) => {
         await this.documents.tie(itemId, document, { ...options, requireFile: false });
@@ -652,6 +655,7 @@ export class Core {
         await this.resources.save(this.assistantScope(project, scope), kind, name, content);
       },
       emit: (event) => this.events.emit(event),
+      decisions: this.decisions,
     });
     this.events.observe((event) => this.assistant.observe(event));
     // Every result, not only a run's first: a chat worked on by hand ends many turns. The automation

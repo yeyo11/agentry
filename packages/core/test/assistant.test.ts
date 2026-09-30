@@ -7,6 +7,7 @@ import type {
   AgentryEvent,
   AssistantProposal,
   AssistantResourceKind,
+  DecisionAnswer,
   AssistantRunDetail,
   ConfigScopeKind,
   ProjectModule,
@@ -17,9 +18,11 @@ import { assistantLanguage, parseAnswer, assistantSchema, assistantPrompt, MODEL
 import { partialJson, resourceDraft } from '../src/assistant-draft.ts';
 import { ASSISTANT_ERRORS, AssistantService, DENIED_TOOLS, memberFile, READ_ONLY_TOOLS, type AssistantKnown, type AssistantLaunch } from '../src/assistant.ts';
 import { ASSISTANT_SCHEMA_VERSION, Db, migrate } from '../src/db.ts';
+import type { DecisionEngine } from '../src/decisions/engine.ts';
 import { PASTED_NOTE, THINK_THROUGH } from '../src/prompt-rules.ts';
 import { EventBus } from '../src/events.ts';
 import { WorkItemService } from '../src/work-items.ts';
+import { decisionRig, noulOf, scoreOf } from './decision-rig.ts';
 import { tempConfig } from './helpers.ts';
 
 // The assistant starts paid runs and proposes writes, so these tests are as much about what must
@@ -66,7 +69,7 @@ function snapshot(dir: string): string[] {
   return out.sort();
 }
 
-function setup(opts: { dir?: string; settings?: ProjectSettings; db?: Db; commits?: number | null; chats?: number; chatPrefix?: string } = {}) {
+function setup(opts: { dir?: string; settings?: ProjectSettings; db?: Db; commits?: number | null; chats?: number; chatPrefix?: string; decisions?: DecisionEngine } = {}) {
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
   const db = opts.db ?? new Db(config);
@@ -134,6 +137,7 @@ function setup(opts: { dir?: string; settings?: ProjectSettings; db?: Db; commit
     resourceExists: async (_p, scope, kind, name) => saved.some((r) => r.scope === scope && r.kind === kind && r.name === name) || (scope === 'project' && state.resources[kind].includes(name)),
     saveResource: async (_p, scope, kind, name, content) => void saved.push({ scope, kind, name, content }),
     emit: (e) => bus.emit(e),
+    ...(opts.decisions ? { decisions: opts.decisions } : {}),
   });
   bus.observe((e) => assistant.observe(e));
   /** Answers the run's chat with a structured result. */
@@ -1003,4 +1007,143 @@ test('CLAUDE.md shows once in what a run read, whether the chat opens it or not'
   const done = s.answer(s.assistant.run(run.id), { ...RESULT, read: [{ kind: 'file', path: './CLAUDE.md' }, { kind: 'file', path: 'README.md' }] });
   assert.deepEqual(claudeMd(done).map((x) => [x.kind, x.state]), [['instructions', 'read']]);
   assert.equal(done.sources.filter((x) => x.path === 'README.md').length, 1);
+});
+
+// ---------- the decision points: assistant.sources and assistant.rerank ----------
+
+function withDecisions() {
+  const config = tempConfig();
+  mkdirSync(config.dataDir, { recursive: true });
+  const db = new Db(config);
+  const rig = decisionRig(db, config);
+  const dir = repo();
+  writeFileSync(join(dir, 'package.json'), '{}\n');
+  writeFileSync(join(dir, 'notes.txt'), 'scratch\n');
+  return { rig, s: setup({ db, dir, decisions: rig.engine }) };
+}
+
+/** The files the run is shown, as the list laid out when it started */
+const listedFiles = (run: AssistantRunDetail) => run.sources.filter((x) => x.kind === 'file').map((x) => x.path);
+const TODAYS_FILES = ['README.md', 'package.json', 'notes.txt'];
+/** The engine judges every top-level file; this run needs the README and the manifest only */
+const needs =
+  (confidence: number | null = 0.95) =>
+  (request: { state: Record<string, unknown> }): Record<string, DecisionAnswer> => {
+    const out: Record<string, DecisionAnswer> = {};
+    for (const f of request.state.files as Array<{ name: string }>) out[f.name] = noulOf(f.name === 'README.md' || f.name === 'package.json', confidence);
+    return out;
+  };
+
+test('assistant.sources off: every top-level file is listed and no provider is asked', async () => {
+  const { rig, s } = withDecisions();
+  rig.provider.script = needs();
+  assert.deepEqual(listedFiles(await projectRun(s)), TODAYS_FILES);
+  assert.equal(rig.provider.calls.length, 0);
+});
+
+test("assistant.sources shadow: the judgment is recorded and the list is today's", async () => {
+  const { rig, s } = withDecisions();
+  await rig.configure('assistant.sources', 'shadow');
+  rig.provider.script = needs();
+  assert.deepEqual(listedFiles(await projectRun(s)), TODAYS_FILES);
+  const [row] = rig.rows('assistant.sources');
+  assert.ok(row && row.mode === 'shadow' && !row.acted && row.status === 'answered');
+  assert.deepEqual(Object.keys(row.state).sort(), ['brief', 'files']);
+  assert.ok(!JSON.stringify(row.state).includes('scratch'), 'names and sizes only, never contents');
+});
+
+test('assistant.sources active: a file judged not needed is dropped only above the threshold', async () => {
+  for (const confidence of [0.5, null]) {
+    const { rig, s } = withDecisions();
+    await rig.configure('assistant.sources', 'active');
+    rig.provider.script = needs(confidence);
+    assert.deepEqual(listedFiles(await projectRun(s)), TODAYS_FILES, `confidence ${String(confidence)} does not clear the threshold`);
+    assert.equal(rig.rows('assistant.sources')[0]?.acted, false);
+  }
+  const { rig, s } = withDecisions();
+  await rig.configure('assistant.sources', 'active');
+  rig.provider.script = needs(0.95);
+  const run = await projectRun(s);
+  assert.deepEqual(listedFiles(run), ['README.md', 'package.json']);
+  assert.equal(rig.rows('assistant.sources')[0]?.acted, true);
+  // The run keeps its own tools: a dropped file it reads anyway is listed
+  const done = s.answer(run, { ...RESULT, read: [{ kind: 'file', path: 'notes.txt' }] });
+  assert.ok(listedFiles(done).includes('notes.txt'));
+});
+
+test("assistant.sources unavailable, no quota included: the list is today's, at once", async () => {
+  for (const reason of ['no-quota', 'rate-limited'] as const) {
+    const { rig, s } = withDecisions();
+    await rig.configure('assistant.sources', 'active');
+    rig.provider.script = () => ({ status: 'unavailable', reason, latencyMs: 1 });
+    assert.deepEqual(listedFiles(await projectRun(s)), TODAYS_FILES);
+    assert.equal(rig.rows('assistant.sources')[0]?.unavailable, reason);
+  }
+  const down = withDecisions();
+  await down.rig.configure('assistant.sources', 'active');
+  down.rig.provider.up = false;
+  assert.deepEqual(listedFiles(await projectRun(down.s)), TODAYS_FILES);
+});
+
+/** Scores a proposal by its title */
+const valued =
+  (levels: Record<string, string>, confidence: number | null = null) =>
+  (request: { state: Record<string, unknown> }): Record<string, DecisionAnswer> => {
+    const out: Record<string, DecisionAnswer> = {};
+    for (const p of request.state.proposals as Array<{ id: string; title: string }>) out[p.id] = scoreOf(levels[p.title] ?? 'minor', confidence);
+    return out;
+  };
+const workItemTitles = (run: AssistantRunDetail) => proposalsOf(run, 'work-item').map((p) => (p.kind === 'work-item' ? p.workItem.title : ''));
+const waitFor = async (check: () => boolean) => {
+  for (let i = 0; i < 200 && !check(); i++) await new Promise((r) => setTimeout(r, 10));
+};
+
+test("assistant.rerank off: proposals stay in the model's order and no provider is asked", async () => {
+  const { rig, s } = withDecisions();
+  rig.provider.script = valued({ 'Retry webhooks': 'key' });
+  const run = await projectRun(s);
+  s.answer(run, RESULT);
+  await new Promise((r) => setTimeout(r, 50));
+  assert.deepEqual(workItemTitles(s.assistant.run(run.id)), ['Add CI', 'Retry webhooks']);
+  assert.equal(rig.provider.calls.length, 0);
+});
+
+test("assistant.rerank shadow: a row is recorded and the order is the model's", async () => {
+  const { rig, s } = withDecisions();
+  await rig.configure('assistant.rerank', 'shadow');
+  rig.provider.script = valued({ 'Retry webhooks': 'key', 'Add CI': 'covered' });
+  const run = await projectRun(s);
+  s.answer(run, RESULT);
+  const rows = await rig.rowsAfter('assistant.rerank', 1);
+  assert.ok(rows[0] && rows[0].mode === 'shadow' && !rows[0].acted && rows[0].subjectId === run.id);
+  assert.deepEqual(workItemTitles(s.assistant.run(run.id)), ['Add CI', 'Retry webhooks']);
+});
+
+test('assistant.rerank active: the better proposals move up inside their kind, and every one stays pending', async () => {
+  const { rig, s } = withDecisions();
+  await rig.configure('assistant.rerank', 'active');
+  // A suggestion needs no confidence: the CLI provider answers with none
+  rig.provider.script = valued({ 'Retry webhooks': 'key', 'Add CI': 'covered' });
+  const run = await projectRun(s);
+  const before = s.answer(run, RESULT).proposals.length;
+  await rig.rowsAfter('assistant.rerank', 1);
+  await waitFor(() => workItemTitles(s.assistant.run(run.id))[0] === 'Retry webhooks');
+  const done = s.assistant.run(run.id);
+  assert.deepEqual(workItemTitles(done), ['Retry webhooks', 'Add CI']);
+  assert.ok(done.proposals.every((p) => p.status === 'pending'));
+  assert.equal(done.proposals.length, before);
+  assert.deepEqual(runEvents(s).slice(-2), ['ended', 'ended'], 'clients read the run again once it is ordered');
+});
+
+test("assistant.rerank unavailable, no quota included: the model's order stands, at once", async () => {
+  const { rig, s } = withDecisions();
+  await rig.configure('assistant.rerank', 'active');
+  rig.provider.script = () => ({ status: 'unavailable', reason: 'no-quota', latencyMs: 1 });
+  const run = await projectRun(s);
+  const started = Date.now();
+  s.answer(run, RESULT);
+  assert.ok(Date.now() - started < 500);
+  const rows = await rig.rowsAfter('assistant.rerank', 1);
+  assert.equal(rows[0]?.unavailable, 'no-quota');
+  assert.deepEqual(workItemTitles(s.assistant.run(run.id)), ['Add CI', 'Retry webhooks']);
 });

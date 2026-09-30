@@ -229,8 +229,8 @@ export interface FlowDeps {
   items: WorkItemService;
   /** Null when the project is not imported: its items keep their rows, but nothing runs there */
   project: (projectId: string) => FlowProject | null;
-  /** The journal as it is handed to a run, for `--append-system-prompt` */
-  handoff: (projectId: string) => string;
+  /** The journal as it is handed to a run, for `--append-system-prompt`; `topic` is what the run is about (`journal.relevance`) */
+  handoff: (projectId: string, topic: { title: string; criteria: string[] }) => string | Promise<string>;
   propose: (projectId: string, proposal: FlowMemoryProposal, origin: { proposedBy: WorkItemActor; source: WorkItemSource; flowRunId: string; itemId: string }) => void;
   tie: (itemId: string, document: FlowRunDocument, options: { role: FlowStage; teamRole: string; chatId: string; actor: WorkItemActor; cause: WorkItemCause }) => Promise<void>;
   /**
@@ -1172,7 +1172,7 @@ export class FlowService {
               conflict: stage === 'work' ? (this.deps.pullRequests?.conflictOf(item.id) ?? null) : null,
               checkCommands,
             })),
-      appendSystemPrompt: this.deps.handoff(item.projectId),
+      appendSystemPrompt: await this.deps.handoff(item.projectId, { title: item.title, criteria: item.acceptanceCriteria.map((c) => c.text) }),
       jsonSchema: flowResultSchema(stage),
       permissionMode: rules.permissionMode,
       allowedTools: rules.allowedTools,

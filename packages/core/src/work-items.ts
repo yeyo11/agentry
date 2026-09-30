@@ -53,6 +53,7 @@ import {
   type WorkItemWaitReason,
 } from '@agentry/shared';
 import type { Db } from './db.ts';
+import type { DecisionEngine } from './decisions/engine.ts';
 import { DocumentPathError, isMarkdown, pathSegments } from './document-paths.ts';
 import type { AgentryEventInput } from './events.ts';
 import { doneLimitOf, newestDone, pageOf } from './work-item-pages.ts';
@@ -144,7 +145,20 @@ export interface WorkItemServiceDeps {
   emit?: (event: AgentryEventInput) => void;
   /** Fills in a link's name and state when read; without it links carry only their ids and no item is live */
   linkState?: (link: WorkItemLink) => WorkItemLinkState | null;
+  /** The decision engine, for `board.triage`; without it nothing is suggested */
+  decisions?: Pick<DecisionEngine, 'ask' | 'effective'>;
 }
+
+/** What `board.triage` suggests for a draft: a prefill for the person to keep or change, and a warning */
+export interface WorkItemTriage {
+  type: Exclude<WorkItemType, 'epic'>;
+  priority: WorkItemPriority;
+  /** An open item already seems to cover the draft; the warning does not name which */
+  duplicate: boolean;
+}
+
+const TRIAGE_ITEMS_MAX = 60;
+const TRIAGE_TEXT_MAX = 500;
 
 /**
  * A link as code makes it. The flow adds what the API does not take from a caller: which kind of
@@ -401,6 +415,11 @@ export class WorkItemService {
       return this.mustRow(id);
     });
     const item = this.mustHydrate(row);
+    // In shadow the engine sees what the person chose and its guess is kept beside it, so the
+    // comparison needs no widget; a person's create is the only one measured, not an agent's
+    if ((!ctx?.actor || ctx.actor.kind === 'person') && !cause && this.deps.decisions?.effective('board.triage', projectId).mode === 'shadow') {
+      void this.triage(projectId, { title: item.title, description: item.description }, item.id, item.id);
+    }
     this.emit({
       type: 'workitem.created',
       title: `Created ${item.key}: ${item.title}`,
@@ -410,6 +429,40 @@ export class WorkItemService {
       source: cause ? sourcePart(cause) : null,
     });
     return item;
+  }
+
+  /**
+   * `board.triage` for a draft being typed: the type and priority the engine would prefill and
+   * whether an open item already covers it. Null unless the point is active and answered in time:
+   * the person fills the fields as they do today, and a suggestion only ever fills them in. In shadow
+   * the answer is recorded and this is still null.
+   */
+  async triage(projectId: string, draft: { title: string; description?: string }, subjectId: string | null = null, exclude: string | null = null): Promise<WorkItemTriage | null> {
+    const engine = this.deps.decisions;
+    if (!engine || engine.effective('board.triage', projectId).mode === 'off') return null;
+    try {
+      const open = this.list({ projectId }).filter((i) => i.status !== 'done' && i.id !== exclude);
+      const outcome = await engine.ask(
+        'board.triage',
+        {
+          kind: 'work_item',
+          id: subjectId,
+          data: {
+            title: draft.title.slice(0, TRIAGE_TEXT_MAX),
+            description: (draft.description ?? '').slice(0, TRIAGE_TEXT_MAX * 4),
+            openItems: open.filter((i) => i.type !== 'epic').slice(0, TRIAGE_ITEMS_MAX).map((i) => i.title.slice(0, TRIAGE_TEXT_MAX)),
+            epics: open.filter((i) => i.type === 'epic').slice(0, TRIAGE_ITEMS_MAX).map((i) => i.title.slice(0, TRIAGE_TEXT_MAX)),
+          },
+        },
+        { projectId },
+      );
+      const { type, priority, duplicate } = outcome.answers ?? {};
+      if (!outcome.act || type?.kind !== 'choice' || priority?.kind !== 'choice' || duplicate?.kind !== 'noul') return null;
+      const kind = oneOf(type.value, ['task', 'bug', 'story'] as const, 'type');
+      return { type: kind, priority: oneOf(priority.value, WORK_ITEM_PRIORITIES, 'priority'), duplicate: duplicate.value };
+    } catch {
+      return null;
+    }
   }
 
   /** Only the fields present change; one history entry per field that did. */
