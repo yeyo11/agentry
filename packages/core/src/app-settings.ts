@@ -66,6 +66,9 @@ function parseValue(key: keyof AppSettingValues, value: unknown): AppSettingValu
         throw new Error(`defaultPermissionMode must be one of ${PERMISSION_MODES.join(', ')}`);
       }
       return value as PermissionMode;
+    case 'providersStepSeen':
+      if (typeof value !== 'boolean') throw new Error('providersStepSeen must be true or false');
+      return value;
   }
 }
 
@@ -154,7 +157,7 @@ export class AppSettingsStore implements RunDefaults {
   ) {
     this.file = join(config.dataDir, 'app-settings.json');
     this.fromEnv = config.settingsFromEnv;
-    this.env = { allowedHosts: [...config.allowedHosts], maxConcurrentRuns: config.maxConcurrentRuns, defaultPermissionMode: config.defaultPermissionMode };
+    this.env = { allowedHosts: [...config.allowedHosts], maxConcurrentRuns: config.maxConcurrentRuns, defaultPermissionMode: config.defaultPermissionMode, providersStepSeen: config.providersStepSeen };
     if (existsSync(this.file)) {
       try {
         this.stored = sanitize(JSON.parse(readFileSync(this.file, 'utf8')));

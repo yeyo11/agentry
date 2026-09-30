@@ -38,5 +38,31 @@
     "chooseBinary": "Choose binary",
     "retry": "Retry",
     "opensNewTab": "opens in a new tab"
+  },
+  "firstRun": {
+    "label": "First start",
+    "title": "These are the agents on your machine",
+    "checkingTitle": "Looking for agents on your machine",
+    "intro": "Agentry looked in your terminal's PATH and the usual install folders. You start with the first one that is ready; the order and the rest you change later in Settings.",
+    "introPhone": "You start with the first one that is ready. The order and the rest you change later in Settings.",
+    "group": {
+      "ready": "Ready",
+      "signed-out": "Signed out",
+      "attention": "Needs attention",
+      "used-before": "Used before",
+      "not-installed": "Not installed"
+    },
+    "watching": "Agentry keeps watching your folders: what you install or sign in to in a terminal shows up here by itself.",
+    "checking": "Checking…",
+    "recheck": "Check again",
+    "skip": "Skip for now",
+    "continue": "Continue",
+    "continueWith": "Continue with {{name}}",
+    "empty": {
+      "title": "No agent found",
+      "body": "Agentry looked in your terminal's PATH and the usual install folders, and there is none. Install one and it will show up here by itself.",
+      "install": "See how to install Claude Code",
+      "others": "Or pick another"
+    }
   }
 }

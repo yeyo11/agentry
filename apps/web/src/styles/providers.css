@@ -250,3 +250,131 @@
   font-size: 12.5px;
   color: var(--fg-3);
 }
+
+/* The step stands in for the whole app: it scrolls on its own and keeps the halo the sign-in has */
+.prov-first-page {
+  min-height: 100vh;
+  padding: 32px 24px 40px;
+  background: var(--glow-top) no-repeat, var(--bg);
+}
+
+.prov-first-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+}
+
+.prov-first-name {
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
+.prov-first-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.prov-first-intro h1 {
+  margin: 0;
+}
+
+.prov-first-intro p {
+  margin: 0;
+  max-width: 620px;
+  line-height: 1.55;
+  color: var(--fg-2);
+}
+
+/* The groups' cards hold rows edge to edge; the row brings its own padding */
+.prov-list {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.prov-first-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.prov-first-skip {
+  display: flex;
+  justify-content: center;
+}
+
+/* "Or pick another": the other agents' install pages, small and out of the way of the primary */
+.prov-others {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.prov-others-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.prov-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-pill);
+  background: var(--bg-2);
+  color: var(--fg-2);
+  font-size: 12.5px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.prov-chip:hover {
+  border-color: var(--line-3);
+  color: var(--fg);
+}
+
+/* A phone: the way out is a foot that stays under the list, buttons stacked and 44 px tall */
+@media (max-width: 900px) {
+  .prov-first-page {
+    padding: 20px 16px 0;
+  }
+
+  .prov-first-intro h1 {
+    font-size: 24px;
+    line-height: 1.2;
+  }
+
+  .prov-first-foot {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    margin: 0 -16px;
+    padding: 10px 16px calc(16px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: var(--bg-1);
+  }
+
+  .prov-first-foot .prov-step-note {
+    display: none;
+  }
+
+  .prov-first-foot .btn {
+    min-height: var(--touch);
+    justify-content: center;
+  }
+
+  .prov-first-page .prov-chip {
+    min-height: var(--touch);
+    padding: 0 12px;
+  }
+}
