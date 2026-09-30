@@ -812,6 +812,7 @@
     max-height: 200px;
     font-size: 11.5px;
   }
+}
 
 /* Project override: the provider block, a value not yet overridden, and the phone's folding groups */
 .dp-block:has(> .segmented) {
