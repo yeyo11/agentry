@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, InjectOptions } from 'fastify';
 import { Core, loadConfig } from '@agentry/core';
 import { REDACTED } from '@agentry/shared';
 import { buildApp } from '../src/app.ts';
@@ -587,4 +587,156 @@ test('without a desktop secret configured, nothing is accepted in its place', as
   t.after(() => app.close());
   await withToken(app);
   assert.equal((await app.inject({ url: '/api/overview', ...bearer(DESKTOP_SECRET) })).statusCode, 401);
+});
+
+// ---------- a chat's own token (AGENTRY_API_TOKEN) ----------
+
+/** How a chat on this machine calls the wrapper that started it: loopback peer, loopback name. */
+const fromChat = (token: string, extra: Record<string, string> = {}) => ({
+  remoteAddress: '127.0.0.1',
+  headers: { host: '127.0.0.1:34331', authorization: `Bearer ${token}`, ...extra },
+});
+const fromChatWith = (token: string, body: unknown) => ({
+  remoteAddress: '127.0.0.1',
+  payload: JSON.stringify(body),
+  headers: { host: '127.0.0.1:34331', 'content-type': 'application/json', authorization: `Bearer ${token}` },
+});
+
+test("a chat's token opens a guarded read and a write from loopback, and the write is audited as the chat", async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  const owner = await withToken(app);
+  const token = core.security.chatTokens.mint('chat-42');
+
+  assert.equal((await app.inject({ url: '/api/overview', ...fromChat(token) })).statusCode, 200);
+  assert.equal((await app.inject({ url: '/api/overview', ...fromChat(token, { host: 'localhost:34331' }) })).statusCode, 200);
+  assert.equal((await app.inject({ url: '/api/overview', remoteAddress: '::1', headers: { host: '[::1]:34331', authorization: `Bearer ${token}` } })).statusCode, 200);
+  const created = await app.inject({ method: 'POST', url: '/api/projects', ...fromChatWith(token, { name: 'from-a-chat' }) });
+  assert.equal(created.statusCode, 201);
+
+  const [newest] = (await app.inject({ url: '/api/audit', ...bearer(owner) })).json().entries;
+  assert.equal(newest.actor, 'chat:chat-42');
+  assert.equal(newest.path, '/api/projects');
+});
+
+test("a chat's token is refused, like a wrong token, from anywhere that is not a chat on this machine", async (t) => {
+  const { app, core } = await wrapper({ AGENTRY_ALLOWED_HOSTS: 'agentry.example' });
+  t.after(() => app.close());
+  await withToken(app);
+  core.appSettings.runtimeHosts.add('abc123.lhr.life', { clientIpHeader: 'X-Client-Ip' });
+  const token = core.security.chatTokens.mint('chat-42');
+  const wrong = await app.inject({ url: '/api/overview', ...bearer('not-the-token') });
+
+  const cases: Array<[string, InjectOptions]> = [
+    ['a peer that is not loopback', { url: '/api/overview', remoteAddress: '10.0.0.5', headers: { host: '127.0.0.1:34331', authorization: `Bearer ${token}` } }],
+    // The tunnel dials 127.0.0.1 too: only the name it carries tells it apart
+    ['the tunnel host', { url: '/api/overview', ...fromChat(token, { host: 'abc123.lhr.life' }) }],
+    ['an allowed host', { url: '/api/overview', ...fromChat(token, { host: 'agentry.example' }) }],
+    ['X-Forwarded-For', { url: '/api/overview', ...fromChat(token, { 'x-forwarded-for': '203.0.113.9' }) }],
+    ['Forwarded', { url: '/api/overview', ...fromChat(token, { forwarded: 'for=203.0.113.9' }) }],
+    ["a runtime host's client-IP header", { url: '/api/overview', ...fromChat(token, { 'x-client-ip': '203.0.113.9' }) }],
+  ];
+  for (const [where, request] of cases) {
+    const refused = await app.inject(request);
+    assert.equal(refused.statusCode, 401, where);
+    assert.equal(refused.payload, wrong.payload, `${where}: the same body as a wrong token`);
+    assert.equal(refused.headers['www-authenticate'], wrong.headers['www-authenticate'], `${where}: the same challenge`);
+  }
+});
+
+test("a chat's token used from the wrong place is a guess, and counts toward the wait", async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  await withToken(app);
+  const token = core.security.chatTokens.mint('chat-42');
+  const outside = { url: '/api/overview', remoteAddress: '10.0.0.5', headers: { host: '127.0.0.1:34331', authorization: `Bearer ${token}` } };
+  for (let i = 0; i < 10; i += 1) assert.equal((await app.inject(outside)).statusCode, 401, `attempt ${i + 1}`);
+  assert.equal((await app.inject(outside)).statusCode, 429);
+});
+
+test("a chat's token is refused once revoked, and by a wrapper started afresh", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'agentry-security-'));
+  const first = await wrapper({}, root);
+  await withToken(first.app);
+  const token = first.core.security.chatTokens.mint('chat-42');
+  const kept = first.core.security.chatTokens.mint('chat-43');
+  assert.equal((await first.app.inject({ url: '/api/overview', ...fromChat(token) })).statusCode, 200);
+  first.core.security.chatTokens.revoke(token);
+  assert.equal((await first.app.inject({ url: '/api/overview', ...fromChat(token) })).statusCode, 401);
+  await first.app.close();
+  first.core.shutdown();
+
+  // Same data dir, same owner token on disk: only the chat tokens are gone
+  const second = await wrapper({}, root);
+  t.after(() => second.app.close());
+  assert.equal((await second.app.inject({ url: '/api/overview', ...fromChat(kept) })).statusCode, 401);
+});
+
+test("a chat's token cannot administer the guard or open the tunnel, but can close it", async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  await withToken(app);
+  const token = core.security.chatTokens.mint('chat-42');
+  const forbidden: Array<[string, string, unknown]> = [
+    ['PUT', '/api/security/auth', { mode: 'none' }],
+    ['POST', '/api/security/token', {}],
+    ['DELETE', '/api/security/token', undefined],
+    ['POST', '/api/tunnel/start', undefined],
+    ['PUT', '/api/tunnel/settings', { startWithAgentry: true }],
+  ];
+  for (const [method, url, body] of forbidden) {
+    const request = body === undefined ? { method, url, ...fromChat(token) } : { method, url, ...fromChatWith(token, body) };
+    const answer = await app.inject(request as InjectOptions);
+    assert.equal(answer.statusCode, 403, `${method} ${url}`);
+    assert.match(answer.json().error, /chat's token cannot change the API's authentication/);
+  }
+  assert.equal(core.security.mode, 'token', 'the guard is still on');
+  assert.notEqual((await app.inject({ method: 'POST', url: '/api/tunnel/stop', ...fromChat(token) })).statusCode, 403);
+});
+
+test("read-only and the host allowlist apply to a chat's token as to the owner's", async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  const owner = await withToken(app);
+  assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...authed(owner, { readOnly: true }) })).statusCode, 200);
+  const token = core.security.chatTokens.mint('chat-42');
+  assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...fromChatWith(token, { name: 'x' }) })).statusCode, 405);
+  // Refused before any credential is looked at
+  assert.equal((await app.inject({ url: '/api/overview', ...fromChat(token, { host: 'rebound.example' }) })).statusCode, 421);
+});
+
+test("a chat's token is honoured under OIDC too, under the same loopback rules", async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  const configured = await app.inject({ method: 'PUT', url: '/api/security/auth', ...json({ oidc: { issuer: 'http://127.0.0.1:1', audience: 'agentry', clientId: 'ui' }, mode: 'oidc' }) });
+  assert.equal(configured.statusCode, 200);
+  const token = core.security.chatTokens.mint('chat-42');
+  assert.equal((await app.inject({ url: '/api/overview', ...fromChat(token) })).statusCode, 200);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...fromChatWith(token, { name: 'oidc-chat' }) })).statusCode, 201);
+  assert.equal((await app.inject({ url: '/api/overview', ...fromChat(token, { 'x-forwarded-for': '203.0.113.9' }) })).statusCode, 401);
+  assert.equal((await app.inject({ url: '/api/overview', remoteAddress: '10.0.0.5', headers: { host: '127.0.0.1:34331', authorization: `Bearer ${token}` } })).statusCode, 401);
+  assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...fromChatWith(token, { mode: 'none' }) })).statusCode, 403);
+});
+
+test("an open wrapper stays open and records a chat's writes as local", async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  const token = core.security.chatTokens.mint('chat-42');
+  assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...fromChatWith(token, { name: 'open' }) })).statusCode, 201);
+  // Nothing guards it, so the chat's token administers nothing either way
+  assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...fromChatWith(token, { readOnly: false }) })).statusCode, 200);
+  const entries = (await app.inject('/api/audit')).json().entries as Array<{ actor: string }>;
+  assert.ok(entries.every((entry) => entry.actor === 'local'));
+});
+
+test("the owner's token is still the owner's when chat tokens exist", async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  const owner = await withToken(app);
+  core.security.chatTokens.mint('chat-42');
+  assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...authed(owner, { name: 'owners' }) })).statusCode, 201);
+  const [newest] = (await app.inject({ url: '/api/audit', ...bearer(owner) })).json().entries;
+  assert.match(newest.actor, /^token:[0-9a-f]{8}$/);
+  // The owner may still administer the guard, from anywhere the guard lets them in
+  assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...authed(owner, { readOnly: false }) })).statusCode, 200);
 });

@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { ChatTokenStore } from './security/chat-tokens.ts';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
 import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
@@ -639,6 +640,11 @@ export class ChatManager extends EventEmitter {
    * port drove the other wrapper and its orchestrations never showed up in the one it ran in.
    */
   apiUrl: string | null = null;
+  /**
+   * The per-process credentials handed over as `AGENTRY_API_TOKEN` beside `AGENTRY_API_URL`, so a
+   * chat can call a guarded API. Core replaces it with the one its guard reads.
+   */
+  chatTokens = new ChatTokenStore();
   /** Where chats with `permissionPrompts: 'host'` send what they ask; null means nobody answers */
   permissions: PermissionBroker | null = null;
   /** Files attached to messages; every chat may read them */
@@ -1327,6 +1333,8 @@ export class ChatManager extends EventEmitter {
 
   stopAll(): void {
     for (const chat of this.chats.values()) if (chat.alive) this.stop(chat.id);
+    // The processes take a moment to exit; their credentials go now, with the wrapper
+    this.chatTokens.revokeAll();
   }
 
   /** Resolves with the first `result` after the call, or when the process exits. */
@@ -1517,10 +1525,28 @@ export class ChatManager extends EventEmitter {
     const base = launch.account || launch.configDir || chat.opts.account ? authFreeEnv() : process.env;
     const env: NodeJS.ProcessEnv = { ...base, AGENTRY_CHAT_ID: chat.id };
     if (launch.configDir) env.CLAUDE_CONFIG_DIR = launch.configDir;
-    // One inherited from the wrapper that started this one points at the wrong wrapper
-    if (this.apiUrl) env.AGENTRY_API_URL = this.apiUrl;
-    else delete env.AGENTRY_API_URL;
-    const proc = spawn(bin, argv, { cwd: chat.cwd, env, stdio: 'pipe' });
+    // One inherited from the wrapper that started this one points at the wrong wrapper, and its
+    // token is another wrapper's credential: neither is ever passed through
+    delete env.AGENTRY_API_TOKEN;
+    let token: string | null = null;
+    if (this.apiUrl) {
+      env.AGENTRY_API_URL = this.apiUrl;
+      // Minted whatever the mode: a guard switched on mid-turn still finds the turn holding a credential
+      token = this.chatTokens.mint(chat.id);
+      env.AGENTRY_API_TOKEN = token;
+    } else delete env.AGENTRY_API_URL;
+    let proc: ChildProcessWithoutNullStreams;
+    try {
+      proc = spawn(bin, argv, { cwd: chat.cwd, env, stdio: 'pipe' });
+    } catch (error) {
+      if (token) this.chatTokens.revoke(token);
+      throw error;
+    }
+    // Keyed by this process's own token, so an earlier process ending late never revokes the current one
+    const revokeToken = () => {
+      if (token) this.chatTokens.revoke(token);
+    };
+    if (token) this.chatTokens.attach(token, proc.pid);
     chat.proc = proc;
     chat.procStartedAt = now();
     // The chat's status follows the process it tracks and no other: an earlier process ending late
@@ -1539,11 +1565,13 @@ export class ChatManager extends EventEmitter {
     });
     proc.stdin.on('error', () => {});
     proc.on('error', (err) => {
+      revokeToken();
       if (!current()) return;
       chat.error = err.message;
       this.finalize(chat, 'failed');
     });
     proc.on('exit', (code) => {
+      revokeToken();
       if (!current()) return;
       if (chat.stopRequested) this.finalize(chat, 'stopped');
       else if (code === 0) this.finalize(chat, 'completed');

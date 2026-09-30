@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import type { AuthConfig, AuthMode, AuthTokenResult, OidcConfig, SetAuthTokenRequest, UpdateAuthConfigRequest } from '@agentry/shared';
 import { writeAtomic } from '../config/files.ts';
 import type { AuthEnv, CoreConfig } from '../paths.ts';
+import { ChatTokenStore, chatActor } from './chat-tokens.ts';
 import { OidcVerifier } from './oidc.ts';
 
 /**
@@ -94,8 +95,14 @@ export class AuthStore {
    * `StoredAuth`, so no write puts it on disk, and a new launch brings a new one.
    */
   private readonly desktopHash: string | null;
+  /**
+   * The tokens minted for the CLI processes Agentry spawns. Held here, beside the guard that reads
+   * them, and never in `StoredAuth`: they live exactly as long as this process does.
+   */
+  readonly chatTokens: ChatTokenStore;
 
-  constructor(config: CoreConfig, env: AuthEnv = config.authEnv, verifier = new OidcVerifier()) {
+  constructor(config: CoreConfig, env: AuthEnv = config.authEnv, verifier = new OidcVerifier(), chatTokens = new ChatTokenStore()) {
+    this.chatTokens = chatTokens;
     this.file = join(config.dataDir, 'auth.json');
     this.oidcVerifier = verifier;
     const desktop = env.AGENTRY_DESKTOP_TOKEN?.trim();
@@ -234,6 +241,18 @@ export class AuthStore {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * The actor behind a chat token, or null. Only under a guard: under `mode: 'none'` every request
+   * is `local` and nothing is looked up. `fromLocalChat` is the caller's word that the request came
+   * from a loopback peer, was dialled on a loopback name and carries no forwarding header: a tunnel
+   * arrives from 127.0.0.1 too, so the peer alone would let a leaked chat token in from anywhere.
+   */
+  chatActorFor(credential: string, fromLocalChat: boolean): string | null {
+    if (this.stored.mode === 'none' || !fromLocalChat) return null;
+    const chatId = this.chatTokens.verify(credential);
+    return chatId === null ? null : chatActor(chatId);
   }
 }
 
