@@ -595,11 +595,11 @@ Failures are listed as `exit → Agentry reason`; every failure also follows the
 | D6 | | GitLab | `glab mr note reopen <iid> <discussionId> {U}` | re-read | as D5 | 1.120.0 | R [gl§4] |
 | D7 | Suggestion | GitHub | a ```` ```suggestion ```` block in a comment body of D8 | read back verbatim | — | 2.92.0 | R [gh§B7] |
 | D7 | | GitLab | a ```` ```suggestion:-0+0 ```` block in a note body of D3/D8 | the note's `suggestions` (API) | — | 1.120.0 | D (GitLab suggestions docs; phase 3 `r0`) |
-| D8 | Submit a review | GitHub | `gh api {H} -X POST repos/{O}/{N}/pulls/<n>/reviews --input -` (stdin `{"commit_id": <head>, "event": "COMMENT"│"APPROVE"│"REQUEST_CHANGES", "body", "comments":[{"path","line","side","start_line"?,"start_side"?,"body"}]}`): one request, all or nothing; always with an `event`, so no pending review is ever left | `id`, `state` | 1 + 422: own PR → `own-change-request`; `pull_request_review_thread.line` → `line-not-in-diff`; pending → `pending-review-exists` | 2.92.0 | R [gh§B7: COMMENT; own-PR refusals] (APPROVE and REQUEST_CHANGES by another account: D, [decision 1](#decisions-for-the-owner)) |
+| D8 | Submit a review | GitHub | `gh api {H} -X POST repos/{O}/{N}/pulls/<n>/reviews --input -` (stdin `{"commit_id": <head>, "event": "COMMENT"│"APPROVE"│"REQUEST_CHANGES", "body", "comments":[{"path","line","side","start_line"?,"start_side"?,"body"}]}`): one request, all or nothing; always with an `event`, so no pending review is ever left | `id`, `state` | 1 + 422: own PR → `own-change-request`; `pull_request_review_thread.line` → `line-not-in-diff`; pending → `pending-review-exists` | 2.92.0 | R [gh§B7: COMMENT; own-PR refusals] (APPROVE and REQUEST_CHANGES: not offered, [decision 1](#decisions-for-the-owner)) |
 | D8 | | GitLab | each note: `glab api {H} -X POST projects/{P}/merge_requests/<iid>/draft_notes --input -` (stdin `{"note","position"}`), then `glab mr note publish <iid> {U} -y`; an approval is D9 | draft ids; after publish, re-read D1 | a failed note stops the batch → `review-partly-posted` | 1.120.0 | D (draft notes POST: API docs; `publish -y` and the draft note shape are R, gl§4; phase 3 `r0`) |
 | D9 | Approve / revoke | GitHub | D8 with `APPROVE`; revoke is not a GitHub concept (a later review dismisses nothing) | — | as D8 | 2.92.0 | R (refusal on own PR) · X (revoke) |
 | D9 | | GitLab | `glab mr approve <iid> {U} --sha <head>` / `glab mr revoke <iid> {U}` | re-read `glab api {H} projects/{P}/merge_requests/<iid>/approvals` → `user_has_approved`, `approved_by`, `approvals_left` | approve twice → 1 (401) → re-read; 409 → `head-moved` | 1.120.0 | R [gl§4] |
-| D10 | Request changes | GitHub | D8 with `REQUEST_CHANGES` | as D8 | as D8 | 2.92.0 | R (refusal on own PR) · D (success, [decision 1](#decisions-for-the-owner)) |
+| D10 | Request changes | GitHub | D8 with `REQUEST_CHANGES` | as D8 | as D8 | 2.92.0 | R (refusal on own PR) · not offered ([decision 1](#decisions-for-the-owner)) |
 | D10 | | GitLab | none | — | — | — | X (no CLI path was recorded; Agentry offers Comment and Approve, and `requested_changes` is still read as a blocker) |
 | D11 | Request reviewers | GitHub | `gh api {H} -X POST repos/{O}/{N}/pulls/<n>/requested_reviewers --input -` (stdin `{"reviewers":[…]}`); not `gh pr edit --add-reviewer`, which drops the author silently with exit 0 | re-read `reviewRequests` | 1 + 422 (author) → `own-change-request` | 2.92.0 | R [gh§B6] |
 | D11 | | GitLab | `glab mr update <iid> {U} --reviewer <user,…>` | re-read `reviewers` | 1 → re-read | 1.120.0 | D (`--reviewer` recorded on `mr create`, not on `update`; phase 3 `r0`) |
@@ -1628,9 +1628,10 @@ review (notes on lines, suggestions) posted as one review; reply, resolve and un
   is one write per host path: GitHub D8 (one request), GitLab D8 (draft notes then publish, with
   `review-partly-posted` and the Publish saved / Discard saved choice when a note fails). The
   review's body carries the marker; recovery after a timeout looks for it (D12 list, D1 threads).
-- **Approve and request changes** are hidden when the viewer is the author (GitHub refuses,
-  recorded; the viewer's login comes from A4). GitLab gets Comment and Approve; request changes is
-  not offered (D10).
+- **Approve and request changes on GitHub** are not offered in Agentry
+  ([decision 1](#decisions-for-the-owner): their success path was never recorded); the review bar
+  links them as "Open on GitHub". GitLab gets Comment and Approve (D9, recorded), hidden when the
+  viewer is the author; request changes is not offered (D10).
 - **Address with an agent** follows the fix path of phase 2 (`fix_state`, `fix_origin`,
   `awaiting-verify`, the same push rule), with `fix_kind = 'review'`. The prompt carries each chosen
   thread (path, lines, the diff hunk, every comment with its author) inside `<review-comment>`
@@ -1668,7 +1669,8 @@ Generator `reviews.py`.
   and resolved folds, the draft note composer on a line (desktop inline, phone `Sheet`).
 - `r-p2` **the review block on the item page** (`DesktopTareaRevision.html`,
   `MobileTareaRevision.html`): review decision, requested reviewers, unresolved count, the draft
-  review bar with the submit sheet (Comment / Approve / Request changes, GitLab without the last),
+  review bar with the submit sheet (Comment, plus Approve on GitLab; "Open on GitHub" for approve and
+  request changes on GitHub),
   partly-posted state, own-PR state.
 - `r-p3` **Address with an agent** dialog with `review.triage` marks, and the "Addressed in"
   follow-up (`DSRevision.html`).
@@ -1677,8 +1679,8 @@ Generator `reviews.py`.
 ### P1 · `reviews-core`
 
 - `r0` (recording, owner's assistant), dependsOn none: GitLab D7 suggestion, D8 draft notes through
-  the API, D11 `mr update --reviewer`, D12 draft note delete; GitHub D8 `APPROVE` and
-  `REQUEST_CHANGES` from a second account ([decision 1](#decisions-for-the-owner)), a thread with
+  the API, D11 `mr update --reviewer`, D12 draft note delete (GitHub `APPROVE` and
+  `REQUEST_CHANGES` are not recorded, [decision 1](#decisions-for-the-owner)), a thread with
   more than 100 comments (the follow-up query), D4 replies with `--input`.
 - `r1` (contract), dependsOn none: `ReviewThread`, `ReviewComment`, `ReviewDraft`,
   `ReviewSubmitRequest`, `ReviewPost`, `ChangeRequestReviewers`, `ApprovalState`, the reasons,
@@ -2116,14 +2118,14 @@ Each item has the phase task that records it and the safe default Agentry ships 
 | GitLab merge blocked by unresolved discussions (`discussions_not_resolved`) and its refusal | `m0` | Mapped to `threads-unresolved` from the documented value; any unknown `detailed_merge_status` is `blocked-by-policy` and Merge is disabled |
 | The other 16 documented `detailed_merge_status` values never produced | `m0` (those a Free project can produce); the rest stay doc-only | As above: documented mapping, unknown → blocked |
 | `glab mr merge --auto-merge=false`, `mr update --target-branch`, `with_merge_status_recheck`, a successful `mr rebase` | `m0` | Merge now is disabled while a pipeline is running for the head, so the flag's meaning does not matter; base change is not offered on GitLab until recorded |
-| GitHub `APPROVE` / `REQUEST_CHANGES` by someone else than the author, and review requests to another account | `r0`, needs [decision 1](#decisions-for-the-owner) | Both offered only when the viewer is not the author; a refusal is classified from the structured 422, never assumed to be success |
+| GitHub `APPROVE` / `REQUEST_CHANGES` by someone else than the author, and review requests to another account | not planned ([decision 1](#decisions-for-the-owner)) | Not offered in Agentry; the review bar links to the pull request on GitHub |
 | GitLab draft notes through the API, suggestions, reviewers through `mr update`, draft note delete | `r0` | GitLab reviews post as individual discussions (D3, recorded) instead of a batch; suggestions shown as plain code blocks |
 | A thread with more than 100 comments (the follow-up query) | `r0` | Show the first 100 with "open on {host} for the rest" |
 | GitLab bridges and child pipelines, the jobs endpoint, a running job's trace, pipeline retry, MR pipeline POST | `k0` | Jobs from `glab ci get --merge-request -F json` (recorded); bridges shown as one row linking to the host; re-run offered per job (`ci retry`, recorded) |
 | Where `gh api -i` puts status and headers on a 4xx | `k0` | A failed `gh api` read without a parsed status is `unreachable` and backs off like today's watcher |
 | Read-only tokens (gh fine-grained or `read:` scopes, glab `read_api`) | `k0` (gh: a fine-grained token on the probe repository), `m0` (glab: a `read_api` token) | Writes that come back 403 are `forbidden` with "your account or token cannot…"; readiness says signed in, and the write buttons stay until the first refusal, which is remembered per host for 10 min |
 | GitHub fork pull requests (`isCrossRepository`) | not planned | Agentry never creates one (it pushes to `origin`); B1 ignores cross-repository results; a fork PR is never adopted |
-| GitHub Enterprise Server and self-managed GitLab (standard port) | [decision 1](#decisions-for-the-owner)'s access question also covers this; otherwise stays doc-only | Supported through the same argv (the CLIs' documented `-R HOST/…` and `--hostname`); readiness shows "not recorded on an enterprise host" as a detail, not a degraded state |
+| GitHub Enterprise Server and self-managed GitLab (standard port) | not planned ([decision 1](#decisions-for-the-owner)); stays doc-only | Supported through the same argv (the CLIs' documented `-R HOST/…` and `--hostname`); readiness shows "not recorded on an enterprise host" as a detail, not a degraded state |
 | Hosts on a non-standard port | not planned before an enterprise recording | `unsupported-host` with the detail "hosts with a port are not supported yet" |
 | `gh auth status --json hosts` with several hosts or several accounts on one host | with the enterprise recording | Only `active: true` entries count; every other entry is listed as "other account" in Integrations |
 | GitHub `HAS_HOOKS`, merge queues, secondary rate limits | not recordable on github.com with a personal account | `HAS_HOOKS` merges like `CLEAN`; a `merge_queue` rule gives `merge-queue` (merge on GitHub); secondary limits detected from the documented 403/429 + `Retry-After` |
@@ -2137,19 +2139,14 @@ Each item has the phase task that records it and the safe default Agentry ships 
 
 ## Decisions for the owner
 
-Everything else in this plan is decided. These four are the owner's.
+Everything else in this plan is decided. These four are the owner's; the first is settled.
 
-1. **A second account for recording reviews (phase 3), and an enterprise host.** GitHub refuses
-   approve and request-changes on one's own pull request (recorded), so the success path of the most
-   used review action has never been seen.
-   - (a) The owner creates a second free GitHub account, adds it as a collaborator on the probe
-     repository, and signs `gh` in to it for `r0` only (`GH_CONFIG_DIR` pointed at a scratch
-     directory, so the owner's own session is untouched); same on GitLab.
-   - (b) Borrow an existing collaborator's review on the probe repository (a person, not a CLI).
-   - (c) Ship approve and request-changes as doc-only, hidden behind "open on GitHub".
-   - **Recommendation: (a)**, because it records both hosts in one sitting and needs no one else.
-     If the owner also has access to a GitHub Enterprise Server or a self-managed GitLab, one
-     read-only pass there at the same time would turn "enterprise: doc-only" into recorded.
+1. **Approve and request changes on GitHub: decided (owner, 2026-09-30), (c).** GitHub refuses
+   approve and request-changes on one's own pull request (recorded), so their success path cannot be
+   recorded with one account. Agentry does not offer them on GitHub: the review bar links them as
+   "Open on GitHub". GitLab keeps Approve (D9, recorded). No second account is created, and
+   enterprise hosts stay doc-only. Rejected: (a) a second free account signed in to `gh` and `glab`
+   through a scratch config directory, for `r0` only; (b) borrowing a collaborator's review.
 2. **Webhooks when the public URL changes.** The tunnel (localhost.run) gets a new name on every
    start, so a registered hook points at a dead URL after a restart.
    - (a) Registering a hook is standing consent: Agentry re-points its own hooks (only those it
