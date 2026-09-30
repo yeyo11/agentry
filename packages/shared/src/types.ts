@@ -5058,6 +5058,11 @@ export interface DecisionRecord {
 export interface DecisionFilter {
   point?: DecisionPointId;
   projectId?: string;
+  /** What the decision was about: the mark reads the rows of one subject */
+  subjectKind?: DecisionSubjectKind;
+  subjectId?: string;
+  /** Only rows that changed something a person sees */
+  visible?: boolean;
   provider?: DecisionProviderId;
   mode?: 'shadow' | 'active';
   status?: 'answered' | 'unavailable';

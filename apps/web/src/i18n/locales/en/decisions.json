@@ -256,5 +256,42 @@
     "shownMore_other": "{{formatted}} decisions loaded",
     "more": "Load more",
     "loading": "Loading…"
+  },
+  "mark": {
+    "decided": "decided · {{confidence}}",
+    "suggested": "suggested",
+    "labelDecided": "Decided by Agentry, confidence {{confidence}}: {{answer}}. See the answer",
+    "labelSuggested": "Suggested by Agentry: {{answer}}. See the answer",
+    "popoverLabel": "Answer of Agentry",
+    "close": "Close",
+    "answer": "Answer",
+    "modeThreshold": "{{mode}} · threshold {{threshold}}",
+    "pending": "Not known yet",
+    "ask": "Was it useful?",
+    "history": "See in History",
+    "titles": {
+      "flowRefineNeeded": "Decided the card needed refining",
+      "flowBounce": "Sent the card back",
+      "flowScopeDrift": "Spotted work outside the scope",
+      "flowCriteriaPrecheck": "Checked the criteria before QA",
+      "flowCriteriaMerge": "Merged near-identical criteria",
+      "flowRestart": "Requeued a run",
+      "boardTriage": "Classified the task",
+      "teamAssign": "Proposed a team member",
+      "memoryTriage": "Sorted the proposal",
+      "journalRelevance": "Picked the journal entries",
+      "assistantRerank": "Reordered the proposals",
+      "assistantSources": "Picked what to read first",
+      "orchestrationRetry": "Retried the task",
+      "orchestrationModel": "Suggested a model",
+      "orchestrationFixer": "Chose the fixer",
+      "runContinuation": "Continued the run",
+      "supervisorIntervene": "Suggested an intervention",
+      "healthSemanticLoop": "Spotted a loop",
+      "healthTestWeakening": "Flagged a weakened test",
+      "changesUnexplainedHunk": "Flagged an unexplained change",
+      "notificationUrgency": "Set the urgency",
+      "paletteIntent": "Picked the command"
+    }
   }
 }

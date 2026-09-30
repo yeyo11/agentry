@@ -12,6 +12,7 @@ import { columnMeta, priorityMeta } from '../../../lib/work-items';
 import { Activity, CommentBox, useItemRuns } from './Activity';
 import { Changes } from './Changes';
 import { Criteria } from './Criteria';
+import { DecisionMark } from '../../../components/DecisionMark';
 import { Description, Title } from './Description';
 import { ItemDocuments } from './Documents';
 import {
@@ -59,6 +60,7 @@ function Wide({ item, actions, person, variant }: { item: WorkItemDetail; action
       {variant === 'page' && <WorkItemKey value={item.key} boxed />}
       <StatusBadge item={item} />
       <WaitingBadge item={item} />
+      <DecisionMark subjectKind="work_item" subjectId={item.id} />
       <span className="grow" />
       <CopyLink item={item} />
       <ItemMenu item={item} variant={variant} withCopy={false} />

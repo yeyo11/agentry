@@ -38,6 +38,7 @@ import { healthReason } from '../lib/server-strings';
 import { withoutKey } from '../lib/work-item-links';
 import { ActivityTicker } from './ActivityTicker';
 import { Collapsible, Tooltip } from './controls';
+import { DecisionMark } from './DecisionMark';
 import { useConfirm } from './Dialog';
 import { useLinkedWorkItem, WorkItemKeyLink } from './WorkItemKeyLink';
 import { ICON_SM } from './icons';
@@ -617,6 +618,7 @@ export function TaskRow({
           ) : (
             <TaskName task={task} id={titleId} className="task-row-name" level="h3" />
           )}
+          <DecisionMark subjectKind="task" subjectId={task.id} />
           {facts}
           {summary && (
             <button

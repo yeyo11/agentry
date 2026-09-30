@@ -17106,6 +17106,17 @@
       "projectId": {
         "type": "string"
       },
+      "subjectKind": {
+        "$ref": "#/components/schemas/DecisionSubjectKind",
+        "description": "What the decision was about: the mark reads the rows of one subject"
+      },
+      "subjectId": {
+        "type": "string"
+      },
+      "visible": {
+        "type": "boolean",
+        "description": "Only rows that changed something a person sees"
+      },
       "provider": {
         "$ref": "#/components/schemas/DecisionProviderId"
       },
@@ -17146,6 +17157,17 @@
       },
       "projectId": {
         "type": "string"
+      },
+      "subjectKind": {
+        "$ref": "#/components/schemas/DecisionSubjectKind",
+        "description": "What the decision was about: the mark reads the rows of one subject"
+      },
+      "subjectId": {
+        "type": "string"
+      },
+      "visible": {
+        "type": "boolean",
+        "description": "Only rows that changed something a person sees"
       },
       "provider": {
         "$ref": "#/components/schemas/DecisionProviderId"

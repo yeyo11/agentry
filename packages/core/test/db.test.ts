@@ -441,6 +441,9 @@ test('decisions round-trip, resolve once, and let feedback outrank the inference
   db.setDecisionFeedback('d2', 'useful', at(5));
   db.resolveDecision('d2', { summary: 'x', agreed: false }, at(6));
   assert.equal(db.decision('d2')?.agreed, true);
+  // The person's word is a resolution too, so the stats count the row as resolved
+  assert.equal(db.decision('d2')?.resolvedAt, at(5));
+  assert.equal(db.decision('d1')?.resolvedAt, at(2));
   db.close();
 });
 
@@ -461,6 +464,10 @@ test('decisions page newest first, filter, and report stats', () => {
   assert.deepEqual(db.listDecisions({ point: 'palette.intent', status: 'unavailable' }).items.map((d) => d.id), ['c']);
   assert.deepEqual(db.listDecisions({ since: at(2), until: at(2) }).items.map((d) => d.id), ['b']);
   assert.deepEqual(db.listDecisions({ projectId: 'p1' }).items.map((d) => d.id), ['a']);
+  db.insertDecision(decisionRow('s', { at: at(4), subjectKind: 'work_item', subjectId: 'w1', visible: true }));
+  assert.deepEqual(db.listDecisions({ subjectKind: 'work_item', subjectId: 'w1', visible: true }).items.map((d) => d.id), ['s']);
+  assert.deepEqual(db.listDecisions({ subjectId: 'w1', visible: true }).items.length, 1);
+  db.deleteDecision('s');
 
   const stats = db.decisionStats(at(0));
   const run = stats.points.find((p) => p.point === 'run.continuation');

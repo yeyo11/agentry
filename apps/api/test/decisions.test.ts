@@ -186,6 +186,12 @@ test('the history is filtered and paged, rated, and deleted one row or a filtere
   const jev = (await app.inject('/api/decisions?provider=jev')).json<DecisionPage>();
   assert.equal(jev.items.length, 3);
   assert.equal((await app.inject('/api/decisions?provider=nope')).statusCode, 400);
+  // The mark reads the rows of one subject, only those that changed something a person sees
+  core.db.insertDecision(row('h-vis', { at: new Date(start + 9000).toISOString(), subjectKind: 'work_item', subjectId: 'w-1', visible: true }));
+  const bySubject = (await app.inject('/api/decisions?subjectKind=work_item&subjectId=w-1&visible=true')).json<DecisionPage>();
+  assert.deepEqual(bySubject.items.map((r) => r.id), ['h-vis']);
+  assert.equal((await app.inject('/api/decisions?subjectKind=nope')).statusCode, 400);
+  core.db.deleteDecision('h-vis');
   assert.equal((await app.inject('/api/decisions?limit=0')).statusCode, 400);
 
   assert.equal((await app.inject('/api/decisions/h-1')).json<DecisionRecord>().point, 'flow.bounce');
@@ -193,6 +199,7 @@ test('the history is filtered and paged, rated, and deleted one row or a filtere
 
   const rated = await app.inject({ method: 'POST', url: '/api/decisions/h-1/feedback', ...json({ feedback: 'useful' }) });
   assert.equal(rated.json<DecisionRecord>().feedback, 'useful');
+  assert.ok(rated.json<DecisionRecord>().resolvedAt, 'the rating resolves the row');
   assert.equal((await app.inject({ method: 'POST', url: '/api/decisions/h-1/feedback', ...json({ feedback: 'meh' }) })).statusCode, 400);
   assert.equal((await app.inject({ method: 'POST', url: '/api/decisions/missing/feedback', ...json({ feedback: 'useful' }) })).statusCode, 404);
 

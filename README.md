@@ -838,7 +838,7 @@ The decision engine: a decision point puts typed questions to a provider (the Cl
 | GET | `/decisions/points` | The catalogue with the settings in force, optionally for `?projectId=` |
 | GET | `/decisions/points/:point/preview` | The exact state of the point's last request, or the fields it may carry, built locally and not sent |
 | PUT | `/decisions/points/:point/consent` | `{ granted, stateVersion, providers }` — grant or withdraw consent for what was previewed (`409` when the state changed since). Not open to a chat's token |
-| GET | `/decisions` | History, newest first, filtered by `point`, `projectId`, `provider`, `mode`, `status`, `since`, `until` and paged with `cursor` and `limit` |
+| GET | `/decisions` | History, newest first, filtered by `point`, `projectId`, `subjectKind`, `subjectId`, `visible`, `provider`, `mode`, `status`, `since`, `until` and paged with `cursor` and `limit` |
 | DELETE | `/decisions` | Delete the rows matching the same filter (every row when none) |
 | GET | `/decisions/stats` | Per-point metrics plus Jev cost and Claude runs saved, over `?days=` (30) or `?since=` |
 | GET | `/decisions/:id` | One decision: state, questions, answers with probabilities, provider and outcome |
