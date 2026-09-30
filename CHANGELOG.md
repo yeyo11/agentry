@@ -3,6 +3,18 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.27.0](https://github.com/yeyo11/agentry/compare/v0.26.0...v0.27.0) (2026-09-30)
+
+
+### Features
+
+* **decisions:** shadow-accuracy resolvers for palette.intent, notification.urgency and orchestration.model ([#144](https://github.com/yeyo11/agentry/issues/144)) ([b1c29ec](https://github.com/yeyo11/agentry/commit/b1c29ec26191eb8b01b0f4d21a98802c6d3fa79b))
+
+
+### Documentation
+
+* **reports:** Jev in shadow, first measurements ([#143](https://github.com/yeyo11/agentry/issues/143)) ([75a6664](https://github.com/yeyo11/agentry/commit/75a6664a98d01d8f9fe4487035c3de79356635e6))
+
 ## [0.26.0](https://github.com/yeyo11/agentry/compare/v0.25.1...v0.26.0) (2026-09-30)
 
 
