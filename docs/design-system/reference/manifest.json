@@ -241,9 +241,9 @@
   },
   {
     "file": "DSIntegraciones.html",
-    "title": "Design system · Integraciones",
+    "title": "Design system · Integraciones, línea del host y avisos de preparación",
     "w": 1440,
-    "h": 1460
+    "h": 4400
   },
   {
     "file": "DesktopChatsVacio.html",
@@ -806,6 +806,48 @@
   {
     "file": "MobileIntegracionesBinario.html",
     "title": "Móvil · Ajustes, binario de una integración",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopTareaMR.html",
+    "title": "Desktop · Tarea con MR",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileTareaMR.html",
+    "title": "Móvil · Tarea con MR",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopTableroMR.html",
+    "title": "Desktop · Tablero con MR",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopOrquestacionMR.html",
+    "title": "Desktop · Orquestación con MR abierta",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopOrquestacionMRSubir.html",
+    "title": "Desktop · Orquestación, subir y abrir la MR",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileOrquestacionMR.html",
+    "title": "Móvil · Orquestación con MR abierta",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileOrquestacionMRSubir.html",
+    "title": "Móvil · Orquestación, subir y abrir la MR",
     "w": 390,
     "h": 844
   }

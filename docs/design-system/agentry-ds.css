@@ -666,6 +666,13 @@ a.part-of { color: inherit; text-decoration: none; }
 .wi-strip .no-pr { flex-basis: 100%; display: inline-flex; gap: 5px; color: var(--warn); }
 /* A PR's checks as a badge with its word: passing .ok, failing .bad, pending and none neutral, never looping */
 .pr-ci { flex-shrink: 0; }
+/* Why a project offers no PR or MR (docs/plans/code-hosts.md, reason codes): one warn line with its remedy as a link, never a command to copy. On a card the line sits in the strip (.no-pr, then .pr-remedy on its own line); on an item's page .pr-not-ready says it in a sentence with the host's own line in mono under it. */
+.wi-strip .pr-remedy { flex-basis: 100%; padding-left: 18px; }
+.pr-remedy { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; }
+.m-screen .pr-remedy { min-height: var(--touch); font-size: 13px; }
+.pr-not-ready { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.5; color: var(--fg-2); }
+.pr-not-ready > .ico { flex-shrink: 0; margin-top: 2px; color: var(--warn); }
+.pr-not-ready .detail { font-family: var(--mono); font-size: 11.5px; color: var(--fg-3); overflow-wrap: anywhere; }
 /* The board's checkout behind origin/<default>: one quiet warn line under the toolbar, never a command */
 .wi-checkout { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: var(--warn); }
 /* Selection mode ("Orquestar"): the chosen cards take the accent ring and a checked box. */
