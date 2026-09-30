@@ -1025,6 +1025,14 @@
   background: none;
 }
 
+/* A pull request not opened yet is one quiet line, not a panel: the head already says the item
+   waits, so the line holds only the PR it can open, or why it cannot */
+.item-wait.is-quiet.item-pr-wait {
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
 .item-wait-head {
   display: flex;
   align-items: center;
@@ -1056,6 +1064,30 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* A pull request's conflicting paths and git's or gh's own line: ids and output, in mono */
+.item-wait-files {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-2);
+  overflow-wrap: anywhere;
+}
+
+.item-wait-detail {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-3);
+  overflow-wrap: anywhere;
 }
 
 /* The Memory tab's figure is the proposals waiting for the person: idle, not a neutral count */
@@ -1096,7 +1128,8 @@
     font-size: 15px;
   }
 
-  .item-wait-actions > .btn {
+  .item-wait-actions > .btn,
+  .item-pr-wait.is-quiet > .btn {
     flex: 1;
     min-height: 44px;
   }

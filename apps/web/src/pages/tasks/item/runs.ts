@@ -42,10 +42,12 @@ const FAILURE_CAUSES = new Set<FlowRunCause>([
   'restarts',
   'unreadable',
   'no-verdict',
+  'max-tokens',
   'not-started',
   'not-continued',
   'chat-ended',
   'chat-failed',
+  'conflict-unresolved',
 ]);
 
 export type FailureReasonKey = `run.cause.${FlowRunCause}` | 'run.cause.unknown';

@@ -48,6 +48,8 @@ import {
   type WorkItemSource,
   type WorkItemStatus,
   type WorkItemType,
+  type WorkItemHistoryPullRequest,
+  type WorkItemPullRequest,
   type WorkItemWaitReason,
 } from '@agentry/shared';
 import type { Db } from './db.ts';
@@ -66,6 +68,7 @@ import {
   isLive,
   linkOf,
   milestoneOf,
+  pullRequestOf,
   readValue,
   sourceOf,
   statusIndex,
@@ -77,6 +80,7 @@ import {
   type LinkRow,
   type MilestoneRow,
   type PendingEntry,
+  type PullRequestRow,
   type StoredHistoryValue,
   type StoredItemRef,
 } from './work-item-rows.ts';
@@ -637,6 +641,26 @@ export class WorkItemService {
     });
     const item = this.mustHydrate(result.row);
     this.emitUpdated(item, result.changes, actor, cause);
+    return item;
+  }
+
+  /**
+   * Announces that the item's pull request changed, which the PR service writes in its own table.
+   * `entry` is the history line for an outcome worth keeping (opened, conflicted, merged, closed);
+   * a CI state or a failed attempt only changes the card and writes none.
+   */
+  pullRequestChanged(itemId: string, entry: WorkItemHistoryPullRequest | null, ctx?: WorkItemContext): WorkItem {
+    const actor = actorFrom(ctx);
+    const cause = ctx?.cause ?? null;
+    const row = this.write(() => {
+      const before = this.mustRow(itemId);
+      const now = new Date().toISOString();
+      this.sql.prepare('UPDATE work_items SET updated_at = ? WHERE id = ?').run(now, itemId);
+      if (entry) this.record([{ itemId, change: 'pull_request', from: null, to: entry }], actor, cause, now);
+      return this.row(itemId) ?? before;
+    });
+    const item = this.mustHydrate(row);
+    this.emitUpdated(item, ['pull_request'], actor, cause);
     return item;
   }
 
@@ -1446,6 +1470,13 @@ export class WorkItemService {
       if (wanted.has(e.blocked_id) && blocker) relations.set(e.blocked_id, [...(relations.get(e.blocked_id) ?? []), { type: 'blocked_by', item: blocker }]);
     }
     const links = this.deps.linkState ? this.linksOf(ids) : new Map<string, WorkItemLink[]>();
+    // The newest PR of each: rows come oldest first, so the last one read wins
+    const pulls = new Map<string, WorkItemPullRequest>();
+    for (const r of this.sql
+      .prepare('SELECT * FROM work_item_pull_requests WHERE item_id IN (SELECT value FROM json_each(?)) ORDER BY created_at, rowid')
+      .all(inList(ids)) as unknown as PullRequestRow[]) {
+      pulls.set(r.item_id, pullRequestOf(r));
+    }
 
     return rows.map((row) => ({
       id: row.id,
@@ -1469,7 +1500,8 @@ export class WorkItemService {
       branch: row.branch,
       activeLink: [...(links.get(row.id) ?? [])].reverse().find(isLive) ?? null,
       bounces: row.bounces ?? 0,
-      waiting: row.waiting === 'approval' || row.waiting === 'bounces' ? row.waiting : null,
+      waiting: row.waiting === 'approval' || row.waiting === 'bounces' || row.waiting === 'merge' ? row.waiting : null,
+      pullRequest: pulls.get(row.id) ?? null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       closedAt: row.closed_at,

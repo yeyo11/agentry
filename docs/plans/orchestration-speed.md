@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T13:57:10.191855215Z
-updated_at: 2026-09-29T12:00:00Z
+updated_at: 2026-09-30T06:00:00Z
 tags:
     - plan
     - orchestration
@@ -216,17 +216,59 @@ worker-checks ┘ graph-shape ──┘
 - It is launched when no other big orchestration is running, and the next three graphs after it are
   measured with `scripts/orchestration-timings.mjs`. Their numbers go into an Outcome section here.
 
+## Outcome
+
+Filled in as the workstreams land and the graphs after them are measured.
+
+- **C. `verify-faster`** (CW-14): sharded e2e shipped in #128 (0.24.0; 4 shards ran the suite in
+  312 s on the dev machine, against about 17 min in one process on CI). Parallel groups in
+  `verification.commands` and the failed specs in the fixer's prompt were built in `task/cw-14`.
+  **Not measured yet:** the 25-minute (nothing to fix) and 40-minute (one fixer attempt) targets
+  after the last task, on the next graphs with verification on after the merge; and the
+  `E2E_SHARDS=1` wall time on an idle machine. See [plans/verify-faster.md](verify-faster.md).
+
 ## Open questions
 
 1. **Workers and e2e.** Should a worker run the one or two browser specs its change touches, on its
    own port? This catches breakage before the merge, at the cost of a build and one spec per worker.
    The alternatives are to keep "no e2e in workers" and rely on sharding alone, or to add a
    dedicated `e2e-specs` task before integration.
+
+   **Answered on 2026-09-30: a dedicated `e2e-specs` task (option C).** Workers keep running no e2e;
+   before integration a task runs the browser specs that the graph's changes touch, on its own
+   port. This is what CW-15 builds.
 2. **No account left.** Should the graph wait for the reset and resume by itself, stop for a
    decision, or wait only up to a limit (for example 30 min) and then stop?
+
+   **Answered on 2026-09-30: wait and resume by itself (option A).** A task or flow run with no
+   account left is *waiting for quota* (warn, with the time the first account resets), never
+   failed, and Agentry resumes it in its own chat as soon as an account has room. While it waits,
+   nothing new starts on the exhausted pool. This is what CW-4 builds.
 3. **Two big graphs at once.** Should the launch form warn, should the second one wait in a queue
    until the first one ends, or should the accounts be split between them?
 
+   **Answered on 2026-09-30: warn at launch (option A).** The launch form says the graphs share the
+   accounts' quota and how much is left; the person decides.
+
+## The prompts the orchestration builds
+
+CW-24 rewrote the planner, worker, integrator, fixer, synthesis and workflow lead prompts for Opus
+5.5 and Sonnet 5.5. [prompts.md](../prompts.md) describes each one and the continuation. In short:
+
+- **Workers** carry the unattended instruction against the four premature stops, real
+  verification, scope and completion, and the frontend rules. `workerChecks` keeps its split. The
+  objective and the dependencies' results reach them as `<pasted_content>` blocks.
+- **A worker whose turn ends as a report** (it offers to continue, asks, or announces a next step)
+  goes back to its chat with a message naming what is open and a time signal: `elapsed Ns / budget
+  Ms` against `limits.maxMinutes`, or "Time matters here…". This happens at most three times,
+  counted in `OrchestrationTaskState.continuations`, and it is not an attempt.
+- **The integrator and the fixer** carry the unattended instruction and real verification, with the
+  objective, the task results and the check's output wrapped.
+- **The planner** reads the directory before it plans ("may inspect … first" is gone). It thinks
+  the problem through on Sonnet, and a plan whose turn stopped on `max_tokens` is refused.
+- **The workflow lead** ends with the time signal. A workflow has no budget, so it reads "Time
+  matters here…".
+
 ## Related
 
-[[plans/agent-observability.md]] · [[pinned-chat-rotation.md]] · [[plans/post-roadmap.md]] · [[status.md]]
+[[prompts.md]] · [[plans/agent-observability.md]] · [[pinned-chat-rotation.md]] · [[plans/post-roadmap.md]] · [[status.md]]

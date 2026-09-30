@@ -141,7 +141,16 @@
     "waitingApproval": "Waiting for your approval to move to Done",
     "waitingBounces": "Waiting for you: sent back too many times",
     "waitingEnded": "No longer waiting",
-    "comment": "Comment"
+    "comment": "Comment",
+    "waitingMerge": "Waiting for you to merge its PR",
+    "prOpened": "Pull request opened",
+    "prConflict": "Updating its branch left conflicts in",
+    "prMerged": "Pull request merged",
+    "prClosed": "Pull request closed without merging",
+    "prFailed": "The pull request could not be opened",
+    "prPreparing": "Pull request approved: preparing it",
+    "prAwaiting": "Approved: its PR opens when the verification passes",
+    "prChanged": "Pull request updated"
   },
   "cause": {
     "chatStarted": "chat {{chat}} started",
@@ -149,7 +158,11 @@
     "message": "from a message of chat {{chat}}",
     "taskStarted": "the graph's node started",
     "taskCompleted": "the graph's node completed",
-    "other": "a chat or an orchestration did it"
+    "other": "a chat or an orchestration did it",
+    "prOpened": "its PR was opened",
+    "prConflict": "updating its branch conflicted",
+    "prMerged": "its PR was merged on GitHub",
+    "prClosed": "its PR was closed on GitHub"
   },
   "sections": {
     "label": "Sections",
@@ -258,11 +271,13 @@
       "restarts_other": "It was cut off {{count}} times: Agentry restarted while it {{doing}}.",
       "unreadable": "It ended without a result Agentry could read.",
       "no-verdict": "It ended without giving its verdict.",
+      "max-tokens": "Its last turn was cut off at the output token limit, so its result was not trusted.",
       "not-started": "Its chat did not start.",
       "not-continued": "Its chat could not be picked up again after a restart.",
       "chat-ended": "Its chat ended, or was deleted, without leaving a result.",
       "chat-failed": "Its chat ended with an error from Claude Code.",
-      "unknown": "It gave no reason."
+      "unknown": "It gave no reason.",
+      "conflict-unresolved": "It ended with the merge of the default branch still conflicted."
     },
     "doing": {
       "refine": "refined it",
@@ -290,5 +305,38 @@
     "seeChat": "See the chat",
     "retry": "Retry",
     "retryFailed": "Could not retry the run"
+  },
+  "pr": {
+    "title": "Pull request",
+    "branches": "{{branch}} → {{base}}",
+    "state": {
+      "merged": "merged",
+      "closed": "closed without merging",
+      "preparing": "preparing",
+      "failed": "failed"
+    },
+    "label": "Its pull request",
+    "mergeBadge": "waits for your merge",
+    "mergeWhy": "PR #{{number}} waits for you to merge it on GitHub",
+    "mergeWhyUnnumbered": "Its PR waits for you to merge it on GitHub",
+    "mergeHint": "Once it is merged, the task moves to Done on its own.",
+    "preparingBadge": "preparing",
+    "preparingWhy": "Agentry is updating its branch with {{base}}, pushing it and opening the PR.",
+    "conflictBadge": "conflicted",
+    "conflictWhy_one": "Updating its branch with {{base}} left a conflict in {{count}} file",
+    "conflictWhy_other": "Updating its branch with {{base}} left conflicts in {{count}} files",
+    "conflictHint": "The merge stays open in its worktree, with the conflict markers, to be resolved there. Once it is resolved and verified, approve it again.",
+    "awaitingBadge": "approved",
+    "awaitingWhy": "Its PR opens without a second approval when the verification passes.",
+    "closedBadge": "waits for you",
+    "closedWhy": "PR #{{number}} was closed without merging",
+    "closedHint": "Approving it again opens a new PR; the closed one stays in its history.",
+    "failedBadge": "failed",
+    "failedWhy": "Could not open the PR: {{reason}}",
+    "keptBadge": "worktree kept",
+    "keptWhy": "Its worktree was kept: it had uncommitted changes.",
+    "readyBadge": "waits for you",
+    "approveWhy": "Approving it opens its PR against {{base}}.",
+    "offerWhy": "Opening its PR pushes its branch and proposes it to {{base}}."
   }
 }

@@ -49,7 +49,21 @@ export function RunBadge({ run }: { run: FlowRun }) {
 }
 
 /** The causes a failed run has, each worded as a title, what it means for the item, and a short form. */
-const FAILURES = ['budget', 'no-account', 'rate-limit', 'stopped', 'unreadable', 'no-verdict', 'not-started', 'not-continued', 'chat-ended', 'chat-failed', 'unknown'] as const;
+const FAILURES = [
+  'budget',
+  'no-account',
+  'rate-limit',
+  'stopped',
+  'unreadable',
+  'no-verdict',
+  'max-tokens',
+  'not-started',
+  'not-continued',
+  'chat-ended',
+  'chat-failed',
+  'conflict-unresolved',
+  'unknown',
+] as const;
 type Failure = (typeof FAILURES)[number];
 const isFailure = (reason: string): reason is Failure => (FAILURES as readonly string[]).includes(reason);
 

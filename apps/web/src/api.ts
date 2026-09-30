@@ -131,6 +131,7 @@ import type {
   Milestone,
   MoveWorkItemRequest,
   MoveWorkItemResult,
+  WorkItemPullRequestResult,
   OrchestrateWorkItemsRequest,
   ProjectSettings,
   ProjectTemplate,
@@ -189,12 +190,15 @@ export const BASE = '/api';
 export class ApiRequestError extends Error {
   readonly status: number;
   readonly detail?: string;
+  /** The refusal's code, when the route names one (`{ error, code }`), so the page can word it */
+  readonly code?: string;
 
-  constructor(message: string, status: number, detail?: string) {
+  constructor(message: string, status: number, detail?: string, code?: string) {
     super(message);
     this.name = 'ApiRequestError';
     this.status = status;
     this.detail = detail;
+    this.code = code;
   }
 }
 
@@ -267,7 +271,8 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
     // No JSON error means Agentry did not write this answer (a proxy's or a tunnel's page): say so in
     // the person's language and keep the status line as the detail
     if (!err?.error) throw new ApiRequestError(i18n.t('common:httpError', { status: res.status }), res.status, `HTTP ${res.status} ${res.statusText}`.trim());
-    throw new ApiRequestError(err.error, res.status, err.detail);
+    const code = (err as { code?: unknown }).code;
+    throw new ApiRequestError(err.error, res.status, err.detail, typeof code === 'string' ? code : undefined);
   }
   return json as T;
 }
@@ -672,6 +677,10 @@ export const api = {
   /** `afterId` names the neighbour it lands after: null puts it first in the column, absent last */
   moveWorkItem: (itemId: string, req: MoveWorkItemRequest) =>
     request<MoveWorkItemResult>(`/work-items/${enc(itemId)}/move`, { method: 'POST', body: req }),
+  /** Approve: commit, update, push and open the item's pull request; 202 while it is prepared, 200 when one is open already */
+  openPullRequest: (itemId: string) => request<WorkItemPullRequestResult>(`/work-items/${enc(itemId)}/pull-request`, { method: 'POST', body: {} }),
+  /** Ask gh about the item's open pull request now, rather than at the watcher's next pass */
+  refreshPullRequest: (itemId: string) => request<WorkItem>(`/work-items/${enc(itemId)}/pull-request/refresh`, { method: 'POST', body: {} }),
   checkCriterion: (itemId: string, criterionId: string, checked: boolean) =>
     request<WorkItem>(`/work-items/${enc(itemId)}/criteria/${enc(criterionId)}`, { method: 'PATCH', body: { checked } }),
   workItemComments: (itemId: string, o?: ReadOptions) => request<WorkItemComment[]>(`/work-items/${enc(itemId)}/comments`, o),

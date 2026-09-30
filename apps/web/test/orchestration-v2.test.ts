@@ -10,6 +10,7 @@ import {
   draftOfVerification,
   EMPTY_VERIFICATION,
   limitsOf,
+  commandsText,
   parseCommands,
   pullRequestHeld,
   rerunBlockedByPullRequest,
@@ -162,6 +163,18 @@ test('a dependency cycle does not loop the search', () => {
 
 test('verification commands are one per line, blanks dropped', () => {
   assert.deepEqual(parseCommands('pnpm build\n\n  pnpm e2e  \n'), ['pnpm build', 'pnpm e2e']);
+});
+
+test('a verification line that starts with & runs at the same time as the line above, and the draft round-trips it', () => {
+  const text = 'pnpm typecheck\n& pnpm test\npnpm build\npnpm e2e';
+  assert.deepEqual(parseCommands(text), [['pnpm typecheck', 'pnpm test'], 'pnpm build', 'pnpm e2e']);
+  assert.equal(commandsText(parseCommands(text)), text);
+  // A mark on the first line has no line above to join; a bare mark is no command
+  assert.deepEqual(parseCommands('& lint\n  &   unit  \n&\nbuild'), [['lint', 'unit'], 'build']);
+  const spec = { commands: [['pnpm typecheck', 'pnpm test'], 'pnpm build'], fixer: false, maxAttempts: 2 };
+  const draft = draftOfVerification(spec);
+  assert.equal(draft.commands, 'pnpm typecheck\n& pnpm test\npnpm build');
+  assert.deepEqual(verificationOf(draft), spec);
 });
 
 test('verification is a spec only when it is on and has something to run', () => {

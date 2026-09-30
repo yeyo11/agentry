@@ -21,6 +21,7 @@ import {
 import { BoardColumns, type BoardSelection } from './board/BoardColumns';
 import { BoardOff, EmptyBoard, NoBoards, NothingFiltered } from './board/EmptyBoards';
 import { useLiveSources } from './board/LiveLine';
+import { BoardReadinessProvider, CheckoutLine } from './board/PullRequest';
 import { BoardTeamProvider, FlowButton, PhoneFlowRow, useBoardTeamData } from './board/team';
 import { boardItems, boardTotal, DONE_SHOWN, doneLimitFor, holdsPart, NO_MILESTONE, nextDoneShown, notSelectable } from './board/model';
 import { useEpicProgress } from './board/useEpicProgress';
@@ -297,6 +298,11 @@ function TasksBoard() {
       </span>
     </p>
   );
+  // A project's board says whether approving opens a pull request, and how far its checkout is
+  // behind the default branch; All projects says neither
+  const projectBoard = !scope.allProjects && full.data?.projectId === scope.projectId ? full.data : undefined;
+  const readiness = projectBoard?.pullRequestReadiness ?? null;
+  const checkout = <CheckoutLine checkout={projectBoard?.checkout} />;
   const boardShown = view === 'board' && !phone && Boolean(answer.data) && !stale && !empty && shownTotal > 0;
 
   return (
@@ -315,6 +321,7 @@ function TasksBoard() {
                 <FilterSheetButton facets={facets} state={filters} shown={shownTotal} />
               </div>
               <ActiveFilterChips facets={facets} state={filters} summary={filters.active ? t('header.shownOf', { shown: shownTotal, total }) : undefined} />
+              {checkout}
               {team && scope.project && view === 'board' && <PhoneFlowRow team={team} projectId={scope.project.id} />}
               {scope.allProjects && total > 0 && (
                 <div className="card workitem-all-card">
@@ -348,11 +355,14 @@ function TasksBoard() {
               <FacetChips facets={facets} state={filters} />
             </div>
           )}
+          {!scope.boardOff && checkout}
           {allNote}
         </>
       )}
 
-      <BoardTeamProvider value={team}>{body}</BoardTeamProvider>
+      <BoardReadinessProvider value={readiness}>
+        <BoardTeamProvider value={team}>{body}</BoardTeamProvider>
+      </BoardReadinessProvider>
 
       {selecting && phone && <SelectionNote selected={selectedItems} />}
       {selecting && (phone ? <PhoneSelectionFoot projectId={selectionProject} selected={selectedItems} /> : <SelectionBar projectId={selectionProject} selected={selectedItems} onCancel={stopSelecting} />)}

@@ -74,7 +74,7 @@ export const WORK_ITEM_LINK_ROLES = valuesOf<WorkItemLinkRole>()(['origin', 'ref
 
 export const WORK_ITEM_RELATION_TYPES = valuesOf<WorkItemRelationType>()(['blocks', 'blocked_by']);
 
-export const WORK_ITEM_WAIT_REASONS = valuesOf<WorkItemWaitReason>()(['approval', 'bounces']);
+export const WORK_ITEM_WAIT_REASONS = valuesOf<WorkItemWaitReason>()(['approval', 'bounces', 'merge']);
 
 export const MILESTONE_STATES = valuesOf<MilestoneState>()(['open', 'closed']);
 
@@ -126,6 +126,7 @@ export const FLOW_RUN_CAUSES = valuesOf<FlowRunCause>()([
   'restarts',
   'unreadable',
   'no-verdict',
+  'max-tokens',
   'not-started',
   'not-continued',
   'chat-ended',
@@ -138,6 +139,7 @@ export const FLOW_RUN_CAUSES = valuesOf<FlowRunCause>()([
   'no-member',
   'refined',
   'chat-busy',
+  'conflict-unresolved',
 ]);
 
 export const FLOW_RUN_STATES = valuesOf<FlowRunState>()(['queued', 'running', 'ended']);
@@ -173,6 +175,12 @@ export const MAX_FLOW_COST_USD = 100;
 
 /** Times a flow run cut off by a restart is continued in its chat before it fails */
 export const MAX_FLOW_RESTARTS = 2;
+
+/**
+ * Times an unattended run (a flow run, an orchestration worker) is sent back to its chat when its turn
+ * ended with work still owed. Past it, the run's result is judged as it is.
+ */
+export const MAX_CONTINUATIONS = 3;
 
 /** The most shell command patterns a member may list in `commands` */
 export const MAX_TEAM_COMMANDS = 50;
@@ -273,3 +281,18 @@ export function parseWorkItemKey(key: string): { prefix: string; number: number 
 export function workItemBranch(key: string): string {
   return `task/${key.toLowerCase()}`;
 }
+
+/**
+ * The history causes a work item's pull request writes (docs/plans/work-item-pull-requests.md): the
+ * PR opened, the update conflicted and the item went back to work, GitHub merged it (the move to
+ * Done), or it was closed without merging. A client words them.
+ */
+export const WORK_ITEM_PR_CAUSE = {
+  opened: 'pr.opened',
+  conflict: 'pr.conflict',
+  merged: 'pr.merged',
+  closed: 'pr.closed',
+} as const;
+
+/** The Conventional Commits types a label can give a pull request's title. */
+export const CONVENTIONAL_TYPES = ['feat', 'fix', 'docs', 'chore', 'refactor', 'perf', 'test', 'build', 'ci'] as const;

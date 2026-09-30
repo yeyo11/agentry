@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T20:00:00Z
-updated_at: 2026-09-28T23:30:00Z
+updated_at: 2026-09-29T12:00:00Z
 tags:
     - team
     - flow
@@ -263,6 +263,34 @@ stayed after the run. After a bounce, its prompt carries QA's newest comment. Th
 the item as it starts, with the stage as the link's role (`refine`, `work`, `verify`) and the member's
 role as `teamRole`.
 
+### What a run is told
+
+`flowPrompt` builds the first prompt. It has the run's title line, then the item as "Work on it"
+gives it (`workItemPrompt(item, 'task')`), then the stage's instructions. The texts every stage
+shares come from `packages/core/src/prompt-rules.ts` ([prompts.md](prompts.md) checks each one
+against the Opus 5.5 and Sonnet 5.5 guides):
+
+- every stage carries `UNATTENDED`. It names the four premature stops (a summary that announces the
+  next step, an offer to continue, a list of non-blocking decisions, a milestone that felt like a
+  place to stop) and still asks before a risky or destructive action. It also carries
+  `PASTED_NOTE`;
+- what people wrote is marked as `<pasted_content id="…">` blocks: the description, the
+  criteria, the criteria QA judges, the comment that sent the item back, and the journal in the
+  system prompt. The title line stays bare, since the chat is listed by it;
+- refining reads the documents and the code the item concerns, including what it does not name,
+  before it writes;
+- work runs carry the scope-and-completion paragraph, `REAL_VERIFICATION`, and the frontend rules,
+  which point at the project's design system document and `CLAUDE.md` when it has them;
+- verify runs carry `REAL_VERIFICATION`;
+- refine and verify runs on a Sonnet model end with "Think the problem through before you answer.".
+
+**A run that ends with work still owed goes on in its chat.** When its result is read, `openItems`
+checks for a missing structured result, uncommitted changes in a work run's worktree, and a last
+message that offers to continue, asks a question or announces a next step. With open items, the run
+stays `running`, `continuations` counts up, and once the chat's process exits the same chat is
+resumed with a message that names them. This happens at most `MAX_CONTINUATIONS` (3) times. After
+that, the result it has decides, as before.
+
 ### What a run may do
 
 `stageRules` in `flow.ts` gives each stage its permission mode and rules:
@@ -272,19 +300,36 @@ role as `teamRole`.
 | refine | `dontAsk` | `Read`, `Glob`, `Grep`; edits under the documents folder | `git push` |
 | work, no `writes`, no `commands` | `acceptEdits` | the read tools, `Bash`, `WebFetch`, `WebSearch`, edits anywhere | `git push` |
 | work, with `writes` or `commands` | `dontAsk` | the read tools, `WebFetch`, `WebSearch`; `Bash` whole, or `Bash(<pattern>)` for each of `commands`; edits under `writes` and the documents folder, or anywhere without `writes` | `git push` |
-| verify | `dontAsk` | the read tools; `git status`, `diff`, `log`, `show`; the project's test commands; edits under the documents folder | `git push`; `--output` on those git commands, which writes a file |
+| verify | `dontAsk` | the read tools; `git status`, `diff`, `log`, `show`; the project's check commands, short forms included (`pnpm typecheck`, `yarn lint`), each named in the verify prompt; edits under the documents folder | `git push`; `--output` on those git commands, which writes a file |
 
 - **`git push` is denied** as `Bash(git push)` and `Bash(git push *)`: a member's work stays on the
-  item's branch until a person takes it further.
+  item's branch until a person takes it further. That holds for the Developer's run that resolves a
+  merge conflict too. **The push is Agentry's own**: once the person approves the item, the core
+  process runs `git push` and `gh pr create` itself, as the person, never as an agent
+  ([work-items.md](work-items.md#approving-opens-its-pull-request)).
 - **Only working reaches the network.** Refining and verifying read the project.
 - **The documents folder is writable in every stage**, since each stage's prompt asks for its
   document there (a specification, an architecture decision, a report). A member with `writes: []`
   writes nothing of the project but that. Its agent file says so ("You write none of the project's
   files"); before, it said "no limit", the opposite of what the flow did.
-- **The test commands a project declares** (`testCommandRules`) are what verifying may run: the
-  `test`, `test:*`, `typecheck`, `lint` and `check` scripts of its `package.json`, run with the package
-  manager its lockfile names; `make test` when the Makefile has that target; `cargo test`, `go test`
-  or `pytest` for such a project. A `build`, `deploy` or `publish` script is never one of them.
+- **The test commands a project declares** (`testCommands`, as rules by `checkCommandRules`) are
+  what verifying may run: the `test`, `tests`, `test:*`, `typecheck`, `type-check`, `lint` and
+  `check` scripts of its `package.json`, run with the package manager its lockfile names; `make test`
+  when the Makefile has that target; `cargo test`, `go test` or `pytest` for such a project. A
+  `build`, `deploy` or `publish` script is never one of them. Each script is allowed alone and
+  followed by arguments, in these forms:
+
+  | Manager (from the lockfile) | Forms of a check script `<name>` |
+  | --- | --- |
+  | pnpm (`pnpm-lock.yaml`), yarn (`yarn.lock`) | `<m> run <name>` and the short `<m> <name>` |
+  | bun (`bun.lock`, `bun.lockb`) | `bun run <name>`; `bun test` for `test` only, since bun's own subcommands win over script names and a short form could run something else |
+  | npm (no lockfile) | `npm run <name>`; `npm test` for `test` only |
+
+  **The verify prompt lists the exact commands** the rules allow, from the same function, so what QA
+  is told and what the permission mode lets through cannot disagree; a project with none is told so
+  and judged by reading the changes. Before (CW-26), only `pnpm run typecheck` was allowed while QA
+  ran `pnpm typecheck`, and QA rejected CW-21 eight times because the typecheck it was denied "could
+  not be run"; CW-1 bounced the same way on a criterion no run could meet (a pull request, pando).
 - **`dontAsk` denies whatever is not allowed outright.** The CLI's rules cannot say "every path but
   these", so the paths are allowed rather than the rest denied (the plan said `--disallowedTools`). A
   path the flag's syntax cannot carry (a comma, a parenthesis, a space, `..`, an absolute path) is
@@ -311,7 +356,7 @@ Every run ends with a result held to its stage's schema:
 | --- | --- | --- |
 | `summary` | all | The member's comment on the item |
 | `verdict` | verify, required | `pass` or `fail` |
-| `criteria` | verify, required | Each acceptance criterion by its id, `met` or not, with a `note` |
+| `criteria` | verify, required | Each acceptance criterion by its id, `met` or not, with a `note`; `needsPerson: true` when no run can check it |
 | `memoryProposals` | all | Proposals waiting for the person, while Shared memory is on |
 | `documents` | all | Document ties on the item (`spec`, `adr`, `report` or `doc`), while Documents is on |
 | `description`, `acceptanceCriteria` | refine | The item's new description, and criteria to add |
@@ -324,10 +369,18 @@ result, or a verification without a verdict, is `failed` and moves nothing.
 **QA checks each criterion** (decision 18). Its prompt lists the item's criteria with their ids, and
 its result judges every one. A criterion found met is **checked on the item as QA** (`checkedBy` is
 the agent with its role). One found unmet is left as it is, so a person's own check stays. **The run
-passes only when every criterion of the item is met**, whatever its `verdict` says: a `pass` with a
-criterion unmet or left out is a rejection. QA's comment is its summary followed by each criterion as
+passes only when every criterion of the item is met or needs a person** (see below), whatever its
+`verdict` says: a `pass` with a criterion unmet or left out is a rejection. QA's comment is its summary followed by each criterion as
 `- [x]` or `- [ ]`, with QA's note, so the Developer who gets it back reads what is missing. An item
 with no criteria is judged by its verdict.
+
+**A criterion no run can meet needs a person** (CW-26, refines decision 18). Pushing, opening a pull
+request, or a tool or MCP server the run does not have are beyond any flow run, so QA returns such a
+criterion with `met: false`, `needsPerson: true` and a note saying what the person must check; the
+verify prompt says it is no reason for `verdict: fail`. It does not count as unmet: a `pass` whose
+criteria are all met or need a person passes. It is never checked on the item, and QA's comment shows
+it as `- [?] <text> — needs a person: <note>`, so the person approving the item sees what is left for
+them. Only a plain `true` counts (`parseResult`); a criterion `met: false` without it still rejects.
 
 ### What a run's end moves
 
@@ -339,7 +392,7 @@ move since the run started**. Otherwise the run leaves its comment and moves not
 | Refine in `backlog` | well | Moves to `todo` |
 | Refine in `todo` | well | Stays: the summary says whether it is ready, and a person moves it on |
 | Work | well | Moves to `in_review` |
-| Verify | `pass` | Stays in `in_review`, **waiting for approval** (`waiting: 'approval'`) |
+| Verify | `pass` | Stays in `in_review`, **waiting for approval** (`waiting: 'approval'`), and a criterion that needs a person stays unchecked for them (refines decision 18); or, when the person's approval is remembered from a conflict, its pull request opens now |
 | Verify | `fail`, with bounces left | Back to `in_progress`, `bounces` + 1, and the Developer's chat resumes with QA's comment |
 | Verify | `fail`, no bounces left | Stays, **waiting for the person** (`waiting: 'bounces'`) |
 | any | failed or stopped | Nothing; a failed run says why in a comment |
@@ -349,6 +402,25 @@ out of it. A person's move answers whatever the item waited for and starts a new
 clears and `bounces` goes back to 0. Every move the flow makes has the actor `agent` with the role,
 and a cause the history translates: `flow.refined`, `flow.worked`, `flow.rejected`, `flow.passed`,
 `flow.bounces`.
+
+**The approval opens the item's pull request.** In a project that can open PRs, the person's
+approval of an item waiting in `in_review` is "Aprobar y abrir PR": Agentry commits what QA verified,
+merges the default branch into the item's branch, pushes it and opens the PR, and the item stays in
+`in_review` with `waiting: 'merge'` until the person merges it on GitHub. The merge moves it to Done
+as the person (cause `pr.merged`), so decision 29 still holds: only a person's act closes an item.
+"Mover a Hecho" stays as the person's manual way out, and is the approval where no PR can be opened.
+See [work-items.md](work-items.md#approving-opens-its-pull-request).
+
+**A conflict goes back to the Developer, and the approval is remembered.** When merging the default
+branch into the item's branch conflicts, nothing is pushed: the merge stays in progress in the
+item's worktree and the item moves to `in_progress` as the person (cause `pr.conflict`), which starts
+the Developer's work run. Its prompt adds a section, "Resolve the merge of `<default>` into this
+branch", naming every conflicting path, and still says not to push. When that run ends well, Agentry
+checks the worktree: a merge resolved but left open is committed; conflicted paths still there fail
+the run with the cause `conflict-unresolved`. QA then verifies as usual, and its pass opens the PR
+with no second click (`pullRequest.phase: 'awaiting-verify'` until then). A person's move of the item
+meanwhile drops the remembered approval, since a person's move wins; a QA rejection bounces as
+usual, and used-up bounces wait for the person.
 
 **A failed run says so on its item.** It leaves a comment as its member, "This work run failed and
 moved nothing: <reason>", with the run's chat as its source. The run carries the same reason in
@@ -373,7 +445,10 @@ meanwhile does not shift the pages after it.
 
 **A failed run keeps its cause as a code** (`FlowRunCause` in `packages/shared/src/types.ts`), beside
 the English `error`: `budget`, `no-account`, `rate-limit`, `stopped`, `restarts`, `unreadable`,
-`no-verdict`, `not-started`, `not-continued`, `chat-ended` or `chat-failed`, and for a cancelled run
+`no-verdict`, `max-tokens` (its last turn stopped on the output token limit, read from the CLI's
+stream-json, so its result was not trusted even when it parsed), `not-started`, `not-continued`,
+`chat-ended`, `chat-failed` or `conflict-unresolved` (a work run that was to resolve a merge of the
+default branch left conflicted paths), and for a cancelled run
 its reason (`item-moved`, `item-removed`, `item-done`, `replaced`, `flow-off`, `no-member`, `refined`,
 `chat-busy`). The web words the cause in the person's language, with the raw error under it in mono;
 the English comment on the item is never shown as it is. A run ended before causes were kept reads
@@ -762,4 +837,4 @@ described above where it now lives. The last detail, the model's name, was close
 
 ## Related
 
-[[projects.md]] · [[work-items.md]] · [[plans/flow-start-waiting.md]] · [[plans/flow-start-and-chat-token.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[projects.md]] · [[prompts.md]] · [[work-items.md]] · [[plans/flow-start-waiting.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/work-item-pull-requests.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

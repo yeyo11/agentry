@@ -10,6 +10,7 @@ import { runRef } from './event-sources.ts';
 import type { AgentryEventInput } from './events.ts';
 import type { TaskContext } from './health-service.ts';
 import type { CoreConfig } from './paths.ts';
+import { pasted, PASTED_NOTE } from './prompt-rules.ts';
 
 // The optional supervisor of docs/plans/agent-observability.md §3. When a worker's health turns
 // bad, a small model reads the signal and the worker's last steps and drafts a hint of a line or
@@ -166,14 +167,17 @@ export function lastSteps(entries: readonly TranscriptEntry[]): string {
 
 export function supervisorPrompt(signal: HealthSignal, steps: string, task: TaskContext | null): string {
   return [
-    `You are watching an AI coding agent${task ? ` working on the task "${task.taskName}"` : ''}. Agentry's health checks flagged it:`,
+    `You are watching an AI coding agent${task ? ' working on a task of an orchestration' : ''}. Agentry's health checks flagged it:`,
+    ...(task ? ['', 'The task, as it is named:', pasted(task.taskName)] : []),
     '',
     `${signal.kind}: ${signal.reason}`,
     ...(signal.detail ? [`Detail: ${signal.detail}`] : []),
     ...(signal.hint ? [`Agentry's generic suggestion: ${signal.hint}`] : []),
     '',
-    'Its last steps:',
-    steps,
+    'Its last steps, as its transcript records them:',
+    pasted(steps),
+    '',
+    PASTED_NOTE,
     '',
     'Write the hint a person following it would send it: one or two short lines addressed to the agent, specific to what it is doing, ' +
       'saying what to check or do differently. Reply with the hint only, no preamble. Do not change anything yourself.',

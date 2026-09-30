@@ -2293,6 +2293,10 @@
         "type": "number",
         "description": "Executions of its chat so far, the first included"
       },
+      "continuations": {
+        "type": "number",
+        "description": "Times the orchestrator sent the worker back to its chat because its turn ended as a report with work still owed (`openItems`), at most three; absent on a task that never needed it. These are not attempts: nothing failed."
+      },
       "runId": {
         "type": [
           "string",
@@ -2726,9 +2730,19 @@
       "commands": {
         "type": "array",
         "items": {
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
         },
-        "description": "Run in order on the integration branch, each one under a timeout"
+        "description": "Run in order on the integration branch, each one under a timeout. An entry that is a list runs its commands at the same time; the next entry starts once all of them have ended."
       },
       "fixer": {
         "type": "boolean",
@@ -2837,6 +2851,10 @@
       "install": {
         "type": "boolean",
         "description": "The install step that runs before the checks: detected from the lockfile, or the spec's `install`"
+      },
+      "group": {
+        "type": "number",
+        "description": "Index of the `commands` entry it came from; commands of one parallel group share it. Absent on the install step"
       },
       "status": {
         "$ref": "#/components/schemas/VerificationStatus"
@@ -6439,7 +6457,8 @@
       "relation",
       "link",
       "comment",
-      "waiting"
+      "waiting",
+      "pull_request"
     ],
     "description": "What a history entry, or a `workitem.updated` event, says changed. `created` opens every history; `comment` only appears on events, since comments are their own list. `waiting` is the flow's  {@link  WorkItemWaitReason }  starting or ending, from and to the reason or null."
   },
@@ -7242,6 +7261,7 @@
       "restarts",
       "unreadable",
       "no-verdict",
+      "max-tokens",
       "not-started",
       "not-continued",
       "chat-ended",
@@ -7253,9 +7273,10 @@
       "flow-off",
       "no-member",
       "refined",
-      "chat-busy"
+      "chat-busy",
+      "conflict-unresolved"
     ],
-    "description": "Why a run failed or was cancelled, as a stable code a client words in the person's language; the run's `error` keeps the raw text beside it. A run stored before causes were kept gets the one its error reads as, or none.\n\nFailed:\n- `budget`: it reached `flow.maxCostUsd` (`--max-budget-usd`);\n- `no-account`: the account hit its rate limit and no other account could take the run over;\n- `rate-limit`: the account hit its rate limit and the rotation was off;\n- `stopped`: its chat was stopped;\n- `restarts`: Agentry restarted past `MAX_FLOW_RESTARTS` times while it worked;\n- `unreadable`: it ended without a readable structured result;\n- `no-verdict`: a verification ended without a verdict;\n- `not-started`: its chat did not start;\n- `not-continued`: its chat could not be continued after a restart;\n- `chat-ended`: its chat ended, or was removed, without a result;\n- `chat-failed`: its chat ended in an error the CLI reported (the error is the CLI's text).\n\nCancelled:\n- `item-moved`: the item left the column before the run started, or while a restart cut it off;\n- `item-removed` and `item-done`: the item was removed, or moved to `done`;\n- `replaced`: the item entered a column again before the run started, and the newer run took its place;\n- `flow-off`: the flow, the Team module or the Board module was switched off;\n- `no-member`: nobody on the team answers for the column any more;\n- `refined`: a todo check would repeat a refine that passed, on an item unchanged since;\n- `chat-busy`: a chat of the person's was already working on the item."
+    "description": "Why a run failed or was cancelled, as a stable code a client words in the person's language; the run's `error` keeps the raw text beside it. A run stored before causes were kept gets the one its error reads as, or none.\n\nFailed:\n- `budget`: it reached `flow.maxCostUsd` (`--max-budget-usd`);\n- `no-account`: the account hit its rate limit and no other account could take the run over;\n- `rate-limit`: the account hit its rate limit and the rotation was off;\n- `stopped`: its chat was stopped;\n- `restarts`: Agentry restarted past `MAX_FLOW_RESTARTS` times while it worked;\n- `unreadable`: it ended without a readable structured result;\n- `no-verdict`: a verification ended without a verdict;\n- `max-tokens`: its last turn stopped on the output token limit, so its result is cut short even when it parses;\n- `not-started`: its chat did not start;\n- `not-continued`: its chat could not be continued after a restart;\n- `chat-ended`: its chat ended, or was removed, without a result;\n- `chat-failed`: its chat ended in an error the CLI reported (the error is the CLI's text);\n- `conflict-unresolved`: a work run that was to resolve the merge of the default branch into the   item's branch ended with conflicted paths left (the error names them).\n\nCancelled:\n- `item-moved`: the item left the column before the run started, or while a restart cut it off;\n- `item-removed` and `item-done`: the item was removed, or moved to `done`;\n- `replaced`: the item entered a column again before the run started, and the newer run took its place;\n- `flow-off`: the flow, the Team module or the Board module was switched off;\n- `no-member`: nobody on the team answers for the column any more;\n- `refined`: a todo check would repeat a refine that passed, on an item unchanged since;\n- `chat-busy`: a chat of the person's was already working on the item."
   },
   "FlowRunQueuedBy": {
     "type": "string",
@@ -9934,7 +9955,7 @@
       },
       "actor": {
         "type": "string",
-        "description": "Token id or OIDC subject; `local` when no authentication is configured"
+        "description": "`token:<id>` for the owner's token, the OIDC subject, `desktop`, `chat:<chatId>` for a chat's own token (`AGENTRY_API_TOKEN`), `env` or `agentry` for what the wrapper did itself; `local` when no authentication is configured"
       },
       "method": {
         "type": "string"
@@ -11428,6 +11449,17 @@
         ],
         "description": "What it waits for from the person, which the board shows in the idle colour with a word. Written by the flow by column: absent reads as null, waiting for nothing."
       },
+      "pullRequest": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemPullRequest"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Its newest pull request; absent or null when it never had one"
+      },
       "createdAt": {
         "type": "string"
       },
@@ -11733,9 +11765,136 @@
     "type": "string",
     "enum": [
       "approval",
-      "bounces"
+      "bounces",
+      "merge"
     ],
-    "description": "Why an item waits for the person under the flow by column: `approval`, an agent finished and asks for the move to `done`, which only a person makes; `bounces`, verification sent it back more times than the project allows. Either ends when a person moves it."
+    "description": "Why an item waits for the person under the flow by column: `approval`, an agent finished and asks for the move to `done`, which only a person makes; `bounces`, verification sent it back more times than the project allows; `merge`, the person approved it and its pull request is open on GitHub, waiting for the person to merge it there. Each ends when a person moves it; `merge` also ends when the PR is merged (the item reaches `done`) or closed unmerged (back to `approval`)."
+  },
+  "WorkItemPullRequest": {
+    "type": "object",
+    "properties": {
+      "phase": {
+        "$ref": "#/components/schemas/WorkItemPullRequestPhase"
+      },
+      "number": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Null until `gh pr create` answered"
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "branch": {
+        "type": "string",
+        "description": "The item's branch, `task/<key>`"
+      },
+      "base": {
+        "type": "string",
+        "description": "The default branch it is proposed to"
+      },
+      "ci": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemPullRequestCi"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null until the watcher first read it"
+      },
+      "conflicts": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The paths the update left conflicted, while `phase` is `conflict` or `awaiting-verify`"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "detail": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "detail"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why the last attempt failed: a step or readiness code, and git's or gh's first line of error"
+      },
+      "openedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "closedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "checkedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the watcher last asked gh about it"
+      }
+    },
+    "required": [
+      "phase",
+      "number",
+      "url",
+      "branch",
+      "base",
+      "ci",
+      "conflicts",
+      "error",
+      "openedAt",
+      "closedAt",
+      "checkedAt"
+    ],
+    "description": "An item's pull request, the newest of its rows: an item keeps every PR it had, closed ones too."
+  },
+  "WorkItemPullRequestPhase": {
+    "type": "string",
+    "enum": [
+      "preparing",
+      "conflict",
+      "awaiting-verify",
+      "open",
+      "merged",
+      "closed",
+      "failed"
+    ],
+    "description": "Where an item's pull request stands (docs/plans/work-item-pull-requests.md):\n\n- `preparing`: approved, and Agentry is committing, updating, pushing and opening it;\n- `conflict`: updating the branch with the default branch conflicted, and the merge waits in the   item's worktree for the Developer (or the person) to resolve it;\n- `awaiting-verify`: the conflict was handed to the Developer, and QA's next pass opens the PR   without a second approval;\n- `open`: on GitHub, waiting for the person to merge it;\n- `merged` and `closed`: GitHub's own outcome;\n- `failed`: a step failed, and  {@link  WorkItemPullRequest.error }  says which and why."
+  },
+  "WorkItemPullRequestCi": {
+    "type": "string",
+    "enum": [
+      "none",
+      "pending",
+      "passing",
+      "failing"
+    ],
+    "description": "A PR's checks, from `gh pr view --json statusCheckRollup`: none, any still running, any failed, or all green."
   },
   "WorkItemDetail": {
     "type": "object",
@@ -11871,6 +12030,17 @@
         ],
         "description": "What it waits for from the person, which the board shows in the idle colour with a word. Written by the flow by column: absent reads as null, waiting for nothing."
       },
+      "pullRequest": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemPullRequest"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Its newest pull request; absent or null when it never had one"
+      },
       "createdAt": {
         "type": "string"
       },
@@ -11910,6 +12080,17 @@
           "$ref": "#/components/schemas/WorkItemHistoryEntry"
         },
         "description": "Oldest first"
+      },
+      "pullRequestReadiness": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/PullRequestReadiness"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Whether approving it opens a pull request; absent or null for an item of a project that is not imported"
       }
     },
     "required": [
@@ -12047,6 +12228,9 @@
         }
       },
       {
+        "$ref": "#/components/schemas/WorkItemHistoryPullRequest"
+      },
+      {
         "$ref": "#/components/schemas/WorkItemAssignee"
       },
       {
@@ -12063,6 +12247,40 @@
       }
     ],
     "description": "A plain value for a scalar field, the list for `labels`, and a snapshot for everything else."
+  },
+  "WorkItemHistoryPullRequest": {
+    "type": "object",
+    "properties": {
+      "phase": {
+        "$ref": "#/components/schemas/WorkItemPullRequestPhase"
+      },
+      "number": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "conflicts": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The conflicting paths, for `conflict`"
+      }
+    },
+    "required": [
+      "phase",
+      "number",
+      "url",
+      "conflicts"
+    ],
+    "description": "A pull request as a history entry records it: opened, conflicted, merged or closed."
   },
   "WorkItemHistoryRef": {
     "type": "object",
@@ -12102,6 +12320,54 @@
       "checked"
     ],
     "description": "A criterion as a history entry records it."
+  },
+  "PullRequestReadiness": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "anyOf": [
+          {
+            "type": "string",
+            "const": "ready"
+          },
+          {
+            "$ref": "#/components/schemas/PullRequestNotReadyReason"
+          }
+        ]
+      },
+      "detail": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The raw line git or gh answered with, shown in mono beside the worded reason; null when ready"
+      },
+      "defaultBranch": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The default branch, when it could be found"
+      }
+    },
+    "required": [
+      "status",
+      "detail",
+      "defaultBranch"
+    ],
+    "description": "Whether approving an item of this project opens its pull request. Computed from git and gh and cached for 60 s, so a board read never waits on `gh auth status`."
+  },
+  "PullRequestNotReadyReason": {
+    "type": "string",
+    "enum": [
+      "not-git",
+      "no-remote",
+      "not-github",
+      "no-gh",
+      "gh-unauthenticated",
+      "no-default-branch"
+    ],
+    "description": "Why a project cannot open pull requests; `ready` when it can."
   },
   "WorkItemFilter": {
     "type": "object",
@@ -12585,6 +12851,28 @@
           "$ref": "#/components/schemas/BoardColumn"
         },
         "description": "Always the five columns, in  {@link  WorkItemStatus }  order"
+      },
+      "pullRequestReadiness": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/PullRequestReadiness"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "A project's board: whether approving opens a pull request. Absent on the All projects board"
+      },
+      "checkout": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/BoardCheckout"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "A project's board: its checkout against the default branch; null when the project is not ready"
       }
     },
     "required": [
@@ -12632,6 +12920,52 @@
       "overLimit",
       "status"
     ]
+  },
+  "BoardCheckout": {
+    "type": "object",
+    "properties": {
+      "defaultBranch": {
+        "type": "string"
+      },
+      "branch": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null on a detached head"
+      },
+      "behind": {
+        "type": "number",
+        "description": "Commits `origin/<default>` has that the checkout lacks"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CheckoutBehindReason"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why it was not brought forward; null when it is up to date or can be"
+      }
+    },
+    "required": [
+      "defaultBranch",
+      "branch",
+      "behind",
+      "reason"
+    ],
+    "description": "The project's main checkout against the default branch, from local git only (no fetch on read)."
+  },
+  "CheckoutBehindReason": {
+    "type": "string",
+    "enum": [
+      "not-on-default",
+      "dirty",
+      "diverged"
+    ],
+    "description": "Why the project's main checkout is behind `origin/<default>`: on another branch, carrying changes to tracked files, or holding commits the default branch lacks."
   },
   "WorkItemPage": {
     "type": "object",
@@ -12911,6 +13245,22 @@
       "summary"
     ],
     "description": "What the item's own branch changed, read from git the way a chat's worktree is."
+  },
+  "WorkItemPullRequestResult": {
+    "type": "object",
+    "properties": {
+      "item": {
+        "$ref": "#/components/schemas/WorkItem"
+      },
+      "pullRequest": {
+        "$ref": "#/components/schemas/WorkItemPullRequest"
+      }
+    },
+    "required": [
+      "item",
+      "pullRequest"
+    ],
+    "description": "The answer of `POST /work-items/:itemId/pull-request`: 202 while it is prepared, 200 when one was open already."
   },
   "Team": {
     "type": "object",
@@ -13224,6 +13574,10 @@
         "type": "number",
         "description": "Times a restart cut it off and it went on in its chat; past `MAX_FLOW_RESTARTS` it fails"
       },
+      "continuations": {
+        "type": "number",
+        "description": "Times the flow sent it back to its chat because its turn ended with work still owed (no structured result, uncommitted changes, or a last message that offers, asks or announces instead of doing): at most `MAX_CONTINUATIONS`, after which the result it has is judged as it is"
+      },
       "language": {
         "$ref": "#/components/schemas/AgentryLanguage",
         "description": "The person's language, which the first line of its chat's prompt (`<Role> · <KEY>`, the title the chat is listed by) is written in, kept so a restart words it the same. Absent on a run stored before it was kept, which reads as `en`."
@@ -13266,6 +13620,7 @@
       "retriedBy",
       "retryable",
       "restarts",
+      "continuations",
       "queuedAt",
       "startedAt",
       "endedAt"
@@ -13579,6 +13934,10 @@
       "note": {
         "type": "string",
         "description": "What was checked, or what is missing"
+      },
+      "needsPerson": {
+        "type": "boolean",
+        "description": "No flow run can check it: it needs a push, a pull request, a tool or service the run does not have, or a person's eyes. It is left unchecked for the person who approves the item and does not reject the run (refines decision 18)."
       }
     },
     "required": [
@@ -13586,7 +13945,7 @@
       "met",
       "note"
     ],
-    "description": "QA's judgement of one acceptance criterion. A met criterion is checked on the item as the agent; the run passes only when every criterion of the item is met."
+    "description": "QA's judgement of one acceptance criterion. A met criterion is checked on the item as the agent; the run passes only when every criterion of the item is met or needs a person."
   },
   "FlowMemoryProposal": {
     "type": "object",

@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { ChatTokenStore } from './security/chat-tokens.ts';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
 import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
@@ -100,6 +101,8 @@ export interface RunResult {
    * ceiling), the account hit its limit (rotating accounts is the runner's job) or someone stopped it.
    */
   cause?: 'budget' | 'rate-limit' | 'stopped';
+  /** The main agent's last `stop_reason` in the turn (`end_turn`, `tool_use`, `max_tokens`…), when the CLI said */
+  stopReason?: string;
 }
 
 /** The CLI's result subtype for a ceiling set with `--max-budget-usd`. */
@@ -361,6 +364,11 @@ class LiveChat {
   lastUserTurn: { text: string; attachments: string[] } | null = null;
   /** The turn died against the account's rate limit */
   rateLimited = false;
+  /**
+   * The main agent's last `stop_reason` in this turn, from stream-json: a turn cut by `max_tokens`
+   * can still end with JSON that parses, and a reader of the result has to know it was cut
+   */
+  stopReason: string | null = null;
   /** A rotation was already asked for this attempt */
   rotationRequested = false;
   rotationRetries = 0;
@@ -632,6 +640,11 @@ export class ChatManager extends EventEmitter {
    * port drove the other wrapper and its orchestrations never showed up in the one it ran in.
    */
   apiUrl: string | null = null;
+  /**
+   * The per-process credentials handed over as `AGENTRY_API_TOKEN` beside `AGENTRY_API_URL`, so a
+   * chat can call a guarded API. Core replaces it with the one its guard reads.
+   */
+  chatTokens = new ChatTokenStore();
   /** Where chats with `permissionPrompts: 'host'` send what they ask; null means nobody answers */
   permissions: PermissionBroker | null = null;
   /** Files attached to messages; every chat may read them */
@@ -1320,6 +1333,8 @@ export class ChatManager extends EventEmitter {
 
   stopAll(): void {
     for (const chat of this.chats.values()) if (chat.alive) this.stop(chat.id);
+    // The processes take a moment to exit; their credentials go now, with the wrapper
+    this.chatTokens.revokeAll();
   }
 
   /** Resolves with the first `result` after the call, or when the process exits. */
@@ -1494,6 +1509,7 @@ export class ChatManager extends EventEmitter {
     chat.endedAt = null;
     chat.error = null;
     chat.rateLimited = false;
+    chat.stopReason = null;
     // Whatever the last process left open went with it
     chat.heartbeats.clear();
     chat.openCommands.clear();
@@ -1509,10 +1525,28 @@ export class ChatManager extends EventEmitter {
     const base = launch.account || launch.configDir || chat.opts.account ? authFreeEnv() : process.env;
     const env: NodeJS.ProcessEnv = { ...base, AGENTRY_CHAT_ID: chat.id };
     if (launch.configDir) env.CLAUDE_CONFIG_DIR = launch.configDir;
-    // One inherited from the wrapper that started this one points at the wrong wrapper
-    if (this.apiUrl) env.AGENTRY_API_URL = this.apiUrl;
-    else delete env.AGENTRY_API_URL;
-    const proc = spawn(bin, argv, { cwd: chat.cwd, env, stdio: 'pipe' });
+    // One inherited from the wrapper that started this one points at the wrong wrapper, and its
+    // token is another wrapper's credential: neither is ever passed through
+    delete env.AGENTRY_API_TOKEN;
+    let token: string | null = null;
+    if (this.apiUrl) {
+      env.AGENTRY_API_URL = this.apiUrl;
+      // Minted whatever the mode: a guard switched on mid-turn still finds the turn holding a credential
+      token = this.chatTokens.mint(chat.id);
+      env.AGENTRY_API_TOKEN = token;
+    } else delete env.AGENTRY_API_URL;
+    let proc: ChildProcessWithoutNullStreams;
+    try {
+      proc = spawn(bin, argv, { cwd: chat.cwd, env, stdio: 'pipe' });
+    } catch (error) {
+      if (token) this.chatTokens.revoke(token);
+      throw error;
+    }
+    // Keyed by this process's own token, so an earlier process ending late never revokes the current one
+    const revokeToken = () => {
+      if (token) this.chatTokens.revoke(token);
+    };
+    if (token) this.chatTokens.attach(token, proc.pid);
     chat.proc = proc;
     chat.procStartedAt = now();
     // The chat's status follows the process it tracks and no other: an earlier process ending late
@@ -1531,11 +1565,13 @@ export class ChatManager extends EventEmitter {
     });
     proc.stdin.on('error', () => {});
     proc.on('error', (err) => {
+      revokeToken();
       if (!current()) return;
       chat.error = err.message;
       this.finalize(chat, 'failed');
     });
     proc.on('exit', (code) => {
+      revokeToken();
       if (!current()) return;
       if (chat.stopRequested) this.finalize(chat, 'stopped');
       else if (code === 0) this.finalize(chat, 'completed');
@@ -1710,7 +1746,11 @@ export class ChatManager extends EventEmitter {
       // Token-level deltas of the main agent; the full block follows as a regular `assistant` event
       if (raw.parent_tool_use_id != null) return;
       const event = (raw.event ?? {}) as Record<string, unknown>;
-      if (event.type === 'content_block_start') {
+      if (event.type === 'message_delta') {
+        // The assistant events the CLI emits per block carry no stop reason yet: it arrives here
+        const reason = ((event.delta ?? {}) as Record<string, unknown>).stop_reason;
+        if (typeof reason === 'string') chat.stopReason = reason;
+      } else if (event.type === 'content_block_start') {
         const block = (event.content_block ?? {}) as Record<string, unknown>;
         const blockType = block.type;
         // The ticker reacts to the block, not to the message that closes it: a tool call is named
@@ -1763,6 +1803,8 @@ export class ChatManager extends EventEmitter {
         chat.setStatus('busy');
       }
       if (entry.role === 'assistant' && !entry.isSidechain) {
+        const reason = raw.parent_tool_use_id == null ? ((raw.message ?? {}) as Record<string, unknown>).stop_reason : undefined;
+        if (typeof reason === 'string') chat.stopReason = reason;
         const text = entryText(entry);
         if (text) chat.lastText = text.slice(0, 2000);
         // A slash command's reply comes from `<synthetic>`, which a resume would pass back as `--model`
@@ -1846,7 +1888,10 @@ export class ChatManager extends EventEmitter {
       const result = typeof raw.result === 'string' ? raw.result : '';
       if (isError && (raw.api_error_status === 429 || RATE_LIMIT_RE.test(result))) chat.rateLimited = true;
       const cause = !isError ? undefined : chat.interruptRequested || chat.stopRequested ? 'stopped' : subtype === BUDGET_SUBTYPE ? 'budget' : chat.rateLimited ? 'rate-limit' : undefined;
-      chat.lastResult = { isError, result, structuredOutput: raw.structured_output, costUsd: chat.costUsd, ...(cause ? { cause } : {}) };
+      const stopReason = typeof raw.stop_reason === 'string' ? raw.stop_reason : chat.stopReason;
+      // The next turn's reason is its own
+      chat.stopReason = null;
+      chat.lastResult = { isError, result, structuredOutput: raw.structured_output, costUsd: chat.costUsd, ...(cause ? { cause } : {}), ...(stopReason ? { stopReason } : {}) };
       // An interrupted turn ends as an error by the CLI's account, but nothing went wrong
       if (isError && !chat.interruptRequested) chat.error = result || String(subtype ?? 'error');
       chat.interruptRequested = false;

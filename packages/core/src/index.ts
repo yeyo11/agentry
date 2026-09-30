@@ -112,6 +112,7 @@ import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
 import { FlowError, FlowService, type FlowLaunch } from './flow.ts';
+import { PullRequestService, PullRequestWatcher, type ApproveResult } from './pull-requests.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
 import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo } from './git.ts';
@@ -179,12 +180,26 @@ export {
   parseResult,
   stageRules,
   testCommandRules,
+  testCommands,
+  checkCommandRules,
+  type CheckCommand,
   type FlowChatResult,
   type FlowDeps,
   type FlowLaunch,
   type FlowProject,
   type FlowRules,
 } from './flow.ts';
+export {
+  ciOf,
+  PullRequestError,
+  PullRequestService,
+  PullRequestWatcher,
+  pullRequestBody,
+  pullRequestTitle,
+  remoteHost,
+  type ApproveResult,
+  type PullRequestDeps,
+} from './pull-requests.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
 export {
@@ -201,6 +216,7 @@ export { DEFAULT_DOCUMENTS_PATH, DOCUMENT_CONTENT_MAX, DocumentError, DocumentSe
 export { DocumentPathError } from './document-paths.ts';
 export { orchestrationDraft, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt, type WorkItemAutomationDeps } from './work-links.ts';
 export { AuthStore, DESKTOP_ACTOR } from './security/auth.ts';
+export { CHAT_TOKEN_MAX_AGE_MS, CHAT_TOKEN_PREFIX, ChatTokenStore, chatActor } from './security/chat-tokens.ts';
 export { OidcVerifier, type FetchLike } from './security/oidc.ts';
 export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './security/redact.ts';
 export { describeCron, nextFire, nextFires, parseCron } from './cron.ts';
@@ -295,6 +311,9 @@ export class Core {
   readonly memoryProposals: MemoryProposalService;
   /** The flow by column: a team member's run when a card enters the column its role answers for */
   readonly flow: FlowService;
+  /** Approved items' pull requests: opened with git and gh on the person's request, and watched until merged */
+  readonly pullRequests: PullRequestService;
+  private readonly pullRequestWatcher: PullRequestWatcher;
   /** The project assistant: read-only runs that propose a team, resources and work items, each accepted on its own */
   readonly assistant: AssistantService;
   private readonly startedAt = Date.now();
@@ -366,6 +385,8 @@ export class Core {
     });
     this.uploads = new UploadStore(config.dataDir);
     this.runtime = new ChatManager(config, this.db);
+    // One store, so the token a chat's process is handed is the one the guard accepts
+    this.runtime.chatTokens = this.security.chatTokens;
     this.runtime.defaults = this.appSettings;
     this.runtime.permissions = this.permissions;
     this.runtime.bus = this.events;
@@ -519,8 +540,33 @@ export class Core {
       emit: (event) => this.events.emit(event),
       item: itemRef,
     });
+    this.pullRequests = new PullRequestService({
+      db: this.db,
+      items: this.workItems,
+      project: (id) => {
+        const record = this.projectStore.get(id);
+        return record ? { path: record.path } : null;
+      },
+      busy: (itemId) => {
+        if (this.flow.itemRunning(itemId)) return true;
+        return this.workItems.links(itemId).some((l) => l.role === 'work' && (l.chatState === 'working' || l.chatState === 'waiting' || l.taskStatus === 'running'));
+      },
+      verdicts: (itemId) => this.flow.verdicts(itemId),
+      // The card's link is the address the person reaches the panel on: the tunnel when it is up
+      webOrigin: () => {
+        const tunnel = this.tunnel.status();
+        return tunnel.state === 'active' && tunnel.url ? tunnel.url : (this.runtime.apiUrl?.replace(/\/api$/, '') ?? null);
+      },
+    });
+    this.pullRequestWatcher = new PullRequestWatcher(this.pullRequests);
+    this.events.observe((event) => this.pullRequests.observe(event));
     this.flow = new FlowService({
       db: this.db,
+      pullRequests: {
+        conflictOf: (itemId) => this.pullRequests.conflictOf(itemId),
+        settleConflict: (itemId) => this.pullRequests.settleConflict(itemId),
+        verified: (itemId) => this.pullRequests.verified(itemId),
+      },
       items: this.workItems,
       project: (id) => {
         const record = this.projectStore.get(id);
@@ -609,6 +655,8 @@ export class Core {
       this.orchestrator.recover();
       try {
         this.flow.recover();
+        // After the chats are back, so a merge moves an item nothing is about to resume on
+        this.pullRequestWatcher.start();
       } catch {
         // Shut down before the chats came back: the database is closed, and nothing may start anyway
       }
@@ -1680,8 +1728,38 @@ export class Core {
   async workItemDetail(itemId: string): Promise<WorkItemDetail> {
     await this.workItemAccess(itemId, 'read');
     const detail = this.workItems.get(itemId);
-    const [links, history] = await Promise.all([this.namedLinks(detail.links), this.namedHistory(detail.history)]);
-    return { ...detail, links, history };
+    const path = this.projectStore.get(detail.projectId)?.path;
+    const [links, history, pullRequestReadiness] = await Promise.all([
+      this.namedLinks(detail.links),
+      this.namedHistory(detail.history),
+      path ? this.pullRequests.readiness(path).catch(() => null) : Promise.resolve(null),
+    ]);
+    return { ...detail, links, history, pullRequestReadiness };
+  }
+
+  /**
+   * A project's board, with whether approving opens a pull request and how its checkout stands
+   * against the default branch: both from git and gh, the second from local git only.
+   */
+  async workItemBoard(projectId: string, filter: Omit<WorkItemFilter, 'projectId'> = {}, query: BoardQuery = {}): Promise<Board> {
+    await this.workItemProject(projectId, 'read');
+    const board = this.workItems.board(projectId, filter, query);
+    const path = this.projectStore.get(projectId)?.path;
+    const readiness = path ? await this.pullRequests.readiness(path).catch(() => null) : null;
+    const checkout = path && readiness?.status === 'ready' && readiness.defaultBranch ? this.pullRequests.checkout(path, readiness.defaultBranch) : null;
+    return { ...board, pullRequestReadiness: readiness, checkout };
+  }
+
+  /** `POST /work-items/:itemId/pull-request`: the person's approval opens the item's pull request. */
+  async approveWorkItem(itemId: string): Promise<ApproveResult> {
+    await this.workItemAccess(itemId, 'write');
+    return this.pullRequests.approve(itemId);
+  }
+
+  /** `POST /work-items/:itemId/pull-request/refresh`: asks gh about the item's open PR now. */
+  async refreshWorkItemPullRequest(itemId: string): Promise<WorkItem> {
+    await this.workItemAccess(itemId, 'read');
+    return this.pullRequests.refresh(itemId);
   }
 
   async workItemLinks(itemId: string): Promise<WorkItemLink[]> {
@@ -1916,6 +1994,7 @@ export class Core {
   }
 
   shutdown(): void {
+    this.pullRequestWatcher.stop();
     // First, while the database is still open for the row that says its host left
     this.tunnel.shutdown();
     this.cliVersion.stop();

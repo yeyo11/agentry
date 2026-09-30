@@ -382,6 +382,11 @@
       "body": "La verificación acabó sin decir si la tarea pasa. La tarea sigue en {{column}}, sin cambios.",
       "short": "terminó sin veredicto"
     },
+    "max-tokens": {
+      "title": "Se cortó en el límite de tokens.",
+      "body": "Su último turno se detuvo en el límite de tokens de salida, así que su resultado puede estar incompleto y no se usó. La tarea sigue en {{column}}, sin cambios.",
+      "short": "se cortó en el límite de tokens"
+    },
     "not-started": {
       "title": "Su chat no llegó a empezar.",
       "body": "El CLI no pudo abrir el chat de la ejecución. La tarea sigue en {{column}}, sin cambios.",
@@ -431,7 +436,12 @@
     "chat-busy": {
       "note": "No llegó a empezar: un chat tuyo ya trabajaba en la tarea"
     },
-    "cancelledUnknown": "No llegó a empezar"
+    "cancelledUnknown": "No llegó a empezar",
+    "conflict-unresolved": {
+      "title": "La fusión quedó en conflicto.",
+      "body": "La ejecución debía resolver la fusión de la rama predeterminada y dejó archivos en conflicto. La tarea sigue en {{column}}, sin cambios.",
+      "short": "la fusión quedó en conflicto"
+    }
   },
   "log": {
     "title": "Actividad",

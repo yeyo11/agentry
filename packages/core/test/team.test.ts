@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import type { AgentryEvent, FlowRun, Project, ProjectModule, ProjectSettings, ProjectTemplateId } from '@agentry/shared';
 import { Core } from '../src/index.ts';
 import { agentFileContent, readFrontmatter, readFrontmatterList, templateTeam, TeamError } from '../src/team.ts';
+import { SCOPE_AND_COMPLETION } from '../src/prompt-rules.ts';
 import { tempConfig } from './helpers.ts';
 
 // Nothing here reaches the CLI: the team is files and settings, over scratch directories.
@@ -308,6 +309,7 @@ test("a member's flow runs come from the flow: running, queued and the last one 
       retriedBy: null,
       retryable: false,
       restarts: 0,
+      continuations: 0,
       queuedAt: '2026-09-27T10:00:00Z',
       startedAt: null,
       endedAt: null,
@@ -335,6 +337,8 @@ test("a member's flow runs come from the flow: running, queued and the last one 
 
 test('the starting file quotes what YAML would misread, and reads back the same', () => {
   const content = agentFileContent({ agent: 'po', role: 'product-owner', model: 'opus', responsibility: 'Refines: the "backlog" # first' });
+  // What every member reads in any chat: the scope and completion rule of the guides
+  assert.ok(content.includes(`## How you work\n\n${SCOPE_AND_COMPLETION}\n`));
   assert.deepEqual(readFrontmatter(content), { name: 'po', description: 'Refines: the "backlog" # first', model: 'opus' });
   assert.match(content, /You are the Product Owner/);
   assert.match(content, /Agentry sets no limit of its own/);

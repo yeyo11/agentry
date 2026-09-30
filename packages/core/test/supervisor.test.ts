@@ -21,6 +21,7 @@ import {
   type SupervisorQuestion,
 } from '../src/supervisor.ts';
 import { tempConfig } from './helpers.ts';
+import { PASTED_NOTE } from '../src/prompt-rules.ts';
 
 // The supervisor wakes on a bad signal, asks a housekeeping chat once per signal per chat, and keeps
 // what it proposed as a row. Every test answers with a fake: the CLI stand-in of the fixtures, or a
@@ -166,7 +167,10 @@ test('the question carries the signal, the settings and the worker\'s last steps
   assert.equal(q?.model, 'claude-haiku-4-5');
   assert.equal(q?.maxCostUsd, 0.02);
   assert.equal(q?.cwd, '/work/tree');
-  assert.match(q?.prompt ?? '', /working on the task "Build it"/);
+  // The task's name and the worker's steps are marked as pasted content, with the note
+  assert.match(q?.prompt ?? '', /The task, as it is named:\n<pasted_content id="([0-9a-f]{8})">\nBuild it\n<\/pasted_content id="\1">/);
+  assert.match(q?.prompt ?? '', /Its last steps, as its transcript records them:\n<pasted_content id="([0-9a-f]{8})">\n- Bash/);
+  assert.ok(q?.prompt.includes(PASTED_NOTE));
   assert.match(q?.prompt ?? '', /hung-command: `pnpm e2e` has been running for 12 min\./);
   assert.match(q?.prompt ?? '', /Agentry's generic suggestion: Run long commands/);
   assert.match(q?.prompt ?? '', /- Bash \{"command":"pnpm e2e"\}\n {2}failed: line 0\n/);

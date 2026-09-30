@@ -13,6 +13,7 @@ import {
   AGENTRY_LANGUAGES,
   flowStepOf,
   isTeamCommandPattern,
+  MAX_CONTINUATIONS,
   MAX_FLOW_RESTARTS,
   WORK_ITEM_STATUSES,
   type AgentryEvent,
@@ -57,6 +58,9 @@ import type { AgentryEventInput } from './events.ts';
 import { roleTitle, roleTitleIn } from './team.ts';
 import { ItemDocumentsError } from './item-documents.ts';
 import { workItemPrompt } from './work-links.ts';
+import { continuationPrompt, MAX_TOKENS_ERROR, openItems, stoppedOnMaxTokens } from './open-items.ts';
+import { designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, scopeAndCompletion, thinkThrough, UNATTENDED, type DesignSources } from './prompt-rules.ts';
+import { gitRaw } from './git.ts';
 import type { WorkItemService } from './work-items.ts';
 
 /**
@@ -244,13 +248,30 @@ export interface FlowDeps {
   rotating?: (chatId: string) => boolean;
   stop: (chatId: string) => void;
   activity?: (chatId: string) => ChatActivity | null;
+  /**
+   * The paths with uncommitted changes in a directory: what a work run left undone in the item's
+   * worktree. Git's status by default
+   */
+  uncommitted?: (dir: string) => string[];
   /** The person's language, which the first line of a run's chat is written in; English without it */
   language?: () => AgentryLanguage;
   emit: (event: AgentryEventInput) => void;
+  /** The item's pull request, when approving one updated its branch into a conflict (docs/plans/work-item-pull-requests.md) */
+  pullRequests?: FlowPullRequests;
+}
+
+/** What the flow asks of an item's pull request: the merge a work run resolves, and the approval QA's pass completes. */
+export interface FlowPullRequests {
+  /** The default branch and the conflicting paths a work run on the item is to resolve; null when there is none */
+  conflictOf: (itemId: string) => { base: string; paths: string[] } | null;
+  /** A work run ended well: commits a resolved merge, or returns the paths still conflicted */
+  settleConflict: (itemId: string) => string[] | null;
+  /** QA passed the item: an approval remembered from a conflict opens the PR now */
+  verified: (itemId: string) => void;
 }
 
 /** What a run's chat ended with, as the runtime reports it. */
-export type FlowChatResult = Pick<RunResult, 'isError' | 'result' | 'structuredOutput' | 'cause'>;
+export type FlowChatResult = Pick<RunResult, 'isError' | 'result' | 'structuredOutput' | 'cause' | 'stopReason'>;
 
 interface RunRow {
   seq: number;
@@ -271,6 +292,8 @@ interface RunRow {
   started_at: string | null;
   ended_at: string | null;
   restarts: number;
+  /** Null on a database the migration has not reached (never in practice): read as 0 */
+  continuations: number | null;
   /** Null on a run stored before it was kept */
   language: string | null;
   cause: string | null;
@@ -335,7 +358,7 @@ export function flowResultSchema(stage: FlowStage): Record<string, unknown> {
   };
   const required = ['summary', 'memoryProposals', 'documents'];
   if (stage === 'verify') {
-    properties.verdict = { type: 'string', enum: ['pass', 'fail'], description: 'pass only when every acceptance criterion is met' };
+    properties.verdict = { type: 'string', enum: ['pass', 'fail'], description: 'pass only when every acceptance criterion is met or needs a person' };
     properties.criteria = {
       type: 'array',
       description: 'Every acceptance criterion listed in the prompt, by its id, each judged on its own',
@@ -345,6 +368,10 @@ export function flowResultSchema(stage: FlowStage): Record<string, unknown> {
           id: { type: 'string' },
           met: { type: 'boolean' },
           note: { type: 'string', description: 'What you checked, or what is missing' },
+          needsPerson: {
+            type: 'boolean',
+            description: 'true when no run can check this criterion (a push, a pull request, a tool or MCP server this run does not have): met is false and the note says what the person must check',
+          },
         },
         required: ['id', 'met', 'note'],
       },
@@ -393,7 +420,8 @@ function editRules(paths: readonly string[]): string[] {
  *   too, and none at all for an empty list. A shell command can still write files; `writes` bounds
  *   the edit tools, as the member's screen says, and `commands` is what bounds the shell;
  * - **verify** reads, asks git what changed, runs the test commands the project declares
- *   (`testCommandRules`), and writes only under the documents folder, where its report goes.
+ *   (`testCommands`, as rules by `checkCommandRules`; its prompt lists the same commands), and
+ *   writes only under the documents folder, where its report goes.
  *
  * Refining and verifying run in `dontAsk` whatever `writes` says, and `git push` is denied to all.
  */
@@ -432,13 +460,28 @@ const SCRIPT_NAME = /^[A-Za-z0-9][\w:.-]{0,63}$/;
 const CHECK_SCRIPT = /^(test|tests|typecheck|type-check|lint|check)(:[\w.-]+)?$/;
 
 /**
- * The test commands a project declares, as rules verifying may run: the check scripts of its
- * `package.json` (with the package manager its lockfile names), `make test` when its Makefile has
- * that target, and the test runner of a Cargo, Go or Python project. Nothing else, so QA cannot run
- * a deploy or a publish script by calling it a test.
+ * A check command verifying may run: `alone` allows it as written, `withArgs` allows it followed by
+ * arguments. Go's runner is only ever `go test <packages>`, `make test` only alone.
  */
-export function testCommandRules(dir: string): string[] {
-  const rules: string[] = [];
+export interface CheckCommand {
+  command: string;
+  alone: boolean;
+  withArgs: boolean;
+}
+
+/**
+ * The check commands a project declares: the check scripts of its `package.json` (with the package
+ * manager its lockfile names), `make test` when its Makefile has that target, and the test runner of
+ * a Cargo, Go or Python project. Nothing else, so QA cannot run a deploy or a publish script by
+ * calling it a test. The verify prompt lists these and its rules are built from them, so what QA is
+ * told it may run and what the permission mode lets through cannot disagree (CW-26).
+ */
+export function testCommands(dir: string): CheckCommand[] {
+  const commands = new Map<string, CheckCommand>();
+  const add = (command: string, alone: boolean, withArgs: boolean): void => {
+    const had = commands.get(command);
+    commands.set(command, { command, alone: alone || !!had?.alone, withArgs: withArgs || !!had?.withArgs });
+  };
   const read = (name: string): string | null => {
     try {
       return readFileSync(join(dir, name), 'utf8');
@@ -464,17 +507,43 @@ export function testCommandRules(dir: string): string[] {
           : 'npm';
     for (const name of Object.keys(scripts)) {
       if (!SCRIPT_NAME.test(name) || !CHECK_SCRIPT.test(name)) continue;
-      rules.push(`Bash(${manager} run ${name})`, `Bash(${manager} run ${name} *)`);
-      if (name === 'test') rules.push(`Bash(${manager} test)`, `Bash(${manager} test *)`);
+      // pnpm and yarn run a script by its bare name, and that is how people (and QA) call it. bun's
+      // own subcommands win over script names, and npm has no bare form but `test`, so theirs could
+      // run something other than the script
+      const short = manager === 'pnpm' || manager === 'yarn' || name === 'test';
+      if (short) add(`${manager} ${name}`, true, true);
+      add(`${manager} run ${name}`, true, true);
     }
   }
-  if (/^test\s*:/m.test(read('Makefile') ?? '')) rules.push('Bash(make test)');
-  if (existsSync(join(dir, 'Cargo.toml'))) rules.push('Bash(cargo test)', 'Bash(cargo test *)');
-  if (existsSync(join(dir, 'go.mod'))) rules.push('Bash(go test *)');
+  if (/^test\s*:/m.test(read('Makefile') ?? '')) add('make test', true, false);
+  if (existsSync(join(dir, 'Cargo.toml'))) add('cargo test', true, true);
+  if (existsSync(join(dir, 'go.mod'))) add('go test', false, true);
   if (['pyproject.toml', 'pytest.ini', 'setup.cfg', 'tox.ini'].some((f) => existsSync(join(dir, f)))) {
-    rules.push('Bash(pytest)', 'Bash(pytest *)', 'Bash(python -m pytest *)');
+    add('pytest', true, true);
+    add('python -m pytest', false, true);
+  }
+  return [...commands.values()];
+}
+
+/** Check commands as the CLI's rules: `Bash(<command>)` and `Bash(<command> *)` as each allows. */
+export function checkCommandRules(commands: readonly CheckCommand[]): string[] {
+  const rules: string[] = [];
+  for (const c of commands) {
+    if (c.alone) rules.push(`Bash(${c.command})`);
+    if (c.withArgs) rules.push(`Bash(${c.command} *)`);
   }
   return [...new Set(rules)];
+}
+
+/** The test commands a project declares, as rules verifying may run (`testCommands`). */
+export function testCommandRules(dir: string): string[] {
+  return checkCommandRules(testCommands(dir));
+}
+
+/** How the verify prompt names a check command: `pnpm test`, `pnpm test <args>`, or both. */
+function checkCommandText(c: CheckCommand): string {
+  if (c.alone && c.withArgs) return `\`${c.command}\` (alone or followed by arguments)`;
+  return c.alone ? `\`${c.command}\`` : `\`${c.command} <arguments>\``;
 }
 
 /** The language a run's chat is titled in, as it was stored; English for a run stored before it was kept. */
@@ -492,19 +561,27 @@ export function flowTitle(item: Pick<WorkItem, 'key' | 'title'>, role: string, l
   return [roleTitleIn(role, language), item.key, ...(title ? [title] : [])].join(' · ');
 }
 
-/** The run's title, the stage's instructions, then the item as "Work on it" gives it. */
+/** The run's title, the item as "Work on it" gives it, the stage's instructions, then the rules every unattended run keeps. */
 export function flowPrompt(
   stage: FlowStage,
   column: WorkItemStatus,
   item: WorkItem,
   member: ProjectTeamMember,
-  extra: { documentsPath: string; rejection: string | null; language?: AgentryLanguage },
+  extra: {
+    documentsPath: string;
+    rejection: string | null;
+    language?: AgentryLanguage;
+    design?: DesignSources | null;
+    conflict?: { base: string; paths: readonly string[] } | null;
+    checkCommands?: readonly CheckCommand[];
+  },
 ): string {
   const who = `You are the ${roleTitle(member.role)} of this project's team, started by Agentry's flow by column because ${item.key} entered ${column}.`;
-  const lines = [flowTitle(item, member.role, extra.language ?? 'en'), '', workItemPrompt(item), '', '---', '', who, ''];
+  const lines = [flowTitle(item, member.role, extra.language ?? 'en'), '', workItemPrompt(item, 'task'), '', '---', '', who, ''];
   if (stage === 'refine' && column === 'backlog') {
     lines.push(
       'Refine it so a developer can start without asking: complete its description and its acceptance criteria.',
+      EXPLORE,
       'Return the whole new description in `description` (leave it out to keep the current one) and the criteria to add in `acceptanceCriteria`.',
       `When a specification helps, write it as Markdown under \`${extra.documentsPath}/\` and report it in \`documents\` with kind \`spec\`.`,
       'Do not change the code. Agentry moves the item to todo once your run ends well.',
@@ -512,34 +589,80 @@ export function flowPrompt(
   } else if (stage === 'refine') {
     lines.push(
       'Check that it is ready to be worked on: its acceptance criteria are complete and testable, and nothing blocks it.',
+      EXPLORE,
       'Return anything missing in `description` or `acceptanceCriteria`, and say in `summary` whether it is ready. It stays in todo until a person moves it on.',
     );
   } else if (stage === 'work') {
     lines.push('Implement it here, in its worktree, and commit your work on its branch.');
-    if (extra.rejection) lines.push('', 'Verification sent it back with this comment; address every point:', '', extra.rejection);
+    if (extra.conflict) {
+      // The person approved it, and updating its branch conflicted: the merge waits in the worktree
+      lines.push(
+        '',
+        `## Resolve the merge of \`${extra.conflict.base}\` into this branch`,
+        '',
+        `The person approved this item, and Agentry merged \`origin/${extra.conflict.base}\` into its branch to open the pull request. The merge conflicted and is still in progress in this worktree. Resolve every conflict, keeping what both sides meant, run the checks, and commit the merge. These paths conflict:`,
+        '',
+        ...extra.conflict.paths.map((p) => `- \`${p}\``),
+        '',
+        'Do not push: Agentry pushes and opens the pull request once verification passes.',
+      );
+    }
+    if (extra.rejection) lines.push('', 'Verification sent it back with this comment; address every point:', pasted(extra.rejection));
     lines.push(
       '',
       `An architecture decision worth keeping goes under \`${extra.documentsPath}/\`, reported in \`documents\` with kind \`adr\`.`,
       'Agentry moves the item to in_review once your run ends well.',
+      '',
+      scopeAndCompletion(),
+      '',
+      REAL_VERIFICATION,
+      '',
+      frontend(extra.design ?? null),
     );
   } else {
     lines.push(
       'Verify it against each acceptance criterion, on this worktree and its branch: read the changes (`git diff`, `git log`), run the tests the project declares.',
+      '',
     );
-    if (item.acceptanceCriteria.length) {
-      lines.push('', 'Judge each of these criteria on its own, and return every one in `criteria` by its id, with `met` and a `note`:', '');
-      for (const c of item.acceptanceCriteria) lines.push(`- \`${c.id}\`: ${c.text}`);
-      lines.push('');
+    const checks = extra.checkCommands ?? [];
+    if (checks.length) {
+      lines.push('You may run only these check commands:', '');
+      for (const c of checks) lines.push(`- ${checkCommandText(c)}`);
+      lines.push(
+        '',
+        "Any other command is denied by this run's permission mode; do not fail the item because a command you were not given could not run.",
+      );
     } else {
-      lines.push('The item has no acceptance criteria: return `criteria` empty, and judge it by its description.');
+      lines.push(
+        "The project declares no check command this run may run, and any command is denied by this run's permission mode: judge the item by reading the changes.",
+      );
+    }
+    if (item.acceptanceCriteria.length) {
+      lines.push('', 'Judge each of these criteria on its own, and return every one in `criteria` by its id, with `met` and a `note`:', pasted(item.acceptanceCriteria.map((c) => `- \`${c.id}\`: ${c.text}`).join('\n')), '');
+    } else {
+      lines.push('', 'The item has no acceptance criteria: return `criteria` empty, and judge it by its description.');
     }
     lines.push(
-      'Give `verdict: pass` only when every criterion is met; otherwise `fail`, and say in `summary` what is missing so the developer can fix it.',
+      'A criterion no run can meet (pushing, opening a pull request, a tool or MCP server this run does not have, or something only a person can judge) is returned with `met: false`, `needsPerson: true` and a `note` saying what the person must check. It is not a reason for `verdict: fail`: the person approving the item checks it.',
+      'Give `verdict: pass` only when every criterion is met or needs a person; otherwise `fail`, and say in `summary` what is missing so the developer can fix it.',
       `A verification report, when useful, goes under \`${extra.documentsPath}/\` with kind \`report\`. Do not change the code.`,
+      '',
+      REAL_VERIFICATION,
     );
   }
+  lines.push('', UNATTENDED, '', PASTED_NOTE);
+  // Refining and verifying reason towards a structured verdict: Sonnet does better told to think first
+  if (stage !== 'work') lines.push(...thinkThrough(member.model).flatMap((t) => ['', t]));
   lines.push('', 'End with the structured result. Never move the item to done: a person approves that.');
   return lines.join('\n');
+}
+
+/** Refining starts from an item that may say little: what it touches is found by reading, not guessed. */
+const EXPLORE = 'Before you write anything, read the documents and the code the item concerns, including the parts it does not name, so what you add fits what is there.';
+
+/** What the run is told when the flow sends it back to its chat with work still owed. */
+export function flowContinuation(items: readonly string[], count: number): string {
+  return continuationPrompt(items, count, ['End with the structured result.']);
 }
 
 export class FlowService {
@@ -552,6 +675,12 @@ export class FlowService {
    * go on. In memory: a restart meanwhile continues the run in its chat anyway (`recover`).
    */
   private readonly awaitingRotation = new Set<string>();
+  /**
+   * Chats whose run ended its turn with work still owed, and what each is told when its process has
+   * exited: the run goes on in the same chat rather than end. In memory: a restart meanwhile
+   * continues the run in its chat anyway (`recover`).
+   */
+  private readonly nudges = new Map<string, string>();
 
   constructor(private readonly deps: FlowDeps) {
     this.sql = deps.db.connection;
@@ -646,6 +775,11 @@ export class FlowService {
     const runs = rows.slice(0, limit);
     const last = runs[runs.length - 1];
     return { runs: runs.map((r) => this.runOf(r)), total, nextCursor: more && last ? cursorOf(last.seq) : null };
+  }
+
+  /** A run of the flow is working on the item now. */
+  itemRunning(itemId: string): boolean {
+    return !!this.sql.prepare("SELECT 1 FROM flow_runs WHERE item_id = ? AND state = 'running' LIMIT 1").get(itemId);
   }
 
   /** A run's chat is the flow's while the run goes on: the work-links automation leaves it alone. */
@@ -1005,7 +1139,7 @@ export class FlowService {
     return { row: { ...row, state: 'running', started_at: row.started_at ?? now, agent: member.agent, model: member.model }, item, member, project };
   }
 
-  private async start(row: RunRow, item: WorkItem, member: ProjectTeamMember, project: FlowProject): Promise<void> {
+  private async start(row: RunRow, item: WorkItem, member: ProjectTeamMember, project: FlowProject, nudge: string | null = null): Promise<void> {
     const stage = row.stage as FlowStage;
     // A person working in the item's chat now is working on it: the run is moot. The flow's own chats
     // do not count: one whose run just ended is still closing its process as the next role starts
@@ -1020,18 +1154,24 @@ export class FlowService {
     const continuing = row.chat_id !== null;
     const resumeChatId = row.chat_id ?? (stage === 'work' ? this.workChat(item.id) : null);
     const documentsPath = project.settings.documents?.path ?? 'docs';
-    const rules = stageRules(stage, member.writes, { documentsPath, testCommands: stage === 'verify' ? testCommandRules(project.path) : [], commands: member.commands });
+    const checkCommands = stage === 'verify' ? testCommands(project.path) : [];
+    const rules = stageRules(stage, member.writes, { documentsPath, testCommands: checkCommandRules(checkCommands), commands: member.commands });
     const launch: FlowLaunch = {
       run: this.runOf(row),
       item,
       member,
-      prompt: continuing
-        ? 'Agentry restarted while you were on this run. Carry on from where you were, and end with the structured result.'
-        : flowPrompt(stage, row.column_name as WorkItemStatus, item, member, {
-            documentsPath,
-            rejection: stage === 'work' && (item.bounces ?? 0) > 0 ? this.rejection(item.id, project.settings) : null,
-            language: runLanguage(row),
-          }),
+      prompt:
+        nudge ??
+        (continuing
+          ? 'Agentry restarted while you were on this run. Carry on from where you were, and end with the structured result.'
+          : flowPrompt(stage, row.column_name as WorkItemStatus, item, member, {
+              documentsPath,
+              rejection: stage === 'work' && (item.bounces ?? 0) > 0 ? this.rejection(item.id, project.settings) : null,
+              language: runLanguage(row),
+              design: stage === 'work' ? designSources(project.path) : null,
+              conflict: stage === 'work' ? (this.deps.pullRequests?.conflictOf(item.id) ?? null) : null,
+              checkCommands,
+            })),
       appendSystemPrompt: this.deps.handoff(item.projectId),
       jsonSchema: flowResultSchema(stage),
       permissionMode: rules.permissionMode,
@@ -1107,7 +1247,15 @@ export class FlowService {
   /** The chat's process ended; a run still going got no result, and failed, unless it waits for the rotation. */
   chatEnded(chatId: string, error: string | null, cause: FlowRunCause = error ? 'chat-failed' : 'chat-ended'): void {
     const row = this.sql.prepare("SELECT * FROM flow_runs WHERE chat_id = ? AND state = 'running'").get(chatId) as RunRow | undefined;
+    const nudge = this.nudges.get(chatId);
+    this.nudges.delete(chatId);
     if (!row) return;
+    // Its turn ended with work still owed, and its process is gone: it goes on in the same chat
+    // A process that ended in an error, or a chat removed, is not one to go on in
+    if (nudge !== undefined && error === null) {
+      void this.continueRun(row, nudge);
+      return;
+    }
     // The process the limit took down: the run goes on in this chat once the rotation replays it
     if (this.awaitingRotation.has(chatId)) return;
     if (this.deps.rotating?.(chatId)) {
@@ -1146,24 +1294,109 @@ export class FlowService {
       this.awaitingRotation.add(row.chat_id);
       return;
     }
-    const parsed = result.isError ? null : parseResult(result.structuredOutput, row.stage as FlowStage);
-    const failure = result.isError
+    // A turn cut by the token limit can still end with JSON that parses: it is not the run's answer
+    const cut = !result.isError && stoppedOnMaxTokens(result);
+    const parsed = result.isError || cut ? null : parseResult(result.structuredOutput, row.stage as FlowStage);
+    if (!result.isError && !cut && this.continues(row, result, !!parsed)) return;
+    // A readable result still fails while the merge an approval left in its worktree is unresolved
+    const failure: { error: string; cause: FlowRunCause } | null = result.isError
       ? chatFailure(result, this.deps.project(row.project_id)?.settings)
-      : parsed
-        ? null
-        : { error: 'the run ended without a readable structured result', cause: 'unreadable' as const };
+      : cut
+        ? { error: MAX_TOKENS_ERROR, cause: 'max-tokens' }
+        : parsed
+          ? this.unresolved(row)
+          : { error: 'the run ended without a readable structured result', cause: 'unreadable' };
     const verdictMissing = !!parsed && row.stage === 'verify' && !parsed.verdict;
     const item = this.deps.items.find(row.item_id);
-    // QA passes an item only when every one of its criteria is met, whatever its verdict says
-    const unmet = parsed && item && row.stage === 'verify' ? item.acceptanceCriteria.filter((c) => !parsed.criteria.some((r) => r.id === c.id && r.met)) : [];
+    // QA passes an item only when every one of its criteria is met, whatever its verdict says; one no
+    // run can check is left to the person who approves the item, not held against the Developer
+    const unmet =
+      parsed && item && row.stage === 'verify' ? item.acceptanceCriteria.filter((c) => !parsed.criteria.some((r) => r.id === c.id && (r.met || r.needsPerson))) : [];
     const outcome: FlowRunOutcome = failure || verdictMissing ? 'failed' : parsed?.verdict === 'fail' || unmet.length ? 'rejected' : 'passed';
     // Ended first, so the move below finds no run on the item and the next role can start
     const why = failure ?? (verdictMissing ? { error: 'verification ended without a verdict', cause: 'no-verdict' as const } : null);
     if (!this.end(row.id, outcome, parsed?.summary ?? null, why?.error ?? null, why?.cause ?? null)) return;
+    // QA's notes per criterion, which the item's pull request quotes
+    if (parsed && row.stage === 'verify' && parsed.criteria.length) {
+      try {
+        this.sql.prepare('UPDATE flow_runs SET criteria = ? WHERE id = ?').run(JSON.stringify(parsed.criteria), row.id);
+      } catch {
+        // the run has ended; its notes are a nicety of the PR's body
+      }
+    }
     try {
       if (parsed) await this.apply(row, parsed, outcome);
     } finally {
       this.dispatch();
+    }
+  }
+
+  /**
+   * A work run on an item whose approval updated its branch into a conflict: the merge is committed
+   * when the run resolved every path, and the run fails when some are left.
+   */
+  private unresolved(row: RunRow): { error: string; cause: FlowRunCause } | null {
+    if (row.stage !== 'work' || !this.deps.pullRequests) return null;
+    try {
+      const left = this.deps.pullRequests.settleConflict(row.item_id);
+      if (!left?.length) return null;
+      return { error: `the merge of the default branch still has conflicted paths: ${left.slice(0, 20).join(', ')}`, cause: 'conflict-unresolved' };
+    } catch (err) {
+      return { error: `the merge of the default branch could not be committed: ${err instanceof Error ? err.message : String(err)}`, cause: 'conflict-unresolved' };
+    }
+  }
+
+  /** QA's criteria from the item's newest passing verification, for its pull request's body. */
+  verdicts(itemId: string): FlowCriterionResult[] {
+    const row = this.sql
+      .prepare("SELECT criteria FROM flow_runs WHERE item_id = ? AND stage = 'verify' AND outcome = 'passed' AND criteria IS NOT NULL ORDER BY seq DESC LIMIT 1")
+      .get(itemId) as { criteria: string } | undefined;
+    if (!row) return [];
+    try {
+      const parsed: unknown = JSON.parse(row.criteria);
+      return Array.isArray(parsed)
+        ? parsed.filter((c): c is FlowCriterionResult => isObject(c) && typeof c.id === 'string' && typeof c.met === 'boolean' && typeof c.note === 'string')
+        : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * A turn that ended with work still owed is a report, not the end of the run (`openItems`): the run
+   * is sent back to its chat, naming what is open, at most `MAX_CONTINUATIONS` times, each one counted
+   * on its row. Past that, the result it has is judged as it is. The chat is continued once its
+   * process has exited (`chatEnded`), since a chat has one process at most.
+   */
+  private continues(row: RunRow, result: FlowChatResult, structured: boolean): boolean {
+    const done = row.continuations ?? 0;
+    if (!row.chat_id || done >= MAX_CONTINUATIONS) return false;
+    let uncommitted: string[] = [];
+    if (row.stage === 'work') {
+      const worktree = this.deps.items.find(row.item_id)?.worktree;
+      if (worktree) uncommitted = (this.deps.uncommitted ?? uncommittedPaths)(worktree);
+    }
+    const open = openItems({ schema: true, structured, uncommitted, finalText: result.result });
+    if (!open.length) return false;
+    const changed = this.sql.prepare("UPDATE flow_runs SET continuations = ? WHERE id = ? AND state = 'running' AND continuations = ?").run(done + 1, row.id, done).changes;
+    if (changed !== 1) return false;
+    this.nudges.set(row.chat_id, flowContinuation(open, done + 1));
+    return true;
+  }
+
+  /** Sends a run back to its own chat with what it still owes; a chat that cannot be continued fails it. */
+  private async continueRun(row: RunRow, prompt: string): Promise<void> {
+    try {
+      const project = this.deps.project(row.project_id);
+      const item = this.deps.items.find(row.item_id);
+      const member = project ? memberOf(project.settings, row.role) : undefined;
+      if (!project || !item || !member) {
+        this.end(row.id, 'failed', null, 'it ended with work still owed, and its item or member is gone', 'not-continued');
+        return;
+      }
+      await this.start(row, item, member, project, prompt);
+    } catch {
+      // start ends the run itself on anything it can say; a closed database has nobody to tell
     }
   }
 
@@ -1216,6 +1449,12 @@ export class FlowService {
       this.deps.items.move(item.id, { status: 'in_review' }, { actor, cause: cause(FLOW_CAUSE.worked) });
     } else if (row.stage === 'verify' && outcome === 'passed') {
       this.deps.items.setFlowState(item.id, { waiting: 'approval' }, { actor, cause: cause(FLOW_CAUSE.passed) });
+      // The person's approval, remembered from a conflict, needs no second click
+      try {
+        this.deps.pullRequests?.verified(item.id);
+      } catch {
+        // the item waits for approval, as it would without one
+      }
     } else if (row.stage === 'verify' && outcome === 'rejected') {
       const bounces = current.bounces ?? 0;
       const max = settings.flow?.maxBounces ?? 0;
@@ -1251,10 +1490,13 @@ export class FlowService {
     }
   }
 
-  /** Every criterion QA found met is checked on the item, as QA; one it found unmet is left as it is. */
+  /**
+   * Every criterion QA found met is checked on the item, as QA; one it found unmet, or one only a
+   * person can check, is left as it is for that person.
+   */
   private checkCriteria(item: WorkItem, criteria: readonly FlowCriterionResult[], actor: WorkItemActor, cause: WorkItemCause): void {
     for (const criterion of item.acceptanceCriteria) {
-      if (criterion.checked || !criteria.some((c) => c.id === criterion.id && c.met)) continue;
+      if (criterion.checked || !criteria.some((c) => c.id === criterion.id && c.met && !c.needsPerson)) continue;
       try {
         this.deps.items.checkCriterion(item.id, criterion.id, { checked: true }, { actor, cause });
       } catch {
@@ -1415,6 +1657,7 @@ export class FlowService {
       retriedBy: next ? refOf(next) : null,
       retryable: failed && this.retryRefusal(row, item, next) === null,
       restarts: row.restarts ?? 0,
+      continuations: row.continuations ?? 0,
       ...(row.language ? { language: runLanguage(row) } : {}),
       queuedAt: row.queued_at,
       startedAt: row.started_at,
@@ -1473,6 +1716,19 @@ function maxCostUsd(settings: ProjectSettings): number | null {
 
 function stepNoun(step: FlowStep): string {
   return step === 'refine' ? 'refining' : step === 'check' ? 'check' : step === 'work' ? 'work' : 'verification';
+}
+
+/** The paths `git status` lists in a directory, untracked ones included; none where git cannot say. */
+function uncommittedPaths(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  try {
+    return gitRaw(dir, ['status', '--porcelain', '--untracked-files=all'], { timeout: 15_000 })
+      .split('\n')
+      .filter((line) => line.length > 3)
+      .map((line) => line.slice(3).replace(/^"|"$/g, ''));
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -1546,6 +1802,10 @@ function commentOf(item: WorkItem, result: ParsedResult): string {
   const lines = [result.summary, ''];
   for (const criterion of item.acceptanceCriteria) {
     const judged = result.criteria.find((c) => c.id === criterion.id);
+    if (judged?.needsPerson) {
+      lines.push(`- [?] ${criterion.text} — needs a person${judged.note ? `: ${judged.note}` : ''}`);
+      continue;
+    }
     const mark = judged?.met ? 'x' : ' ';
     const note = judged?.note ? ` — ${judged.note}` : judged ? '' : ' — not judged';
     lines.push(`- [${mark}] ${criterion.text}${note}`);
@@ -1589,7 +1849,9 @@ export function parseResult(raw: unknown, stage: FlowStage): ParsedResult | null
   const criteria: FlowCriterionResult[] = [];
   for (const c of stage === 'verify' && Array.isArray(value.criteria) ? value.criteria.slice(0, CRITERIA_MAX) : []) {
     if (!isObject(c) || typeof c.id !== 'string' || typeof c.met !== 'boolean') continue;
-    criteria.push({ id: c.id, met: c.met, note: typeof c.note === 'string' ? c.note.trim().slice(0, CRITERION_MAX) : '' });
+    const note = typeof c.note === 'string' ? c.note.trim().slice(0, CRITERION_MAX) : '';
+    // Only a plain true: anything else a model might send reads as a criterion it judged itself
+    criteria.push(c.needsPerson === true ? { id: c.id, met: c.met, note, needsPerson: true } : { id: c.id, met: c.met, note });
   }
   const memoryProposals: FlowMemoryProposal[] = [];
   for (const p of Array.isArray(value.memoryProposals) ? value.memoryProposals.slice(0, PROPOSALS_MAX) : []) {

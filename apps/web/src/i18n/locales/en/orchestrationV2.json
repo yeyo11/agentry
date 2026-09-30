@@ -17,7 +17,7 @@
     "enable": "Verify the integration branch",
     "enableHint": "Workers run typecheck and unit tests. The slow checks run once here, on the merged branch, so a whole suite is not started in every worktree at the same time.",
     "commands": "Checks",
-    "commandsHint": "One command per line, run in order on the integration branch, each under a timeout.",
+    "commandsHint": "One command per line, run in order on the integration branch, each under a timeout. Start a line with “& ” to run it at the same time as the line above.",
     "commandsPlaceholder": "pnpm build",
     "fixer": "Launch an agent to fix what fails",
     "attempts": "Fixer attempts",

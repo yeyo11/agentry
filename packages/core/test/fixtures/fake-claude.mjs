@@ -14,6 +14,12 @@
 //   FAKE-LIMIT-ONCE               the session's first turn dies against the rate limit (a 429), and
 //                                 the same prompt sent again (the rotation's replay) goes on as usual
 //
+//   FAKE-TEXT-ONCE <text>         the session's first turn ends with that text as its result, and every
+//                                 later turn answers `continued: <the prompt it got>`: a worker that
+//                                 stops with a report while work is still owed
+//   FAKE-MAX-TOKENS               before its result, streams the message_delta that says the turn
+//                                 stopped on max_tokens, as the CLI's stream-json does
+//
 //   FAKE-RESULT-<STAGE> <json>    with --json-schema, ends with that structured output; the stage
 //                                 (REFINE, WORK, VERIFY) is read off the schema as a flow run's
 //                                 differs by stage, so one item's description can script each role;
@@ -125,6 +131,20 @@ lines.on('line', (line) => {
   if (known && !sticky) {
     out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: `retried: ${prompt}` });
     return;
+  }
+  const early = join(tmpdir(), `fake-claude-text-${sessionId}`);
+  const text = /^FAKE-TEXT-ONCE (.*)$/m.exec(prompt);
+  if (text && !existsSync(early)) {
+    writeFileSync(early, '1');
+    out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: text[1] });
+    return;
+  }
+  if (existsSync(early)) {
+    out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: `continued: ${prompt}` });
+    return;
+  }
+  if (/^FAKE-MAX-TOKENS$/m.test(prompt)) {
+    out({ type: 'stream_event', session_id: sessionId, parent_tool_use_id: null, event: { type: 'message_delta', delta: { stop_reason: 'max_tokens', stop_sequence: null } } });
   }
   const failure = /^FAKE-FAIL (.*)$/m.exec(prompt);
   if (failure) {
