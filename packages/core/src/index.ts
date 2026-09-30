@@ -116,7 +116,29 @@ import { PullRequestService, PullRequestWatcher, type ApproveResult } from './pu
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
 import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo } from './git.ts';
+import { DecisionEngine } from './decisions/engine.ts';
+import { DecisionCredentialStore, DecisionSettingsStore } from './decisions/settings.ts';
 import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
+export {
+  DecisionEngine,
+  DEADLINE_MS,
+  lowestConfidence,
+  type DecisionEngineDeps,
+  type DecisionOutcome,
+  type DecisionProvider,
+  type DecisionRequest,
+  type EffectiveDecision,
+  type ProviderResult,
+} from './decisions/engine.ts';
+export { DECISION_POINTS, decisionPoint, type DecisionPointDefinition, type DecisionSubject } from './decisions/points.ts';
+export { cutToBytes, maskSecrets, redactState, SECRET_MASK, stateBytes } from './decisions/redact.ts';
+export {
+  DecisionCredentialStore,
+  DecisionSettingsStore,
+  DEFAULT_DECISION_SETTINGS,
+  parseDecisionSettings,
+  parseProjectDecisions,
+} from './decisions/settings.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
 
@@ -264,6 +286,11 @@ export class Core {
   private readonly healthMonitor: HealthMonitor;
   /** The optional model that drafts a hint when a worker's health turns bad; off unless `supervisor.json` says so */
   readonly supervisor: Supervisor;
+  /** The decision engine's settings (`decisions.json`) and its Jev key (`decision-credentials.json`, never returned) */
+  readonly decisionSettings: DecisionSettingsStore;
+  readonly decisionCredentials: DecisionCredentialStore;
+  /** The one door every decision point asks through; providers register themselves on it */
+  readonly decisions: DecisionEngine;
   readonly schedules: Scheduler;
   /** Web Push: the VAPID keypair, the installs registered to be woken, and the sender behind them */
   readonly push: PushService;
@@ -444,6 +471,14 @@ export class Core {
       emit: (event) => this.events.emit(event),
       charge: (orchestrationId, costUsd) => this.orchestrator.chargeSupervisor(orchestrationId, costUsd),
     });
+    this.decisionCredentials = new DecisionCredentialStore(config);
+    this.decisionSettings = new DecisionSettingsStore(config, this.decisionCredentials);
+    this.decisions = new DecisionEngine({
+      settings: this.decisionSettings,
+      db: this.db,
+      projectDecisions: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.decisions ?? null,
+    });
+    this.decisions.startPruning();
     this.healthMonitor = new HealthMonitor({
       runtime: this.runtime,
       health: this.health,
@@ -2000,6 +2035,7 @@ export class Core {
     this.cliVersion.stop();
     this.release.stop();
     this.healthMonitor.stop();
+    this.decisions.stop();
     this.orchestrator.close();
     this.schedules.close();
     this.sessionsWatcher.close();
