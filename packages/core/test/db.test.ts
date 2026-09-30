@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { Execution } from '@agentry/shared';
+import type { DecisionRecord, Execution } from '@agentry/shared';
 import type { LegacyRun, StoredChat } from '../src/chat-records.ts';
 import { Db, migrate, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
@@ -387,4 +387,106 @@ test('what Claude loaded in a directory survives a restart', () => {
   assert.equal(loaded.length, 1);
   assert.equal(loaded[0]?.cwd, '/work/app');
   assert.deepEqual(loaded[0]?.tools, ['Bash', 'Edit']);
+});
+
+function decisionRow(id: string, over: Partial<DecisionRecord> = {}): DecisionRecord {
+  return {
+    id,
+    point: 'run.continuation',
+    kind: 'act',
+    projectId: 'p1',
+    subjectKind: 'flow_run',
+    subjectId: 'r1',
+    provider: 'jev',
+    model: 'jev-1.13.0',
+    mode: 'active',
+    status: 'answered',
+    unavailable: null,
+    state: { open: 2 },
+    questions: [],
+    answers: null,
+    confidence: 0.9,
+    threshold: 0.85,
+    acted: true,
+    visible: false,
+    savedRun: true,
+    latencyMs: 120,
+    inputTokens: 40,
+    costUsd: 0.01,
+    outcome: null,
+    agreed: null,
+    resolvedAt: null,
+    feedback: null,
+    feedbackAt: null,
+    at: at(1),
+    ...over,
+  };
+}
+
+test('decisions round-trip, resolve once, and let feedback outrank the inference', () => {
+  const db = new Db(tempConfig());
+  db.insertDecision(decisionRow('d1'));
+  assert.deepEqual(db.decision('d1'), decisionRow('d1'));
+
+  assert.equal(db.resolveDecision('d1', { summary: 'ran', agreed: true }, at(2)), true);
+  assert.equal(db.resolveDecision('d1', { summary: 'again', agreed: false }, at(3)), false);
+  assert.equal(db.decision('d1')?.agreed, true);
+  assert.equal(db.decision('d1')?.outcome?.summary, 'ran');
+
+  assert.equal(db.setDecisionFeedback('d1', 'not_useful', at(4)), true);
+  assert.equal(db.decision('d1')?.agreed, false);
+  assert.equal(db.setDecisionFeedback('nope', 'useful', at(4)), false);
+
+  db.insertDecision(decisionRow('d2'));
+  db.setDecisionFeedback('d2', 'useful', at(5));
+  db.resolveDecision('d2', { summary: 'x', agreed: false }, at(6));
+  assert.equal(db.decision('d2')?.agreed, true);
+  db.close();
+});
+
+test('decisions page newest first, filter, and report stats', () => {
+  const db = new Db(tempConfig());
+  db.insertDecision(decisionRow('a', { at: at(1) }));
+  db.insertDecision(decisionRow('b', { at: at(2), provider: 'cli', model: 'haiku', confidence: null, acted: false, costUsd: 0.02, projectId: null }));
+  db.insertDecision(decisionRow('c', { at: at(3), projectId: null, point: 'palette.intent', status: 'unavailable', unavailable: 'timeout', confidence: null, acted: false, savedRun: false, costUsd: null }));
+
+  const first = db.listDecisions({ limit: 2 });
+  assert.deepEqual(first.items.map((d) => d.id), ['c', 'b']);
+  assert.ok(first.nextCursor);
+  const second = db.listDecisions({ limit: 2, ...(first.nextCursor ? { cursor: first.nextCursor } : {}) });
+  assert.deepEqual(second.items.map((d) => d.id), ['a']);
+  assert.equal(second.nextCursor, null);
+
+  assert.deepEqual(db.listDecisions({ provider: 'cli' }).items.map((d) => d.id), ['b']);
+  assert.deepEqual(db.listDecisions({ point: 'palette.intent', status: 'unavailable' }).items.map((d) => d.id), ['c']);
+  assert.deepEqual(db.listDecisions({ since: at(2), until: at(2) }).items.map((d) => d.id), ['b']);
+  assert.deepEqual(db.listDecisions({ projectId: 'p1' }).items.map((d) => d.id), ['a']);
+
+  const stats = db.decisionStats(at(0));
+  const run = stats.points.find((p) => p.point === 'run.continuation');
+  assert.equal(run?.count, 2);
+  assert.equal(run?.acted, 1);
+  assert.equal(run?.runsSaved, 1);
+  assert.equal(run?.meanConfidence, 0.9);
+  assert.equal(stats.points.find((p) => p.point === 'palette.intent')?.unavailable, 1);
+  assert.equal(stats.claudeRunsSaved, 1);
+  assert.equal(stats.jevCostUsd, 0.01);
+  assert.equal(db.decisionStats(at(3)).points.length, 1);
+  db.close();
+});
+
+test('decisions delete one, clear a filtered set, and prune by age', () => {
+  const db = new Db(tempConfig());
+  db.insertDecision(decisionRow('a', { at: at(1) }));
+  db.insertDecision(decisionRow('b', { at: at(2), provider: 'cli' }));
+  db.insertDecision(decisionRow('c', { at: at(3) }));
+  assert.equal(db.deleteDecision('a'), true);
+  assert.equal(db.deleteDecision('a'), false);
+  assert.equal(db.clearDecisions({ provider: 'cli' }), 1);
+  assert.equal(db.pruneDecisions(at(3)), 0);
+  assert.equal(db.pruneDecisions(at(4)), 1);
+  db.insertDecision(decisionRow('d'));
+  assert.equal(db.clearDecisions(), 1);
+  assert.equal(db.listDecisions().items.length, 0);
+  db.close();
 });
