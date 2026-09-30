@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T12:43:36.708551256Z
-updated_at: 2026-09-30T18:00:00Z
+updated_at: 2026-09-30T15:12:12Z
 tags:
     - plan
     - providers
@@ -921,24 +921,17 @@ phase 2", `docs/status.md`, then one pull request to `main`.
 | A process on the old schema beside one on the new | `g3` | `ALTER TABLE … DEFAULT`, so old writers still produce valid rows; the migration test |
 | Leftover-process detection breaks on restart | `d1` | `restore.test.ts` unedited; `liveSessions` is `streamJsonProcesses` behind the driver |
 
-### Decisions for the owner
+### Decisions taken for phase 2 (owner, 2026-09-30)
 
-1. **Shipped tool presets.**
-   - (a, recommended) The shipped presets are defined by a `ToolPolicy`, and custom presets stay
-     native rules, as planned above. The preset editor is unchanged.
-   - (b) Every preset stays as native rules in phase 2, and policies only replace Agentry's own
-     lists. The deltas drop to one.
-   - (c) Every preset becomes a policy, with an "advanced: native rules" field. This needs a
-     prototype of the preset editor.
-2. **The `RunEvent` change on the chat stream.**
-   - (a, recommended) Drop `type`, `subtype` and raw `data` now, as planned above.
-   - (b) Keep `type` and `subtype`, marked deprecated, for one release, then drop them.
-   - (c) Keep the raw event under a `native` field for diagnosis, read by nothing in Agentry.
-3. **Showing the provider on the chat page.**
-   - (a, recommended) Not in phase 2: the API carries it, and the page shows it in phase 3, when a
-     second provider can run. No screen changes now.
-   - (b) A small mono label ("Claude Code") in the chat's details panel now, with no prototype.
-   - (c) A provider facet in the chat list's filters now.
+All three as recommended:
+
+1. **Shipped tool presets are defined by a `ToolPolicy`**; custom presets stay the native rules
+   people typed, and the preset editor is unchanged. Rejected: every preset stays native rules in
+   phase 2; every preset becomes a policy with an advanced rules field.
+2. **`RunEvent` drops `type`, `subtype` and raw `data` now.** Rejected: keeping them deprecated for
+   one release; keeping the raw event under a `native` field.
+3. **The chat page shows the provider in phase 3**, when a second provider can run chats; the API
+   carries it from phase 2. Rejected: a label in the details panel now; a provider filter now.
 
 ## Decisions (owner, 2026-09-30)
 
