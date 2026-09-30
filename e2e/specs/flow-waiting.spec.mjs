@@ -41,8 +41,12 @@ export default async ({ page, api, check, dirs }) => {
       check((await page.eval(`return document.querySelector('.flow-auto [role=switch]').getAttribute('aria-checked')`)) === String(on), `the switch reads ${on ? 'on' : 'off'}`);
       await page.click(save, undefined, 300);
       await page.waitFor(`return document.querySelector(${JSON.stringify(save)})?.disabled === true`, { label: 'the flow saved' });
+      // The screen shows the old setting until the saved one is read back: the next click must land after
+      await page.waitFor(`return document.querySelector('.flow-auto [role=switch]')?.getAttribute('aria-checked') === '${on}'`, { label: `the saved switch reads ${on ? 'on' : 'off'}` });
     };
     const axeOn = async (theme) => {
+      // axe reads colours mid-fade otherwise, which a loaded machine stretches
+      await sleep(600);
       const violations = await page.axe({ include: dialog });
       check(violations.length === 0, `the open prompt passes axe in the ${theme} theme (${violations.map((v) => v.id).join(', ')})`);
     };

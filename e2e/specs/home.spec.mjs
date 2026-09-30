@@ -30,6 +30,10 @@ export default async ({ page, api, check, dirs }) => {
       `All projects draws its default layout (${await page.eval(widgetTypes)})`,
     );
     check(await page.eval(`return [...document.querySelectorAll('main .widget h2')].some((h) => h.textContent === 'In progress')`), 'every widget names itself with a heading');
+    // The widgets are lazy chunks: a slot exists before its figures do
+    await page.waitFor(`return !!document.querySelector('main [data-widget=kpis] .kpi-strip')`, { label: 'the figures strip' });
+    // The widgets are lazy chunks: a slot exists before its figures do
+    await page.waitFor(`return !!document.querySelector('main [data-widget=kpis] .kpi-strip')`, { label: 'the figures strip' });
     check(await page.eval(`return !!document.querySelector('main [data-widget=kpis] .kpi-strip')`), 'the figures are a strip under the hero');
     check((await page.text('main [data-widget=projects]')).includes('e2e-home'), 'the Projects widget lists the imported project');
 

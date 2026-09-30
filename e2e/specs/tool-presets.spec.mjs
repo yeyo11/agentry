@@ -7,6 +7,7 @@ export default async ({ page, api, check }) => {
   check(shipped.some((p) => p.id === 'read-only') && shipped.every((p) => p.builtIn), 'the shipped presets are listed');
 
   await page.goto('/settings?tab=tools', 1500);
+  await page.waitFor(`return document.querySelector('[role=tabpanel]')?.textContent.includes('Everything')`, { label: 'the preset list' });
   const listed = await page.text('[role=tabpanel]');
   check(listed.includes('Read only') && listed.includes('No network') && listed.includes('Everything'), 'Settings lists the shipped presets');
 
