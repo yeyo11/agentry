@@ -185,7 +185,7 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
 
 ## How it talks to Claude
 
-The wrapper drives Claude **only through the CLI** — no SDK, no terminal scraping:
+The wrapper drives Claude Code through its CLI, the interface Anthropic ships for programs — no terminal scraping, no undocumented endpoints:
 
 | Need | CLI surface used |
 | --- | --- |
@@ -1407,7 +1407,7 @@ interactive `claude` session (`/mcp`) or in claude.ai's connector settings: Agen
 
 Bug reports, ideas and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the
 setup, the checks CI runs and the one architectural rule worth knowing before you write code:
-Agentry reaches Claude Code only through its CLI. [docs/status.md](docs/status.md) is where the
+Agentry reaches each agent only through the interface its vendor ships for programs. [docs/status.md](docs/status.md) is where the
 project stands today: what is built, what is still open, and where each plan ended.
 
 Vulnerabilities go through [private advisories](SECURITY.md), not public issues.

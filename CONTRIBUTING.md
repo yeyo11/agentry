@@ -5,12 +5,15 @@ them up front saves everyone a round of review.
 
 ## The one rule
 
-**Agentry talks to Claude Code only through its CLI.** No SDK, no HTTP calls to Anthropic, no
-scraping a terminal. If a feature cannot be expressed as a documented CLI surface — a flag, a
-subcommand, a stream-json event, a file the CLI writes — it does not belong here yet. The table in
+**Agentry reaches each agent only through the interface its vendor ships for programs**: CLI
+flags, the vendor's official SDK, a documented stream or RPC protocol, the files the CLI writes. No
+terminal scraping, no undocumented HTTP endpoints, no second login of our own. If a feature cannot
+be expressed as a documented surface of the agent's own, it does not belong here yet. An agent that
+only has an interactive terminal interface is not a provider. What a provider is, and how to add
+one, is in [docs/providers.md](docs/providers.md). For Claude Code, the table in
 [README.md](README.md#how-it-talks-to-claude) lists every surface currently in use.
 
-This is what keeps the project honest: whatever Claude Code does, Agentry does, and nothing more.
+This is what keeps the project honest: whatever an agent does, Agentry does, and nothing more.
 
 **One bounded exception: typed decision services.** Agentry may call an optional outside service
 that only answers small typed questions (a choice, a score, a yes/no) for its decision engine.
