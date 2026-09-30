@@ -1,7 +1,7 @@
 // The tabs of Settings and where each one lives: plain data, so a test can read it without the page.
 
 /** A section of the Decisions tab; `?tab=supervisor` scrolls to one. */
-export type DecisionsSection = 'engine' | 'points' | 'supervisor';
+export type DecisionsSection = 'engine' | 'points' | 'supervisor' | 'history';
 
 // The label is a translation key, not text: the constant is built once, the language can change
 export const TAB_LABELS = {

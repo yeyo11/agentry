@@ -125,7 +125,7 @@
       "review": "Revisión",
       "notifications": "Avisos",
       "palette": "Paleta",
-    "other": "Otros"
+      "other": "Otros"
     }
   },
   "supervisor": {
@@ -134,6 +134,127 @@
   "sections": {
     "engine": "Motor",
     "points": "Puntos de decisión",
-    "supervisor": "Supervisor"
+    "supervisor": "Supervisor",
+    "history": "Historial"
+  },
+  "consent": {
+    "title": "Antes de pasar a {{mode}}",
+    "leavesTitle": "Este contenido sale de tu equipo",
+    "leavesBody": "Se envía a un servicio externo de TypeSafe ({{host}}) con tu clave. Jev no guarda nada solo en el plan enterprise. Si la forma del estado cambia, Agentry te lo volverá a preguntar.",
+    "staysTitle": "Nada sale de tu equipo",
+    "staysBody": "Con Claude Code CLI la pregunta se hace en un chat interno con tu cuenta, igual que el resto de tus chats. Lo que ves abajo es lo que lee ese chat.",
+    "stateLast": "Estado exacto de la última petición",
+    "stateBuilt": "Lo que enviaría este punto",
+    "stateLabel": "Estado que se envía",
+    "builtHint": "Todavía no se ha enviado nada: esto se construye aquí, campo a campo, con los valores vacíos.",
+    "goesTo": "Va a",
+    "goesToJev": "Jev · {{host}}",
+    "goesToCli": "este equipo (chat interno del CLI)",
+    "size": "Tamaño",
+    "sizeValue": "{{size}} · ≈ {{tokens}} tokens",
+    "version": "Versión del estado",
+    "withdraw": "Puedes retirarlo cuando quieras desde la fila del punto.",
+    "cancel": "Cancelar",
+    "agree": "Consentir y pasar a {{mode}}",
+    "saving": "Guardando…",
+    "withdrawAction": "Retirar",
+    "withdrawPoint": "Retirar el consentimiento de {{point}}",
+    "withdrawn": "Consentimiento retirado"
+  },
+  "metrics": {
+    "label": "Métricas de los últimos {{days}} días",
+    "count": "Decisiones",
+    "acted": "Actuó",
+    "confidence": "Confianza",
+    "agreement": "Acuerdo",
+    "n": "n {{n}}",
+    "useful": "Útil",
+    "notUseful": "No útil",
+    "unavailable": "No disponible",
+    "cost": "Coste",
+    "saved": "Ejecuciones ahorradas",
+    "inHistory": "Ver en el historial"
+  },
+  "history": {
+    "title": "Historial",
+    "sub": "{{days}} días · editable arriba",
+    "filters": {
+      "point": "Punto",
+      "project": "Proyecto",
+      "provider": "Proveedor",
+      "mode": "Modo",
+      "status": "Estado",
+      "allPoints": "Todos los puntos",
+      "allProjects": "Todos los proyectos",
+      "anyProvider": "Proveedor: todos",
+      "anyMode": "Modo: todos",
+      "anyStatus": "Estado: todos"
+    },
+    "status": {
+      "answered": "Respondida",
+      "unavailable": "No disponible"
+    },
+    "resetFilters": "Quitar filtros",
+    "clear": "Vaciar…",
+    "clearTitle": "Vaciar el historial",
+    "clearBody": "Se eliminarán las decisiones que coinciden.",
+    "clearBodyCount_one": "Se eliminará {{formatted}} decisión.",
+    "clearBodyCount_other": "Se eliminarán {{formatted}} decisiones.",
+    "clearFiltered": "Solo las que coinciden con los filtros.",
+    "clearAll": "No hay ningún filtro, así que todas.",
+    "clearWarning": "No se puede deshacer.",
+    "cancel": "Cancelar",
+    "confirm": "Eliminar",
+    "confirmCount_one": "Eliminar {{formatted}}",
+    "confirmCount_other": "Eliminar {{formatted}}",
+    "clearing": "Eliminando…",
+    "cleared_one": "{{count}} decisión eliminada",
+    "cleared_other": "{{count}} decisiones eliminadas",
+    "none": "Todavía no se ha registrado ninguna decisión. Un punto en sombra o activo deja aquí una fila.",
+    "noneFiltered": "Ninguna decisión coincide con estos filtros.",
+    "cols": {
+      "when": "Cuándo",
+      "point": "Punto",
+      "provider": "Proveedor",
+      "answer": "Respuesta",
+      "confidence": "Conf.",
+      "result": "Resultado",
+      "rating": "Valoración"
+    },
+    "outcome": {
+      "match": "Coincide",
+      "differs": "Difiere",
+      "pending": "Sin resultado",
+      "asUsual": "Como siempre"
+    },
+    "feedback": {
+      "useful": "Útil",
+      "not_useful": "No útil"
+    },
+    "show": "Mostrar la respuesta de {{point}}",
+    "hide": "Ocultar la respuesta de {{point}}",
+    "answerOf": "Respuesta de {{point}}",
+    "unavailableBody": "El proveedor no dio respuesta, así que el punto hizo lo de siempre.",
+    "question": "Pregunta",
+    "probabilities": "Probabilidades",
+    "yes": "sí",
+    "no": "no",
+    "facts": {
+      "provider": "Proveedor",
+      "mode": "Modo",
+      "threshold": "Umbral",
+      "latency": "Latencia",
+      "cost": "Coste",
+      "result": "Resultado"
+    },
+    "useful": "Útil",
+    "notUseful": "No útil",
+    "delete": "Eliminar",
+    "shown_one": "{{formatted}} decisión",
+    "shown_other": "{{formatted}} decisiones",
+    "shownMore_one": "{{formatted}} decisión cargada",
+    "shownMore_other": "{{formatted}} decisiones cargadas",
+    "more": "Cargar más",
+    "loading": "Cargando…"
   }
 }

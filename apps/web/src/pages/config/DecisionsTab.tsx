@@ -2,6 +2,7 @@ import type {
   DecisionMode,
   DecisionPointId,
   DecisionPointInfo,
+  DecisionPointStats,
   DecisionProviderId,
   DecisionSettings,
   DecisionSettingsUpdate,
@@ -20,6 +21,10 @@ import { useToast } from '../../components/Toast';
 import { ErrorBox, ModelCombobox, Segmented, Skeleton } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
 import { formatNumber, timeAgo } from '../../lib/format';
+import { ConsentDialog } from './decisions/ConsentDialog';
+import { DecisionHistory } from './decisions/DecisionHistory';
+import { needsConsent } from './decisions/model';
+import { METRICS_DAYS, PointMetrics } from './decisions/PointMetrics';
 import { SupervisorTab } from './SupervisorTab';
 import type { DecisionsSection } from './settingsTabs';
 
@@ -80,7 +85,7 @@ const AREAS: ReadonlyArray<{ id: AreaId; points: readonly DecisionPointId[] }> =
 ];
 
 /** The sections of the tab, in order: the ids are what `?tab=supervisor` and the chips scroll to. */
-const SECTIONS: readonly DecisionsSection[] = ['engine', 'points', 'supervisor'];
+const SECTIONS: readonly DecisionsSection[] = ['engine', 'points', 'supervisor', 'history'];
 export const sectionId = (section: DecisionsSection) => `decisions-${section}`;
 
 interface PointDraft {
@@ -115,6 +120,12 @@ export function DecisionsTab({ section }: { section?: DecisionsSection }) {
 
   // Reached from `?tab=supervisor`: wait for the sections to exist, then bring the asked one into view
   const ready = Boolean(settings.data && points.data);
+  // "See in History" on a point's metrics: History filters by that point and comes into view
+  const [historyFocus, setHistoryFocus] = useState<{ point: DecisionPointId; n: number } | null>(null);
+  const showHistory = (point: DecisionPointId) => {
+    setHistoryFocus((current) => ({ point, n: (current?.n ?? 0) + 1 }));
+    document.getElementById(sectionId('history'))?.scrollIntoView({ block: 'start' });
+  };
   useEffect(() => {
     if (!section || !ready) return;
     document.getElementById(sectionId(section))?.scrollIntoView({ block: 'start' });
@@ -143,16 +154,17 @@ export function DecisionsTab({ section }: { section?: DecisionsSection }) {
       {!settings.data || !points.data ? (
         <Skeleton rows={6} />
       ) : (
-        <DecisionsForm saved={settings.data} catalogue={points.data} />
+        <DecisionsForm saved={settings.data} catalogue={points.data} onHistory={showHistory} />
       )}
       <div id={sectionId('supervisor')}>
         <SupervisorTab />
       </div>
+      <DecisionHistory id={sectionId('history')} catalogue={points.data ?? []} days={settings.data?.historyDays ?? null} focusPoint={historyFocus} />
     </div>
   );
 }
 
-function DecisionsForm({ saved, catalogue }: { saved: DecisionSettings; catalogue: DecisionPointInfo[] }) {
+function DecisionsForm({ saved, catalogue, onHistory }: { saved: DecisionSettings; catalogue: DecisionPointInfo[]; onHistory: (point: DecisionPointId) => void }) {
   const { t } = useTranslation('decisions');
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -168,6 +180,17 @@ function DecisionsForm({ saved, catalogue }: { saved: DecisionSettings; catalogu
     previous.current = base;
     if (before !== base) setDraft((current) => (sameDraft(current, before) ? base : current));
   }, [base]);
+
+  // A point leaving `off` without consent for what it sends now waits here for the person to see it
+  const [asking, setAsking] = useState<{ id: DecisionPointId; mode: Exclude<DecisionMode, 'off'> } | null>(null);
+  const setMode = (id: DecisionPointId, mode: DecisionMode) =>
+    setDraft((current) => ({ ...current, points: { ...current.points, [id]: { ...pointOf(current, catalogue, id), mode } } }));
+  const onMode = (id: DecisionPointId, mode: DecisionMode) => {
+    const info = catalogue.find((point) => point.id === id);
+    if (mode !== 'off' && info && needsConsent(info, saved.points[id]?.consent ?? null, draft.provider)) setAsking({ id, mode });
+    else setMode(id, mode);
+  };
+  const askedInfo = asking ? catalogue.find((point) => point.id === asking.id) : undefined;
 
   const patch = (next: Partial<Draft>) => setDraft((current) => ({ ...current, ...next }));
 
@@ -206,12 +229,26 @@ function DecisionsForm({ saved, catalogue }: { saved: DecisionSettings; catalogu
         catalogue={catalogue}
         settings={saved}
         draft={draft}
-        // The one place a mode changes: moving a point out of `off` for the first time asks for consent here
-        onMode={(id, mode) => setDraft((current) => ({ ...current, points: { ...current.points, [id]: { ...pointOf(current, catalogue, id), mode } } }))}
+        onMode={onMode}
+        onHistory={onHistory}
         onThreshold={(id, threshold) =>
           setDraft((current) => ({ ...current, points: { ...current.points, [id]: { ...pointOf(current, catalogue, id), threshold } } }))
         }
       />
+      {asking && askedInfo && (
+        <ConsentDialog
+          info={askedInfo}
+          name={t(`points.names.${POINT_KEY[askedInfo.id] ?? askedInfo.id}`, { defaultValue: askedInfo.id })}
+          provider={draft.provider}
+          mode={asking.mode}
+          consent={saved.points[asking.id]?.consent ?? null}
+          onClose={() => setAsking(null)}
+          onGranted={() => {
+            setMode(asking.id, asking.mode);
+            setAsking(null);
+          }}
+        />
+      )}
       {(dirty || save.isPending) && (
         <div className="dp-foot card" role="group" aria-label={t('engine.save')}>
           <ErrorBox error={save.error} />
@@ -533,14 +570,28 @@ function PointsSection({
   draft,
   onMode,
   onThreshold,
+  onHistory,
 }: {
   catalogue: DecisionPointInfo[];
   settings: DecisionSettings;
   draft: Draft;
   onMode: (id: DecisionPointId, mode: DecisionMode) => void;
   onThreshold: (id: DecisionPointId, threshold: number) => void;
+  onHistory: (point: DecisionPointId) => void;
 }) {
   const { t } = useTranslation('decisions');
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const stats = useQuery({ queryKey: keys.decisionStats(METRICS_DAYS), queryFn: () => api.decisionStats(METRICS_DAYS) });
+  const statsOf = new Map<DecisionPointId, DecisionPointStats>((stats.data?.points ?? []).map((row) => [row.point, row]));
+  // Consent is withdrawn from the row: it is a setting of its own, saved at once, apart from the form
+  const withdraw = useMutation({
+    mutationFn: (info: DecisionPointInfo) => api.putDecisionConsent(info.id, { granted: false, stateVersion: info.stateVersion, providers: [] }),
+    onSuccess: (next) => {
+      queryClient.setQueryData(keys.decisionSettings, next);
+      toast.success(t('consent.withdrawn'));
+    },
+  });
   const byId = new Map(catalogue.map((info) => [info.id, info]));
   // A point the catalogue has and no area lists (a newer server) still shows, last, rather than vanishing
   const listed = new Set(AREAS.flatMap((area) => area.points));
@@ -559,6 +610,7 @@ function PointsSection({
       <div className="dp-intro">
         <p>{t('points.intro')}</p>
       </div>
+      <ErrorBox error={withdraw.error} />
       {groups.length === 0 && <p className="small muted dp-empty">{t('points.none')}</p>}
       {groups.map((group) => (
         <div key={group.id} className="dp-group" role="group" aria-label={t(`points.areas.${group.id}`)}>
@@ -568,7 +620,22 @@ function PointsSection({
           </div>
           {group.points.map((id) => {
             const info = byId.get(id);
-            return info && <PointRow key={id} info={info} settings={settings} draft={draft} provider={draft.provider} onMode={onMode} onThreshold={onThreshold} />;
+            return (
+              info && (
+                <PointRow
+                  key={id}
+                  info={info}
+                  settings={settings}
+                  draft={draft}
+                  provider={draft.provider}
+                  onMode={onMode}
+                  onThreshold={onThreshold}
+                  stats={statsOf.get(id)}
+                  onHistory={() => onHistory(id)}
+                  onWithdraw={() => withdraw.mutate(info)}
+                />
+              )
+            );
           })}
         </div>
       ))}
@@ -583,6 +650,9 @@ export function PointRow({
   provider,
   onMode,
   onThreshold,
+  stats,
+  onHistory,
+  onWithdraw,
 }: {
   info: DecisionPointInfo;
   settings: DecisionSettings;
@@ -590,6 +660,9 @@ export function PointRow({
   provider: DecisionProviderId;
   onMode: (id: DecisionPointId, mode: DecisionMode) => void;
   onThreshold: (id: DecisionPointId, threshold: number) => void;
+  stats?: DecisionPointStats | undefined;
+  onHistory?: () => void;
+  onWithdraw?: () => void;
 }) {
   const { t } = useTranslation('decisions');
   const name = t(`points.names.${POINT_KEY[info.id] ?? info.id}`, { defaultValue: info.id });
@@ -640,7 +713,14 @@ export function PointRow({
         {consentState === 'given' && <span className="dot dot-ok" aria-hidden />}
         {consentState === 'given' ? t('points.consent.given') : consentState === 'stale' ? t('points.consent.stale') : t('points.consent.none')}
         {consent && <span className="mono">v{consent.stateVersion}</span>}
+        {consent && onWithdraw && (
+          <button type="button" className="btn btn-ghost btn-small" aria-label={t('consent.withdrawPoint', { point: info.id })} onClick={onWithdraw}>
+            {t('consent.withdrawAction')}
+          </button>
+        )}
       </span>
+      {/* A point that is off has no week to show */}
+      {!off && <PointMetrics stats={stats} {...(onHistory ? { onHistory } : {})} />}
     </div>
   );
 }

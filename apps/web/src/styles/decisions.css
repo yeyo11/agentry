@@ -374,3 +374,442 @@
     padding: 12px 14px;
   }
 }
+
+/* ---------- Metrics, consent and History (D3 u2) ---------- */
+
+/* A point's week under its row: nine figures, and the way into its History */
+.dp-metrics-line {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.dp-metrics {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, auto));
+  justify-content: space-between;
+  gap: 8px 14px;
+  min-width: 0;
+}
+
+.dp-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dp-metric > span:first-child,
+.dp-fact > span:first-child {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.dp-metric > span:first-child {
+  white-space: nowrap;
+}
+
+.dp-metric > span:last-child {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dp-metric-n {
+  color: var(--fg-3);
+}
+
+/* The consent dialog: the state that goes out, exactly as it goes */
+.dp-consent-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.dp-consent-sub {
+  display: block;
+  margin-bottom: 12px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+
+.dp-consent-state {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Scrolls rather than cuts: consent is to what was seen, so all of it can be seen */
+.dp-preview {
+  margin: 0;
+  padding: 12px 14px;
+  max-height: 236px;
+  overflow: auto;
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fg-2);
+  white-space: pre;
+}
+
+.dp-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+}
+
+.dp-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dp-fact > span:last-child {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.dp-consent-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.dp-consent-actions .btn-primary {
+  flex: 1 1 auto;
+}
+
+/* History: a row per decision, and its answer opened under it */
+.dp-hist-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dp-hist-filters .select-trigger {
+  width: auto;
+  min-width: 132px;
+  max-width: 200px;
+}
+
+.dp-hist-spacer {
+  flex: 1 1 auto;
+}
+
+.dp-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  background: var(--bad-soft);
+  color: var(--bad);
+  font-size: 13px;
+}
+
+.dp-confirm .grow {
+  flex: 1 1 320px;
+  color: var(--fg);
+}
+
+.dp-confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.dp-hist-head,
+.dp-hist-row {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1.5fr) minmax(0, 1.1fr) minmax(0, 1.4fr) 44px 92px 72px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px;
+}
+
+.dp-hist-head {
+  height: 32px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.dp-hist-row {
+  min-height: 52px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.dp-hist-row.open {
+  background: var(--bg-1);
+  border-bottom: 0;
+}
+
+.dp-hist-row .mono {
+  font-size: 12px;
+}
+
+.dp-when,
+.dp-conf {
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.dp-conf {
+  color: var(--fg-2);
+}
+
+.dp-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dp-sub {
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+
+.dp-unavailable {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.dp-result {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-2);
+}
+
+.dp-result .dot {
+  width: 6px;
+  height: 6px;
+}
+
+.dp-rating {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.dp-rated {
+  display: inline-flex;
+  color: var(--fg-2);
+}
+
+.dp-chevron {
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.dp-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.dp-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 18px 16px 114px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.dp-answer-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dp-question {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.dp-prob {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dp-prob > span:last-child {
+  text-align: right;
+}
+
+.dp-answer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.dp-answer-actions .btn[aria-pressed='true'] {
+  background: var(--bg-3);
+  border-color: var(--border-strong);
+}
+
+.dp-hist-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dp-chevron {
+    transition: none;
+  }
+}
+
+[data-motion='subtle'] .dp-chevron,
+[data-motion='off'] .dp-chevron {
+  transition: none;
+}
+
+@media (max-width: 900px) {
+  .dp-metrics-line {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dp-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    justify-content: stretch;
+  }
+
+  .dp-metrics-line .btn {
+    min-height: var(--touch);
+  }
+
+  .dp-hist-filters {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 12px 14px;
+  }
+
+  .dp-hist-filters .select-trigger {
+    width: 100%;
+    max-width: none;
+    min-height: var(--touch);
+  }
+
+  .dp-hist-filters .btn {
+    min-height: var(--touch);
+  }
+
+  .dp-hist-spacer {
+    display: none;
+  }
+
+  .dp-confirm {
+    padding: 12px 14px;
+  }
+
+  .dp-confirm-actions {
+    width: 100%;
+  }
+
+  .dp-confirm-actions .btn {
+    flex: 1 1 0;
+    min-height: var(--touch);
+  }
+
+  .dp-hist-head {
+    display: none;
+  }
+
+  /* A card per decision: the point and when, the answer, then provider, confidence, result, rating */
+  .dp-hist-row {
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      'point point point when'
+      'answer answer answer answer'
+      'provider conf result rating';
+    gap: 6px 10px;
+    padding: 12px 14px;
+    align-items: center;
+  }
+
+  .dp-cell-point {
+    grid-area: point;
+  }
+
+  .dp-when {
+    grid-area: when;
+    text-align: right;
+  }
+
+  .dp-cell-answer {
+    grid-area: answer;
+  }
+
+  .dp-cell-provider {
+    grid-area: provider;
+  }
+
+  .dp-conf {
+    grid-area: conf;
+  }
+
+  .dp-result {
+    grid-area: result;
+  }
+
+  .dp-rating {
+    grid-area: rating;
+  }
+
+  .dp-toggle {
+    min-width: var(--touch);
+    min-height: var(--touch);
+  }
+
+  .dp-answer {
+    padding: 4px 14px 16px;
+  }
+
+  .dp-answer-actions .btn {
+    flex: 1 1 auto;
+    min-height: var(--touch);
+  }
+
+  .dp-hist-foot {
+    padding: 12px 14px;
+  }
+
+  .dp-consent-actions .btn {
+    min-height: var(--touch);
+  }
+
+  .dp-preview {
+    max-height: 200px;
+    font-size: 11.5px;
+  }
+}

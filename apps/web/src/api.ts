@@ -6,10 +6,18 @@ import type {
   AgentTranscript,
   AgentryReleaseInfo,
   AddAccountTokenRequest,
+  DecisionClearResult,
+  DecisionConsentRequest,
   DecisionCredentialsResult,
+  DecisionFeedback,
+  DecisionFilter,
   DecisionPage,
   DecisionPageQuery,
+  DecisionPointId,
   DecisionPointInfo,
+  DecisionPreview,
+  DecisionRecord,
+  DecisionStats,
   DecisionSettings,
   DecisionSettingsUpdate,
   DecisionTestResult,
@@ -600,6 +608,18 @@ export const api = {
     const qs = params.toString();
     return request<DecisionPage>(`/decisions${qs ? `?${qs}` : ''}`, o);
   },
+  decisionPreview: (point: DecisionPointId, o: ReadOptions = {}) => request<DecisionPreview>(`/decisions/points/${enc(point)}/preview`, o),
+  putDecisionConsent: (point: DecisionPointId, consent: DecisionConsentRequest) =>
+    request<DecisionSettings>(`/decisions/points/${enc(point)}/consent`, { method: 'PUT', body: consent }),
+  decisionStats: (days: number, o: ReadOptions = {}) => request<DecisionStats>(`/decisions/stats?days=${days}`, o),
+  decisionFeedback: (id: string, feedback: DecisionFeedback) => request<DecisionRecord>(`/decisions/${enc(id)}/feedback`, { method: 'POST', body: { feedback } }),
+  deleteDecision: (id: string) => request<{ ok: true }>(`/decisions/${enc(id)}`, { method: 'DELETE' }),
+  clearDecisions: (filter: DecisionFilter = {}) => {
+    const params = new URLSearchParams();
+    for (const [name, value] of Object.entries(filter)) if (value !== undefined && value !== '') params.set(name, String(value));
+    const qs = params.toString();
+    return request<DecisionClearResult>(`/decisions${qs ? `?${qs}` : ''}`, { method: 'DELETE' });
+  },
   resources: (scope: Scope, kind: ResourceKind) =>
     request<ConfigResource[]>(`/config/resources/${kind}${scoped(scope)}`),
   resource: (scope: Scope, kind: ResourceKind, name: string) =>
@@ -876,6 +896,9 @@ export const keys = {
   decisionSettings: ['decisions', 'settings'] as const,
   decisionPoints: ['decisions', 'points'] as const,
   decisionsRecent: (query: DecisionPageQuery) => ['decisions', 'recent', query] as const,
+  decisionStats: (days: number) => ['decisions', 'stats', days] as const,
+  decisionPreview: (point: DecisionPointId) => ['decisions', 'preview', point] as const,
+  decisionHistory: (filter: DecisionFilter) => ['decisions', 'history', filter] as const,
   resources: (scope: Scope, kind: ResourceKind) => ['config', 'resources', scope.projectId ?? 'user', kind] as const,
   fileRoots: ['config', 'files', 'roots'] as const,
   fileTree: (root: string) => ['config', 'files', 'tree', root] as const,
