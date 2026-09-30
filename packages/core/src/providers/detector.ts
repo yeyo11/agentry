@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { statSync, watch, type FSWatcher } from 'node:fs';
+import { readFileSync, statSync, watch, type FSWatcher } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, delimiter, dirname, join } from 'node:path';
 import type {
@@ -15,7 +15,7 @@ import { detectCli, getAuthStatus } from '../cli.ts';
 import type { AgentryEventInput } from '../events.ts';
 import type { CoreConfig } from '../paths.ts';
 import { compareVersions } from '../version-check.ts';
-import type { ProviderManifest } from './manifest.ts';
+import type { ProviderConfigHome, ProviderManifest } from './manifest.ts';
 import { installDirs, resolveCommand } from './path.ts';
 import { ProviderRegistry } from './registry.ts';
 
@@ -106,6 +106,28 @@ function isDirectory(path: string): boolean {
     return statSync(path).isDirectory();
   } catch {
     return false;
+  }
+}
+
+/**
+ * A credentials file a CLI's login writes: absent or an empty object is signed out, a JSON object
+ * with a key is signed in, and anything else is a file we cannot read rather than a missing login.
+ */
+function readCredentialsFile(path: string): AuthProbe {
+  let text: string;
+  try {
+    text = readFileSync(path, 'utf8');
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || code === 'ENOTDIR') return { kind: 'signed-out' };
+    return code === 'EACCES' || code === 'EPERM' ? { kind: 'denied' } : { kind: 'failed' };
+  }
+  try {
+    const json: unknown = JSON.parse(text);
+    if (json === null || typeof json !== 'object' || Array.isArray(json)) return { kind: 'failed' };
+    return Object.keys(json).length > 0 ? { kind: 'ok', account: null } : { kind: 'signed-out' };
+  } catch {
+    return { kind: 'failed' };
   }
 }
 
@@ -264,12 +286,14 @@ export class ProviderDetector {
   }
 
   private configHome(manifest: ProviderManifest): { existing: string | null; candidates: string[] } {
-    const candidates = manifest.configHomes.map((home) => {
-      const value = home.env ? this.env[home.env] : undefined;
-      if (value) return home.insideEnv ? join(value, home.insideEnv) : value;
-      return home.default.replace(/^~(?=$|\/)/, this.home);
-    });
+    const candidates = manifest.configHomes.map((home) => this.locate(home));
     return { existing: candidates.find(isDirectory) ?? null, candidates };
+  }
+
+  private locate(place: ProviderConfigHome): string {
+    const value = place.env ? this.env[place.env] : undefined;
+    if (value) return place.insideEnv ? join(value, place.insideEnv) : value;
+    return place.default.replace(/^~(?=$|\/)/, this.home);
   }
 
   private async detectOne(
@@ -398,6 +422,7 @@ export class ProviderDetector {
   private async probeAuth(manifest: ProviderManifest, binaryPath: string, env: NodeJS.ProcessEnv): Promise<AuthProbe> {
     const probe = manifest.auth.probe;
     if (probe.kind === 'none') return { kind: 'none' };
+    if (probe.kind === 'file') return readCredentialsFile(this.locate(probe.file));
     const res = await this.exec(binaryPath, probe.args, env);
     if (res.outcome !== 'done') return { kind: res.outcome };
     if (probe.result === 'exit-code') return res.code === 0 ? { kind: 'ok', account: null } : { kind: 'signed-out' };

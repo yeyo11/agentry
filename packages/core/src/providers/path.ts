@@ -103,6 +103,8 @@ export async function installDirs(env: NodeJS.ProcessEnv = process.env, home: st
   return [
     join(home, '.local', 'bin'),
     join(home, '.claude', 'local'),
+    // OpenCode's install script (https://opencode.ai/install) puts its binary here
+    join(home, '.opencode', 'bin'),
     join(home, '.npm-global', 'bin'),
     join(home, '.bun', 'bin'),
     join(home, '.volta', 'bin'),

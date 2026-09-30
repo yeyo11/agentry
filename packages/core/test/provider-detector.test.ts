@@ -77,7 +77,7 @@ describe('satisfiesRange', () => {
 describe('ProviderDetector', () => {
   it('lists every provider as not installed on an empty machine', async () => {
     const all = await detector().refresh();
-    assert.deepEqual(all.map((s) => s.id), ['claude-code', 'codex', 'gemini', 'copilot']);
+    assert.deepEqual(all.map((s) => s.id), ['claude-code', 'codex', 'gemini', 'copilot', 'opencode']);
     for (const s of all) assert.deepEqual([s.state, s.reason, s.binaryPath], ['not-installed', 'binary-not-found', null]);
   });
 
@@ -133,6 +133,25 @@ describe('ProviderDetector', () => {
     assert.deepEqual([gemini.state, gemini.reason, gemini.version], ['unknown', 'no-probe', '0.9.1']);
   });
 
+  it('reads OpenCode sign-in from the credentials file its login writes', async () => {
+    await fake('opencode', 'echo "1.4.2"');
+    const signedOut = await statusOf(detector(), 'opencode');
+    assert.deepEqual([signedOut.state, signedOut.reason, signedOut.version], ['signed-out', 'missing-credentials', '1.4.2']);
+    const data = join(home, '.local', 'share', 'opencode');
+    await mkdir(data, { recursive: true });
+    await writeFile(join(data, 'auth.json'), '{}');
+    assert.equal((await statusOf(detector(), 'opencode')).state, 'signed-out', 'an empty object holds no login');
+    await writeFile(join(data, 'auth.json'), '{"anthropic": {"type": "api"}}');
+    assert.equal((await statusOf(detector(), 'opencode')).state, 'ready');
+    await writeFile(join(data, 'auth.json'), 'not json');
+    assert.equal((await statusOf(detector(), 'opencode')).state, 'unknown', 'a file it cannot read is not a missing login');
+  });
+
+  it('says OpenCode was used before from its config home alone', async () => {
+    await mkdir(join(home, '.config', 'opencode'), { recursive: true });
+    assert.equal((await statusOf(detector(), 'opencode')).state, 'used-before');
+  });
+
   it('keeps a probe that hangs from holding the rest', async () => {
     await fake('gemini', 'exec /bin/sleep 30');
     await fake('codex', CODEX(0));
@@ -172,7 +191,7 @@ describe('ProviderDetector', () => {
       defaultProvider: null,
     };
     const all = await detector({ settings }).refresh();
-    assert.deepEqual(all.map((s) => s.id), ['copilot', 'codex', 'claude-code', 'gemini']);
+    assert.deepEqual(all.map((s) => s.id), ['copilot', 'codex', 'claude-code', 'gemini', 'opencode']);
     assert.deepEqual([all[1]?.state, all[1]?.reason], ['unknown', 'disabled']);
     assert.equal(existsSync(join(bin, 'codex.log')), false);
   });

@@ -37,7 +37,7 @@ after(async () => {
 
 test('every provider is listed with a status, and one by id', async () => {
   const all = (await app.inject('/api/providers')).json<ProviderStatus[]>();
-  assert.deepEqual(all.map((s) => s.id), ['claude-code', 'codex', 'gemini', 'copilot']);
+  assert.deepEqual(all.map((s) => s.id), ['claude-code', 'codex', 'gemini', 'copilot', 'opencode']);
   const one = await app.inject('/api/providers/codex');
   assert.equal(one.statusCode, 200);
   assert.equal(one.json<ProviderStatus>().id, 'codex');
@@ -47,7 +47,7 @@ test('every provider is listed with a status, and one by id', async () => {
 test('settings read as the defaults until the first save, then persist in providers.json', async () => {
   const defaults = (await app.inject('/api/providers/settings')).json<ProvidersSettings>();
   assert.equal(defaults.defaultProvider, null);
-  assert.deepEqual(defaults.order, ['claude-code', 'codex', 'gemini', 'copilot']);
+  assert.deepEqual(defaults.order, ['claude-code', 'codex', 'gemini', 'copilot', 'opencode']);
   assert.ok(Object.values(defaults.providers).every((p) => p.enabled && p.binaryPath === null));
   assert.equal(existsSync(join(root, 'data', 'providers.json')), false);
 
@@ -59,7 +59,7 @@ test('settings read as the defaults until the first save, then persist in provid
   assert.equal(saved.statusCode, 200);
   const body = saved.json<ProvidersSettings>();
   assert.deepEqual(body.providers.gemini, { enabled: false, binaryPath: '/opt/gemini' });
-  assert.deepEqual(body.order, ['gemini', 'codex', 'claude-code', 'copilot'], 'a provider left out is appended');
+  assert.deepEqual(body.order, ['gemini', 'codex', 'claude-code', 'copilot', 'opencode'], 'a provider left out is appended');
   assert.equal(JSON.parse(readFileSync(join(root, 'data', 'providers.json'), 'utf8')).defaultProvider, 'codex');
   assert.deepEqual((await app.inject('/api/providers/settings')).json(), body);
 

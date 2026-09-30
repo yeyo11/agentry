@@ -10,11 +10,11 @@ test('the shipped manifests share no id and no command', () => {
   assert.doesNotThrow(() => new ProviderRegistry());
 });
 
-test('the registry lists the four providers and finds one by id', () => {
+test('the registry lists the five providers and finds one by id', () => {
   const registry = new ProviderRegistry();
   assert.deepEqual(
     registry.list().map((m) => m.id).sort(),
-    ['claude-code', 'codex', 'copilot', 'gemini'],
+    ['claude-code', 'codex', 'copilot', 'gemini', 'opencode'],
   );
   assert.equal(registry.get('codex')?.commands.names[0], 'codex');
   assert.equal(registry.get('nope'), undefined);

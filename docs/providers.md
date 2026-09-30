@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:00:00Z
-updated_at: 2026-09-30T14:00:00Z
+updated_at: 2026-09-30T13:51:15Z
 tags:
     - providers
     - detection
@@ -10,7 +10,7 @@ tags:
 # Providers
 
 A **provider** is a coding agent Agentry can drive: Claude Code today, then Codex, agents that speak
-the Agent Client Protocol (Gemini CLI among them) and GitHub Copilot CLI. This document is the
+the Agent Client Protocol (Gemini CLI, GitHub Copilot CLI and OpenCode among them). This document is the
 reference for what a provider is, how Agentry decides whether one is ready, how it finds the binary,
 and how to add one. The reasons and the order of work are in
 [plans/multi-provider.md](plans/multi-provider.md).
@@ -104,13 +104,16 @@ enabled manifest it resolves the binary, in this order:
    files can test to skip slow setup. Failure is typed: `no-shell`, `timeout`, `spawn-error` or
    `empty-path`. So a server started from a desktop session or a service finds what the terminal finds.
 3. **Install directories**, when the PATH has nothing: nvm (ordered by its `default` alias), volta,
-   asdf, mise, bun, pnpm, npm-global, `~/.local/bin`, `~/.claude/local`, Homebrew, nix and snap.
+   asdf, mise, bun, pnpm, npm-global, `~/.local/bin`, `~/.claude/local`, `~/.opencode/bin`,
+   Homebrew, nix and snap.
 
 Commands are resolved against PATH with `fs`, honouring `X_OK`, and never by spawning `which`:
 security software can gate every spawn. Aliases, `requires` and unsupported platforms are part of
 the lookup, and "absent" is kept apart from "could not check".
 
-With a binary, the detector reads the version and compares it with the range, runs the auth probe,
+With a binary, the detector reads the version and compares it with the range, runs the auth probe
+(a subcommand that answers in JSON or with its exit code, or, for a CLI that prints its login state
+only for people, the credentials file its login writes, as OpenCode's `auth.json`),
 and runs the handshake when the manifest has one that spends nothing. Each probe has its own
 timeout and all providers run in parallel. Without a binary, a config home that exists gives
 `used-before`; otherwise `not-installed`.

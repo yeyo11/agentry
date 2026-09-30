@@ -3,6 +3,7 @@ import { claudeCodeManifest } from './claude-code/manifest.ts';
 import { codexManifest } from './codex/manifest.ts';
 import { copilotManifest } from './copilot/manifest.ts';
 import { geminiManifest } from './gemini/manifest.ts';
+import { opencodeManifest } from './opencode/manifest.ts';
 import type { ProviderManifest } from './manifest.ts';
 
 export type { ProviderManifest } from './manifest.ts';
@@ -13,6 +14,7 @@ export const PROVIDER_MANIFESTS: readonly ProviderManifest[] = [
   codexManifest,
   geminiManifest,
   copilotManifest,
+  opencodeManifest,
 ];
 
 /**

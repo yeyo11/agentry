@@ -11,9 +11,10 @@ export interface ProviderConfigHome {
 }
 
 /**
- * How to tell whether a provider is signed in. `none` means the vendor documents no probe that
- * spends nothing, so readiness for that provider stays `unknown` with the reason `no-probe`
- * instead of a guess.
+ * How to tell whether a provider is signed in. `file` is for a CLI whose login writes a credentials
+ * file but prints its state only for people: a JSON object with at least one key is signed in.
+ * `none` means the vendor documents no probe that spends nothing, so readiness for that provider
+ * stays `unknown` with the reason `no-probe` instead of a guess.
  */
 export type ProviderAuthProbe =
   | {
@@ -22,6 +23,7 @@ export type ProviderAuthProbe =
       /** How the answer reads: `json` has a boolean `loggedIn`, `exit-code` means 0 is signed in */
       result: 'json' | 'exit-code';
     }
+  | { kind: 'file'; file: ProviderConfigHome }
   | { kind: 'none' };
 
 /**

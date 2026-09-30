@@ -152,7 +152,7 @@ describe('installDirs', () => {
   it('honours the variables that move volta-like homes and nvm', async () => {
     const home = join(root, 'home3');
     const dirs = await installDirs({ PNPM_HOME: '/p', ASDF_DATA_DIR: '/a', MISE_DATA_DIR: '/m', NVM_DIR: join(root, 'no-nvm') }, home);
-    for (const expected of ['/p', join('/a', 'shims'), join('/m', 'shims'), join(home, '.volta', 'bin'), join(home, '.bun', 'bin')]) {
+    for (const expected of ['/p', join('/a', 'shims'), join('/m', 'shims'), join(home, '.volta', 'bin'), join(home, '.bun', 'bin'), join(home, '.opencode', 'bin')]) {
       assert.ok(dirs.includes(expected), expected);
     }
   });

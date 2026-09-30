@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T12:43:36.708551256Z
-updated_at: 2026-09-30T13:29:37Z
+updated_at: 2026-09-30T13:51:15Z
 tags:
     - plan
     - providers
@@ -197,8 +197,11 @@ The decision engine's exception for Jev stays as it is.
      `CODEX_HOME` for accounts.
    - **Agent Client Protocol (ACP):** one driver for every agent that speaks it (Gemini CLI among
      them). Which agents do, and how stable their support is, is checked first.
-   - **GitHub Copilot CLI:** installed on the owner's machine. Its interface for programs (ACP, a
-     server mode, or none) is checked first; without one it waits.
+   - **GitHub Copilot CLI:** installed on the owner's machine; `copilot --help` lists `--acp`, so
+     it goes through the ACP driver.
+   - **OpenCode** (owner, 2026-09-30, the fifth provider): `opencode acp` is an ACP server over
+     stdin/stdout, so it goes through the ACP driver too. Sign-in is read from the `auth.json` its
+     login writes in its data directory.
 
 Agents that only have a terminal interface are not providers. A later "terminal" tab could host
 them, but they cannot run orchestration stages.
@@ -285,7 +288,8 @@ Scope limits of phase 1:
   - Check: core and desktop tests.
 - `c3` (manifests and registry), dependsOn c1.
   - `packages/core/src/providers/registry.ts`, and one folder per provider with its
-    `manifest.ts`: `claude-code`, `codex`, `gemini`, `copilot`. Each declares commands and aliases,
+    `manifest.ts`: `claude-code`, `codex`, `gemini`, `copilot`, and `opencode` (added by the owner
+    after P1). Each declares commands and aliases,
     required commands, unsupported platforms, config homes and the variable that moves them,
     version flag and tested range, auth probe, install and sign-in pages, transport, and
     capabilities (none for providers without a driver yet), each fact with its source in a comment.
