@@ -22,8 +22,8 @@ graph that orchestrations of Claude Code workers can build ([Phase 1](#phase-1-o
 [the action matrix](#the-action-matrix), with the exact arguments, where the answer is read from and
 whether it was recorded or comes from the documentation; every CLI call goes through
 [the execution layer](#the-execution-layer). What is still not recorded is listed
-[with its safe default](#what-is-still-not-recorded), and four questions remain
-[for the owner](#decisions-for-the-owner).
+[with its safe default](#what-is-still-not-recorded), and the four questions that were
+[the owner's](#decisions-for-the-owner) are settled.
 
 It runs beside [plans/multi-provider.md](multi-provider.md) and follows the same shape: one manifest
 per integration, a readiness state with a reason and a remedy, declared capabilities, and detection
@@ -207,7 +207,7 @@ for programs. For code hosts and trackers that means the vendor's CLI, and its `
 calling the vendor's documented API. **No REST client of Agentry's own**, no token of Agentry's own
 for a code host, **no agent ever pushes** (`stageRules` still denies `git push`; Agentry's own
 process pushes after the person approves). The one new secret Agentry stores is the YouTrack token
-that `youtrack-app` needs (see [decision 3 for the owner](#decisions-for-the-owner) on how it is
+that `youtrack-app` needs (see [owner decision 3](#decisions-for-the-owner) on how it is
 kept).
 
 ## The execution layer
@@ -1848,7 +1848,8 @@ issue keys and closing words in change requests; status sync on merge; `issue.tr
   `not-for-agents` (needs a person: access, a decision, outside the repository). Fields: `issues`
   (id, title, body cut to 2 KiB, labels). Shown as marks in the import dialog and on the imported
   cards; it moves nothing.
-- **The YouTrack token** is kept as [decision 3](#decisions-for-the-owner) settles, passed only in
+- **The YouTrack token** is kept per [decision 3](#decisions-for-the-owner): a 0600 file, encrypted
+  with Electron's `safeStorage` in the desktop app, plain on a server; passed only in
   the child's environment (`YOUTRACK_TOKEN`), never in argv (`--token` is visible to other local
   users), never returned by the API.
 - **Bodies for acli** go in a 0600 tmpfile (`--description-file`, `--body-file`); for
@@ -1953,8 +1954,8 @@ hook pointed at Agentry's public URL.
   (G2) and **Remove** (G3). The secret is kept per [decision 3](#decisions-for-the-owner)'s rule
   for secrets, never returned by the API.
 - **A new public URL** (the tunnel's name changes on every start): per
-  [decision 2](#decisions-for-the-owner), Agentry re-points its registered hooks (G7) or marks them
-  stale and asks.
+  [decision 2](#decisions-for-the-owner), Agentry re-points the hooks it registered (G7, by id) by
+  itself, and Integrations says when it did.
 - The GitLab hook is disabled by GitLab after 4 failures in a row (recorded); Agentry reads the
   hook (`disabled_until`, `alert_status`) when its deliveries stop and says so.
 
@@ -2131,7 +2132,7 @@ Each item has the phase task that records it and the safe default Agentry ships 
 | GitHub `HAS_HOOKS`, merge queues, secondary rate limits | not recordable on github.com with a personal account | `HAS_HOOKS` merges like `CLEAN`; a `merge_queue` rule gives `merge-queue` (merge on GitHub); secondary limits detected from the documented 403/429 + `Retry-After` |
 | GitLab 429 throttling | not recordable safely | Detected from the documented 429 + `Retry-After` and `RateLimit-*` headers |
 | GitHub non-Actions check runs (re-request) | not recordable without a third-party app | Shown with `check-not-rerunnable` and a link |
-| GitLab hook creation through `--input`, the signing token, PATCH/PUT of a hook's URL, resend | `w0` | Hooks are registered with the legacy token only; a URL change marks the hook stale and asks ([decision 2](#decisions-for-the-owner)) until `w0` records G7 |
+| GitLab hook creation through `--input`, the signing token, PATCH/PUT of a hook's URL, resend | `w0` | Hooks are registered with the legacy token only; a URL change marks the hook stale and asks until `w0` records G7; after it, Agentry re-points by itself ([decision 2](#decisions-for-the-owner)) |
 | gh `--search` on `issue list`, glab `issue update -u`, glab labels endpoint | `t0` | Import queries use the list filters that are recorded (state, labels) and the tracker's page; label removal on GitLab goes through a full label set |
 | Everything about `acli` and `youtrack-app` | `t0` | Phase 5 does not start before `t0` |
 | gh releases between 2.92.0 and 2.102.0 other than those two | not planned | `ready` (the owner's floor): the two recorded ends agree on everything used, and the one known change (2.97.0) is branched on |
@@ -2139,7 +2140,7 @@ Each item has the phase task that records it and the safe default Agentry ships 
 
 ## Decisions for the owner
 
-Everything else in this plan is decided. These four are the owner's; the first is settled.
+The owner settled these four on 2026-09-30.
 
 1. **Approve and request changes on GitHub: decided (owner, 2026-09-30), (c).** GitHub refuses
    approve and request-changes on one's own pull request (recorded), so their success path cannot be
@@ -2147,37 +2148,23 @@ Everything else in this plan is decided. These four are the owner's; the first i
    "Open on GitHub". GitLab keeps Approve (D9, recorded). No second account is created, and
    enterprise hosts stay doc-only. Rejected: (a) a second free account signed in to `gh` and `glab`
    through a scratch config directory, for `r0` only; (b) borrowing a collaborator's review.
-2. **Webhooks when the public URL changes.** The tunnel (localhost.run) gets a new name on every
-   start, so a registered hook points at a dead URL after a restart.
-   - (a) Registering a hook is standing consent: Agentry re-points its own hooks (only those it
-     registered, by id) to the new URL by itself, and the Integrations page says when it did.
-   - (b) Agentry marks the hooks stale and asks the person to re-point them, one click per project.
-   - (c) Webhooks only with a stable public URL (a deployment's origin); with the tunnel, polling
-     only.
-   - **Recommendation: (a)**: it is the same write the person approved, to the same hook, and
-     without it the tunnel makes webhooks useless; polling stays the source of truth either way.
-3. **Trackers: accounts for `t0`, and how the YouTrack token is kept.** Phase 5 cannot be built on
-   guesses, and owner decision 4 says the token is stored encrypted, but Agentry has no key store
-   today: the decision engine's key is a 0600 file, not encrypted.
-   - (a) The owner provides a Jira Cloud site and a YouTrack instance for `t0` (free tiers exist for
-     both), and the token is kept in a 0600 file like the decision engine's key, encrypted with the
-     operating system's keyring where Agentry runs as the desktop app (Electron's `safeStorage`),
-     plain 0600 on a server.
-   - (b) As (a), but always a plain 0600 file, and the plan's word "encrypted" is dropped.
-   - (c) Build phase 5 with GitHub and GitLab issues only, and add Jira and YouTrack when accounts
-     are available.
-   - **Recommendation: (a)**: it keeps decision 4 where the platform can honour it and says
-     plainly where it cannot. If accounts are not available soon, (c) lets phase 5 ship its GitHub
-     and GitLab half first.
-4. **Pushing a fix without a second click.** When the person clicks **Fix failing checks** or
-   **Address with an agent**, the Developer fixes and QA verifies; then something must push.
-   - (a) The click counts as the approval to push the QA-verified fix, as a conflict resolution does
-     today; a fix started by `checks.fix` always waits for **Push the fix**; a person's move of the
-     card drops the remembered approval.
-   - (b) Every fix waits for **Push the fix**, whoever started it.
-   - (c) As (a), and `checks.fix` may push too when the person turned on an extra project setting.
-   - **Recommendation: (a)**: it matches the conflict path people already know, and nothing an
-     automation starts ever reaches the host without a person.
+2. **Webhooks when the public URL changes: decided (owner, 2026-09-30), (a).** The tunnel
+   (localhost.run) gets a new name on every start. Registering a hook is standing consent: Agentry
+   re-points the hooks it registered (by id, never others) to the new URL by itself, and the
+   Integrations page says when it did; polling stays the source of truth. Rejected: (b) marking the
+   hooks stale and asking for a click per project; (c) webhooks only with a stable public URL.
+3. **Trackers: accounts for `t0`, and how the YouTrack token is kept: decided (owner, 2026-09-30),
+   (a).** The owner provides a Jira Cloud site and a YouTrack instance for `t0` (free tiers exist for
+   both). The token is kept in a 0600 file like the decision engine's key, encrypted with the
+   operating system's keyring through Electron's `safeStorage` when Agentry runs as the desktop app,
+   and plain 0600 on a server; the Integrations page says which. Rejected: (b) always a plain 0600
+   file; (c) GitHub and GitLab issues only until accounts exist (still the fallback if `t0` cannot
+   run before phase 5).
+4. **Pushing a fix without a second click: decided (owner, 2026-09-30), (a).** The click on **Fix
+   failing checks** or **Address with an agent** is the approval to push the QA-verified fix, as a
+   conflict resolution is today; a fix started by `checks.fix` always waits for **Push the fix**;
+   a person's move of the card drops the remembered approval. Rejected: (b) every fix waits for
+   **Push the fix**; (c) as (a), with a project setting that lets `checks.fix` push too.
 
 ## Open
 
