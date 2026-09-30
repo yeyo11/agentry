@@ -18,9 +18,11 @@
     "loop": {
       "command": "`{{command}}` se ejecutó {{count}} veces con el mismo resultado.",
       "call": "La misma llamada a {{tool}} se ejecutó {{count}} veces con el mismo resultado.",
-      "error": "El mismo error volvió {{count}} veces: \"{{error}}\""
+      "error": "El mismo error volvió {{count}} veces: \"{{error}}\"",
+      "semantic": "Los últimos {{count}} pasos parecen el mismo intento otra vez (una sugerencia: ningún paso se repitió exactamente)."
     },
     "weakenedTest": {
+      "judged": "`{{file}}` se editó y puede que la edición compruebe menos que antes (una sugerencia, no una certeza).",
       "assertionsRemoved_one": "`{{file}}` se editó para que compruebe menos: se quitó {{count}} aserción.",
       "assertionsRemoved_other": "`{{file}}` se editó para que compruebe menos: se quitaron {{count}} aserciones.",
       "skipped": "`{{file}}` se editó para que compruebe menos: se omite una prueba.",
