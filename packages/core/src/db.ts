@@ -7,6 +7,21 @@ import type {
   HealthSignalKind,
   AuditPage,
   AutoSwitchEvent,
+  DecisionAnswer,
+  DecisionFeedback,
+  DecisionFilter,
+  DecisionPage,
+  DecisionPageQuery,
+  DecisionPointId,
+  DecisionPointKind,
+  DecisionPointStats,
+  DecisionProviderId,
+  DecisionQuestion,
+  DecisionRecord,
+  DecisionResolution,
+  DecisionStats,
+  DecisionSubjectKind,
+  DecisionUnavailableReason,
   EffectiveEnvironment,
   Execution,
   Orchestration,
@@ -481,6 +496,44 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    CREATE INDEX work_item_pull_requests_item ON work_item_pull_requests (item_id, created_at);
    CREATE INDEX work_item_pull_requests_phase ON work_item_pull_requests (phase);
    ALTER TABLE flow_runs ADD COLUMN criteria TEXT;`,
+  // The decision engine's history (docs/plans/decision-engine.md): one row per question batch sent
+  // to a provider. Rows, because they accumulate, and the shadow comparison needs each answer next
+  // to what later happened. `seq` is the paging cursor; `state` is the exact state sent, which the
+  // consent preview reads back
+  `CREATE TABLE decisions (
+     seq            INTEGER PRIMARY KEY AUTOINCREMENT,
+     id             TEXT NOT NULL UNIQUE,
+     point          TEXT NOT NULL,
+     kind           TEXT NOT NULL,
+     project_id     TEXT,
+     subject_kind   TEXT NOT NULL,
+     subject_id     TEXT,
+     provider       TEXT NOT NULL,
+     model          TEXT NOT NULL,
+     mode           TEXT NOT NULL,
+     status         TEXT NOT NULL,
+     unavailable    TEXT,
+     state          TEXT NOT NULL,
+     questions      TEXT NOT NULL,
+     answers        TEXT,
+     confidence     REAL,
+     threshold      REAL,
+     acted          INTEGER NOT NULL,
+     visible        INTEGER NOT NULL,
+     saved_run      INTEGER NOT NULL,
+     latency_ms     INTEGER NOT NULL,
+     input_tokens   INTEGER,
+     cost_usd       REAL,
+     outcome        TEXT,
+     agreed         INTEGER,
+     resolved_at    TEXT,
+     feedback       TEXT,
+     feedback_at    TEXT,
+     at             TEXT NOT NULL
+   );
+   CREATE INDEX decisions_point_at ON decisions (point, at);
+   CREATE INDEX decisions_project_at ON decisions (project_id, at);
+   CREATE INDEX decisions_subject ON decisions (subject_kind, subject_id);`,
 ];
 
 /**
@@ -1098,6 +1151,167 @@ export class Db {
     return Number(result.changes) > 0;
   }
 
+  // ---------- decisions ----------
+
+  /** Stores a decision as the engine recorded it; the engine picks the id and the time. */
+  insertDecision(d: DecisionRecord): void {
+    this.db
+      .prepare(
+        `INSERT INTO decisions (id, point, kind, project_id, subject_kind, subject_id, provider, model, mode, status, unavailable,
+           state, questions, answers, confidence, threshold, acted, visible, saved_run, latency_ms, input_tokens, cost_usd,
+           outcome, agreed, resolved_at, feedback, feedback_at, at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        d.id,
+        d.point,
+        d.kind,
+        d.projectId,
+        d.subjectKind,
+        d.subjectId,
+        d.provider,
+        d.model,
+        d.mode,
+        d.status,
+        d.unavailable,
+        JSON.stringify(d.state),
+        JSON.stringify(d.questions),
+        d.answers ? JSON.stringify(d.answers) : null,
+        d.confidence,
+        d.threshold,
+        d.acted ? 1 : 0,
+        d.visible ? 1 : 0,
+        d.savedRun ? 1 : 0,
+        d.latencyMs,
+        d.inputTokens,
+        d.costUsd,
+        d.outcome ? JSON.stringify(d.outcome) : null,
+        d.agreed === null ? null : d.agreed ? 1 : 0,
+        d.resolvedAt,
+        d.feedback,
+        d.feedbackAt,
+        d.at,
+      );
+  }
+
+  decision(id: string): DecisionRecord | null {
+    const row = this.db.prepare('SELECT * FROM decisions WHERE id = ?').get(id) as DecisionRow | undefined;
+    return row ? decisionOf(row) : null;
+  }
+
+  /**
+   * Records what really happened. A person's feedback outranks the inference, so `agreed` is left
+   * alone once there is some. False when the row is gone or was already resolved: a point may report
+   * twice, and the first word stands.
+   */
+  resolveDecision(id: string, outcome: DecisionResolution, at: string): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE decisions SET outcome = ?, resolved_at = ?, agreed = CASE WHEN feedback IS NULL THEN ? ELSE agreed END
+         WHERE id = ? AND resolved_at IS NULL`,
+      )
+      .run(JSON.stringify(outcome), at, outcome.agreed ? 1 : 0, id);
+    return Number(result.changes) > 0;
+  }
+
+  /** Useful agrees with the answer and not useful disagrees (D13); the latest word replaces the last. */
+  setDecisionFeedback(id: string, feedback: DecisionFeedback, at: string): boolean {
+    const result = this.db
+      .prepare('UPDATE decisions SET feedback = ?, feedback_at = ?, agreed = ? WHERE id = ?')
+      .run(feedback, at, feedback === 'useful' ? 1 : 0, id);
+    return Number(result.changes) > 0;
+  }
+
+  /** Newest first. The cursor is the `seq` of the last row of the previous page. */
+  listDecisions(query: DecisionPageQuery = {}): DecisionPage {
+    const limit = Math.min(Math.max(Math.trunc(query.limit ?? 50), 1), 500);
+    const { where, params } = decisionWhere(query);
+    const cursor = query.cursor === undefined ? NaN : Number(query.cursor);
+    if (Number.isInteger(cursor)) {
+      where.push('seq < ?');
+      params.push(cursor);
+    }
+    const rows = this.db
+      .prepare(`SELECT * FROM decisions ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY seq DESC LIMIT ?`)
+      .all(...params, limit + 1) as unknown as DecisionRow[];
+    const page = rows.slice(0, limit);
+    const last = page[page.length - 1];
+    return { items: page.map(decisionOf), nextCursor: rows.length > limit && last ? String(last.seq) : null };
+  }
+
+  /** Per point, over the rows since `since`; points with no row in the window are absent. */
+  decisionStats(since: string): DecisionStats {
+    const rows = this.db
+      .prepare(
+        `SELECT point,
+           COUNT(*) AS count,
+           COALESCE(SUM(acted), 0) AS acted,
+           COALESCE(SUM(status = 'unavailable'), 0) AS unavailable,
+           AVG(confidence) AS mean_confidence,
+           COALESCE(SUM(resolved_at IS NOT NULL), 0) AS resolved,
+           COALESCE(SUM(agreed = 1), 0) AS agreed,
+           COALESCE(SUM(feedback = 'useful'), 0) AS useful,
+           COALESCE(SUM(feedback = 'not_useful'), 0) AS not_useful,
+           COALESCE(SUM(cost_usd), 0) AS cost_usd,
+           COALESCE(SUM(acted = 1 AND saved_run = 1), 0) AS runs_saved
+         FROM decisions WHERE at >= ? GROUP BY point ORDER BY point`,
+      )
+      .all(since) as unknown as Array<{
+      point: string;
+      count: number;
+      acted: number;
+      unavailable: number;
+      mean_confidence: number | null;
+      resolved: number;
+      agreed: number;
+      useful: number;
+      not_useful: number;
+      cost_usd: number;
+      runs_saved: number;
+    }>;
+    const points: DecisionPointStats[] = rows.map((r) => ({
+      point: r.point as DecisionPointId,
+      count: r.count,
+      acted: r.acted,
+      unavailable: r.unavailable,
+      meanConfidence: r.mean_confidence,
+      resolved: r.resolved,
+      agreed: r.agreed,
+      useful: r.useful,
+      notUseful: r.not_useful,
+      costUsd: r.cost_usd,
+      runsSaved: r.runs_saved,
+    }));
+    const jev = this.db.prepare("SELECT COALESCE(SUM(cost_usd), 0) AS n FROM decisions WHERE at >= ? AND provider = 'jev'").get(since) as { n: number } | undefined;
+    return {
+      since,
+      points,
+      jevCostUsd: jev?.n ?? 0,
+      claudeRunsSaved: points.reduce((sum, p) => sum + p.runsSaved, 0),
+    };
+  }
+
+  /** The newest row of a point, for the consent preview's "what was sent last" (D12). */
+  lastDecisionOf(point: DecisionPointId): DecisionRecord | null {
+    const row = this.db.prepare('SELECT * FROM decisions WHERE point = ? ORDER BY seq DESC LIMIT 1').get(point) as DecisionRow | undefined;
+    return row ? decisionOf(row) : null;
+  }
+
+  deleteDecision(id: string): boolean {
+    return Number(this.db.prepare('DELETE FROM decisions WHERE id = ?').run(id).changes) > 0;
+  }
+
+  /** Deletes the rows a filter matches; an empty filter clears the history. Returns how many went. */
+  clearDecisions(filter: DecisionFilter = {}): number {
+    const { where, params } = decisionWhere(filter);
+    return Number(this.db.prepare(`DELETE FROM decisions ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`).run(...params).changes);
+  }
+
+  /** Drops decisions older than `before`. Returns how many went. */
+  pruneDecisions(before: string): number {
+    return Number(this.db.prepare('DELETE FROM decisions WHERE at < ?').run(before).changes);
+  }
+
   // ---------- push subscriptions ----------
 
   /**
@@ -1238,4 +1452,87 @@ function proposalOf(row: ProposalRow): SupervisorProposal {
     at: row.at,
     status: row.status as SupervisorProposalStatus,
   };
+}
+
+interface DecisionRow {
+  seq: number;
+  id: string;
+  point: string;
+  kind: string;
+  project_id: string | null;
+  subject_kind: string;
+  subject_id: string | null;
+  provider: string;
+  model: string;
+  mode: string;
+  status: string;
+  unavailable: string | null;
+  state: string;
+  questions: string;
+  answers: string | null;
+  confidence: number | null;
+  threshold: number | null;
+  acted: number;
+  visible: number;
+  saved_run: number;
+  latency_ms: number;
+  input_tokens: number | null;
+  cost_usd: number | null;
+  outcome: string | null;
+  agreed: number | null;
+  resolved_at: string | null;
+  feedback: string | null;
+  feedback_at: string | null;
+  at: string;
+}
+
+function decisionOf(row: DecisionRow): DecisionRecord {
+  return {
+    id: row.id,
+    point: row.point as DecisionPointId,
+    kind: row.kind as DecisionPointKind,
+    projectId: row.project_id,
+    subjectKind: row.subject_kind as DecisionSubjectKind,
+    subjectId: row.subject_id,
+    provider: row.provider as DecisionProviderId,
+    model: row.model,
+    mode: row.mode as DecisionRecord['mode'],
+    status: row.status as DecisionRecord['status'],
+    unavailable: row.unavailable as DecisionUnavailableReason | null,
+    state: JSON.parse(row.state) as Record<string, unknown>,
+    questions: JSON.parse(row.questions) as DecisionQuestion[],
+    answers: row.answers ? (JSON.parse(row.answers) as Record<string, DecisionAnswer>) : null,
+    confidence: row.confidence,
+    threshold: row.threshold,
+    acted: row.acted === 1,
+    visible: row.visible === 1,
+    savedRun: row.saved_run === 1,
+    latencyMs: row.latency_ms,
+    inputTokens: row.input_tokens,
+    costUsd: row.cost_usd,
+    outcome: row.outcome ? (JSON.parse(row.outcome) as DecisionResolution) : null,
+    agreed: row.agreed === null ? null : row.agreed === 1,
+    resolvedAt: row.resolved_at,
+    feedback: row.feedback as DecisionFeedback | null,
+    feedbackAt: row.feedback_at,
+    at: row.at,
+  };
+}
+
+function decisionWhere(filter: DecisionFilter): { where: string[]; params: SQLInputValue[] } {
+  const where: string[] = [];
+  const params: SQLInputValue[] = [];
+  const add = (clause: string, value: string | undefined) => {
+    if (value === undefined) return;
+    where.push(clause);
+    params.push(value);
+  };
+  add('point = ?', filter.point);
+  add('project_id = ?', filter.projectId);
+  add('provider = ?', filter.provider);
+  add('mode = ?', filter.mode);
+  add('status = ?', filter.status);
+  add('at >= ?', filter.since);
+  add('at <= ?', filter.until);
+  return { where, params };
 }
