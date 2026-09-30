@@ -1,0 +1,252 @@
+/* Providers (docs/plans/multi-provider.md, P2): readiness rows, first run, order and binary. Ported
+   from the validated prototype (agentry-ds.css, "Providers"). Nothing here is live and nothing takes
+   a gradient: the state is a badge with its word, the remedy a neutral button, and the only gradient
+   on a screen is the one the screen already had. */
+.prov-row {
+  display: grid;
+  grid-template-columns: 20px 36px minmax(0, 250px) minmax(0, 1fr) auto 34px;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.prov-row:last-child {
+  border-bottom: 0;
+}
+
+/* First run: no handle and no switch, the person is only reading what was found */
+.prov-row.compact {
+  grid-template-columns: 36px minmax(0, 250px) minmax(0, 1fr) auto;
+}
+
+.prov-row .monogram {
+  font-size: 12px;
+}
+
+.prov-row.open {
+  background: var(--bg-1);
+  border-bottom: 0;
+}
+
+.prov-row.lifted {
+  background: var(--bg-3);
+  box-shadow: var(--shadow-pop);
+  border-radius: var(--radius);
+  position: relative;
+  z-index: 1;
+}
+
+.prov-drop {
+  height: 2px;
+  margin: -1px 18px;
+  border-radius: var(--radius-xs);
+  background: var(--accent);
+}
+
+.prov-grip {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 36px;
+  color: var(--fg-3);
+  cursor: grab;
+}
+
+.prov-id {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.prov-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.prov-account {
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.prov-meta {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+
+.prov-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.prov-reason {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fg-2);
+}
+
+.prov-checking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--fg-3);
+}
+
+.prov-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* A secondary remedy beside the state's own: the same button without its border */
+.btn.prov-quiet {
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  color: var(--fg-2);
+}
+
+.btn.prov-quiet:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--bg-3);
+  color: var(--fg);
+}
+
+.prov-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.prov-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+/* The binary override, open under its row: the path Agentry uses instead of looking on PATH */
+.prov-bin {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 18px 16px 88px;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--line);
+}
+
+.prov-bin-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Phone: a cell per provider that stacks, and the order list of the Sheet */
+.prov-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.prov-cell:last-child {
+  border-bottom: 0;
+}
+
+.prov-cell-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.prov-cell-head .prov-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prov-cell-head .prov-id {
+  flex: 1 1 0;
+}
+
+.prov-cell .prov-reason {
+  font-size: 14px;
+}
+
+.prov-cell .prov-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.prov-cell .btn {
+  min-height: var(--touch);
+}
+
+.prov-order-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--touch);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.prov-order-row:last-child {
+  border-bottom: 0;
+}
+
+.prov-order-row .prov-grip {
+  width: 24px;
+}
+
+.prov-radio {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--line-3);
+  display: grid;
+  place-items: center;
+}
+
+.prov-radio.on {
+  border-color: var(--accent-2);
+}
+
+.prov-radio.on::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-2);
+}
+
+/* First run: a full page with no shell, the list narrow and centred */
+.prov-first {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.prov-step-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--fg-3);
+}

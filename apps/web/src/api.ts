@@ -109,6 +109,8 @@ import type {
   PluginsOverview,
   Project,
   ProjectCandidate,
+  ProviderStatus,
+  ProvidersSettings,
   PushKeyInfo,
   PushSendResult,
   PushSubscriptionSummary,
@@ -838,6 +840,12 @@ export const api = {
   removePush: (body: RemovePushSubscriptionRequest) => request<{ removed: boolean }>('/push/subscriptions', { method: 'DELETE', body }),
   /** No body at all means every registered install; `{ id }` the one row a person aimed at */
   testPush: (body: SendTestPushRequest = {}) => request<PushSendResult>('/push/test', { method: 'POST', body }),
+  providers: (o: ReadOptions = {}) => request<ProviderStatus[]>('/providers', o),
+  provider: (id: string, o: ReadOptions = {}) => request<ProviderStatus>(`/providers/${enc(id)}`, o),
+  /** Skips the detector's cache; the answer is the fresh statuses */
+  refreshProviders: () => request<ProviderStatus[]>('/providers/refresh', { method: 'POST' }),
+  providerSettings: (o: ReadOptions = {}) => request<ProvidersSettings>('/providers/settings', o),
+  putProviderSettings: (settings: ProvidersSettings) => request<ProvidersSettings>('/providers/settings', { method: 'PUT', body: settings }),
 };
 
 // ---------- Query hooks ----------
@@ -847,6 +855,8 @@ export const keys = {
   auth: ['auth'] as const,
   cliVersion: ['cli-version'] as const,
   release: ['release'] as const,
+  providers: ['providers'] as const,
+  providerSettings: ['providers', 'settings'] as const,
   projects: ['projects'] as const,
   projectCandidates: ['projects', 'candidates'] as const,
   // Prefixes the event feed invalidates: every list and every open chat sits under them
