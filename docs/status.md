@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-09-29T12:00:00Z
+updated_at: 2026-09-30T18:00:00Z
 tags:
     - status
     - project-state
@@ -133,7 +133,7 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 | [`plans/agentry-assistant.md`](plans/agentry-assistant.md) | Proposed, next after the ecosystem |
 | [`plans/flow-start-and-chat-token.md`](plans/flow-start-and-chat-token.md) | Proposed; part 1 (starting the waiting cards) built by CW-9 on its own branch, not yet on `main`; part 2 (the chat token) not started |
 | [`plans/multi-provider.md`](plans/multi-provider.md) | Phase 1 built on `feat/multi-provider` (2026-09-30): five provider manifests (Claude Code, Codex, Gemini, Copilot, OpenCode), readiness detection, `/providers` routes, the first-run Providers step, Settings → Providers and the status bar dots; the one rule generalised. Phases 2–4 (Claude on the Agent SDK, Codex/ACP drivers, rotation between providers) planned. See [Outcome of phase 1](plans/multi-provider.md#outcome-of-phase-1) and [`providers.md`](providers.md) |
-| [`plans/code-hosts.md`](plans/code-hosts.md) | Planned (2026-09-30): GitHub (`gh`) and GitLab (`glab`) as code hosts, complete — PRs/MRs, CI checks and fixing them, reviews, merging from Agentry — and GitHub/GitLab issues, Jira (`acli`) and YouTrack (`youtrack-app`) as work items; polling with optional webhooks |
+| [`plans/code-hosts.md`](plans/code-hosts.md) | Planned (2026-09-30): GitHub (`gh`) and GitLab (`glab`) as code hosts, complete — PRs/MRs, CI checks and fixing them, reviews, merging from Agentry — and GitHub/GitLab issues, Jira (`acli`) and YouTrack (`youtrack-app`) as work items; polling with optional webhooks. Phase 1 (hosts and readiness) is designed as three orchestrations on `feat/code-hosts` — prototypes, core, web — in [its task graph](plans/code-hosts.md#phase-1-orchestrations-and-task-graph), with three questions open for the owner |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.
