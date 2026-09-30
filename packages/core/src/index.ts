@@ -117,6 +117,7 @@ import { AssistantError, AssistantService, type AssistantKnown, type AssistantLa
 import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo } from './git.ts';
 import { DecisionEngine } from './decisions/engine.ts';
+import { DecisionResolvers } from './decisions/resolve.ts';
 import { CliDecisionProvider } from './decisions/providers/cli.ts';
 import { JevProvider } from './decisions/providers/jev.ts';
 import { DecisionCredentialStore, DecisionSettingsStore } from './decisions/settings.ts';
@@ -294,6 +295,7 @@ export class Core {
   readonly decisionCredentials: DecisionCredentialStore;
   /** The one door every decision point asks through; providers register themselves on it */
   readonly decisions: DecisionEngine;
+  private readonly decisionResolvers: DecisionResolvers;
   readonly schedules: Scheduler;
   /** Web Push: the VAPID keypair, the installs registered to be woken, and the sender behind them */
   readonly push: PushService;
@@ -487,8 +489,18 @@ export class Core {
     // c6 left this wiring to the routes' worker: without it `jev` is never registered
     this.decisions.register(new JevProvider({ getKey: () => this.decisionCredentials.getKey() }));
     this.decisions.startPruning();
+    this.decisionResolvers = new DecisionResolvers({
+      sql: this.db.connection,
+      db: this.db,
+      engine: this.decisions,
+      historyDays: () => this.decisionSettings.get().historyDays,
+    });
+    this.events.observe((event) => this.decisionResolvers.observe(event));
+    this.decisionResolvers.start();
     this.orchestrator.decisions = this.decisions;
     this.orchestrator.projectOf = (cwd) => this.projectOf(resolve(cwd)).project?.id ?? null;
+    this.push.decisions = this.decisions;
+    this.health.decisions = this.decisions;
     this.healthMonitor = new HealthMonitor({
       runtime: this.runtime,
       health: this.health,
@@ -514,6 +526,7 @@ export class Core {
       chats: this.chats,
       sessions: this.sessions,
       runtime: this.runtime,
+      decisions: this.decisions,
       // A chat on a work item works in the item's worktree, cut from the project's checkout
       forkedFrom: (chatId) => {
         const itemId = this.workItems.linksOfChat(chatId).find((l) => l.kind === 'chat' && l.role !== 'origin')?.itemId;
@@ -1992,6 +2005,10 @@ export class Core {
   async workItemChanges(itemId: string, scope: ChangeScope = {}): Promise<WorkItemChanges> {
     const item = await this.workItemAccess(itemId, 'read');
     const path = this.projectStore.get(item.projectId)?.path ?? item.worktree ?? '';
+    // The scope-drift point flags in the background; the page never waits for it
+    if (!scope.commit && !scope.uncommitted) {
+      void this.changes.scopeDrift(path, item, { id: item.id, projectId: item.projectId, title: item.title, criteria: item.acceptanceCriteria.map((c) => c.text) });
+    }
     return { worktree: item.worktree, branch: item.branch, summary: this.changes.itemChanges(path, item, scope) };
   }
 
@@ -2056,6 +2073,7 @@ export class Core {
     this.cliVersion.stop();
     this.release.stop();
     this.healthMonitor.stop();
+    this.decisionResolvers.stop();
     this.decisions.stop();
     this.orchestrator.close();
     this.schedules.close();
