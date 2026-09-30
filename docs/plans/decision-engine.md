@@ -26,13 +26,15 @@ The owner's eighteen decisions of 2026-09-28 are recorded in
 [decisions/decision-engine.md](../decisions/decision-engine.md) and are not repeated here, only
 cited as *D1…D18*. Where this plan and that record disagree, the record wins.
 
-Status: **planned on 2026-09-29 (CW-5), not built.** Every location below was first checked on
-`main` at `80916ccc` (0.24.0), then **checked again on `main` at `e7519f86` (after 0.25.0) on
-2026-09-30**; what that second pass changed is listed in
+Status: **built on 2026-09-30 on `feat/decision-engine`, one pull request to `main`.** See
+[Outcome](#outcome). Planned on 2026-09-29 (CW-5); every location below was first checked on `main`
+at `80916ccc` (0.24.0), then **checked again on `main` at `e7519f86` (after 0.25.0) on 2026-09-30**;
+what that second pass changed is listed in
 [Reconciled with main](#reconciled-with-main-on-2026-09-30-e7519f86). The first draft, on the local
 branch `docs/decision-engine-plan` (28f63c65), was input only. Its open questions are all answered by
 the decisions record; the one question the reconciliation raised is in
-[Open question for the owner](#open-question-for-the-owner).
+[Open question for the owner](#open-question-for-the-owner). The feature is documented in
+[decision-engine.md](../decision-engine.md).
 
 ## Goal and non-goals
 
@@ -1003,8 +1005,71 @@ option A until the owner answers.
   its answer is recorded for the metrics but never acted on. Shadow accuracy keeps its n, and the
   cost is spent after the fact on answers nothing uses.
 
+## Outcome
+
+Built on 2026-09-30 by the orchestrations below, each on its own branch, merged into
+`feat/decision-engine` in dependency order (main 0.25.1 plus the engine). Typecheck and the unit
+suites passed on every merge. The e2e suite, with `decisions.spec.mjs`, runs sharded once on the
+merged branch. The feature is documented in [decision-engine.md](../decision-engine.md).
+
+- **D0 · prototypes.** The Decisions tab (Engine, points, consent dialog for `jev` and for `cli`,
+  History, phone sheets), the project override, the "decided" mark and the Usage line, in
+  `docs/design-system/reference/` (`*AjustesDecisiones*`, `MobileProyectoAjustesDecisiones`,
+  `DesktopUso`), with their variants in `docs/design-system.md`. Validated before any web code.
+- **D1 · core.** Shared types and regenerated OpenAPI schemas; the `decisions` table and store
+  methods; `decisions.json` and `decision-credentials.json`; the engine, redaction and the point
+  catalogue (`decisions/points.ts`); the `cli` provider (through `buildArgs` with `jsonSchema`,
+  `effort`, `maxBudgetUsd`, `confine`, and the new `NewChat.api: false`) and the `jev` provider
+  behind its adapter; the routes in `apps/api/src/routes/decisions.ts`, with the chat-token `403` set
+  in `security.ts`.
+- **D2 · points.** All 22 points wired at their call sites, shipping `off`: the flow (`w1`), the
+  project knowledge points (`w2`), the runtime (`w3`), the signals (`w4`), and the resolvers for
+  shadow accuracy (`w5`, `decisions/resolve.ts`, 19 points). Call sites go through `stanceOf`
+  (`decisions/stance.ts`): a point that is off costs nothing.
+- **D3 · UI.** The Decisions tab and the `?tab=supervisor` alias (`u1`); the consent dialog with the
+  preview, per-point metrics and History (`u2`); the project override (`u3`); the "decided" mark and
+  popover with feedback, and subject filters on `GET /decisions` (`u4`); the Usage line, the palette
+  call site and the board triage route with the New task prefill (`u5`); unexplained hunks in the
+  step patch (`u6`).
+- **D4 · e2e.** `e2e/specs/decisions.spec.mjs`: the tab from `?tab=supervisor`, a point to shadow
+  through consent, a History row from a faked CLI provider, phone layout and axe.
+- **D5 · docs and verification.** [decision-engine.md](../decision-engine.md), this Outcome,
+  `status.md`, the README "How it talks to Claude" table (the `cli` provider only) and the `cli`
+  provider's prompt in the inventory and the twelve-point check of [prompts.md](../prompts.md).
+
+**Past the plan's text:**
+
+- The catalogue entry carries `visible` and `stateVersion` beside the plan's fields. `visible` is what
+  makes the mark show (the plan's `visible` column); `stateVersion` is what clears consent when a
+  state changes shape.
+- `GET /decisions` gained `subjectKind`, `subjectId` and `visible` filters, so a surface can ask for
+  the decision of the thing it shows.
+- `POST /projects/:id/work-items/triage` and `POST /decisions/palette` are the two call-site routes
+  for `board.triage` and `palette.intent`.
+- The Decisions tab's effort control is a `Segmented` the tab added itself, because CW-25 was not on
+  `main` (see below).
+
+**What stays open:**
+
+- **Three points have no resolver:** `palette.intent` (whether the person runs the proposed command),
+  `notification.urgency` (an `opened_at` set when the app opens from a notification) and
+  `orchestration.model` (the person's edit of the task model before launch, and the task's outcome).
+  They record rows and take useful / not useful, but their shadow agreement stays empty until their
+  signals are stored.
+- **CW-4 seam.** `CliDecisionProvider.available()` is always true. When CW-4's pool-wide
+  `exhaustedUntil` hold lands, it should be false while the hold is in the future and answer `no-quota`
+  without starting a chat; today a rate-limited decision chat answers `rate-limited`. The
+  `orchestration.retry` and `run.continuation` resolvers must also ignore `limited` executions then.
+- **CW-25 seam.** The tab's `Segmented` effort control should give way to CW-25's control, and
+  `orchestration.model` may suggest an effort per task only once a task can carry one.
+- **Not built, as planned:** the global Agentry assistant's tool choice and CW-15's `e2e-specs` choice
+  as points; CW-13's `decision` chat role.
+- **Shadow period.** Nothing has been measured yet: the owner runs chosen points in `shadow` on their
+  own projects, then moves them to `active` one at a time from `/decisions/stats`.
+
 ## Related
 
+- [[decision-engine.md]]: the feature as built.
 - [[decisions/decision-engine.md]]: the owner's eighteen decisions this plan builds.
 - [[decisions/english-technical-language.md]]: English questions and rubrics (D4).
 - [[plans/project-ecosystem.md]]: the flow, board, team, memory, journal and assistant most points
