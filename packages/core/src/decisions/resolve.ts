@@ -366,7 +366,7 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     return verdict(right, right ? 'No command was proposed and none of the listed ones ran' : 'A listed command ran where none was proposed', detail);
   },
 
-  'notification.urgency': (row, _sql, now) => {
+  'notification.urgency': (row) => {
     const urgency = choiceOf(row, 'urgency');
     if (!urgency) return null;
     const start = Date.parse(row.at);
@@ -375,9 +375,10 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     const inTime = withinMs !== null && withinMs <= NOTIFICATION_WINDOW_MS;
     const detail = { urgency, openedAt: row.openedAt, withinMs };
     if (inTime) return verdict(urgency === 'high', urgency === 'high' ? 'A raised notification was opened within the hour' : 'A normal notification was opened within the hour', detail);
-    // An open after the window counts as not opened soon; before the window ends there is still time
-    if (now < start + NOTIFICATION_WINDOW_MS) return null;
-    return verdict(urgency === 'normal', urgency === 'normal' ? 'A normal notification was not opened within the hour' : 'A raised notification was not opened within the hour', detail);
+    // A push nobody tapped says nothing: people ignore most of them, the app may have been opened some
+    // other way, and no push may have reached a device at all. Counting that as "normal was right"
+    // made the score mostly the share of normal answers, so only an open is a signal.
+    return null;
   },
 
   'orchestration.model': (row, sql) => {

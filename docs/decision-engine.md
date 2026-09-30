@@ -161,9 +161,11 @@ All 22 points have a resolver. The last three read a signal the app stores for t
 - **`notification.urgency`**: the service worker adds `notification=<key>` to what a click opens; the
   app reports it once with `POST /decisions/notification-opened` (`{ key }`) and removes the parameter.
   That sets `opened_at` on the newest row of that key. The window is the push TTL, one hour: `high`
-  is agreed when opened within it and `normal` when not; before the hour ends with no open the row
-  waits, and an open after it counts as not opened soon. A push the worker did not show because a
-  focused window was open can never be opened, so it counts as not opened.
+  is agreed when opened within it and `normal` is not. A push nobody opened, or opened after the
+  hour, is not scored and the row stays unresolved: most pushes are ignored, a push the worker did
+  not show because a focused window was open can never be opened, and none may have reached a
+  device, so "not opened" had made the score mostly the share of `normal` answers. The first
+  review is in [decisions/jev-shadow-review-first-day.md](decisions/jev-shadow-review-first-day.md).
 - **`orchestration.model`**: an orchestration launched from a planner's draft carries
   `plannerRunId`. The resolver finds the first one created after the row with that planner run and,
   for each task the row answered, compares the launched model (`task.model ?? orchestration.model`)

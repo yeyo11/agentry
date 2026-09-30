@@ -248,7 +248,7 @@ test("palette.intent: the person's word outranks the inference", () => {
   assert.equal(s.get(r.id)?.outcome?.agreed, true);
 });
 
-test('notification.urgency: high is right when opened within the hour, wrong when never opened', () => {
+test('notification.urgency: only an open within the hour is a signal; a push nobody tapped says nothing', () => {
   const s = setup();
   const answers = (value: string) => ({ urgency: choiceOf(value) });
   const base = { kind: 'act' as const, subjectKind: 'notification' as const, subjectId: 'k' };
@@ -260,9 +260,9 @@ test('notification.urgency: high is right when opened within the hour, wrong whe
   s.resolvers.sweep();
   assert.equal(s.get(highOpened.id)?.agreed, true);
   assert.equal(s.get(normalOpened.id)?.agreed, false);
-  assert.equal(s.get(highIgnored.id)?.agreed, false);
-  assert.equal(s.get(normalIgnored.id)?.agreed, true);
-  assert.equal(s.get(openedLate.id)?.agreed, false, 'an open after the window is not opened soon');
+  assert.equal(s.get(highIgnored.id)?.resolvedAt, null, 'ignored is no evidence, so it is not scored');
+  assert.equal(s.get(normalIgnored.id)?.resolvedAt, null, 'ignored is no evidence, so it is not scored');
+  assert.equal(s.get(openedLate.id)?.resolvedAt, null, 'an open after the window is not opened soon');
   assert.equal(s.get(highOpened.id)?.outcome?.detail?.withinMs, 20 * 60_000);
 });
 
