@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { DecisionRecord, Execution } from '@agentry/shared';
 import type { LegacyRun, StoredChat } from '../src/chat-records.ts';
-import { Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, migrate, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
+import { CHAT_PROVIDER_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, migrate, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
 import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
@@ -161,6 +161,34 @@ test('the labels table keeps no index nothing queries, on a new database or an u
   migrate(old);
   assert.deepEqual(indexes(old), []);
   old.close();
+});
+
+test('chats stored before the provider column read as claude-code after the migration', () => {
+  const raw = new DatabaseSync(':memory:');
+  migrate(raw, CHAT_PROVIDER_SCHEMA_VERSION - 1);
+  const old = chat('old', '2026-09-18T10:00:00Z');
+  raw.prepare('INSERT INTO chats (id, created_at, json) VALUES (?, ?, ?)').run('old', old.record.createdAt, JSON.stringify(old.record));
+  migrate(raw);
+  const row = raw.prepare('SELECT provider FROM chats WHERE id = ?').get('old') as { provider: string };
+  assert.equal(row.provider, 'claude-code');
+  // A process still on the old schema writes no column, and SQLite fills the default
+  raw.prepare('INSERT INTO chats (id, created_at, json) VALUES (?, ?, ?)').run('older-writer', old.record.createdAt, JSON.stringify(old.record));
+  assert.equal((raw.prepare('SELECT provider FROM chats WHERE id = ?').get('older-writer') as { provider: string }).provider, 'claude-code');
+  raw.close();
+});
+
+test('the provider column is the truth for a chat, and a record without one is claude-code', () => {
+  const db = new Db(tempConfig());
+  const other = chat('other', '2026-09-18T11:00:00Z');
+  other.record.provider = 'codex';
+  db.saveChats([chat('plain', '2026-09-18T10:00:00Z'), other], null);
+  const byId = new Map(db.loadChats().map((c) => [c.record.id, c.record.provider]));
+  assert.equal(byId.get('plain'), 'claude-code');
+  assert.equal(byId.get('other'), 'codex');
+  // Changed in the column alone, the JSON copy follows it
+  db.connection.prepare("UPDATE chats SET provider = 'claude-code' WHERE id = 'other'").run();
+  assert.equal(db.loadChats().find((c) => c.record.id === 'other')?.record.provider, 'claude-code');
+  db.close();
 });
 
 test('two processes upgrading an old database at once never run a migration twice', async () => {

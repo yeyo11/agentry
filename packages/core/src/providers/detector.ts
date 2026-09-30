@@ -5,6 +5,7 @@ import { basename, delimiter, dirname, join } from 'node:path';
 import type {
   AuthStatus,
   CliInfo,
+  ProviderCapability,
   ProviderId,
   ProviderReasonCode,
   ProviderReadinessState,
@@ -15,6 +16,7 @@ import { detectCli, getAuthStatus } from '../cli.ts';
 import type { AgentryEventInput } from '../events.ts';
 import type { CoreConfig } from '../paths.ts';
 import { compareVersions } from '../version-check.ts';
+import type { CapabilityConfirmation } from './driver.ts';
 import type { ProviderConfigHome, ProviderManifest } from './manifest.ts';
 import { installDirs, resolveCommand } from './path.ts';
 import { ProviderRegistry } from './registry.ts';
@@ -192,6 +194,26 @@ export class ProviderDetector {
     return this.cache ? this.ordered([...this.cache.statuses.values()]) : null;
   }
 
+  /**
+   * A session's first event confirmed what the installed version can do. The status takes it, and
+   * `providers.changed` goes out only when that changes something a reader sees.
+   */
+  confirm(id: ProviderId, confirmation: CapabilityConfirmation): void {
+    if (!confirmation.version) return;
+    if (!this.registry.confirm(id, confirmation, new Date(this.now()).toISOString())) return;
+    const old = this.cache?.statuses.get(id);
+    if (!this.cache || !old) return;
+    const next = this.withConfirmation(this.unconfirmed(old));
+    if (sameStatus(old, next)) return;
+    this.cache.statuses.set(id, next);
+    this.deps.emit?.({ type: 'providers.changed', title: 'Providers changed', providers: this.known() ?? [] });
+  }
+
+  /** What a provider can do now: confirmed by its last session's first event, else declared */
+  capabilities(id: ProviderId): ProviderCapability[] {
+    return this.registry.capabilities(id);
+  }
+
   /** What the last auth probe found, whatever the state that came of it; null when it never ran or was inconclusive */
   knownSignedIn(id: ProviderId): boolean | null {
     return this.signedIn.get(id) ?? null;
@@ -289,7 +311,7 @@ export class ProviderDetector {
     const settings = this.deps.settings?.() ?? null;
     const searchPath = await this.searchPath();
     const manifests = this.registry.list().filter((m) => !options.only || options.only.includes(m.id));
-    const read = await Promise.all(manifests.map((m) => this.detectOne(m, settings, searchPath, options.claude)));
+    const read = (await Promise.all(manifests.map((m) => this.detectOne(m, settings, searchPath, options.claude)))).map((status) => this.withConfirmation(status));
     // A detection that finished late must not put an older reading over a newer one. Newer is per
     // provider: a reading of Claude Code alone, taken meanwhile, wins for Claude Code only, and the
     // rest of this detection still lands
@@ -307,6 +329,30 @@ export class ProviderDetector {
     if (changed) this.deps.emit?.({ type: 'providers.changed', title: 'Providers changed', providers: all });
     if (this.watching && !this.closed) await this.arm();
     return all;
+  }
+
+  /** A status as detection made it, before a session's confirmation was laid over it */
+  private unconfirmed(status: ProviderStatus): ProviderStatus {
+    const manifest = this.registry.get(status.id);
+    const base: ProviderStatus = { ...status, confirmed: null, capabilities: manifest ? [...manifest.capabilities] : status.capabilities };
+    if (status.reason === 'capability-missing') return { ...base, state: 'ready', reason: null };
+    return base;
+  }
+
+  /**
+   * Lays what a session confirmed over a status, for the version it confirmed and no other. A
+   * declared capability the init contradicted makes a ready provider `degraded`.
+   */
+  private withConfirmation(status: ProviderStatus): ProviderStatus {
+    const found = this.registry.confirmation(status.id);
+    if (!found || !status.version || found.version !== status.version) return { ...status, confirmed: null };
+    const capabilities = this.registry.capabilities(status.id);
+    const next: ProviderStatus = {
+      ...status,
+      capabilities,
+      confirmed: { at: found.at, version: found.version, capabilities: found.confirmed },
+    };
+    return found.missing.length > 0 && status.state === 'ready' ? { ...next, state: 'degraded', reason: 'capability-missing' } : next;
   }
 
   private configHome(manifest: ProviderManifest): { existing: string | null; candidates: string[] } {

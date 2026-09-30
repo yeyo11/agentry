@@ -1,0 +1,284 @@
+{
+  "summary": {
+    "id": "<id>",
+    "provider": "claude-code",
+    "name": "golden",
+    "cwd": "<root>/workspace",
+    "workingDir": "<root>/workspace",
+    "origin": "agentry",
+    "derivedFrom": null,
+    "model": "fake",
+    "permissionMode": "acceptEdits",
+    "status": "completed",
+    "processStartedAt": null,
+    "createdAt": "<time>",
+    "updatedAt": "<time>",
+    "endedAt": "<time>",
+    "turns": 1,
+    "costUsd": 0.01,
+    "prompt": "REPLAY <fixtures>/workflow-session/stream.jsonl",
+    "lastText": null,
+    "error": null,
+    "orchestrationId": null,
+    "orchestrationTaskId": null,
+    "account": null,
+    "permissionPrompts": "none",
+    "pendingPrompts": 0,
+    "activity": null,
+    "tools": null,
+    "executions": [
+      {
+        "id": "<id>",
+        "startedAt": "<time>",
+        "endedAt": "<time>",
+        "outcome": "completed",
+        "error": null,
+        "permissionMode": "acceptEdits",
+        "model": "fake",
+        "account": null,
+        "maxBudgetUsd": null,
+        "costUsd": 0.01,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "total": 0
+        },
+        "turns": 1,
+        "modelCosts": {
+          "claude-opus-5[1m]": 0.01
+        }
+      }
+    ],
+    "backgroundTasks": [],
+    "subagents": [],
+    "workflows": [
+      {
+        "id": "wxt94utn7",
+        "taskId": "wxt94utn7",
+        "name": "two-words",
+        "description": "Run two agents in parallel that each reply with one word",
+        "status": "completed",
+        "startedAt": "<time>",
+        "endedAt": "<time>",
+        "sessionId": "<id>",
+        "phases": [
+          "Say"
+        ],
+        "agents": [
+          {
+            "index": 1,
+            "label": "one",
+            "state": "done",
+            "agentId": "a4fdeef8a7b5856b5",
+            "phaseTitle": "Say",
+            "model": "claude-haiku-4-5-20251001",
+            "startedAt": "<time>",
+            "tokens": 10249,
+            "toolCalls": 0,
+            "promptPreview": "Reply with only the word: red",
+            "resultPreview": "red"
+          },
+          {
+            "index": 2,
+            "label": "two",
+            "state": "done",
+            "agentId": "a6d120918f0c2d6c5",
+            "phaseTitle": "Say",
+            "model": "claude-haiku-4-5-20251001",
+            "startedAt": "<time>",
+            "tokens": 10244,
+            "toolCalls": 0,
+            "promptPreview": "Reply with only the word: blue",
+            "resultPreview": "blue"
+          }
+        ],
+        "summary": "Dynamic workflow \"Run two agents in parallel that each reply with one word\" completed",
+        "totalTokens": 20493,
+        "script": "export const meta = {\n  name: 'two-words',\n  description: 'Run two agents in parallel that each reply with one word',\n  phases: [{title: 'Say'}],\n}\n\nconst results = await parallel([\n  () => agent('Reply with only the word: red', {label: 'one', phase: 'Say'}),\n  () => agent('Reply with only the word: blue', {label: 'two', phase: 'Say'}),\n])\n\nreturn { results }\n"
+      }
+    ]
+  },
+  "events": [
+    {
+      "kind": "message",
+      "entry": {
+        "uuid": "<id>",
+        "role": "user",
+        "timestamp": "<time>",
+        "model": null,
+        "isSidechain": false,
+        "parentToolUseId": null,
+        "blocks": [
+          {
+            "type": "text",
+            "text": "REPLAY <fixtures>/workflow-session/stream.jsonl"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "status",
+      "status": "busy"
+    },
+    {
+      "kind": "init",
+      "init": {
+        "sessionId": "<id>",
+        "model": "fake",
+        "cwd": "<root>/workspace",
+        "permissionMode": "acceptEdits",
+        "tools": [],
+        "mcpServers": []
+      }
+    },
+    {
+      "kind": "message",
+      "entry": {
+        "uuid": "",
+        "role": "assistant",
+        "timestamp": "<time>",
+        "model": null,
+        "isSidechain": false,
+        "parentToolUseId": null,
+        "blocks": [
+          {
+            "type": "tool_use",
+            "id": "toolu_016GcfgMgFSDfdjjwjp5KvaE",
+            "name": "Workflow",
+            "input": {
+              "script": "export const meta = {\n  name: 'two-words',\n  description: 'Run two agents in parallel that each reply with one word',\n  phases: [{title: 'Say'}],\n}\n\nconst results = await parallel([\n  () => agent('Reply with only the word: red', {label: 'one', phase: 'Say'}),\n  () => agent('Reply with only the word: blue', {label: 'two', phase: 'Say'}),\n])\n\nreturn { results }\n"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "task",
+      "task": {
+        "change": "listed",
+        "taskKind": "other"
+      }
+    },
+    {
+      "kind": "task",
+      "task": {
+        "taskId": "wxt94utn7",
+        "change": "started",
+        "taskKind": "workflow",
+        "description": "Run two agents in parallel that each reply with one word"
+      }
+    },
+    {
+      "kind": "task",
+      "task": {
+        "taskId": "wxt94utn7",
+        "change": "progress",
+        "taskKind": "workflow",
+        "description": "Say: one",
+        "summary": "Run two agents in parallel that each reply with one word"
+      }
+    },
+    {
+      "kind": "task",
+      "task": {
+        "taskId": "wxt94utn7",
+        "change": "progress",
+        "taskKind": "workflow",
+        "description": "Say: two",
+        "summary": "Run two agents in parallel that each reply with one word"
+      }
+    },
+    {
+      "kind": "task",
+      "task": {
+        "taskId": "wxt94utn7",
+        "change": "progress",
+        "taskKind": "workflow",
+        "description": "Say: one",
+        "summary": "Run two agents in parallel that each reply with one word"
+      }
+    },
+    {
+      "kind": "task",
+      "task": {
+        "taskId": "wxt94utn7",
+        "change": "progress",
+        "taskKind": "workflow",
+        "description": "Say: one",
+        "summary": "Run two agents in parallel that each reply with one word"
+      }
+    },
+    {
+      "kind": "task",
+      "task": {
+        "taskId": "wxt94utn7",
+        "change": "progress",
+        "taskKind": "workflow",
+        "description": "Say: two",
+        "summary": "Run two agents in parallel that each reply with one word"
+      }
+    },
+    {
+      "kind": "task",
+      "task": {
+        "taskId": "wxt94utn7",
+        "change": "progress",
+        "taskKind": "workflow",
+        "description": "Say: two",
+        "summary": "Run two agents in parallel that each reply with one word"
+      }
+    },
+    {
+      "kind": "task",
+      "task": {
+        "change": "listed",
+        "taskKind": "other"
+      }
+    },
+    {
+      "kind": "task",
+      "task": {
+        "taskId": "wxt94utn7",
+        "change": "updated",
+        "taskKind": "workflow",
+        "status": "completed"
+      }
+    },
+    {
+      "kind": "task",
+      "task": {
+        "taskId": "wxt94utn7",
+        "change": "ended",
+        "taskKind": "workflow",
+        "status": "completed",
+        "summary": "Dynamic workflow \"Run two agents in parallel that each reply with one word\" completed"
+      }
+    },
+    {
+      "kind": "result",
+      "text": "replayed",
+      "outcome": {
+        "isError": false,
+        "turns": 1,
+        "costUsd": 0.01,
+        "permissionDenials": []
+      }
+    },
+    {
+      "kind": "status",
+      "status": "completed"
+    }
+  ],
+  "heard": [
+    [
+      "chat-result",
+      {
+        "isError": false,
+        "result": "replayed",
+        "costUsd": 0.01
+      }
+    ]
+  ]
+}

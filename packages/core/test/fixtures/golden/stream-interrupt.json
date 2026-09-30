@@ -1,0 +1,115 @@
+{
+  "summary": {
+    "id": "<id>",
+    "provider": "claude-code",
+    "name": "golden",
+    "cwd": "<root>/workspace",
+    "workingDir": "<root>/workspace",
+    "origin": "agentry",
+    "derivedFrom": null,
+    "model": "fake",
+    "permissionMode": "acceptEdits",
+    "status": "idle",
+    "processStartedAt": "<time>",
+    "createdAt": "<time>",
+    "updatedAt": "<time>",
+    "endedAt": null,
+    "turns": 1,
+    "costUsd": 0.01,
+    "prompt": "ASK Bash",
+    "lastText": null,
+    "error": null,
+    "orchestrationId": null,
+    "orchestrationTaskId": null,
+    "account": null,
+    "permissionPrompts": "host",
+    "pendingPrompts": 0,
+    "activity": null,
+    "tools": null,
+    "executions": [
+      {
+        "id": "<id>",
+        "startedAt": "<time>",
+        "endedAt": null,
+        "outcome": null,
+        "error": null,
+        "permissionMode": "acceptEdits",
+        "model": "fake",
+        "account": null,
+        "maxBudgetUsd": null,
+        "costUsd": 0.01,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheCreation": 0,
+          "total": 0
+        },
+        "turns": 1
+      }
+    ],
+    "backgroundTasks": [],
+    "subagents": [],
+    "workflows": []
+  },
+  "events": [
+    {
+      "kind": "message",
+      "entry": {
+        "uuid": "<id>",
+        "role": "user",
+        "timestamp": "<time>",
+        "model": null,
+        "isSidechain": false,
+        "parentToolUseId": null,
+        "blocks": [
+          {
+            "type": "text",
+            "text": "ASK Bash"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "status",
+      "status": "busy"
+    },
+    {
+      "kind": "init",
+      "init": {
+        "sessionId": "<id>",
+        "model": "fake",
+        "cwd": "<root>/workspace",
+        "permissionMode": "acceptEdits",
+        "tools": [],
+        "mcpServers": []
+      }
+    },
+    {
+      "kind": "result",
+      "text": "",
+      "outcome": {
+        "isError": true,
+        "turns": 1,
+        "costUsd": 0.01,
+        "permissionDenials": [],
+        "cause": "stopped"
+      }
+    },
+    {
+      "kind": "status",
+      "status": "idle"
+    }
+  ],
+  "heard": [
+    [
+      "chat-result",
+      {
+        "isError": true,
+        "result": "",
+        "costUsd": 0.01,
+        "cause": "stopped"
+      }
+    ]
+  ]
+}

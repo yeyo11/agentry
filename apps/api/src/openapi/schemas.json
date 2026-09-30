@@ -160,12 +160,25 @@
       "disabled": {
         "type": "boolean",
         "description": "The CLI names it but cannot run it (it is too old for it, say); `description` says why"
+      },
+      "tier": {
+        "$ref": "#/components/schemas/ModelTier",
+        "description": "How capable it is among its provider's models, where the provider says; a model with no rank has none"
       }
     },
     "required": [
       "value"
     ],
     "description": "One choice for `--model`."
+  },
+  "ModelTier": {
+    "type": "string",
+    "enum": [
+      "fast",
+      "balanced",
+      "strong"
+    ],
+    "description": "A provider's models by how fast or how strong they are; what model mapping across providers builds on."
   },
   "Overview": {
     "type": "object",
@@ -473,6 +486,10 @@
       "title": {
         "type": "string"
       },
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider that runs the chat; a chat read from Claude's transcripts is `claude-code`"
+      },
       "firstPrompt": {
         "type": [
           "string",
@@ -619,6 +636,7 @@
     "required": [
       "id",
       "title",
+      "provider",
       "firstPrompt",
       "messageCount",
       "startedAt",
@@ -639,6 +657,10 @@
       "cost"
     ],
     "description": "A chat as the list shows it: everything but what only its own page needs, which costs a read of its transcript and its sidecar files per chat."
+  },
+  "ProviderId": {
+    "type": "string",
+    "description": "An agent provider, by the id its manifest declares (`claude-code`, `codex`, …). A string and not a closed union, so adding a provider is adding a folder in core and never a change here."
   },
   "ChatProject": {
     "type": "object",
@@ -1125,6 +1147,10 @@
           "type": "string"
         }
       },
+      "policy": {
+        "$ref": "#/components/schemas/ToolPolicy",
+        "description": "What a shipped preset states in Agentry's words; each provider translates it into its own rules"
+      },
       "builtIn": {
         "type": "boolean",
         "description": "Shipped with Agentry. Editable like any other, but a fresh install has it again."
@@ -1136,6 +1162,201 @@
       "allowedTools"
     ],
     "description": "A named set of `--allowedTools` / `--disallowedTools`, picked when a chat starts or resumes."
+  },
+  "ToolPolicy": {
+    "type": "object",
+    "properties": {
+      "read": {
+        "type": "object",
+        "properties": {
+          "allow": {
+            "type": "boolean"
+          },
+          "denyPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "allow"
+        ],
+        "description": "`denyPaths` are path globs never read"
+      },
+      "edit": {
+        "type": "object",
+        "properties": {
+          "allow": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "none"
+              },
+              {
+                "type": "string",
+                "const": "any"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "deny": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "allow"
+        ],
+        "description": "Paths are relative to the project; `deny` is denial outright, for a mode that would otherwise ask"
+      },
+      "commands": {
+        "type": "object",
+        "properties": {
+          "allow": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "none"
+              },
+              {
+                "type": "string",
+                "const": "any"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CommandRule"
+                }
+              }
+            ]
+          },
+          "deny": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "all"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CommandRule"
+                }
+              }
+            ]
+          }
+        },
+        "required": [
+          "allow"
+        ]
+      },
+      "network": {
+        "type": "string",
+        "enum": [
+          "allow",
+          "omit",
+          "deny"
+        ],
+        "description": "Web fetch and search tools"
+      },
+      "delegate": {
+        "type": "string",
+        "const": "deny",
+        "description": "Subagents"
+      },
+      "workflow": {
+        "type": "string",
+        "const": "allow",
+        "description": "The orchestrator's workflow engine"
+      },
+      "gitPush": {
+        "type": "string",
+        "enum": [
+          "deny",
+          "omit"
+        ]
+      },
+      "exclusive": {
+        "type": "boolean",
+        "description": "Nothing outside the policy exists for the session: no person's settings, hooks or servers"
+      }
+    },
+    "required": [
+      "read",
+      "edit",
+      "commands",
+      "network",
+      "gitPush"
+    ],
+    "description": "What a session may do, in Agentry's words. Each provider's driver translates it into its own rules and lists the parts it cannot enforce."
+  },
+  "CommandRule": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "args": {
+            "type": "string",
+            "const": "none"
+          }
+        },
+        "required": [
+          "command",
+          "args"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "args": {
+            "type": "string",
+            "const": "some"
+          }
+        },
+        "required": [
+          "command",
+          "args"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "args": {
+            "type": "string",
+            "const": "prefix"
+          }
+        },
+        "required": [
+          "command",
+          "args"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pattern"
+        ]
+      }
+    ],
+    "description": "A shell command a policy allows or denies, in Agentry's words."
   },
   "McpSelection": {
     "type": "object",
@@ -1304,21 +1525,17 @@
       "kind": {
         "$ref": "#/components/schemas/RunEventKind"
       },
-      "type": {
-        "type": "string",
-        "description": "Original type/subtype of the stream-json event"
-      },
-      "subtype": {
-        "type": "string"
-      },
       "entry": {
-        "$ref": "#/components/schemas/TranscriptEntry"
+        "$ref": "#/components/schemas/TranscriptEntry",
+        "description": "For `message` events"
       },
       "status": {
-        "$ref": "#/components/schemas/RunStatus"
+        "$ref": "#/components/schemas/RunStatus",
+        "description": "For `status` events"
       },
       "text": {
-        "type": "string"
+        "type": "string",
+        "description": "For `partial`, `result`, `stderr`, `notice` and `other` events; for `other`, a stdout line the driver could not read"
       },
       "block": {
         "type": "string",
@@ -1328,16 +1545,28 @@
         ],
         "description": "For `partial` events: which kind of block is streaming"
       },
+      "init": {
+        "$ref": "#/components/schemas/RunInit",
+        "description": "For `init` events, in the provider's neutral words"
+      },
+      "outcome": {
+        "$ref": "#/components/schemas/RunOutcome",
+        "description": "For `result` events"
+      },
+      "task": {
+        "$ref": "#/components/schemas/RunTaskChange",
+        "description": "For `task` events"
+      },
       "data": {
         "type": "object",
-        "additionalProperties": {}
+        "additionalProperties": {},
+        "description": "For `notice` events only: Agentry's own words, never a provider's"
       }
     },
     "required": [
       "seq",
       "ts",
-      "kind",
-      "type"
+      "kind"
     ]
   },
   "RunEventKind": {
@@ -1543,6 +1772,156 @@
       "failed",
       "stopped"
     ]
+  },
+  "RunInit": {
+    "type": "object",
+    "properties": {
+      "sessionId": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string"
+      },
+      "cwd": {
+        "type": "string"
+      },
+      "permissionMode": {
+        "type": "string"
+      },
+      "tools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The names of the tools the session has, as the provider calls them"
+      },
+      "mcpServers": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "status"
+          ]
+        }
+      }
+    },
+    "required": [
+      "sessionId",
+      "model",
+      "cwd",
+      "permissionMode",
+      "tools",
+      "mcpServers"
+    ],
+    "description": "What a session reports about itself when it starts."
+  },
+  "RunOutcome": {
+    "type": "object",
+    "properties": {
+      "isError": {
+        "type": "boolean"
+      },
+      "turns": {
+        "type": "number"
+      },
+      "durationMs": {
+        "type": "number"
+      },
+      "costUsd": {
+        "type": "number"
+      },
+      "structuredOutput": {},
+      "permissionDenials": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "toolName": {
+              "type": "string"
+            },
+            "toolUseId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "toolName",
+            "toolUseId"
+          ]
+        }
+      },
+      "cause": {
+        "type": "string",
+        "enum": [
+          "budget",
+          "rate-limit",
+          "stopped"
+        ],
+        "description": "Why a failed result is not one to try again blindly: the budget ran out, the account hit its limit or someone stopped it."
+      },
+      "stopReason": {
+        "type": "string",
+        "description": "The main agent's last stop reason in the turn (`end_turn`, `tool_use`, `max_tokens`…), when the provider said"
+      }
+    },
+    "required": [
+      "isError",
+      "turns",
+      "durationMs",
+      "costUsd",
+      "permissionDenials"
+    ],
+    "description": "How a turn ended."
+  },
+  "RunTaskChange": {
+    "type": "object",
+    "properties": {
+      "taskId": {
+        "type": "string",
+        "description": "Absent for a change of the whole list"
+      },
+      "change": {
+        "type": "string",
+        "enum": [
+          "started",
+          "updated",
+          "progress",
+          "ended",
+          "listed"
+        ]
+      },
+      "taskKind": {
+        "type": "string",
+        "enum": [
+          "command",
+          "agent",
+          "workflow",
+          "other"
+        ]
+      },
+      "status": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "summary": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "change",
+      "taskKind"
+    ],
+    "description": "A background task starting, moving or ending, or the whole list being replaced."
   },
   "EffectiveEnvironment": {
     "type": "object",
@@ -6170,6 +6549,36 @@
         },
         "description": "The capabilities the handshake confirmed for the installed version (the declared ones until then)"
       },
+      "confirmed": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "at": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "capabilities": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ProviderCapability"
+                }
+              }
+            },
+            "required": [
+              "at",
+              "version",
+              "capabilities"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What the first event of a real session confirmed for the installed version; null until one has"
+      },
       "checkedAt": {
         "type": "string",
         "description": "ISO timestamp of the detection this status came from"
@@ -6189,10 +6598,6 @@
       "checkedAt"
     ],
     "description": "One provider's detected state on this host, as served from the detector's cache."
-  },
-  "ProviderId": {
-    "type": "string",
-    "description": "An agent provider, by the id its manifest declares (`claude-code`, `codex`, …). A string and not a closed union, so adding a provider is adding a folder in core and never a change here."
   },
   "ProviderReadinessState": {
     "type": "string",
@@ -6223,6 +6628,7 @@
       "missing-required-command",
       "unsupported-platform",
       "handshake-failed",
+      "capability-missing",
       "no-probe",
       "disabled"
     ],
@@ -7985,6 +8391,10 @@
       "title": {
         "type": "string"
       },
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider that runs the chat; a chat read from Claude's transcripts is `claude-code`"
+      },
       "firstPrompt": {
         "type": [
           "string",
@@ -8148,6 +8558,7 @@
     "required": [
       "id",
       "title",
+      "provider",
       "firstPrompt",
       "messageCount",
       "startedAt",
@@ -8831,6 +9242,10 @@
   "NewChatRequest": {
     "type": "object",
     "properties": {
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider to run on; the first one in the person's order that can run chats when absent"
+      },
       "model": {
         "type": "string"
       },
@@ -8922,6 +9337,10 @@
   "ResumeChatRequest": {
     "type": "object",
     "properties": {
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider to run on; the first one in the person's order that can run chats when absent"
+      },
       "model": {
         "type": "string"
       },
@@ -9001,6 +9420,10 @@
   "ForkChatRequest": {
     "type": "object",
     "properties": {
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider to run on; the first one in the person's order that can run chats when absent"
+      },
       "model": {
         "type": "string"
       },
@@ -13606,6 +14029,10 @@
   "ChatStartOptions": {
     "type": "object",
     "properties": {
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider to run on; the first one in the person's order that can run chats when absent"
+      },
       "model": {
         "type": "string"
       },

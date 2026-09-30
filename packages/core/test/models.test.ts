@@ -142,3 +142,9 @@ test("a label the CLI gives wins over the derived one, and a broken document of 
   assert.equal(options.find((m) => m.value === 'claude-fable-5-1[1m]')?.label, 'Fable');
   assert.equal(options.find((m) => m.value === 'sonnet')?.label, 'Sonnet 5');
 });
+
+test('the aliases carry the tier of their line, and fable has none', () => {
+  forgetModelOptions();
+  const tiers = Object.fromEntries(modelOptions(join(tmpdir(), 'agentry-models-missing', '.claude.json')).map((m) => [m.value, m.tier]));
+  assert.deepEqual(tiers, { fable: undefined, opus: 'strong', sonnet: 'balanced', haiku: 'fast' });
+});

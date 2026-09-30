@@ -12,6 +12,7 @@ import type {
   ChatSummary,
   ChatWorktree,
   ConfigFileRoot,
+  ModelOption,
   CreateProjectRequest,
   FlowRun,
   FlowRunPage,
@@ -62,7 +63,7 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@agentry/shared';
-import { AGENTRY_LANGUAGES, agentryLanguage, type DecisionRecord } from '@agentry/shared';
+import { AGENTRY_LANGUAGES, agentryLanguage, type DecisionRecord, type ProviderId } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
 import { AppSettingsStore } from './app-settings.ts';
@@ -88,10 +89,10 @@ import { Db } from './db.ts';
 import { HealthMonitor, HealthService } from './health-service.ts';
 import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
 import { EventBus } from './events.ts';
+import type { SessionInit } from './providers/driver.ts';
 import { ProviderDetector } from './providers/detector.ts';
 import { ProvidersSettingsStore } from './providers/settings.ts';
 import { Locator } from './locations.ts';
-import { modelOptions } from './models.ts';
 import { PermissionBroker } from './permissions.ts';
 import { PushService } from './push.ts';
 import { ChatTools, ToolPresetStore } from './chat-tools.ts';
@@ -455,6 +456,7 @@ export class Core {
     this.runtime.chatTokens = this.security.chatTokens;
     this.runtime.defaults = this.appSettings;
     this.runtime.permissions = this.permissions;
+    this.runtime.providerSettings = () => this.providersSettings.get();
     this.runtime.bus = this.events;
     this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events);
     this.runtime.uploads = this.uploads;
@@ -724,6 +726,13 @@ export class Core {
       this.assistant.chatResult(chatId, result);
     });
     // "Create with AI" shows the file while the chat writes it, from the result it is streaming
+    this.runtime.on('chat-init', (provider: ProviderId, init: SessionInit) => {
+      const driver = this.runtime.providers.driverFor(provider);
+      if (!driver) return;
+      const confirmation = driver.confirm(init);
+      this.runtime.providers.confirm(provider, confirmation, new Date().toISOString());
+      this.providers.confirm(provider, confirmation);
+    });
     this.runtime.on('chat-structured', (chatId: string, raw: string) => this.assistant.chatStructured(chatId, raw));
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
     // Started last of all, once the chats it may resume or start are restored, so a slot judged at
@@ -918,10 +927,17 @@ export class Core {
     this.systemGen++;
   }
 
+  /** The catalog of the provider a new chat starts with */
+  private defaultModels(): ModelOption[] {
+    const { providers, providerSettings } = this.runtime;
+    const id = providers.defaultSessionProvider(providerSettings?.() ?? this.providersSettings.get());
+    return (id ? providers.driverFor(id)?.models() : null) ?? [];
+  }
+
   private withUptime(value: Omit<SystemInfo, 'uptimeSec' | 'models'>): SystemInfo {
     // Read here rather than with the rest: the rest costs two `claude` processes and is kept for
     // half a minute, while this is a file the CLI writes, cached by its own mtime
-    return { ...value, models: modelOptions(this.config.globalConfigFile, this.runtime.modelIds.get()), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
+    return { ...value, models: this.defaultModels(), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
   }
 
   private readSystem(join = true): Promise<Omit<SystemInfo, 'uptimeSec' | 'models'>> {

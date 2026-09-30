@@ -12,7 +12,6 @@ import {
   FLOW_STAGE_OF_COLUMN,
   AGENTRY_LANGUAGES,
   flowStepOf,
-  isTeamCommandPattern,
   MAX_CONTINUATIONS,
   MAX_FLOW_RESTARTS,
   WORK_ITEM_STATUSES,
@@ -41,7 +40,9 @@ import {
   type FlowWaiting,
   type FlowWaitingColumn,
   type MemoryProposalTargetKind,
+  type CommandRule,
   type PermissionMode,
+  type ToolPolicy,
   type ProjectFlow,
   type ProjectSettings,
   type ProjectTeamMember,
@@ -64,6 +65,8 @@ import type { DecisionEngine, DecisionOutcome } from './decisions/engine.ts';
 import type { DecisionSubject } from './decisions/points.ts';
 import { designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, scopeAndCompletion, thinkThrough, UNATTENDED, type DesignSources } from './prompt-rules.ts';
 import { gitRaw } from './git.ts';
+import { translateClaudePolicy } from './providers/claude-code/policy.ts';
+import { rulesFor } from './tool-policy.ts';
 import type { WorkItemService } from './work-items.ts';
 
 /**
@@ -115,18 +118,6 @@ const DOCUMENTS_MAX = 20;
 const CRITERIA_MAX = 30;
 const CRITERION_MAX = 500;
 const DESCRIPTION_MAX = 50_000;
-
-/** Tools every stage may use; the rest is added per stage (`stageRules`) */
-const READ_TOOLS = ['Read', 'Glob', 'Grep'];
-const WRITE_TOOLS = ['Edit', 'Write', 'NotebookEdit'];
-/** Only the work stage reaches the network: refining and verifying read the project */
-const WEB_TOOLS = ['WebFetch', 'WebSearch'];
-/** Denied to every run, whatever its stage allows: a member's work stays on the item's branch until a person takes it further */
-const DENIED_TOOLS = ['Bash(git push)', 'Bash(git push *)'];
-/** What verifying may ask git: reading the changes, never writing */
-const GIT_READS = ['status', 'diff', 'log', 'show'].flatMap((c) => [`Bash(git ${c})`, `Bash(git ${c} *)`]);
-/** `--output` makes those same commands write a file anywhere, so it is denied beside them */
-const GIT_OUTPUT_DENIED = ['diff', 'log', 'show'].map((c) => `Bash(git ${c} *--output*)`);
 
 /** A request the flow refuses, with the status the API answers it with. */
 export class FlowError extends Error {
@@ -208,6 +199,8 @@ export interface FlowLaunch {
   appendSystemPrompt: string;
   jsonSchema: Record<string, unknown>;
   permissionMode: PermissionMode;
+  /** What the stage may do, in Agentry's words; the two lists below are this policy as the provider's rules */
+  policy: ToolPolicy;
   allowedTools: string[];
   disallowedTools: string[];
   /** `--max-budget-usd`: `flow.maxCostUsd`, or null when the project sets none */
@@ -402,22 +395,6 @@ export interface FlowRules {
 }
 
 /**
- * The edit rules for paths relative to the project. A comma splits the flag's list and a
- * parenthesis closes the rule, so a path either cannot carry is left out, as is one that climbs out
- * of the project: leaving it out allows less, never more.
- */
-function editRules(paths: readonly string[]): string[] {
-  const rules: string[] = [];
-  for (const raw of paths) {
-    const path = raw.trim().replace(/^\.\//, '').replace(/\/+$/, '');
-    if (!path || /[,()\s]/.test(path) || path.startsWith('/') || path.split('/').includes('..')) continue;
-    const patterns = /[*?[]/.test(path) ? [path] : [path, `${path}/**`];
-    for (const p of patterns) for (const tool of WRITE_TOOLS) rules.push(`${tool}(${p})`);
-  }
-  return [...new Set(rules)];
-}
-
-/**
  * What each stage may do (orchestration 5 of docs/plans/project-ecosystem.md):
  *
  * - **refine** reads, and writes only under the documents folder, where its specification goes;
@@ -434,34 +411,57 @@ function editRules(paths: readonly string[]): string[] {
  *
  * Refining and verifying run in `dontAsk` whatever `writes` says, and `git push` is denied to all.
  */
+export function stagePolicy(
+  stage: FlowStage,
+  writes: readonly string[] | undefined,
+  extra: { documentsPath: string; checks: readonly CheckCommand[]; commands?: readonly string[] | undefined },
+): { permissionMode: PermissionMode; policy: ToolPolicy } {
+  if (stage === 'refine') {
+    // What was refined is written as a document, and nothing else; `git push` is denied to every stage
+    return { permissionMode: 'dontAsk', policy: { read: { allow: true }, edit: { allow: [extra.documentsPath] }, commands: { allow: 'none' }, network: 'omit', gitPush: 'deny' } };
+  }
+  if (stage === 'verify') {
+    // `--output` makes the git reads write a file anywhere, so it is denied beside them
+    const git = ['status', 'diff', 'log', 'show'].flatMap((c): CommandRule[] => [
+      { command: `git ${c}`, args: 'none' },
+      { command: `git ${c}`, args: 'some' },
+    ]);
+    const checks = extra.checks.flatMap((c): CommandRule[] => [
+      ...(c.alone ? [{ command: c.command, args: 'none' as const }] : []),
+      ...(c.withArgs ? [{ command: c.command, args: 'some' as const }] : []),
+    ]);
+    return {
+      permissionMode: 'dontAsk',
+      policy: {
+        read: { allow: true },
+        edit: { allow: [extra.documentsPath] },
+        commands: { allow: [...git, ...checks], deny: ['diff', 'log', 'show'].map((c) => ({ pattern: `git ${c} *--output*` })) },
+        network: 'omit',
+        gitPush: 'deny',
+      },
+    };
+  }
+  const commands = extra.commands;
+  const policy: ToolPolicy = {
+    read: { allow: true },
+    edit: { allow: writes ? [...writes, extra.documentsPath] : 'any' },
+    commands: { allow: commands ? commands.map((pattern) => ({ pattern })) : 'any' },
+    // Only the work stage reaches the network: refining and verifying read the project
+    network: 'allow',
+    gitPush: 'deny',
+  };
+  return { permissionMode: !writes && !commands ? 'acceptEdits' : 'dontAsk', policy };
+}
+
+/** `stagePolicy` as the CLI's rules; `testCommands` are rules already, and go through as they are. */
 export function stageRules(
   stage: FlowStage,
   writes: readonly string[] | undefined,
   extra: { documentsPath: string; testCommands: readonly string[]; commands?: readonly string[] | undefined },
 ): FlowRules {
-  const documents = editRules([extra.documentsPath]);
-  if (stage === 'refine') return { permissionMode: 'dontAsk', allowedTools: [...READ_TOOLS, ...documents], disallowedTools: [...DENIED_TOOLS] };
-  if (stage === 'verify') {
-    return {
-      permissionMode: 'dontAsk',
-      allowedTools: [...READ_TOOLS, ...GIT_READS, ...extra.testCommands, ...documents],
-      disallowedTools: [...DENIED_TOOLS, ...GIT_OUTPUT_DENIED],
-    };
-  }
-  const commands = extra.commands;
-  const tools = [...READ_TOOLS, ...(commands ? commandRules(commands) : ['Bash']), ...WEB_TOOLS];
-  if (!writes && !commands) return { permissionMode: 'acceptEdits', allowedTools: [...tools, ...WRITE_TOOLS], disallowedTools: [...DENIED_TOOLS] };
-  const edits = writes ? editRules([...writes, extra.documentsPath]) : WRITE_TOOLS;
-  return { permissionMode: 'dontAsk', allowedTools: [...tools, ...edits], disallowedTools: [...DENIED_TOOLS] };
-}
-
-/**
- * A member's shell commands as the CLI's rules: `Bash(<pattern>)` each. The settings never hold a
- * pattern the rule could not carry (`isTeamCommandPattern`), but one that got there anyway is left
- * out, which allows less, never more.
- */
-function commandRules(commands: readonly string[]): string[] {
-  return [...new Set(commands.filter(isTeamCommandPattern).map((c) => `Bash(${c})`))];
+  const { permissionMode, policy } = stagePolicy(stage, writes, { documentsPath: extra.documentsPath, checks: [], commands: extra.commands });
+  const { allowedTools, disallowedTools } = rulesFor('claude-code', policy, { allowedTools: stage === 'verify' ? extra.testCommands : [] });
+  return { permissionMode, allowedTools, disallowedTools };
 }
 
 const SCRIPT_NAME = /^[A-Za-z0-9][\w:.-]{0,63}$/;
@@ -536,12 +536,11 @@ export function testCommands(dir: string): CheckCommand[] {
 
 /** Check commands as the CLI's rules: `Bash(<command>)` and `Bash(<command> *)` as each allows. */
 export function checkCommandRules(commands: readonly CheckCommand[]): string[] {
-  const rules: string[] = [];
-  for (const c of commands) {
-    if (c.alone) rules.push(`Bash(${c.command})`);
-    if (c.withArgs) rules.push(`Bash(${c.command} *)`);
-  }
-  return [...new Set(rules)];
+  const rules: CommandRule[] = commands.flatMap((c): CommandRule[] => [
+    ...(c.alone ? [{ command: c.command, args: 'none' as const }] : []),
+    ...(c.withArgs ? [{ command: c.command, args: 'some' as const }] : []),
+  ]);
+  return translateClaudePolicy({ read: { allow: false }, edit: { allow: 'none' }, commands: { allow: rules }, network: 'omit', gitPush: 'omit' }).rules.allowedTools;
 }
 
 /** The test commands a project declares, as rules verifying may run (`testCommands`). */
@@ -1302,7 +1301,8 @@ export class FlowService {
     const resumeChatId = row.chat_id ?? (stage === 'work' ? this.workChat(item.id) : null);
     const documentsPath = project.settings.documents?.path ?? 'docs';
     const checkCommands = stage === 'verify' ? testCommands(project.path) : [];
-    const rules = stageRules(stage, member.writes, { documentsPath, testCommands: checkCommandRules(checkCommands), commands: member.commands });
+    const { permissionMode, policy } = stagePolicy(stage, member.writes, { documentsPath, checks: checkCommands, commands: member.commands });
+    const rules = rulesFor('claude-code', policy);
     const launch: FlowLaunch = {
       run: this.runOf(row),
       item,
@@ -1321,7 +1321,8 @@ export class FlowService {
             })),
       appendSystemPrompt: await this.deps.handoff(item.projectId, { title: item.title, criteria: item.acceptanceCriteria.map((c) => c.text) }),
       jsonSchema: flowResultSchema(stage),
-      permissionMode: rules.permissionMode,
+      permissionMode,
+      policy,
       allowedTools: rules.allowedTools,
       disallowedTools: rules.disallowedTools,
       maxBudgetUsd: maxCostUsd(project.settings),

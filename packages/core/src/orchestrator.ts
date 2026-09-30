@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFil
 import { join, relative, resolve } from 'node:path';
 import type {
   ChatActivity,
+  ToolPolicy,
   DecisionPointId,
   Health,
   LaunchOrchestrationTemplateRequest,
@@ -76,6 +77,7 @@ import type { DecisionSubject } from './decisions/points.ts';
 import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
 import { designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, scopeAndCompletion, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
 import { MAX_CONTINUATIONS } from '@agentry/shared';
+import { rulesFor } from './tool-policy.ts';
 
 const ID_RE = /^[\w-]{1,40}$/;
 /** The planner's own name, which is how a past planner run is recognised later. */
@@ -180,6 +182,17 @@ function worktreeName(orch: Orchestration, task: OrchestrationTaskState): string
  * resolves them from the repository's top level, not from the directory it is started in.
  */
 const worktreePath = (root: string, name: string) => join(root, '.claude', 'worktrees', name);
+
+/** What each of the orchestrator's own runs may do, beside the native rules the person gave the graph */
+const NO_PUSH = { network: 'omit', gitPush: 'omit' } as const;
+/** The planner only looks */
+const PLANNER_POLICY: ToolPolicy = { read: { allow: true }, edit: { allow: 'none' }, commands: { allow: 'none' }, ...NO_PUSH };
+/** Merging is git work; without it the integrator could only describe the conflicts */
+const INTEGRATION_POLICY: ToolPolicy = { read: { allow: true }, edit: { allow: 'any' }, commands: { allow: [{ command: 'git', args: 'prefix' }] }, ...NO_PUSH };
+/** Building and running tests is the job, so it may run commands; the graph asked for a fixer */
+const VERIFICATION_POLICY: ToolPolicy = { read: { allow: true }, edit: { allow: 'any' }, commands: { allow: 'any' }, ...NO_PUSH };
+/** Asked for by the person who launched the graph: nothing to confirm again */
+const WORKFLOW_POLICY: ToolPolicy = { read: { allow: false }, edit: { allow: 'none' }, commands: { allow: 'none' }, workflow: 'allow', ...NO_PUSH };
 
 /**
  * A graph's repository: the top level of the checkout it runs in, the subdirectory of it the graph
@@ -1395,7 +1408,7 @@ ${quoted}
         model: orch.model ?? undefined,
         permissionMode: orch.permissionMode,
         // Merging is git work; without it the integrator could only describe the conflicts
-        allowedTools: [...new Set([...(orch.allowedTools ?? []), 'Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash(git:*)'])],
+        allowedTools: rulesFor('claude-code', INTEGRATION_POLICY, { allowedTools: orch.allowedTools }).allowedTools,
         ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
         name: `${orch.name}:integration`.slice(0, 60),
         keepAlive: false,
@@ -1824,7 +1837,7 @@ ${quoted}
           model: spec.model ?? orch.model ?? undefined,
           permissionMode: orch.permissionMode,
           // Building and running tests is the job, so it may run commands; the graph asked for a fixer
-          allowedTools: [...new Set([...(orch.allowedTools ?? []), 'Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash'])],
+          allowedTools: rulesFor('claude-code', VERIFICATION_POLICY, { allowedTools: orch.allowedTools }).allowedTools,
           ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
           name: `${orch.name}:verification`.slice(0, 60),
           keepAlive: false,
@@ -1942,7 +1955,7 @@ ${quoted}
       cwd,
       model: req.model,
       permissionMode: 'manual',
-      allowedTools: ['Read', 'Glob', 'Grep'],
+      allowedTools: rulesFor('claude-code', PLANNER_POLICY).allowedTools,
       name: PLANNER_RUN_NAME,
       keepAlive: false,
       internal: true,
@@ -2352,7 +2365,7 @@ ${quoted}
             model: orch.model ?? undefined,
             permissionMode: orch.permissionMode,
             // Asked for by the person who launched the graph: nothing to confirm again
-            allowedTools: [...new Set([...orch.allowedTools, 'Workflow'])],
+            allowedTools: rulesFor('claude-code', WORKFLOW_POLICY, { allowedTools: orch.allowedTools }).allowedTools,
             ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
             name: `${orch.name}:workflow`.slice(0, 60),
             keepAlive: false,

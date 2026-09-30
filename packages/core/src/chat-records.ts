@@ -2,6 +2,9 @@ import type { ChatFork, ChatOrigin, ChatToolConfig, Execution, PermissionMode } 
 import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import { emptyTokenUsage } from './usage.ts';
 
+/** The provider of every chat written before chats carried one: each was a Claude Code session. */
+export const LEGACY_PROVIDER = 'claude-code';
+
 /**
  * What Agentry itself knows about a chat that the CLI's transcript does not say: where it came
  * from, what it was called, how its executions were set up. One row per chat; the transcript stays
@@ -24,6 +27,8 @@ export interface ChatRecord {
   lastText: string | null;
   model: string | null;
   permissionMode: PermissionMode;
+  /** The provider driving it; absent on a record written before the column existed, and always filled when loaded */
+  provider?: string;
   /** Pinned claude-swap account, when it did not use the active one */
   account: string | null;
   /** Where permissions, questions and plans go, kept so a resumed execution asks the same way */
