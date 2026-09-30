@@ -1,0 +1,376 @@
+/* Settings → Decisions (docs/design-system/reference/DesktopAjustesDecisiones*.html). A decision is
+   not a status and nothing here is live, so nothing takes a gradient or motion. The Slider is the
+   app's own control, drawn quiet: a dozen of them on one page cannot each carry the gradient. */
+
+.dp-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.dp-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* A card whose rows run to its edges, with the head as its first row */
+.dp-card {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  scroll-margin-top: 16px;
+}
+
+.dp-card > .card-head {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dp-card > .card-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.dp-card-sub {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.dp-block {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dp-block:last-child {
+  border-bottom: 0;
+}
+
+.dp-setting {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dp-setting-label {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 4px;
+  width: 240px;
+}
+
+.dp-setting-label > span:first-child {
+  font-weight: 500;
+}
+
+.dp-setting-label > span:last-child {
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.dp-setting-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dp-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.dp-model {
+  width: 220px;
+}
+
+.dp-cost {
+  width: 150px;
+}
+
+.dp-key {
+  width: 340px;
+  max-width: 100%;
+}
+
+.dp-mono {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.dp-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 20px;
+  background: var(--bg-1);
+}
+
+.dp-note-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dp-note-card > strong {
+  font-weight: 500;
+}
+
+/* One decision point: name and id, kind, mode, threshold and consent on one line */
+.dp-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.dp-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.dp-group-head .section-label {
+  flex: 1 1 auto;
+}
+
+.dp-group-count {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.dp-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px 206px 140px 132px;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dp-group:last-child .dp-row:last-child {
+  border-bottom: 0;
+}
+
+.dp-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dp-name > span:first-child {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.dp-id {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-3);
+  overflow-wrap: anywhere;
+}
+
+.dp-kind {
+  display: flex;
+  flex-direction: column;
+  font-size: 12.5px;
+  color: var(--fg-2);
+}
+
+.dp-kind small {
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.dp-thr {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dp-thr .slider {
+  flex: 1 1 auto;
+}
+
+.dp-thr .slider-range {
+  background: var(--fg-2);
+}
+
+.dp-thr .slider-thumb {
+  background: var(--fg);
+}
+
+.dp-thr output {
+  flex: none;
+  width: 34px;
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-2);
+}
+
+.dp-none {
+  font-size: 13px;
+  color: var(--fg-3);
+}
+
+.dp-consent {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--fg-2);
+}
+
+.dp-consent.is-none {
+  color: var(--fg-3);
+}
+
+.dp-consent .dot {
+  width: 6px;
+  height: 6px;
+}
+
+.dp-consent .mono {
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+
+.dp-note {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--warn);
+}
+
+.dp-intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.dp-intro p {
+  flex: 1 1 320px;
+  margin: 0;
+}
+
+.dp-empty {
+  padding: 18px 20px;
+}
+
+.dp-key-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.dp-key-state .mono {
+  font-size: 11.5px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .dp-card > .card-head {
+    padding: 12px 14px;
+  }
+
+  .dp-setting {
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .dp-setting-label {
+    width: auto;
+  }
+
+  .dp-block {
+    padding: 14px;
+  }
+
+  .dp-model,
+  .dp-cost,
+  .dp-key {
+    width: 100%;
+  }
+
+  .dp-foot {
+    padding: 12px 14px;
+  }
+
+  .dp-group-head {
+    min-height: var(--touch);
+    padding: 0 14px;
+  }
+
+  /* A card per point: the name, then the mode full width at 44 px, then the rest */
+  .dp-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  .dp-name {
+    grid-column: 1;
+  }
+
+  .dp-kind {
+    grid-column: 2;
+    align-items: flex-end;
+    text-align: right;
+  }
+
+  .dp-row > .segmented,
+  .dp-thr,
+  .dp-none,
+  .dp-consent {
+    grid-column: 1 / -1;
+  }
+
+  .dp-row > .segmented {
+    display: flex;
+  }
+
+  .dp-row > .segmented .segment {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: var(--touch);
+  }
+
+  .dp-thr .slider {
+    height: var(--touch);
+  }
+
+  .dp-intro {
+    padding: 12px 14px;
+  }
+}

@@ -1,0 +1,139 @@
+{
+  "tab": "Decisiones",
+  "intro": "Preguntas cortas con respuesta tipada que Agentry resuelve por ti, con el CLI o con Jev. Cada punto empieza apagado y tú decides cuándo pasa a sombra o a activo.",
+  "nav": "Secciones de Decisiones",
+  "engine": {
+    "title": "Motor",
+    "sub": "Proveedor, modelo y privacidad",
+    "provider": "Proveedor",
+    "providerHint": "Quién responde las preguntas. El CLI es el predeterminado; Jev es un servicio externo con tu clave.",
+    "providerProjects": "Cada proyecto puede elegir el suyo en sus ajustes.",
+    "jev": "Jev",
+    "cli": "Claude Code CLI",
+    "cliHint": "Un chat interno por petición, con tu cuenta. Cuenta en tu cuota.",
+    "cliModel": "Modelo del CLI",
+    "effort": "Esfuerzo",
+    "effortOptions": {
+      "low": "Bajo",
+      "medium": "Medio",
+      "high": "Alto"
+    },
+    "maxCost": "Límite de coste por petición (USD)",
+    "maxCostInvalid": "El límite tiene que ser mayor que 0 US$ y como mucho {{max}} US$.",
+    "jevKey": "Clave de Jev",
+    "jevKeyHint": "Se guarda en este equipo y la API nunca la devuelve.",
+    "jevKeyInput": "Clave de API de Jev",
+    "saveKey": "Guardar la clave",
+    "savingKey": "Guardando…",
+    "keySaved": "Clave de Jev guardada",
+    "changeKey": "Cambiar",
+    "removeKey": "Quitar",
+    "cancelKey": "Cancelar",
+    "keyRemoved": "Clave de Jev quitada",
+    "removeKeyTitle": "¿Quitar la clave de Jev?",
+    "removeKeyBody": "Los puntos que usan Jev volverán a su comportamiento de siempre hasta que guardes una clave de nuevo.",
+    "test": "Probar la conexión",
+    "testing": "Probando…",
+    "connected": "Conectado",
+    "failed": "Sin conexión",
+    "jevModel": "Modelo de Jev",
+    "jevModelHint": "Fijado para que las respuestas no cambien sin avisarte.",
+    "pinned": "Fijado",
+    "privacy": "Privacidad",
+    "privacyHint": "Lo que sabe Jev de lo que haces.",
+    "privacyTitle": "Qué sale de tu equipo con Jev",
+    "privacyBody": "Solo el estado que declara cada punto, sin más, redactado y recortado a su límite, hacia {{host}}. Lo ves entero antes de consentir cada punto. Jev no guarda nada solo en el plan enterprise. Con Claude Code CLI no sale nada.",
+    "historyDays": "Historial que se conserva (días)",
+    "historyDaysHint": "Las decisiones más antiguas se eliminan solas.",
+    "unavailableTitle": "Jev no disponible",
+    "unavailableBody": "{{failed}} de las últimas {{total}} peticiones no han llegado ({{reasons}}). La última fue {{when}}. Agentry sigue con su comportamiento de siempre y no espera a Jev.",
+    "reason": {
+      "no-key": "sin clave",
+      "timeout": "tiempo agotado",
+      "rate-limited": "límite de tasa",
+      "no-quota": "sin cuota",
+      "max-tokens": "demasiado largo",
+      "server-error": "error del servidor",
+      "network": "red",
+      "invalid-answer": "respuesta no válida"
+    },
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "saved": "Ajustes de las decisiones guardados",
+    "discard": "Descartar"
+  },
+  "points": {
+    "title": "Puntos de decisión",
+    "count": "{{points}} puntos · {{groups}} grupos",
+    "intro": "Todos los puntos empiezan apagados. En sombra, el motor responde y lo compara con lo que pasó, pero no cambia nada. Un punto que actúa solo lo hace si la confianza supera su umbral.",
+    "none": "No hay puntos de decisión disponibles.",
+    "kind": {
+      "act": "Actúa",
+      "suggest": "Sugiere"
+    },
+    "scope": {
+      "project": "por proyecto",
+      "global": "solo global"
+    },
+    "mode": "Modo de {{point}}",
+    "modes": {
+      "off": "Apagado",
+      "shadow": "Sombra",
+      "active": "Activo"
+    },
+    "activeNeedsJev": "Un punto que actúa necesita Jev para estar activo: el CLI no da una confianza que comparar con el umbral.",
+    "threshold": "Umbral de {{point}}",
+    "noThreshold": "Sin umbral",
+    "consent": {
+      "given": "Consentido",
+      "none": "Sin consentir",
+      "stale": "Volverá a preguntar",
+      "staleHint": "El estado de este punto ha cambiado desde que consentiste, así que vuelve a preguntar."
+    },
+    "limited": "Funciona como sombra hasta que tenga consentimiento.",
+    "names": {
+      "flowRefineNeeded": "Decidir si una tarjeta necesita refinarse",
+      "flowBounce": "Devolver la tarjeta al desarrollador tras el rechazo de QA",
+      "flowScopeDrift": "Detectar trabajo fuera del alcance en un commit",
+      "flowCriteriaPrecheck": "Comprobar los criterios antes de lanzar QA",
+      "flowCriteriaMerge": "Fusionar criterios casi idénticos",
+      "flowRestart": "Reencolar una ejecución cortada por un reinicio",
+      "boardTriage": "Proponer tipo, prioridad y épica al crear una tarea",
+      "teamAssign": "Proponer el miembro del equipo para una tarea",
+      "memoryTriage": "Ordenar y deduplicar las propuestas de memoria",
+      "journalRelevance": "Elegir qué entradas del diario pasan al relevo",
+      "assistantRerank": "Reordenar las propuestas del asistente",
+      "assistantSources": "Elegir qué lee primero el asistente",
+      "orchestrationRetry": "Reintentar o no una tarea que ha fallado",
+      "orchestrationModel": "Sugerir el modelo de cada tarea del plan",
+      "orchestrationFixer": "Decidir si lanzar el arreglo tras un fallo de checks",
+      "runContinuation": "Decidir si el trabajo sigue abierto tras un resultado",
+      "supervisorIntervene": "Decidir si el supervisor interviene en un worker atascado",
+      "healthSemanticLoop": "Detectar bucles que no repiten literalmente",
+      "healthTestWeakening": "Avisar de tests debilitados",
+      "changesUnexplainedHunk": "Marcar cambios sin explicar en la revisión",
+      "notificationUrgency": "Elegir la urgencia de cada aviso",
+      "paletteIntent": "Interpretar lo que escribes en la paleta"
+    },
+    "areas": {
+      "flow": "Flujo del proyecto",
+      "board": "Tablero",
+      "memory": "Memoria",
+      "assistant": "Asistente",
+      "orchestrations": "Orquestaciones",
+      "health": "Salud y supervisor",
+      "review": "Revisión",
+      "notifications": "Avisos",
+      "palette": "Paleta",
+    "other": "Otros"
+    }
+  },
+  "supervisor": {
+    "file": "supervisor.json"
+  },
+  "sections": {
+    "engine": "Motor",
+    "points": "Puntos de decisión",
+    "supervisor": "Supervisor"
+  }
+}

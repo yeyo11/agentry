@@ -1,0 +1,139 @@
+{
+  "tab": "Decisions",
+  "intro": "Short typed questions that Agentry answers for you, with the CLI or with Jev. Every point starts off, and you decide when it moves to shadow or to active.",
+  "nav": "Sections of Decisions",
+  "engine": {
+    "title": "Engine",
+    "sub": "Provider, model and privacy",
+    "provider": "Provider",
+    "providerHint": "Who answers the questions. The CLI is the default; Jev is an external service with your key.",
+    "providerProjects": "Each project can choose its own in its settings.",
+    "jev": "Jev",
+    "cli": "Claude Code CLI",
+    "cliHint": "One housekeeping chat per request, with your account. It counts against your quota.",
+    "cliModel": "CLI model",
+    "effort": "Effort",
+    "effortOptions": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "maxCost": "Cost limit per request (USD)",
+    "maxCostInvalid": "The limit has to be above $0 and at most ${{max}}.",
+    "jevKey": "Jev key",
+    "jevKeyHint": "Saved on this machine, and the API never returns it.",
+    "jevKeyInput": "Jev API key",
+    "saveKey": "Save key",
+    "savingKey": "Saving…",
+    "keySaved": "Jev key saved",
+    "changeKey": "Change",
+    "removeKey": "Remove",
+    "cancelKey": "Cancel",
+    "keyRemoved": "Jev key removed",
+    "removeKeyTitle": "Remove the Jev key?",
+    "removeKeyBody": "Points that run on Jev will go back to today's behaviour until a key is saved again.",
+    "test": "Test connection",
+    "testing": "Testing…",
+    "connected": "Connected",
+    "failed": "No connection",
+    "jevModel": "Jev model",
+    "jevModelHint": "Pinned so the answers do not change without telling you.",
+    "pinned": "Pinned",
+    "privacy": "Privacy",
+    "privacyHint": "What Jev knows about what you do.",
+    "privacyTitle": "What leaves your machine with Jev",
+    "privacyBody": "Only the state each point declares, redacted and cut to its limit, to {{host}}. You see all of it before consenting to each point. Jev keeps nothing only on the enterprise plan. With the Claude Code CLI nothing leaves.",
+    "historyDays": "History kept (days)",
+    "historyDaysHint": "Older decisions are deleted on their own.",
+    "unavailableTitle": "Jev unavailable",
+    "unavailableBody": "{{failed}} of the last {{total}} requests did not arrive ({{reasons}}). The last one was {{when}}. Agentry carries on with its usual behaviour and does not wait for Jev.",
+    "reason": {
+      "no-key": "no key",
+      "timeout": "timeout",
+      "rate-limited": "rate limit",
+      "no-quota": "no quota",
+      "max-tokens": "too long",
+      "server-error": "server error",
+      "network": "network",
+      "invalid-answer": "invalid answer"
+    },
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Decision settings saved",
+    "discard": "Discard"
+  },
+  "points": {
+    "title": "Decision points",
+    "count": "{{points}} points · {{groups}} groups",
+    "intro": "Every point starts off. In shadow the engine answers and compares with what happened, but changes nothing. A point that acts only does so when its confidence clears its threshold.",
+    "none": "No decision points are available.",
+    "kind": {
+      "act": "Acts",
+      "suggest": "Suggests"
+    },
+    "scope": {
+      "project": "per project",
+      "global": "global only"
+    },
+    "mode": "Mode of {{point}}",
+    "modes": {
+      "off": "Off",
+      "shadow": "Shadow",
+      "active": "Active"
+    },
+    "activeNeedsJev": "An act point needs Jev to be active: the CLI gives no confidence to compare with the threshold.",
+    "threshold": "Threshold of {{point}}",
+    "noThreshold": "No threshold",
+    "consent": {
+      "given": "Consented",
+      "none": "Not consented",
+      "stale": "Asks again",
+      "staleHint": "The state of this point changed since you consented, so it asks again."
+    },
+    "limited": "Runs as shadow until it has consent.",
+    "names": {
+      "flowRefineNeeded": "Decide whether a card needs refining",
+      "flowBounce": "Send the card back to the developer after QA rejects it",
+      "flowScopeDrift": "Spot work outside the scope in a commit",
+      "flowCriteriaPrecheck": "Check the criteria before QA starts",
+      "flowCriteriaMerge": "Merge near-identical criteria",
+      "flowRestart": "Requeue a run cut short by a restart",
+      "boardTriage": "Propose type, priority and epic when a task is created",
+      "teamAssign": "Propose the team member for a task",
+      "memoryTriage": "Sort and deduplicate memory proposals",
+      "journalRelevance": "Pick which journal entries go into the handover",
+      "assistantRerank": "Reorder the assistant's proposals",
+      "assistantSources": "Pick what the assistant reads first",
+      "orchestrationRetry": "Retry or not a task that failed",
+      "orchestrationModel": "Suggest the model for each task of the plan",
+      "orchestrationFixer": "Decide whether to launch the fix after a failed check",
+      "runContinuation": "Decide whether the work is still open after a result",
+      "supervisorIntervene": "Decide whether the supervisor steps in on a stuck worker",
+      "healthSemanticLoop": "Detect loops that do not repeat literally",
+      "healthTestWeakening": "Warn about weakened tests",
+      "changesUnexplainedHunk": "Flag unexplained changes in a review",
+      "notificationUrgency": "Pick the urgency of each notification",
+      "paletteIntent": "Interpret what you type in the palette"
+    },
+    "areas": {
+      "flow": "Project flow",
+      "board": "Board",
+      "memory": "Memory",
+      "assistant": "Assistant",
+      "orchestrations": "Orchestrations",
+      "health": "Health and supervisor",
+      "review": "Review",
+      "notifications": "Notifications",
+      "palette": "Palette",
+    "other": "Other"
+    }
+  },
+  "supervisor": {
+    "file": "supervisor.json"
+  },
+  "sections": {
+    "engine": "Engine",
+    "points": "Decision points",
+    "supervisor": "Supervisor"
+  }
+}
