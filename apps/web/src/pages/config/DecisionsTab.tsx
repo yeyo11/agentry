@@ -10,7 +10,7 @@ import type {
   DecisionUnavailableReason,
 } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Cpu, KeyRound, Save, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { ChevronRight, Cpu, KeyRound, Save, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
@@ -626,6 +626,36 @@ function JevKey({ saved }: { saved: DecisionSettings }) {
   );
 }
 
+const OPEN_GROUPS_KEY = 'agentry-decision-groups-open';
+
+function readOpenGroups(): ReadonlySet<string> {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(OPEN_GROUPS_KEY) ?? '[]');
+    return new Set(Array.isArray(stored) ? stored.filter((id): id is string => typeof id === 'string') : []);
+  } catch {
+    // no storage, or not ours: every group starts folded
+    return new Set();
+  }
+}
+
+function writeOpenGroups(open: ReadonlySet<string>): void {
+  try {
+    localStorage.setItem(OPEN_GROUPS_KEY, JSON.stringify([...open]));
+  } catch {
+    // not persisted; still applied for this visit
+  }
+}
+
+/** How a folded group's points stand, most engaged first, leaving out the modes no point is in. */
+export function groupSummary(modes: readonly DecisionMode[], label: (mode: DecisionMode, count: number) => string): string {
+  const order: DecisionMode[] = ['active', 'shadow', 'off'];
+  return order
+    .map((mode) => ({ mode, count: modes.filter((m) => m === mode).length }))
+    .filter((entry) => entry.count > 0)
+    .map((entry) => label(entry.mode, entry.count))
+    .join(' · ');
+}
+
 function PointsSection({
   catalogue,
   settings,
@@ -658,6 +688,20 @@ function PointsSection({
       toast.success(t('consent.withdrawn'));
     },
   });
+  // Twenty-two points in nine groups is a long page: a group opens on demand, its head saying how its
+  // points stand, and the groups a person left open stay open on the next visit
+  const [open, setOpen] = useState<ReadonlySet<string>>(readOpenGroups);
+  const setGroups = (next: ReadonlySet<string>) => {
+    setOpen(next);
+    writeOpenGroups(next);
+  };
+  const toggle = (id: string) => {
+    const next = new Set(open);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setGroups(next);
+  };
+  const modeOf = (id: DecisionPointId): DecisionMode => draft.points[id]?.mode ?? 'off';
   const byId = new Map(catalogue.map((info) => [info.id, info]));
   // A point the catalogue has and no area lists (a newer server) still shows, last, rather than vanishing
   const listed = new Set(AREAS.flatMap((area) => area.points));
@@ -666,6 +710,7 @@ function PointsSection({
     ...AREAS.map((area) => ({ id: area.id as AreaId | 'other', points: area.points.filter((id) => byId.has(id)) })),
     { id: 'other' as const, points: extra },
   ].filter((group) => group.points.length > 0);
+  const allOpen = groups.length > 0 && groups.every((group) => open.has(group.id));
 
   return (
     <section id={sectionId('points')} className="card dp-card" aria-labelledby="decisions-points-title">
@@ -680,6 +725,9 @@ function PointsSection({
         <div className="dp-bulk">
           <span className="dp-bulk-label">{t('bulk.all', { count: catalogue.length })}</span>
           <BulkMode scope={t('bulk.allScope')} onApply={(mode) => onBulk(catalogue.map((info) => info.id), mode)} />
+          <button type="button" className="btn btn-ghost btn-small dp-toggle-all" onClick={() => setGroups(allOpen ? new Set() : new Set(groups.map((group) => group.id)))}>
+            {allOpen ? t('points.collapseAll') : t('points.expandAll')}
+          </button>
           {bulkNote && (
             <p className="dp-bulk-note small muted" role="status">
               {t('bulk.result', { count: bulkNote.set, mode: t(`points.modes.${bulkNote.mode}`) })}
@@ -695,11 +743,22 @@ function PointsSection({
       {groups.map((group) => (
         <div key={group.id} className="dp-group" role="group" aria-label={t(`points.areas.${group.id}`)}>
           <div className="dp-group-head">
-            <span className="section-label">{t(`points.areas.${group.id}`)}</span>
-            <span className="dp-group-count">{formatNumber(group.points.length)}</span>
+            <button
+              type="button"
+              className="dp-group-toggle"
+              aria-expanded={open.has(group.id)}
+              aria-controls={`dp-group-${group.id}`}
+              onClick={() => toggle(group.id)}
+            >
+              <ChevronRight size={14} strokeWidth={2} className="dp-group-chevron" aria-hidden />
+              <span className="section-label">{t(`points.areas.${group.id}`)}</span>
+              <span className="dp-group-count">{formatNumber(group.points.length)}</span>
+              <span className="dp-group-summary">{groupSummary(group.points.map(modeOf), (mode, count) => t(`points.summary.${mode}`, { count }))}</span>
+            </button>
             <BulkMode scope={t(`points.areas.${group.id}`)} onApply={(mode) => onBulk(group.points, mode)} />
           </div>
-          {group.points.map((id) => {
+          <div id={`dp-group-${group.id}`} hidden={!open.has(group.id)}>
+          {open.has(group.id) && group.points.map((id) => {
             const info = byId.get(id);
             return (
               info && (
@@ -718,6 +777,7 @@ function PointsSection({
               )
             );
           })}
+          </div>
         </div>
       ))}
     </section>

@@ -127,6 +127,16 @@
       "notifications": "Notifications",
       "palette": "Palette",
       "other": "Other"
+    },
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "summary": {
+      "active_one": "{{count}} active",
+      "active_other": "{{count}} active",
+      "shadow_one": "{{count}} in shadow",
+      "shadow_other": "{{count}} in shadow",
+      "off_one": "{{count}} off",
+      "off_other": "{{count}} off"
     }
   },
   "supervisor": {

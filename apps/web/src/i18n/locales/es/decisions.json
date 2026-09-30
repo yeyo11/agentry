@@ -127,6 +127,16 @@
       "notifications": "Avisos",
       "palette": "Paleta",
       "other": "Otros"
+    },
+    "expandAll": "Desplegar todo",
+    "collapseAll": "Plegar todo",
+    "summary": {
+      "active_one": "{{count}} activo",
+      "active_other": "{{count}} activos",
+      "shadow_one": "{{count}} en sombra",
+      "shadow_other": "{{count}} en sombra",
+      "off_one": "{{count}} apagado",
+      "off_other": "{{count}} apagados"
     }
   },
   "supervisor": {
