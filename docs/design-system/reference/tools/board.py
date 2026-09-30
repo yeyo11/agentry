@@ -206,7 +206,24 @@ def board_decided_mobile():
   write('MobileTableroDecidido.html', mobile('Tablero · decidido', inner))
 
 
+def board_mr_desktop():
+  # A GitLab project: the card waiting for the person offers "Aprobar y abrir MR"; the approved one
+  # carries its MR !12 and its CI on the strip, with the link to GitLab.
+  cards = {
+    'AGN-26': card('AGN-26', strip=pr_strip('gitlab', 12, 'esperando fusión', ci='pending')),
+    'AGN-29': card('AGN-29', strip=approve_strip('QA la dio por buena', 'Aprobar y abrir MR')),
+  }
+  cols = ''.join(col(s, epics_first(by_col(s)), cards=(''.join(cards[k] for k in by_col(s)) if s == 'in_review' else None), marks=marks()) for s, _ in COLS)
+  main = f'''<main class="page" style="gap: 16px; position: relative">
+{head('claude-wrapper · 13 abiertas · clave <span class="mono">AGN</span>')}
+{toolbar()}
+<div class="wi-board">{cols}</div>
+</main>'''
+  write('DesktopTableroMR.html', desktop('Tablero · merge requests', 'tasks', '<span style="font-weight: 500">Tareas</span>', main))
+
+
 if __name__ == '__main__':
+  board_mr_desktop()
   board_desktop()
   board_mobile()
   board_decided_desktop()
