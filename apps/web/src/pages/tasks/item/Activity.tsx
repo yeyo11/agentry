@@ -1,5 +1,5 @@
 import type { FlowRun, WorkItemComment, WorkItemDetail, WorkItemHistoryEntry, WorkItemPriority, WorkItemStatus, WorkItemType } from '@agentry/shared';
-import { ArrowRight, ArrowUp, Check, Hourglass, Link2, MessageSquare, Pencil, Play, Plus, RotateCcw, type LucideIcon } from 'lucide-react';
+import { ArrowRight, ArrowUp, Check, GitPullRequest, Hourglass, Link2, MessageSquare, Pencil, Play, Plus, RotateCcw, type LucideIcon } from 'lucide-react';
 import { lazy, Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -27,6 +27,7 @@ const HISTORY_ICON: Record<HistoryLine['icon'], LucideIcon> = {
   relation: Link2,
   link: MessageSquare,
   wait: Hourglass,
+  pr: GitPullRequest,
 };
 
 function HistoryItem({ entry, person }: { entry: WorkItemHistoryEntry; person: string }) {

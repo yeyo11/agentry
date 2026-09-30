@@ -188,7 +188,7 @@ export function abortMerge(dir: string): void {
 }
 
 /** Git needs an author; the repository's own identity when it has one, a neutral one otherwise. */
-function identity(dir: string): string[] {
+export function identity(dir: string): string[] {
   try {
     if (git(dir, ['config', 'user.email'])) return [];
   } catch {
@@ -541,4 +541,19 @@ export async function probeChanges(dir: string, base: string | null): Promise<Ch
     dirty: tracked + created.length,
     fingerprint: [head.trim(), ahead.trim(), numstat, ...stamps].join('\n'),
   };
+}
+
+/** Whether `ref` (a full ref such as `refs/remotes/origin/main`) names a commit in `dir`'s repository. */
+export function refExists(dir: string, ref: string): boolean {
+  try {
+    git(dir, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], 10_000);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Whether `dir` has staged or unstaged changes to tracked files; files git does not track do not count. */
+export function hasTrackedChanges(dir: string): boolean {
+  return git(dir, ['status', '--porcelain', '--untracked-files=no'], 30_000) !== '';
 }

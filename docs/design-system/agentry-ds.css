@@ -655,6 +655,19 @@ a.part-of { color: inherit; text-decoration: none; }
 .wi-strip .actor-orch { width: 16px; height: 16px; display: grid; place-items: center; color: var(--fg-3); }
 .wi-mrow .wi-strip { margin: 2px -14px -12px; padding: 8px 14px 9px; font-size: 13px; }
 .wi-mrow.rail-live .wi-strip { margin-left: -16px; padding-left: 16px; }
+/* A card's pull request on its strip (docs/plans/work-item-pull-requests.md): a conflict takes warn,
+   an open PR waits in idle, one that failed to open is bad, Agentry preparing it stays neutral and
+   still. The number is an id; the link opens GitHub and never the card. */
+.wi-strip.warn { background: color-mix(in srgb, var(--warn-soft) 55%, transparent); }
+.wi-strip.warn .verb { color: var(--fg-2); font-weight: 400; }
+.wi-strip .pr-num { flex-shrink: 0; font-family: var(--mono); font-size: 11.5px; font-weight: 500; color: var(--fg); font-variant-numeric: tabular-nums; }
+.wi-strip .pr-link { display: grid; place-items: center; flex-shrink: 0; width: 22px; height: 22px; margin-left: auto; border-radius: var(--r-sm); color: var(--fg-3); }
+.wi-mrow .wi-strip .pr-link { width: var(--touch); height: var(--touch); margin: -12px -12px -12px auto; }
+.wi-strip .no-pr { flex-basis: 100%; display: inline-flex; gap: 5px; color: var(--warn); }
+/* A PR's checks as a badge with its word: passing .ok, failing .bad, pending and none neutral, never looping */
+.pr-ci { flex-shrink: 0; }
+/* The board's checkout behind origin/<default>: one quiet warn line under the toolbar, never a command */
+.wi-checkout { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: var(--warn); }
 /* Selection mode ("Orquestar"): the chosen cards take the accent ring and a checked box. */
 .wi-card.sel { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow); }
 /* An epic's card counts its children instead of carrying an epic label. */
@@ -729,6 +742,12 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 .diff-file .path { flex: 1 1 auto; font-size: inherit; min-width: 0; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .diff-file .path.wrap { white-space: normal; padding: 6px 0; }
 .diff-file .n { color: var(--fg-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* The item's PR row under its changes: number, branch → base and state, the whole row a link to GitHub */
+.pr-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-height: 36px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--bg-1); color: var(--fg-3); font-size: 12px; text-decoration: none; }
+.pr-row:hover { background: var(--bg-3); }
+.pr-row .pr-num { font-family: var(--mono); font-weight: 500; color: var(--fg); font-variant-numeric: tabular-nums; }
+.pr-row .pr-branch { flex: 1 1 auto; min-width: 0; font-family: var(--mono); color: var(--fg-2); overflow-wrap: anywhere; }
+.m-screen .pr-row { min-height: var(--touch); font-size: 13px; }
 /* Diffstat without status colours: added lines in --fg-2, removed ones in --line-3. */
 .diffstat { display: inline-flex; gap: 1.5px; }
 .diffstat > i { display: block; width: 6px; height: 6px; border-radius: var(--r-xs); background: var(--bg-4); }

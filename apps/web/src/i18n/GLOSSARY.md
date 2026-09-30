@@ -194,6 +194,9 @@ imperative forms wholesale (see "Terms that changed" for the full old → new li
 | Stage | Etapa |
 | Integration, merge | Integración, fusionar |
 | Push (a branch) | Subir |
+| Working copy (a project's main checkout) | La copia de trabajo |
+| CI (a pull request's checks): passing / pending / failing / none | la CI: CI superada / CI pendiente / CI fallida / sin CI |
+| Waiting for merge (an open PR) | esperando fusión; "cerrada sin fusionar" for one closed unmerged |
 | Auto-rotation | Rotación automática |
 | Threshold | Umbral |
 | Language | Idioma |

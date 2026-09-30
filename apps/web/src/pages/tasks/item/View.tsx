@@ -30,6 +30,8 @@ import {
 import { useItemActions, useMoveItem, usePersonName, type ItemActions } from './hooks';
 import { Links } from './Links';
 import { Picker } from './Picker';
+import { PullRequestState } from './PullRequest';
+import { useRefreshPullRequestOnOpen } from '../board/PullRequest';
 import { LabelsEditor, Properties } from './Properties';
 import { Relations } from './Relations';
 import { WaitingBadge, WaitingState } from './Waiting';
@@ -69,6 +71,7 @@ function Wide({ item, actions, person, variant }: { item: WorkItemDetail; action
       {head}
       {buttons.refusal}
       <WaitingState item={item} actions={actions} />
+      <PullRequestState item={item} />
       <div className="workitem-heading">
         <Title item={item} actions={actions} />
         <Description item={item} actions={actions} />
@@ -256,6 +259,7 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
           <>
             {buttons.refusal}
             <WaitingState item={item} actions={actions} />
+            <PullRequestState item={item} />
             <Description item={item} actions={actions} />
             <Criteria item={item} actions={actions} person={person} compact />
             <Relations
@@ -297,6 +301,7 @@ export function WorkItemView({ item, variant }: { item: WorkItemDetail; variant:
   const narrow = useMediaQuery(NARROW);
   const actions = useItemActions(item.id);
   const person = usePersonName();
+  useRefreshPullRequestOnOpen(item);
   if (narrow) return <Narrow item={item} actions={actions} person={person} />;
   return <Wide item={item} actions={actions} person={person} variant={variant} />;
 }

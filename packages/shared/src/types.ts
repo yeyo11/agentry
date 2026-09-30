@@ -1241,7 +1241,8 @@ export type WorkItemChange =
   | 'relation'
   | 'link'
   | 'comment'
-  | 'waiting';
+  | 'waiting'
+  | 'pull_request';
 
 /**
  * A referenced thing (an epic, a milestone, a link) as it was when the entry was written, so the
@@ -1261,10 +1262,20 @@ export interface WorkItemHistoryCriterion {
   checked: boolean;
 }
 
+/** A pull request as a history entry records it: opened, conflicted, merged or closed. */
+export interface WorkItemHistoryPullRequest {
+  phase: WorkItemPullRequestPhase;
+  number: number | null;
+  url: string | null;
+  /** The conflicting paths, for `conflict` */
+  conflicts: string[];
+}
+
 /** A plain value for a scalar field, the list for `labels`, and a snapshot for everything else. */
 export type WorkItemHistoryValue =
   | string
   | string[]
+  | WorkItemHistoryPullRequest
   | WorkItemAssignee
   | WorkItemHistoryRef
   | WorkItemHistoryCriterion
@@ -1341,9 +1352,82 @@ export interface WorkItemLink extends Omit<WorkItemSource, 'kind'> {
 /**
  * Why an item waits for the person under the flow by column: `approval`, an agent finished and asks
  * for the move to `done`, which only a person makes; `bounces`, verification sent it back more times
- * than the project allows. Either ends when a person moves it.
+ * than the project allows; `merge`, the person approved it and its pull request is open on GitHub,
+ * waiting for the person to merge it there. Each ends when a person moves it; `merge` also ends when
+ * the PR is merged (the item reaches `done`) or closed unmerged (back to `approval`).
  */
-export type WorkItemWaitReason = 'approval' | 'bounces';
+export type WorkItemWaitReason = 'approval' | 'bounces' | 'merge';
+
+/**
+ * Where an item's pull request stands (docs/plans/work-item-pull-requests.md):
+ *
+ * - `preparing`: approved, and Agentry is committing, updating, pushing and opening it;
+ * - `conflict`: updating the branch with the default branch conflicted, and the merge waits in the
+ *   item's worktree for the Developer (or the person) to resolve it;
+ * - `awaiting-verify`: the conflict was handed to the Developer, and QA's next pass opens the PR
+ *   without a second approval;
+ * - `open`: on GitHub, waiting for the person to merge it;
+ * - `merged` and `closed`: GitHub's own outcome;
+ * - `failed`: a step failed, and {@link WorkItemPullRequest.error} says which and why.
+ */
+export type WorkItemPullRequestPhase = 'preparing' | 'conflict' | 'awaiting-verify' | 'open' | 'merged' | 'closed' | 'failed';
+
+/** A PR's checks, from `gh pr view --json statusCheckRollup`: none, any still running, any failed, or all green. */
+export type WorkItemPullRequestCi = 'none' | 'pending' | 'passing' | 'failing';
+
+/** An item's pull request, the newest of its rows: an item keeps every PR it had, closed ones too. */
+export interface WorkItemPullRequest {
+  phase: WorkItemPullRequestPhase;
+  /** Null until `gh pr create` answered */
+  number: number | null;
+  url: string | null;
+  /** The item's branch, `task/<key>` */
+  branch: string;
+  /** The default branch it is proposed to */
+  base: string;
+  /** Null until the watcher first read it */
+  ci: WorkItemPullRequestCi | null;
+  /** The paths the update left conflicted, while `phase` is `conflict` or `awaiting-verify` */
+  conflicts: string[];
+  /** Why the last attempt failed: a step or readiness code, and git's or gh's first line of error */
+  error: { code: string; detail: string } | null;
+  openedAt: string | null;
+  closedAt: string | null;
+  /** When the watcher last asked gh about it */
+  checkedAt: string | null;
+}
+
+/** Why a project cannot open pull requests; `ready` when it can. */
+export type PullRequestNotReadyReason = 'not-git' | 'no-remote' | 'not-github' | 'no-gh' | 'gh-unauthenticated' | 'no-default-branch';
+
+/**
+ * Whether approving an item of this project opens its pull request. Computed from git and gh and
+ * cached for 60 s, so a board read never waits on `gh auth status`.
+ */
+export interface PullRequestReadiness {
+  status: 'ready' | PullRequestNotReadyReason;
+  /** The raw line git or gh answered with, shown in mono beside the worded reason; null when ready */
+  detail: string | null;
+  /** The default branch, when it could be found */
+  defaultBranch: string | null;
+}
+
+/**
+ * Why the project's main checkout is behind `origin/<default>`: on another branch, carrying changes
+ * to tracked files, or holding commits the default branch lacks.
+ */
+export type CheckoutBehindReason = 'not-on-default' | 'dirty' | 'diverged';
+
+/** The project's main checkout against the default branch, from local git only (no fetch on read). */
+export interface BoardCheckout {
+  defaultBranch: string;
+  /** Null on a detached head */
+  branch: string | null;
+  /** Commits `origin/<default>` has that the checkout lacks */
+  behind: number;
+  /** Why it was not brought forward; null when it is up to date or can be */
+  reason: CheckoutBehindReason | null;
+}
 
 export interface WorkItem {
   /** Ours and stable: the key changes with the prefix, the id never does */
@@ -1402,6 +1486,8 @@ export interface WorkItem {
    * by the flow by column: absent reads as null, waiting for nothing.
    */
   waiting?: WorkItemWaitReason | null;
+  /** Its newest pull request; absent or null when it never had one */
+  pullRequest?: WorkItemPullRequest | null;
   createdAt: string;
   updatedAt: string;
   /** When it last entered `done`; null while it is anywhere else */
@@ -1421,6 +1507,14 @@ export interface WorkItemDetail extends WorkItem {
   comments: WorkItemComment[];
   /** Oldest first */
   history: WorkItemHistoryEntry[];
+  /** Whether approving it opens a pull request; absent or null for an item of a project that is not imported */
+  pullRequestReadiness?: PullRequestReadiness | null;
+}
+
+/** The answer of `POST /work-items/:itemId/pull-request`: 202 while it is prepared, 200 when one was open already. */
+export interface WorkItemPullRequestResult {
+  item: WorkItem;
+  pullRequest: WorkItemPullRequest;
 }
 
 /** A new entry of the acceptance checklist: an object, so fields can join the text later. */
@@ -1638,6 +1732,10 @@ export interface Board {
   projectId: string | null;
   /** Always the five columns, in {@link WorkItemStatus} order */
   columns: BoardColumn[];
+  /** A project's board: whether approving opens a pull request. Absent on the All projects board */
+  pullRequestReadiness?: PullRequestReadiness | null;
+  /** A project's board: its checkout against the default branch; null when the project is not ready */
+  checkout?: BoardCheckout | null;
 }
 
 // ---------- Work items with chats and orchestrations ----------
@@ -1816,7 +1914,9 @@ export type FlowRunOutcome = 'passed' | 'rejected' | 'failed' | 'cancelled';
  * - `not-started`: its chat did not start;
  * - `not-continued`: its chat could not be continued after a restart;
  * - `chat-ended`: its chat ended, or was removed, without a result;
- * - `chat-failed`: its chat ended in an error the CLI reported (the error is the CLI's text).
+ * - `chat-failed`: its chat ended in an error the CLI reported (the error is the CLI's text);
+ * - `conflict-unresolved`: a work run that was to resolve the merge of the default branch into the
+ *   item's branch ended with conflicted paths left (the error names them).
  *
  * Cancelled:
  * - `item-moved`: the item left the column before the run started, or while a restart cut it off;
@@ -1847,7 +1947,9 @@ export type FlowRunCause =
   | 'flow-off'
   | 'no-member'
   | 'refined'
-  | 'chat-busy';
+  | 'chat-busy'
+  /** A work run that was to resolve a merge of the default branch left conflicted paths behind */
+  | 'conflict-unresolved';
 
 /** Another run as a run refers to it: enough to say what it did and open its chat. */
 export interface FlowRunRef {

@@ -436,7 +436,12 @@
     "chat-busy": {
       "note": "Never started: a chat of yours was already working on the item"
     },
-    "cancelledUnknown": "Never started"
+    "cancelledUnknown": "Never started",
+    "conflict-unresolved": {
+      "title": "The merge was left conflicted.",
+      "body": "The run was to resolve the merge of the default branch and left conflicted files behind. The item stays in {{column}}, unchanged.",
+      "short": "the merge was left conflicted"
+    }
   },
   "log": {
     "title": "Activity",

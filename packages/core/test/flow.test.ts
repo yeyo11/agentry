@@ -8,7 +8,7 @@ import { Worker } from 'node:worker_threads';
 import { flowRunStatus, MAX_CONTINUATIONS, type AgentryEvent, type AgentryLanguage, type FlowRunDocument, type FlowMemoryProposal, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@agentry/shared';
 import { Db, FLOW_CAUSE_SCHEMA_VERSION, FLOW_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import { EventBus } from '../src/events.ts';
-import { checkCommandRules, FlowError, flowPrompt, flowResultSchema, flowTitle, FlowService, parseFlowRunQuery, parseResult, stageRules, testCommandRules, testCommands, type FlowChatResult, type FlowLaunch } from '../src/flow.ts';
+import { checkCommandRules, FlowError, flowPrompt, flowResultSchema, flowTitle, FlowService, parseFlowRunQuery, parseResult, stageRules, testCommandRules, testCommands, type FlowChatResult, type FlowLaunch, type FlowPullRequests } from '../src/flow.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { FRONTEND, PASTED_NOTE, REAL_VERIFICATION, SCOPE_AND_COMPLETION, THINK_THROUGH, UNATTENDED } from '../src/prompt-rules.ts';
 import { tempConfig } from './helpers.ts';
@@ -34,7 +34,7 @@ function settingsWith(modules: ProjectModule[] = ['board', 'team', 'memory', 'do
   };
 }
 
-function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; path?: string; uncommitted?: (dir: string) => string[] } = {}) {
+function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; pullRequests?: FlowPullRequests; path?: string; uncommitted?: (dir: string) => string[] } = {}) {
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
   const db = opts.db ?? new Db(config);
@@ -80,6 +80,7 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; p
     language: () => state.language,
     stop: (id) => void stopped.push(id),
     emit: (e) => bus.emit(e),
+    ...(opts.pullRequests ? { pullRequests: opts.pullRequests } : {}),
   });
   bus.observe((e) => flow.observe(e));
   if (opts.recover !== false) flow.recover();
@@ -1520,6 +1521,66 @@ test('starting the waiting cards is refused while the flow is off', async () => 
   await card(s, 'backlog', 'One');
   assert.throws(() => s.flow.startWaiting('p1'), (err: unknown) => err instanceof FlowError && err.statusCode === 409);
   assert.equal(flowRuns(s).length, 0);
+});
+
+// ---------- the item's pull request ----------
+
+/** What a merge conflict looks like to the flow: the paths, what the run left, and QA's passes. */
+function conflictHooks(paths: string[]) {
+  const state = { conflict: { base: 'main', paths } as { base: string; paths: string[] } | null, left: paths as string[] | null, verified: [] as string[] };
+  const hooks: FlowPullRequests = {
+    conflictOf: () => state.conflict,
+    settleConflict: () => {
+      const left = state.left;
+      if (!left?.length) state.conflict = null;
+      return left;
+    },
+    verified: (itemId) => void state.verified.push(itemId),
+  };
+  return { state, hooks };
+}
+
+test("the Developer's run on a conflicted merge is told every conflicting path and fails with conflict-unresolved when some are left", async () => {
+  const { state, hooks } = conflictHooks(['src/cart.ts', 'docs/cart.md']);
+  const s = setup({ pullRequests: hooks });
+  // Where no role answers, so nothing runs before the conflict sends it back to work
+  const it = await item(s, 'done');
+  s.items.move(it.id, { status: 'in_progress' }, { actor: { kind: 'person' }, cause: { kind: 'chat', chatId: null, orchestrationId: null, taskId: null, event: 'pr.conflict' } });
+  await s.flow.settled();
+  const launch = s.launches.at(-1);
+  assert.equal(launch?.run.stage, 'work');
+  assert.match(launch?.prompt ?? '', /Resolve the merge of `main` into this branch/);
+  assert.match(launch?.prompt ?? '', /- `src\/cart\.ts`\n- `docs\/cart\.md`/);
+  // The run that resolves a conflict may no more push than any other
+  assert.ok(launch?.disallowedTools.includes('Bash(git push)'));
+  assert.ok(launch?.disallowedTools.includes('Bash(git push *)'));
+
+  state.left = ['src/cart.ts'];
+  await s.answer(it.id, ok('Merged'));
+  const run = flowRuns(s).filter((r) => r.stage === 'work').at(-1);
+  assert.equal(run?.outcome, 'failed');
+  assert.equal(run?.cause, 'conflict-unresolved');
+  assert.match(run?.error ?? '', /src\/cart\.ts/);
+  assert.equal(s.items.find(it.id)?.status, 'in_progress');
+});
+
+test("QA passing the round after a resolved conflict completes the person's remembered approval, and keeps its notes for the PR", async () => {
+  const { state, hooks } = conflictHooks(['src/cart.ts']);
+  const s = setup({ pullRequests: hooks });
+  const it = s.items.create('p1', { title: 'Fix the cart', status: 'done', type: 'task', acceptanceCriteria: [{ text: 'The total adds up' }] });
+  await s.flow.settled();
+  const [criterion] = it.acceptanceCriteria;
+  assert.ok(criterion);
+  s.items.move(it.id, { status: 'in_progress' }, person);
+  await s.flow.settled();
+  state.left = [];
+  await s.answer(it.id, ok('Resolved and committed'));
+  assert.equal(flowRuns(s).filter((r) => r.stage === 'work').at(-1)?.outcome, 'passed');
+  assert.equal(s.items.find(it.id)?.status, 'in_review');
+
+  await s.answer(it.id, ok('All criteria met', { verdict: 'pass', criteria: [{ id: criterion.id, met: true, note: 'the cart test passes' }] }));
+  assert.deepEqual(state.verified, [it.id]);
+  assert.deepEqual(s.flow.verdicts(it.id), [{ id: criterion.id, met: true, note: 'the cart test passes' }]);
 });
 
 // ---------- the prompts, and runs that stop early ----------

@@ -10,6 +10,10 @@ import type {
   WorkItemLink,
   WorkItemLinkKind,
   WorkItemLinkRole,
+  WorkItemHistoryPullRequest,
+  WorkItemPullRequest,
+  WorkItemPullRequestCi,
+  WorkItemPullRequestPhase,
   WorkItemRelation,
   WorkItemSource,
   WorkItemStatus,
@@ -125,6 +129,7 @@ export type StoredHistoryValue =
   | { id: string; label: string; number?: number }
   | { id: string; text: string; checked: boolean }
   | { type: WorkItemRelation['type']; item: StoredItemRef }
+  | WorkItemHistoryPullRequest
   | null;
 
 export interface PendingEntry {
@@ -260,4 +265,56 @@ export function readValue(raw: string | null, prefix: string): WorkItemHistoryVa
     return typeof v.number === 'number' ? { id: v.id, label: v.label, key: workItemKey(prefix, v.number) } : { id: v.id, label: v.label };
   }
   return value as WorkItemHistoryValue;
+}
+
+// ---------- pull requests ----------
+
+export interface PullRequestRow {
+  id: string;
+  item_id: string;
+  project_id: string;
+  phase: string;
+  number: number | null;
+  url: string | null;
+  branch: string;
+  base: string;
+  ci: string | null;
+  conflicts: string;
+  error_code: string | null;
+  error_detail: string | null;
+  approved_at: string;
+  moved_at: string | null;
+  opened_at: string | null;
+  closed_at: string | null;
+  checked_at: string | null;
+  claimed_until: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+const PR_PHASES: readonly WorkItemPullRequestPhase[] = ['preparing', 'conflict', 'awaiting-verify', 'open', 'merged', 'closed', 'failed'];
+const PR_CI: readonly WorkItemPullRequestCi[] = ['none', 'pending', 'passing', 'failing'];
+
+/** A stored PR as the contract carries it; a phase this version does not know reads as failed. */
+export function pullRequestOf(row: PullRequestRow): WorkItemPullRequest {
+  let conflicts: string[] = [];
+  try {
+    const parsed: unknown = JSON.parse(row.conflicts);
+    if (Array.isArray(parsed)) conflicts = parsed.filter((p): p is string => typeof p === 'string');
+  } catch {
+    // an unreadable list reads as none
+  }
+  return {
+    phase: PR_PHASES.find((p) => p === row.phase) ?? 'failed',
+    number: row.number,
+    url: row.url,
+    branch: row.branch,
+    base: row.base,
+    ci: PR_CI.find((c) => c === row.ci) ?? null,
+    conflicts,
+    error: row.error_code ? { code: row.error_code, detail: row.error_detail ?? '' } : null,
+    openedAt: row.opened_at,
+    closedAt: row.closed_at,
+    checkedAt: row.checked_at,
+  };
 }

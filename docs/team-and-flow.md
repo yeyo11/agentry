@@ -303,7 +303,10 @@ that, the result it has decides, as before.
 | verify | `dontAsk` | the read tools; `git status`, `diff`, `log`, `show`; the project's check commands, short forms included (`pnpm typecheck`, `yarn lint`), each named in the verify prompt; edits under the documents folder | `git push`; `--output` on those git commands, which writes a file |
 
 - **`git push` is denied** as `Bash(git push)` and `Bash(git push *)`: a member's work stays on the
-  item's branch until a person takes it further.
+  item's branch until a person takes it further. That holds for the Developer's run that resolves a
+  merge conflict too. **The push is Agentry's own**: once the person approves the item, the core
+  process runs `git push` and `gh pr create` itself, as the person, never as an agent
+  ([work-items.md](work-items.md#approving-opens-its-pull-request)).
 - **Only working reaches the network.** Refining and verifying read the project.
 - **The documents folder is writable in every stage**, since each stage's prompt asks for its
   document there (a specification, an architecture decision, a report). A member with `writes: []`
@@ -389,7 +392,7 @@ move since the run started**. Otherwise the run leaves its comment and moves not
 | Refine in `backlog` | well | Moves to `todo` |
 | Refine in `todo` | well | Stays: the summary says whether it is ready, and a person moves it on |
 | Work | well | Moves to `in_review` |
-| Verify | `pass` | Stays in `in_review`, **waiting for approval** (`waiting: 'approval'`); a criterion that needs a person stays unchecked for them (refines decision 18) |
+| Verify | `pass` | Stays in `in_review`, **waiting for approval** (`waiting: 'approval'`), and a criterion that needs a person stays unchecked for them (refines decision 18); or, when the person's approval is remembered from a conflict, its pull request opens now |
 | Verify | `fail`, with bounces left | Back to `in_progress`, `bounces` + 1, and the Developer's chat resumes with QA's comment |
 | Verify | `fail`, no bounces left | Stays, **waiting for the person** (`waiting: 'bounces'`) |
 | any | failed or stopped | Nothing; a failed run says why in a comment |
@@ -399,6 +402,25 @@ out of it. A person's move answers whatever the item waited for and starts a new
 clears and `bounces` goes back to 0. Every move the flow makes has the actor `agent` with the role,
 and a cause the history translates: `flow.refined`, `flow.worked`, `flow.rejected`, `flow.passed`,
 `flow.bounces`.
+
+**The approval opens the item's pull request.** In a project that can open PRs, the person's
+approval of an item waiting in `in_review` is "Aprobar y abrir PR": Agentry commits what QA verified,
+merges the default branch into the item's branch, pushes it and opens the PR, and the item stays in
+`in_review` with `waiting: 'merge'` until the person merges it on GitHub. The merge moves it to Done
+as the person (cause `pr.merged`), so decision 29 still holds: only a person's act closes an item.
+"Mover a Hecho" stays as the person's manual way out, and is the approval where no PR can be opened.
+See [work-items.md](work-items.md#approving-opens-its-pull-request).
+
+**A conflict goes back to the Developer, and the approval is remembered.** When merging the default
+branch into the item's branch conflicts, nothing is pushed: the merge stays in progress in the
+item's worktree and the item moves to `in_progress` as the person (cause `pr.conflict`), which starts
+the Developer's work run. Its prompt adds a section, "Resolve the merge of `<default>` into this
+branch", naming every conflicting path, and still says not to push. When that run ends well, Agentry
+checks the worktree: a merge resolved but left open is committed; conflicted paths still there fail
+the run with the cause `conflict-unresolved`. QA then verifies as usual, and its pass opens the PR
+with no second click (`pullRequest.phase: 'awaiting-verify'` until then). A person's move of the item
+meanwhile drops the remembered approval, since a person's move wins; a QA rejection bounces as
+usual, and used-up bounces wait for the person.
 
 **A failed run says so on its item.** It leaves a comment as its member, "This work run failed and
 moved nothing: <reason>", with the run's chat as its source. The run carries the same reason in
@@ -424,7 +446,9 @@ meanwhile does not shift the pages after it.
 **A failed run keeps its cause as a code** (`FlowRunCause` in `packages/shared/src/types.ts`), beside
 the English `error`: `budget`, `no-account`, `rate-limit`, `stopped`, `restarts`, `unreadable`,
 `no-verdict`, `max-tokens` (its last turn stopped on the output token limit, read from the CLI's
-stream-json, so its result was not trusted even when it parsed), `not-started`, `not-continued`, `chat-ended` or `chat-failed`, and for a cancelled run
+stream-json, so its result was not trusted even when it parsed), `not-started`, `not-continued`,
+`chat-ended`, `chat-failed` or `conflict-unresolved` (a work run that was to resolve a merge of the
+default branch left conflicted paths), and for a cancelled run
 its reason (`item-moved`, `item-removed`, `item-done`, `replaced`, `flow-off`, `no-member`, `refined`,
 `chat-busy`). The web words the cause in the person's language, with the raw error under it in mono;
 the English comment on the item is never shown as it is. A run ended before causes were kept reads
@@ -813,4 +837,4 @@ described above where it now lives. The last detail, the model's name, was close
 
 ## Related
 
-[[projects.md]] · [[prompts.md]] · [[work-items.md]] · [[plans/flow-start-waiting.md]] · [[plans/flow-start-and-chat-token.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[projects.md]] · [[prompts.md]] · [[work-items.md]] · [[plans/flow-start-waiting.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/work-item-pull-requests.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

@@ -705,6 +705,54 @@ a.work-link-name:hover {
   overflow-wrap: anywhere;
 }
 
+/* The item's pull request under its Changes (`.item-pr`): the number, its branch into the default
+   one and its state, the whole row a plain link to GitHub. Only its CI or merge takes a colour */
+.item-pr {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-1);
+  color: var(--fg-3);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.item-pr:hover {
+  background: var(--bg-3);
+  text-decoration: none;
+}
+
+.item-pr:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.item-pr-num {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-weight: 500;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.item-pr-branch {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--mono);
+  color: var(--fg-2);
+  overflow-wrap: anywhere;
+}
+
+.item-pr-out {
+  flex-shrink: 0;
+  color: var(--fg-3);
+}
+
 /* ---- activity: history and comments interleaved (.activity, .hist, .comment) ---- */
 
 .workitem-activity {
@@ -1277,6 +1325,11 @@ input.workitem-label-input {
 
 .is-phone .changes-actions .btn {
   min-height: 44px;
+}
+
+.is-phone .item-pr {
+  min-height: var(--touch);
+  font-size: 13px;
 }
 
 .is-phone .workitem-section-head .link-btn {
