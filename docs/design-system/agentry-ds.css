@@ -1520,6 +1520,62 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
 .host-line.stacked .prov-reason { font-size: 14px; }
 .host-line.stacked .badge { align-self: flex-start; }
 /* ---------- end of Host line ---------- */
+/* ---------- Review threads in the diff (plans/code-hosts.md, phase 3, P0 r-p1): a thread is a card under its line, never a new diff. Open waits for the person (idle), resolved is ok and folds, outdated is neutral and carries the comment's own hunk; a draft note is dashed until the review is sent. Nothing here is live and nothing takes the gradient except the composer's one action. ---------- */
+.dv { --rt-indent: calc(var(--dv-num) + 21px); }
+.dv-uni { --rt-indent: 103px; }
+.dv-wrap { --rt-indent: 12px; }
+.dv-review .dv-row.ctx .dv-code { opacity: 0.85; }
+.dv-review .dv-num { opacity: 1; }
+.dv-row.noted .dv-num { opacity: 1; color: var(--fg); }
+.dv-row.sel { background: var(--bg-3); }
+.dv-note-pill { position: absolute; right: 12px; top: 2px; display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 6px; border-radius: var(--r-full); background: var(--bg-3); box-shadow: inset 0 0 0 1px var(--line-2); font-family: var(--mono); font-size: 10.5px; line-height: 1; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.dv-note-pill .ico { width: 11px; height: 11px; }
+.dv-note-pill.open { background: var(--idle-soft); color: var(--idle); box-shadow: none; }
+.dv-wrap .dv-note-pill { display: none; }
+.dv-add { position: absolute; left: 6px; top: 2px; display: grid; place-items: center; width: 16px; height: 16px; padding: 0; border: 0; border-radius: var(--r-xs); background: var(--accent-soft); color: var(--accent); box-shadow: 0 0 0 1px var(--accent); cursor: pointer; }
+.dv-add .ico { width: 12px; height: 12px; stroke-width: 2.4; }
+.rt { display: flex; flex-direction: column; min-width: 0; margin: 6px 16px 10px var(--rt-indent); border: 1px solid var(--line-2); border-radius: var(--r-lg); background: var(--bg-1); font-family: var(--sans); font-size: 13.5px; line-height: 1.5; color: var(--fg); white-space: normal; }
+.rt.draft { border-style: dashed; }
+.rt.compose { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.rt-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-height: 34px; padding: 6px 12px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--fg-3); }
+.rt-head .where { font-family: var(--mono); font-size: 11.5px; color: var(--fg-2); }
+.rt-comment { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; padding: 10px 12px; }
+.rt-comment + .rt-comment { border-top: 1px solid var(--line); }
+.rt-comment .proj.monogram, .rt-comment .agent-mark { width: 24px; height: 24px; font-size: 10.5px; }
+.rt-who { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; font-size: 13px; }
+.rt-who b { font-weight: 600; color: var(--fg); }
+.rt-who time, .rt-who .mono { font-family: var(--mono); font-size: 11.5px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.rt-body { margin: 2px 0 0; color: var(--fg); overflow-wrap: anywhere; }
+.app .rt-body code { font-family: var(--mono); font-size: 12px; padding: 1px 5px; border-radius: var(--r-xs); background: var(--bg-3); }
+.rt.resolved .rt-body { color: var(--fg-2); }
+.rt-sugg { margin-top: 8px; border: 1px solid var(--line-2); border-radius: var(--r); overflow: hidden; background: var(--bg); }
+.rt-sugg-head { display: flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 10px; border-bottom: 1px solid var(--line); background: var(--bg-2); font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+.rt-sugg-row, .rt-hunk-row { display: grid; grid-template-columns: 3px 18px minmax(0, 1fr); min-height: 20px; font-family: var(--mono); font-size: 12px; line-height: 20px; color: var(--fg); }
+.rt-sugg-row > i, .rt-hunk-row > i { font-style: normal; text-align: center; color: var(--fg-3); user-select: none; grid-column: 2; }
+.app .rt-sugg-row > code, .app .rt-hunk-row > code { grid-column: 3; padding: 0 10px 0 2px; border: 0; border-radius: 0; background: none; font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rt-sugg-row.add, .rt-hunk-row.add { background: var(--diff-add-bg); box-shadow: inset 3px 0 0 var(--diff-add); }
+.rt-sugg-row.del, .rt-hunk-row.del { background: var(--diff-del-bg); box-shadow: inset 3px 0 0 var(--diff-del); }
+.rt-hunk-row.ctx { color: var(--fg-3); }
+.rt-hunk { padding: 6px 0; border-bottom: 1px solid var(--line); background: var(--bg); }
+.rt-hunk-note { padding: 8px 12px 0; font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+.rt-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--line); }
+.rt-foot .field { flex: 1 1 160px; height: 30px; padding: 0 10px; font-family: var(--sans); }
+.rt-foot .note { flex: 1 1 100%; font-size: 12px; color: var(--fg-3); }
+.rt-fold { display: flex; align-items: center; gap: 10px; min-height: 30px; margin: 4px 16px 4px var(--rt-indent); padding: 0 8px 0 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg-1); font-family: var(--sans); font-size: 12.5px; color: var(--fg-3); white-space: normal; }
+.rt-fold .grow { color: var(--fg-2); }
+.rt-fold .btn { height: 24px; padding: 0 8px; font-size: 12px; }
+.rt-edit { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; }
+.rt-edit .field-area { width: 100%; }
+.rt-edit .field-area textarea { font-family: var(--sans); font-size: 13.5px; }
+.rt-edit .field-mono textarea { font-family: var(--mono); font-size: 12.5px; line-height: 20px; }
+.rt-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.rt-tools .hint { flex: 1 1 auto; min-width: 0; font-size: 12px; color: var(--fg-3); }
+.m-screen .rt { margin-right: 12px; font-size: 14px; }
+.m-screen .rt-foot .field { flex-basis: 100%; }
+.m-screen .rt-foot .btn { flex: 1 1 0; justify-content: center; }
+.m-screen .rt-fold { min-height: var(--touch); padding-right: 6px; }
+.m-screen .rt-fold .btn { height: var(--touch); }
+/* ---------- end of Review threads ---------- */
 /* ---------- Checks of a change request: the item page's list, its log tail and its states (plans/code-hosts.md, phase 2, P0 k-p1) ---------- */
 /* One row per check: status mark, name with its stage, the status as a word, the duration in mono, and a "⋯" that is its own button
    beside the row's main button, never inside it. Only a running row is live (the ring and the rail); every other state stands still. */
@@ -1604,3 +1660,61 @@ button.check-group-head { width: 100%; border-left: 0; border-right: 0; border-t
 .m-screen .ochk-result { flex-wrap: wrap; gap: 4px 10px; padding: 8px 0; }
 .m-screen .ochk-result .why { flex-basis: 100%; }
 /* ---------- end of Orchestration checks ---------- */
+/* ---------- Reviews (plans/code-hosts.md, phase 3, P0 r-p2): the review block on the item page. A decision, the reviewers, the unresolved threads and the person's draft review, whose one gradient action sends it. Status is a badge with its word; nothing here is live except the ring of a send in progress. ---------- */
+.rv-card { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--bg-1); overflow: hidden; }
+.rv-row { display: grid; grid-template-columns: 104px minmax(0, 1fr) auto; align-items: center; gap: 8px 14px; min-height: 52px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.rv-row:first-child { border-top: 0; }
+.rv-v { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-width: 0; font-size: 13px; color: var(--fg-2); }
+.rv-side { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.rv-person { display: inline-flex; align-items: center; gap: 7px; min-height: 28px; padding: 0 6px 0 4px; border: 1px solid var(--line-2); border-radius: var(--r-full); background: var(--bg-2); color: var(--fg); }
+.rv-person .name { font-family: var(--mono); font-size: 12px; }
+.rv-draft { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border: 1px solid var(--line-2); border-radius: var(--r-lg); background: var(--bg-2); min-width: 0; }
+.rv-draft-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; font-size: 14px; color: var(--fg); }
+.rv-draft-head b { font-weight: 500; }
+.rv-notes { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); overflow: hidden; }
+.rv-note { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; padding: 8px 12px; border-top: 1px solid var(--line); }
+.rv-note:first-child { border-top: 0; }
+.rv-where { font-family: var(--mono); font-size: 12px; color: var(--fg); overflow-wrap: anywhere; min-width: 0; }
+.rv-where .l { color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.rv-text { flex: 1 1 100%; font-size: 12.5px; line-height: 1.45; color: var(--fg-2); }
+.rv-foot { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.rv-open { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 8px 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.m-screen .rv-row { grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 12px 14px; }
+.m-screen .rv-side { justify-content: flex-start; }
+.m-screen .rv-side .btn { flex: 1 1 auto; justify-content: center; }
+.m-screen .rv-foot { flex-direction: column-reverse; align-items: stretch; }
+.m-screen .rv-foot .btn, .m-screen .rv-open .btn { justify-content: center; }
+.m-screen .rv-open { flex-direction: column; align-items: stretch; }
+/* ---------- end of Reviews ---------- */
+
+/* ---------- Address with an agent: the thread list of its dialog, the triage marks and the "Atendido en" follow-up (plans/code-hosts.md, phase 3, P0 r-p3) ----------
+   .addr-list is the thread list; .addr-thread is one row to choose (a label with the app's .checkbox on a desktop,
+   a pressed button on a phone, which has no checkboxes); .addr-done is one thread after the Developer's run. The
+   triage marks are the existing .badge (accent for the agent's, idle for the person's, neutral for none) and the
+   .decided-face label. The follow-up borrows .fix-panel.wait. Nothing here moves or takes --live. */
+.addr-list { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); overflow: hidden; }
+.addr-thread, .addr-done { display: flex; gap: 12px; min-width: 0; margin: 0; padding: 12px 14px; border: 0; border-top: 1px solid var(--line); background: none; color: inherit; font: inherit; text-align: left; }
+.addr-thread:first-child, .addr-done:first-child { border-top: 0; }
+.addr-thread:not(.static) { align-items: flex-start; width: 100%; cursor: pointer; transition: background var(--dur-fast); }
+.addr-thread:not(.static):hover { background: var(--bg-3); }
+.addr-thread.on { background: var(--sel-bg); }
+.addr-thread > .checkbox { margin-top: 2px; }
+.addr-thread.static { padding: 10px 14px; }
+.addr-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.addr-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-width: 0; }
+.addr-path { font-family: var(--mono); font-size: 12.5px; color: var(--fg); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.addr-quote { margin: 0; padding-left: 10px; box-shadow: inset 2px 0 0 var(--line-2); font-size: 13px; line-height: 1.5; color: var(--fg-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.addr-by { font-size: 12px; line-height: 1.45; color: var(--fg-3); }
+.addr-by .mono { color: var(--fg-2); }
+.addr-state { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 12px; color: var(--fg-3); white-space: nowrap; }
+.addr-state.on { color: var(--fg); }
+.addr-done { flex-direction: column; gap: 8px; padding: 12px 14px; }
+.addr-done .addr-quote { -webkit-line-clamp: 3; }
+.addr-why { font-size: 12.5px; line-height: 1.45; color: var(--fg-2); }
+.addr-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.addr-reply { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--fg-2); }
+.addr-reply .mono { color: var(--fg); }
+.m-screen .addr-thread:not(.static) { min-height: var(--touch); }
+.m-screen .addr-quote { font-size: 14px; -webkit-line-clamp: 3; }
+.m-screen .addr-acts .btn { flex: 1 1 100%; justify-content: center; }
+/* ---------- end of Address with an agent ---------- */
