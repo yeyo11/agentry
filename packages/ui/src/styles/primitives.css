@@ -1276,6 +1276,11 @@ button.step:hover {
   color: var(--text-faint);
 }
 
+/* The faint grey is 4.45:1 on the active segment's raised background, under the 4.5:1 text needs */
+.segment-on .segment-count {
+  color: var(--text-muted);
+}
+
 /* A finger needs a target it can hit; a pointer does not need the room. */
 @media (pointer: coarse) {
   .filter-chip,
