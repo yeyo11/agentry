@@ -1,0 +1,4 @@
+Package extraction took 5592ms
+GitHub Copilot CLI 1.0.65.
+Run 'copilot update' to check for updates.
+exit 0
