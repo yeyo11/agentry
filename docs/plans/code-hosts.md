@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-10-01T18:40:00Z
+updated_at: 2026-10-01T20:10:00Z
 tags:
     - plan
     - git
@@ -1932,6 +1932,27 @@ The second audit's item-page and diff fixes:
 
 - Not part of that slice and still open: nothing in `index.ts` hands `PullRequestService` an
   `onChecksFailing` hook, so `checks.fix` (phase 2) is never asked either.
+
+Two audits by an independent reviewer, each followed by an orchestration, found what no check
+had: parts that were built and tested but reached no screen, and gaps in what was wired.
+
+- **`reviews-wire`** (4 tasks, 14.94 USD): the threads were never drawn in the diff (nothing passed
+  `FileReview` its change request), no draft note could be made from the UI (`ReviewComposer` was
+  mounted nowhere), `review.triage` was never asked, the GitLab approve sent no head so its guard
+  could not fire, a review fix was shown as a checks fix, a partly posted review lived in a tab
+  and was lost on reload, the chosen thread ids lived in memory so a restart handed over
+  everything, and "Discard saved" removed every draft of the viewer. All fixed, with a migration
+  appended last for the chosen ids.
+- **`reviews-polish`** (3 tasks, 9.97 USD): "Publish saved" and "Discard saved" touch only the notes
+  Agentry saved; a partly posted review drops the rows of what went out, so Submit again does not
+  duplicate; one rule for "unresolved" in the core, the web and the dialog; `review.triage` records
+  have their own subject; the "Addressed in" follow-up rests on the core's record of the finished
+  address, not on a head the browser saw change; the head guard follows what the person reviewed
+  and a refusal does not lock the sheet; a note is offered only where the page can send the review
+  (the item's changes page); and the e2e spec's checks can fail for the reason they state (the fake
+  host's head moves, and the real GitLab partly path runs).
+
+The five orchestrations of the phase (prototypes, core, web, wire, polish) cost 70.98 USD in all.
 
 ## Phase 4: merging
 
