@@ -813,10 +813,10 @@ export class ChatManager extends EventEmitter {
     };
   }
 
-  /** Resolves once the chat has no process: at once when it has none, or when the one it has exits. */
+  /** Resolves once the chat has no process and has read its output to the end: at once when it has none, or when the one it has closes. */
   async exited(id: string): Promise<void> {
     const chat = this.chats.get(id);
-    if (chat?.alive && chat.proc) await once(chat.proc, 'exit');
+    if (chat?.alive && chat.proc) await once(chat.proc, 'close');
   }
 
   /**
@@ -983,7 +983,11 @@ export class ChatManager extends EventEmitter {
       chat.error = err.message;
       this.finalize(chat, 'failed');
     });
-    proc.on('exit', (code) => {
+    // The token goes as soon as the process is gone; what the chat becomes waits for `close`, which
+    // comes after stdout and stderr have been read to the end, so the last lines of stderr, the reason
+    // an execution failed, are in the chat's events before they are read back
+    proc.on('exit', () => revokeToken());
+    proc.on('close', (code) => {
       revokeToken();
       if (!current()) return;
       if (chat.stopRequested) this.finalize(chat, 'stopped');
@@ -1107,7 +1111,7 @@ export class ChatManager extends EventEmitter {
     if (chat.alive) {
       const proc = chat.proc;
       this.stop(id);
-      if (proc) await once(proc, 'exit');
+      if (proc) await once(proc, 'close');
     }
     this.send(id, chat.lastUserTurn.text, chat.lastUserTurn.attachments);
     return true;

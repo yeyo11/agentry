@@ -28,6 +28,12 @@ after(() => {
   rmSync(tmp, { recursive: true, force: true });
 });
 
+/** Waits for a condition the child's other pipe will make true; a few seconds is a failure, not a slow runner */
+async function until(ok: () => boolean, ms = 5000): Promise<void> {
+  const end = Date.now() + ms;
+  while (!ok() && Date.now() < end) await new Promise((resolve) => setTimeout(resolve, 20));
+}
+
 class Client {
   readonly child: ChildProcessWithoutNullStreams;
   readonly seen: Msg[] = [];
@@ -255,6 +261,8 @@ for (const p of PROFILES) {
       const sid = await started(c);
       await prompt(c, sid, 'NOISY');
       assert.equal(c.updates('agent_message_chunk').length, 50);
+      // stdout and stderr are two pipes: the answer can arrive before the log line does
+      await until(() => /agent log line 0/.test(c.stderr.join('')));
       assert.match(c.stderr.join(''), /agent log line 0/);
       assert.deepEqual(c.banner, ['agent banner, not json']);
       await c.close();
