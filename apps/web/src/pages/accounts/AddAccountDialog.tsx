@@ -3,10 +3,10 @@ import { KeyRound } from 'lucide-react';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api';
-import { Dialog } from '../../components/Dialog';
-import { ICON_SM } from '../../components/icons';
-import { useToast } from '../../components/Toast';
-import { Field } from '../../components/ui';
+import { Dialog } from '@agentry/ui/components/Dialog';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Field } from '@agentry/ui/components/ui';
 
 /** Registers a claude-swap account from a setup-token; the token never comes back from the API. */
 export function AddAccountDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {

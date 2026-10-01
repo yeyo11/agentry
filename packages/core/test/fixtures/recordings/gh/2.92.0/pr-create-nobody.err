@@ -1,0 +1,26 @@
+must provide `--title` and `--body` (or `--fill` or `fill-first` or `--fillverbose`) when not running interactively
+
+Usage:  gh pr create [flags]
+
+Flags:
+  -a, --assignee login       Assign people by their login. Use "@me" to self-assign.
+  -B, --base branch          The branch into which you want your code merged
+  -b, --body string          Body for the pull request
+  -F, --body-file file       Read body text from file (use "-" to read from standard input)
+  -d, --draft                Mark pull request as a draft
+      --dry-run              Print details instead of creating the PR. May still push git changes.
+  -e, --editor               Skip prompts and open the text editor to write the title and body in. The first line is the title and the remaining text is the body.
+  -f, --fill                 Use commit info for title and body
+      --fill-first           Use first commit info for title and body
+      --fill-verbose         Use commits msg+body for description
+  -H, --head branch          The branch that contains commits for your pull request (default [current branch])
+  -l, --label name           Add labels by name
+  -m, --milestone name       Add the pull request to a milestone by name
+      --no-maintainer-edit   Disable maintainer's ability to modify pull request
+  -p, --project title        Add the pull request to projects by title
+      --recover string       Recover input from a failed run of create
+  -r, --reviewer handle      Request reviews from people or teams by their handle
+  -T, --template file        Template file to use as starting body text
+  -t, --title string         Title for the pull request
+  -w, --web                  Open the web browser to create a pull request
+  

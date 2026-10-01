@@ -4,9 +4,9 @@ import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { AssistantMark, LiveRunHead, RunFacts, RunSources } from '../../../components/assistant/run';
-import { ICON_SM } from '../../../components/icons';
-import { Skeleton, Tag } from '../../../components/ui';
-import { timeAgo } from '../../../lib/format';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { Skeleton, Tag } from '@agentry/ui/components/ui';
+import { timeAgo } from '@agentry/ui/lib/format';
 import { savePath, shownName } from './model';
 
 const KIND_ICON: Record<AssistantResourceKind, LucideIcon> = { agents: Terminal, skills: Zap, commands: SquareSlash };

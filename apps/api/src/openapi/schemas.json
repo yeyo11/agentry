@@ -160,12 +160,25 @@
       "disabled": {
         "type": "boolean",
         "description": "The CLI names it but cannot run it (it is too old for it, say); `description` says why"
+      },
+      "tier": {
+        "$ref": "#/components/schemas/ModelTier",
+        "description": "How capable it is among its provider's models, where the provider says; a model with no rank has none"
       }
     },
     "required": [
       "value"
     ],
     "description": "One choice for `--model`."
+  },
+  "ModelTier": {
+    "type": "string",
+    "enum": [
+      "fast",
+      "balanced",
+      "strong"
+    ],
+    "description": "A provider's models by how fast or how strong they are; what model mapping across providers builds on."
   },
   "Overview": {
     "type": "object",
@@ -473,6 +486,10 @@
       "title": {
         "type": "string"
       },
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider that runs the chat; a chat read from Claude's transcripts is `claude-code`"
+      },
       "firstPrompt": {
         "type": [
           "string",
@@ -619,6 +636,7 @@
     "required": [
       "id",
       "title",
+      "provider",
       "firstPrompt",
       "messageCount",
       "startedAt",
@@ -639,6 +657,10 @@
       "cost"
     ],
     "description": "A chat as the list shows it: everything but what only its own page needs, which costs a read of its transcript and its sidecar files per chat."
+  },
+  "ProviderId": {
+    "type": "string",
+    "description": "An agent provider, by the id its manifest declares (`claude-code`, `codex`, …). A string and not a closed union, so adding a provider is adding a folder in core and never a change here."
   },
   "ChatProject": {
     "type": "object",
@@ -1125,6 +1147,10 @@
           "type": "string"
         }
       },
+      "policy": {
+        "$ref": "#/components/schemas/ToolPolicy",
+        "description": "What a shipped preset states in Agentry's words; each provider translates it into its own rules"
+      },
       "builtIn": {
         "type": "boolean",
         "description": "Shipped with Agentry. Editable like any other, but a fresh install has it again."
@@ -1136,6 +1162,201 @@
       "allowedTools"
     ],
     "description": "A named set of `--allowedTools` / `--disallowedTools`, picked when a chat starts or resumes."
+  },
+  "ToolPolicy": {
+    "type": "object",
+    "properties": {
+      "read": {
+        "type": "object",
+        "properties": {
+          "allow": {
+            "type": "boolean"
+          },
+          "denyPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "allow"
+        ],
+        "description": "`denyPaths` are path globs never read"
+      },
+      "edit": {
+        "type": "object",
+        "properties": {
+          "allow": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "none"
+              },
+              {
+                "type": "string",
+                "const": "any"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "deny": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "allow"
+        ],
+        "description": "Paths are relative to the project; `deny` is denial outright, for a mode that would otherwise ask"
+      },
+      "commands": {
+        "type": "object",
+        "properties": {
+          "allow": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "none"
+              },
+              {
+                "type": "string",
+                "const": "any"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CommandRule"
+                }
+              }
+            ]
+          },
+          "deny": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "all"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CommandRule"
+                }
+              }
+            ]
+          }
+        },
+        "required": [
+          "allow"
+        ]
+      },
+      "network": {
+        "type": "string",
+        "enum": [
+          "allow",
+          "omit",
+          "deny"
+        ],
+        "description": "Web fetch and search tools"
+      },
+      "delegate": {
+        "type": "string",
+        "const": "deny",
+        "description": "Subagents"
+      },
+      "workflow": {
+        "type": "string",
+        "const": "allow",
+        "description": "The orchestrator's workflow engine"
+      },
+      "gitPush": {
+        "type": "string",
+        "enum": [
+          "deny",
+          "omit"
+        ]
+      },
+      "exclusive": {
+        "type": "boolean",
+        "description": "Nothing outside the policy exists for the session: no person's settings, hooks or servers"
+      }
+    },
+    "required": [
+      "read",
+      "edit",
+      "commands",
+      "network",
+      "gitPush"
+    ],
+    "description": "What a session may do, in Agentry's words. Each provider's driver translates it into its own rules and lists the parts it cannot enforce."
+  },
+  "CommandRule": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "args": {
+            "type": "string",
+            "const": "none"
+          }
+        },
+        "required": [
+          "command",
+          "args"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "args": {
+            "type": "string",
+            "const": "some"
+          }
+        },
+        "required": [
+          "command",
+          "args"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "args": {
+            "type": "string",
+            "const": "prefix"
+          }
+        },
+        "required": [
+          "command",
+          "args"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pattern"
+        ]
+      }
+    ],
+    "description": "A shell command a policy allows or denies, in Agentry's words."
   },
   "McpSelection": {
     "type": "object",
@@ -1304,21 +1525,17 @@
       "kind": {
         "$ref": "#/components/schemas/RunEventKind"
       },
-      "type": {
-        "type": "string",
-        "description": "Original type/subtype of the stream-json event"
-      },
-      "subtype": {
-        "type": "string"
-      },
       "entry": {
-        "$ref": "#/components/schemas/TranscriptEntry"
+        "$ref": "#/components/schemas/TranscriptEntry",
+        "description": "For `message` events"
       },
       "status": {
-        "$ref": "#/components/schemas/RunStatus"
+        "$ref": "#/components/schemas/RunStatus",
+        "description": "For `status` events"
       },
       "text": {
-        "type": "string"
+        "type": "string",
+        "description": "For `partial`, `result`, `stderr`, `notice` and `other` events; for `other`, a stdout line the driver could not read"
       },
       "block": {
         "type": "string",
@@ -1328,16 +1545,28 @@
         ],
         "description": "For `partial` events: which kind of block is streaming"
       },
+      "init": {
+        "$ref": "#/components/schemas/RunInit",
+        "description": "For `init` events, in the provider's neutral words"
+      },
+      "outcome": {
+        "$ref": "#/components/schemas/RunOutcome",
+        "description": "For `result` events"
+      },
+      "task": {
+        "$ref": "#/components/schemas/RunTaskChange",
+        "description": "For `task` events"
+      },
       "data": {
         "type": "object",
-        "additionalProperties": {}
+        "additionalProperties": {},
+        "description": "For `notice` events only: Agentry's own words, never a provider's"
       }
     },
     "required": [
       "seq",
       "ts",
-      "kind",
-      "type"
+      "kind"
     ]
   },
   "RunEventKind": {
@@ -1543,6 +1772,156 @@
       "failed",
       "stopped"
     ]
+  },
+  "RunInit": {
+    "type": "object",
+    "properties": {
+      "sessionId": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string"
+      },
+      "cwd": {
+        "type": "string"
+      },
+      "permissionMode": {
+        "type": "string"
+      },
+      "tools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The names of the tools the session has, as the provider calls them"
+      },
+      "mcpServers": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "status"
+          ]
+        }
+      }
+    },
+    "required": [
+      "sessionId",
+      "model",
+      "cwd",
+      "permissionMode",
+      "tools",
+      "mcpServers"
+    ],
+    "description": "What a session reports about itself when it starts."
+  },
+  "RunOutcome": {
+    "type": "object",
+    "properties": {
+      "isError": {
+        "type": "boolean"
+      },
+      "turns": {
+        "type": "number"
+      },
+      "durationMs": {
+        "type": "number"
+      },
+      "costUsd": {
+        "type": "number"
+      },
+      "structuredOutput": {},
+      "permissionDenials": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "toolName": {
+              "type": "string"
+            },
+            "toolUseId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "toolName",
+            "toolUseId"
+          ]
+        }
+      },
+      "cause": {
+        "type": "string",
+        "enum": [
+          "budget",
+          "rate-limit",
+          "stopped"
+        ],
+        "description": "Why a failed result is not one to try again blindly: the budget ran out, the account hit its limit or someone stopped it."
+      },
+      "stopReason": {
+        "type": "string",
+        "description": "The main agent's last stop reason in the turn (`end_turn`, `tool_use`, `max_tokens`…), when the provider said"
+      }
+    },
+    "required": [
+      "isError",
+      "turns",
+      "durationMs",
+      "costUsd",
+      "permissionDenials"
+    ],
+    "description": "How a turn ended."
+  },
+  "RunTaskChange": {
+    "type": "object",
+    "properties": {
+      "taskId": {
+        "type": "string",
+        "description": "Absent for a change of the whole list"
+      },
+      "change": {
+        "type": "string",
+        "enum": [
+          "started",
+          "updated",
+          "progress",
+          "ended",
+          "listed"
+        ]
+      },
+      "taskKind": {
+        "type": "string",
+        "enum": [
+          "command",
+          "agent",
+          "workflow",
+          "other"
+        ]
+      },
+      "status": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "summary": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "change",
+      "taskKind"
+    ],
+    "description": "A background task starting, moving or ending, or the whole list being replaced."
   },
   "EffectiveEnvironment": {
     "type": "object",
@@ -2111,6 +2490,17 @@
           }
         ],
         "description": "The one branch a worktree graph delivers, built once its tasks finish"
+      },
+      "pullRequest": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/OrchestrationPullRequest"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The newest change request opened for the integration branch; null or absent before one"
       },
       "synthesisRunId": {
         "type": [
@@ -2694,6 +3084,188 @@
       "failed"
     ],
     "description": "- `merging`: task branches are being merged into the integration branch\n- `resolving`: a merge conflicted and an integrator agent is resolving it\n- `merged`: every completed task's work is on the branch\n- `conflicted`: the integrator could not finish; the branch is left for a person\n- `failed`: integration could not run at all"
+  },
+  "OrchestrationPullRequest": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "The row id the `/change-requests/:id/…` routes take; the server always sends it"
+      },
+      "phase": {
+        "$ref": "#/components/schemas/OrchestrationPullRequestPhase"
+      },
+      "host": {
+        "$ref": "#/components/schemas/CodeHostId"
+      },
+      "ref": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "How the host writes the number: `#12` or `!12`; null without a number"
+      },
+      "number": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "branch": {
+        "type": "string"
+      },
+      "base": {
+        "type": "string"
+      },
+      "ci": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemPullRequestCi"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "error": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "detail": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "detail"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why the last attempt failed: a step or reason code, and the first line of the host's error"
+      },
+      "openedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "closedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "checkedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "fixState": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixState"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "An orchestration has no QA stage: its fix goes `fixing`, then `awaiting-push` for the person"
+      },
+      "fixOrigin": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixOrigin"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "fixAttempts": {
+        "type": "number"
+      },
+      "fixHead": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "phase",
+      "host",
+      "ref",
+      "number",
+      "url",
+      "branch",
+      "base",
+      "ci",
+      "error",
+      "openedAt",
+      "closedAt",
+      "checkedAt"
+    ],
+    "description": "The change request opened for an orchestration's integration branch."
+  },
+  "OrchestrationPullRequestPhase": {
+    "type": "string",
+    "enum": [
+      "preparing",
+      "open",
+      "merged",
+      "closed",
+      "failed"
+    ],
+    "description": "Where an orchestration's change request stands; the flow's `conflict` and `awaiting-verify` do not apply."
+  },
+  "CodeHostId": {
+    "type": "string",
+    "enum": [
+      "github",
+      "gitlab"
+    ],
+    "description": "The code hosts Agentry reaches through their own CLI. Closed: adding one is a code change."
+  },
+  "WorkItemPullRequestCi": {
+    "type": "string",
+    "enum": [
+      "none",
+      "pending",
+      "passing",
+      "failing"
+    ],
+    "description": "A PR's checks, from `gh pr view --json statusCheckRollup`: none, any still running, any failed, or all green."
+  },
+  "ChangeRequestFixState": {
+    "type": "string",
+    "enum": [
+      "fixing",
+      "awaiting-verify",
+      "awaiting-push"
+    ],
+    "description": "Where a fix of failing checks stands while the change request is still open on the host (docs/plans/code-hosts.md, phase 2): `fixing`, an agent has the failures in its prompt; `awaiting-verify`, the Developer's run ended and QA verifies it; `awaiting-push`, verified and waiting for the person's **Push the fix**. Null when no fix is under way."
+  },
+  "ChangeRequestFixOrigin": {
+    "type": "string",
+    "enum": [
+      "person",
+      "decision"
+    ],
+    "description": "Who asked for the fix: a person's click, or the `checks.fix` decision."
   },
   "OrchestrationEngine": {
     "type": "string",
@@ -4689,6 +5261,15 @@
         "$ref": "#/components/schemas/ProvidersChangedEvent"
       },
       {
+        "$ref": "#/components/schemas/HostsChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/OrchestrationPullRequestEvent"
+      },
+      {
+        "$ref": "#/components/schemas/ChangeRequestChecksEvent"
+      },
+      {
         "$ref": "#/components/schemas/ScheduleChangedEvent"
       },
       {
@@ -6590,6 +7171,36 @@
         },
         "description": "The capabilities the handshake confirmed for the installed version (the declared ones until then)"
       },
+      "confirmed": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "at": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "capabilities": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ProviderCapability"
+                }
+              }
+            },
+            "required": [
+              "at",
+              "version",
+              "capabilities"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What the first event of a real session confirmed for the installed version; null until one has"
+      },
       "checkedAt": {
         "type": "string",
         "description": "ISO timestamp of the detection this status came from"
@@ -6609,10 +7220,6 @@
       "checkedAt"
     ],
     "description": "One provider's detected state on this host, as served from the detector's cache."
-  },
-  "ProviderId": {
-    "type": "string",
-    "description": "An agent provider, by the id its manifest declares (`claude-code`, `codex`, …). A string and not a closed union, so adding a provider is adding a folder in core and never a change here."
   },
   "ProviderReadinessState": {
     "type": "string",
@@ -6643,6 +7250,7 @@
       "missing-required-command",
       "unsupported-platform",
       "handshake-failed",
+      "capability-missing",
       "no-probe",
       "disabled"
     ],
@@ -6669,6 +7277,248 @@
       "workflowTool"
     ],
     "description": "What a provider's driver can do. Declared by its manifest and confirmed by the handshake for the installed version, so a feature asks for a capability and the UI hides or explains what is missing instead of failing."
+  },
+  "HostsChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "hosts.changed"
+      },
+      "hosts": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/CodeHostStatus"
+        }
+      }
+    },
+    "required": [
+      "at",
+      "hosts",
+      "id",
+      "title",
+      "type"
+    ],
+    "description": "A code host's detected status changed: its CLI was installed, signed in, updated or removed, or the settings turned it on or off. Sent only when a status actually differs."
+  },
+  "CodeHostStatus": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "$ref": "#/components/schemas/CodeHostId"
+      },
+      "label": {
+        "type": "string"
+      },
+      "cli": {
+        "type": "string"
+      },
+      "binaryPath": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The binary that was resolved: the override, or the first match on the PATH or an install directory"
+      },
+      "version": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "minimum": {
+        "type": "string",
+        "description": "The oldest release Agentry works with"
+      },
+      "recorded": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The releases the CLI facts were recorded on"
+      },
+      "state": {
+        "$ref": "#/components/schemas/CodeHostState"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CodeHostReason"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why the state is not `ready`; null when it is"
+      },
+      "hosts": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/CodeHostHostEntry"
+        }
+      },
+      "checkedAt": {
+        "type": "string",
+        "description": "ISO timestamp of the detection this status came from"
+      }
+    },
+    "required": [
+      "id",
+      "label",
+      "cli",
+      "binaryPath",
+      "version",
+      "minimum",
+      "recorded",
+      "state",
+      "reason",
+      "hosts",
+      "checkedAt"
+    ],
+    "description": "One code host's CLI as detected on this machine, served from the detector's cache."
+  },
+  "CodeHostState": {
+    "type": "string",
+    "enum": [
+      "ready",
+      "degraded",
+      "signed-out",
+      "incompatible",
+      "not-installed",
+      "unknown"
+    ],
+    "description": "`degraded`: installed and signed in, but on a release the facts were not recorded on."
+  },
+  "CodeHostReason": {
+    "type": "string",
+    "enum": [
+      "version-untested",
+      "below-minimum",
+      "no-hosts",
+      "probe-failed",
+      "timeout"
+    ]
+  },
+  "CodeHostHostEntry": {
+    "type": "object",
+    "properties": {
+      "hostname": {
+        "type": "string"
+      },
+      "default": {
+        "type": "boolean",
+        "description": "The CLI's own default host (`github.com`, `gitlab.com`)"
+      },
+      "signedIn": {
+        "type": [
+          "boolean",
+          "null"
+        ],
+        "description": "Null while the host has not been probed"
+      },
+      "user": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "hostname",
+      "default",
+      "signedIn",
+      "user"
+    ],
+    "description": "One host name a CLI knows, and who is signed in to it."
+  },
+  "OrchestrationPullRequestEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "orchestration.pull-request"
+      },
+      "orchestrationId": {
+        "type": "string"
+      },
+      "pullRequest": {
+        "$ref": "#/components/schemas/OrchestrationPullRequest"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "orchestrationId",
+      "pullRequest",
+      "title",
+      "type"
+    ],
+    "description": "An orchestration's change request was opened, or moved to another phase or CI state."
+  },
+  "ChangeRequestChecksEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "change-request.checks"
+      },
+      "changeRequestId": {
+        "type": "string",
+        "description": "The change request's row id; `id` is the feed's sequence number"
+      },
+      "rollup": {
+        "$ref": "#/components/schemas/WorkItemPullRequestCi"
+      },
+      "headSha": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "at",
+      "changeRequestId",
+      "headSha",
+      "id",
+      "rollup",
+      "title",
+      "type"
+    ],
+    "description": "The head commit's checks changed rollup, or the list was read again after a write."
   },
   "ScheduleChangedEvent": {
     "type": "object",
@@ -8405,6 +9255,10 @@
       "title": {
         "type": "string"
       },
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider that runs the chat; a chat read from Claude's transcripts is `claude-code`"
+      },
       "firstPrompt": {
         "type": [
           "string",
@@ -8568,6 +9422,7 @@
     "required": [
       "id",
       "title",
+      "provider",
       "firstPrompt",
       "messageCount",
       "startedAt",
@@ -9251,6 +10106,10 @@
   "NewChatRequest": {
     "type": "object",
     "properties": {
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider to run on; the first one in the person's order that can run chats when absent"
+      },
       "model": {
         "type": "string"
       },
@@ -9342,6 +10201,10 @@
   "ResumeChatRequest": {
     "type": "object",
     "properties": {
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider to run on; the first one in the person's order that can run chats when absent"
+      },
       "model": {
         "type": "string"
       },
@@ -9421,6 +10284,10 @@
   "ForkChatRequest": {
     "type": "object",
     "properties": {
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider to run on; the first one in the person's order that can run chats when absent"
+      },
       "model": {
         "type": "string"
       },
@@ -11865,6 +12732,10 @@
       "maxCostUsd": {
         "type": "number",
         "description": "What one run may spend, in USD, passed to the CLI as `--max-budget-usd`: the CLI stops the run once it is reached. Absent (the default) means no limit of Agentry's own."
+      },
+      "checksFixAttempts": {
+        "type": "number",
+        "description": "Fixes of failing checks Agentry may start on its own for one head commit (`checks.fix`). Absent reads as 2 (`DEFAULT_CHECKS_FIX_ATTEMPTS`); a person's click is never counted against it."
       }
     },
     "required": [
@@ -12179,6 +13050,19 @@
             }
           },
           "notification.urgency": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "checks.fix": {
             "type": "object",
             "properties": {
               "mode": {
@@ -12731,15 +13615,30 @@
   "WorkItemPullRequest": {
     "type": "object",
     "properties": {
+      "id": {
+        "type": "string",
+        "description": "The row id the `/change-requests/:id/…` routes take; the server always sends it"
+      },
       "phase": {
         "$ref": "#/components/schemas/WorkItemPullRequestPhase"
+      },
+      "host": {
+        "$ref": "#/components/schemas/CodeHostId",
+        "description": "The host that holds it; absent reads as `github` (rows opened before hosts existed)"
       },
       "number": {
         "type": [
           "number",
           "null"
         ],
-        "description": "Null until `gh pr create` answered"
+        "description": "Null until the host's CLI answered the create"
+      },
+      "ref": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "How the host writes the number: `#12` or `!12`; null without a number"
       },
       "url": {
         "type": [
@@ -12814,6 +13713,38 @@
           "null"
         ],
         "description": "When the watcher last asked gh about it"
+      },
+      "fixState": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixState"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The fix of failing checks under way; absent or null when none"
+      },
+      "fixOrigin": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixOrigin"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "fixAttempts": {
+        "type": "number",
+        "description": "Fixes started for `fixHead`, a person's and the decision's together"
+      },
+      "fixHead": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The head commit the failures were seen on"
       }
     },
     "required": [
@@ -12843,16 +13774,6 @@
       "failed"
     ],
     "description": "Where an item's pull request stands (docs/plans/work-item-pull-requests.md):\n\n- `preparing`: approved, and Agentry is committing, updating, pushing and opening it;\n- `conflict`: updating the branch with the default branch conflicted, and the merge waits in the   item's worktree for the Developer (or the person) to resolve it;\n- `awaiting-verify`: the conflict was handed to the Developer, and QA's next pass opens the PR   without a second approval;\n- `open`: on GitHub, waiting for the person to merge it;\n- `merged` and `closed`: GitHub's own outcome;\n- `failed`: a step failed, and  {@link  WorkItemPullRequest.error }  says which and why."
-  },
-  "WorkItemPullRequestCi": {
-    "type": "string",
-    "enum": [
-      "none",
-      "pending",
-      "passing",
-      "failing"
-    ],
-    "description": "A PR's checks, from `gh pr view --json statusCheckRollup`: none, any still running, any failed, or all green."
   },
   "WorkItemDetail": {
     "type": "object",
@@ -13212,11 +14133,22 @@
       "phase": {
         "$ref": "#/components/schemas/WorkItemPullRequestPhase"
       },
+      "host": {
+        "$ref": "#/components/schemas/CodeHostId",
+        "description": "The host that holds it; absent reads as `github` (entries written before hosts existed)"
+      },
       "number": {
         "type": [
           "number",
           "null"
         ]
+      },
+      "ref": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "How the host writes the number: `#12` or `!12`; null without a number"
       },
       "url": {
         "type": [
@@ -13298,7 +14230,7 @@
           "string",
           "null"
         ],
-        "description": "The raw line git or gh answered with, shown in mono beside the worded reason; null when ready"
+        "description": "The raw line git or the CLI answered with, shown in mono beside the worded reason; null when ready"
       },
       "defaultBranch": {
         "type": [
@@ -13306,26 +14238,84 @@
           "null"
         ],
         "description": "The default branch, when it could be found"
+      },
+      "host": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CodeHostId"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The code host the remote belongs to; null when none could be told"
+      },
+      "hostname": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The remote's host name, without user, secret or port; null when there is none"
+      },
+      "remedy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/PullRequestRemedy"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The one thing to do about a not-ready status; null when ready or when nothing can be done"
       }
     },
     "required": [
       "status",
       "detail",
-      "defaultBranch"
+      "defaultBranch",
+      "host",
+      "hostname",
+      "remedy"
     ],
-    "description": "Whether approving an item of this project opens its pull request. Computed from git and gh and cached for 60 s, so a board read never waits on `gh auth status`."
+    "description": "Whether approving an item of this project opens its pull request. Computed from git and the host's CLI and cached for 60 s, so a board read never waits on an auth probe."
   },
   "PullRequestNotReadyReason": {
     "type": "string",
     "enum": [
       "not-git",
       "no-remote",
-      "not-github",
-      "no-gh",
-      "gh-unauthenticated",
-      "no-default-branch"
+      "unsupported-host",
+      "no-default-branch",
+      "cli-missing",
+      "cli-incompatible",
+      "cli-signed-out"
     ],
-    "description": "Why a project cannot open pull requests; `ready` when it can."
+    "description": "Why a project cannot open pull requests (or merge requests); `ready` when it can. \"Pull request\" in these types means a PR or an MR: the host decides the word."
+  },
+  "PullRequestRemedy": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "install",
+          "sign-in",
+          "docs",
+          "settings"
+        ]
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "kind",
+      "url"
+    ],
+    "description": "What a person can do about a not-ready project: a link to follow, never a command to copy."
   },
   "WorkItemFilter": {
     "type": "object",
@@ -14026,6 +15016,10 @@
   "ChatStartOptions": {
     "type": "object",
     "properties": {
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider to run on; the first one in the person's order that can run chats when absent"
+      },
       "model": {
         "type": "string"
       },
@@ -16753,6 +17747,530 @@
     ],
     "description": "What a person chose for one provider."
   },
+  "CodeHostsSettings": {
+    "type": "object",
+    "properties": {
+      "hosts": {
+        "type": "object",
+        "properties": {
+          "github": {
+            "$ref": "#/components/schemas/CodeHostSettingsEntry"
+          },
+          "gitlab": {
+            "$ref": "#/components/schemas/CodeHostSettingsEntry"
+          }
+        },
+        "required": [
+          "github",
+          "gitlab"
+        ]
+      }
+    },
+    "required": [
+      "hosts"
+    ],
+    "description": "`hosts.json` in the data directory. A disabled host's projects read `unsupported-host`."
+  },
+  "CodeHostSettingsEntry": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "binaryPath": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Absolute path of the binary to use instead of searching for one; null searches"
+      }
+    },
+    "required": [
+      "enabled",
+      "binaryPath"
+    ],
+    "description": "What a person chose for one code host."
+  },
+  "ProjectCodeHost": {
+    "type": "object",
+    "properties": {
+      "readiness": {
+        "$ref": "#/components/schemas/PullRequestReadiness"
+      },
+      "remote": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProjectCodeHostRemote"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "readiness",
+      "remote"
+    ],
+    "description": "`GET /projects/:id/code-host`: the readiness and the parsed remote."
+  },
+  "ProjectCodeHostRemote": {
+    "type": "object",
+    "properties": {
+      "hostname": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "protocol": {
+        "type": "string",
+        "enum": [
+          "https",
+          "ssh",
+          "git"
+        ]
+      }
+    },
+    "required": [
+      "hostname",
+      "path",
+      "protocol"
+    ],
+    "description": "A project's remote as Agentry parsed it: never the URL, which can carry a user and a secret."
+  },
+  "ChangeRequest": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/ChangeRequestKind"
+      },
+      "ownerId": {
+        "type": "string",
+        "description": "The work item's id or the orchestration's id"
+      },
+      "host": {
+        "$ref": "#/components/schemas/CodeHostId"
+      },
+      "phase": {
+        "$ref": "#/components/schemas/WorkItemPullRequestPhase"
+      },
+      "number": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "ref": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "branch": {
+        "type": "string"
+      },
+      "base": {
+        "type": "string"
+      },
+      "ci": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemPullRequestCi"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The checks' rollup as the watcher last read it"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "detail": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "detail"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "openedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "closedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "checkedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "fixState": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixState"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "fixOrigin": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixOrigin"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "fixAttempts": {
+        "type": "number"
+      },
+      "fixHead": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "kind",
+      "ownerId",
+      "host",
+      "phase",
+      "number",
+      "ref",
+      "url",
+      "branch",
+      "base",
+      "ci",
+      "error",
+      "openedAt",
+      "closedAt",
+      "checkedAt",
+      "fixState",
+      "fixOrigin",
+      "fixAttempts",
+      "fixHead"
+    ],
+    "description": "The neutral change request of `GET /change-requests/:id`; `id` is the row id of either table (UUIDs, unique across both). `ref` is how the host writes the number: `#12` or `!12`."
+  },
+  "ChangeRequestKind": {
+    "type": "string",
+    "enum": [
+      "work-item",
+      "orchestration"
+    ],
+    "description": "Whose change request it is: a work item's or an orchestration's."
+  },
+  "ChangeRequestChecks": {
+    "type": "object",
+    "properties": {
+      "headSha": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "rollup": {
+        "$ref": "#/components/schemas/WorkItemPullRequestCi"
+      },
+      "checks": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Check"
+        }
+      },
+      "truncated": {
+        "type": "boolean",
+        "description": "The list reached its ceiling (1 000): the first ones are shown"
+      },
+      "checkedAt": {
+        "type": "string"
+      },
+      "limitedUntil": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "While the host's rate limit is used up: when Agentry may read again; the list is the last one it had"
+      }
+    },
+    "required": [
+      "headSha",
+      "rollup",
+      "checks",
+      "truncated",
+      "checkedAt"
+    ],
+    "description": "The checks of a change request's head commit, cached by head for 30 s."
+  },
+  "Check": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "The host's job or check-run id, as text so a 64-bit id never loses precision"
+      },
+      "name": {
+        "type": "string"
+      },
+      "group": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The workflow (GitHub) or stage (GitLab); null when the host names none"
+      },
+      "state": {
+        "$ref": "#/components/schemas/CheckState"
+      },
+      "allowedToFail": {
+        "type": "boolean",
+        "description": "A failed job that the pipeline lets fail: shown as a warning, never as a failure"
+      },
+      "required": {
+        "type": "boolean",
+        "description": "A rule of the base branch needs it to pass before a merge"
+      },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "finishedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Its page on the host"
+      },
+      "rerunnable": {
+        "type": "boolean",
+        "description": "Agentry can ask the host to run it again: false for a commit status, another app's check or a bridge"
+      },
+      "hasLog": {
+        "type": "boolean",
+        "description": "A log can be read: false for a bridge, a commit status and another app's check"
+      },
+      "source": {
+        "$ref": "#/components/schemas/CheckSource"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "group",
+      "state",
+      "allowedToFail",
+      "required",
+      "startedAt",
+      "finishedAt",
+      "url",
+      "rerunnable",
+      "hasLog",
+      "source"
+    ],
+    "description": "One check of a change request's head commit."
+  },
+  "CheckState": {
+    "type": "string",
+    "enum": [
+      "queued",
+      "running",
+      "passed",
+      "failed",
+      "cancelled",
+      "skipped",
+      "manual",
+      "neutral"
+    ],
+    "description": "One check's state. `neutral` is a finished check that neither passed nor failed (a notice)."
+  },
+  "CheckSource": {
+    "type": "string",
+    "enum": [
+      "actions",
+      "app",
+      "status",
+      "job",
+      "bridge"
+    ],
+    "description": "Where a check comes from: `actions` a GitHub Actions job, `app` another app's check run, `status` a commit status, `job` a GitLab job, `bridge` a GitLab job that triggers a child pipeline."
+  },
+  "CheckLog": {
+    "type": "object",
+    "properties": {
+      "lines": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "truncated": {
+        "type": "boolean",
+        "description": "Lines were left out: the log is longer than the tail"
+      },
+      "noOutputYet": {
+        "type": "boolean"
+      },
+      "annotations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/CheckAnnotation"
+        }
+      }
+    },
+    "required": [
+      "lines",
+      "truncated",
+      "noOutputYet",
+      "annotations"
+    ],
+    "description": "The tail of a check's log, with escape sequences, carriage returns, section markers and secrets removed (docs/plans/code-hosts.md, \"Log tails\"). `noOutputYet` is a job that has printed nothing (running, or a manual job that never ran), which is not an unavailable log."
+  },
+  "CheckAnnotation": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "startLine": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "endLine": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "level": {
+        "type": "string",
+        "enum": [
+          "notice",
+          "warning",
+          "failure"
+        ]
+      },
+      "title": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "message": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path",
+      "startLine",
+      "endLine",
+      "level",
+      "title",
+      "message"
+    ],
+    "description": "What a check says about a file, or about the run when `path` is null."
+  },
+  "ChecksRerunRequest": {
+    "type": "object",
+    "properties": {
+      "scope": {
+        "type": "string",
+        "enum": [
+          "failed",
+          "check",
+          "all"
+        ]
+      },
+      "checkId": {
+        "type": "string",
+        "description": "Required when `scope` is `check`"
+      }
+    },
+    "required": [
+      "scope"
+    ],
+    "description": "`POST /change-requests/:id/checks/rerun`: the failed jobs, one check, or the whole run."
+  },
+  "OrchestrationPullRequestAnswer": {
+    "type": "object",
+    "properties": {
+      "branch": {
+        "type": "string"
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "detail": {
+        "type": "string"
+      },
+      "pullRequest": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/OrchestrationPullRequest"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "branch",
+      "url",
+      "detail",
+      "pullRequest"
+    ],
+    "description": "The answer of `POST /orchestrations/:id/pull-request`; the first three fields are what it always had."
+  },
   "DecisionSettings": {
     "type": "object",
     "properties": {
@@ -16870,6 +18388,9 @@
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "notification.urgency": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "checks.fix": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
@@ -17027,6 +18548,9 @@
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "notification.urgency": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "checks.fix": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
@@ -17268,7 +18792,8 @@
       "health.test-weakening",
       "changes.unexplained-hunk",
       "palette.intent",
-      "notification.urgency"
+      "notification.urgency",
+      "checks.fix"
     ]
   },
   "DecisionPointKind": {

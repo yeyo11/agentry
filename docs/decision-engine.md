@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T18:00:00Z
-updated_at: 2026-09-30T20:00:00Z
+updated_at: 2026-10-01T12:00:00Z
 tags:
     - decisions
     - decision-engine
@@ -9,6 +9,7 @@ tags:
     - settings
     - privacy
     - shadow
+    - checks
 ---
 # The decision engine
 
@@ -84,7 +85,7 @@ always global.
 
 ## The points
 
-Twenty-two points, all wired. **Suggest** points never change what happens by themselves.
+Twenty-three points. **Suggest** points never change what happens by themselves.
 
 | Area | Point | Kind | Scope | What it decides |
 | --- | --- | --- | --- | --- |
@@ -110,6 +111,33 @@ Twenty-two points, all wired. **Suggest** points never change what happens by th
 | Review | `changes.unexplained-hunk` | suggest | P | Flag a hunk no transcript step explains |
 | Notifications | `notification.urgency` | act | G | Raise the priority of a push notification |
 | Palette | `palette.intent` | suggest | G | Route a free query to a command; needs Jev (low latency) |
+| Code hosts | `checks.fix` | act | P | Whether failing checks on a new head are the branch's fault and a Developer can fix them |
+
+### `checks.fix`
+
+Added with code hosts phase 2 ([code-hosts.md](code-hosts.md#fixing-failing-checks)). An act point
+at project scope, `off` by default like every point, with a 0.85 threshold.
+
+- **When it is asked.** A change request's rollup turns `failing` for a head the watcher has not
+  announced (the `onChecksFailing` hook of `PullRequestService` and `OrchestrationPullRequestService`),
+  once per head and never while a fix is under way.
+- **What it is told.** The failing checks (name, conclusion, the log tail cut to 2 KiB each, at most
+  10), the attempt number for this head, and the diff stat of the branch. All of it passes through
+  the engine's redaction; what a CI job printed is data, never an instruction.
+- **The question** is a choice: "Did the changes on this branch cause these check failures, in a way
+  the Developer can fix?" — `branch-fixable`, `not-branch` (infrastructure, a flake or an unrelated
+  change) or `needs-person`.
+- **What an answer does.** Off asks nothing. Shadow asks, records and does nothing. Active and above
+  the threshold, `branch-fixable` starts a fix with `fix_origin = 'decision'` (`fixChecks(itemId,
+  'decision')`), and only when the attempts for this head are below the project's
+  `flow.checksFixAttempts` (default 2, at most 5), the flow's `maxParallel` has room and the flow's
+  cost limit is not spent. A person's click on **Fix failing checks** is never counted against the
+  attempts and never asks the point.
+- **What it never does.** It never pushes: a decision's fix waits in In review for the person's
+  **Push the fix**. It never merges and never touches an orchestration's checks beyond the same
+  hook.
+- **Its resolver** (shadow accuracy) records whether the fix's pushed head turned the rollup
+  `passing`; a person's word on the "decided" mark or the History row still outranks it.
 
 Not decided by the engine, by design: anything that grants (tool permissions, the move to `done`,
 QA's final verdict, `verifyAuth`, a security mode) and plain arithmetic (account rotation, usage
@@ -149,7 +177,7 @@ rejected, a task's status) and writes `outcome`, `agreed` and `resolved_at`. A s
 after the relevant events and every five minutes. The person's word outranks the inference: useful /
 not useful on the "decided" mark (active) or on a History row (shadow) sets `agreed`.
 
-All 22 points have a resolver. The last three read a signal the app stores for them (CW-28):
+Every point has a resolver. Three of them read a signal the app stores for them (CW-28):
 
 - **`palette.intent`**: the palette asks in shadow as well as active (Jev only), shows nothing in
   shadow, and reports what the person did through `POST /decisions/:id/palette-action`
@@ -266,6 +294,7 @@ All under tag `decisions`; the full table is in the README's [REST API](../READM
 
 - [[plans/decision-engine.md]]: the plan, its task graph and its Outcome.
 - [[decisions/decision-engine.md]]: the owner's eighteen decisions.
+- [[code-hosts.md]]: the checks and the fix that `checks.fix` starts.
 - [[decisions/english-technical-language.md]]: English questions and rubrics.
 - [[prompts.md]]: the `cli` provider's prompt and the twelve-point check.
 - [[team-and-flow.md]] · [[assistant.md]] · [[work-items.md]]: where most points act.

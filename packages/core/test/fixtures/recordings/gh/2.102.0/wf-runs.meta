@@ -1,0 +1,5 @@
+gh: 102
+argv: gh run list -R yeyo11/agentry-probe -e workflow_dispatch --json databaseId,status,displayTitle,attempt
+exit: 0
+secs: 1.002379037
+env: 

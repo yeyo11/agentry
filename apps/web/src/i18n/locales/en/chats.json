@@ -1,24 +1,4 @@
 {
-  "model": {
-    "notAvailable": "not available",
-    "state": {
-      "working": "Working",
-      "waiting": "Waiting for you",
-      "idle": "Idle"
-    },
-    "origin": {
-      "agentry": "Agentry",
-      "external": "Terminal",
-      "orchestration": "Orchestration",
-      "internal": "Internal"
-    },
-    "sort": {
-      "activity": "Recent activity",
-      "started": "Recently started",
-      "context": "Most context in use",
-      "messages": "Most messages"
-    }
-  },
   "list": {
     "title": "Chats",
     "synthesis": "synthesis",

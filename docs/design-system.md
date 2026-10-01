@@ -19,7 +19,7 @@ brings the app to it is planned in [plans/redesign-night-shift.md](plans/redesig
 | Screenshots, dark and light, 1440 px desktop and 390 px phone | [`design-system/reference/screenshots/`](design-system/reference/screenshots) |
 | The 15 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
 | The diff comparator: its rules, modes, pieces and states (§5) | `DSComparador` and the **Changes** section of the reference |
-| The tokens the app actually uses | `apps/web/src/styles/tokens.css` |
+| The tokens the app actually uses | `packages/ui/src/styles/tokens.css` |
 
 The app reached this design in the `night-shift` orchestration. Where the implementation settled a
 detail differently from what is written below, the [Landed](#landed) section at the end says so,
@@ -27,6 +27,13 @@ and it wins.
 
 The prototypes use Spanish copy because they were designed on the `es` locale. The app keeps every
 string in i18n: `en` is the source and `es` follows `apps/web/src/i18n/GLOSSARY.md`.
+
+**Where the code lives.** The design system is implemented in two workspace packages and the app.
+`packages/ui` (`@agentry/ui`) holds the tokens, the shared stylesheets, the controls, dialogs,
+toasts, icons, illustrations, motion, formatters, Markdown and syntax highlighting.
+`packages/chat-ui` (`@agentry/chat-ui`) holds the conversation. `apps/web` holds the screens, the
+other components and `styles.css`, the one manifest of the cascade. Paths in this document name
+the package when a file is in one (see [plans/web-packages.md](plans/web-packages.md)).
 
 ## Idea
 
@@ -47,7 +54,7 @@ in Settings → Appearance, and every screen must work in both themes.
 
 ## 1. Tokens
 
-These live in `apps/web/src/styles/tokens.css`. Dark sits on `:root` / `[data-theme='dark']`; light
+These live in `packages/ui/src/styles/tokens.css`. Dark sits on `:root` / `[data-theme='dark']`; light
 sits on `[data-theme='light']`, and under `prefers-color-scheme: light` only when the preference is
 "System".
 
@@ -198,15 +205,15 @@ reference's class next to it.** The e2e specs select several of the app's classe
 | `.menu`, `.menu-item`, `.danger` | `.menu`, `.menu-item` (controls.css) | desktop overflow menus. On a phone, use `Sheet`: `MoreActions` (components/controls) is the `⋯` that is a menu on a desktop and a `.sheet-actions` column of buttons on a phone |
 | `.tooltip` · `.toast` · `.callout` | `Tooltip`, `.toast*`, `.alert*` | the toast drains a gradient bar |
 | `.spin-braille` · `.spin-ring` · `.spin-dots` · `.shimmer` · `.skeleton` · `.caret` | `Spinner`, `.ticker*`, `.skeleton`, `.caret` | see §3 |
-| `.empty-state` + `Illustration` | `Empty` (`components/ui.tsx`), and the new `components/illustrations/` | see §4 |
+| `.empty-state` + `Illustration` | `Empty` (`packages/ui/src/components/ui.tsx`), and the new `packages/ui/src/components/illustrations/` | see §4 |
 | `.avatar` (initials) | `.monogram` | a soft tint of the name's hue with letters in that hue; the gradient only on the active one |
 | `.fab` | `.fab` (components/shell/Fab.tsx), the round "+" alone on every page, named by `aria-label` | a page's own button for the same action carries `.page-action-fab` and hides wherever the FAB shows |
 | `.dv`, `.dv-row`, `.dv-ghost`, `.dv-seam`, `.dv-fold`, `.dv-map` | new: `.diff`, `.diff-row`, `.diff-fold-pill`, `.diff-seam`, `.diff-gap`, `.diff-rail` (`components/changes/`) | see §5 |
 | `.fp`, `.fmap`, `.frow`, `.edit-step`, `.scrub`, `.why` | new: `.changes-print`, `.changes-map`, `.changes-file`, `.edit-step`, `.edit-scrub`, `.changes-why` | see §5 |
 
 These keep their behaviour and take the new styling: the controls in
-`apps/web/src/components/controls`, and the primitives in `components/ui.tsx` and
-`components/motion.tsx`. Never use native selects, checkboxes or ranges. The prototypes only use
+`packages/ui/src/components/controls`, and the primitives in `packages/ui/src/components/ui.tsx` and
+`motion.tsx` beside it. Never use native selects, checkboxes or ranges. The prototypes only use
 them as mockups.
 
 **Usage thresholds.** A bar or ring for context, limits or quota is neutral below 60 %, turns warn
@@ -285,6 +292,7 @@ already belong to the orchestration board.
 | `.wi-crit` (`.full`) | new `.workitem-criteria` | a 28 × 4 bar and "2/5"; complete is the one ok on a card |
 | `.wi-strip` (`.live`, `.wait`, `.fail`, neutral), `.actor-orch`, `.detail`, `.verb` | new `WorkItemStrip` (`.workitem-strip`) | **what happens to the card now, at its foot, led by who does it.** One strip per card, never two. Live: the actor (a role's squircle, the person's round monogram or the orchestration glyph), the braille spinner, the stage verb, the running clock and, on its own line, the detail in mono; the card takes `.rail-live`. Waiting for the person: an idle "te espera" and why, with "Aprobar y pasar a Hecho" when QA passed it. Failed: the actor, an ✕ and "Falló al refinar · ninguna cuenta tenía cupo". Neutral: queued ("En cola: la refinará cuando quede sitio") or QA's last words when it sent the card back; a card sent back that also waits for a place keeps QA's words, and its queued run shows in Team activity. When the strip's actor is the assignee, the foot does not repeat it |
 | `.wi-strip.warn`, `.pr-num`, `.pr-link`, `.no-pr`, `.pr-ci` | `WorkItemStrip` states `pr-*` (`.workitem-strip.is-warn`, `.workitem-strip-num`, `.workitem-strip-link`, `.pr-not-ready`, `CiBadge`) | **the card's pull request** (docs/plans/work-item-pull-requests.md). "Preparando la PR" neutral and still: Agentry prepares it, no agent works on it, so no spinner and no `--live`. "Conflicto con main · 2 archivos" in warn. "Aprobada · su PR se abrirá cuando pase la verificación" neutral. "PR #123 · esperando fusión" in idle, the number in mono and tabular, then the CI badge with its word (CI superada ok, CI pendiente neutral with no loop, CI fallida bad) and an icon link to GitHub (`target="_blank" rel="noreferrer"`, 44 px on a phone) that never opens the card. "PR #123 cerrada sin fusionar" in idle and "No se ha podido abrir la PR · motivo" in bad, both with the approval again. In a ready project the approval reads "Aprobar y abrir PR"; otherwise it stays "Aprobar y pasar a Hecho", and a warn line above it says why, "Sin PR: gh no ha iniciado sesión", with gh's own line as its title. A Done card still draws no strip |
+| `.pr-remedy`, `.pr-not-ready` | `NotReadyNote`'s remedy and the item page's readiness note (docs/plans/code-hosts.md, reason codes) | **why a project offers no PR or MR, and what to do.** On a card the warn `.no-pr` line reads "Sin MR: glab no ha iniciado sesión en git.inmoseo.net" and the remedy sits under it as one link in `--accent`, underlined, 44 px high on a phone. On the item's page `.pr-not-ready` says it in a sentence with a warn icon and the host's own first line in mono under it, then the same link. The noun follows the host: "MR" and `!12` on GitLab, "PR" and `#12` on GitHub, "PR ni MR" when no host is known. A remedy is a link or an Agentry action (Ajustes → Integraciones), never a command to copy, and `not-git` has none. The reasons and their links are in `reference/DSIntegraciones.html` |
 | `.wi-checkout` | new `.workitem-checkout-note` | the project's checkout behind `origin/<default>`: one quiet warn line under the board's toolbar, "La copia de trabajo va 3 commits por detrás de origin/main: tiene cambios sin commit", naming why Agentry did not bring it forward. Never a command to copy |
 | `.wi-proj` | new `.workitem-project` | on Tasks with All projects selected, each card names its project at the head of its context row, and no column shows a limit (each project has its own) |
 | `.wi-key` (`.boxed`) | new `.workitem-key` | `AGN-12` in mono, tabular |
@@ -563,6 +571,40 @@ Reference screens: `DesktopProyectoAjustes`, `MobileProyectoAjustes`, `MobilePro
 assistant proposals, orchestration, chat hint, review) reuse the same mark and answer and are not
 drawn again.
 
+### Fixing failing checks: the fix panel, its check list and the attempts
+
+Drawn for [code hosts](plans/code-hosts.md) (task `k-p3` of phase 2, P0) and waiting for the owner's
+validation before phase 2 builds it. Three screens carry it: `DSChecks` (the rules, the board card, the
+item page, the dialog and the decision point, each with its phone counterpart),
+`DesktopAjustesDecisionesChecks` and `MobileAjustesDecisionesChecks`, generated by
+`reference/tools/checks.py`.
+
+- **The card's strip** says how far the fix is. Developer or QA at work: the live strip (role
+  squircle, braille spinner, time, and a mono detail line with `MR !12`, the attempt and who started
+  it). Waiting for the person: the idle strip, a `te espera` badge and a neutral "Subir el arreglo".
+  Attempts spent: the `warn` strip, "Sin intentos" with its word. A fixing card sits in En curso, one
+  awaiting verification or a push in En revisión.
+- **The fix panel (`.fix-panel`)** is the item page's zone under the PR row. It borrows `.rail-live` and
+  the live wash while the Developer or QA works, and the idle wash while it waits. Its head holds the
+  verb (braille only while live), what it means for the person, and the attempts
+  (`.fix-attempts` with a neutral `.segbar.attempts`: used segments `--fg-3`, never a status
+  colour). Under it, `.fix-checks`: one `.fix-check` per check it received (mono name, `b-bad`
+  "fallido", duration in mono), and after the Developer's run a `.verdict` line per check: "Arreglado"
+  in ok, or "Sin cambios" when the branch did not cause it.
+- **One primary per zone.** "Arreglar N checks" (in the dialog) and "Subir el arreglo" (on the page)
+  are the gradient of their zone and never visible together. Neutral on the board card.
+- **Who started it decides who pushes.** A fix the person asks for pushes by itself once QA passes
+  it (the click was the approval) and moving the card in between drops that; one `checks.fix`
+  started always waits for "Subir el arreglo". The panel says which, in plain words.
+- **The dialog** (a `Dialog`, a `Sheet` on a phone) lists the checks the Developer receives, the one
+  allowed to fail marked `b-warn` "puede fallar" and left out, what the click means, and the attempts
+  used. No checkboxes: the checks are not chosen one by one. Past the limit it says the limit stops
+  the decision, not the person.
+- **`checks.fix` in Settings → Decisions** is an ordinary acting point, per project and off by default,
+  in a group of its own (Alojamiento del código) between Revisión and Avisos: 23 points, 10 groups.
+  Two `.dp-note` lines carry the question it asks and what else must hold (attempts per commit,
+  room in the flow, the cost limit), with a link to the project's settings, where the attempts live.
+
 ### Providers: readiness rows, first run, order and binary
 
 Drawn for [multiple agent providers](plans/multi-provider.md) (task `p1` of P0) and waiting for the
@@ -621,7 +663,145 @@ Reference screens: `DesktopProveedores` (Codex's binary override open), `Desktop
 `DesktopPrimerArranque`, `DesktopPrimerArranqueBuscando`, `DesktopPrimerArranqueVacio` and the three
 `MobilePrimerArranque*`. They are generated by `reference/tools/providers.py`.
 
+### Integrations: the code hosts' CLIs
+
+Drawn for [code hosts](plans/code-hosts.md) (task `p1` of P0) and waiting for the owner's validation
+before P2 builds it. Settings → Integrations is a tab of the Agentry group, after Providers, and it
+reuses the provider pieces: `.prov-row.compact`, `.prov-cell`, `.prov-bin`, the badges and the
+`Empty`. The only new rule is `.host-known`.
+
+- **A row** is one CLI: the host's `.monogram` (GitHub `GH`, GitLab `GL`; no brand art), its name
+  with `PR #12` or `MR !12` in mono (the noun and number follow the host, here and everywhere),
+  `gh 2.92.0 · path` in mono, the state and, under it, the reason in plain words.
+- **The hosts a CLI knows (`.host-known`)** sit under the reason: a `t-label`, then one line per host
+  with its name in mono and the account, or a `b-warn` "Sin sesión" badge when the CLI has none.
+- **A state is a status colour with its word**, and the one action of each is neutral:
+
+  | State | Badge | Word | The one action | Also offered |
+  |---|---|---|---|---|
+  | `ready` | `b-ok` | Listo | none | |
+  | `degraded` (version untested) | `b-warn` | Con avisos | Elegir binario | |
+  | `signed-out` | `b-warn` | Sin sesión | Cómo iniciar sesión ↗ | |
+  | `incompatible` | `b-bad` | Incompatible | Actualizar ↗ | Elegir binario |
+  | `not-installed` | plain `.badge` | No instalado | Ver instalación ↗ | Elegir binario |
+  | `unknown` | `b-idle` | Sin comprobar | Reintentar | |
+  | checking | plain `.badge` with the braille spinner | Comprobando | none | |
+
+  Sign-in, Install and Update open the vendor's page (external-link icon); a remedy is never a
+  command to copy. The checking rows show `.skeleton` bars until their turn.
+- **Binary override.** "Elegir binario" opens the `.prov-bin` panel under the row on a desktop and a
+  `Sheet` on a phone (the field at 16 px, "Comprobar y guardar" as the one primary). Agentry reads the
+  version before saving and refuses one below the CLI's minimum.
+- **Nothing installed** is an `Empty` with the set's `cli-missing` illustration (`il-warn`), the
+  screen's only one and with no rows next to it: the primary opens the install page of `gh`, and
+  chips link to `glab` and to the binary override.
+- **Gradients.** The list card carries `.grad-border` (it is what the screen is about); the phone's
+  Sheet and the empty state each add their one primary. Nothing here is live except the checking
+  spinner.
+
+Reference screens: `DesktopIntegraciones` (GitHub ready with `github.com` and an enterprise host,
+GitLab degraded with its binary override open), `DesktopIntegracionesEstados` (incompatible, signed
+out on a self-managed host, not installed, unknown and checking), `DesktopIntegracionesVacio`,
+`MobileIntegraciones`, `MobileIntegracionesEstados`, `MobileIntegracionesSinInstalar`,
+`MobileIntegracionesVacio` and `MobileIntegracionesBinario`. They are generated by
+`reference/tools/hosts.py`.
+
+### Host line: where a project's code lives
+
+Drawn for [code hosts](plans/code-hosts.md) (task `p2` of P0) and waiting for the owner's validation
+before phase 2 builds it. Nothing here is live: no energy border, no loop, no gradient.
+
+- **One line (`.host-line`), in the project's settings.** The host's `.monogram` (GH, GL; a hue that
+  is never red, green or cyan, and no brand logo, which is third-party art), then `hostname/path` in
+  mono (`.host-path`, the hostname in the text colour and the path a step lighter), and under it the
+  CLI with its version and the account in mono. A host no CLI knows has the `git` icon in a neutral
+  square, because there is no host to give a monogram to. The readiness word is a badge to the right.
+- **Detected, never chosen.** The host comes from the `origin` remote, so there is no picker and no
+  field: the card's header says so, and a hint names what a change request is called there: PR and
+  `#12` on GitHub, MR and `!12` on GitLab.
+- **The readiness word.** `b-ok` "Listo" when the CLI is signed in on that host; `b-warn` "Sin sesión"
+  for `cli-signed-out` and `b-warn` "No disponible" for `unsupported-host`. A word always, never a
+  colour alone. The plain reason sits under the row (`.host-line-why`) with **one** action, a link
+  or an Agentry action and never a command to copy: "Ir a Integraciones" for an unsupported host,
+  "Ver cómo iniciar sesión" (the sign-in docs) for a signed-out CLI. A ready line has no action.
+- **Phone.** `.host-line.stacked`: the reason and the action stack under the row, the action is a
+  44 px button, and the card is a section called "Repositorio" between General and Modules.
+
+Reference screens: `DesktopProyectoAjustes`, `MobileProyectoAjustes` and the states sheet
+`DSIntegraciones` (GitHub ready; self-managed GitLab ready; unsupported host; CLI signed out, each
+beside its phone counterpart). Generated by `reference/tools/projects.py` and `hosts.py`.
+
+### Checks of a change request
+
+Drawn for [code hosts](plans/code-hosts.md) (task `k-p1` of phase 2 P0) and waiting for the owner's
+validation before P2 builds it. The orchestration's checks and the fix states are drawn by `k-p2` and
+`k-p3` and join this section.
+
+- **The section** sits under the PR or MR block of the item page: an `h2` "Comprobaciones", the counts
+  in mono under it ("2 fallidas · 4 superadas"), and its actions on the right. **Arreglar las
+  comprobaciones fallidas** is the zone's one gradient (`.btn-primary`; the page's "Trabajar en ella"
+  is the other, so two gradient surfaces); **Repetir las fallidas** and **Cancelar** are neutral and
+  appear only when a check failed or is running. A "⋯" holds "Repetir todas" and "Abrir en {host}".
+- **Groups** (`.check-group-head`, a button that folds): Fallidas, En marcha, Superadas, Omitidas.
+  A failure the pipeline allows (`allow_failure`) is a warning, not a failure: it sits with the
+  failures as GitLab lists it, with the `b-warn` word "fallo permitido", and the group count says
+  "2 · 1 permitida". A manual job is `b-idle` "manual" (it waits for the person) under Omitidas.
+- **A row** (`.check-row`) has two buttons: the main one opens the log, and `.check-more` ("⋯") opens
+  the row's menu. Inside the main button: a mark, the name with its stage (GitLab) or workflow
+  (GitHub) in mono, the status as a word, and the duration in mono with tabular numbers. Status
+  colours: ok "superada", bad "fallida", warn "fallo permitido", idle "manual", neutral "en cola" and
+  "omitida". Only a running row is live: the ring spinner, `.rail-live` and `b-live` "en marcha".
+- **Menu of a row**: "Repetir esta comprobación" (GitLab manual job: "Ejecutar esta comprobación")
+  and "Abrir en {host}". A commit status or another service's check cannot be re-run from Agentry:
+  the item is disabled and a line under it says why (`check-not-rerunnable`).
+- **The log tail** (`.check-log`): a panel under the list on a desktop and a `Sheet` on a phone. Above
+  it, what the host says: GitHub's annotations as a level word (`error` bad, `aviso` warn, `nota`
+  neutral) with `path:line` in mono, or GitLab's `failure_reason` and a sentence. Then the tail:
+  monospace, dimmed, one line number per line, gaps as "⋯ N líneas omitidas". **No line is coloured
+  green or red**; a line an annotation or error marker points to is only brighter, on a neutral fill.
+  The foot says the size and that secrets are hidden. The Sheet's one action opens the job on the host.
+- **States**: none (`.check-quiet`, "sin CI", no illustration because the page has content), all
+  passing, running (Cancelar; nothing to fix), failing with an allowed failure, log unavailable
+  (`.pr-not-ready`, the host's line in mono and "Abrir en {host}"), rate-limited (a `callout-warn` with
+  the `rate-limited` text and the time, the last list kept with "Lista leída a las 10:42" and every
+  action disabled).
+- **Phone**: each row is two lines (name, then word, stage and time), 44 px tall, with a 44 px "⋯";
+  actions stack as 44 px buttons; the log and the row menu are Sheets.
+
+Reference screens: `DesktopTareaChecks` (GitLab, failing with an allowed failure, the log open and a
+row menu), `MobileTareaChecks`, `MobileTareaChecksRegistro` (the log Sheet), `MobileTareaChecksMenu`
+(the row's Sheet), and the states sheets `DesktopTareaChecksEstados` and `MobileTareaChecksEstados`
+(GitHub: none, passing, running, rate-limited, log unavailable, annotations and another service's
+check). Generated by `reference/tools/checks.py`.
+
 ---
+
+### Orchestration checks: the change request's CI and the fix that waits
+
+Drawn for [code hosts](plans/code-hosts.md), phase 2 (task `k-p2` of P0), by `reference/tools/checks.py`:
+`DesktopOrquestacionChecks`, `…ChecksSubir` and the phone pair. New classes `.ochk-*`; the MR row is
+`.pr-row`, the badges, `.sheet` and `.grad-border` are the existing ones.
+
+- **A check row (`.ochk-row`)** is one button that opens the log, plus a "⋯" menu: state badge with
+  its word (`fallido` bad, `fallo permitido` warn, `en curso` live, `superado` ok, `omitido`
+  neutral), the name in mono, the stage in mono and the duration in mono and tabular. Only the
+  running row carries `--live` and the ring spinner. Rows group as Fallan / Fallo permitido / En curso;
+  Superados and Omitidos fold. On a phone a row is two lines (name and time, then badge and stage),
+  44 px high.
+- **The log tail (`.ochk-log`)** is a panel beside the list on a desktop and a `Sheet` on a phone.
+  Above it, the reason the job failed (`.ochk-why`: GitLab's `failure_reason` and exit code; GitHub
+  shows its annotations there). The tail is mono, dimmed (`--fg-3`), never syntax-coloured: the
+  error marker lines only take `--fg` on a `--bg-3` stripe with a `--line-3` rail. A note says how
+  much of the log is shown and that secrets are hidden.
+- **The zone's one gradient action** is **Arreglar los checks** (`btn-primary`). Re-run failed and
+  Cancel stay neutral. A line under the actions says the fix is committed on the integration branch
+  and that nothing is pushed until **Subir el arreglo**.
+- **Push the fix (`.ochk-fix`)**: an orchestration's fix always waits for the person, so the
+  screen's one gradient action becomes **Subir el arreglo** and Arreglar disappears. The panel
+  takes `.grad-border` (it is what the screen is about) with an idle `te espera` badge; it lists the
+  commit, the files, and each check with its cause as a word (`corregido` ok, `sin tocar` neutral)
+  and a sentence of why. The checks list below stays on the head the failures were seen on
+  (`commit a81d3f0`) until the push.
 
 ## 3. Live states and motion
 
@@ -675,7 +855,7 @@ reference's `DSIlustraciones`, and the pattern in use is on `DSEstados`.
 
 **How they are built in the app**
 
-- One React component per illustration under `apps/web/src/components/illustrations/`, plus an
+- One React component per illustration under `packages/ui/src/components/illustrations/`, plus an
   `<Illustration name size tone />` entry point.
 - **Colour comes only from classes.** SVG presentation attributes don't resolve `var()`, so the
   classes (`.c1`, `.ln-grad`, `.f-tone` …) live in `styles/illustrations.css` and use tokens. The

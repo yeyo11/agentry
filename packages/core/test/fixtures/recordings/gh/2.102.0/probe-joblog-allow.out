@@ -1,0 +1,151 @@
+﻿2026-09-30T18:35:42.9261608Z Current runner version: '2.337.0'
+2026-09-30T18:35:42.9288871Z ##[group]Runner Image Provisioner
+2026-09-30T18:35:42.9289778Z Hosted Compute Agent
+2026-09-30T18:35:42.9290362Z Version: 20260901.588
+2026-09-30T18:35:42.9290974Z Commit: f88ec8081b781fac6c440065ac7ff9e710ce3d0b
+2026-09-30T18:35:42.9291827Z Build Date: 2026-09-01T19:56:44Z
+2026-09-30T18:35:42.9292752Z Worker ID: {755b3f2e-7a48-4b49-b221-be830df27c00}
+2026-09-30T18:35:42.9293515Z Azure Region: eastus
+2026-09-30T18:35:42.9294085Z ##[endgroup]
+2026-09-30T18:35:42.9295561Z ##[group]Operating System
+2026-09-30T18:35:42.9296349Z Ubuntu
+2026-09-30T18:35:42.9296861Z 24.04.5
+2026-09-30T18:35:42.9297392Z LTS
+2026-09-30T18:35:42.9297907Z ##[endgroup]
+2026-09-30T18:35:42.9298445Z ##[group]Runner Image
+2026-09-30T18:35:42.9299108Z Image: ubuntu-24.04
+2026-09-30T18:35:42.9299660Z Version: 20260927.320.1
+2026-09-30T18:35:42.9300932Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260927.320/images/ubuntu/Ubuntu2404-Readme.md
+2026-09-30T18:35:42.9302947Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260927.320
+2026-09-30T18:35:42.9304025Z ##[endgroup]
+2026-09-30T18:35:42.9305202Z ##[group]GITHUB_TOKEN Permissions
+2026-09-30T18:35:42.9307845Z Contents: read
+2026-09-30T18:35:42.9308447Z Metadata: read
+2026-09-30T18:35:42.9308983Z Packages: read
+2026-09-30T18:35:42.9309711Z ##[endgroup]
+2026-09-30T18:35:42.9311782Z Secret source: Actions
+2026-09-30T18:35:42.9313286Z Cache mode: write
+2026-09-30T18:35:42.9314215Z Prepare workflow directory
+2026-09-30T18:35:42.9648776Z Prepare all required actions
+2026-09-30T18:35:42.9697033Z Getting action download info
+2026-09-30T18:35:43.1895693Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-09-30T18:35:43.3971283Z Complete job name: bad
+2026-09-30T18:35:43.4796016Z ##[group]Run actions/checkout@v4
+2026-09-30T18:35:43.4797052Z with:
+2026-09-30T18:35:43.4797619Z   repository: yeyo11/agentry-probe
+2026-09-30T18:35:43.4801620Z   token: ***
+2026-09-30T18:35:43.4802305Z   ssh-strict: true
+2026-09-30T18:35:43.4802758Z   ssh-user: git
+2026-09-30T18:35:43.4803207Z   persist-credentials: true
+2026-09-30T18:35:43.4803709Z   clean: true
+2026-09-30T18:35:43.4804155Z   sparse-checkout-cone-mode: true
+2026-09-30T18:35:43.4804678Z   fetch-depth: 1
+2026-09-30T18:35:43.4805111Z   fetch-tags: false
+2026-09-30T18:35:43.4805549Z   show-progress: true
+2026-09-30T18:35:43.4805999Z   lfs: false
+2026-09-30T18:35:43.4806403Z   submodules: false
+2026-09-30T18:35:43.4806844Z   set-safe-directory: true
+2026-09-30T18:35:43.4807347Z   allow-unsafe-pr-checkout: false
+2026-09-30T18:35:43.4808167Z ##[endgroup]
+2026-09-30T18:35:43.5802872Z Syncing repository: yeyo11/agentry-probe
+2026-09-30T18:35:43.5805440Z ##[group]Getting Git version info
+2026-09-30T18:35:43.5806750Z Working directory is '/home/runner/work/agentry-probe/agentry-probe'
+2026-09-30T18:35:43.5808512Z [command]/usr/bin/git version
+2026-09-30T18:35:43.5871156Z git version 2.55.0
+2026-09-30T18:35:43.5893967Z ##[endgroup]
+2026-09-30T18:35:43.5908870Z Temporarily overriding HOME='/home/runner/work/_temp/1e205e0f-e59c-445e-a5e4-88463c405528' before making global git config changes
+2026-09-30T18:35:43.5911278Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-30T18:35:43.5914653Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/agentry-probe/agentry-probe
+2026-09-30T18:35:43.5971365Z Deleting the contents of '/home/runner/work/agentry-probe/agentry-probe'
+2026-09-30T18:35:43.5976030Z ##[group]Initializing the repository
+2026-09-30T18:35:43.5980021Z [command]/usr/bin/git init /home/runner/work/agentry-probe/agentry-probe
+2026-09-30T18:35:43.6134752Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-09-30T18:35:43.6136566Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-09-30T18:35:43.6139178Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-09-30T18:35:43.6141114Z hint: call:
+2026-09-30T18:35:43.6141845Z hint:
+2026-09-30T18:35:43.6142878Z hint: 	git config --global init.defaultBranch <name>
+2026-09-30T18:35:43.6143861Z hint:
+2026-09-30T18:35:43.6144780Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-09-30T18:35:43.6146602Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-09-30T18:35:43.6147865Z hint:
+2026-09-30T18:35:43.6148540Z hint: 	git branch -m <name>
+2026-09-30T18:35:43.6149312Z hint:
+2026-09-30T18:35:43.6150307Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-09-30T18:35:43.6152349Z Initialized empty Git repository in /home/runner/work/agentry-probe/agentry-probe/.git/
+2026-09-30T18:35:43.6155108Z [command]/usr/bin/git remote add origin https://github.com/yeyo11/agentry-probe
+2026-09-30T18:35:43.6200807Z ##[endgroup]
+2026-09-30T18:35:43.6202300Z ##[group]Disabling automatic garbage collection
+2026-09-30T18:35:43.6211778Z [command]/usr/bin/git config --local gc.auto 0
+2026-09-30T18:35:43.6238933Z ##[endgroup]
+2026-09-30T18:35:43.6240310Z ##[group]Setting up auth
+2026-09-30T18:35:43.6247337Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-30T18:35:43.6279242Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-30T18:35:43.6666598Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-30T18:35:43.6708613Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-30T18:35:43.6946122Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-30T18:35:43.6983478Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-30T18:35:43.7208408Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic <redacted:auth>
+2026-09-30T18:35:43.7249199Z ##[endgroup]
+2026-09-30T18:35:43.7250033Z ##[group]Fetching the repository
+2026-09-30T18:35:43.7259351Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +dacd52c095efda459d2d8a7a61d421a14225b511:refs/remotes/pull/1/merge
+2026-09-30T18:35:43.9432483Z From https://github.com/yeyo11/agentry-probe
+2026-09-30T18:35:43.9433536Z  * [new ref]         dacd52c095efda459d2d8a7a61d421a14225b511 -> pull/1/merge
+2026-09-30T18:35:43.9451410Z ##[endgroup]
+2026-09-30T18:35:43.9453514Z ##[group]Determining the checkout info
+2026-09-30T18:35:43.9455649Z ##[endgroup]
+2026-09-30T18:35:43.9456741Z [command]/usr/bin/git sparse-checkout disable
+2026-09-30T18:35:43.9512782Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-09-30T18:35:43.9552690Z ##[group]Checking out the ref
+2026-09-30T18:35:43.9557250Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/1/merge
+2026-09-30T18:35:43.9601385Z Note: switching to 'refs/remotes/pull/1/merge'.
+2026-09-30T18:35:43.9602480Z 
+2026-09-30T18:35:43.9603504Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-09-30T18:35:43.9606563Z changes and commit them, and you can discard any commits you make in this
+2026-09-30T18:35:43.9607744Z state without impacting any branches by switching back to a branch.
+2026-09-30T18:35:43.9608453Z 
+2026-09-30T18:35:43.9608994Z If you want to create a new branch to retain commits you create, you may
+2026-09-30T18:35:43.9610128Z do so (now or later) by using -c with the switch command. Example:
+2026-09-30T18:35:43.9611494Z 
+2026-09-30T18:35:43.9612600Z   git switch -c <new-branch-name>
+2026-09-30T18:35:43.9613751Z 
+2026-09-30T18:35:43.9614519Z Or undo this operation with:
+2026-09-30T18:35:43.9615999Z 
+2026-09-30T18:35:43.9616558Z   git switch -
+2026-09-30T18:35:43.9617462Z 
+2026-09-30T18:35:43.9618437Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-09-30T18:35:43.9619773Z 
+2026-09-30T18:35:43.9620900Z HEAD is now at dacd52c Merge 334aba468c4b6a04dbeff0ab0544c8fb3894d57b into 03e22beb7fe24bbcf56ec6c88f865c66ccf64b1a
+2026-09-30T18:35:43.9623505Z ##[endgroup]
+2026-09-30T18:35:43.9665800Z [command]/usr/bin/git log -1 --format=%H
+2026-09-30T18:35:43.9697488Z dacd52c095efda459d2d8a7a61d421a14225b511
+2026-09-30T18:35:44.0033336Z ##[group]Run echo "::warning file=README.md,line=1::probe warning annotation"
+2026-09-30T18:35:44.0034486Z [36;1mecho "::warning file=README.md,line=1::probe warning annotation"[0m
+2026-09-30T18:35:44.0035429Z [36;1mprintf '\033[31mred text with an escape sequence\033[0m\n'[0m
+2026-09-30T18:35:44.0036225Z [36;1mif [ -f FAIL ] || [ "" = "true" ]; then[0m
+2026-09-30T18:35:44.0037247Z [36;1m  echo "::error file=README.md,line=2,endLine=3,title=Probe failure::bad job failed on purpose"[0m
+2026-09-30T18:35:44.0038193Z [36;1m  exit 1[0m
+2026-09-30T18:35:44.0038657Z [36;1mfi[0m
+2026-09-30T18:35:44.0039149Z [36;1mecho "bad job passed"[0m
+2026-09-30T18:35:44.0338956Z shell: /usr/bin/bash -e {0}
+2026-09-30T18:35:44.0339596Z ##[endgroup]
+2026-09-30T18:35:44.0471509Z ##[warning]probe warning annotation
+2026-09-30T18:35:44.0480301Z [31mred text with an escape sequence[0m
+2026-09-30T18:35:44.0483372Z ##[error]bad job failed on purpose
+2026-09-30T18:35:44.0488692Z ##[error]Process completed with exit code 1.
+2026-09-30T18:35:44.0670247Z Post job cleanup.
+2026-09-30T18:35:44.1598932Z [command]/usr/bin/git version
+2026-09-30T18:35:44.1644091Z git version 2.55.0
+2026-09-30T18:35:44.1688446Z Temporarily overriding HOME='/home/runner/work/_temp/1b4f726a-b71a-4cc8-8f70-c3128ccb227b' before making global git config changes
+2026-09-30T18:35:44.1691085Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-30T18:35:44.1694040Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/agentry-probe/agentry-probe
+2026-09-30T18:35:44.1738085Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-30T18:35:44.1775723Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-30T18:35:44.2024448Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-30T18:35:44.2051114Z http.https://github.com/.extraheader
+2026-09-30T18:35:44.2063719Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-09-30T18:35:44.2099543Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-30T18:35:44.2369959Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-30T18:35:44.2413890Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-30T18:35:44.2805401Z Cleaning up orphan processes
+2026-09-30T18:35:44.3134759Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

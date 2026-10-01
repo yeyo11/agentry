@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr view 150 -R yeyo11/agentry --json comments,commits --jq {c:(.comments|length),k:(.commits|length)}
+exit: 0
+secs: 1.220231296
+env: 

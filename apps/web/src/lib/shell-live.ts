@@ -6,9 +6,9 @@
  */
 import type { AccountUsage, ChatState, OrchestrationStatus, OrchestrationTaskStatus } from '@agentry/shared';
 import { phoneHeaderOf } from '../components/shell/phone-header';
-import { displayTitle } from './chat-model';
-import type { TickerActivity } from './live';
-import type { ProgressCounts } from './progress';
+import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
+import type { TickerActivity } from '@agentry/ui/lib/live';
+import type { ProgressCounts } from '@agentry/ui/lib/progress';
 
 /** The part of a chat summary the shell reads. `activity` arrives with the live-activity work. */
 export interface LiveChatInput {

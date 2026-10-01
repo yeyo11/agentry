@@ -1,0 +1,88 @@
+title:	Bump pnpm/action-setup from 4 to 6
+state:	MERGED
+author:	dependabot
+labels:	dependencies, github_actions
+comments:	0
+assignees:	
+projects:	
+milestone:	
+number:	1
+--
+Bumps [pnpm/action-setup](https://github.com/pnpm/action-setup) from 4 to 6.
+<details>
+<summary>Release notes</summary>
+<p><em>Sourced from <a href="https://github.com/pnpm/action-setup/releases">pnpm/action-setup's releases</a>.</em></p>
+<blockquote>
+<h2>v6.0.0</h2>
+<p>Added support for pnpm <a href="https://github.com/pnpm/pnpm/releases/tag/v11.0.0-rc.0">v11</a>.</p>
+<h2>v5.0.0</h2>
+<p>Updated the action to use Node.js 24.</p>
+<h2>v4.4.0</h2>
+<p>Updated the action to use Node.js 24.</p>
+<h2>v4.3.0</h2>
+<h2>What's Changed</h2>
+<ul>
+<li>docs: fix the run_install example in the Readme by <a href="https://github.com/dreyks"><code>@​dreyks</code></a> in <a href="https://redirect.github.com/pnpm/action-setup/pull/175">pnpm/action-setup#175</a></li>
+<li>chore: remove unused <code>@types/node-fetch</code> dependency by <a href="https://github.com/silverwind"><code>@​silverwind</code></a> in <a href="https://redirect.github.com/pnpm/action-setup/pull/186">pnpm/action-setup#186</a></li>
+<li>Clarify that package_json_file is relative to GITHUB_WORKSPACE by <a href="https://github.com/chris-martin"><code>@​chris-martin</code></a> in <a href="https://redirect.github.com/pnpm/action-setup/pull/184">pnpm/action-setup#184</a></li>
+<li>feat: store caching by <a href="https://github.com/jrmajor"><code>@​jrmajor</code></a> in <a href="https://redirect.github.com/pnpm/action-setup/pull/188">pnpm/action-setup#188</a></li>
+<li>refactor: remove star imports by <a href="https://github.com/KSXGitHub"><code>@​KSXGitHub</code></a> in <a href="https://redirect.github.com/pnpm/action-setup/pull/196">pnpm/action-setup#196</a></li>
+<li>fix(ci): exclude macos by <a href="https://github.com/KSXGitHub"><code>@​KSXGitHub</code></a> in <a href="https://redirect.github.com/pnpm/action-setup/pull/197">pnpm/action-setup#197</a></li>
+</ul>
+<h2>New Contributors</h2>
+<ul>
+<li><a href="https://github.com/dreyks"><code>@​dreyks</code></a> made their first contribution in <a href="https://redirect.github.com/pnpm/action-setup/pull/175">pnpm/action-setup#175</a></li>
+<li><a href="https://github.com/silverwind"><code>@​silverwind</code></a> made their first contribution in <a href="https://redirect.github.com/pnpm/action-setup/pull/186">pnpm/action-setup#186</a></li>
+<li><a href="https://github.com/chris-martin"><code>@​chris-martin</code></a> made their first contribution in <a href="https://redirect.github.com/pnpm/action-setup/pull/184">pnpm/action-setup#184</a></li>
+<li><a href="https://github.com/jrmajor"><code>@​jrmajor</code></a> made their first contribution in <a href="https://redirect.github.com/pnpm/action-setup/pull/188">pnpm/action-setup#188</a></li>
+<li><a href="https://github.com/Boosted-Bonobo"><code>@​Boosted-Bonobo</code></a> made their first contribution in <a href="https://redirect.github.com/pnpm/action-setup/pull/199">pnpm/action-setup#199</a></li>
+</ul>
+<p><strong>Full Changelog</strong>: <a href="https://github.com/pnpm/action-setup/compare/v4.2.0...v4.3.0">https://github.com/pnpm/action-setup/compare/v4.2.0...v4.3.0</a></p>
+<h2>v4.2.0</h2>
+<p>When there's a <code>.npmrc</code> file at the root of the repository, pnpm will be fetched from the registry that is specified in that <code>.npmrc</code> file <a href="https://redirect.github.com/pnpm/action-setup/pull/179">#179</a></p>
+<h2>v4.1.0</h2>
+<p>Add support for <code>package.yaml</code> <a href="https://redirect.github.com/pnpm/action-setup/pull/156">#156</a>.</p>
+</blockquote>
+</details>
+<details>
+<summary>Commits</summary>
+<ul>
+<li><a href="https://github.com/pnpm/action-setup/commit/0977fd99725f1db4007ccb2928dbb4e90d06cc86"><code>0977fd9</code></a> docs: Update README to include devEngines.packageManager (<a href="https://redirect.github.com/pnpm/action-setup/issues/273">#273</a>)</li>
+<li><a href="https://github.com/pnpm/action-setup/commit/48261aca053e825d84804e8ce05524d558249ac9"><code>48261ac</code></a> fix: update pnpm to v11.19.0 (<a href="https://redirect.github.com/pnpm/action-setup/issues/283">#283</a>)</li>
+<li><a href="https://github.com/pnpm/action-setup/commit/75677f717d48404e86ae8ee4891543f40de175aa"><code>75677f7</code></a> ci: use pnpm 11 for <code>pr-check</code> (<a href="https://redirect.github.com/pnpm/action-setup/issues/284">#284</a>)</li>
+<li><a href="https://github.com/pnpm/action-setup/commit/769ae71fb33e6e448a5dc92ad5da997c268eecec"><code>769ae71</code></a> refactor: introduce restore keys for cache (<a href="https://redirect.github.com/pnpm/action-setup/issues/280">#280</a>)</li>
+<li><a href="https://github.com/pnpm/action-setup/commit/6fed91f804570c1144bfe1911c348642cb986bd4"><code>6fed91f</code></a> docs(README): point users to the successor pnpm/setup action (<a href="https://redirect.github.com/pnpm/action-setup/issues/282">#282</a>)</li>
+<li><a href="https://github.com/pnpm/action-setup/commit/0ebf47130e4866e96fce0953f49152a61190b271"><code>0ebf471</code></a> fix: update pnpm to v11.7.0 (<a href="https://redirect.github.com/pnpm/action-setup/issues/267">#267</a>)</li>
+<li><a href="https://github.com/pnpm/action-setup/commit/0e279bb959325dab635dd2c09392533439d90093"><code>0e279bb</code></a> fix: update pnpm to 11.1.1 (<a href="https://redirect.github.com/pnpm/action-setup/issues/248">#248</a>)</li>
+<li><a href="https://github.com/pnpm/action-setup/commit/3e835812ef01165f4f8ae08ade56da44427ed4e0"><code>3e83581</code></a> fix: drop patchPnpmEnv so standalone+self-update works on Windows (<a href="https://redirect.github.com/pnpm/action-setup/issues/258">#258</a>)</li>
+<li><a href="https://github.com/pnpm/action-setup/commit/551b42e879e37e74d986effdd2a1647d2b02d464"><code>551b42e</code></a> docs(README): fix <code>cache_dependency_path</code> type (<a href="https://redirect.github.com/pnpm/action-setup/issues/257">#257</a>)</li>
+<li><a href="https://github.com/pnpm/action-setup/commit/739bfe42ca9233c5e6aca07c1a25a9d34aca49b0"><code>739bfe4</code></a> fix: self-update bootstrap to packageManager-pinned version (<a href="https://redirect.github.com/pnpm/action-setup/issues/233">#233</a>) (<a href="https://redirect.github.com/pnpm/action-setup/issues/256">#256</a>)</li>
+<li>Additional commits viewable in <a href="https://github.com/pnpm/action-setup/compare/v4...v6">compare view</a></li>
+</ul>
+</details>
+<br />
+
+
+[![Dependabot compatibility score](https://dependabot-badges.githubapp.com/badges/compatibility_score?dependency-name=pnpm/action-setup&package-manager=github_actions&previous-version=4&new-version=6)](https://docs.github.com/en/github/managing-security-vulnerabilities/about-dependabot-security-updates#about-compatibility-scores)
+
+Dependabot will resolve any conflicts with this PR as long as you don't alter it yourself. You can also trigger a rebase manually by commenting `@dependabot rebase`.
+
+[//]: # (dependabot-automerge-start)
+[//]: # (dependabot-automerge-end)
+
+---
+
+<details>
+<summary>Dependabot commands and options</summary>
+<br />
+
+You can trigger Dependabot actions by commenting on this PR:
+- `@dependabot rebase` will rebase this PR
+- `@dependabot recreate` will recreate this PR, overwriting any edits that have been made to it
+- `@dependabot show <dependency name> ignore conditions` will show all of the ignore conditions of the specified dependency
+- `@dependabot ignore this major version` will close this PR and stop Dependabot creating any more for this major version (unless you reopen the PR or upgrade to it yourself)
+- `@dependabot ignore this minor version` will close this PR and stop Dependabot creating any more for this minor version (unless you reopen the PR or upgrade to it yourself)
+- `@dependabot ignore this dependency` will close this PR and stop Dependabot creating any more for this dependency (unless you reopen the PR or upgrade to it yourself)
+
+
+</details>

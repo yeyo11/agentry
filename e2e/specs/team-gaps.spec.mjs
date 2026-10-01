@@ -105,8 +105,8 @@ export default async ({ page, api, check, dirs }) => {
     insert.run('e2e-gaps-2', project.id, item.id, 'developer', 'developer', 'sonnet', 'work', 'in_progress', 'ended', 'failed', 'the account hit its rate limit', 'no-account', at(20), at(20), at(15));
     insert.run('e2e-gaps-3', project.id, item.id, 'qa', 'qa', 'sonnet', 'verify', 'in_review', 'ended', 'rejected', null, null, at(10), at(10), at(8));
     db.close();
-    await page.goto(`/?project=${project.id}&view=team`, 1500);
-    check(await page.eval(`return [...document.querySelectorAll('.team-switch [role=radio]')].map((b) => b.textContent.replace(/\\d+$/, '')).join(',') === 'Members,Flow,Activity'`), 'Team has three views: Members, Flow and Activity');
+    await page.goto(`/?project=${project.id}&view=team`, 0);
+    await page.waitFor(`return [...document.querySelectorAll('.team-switch [role=radio]')].map((b) => b.textContent.replace(/\\d+$/, '')).join(',') === 'Members,Flow,Activity'`, { label: 'Team has three views: Members, Flow and Activity' });
     await page.click('.team-side-card .team-link', 'See all', 1200);
     await page.waitFor(`return new URLSearchParams(location.search).get('section') === 'activity' && document.querySelectorAll('.flow-run').length === 3`, { label: 'every run of the team' });
     check(await page.eval(`return document.querySelector('.team-switch [role=radio][aria-checked=true]')?.textContent === 'Activity'`), 'the Activity view is the one selected');

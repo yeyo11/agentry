@@ -2,10 +2,10 @@ import * as RadixPopover from '@radix-ui/react-popover';
 import { ChevronDown, Folder, ListFilter, Search, X } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LAYER_ATTR } from '../../../components/controls/layer';
-import { Sheet } from '../../../components/controls/Sheet';
-import { Checkbox } from '../../../components/controls/Toggle';
-import { ICON_SM } from '../../../components/icons';
+import { LAYER_ATTR } from '@agentry/ui/components/controls/layer';
+import { Sheet } from '@agentry/ui/components/controls/Sheet';
+import { Checkbox } from '@agentry/ui/components/controls/Toggle';
+import { ICON_SM } from '@agentry/ui/components/icons';
 import type { TaskFilters } from '../../../lib/work-items';
 import type { TaskFilterState } from './useTaskFilters';
 

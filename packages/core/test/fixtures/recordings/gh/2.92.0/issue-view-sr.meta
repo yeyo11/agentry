@@ -1,0 +1,5 @@
+gh: 92
+argv: gh issue view 22 -R yeyo11/agentry-probe --json state,stateReason,closedByPullRequestsReferences
+exit: 0
+secs: .650881301
+env: 

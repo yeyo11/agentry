@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api -H Accept: application/vnd.github.diff repos/yeyo11/agentry-probe/pulls/30
+exit: 0
+secs: .653653968
+env: 

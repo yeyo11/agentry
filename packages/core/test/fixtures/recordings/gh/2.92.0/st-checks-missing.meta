@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr checks 10 -R yeyo11/agentry-probe
+exit: 1
+secs: 1.084878705
+env: 

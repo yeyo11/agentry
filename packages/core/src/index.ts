@@ -12,6 +12,7 @@ import type {
   ChatSummary,
   ChatWorktree,
   ConfigFileRoot,
+  ModelOption,
   CreateProjectRequest,
   FlowRun,
   FlowRunPage,
@@ -62,7 +63,7 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@agentry/shared';
-import { AGENTRY_LANGUAGES, agentryLanguage, type DecisionRecord } from '@agentry/shared';
+import { AGENTRY_LANGUAGES, agentryLanguage, type DecisionRecord, type ProjectCodeHost, type ProviderId } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
 import { AppSettingsStore } from './app-settings.ts';
@@ -88,10 +89,12 @@ import { Db } from './db.ts';
 import { HealthMonitor, HealthService } from './health-service.ts';
 import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
 import { EventBus } from './events.ts';
+import type { SessionInit } from './providers/driver.ts';
+import { CodeHostDetector } from './hosts/detector.ts';
+import { CodeHostsSettingsStore } from './hosts/settings.ts';
 import { ProviderDetector } from './providers/detector.ts';
 import { ProvidersSettingsStore } from './providers/settings.ts';
 import { Locator } from './locations.ts';
-import { modelOptions } from './models.ts';
 import { PermissionBroker } from './permissions.ts';
 import { PushService } from './push.ts';
 import { ChatTools, ToolPresetStore } from './chat-tools.ts';
@@ -114,7 +117,10 @@ import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
 import { FlowError, FlowService, type FlowLaunch } from './flow.ts';
-import { PullRequestService, PullRequestWatcher, type ApproveResult } from './pull-requests.ts';
+import { ChangeRequestService } from './change-requests.ts';
+import { ChecksService } from './hosts/checks-service.ts';
+import { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
+import { codeHostAdapter, PullRequestService, PullRequestWatcher, type ApproveResult } from './pull-requests.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
 import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo } from './git.ts';
@@ -220,15 +226,18 @@ export {
 } from './flow.ts';
 export {
   ciOf,
+  codeHostAdapter,
   PullRequestError,
   PullRequestService,
   PullRequestWatcher,
   pullRequestBody,
   pullRequestTitle,
-  remoteHost,
+  type WatchSource,
   type ApproveResult,
   type PullRequestDeps,
 } from './pull-requests.ts';
+export { ChangeRequestError, type ChangeRequestFix } from './change-requests.ts';
+export { OrchestrationPullRequestError, OrchestrationPullRequestService, type OpenedPullRequest } from './orchestration-pull-requests.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
 export {
@@ -300,6 +309,13 @@ export class Core {
   readonly providers: ProviderDetector;
   /** Which providers are on, their order, the default and binary overrides (`providers.json`) */
   readonly providersSettings: ProvidersSettingsStore;
+  /**
+   * Which code host CLIs (`gh`, `glab`) are on this machine, who is signed in to which host, and
+   * `hosts.changed` when a status changes. A project's readiness runs its own probes instead.
+   */
+  readonly hosts: CodeHostDetector;
+  /** Which code hosts are on and a binary of the person's own (`hosts.json`) */
+  readonly hostsSettings: CodeHostsSettingsStore;
   readonly permissions: PermissionBroker;
   /** Processes and live streams of the chats Agentry drives */
   readonly runtime: ChatManager;
@@ -370,6 +386,12 @@ export class Core {
   /** Approved items' pull requests: opened with git and gh on the person's request, and watched until merged */
   readonly pullRequests: PullRequestService;
   private readonly pullRequestWatcher: PullRequestWatcher;
+  /** The change requests of orchestrations' integration branches */
+  readonly orchestrationPullRequests: OrchestrationPullRequestService;
+  /** The checks of a change request: the head commit's list, log tails, re-runs and cancels */
+  readonly checks: ChecksService;
+  /** `/change-requests/:id/…`: a row id of either table, resolved to the service that owns it */
+  readonly changeRequests: ChangeRequestService;
   /** The project assistant: read-only runs that propose a team, resources and work items, each accepted on its own */
   readonly assistant: AssistantService;
   private readonly startedAt = Date.now();
@@ -397,6 +419,16 @@ export class Core {
       readClaude: async () => {
         const { cli, auth } = await this.system();
         return { cli, auth };
+      },
+    });
+    this.hostsSettings = new CodeHostsSettingsStore(config);
+    this.hosts = new CodeHostDetector({
+      adapter: codeHostAdapter,
+      settings: () => this.hostsSettings.get(),
+      emit: (event) => {
+        // A CLI that was installed or signed in changes what every project's readiness says
+        this.pullRequests.forgetReadiness();
+        return this.events.emit(event);
       },
     });
     this.db = new Db(config);
@@ -456,6 +488,7 @@ export class Core {
     this.runtime.chatTokens = this.security.chatTokens;
     this.runtime.defaults = this.appSettings;
     this.runtime.permissions = this.permissions;
+    this.runtime.providerSettings = () => this.providersSettings.get();
     this.runtime.bus = this.events;
     this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events);
     this.runtime.uploads = this.uploads;
@@ -636,8 +669,12 @@ export class Core {
       item: itemRef,
       decisions: this.decisions,
     });
+    this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.pullRequests = new PullRequestService({
       db: this.db,
+      checks: this.checks,
+      flowOn: (projectId) => this.flow.projectFlow(projectId).enabled,
+      settings: () => this.hostsSettings.get(),
       items: this.workItems,
       project: (id) => {
         const record = this.projectStore.get(id);
@@ -654,7 +691,24 @@ export class Core {
         return tunnel.state === 'active' && tunnel.url ? tunnel.url : (this.runtime.apiUrl?.replace(/\/api$/, '') ?? null);
       },
     });
-    this.pullRequestWatcher = new PullRequestWatcher(this.pullRequests);
+    this.orchestrationPullRequests = new OrchestrationPullRequestService({
+      db: this.db,
+      settings: () => this.hostsSettings.get(),
+      codeHost: (path) => this.pullRequests.codeHost(path),
+      emit: (event) => this.events.emit(event),
+      checks: this.checks,
+      runFix: (req) => this.orchestrator.runChecksFix(req),
+    });
+    this.changeRequests = new ChangeRequestService({
+      db: this.db,
+      checks: this.checks,
+      pullRequests: this.pullRequests,
+      orchestrationPullRequests: this.orchestrationPullRequests,
+      orchestration: (id) => this.orchestrator.get(id),
+      itemAccess: (itemId, access) => this.workItemAccess(itemId, access),
+    });
+    this.orchestrator.pullRequests = this.orchestrationPullRequests;
+    this.pullRequestWatcher = new PullRequestWatcher([this.pullRequests, this.orchestrationPullRequests]);
     this.events.observe((event) => this.pullRequests.observe(event));
     this.flow = new FlowService({
       db: this.db,
@@ -663,6 +717,7 @@ export class Core {
         settleConflict: (itemId) => this.pullRequests.settleConflict(itemId),
         verified: (itemId) => this.pullRequests.verified(itemId),
         awaitingVerify: (itemId) => this.pullRequests.awaitingVerify(itemId),
+        fixPrompt: (itemId) => this.pullRequests.fixPrompt(itemId),
       },
       decisions: this.decisions,
       workDone: (item) => {
@@ -725,6 +780,13 @@ export class Core {
       this.assistant.chatResult(chatId, result);
     });
     // "Create with AI" shows the file while the chat writes it, from the result it is streaming
+    this.runtime.on('chat-init', (provider: ProviderId, init: SessionInit) => {
+      const driver = this.runtime.providers.driverFor(provider);
+      if (!driver) return;
+      const confirmation = driver.confirm(init);
+      this.runtime.providers.confirm(provider, confirmation, new Date().toISOString());
+      this.providers.confirm(provider, confirmation);
+    });
     this.runtime.on('chat-structured', (chatId: string, raw: string) => this.assistant.chatStructured(chatId, raw));
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
     // Started last of all, once the chats it may resume or start are restored, so a slot judged at
@@ -919,10 +981,17 @@ export class Core {
     this.systemGen++;
   }
 
+  /** The catalog of the provider a new chat starts with */
+  private defaultModels(): ModelOption[] {
+    const { providers, providerSettings } = this.runtime;
+    const id = providers.defaultSessionProvider(providerSettings?.() ?? this.providersSettings.get());
+    return (id ? providers.driverFor(id)?.models() : null) ?? [];
+  }
+
   private withUptime(value: Omit<SystemInfo, 'uptimeSec' | 'models'>): SystemInfo {
     // Read here rather than with the rest: the rest costs two `claude` processes and is kept for
     // half a minute, while this is a file the CLI writes, cached by its own mtime
-    return { ...value, models: modelOptions(this.config.globalConfigFile, this.runtime.modelIds.get()), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
+    return { ...value, models: this.defaultModels(), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
   }
 
   private readSystem(join = true): Promise<Omit<SystemInfo, 'uptimeSec' | 'models'>> {
@@ -1888,13 +1957,19 @@ export class Core {
     return { ...board, pullRequestReadiness: readiness, checkout };
   }
 
+  /** `GET /projects/:id/code-host`: whether the project can open change requests, and where `origin` points. Null for a project that is not imported. */
+  async projectCodeHost(projectId: string): Promise<ProjectCodeHost | null> {
+    const record = this.projectStore.get(projectId);
+    return record ? this.pullRequests.codeHost(record.path) : null;
+  }
+
   /** `POST /work-items/:itemId/pull-request`: the person's approval opens the item's pull request. */
   async approveWorkItem(itemId: string): Promise<ApproveResult> {
     await this.workItemAccess(itemId, 'write');
     return this.pullRequests.approve(itemId);
   }
 
-  /** `POST /work-items/:itemId/pull-request/refresh`: asks gh about the item's open PR now. */
+  /** `POST /work-items/:itemId/pull-request/refresh`: asks the host about the item's open PR now. */
   async refreshWorkItemPullRequest(itemId: string): Promise<WorkItem> {
     await this.workItemAccess(itemId, 'read');
     return this.pullRequests.refresh(itemId);
@@ -2143,6 +2218,7 @@ export class Core {
     this.release.stop();
     this.healthMonitor.stop();
     this.providers.close();
+    this.hosts.close();
     this.decisionResolvers.stop();
     this.decisions.stop();
     this.orchestrator.close();

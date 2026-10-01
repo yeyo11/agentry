@@ -1,0 +1,475 @@
+{
+  "view": {
+    "pageTitle": "{{title}} · chat",
+    "pageTitleFallback": "Chat",
+    "loading": "Cargando chat…",
+    "notFound": "Chat no encontrado",
+    "notFoundHint": "Puede que se haya eliminado. <anchor>Buscar la conversación en los chats</anchor>",
+    "conversation": "Conversación",
+    "back": "Volver a los chats",
+    "subagentMessages": "Mensajes de subagentes",
+    "interruptHint": "Termina este turno y mantén el chat abierto para tu siguiente mensaje",
+    "export": {
+      "markdown": "Exportar Markdown",
+      "json": "Exportar JSON"
+    },
+    "fork": "Crear un fork",
+    "deleteLive": "No se puede eliminar un chat con un proceso trabajando en él",
+    "deleteHeld": "Otra cosa retiene este chat",
+    "messages_one": "{{count}} mensaje",
+    "messages_other": "{{count}} mensajes",
+    "sendHint": "Enviar una pista en el tablero",
+    "transcript": "Transcripción",
+    "nothingWritten": "Todavía no hay nada escrito",
+    "forkIntro": "Un chat nuevo con todo el historial de este. Este chat se queda como está y la copia registra de dónde viene.",
+    "details": "Detalles del chat",
+    "synthesis": "síntesis",
+    "partOf": {
+      "label": "Parte de la orquestación",
+      "stage": "etapa {{n}} de {{total}}"
+    },
+    "cancelFork": "Cancelar el fork",
+    "copyId": "Copiar el id del chat",
+    "copiedId": "Id del chat copiado",
+    "copyFailed": "No se ha podido copiar el id",
+    "moreActions": "Más acciones del chat",
+    "showDetails": "Mostrar detalles",
+    "hideDetails": "Ocultar detalles",
+    "queued": {
+      "title": "Esperando a que acabe el turno",
+      "files_one": "{{count}} archivo",
+      "files_other": "{{count}} archivos",
+      "hint_one": "1 mensaje espera al turno en curso",
+      "hint_other": "{{count}} mensajes esperan al turno en curso",
+      "sendNow": "Enviar ahora",
+      "sending": "Acabando el turno…",
+      "sendNowHint": "Acaba el turno en el que está Claude, para que lea lo que espera",
+      "undelivered": "No se ha entregado: el turno ha acabado antes de que el chat lo leyera",
+      "restore": "Devolverlo al cuadro"
+    },
+    "stopHint": "Mata el proceso en el que corre el chat. Lo enviado y aún no leído se pierde con él",
+    "workItem": {
+      "works": "Trabaja en",
+      "origin": "Creada desde este chat",
+      "criteria": "criterios {{done}}/{{total}}",
+      "step": {
+        "refine": "Refinado de",
+        "check": "Comprobación de",
+        "verify": "Verificación de"
+      },
+      "openChat": "Abrir el chat {{chat}}",
+      "openItem": "Abrir {{key}}"
+    }
+  },
+  "composer": {
+    "message": "Mensaje",
+    "firstMessage": "Primer mensaje de la copia",
+    "placeholderFork": "Primer mensaje de la copia… (suelta o pega archivos para adjuntarlos)",
+    "placeholderResume": "Envía un mensaje: el chat se reanudará…",
+    "resume": "Reanudar",
+    "resuming": "Reanudando…",
+    "fork": "Crear un fork",
+    "forking": "Creando fork…",
+    "couldNotResume": "No se ha podido reanudar",
+    "couldNotFork": "No se ha podido crear el fork",
+    "keys": "↵ enviar · ⇧↵ salto"
+  },
+  "controls": {
+    "permissionModeNew": "Modo de permisos de la nueva ejecución",
+    "modelNew": "Modelo de la nueva ejecución",
+    "asBefore": "Como antes ({{mode}})",
+    "default": "Predeterminado"
+  },
+  "tools": {
+    "preset": "Preset de herramientas",
+    "presetHint": "Qué herramientas puede usar sin preguntar y cuáles no puede usar en absoluto. Edita los presets en Ajustes.",
+    "noPreset": "Sin preset",
+    "asBeforePreset": "Como antes ({{name}})",
+    "asBeforeNone": "Como antes (sin preset)",
+    "servers": "Servidores MCP",
+    "serversHint": "Si eliges servidores, el chat arranca solo con esos: los conectores de claude.ai y los servidores de plugins quedan fuera.",
+    "serversDefault": "Como los carga el CLI",
+    "serversAsBeforeChosen_one": "Como antes ({{count}} elegido)",
+    "serversAsBeforeChosen_other": "Como antes ({{count}} elegidos)",
+    "serversAsBeforeDefault": "Como antes (como los carga el CLI)",
+    "serversChoose": "Solo los que elija",
+    "onlyThese": "Arrancar solo con estos servidores",
+    "noServers": "No hay servidores MCP configurados.",
+    "noneChosen": "Ninguno elegido: el chat arranca sin ningún servidor MCP.",
+    "card": {
+      "title": "Herramientas y servidores",
+      "noPreset": "sin preset",
+      "allowed": "Permitidas sin preguntar",
+      "disallowed": "Bloqueadas",
+      "none": "ninguna",
+      "noServers": "ninguno: el chat arrancó sin ningún servidor MCP",
+      "serversDefault": "como los carga el CLI",
+      "strictNote": "Solo se cargan estos servidores: no se recoge nada más del proyecto, del usuario ni de claude.ai.",
+      "frozenNote": "Queda fijado cuando el chat arrancó o se reanudó por última vez. Editar un preset después no lo cambia."
+    },
+    "defaultPreset": "Predeterminado ({{name}})",
+    "noPresetAtAll": "Sin preset: las herramientas del propio CLI",
+    "newDefaultHint": "Si no lo cambias, el chat arranca con el preset predeterminado, {{name}}. Edita los presets y el preset predeterminado en Ajustes.",
+    "resumeHint": "Si no lo cambias, el chat se reanuda con las herramientas que tenía. Elegir un preset las sustituye.",
+    "forkHint": "Si no lo cambias, el fork hereda las herramientas y los servidores MCP de este chat. Elegir otros los sustituye solo en la copia."
+  },
+  "badges": {
+    "state": {
+      "working": "Trabajando",
+      "waiting": "Esperándote",
+      "idle": "Inactivo"
+    },
+    "stateHint": {
+      "working": "Un proceso está generando o ejecutando herramientas",
+      "waiting": "Detenido hasta que una persona responda a un permiso, una pregunta o un plan",
+      "idle": "No se está ejecutando nada y nada está esperando"
+    },
+    "outcome": {
+      "running": "En curso",
+      "completed": "Completada",
+      "failed": "Fallida",
+      "stopped": "Detenida",
+      "interrupted": "Interrumpida"
+    },
+    "origin": {
+      "agentry": "Agentry",
+      "external": "Terminal",
+      "orchestration": "Orquestación",
+      "internal": "Interno"
+    },
+    "originHint": {
+      "agentry": "Iniciado desde Agentry",
+      "external": "Iniciado en una terminal con Claude Code",
+      "orchestration": "Trabaja para una orquestación",
+      "internal": "Tareas internas del propio Agentry"
+    },
+    "control": {
+      "interactive": "Interactivo",
+      "interactiveHint": "Agentry controla este chat: escríbele, interrúmpelo, cambia cómo se ejecuta",
+      "resumable": "Reanudable",
+      "resumableHint": "Nada retiene este chat: al enviar un mensaje se reanuda",
+      "readOnly": "Solo lectura"
+    },
+    "context": {
+      "none": "aún sin contexto",
+      "unknownWindow": "Aún no se conoce la ventana de este modelo, así que no se muestra ningún porcentaje",
+      "tokens": "{{n}} tokens",
+      "detail": "{{used}} de {{window}} tokens",
+      "inUse": "Contexto en uso",
+      "aboutToCompact": "a punto de compactar",
+      "fillingUp": "llenándose"
+    }
+  },
+  "side": {
+    "notAvailable": "no disponible",
+    "usage": {
+      "title": "Contexto y coste",
+      "costNotReported": "Claude Code solo informa del coste de lo que lanzó Agentry.",
+      "tokensCaption": "Tokens gastados, por modelo",
+      "input": "Entrada",
+      "output": "Salida",
+      "cache": "Caché",
+      "total": "Total",
+      "subagentsNote": "Los tokens incluyen lo que han gastado sus subagentes.",
+      "tokensOfWindow": "tokens de {{window}}",
+      "tokensWindowUnknown": "tokens · aún no se conoce la ventana de este modelo"
+    },
+    "executions": {
+      "title": "Ejecuciones ({{n}})",
+      "empty": "Agentry no ha ejecutado este chat: se escribió en una terminal.",
+      "lasted": "duró {{duration}}",
+      "up": "lleva {{duration}} en marcha",
+      "turns_one": "{{count}} turno",
+      "turns_other": "{{count}} turnos",
+      "account": "cuenta {{name}}",
+      "budget": "presupuesto {{amount}}",
+      "errorPrefix": "Error:"
+    },
+    "branches": {
+      "title": "Ramas ({{n}})",
+      "empty": "No se delegó nada: ni subagentes, ni tareas en segundo plano, ni workflows.",
+      "subagents": "Subagentes",
+      "backgroundTasks": "Tareas en segundo plano",
+      "workflows": "Workflows",
+      "fromSubagent": "de un subagente"
+    },
+    "health": {
+      "title": "Salud",
+      "level": {
+        "ok": "Correcto",
+        "warn": "Advertencia",
+        "bad": "Problema"
+      },
+      "levelSaid": "{{level}}:"
+    },
+    "facts": {
+      "title": "Chat",
+      "noProject": "ninguno: chat suelto",
+      "worktree": "Worktree",
+      "forkedFrom": "Fork de",
+      "updated": "Actualizado",
+      "environmentEmpty": "Todavía nada ha informado de lo que Claude cargó para este chat.",
+      "messages": "Mensajes"
+    },
+    "workItem": {
+      "title": "Tarea",
+      "open": "Abrir",
+      "openLabel": "Abrir {{key}}",
+      "key": "Clave",
+      "status": "Estado",
+      "criteria": "Criterios",
+      "worktree": "Worktree",
+      "onEnd": "Al terminar",
+      "onEndHint": "pasa a En revisión si el turno acaba bien",
+      "none": "ninguno"
+    }
+  },
+  "delete": {
+    "deleted": "Chat eliminado",
+    "failed": "No se ha podido eliminar el chat",
+    "title": "¿Eliminar este chat?",
+    "body_one": "La transcripción ({{count}} mensaje) se borra del disco y el chat ya no podrá reanudarse ni hacer fork. No se puede deshacer.",
+    "body_other": "La transcripción ({{count}} mensajes) se borra del disco y el chat ya no podrá reanudarse ni hacer fork. No se puede deshacer.",
+    "confirm": "Eliminar chat"
+  },
+  "head": {
+    "checklist": "Lista de tareas: {{progress}}"
+  },
+  "pill": {
+    "link": {
+      "live": "en directo",
+      "reconnecting": "reconectando…",
+      "interactive": "interactivo",
+      "resumable": "reanudable",
+      "readOnly": "solo lectura"
+    },
+    "hint": {
+      "live": "Agentry lleva este chat y su stream está conectado",
+      "reconnecting": "El stream se cortó hace unos segundos; el navegador está reconectando",
+      "interactive": "Agentry lleva este chat: escríbele, interrúmpelo, cambia cómo se ejecuta",
+      "resumable": "Nada retiene este chat: enviar un mensaje lo reanuda",
+      "readOnly": "Otra cosa retiene este chat"
+    }
+  },
+  "status": {
+    "noPreset": "sin preset",
+    "mcpDefault": "MCP: lo que cargue el CLI",
+    "mcpChosen_one": "MCP: {{count}} servidor",
+    "mcpChosen_other": "MCP: {{count}} servidores",
+    "open": "Opciones de ejecución: {{status}}",
+    "liveTitle": "Cómo se ejecuta este chat",
+    "resumeTitle": "Reanudar con",
+    "forkTitle": "Crear fork con",
+    "liveHint": "El modo de permisos y el modelo cambian al momento. Las herramientas y los servidores quedaron fijados al empezar el chat; reanudarlo más tarde puede cambiarlos."
+  },
+  "inspector": {
+    "tabs": "Detalles del chat",
+    "tab": {
+      "summary": "Resumen",
+      "activity": "Actividad",
+      "changes": "Cambios",
+      "environment": "Entorno"
+    }
+  },
+  "newChat": {
+    "advanced": "Opciones avanzadas",
+    "defaultModel": "modelo predeterminado",
+    "defaultMode": "modo predeterminado ({{mode}})",
+    "hero": "¿Qué <grad>construimos</grad> hoy?",
+    "heroShort": "¿Qué <grad>construimos</grad>?",
+    "lead": "Claude Code lo ejecuta en tu proyecto y responde aquí.",
+    "kind": "Tipo",
+    "kindChat": "Chat",
+    "kindOrchestration": "Orquestación",
+    "placeholder": "Describe la tarea: un cambio, una revisión, una investigación…",
+    "start": "Empezar",
+    "keys": "Ctrl ↵",
+    "where": "se ejecuta en {{dir}} · arrastra o pega archivos para adjuntarlos",
+    "examples": "Para empezar",
+    "close": "Cerrar"
+  },
+  "launch": {
+    "phase": "etapa {{n}} de {{total}}",
+    "agents": "{{done}}/{{total}} agentes",
+    "open": "Abrir",
+    "openHint": "Abrir {{name}} en los detalles"
+  },
+  "messageMenu": {
+    "label": "Acciones del mensaje",
+    "copy": "Copiar el mensaje",
+    "copied": "Mensaje copiado",
+    "createTask": "Crear una tarea con este mensaje",
+    "createTaskHint": "En Backlog de {{project}}, enlazada a este chat",
+    "noProject": "Este chat no está en ningún proyecto",
+    "noBoard": "El módulo Tablero de {{project}} está desactivado",
+    "created": "{{key}} creada en Backlog",
+    "createdDetail": "Enlazada a este chat",
+    "openTask": "Abrir",
+    "createFailed": "No se ha podido crear la tarea"
+  },
+  "edits": {
+    "label": "Archivos que editó este paso",
+    "chip": "{{file}}: ver este paso",
+    "chipCounts": "{{file}}, {{additions}} líneas añadidas y {{deletions}} quitadas: ver este paso"
+  },
+  "transcript": {
+    "thinking": "Thinking",
+    "thinkingNow": "Thinking…",
+    "toolError": "Error de la herramienta",
+    "toolResult": "Resultado de la herramienta",
+    "empty": "(vacío)",
+    "moreChars": "… [{{count}} caracteres más]",
+    "user": "Usuario",
+    "subagent": "subagente",
+    "streamingThinking": "thinking",
+    "streamingWriting": "escribiendo",
+    "tools_one": "{{count}} herramienta",
+    "tools_other": "{{count}} herramientas",
+    "failedCalls_one": "{{count}} falló",
+    "failedCalls_other": "{{count}} fallaron",
+    "stepCurrent": "en curso",
+    "callFailed": "falló",
+    "callRunning": "en curso",
+    "callWaiting": "Esperando el resultado…",
+    "openSubagent": "Abrir la transcripción del subagente",
+    "notice": {
+      "task": "Tarea en segundo plano",
+      "reminder": "Nota del sistema",
+      "command": "Comando",
+      "output": "Salida del comando",
+      "interrupt": "Interrumpido"
+    }
+  },
+  "permissions": {
+    "waitingForYou": "Te está esperando",
+    "wantsToRun": "quiere ejecutarse",
+    "allow": "Permitir",
+    "allowAnd": "Permitir y {{what}}",
+    "deny": "Denegar",
+    "denyReason": "¿Por qué no? (se envía al modelo al denegar)",
+    "switchTo": "cambiar a {{mode}}",
+    "alwaysAllow": "permitir siempre {{rules}}",
+    "allowDirectories": "permitir {{directories}}",
+    "agentIsAsking": "Claude te pregunta",
+    "answeredCount": "{{answered}} de {{total}} respondidas",
+    "questions": "Preguntas",
+    "answered": "respondida",
+    "question": "Pregunta {{n}}",
+    "pickAny": "elige las que quieras",
+    "otherAnswer": "Otra respuesta…",
+    "declineReason": "¿Por qué no? (opcional, se envía al modelo)",
+    "decline": "Rechazar",
+    "backToQuestions": "Volver a las preguntas",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "answer": "Responder",
+    "answerProgress": "Responder ({{answered}}/{{total}})",
+    "planReady": "Plan listo para revisar",
+    "approve": "Aprobar",
+    "approveAcceptEditsHint": "Aprobar y dejarle editar archivos sin preguntar durante el resto de la sesión",
+    "approveAcceptEdits": "Aprobar y aceptar las ediciones",
+    "keepPlanning": "Seguir planificando",
+    "planFeedback": "¿Qué debería cambiar? (se envía al modelo)",
+    "otherAnswerTo": "Otra respuesta a: {{question}}",
+    "whatItWantsToRun": "Lo que quiere ejecutar",
+    "plan": "Plan"
+  },
+  "find": {
+    "button": "Buscar",
+    "buttonHint": "Buscar en toda la transcripción ({{shortcut}})",
+    "field": "Buscar en toda la transcripción",
+    "failed": "La búsqueda ha fallado",
+    "searching": "Buscando…",
+    "noMatches": "Sin coincidencias",
+    "counter": "{{n}} de {{total}}",
+    "older": "Coincidencia anterior",
+    "olderHint": "Coincidencia anterior (Intro)",
+    "newer": "Coincidencia siguiente",
+    "newerHint": "Coincidencia siguiente (Mayús+Intro)",
+    "close": "Cerrar la búsqueda",
+    "closeHint": "Cerrar (Esc)",
+    "transcript": "Transcripción"
+  },
+  "attachments": {
+    "image": "imagen",
+    "imageTitle": "Imagen",
+    "document": "Documento",
+    "pasted": "pegado",
+    "attachFiles": "Adjuntar archivos",
+    "attachHint": "Adjunta archivos, o suéltalos o pégalos aquí. Claude ve las imágenes y los PDF; el resto lo lee del disco.",
+    "attach": "Adjuntar",
+    "uploading": "Subiendo",
+    "remove": "Quitar {{name}}"
+  },
+  "viewer": {
+    "close": "Cerrar",
+    "download": "Descargar",
+    "openTab": "Abrir en otra pestaña",
+    "previous": "Archivo anterior",
+    "next": "Archivo siguiente",
+    "count": "{{n}} de {{total}}",
+    "noPreview": "Este archivo solo puede descargarse"
+  },
+  "slashMenu": {
+    "label": "Comandos",
+    "skill": "skill"
+  },
+  "shared": {
+    "default": "predeterminado",
+    "model": "Modelo",
+    "project": "Proyecto",
+    "uploading": "Subiendo…"
+  },
+  "sessionView": {
+    "deleteTranscript": "Eliminar la transcripción",
+    "deleting": "Eliminando…",
+    "continueCopy": "Continuar en una copia",
+    "continue": "Continuar",
+    "loadEarlier": "Cargar mensajes anteriores ({{n}} más arriba)"
+  },
+  "runView": {
+    "placeholderQueued": "Envía un mensaje (queda en cola hasta que acabe el turno actual)…",
+    "placeholderFollowUp": "Envía un mensaje de seguimiento…",
+    "sending": "Enviando…",
+    "send": "Enviar",
+    "notSent": "Mensaje no enviado",
+    "streamConnected": "Stream conectado",
+    "streamReconnecting": "Reconectando el stream…",
+    "interrupt": "Interrumpir",
+    "working": "Claude está trabajando…",
+    "jumpToLatest": "Saltar a lo último",
+    "permissions": "Permisos",
+    "prompts": "Peticiones de permiso",
+    "promptsHost": "se responden aquí",
+    "directory": "Directorio",
+    "session": "Sesión",
+    "cost": "Coste",
+    "started": "Inicio",
+    "orchestration": "Orquestación",
+    "backgroundTasks": "Tareas en segundo plano ({{n}})",
+    "subagents": "Subagentes ({{n}})",
+    "workflows": "Workflows ({{n}})",
+    "loadedByClaude": "Cargado por Claude",
+    "loadedHint": "herramientas, servidores MCP, agentes, skills…"
+  },
+  "model": {
+    "notAvailable": "no disponible",
+    "state": {
+      "working": "Trabajando",
+      "waiting": "Esperándote",
+      "idle": "Inactivo"
+    },
+    "origin": {
+      "agentry": "Agentry",
+      "external": "Terminal",
+      "orchestration": "Orquestación",
+      "internal": "Interno"
+    },
+    "sort": {
+      "activity": "Actividad reciente",
+      "started": "Iniciados recientemente",
+      "context": "Más contexto en uso",
+      "messages": "Más mensajes"
+    }
+  }
+}

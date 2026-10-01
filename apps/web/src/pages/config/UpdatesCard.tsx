@@ -4,11 +4,11 @@ import { Download, ExternalLink, Info, RotateCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Dialog } from '../../components/Dialog';
-import { ICON, ICON_SM } from '../../components/icons';
-import { Card, CopyButton, ErrorBox, Skeleton, Tag } from '../../components/ui';
+import { Dialog } from '@agentry/ui/components/Dialog';
+import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { Card, CopyButton, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
 import type { DesktopUpdatesBridge } from '../../lib/desktop';
-import { formatDate, timeAgo } from '../../lib/format';
+import { formatDate, timeAgo } from '@agentry/ui/lib/format';
 import {
   DOCKER_UPDATE_WAYS,
   parseInstallAnswer,

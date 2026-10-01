@@ -89,13 +89,6 @@ export interface SystemInfo {
   uptimeSec: number;
 }
 
-/**
- * The aliases the CLI always takes, each the latest model of its line (`claude --help`). What an
- * account may run beyond them depends on its subscription, and the CLI says so itself: see
- * `ModelOption`.
- */
-export const MODEL_ALIASES = ['fable', 'opus', 'sonnet', 'haiku'] as const;
-
 /** One choice for `--model`. */
 export interface ModelOption {
   /** What the flag takes: an alias (`opus`) or a model's full name (`claude-fable-5-1[1m]`) */
@@ -109,7 +102,12 @@ export interface ModelOption {
   description?: string;
   /** The CLI names it but cannot run it (it is too old for it, say); `description` says why */
   disabled?: boolean;
+  /** How capable it is among its provider's models, where the provider says; a model with no rank has none */
+  tier?: ModelTier;
 }
+
+/** A provider's models by how fast or how strong they are; what model mapping across providers builds on. */
+export type ModelTier = 'fast' | 'balanced' | 'strong';
 
 export interface RateLimitWindow {
   utilization: number;
@@ -302,15 +300,61 @@ export interface RunEvent {
   seq: number;
   ts: string;
   kind: RunEventKind;
-  /** Original type/subtype of the stream-json event */
-  type: string;
-  subtype?: string;
+  /** For `message` events */
   entry?: TranscriptEntry;
+  /** For `status` events */
   status?: RunStatus;
+  /** For `partial`, `result`, `stderr`, `notice` and `other` events; for `other`, a stdout line the driver could not read */
   text?: string;
   /** For `partial` events: which kind of block is streaming */
   block?: 'text' | 'thinking';
+  /** For `init` events, in the provider's neutral words */
+  init?: RunInit;
+  /** For `result` events */
+  outcome?: RunOutcome;
+  /** For `task` events */
+  task?: RunTaskChange;
+  /** For `notice` events only: Agentry's own words, never a provider's */
   data?: Record<string, unknown>;
+}
+
+/** What a session reports about itself when it starts. */
+export interface RunInit {
+  sessionId: string;
+  model: string;
+  cwd: string;
+  permissionMode: string;
+  /** The names of the tools the session has, as the provider calls them */
+  tools: string[];
+  mcpServers: Array<{ name: string; status: string }>;
+}
+
+/** How a turn ended. */
+export interface RunOutcome {
+  isError: boolean;
+  turns: number;
+  durationMs: number;
+  costUsd: number;
+  structuredOutput?: unknown;
+  permissionDenials: Array<{ toolName: string; toolUseId: string }>;
+  /**
+   * Why a failed result is not one to try again blindly: the budget ran out, the account hit its
+   * limit or someone stopped it.
+   */
+  cause?: 'budget' | 'rate-limit' | 'stopped';
+  /** The main agent's last stop reason in the turn (`end_turn`, `tool_use`, `max_tokens`…), when the provider said */
+  stopReason?: string;
+}
+
+/** A background task starting, moving or ending, or the whole list being replaced. */
+export interface RunTaskChange {
+  /** Absent for a change of the whole list */
+  taskId?: string;
+  change: 'started' | 'updated' | 'progress' | 'ended' | 'listed';
+  taskKind: 'command' | 'agent' | 'workflow' | 'other';
+  status?: string;
+  description?: string;
+  summary?: string;
 }
 
 // ---------- Chats, executions and projects (Agentry's own model) ----------
@@ -715,6 +759,8 @@ export interface Chat {
   /** The session id */
   id: string;
   title: string;
+  /** The provider that runs the chat; a chat read from Claude's transcripts is `claude-code` */
+  provider: ProviderId;
   firstPrompt: string | null;
   messageCount: number;
   startedAt: string | null;
@@ -797,6 +843,45 @@ export interface McpSelection {
   config?: string;
 }
 
+/** A shell command a policy allows or denies, in Agentry's words. */
+export type CommandRule =
+  /** Exactly this command, no arguments */
+  | { command: string; args: 'none' }
+  /** This command followed by arguments */
+  | { command: string; args: 'some' }
+  /** Anything starting with these words */
+  | { command: string; args: 'prefix' }
+  /** A command line with `*` wildcards */
+  | { pattern: string };
+
+/**
+ * What a session may do, in Agentry's words. Each provider's driver translates it into its own
+ * rules and lists the parts it cannot enforce.
+ */
+export interface ToolPolicy {
+  /** `denyPaths` are path globs never read */
+  read: { allow: boolean; denyPaths?: string[] };
+  /** Paths are relative to the project; `deny` is denial outright, for a mode that would otherwise ask */
+  edit: { allow: 'none' | 'any' | string[]; deny?: boolean };
+  commands: { allow: 'none' | 'any' | CommandRule[]; deny?: 'all' | CommandRule[] };
+  /** Web fetch and search tools */
+  network: 'allow' | 'omit' | 'deny';
+  /** Subagents */
+  delegate?: 'deny';
+  /** The orchestrator's workflow engine */
+  workflow?: 'allow';
+  gitPush: 'deny' | 'omit';
+  /** Nothing outside the policy exists for the session: no person's settings, hooks or servers */
+  exclusive?: boolean;
+}
+
+/** A policy in a provider's own terms, and the parts it cannot enforce. */
+export interface PolicyTranslation {
+  rules: { allowedTools: string[]; disallowedTools: string[]; tools?: string[] };
+  /** The policy parts the provider cannot enforce, by field (`gitPush`, `commands`…) */
+  unsupported: string[];
+}
+
 /** A named set of `--allowedTools` / `--disallowedTools`, picked when a chat starts or resumes. */
 export interface ToolPreset {
   id: string;
@@ -805,6 +890,8 @@ export interface ToolPreset {
   description?: string;
   allowedTools: string[];
   disallowedTools?: string[];
+  /** What a shipped preset states in Agentry's words; each provider translates it into its own rules */
+  policy?: ToolPolicy;
   /** Shipped with Agentry. Editable like any other, but a fresh install has it again. */
   builtIn?: boolean;
 }
@@ -832,6 +919,8 @@ export interface ChatToolConfig {
 
 /** What can be chosen when a process starts on a chat, whether it is new, resumed or a fork. */
 export interface ChatStartOptions {
+  /** The provider to run on; the first one in the person's order that can run chats when absent */
+  provider?: ProviderId;
   model?: string;
   effort?: string;
   permissionMode?: PermissionMode;
@@ -1073,6 +1162,11 @@ export interface ProjectFlowSettings {
    * once it is reached. Absent (the default) means no limit of Agentry's own.
    */
   maxCostUsd?: number;
+  /**
+   * Fixes of failing checks Agentry may start on its own for one head commit (`checks.fix`). Absent
+   * reads as 2 (`DEFAULT_CHECKS_FIX_ATTEMPTS`); a person's click is never counted against it.
+   */
+  checksFixAttempts?: number;
 }
 
 /** The Documents module: the repository's documents folder, and documents tied to work items. */
@@ -1267,7 +1361,11 @@ export interface WorkItemHistoryCriterion {
 /** A pull request as a history entry records it: opened, conflicted, merged or closed. */
 export interface WorkItemHistoryPullRequest {
   phase: WorkItemPullRequestPhase;
+  /** The host that holds it; absent reads as `github` (entries written before hosts existed) */
+  host?: CodeHostId;
   number: number | null;
+  /** How the host writes the number: `#12` or `!12`; null without a number */
+  ref?: string | null;
   url: string | null;
   /** The conflicting paths, for `conflict` */
   conflicts: string[];
@@ -1377,11 +1475,28 @@ export type WorkItemPullRequestPhase = 'preparing' | 'conflict' | 'awaiting-veri
 /** A PR's checks, from `gh pr view --json statusCheckRollup`: none, any still running, any failed, or all green. */
 export type WorkItemPullRequestCi = 'none' | 'pending' | 'passing' | 'failing';
 
+/**
+ * Where a fix of failing checks stands while the change request is still open on the host
+ * (docs/plans/code-hosts.md, phase 2): `fixing`, an agent has the failures in its prompt;
+ * `awaiting-verify`, the Developer's run ended and QA verifies it; `awaiting-push`, verified and
+ * waiting for the person's **Push the fix**. Null when no fix is under way.
+ */
+export type ChangeRequestFixState = 'fixing' | 'awaiting-verify' | 'awaiting-push';
+
+/** Who asked for the fix: a person's click, or the `checks.fix` decision. */
+export type ChangeRequestFixOrigin = 'person' | 'decision';
+
 /** An item's pull request, the newest of its rows: an item keeps every PR it had, closed ones too. */
 export interface WorkItemPullRequest {
+  /** The row id the `/change-requests/:id/…` routes take; the server always sends it */
+  id?: string;
   phase: WorkItemPullRequestPhase;
-  /** Null until `gh pr create` answered */
+  /** The host that holds it; absent reads as `github` (rows opened before hosts existed) */
+  host?: CodeHostId;
+  /** Null until the host's CLI answered the create */
   number: number | null;
+  /** How the host writes the number: `#12` or `!12`; null without a number */
+  ref?: string | null;
   url: string | null;
   /** The item's branch, `task/<key>` */
   branch: string;
@@ -1397,21 +1512,50 @@ export interface WorkItemPullRequest {
   closedAt: string | null;
   /** When the watcher last asked gh about it */
   checkedAt: string | null;
+  /** The fix of failing checks under way; absent or null when none */
+  fixState?: ChangeRequestFixState | null;
+  fixOrigin?: ChangeRequestFixOrigin | null;
+  /** Fixes started for `fixHead`, a person's and the decision's together */
+  fixAttempts?: number;
+  /** The head commit the failures were seen on */
+  fixHead?: string | null;
 }
 
-/** Why a project cannot open pull requests; `ready` when it can. */
-export type PullRequestNotReadyReason = 'not-git' | 'no-remote' | 'not-github' | 'no-gh' | 'gh-unauthenticated' | 'no-default-branch';
+/**
+ * Why a project cannot open pull requests (or merge requests); `ready` when it can. "Pull request"
+ * in these types means a PR or an MR: the host decides the word.
+ */
+export type PullRequestNotReadyReason =
+  | 'not-git'
+  | 'no-remote'
+  | 'unsupported-host'
+  | 'no-default-branch'
+  | 'cli-missing'
+  | 'cli-incompatible'
+  | 'cli-signed-out';
+
+/** What a person can do about a not-ready project: a link to follow, never a command to copy. */
+export interface PullRequestRemedy {
+  kind: 'install' | 'sign-in' | 'docs' | 'settings';
+  url: string | null;
+}
 
 /**
- * Whether approving an item of this project opens its pull request. Computed from git and gh and
- * cached for 60 s, so a board read never waits on `gh auth status`.
+ * Whether approving an item of this project opens its pull request. Computed from git and the
+ * host's CLI and cached for 60 s, so a board read never waits on an auth probe.
  */
 export interface PullRequestReadiness {
   status: 'ready' | PullRequestNotReadyReason;
-  /** The raw line git or gh answered with, shown in mono beside the worded reason; null when ready */
+  /** The raw line git or the CLI answered with, shown in mono beside the worded reason; null when ready */
   detail: string | null;
   /** The default branch, when it could be found */
   defaultBranch: string | null;
+  /** The code host the remote belongs to; null when none could be told */
+  host: CodeHostId | null;
+  /** The remote's host name, without user, secret or port; null when there is none */
+  hostname: string | null;
+  /** The one thing to do about a not-ready status; null when ready or when nothing can be done */
+  remedy: PullRequestRemedy | null;
 }
 
 /**
@@ -2996,6 +3140,8 @@ export interface Orchestration {
   baseCommit?: string | null;
   /** The one branch a worktree graph delivers, built once its tasks finish */
   integration?: OrchestrationIntegration | null;
+  /** The newest change request opened for the integration branch; null or absent before one */
+  pullRequest?: OrchestrationPullRequest | null;
   /** The synthesis run, so its report can be continued like any other conversation */
   synthesisRunId?: string | null;
   engine?: OrchestrationEngine;
@@ -4581,8 +4727,288 @@ export type ProviderReasonCode =
   | 'missing-required-command'
   | 'unsupported-platform'
   | 'handshake-failed'
+  | 'capability-missing'
   | 'no-probe'
   | 'disabled';
+
+/** The code hosts Agentry reaches through their own CLI. Closed: adding one is a code change. */
+export type CodeHostId = 'github' | 'gitlab';
+
+/** `degraded`: installed and signed in, but on a release the facts were not recorded on. */
+export type CodeHostState = 'ready' | 'degraded' | 'signed-out' | 'incompatible' | 'not-installed' | 'unknown';
+
+export type CodeHostReason = 'version-untested' | 'below-minimum' | 'no-hosts' | 'probe-failed' | 'timeout';
+
+/** One host name a CLI knows, and who is signed in to it. */
+export interface CodeHostHostEntry {
+  hostname: string;
+  /** The CLI's own default host (`github.com`, `gitlab.com`) */
+  default: boolean;
+  /** Null while the host has not been probed */
+  signedIn: boolean | null;
+  user: string | null;
+}
+
+/** One code host's CLI as detected on this machine, served from the detector's cache. */
+export interface CodeHostStatus {
+  id: CodeHostId;
+  label: string;
+  cli: string;
+  /** The binary that was resolved: the override, or the first match on the PATH or an install directory */
+  binaryPath: string | null;
+  version: string | null;
+  /** The oldest release Agentry works with */
+  minimum: string;
+  /** The releases the CLI facts were recorded on */
+  recorded: string[];
+  state: CodeHostState;
+  /** Why the state is not `ready`; null when it is */
+  reason: CodeHostReason | null;
+  hosts: CodeHostHostEntry[];
+  /** ISO timestamp of the detection this status came from */
+  checkedAt: string;
+}
+
+/** What a person chose for one code host. */
+export interface CodeHostSettingsEntry {
+  enabled: boolean;
+  /** Absolute path of the binary to use instead of searching for one; null searches */
+  binaryPath: string | null;
+}
+
+/** `hosts.json` in the data directory. A disabled host's projects read `unsupported-host`. */
+export interface CodeHostsSettings {
+  hosts: Record<CodeHostId, CodeHostSettingsEntry>;
+}
+
+/** A project's remote as Agentry parsed it: never the URL, which can carry a user and a secret. */
+export interface ProjectCodeHostRemote {
+  hostname: string;
+  path: string;
+  protocol: 'https' | 'ssh' | 'git';
+}
+
+/** `GET /projects/:id/code-host`: the readiness and the parsed remote. */
+export interface ProjectCodeHost {
+  readiness: PullRequestReadiness;
+  remote: ProjectCodeHostRemote | null;
+}
+
+/**
+ * Why a call to a code host did not do what was asked: one taxonomy for every phase. The web words
+ * each code; the host's first line travels beside it as the detail.
+ */
+export type HostReason =
+  | 'cli-missing'
+  | 'cli-incompatible'
+  | 'cli-signed-out'
+  | 'unsupported-host'
+  | 'no-default-branch'
+  | 'timeout'
+  | 'output-too-large'
+  | 'unexpected-output'
+  | 'auth-failed'
+  | 'forbidden'
+  | 'not-found'
+  | 'rate-limited'
+  | 'slowed-down'
+  | 'server-error'
+  | 'unreachable'
+  | 'busy'
+  | 'write-unconfirmed'
+  | 'already-open'
+  | 'create-failed'
+  | 'nothing-to-propose'
+  | 'log-unavailable'
+  | 'rerun-refused'
+  | 'check-not-rerunnable'
+  | 'nothing-to-fix'
+  | 'fix-in-progress'
+  | 'fix-attempts-spent'
+  | 'own-change-request'
+  | 'pending-review-exists'
+  | 'line-not-in-diff'
+  | 'not-resolvable'
+  | 'review-partly-posted'
+  | 'head-moved'
+  | 'method-not-allowed'
+  | 'merge-failed'
+  | 'auto-merge-not-allowed'
+  | 'auto-merge-not-needed'
+  | 'waiting-for-pipeline'
+  | 'tracker-signed-out'
+  | 'transition-unknown'
+  | 'issue-is-pull-request'
+  | 'hook-no-permission'
+  | 'hook-unreachable';
+
+/**
+ * A code host's detected status changed: its CLI was installed, signed in, updated or removed, or
+ * the settings turned it on or off. Sent only when a status actually differs.
+ */
+export interface HostsChangedEvent extends AgentryEventBase {
+  type: 'hosts.changed';
+  hosts: CodeHostStatus[];
+}
+
+/** Where an orchestration's change request stands; the flow's `conflict` and `awaiting-verify` do not apply. */
+export type OrchestrationPullRequestPhase = 'preparing' | 'open' | 'merged' | 'closed' | 'failed';
+
+/** The change request opened for an orchestration's integration branch. */
+export interface OrchestrationPullRequest {
+  /** The row id the `/change-requests/:id/…` routes take; the server always sends it */
+  id?: string;
+  phase: OrchestrationPullRequestPhase;
+  host: CodeHostId;
+  /** How the host writes the number: `#12` or `!12`; null without a number */
+  ref: string | null;
+  number: number | null;
+  url: string | null;
+  branch: string;
+  base: string;
+  ci: WorkItemPullRequestCi | null;
+  /** Why the last attempt failed: a step or reason code, and the first line of the host's error */
+  error: { code: string; detail: string } | null;
+  openedAt: string | null;
+  closedAt: string | null;
+  checkedAt: string | null;
+  /** An orchestration has no QA stage: its fix goes `fixing`, then `awaiting-push` for the person */
+  fixState?: ChangeRequestFixState | null;
+  fixOrigin?: ChangeRequestFixOrigin | null;
+  fixAttempts?: number;
+  fixHead?: string | null;
+}
+
+/** An orchestration's change request was opened, or moved to another phase or CI state. */
+export interface OrchestrationPullRequestEvent extends AgentryEventBase {
+  type: 'orchestration.pull-request';
+  orchestrationId: string;
+  pullRequest: OrchestrationPullRequest;
+}
+
+/** The answer of `POST /orchestrations/:id/pull-request`; the first three fields are what it always had. */
+export interface OrchestrationPullRequestAnswer {
+  branch: string;
+  url: string | null;
+  detail: string;
+  pullRequest: OrchestrationPullRequest | null;
+}
+
+// ---------- Change requests and their checks (code hosts, phase 2) ----------
+
+/** Whose change request it is: a work item's or an orchestration's. */
+export type ChangeRequestKind = 'work-item' | 'orchestration';
+
+/**
+ * The neutral change request of `GET /change-requests/:id`; `id` is the row id of either table
+ * (UUIDs, unique across both). `ref` is how the host writes the number: `#12` or `!12`.
+ */
+export interface ChangeRequest {
+  id: string;
+  kind: ChangeRequestKind;
+  /** The work item's id or the orchestration's id */
+  ownerId: string;
+  host: CodeHostId;
+  phase: WorkItemPullRequestPhase;
+  number: number | null;
+  ref: string | null;
+  url: string | null;
+  branch: string;
+  base: string;
+  /** The checks' rollup as the watcher last read it */
+  ci: WorkItemPullRequestCi | null;
+  error: { code: string; detail: string } | null;
+  openedAt: string | null;
+  closedAt: string | null;
+  checkedAt: string | null;
+  fixState: ChangeRequestFixState | null;
+  fixOrigin: ChangeRequestFixOrigin | null;
+  fixAttempts: number;
+  fixHead: string | null;
+}
+
+/** One check's state. `neutral` is a finished check that neither passed nor failed (a notice). */
+export type CheckState = 'queued' | 'running' | 'passed' | 'failed' | 'cancelled' | 'skipped' | 'manual' | 'neutral';
+
+/**
+ * Where a check comes from: `actions` a GitHub Actions job, `app` another app's check run, `status` a
+ * commit status, `job` a GitLab job, `bridge` a GitLab job that triggers a child pipeline.
+ */
+export type CheckSource = 'actions' | 'app' | 'status' | 'job' | 'bridge';
+
+/** One check of a change request's head commit. */
+export interface Check {
+  /** The host's job or check-run id, as text so a 64-bit id never loses precision */
+  id: string;
+  name: string;
+  /** The workflow (GitHub) or stage (GitLab); null when the host names none */
+  group: string | null;
+  state: CheckState;
+  /** A failed job that the pipeline lets fail: shown as a warning, never as a failure */
+  allowedToFail: boolean;
+  /** A rule of the base branch needs it to pass before a merge */
+  required: boolean;
+  startedAt: string | null;
+  finishedAt: string | null;
+  /** Its page on the host */
+  url: string | null;
+  /** Agentry can ask the host to run it again: false for a commit status, another app's check or a bridge */
+  rerunnable: boolean;
+  /** A log can be read: false for a bridge, a commit status and another app's check */
+  hasLog: boolean;
+  source: CheckSource;
+}
+
+/** The checks of a change request's head commit, cached by head for 30 s. */
+export interface ChangeRequestChecks {
+  headSha: string | null;
+  rollup: WorkItemPullRequestCi;
+  checks: Check[];
+  /** The list reached its ceiling (1 000): the first ones are shown */
+  truncated: boolean;
+  checkedAt: string;
+  /** While the host's rate limit is used up: when Agentry may read again; the list is the last one it had */
+  limitedUntil?: string | null;
+}
+
+/** What a check says about a file, or about the run when `path` is null. */
+export interface CheckAnnotation {
+  path: string | null;
+  startLine: number | null;
+  endLine: number | null;
+  level: 'notice' | 'warning' | 'failure';
+  title: string | null;
+  message: string;
+}
+
+/**
+ * The tail of a check's log, with escape sequences, carriage returns, section markers and secrets
+ * removed (docs/plans/code-hosts.md, "Log tails"). `noOutputYet` is a job that has printed nothing
+ * (running, or a manual job that never ran), which is not an unavailable log.
+ */
+export interface CheckLog {
+  lines: string[];
+  /** Lines were left out: the log is longer than the tail */
+  truncated: boolean;
+  noOutputYet: boolean;
+  annotations: CheckAnnotation[];
+}
+
+/** `POST /change-requests/:id/checks/rerun`: the failed jobs, one check, or the whole run. */
+export interface ChecksRerunRequest {
+  scope: 'failed' | 'check' | 'all';
+  /** Required when `scope` is `check` */
+  checkId?: string;
+}
+
+/** The head commit's checks changed rollup, or the list was read again after a write. */
+export interface ChangeRequestChecksEvent extends AgentryEventBase {
+  type: 'change-request.checks';
+  /** The change request's row id; `id` is the feed's sequence number */
+  changeRequestId: string;
+  rollup: WorkItemPullRequestCi;
+  headSha: string | null;
+}
 
 /** One provider's detected state on this host, as served from the detector's cache. */
 export interface ProviderStatus {
@@ -4603,6 +5029,8 @@ export interface ProviderStatus {
   account: string | null;
   /** The capabilities the handshake confirmed for the installed version (the declared ones until then) */
   capabilities: ProviderCapability[];
+  /** What the first event of a real session confirmed for the installed version; null until one has */
+  confirmed?: { at: string; version: string; capabilities: ProviderCapability[] } | null;
   /** ISO timestamp of the detection this status came from */
   checkedAt: string;
 }
@@ -4935,6 +5363,9 @@ export type AgentryEvent =
   | SessionsChangedEvent
   | SystemReleaseEvent
   | ProvidersChangedEvent
+  | HostsChangedEvent
+  | OrchestrationPullRequestEvent
+  | ChangeRequestChecksEvent
   | ScheduleChangedEvent
   | ScheduleFiredEvent
   | SupervisorProposedEvent
@@ -5018,7 +5449,8 @@ export type DecisionPointId =
   | 'health.test-weakening'
   | 'changes.unexplained-hunk'
   | 'palette.intent'
-  | 'notification.urgency';
+  | 'notification.urgency'
+  | 'checks.fix';
 
 /** What a decision was about; the `subject_kind` column of the history */
 export type DecisionSubjectKind =

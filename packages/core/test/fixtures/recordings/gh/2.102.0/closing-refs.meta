@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr view 24 -R yeyo11/agentry-probe --json closingIssuesReferences
+exit: 0
+secs: 1.489823659
+env: 

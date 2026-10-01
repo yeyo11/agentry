@@ -1,0 +1,5 @@
+gh: 92
+argv: gh issue view 26 -R yeyo11/agentry-probe
+exit: 0
+secs: 1.318265893
+env: 

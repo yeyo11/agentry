@@ -1,0 +1,5 @@
+gh: 92
+argv: gh issue list -R yeyo11/agentry --state all --json number,state,stateReason
+exit: 0
+secs: 1.336665133
+env: 

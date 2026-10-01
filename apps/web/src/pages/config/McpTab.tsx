@@ -6,12 +6,12 @@ import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, type Scope } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
-import { Select, Switch } from '../../components/controls';
-import { useConfirm } from '../../components/Dialog';
-import { ICON_SM } from '../../components/icons';
+import { Select, Switch } from '@agentry/ui/components/controls';
+import { useConfirm } from '@agentry/ui/components/Dialog';
+import { ICON_SM } from '@agentry/ui/components/icons';
 import { KeyValueEditor, recordToRows, rowsToRecord, StringListEditor, type KeyValueRow } from '../../components/editors';
-import { useToast } from '../../components/Toast';
-import { Card, Empty, ErrorBox, Field, Segmented, Skeleton, Tag } from '../../components/ui';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Card, Empty, ErrorBox, Field, Segmented, Skeleton, Tag } from '@agentry/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
 import { isObject, parseObject, stringList } from './settingsModel';
 

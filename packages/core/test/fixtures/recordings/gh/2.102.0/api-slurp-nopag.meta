@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api --slurp repos/yeyo11/agentry
+exit: 1
+secs: .469689909
+env: 

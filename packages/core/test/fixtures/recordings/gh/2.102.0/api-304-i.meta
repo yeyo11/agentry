@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api -i -H If-None-Match: W/"266b75bdb8f4c8cb26478a6747c12f0800f0725ea16a8d5a8892caf87447d185" repos/yeyo11/agentry/pulls?state=all&per_page=1
+exit: 1
+secs: .962624604
+env: 

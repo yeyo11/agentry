@@ -1,0 +1,1 @@
+{"error":{"message":"Get \"https://gitlab.invalid.example/api/v4/projects/a%2Fb/merge_requests?page=1\u0026per_page=30\u0026state=opened\": dial tcp: lookup gitlab.invalid.example on 127.0.0.53:53: no such host"}}

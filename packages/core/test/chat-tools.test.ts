@@ -317,7 +317,8 @@ test('restoring the shipped presets rewrites those three and leaves the rest alo
 
     const restored = await core.toolPresets.restore();
     assert.equal(restored.defaultPresetId, 'review', 'the default is not touched');
-    for (const shipped of DEFAULT_TOOL_PRESETS) {
+    for (const { policy: _policy, ...shipped } of DEFAULT_TOOL_PRESETS) {
+      // What is stored is the rules; the policy they came from stays with the shipped definition
       assert.deepEqual(core.toolPresets.get(shipped.id), { ...shipped, disallowedTools: shipped.disallowedTools ?? [] }, `${shipped.id} is as it ships`);
     }
     assert.deepEqual(core.toolPresets.get('review'), { id: 'review', name: 'Review', allowedTools: ['Read', 'Grep'], disallowedTools: [] });

@@ -5,18 +5,18 @@ import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 // Direct imports: this page is in the shell bundle, and the barrel would pull the lazy form controls into it
-import { Menu, type MenuEntry } from '../../components/controls/Menu';
-import { Tooltip } from '../../components/controls/Tooltip';
+import { Menu, type MenuEntry } from '@agentry/ui/components/controls/Menu';
+import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
 import { HealthBadge } from '../../components/observe/Health';
-import { ProgressBar } from '../../components/ProgressBar';
-import { Spinner } from '../../components/Spinner';
-import { useToast } from '../../components/Toast';
-import type { TranscriptFind } from '../../components/TranscriptSearch';
-import { ICON, ICON_SM } from '../../components/icons';
+import { ProgressBar } from '@agentry/ui/components/ProgressBar';
+import { Spinner } from '@agentry/ui/components/Spinner';
+import { useToast } from '@agentry/ui/components/Toast';
+import type { TranscriptFind } from '@agentry/chat-ui/components/TranscriptSearch';
+import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { api } from '../../api';
-import { chatPill, checklistCounts, RECONNECTING_AFTER_MS } from '../../lib/chat-live';
-import { displayTitle } from '../../lib/chat-model';
-import { COMPACT, useMediaQuery } from '../../lib/media';
+import { chatPill, checklistCounts, RECONNECTING_AFTER_MS } from '@agentry/chat-ui/lib/chat-live';
+import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
+import { COMPACT, useMediaQuery } from '@agentry/ui/lib/media';
 import { checklistProgress } from '../../lib/observe';
 import type { InspectorTab } from './Inspector';
 
@@ -126,10 +126,10 @@ export const ChatHeader = memo(function ChatHeader({ chat, connected, actions }:
           {
             id: 'here',
             items: [
-              ...(compact ? [{ id: 'find', label: t('components:find.button'), icon: Search, checked: find.open, onSelect: () => (find.open ? find.close() : find.show()) }] : []),
+              ...(compact ? [{ id: 'find', label: t('chat:find.button'), icon: Search, checked: find.open, onSelect: () => (find.open ? find.close() : find.show()) }] : []),
               // Ending the turn is what the composer's button does; here it is by its name
               ...(stoppable && working
-                ? [{ id: 'interrupt', label: t('work:runView.interrupt'), icon: CircleSlash, disabled: actions.interrupt.pending, onSelect: actions.interrupt.run }]
+                ? [{ id: 'interrupt', label: t('chat:runView.interrupt'), icon: CircleSlash, disabled: actions.interrupt.pending, onSelect: actions.interrupt.run }]
                 : []),
               // Stopping kills the process the chat runs in, and anything sent into it goes with it
               ...(stoppable && live
@@ -179,7 +179,7 @@ export const ChatHeader = memo(function ChatHeader({ chat, connected, actions }:
     { id: 'sep-2', separator: true },
     {
       id: 'delete',
-      label: actions.remove.pending ? t('work:sessionView.deleting') : t('common:actions.delete'),
+      label: actions.remove.pending ? t('chat:sessionView.deleting') : t('common:actions.delete'),
       icon: Trash2,
       destructive: true,
       disabled: live || held || actions.remove.pending,
@@ -206,8 +206,8 @@ export const ChatHeader = memo(function ChatHeader({ chat, connected, actions }:
       <ChecklistProgress chat={chat} onOpen={() => inspector.show('activity')} />
       <div className="chat-head-actions">
         {!compact && (
-          <Tooltip content={t('components:find.buttonHint', { shortcut: `${mac ? '⌘' : 'Ctrl+'}F` })}>
-            <button type="button" className="icon-btn" aria-label={t('components:find.button')} aria-pressed={find.open} onClick={() => (find.open ? find.close() : find.show())}>
+          <Tooltip content={t('chat:find.buttonHint', { shortcut: `${mac ? '⌘' : 'Ctrl+'}F` })}>
+            <button type="button" className="icon-btn" aria-label={t('chat:find.button')} aria-pressed={find.open} onClick={() => (find.open ? find.close() : find.show())}>
               <Search {...ICON_SM} />
             </button>
           </Tooltip>

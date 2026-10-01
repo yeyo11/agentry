@@ -1,6 +1,6 @@
 import { ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ICON } from '../icons';
+import { ICON } from '@agentry/ui/components/icons';
 
 /**
  * The way back at the head of a phone screen that has no top bar (lib/shell-live.ts, hidesTopBar):

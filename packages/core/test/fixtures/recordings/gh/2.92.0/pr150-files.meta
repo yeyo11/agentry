@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr view 150 -R yeyo11/agentry --json files,changedFiles --jq {n:(.files|length),c:.changedFiles}
+exit: 0
+secs: 1.140064796
+env: 

@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api graphql -f query=mutation($pr:ID!){a:addPullRequestReview(input:{pullRequestId:$pr}){pullRequestReview{id state}}} -f pr=PR_kwDOU1zIIM8AAAABF9Kkaw
+exit: 1
+secs: 1.312366595
+env: 

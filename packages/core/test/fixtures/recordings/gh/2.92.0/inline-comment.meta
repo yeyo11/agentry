@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api -X POST repos/yeyo11/agentry-probe/pulls/12/comments -f body=Please rename this line. -f commit_id=97bafbb3b999e1174d1d9d5060665c89dc05b371 -f path=review.txt -F line=2 -f side=RIGHT
+exit: 0
+secs: 1.558705733
+env: 

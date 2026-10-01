@@ -1,0 +1,9 @@
+Specify one or more comma-separated fields for `--json`:
+  createdAt
+  isDraft
+  isImmutable
+  isLatest
+  isPrerelease
+  name
+  publishedAt
+  tagName

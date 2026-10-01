@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr merge 3 --squash --delete-branch
+exit: 0
+secs: 9.514800424
+env: 

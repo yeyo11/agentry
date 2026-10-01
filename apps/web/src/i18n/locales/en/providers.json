@@ -25,6 +25,7 @@
     "missing-required-command": "A command it needs is missing on this machine.",
     "unsupported-platform": "It does not run on this operating system.",
     "handshake-failed": "It started but did not answer the way Agentry expects.",
+    "capability-missing": "It is missing something Agentry needs from it in this version.",
     "no-probe": "Agentry cannot check this one yet.",
     "disabled": "It is not searched for or checked while it is off."
   },

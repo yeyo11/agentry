@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { hasOpenLayer } from '../../components/controls/layer';
-import { modalStack } from '../../components/modal-stack';
+import { hasOpenLayer } from '@agentry/ui/components/controls/layer';
+import { modalStack } from '@agentry/ui/components/modal-stack';
 
 /**
  * The phone's full screen: "Cancel · New task · key" on top, the form, and "Create task" at the

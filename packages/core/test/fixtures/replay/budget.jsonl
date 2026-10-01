@@ -1,0 +1,3 @@
+{"type":"assistant","parent_tool_use_id":null,"message":{"role":"assistant","model":"claude-opus-5","content":[{"type":"text","text":"Halfway."}]}}
+{"type":"result","subtype":"error_max_budget_usd","is_error":true,"num_turns":2,"total_cost_usd":1.01,"modelUsage":{"claude-opus-5[1m]":{"inputTokens":10,"outputTokens":5,"costUSD":0.02,"contextWindow":1000000}},"result":"budget reached"}
+this line is not the protocol

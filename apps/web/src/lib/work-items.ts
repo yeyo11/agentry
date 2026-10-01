@@ -17,6 +17,8 @@ import {
   type BoardCheckout,
   type BoardColumn,
   type ChatActivity,
+  type ChangeRequestFixOrigin,
+  type CodeHostId,
   type FlowRun,
   type FlowRunCause,
   type FlowStep,
@@ -30,6 +32,7 @@ import {
   type WorkItemStatus,
   type WorkItemType,
 } from '@agentry/shared';
+import { fixStage, type FixStage } from './change-requests';
 
 // ---------- where things are ----------
 
@@ -411,12 +414,13 @@ export type WorkItemStripState =
   | { kind: 'failed'; role: string; step: FlowStep; cause: FlowRunCause | null; error: string | null }
   | { kind: 'rejected'; role: string; quote: string | null }
   | { kind: 'queued'; role: string; step: FlowStep }
-  | { kind: 'pr-preparing' }
-  | { kind: 'pr-conflict'; base: string; count: number }
-  | { kind: 'pr-awaiting'; base: string }
-  | { kind: 'pr-open'; number: number | null; url: string | null; ci: WorkItemPullRequestCi | null }
-  | { kind: 'pr-closed'; number: number | null }
-  | { kind: 'pr-failed'; code: string; detail: string | null };
+  | { kind: 'pr-preparing'; host: CodeHostId | null }
+  | { kind: 'pr-conflict'; base: string; count: number; host: CodeHostId | null }
+  | { kind: 'pr-awaiting'; base: string; host: CodeHostId | null }
+  | { kind: 'pr-fix'; stage: FixStage; origin: ChangeRequestFixOrigin | null; attempt: number; number: number | null; ref: string | null; host: CodeHostId | null }
+  | { kind: 'pr-open'; number: number | null; ref: string | null; host: CodeHostId | null; url: string | null; ci: WorkItemPullRequestCi | null }
+  | { kind: 'pr-closed'; number: number | null; ref: string | null; host: CodeHostId | null }
+  | { kind: 'pr-failed'; code: string; detail: string | null; host: CodeHostId | null };
 
 /** The flow runs a board knows, by item id: working now, waiting for a place, and the last one that did not pass. */
 export interface StripRuns {
@@ -442,20 +446,26 @@ function linkStep(role: string | undefined, status: WorkItemStatus): FlowStep {
 function pullRequestStrip(item: StripItem): WorkItemStripState | null {
   const pr = item.pullRequest ?? null;
   if (item.status === 'done') return null;
-  if (item.waiting === 'merge' || pr?.phase === 'open') return { kind: 'pr-open', number: pr?.number ?? null, url: pr?.url ?? null, ci: pr?.ci ?? null };
+  const host = pr?.host ?? null;
+  if (pr?.phase === 'open' && pr.fixState) {
+    const stage = fixStage({ fixState: pr.fixState ?? null });
+    if (stage) return { kind: 'pr-fix', stage, origin: pr.fixOrigin ?? null, attempt: pr.fixAttempts ?? 0, number: pr.number, ref: pr.ref ?? null, host };
+  }
+  if (item.waiting === 'merge' || pr?.phase === 'open')
+    return { kind: 'pr-open', number: pr?.number ?? null, ref: pr?.ref ?? null, host, url: pr?.url ?? null, ci: pr?.ci ?? null };
   if (!pr) return null;
   switch (pr.phase) {
     case 'preparing':
-      return { kind: 'pr-preparing' };
+      return { kind: 'pr-preparing', host };
     case 'conflict':
       // Back in In progress for the merge to be resolved; once it is in review again, it is approved again
-      return item.status === 'in_progress' ? { kind: 'pr-conflict', base: pr.base, count: pr.conflicts.length } : null;
+      return item.status === 'in_progress' ? { kind: 'pr-conflict', base: pr.base, count: pr.conflicts.length, host } : null;
     case 'awaiting-verify':
-      return item.status === 'in_progress' || item.status === 'in_review' ? { kind: 'pr-awaiting', base: pr.base } : null;
+      return item.status === 'in_progress' || item.status === 'in_review' ? { kind: 'pr-awaiting', base: pr.base, host } : null;
     case 'closed':
-      return item.status === 'in_review' && item.waiting !== 'bounces' ? { kind: 'pr-closed', number: pr.number } : null;
+      return item.status === 'in_review' && item.waiting !== 'bounces' ? { kind: 'pr-closed', number: pr.number, ref: pr.ref ?? null, host } : null;
     case 'failed':
-      return item.status === 'in_review' && item.waiting !== 'bounces' ? { kind: 'pr-failed', code: pr.error?.code ?? 'unknown', detail: pr.error?.detail || null } : null;
+      return item.status === 'in_review' && item.waiting !== 'bounces' ? { kind: 'pr-failed', code: pr.error?.code ?? 'unknown', detail: pr.error?.detail || null, host } : null;
     default:
       return null;
   }
@@ -540,6 +550,9 @@ export function stripTone(strip: WorkItemStripState): 'live' | 'wait' | 'fail' |
     case 'pr-open':
     case 'pr-closed':
       return 'wait';
+    // Agents fixing or verifying show as run strips while they work; with none running it is neutral and still
+    case 'pr-fix':
+      return strip.stage === 'push' ? 'wait' : null;
     case 'failed':
     case 'pr-failed':
       return 'fail';
@@ -575,22 +588,43 @@ export function approvalOpensPullRequest(readiness: Pick<PullRequestReadiness, '
   return readiness?.status === 'ready';
 }
 
+/**
+ * The reasons an older server still sends, for the three the host work renamed: GitHub was the only
+ * host then, so each one maps to the neutral reason that says the same.
+ */
+export const LEGACY_NOT_READY_REASONS: Readonly<Record<string, PullRequestNotReadyReason>> = {
+  'not-github': 'unsupported-host',
+  'no-gh': 'cli-missing',
+  'gh-unauthenticated': 'cli-signed-out',
+};
+
 /** Why the project offers no pull request, so the card and the item say it instead of failing silently; null when ready or unknown. */
 export function notReadyReason(readiness: Pick<PullRequestReadiness, 'status'> | null | undefined): PullRequestNotReadyReason | null {
-  return readiness && readiness.status !== 'ready' ? readiness.status : null;
+  if (!readiness || readiness.status === 'ready') return null;
+  return LEGACY_NOT_READY_REASONS[readiness.status] ?? readiness.status;
 }
 
 const PULL_REQUEST_STEPS = ['fetch', 'merge', 'push', 'create', 'commit', 'worktree-kept'] as const;
-const NOT_READY_REASONS: readonly PullRequestNotReadyReason[] = ['not-git', 'no-remote', 'not-github', 'no-gh', 'gh-unauthenticated', 'no-default-branch'];
+const NOT_READY_REASONS: readonly PullRequestNotReadyReason[] = [
+  'not-git',
+  'no-remote',
+  'unsupported-host',
+  'no-default-branch',
+  'cli-missing',
+  'cli-incompatible',
+  'cli-signed-out',
+];
 
 /**
  * The words for a pull request's error code (`tasks` namespace): the step that failed, or the
- * readiness reason the project lost since. A code this version does not know still reads as a failure.
+ * readiness reason the project lost since. A code this version does not know still reads as a
+ * failure; one an older server sends for a renamed reason reads as its neutral name.
  */
 export function pullRequestErrorKey(code: string): `pr.error.${(typeof PULL_REQUEST_STEPS)[number] | 'unknown'}` | `pr.notReady.${PullRequestNotReadyReason}` {
   const step = PULL_REQUEST_STEPS.find((known) => known === code);
   if (step) return `pr.error.${step}`;
-  const reason = NOT_READY_REASONS.find((known) => known === code);
+  const neutral = LEGACY_NOT_READY_REASONS[code] ?? code;
+  const reason = NOT_READY_REASONS.find((known) => known === neutral);
   return reason ? `pr.notReady.${reason}` : 'pr.error.unknown';
 }
 

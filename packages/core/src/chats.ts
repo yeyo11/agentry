@@ -1,64 +1,63 @@
-import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { ChatTokenStore } from './security/chat-tokens.ts';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
 import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import {
-  entryText,
-  isModelName,
-  normalizeMessage,
   type Attachment,
-  type ChatActivity,
-  type ChatFork,
-  type ChatOrigin,
   type ChatSettingsUpdate,
   type ChatStartOptions,
-  type ChatToolConfig,
   type EffectiveEnvironment,
   type Execution,
-  type NewChatRequest,
-  type PermissionDecision,
-  type PermissionMode,
-  type PermissionUpdate,
   type RateLimitInfo,
+  type ProviderId,
+  type ProvidersSettings,
   type ResumeChatRequest,
   type RunEvent,
   type RunStatus,
   type TranscriptEntry,
 } from '@agentry/shared';
-import { authFreeEnv, type Launch } from './accounts.ts';
-import { activityKey, ChatActivityTracker } from './chat-activity.ts';
-import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
-import { commandKind } from './commands.ts';
-import { chatsFromRuns, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
-import type { BackgroundTask, SubagentInfo, WorkflowRun } from './cli-facts.ts';
+import { activityKey } from './chat-activity.ts';
+import { executionOutcome } from './chat-model.ts';
+import { foldEvent } from './chat-fold.ts';
+import { chatsFromRuns, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { Db } from './db.ts';
 import { RunEventPublisher } from './event-sources.ts';
 import type { EventBus } from './events.ts';
 import type { RunDefaults } from './app-settings.ts';
+import {
+  LiveChat,
+  now,
+  processUp,
+  type AccountResolver,
+  type AdoptedChat,
+  type ChatHost,
+  type ChatPulse,
+  type ChatRuntime,
+  type ExecutionExtras,
+  type NewChat,
+  type ResolvedTools,
+  type RunMeta,
+  type RunResult,
+} from './live-chat.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
 import { runningCommands, type ToolCall, type Trace } from './health.ts';
 import { ModelAliasIds } from './models.ts';
-import { cliProcessOf, commandRoots, drivesSession, processTable, streamJsonProcesses, terminateTree } from './processes.ts';
+import { cliProcessOf, commandRoots, processTable, terminateTree } from './processes.ts';
+import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
+import type { ModelUsage, ProviderDriver, SessionLaunch } from './providers/driver.ts';
+import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import type { SessionStore } from './sessions.ts';
-import { composeContent, type UploadStore } from './uploads.ts';
-import { emptyTokenUsage } from './usage.ts';
-import { readProgress, workflowStatus } from './workflows.ts';
+import type { UploadStore } from './uploads.ts';
 
-/** A control request the CLI has not answered by then is not going to be answered */
-const CONTROL_TIMEOUT_MS = 15_000;
-const MAX_EVENTS_PER_RUN = 5000;
+// Every name `chats.ts` has ever exported stays importable from here
+export type { AccountResolver, AdoptedChat, ChatConfinement, ChatPulse, ChatRuntime, ExecutionExtras, NewChat, ResolvedTools, RunMeta, RunningCommand, RunResult } from './live-chat.ts';
+export { STRUCTURED_OUTPUT_TOOL } from './providers/claude-code/stream.ts';
+
 const MAX_PERSISTED_CHATS = 200;
-const PARTIAL_THROTTLE_MS = 50;
-const IDLE_TIMEOUT_MS = Number(process.env.AGENTRY_IDLE_TIMEOUT_MS ?? 10 * 60_000);
-const SUBAGENT_TOOLS = new Set(['Task', 'Agent']);
-// High-frequency events that add nothing to the UI
-const IGNORED_SUBTYPES = new Set(['thinking_tokens', 'hook_started', 'hook_response', 'commands_changed']);
-/** Wording the CLI uses when the subscription window is spent (`result` text and stderr) */
-const RATE_LIMIT_RE = /usage limit|rate limit|session limit|out of (?:usage|quota)|quota exceeded/i;
 /**
  * What starting or continuing a chat refuses on purpose (no prompt, the runtime full, the session
  * held elsewhere, a bad upload): the caller's to fix, with its 4xx. Anything else that goes wrong
@@ -77,537 +76,10 @@ export class ChatRefusal extends Error {
 const MAX_ROTATION_RETRIES = 1;
 const MAX_ATTACHMENTS = 20;
 
-/** The CLI takes `manual` on the command line but reports that same mode as `default`. */
-const reportedMode = (mode: string): PermissionMode => (mode === 'default' ? 'manual' : (mode as PermissionMode));
-
-/** A person's decision in the shape `can_use_tool` expects; allowing always carries the input. */
-function toControlDecision(decision: PermissionDecision, input: Record<string, unknown>): Record<string, unknown> {
-  if (decision.behavior === 'deny') return { behavior: 'deny', message: decision.message ?? 'denied' };
-  return {
-    behavior: 'allow',
-    updatedInput: decision.updatedInput ?? input,
-    ...(decision.updatedPermissions?.length ? { updatedPermissions: decision.updatedPermissions } : {}),
-  };
-}
-
-export interface RunResult {
-  isError: boolean;
-  result: string;
-  structuredOutput: unknown;
-  /** What the chat has cost across every execution so far */
-  costUsd: number;
-  /**
-   * Why a failed result is not one to try again blindly: the budget ran out (the retry meets the same
-   * ceiling), the account hit its limit (rotating accounts is the runner's job) or someone stopped it.
-   */
-  cause?: 'budget' | 'rate-limit' | 'stopped';
-  /** The main agent's last `stop_reason` in the turn (`end_turn`, `tool_use`, `max_tokens`…), when the CLI said */
-  stopReason?: string;
-}
-
-/** The CLI's result subtype for a ceiling set with `--max-budget-usd`. */
-const BUDGET_SUBTYPE = 'error_max_budget_usd';
-
-/** What starts a chat, beyond what the API takes: the housekeeping knobs the wrapper's own callers use. */
-export interface NewChat extends NewChatRequest {
-  name?: string;
-  /** A CLI agent the session runs as (`--agent`): a team member's, for a run of the flow by column */
-  agent?: string;
-  /**
-   * A file defining agents for the session (`--agents`). The flow hands the member's definition this
-   * way because the item's worktree only has the agent files that were committed.
-   */
-  agentsFile?: string;
-  /**
-   * `off` renders the system prompt fresh on every request instead of recording it on the first
-   * (`--system-prompt-snapshot off`). A member's run asks for it: its prompt is the agent's and the
-   * journal as they are now, and a recorded one would outlive the run into whoever continues the chat.
-   */
-  systemPromptSnapshot?: 'off';
-  /**
-   * `false` leaves the uploads directory out (`--add-dir`): a run Agentry starts on its own carries
-   * no attachment, and every person's uploads would otherwise be readable to it.
-   */
-  uploads?: false;
-  /** Keep the process alive after each turn so more messages can be sent (default true) */
-  keepAlive?: boolean;
-  /** Housekeeping: no transcript is written (`--no-session-persistence`), so it cannot be resumed */
-  internal?: boolean;
-  /**
-   * `false` leaves `AGENTRY_API_URL` out of the environment and mints no `AGENTRY_API_TOKEN`: a run
-   * that never calls the API back (a decision chat) holds no credential to it.
-   */
-  api?: false;
-  toolConfig?: ChatToolConfig | null;
-  /** Held to a closed set of tools and no settings file: the project assistant's read-only runs */
-  confine?: ChatConfinement;
-}
-
-/**
- * A chat that may only do what Agentry names. The allow and deny lists only rule on the tools a
- * session has, and add to whatever the person's settings files allow; this takes the rest away.
- */
-export interface ChatConfinement {
-  /** `--tools`: the only built-in tools the session has */
-  tools: string[];
-  /** `--setting-sources`: the settings files it loads; empty loads none, so no rule, hook or server of theirs applies */
-  settingSources: Array<'user' | 'project' | 'local'>;
-}
-
-/**
- * What `ChatTools` made of the tool preset and MCP servers a request picked, next to the request:
- * the lists and the config file the CLI is given, and the description of them a chat keeps.
- */
-export interface ResolvedTools {
-  toolConfig?: ChatToolConfig | null;
-}
-
-/**
- * What one execution of a resumed chat runs with beyond the start options: the flow resumes a
- * member's chat as its agent, asking for its structured result. `null` drops what an earlier
- * execution set, so a chat a person continues by hand is not held to a schema it never asked for.
- */
-export interface ExecutionExtras {
-  agent?: string | null;
-  agentsFile?: string | null;
-  jsonSchema?: unknown;
-  systemPromptSnapshot?: 'off' | null;
-  uploads?: false | null;
-  keepAlive?: boolean;
-  /**
-   * The chat goes back to a person: whatever a member's run set (its mode, its allow and deny lists,
-   * its budget, the appended journal, `keepAlive: false`) is dropped before the request's own
-   * options apply, so the person's chat is not held to the rules of a run that already ended. The
-   * model stays: it is the chat's, shown on it and switchable.
-   */
-  handBack?: boolean;
-  confine?: ChatConfinement | null;
-}
-
-export interface RunMeta {
-  orchestrationId?: string;
-  orchestrationTaskId?: string;
-}
-
-/** What is known of a chat that already exists when an execution resumes it from outside the store. */
-export interface AdoptedChat {
-  cwd: string;
-  name: string;
-  model: string | null;
-}
-
-/**
- * What the runtime says about a chat Agentry drives or has driven: its process, its live stream and
- * what it delegated. The chat the API serves is assembled from this, the transcript and the CLI's
- * own list of sessions (see `chat-service.ts`).
- */
-export interface ChatRuntime {
-  /** The session id */
-  id: string;
-  name: string;
-  cwd: string;
-  /** Directory the CLI actually works in, which differs from `cwd` when it runs in a worktree */
-  workingDir: string;
-  origin: ChatOrigin;
-  derivedFrom: ChatFork | null;
-  model: string | null;
-  permissionMode: PermissionMode;
-  /** The process's state, as the stream reports it: a chat's own state is derived from it */
-  status: RunStatus;
-  pid: number | null;
-  /** When the live process started; null without one */
-  processStartedAt?: string | null;
-  createdAt: string;
-  updatedAt: string;
-  endedAt: string | null;
-  turns: number;
-  costUsd: number;
-  prompt: string;
-  lastText: string | null;
-  error: string | null;
-  orchestrationId: string | null;
-  orchestrationTaskId: string | null;
-  account: string | null;
-  permissionPrompts: 'host' | 'none';
-  /** Prompts waiting for someone right now: the chat is stuck until they are answered */
-  pendingPrompts: number;
-  /** What the live process is doing right now; null when there is none */
-  activity: ChatActivity | null;
-  /** The tool preset and MCP servers Agentry started it with; null when it picked none */
-  tools?: ChatToolConfig | null;
-  executions: Execution[];
-  backgroundTasks: BackgroundTask[];
-  subagents: SubagentInfo[];
-  workflows: WorkflowRun[];
-}
-
-/** A shell command the process started and has had no answer to yet. */
-export interface RunningCommand {
-  command: string;
-  startedAt: string;
-  /** The tool call, which is what cancelling one command is addressed by */
-  toolUseId: string;
-  /** The CLI's heartbeat for it: how long it says the command has run, as of `at` */
-  heartbeat?: { elapsedSeconds: number; at: string };
-}
-
-/** What the process working on a chat is doing right now. */
-export interface ChatPulse {
-  /** The last thing it did, streamed text included */
-  lastEventAt: string;
-  commands: RunningCommand[];
-}
-
-const now = () => new Date().toISOString();
-
-/** Started (a failed spawn has no pid) and not exited yet */
-const processUp = (proc: ChildProcess): boolean => proc.pid !== undefined && proc.exitCode === null && proc.signalCode === null;
-
-const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
-const named = (v: unknown): Array<Record<string, unknown>> =>
-  Array.isArray(v) ? v.map((x) => (typeof x === 'string' ? { name: x } : ((x ?? {}) as Record<string, unknown>))) : [];
-
-function toEnvironment(cwd: string, chatId: string, raw: Record<string, unknown>): EffectiveEnvironment {
-  const text = (v: unknown) => (typeof v === 'string' ? v : null);
-  const memory = raw.memory_paths && typeof raw.memory_paths === 'object' ? (raw.memory_paths as Record<string, unknown>) : {};
-  return {
-    cwd,
-    observedAt: now(),
-    chatId,
-    cliVersion: text(raw.claude_code_version),
-    model: text(raw.model),
-    permissionMode: text(raw.permissionMode),
-    outputStyle: text(raw.output_style),
-    tools: strings(raw.tools),
-    mcpServers: named(raw.mcp_servers).map((s) => ({ name: String(s.name ?? ''), status: String(s.status ?? ''), source: text(s.source) ?? undefined })),
-    // agents/skills are plain names on some versions and objects on others
-    agents: named(raw.agents).map((a) => String(a.name ?? a.agentType ?? '')).filter(Boolean),
-    skills: named(raw.skills).map((s) => String(s.name ?? '')).filter(Boolean),
-    slashCommands: strings(raw.slash_commands),
-    plugins: named(raw.plugins).map((p) => ({ name: String(p.name ?? ''), path: text(p.path) ?? undefined, source: text(p.source) ?? undefined })),
-    memoryPaths: Object.fromEntries(Object.entries(memory).filter((e): e is [string, string] => typeof e[1] === 'string')),
-  };
-}
-
-/**
- * A chat Agentry has a record of, in memory: its live stream, whatever it delegated, its history of
- * executions and, while one is running, the process. There is one per session id, however many
- * times the chat is resumed: resuming adds an execution here, it never adds a chat.
- */
-/** The tool the CLI gives a chat started with `--json-schema`, whose input is the structured result. */
-export const STRUCTURED_OUTPUT_TOOL = 'StructuredOutput';
-
-class LiveChat {
-  readonly emitter = new EventEmitter();
-  readonly events: RunEvent[] = [];
-  readonly tasks = new Map<string, BackgroundTask>();
-  /** Long commands the CLI reports as tasks while they run in the foreground; listed once sent to the background */
-  readonly foregroundTasks = new Map<string, BackgroundTask>();
-  readonly subagents = new Map<string, SubagentInfo>();
-  readonly workflows = new Map<string, WorkflowRun>();
-  /** Every execution, oldest first; at most the last one is live */
-  executions: Execution[] = [];
-  /** The execution a wrapper restart cut off, when this chat was restored with one: its stop time is still an estimate */
-  cutOff: Execution | null = null;
-  proc: ChildProcessWithoutNullStreams | null = null;
-  /** When `proc` was spawned: its stream reports every workflow started since, and none before */
-  procStartedAt: string | null = null;
-  seq = 0;
-  status: RunStatus = 'starting';
-  model: string | null;
-  name: string;
-  cwd: string;
-  permissionMode: PermissionMode;
-  createdAt = now();
-  updatedAt = now();
-  /** The last thing the process did, streamed text included, which `updatedAt` (stored events only) leaves out */
-  activityAt = now();
-  endedAt: string | null = null;
-  lastText: string | null = null;
-  /** Where the CLI says it works, from its init event: a worktree when it was given one */
-  workingDir: string | null = null;
-  error: string | null = null;
-  lastResult: RunResult | null = null;
-  stopRequested = false;
-  idleTimer: NodeJS.Timeout | null = null;
-  partial: { block: 'text' | 'thinking'; text: string } | null = null;
-  partialTimer: NodeJS.Timeout | null = null;
-  /** The structured result (`--json-schema`) as its tool call streams it: raw JSON, cut wherever it has got to */
-  structured: string | null = null;
-  /** Control requests sent to the CLI, by request_id, waiting for its control_response */
-  readonly controls = new Map<string, { resolve: (response: Record<string, unknown>) => void; reject: (err: Error) => void }>();
-  controlSeq = 0;
-  /** Prompts the CLI is holding for a person */
-  pendingPrompts = 0;
-  /** The turn is ending because someone interrupted it, not because it failed */
-  interruptRequested = false;
-  /** What the live process is doing right now, folded from the stream as it arrives */
-  readonly activity: ChatActivityTracker;
-  /** The last activity announced on the feed, so a line that changes nothing costs no summary */
-  activityKey = '';
-  /** The CLI's `tool_progress` heartbeats for the commands still running, by tool call */
-  readonly heartbeats = new Map<string, { elapsedSeconds: number; at: string }>();
-  /** Foreground commands started and not answered, for the history of how long each kind takes */
-  readonly openCommands = new Map<string, { command: string; kind: string; startedAt: string }>();
-  /** Commands a person cancelled: their failed result is the person's doing, and says nothing about how long the command takes */
-  readonly cancelled = new Set<string>();
-  /**
-   * Messages that arrived while the process was on its way out (stopped, or its stdin closed and it
-   * finishing background work): one process replaces it when it exits and gets all of them. Each
-   * used to schedule a replacement of its own, and three messages made three processes.
-   */
-  queued: Array<{ text: string; attachments: Attachment[] }> = [];
-  /**
-   * The CLI has confirmed the session exists (its `init` arrived): from then on a process resumes
-   * it. Until then the first spawn creates it, under the id Agentry chose, which is what lets a fork
-   * have its id before the CLI has said anything.
-   */
-  created: boolean;
-  /** The chat this one is a copy of, until the copy is confirmed: the first spawn forks it */
-  forkFrom: string | null = null;
-  /** The last turn sent, files included, so a turn lost to a rate limit is replayed whole */
-  lastUserTurn: { text: string; attachments: string[] } | null = null;
-  /** The turn died against the account's rate limit */
-  rateLimited = false;
-  /**
-   * The main agent's last `stop_reason` in this turn, from stream-json: a turn cut by `max_tokens`
-   * can still end with JSON that parses, and a reader of the result has to know it was cut
-   */
-  stopReason: string | null = null;
-  /** A rotation was already asked for this attempt */
-  rotationRequested = false;
-  rotationRetries = 0;
-
-  constructor(
-    /** The session id */
-    readonly id: string,
-    readonly opts: NewChat,
-    readonly meta: RunMeta,
-    readonly origin: ChatOrigin,
-    readonly derivedFrom: ChatFork | null,
-    config: Pick<CoreConfig, 'workspaceDir' | 'defaultPermissionMode'>,
-    created = false,
-  ) {
-    this.cwd = resolve(opts.cwd ?? config.workspaceDir);
-    this.permissionMode = opts.permissionMode ?? config.defaultPermissionMode;
-    this.model = opts.model ?? null;
-    this.created = created;
-    this.name = opts.name ?? `${basename(this.cwd)}-${this.id.slice(0, 6)}`;
-    this.activity = new ChatActivityTracker(this.cwd);
-    this.emitter.setMaxListeners(100);
-  }
-
-  /**
-   * Rebuilds a chat persisted by a previous wrapper process; it has no process until a message
-   * resumes it. An execution that was live when that wrapper went away is over now, and nobody
-   * stopped it: it ends as `interrupted`.
-   */
-  static restore({ record, executions }: StoredChat, config: CoreConfig): LiveChat {
-    const chat = new LiveChat(
-      record.id,
-      {
-        prompt: record.prompt,
-        cwd: record.cwd,
-        name: record.name,
-        ...(record.model ? { model: record.model } : {}),
-        permissionMode: record.permissionMode,
-        internal: record.origin === 'internal',
-        ...(record.account ? { account: record.account } : {}),
-        permissionPrompts: record.permissionPrompts,
-        // A resumed chat keeps the tools and servers it was given, not the ones the CLI would pick
-        ...(record.tools ? { toolConfig: record.tools, allowedTools: record.tools.allowedTools, disallowedTools: record.tools.disallowedTools } : {}),
-        ...(record.tools?.mcp?.config ? { mcp: record.tools.mcp } : {}),
-      },
-      { orchestrationId: record.orchestrationId ?? undefined, orchestrationTaskId: record.orchestrationTaskId ?? undefined },
-      record.origin,
-      record.derivedFrom,
-      config,
-      true,
-    );
-    // `updatedAt` is a floor for when it stopped: the record is only written at a few moments of a
-    // turn, so the manager refines it from the transcript, which the CLI writes as it goes
-    chat.executions = executions.map((e) => {
-      if (e.endedAt !== null) return e;
-      const cut = { ...e, endedAt: record.updatedAt, outcome: executionOutcome('busy', true), error: e.error ?? INTERRUPTED_BY_RESTART };
-      chat.cutOff = cut;
-      return cut;
-    });
-    const last = chat.executions[chat.executions.length - 1];
-    // The process's own status, for whatever still asks: nothing is running, and how it ended is
-    // what the last execution says
-    chat.status = last?.outcome === 'completed' || last?.outcome === 'failed' ? last.outcome : 'stopped';
-    chat.createdAt = record.createdAt;
-    chat.updatedAt = record.updatedAt;
-    chat.endedAt = last?.endedAt ?? record.updatedAt;
-    chat.lastText = record.lastText;
-    chat.error = last?.error ?? null;
-    chat.workingDir = record.workingDir;
-    return chat;
-  }
-
-  /**
-   * What the chat runs with: what was resolved from a preset and servers, or, for a chat that only
-   * has tool lists (an orchestration worker), those lists, since they are what explains a refusal.
-   */
-  get tools(): ChatToolConfig | null {
-    const { toolConfig, allowedTools, disallowedTools } = this.opts;
-    if (toolConfig) return toolConfig;
-    if (!allowedTools?.length && !disallowedTools?.length) return null;
-    return { preset: null, allowedTools: allowedTools ?? [], disallowedTools: disallowedTools ?? [], mcp: null };
-  }
-
-  /** The live execution, when a process is working on the chat */
-  get execution(): Execution | null {
-    const last = this.executions[this.executions.length - 1];
-    return last && last.endedAt === null ? last : null;
-  }
-
-  get turns(): number {
-    return this.executions.reduce((sum, e) => sum + e.turns, 0);
-  }
-
-  /** What the chat has cost: only what the CLI reported, nothing estimated */
-  get costUsd(): number {
-    return this.executions.reduce((sum, e) => sum + (e.costUsd ?? 0), 0);
-  }
-
-  /** A message waits for the exiting process to be replaced: its exit is not the chat's end */
-  get respawnQueued(): boolean {
-    return this.queued.length > 0;
-  }
-
-  /**
-   * Until it has exited. `killed` only says a signal was delivered: a stopped process can take
-   * seconds to go, and counting it gone let a resume start a second process beside it.
-   */
-  get alive(): boolean {
-    return this.proc !== null && processUp(this.proc);
-  }
-
-  /** The mode and model the chat runs with now, and the live execution with it. */
-  setSettings(update: { permissionMode?: PermissionMode; model?: string }): void {
-    const live = this.execution;
-    if (update.permissionMode) {
-      this.permissionMode = update.permissionMode;
-      if (live) live.permissionMode = update.permissionMode;
-    }
-    if (update.model) {
-      this.model = update.model;
-      if (live) live.model = update.model;
-    }
-  }
-
-  /** Opens the execution a process starts, on top of the settings the chat has now. */
-  beginExecution(): Execution {
-    const execution: Execution = {
-      id: randomUUID(),
-      startedAt: now(),
-      endedAt: null,
-      outcome: null,
-      error: null,
-      permissionMode: this.permissionMode,
-      model: this.model,
-      account: this.opts.account ?? null,
-      maxBudgetUsd: typeof this.opts.maxBudgetUsd === 'number' && this.opts.maxBudgetUsd > 0 ? this.opts.maxBudgetUsd : null,
-      costUsd: null,
-      tokens: emptyTokenUsage(),
-      turns: 0,
-    };
-    this.executions.push(execution);
-    return execution;
-  }
-
-  summary(): ChatRuntime {
-    return {
-      id: this.id,
-      name: this.name,
-      cwd: this.cwd,
-      workingDir: this.workingDir ?? (this.opts.worktree ? join(this.cwd, '.claude', 'worktrees', this.opts.worktree) : this.cwd),
-      origin: this.origin,
-      derivedFrom: this.derivedFrom,
-      model: this.model,
-      permissionMode: this.permissionMode,
-      status: this.status,
-      pid: this.alive ? (this.proc?.pid ?? null) : null,
-      processStartedAt: this.alive ? this.procStartedAt : null,
-      createdAt: this.createdAt,
-      updatedAt: this.updatedAt,
-      endedAt: this.endedAt,
-      turns: this.turns,
-      costUsd: this.costUsd,
-      prompt: this.opts.prompt,
-      lastText: this.lastText,
-      error: this.error,
-      orchestrationId: this.meta.orchestrationId ?? null,
-      orchestrationTaskId: this.meta.orchestrationTaskId ?? null,
-      account: this.opts.account ?? null,
-      permissionPrompts: this.opts.permissionPrompts === 'host' ? 'host' : 'none',
-      pendingPrompts: this.pendingPrompts,
-      // A chat with no process of ours is doing nothing, whatever the last stream left behind
-      activity: this.alive ? this.activity.current() : null,
-      tools: this.tools,
-      executions: this.executions,
-      backgroundTasks: [...this.tasks.values()],
-      subagents: [...this.subagents.values()],
-      workflows: [...this.workflows.values()],
-    };
-  }
-
-  /** What the store keeps of the chat besides its executions. */
-  record(): ChatRecord {
-    return {
-      id: this.id,
-      name: this.name,
-      cwd: this.cwd,
-      workingDir: this.workingDir,
-      origin: this.origin,
-      orchestrationId: this.meta.orchestrationId ?? null,
-      orchestrationTaskId: this.meta.orchestrationTaskId ?? null,
-      derivedFrom: this.derivedFrom,
-      prompt: this.opts.prompt,
-      lastText: this.lastText,
-      model: this.model,
-      permissionMode: this.permissionMode,
-      account: this.opts.account ?? null,
-      permissionPrompts: this.opts.permissionPrompts === 'host' ? 'host' : 'none',
-      tools: this.tools,
-      createdAt: this.createdAt,
-      updatedAt: this.updatedAt,
-    };
-  }
-
-  push(event: Omit<RunEvent, 'seq' | 'ts'>): void {
-    const full: RunEvent = { ...event, seq: ++this.seq, ts: now() };
-    this.events.push(full);
-    if (this.events.length > MAX_EVENTS_PER_RUN) this.events.splice(0, this.events.length - MAX_EVENTS_PER_RUN);
-    this.updatedAt = full.ts;
-    this.activityAt = full.ts;
-    this.emitter.emit('event', full);
-  }
-
-  /** Streams the in-progress block to live subscribers only: not stored, not replayed, seq untouched. */
-  emitPartial(): void {
-    this.activityAt = now();
-    if (this.partialTimer) return;
-    this.partialTimer = setTimeout(() => {
-      this.partialTimer = null;
-      if (!this.partial) return;
-      this.emitter.emit('event', {
-        seq: this.seq,
-        ts: now(),
-        kind: 'partial',
-        type: 'stream_event',
-        block: this.partial.block,
-        text: this.partial.text,
-      } satisfies RunEvent);
-    }, PARTIAL_THROTTLE_MS);
-  }
-
-  setStatus(status: RunStatus): void {
-    if (this.status === status) return;
-    this.status = status;
-    this.push({ kind: 'status', type: 'status', status });
-  }
+/** A chat as it was last written: its record and each execution, as JSON. */
+interface SavedChat {
+  record: string;
+  executions: Map<string, string>;
 }
 
 /**
@@ -615,30 +87,19 @@ class LiveChat {
  * Each LiveChat is a live conversation: it accepts multiple turns over stdin and, if the
  * process already exited, it is respawned with `--resume` when a new message arrives.
  */
-/** What the runner needs to know about claude-swap, injected by Core to avoid a cycle. */
-export interface AccountResolver {
-  /** claude-swap is installed and has at least one account registered */
-  readonly managed: boolean;
-  /** The `cswap` a pinned chat runs through: `CSWAP_BIN`, the one on the `PATH`, or Agentry's own copy */
-  readonly bin: string;
-  isActive(identifier: string): boolean;
-  /** Which account, and which config directory, a chat starts with */
-  launchFor(chat: { account: string | null; cwd: string }): Launch;
-}
-
-/** A chat as it was last written: its record and each execution, as JSON. */
-interface SavedChat {
-  record: string;
-  executions: Map<string, string>;
-}
-
 export class ChatManager extends EventEmitter {
   private readonly chats = new Map<string, LiveChat>();
   /** What was last written of each chat, so that a save writes only what changed since */
   private readonly saved = new Map<string, SavedChat>();
   lastRateLimit: RateLimitInfo | null = null;
-  /** Set when claude-swap manages the accounts; null leaves chats on the active credential */
-  accounts: AccountResolver | null = null;
+  private accountSupport: AccountResolver | null = null;
+  /** The code half of each provider that can run chats */
+  readonly providers: ProviderRegistry;
+  /**
+   * Which providers the person turned on, and in what order: read as each chat starts, so a change
+   * applies to the next one. Core sets it; without it the manifests' own order is the person's.
+   */
+  providerSettings: (() => Pick<ProvidersSettings, 'order' | 'defaultProvider'>) | null = null;
   /**
    * Where this wrapper's REST API answers, once it listens. Handed to every chat as
    * `AGENTRY_API_URL`: with a desktop app and a dev server on one machine, an agent that guessed a
@@ -665,6 +126,9 @@ export class ChatManager extends EventEmitter {
 
   private readonly file: string;
 
+  /** What the code that reads a chat's process needs of this manager */
+  private readonly host: ChatHost;
+
   /** The model id each alias last ran as, which names the aliases in the model picker */
   readonly modelIds: ModelAliasIds;
 
@@ -678,30 +142,76 @@ export class ChatManager extends EventEmitter {
   constructor(
     private readonly config: CoreConfig,
     private readonly db: Db,
+    drivers: readonly ProviderDriver[] = [new ClaudeCodeDriver(config.claudeBin)],
   ) {
     super();
+    this.providers = new ProviderRegistry(PROVIDER_MANIFESTS, drivers);
     this.defaults = config;
     this.file = join(config.dataDir, 'runs.json');
     this.modelIds = new ModelAliasIds(config.dataDir);
+    for (const driver of drivers) {
+      if (driver instanceof ClaudeCodeDriver) driver.modelSource = { file: config.globalConfigFile, seen: () => this.modelIds.get() };
+    }
     for (const env of db.loadEnvironments()) this.environments.set(env.cwd, env);
+    const manager = this;
+    this.host = {
+      db,
+      modelIds: this.modelIds,
+      environments: this.environments,
+      // Set by Core after construction, so read as it is when asked
+      get permissions() {
+        return manager.permissions;
+      },
+      emit: (event, ...args) => this.emit(event, ...args),
+      persist: () => this.persist(),
+      noteActivity: (chat) => this.noteActivity(chat),
+      noteRateLimit: (info) => {
+        this.lastRateLimit = info;
+      },
+      learnModelCosts: (execution, modelUsage) => this.learnModelCosts(execution, modelUsage),
+      learnWindows: (modelUsage) => this.learnWindows(modelUsage),
+      maybeRotate: (chat) => this.maybeRotate(chat),
+    };
+  }
+
+  /**
+   * Set when claude-swap manages the accounts; null leaves chats on the active credential. It is
+   * the accounts of every driver that declares them: the accounts are the provider's, the manager
+   * only forwards what Core hands it.
+   */
+  get accounts(): AccountResolver | null {
+    return this.accountSupport;
+  }
+
+  set accounts(value: AccountResolver | null) {
+    this.accountSupport = value;
+    for (const manifest of this.providers.list()) {
+      const driver = this.providers.driverFor(manifest.id);
+      if (driver && manifest.capabilities.includes('multiAccount')) driver.accounts = value;
+    }
+  }
+
+  /** The driver a request asks for, or the person's default; refused when that provider cannot run chats. */
+  driverFor(provider: ProviderId | undefined): ProviderDriver {
+    const settings = this.providerSettings?.() ?? { order: this.providers.list().map((m) => m.id), defaultProvider: null };
+    const id = provider ?? this.providers.defaultSessionProvider(settings);
+    const driver = id ? this.providers.driverFor(id) : null;
+    if (!driver) throw new ChatRefusal('this provider cannot run chats yet');
+    return driver;
   }
 
   /** The CLI's per-model cost, cumulative over its process like the total, so it only ever grows. */
-  private learnModelCosts(execution: Execution, modelUsage: unknown): void {
-    if (!modelUsage || typeof modelUsage !== 'object') return;
-    for (const [model, entry] of Object.entries(modelUsage)) {
-      const usd = (entry as { costUSD?: unknown } | null)?.costUSD;
-      if (typeof usd !== 'number' || !Number.isFinite(usd)) continue;
+  private learnModelCosts(execution: Execution, modelUsage: ModelUsage[]): void {
+    for (const { model, costUsd: usd } of modelUsage) {
+      if (usd === undefined) continue;
       execution.modelCosts = { ...execution.modelCosts, [model]: Math.max(execution.modelCosts?.[model] ?? 0, usd) };
     }
   }
 
   /** The context window the CLI reports for each model that answered: the only real source of one. */
-  private learnWindows(modelUsage: unknown): void {
-    if (!modelUsage || typeof modelUsage !== 'object') return;
-    for (const [model, entry] of Object.entries(modelUsage)) {
-      const window = (entry as { contextWindow?: unknown } | null)?.contextWindow;
-      if (typeof window !== 'number' || !Number.isFinite(window) || window <= 0) continue;
+  private learnWindows(modelUsage: ModelUsage[]): void {
+    for (const { model, contextWindow: window } of modelUsage) {
+      if (window === undefined || window <= 0) continue;
       try {
         this.db.saveModelWindow(model, window);
       } catch {
@@ -768,18 +278,21 @@ export class ChatManager extends EventEmitter {
    */
   async restore(sessions: SessionStore): Promise<void> {
     this.importLegacy();
-    const stored = this.db.loadChats().filter(({ record }) => !this.chats.has(record.id));
+    // A chat of a provider that has no driver here cannot be driven, so it is left in the store as it is
+    const stored = this.db.loadChats().filter(({ record }) => !this.chats.has(record.id) && this.providers.driverFor(record.provider ?? ''));
     // Before the first await, so whoever starts the wrapper can report them as soon as Core exists
-    const processes = streamJsonProcesses();
+    const live = this.liveSessions();
     for (const { record } of stored) {
-      const pids = processes.filter((p) => drivesSession(p.argv, record.id)).map((p) => p.pid);
+      const pids = live.filter((p) => p.sessionId === record.id).map((p) => p.pid);
       if (pids.length) this.leftovers.set(record.id, pids);
     }
     for (const entry of stored) {
-      const chat = LiveChat.restore(entry, this.config);
+      const driver = this.providers.driverFor(entry.record.provider ?? '');
+      if (!driver) continue;
+      const chat = LiveChat.restore(entry, this.config, driver);
       this.chats.set(chat.id, chat);
       const page = await sessions.getSession(chat.id, { includeSidechains: true }).catch(() => null);
-      for (const item of page?.entries ?? []) chat.push({ kind: 'message', type: item.role, entry: item });
+      for (const item of page?.entries ?? []) chat.push({ kind: 'message', entry: item });
       // The transcript is written as the CLI works, so its last line is when the process really
       // stopped; the stored record can be older than that
       const heard = page?.summary.updatedAt;
@@ -792,7 +305,6 @@ export class ChatManager extends EventEmitter {
       if (pids) {
         chat.push({
           kind: 'notice',
-          type: 'notice',
           text:
             `A CLI process a previous wrapper started for this session is still running (pid ${pids.join(', ')}). ` +
             'It is not tracked here, so the chat cannot be resumed beside it: wait for it to finish, or stop the chat to end it.',
@@ -810,10 +322,15 @@ export class ChatManager extends EventEmitter {
   /** Processes found at start working on a restored chat's session that are still up. */
   strays(): Array<{ chatId: string; pid: number }> {
     if (this.leftovers.size === 0) return [];
-    const processes = streamJsonProcesses();
+    const live = this.liveSessions();
     return [...this.leftovers].flatMap(([chatId, pids]) =>
-      pids.filter((pid) => processes.some((p) => p.pid === pid && drivesSession(p.argv, chatId))).map((pid) => ({ chatId, pid })),
+      pids.filter((pid) => live.some((p) => p.pid === pid && p.sessionId === chatId)).map((pid) => ({ chatId, pid })),
     );
+  }
+
+  /** The processes of every driver that hold a session, read once so matching many chats costs one pass. */
+  private liveSessions(): Array<{ pid: number; sessionId: string }> {
+    return this.providers.list().flatMap((m) => this.providers.driverFor(m.id)?.liveSessions() ?? []);
   }
 
   /**
@@ -823,10 +340,7 @@ export class ChatManager extends EventEmitter {
    * A session that does not exist yet (a new chat, a fork) has no one on it.
    */
   private sessionHolders(chat: LiveChat): number[] {
-    if (!chat.created) return [];
-    return streamJsonProcesses()
-      .filter((p) => drivesSession(p.argv, chat.id))
-      .map((p) => p.pid);
+    return chat.created ? chat.driver.sessionHolders(chat.id) : [];
   }
 
   /** Announces what changes in the chat from here on; `created` also announces the chat itself. */
@@ -979,9 +493,10 @@ export class ChatManager extends EventEmitter {
    */
   start(opts: NewChat, meta: RunMeta = {}): ChatRuntime {
     if (!opts.prompt?.trim() && !opts.attachments?.length) throw new ChatRefusal('prompt is required');
-    this.admit(opts);
+    const driver = this.driverFor(opts.provider);
+    this.admit(opts, driver);
     const attachments = this.resolveAttachments(opts.attachments);
-    return this.begin(new LiveChat(randomUUID(), opts, meta, opts.internal ? 'internal' : meta.orchestrationId ? 'orchestration' : 'agentry', null, this.chatDefaults()), opts.prompt, attachments);
+    return this.begin(new LiveChat(randomUUID(), opts, meta, opts.internal ? 'internal' : meta.orchestrationId ? 'orchestration' : 'agentry', null, this.chatDefaults(), driver), opts.prompt, attachments);
   }
 
   /**
@@ -995,11 +510,12 @@ export class ChatManager extends EventEmitter {
     if (!request.prompt?.trim() && !request.attachments?.length) throw new ChatRefusal('prompt is required');
     let chat = this.chats.get(id);
     if (chat?.alive) throw new ChatRefusal('the chat already has a live execution; send it a message instead');
-    this.admit(request);
+    const driver = chat?.driver ?? this.driverFor(request.provider);
+    this.admit(request, driver);
     const attachments = this.resolveAttachments(request.attachments);
     if (!chat) {
       if (!adopt) throw new ChatRefusal('chat not found', 404);
-      chat = new LiveChat(id, { prompt: request.prompt, cwd: adopt.cwd, name: adopt.name, ...(adopt.model ? { model: adopt.model } : {}) }, {}, 'external', null, this.chatDefaults(), true);
+      chat = new LiveChat(id, { prompt: request.prompt, cwd: adopt.cwd, name: adopt.name, ...(adopt.model ? { model: adopt.model } : {}) }, {}, 'external', null, this.chatDefaults(), driver, true);
       chat.workingDir = adopt.cwd;
     }
     this.applyStartOptions(chat, request);
@@ -1026,9 +542,10 @@ export class ChatManager extends EventEmitter {
    */
   fork(sourceId: string, request: ResumeChatRequest & ResolvedTools & Pick<ExecutionExtras, 'handBack'>, source: AdoptedChat): ChatRuntime {
     if (!request.prompt?.trim() && !request.attachments?.length) throw new ChatRefusal('prompt is required');
-    this.admit(request);
-    const attachments = this.resolveAttachments(request.attachments);
     const known = this.chats.get(sourceId);
+    const driver = known?.driver ?? this.driverFor(request.provider);
+    this.admit(request, driver);
+    const attachments = this.resolveAttachments(request.attachments);
     const chat = new LiveChat(
       randomUUID(),
       { prompt: request.prompt, cwd: source.cwd, name: `${source.name} (fork)`.slice(0, 60), ...(source.model ? { model: source.model } : {}) },
@@ -1036,6 +553,7 @@ export class ChatManager extends EventEmitter {
       'agentry',
       { chatId: sourceId, at: now() },
       this.chatDefaults(),
+      driver,
     );
     chat.forkFrom = sourceId;
     chat.workingDir = source.cwd;
@@ -1045,8 +563,8 @@ export class ChatManager extends EventEmitter {
   }
 
   /** Refuses what cannot start, before anything is created. */
-  private admit(opts: ChatStartOptions): void {
-    if (opts.account && !this.accounts?.managed) {
+  private admit(opts: ChatStartOptions, driver: ProviderDriver): void {
+    if (opts.account && !driver.accounts?.managed) {
       throw new ChatRefusal('no claude-swap account is registered: a chat cannot be pinned to one');
     }
     const limit = this.defaults.maxConcurrentRuns;
@@ -1217,11 +735,11 @@ export class ChatManager extends EventEmitter {
   async interrupt(id: string): Promise<ChatRuntime> {
     const chat = this.chats.get(id);
     if (!chat) throw new Error('chat not found');
-    if (!chat.alive) throw new Error('the chat has no live process to interrupt');
+    if (!chat.alive || !chat.session) throw new Error('the chat has no live process to interrupt');
     if (chat.status !== 'busy' && chat.status !== 'starting') return chat.summary();
     chat.interruptRequested = true;
     try {
-      await this.control(chat, { subtype: 'interrupt' });
+      await chat.session.interrupt();
     } catch (err) {
       chat.interruptRequested = false;
       throw err;
@@ -1238,90 +756,18 @@ export class ChatManager extends EventEmitter {
     if (!chat) throw new Error('chat not found');
     const { permissionMode, model } = update;
     if (permissionMode !== undefined) {
-      if (chat.alive) await this.control(chat, { subtype: 'set_permission_mode', mode: permissionMode });
+      if (chat.alive) await chat.session?.setOption({ permissionMode });
       chat.setSettings({ permissionMode });
     }
     if (model !== undefined) {
       const next = model.trim();
       if (!next) throw new Error('model must not be empty');
-      if (chat.alive) await this.control(chat, { subtype: 'set_model', model: next });
+      if (chat.alive) await chat.session?.setOption({ model: next });
       chat.opts.model = next;
       chat.setSettings({ model: next });
     }
     this.persist();
     return chat.summary();
-  }
-
-  /** Sends a control request down the chat's stdin and resolves with the CLI's response. */
-  private control(chat: LiveChat, request: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const proc = chat.proc;
-    const requestId = `agentry-${String(++chat.controlSeq)}`;
-    return new Promise((resolvePromise, reject) => {
-      const timer = setTimeout(() => {
-        chat.controls.delete(requestId);
-        reject(new Error(`the CLI did not answer ${String(request.subtype)} in time`));
-      }, CONTROL_TIMEOUT_MS);
-      timer.unref();
-      chat.controls.set(requestId, {
-        resolve: (response) => {
-          clearTimeout(timer);
-          resolvePromise(response);
-        },
-        reject: (err) => {
-          clearTimeout(timer);
-          reject(err);
-        },
-      });
-      this.write(proc, { type: 'control_request', request_id: requestId, request });
-    });
-  }
-
-  private write(proc: ChildProcessWithoutNullStreams | null, message: unknown): void {
-    proc?.stdin.write(`${JSON.stringify(message)}\n`);
-  }
-
-  /** The CLI asks the host something: a tool permission, a question, a plan to approve. */
-  private handleControlRequest(chat: LiveChat, proc: ChildProcessWithoutNullStreams, requestId: string, request: Record<string, unknown>): void {
-    // The answer goes to the process that asked, which is not always the chat's by the time it comes
-    const reply = (response: Record<string, unknown>) =>
-      this.write(proc, { type: 'control_response', response: { subtype: 'success', request_id: requestId, response } });
-    if (request.subtype !== 'can_use_tool') {
-      // Hooks and SDK MCP servers are never registered, so nothing else should arrive; an answer
-      // still has to, or the CLI waits for it
-      this.write(proc, {
-        type: 'control_response',
-        response: { subtype: 'error', request_id: requestId, error: `Agentry does not handle ${String(request.subtype)}` },
-      });
-      return;
-    }
-    const input = (request.input ?? {}) as Record<string, unknown>;
-    const broker = this.permissions;
-    if (!broker || chat.opts.permissionPrompts !== 'host') {
-      reply({ behavior: 'deny', message: 'Nobody is answering permission prompts for this chat' });
-      return;
-    }
-    chat.pendingPrompts++;
-    chat.activity.setPendingPrompts(chat.pendingPrompts, now());
-    void broker
-      .ask({
-        id: requestId,
-        runId: chat.id,
-        toolName: String(request.tool_name ?? 'unknown'),
-        toolUseId: typeof request.tool_use_id === 'string' ? request.tool_use_id : '',
-        input,
-        requestedAt: now(),
-        ...(typeof request.description === 'string' ? { description: request.description } : {}),
-        ...(Array.isArray(request.permission_suggestions) ? { suggestions: request.permission_suggestions as PermissionUpdate[] } : {}),
-        ...(request.requires_user_interaction === true ? { requiresUserInteraction: true } : {}),
-      })
-      .then((decision) => {
-        chat.pendingPrompts = Math.max(0, chat.pendingPrompts - 1);
-        chat.activity.setPendingPrompts(chat.pendingPrompts, now());
-        this.noteActivity(chat);
-        // Withdrawn by the CLI, or the process is gone: nobody is waiting for an answer
-        if (!decision || !processUp(proc)) return;
-        reply(toControlDecision(decision, input));
-      });
   }
 
   remove(id: string): boolean {
@@ -1416,84 +862,37 @@ export class ChatManager extends EventEmitter {
     });
   }
 
-  private buildArgs(chat: LiveChat): string[] {
+  /** What a process of the chat is started from: the driver turns it into a command line. */
+  private launchSpec(chat: LiveChat): SessionLaunch {
     const { opts } = chat;
-    const args = [
-      '-p',
-      '--input-format', 'stream-json',
-      '--output-format', 'stream-json',
-      '--verbose',
-      '--include-partial-messages',
-      '--permission-mode', chat.permissionMode,
-    ];
-    // Makes bypassPermissions a mode the chat can be switched to later, without starting in it: the
-    // CLI refuses the switch otherwise. Starting a chat in that mode is already open to the same caller.
-    // A confined chat is never to be switched there, and `--restricted` refuses the flag outright.
-    if (!opts.confine) args.push('--allow-dangerously-skip-permissions');
-    if (chat.forkFrom) {
-      // The copy is created under the id Agentry chose; until the CLI confirms it, a respawn forks again
-      args.push('--resume', chat.forkFrom, '--fork-session', '--session-id', chat.id, '--name', chat.name);
-    } else if (chat.created) {
-      args.push('--resume', chat.id);
-    } else {
-      args.push('--session-id', chat.id, '--name', chat.name);
-    }
-    if (opts.agentsFile) args.push('--agents', opts.agentsFile);
-    if (opts.agent) args.push('--agent', opts.agent);
-    if (opts.model) args.push('--model', opts.model);
-    if (opts.effort) args.push('--effort', opts.effort);
-    if (opts.appendSystemPrompt) args.push('--append-system-prompt', opts.appendSystemPrompt);
-    if (opts.allowedTools?.length) args.push(`--allowedTools=${opts.allowedTools.join(',')}`);
-    if (opts.disallowedTools?.length) args.push(`--disallowedTools=${opts.disallowedTools.join(',')}`);
-    // Strict, because the point of choosing servers is that no other one loads. The `=` form keeps
-    // the variadic flag from taking whatever follows it as another file.
-    if (opts.mcp?.config) args.push(`--mcp-config=${opts.mcp.config}`, '--strict-mcp-config');
-    if (opts.confine) {
-      // `--restricted` confines the file tools to the working directory, which is why no other
-      // directory is added. The `=` forms keep an empty list a value of its flag.
-      args.push('--restricted', `--tools=${opts.confine.tools.join(',')}`, `--setting-sources=${opts.confine.settingSources.join(',')}`);
-    }
-    // Attached files live outside every project; this is what lets Claude open them by path
-    else if (this.uploads && opts.uploads !== false) args.push('--add-dir', this.uploads.dir);
-    // The CLI creates, names and locks the worktree itself, and works in it for the session
-    if (opts.worktree) args.push('--worktree', opts.worktree);
-    // The CLI stops the chat itself once the ceiling is reached, which no amount of watching from
-    // out here could do reliably
-    if (typeof opts.maxBudgetUsd === 'number' && opts.maxBudgetUsd > 0) {
-      args.push('--max-budget-usd', String(opts.maxBudgetUsd));
-    }
-    // Prompts go to a host only when something is listening: a chat waiting on an answer that never
-    // comes is worse than one told plainly that it was denied. `stdio` makes the CLI ask on its own
-    // stdout as control requests, the same channel the Agent SDK uses, and read the answer on stdin.
-    if (opts.permissionPrompts === 'host' && this.permissions) {
-      args.push('--permission-prompts', 'host', '--permission-prompt-tool', 'stdio');
-    } else {
-      args.push('--permission-prompts', 'none');
-    }
-    if (opts.jsonSchema) args.push('--json-schema', JSON.stringify(opts.jsonSchema));
-    if (opts.systemPromptSnapshot === 'off') args.push('--system-prompt-snapshot', 'off');
-    if (opts.internal) args.push('--no-session-persistence');
-    return args;
-  }
-
-  /**
-   * `cswap run <account> --share-history -- <claude args>` execs Claude Code against that
-   * account's session profile; `--share-history` symlinks `projects/` back to the real config
-   * dir, so the transcript still lands where the session store reads it. Pinning to the account
-   * that is already active would create a second credential copy that can drift, so it is
-   * spawned as a plain `claude` instead.
-   */
-  private command(launch: Launch, args: string[]): [string, string[]] {
-    const { account } = launch;
-    // An account with a config directory of its own runs `claude` against it: `cswap run` would
-    // replace CLAUDE_CONFIG_DIR with its session profile, and the directory would be ignored
-    if (!account || launch.configDir || !this.accounts?.managed || this.accounts.isActive(account)) return [this.config.claudeBin, args];
-    return [this.accounts.bin, ['run', account, '--share-history', '--', ...args]];
-  }
-
-  /** The launch of a chat, or the plain one when claude-swap does not manage the accounts. */
-  private launchOf(chat: LiveChat): Launch {
-    return this.accounts?.managed ? this.accounts.launchFor({ account: chat.opts.account ?? null, cwd: chat.cwd }) : { account: null, configDir: null };
+    return {
+      id: chat.id,
+      created: chat.created,
+      forkFrom: chat.forkFrom,
+      name: chat.name,
+      cwd: chat.cwd,
+      permissionMode: chat.permissionMode,
+      ...(opts.model ? { model: opts.model } : {}),
+      ...(opts.effort ? { effort: opts.effort } : {}),
+      ...(opts.appendSystemPrompt ? { appendSystemPrompt: opts.appendSystemPrompt } : {}),
+      ...(opts.allowedTools ? { allowedTools: opts.allowedTools } : {}),
+      ...(opts.disallowedTools ? { disallowedTools: opts.disallowedTools } : {}),
+      ...(opts.mcp?.config ? { mcpConfig: opts.mcp.config } : {}),
+      ...(opts.confine ? { confine: opts.confine } : {}),
+      // Attached files live outside every project: a session that may read them is told where they are
+      ...(this.uploads && opts.uploads !== false ? { uploadsDir: this.uploads.dir } : {}),
+      ...(opts.worktree ? { worktree: opts.worktree } : {}),
+      ...(typeof opts.maxBudgetUsd === 'number' ? { maxBudgetUsd: opts.maxBudgetUsd } : {}),
+      // Prompts go to a host only when something is listening: a chat waiting on an answer that never
+      // comes is worse than one told plainly that it was denied
+      permissionPrompts: opts.permissionPrompts === 'host' && this.permissions ? 'host' : 'none',
+      ...(opts.jsonSchema !== undefined ? { jsonSchema: opts.jsonSchema } : {}),
+      ...(opts.systemPromptSnapshot ? { systemPromptSnapshot: opts.systemPromptSnapshot } : {}),
+      ...(opts.internal ? { internal: true } : {}),
+      ...(opts.agent ? { agent: opts.agent } : {}),
+      ...(opts.agentsFile ? { agentsFile: opts.agentsFile } : {}),
+      account: opts.account ?? null,
+    };
   }
 
   /**
@@ -1509,7 +908,7 @@ export class ChatManager extends EventEmitter {
           'a second process would carry on the same conversation beside it. Wait for it to finish, or stop it first.',
       );
     }
-    const args = this.buildArgs(chat);
+    const plan = chat.driver.launch(this.launchSpec(chat));
     chat.stopRequested = false;
     chat.endedAt = null;
     chat.error = null;
@@ -1524,12 +923,8 @@ export class ChatManager extends EventEmitter {
     chat.activity.clear();
     chat.setStatus('starting');
 
-    const launch = this.launchOf(chat);
-    const [bin, argv] = this.command(launch, args);
-    // A chat on an account must never inherit a token from the environment: it would override the account
-    const base = launch.account || launch.configDir || chat.opts.account ? authFreeEnv() : process.env;
-    const env: NodeJS.ProcessEnv = { ...base, AGENTRY_CHAT_ID: chat.id };
-    if (launch.configDir) env.CLAUDE_CONFIG_DIR = launch.configDir;
+    const env: NodeJS.ProcessEnv = { ...plan.env, AGENTRY_CHAT_ID: chat.id };
+    for (const name of plan.unsetEnv) delete env[name];
     // One inherited from the wrapper that started this one points at the wrong wrapper, and its
     // token is another wrapper's credential: neither is ever passed through
     delete env.AGENTRY_API_TOKEN;
@@ -1542,7 +937,7 @@ export class ChatManager extends EventEmitter {
     } else delete env.AGENTRY_API_URL;
     let proc: ChildProcessWithoutNullStreams;
     try {
-      proc = spawn(bin, argv, { cwd: chat.cwd, env, stdio: 'pipe' });
+      proc = spawn(plan.bin, plan.args, { cwd: chat.cwd, env, stdio: 'pipe' });
     } catch (error) {
       if (token) this.chatTokens.revoke(token);
       throw error;
@@ -1558,15 +953,20 @@ export class ChatManager extends EventEmitter {
     // used to mark the chat failed while its current one was still working
     const current = () => chat.proc === proc;
 
+    const session = chat.driver.attach(
+      { write: (text) => proc.stdin.write(text), end: () => proc.stdin.end(), up: () => processUp(proc) },
+      (event) => foldEvent(this.host, chat, event),
+      chat.branches,
+    );
+    chat.session = session;
     createInterface({ input: proc.stdout }).on('line', (line) => {
       if (!current()) return;
-      this.handleLine(chat, proc, line);
+      session.readLine(line);
       this.noteActivity(chat);
     });
     createInterface({ input: proc.stderr }).on('line', (line) => {
       if (!line.trim() || !current()) return;
-      if (RATE_LIMIT_RE.test(line)) chat.rateLimited = true;
-      chat.push({ kind: 'stderr', type: 'stderr', text: line });
+      session.readError(line);
     });
     proc.stdin.on('error', () => {});
     proc.on('error', (err) => {
@@ -1596,12 +996,9 @@ export class ChatManager extends EventEmitter {
     chat.lastUserTurn = { text, attachments: attachments.map((a) => a.id) };
     if (chat.idleTimer) clearTimeout(chat.idleTimer);
     const uploads = this.uploads;
-    const content = attachments.length && uploads ? composeContent(text, attachments, (id) => uploads.read(id).bytes) : text;
-    const payload = { type: 'user', message: { role: 'user', content } };
-    chat.proc?.stdin.write(`${JSON.stringify(payload)}\n`);
+    const shown = chat.session?.send({ text, attachments, ...(uploads ? { read: (id: string) => uploads.read(id).bytes } : {}) }) ?? text;
     chat.push({
       kind: 'message',
-      type: 'user',
       entry: {
         uuid: randomUUID(),
         role: 'user',
@@ -1613,7 +1010,7 @@ export class ChatManager extends EventEmitter {
           ...attachments
             .filter((a) => a.kind !== 'file')
             .map((a) => ({ type: a.kind === 'image' ? ('image' as const) : ('document' as const), mediaType: a.mediaType, name: a.name, uploadId: a.id })),
-          { type: 'text', text: Array.isArray(content) ? String((content.at(-1) as { text: string }).text) : text },
+          { type: 'text', text: shown },
         ],
       },
     });
@@ -1626,17 +1023,8 @@ export class ChatManager extends EventEmitter {
     chat.endedAt = now();
     // A prompt still waiting belongs to a process that is gone: nobody can act on the answer.
     this.permissions?.denyAllFor(chat.id);
-    for (const control of chat.controls.values()) control.reject(new Error('the chat ended before the CLI answered'));
-    chat.controls.clear();
-    for (const task of chat.tasks.values()) {
-      if (task.status === 'running') Object.assign(task, { status: 'stopped', endedAt: chat.endedAt });
-    }
-    for (const sub of chat.subagents.values()) {
-      if (sub.status === 'running') Object.assign(sub, { status: 'failed', endedAt: chat.endedAt });
-    }
-    for (const workflow of chat.workflows.values()) {
-      if (workflow.status === 'running') Object.assign(workflow, { status: 'stopped', endedAt: chat.endedAt });
-    }
+    chat.session?.dispose('the chat ended before the CLI answered');
+    chat.branches.endAll(chat.endedAt);
     const execution = chat.execution;
     if (execution) {
       Object.assign(execution, { endedAt: chat.endedAt, outcome: executionOutcome(status), error: chat.error });
@@ -1661,7 +1049,7 @@ export class ChatManager extends EventEmitter {
 
   /** A wrapper-generated line in the transcript (account rotations, retries). */
   notice(id: string, text: string, data?: Record<string, unknown>): void {
-    this.chats.get(id)?.push({ kind: 'notice', type: 'notice', text, ...(data ? { data } : {}) });
+    this.chats.get(id)?.push({ kind: 'notice', text, ...(data ? { data } : {}) });
   }
 
   /** Lets a chat pinned to an account follow the active credential (or its policy) from its next spawn. */
@@ -1710,419 +1098,4 @@ export class ChatManager extends EventEmitter {
     return true;
   }
 
-  private handleLine(chat: LiveChat, proc: ChildProcessWithoutNullStreams, line: string): void {
-    let raw: Record<string, unknown>;
-    try {
-      raw = JSON.parse(line) as Record<string, unknown>;
-    } catch {
-      if (line.trim()) chat.push({ kind: 'other', type: 'stdout', text: line });
-      return;
-    }
-    const type = String(raw.type ?? 'unknown');
-    const subtype = typeof raw.subtype === 'string' ? raw.subtype : undefined;
-    if (subtype && IGNORED_SUBTYPES.has(subtype)) return;
-
-    if (type === 'control_request') {
-      if (typeof raw.request_id === 'string') this.handleControlRequest(chat, proc, raw.request_id, (raw.request ?? {}) as Record<string, unknown>);
-      return;
-    }
-    if (type === 'control_cancel_request') {
-      if (typeof raw.request_id === 'string') this.permissions?.withdraw(raw.request_id);
-      return;
-    }
-    if (type === 'control_response') {
-      const response = (raw.response ?? {}) as Record<string, unknown>;
-      const control = typeof response.request_id === 'string' ? chat.controls.get(response.request_id) : undefined;
-      if (!control || typeof response.request_id !== 'string') return;
-      chat.controls.delete(response.request_id);
-      if (response.subtype === 'error') control.reject(new Error(String(response.error ?? 'the CLI refused the request')));
-      else control.resolve((response.response ?? {}) as Record<string, unknown>);
-      return;
-    }
-
-    // The mode changes under the chat's feet: set from the panel, or by the model leaving plan mode
-    if (type === 'system' && subtype === 'status' && typeof raw.permissionMode === 'string') {
-      chat.setSettings({ permissionMode: reportedMode(raw.permissionMode) });
-      chat.updatedAt = now();
-      return;
-    }
-
-    if (type === 'stream_event') {
-      // Token-level deltas of the main agent; the full block follows as a regular `assistant` event
-      if (raw.parent_tool_use_id != null) return;
-      const event = (raw.event ?? {}) as Record<string, unknown>;
-      if (event.type === 'message_delta') {
-        // The assistant events the CLI emits per block carry no stop reason yet: it arrives here
-        const reason = ((event.delta ?? {}) as Record<string, unknown>).stop_reason;
-        if (typeof reason === 'string') chat.stopReason = reason;
-      } else if (event.type === 'content_block_start') {
-        const block = (event.content_block ?? {}) as Record<string, unknown>;
-        const blockType = block.type;
-        // The ticker reacts to the block, not to the message that closes it: a tool call is named
-        // here, seconds before its arguments have finished streaming
-        chat.activity.blockStarted(block, now());
-        chat.partial = blockType === 'text' || blockType === 'thinking' ? { block: blockType, text: '' } : null;
-        // The CLI hands the result a schema asks for as the input of this tool, which streams like any
-        // other: whoever waits for the result may show it as it is written
-        chat.structured = blockType === 'tool_use' && block.name === STRUCTURED_OUTPUT_TOOL ? '' : null;
-      } else if (event.type === 'content_block_delta' && chat.structured !== null) {
-        const delta = (event.delta ?? {}) as Record<string, unknown>;
-        if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string' && delta.partial_json) {
-          chat.structured += delta.partial_json;
-          this.emit('chat-structured', chat.id, chat.structured);
-        }
-      } else if (event.type === 'content_block_delta' && chat.partial) {
-        const delta = (event.delta ?? {}) as Record<string, unknown>;
-        const chunk = delta.type === 'text_delta' ? delta.text : delta.type === 'thinking_delta' ? delta.thinking : null;
-        if (typeof chunk === 'string' && chunk) {
-          chat.partial.text += chunk;
-          chat.emitPartial();
-        }
-      } else if (event.type === 'content_block_stop') {
-        chat.activity.blockStopped();
-        chat.partial = null;
-        chat.structured = null;
-      }
-      return;
-    }
-
-    // The CLI's heartbeat for a command that is still running, every 30 s. It is kept for the health
-    // of the chat and not pushed as an event: it says a command is alive and how long it has run,
-    // which no transcript view needs and which would fill the buffer with one line per beat
-    if (type === 'tool_progress') {
-      const id = typeof raw.tool_use_id === 'string' ? raw.tool_use_id : typeof raw.parent_tool_use_id === 'string' ? raw.parent_tool_use_id : null;
-      if (id && typeof raw.elapsed_time_seconds === 'number') chat.heartbeats.set(id, { elapsedSeconds: raw.elapsed_time_seconds, at: now() });
-      chat.activityAt = now();
-      return;
-    }
-
-    if (type === 'assistant' || type === 'user') {
-      const entry = normalizeMessage(raw);
-      if (!entry) return;
-      this.trackSubagents(chat, entry);
-      this.trackCommands(chat, entry);
-      this.trackActivity(chat, entry);
-      // The CLI can start a turn on its own (e.g. after a background task notification)
-      if (entry.role === 'assistant' && chat.status === 'idle') {
-        if (chat.idleTimer) clearTimeout(chat.idleTimer);
-        chat.setStatus('busy');
-      }
-      if (entry.role === 'assistant' && !entry.isSidechain) {
-        const reason = raw.parent_tool_use_id == null ? ((raw.message ?? {}) as Record<string, unknown>).stop_reason : undefined;
-        if (typeof reason === 'string') chat.stopReason = reason;
-        const text = entryText(entry);
-        if (text) chat.lastText = text.slice(0, 2000);
-        // A slash command's reply comes from `<synthetic>`, which a resume would pass back as `--model`
-        if (isModelName(entry.model)) chat.setSettings({ model: entry.model });
-      }
-      chat.push({ kind: 'message', type, entry });
-      return;
-    }
-
-    if (type === 'system' && subtype === 'init') {
-      // The session exists now: a respawn resumes it, and a fork is no longer waiting to be made
-      chat.created = true;
-      chat.forkFrom = null;
-      // The id was Agentry's to choose, and the CLI takes it; if it ever answered otherwise, the
-      // chat would be one row on disk and another here, so say so where the person can see it
-      if (typeof raw.session_id === 'string' && raw.session_id !== chat.id) {
-        chat.push({ kind: 'notice', type: 'notice', text: `The CLI reported session ${raw.session_id} for the chat ${chat.id}; its transcript is not where this chat expects it.` });
-      }
-      // What the alias this process was started with stands for now: the CLI's cache of models
-      // labels none of the aliases, and this is the one place it says which model one is
-      try {
-        this.modelIds.record(chat.opts.model, raw.model);
-      } catch {
-        // the picker only goes on showing the alias alone
-      }
-      chat.setSettings({
-        ...(typeof raw.permissionMode === 'string' ? { permissionMode: reportedMode(raw.permissionMode) } : {}),
-        ...(typeof raw.model === 'string' ? { model: raw.model } : {}),
-      });
-      if (typeof raw.cwd === 'string') {
-        chat.workingDir = raw.cwd;
-        chat.activity.setCwd(raw.cwd);
-      }
-      const environment = toEnvironment(chat.cwd, chat.id, raw);
-      this.environments.set(chat.cwd, environment);
-      try {
-        this.db.saveEnvironment(environment);
-      } catch {
-        // the panel only loses this directory until its next run
-      }
-      chat.push({
-        kind: 'init',
-        type,
-        subtype,
-        data: { model: raw.model, cwd: raw.cwd, permissionMode: raw.permissionMode, mcp_servers: raw.mcp_servers, tools: raw.tools },
-      });
-      return;
-    }
-
-    if (type === 'system' && subtype && (subtype.startsWith('task_') || subtype === 'background_tasks_changed')) {
-      this.trackTask(chat, subtype, raw);
-      chat.push({ kind: 'task', type, subtype, data: raw });
-      return;
-    }
-
-    if (type === 'rate_limit_event') {
-      const info = raw.rate_limit_info as Record<string, unknown> | undefined;
-      if (String(info?.status ?? '') === 'rejected') chat.rateLimited = true;
-      if (info) {
-        this.lastRateLimit = {
-          status: String(info.status ?? ''),
-          rateLimitType: typeof info.rateLimitType === 'string' ? info.rateLimitType : undefined,
-          resetsAt: typeof info.resetsAt === 'number' ? info.resetsAt : undefined,
-          windows: (info.unifiedWindows as RateLimitInfo['windows'] | undefined) ?? {},
-          observedAt: now(),
-        };
-      }
-      return;
-    }
-
-    if (type === 'result') {
-      const execution = chat.execution;
-      if (execution) {
-        execution.turns += typeof raw.num_turns === 'number' ? raw.num_turns : 1;
-        // The CLI's total is over its process, so per execution it only ever grows
-        if (typeof raw.total_cost_usd === 'number') execution.costUsd = Math.max(execution.costUsd ?? 0, raw.total_cost_usd);
-        this.learnModelCosts(execution, raw.modelUsage);
-      }
-      this.learnWindows(raw.modelUsage);
-      const isError = raw.is_error === true;
-      const result = typeof raw.result === 'string' ? raw.result : '';
-      if (isError && (raw.api_error_status === 429 || RATE_LIMIT_RE.test(result))) chat.rateLimited = true;
-      const cause = !isError ? undefined : chat.interruptRequested || chat.stopRequested ? 'stopped' : subtype === BUDGET_SUBTYPE ? 'budget' : chat.rateLimited ? 'rate-limit' : undefined;
-      const stopReason = typeof raw.stop_reason === 'string' ? raw.stop_reason : chat.stopReason;
-      // The next turn's reason is its own
-      chat.stopReason = null;
-      chat.lastResult = { isError, result, structuredOutput: raw.structured_output, costUsd: chat.costUsd, ...(cause ? { cause } : {}), ...(stopReason ? { stopReason } : {}) };
-      // An interrupted turn ends as an error by the CLI's account, but nothing went wrong
-      if (isError && !chat.interruptRequested) chat.error = result || String(subtype ?? 'error');
-      chat.interruptRequested = false;
-      chat.activity.turnEnded();
-      this.persist();
-      chat.push({
-        kind: 'result',
-        type,
-        subtype,
-        text: result,
-        data: {
-          is_error: isError,
-          num_turns: raw.num_turns,
-          duration_ms: raw.duration_ms,
-          total_cost_usd: raw.total_cost_usd,
-          structured_output: raw.structured_output,
-          permission_denials: raw.permission_denials,
-        },
-      });
-      // Every result, where waitForResult only hands out the first: a chat continued by hand keeps
-      // producing them, and whoever the chat works for has to hear about each
-      this.emit('chat-result', chat.id, chat.lastResult);
-      if (chat.opts.keepAlive === false) {
-        chat.proc?.stdin.end();
-      } else {
-        chat.setStatus('idle');
-        chat.idleTimer = setTimeout(() => chat.proc?.stdin.end(), IDLE_TIMEOUT_MS);
-        chat.idleTimer.unref();
-      }
-      this.maybeRotate(chat);
-      return;
-    }
-
-    chat.push({ kind: 'other', type, subtype, data: raw });
-  }
-
-  /**
-   * Notes how long each shell command took, by kind, once its result arrives: the history that
-   * "far longer than usual" is measured against. A command a person cancelled is recorded as such,
-   * and one that failed is too: neither says how long the command takes when it works.
-   */
-  private trackCommands(chat: LiveChat, entry: NonNullable<ReturnType<typeof normalizeMessage>>): void {
-    for (const block of entry.blocks) {
-      if (block.type === 'tool_use' && block.name === 'Bash') {
-        const input = (block.input ?? {}) as Record<string, unknown>;
-        const kind = typeof input.command === 'string' ? commandKind(input.command) : '';
-        if (kind && input.run_in_background !== true) chat.openCommands.set(block.id, { command: String(input.command), kind, startedAt: now() });
-      } else if (block.type === 'tool_result') {
-        chat.heartbeats.delete(block.toolUseId);
-        const open = chat.openCommands.get(block.toolUseId);
-        if (!open) continue;
-        chat.openCommands.delete(block.toolUseId);
-        const outcome = chat.cancelled.delete(block.toolUseId) ? 'cancelled' : block.isError ? 'error' : 'ok';
-        try {
-          this.db.recordCommand({ kind: open.kind, chatId: chat.id, toolUseId: block.toolUseId, startedAt: open.startedAt, durationMs: Date.now() - Date.parse(open.startedAt), outcome });
-        } catch {
-          // the history only loses one run of a command
-        }
-      }
-    }
-  }
-
-  /**
-   * Feeds the ticker the calls of the main agent and their results. A sidechain entry belongs to a
-   * subagent: what the chat is doing is the `Task` call that started it, which stays open until the
-   * subagent reports back.
-   */
-  private trackActivity(chat: LiveChat, entry: NonNullable<ReturnType<typeof normalizeMessage>>): void {
-    if (entry.isSidechain) return;
-    for (const block of entry.blocks) {
-      if (block.type === 'tool_use') {
-        chat.activity.called(block.id, block.name, (block.input ?? {}) as Record<string, unknown>, entry.timestamp || now());
-      } else if (block.type === 'tool_result') {
-        chat.activity.answered(block.toolUseId);
-      }
-    }
-  }
-
-  private trackSubagents(chat: LiveChat, entry: NonNullable<ReturnType<typeof normalizeMessage>>): void {
-    if (entry.isSidechain) return;
-    for (const block of entry.blocks) {
-      if (block.type === 'tool_use' && SUBAGENT_TOOLS.has(block.name)) {
-        const input = (block.input ?? {}) as Record<string, unknown>;
-        chat.subagents.set(block.id, {
-          toolUseId: block.id,
-          subagentType: String(input.subagent_type ?? 'general-purpose'),
-          description: String(input.description ?? input.prompt ?? '').slice(0, 200),
-          status: 'running',
-          startedAt: now(),
-          endedAt: null,
-        });
-      } else if (block.type === 'tool_result') {
-        const sub = chat.subagents.get(block.toolUseId);
-        // A background agent's tool result only says it was launched; its task notification ends it
-        if (sub && sub.status === 'running' && !sub.background) {
-          sub.status = block.isError ? 'failed' : 'completed';
-          sub.endedAt = now();
-        }
-      }
-    }
-  }
-
-  /**
-   * Everything the CLI delegates is a task to it, told apart by `task_type`: shell commands
-   * (`local_bash`, reported even while they run in the foreground), subagents (`local_agent`) and
-   * workflows (`local_workflow`) each go to their own list. Anything else it runs in the background
-   * (monitors, remote agents…) is listed as a background task under its own type.
-   */
-  private trackTask(chat: LiveChat, subtype: string, raw: Record<string, unknown>): void {
-    const taskId = typeof raw.task_id === 'string' ? raw.task_id : null;
-    if (!taskId) return;
-    if (subtype === 'task_started') {
-      const type = String(raw.task_type ?? 'unknown');
-      if (type === 'local_agent') return this.startAgentTask(chat, taskId, raw);
-      if (type === 'local_workflow') {
-        chat.workflows.set(taskId, {
-          id: taskId,
-          taskId,
-          name: typeof raw.workflow_name === 'string' ? raw.workflow_name : null,
-          description: String(raw.description ?? raw.workflow_name ?? taskId),
-          status: 'running',
-          startedAt: now(),
-          endedAt: null,
-          sessionId: chat.id,
-          phases: [],
-          agents: [],
-          summary: null,
-          totalTokens: null,
-          script: typeof raw.prompt === 'string' ? raw.prompt : null,
-        });
-        return;
-      }
-      const sessionId = typeof raw.session_id === 'string' ? raw.session_id : chat.id;
-      const task: BackgroundTask = {
-        id: taskId,
-        type,
-        description: String(raw.description ?? ''),
-        status: 'running',
-        toolUseId: typeof raw.tool_use_id === 'string' ? raw.tool_use_id : null,
-        startedAt: now(),
-        endedAt: null,
-        summary: null,
-        // The output file is found by session id, and a task read from the live stream is the one
-        // the Output button needs it on: the event carries it, and the chat knows it from `init`.
-        ...(sessionId ? { sessionId } : {}),
-        // Only says a subagent launched it, not which one; Core resolves that from the transcripts
-        ...(raw.owned_by_subagent === true ? { fromSubagent: true } : {}),
-      };
-      if (raw.is_backgrounded === false) chat.foregroundTasks.set(taskId, task);
-      else chat.tasks.set(taskId, task);
-      return;
-    }
-
-    const workflow = chat.workflows.get(taskId);
-    if (workflow) return this.updateWorkflow(workflow, subtype, raw);
-    const agent = [...chat.subagents.values()].find((s) => s.agentId === taskId);
-    if (agent) return this.updateAgentTask(agent, subtype, raw);
-
-    const patch = (raw.patch ?? {}) as Record<string, unknown>;
-    const waiting = chat.foregroundTasks.get(taskId);
-    if (waiting) {
-      // Sent to the background mid-turn (by the model or the person): from now on it is one
-      if (subtype === 'task_updated' && patch.is_backgrounded === true) {
-        chat.foregroundTasks.delete(taskId);
-        chat.tasks.set(taskId, waiting);
-      } else {
-        if (subtype === 'task_notification') chat.foregroundTasks.delete(taskId);
-        return;
-      }
-    }
-    const task = chat.tasks.get(taskId);
-    if (!task) return;
-    if (subtype === 'task_updated') {
-      if (typeof patch.status === 'string') task.status = patch.status;
-      if (patch.end_time != null) task.endedAt = now();
-    } else if (subtype === 'task_notification') {
-      if (typeof raw.status === 'string') task.status = raw.status;
-      if (typeof raw.summary === 'string') task.summary = raw.summary;
-      task.endedAt ??= now();
-    }
-  }
-
-  /** The Agent tool call it belongs to was seen first; the task adds its id and whether it runs in the background. */
-  private startAgentTask(chat: LiveChat, taskId: string, raw: Record<string, unknown>): void {
-    const toolUseId = typeof raw.tool_use_id === 'string' ? raw.tool_use_id : '';
-    const background = raw.is_backgrounded === true;
-    const known = chat.subagents.get(toolUseId);
-    if (known) {
-      Object.assign(known, { agentId: taskId, background });
-      if (typeof raw.subagent_type === 'string') known.subagentType = raw.subagent_type;
-      // Its launch result may have closed it already; a background agent is only done when it says so
-      if (background && known.status !== 'running') Object.assign(known, { status: 'running', endedAt: null });
-      return;
-    }
-    // Spawned by a subagent rather than the main agent: no tool call of its own reached the stream
-    chat.subagents.set(toolUseId || taskId, {
-      toolUseId,
-      subagentType: String(raw.subagent_type ?? 'general-purpose'),
-      description: String(raw.description ?? '').slice(0, 200),
-      status: 'running',
-      startedAt: now(),
-      endedAt: null,
-      agentId: taskId,
-      background,
-    });
-  }
-
-  private updateAgentTask(agent: SubagentInfo, subtype: string, raw: Record<string, unknown>): void {
-    const patch = (raw.patch ?? {}) as Record<string, unknown>;
-    const status = subtype === 'task_notification' ? raw.status : subtype === 'task_updated' ? patch.status : undefined;
-    if (status === 'completed') Object.assign(agent, { status: 'completed', endedAt: agent.endedAt ?? now() });
-    else if (status === 'failed' || status === 'killed') Object.assign(agent, { status: status === 'killed' ? 'stopped' : 'failed', endedAt: agent.endedAt ?? now() });
-  }
-
-  private updateWorkflow(workflow: WorkflowRun, subtype: string, raw: Record<string, unknown>): void {
-    const usage = (raw.usage ?? {}) as Record<string, unknown>;
-    if (typeof usage.total_tokens === 'number') workflow.totalTokens = usage.total_tokens;
-    if (subtype === 'task_progress') {
-      // Some progress events only carry usage; the agent list comes with the others
-      if (Array.isArray(raw.workflow_progress)) Object.assign(workflow, readProgress(raw.workflow_progress));
-      return;
-    }
-    const patch = (raw.patch ?? {}) as Record<string, unknown>;
-    const status = subtype === 'task_notification' ? raw.status : patch.status;
-    if (typeof status === 'string') workflow.status = workflowStatus(status);
-    if (workflow.status !== 'running') workflow.endedAt ??= now();
-    if (subtype === 'task_notification' && typeof raw.summary === 'string') workflow.summary = raw.summary;
-  }
 }

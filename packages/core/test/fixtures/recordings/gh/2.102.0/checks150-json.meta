@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr checks 150 -R yeyo11/agentry --json bucket,completedAt,description,event,link,name,startedAt,state,workflow
+exit: 0
+secs: 1.705698656
+env: 

@@ -1,0 +1,5 @@
+gh: 92
+argv: gh label list -R yeyo11/agentry --json
+exit: 1
+secs: .188878017
+env: 

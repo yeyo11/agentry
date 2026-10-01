@@ -1,0 +1,5 @@
+gh: 102
+argv: gh --version
+exit: 0
+secs: .296126665
+env: 

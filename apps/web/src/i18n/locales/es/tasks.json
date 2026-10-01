@@ -357,20 +357,35 @@
   },
   "flowRow": "{{parallel}} a la vez, {{queued}} en cola",
   "pr": {
-    "number": "PR #{{number}}",
-    "unnumbered": "PR",
-    "preparing": "Preparando la PR",
+    "number": "{{noun}} {{ref}}",
+    "unnumbered": "{{noun}}",
+    "preparing": "Preparando la {{noun}}",
     "conflict_one": "Conflicto con {{base}} · {{count}} archivo",
     "conflict_other": "Conflicto con {{base}} · {{count}} archivos",
-    "awaiting": "Aprobada · su PR se abrirá cuando pase la verificación",
+    "awaiting": "Aprobada · su {{noun}} se abrirá cuando pase la verificación",
     "waitingMerge": "esperando fusión",
     "closed": "cerrada sin fusionar",
-    "failed": "No se ha podido abrir la PR",
-    "link": "Abrir la PR #{{number}} en GitHub",
-    "linkUnnumbered": "Abrir la PR en GitHub",
-    "approve": "Aprobar y abrir PR",
-    "open": "Abrir PR",
-    "noPr": "Sin PR: {{reason}}",
+    "failed": "No se ha podido abrir la {{noun}}",
+    "link": "Abrir {{noun}} {{ref}} en {{host}}",
+    "linkUnnumbered": "Abrir la {{noun}} en {{host}}",
+    "approve": "Aprobar y abrir {{noun}}",
+    "open": "Abrir {{noun}}",
+    "noPr": "Sin {{noun}}: {{reason}}",
+    "fix": {
+      "fixing": "arreglando los checks",
+      "verifying": "verificando el arreglo",
+      "push": "arreglo verificado, espera tu subida",
+      "attempt": "intento {{count}}",
+      "origin": {
+        "person": "a petición tuya",
+        "decision": "decidido por checks.fix"
+      },
+      "note": {
+        "fixing": { "person": "después lo verifica QA", "decision": "después lo verifica QA" },
+        "verifying": { "person": "se sube solo si QA lo da por bueno", "decision": "esperará tu subida" },
+        "push": { "person": "súbelo desde la tarea", "decision": "súbelo desde la tarea" }
+      }
+    },
     "ci": {
       "none": "sin CI",
       "pending": "CI pendiente",
@@ -381,7 +396,7 @@
       "fetch": "no se ha podido traer la rama predeterminada",
       "merge": "no se ha podido fusionar la rama predeterminada en su rama",
       "push": "no se ha podido subir su rama",
-      "create": "GitHub no la ha creado",
+      "create": "{{host}} no la ha creado",
       "commit": "no se ha podido hacer commit de lo pendiente",
       "worktree-kept": "su worktree tenía cambios sin commit",
       "unknown": "no dio el motivo"
@@ -389,16 +404,32 @@
     "notReady": {
       "not-git": "el proyecto no es un repositorio git",
       "no-remote": "el proyecto no tiene remoto",
-      "not-github": "origin no está en GitHub",
-      "no-gh": "gh no está instalado",
-      "gh-unauthenticated": "gh no ha iniciado sesión",
-      "no-default-branch": "no se encuentra la rama predeterminada"
+      "unsupported-host": "Agentry no puede llegar a {{host}}: ni gh ni glab han iniciado sesión en él",
+      "cli-missing": "{{cli}} no está instalado o Agentry no lo encuentra",
+      "cli-incompatible": "{{cli}} es anterior a la versión más antigua con la que funciona Agentry",
+      "cli-signed-out": "{{cli}} no ha iniciado sesión en {{host}}",
+      "no-default-branch": "Agentry no ha encontrado la rama predeterminada de este repositorio"
+    },
+    "noun": {
+      "pr": "PR",
+      "mr": "MR"
+    },
+    "long": {
+      "pr": "pull request",
+      "mr": "merge request"
     },
     "refused": {
-      "not-in-review": "Solo una tarea en En revisión abre su PR",
+      "not-in-review": "Solo una tarea en En revisión abre su {{noun}}",
       "busy": "Un chat o una ejecución del flujo está trabajando en ella",
       "nothing-to-propose": "Su rama no tiene nada que proponer: ningún commit por delante y nada sin commit"
-    }
+    },
+    "remedy": {
+      "install": "Instalar {{cli}}",
+      "sign-in": "Ayuda para iniciar sesión",
+      "docs": "Cómo arreglarlo",
+      "settings": "Ajustes → Integraciones"
+    },
+    "hostFallback": "el host de origin"
   },
   "checkout": {
     "behind_one": "La copia de trabajo va {{count}} commit por detrás de origin/{{base}}",

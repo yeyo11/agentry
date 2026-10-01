@@ -159,6 +159,22 @@ const CHAT_FORBIDDEN = new Set([
   // It names a binary Agentry will run, so a prompt injection must not be able to point it at one
   `PUT ${API_PREFIX}/providers/settings`,
   `POST ${API_PREFIX}/providers/refresh`,
+  // Same for the code hosts: the settings name the gh or glab binary Agentry will run
+  `PUT ${API_PREFIX}/hosts/settings`,
+  `POST ${API_PREFIX}/hosts/refresh`,
+]);
+
+/**
+ * A re-run, a cancel or a fix spends the person's CI minutes or pushes their branch, and log text
+ * is untrusted: an injection in a job's output must not be able to ask for any of them through a
+ * chat's token. Reading the checks and their logs stays open.
+ */
+const CHAT_FORBIDDEN_CHECKS = new Set([
+  `POST ${API_PREFIX}/change-requests/:id/checks/rerun`,
+  `POST ${API_PREFIX}/change-requests/:id/checks/cancel`,
+  `POST ${API_PREFIX}/change-requests/:id/checks/:checkId/run`,
+  `POST ${API_PREFIX}/change-requests/:id/checks/fix`,
+  `POST ${API_PREFIX}/change-requests/:id/push-fix`,
 ]);
 
 /**
@@ -379,6 +395,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       }
       if (chat !== null && CHAT_FORBIDDEN_DECISIONS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot change what the decision engine sends" });
+        return reply;
+      }
+      if (chat !== null && CHAT_FORBIDDEN_CHECKS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot re-run, cancel or fix a change request's checks" });
         return reply;
       }
     }

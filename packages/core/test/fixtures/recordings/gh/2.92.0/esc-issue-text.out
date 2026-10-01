@@ -1,0 +1,12 @@
+title:	Typed
+state:	OPEN
+author:	yeyo11 (Jose Antonio Garrido)
+labels:	
+comments:	0
+assignees:	
+projects:	
+milestone:	
+number:	26
+--
+body with ^[[31mred^[[0m escape
+

@@ -8,6 +8,8 @@ import type { ProvidersSettings } from '@agentry/shared';
 import type { AgentryEventInput } from '../src/events.ts';
 import { loadConfig } from '../src/paths.ts';
 import { ProviderDetector, satisfiesRange } from '../src/providers/detector.ts';
+import { confirmClaudeInit } from '../src/providers/claude-code/handshake.ts';
+import type { SessionInit } from '../src/providers/driver.ts';
 
 let root: string;
 let bin: string;
@@ -297,5 +299,75 @@ describe('ProviderDetector', () => {
     assert.equal(d.knownOne('claude-code')?.state, 'ready');
     assert.equal(d.known()?.length, 1);
     assert.equal(existsSync(join(bin, 'claude.log')), false);
+  });
+});
+
+describe('capabilities confirmed by a session', () => {
+  const init = (over: Partial<SessionInit> = {}): SessionInit => ({
+    version: '2.1.285',
+    tools: ['Read', 'Task', 'Workflow'],
+    mcpServers: [{ name: 'pando', status: 'connected' }],
+    structuredOutput: false,
+    ...over,
+  });
+
+  it('confirms what the init shows and leaves the rest declared', () => {
+    const c = confirmClaudeInit(init());
+    assert.deepEqual(c.confirmed, ['subagents', 'workflowTool', 'mcp']);
+    assert.deepEqual(c.missing, []);
+    assert.deepEqual(confirmClaudeInit(init({ structuredOutput: true })).confirmed.slice(-1), ['structuredOutput']);
+  });
+
+  it('reads Agent as the subagent tool, and contradicts only from a tool list it could read', () => {
+    assert.ok(confirmClaudeInit(init({ tools: ['Agent'] })).confirmed.includes('subagents'));
+    assert.deepEqual(confirmClaudeInit(init({ tools: ['Read'] })).missing, ['subagents', 'workflowTool']);
+    assert.deepEqual(confirmClaudeInit(init({ tools: [] })).missing, []);
+  });
+
+  it('confirms nothing for a version outside the range', () => {
+    assert.deepEqual(confirmClaudeInit(init({ version: '1.0.0' })), { version: '1.0.0', confirmed: [], missing: [] });
+  });
+
+  it('records it on the status and emits providers.changed only when that changes', async () => {
+    await fake('claude', CLAUDE('2.1.285', true));
+    const events: AgentryEventInput[] = [];
+    const d = detector({ events });
+    assert.equal((await statusOf(d, 'claude-code')).confirmed, null);
+
+    d.confirm('claude-code', confirmClaudeInit(init()));
+    const confirmed = d.knownOne('claude-code');
+    assert.equal(confirmed?.state, 'ready');
+    assert.deepEqual(confirmed?.confirmed?.capabilities, ['subagents', 'workflowTool', 'mcp']);
+    assert.equal(confirmed?.confirmed?.version, '2.1.285');
+    assert.equal(events.filter((e) => e.type === 'providers.changed').length, 1);
+
+    d.confirm('claude-code', confirmClaudeInit(init()));
+    assert.equal(events.filter((e) => e.type === 'providers.changed').length, 1, 'the same answer is not a change');
+  });
+
+  it('degrades a provider whose declared capability the init contradicts, and survives a re-detection', async () => {
+    await fake('claude', CLAUDE('2.1.285', true));
+    const d = detector();
+    await statusOf(d, 'claude-code');
+    d.confirm('claude-code', confirmClaudeInit(init({ tools: ['Read'] })));
+    const degraded = d.knownOne('claude-code');
+    assert.deepEqual([degraded?.state, degraded?.reason], ['degraded', 'capability-missing']);
+    assert.ok(!degraded?.capabilities.includes('subagents'));
+    assert.ok(!d.capabilities('claude-code').includes('workflowTool'));
+
+    const again = await statusOf(d, 'claude-code');
+    assert.deepEqual([again.state, again.reason], ['degraded', 'capability-missing']);
+  });
+
+  it('drops the confirmation when the installed version is no longer the one confirmed', async () => {
+    await fake('claude', CLAUDE('2.1.300', true));
+    const d = detector();
+    d.confirm('claude-code', confirmClaudeInit(init({ version: '2.1.285', tools: ['Read'] })));
+    const status = await statusOf(d, 'claude-code');
+    assert.deepEqual([status.state, status.confirmed], ['ready', null]);
+  });
+
+  it('answers with the declared set before any session', () => {
+    assert.equal(detector().capabilities('claude-code').length, 16);
   });
 });

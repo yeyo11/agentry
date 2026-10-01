@@ -1,7 +1,7 @@
 import type { ChatSummary, FlowRun, WorkItemDetail, WorkItemLink, WorkItemStatus } from '@agentry/shared';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { formatCost, formatDateTime, timeAgo } from '../../../lib/format';
+import { formatCost, formatDateTime, timeAgo } from '@agentry/ui/lib/format';
 import { columnMeta } from '../../../lib/work-items';
 import { RoleAvatar } from '../../team/RoleAvatar';
 import { linkEffect, shortId } from './model';

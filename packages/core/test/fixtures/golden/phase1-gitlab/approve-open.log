@@ -1,0 +1,99 @@
+# approve
+git -C <root>/project rev-parse --git-dir
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+git -C <root>/project remote get-url origin
+glab version
+  cwd: <root>/project
+  env: GIT_TERMINAL_PROMPT=0
+  env: GLAB_NO_PROMPT=1
+  env: GLAB_CHECK_UPDATE=false
+  env: GLAB_SEND_TELEMETRY=false
+  env: NO_PROMPT=<unset>
+  env: GITLAB_HOST=<unset>
+  env: GL_HOST=<unset>
+  env: NO_COLOR=1
+  env: LC_ALL=C
+glab auth status --hostname gitlab.com
+  cwd: <root>/project
+  env: GIT_TERMINAL_PROMPT=0
+  env: GLAB_NO_PROMPT=1
+  env: GLAB_CHECK_UPDATE=false
+  env: GLAB_SEND_TELEMETRY=false
+  env: NO_PROMPT=<unset>
+  env: GITLAB_HOST=<unset>
+  env: GL_HOST=<unset>
+  env: NO_COLOR=1
+  env: LC_ALL=C
+git -C <root>/project symbolic-ref --short refs/remotes/origin/HEAD
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+git -C <root>/project rev-parse --verify --quiet refs/heads/task/cw-1
+git -C <root>/project rev-parse --git-dir
+git -C <root>/project rev-parse HEAD
+git -C <root>/project rev-parse --show-toplevel
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+git -C <root>/project worktree list --porcelain
+git -C <root>/project worktree lock --reason agentry work item CW-1 of project p1 <root>/project/.claude/worktrees/task-cw-1
+git -C <root>/project/.claude/worktrees/task-cw-1 rev-parse --verify --quiet refs/remotes/origin/main^{commit}
+git -C <root>/project/.claude/worktrees/task-cw-1 diff -M --name-status -z HEAD --
+git -C <root>/project/.claude/worktrees/task-cw-1 diff -M --numstat -z HEAD --
+git -C <root>/project/.claude/worktrees/task-cw-1 ls-files --others --exclude-standard -z
+git -C <root>/project/.claude/worktrees/task-cw-1 diff --name-only --diff-filter=U
+git -C <root>/project/.claude/worktrees/task-cw-1 rev-list --count origin/main..HEAD
+git -C <root>/project rev-parse --git-dir
+git -C <root>/project rev-parse HEAD
+git -C <root>/project rev-parse --show-toplevel
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+git -C <root>/project worktree list --porcelain
+git -C <root>/project worktree lock --reason agentry work item CW-1 of project p1 <root>/project/.claude/worktrees/task-cw-1
+git -C <root>/project/.claude/worktrees/task-cw-1 diff --name-only --diff-filter=U
+git -C <root>/project/.claude/worktrees/task-cw-1 add -A
+git -C <root>/project/.claude/worktrees/task-cw-1 diff --cached --quiet
+git -C <root>/project/.claude/worktrees/task-cw-1 fetch origin main
+git -C <root>/project/.claude/worktrees/task-cw-1 config user.email
+git -C <root>/project/.claude/worktrees/task-cw-1 merge --no-edit origin/main
+git -C <root>/project/.claude/worktrees/task-cw-1 push -u origin task/cw-1
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+git -C <root>/project remote get-url origin
+glab mr create -R https://gitlab.com/acme/shop --source-branch task/cw-1 --target-branch main --title feat: Fix the cart total (CW-1) --description-file - --yes
+  cwd: <root>/project/.claude/worktrees/task-cw-1
+  env: GIT_TERMINAL_PROMPT=0
+  env: GLAB_NO_PROMPT=1
+  env: GLAB_CHECK_UPDATE=false
+  env: GLAB_SEND_TELEMETRY=false
+  env: NO_PROMPT=<unset>
+  env: GITLAB_HOST=<unset>
+  env: GL_HOST=<unset>
+  env: NO_COLOR=1
+  env: LC_ALL=C
+  stdin:
+    | The total was off by one.
+    | 
+    | ## Acceptance criteria
+    | 
+    | - [ ] The total adds up
+    | - [ ] A test covers it
+    | 
+    | ## Work item
+    | 
+    | [CW-1](http://localhost:8787/tasks/CW-1)
+glab mr list -R https://gitlab.com/acme/shop -s task/cw-1 -t main -A -P 2 -F json
+  cwd: <root>/project/.claude/worktrees/task-cw-1
+  env: GIT_TERMINAL_PROMPT=0
+  env: GLAB_NO_PROMPT=1
+  env: GLAB_CHECK_UPDATE=false
+  env: GLAB_SEND_TELEMETRY=false
+  env: NO_PROMPT=<unset>
+  env: GITLAB_HOST=<unset>
+  env: GL_HOST=<unset>
+  env: NO_COLOR=1
+  env: LC_ALL=C

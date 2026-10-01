@@ -1,0 +1,5 @@
+gh: 92
+argv: gh label create probe-label -R yeyo11/agentry-probe --color 0e8a16 --description Probe label
+exit: 0
+secs: .665122340
+env: 

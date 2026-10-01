@@ -1,0 +1,5 @@
+gh: 102
+argv: gh run list -R yeyo11/agentry -s failure -L 5 --json databaseId,attempt,workflowName,conclusion,event,createdAt
+exit: 0
+secs: 1.145408809
+env: 

@@ -1,0 +1,22 @@
+Telemetry payload:
+{
+  "events": [
+    {
+      "type": "command_invocation",
+      "dimensions": {
+        "agent": "claude-code_2-1-285_agent",
+        "architecture": "amd64",
+        "ci": "false",
+        "command": "gh pr view",
+        "device_id": "fb3c0e83-eecd-4d34-a049-565b3f5279c9",
+        "flags": "json,repo",
+        "github_actions": "false",
+        "invocation_id": "ef09edf7-dcc1-4869-9393-fa506b7ee480",
+        "is_tty": "false",
+        "os": "linux",
+        "timestamp": "2026-09-30T18:33:20.326Z",
+        "version": "2.92.0"
+      }
+    }
+  ]
+}

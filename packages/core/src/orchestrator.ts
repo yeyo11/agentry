@@ -1,15 +1,16 @@
-import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import type {
   ChatActivity,
+  ToolPolicy,
   DecisionPointId,
   Health,
   LaunchOrchestrationTemplateRequest,
   Orchestration,
   OrchestrationEngine,
   OrchestrationIntegration,
+  OrchestrationPullRequest,
   OrchestrationSpec,
   OrchestrationSummary,
   OrchestrationTaskSpec,
@@ -77,6 +78,8 @@ import type { DecisionSubject } from './decisions/points.ts';
 import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
 import { designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, scopeAndCompletion, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
 import { MAX_CONTINUATIONS } from '@agentry/shared';
+import { rulesFor } from './tool-policy.ts';
+import type { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
 
 const ID_RE = /^[\w-]{1,40}$/;
 /** The planner's own name, which is how a past planner run is recognised later. */
@@ -194,6 +197,17 @@ function worktreeName(orch: Orchestration, task: OrchestrationTaskState): string
  * resolves them from the repository's top level, not from the directory it is started in.
  */
 const worktreePath = (root: string, name: string) => join(root, '.claude', 'worktrees', name);
+
+/** What each of the orchestrator's own runs may do, beside the native rules the person gave the graph */
+const NO_PUSH = { network: 'omit', gitPush: 'omit' } as const;
+/** The planner only looks */
+const PLANNER_POLICY: ToolPolicy = { read: { allow: true }, edit: { allow: 'none' }, commands: { allow: 'none' }, ...NO_PUSH };
+/** Merging is git work; without it the integrator could only describe the conflicts */
+const INTEGRATION_POLICY: ToolPolicy = { read: { allow: true }, edit: { allow: 'any' }, commands: { allow: [{ command: 'git', args: 'prefix' }] }, ...NO_PUSH };
+/** Building and running tests is the job, so it may run commands; the graph asked for a fixer */
+const VERIFICATION_POLICY: ToolPolicy = { read: { allow: true }, edit: { allow: 'any' }, commands: { allow: 'any' }, ...NO_PUSH };
+/** Asked for by the person who launched the graph: nothing to confirm again */
+const WORKFLOW_POLICY: ToolPolicy = { read: { allow: false }, edit: { allow: 'none' }, commands: { allow: 'none' }, workflow: 'allow', ...NO_PUSH };
 
 /**
  * A graph's repository: the top level of the checkout it runs in, the subdirectory of it the graph
@@ -388,6 +402,8 @@ export class Orchestrator {
   projectOf: ((cwd: string) => string | null) | null = null;
   /** Decisions being asked, so a test (and a shutdown) can wait for them */
   private readonly deciding = new Set<Promise<unknown>>();
+  /** Opens and follows an integration branch's change request; set by Core, which owns the host service */
+  pullRequests: OrchestrationPullRequestService | null = null;
 
   constructor(
     private readonly config: CoreConfig,
@@ -520,8 +536,9 @@ export class Orchestrator {
       now.set(task.id, { health: read ? read(task) : null, activity: this.runs.get(task.runId)?.activity ?? null });
     }
     // Nothing of this moment to say: the stored graph is already the answer, copies and all
-    if ([...now.values()].every((of) => !of.health && !of.activity)) return orch;
-    return { ...orch, tasks: orch.tasks.map((t) => (now.has(t.id) ? { ...t, ...now.get(t.id) } : t)) };
+    const pullRequest = this.pullRequests?.newest(orch.id) ?? null;
+    if (!pullRequest && [...now.values()].every((of) => !of.health && !of.activity)) return orch;
+    return { ...orch, ...(pullRequest ? { pullRequest } : {}), tasks: orch.tasks.map((t) => (now.has(t.id) ? { ...t, ...now.get(t.id) } : t)) };
   }
 
   /** The graph and task a chat works for, with the limits that apply to it; null for a chat that is not a running task. */
@@ -1409,7 +1426,7 @@ ${quoted}
         model: orch.model ?? undefined,
         permissionMode: orch.permissionMode,
         // Merging is git work; without it the integrator could only describe the conflicts
-        allowedTools: [...new Set([...(orch.allowedTools ?? []), 'Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash(git:*)'])],
+        allowedTools: rulesFor('claude-code', INTEGRATION_POLICY, { allowedTools: orch.allowedTools }).allowedTools,
         ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
         name: `${orch.name}:integration`.slice(0, 60),
         keepAlive: false,
@@ -1838,7 +1855,7 @@ ${quoted}
           model: spec.model ?? orch.model ?? undefined,
           permissionMode: orch.permissionMode,
           // Building and running tests is the job, so it may run commands; the graph asked for a fixer
-          allowedTools: [...new Set([...(orch.allowedTools ?? []), 'Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash'])],
+          allowedTools: rulesFor('claude-code', VERIFICATION_POLICY, { allowedTools: orch.allowedTools }).allowedTools,
           ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
           name: `${orch.name}:verification`.slice(0, 60),
           keepAlive: false,
@@ -1865,6 +1882,39 @@ ${quoted}
       // the fixer left the tree in a state git will not commit; the re-run says whether it matters
     }
     return { note: tail(note, 1500), budget };
+  }
+
+  /**
+   * The fixer's chat for the failing checks of an orchestration's change request: in the integration
+   * worktree, with the verification's fixer model, never pushing. It commits what it leaves behind
+   * and settles when the chat ends; the person's click on Push the fix is what publishes it.
+   */
+  async runChecksFix(req: { orchestrationId: string; cwd: string; branch: string; prompt: string }): Promise<{ ok: boolean }> {
+    const orch = this.items.get(req.orchestrationId);
+    if (!orch) return { ok: false };
+    const spec = orch.verificationSpec;
+    const run = this.runs.start(
+      {
+        prompt: req.prompt,
+        cwd: req.cwd,
+        model: spec?.model ?? orch.model ?? undefined,
+        permissionMode: orch.permissionMode,
+        allowedTools: rulesFor('claude-code', VERIFICATION_POLICY, { allowedTools: orch.allowedTools }).allowedTools,
+        ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
+        name: `${orch.name}:checks-fix`.slice(0, 60),
+        keepAlive: false,
+        ...(spec?.maxCostUsd !== undefined ? { maxBudgetUsd: spec.maxCostUsd } : {}),
+      },
+      { orchestrationId: orch.id, orchestrationTaskId: '__checks-fix__' },
+    );
+    const result = await this.runs.waitForResult(run.id);
+    orch.costUsd += result.costUsd;
+    try {
+      commitAll(req.cwd, `chore: keep what the checks fixer left uncommitted\n\nOrchestration ${orch.name} (${orch.id.slice(0, 8)}).`);
+    } catch {
+      // the push step commits again and says why it could not
+    }
+    return { ok: !result.isError && result.cause !== 'budget' };
   }
 
   /** Integrates a finished graph again: after resolving by hand, or one from before this existed. */
@@ -1898,38 +1948,22 @@ ${quoted}
    * Publishes the integration branch and opens a pull request for it. Only ever on request: pushing
    * is the one step that leaves the machine.
    */
-  pullRequest(id: string): { branch: string; url: string | null; detail: string } {
+  async pullRequest(id: string): Promise<{ branch: string; url: string | null; detail: string; pullRequest: OrchestrationPullRequest | null }> {
     const orch = this.items.get(id);
     if (!orch) throw new Error('orchestration not found');
     const integration = orch.integration;
     if (integration?.status !== 'merged') throw new Error('the orchestration has no integrated branch yet');
-    if (integration.pullRequestUrl) return { branch: integration.branch, url: integration.pullRequestUrl, detail: 'already open' };
+    if (integration.pullRequestUrl) return { branch: integration.branch, url: integration.pullRequestUrl, detail: 'already open', pullRequest: this.pullRequests?.newest(orch.id) ?? null };
     // A branch being fixed is a moving one, and what is pushed must be what was checked
     if (this.verifying.has(orch.id)) throw new Error('the checks are still running on the integration branch: wait for their outcome before opening a pull request');
     if (checksFailGraph(orch)) throw new Error('the checks failed on the integration branch, and the graph was launched to fail with them: fix the branch and verify again before opening a pull request');
-    git(orch.cwd, ['push', '-u', 'origin', integration.branch], 180_000);
-    let url: string | null = null;
-    let detail = `pushed ${integration.branch}`;
-    try {
-      const checked = orch.verification && orch.verification.status !== 'pending' ? `Verification: ${orch.verification.status}. ${orch.verification.report}` : null;
-      const body = [orch.objective, checked, orch.finalResult].filter(Boolean).join('\n\n---\n\n') || orch.name;
-      url = execFileSync('gh', ['pr', 'create', '--head', integration.branch, '--title', orch.name, '--body', body.slice(0, 60_000)], {
-        cwd: orch.cwd,
-        stdio: 'pipe',
-        timeout: 120_000,
-        encoding: 'utf8',
-      })
-        .trim()
-        .split('\n')
-        .pop() ?? null;
-      integration.pullRequestUrl = url;
-      detail = 'pull request opened';
-    } catch (err) {
-      const e = err as { stderr?: string; message: string };
-      detail = `pushed ${integration.branch}, but no pull request was opened: ${(e.stderr || e.message).trim().split('\n')[0]}`;
+    if (!this.pullRequests) throw new Error('pull requests are not available');
+    const opened = await this.pullRequests.open(orch);
+    if (opened.url && !integration.pullRequestUrl) {
+      integration.pullRequestUrl = opened.url;
+      this.persist();
     }
-    this.persist();
-    return { branch: integration.branch, url, detail };
+    return opened;
   }
 
   /**
@@ -1956,7 +1990,7 @@ ${quoted}
       cwd,
       model: req.model,
       permissionMode: 'manual',
-      allowedTools: ['Read', 'Glob', 'Grep'],
+      allowedTools: rulesFor('claude-code', PLANNER_POLICY).allowedTools,
       name: PLANNER_RUN_NAME,
       keepAlive: false,
       internal: true,
@@ -2366,7 +2400,7 @@ ${quoted}
             model: orch.model ?? undefined,
             permissionMode: orch.permissionMode,
             // Asked for by the person who launched the graph: nothing to confirm again
-            allowedTools: [...new Set([...orch.allowedTools, 'Workflow'])],
+            allowedTools: rulesFor('claude-code', WORKFLOW_POLICY, { allowedTools: orch.allowedTools }).allowedTools,
             ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
             name: `${orch.name}:workflow`.slice(0, 60),
             keepAlive: false,

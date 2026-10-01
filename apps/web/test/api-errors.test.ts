@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { api, ApiRequestError } from '../src/api';
-import { errorMessage } from '../src/lib/format';
+import { errorMessage } from '@agentry/ui/lib/format';
 import i18n from '../src/i18n';
 
 // An answer Agentry did not write — a dropped connection, a proxy's or a tunnel's own page — used to

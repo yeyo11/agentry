@@ -66,7 +66,7 @@ function newChatBody(body: unknown): NewChatRequest {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('the body must be a JSON object with a prompt');
   const fields = body as Record<string, unknown>;
   // Core says when neither a prompt nor an attachment was sent: a chat may open with a file alone
-  for (const key of ['prompt', 'cwd', 'worktree', 'name'] as const) {
+  for (const key of ['prompt', 'cwd', 'worktree', 'name', 'provider'] as const) {
     if (fields[key] !== undefined && fields[key] !== null && typeof fields[key] !== 'string') throw new Error(`${key} must be text`);
   }
   const { attachments } = fields;

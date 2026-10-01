@@ -1,0 +1,5 @@
+gh: 102
+argv: gh issue create -R yeyo11/agentry-probe --title Typed --body x --type Bug
+exit: 1
+secs: 1.777032870
+env: 

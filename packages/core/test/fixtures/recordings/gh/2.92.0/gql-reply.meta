@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api graphql -f query=mutation($t:ID!,$b:String!){addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$t,body:$b}){comment{id databaseId replyTo{databaseId} pullRequestReview{databaseId state}}}} -f t=PRRT_kwDOU1zIIM6nqn1H -f b=GraphQL thread reply
+exit: 0
+secs: 2.189338133
+env: 

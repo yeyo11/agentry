@@ -1,0 +1,5 @@
+gh: 102
+argv: gh issue edit 21 -R yeyo11/agentry-probe --add-label probe-label --add-assignee yeyo11
+exit: 0
+secs: 3.086885720
+env: 

@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api repos/yeyo11/agentry-probe/issues/26 --jq .body
+exit: 0
+secs: .661757017
+env: 

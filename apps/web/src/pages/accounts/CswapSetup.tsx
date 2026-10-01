@@ -1,9 +1,9 @@
 import type { CswapInfo } from '@agentry/shared';
 import { Download, ExternalLink, RotateCw, TriangleAlert } from 'lucide-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { ICON_SM } from '../../components/icons';
-import { Spinner } from '../../components/Spinner';
-import { Empty } from '../../components/ui';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { Spinner } from '@agentry/ui/components/Spinner';
+import { Empty } from '@agentry/ui/components/ui';
 import { cswapInstalling, cswapView } from '../../lib/cswap';
 
 export const CSWAP_URL = 'https://github.com/realiti4/claude-swap';

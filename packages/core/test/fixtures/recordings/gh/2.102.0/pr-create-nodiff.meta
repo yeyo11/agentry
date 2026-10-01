@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr create -R yeyo11/agentry-probe --head pr-nodiff --base main --title T --body B
+exit: 1
+secs: 1.625082316
+env: 

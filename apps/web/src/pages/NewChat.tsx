@@ -3,20 +3,21 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, ArrowUp, Check, FolderOpen, MessageSquare, Network, Search, X, type LucideIcon } from 'lucide-react';
 import { useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useAccounts, useOverview, useProjects } from '../api';
-import { AttachButton, AttachmentTray, useAttachments } from '../components/Attachments';
+import { AttachButton, AttachmentTray, useAttachments } from '@agentry/chat-ui/components/Attachments';
 import { ChatToolsPicker, type ToolChoices } from '../components/ChatToolsPicker';
 import { NEW_ORCHESTRATION_PATH } from '../components/CommandPalette';
-import { Combobox, Select, Switch } from '../components/controls';
-import { Tooltip } from '../components/controls/Tooltip';
-import { ICON, ICON_SM } from '../components/icons';
-import { Illustration } from '../components/illustrations';
-import { SlashMenu, useSlashMenu } from '../components/SlashMenu';
+import { Combobox, Select, Switch } from '@agentry/ui/components/controls';
+import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
+import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { Illustration } from '@agentry/ui/components/illustrations';
+import { SlashMenu, useSlashMenu } from '@agentry/chat-ui/components/SlashMenu';
 import { useProjectScope } from '../lib/project-scope';
-import { NARROW, useMediaQuery } from '../lib/media';
-import { ErrorBox, Field, ModelCombobox, PERMISSION_MODES, Segmented, usePageTitle } from '../components/ui';
-import { KeysHint, OptionsPanel, StatusChips } from './chat/Composer';
+import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { ErrorBox, Field, Segmented, usePageTitle } from '@agentry/ui/components/ui';
+import { ModelCombobox, PERMISSION_MODES } from '../components/ui';
+import { KeysHint, OptionsPanel, StatusChips } from '@agentry/chat-ui/composer/Composer';
 
 type Kind = 'chat' | 'orchestration';
 
@@ -42,7 +43,9 @@ export function NewChat() {
   const scope = useProjectScope();
   const overview = useOverview();
   const narrow = useMediaQuery(NARROW);
-  const [prompt, setPrompt] = useState('');
+  // A prompt another page prepared (the fix of failing checks, with the project's flow off) arrives in the route's state
+  const handed = (useLocation().state as { prompt?: unknown } | null)?.prompt;
+  const [prompt, setPrompt] = useState(typeof handed === 'string' ? handed : '');
   const files = useAttachments();
   const box = useRef<HTMLTextAreaElement>(null);
   const ready = (prompt.trim() || files.ids.length > 0) && !files.uploading;

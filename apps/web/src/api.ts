@@ -24,6 +24,8 @@ import type {
   DecisionSettings,
   DecisionSettingsUpdate,
   DecisionTestResult,
+  CodeHostStatus,
+  CodeHostsSettings,
   DecisionProviderId,
   ApiError,
   AuditFilter,
@@ -110,6 +112,7 @@ import type {
   PluginsOverview,
   Project,
   ProjectCandidate,
+  ProjectCodeHost,
   ProviderStatus,
   ProvidersSettings,
   PushKeyInfo,
@@ -154,6 +157,13 @@ import type {
   MoveWorkItemRequest,
   MoveWorkItemResult,
   WorkItemPullRequestResult,
+  ChangeRequest,
+  ChangeRequestChecks,
+  CheckLog,
+  CheckState,
+  ChecksRerunRequest,
+  OrchestrationPullRequest,
+  WorkItemPullRequest,
   OrchestrateWorkItemsRequest,
   ProjectSettings,
   ProjectTemplate,
@@ -204,7 +214,7 @@ import type {
 } from '@agentry/shared';
 import i18n from './i18n';
 import { authHeaders, setChallenge, withToken } from './lib/auth';
-import { RUN_TAG } from './lib/chat-pages';
+import { chatKeys, type ChatClient } from '@agentry/chat-ui/lib/context';
 import { accountsRefetchInterval, normalizeCswap } from './lib/cswap';
 import { useFallbackInterval } from './lib/feed';
 import { filterKey, normalizeKey, openCount } from './lib/work-items';
@@ -257,6 +267,14 @@ function either(a: AbortSignal, b: AbortSignal): AbortSignal {
     signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true, signal: controller.signal });
   }
   return controller.signal;
+}
+
+/** What `POST /change-requests/:id/checks/fix` answers (core's `ChangeRequestFix`, which shared does not export). */
+export interface ChangeRequestFixResult {
+  started: boolean;
+  prompt: string;
+  worktree: string | null;
+  pullRequest: WorkItemPullRequest | OrchestrationPullRequest | null;
 }
 
 async function request<T>(path: string, init: { method?: string; body?: unknown; timeoutMs?: number; signal?: AbortSignal } = {}): Promise<T> {
@@ -738,6 +756,23 @@ export const api = {
   openPullRequest: (itemId: string) => request<WorkItemPullRequestResult>(`/work-items/${enc(itemId)}/pull-request`, { method: 'POST', body: {} }),
   /** Ask gh about the item's open pull request now, rather than at the watcher's next pass */
   refreshPullRequest: (itemId: string) => request<WorkItem>(`/work-items/${enc(itemId)}/pull-request/refresh`, { method: 'POST', body: {} }),
+  /** The neutral change request of either table; `id` is the pull request row's, not the item's */
+  changeRequest: (id: string, o?: ReadOptions) => request<ChangeRequest>(`/change-requests/${enc(id)}`, o),
+  /** `refresh` skips the 30 s cache by head, for the person's own "check again" */
+  changeRequestChecks: (id: string, refresh = false, o?: ReadOptions) =>
+    request<ChangeRequestChecks>(`/change-requests/${enc(id)}/checks${refresh ? '?refresh=1' : ''}`, o),
+  checkLog: (id: string, checkId: string, o?: ReadOptions) =>
+    request<CheckLog>(`/change-requests/${enc(id)}/checks/${enc(checkId)}/log`, o),
+  rerunChecks: (id: string, req: ChecksRerunRequest) =>
+    request<ChangeRequestChecks>(`/change-requests/${enc(id)}/checks/rerun`, { method: 'POST', body: req }),
+  cancelChecks: (id: string) => request<ChangeRequestChecks>(`/change-requests/${enc(id)}/checks/cancel`, { method: 'POST', body: {} }),
+  /** Play a GitLab manual job */
+  runCheck: (id: string, checkId: string) =>
+    request<ChangeRequestChecks>(`/change-requests/${enc(id)}/checks/${enc(checkId)}/run`, { method: 'POST', body: {} }),
+  /** Fix failing checks; `started` false means the project's flow is off and `prompt` is for a chat of the person's own */
+  fixChecks: (id: string) => request<ChangeRequestFixResult>(`/change-requests/${enc(id)}/checks/fix`, { method: 'POST', body: {} }),
+  pushFix: (id: string) =>
+    request<WorkItemPullRequest | OrchestrationPullRequest | null>(`/change-requests/${enc(id)}/push-fix`, { method: 'POST', body: {} }),
   checkCriterion: (itemId: string, criterionId: string, checked: boolean) =>
     request<WorkItem>(`/work-items/${enc(itemId)}/criteria/${enc(criterionId)}`, { method: 'PATCH', body: { checked } }),
   workItemComments: (itemId: string, o?: ReadOptions) => request<WorkItemComment[]>(`/work-items/${enc(itemId)}/comments`, o),
@@ -847,28 +882,37 @@ export const api = {
   refreshProviders: () => request<ProviderStatus[]>('/providers/refresh', { method: 'POST' }),
   providerSettings: (o: ReadOptions = {}) => request<ProvidersSettings>('/providers/settings', o),
   putProviderSettings: (settings: ProvidersSettings) => request<ProvidersSettings>('/providers/settings', { method: 'PUT', body: settings }),
+  hosts: (o: ReadOptions = {}) => request<CodeHostStatus[]>('/hosts', o),
+  host: (id: string, o: ReadOptions = {}) => request<CodeHostStatus>(`/hosts/${enc(id)}`, o),
+  /** Skips the detector's cache; the answer is the fresh statuses */
+  refreshHosts: () => request<CodeHostStatus[]>('/hosts/refresh', { method: 'POST' }),
+  hostSettings: (o: ReadOptions = {}) => request<CodeHostsSettings>('/hosts/settings', o),
+  putHostSettings: (settings: CodeHostsSettings) => request<CodeHostsSettings>('/hosts/settings', { method: 'PUT', body: settings }),
+  /** Whether the project's origin can open pull or merge requests, and the remote as parsed */
+  projectCodeHost: (id: string, o: ReadOptions = {}) => request<ProjectCodeHost>(`/projects/${enc(id)}/code-host`, o),
 };
+
+// A drift between the chat package's client and the real one fails the build here, not at a call
+void (api satisfies Omit<ChatClient, 'streamUrl' | 'contentUrl'>);
 
 // ---------- Query hooks ----------
 
 export const keys = {
+  // The chat package's keys, with the prefixes the event feed invalidates: every list and every open chat sits under them
+  ...chatKeys,
   overview: ['overview'] as const,
   auth: ['auth'] as const,
   cliVersion: ['cli-version'] as const,
   release: ['release'] as const,
   providers: ['providers'] as const,
   providerSettings: ['providers', 'settings'] as const,
+  hosts: ['hosts'] as const,
+  hostSettings: ['hosts', 'settings'] as const,
+  projectCodeHost: (id: string) => ['project-code-host', id] as const,
   projects: ['projects'] as const,
   projectCandidates: ['projects', 'candidates'] as const,
-  // Prefixes the event feed invalidates: every list and every open chat sits under them
-  chats: ['chats'] as const,
   chatList: (filter: ChatFilter) =>
     ['chats', filter.project === undefined ? 'all' : (filter.project ?? 'loose'), filter.origin?.join(',') ?? '', filter.state ?? '', filter.limit ?? 0, filter.workers === false ? 'no-workers' : ''] as const,
-  /** Prefix of a chat's page and of everything read for it */
-  chatScope: (id: string) => ['chat', id] as const,
-  chat: (id: string, sidechains: boolean) => ['chat', id, sidechains] as const,
-  /** The pages of a chat read back from its newest one, kept across visits */
-  chatEarlier: (id: string, sidechains: boolean) => ['chat', id, sidechains, RUN_TAG] as const,
   // A chat's changes sit under its scope: `changes.updated` never names a chat, but its own events
   // (and the panel's timer while it works) refresh everything there
   chatChanges: (id: string, scope: ChangeScope = {}) => ['chat', id, 'changes', scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,
@@ -890,17 +934,20 @@ export const keys = {
   subagents: ['subagents'] as const,
   workflows: ['workflows'] as const,
   // Prefixes the event feed invalidates (lib/events.ts): a panel's queries all sit under them
-  agentDetail: ['agent-detail'] as const,
-  agent: (chatId: string, workflowId: string, agentId: string) => ['agent-detail', chatId, workflowId, agentId] as const,
-  taskOutput: ['task-output'] as const,
-  output: (chatId: string, taskId: string) => ['task-output', chatId, taskId] as const,
-  chatTasks: (chatId: string) => ['tasks', 'chat', chatId] as const,
   savedWorkflowsAll: ['workflows', 'saved'] as const,
   savedWorkflows: (cwd: string) => ['workflows', 'saved', cwd] as const,
   orchestrations: ['orchestrations'] as const,
   planDrafts: ['orchestrations', 'plans'] as const,
-  chatPermissions: (id: string) => ['chat', id, 'permissions'] as const,
   orchestration: (id: string) => ['orchestration', id] as const,
+  /** Prefix of a change request's reads (itself, its checks, their logs): `change-request.checks` refreshes them all */
+  changeRequest: (id: string) => ['change-request', id] as const,
+  changeRequestChecks: (id: string) => ['change-request', id, 'checks'] as const,
+  /**
+   * A check keeps its id when its state moves (a job that finishes, a failed run that passes on a
+   * re-read), and its log moves with it: the state is part of the key so the tail is read again
+   */
+  checkLog: (id: string, checkId: string, state?: CheckState) =>
+    ['change-request', id, 'checks', checkId, 'log', ...(state ? [state] : [])] as const,
   // A task's and the integration branch's changes sit under the graph, which `changes.updated` refreshes
   taskChanges: (id: string, taskId: string, scope: ChangeScope = {}) =>
     ['orchestration', id, 'changes', 'task', taskId, scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,

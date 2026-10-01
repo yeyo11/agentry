@@ -2,13 +2,13 @@ import type { ProviderStatus } from '@agentry/shared';
 import { Activity, ExternalLink, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { firstReady, groupProviders, nothingFound } from '../lib/first-run';
-import { NARROW, useMediaQuery } from '../lib/media';
+import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { CLAUDE_CODE_ID, providerLink } from '../lib/provider-state';
 import { useRefreshProviders } from '../lib/providers';
-import { BrandMark, ICON, ICON_SM } from './icons';
+import { BrandMark, ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { ProviderRow } from './ProviderRow';
-import { Spinner } from './Spinner';
-import { Empty } from './ui';
+import { Spinner } from '@agentry/ui/components/Spinner';
+import { Empty } from '@agentry/ui/components/ui';
 
 /**
  * The first-run Providers step (docs/plans/multi-provider.md, P2): which agents Agentry found on

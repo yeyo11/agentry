@@ -1,19 +1,21 @@
 import type { Project, ProjectModule, WorkItemStatus } from '@agentry/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ApiRequestError, api, keys, useDocuments, useJournal, useProjects, useProjectSettings, useTeam, useWorkItemBoard } from '../../api';
-import { Sheet } from '../../components/controls';
-import { useConfirm } from '../../components/Dialog';
-import { ICON_SM, WorkItemStatusIcon } from '../../components/icons';
-import { useToast } from '../../components/Toast';
-import { ErrorBox, Skeleton } from '../../components/ui';
+import { Sheet } from '@agentry/ui/components/controls';
+import { useConfirm } from '@agentry/ui/components/Dialog';
+import { ICON_SM, Monogram } from '@agentry/ui/components/icons';
+import { WorkItemStatusIcon } from '../../components/work-item-icons';
+import { useToast } from '@agentry/ui/components/Toast';
+import { ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { changeRequestWords } from '../../lib/code-hosts';
 import { useDirty } from '../../lib/dirty';
-import { errorMessage, formatNumber } from '../../lib/format';
-import { NARROW, useMediaQuery } from '../../lib/media';
-import { columnMeta, openCount } from '../../lib/work-items';
+import { errorMessage, formatNumber } from '@agentry/ui/lib/format';
+import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { columnMeta, notReadyReason, openCount } from '../../lib/work-items';
 import { columnLimitsOf, LIMIT_STATUSES, moduleFigure, normalizePrefix, prefixProblem, PROJECT_MODULES, sameModules, toggleModule, type ModuleFigures } from '../projects/model';
 import { HiddenNote, ModuleCard, ModulesOffNote } from '../projects/parts';
 
@@ -60,6 +62,85 @@ function LimitFields({ limits, onChange }: { limits: Limits; onChange: (limits: 
         );
       })}
     </div>
+  );
+}
+
+/** Ready is ok, a thing the person can do is warn, and a project with nothing to ask a host is neutral. */
+const HOST_TONE: Readonly<Record<string, 'ok' | 'warn'>> = { ready: 'ok', 'cli-missing': 'warn', 'cli-incompatible': 'warn', 'cli-signed-out': 'warn', 'unsupported-host': 'warn' };
+
+/**
+ * Where the project's code lives, as Agentry detected it from the origin remote and never chosen
+ * here: which host, which CLI answers for it and, when it cannot, what to do about it.
+ */
+function ProjectHostLine({ project, stacked }: { project: Project; stacked: boolean }) {
+  const { t } = useTranslation(['projects', 'tasks']);
+  const info = useQuery({ queryKey: keys.projectCodeHost(project.id), queryFn: ({ signal }) => api.projectCodeHost(project.id, { signal }) });
+  const hosts = useQuery({ queryKey: keys.hosts, queryFn: ({ signal }) => api.hosts({ signal }) });
+  if (info.isLoading) return <Skeleton rows={2} height={18} />;
+  if (!info.data) return <ErrorBox error={info.error} title={t('host.loadFailed')} />;
+
+  const { readiness, remote } = info.data;
+  const state = notReadyReason(readiness) ?? 'ready';
+  const words = readiness.host ? changeRequestWords(readiness.host) : null;
+  const cli = hosts.data?.find((h) => h.id === readiness.host);
+  const hostname = remote?.hostname ?? readiness.hostname ?? '';
+  const user = cli?.hosts.find((h) => h.hostname === hostname)?.user ?? null;
+  const cliMeta = cli ? [cli.cli, cli.version, user].filter(Boolean).join(' · ') : null;
+  const params = { cli: cli?.cli ?? t('host.cliFallback'), host: words?.label ?? '', hostname };
+  const remedy = readiness.remedy;
+  const remedyLabel = remedy ? t(`host.remedy.${remedy.kind}`, params) : null;
+
+  return (
+    <div className={`host-line${stacked ? ' stacked' : ''}`}>
+      <div className="host-line-main">
+        <Monogram name={words?.label ?? 'git'} project size={36} />
+        <div className="host-line-id">
+          <span className="host-path">
+            {remote ? (
+              <>
+                <b>{remote.hostname}</b>/{remote.path}
+              </>
+            ) : (
+              t('host.noRemote')
+            )}
+          </span>
+          {cliMeta && <span className="mono small muted">{cliMeta}</span>}
+        </div>
+      </div>
+      <div className="host-line-why">
+        <Tag tone={HOST_TONE[state] ?? 'muted'}>{t(`host.state.${state}`)}</Tag>
+        <p className="prov-reason">
+          {t(`host.reason.${state}`, params)}
+          {readiness.detail && <span className="mono small muted"> {readiness.detail}</span>}
+          {remedy && remedyLabel && (
+            <>
+              {' '}
+              {remedy.kind === 'settings' || !remedy.url ? (
+                <Link to="/settings?tab=integrations">{remedyLabel}</Link>
+              ) : (
+                <a href={remedy.url} target="_blank" rel="noreferrer">
+                  {remedyLabel}
+                </a>
+              )}
+            </>
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** The host's own words for a change request, said once under the line: "PRs, read as #12". */
+function HostNoun({ project }: { project: Project }) {
+  const { t } = useTranslation(['projects', 'tasks']);
+  const info = useQuery({ queryKey: keys.projectCodeHost(project.id), queryFn: ({ signal }) => api.projectCodeHost(project.id, { signal }) });
+  const host = info.data?.readiness.host;
+  if (!host) return null;
+  const words = changeRequestWords(host);
+  return (
+    <>
+      {t('host.noun', { noun: t(`tasks:${words.nounKey}`) })} <span className="mono">{words.prefix}12</span>
+    </>
   );
 }
 
@@ -254,6 +335,15 @@ export function ProjectGeneral({ project }: { project: Project }) {
           )}
         </section>
         <section className="settings-cells-group">
+          <h2 className="section-label settings-cells-label">{t('host.titleShort')}</h2>
+          <div className="card settings-cells project-host-card">
+            <ProjectHostLine project={project} stacked />
+          </div>
+          <span className="field-hint">
+            {t('host.detectedShort')} <HostNoun project={project} />
+          </span>
+        </section>
+        <section className="settings-cells-group">
           <h2 className="section-label settings-cells-label">{t('general.modules')}</h2>
           <div className="card settings-cells project-module-cells">{moduleCards}</div>
           {offNote}
@@ -309,6 +399,16 @@ export function ProjectGeneral({ project }: { project: Project }) {
               <span className="section-label">{t('general.directory')}</span>
               <span className="mono small break">{project.path}</span>
             </div>
+          </section>
+          <section className="card project-general-card" aria-labelledby="project-host-title">
+            <div className="project-modules-head">
+              <h2 id="project-host-title">{t('host.title')}</h2>
+              <span className="mono small muted">{t('host.detected')}</span>
+            </div>
+            <ProjectHostLine project={project} stacked={false} />
+            <span className="field-hint">
+              <HostNoun project={project} />
+            </span>
           </section>
           {modules.includes('board') && (
             <section className="card project-general-card">

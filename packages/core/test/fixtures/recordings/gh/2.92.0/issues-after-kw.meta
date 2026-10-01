@@ -1,0 +1,5 @@
+gh: 92
+argv: gh issue list -R yeyo11/agentry-probe --state all --json number,state,stateReason,closedByPullRequestsReferences --jq .[]|{number,state,stateReason,closedBy:[.closedByPullRequestsReferences[]|.number]}
+exit: 0
+secs: .781263998
+env: 

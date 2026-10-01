@@ -1,0 +1,18 @@
+title:	Typed
+state:	OPEN
+author:	yeyo11 (Jose Antonio Garrido)
+labels:	
+comments:	0
+assignees:	
+projects:	
+milestone:	
+issue-type:	
+parent:	
+sub-issues:	
+sub-issues-completed:	
+blocked-by:	
+blocking:	
+number:	26
+--
+body with ^[[31mred^[[0m escape
+

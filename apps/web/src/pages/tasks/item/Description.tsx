@@ -3,11 +3,11 @@ import { Pencil } from 'lucide-react';
 import { lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CodeEditor } from '../../../components/CodeEditor';
-import { ICON_SM } from '../../../components/icons';
+import { ICON_SM } from '@agentry/ui/components/icons';
 import { useDirty } from '../../../lib/dirty';
 import type { ItemActions } from './hooks';
 
-const Markdown = lazy(() => import('../../../components/Markdown'));
+const Markdown = lazy(() => import('@agentry/ui/components/Markdown'));
 
 /** The title as the page's heading, renamed in place: Enter saves, Escape leaves it as it was. */
 export function Title({ item, actions }: { item: WorkItemDetail; actions: ItemActions }) {

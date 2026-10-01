@@ -1,0 +1,5 @@
+gh: 92
+argv: gh auth status
+exit: 1
+secs: .118811855
+env: 

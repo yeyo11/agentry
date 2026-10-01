@@ -2,8 +2,9 @@ import type { WorkItemDetail } from '@agentry/shared';
 import { ChevronDown, Plus, X } from 'lucide-react';
 import { useState, type ComponentPropsWithRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { EpicLabel, ICON_SM, PriorityMark, WorkItemStatusIcon, WorkItemTypeIcon } from '../../../components/icons';
-import { formatDateTime, timeAgo } from '../../../lib/format';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { EpicLabel, PriorityMark, WorkItemStatusIcon, WorkItemTypeIcon } from '../../../components/work-item-icons';
+import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
 import { columnMeta, priorityMeta } from '../../../lib/work-items';
 import {
   AssigneeMark,

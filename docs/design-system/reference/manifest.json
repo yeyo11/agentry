@@ -240,6 +240,30 @@
     "h": 2300
   },
   {
+    "file": "DSIntegraciones.html",
+    "title": "Design system · Integraciones, línea del host y avisos de preparación",
+    "w": 1440,
+    "h": 4400
+  },
+  {
+    "file": "DSChecks.html",
+    "title": "Design system · Arreglar los checks",
+    "w": 1440,
+    "h": 7900
+  },
+  {
+    "file": "DesktopAjustesDecisionesChecks.html",
+    "title": "Desktop · Ajustes, decisión de arreglar checks",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileAjustesDecisionesChecks.html",
+    "title": "Móvil · Ajustes, un punto de decisión: arreglar checks",
+    "w": 390,
+    "h": 844
+  },
+  {
     "file": "DesktopChatsVacio.html",
     "title": "Desktop · Chats vacío",
     "w": 1440,
@@ -752,6 +776,156 @@
   {
     "file": "MobileProyectoAjustesDecisiones.html",
     "title": "Móvil · Ajustes del proyecto, decisiones",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopIntegraciones.html",
+    "title": "Desktop · Ajustes, integraciones",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopIntegracionesEstados.html",
+    "title": "Desktop · Ajustes, integraciones con otros estados",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopIntegracionesVacio.html",
+    "title": "Desktop · Ajustes, integraciones sin nada instalado",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileIntegraciones.html",
+    "title": "Móvil · Ajustes, integraciones",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileIntegracionesEstados.html",
+    "title": "Móvil · Ajustes, integraciones con otros estados",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileIntegracionesSinInstalar.html",
+    "title": "Móvil · Ajustes, integraciones sin instalar y comprobando",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileIntegracionesVacio.html",
+    "title": "Móvil · Ajustes, integraciones sin nada instalado",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileIntegracionesBinario.html",
+    "title": "Móvil · Ajustes, binario de una integración",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopTareaMR.html",
+    "title": "Desktop · Tarea con MR",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileTareaMR.html",
+    "title": "Móvil · Tarea con MR",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopTableroMR.html",
+    "title": "Desktop · Tablero con MR",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopOrquestacionMR.html",
+    "title": "Desktop · Orquestación con MR abierta",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopOrquestacionMRSubir.html",
+    "title": "Desktop · Orquestación, subir y abrir la MR",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileOrquestacionMR.html",
+    "title": "Móvil · Orquestación con MR abierta",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileOrquestacionMRSubir.html",
+    "title": "Móvil · Orquestación, subir y abrir la MR",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopTareaChecks.html",
+    "title": "Desktop · Tarea con comprobaciones",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileTareaChecks.html",
+    "title": "Móvil · Tarea con comprobaciones",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTareaChecksRegistro.html",
+    "title": "Móvil · Tarea, registro de una comprobación",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTareaChecksMenu.html",
+    "title": "Móvil · Tarea, acciones de una comprobación",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopTareaChecksEstados.html",
+    "title": "Desktop · Tarea, estados de las comprobaciones",
+    "w": 1440,
+    "h": 1620
+  },
+  {
+    "file": "MobileTareaChecksEstados.html",
+    "title": "Móvil · Tarea, estados de las comprobaciones",
+    "w": 390,
+    "h": 3560
+  },
+  {
+    "file": "DesktopOrquestacionChecks.html",
+    "title": "Desktop · Orquestación, checks y log",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopOrquestacionChecksSubir.html",
+    "title": "Desktop · Orquestación, subir el arreglo",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileOrquestacionChecks.html",
+    "title": "Móvil · Orquestación, checks y log",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileOrquestacionChecksSubir.html",
+    "title": "Móvil · Orquestación, subir el arreglo",
     "w": 390,
     "h": 844
   }

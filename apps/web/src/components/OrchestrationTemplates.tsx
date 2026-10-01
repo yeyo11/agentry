@@ -5,12 +5,13 @@ import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys, useProjects } from '../api';
-import { timeAgo } from '../lib/format';
-import { Combobox, Tooltip } from './controls';
-import { Dialog, useConfirm } from './Dialog';
-import { ICON_SM } from './icons';
-import { useToast } from './Toast';
-import { Empty, ErrorBox, Field, Loading, ModelCombobox } from './ui';
+import { timeAgo } from '@agentry/ui/lib/format';
+import { Combobox, Tooltip } from '@agentry/ui/components/controls';
+import { Dialog, useConfirm } from '@agentry/ui/components/Dialog';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Empty, ErrorBox, Field, Loading } from '@agentry/ui/components/ui';
+import { ModelCombobox } from './ui';
 
 /**
  * Saves a graph as a template. Given a spec (the launch form's, or a plan's) it takes the graph as

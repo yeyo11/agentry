@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api -X POST repos/yeyo11/agentry-probe/pulls/12/comments -f body=blocked? -f commit_id=97bafbb3b999e1174d1d9d5060665c89dc05b371 -f path=review.txt -F line=3 -f side=RIGHT
+exit: 1
+secs: .614177767
+env: 

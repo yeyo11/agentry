@@ -6,8 +6,8 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useWorkItemBoard, useWorkItemPages } from '../../api';
 import { FabStandIn } from '../../components/shell/Fab';
-import { Card, ErrorBox, Skeleton } from '../../components/ui';
-import { NARROW, useMediaQuery } from '../../lib/media';
+import { Card, ErrorBox, Skeleton } from '@agentry/ui/components/ui';
+import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { DirtyScope } from '../../lib/dirty';
 import {
   boardColumns,

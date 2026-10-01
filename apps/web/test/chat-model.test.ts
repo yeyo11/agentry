@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ChatSummary, Execution } from '@agentry/shared';
-import type { ChatFilters } from '../src/lib/chat-model.ts';
+import type { ChatFilters } from '@agentry/chat-ui/lib/chat-model';
 
 // The cost's wording follows navigator.languages; pin it so the result does not depend on the machine.
 Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }, configurable: true });
+// The model reads the global i18next, so the app's instance is set up after the pin, like the model
+await import('../src/i18n/index.ts');
 const {
   ALL_ORIGINS,
   contextLevel,
@@ -25,7 +27,7 @@ const {
   SORTERS,
   stateCounts,
   stepCursor,
-} = await import('../src/lib/chat-model.ts');
+} = await import('@agentry/chat-ui/lib/chat-model');
 
 const tokens = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 };
 
@@ -48,6 +50,7 @@ const execution = (over: Partial<Execution> = {}): Execution => ({
 const chat = (over: Partial<ChatSummary> = {}): ChatSummary => ({
   id: 'c1',
   title: 'Fix the login bug',
+  provider: 'claude-code',
   firstPrompt: null,
   messageCount: 2,
   startedAt: '2026-01-01T10:00:00Z',

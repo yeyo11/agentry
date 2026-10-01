@@ -1,0 +1,70 @@
+{
+  "name": "@agentry/chat-ui",
+  "version": "0.30.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/Attachments": "./src/components/Attachments.tsx",
+    "./components/ChatBadges": "./src/components/ChatBadges.tsx",
+    "./components/ChatDelete": "./src/components/ChatDelete.tsx",
+    "./components/ContextRing": "./src/components/ContextRing.tsx",
+    "./components/MediaViewer": "./src/components/MediaViewer.tsx",
+    "./components/PermissionPrompts": "./src/components/PermissionPrompts.tsx",
+    "./components/SlashMenu": "./src/components/SlashMenu.tsx",
+    "./components/Transcript": "./src/components/Transcript.tsx",
+    "./components/TranscriptSearch": "./src/components/TranscriptSearch.tsx",
+    "./lib/chat-live": "./src/lib/chat-live.ts",
+    "./lib/chat-model": "./src/lib/chat-model.ts",
+    "./lib/chat-notice": "./src/lib/chat-notice.ts",
+    "./lib/chat-pages": "./src/lib/chat-pages.ts",
+    "./lib/chat-steps": "./src/lib/chat-steps.ts",
+    "./lib/chat-stream": "./src/lib/chat-stream.ts",
+    "./lib/chats": "./src/lib/chats.ts",
+    "./lib/context": "./src/lib/context.tsx",
+    "./lib/edit-chips": "./src/lib/edit-chips.ts",
+    "./lib/permission-param": "./src/lib/permission-param.ts",
+    "./lib/slash-commands": "./src/lib/slash-commands.ts",
+    "./composer/Composer": "./src/composer/Composer.tsx",
+    "./composer/queued": "./src/composer/queued.ts",
+    "./composer/stick-to-bottom": "./src/composer/stick-to-bottom.ts",
+    "./locales": "./src/locales/index.ts",
+    "./styles/chat.css": "./src/styles/chat.css",
+    "./styles/transcript.css": "./src/styles/transcript.css",
+    "./chats.css": "./src/chats.css"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p test/tsconfig.json",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@agentry/shared": "workspace:*",
+    "@agentry/ui": "workspace:*",
+    "@radix-ui/react-popover": "^1.1.23",
+    "@tanstack/highlight": "0.1.0",
+    "@tanstack/markdown": "0.0.15",
+    "@tanstack/react-virtual": "^3.14.13",
+    "shiki": "^4.4.3",
+    "@lezer/highlight": "^1.2.3",
+    "lucide-react": "^1.47.0",
+    "motion": "^13.4.0"
+  },
+  "peerDependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "i18next": "^26.4.2",
+    "react-i18next": "^17.0.14",
+    "@tanstack/react-query": "^5.103.1",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "i18next": "^26.4.2",
+    "react-i18next": "^17.0.14",
+    "@tanstack/react-query": "^5.103.1",
+    "react-router-dom": "^7.18.4",
+    "vite": "^8.3.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0"
+  }
+}

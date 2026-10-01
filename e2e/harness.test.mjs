@@ -71,7 +71,10 @@ async function run({ spec, specs: sources = { 'probe.spec.mjs': spec }, env = {}
   const profiles = () => processesMatching(join(tmp, 'agentry-e2e-chrome-'));
   let during = [];
   if (beforeEnd) {
-    for (let i = 0; i < 300 && !existsSync(ready); i++) await sleep(100);
+    // Booting a whole wrapper and a browser takes well over 30 s when CI runs the other suites beside
+    // it; what this test is about is what happens after the spec starts, so it waits for that, not
+    // for a fast machine
+    for (let i = 0; i < 1200 && !existsSync(ready); i++) await sleep(100);
     assert.ok(existsSync(ready), `the spec never started:\n${output}`);
     during = alive(profiles());
     await beforeEnd({ child, output: () => output });
@@ -116,9 +119,11 @@ test('a spec that hangs trips its limit and leaves no browser or server behind',
 });
 
 test('the run limit stops a run even when every spec is within its own', { skip }, async () => {
-  const r = await run({ spec: hang, beforeEnd: () => {}, env: { E2E_SPEC_TIMEOUT: '600000', E2E_TIMEOUT: '12000' } });
+  // The run limit counts from the runner's start, the API's boot included, and that boot has taken
+  // more than 12 s on a loaded machine: the limit has to leave the spec time to start at all
+  const r = await run({ spec: hang, beforeEnd: () => {}, env: { E2E_SPEC_TIMEOUT: '600000', E2E_TIMEOUT: '45000' } });
   assert.equal(r.code, 1);
-  assert.match(r.output, /the e2e run exceeded 12s/);
+  assert.match(r.output, /the e2e run exceeded 45s/);
   assert.ok(r.during.length > 0);
   assert.deepEqual(r.survivors, { chrome: [], server: false });
 });

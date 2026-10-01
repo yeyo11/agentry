@@ -203,10 +203,19 @@ export async function launch({ baseUrl, port = 0, shotsDir }) {
     // Generous by default: pages are code-split and CI runners are slow
     async waitFor(body, { timeout = 20000, label = body } = {}) {
       const end = Date.now() + timeout;
+      // Kept for the report: a wait that never came true because the page threw or had gone (a
+      // renderer that crashed, a document that never loaded) says so instead of a bare timeout
+      let lastError = null;
       for (;;) {
-        const value = await this.eval(body).catch(() => null);
+        const value = await this.eval(body).then(
+          (v) => ((lastError = null), v),
+          (error) => ((lastError = error), null),
+        );
         if (value) return value;
-        if (Date.now() > end) throw new Error(`timed out waiting for: ${label}`);
+        if (Date.now() > end) {
+          const where = await this.eval('return location.href').catch(() => 'unknown');
+          throw new Error(`timed out waiting for: ${label} (at ${where}${lastError ? `; the last check threw: ${lastError.message}` : ''})`);
+        }
         await sleep(150);
       }
     },

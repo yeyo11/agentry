@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api -X POST repos/yeyo11/agentry-probe/rulesets --input /tmp/ghm-ruleset.json
+exit: 0
+secs: 1.564716237
+env: 

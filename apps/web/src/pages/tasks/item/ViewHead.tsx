@@ -5,12 +5,14 @@ import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys } from '../../../api';
-import { MoreActions } from '../../../components/controls';
-import { Tooltip } from '../../../components/controls/Tooltip';
-import { useConfirm } from '../../../components/Dialog';
-import { ICON_SM, WorkItemStatusIcon } from '../../../components/icons';
-import { useToast } from '../../../components/Toast';
+import { MoreActions } from '@agentry/ui/components/controls';
+import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
+import { useConfirm } from '@agentry/ui/components/Dialog';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { WorkItemStatusIcon } from '../../../components/work-item-icons';
+import { useToast } from '@agentry/ui/components/Toast';
 import { columnMeta, returnPath, returnState, taskPath } from '../../../lib/work-items';
+import { useFixOffered } from './Checks';
 import { useMoveItem, type ItemActions } from './hooks';
 import { deleteWarning, workOnBlocker } from './model';
 import { ITEM_PANEL_PARAM } from './Panel';
@@ -42,6 +44,8 @@ export function useItemButtons(item: WorkItemDetail, actions: ItemActions) {
   const blocker = workOnBlocker(item);
   const activeChat = item.activeLink?.chatId;
   const move = useMoveItem(item, actions);
+  // The zone's one gradient action is "Fix failing checks" while it is on the page: this is neutral then
+  const fixOffered = useFixOffered(item.pullRequest);
   const done =
     item.status === 'done' ? null : (
       <button type="button" className="btn workitem-done" onClick={() => move('done')} disabled={actions.move.isPending}>
@@ -59,7 +63,7 @@ export function useItemButtons(item: WorkItemDetail, actions: ItemActions) {
     );
   } else if (blocker === null) {
     work = (
-      <button type="button" className="btn btn-primary workitem-work" onClick={() => setStarting(true)}>
+      <button type="button" className={`btn workitem-work ${fixOffered ? '' : 'btn-primary'}`.trim()} onClick={() => setStarting(true)}>
         <Play {...ICON_SM} />
         {t('actions.workOn')}
       </button>

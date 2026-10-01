@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api -X PATCH repos/yeyo11/agentry-probe -F allow_merge_commit=true --jq .allow_merge_commit
+exit: 0
+secs: 1.300941771
+env: 

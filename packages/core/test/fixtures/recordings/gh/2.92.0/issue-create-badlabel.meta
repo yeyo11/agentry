@@ -1,0 +1,5 @@
+gh: 92
+argv: gh issue create -R yeyo11/agentry-probe --title Bad label --body x --label nope-label
+exit: 1
+secs: 1.544002166
+env: 

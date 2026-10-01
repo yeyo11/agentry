@@ -1,0 +1,60 @@
+title:	feat: detect agent providers, with a first-run step and Settings → Providers
+state:	MERGED
+author:	yeyo11 (Jose Antonio Garrido)
+labels:	
+assignees:	
+reviewers:	
+projects:	
+milestone:	
+number:	150
+url:	https://github.com/yeyo11/agentry/pull/150
+additions:	7248
+deletions:	156
+auto-merge:	disabled
+--
+## What
+
+This is phase 1 of `docs/plans/multi-provider.md`. Agentry now finds the coding agents on the machine by itself and says whether each one is ready. Claude Code is still the only provider that runs work. Nothing changes for chats, flows or orchestrations.
+
+- **Core** (`packages/core/src/providers/`)
+  - One manifest per provider: Claude Code, Codex, Gemini CLI, GitHub Copilot and OpenCode. Every fact about another vendor's CLI cites its source.
+  - A registry keyed by open ids.
+  - The user's PATH, resolved in core: the login shell with a typed failure, an `fs` lookup instead of spawning `which`, and a fallback to the usual install directories.
+  - A `ProviderDetector`:
+    - seven readiness states, each with a reason code;
+    - version, auth and "used before" (a config home without a binary);
+    - one cache, and watchers on the PATH directories and config homes;
+    - a `providers.changed` event.
+  - `providers.json` for the settings.
+- **API**
+  - `GET /providers`, `GET /providers/:id`, `POST /providers/refresh`, `GET/PUT /providers/settings`.
+  - Chat tokens are refused on the writes.
+  - `/health` keeps its shape.
+- **Web**, built from prototypes the owner validated:
+  - the first-run Providers step;
+  - Settings → Providers: order, default, on/off and a binary override;
+  - one status-bar dot per provider;
+  - Home's setup rows reading provider statuses.
+- **The one rule is generalised** in `CLAUDE.md` and `CONTRIBUTING.md`: each agent is reached only through the interface its vendor ships for programs. `docs/providers.md` is new.
+
+## Found by running the e2e spec, and fixed
+
+1. A refresh that arrived while a detection was running got that detection's older answer.
+2. A reading of Claude Code alone threw away a full detection that ended after it.
+3. The first-run step hid Settings when no provider was ready. Once the step has been seen, it now leaves Settings alone.
+4. The first-run step had no main landmark.
+
+Each core fix has a regression test.
+
+## Checks
+
+- `pnpm typecheck` passes.
+- `pnpm build` passes.
+- `pnpm test` passes, except the shiki test in `apps/web/test/highlight.test.ts`. That test checks a per-line time budget and fails only when the whole suite runs at once on this machine. It passes alone, and this branch does not touch it.
+- `pnpm e2e` (4 local shards): 59 specs passed. `connectors` and `shell` failed under the load of four shards and pass when run alone.
+- OpenAPI schemas: no drift.
+
+## Not in this PR
+
+Phases 2 to 4 of the plan: Claude on the Agent SDK behind a driver interface, the Codex and ACP drivers, and rotation between providers.
+

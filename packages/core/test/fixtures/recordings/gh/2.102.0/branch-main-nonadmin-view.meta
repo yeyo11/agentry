@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api repos/yeyo11/agentry-probe/branches/main --jq {protected,protection}
+exit: 0
+secs: .744013878
+env: 

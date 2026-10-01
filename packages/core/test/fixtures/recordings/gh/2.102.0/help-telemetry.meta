@@ -1,0 +1,5 @@
+gh: 102
+argv: gh help telemetry
+exit: 0
+secs: .301322358
+env: 

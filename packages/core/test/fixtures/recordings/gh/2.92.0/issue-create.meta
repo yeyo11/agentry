@@ -1,0 +1,5 @@
+gh: 92
+argv: gh issue create -R yeyo11/agentry-probe --title Probe issue A --body-file - --label probe-label
+exit: 0
+secs: 2.210978509
+env: 

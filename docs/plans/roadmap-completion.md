@@ -1,18 +1,19 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-09-21T07:35:14Z
+updated_at: 2026-10-01T13:40:00Z
 tags:
     - plan
     - roadmap
-    - verification-pending
+    - verified
 ---
 # Plan: finish the roadmap
 
-Status: **built; final verification pending**. Run as one orchestration on top of `main` at
-`f78fab7` (`feat!: chats, projects and Agentry's own model`). Every task below has landed except the
-pieces listed under [Outcome](#outcome-what-landed-and-what-did-not). `pnpm typecheck` and
-`pnpm test` are green on the integrated branch; **no task ran `pnpm e2e`** (the rules forbade it), so the
-browser specs the tasks wrote are unrun until the verification task at the end runs the suite.
+Status: **Verified on `e0efe0eb` (0.29.1)**: see [Verification](#verification-2026-10-01). Run as
+one orchestration on top of `main` at `f78fab7` (`feat!: chats, projects and Agentry's own model`).
+Every task below landed except the pieces listed under
+[Outcome](#outcome-what-landed-and-what-did-not). Most of those were built later by
+[post-roadmap](post-roadmap.md). The specs the tasks wrote pass when run one at a time. A full
+`pnpm e2e` run is the one item still open.
 
 This document is the source of truth for every task of that orchestration. It closes the whole
 **Next** section of [ROADMAP.md](../../ROADMAP.md): agent observability, security, richer chat
@@ -425,6 +426,120 @@ carries `agentId`; `sessionId` is on every subagent; `apps/web/test/detail.test.
   usage, tool presets, connectors, accounts config and orchestration v2, and the health action buttons
   need a live process, so they have unit tests of their rules but no spec.
 
+## Verification (2026-10-01)
+
+This section checks every row of [Landed](#landed), every bullet of
+[Left out, and why](#left-out-and-why) and [What "done" means](#what-done-means-for-this-orchestration)
+against `main` at 0.29.1, following [verify-roadmap-plans.md](verify-roadmap-plans.md) (CW-7). Since
+this plan was written, `main` has gained multiple providers (phases 1–2), code hosts (phase 1) and
+the split of the web UI into `@agentry/ui` and `@agentry/chat-ui`. Where a claim is now met by code
+that moved, the evidence names the file where the code is today. The marks: **done** means present
+and working as described. **done later** means listed as left out here and built by
+[post-roadmap](post-roadmap.md#outcome). **fixed** means repaired by this verification. **dropped**
+means absent on purpose, with the reason. **open** means a follow-up that is too large to fix here.
+
+### Landed
+
+| Item | Mark | Evidence / reason |
+| --- | --- | --- |
+| Shared types, and the fields later tasks added | done | `packages/shared/src/types.ts`: `ChatSubagent.sessionId`, `WorkflowEndedEvent.agentId`, `CliVersionInfo.error`, `VerificationSpec.timeoutMinutes`, `VerificationState.commit`, `verificationStatus` on `orchestration.updated`, `ChatStartOptions.mcp?: McpSelection \| null`. Regenerating the OpenAPI schemas leaves no diff |
+| 1 `git-changes` | done | `GET /chats/:id/changes`, `…/changes/diff` and `…/checklist`, the same under `/orchestrations/:id/tasks/:taskId/` and `/orchestrations/:id/integration/changes`; `changes.updated` from `packages/core/src/change-watcher.ts`. Tests: `packages/core/test/changes.test.ts`, `apps/api/test/changes.test.ts`; `observability.spec.mjs` passes |
+| 1 `stuck-signals` | done | `packages/core/src/health.ts` and `health-service.ts` raise all seven signals (`hung-command`, `repeat-stall`, `no-progress`, `loop`, `weakened-test`, `silence`, `budget`) and four more. Command durations are rows of `command_durations` in `db.ts`. Cancel walks `/proc` in `processes.ts`. Routes: `POST /chats/:id/commands/:toolUseId/cancel` and `POST /chats/:id/hint`; limits in `task-limits.ts`. Tests: `health.test.ts`, `stuck-signals.test.ts` (core and api), `task-limits.test.ts`; `health-actions.spec.mjs` passes |
+| 1 `e2e-harness` | done | `e2e/run.mjs` and `e2e/processes.mjs`: a limit per spec and per run, and kills by process group. `e2e/harness.test.mjs`: 14 of 14 pass on their own, and the full run is flaky under load (see [The checks](#the-checks)) |
+| 1 `verification-phase` | done | `packages/core/src/verification.ts`, `POST /orchestrations/:id/verify`, the split of checks in every worker prompt (test "every worker is told which checks are its own…"). `packages/core/test/verification.test.ts`; `orchestration-v2.spec.mjs` passes |
+| `pending-gaps`: a chat already waiting raises a notification on load | done | `seedWaiting` in `apps/web/src/lib/notifications.ts`, called from `components/Notifications.tsx`. It had no test of its own: `apps/web/test/notifications-seed.test.ts` (`ff8e0b3d`, `test(web): cover the notifications a page seeds from the prompts chats hold`) now covers it |
+| `pending-gaps`: a waiting notification opens the prompt | done | `PROMPT_PARAM` (`?prompt=<id>`), read now in `packages/chat-ui/src/components/PermissionPrompts.tsx` (moved by the web split) |
+| `pending-gaps`: a chat cut off by a restart says why and when | done | `INTERRUPTED_BY_RESTART` in `packages/core/src/chat-model.ts`; `restore.test.ts` "an execution a restart cut off says why, and stopped when…" |
+| `pending-gaps`: `workflow.ended` carries `agentId` | done | `WorkflowEndedEvent.agentId: string \| null` in `types.ts` |
+| `pending-gaps`: `sessionId` on every subagent | done | `ChatSubagent.sessionId: string` in `types.ts` |
+| `pending-gaps`: `apps/web/test/detail.test.ts` | done | The file exists and passes; `detail.spec.mjs` passes |
+| 2 `security` | done | `none`/`token`/`oidc` in `packages/core/src/security/` (JWKS validation in `oidc.ts`, with no dependency), and only the SHA-256 of a token is stored. Read-only answers `405` (`apps/api/src/security.ts`). `redactSecrets` covers `GET /config/mcp` and `GET /config/settings`. The audit log is `auditPage` in `db.ts`. There are now **five** `?token=` GETs, not three: post-roadmap added the two exports. Tests: `apps/api/test/security.test.ts` and `packages/core/test/security.test.ts`; `security.spec.mjs` passes |
+| 3 `chat-mcp-tools` | done | `packages/core/src/chat-tools.ts` (three shipped presets, `--mcp-config` + `--strict-mcp-config` from `providers/claude-code/args.ts`); `chat-tools.test.ts`; `tool-presets.spec.mjs` passes |
+| 4 `orchestration-v2` | done | `rerunTask` in `orchestrator.ts`, `POST /orchestrations/:id/relaunch` (`relaunchedFrom`), `orchestration-templates.ts` and the `/orchestrations/templates` routes; `orchestration-v2.spec.mjs` passes |
+| 5 `connectors` | done | `packages/core/src/connectors.ts` runs `claude mcp list` and carries the out-of-reach entries (web artifacts, claude.ai memory); `connectors.test.ts`; `connectors.spec.mjs` passes when run alone, flaky under load |
+| 6 `accounts-config` | done | `account-config.ts`, `PUT /accounts/:number/config`, `/accounts/policies`, `GET /accounts/usage`; `account-config.test.ts` ("every fresh reading of the usage is kept as a row…"); `accounts-config.spec.mjs` passes |
+| 7 `scheduling` | done | `cron.ts` (no `node-cron`), `schedules.ts`, `GET /schedules/preview`, `GET /schedules/:id/runs`; `schedules.test.ts` ("a window missed while the wrapper was down is skipped, once…"); `schedules.spec.mjs` passes |
+| 8 `usage-cost` | done | `GET /usage/series`, `GET /usage/breakdown` (`usage-series.ts`), `GET /chats/:id/export` (`chat-export.ts`); `usage-series.test.ts`; `usage.spec.mjs` passes |
+| 9 `packaging` | done | `docker/Dockerfile` pins `CLAUDE_CODE_VERSION=2.1.278` and exports `AGENTRY_CLAUDE_CODE_PINNED`. `GET /system/cli-version` and `POST /system/cli-version/check` (`cli-version.test.ts`). `deploy/helm/agentry` has a deployment with startup, liveness and readiness probes, a service, a PVC and a secret. `docker-compose.yml` has the `tls` profile with Caddy and `restart: unless-stopped`; `docker compose config -q` passes for both profiles. `docs/deploy.md`. `helm` is not installed on this machine, so the chart was not linted |
+| 10 `web-observability`: work panel, health actions, Changes and Doing now | done | `apps/web/src/components/observe/` (`Work.tsx`, `Health.tsx`), "Doing now" in `locales/en/observe.json`; `observability.spec.mjs` and `health-actions.spec.mjs` pass |
+| 10 `web-observability`: editor links and their settings tab | dropped | Removed by [changes-review](changes-review.md) decision 1 (#115). Changes are reviewed inside Agentry, and `/settings/editor` answers 404. See [status.md](../status.md#what-is-built) |
+| 10 `web-security` | done | `apps/web/src/pages/config/SecurityTab.tsx`, sign-in on a `401` (`apps/web/test/auth.test.tsx`); `security.spec.mjs` passes |
+| 10 `web-schedules-usage` | done | `pages/Schedules.tsx` with a cron builder (`cron-builder.test.ts`, `cron-words.test.ts`), `pages/Usage.tsx` with a chart and its table, export links in `pages/chat/Header.tsx`; `schedules.spec.mjs` and `usage.spec.mjs` pass |
+| 10 `web-orchestration-v2` | done | Re-run, relaunch, templates, limits and the verification card (`orchestration-v2.spec.mjs`); config directory, policies and usage history (`accounts-config.spec.mjs`); the Connectors page (`connectors.spec.mjs`) |
+| 11 `docs` | done | README (features, *Securing it*, *Deploying*, Known limitations), `SECURITY.md`, `ROADMAP.md`. Every route in `routes.ts` (276) has a README row; this was checked by script, path by path, with combined rows such as `GET/PUT` |
+
+### Left out, and why
+
+| Item | Mark | Evidence / reason |
+| --- | --- | --- |
+| The Haiku supervisor | done later | [post-roadmap `supervisor`](post-roadmap.md#stage-1--core-and-api): `packages/core/src/supervisor.ts`, `/settings/supervisor`, `supervisor.test.ts`; `supervisor.spec.mjs` passes |
+| Health levels `slow`, `stuck`, `looping` | dropped | The plan's own reason: "the plan's names mix a severity with three kinds of signal". `HealthLevel = 'ok' \| 'warn' \| 'bad'`, and the kind is on the signal |
+| Editor settings on the server | dropped | Built later by post-roadmap `editor-settings-server`, then removed with the whole editor integration by [changes-review](changes-review.md) decision 1 (#115) |
+| `code --diff` as a copied command | dropped | Removed with the editor integration (#115). CLAUDE.md now says "never hand out a command to copy" |
+| Answering a permission from the notification | done later | [post-roadmap `web-security-2`](post-roadmap.md#stage-2--the-web): `PermissionAnswer` in `apps/web/src/components/NotificationPanel.tsx`; `notifications.spec.mjs` ("a tool permission has Allow and Deny in the list") passes |
+| Plugin and connector servers in a chat's MCP selection | dropped | ROADMAP *Out of reach of the CLI* and README Known limitations: "they are in no file Agentry can read, and `--strict-mcp-config` drops them" |
+| Forks do not inherit the source chat's tools | done later | post-roadmap `tool-presets-2`; `chat-tools.test.ts` "a fork runs with the tools and servers of its source unless it picks others" |
+| A resume keeps the MCP config as picked | done later | post-roadmap `tool-presets-2`; `chat-tools.test.ts` "a resume that picks no servers starts them as they are defined now" |
+| No named default preset, no "restore the shipped presets" | done later | post-roadmap `tool-presets-2`: `PUT /config/tool-presets/default`, `POST /config/tool-presets/restore`; `apps/api/test/tool-presets.test.ts`; `tool-presets.spec.mjs` passes |
+| A sign-in through an identity provider | dropped | ROADMAP *Decided against, for now*: "a browser login flow … is a product of its own" |
+| The audit log's method and status filters, and escaping `%` and `_` | done later | post-roadmap `security-2`: `auditPage` uses `path LIKE ? ESCAPE '\'`, and `GET /audit` takes `method` and `status`; filters on the Security tab |
+| A banner on every page while read-only is on | dropped | ROADMAP *Decided against, for now*: "a strip across every screen buys nothing for the noise" |
+| Verification: no fixer cost limit, no install step, a failed check does not fail the graph | done later | post-roadmap `verification-2`; `verification.test.ts` (cost limit, lockfile install, `failGraph`) |
+| Scheduling: no overlap policy, no `schedule.*` event, no import of an orchestration | done later | post-roadmap `scheduling-2` and `web-chats-tools`; `schedules.test.ts` (overlap, events); "From an existing orchestration" in the schedule form; `schedules.spec.mjs` passes |
+| Usage: no project export, the custom range is typed | done later | post-roadmap `usage-2` (`GET /projects/:id/export`, `project-export.test.ts`) and `web-schedules-usage-2` (`DatePicker`, now in `packages/ui/src/components/controls/DatePicker.tsx`, used by `pages/Usage.tsx`) |
+| Packaging: no Ingress, the chart is not under release-please, nothing run for real | dropped | ROADMAP *Decided against, for now*, "Packaging, taken separately". `deploy/helm` still has no Ingress template, and `release-please-config.json` does not name the chart |
+| Server-written strings shown in English; a template cannot be renamed in place | done later | post-roadmap `i18n-server-strings` and `web-schedules-usage-2` (`apps/web/src/lib/server-strings.ts`, `server-strings.test.ts` in core and web); `web-chats-tools` (rename in place, `orchestration-v2.spec.mjs` "rename a template in place") |
+| Cancelling a command off Linux | dropped | ROADMAP *Out of reach of the CLI* and README Known limitations: "cancelling a command needs Linux" (`/proc`) |
+| Browser coverage: no spec run, no spec for the health action buttons | done later | post-roadmap `e2e-health-actions` (`e2e/fake-cli/claude`, `health-actions.spec.mjs`). The specs this plan wrote pass here (see [The checks](#the-checks)) |
+
+### What "done" means
+
+| Item | Mark | Evidence / reason |
+| --- | --- | --- |
+| `pnpm typecheck`, `pnpm test`, `pnpm build` green | done | See [The checks](#the-checks) |
+| `pnpm e2e` green once at the end | open → follow-up | This plan's specs pass one by one, and `connectors` is flaky under load. The full suite was not run here, and its last run on `main` failed 6 specs ([status.md](../status.md#how-it-is-checked)). A full run belongs to its own task: see [post-roadmap's follow-ups](post-roadmap.md#follow-ups) |
+| OpenAPI schemas regenerated and committed | done | No drift after `openapi:schemas` |
+| Every task's result says what it delivered, left out and verified | done | Recorded in [Outcome](#outcome-what-landed-and-what-did-not), and checked item by item above |
+
+### The checks
+
+Run on 2026-10-01 in a worktree off `main`, on a machine with a load average between 23 and 58.
+Typecheck and the unit tests ran on `main` at `7242b4fe` (0.29.1). The build, the harness test and
+the browser specs ran on `e0efe0eb`, which is `main` plus the two commits of this verification: a
+corrected route description and a new test. A third commit, `ff8e0b3d`, adds
+only a unit test.
+
+- `pnpm typecheck`: passes, all seven workspace projects (`TYPECHECK EXIT 0`).
+- `pnpm test`: passes. 2,714 tests (core 1,443, web 967, api 217, desktop 49, shared 31, chat-ui 4,
+  ui 3), `# fail 0` in every package. `apps/api/test/security.test.ts`, run again on its own after
+  `e0efe0eb`: `# pass 35`, `# fail 0`. The web suite, run again after `ff8e0b3d` added a test:
+  `# pass 969`, `# fail 0`.
+- `pnpm build`: passes (`✓ built in 13.93s`, `BUILD EXIT 0`).
+- `pnpm --filter @agentry/api openapi:schemas`: `wrote 502 schemas`, and `git status` shows no diff.
+- `node --test e2e/harness.test.mjs`: **14 tests pass on their own; the run as a whole is flaky under
+  load.** In one run at a load near 58, 10 passed and 4 failed. Two failed because a probe spec never
+  started inside the 12 s run limit. Two failed with `API did not start`: the runner waits about 20 s
+  for `/api/system`, and the server did not answer in that time. Run alone, two passed. The other two
+  (`E2E_SHARDS=1 and a single spec…` and `SIGTERM to a sharded run…`) failed again with the same
+  message, then passed on a second try at a load near 31 (`# pass 1`, `# fail 0` each). No port was
+  taken in the harness's range. This is the server's start-up time under load, not a fault in the
+  harness. See the follow-ups.
+- `pnpm e2e`: **the full suite was not run.** This verification ran only the specs that prove a
+  claim of these two plans, one at a time
+  (`node e2e/run.mjs <spec>` with `E2E_PORT=8863`): `observability`, `health-actions`, `security`,
+  `notifications`, `detail`, `schedules`, `usage`, `tool-presets`, `connectors`, `accounts-config`,
+  `orchestration-v2` and `supervisor`. On the first try, 11 passed and `connectors.spec.mjs` failed
+  with `assertion failed: Connectors is in the navigation`. Run again alone, it passed (`✓
+  connectors.spec.mjs (5.2s)`, `all 1 spec file(s) passed`). The spec reads the sidebar a fixed
+  1.2 s after it loads `/`, and the item is in `App.tsx`'s `space` group. So it is flaky under load.
+  It is not on the list of [known flaky specs](redesign-night-shift.md#before-launching), which names
+  `config`, `home`, `observability`, `chats` and `orchestration-v2`. The last full-suite results on
+  `main` are in [status.md](../status.md#how-it-is-checked).
+
+**Count:** 48 items. 27 done, 11 done later, 9 dropped, 1 open. No claim of the plan failed.
+`fixed` is not used in this plan: the one wrong text found (the `?token=` list) is recorded in
+[post-roadmap](post-roadmap.md#verification-2026-10-01), whose claim it is.
+
 ## What "done" means for this orchestration
 
 `pnpm typecheck`, `pnpm test`, `pnpm build` green on the integration branch, `pnpm e2e` green once
@@ -433,4 +548,5 @@ what it delivered, what it left out, and how it verified it.
 
 ## Related
 
-[[plans/post-roadmap.md]] · [[plans/agent-observability.md]] · [[status.md]]
+[[plans/post-roadmap.md]] · [[plans/agent-observability.md]] · [[status.md]] ·
+[[plans/verify-roadmap-plans.md]] · [[plans/changes-review.md]]

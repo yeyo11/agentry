@@ -2,8 +2,8 @@ import type { Project, ProjectWorktree } from '@agentry/shared';
 import { GitBranch, MessageSquarePlus, MessagesSquare, Workflow } from 'lucide-react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { ICON_SM } from '../../components/icons';
-import { Card, Empty } from '../../components/ui';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { Card, Empty } from '@agentry/ui/components/ui';
 
 /** One worktree of the project: its branch, who made it, and a way into a chat in it. */
 function WorktreeRow({ worktree }: { worktree: ProjectWorktree }) {

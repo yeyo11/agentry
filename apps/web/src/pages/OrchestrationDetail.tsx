@@ -1,33 +1,45 @@
-import type { ChatWorkflow, Orchestration, ResumeOrchestrationRequest } from '@agentry/shared';
+import type { ChatWorkflow, Orchestration, OrchestrationPullRequestPhase, ResumeOrchestrationRequest } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, BookmarkPlus, ChevronRight, Combine, ExternalLink, FolderGit2, GitMerge, GitPullRequest, MessageSquare, Play, Radio, RotateCw, Rocket, Save, Square, Trash2, Waypoints } from 'lucide-react';
 import { useCallback, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { api, ApiRequestError, keys, useOrchestration } from '../api';
-import { AnimatedNumber } from '../components/AnimatedNumber';
-import { CodeBlock } from '../components/CodeBlock';
-import { Collapsible, MoreActions, Switch, type MenuEntry } from '../components/controls';
-import { useConfirm } from '../components/Dialog';
-import { ICON, ICON_SM } from '../components/icons';
+import { api, ApiRequestError, keys, useOrchestration, useProjects } from '../api';
+import { AnimatedNumber } from '@agentry/ui/components/AnimatedNumber';
+import { CodeBlock } from '@agentry/ui/components/CodeBlock';
+import { Collapsible, MoreActions, Switch, type MenuEntry } from '@agentry/ui/components/controls';
+import { useConfirm } from '@agentry/ui/components/Dialog';
+import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { BoardStatusBadge, StageHead, TaskCard, TaskRow, WaitingNotice } from '../components/OrchestrationBoard';
 import { SaveTemplateDialog } from '../components/OrchestrationTemplates';
 import { RelaunchPanel } from '../components/RelaunchPanel';
-import { Stepper, type StepItem } from '../components/Stepper';
-import { useToast } from '../components/Toast';
-import { RichText } from '../components/Transcript';
+import { Stepper, type StepItem } from '@agentry/ui/components/Stepper';
+import { useToast } from '@agentry/ui/components/Toast';
+import { RichText } from '@agentry/chat-ui/components/Transcript';
 import { FailedByChecksNotice, VerificationCard } from '../components/VerificationCard';
 import { WorkflowCard as WorkflowRunCard } from '../components/WorkflowCard';
 import { IntegrationChanges, TaskWork } from '../components/observe/Work';
-import { Card, Empty, ErrorBox, Field, Loading, Segmented, StatusBadge, usePageTitle } from '../components/ui';
-import { formatCost, formatDateTime, formatNumber, shortPath } from '../lib/format';
-import { elapsedSince, formatElapsed } from '../lib/live';
-import { NARROW, useMediaQuery } from '../lib/media';
-import { useClockTick } from '../lib/motion';
+import { Card, Empty, ErrorBox, Field, Loading, Segmented, StatusBadge, usePageTitle } from '@agentry/ui/components/ui';
+import { formatCost, formatDateTime, formatNumber, shortPath } from '@agentry/ui/lib/format';
+import { elapsedSince, formatElapsed } from '@agentry/ui/lib/live';
+import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { useClockTick } from '@agentry/ui/lib/motion';
 import { costSplit } from '../lib/orchestration-board';
 import { followedStep, layerTasks, orchestrationSteps, type OrchestrationStep } from '../lib/orchestration-steps';
-import { canRelaunch, pullRequestHeld, rerunBlockedByPullRequest } from '../lib/orchestration-v2';
-import type { StepState } from '../lib/progress';
+import { pullRequestErrorKey } from '../lib/work-items';
+import { CiBadge, reasonValues, useChangeRequestWords } from './tasks/board/PullRequest';
+import { canRelaunch, checksShown, pullRequestHeld, rerunBlockedByPullRequest } from '../lib/orchestration-v2';
+import { OrchestrationChecks } from '../components/OrchestrationChecks';
+import type { StepState } from '@agentry/ui/lib/progress';
+
+/** The badge tone of each phase of an orchestration's change request: waiting for the person idle, merged ok, failed bad. */
+const PR_PHASE_BADGE: Record<OrchestrationPullRequestPhase, string> = {
+  preparing: '',
+  open: 'badge-idle',
+  merged: 'badge-ok',
+  closed: '',
+  failed: 'badge-bad',
+};
 
 /**
  * The one branch a worktree graph delivers. Built by itself when the graph finishes; this shows
@@ -36,10 +48,22 @@ import type { StepState } from '../lib/progress';
 function IntegrationCard({ orch }: { orch: Orchestration }) {
   const { t } = useTranslation(['orchestrationDetail', 'config', 'common', 'observe']);
   const { t: tv } = useTranslation('orchestrationV2');
+  const { t: tt } = useTranslation('tasks');
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
   const integration = orch.integration ?? null;
+  // The host that will hold the change request: the one that holds it once it exists, else the project's remote
+  const projects = useProjects(false);
+  const project = projects.data?.find((p) => p.path === orch.cwd);
+  const codeHost = useQuery({
+    queryKey: keys.projectCodeHost(project?.id ?? ''),
+    queryFn: () => api.projectCodeHost(project?.id ?? ''),
+    enabled: Boolean(project) && !orch.pullRequest,
+  });
+  const readiness = codeHost.data?.readiness ?? null;
+  const pr = orch.pullRequest ?? null;
+  const words = useChangeRequestWords(pr?.host ?? readiness?.host);
   const refresh = () => queryClient.invalidateQueries({ queryKey: keys.orchestration(orch.id) });
   const integrate = useMutation({
     mutationFn: () => api.integrateOrchestration(orch.id),
@@ -48,7 +72,7 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
   const publish = useMutation({
     mutationFn: () => api.orchestrationPullRequest(orch.id),
     onSuccess: (res) => {
-      if (res.url) toast.success(t('config:detail.prOpened'), res.url);
+      if (res.url) toast.success(t('config:detail.prOpened', { noun: words.noun }), res.url);
       else toast.info(t('config:detail.pushed', { branch: res.branch }), res.detail);
       void refresh();
     },
@@ -87,7 +111,10 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
             {integration?.status === 'merged' &&
               (integration.pullRequestUrl ? (
                 <a className="btn btn-small" href={integration.pullRequestUrl} target="_blank" rel="noreferrer">
-                  <ExternalLink {...ICON_SM} /> {t('config:detail.pullRequest')}
+                  <ExternalLink {...ICON_SM} />{' '}
+                  {pr?.number == null
+                    ? t('config:detail.pullRequestUnnumbered', { noun: words.noun, host: words.host })
+                    : t('config:detail.pullRequest', { noun: words.noun, host: words.host, ref: words.ref(pr.number, pr.ref) })}
                 </a>
               ) : prHeld ? null : (
                 <button
@@ -97,14 +124,14 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
                   onClick={() =>
                     void confirm({
                       title: t('config:detail.pushTitle', { branch: integration.branch }),
-                      body: t('config:detail.pushBody'),
+                      body: t('config:detail.pushBody', { noun: words.long, host: words.host }),
                       confirmLabel: t('config:detail.pushConfirm'),
                     }).then((ok) => {
                       if (ok) publish.mutate();
                     })
                   }
                 >
-                  <GitPullRequest {...ICON_SM} /> {publish.isPending ? t('config:detail.pushing') : t('config:detail.push')}
+                  <GitPullRequest {...ICON_SM} /> {publish.isPending ? t('config:detail.pushing') : t('config:detail.push', { noun: words.noun })}
                 </button>
               ))}
             {integration?.status !== 'merged' && (
@@ -145,6 +172,21 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
             <span>{t('config:detail.merged', { merged: integration.merged.length, count: branches })}</span>
             {integration.integratorRunId && <Link to={`/chats/${integration.integratorRunId}`}>{t('integratorChat')}</Link>}
           </div>
+          {pr && (
+            <div className="meta">
+              <span className={`badge ${PR_PHASE_BADGE[pr.phase]}`.trim()}>{t(`config:detail.prPhase.${pr.phase}`)}</span>
+              <span className="mono">{words.ref(pr.number, pr.ref) ? `${words.noun} ${words.ref(pr.number, pr.ref)}` : words.noun}</span>
+              <span className="mono">{t('config:detail.prBranches', { branch: pr.branch, base: pr.base })}</span>
+              {pr.phase === 'open' && <CiBadge ci={pr.ci} />}
+            </div>
+          )}
+          {pr?.phase === 'open' && <p className="muted small">{t('config:detail.prFollows', { noun: words.noun, host: words.host })}</p>}
+          {checksShown(pr) && <OrchestrationChecks orch={orch} pr={pr} words={words} />}
+          {pr?.phase === 'failed' && pr.error && (
+            <div className="alert alert-warn small" title={pr.error.detail || undefined}>
+              {tt(pullRequestErrorKey(pr.error.code), { ...reasonValues(tt, { host: pr.host, hostname: null }), host: words.host })}
+            </div>
+          )}
           {checking && <p className="muted small">{tv('verification.holdsPush')}</p>}
           {prHeld && !integration.pullRequestUrl && <p className="muted small">{tv('verification.pullRequestHeld')}</p>}
           {integration.status === 'resolving' && <p className="muted small">{t('config:detail.resolving')}</p>}

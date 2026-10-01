@@ -7,8 +7,9 @@ import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
 import { ProposedWorkItemMeta } from '../../components/assistant/run';
 import { DecisionMark } from '../../components/DecisionMark';
-import { ICON, ICON_SM, WorkItemKey } from '../../components/icons';
-import { useToast } from '../../components/Toast';
+import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { WorkItemKey } from '../../components/work-item-icons';
+import { useToast } from '@agentry/ui/components/Toast';
 import { ModelTag, RoleAvatar, useRoleName } from '../team/RoleAvatar';
 import { resourceReviewHref } from './model';
 

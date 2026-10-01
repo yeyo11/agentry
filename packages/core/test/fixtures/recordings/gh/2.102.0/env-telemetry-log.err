@@ -1,0 +1,26 @@
+Telemetry payload:
+{
+  "events": [
+    {
+      "type": "command_invocation",
+      "dimensions": {
+        "accessible_colors": "false",
+        "accessible_prompter": "false",
+        "agent": "claude-code_2-1-285_agent",
+        "architecture": "amd64",
+        "ci": "false",
+        "color_labels": "false",
+        "command": "gh pr view",
+        "device_id": "fb3c0e83-eecd-4d34-a049-565b3f5279c9",
+        "flags": "json,repo",
+        "github_actions": "false",
+        "invocation_id": "a6a782ff-3ce7-4d06-a2af-8231ac2c4089",
+        "is_tty": "false",
+        "os": "linux",
+        "spinner_disabled": "true",
+        "timestamp": "2026-09-30T18:33:20.599Z",
+        "version": "2.102.0"
+      }
+    }
+  ]
+}

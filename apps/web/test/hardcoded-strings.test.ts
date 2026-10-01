@@ -6,7 +6,9 @@ import test from 'node:test';
 // guessing with regexes: `a > b` is not JSX text and `Array<Foo>` is not a tag.
 import { parseSync } from 'vite';
 
-const SRC = path.join(import.meta.dirname, '..', 'src');
+const REPO = path.join(import.meta.dirname, '..', '..', '..');
+// The app and the packages it is built from.
+const ROOTS = [path.join(REPO, 'apps/web/src'), path.join(REPO, 'packages/ui/src'), path.join(REPO, 'packages/chat-ui/src')];
 
 /** Attributes and object keys the person reads on screen. */
 const VISIBLE_ATTRS = new Set([
@@ -34,7 +36,6 @@ const ALLOWED: ReadonlyArray<{ text: string; why: string }> = [
   { text: 'command not found', why: "the shell's own error, drawn in the cli-missing illustration's terminal" },
   { text: '19 min', why: 'a sample reset time in the quota illustration, written the same in every language' },
   { text: 'Agentry', why: 'the product name, the same in every language' },
-  { text: 'Claude', why: "the assistant's name, as Claude Code writes it in a transcript" },
   { text: 'Esc', why: 'the key as it is engraved on the keyboard' },
   { text: 'Ctrl', why: 'the key as it is engraved on the keyboard' },
   { text: 'The user declined to answer', why: 'the default deny reason, read by the model and not by a person' },
@@ -101,7 +102,7 @@ function scan(file: string): Finding[] {
   const add = (node: Node, texts: string[]) => {
     for (const text of texts) {
       if (!isUserVisible(text)) continue;
-      found.push({ file: path.relative(SRC, file), line: code.slice(0, node.start).split('\n').length, text: text.trim() });
+      found.push({ file: path.relative(REPO, file), line: code.slice(0, node.start).split('\n').length, text: text.trim() });
     }
   };
   const walk = (node: unknown): void => {
@@ -147,7 +148,7 @@ function scan(file: string): Finding[] {
 
 test('no user-visible English is hard-coded outside the i18n resources', () => {
   const allowed = new Set(ALLOWED.map((entry) => entry.text));
-  const findings = files(SRC).flatMap(scan);
+  const findings = ROOTS.flatMap(files).flatMap(scan);
   const offenders = findings.filter((finding) => !allowed.has(finding.text));
   assert.deepEqual(
     offenders.map((f) => `${f.file}:${f.line} ${JSON.stringify(f.text)}`),
@@ -157,7 +158,7 @@ test('no user-visible English is hard-coded outside the i18n resources', () => {
 });
 
 test('every allowed string is still there', () => {
-  const found = new Set(files(SRC).flatMap(scan).map((finding) => finding.text));
+  const found = new Set(ROOTS.flatMap(files).flatMap(scan).map((finding) => finding.text));
   assert.deepEqual(
     ALLOWED.filter((entry) => !found.has(entry.text)).map((entry) => entry.text),
     [],

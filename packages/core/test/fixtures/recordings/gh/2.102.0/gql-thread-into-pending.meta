@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api graphql -f query=mutation($pr:ID!,$r:ID!){addPullRequestReviewThread(input:{pullRequestId:$pr,pullRequestReviewId:$r,path:"review.txt",line:3,side:RIGHT,body:"Thread added to the pending review"}){thread{id isResolved line}}} -f pr=PR_kwDOU1zIIM8AAAABF9Kkaw -f r=PRR_kwDOU1zIIM8AAAABQBzNag
+exit: 0
+secs: 1.201522277
+env: 

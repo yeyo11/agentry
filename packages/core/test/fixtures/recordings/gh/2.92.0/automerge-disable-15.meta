@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr merge 15 -R yeyo11/agentry-probe --disable-auto
+exit: 0
+secs: 1.652606479
+env: 

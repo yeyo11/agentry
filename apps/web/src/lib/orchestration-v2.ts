@@ -1,4 +1,4 @@
-import type { Orchestration, OrchestrationTaskState, VerificationSpec } from '@agentry/shared';
+import type { Orchestration, OrchestrationPullRequest, OrchestrationTaskState, VerificationSpec } from '@agentry/shared';
 
 // The spec a graph is read back as, and the rules for starting one over, are the server's too: they
 // live in @agentry/shared so a schedule filled here starts what a relaunch there would.
@@ -116,3 +116,24 @@ export function draftOfVerification(spec: VerificationSpec | undefined): Verific
 export function pullRequestHeld(orch: Pick<Orchestration, 'verificationSpec' | 'verification'>): boolean {
   return orch.verificationSpec?.failGraph === true && orch.verification?.status === 'failed';
 }
+
+type WithRow = Pick<OrchestrationPullRequest, 'id' | 'phase'> & { id: string };
+
+/** The checks are listed while the change request is open and the server named its row. */
+export function checksShown(pr: Pick<OrchestrationPullRequest, 'id' | 'phase'> | null | undefined): pr is WithRow {
+  return Boolean(pr?.id) && pr?.phase === 'open';
+}
+
+/**
+ * An orchestration has no QA stage, so its fix is `fixing` and then waits for the person: `push`
+ * is where **Push the fix** is the zone's one action, `fixing` where an agent is on it.
+ */
+export function orchestrationFix(pr: Pick<OrchestrationPullRequest, 'fixState'> | null | undefined): 'fixing' | 'push' | null {
+  if (pr?.fixState === 'fixing') return 'fixing';
+  return pr?.fixState === 'awaiting-push' ? 'push' : null;
+}
+
+/** The lines of a log tail that say why it failed: GitHub's `##[error]`, GitLab's `ERROR:` and a non-zero exit code. */
+const ERROR_LINE = /##\[error\]|^\s*ERROR:|exit code [1-9]\d*/;
+
+export const isErrorLine = (line: string): boolean => ERROR_LINE.test(line);

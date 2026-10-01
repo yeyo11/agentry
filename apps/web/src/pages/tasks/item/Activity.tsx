@@ -4,18 +4,18 @@ import { lazy, Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useWorkItemRuns } from '../../../api';
-import { Monogram } from '../../../components/icons';
-import { Segmented } from '../../../components/ui';
-import { formatDateTime, timeAgo } from '../../../lib/format';
+import { Monogram } from '@agentry/ui/components/icons';
+import { Segmented } from '@agentry/ui/components/ui';
+import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
 import { columnMeta, priorityMeta } from '../../../lib/work-items';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 import { AgentMark } from './Criteria';
 import type { ItemActions } from './hooks';
-import { activityOf, causeLine, historyLine, shortId, type ActivityFilter, type HistoryLine } from './model';
+import { activityOf, causeLine, historyLine, historyPullRequestHost, shortId, type ActivityFilter, type HistoryLine } from './model';
 import { RunStatusBadge, useFailureReason } from './RunParts';
 import { commentRun, failureCommentRun, retriesOf, runStep } from './runs';
 
-const Markdown = lazy(() => import('../../../components/Markdown'));
+const Markdown = lazy(() => import('@agentry/ui/components/Markdown'));
 
 const HISTORY_ICON: Record<HistoryLine['icon'], LucideIcon> = {
   created: Plus,
@@ -43,7 +43,7 @@ function HistoryItem({ entry, person }: { entry: WorkItemHistoryEntry; person: s
     return value;
   };
   const values = Object.fromEntries(Object.entries({ ...line.values, person }).map(([name, value]) => [name, word(name, value)]));
-  const cause = causeLine(entry.cause);
+  const cause = causeLine(entry.cause, historyPullRequestHost(entry));
   const who = entry.actor.kind === 'person' ? person : entry.actor.kind === 'agent' ? (entry.actor.role ? roleName(entry.actor.role) : t('actor.agent')) : t('actor.system');
   const Icon = HISTORY_ICON[line.icon];
   // The keys are checked against the English file where the model builds them (HistoryKey,

@@ -8,7 +8,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { BlockRail, RAIL_BUCKETS, railTicks } from '../src/components/changes/BlockRail';
 import { classOf, diffSyntax, DiffView, type DiffSyntax } from '../src/components/changes/DiffView';
 import { Fingerprint } from '../src/components/changes/Fingerprint';
-import { highlightRoles, languageOfPath, SYNTAX_CLASS } from '../src/components/highlight';
+import { highlightRoles, languageOfPath, SYNTAX_CLASS } from '@agentry/ui/components/highlight';
 import i18n from '../src/i18n';
 import { blockStarts, parseUnified } from '../src/lib/diff';
 

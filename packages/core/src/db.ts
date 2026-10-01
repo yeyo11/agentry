@@ -33,7 +33,7 @@ import type {
   UsageHistoryPoint,
   UsageWindowKind,
 } from '@agentry/shared';
-import { chatsFromRuns, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
+import { chatsFromRuns, LEGACY_PROVIDER, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { CoreConfig } from './paths.ts';
 
 /**
@@ -539,6 +539,73 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // palette's person did with the proposal. Columns of the history row, not of the state sent to a provider
   `ALTER TABLE decisions ADD COLUMN opened_at TEXT;
    ALTER TABLE decisions ADD COLUMN palette_action TEXT;`,
+  // Which provider drives a chat (docs/plans/multi-provider.md). Every chat so far is a Claude Code
+  // session, so the default is what an old process, which never writes the column, leaves behind
+  `ALTER TABLE chats ADD COLUMN provider TEXT NOT NULL DEFAULT 'claude-code';
+   CREATE INDEX chats_provider ON chats (provider, created_at DESC);`,
+  // Code hosts (docs/plans/code-hosts.md): every PR row so far was opened by gh on a host gh knew, so
+  // 'github' is true of all of them; hostname stays null and the watcher reads it from origin as it
+  // does today. An orchestration's change requests are the same lifecycle minus the flow's phases, and
+  // cascade with the orchestration's row, which is upserted and never deleted and reinserted. The
+  // unique index lets only one of two clicks, or two processes, open the change request. The breaker
+  // of the execution layer is a row per host and bucket, shared by every process on the data directory
+  `ALTER TABLE work_item_pull_requests ADD COLUMN host TEXT NOT NULL DEFAULT 'github';
+   ALTER TABLE work_item_pull_requests ADD COLUMN hostname TEXT;
+   CREATE TABLE orchestration_pull_requests (
+     id               TEXT PRIMARY KEY,
+     orchestration_id TEXT NOT NULL REFERENCES orchestrations (id) ON DELETE CASCADE,
+     cwd              TEXT NOT NULL,
+     host             TEXT NOT NULL,
+     hostname         TEXT,
+     phase            TEXT NOT NULL,
+     number           INTEGER,
+     url              TEXT,
+     branch           TEXT NOT NULL,
+     base             TEXT NOT NULL,
+     ci               TEXT,
+     error_code       TEXT,
+     error_detail     TEXT,
+     opened_at        TEXT,
+     closed_at        TEXT,
+     checked_at       TEXT,
+     claimed_until    TEXT,
+     created_at       TEXT NOT NULL,
+     updated_at       TEXT NOT NULL
+   );
+   CREATE INDEX orchestration_pull_requests_orch ON orchestration_pull_requests (orchestration_id, created_at);
+   CREATE INDEX orchestration_pull_requests_phase ON orchestration_pull_requests (phase);
+   CREATE UNIQUE INDEX orchestration_pull_requests_live ON orchestration_pull_requests (orchestration_id)
+     WHERE phase IN ('preparing', 'open');
+   CREATE TABLE host_rate_limits (
+     host          TEXT NOT NULL,
+     bucket        TEXT NOT NULL,
+     limit_value   INTEGER,
+     remaining     INTEGER,
+     reset_at      TEXT,
+     blocked_until TEXT,
+     strikes       INTEGER NOT NULL DEFAULT 0,
+     updated_at    TEXT NOT NULL,
+     PRIMARY KEY (host, bucket)
+   );`,
+  // Checks and the fix flow (docs/plans/code-hosts.md, phase 2): the last read of a change request's
+  // checks, one row per change request of either kind, and the fix a change request is going through.
+  // Every row so far has no fix, and zero attempts says so
+  `CREATE TABLE change_request_snapshots (
+     cr_id      TEXT PRIMARY KEY,
+     kind       TEXT NOT NULL,
+     head_sha   TEXT,
+     checks     TEXT,
+     rollup     TEXT,
+     fetched_at TEXT NOT NULL
+   );
+   ALTER TABLE work_item_pull_requests ADD COLUMN fix_state TEXT;
+   ALTER TABLE work_item_pull_requests ADD COLUMN fix_origin TEXT;
+   ALTER TABLE work_item_pull_requests ADD COLUMN fix_attempts INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE work_item_pull_requests ADD COLUMN fix_head TEXT;
+   ALTER TABLE orchestration_pull_requests ADD COLUMN fix_state TEXT;
+   ALTER TABLE orchestration_pull_requests ADD COLUMN fix_origin TEXT;
+   ALTER TABLE orchestration_pull_requests ADD COLUMN fix_attempts INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE orchestration_pull_requests ADD COLUMN fix_head TEXT;`,
 ];
 
 /**
@@ -558,6 +625,15 @@ export const ASSISTANT_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m ===
 
 /** The version that added the decisions' opened_at and palette_action, for the test that upgrades into it */
 export const DECISION_SIGNALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN palette_action')) + 1;
+
+/** The version that added the chats' provider column, for the test that upgrades a database from the one before */
+export const CHAT_PROVIDER_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE INDEX chats_provider')) + 1;
+
+/** The version that added the code hosts' columns and tables, for the test that upgrades a database from the one before */
+export const CODE_HOSTS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE host_rate_limits')) + 1;
+
+/** The version that added the checks' snapshots and the fix columns, for the test that upgrades a database from the one before */
+export const CHECKS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE change_request_snapshots')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by
@@ -938,8 +1014,8 @@ export class Db {
    */
   saveChats(chats: StoredChat[], keep: number | null): void {
     const upsertChat = this.db.prepare(
-      `INSERT INTO chats (id, created_at, json) VALUES (?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET created_at = excluded.created_at, json = excluded.json`,
+      `INSERT INTO chats (id, created_at, provider, json) VALUES (?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET created_at = excluded.created_at, provider = excluded.provider, json = excluded.json`,
     );
     const upsertExecution = this.db.prepare(
       `INSERT INTO executions (id, chat_id, started_at, json) VALUES (?, ?, ?, ?)
@@ -947,7 +1023,8 @@ export class Db {
     );
     this.tx(() => {
       for (const { record, executions } of chats) {
-        upsertChat.run(record.id, record.createdAt, JSON.stringify(record));
+        const provider = record.provider ?? LEGACY_PROVIDER;
+        upsertChat.run(record.id, record.createdAt, provider, JSON.stringify({ ...record, provider }));
         for (const execution of executions) upsertExecution.run(execution.id, record.id, execution.startedAt, JSON.stringify(execution));
       }
       if (keep !== null) this.db.prepare('DELETE FROM chats WHERE id NOT IN (SELECT id FROM chats ORDER BY created_at DESC LIMIT ?)').run(keep);
@@ -980,9 +1057,10 @@ export class Db {
       }
     }
     const out: StoredChat[] = [];
-    for (const row of this.db.prepare('SELECT json FROM chats ORDER BY created_at DESC').all() as unknown as JsonRow[]) {
+    for (const row of this.db.prepare('SELECT provider, json FROM chats ORDER BY created_at DESC').all() as unknown as Array<JsonRow & { provider: string }>) {
       try {
-        const record = JSON.parse(row.json) as ChatRecord;
+        // The column is the truth; the JSON copy follows it
+        const record = { ...(JSON.parse(row.json) as ChatRecord), provider: row.provider };
         out.push({ record, executions: byChat.get(record.id) ?? [] });
       } catch {
         // one unreadable row must not cost the caller the rest of its history

@@ -1,0 +1,3 @@
+X Pull request yeyo11/agentry-probe#10 is not mergeable: the base branch policy prohibits the merge.
+To have the pull request merged after all the requirements have been met, add the `--auto` flag.
+To use administrator privileges to immediately merge the pull request, add the `--admin` flag.

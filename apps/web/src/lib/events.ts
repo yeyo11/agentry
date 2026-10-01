@@ -102,6 +102,9 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'sessions.changed': true,
   'system.release': true,
   'providers.changed': true,
+  'hosts.changed': true,
+  'orchestration.pull-request': true,
+  'change-request.checks': true,
   'schedule.changed': true,
   'schedule.fired': true,
   'supervisor.proposed': true,
@@ -303,6 +306,15 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'providers.changed':
       // The statuses and the settings share the ['providers'] prefix; a status change is what the event carries
       return [[keys.providers, NOW]];
+    case 'hosts.changed':
+      // A host turning on or off changes every project's readiness, which the boards carry too
+      return [[keys.hosts, NOW], [['project-code-host'], NOW], [keys.workItemBoards(null), NOW]];
+    case 'orchestration.pull-request':
+      return [[keys.orchestrations, NOW], [keys.orchestration(event.orchestrationId), NOW]];
+    case 'change-request.checks':
+      // The list, its logs and the request itself; the boards read the rollup from the item and the
+      // orchestration, which their own events refresh when the watcher stores it
+      return [[keys.changeRequest(event.changeRequestId), NOW]];
     case 'project.created':
     case 'project.removed':
       // The projects' lists, and the All projects views, which take a project's items in or leave them out

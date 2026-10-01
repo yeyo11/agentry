@@ -11,7 +11,11 @@
 //                  is killed, or a plain one when it ends: what a hung command a person cancels looks like.
 //                  `wait $!`, not a bare `wait`: that one returns 0 whatever its child died of, so a
 //                  `sleep` killed before its shell made the shell exit cleanly and the call look done
+//   STDERR <text>  writes <text> to stderr and a line that is not the protocol to stdout, then ends the turn
+//   ODD            asks for something no agent may: a control request of a subtype nobody handles, and
+//                  ends the turn with whatever answer it gets back, so a request left unanswered hangs it
 //   REPLAY <file>  writes each JSON line of <file> to stdout, then ends the turn
+//   REPLAY-RAW <file>  the same, and the turn ends with the file's own `result`, when it has one
 //   … scriptPath "<file>" …  runs that workflow script as the Workflow tool would, with agents that
 //                  answer "done:<label>" (or nothing, for a task whose prompt says FAIL-ONCE on a
 //                  first run), and writes its record to $FAKE_WORKFLOW_DIR/<session>.json
@@ -101,10 +105,26 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       });
       return;
     }
+    const raw = /^REPLAY-RAW (\S+)/.exec(prompt);
+    if (raw) {
+      for (const line of readFileSync(raw[1], 'utf8').split('\n')) if (line.trim()) process.stdout.write(`${line}\n`);
+      return;
+    }
     const replay = /^REPLAY (\S+)/.exec(prompt);
     if (replay) {
       for (const line of readFileSync(replay[1], 'utf8').split('\n')) if (line.trim()) process.stdout.write(`${line}\n`);
       return result('replayed');
+    }
+    const stderr = /^STDERR (.+)$/m.exec(prompt);
+    if (stderr) {
+      process.stderr.write(`${stderr[1]}\n`);
+      process.stdout.write('this line is not the protocol\n');
+      return result('after stderr');
+    }
+    if (/^ODD$/m.test(prompt)) {
+      pending = randomUUID();
+      out({ type: 'control_request', request_id: pending, request: { subtype: 'mystery_request' } });
+      return;
     }
     const ask = /^ASK (\S+)/.exec(prompt);
     if (!ask) return result(`args=${args.join(' ')}`);

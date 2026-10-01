@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api graphql -f query=mutation($r:ID!){deletePullRequestReview(input:{pullRequestReviewId:$r}){pullRequestReview{id state}}} -f r=PRR_kwDOU1zIIM8AAAABQBzU7A
+exit: 0
+secs: .997288379
+env: 

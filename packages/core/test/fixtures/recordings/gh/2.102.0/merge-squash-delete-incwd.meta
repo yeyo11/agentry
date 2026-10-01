@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr merge 12 -R yeyo11/agentry-probe --squash --delete-branch
+exit: 0
+secs: 4.778968156
+env: 

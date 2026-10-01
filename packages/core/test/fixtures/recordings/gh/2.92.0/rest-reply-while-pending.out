@@ -1,0 +1,1 @@
+{"message":"Validation Failed","errors":[{"resource":"PullRequestReview","code":"custom","field":"user_id","message":"user_id can only have one pending review per pull request"}],"documentation_url":"https://docs.github.com/rest/pulls/comments#create-a-reply-for-a-review-comment","status":"422"}

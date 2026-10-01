@@ -1,0 +1,120 @@
+{
+  "activity": {
+    "editing": "Editing",
+    "reading": "Reading",
+    "running": "Running",
+    "searching": "Searching",
+    "delegating": "Delegating",
+    "browsing": "Browsing",
+    "writing": "Writing",
+    "thinking": "Thinking",
+    "waiting": "Waiting for you",
+    "working": "Working"
+  },
+  "progress": {
+    "done": "{{done}} of {{total}} done",
+    "doneOf": "{{done}} of {{total}} {{unit}} done",
+    "running_one": "{{count}} running",
+    "running_other": "{{count}} running",
+    "failed_one": "{{count}} failed",
+    "failed_other": "{{count}} failed",
+    "skipped_one": "{{count}} skipped",
+    "skipped_other": "{{count}} skipped",
+    "nothing": "Nothing to do yet"
+  },
+  "step": {
+    "done": "Done",
+    "current": "In progress",
+    "waiting": "Waiting for you",
+    "failed": "Failed",
+    "skipped": "Skipped",
+    "pending": "Not started"
+  },
+  "menu": {
+    "more": "More actions"
+  },
+  "splitButton": {
+    "more": "More options for {{action}}"
+  },
+  "sheet": {
+    "close": "Close"
+  },
+  "toolbar": {
+    "search": "Search",
+    "searchLabel": "Search this list",
+    "filters": "Filters",
+    "filtersActive_one": "Filters, {{count}} active",
+    "filtersActive_other": "Filters, {{count}} active",
+    "activeFilters": "Active filters",
+    "removeFilter": "Remove filter {{filter}}",
+    "sort": "Sort by",
+    "reset": "Reset",
+    "views": "Show"
+  },
+  "ui": {
+    "loadingShort": "Loading",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyPath": "Copy path",
+    "copyCode": "Copy code",
+    "requestFailed": "Request failed",
+    "unsavedChangesLabel": "unsaved changes",
+    "claudeIsWorking": "Claude is working"
+  },
+  "controls": {
+    "decrease": "Decrease",
+    "increase": "Increase"
+  },
+  "dialog": {
+    "close": "Close dialog",
+    "confirm": "Confirm",
+    "areYouSure": "Are you sure?"
+  },
+  "toast": {
+    "region": "Notifications",
+    "showOutput": "Show output",
+    "dismiss": "Dismiss notification"
+  },
+  "combobox": {
+    "suggestions": "Suggestions"
+  },
+  "datePicker": {
+    "open": "Open the calendar for {{field}}",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "today": "Today"
+  },
+  "illustrations": {
+    "noResults": "0 matches",
+    "notFound": "this way?",
+    "weekday": "Mon"
+  },
+  "markdown": {
+    "taskDone": "done",
+    "taskTodo": "to do",
+    "table": "Table"
+  },
+  "codeBlock": {
+    "label": "Code",
+    "labelLang": "{{lang}} code"
+  },
+  "scrollJump": {
+    "transcript": {
+      "group": "Jump within the transcript",
+      "start": "Jump to the start of the transcript",
+      "end": "Jump to the end of the transcript"
+    },
+    "output": {
+      "group": "Jump within the output",
+      "start": "Jump to the start of the output",
+      "end": "Jump to the end of the output"
+    },
+    "oldest": "Oldest (top)",
+    "newest": "Newest (bottom)"
+  },
+  "illustration": {
+    "refine": "refine",
+    "work": "build",
+    "verify": "verify"
+  }
+}

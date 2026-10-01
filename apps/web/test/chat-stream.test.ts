@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Chat, ChatDetail, TranscriptEntry } from '@agentry/shared';
-import { appendStreamed, ChatStreamStore, spliceTail, streamMark, unconfirmedTail } from '../src/lib/chat-stream.ts';
+import { appendStreamed, ChatStreamStore, spliceTail, streamMark, unconfirmedTail } from '@agentry/chat-ui/lib/chat-stream';
 
 // A live chat's page is kept current from its stream and read back a short tail at a time. These
 // rules decide whether a message said a moment ago shows, shows twice or vanishes.

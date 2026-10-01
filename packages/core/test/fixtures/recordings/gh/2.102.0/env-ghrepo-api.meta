@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api repos/{owner}/{repo} --jq .full_name
+exit: 0
+secs: .715628794
+env: 

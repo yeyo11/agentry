@@ -1,0 +1,5 @@
+gh: 102
+argv: gh issue view 1 -R yeyo11/agentry --json number,state,url
+exit: 0
+secs: 2.613921913
+env: 

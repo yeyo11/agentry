@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr merge 4 -R yeyo11/agentry-probe
+exit: 1
+secs: 1.554287132
+env: 

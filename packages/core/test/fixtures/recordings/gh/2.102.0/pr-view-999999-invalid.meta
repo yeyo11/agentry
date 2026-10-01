@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr view 999999 -R yeyo11/agentry --json number
+exit: 1
+secs: .742078933
+env: 

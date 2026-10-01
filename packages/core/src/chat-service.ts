@@ -25,7 +25,10 @@ import {
   type ChatWorktree,
   type ChatExport,
   type Execution,
+  type ChatStartOptions,
   type ForkChatRequest,
+  type ProviderCapability,
+  type ProviderId,
   type HintRequest,
   type NewChatRequest,
   type ResumeChatRequest,
@@ -42,6 +45,7 @@ import { toChatEnvironment, toChildren, type BranchFacts } from './chat-branches
 import { mergeLiveWorkflows } from './workflows.ts';
 import { chatControl, chatState, lastEndedOf, sessionHolder, type SessionHolder } from './chat-model.ts';
 import type { ChatTools } from './chat-tools.ts';
+import { LEGACY_PROVIDER } from './chat-records.ts';
 import type { AdoptedChat, ChatManager, ChatRuntime, ExecutionExtras, NewChat } from './chats.ts';
 import type { CliSession, TranscriptSummary } from './cli-facts.ts';
 import type { HealthService } from './health-service.ts';
@@ -104,6 +108,18 @@ export class ChatConflictError extends Error {
     readonly action: 'fork' | 'hint' | null,
   ) {
     super(message);
+  }
+}
+
+/** A request that asks for something its provider's driver does not declare: the caller's to change. */
+export class CapabilityRefusal extends Error {
+  readonly statusCode = 400;
+  constructor(
+    readonly provider: ProviderId,
+    readonly capability: ProviderCapability,
+    what: string,
+  ) {
+    super(`${what} needs the "${capability}" capability, which ${provider} does not have`);
   }
 }
 
@@ -284,6 +300,8 @@ export class ChatService {
     return {
       id,
       title: summary?.title ?? runtime?.name ?? id,
+      // A chat read from Claude's transcripts is a Claude Code one
+      provider: runtime?.provider ?? LEGACY_PROVIDER,
       firstPrompt: summary?.firstPrompt ?? runtime?.prompt ?? null,
       messageCount: summary?.messageCount ?? 0,
       startedAt: summary?.startedAt ?? runtime?.createdAt ?? null,
@@ -468,10 +486,38 @@ export class ChatService {
   // ---------- acting ----------
 
   /**
+   * The provider a request runs on, refused with a 400 when it has no session driver, and the
+   * capability gates: what the request asks for must be declared by that provider. Claude declares
+   * them all, so nothing refuses today.
+   */
+  private gate(
+    requested: ProviderId | undefined,
+    options: Pick<ChatStartOptions, 'account' | 'maxBudgetUsd' | 'permissionPrompts'>,
+    asks: { schema?: boolean; worktree?: boolean; fork?: boolean; interrupt?: boolean; setModel?: boolean } = {},
+  ): ProviderId {
+    const provider = this.deps.runtime.driverFor(requested).manifest.id;
+    const has = new Set(this.deps.runtime.providers.capabilities(provider));
+    const need = (capability: ProviderCapability, asked: boolean, what: string): void => {
+      if (asked && !has.has(capability)) throw new CapabilityRefusal(provider, capability, what);
+    };
+    need('structuredOutput', asks.schema === true, 'A JSON schema');
+    need('interrupt', asks.interrupt === true, 'An interrupt');
+    need('setModel', asks.setModel === true, 'Switching the model');
+    need('multiAccount', typeof options.account === 'string', 'Pinning an account');
+    need('worktreeFlag', asks.worktree === true, 'A worktree');
+    need('budgetLimit', options.maxBudgetUsd !== undefined, 'A budget');
+    need('interactivePermissions', options.permissionPrompts === 'host', 'Host prompts');
+    need('fork', asks.fork === true, 'A fork');
+    return provider;
+  }
+
+  /**
    * Starts a new chat. `onStart` hears of it in the same tick the process is spawned, before any of
    * its output can arrive: for a caller that has to tie the chat to something before it answers.
    */
   async create(request: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'systemPromptSnapshot' | 'uploads' | 'keepAlive' | 'confine'>, onStart?: (chat: ChatRuntime) => void): Promise<ChatSummary> {
+    // Refused before anything is resolved or spawned: no driver is a 400, and so is a gate
+    const provider = this.gate(request.provider, request, { schema: request.jsonSchema !== undefined && request.jsonSchema !== null, worktree: request.worktree !== undefined });
     // `--agents` reads the file it is given: only the definitions the flow writes, never a path a
     // request body names, since the API hands its body here as it came
     if (request.agentsFile !== undefined && dirname(resolve(request.agentsFile)) !== resolve(this.deps.config.dataDir, 'flow-agents')) {
@@ -487,7 +533,7 @@ export class ChatService {
     // is the server's, and answers as one
     let started: ChatRuntime;
     try {
-      started = this.deps.runtime.start({ ...request, ...chosen });
+      started = this.deps.runtime.start({ ...request, ...chosen, provider });
       onStart?.(started);
     } catch (err) {
       throw startFailure(err);
@@ -548,6 +594,7 @@ export class ChatService {
     if (chat.origin === 'internal') throw new ChatConflictError('This chat is housekeeping and keeps no transcript to resume.', null);
     if (chat.control.mode === 'readOnly') throw new ChatConflictError(chat.control.reason, chat.control.action);
     if (chat.control.mode === 'interactive') throw new ChatConflictError('This chat already has a live execution: send it a message instead.', null);
+    const provider = this.gate(this.deps.runtime.get(id)?.provider ?? request.provider, request, { schema: extras.jsonSchema !== undefined && extras.jsonSchema !== null });
     const adoption = await this.adoptionOf(chat);
     // A person continuing a chat a member ran gets a chat again: none of the run's rules, and the
     // tools a new chat would get, since the member's allow list is not theirs to inherit
@@ -560,6 +607,7 @@ export class ChatService {
       {
         ...request,
         ...chosen,
+        provider,
         agent: extras.agent ?? null,
         agentsFile: extras.agentsFile ?? null,
         jsonSchema: extras.jsonSchema ?? null,
@@ -585,6 +633,7 @@ export class ChatService {
     const chat = await this.summaryOf(id);
     if (!chat) throw new Error('chat not found');
     if (chat.origin === 'internal') throw new ChatConflictError('This chat is housekeeping and keeps no transcript to fork.', null);
+    const provider = this.gate(this.deps.runtime.get(id)?.provider ?? request.provider, request, { fork: true });
     const adoption = await this.adoptionOf(chat);
     const handBack = this.deps.memberChat?.(id) ?? false;
     const fallback = handBack && request.toolPreset === undefined && request.allowedTools === undefined ? this.deps.tools.presets.defaultPreset() : null;
@@ -592,7 +641,7 @@ export class ChatService {
     const chosen = handBack
       ? await this.deps.tools.resolve(picked, adoption.cwd, null)
       : await this.deps.tools.resolve(request, adoption.cwd, this.deps.runtime.get(id)?.tools ?? null, { fresh: true });
-    const forked = this.deps.runtime.fork(id, { ...request, ...chosen, ...(handBack ? { handBack } : {}) }, adoption);
+    const forked = this.deps.runtime.fork(id, { ...request, ...chosen, provider, ...(handBack ? { handBack } : {}) }, adoption);
     return this.require(forked.id);
   }
 
@@ -634,11 +683,13 @@ export class ChatService {
   }
 
   async interrupt(id: string): Promise<ChatSummary> {
+    this.gate(this.deps.runtime.get(id)?.provider, {}, { interrupt: true });
     await this.deps.runtime.interrupt(id);
     return this.require(id);
   }
 
   async updateSettings(id: string, update: ChatSettingsUpdate): Promise<ChatSummary> {
+    if (update.model !== undefined) this.gate(this.deps.runtime.get(id)?.provider, {}, { setModel: true });
     await this.deps.runtime.updateSettings(id, update);
     return this.require(id);
   }

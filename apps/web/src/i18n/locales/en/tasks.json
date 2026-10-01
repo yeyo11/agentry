@@ -357,20 +357,35 @@
   },
   "flowRow": "{{parallel}} at once, {{queued}} queued",
   "pr": {
-    "number": "PR #{{number}}",
-    "unnumbered": "PR",
-    "preparing": "Preparing the PR",
+    "number": "{{noun}} {{ref}}",
+    "unnumbered": "{{noun}}",
+    "preparing": "Preparing the {{noun}}",
     "conflict_one": "Conflict with {{base}} · {{count}} file",
     "conflict_other": "Conflict with {{base}} · {{count}} files",
-    "awaiting": "Approved · its PR opens when the verification passes",
+    "awaiting": "Approved · its {{noun}} opens when the verification passes",
     "waitingMerge": "waiting for merge",
     "closed": "closed without merging",
-    "failed": "Could not open the PR",
-    "link": "Open PR #{{number}} on GitHub",
-    "linkUnnumbered": "Open the PR on GitHub",
-    "approve": "Approve and open PR",
-    "open": "Open PR",
-    "noPr": "No PR: {{reason}}",
+    "failed": "Could not open the {{noun}}",
+    "link": "Open {{noun}} {{ref}} on {{host}}",
+    "linkUnnumbered": "Open the {{noun}} on {{host}}",
+    "approve": "Approve and open {{noun}}",
+    "open": "Open {{noun}}",
+    "noPr": "No {{noun}}: {{reason}}",
+    "fix": {
+      "fixing": "fixing the checks",
+      "verifying": "verifying the fix",
+      "push": "fix verified, waiting to be pushed",
+      "attempt": "attempt {{count}}",
+      "origin": {
+        "person": "at your request",
+        "decision": "decided by checks.fix"
+      },
+      "note": {
+        "fixing": { "person": "QA verifies it next", "decision": "QA verifies it next" },
+        "verifying": { "person": "pushed on its own if QA passes it", "decision": "will wait for your push" },
+        "push": { "person": "push it from the item", "decision": "push it from the item" }
+      }
+    },
     "ci": {
       "none": "no CI",
       "pending": "CI pending",
@@ -381,7 +396,7 @@
       "fetch": "the default branch could not be fetched",
       "merge": "the default branch could not be merged into its branch",
       "push": "its branch could not be pushed",
-      "create": "GitHub did not create it",
+      "create": "{{host}} did not create it",
       "commit": "what was left could not be committed",
       "worktree-kept": "its worktree had uncommitted changes",
       "unknown": "it gave no reason"
@@ -389,16 +404,32 @@
     "notReady": {
       "not-git": "the project is not a git repository",
       "no-remote": "the project has no origin remote",
-      "not-github": "origin is not on GitHub",
-      "no-gh": "gh is not installed",
-      "gh-unauthenticated": "gh is not signed in",
-      "no-default-branch": "the default branch could not be found"
+      "unsupported-host": "Agentry cannot reach {{host}}: neither gh nor glab is signed in to it",
+      "cli-missing": "{{cli}} is not installed, or Agentry cannot find it",
+      "cli-incompatible": "{{cli}} is older than the oldest release Agentry works with",
+      "cli-signed-out": "{{cli}} is not signed in to {{host}}",
+      "no-default-branch": "Agentry could not find the default branch of this repository"
+    },
+    "noun": {
+      "pr": "PR",
+      "mr": "MR"
+    },
+    "long": {
+      "pr": "pull request",
+      "mr": "merge request"
     },
     "refused": {
-      "not-in-review": "Only a task in In review opens its PR",
+      "not-in-review": "Only a task in In review opens its {{noun}}",
       "busy": "A chat or a flow run is working on it",
       "nothing-to-propose": "Its branch has nothing to propose: no commit ahead and nothing uncommitted"
-    }
+    },
+    "remedy": {
+      "install": "Install {{cli}}",
+      "sign-in": "Sign-in help",
+      "docs": "How to fix it",
+      "settings": "Settings → Integrations"
+    },
+    "hostFallback": "the host of origin"
   },
   "checkout": {
     "behind_one": "The working copy is {{count}} commit behind origin/{{base}}",

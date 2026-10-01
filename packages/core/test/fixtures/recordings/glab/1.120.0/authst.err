@@ -1,0 +1,7 @@
+gitlab.com
+  ✓ Logged in to gitlab.com as yeyo11 (keyring)
+  ✓ Git operations for gitlab.com configured to use ssh protocol.
+  ✓ API calls for gitlab.com are made over https protocol.
+  ✓ REST API Endpoint: https://gitlab.com/api/v4/
+  ✓ GraphQL Endpoint: https://gitlab.com/api/graphql/
+  ✓ Token found in operating system keyring: **************************

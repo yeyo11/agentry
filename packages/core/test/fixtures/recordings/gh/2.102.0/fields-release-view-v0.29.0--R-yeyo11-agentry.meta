@@ -1,0 +1,5 @@
+gh: 102
+argv: gh release view v0.29.0 -R yeyo11/agentry --json
+exit: 1
+secs: .751201270
+env: 

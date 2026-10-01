@@ -3,8 +3,8 @@ import { useId, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AuthMode } from '@agentry/shared';
 import { signIn } from '../lib/auth';
-import { BrandMark, ICON } from './icons';
-import { Illustration } from './illustrations';
+import { BrandMark, ICON } from '@agentry/ui/components/icons';
+import { Illustration } from '@agentry/ui/components/illustrations';
 
 /**
  * What a 401 looks like: the whole app is replaced by this, so a guarded wrapper reached without a

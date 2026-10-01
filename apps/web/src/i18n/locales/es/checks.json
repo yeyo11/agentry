@@ -1,0 +1,122 @@
+{
+  "title": "Comprobaciones",
+  "loading": "Leyendo las comprobaciones…",
+  "failed": "Agentry no ha podido leer las comprobaciones de {{host}}.",
+  "retry": "Reintentar",
+  "truncated": "La lista se corta en las primeras 1000 comprobaciones.",
+  "openOn": "Abrir en {{host}}",
+  "none": {
+    "title": "Esta {{noun}} no tiene comprobaciones.",
+    "hint": "Si el repositorio tiene CI, aparecerán aquí en cuanto {{host}} la ponga en marcha."
+  },
+  "sum": {
+    "failed_one": "{{count}} fallida",
+    "failed_other": "{{count}} fallidas",
+    "running_one": "{{count}} en marcha",
+    "running_other": "{{count}} en marcha",
+    "passed_one": "{{count}} superada",
+    "passed_other": "{{count}} superadas",
+    "skipped_one": "{{count}} omitida",
+    "skipped_other": "{{count}} omitidas"
+  },
+  "group": {
+    "failed": "Fallidas",
+    "running": "En marcha",
+    "passed": "Superadas",
+    "skipped": "Omitidas",
+    "withAllowed_one": "{{total}} · {{count}} permitida",
+    "withAllowed_other": "{{total}} · {{count}} permitidas"
+  },
+  "state": {
+    "failed": "fallida",
+    "allowedFailure": "fallo permitido",
+    "running": "en marcha",
+    "queued": "en cola",
+    "passed": "superada",
+    "neutral": "neutra",
+    "skipped": "omitida",
+    "cancelled": "cancelada",
+    "manual": "manual"
+  },
+  "row": {
+    "viewLog": "Ver el registro de {{name}}",
+    "more": "Más acciones de {{name}}"
+  },
+  "menu": {
+    "run": "Ejecutar este trabajo",
+    "rerun": "Repetir esta comprobación",
+    "notRerunnable": "{{host}} no permite repetir esta comprobación desde aquí.",
+    "refresh": "Volver a leer"
+  },
+  "actions": {
+    "rerunFailed": "Repetir las fallidas",
+    "rerunAll": "Repetir todas",
+    "cancel": "Cancelar",
+    "fix": "Arreglar las comprobaciones fallidas",
+    "more": "Más acciones de las comprobaciones"
+  },
+  "limited": {
+    "badge": "límite de la API",
+    "body": "El límite de la API de {{host}} para tu cuenta está agotado hasta las {{time}}. Agentry espera hasta entonces.",
+    "asOf": "Lista leída a las {{time}}"
+  },
+  "fix": {
+    "title_one": "Arreglar {{count}} comprobación fallida",
+    "title_other": "Arreglar {{count}} comprobaciones fallidas",
+    "cancel": "Cancelar",
+    "start_one": "Arreglar {{count}} comprobación",
+    "start_other": "Arreglar {{count}} comprobaciones",
+    "intro": "El desarrollador empieza con estas comprobaciones y el final de sus registros, y arregla las que ha causado esta rama. Cuando QA dé el arreglo por bueno, se sube: este clic es tu aprobación.",
+    "allowed_one": "{{count}} fallo permitido no se envía.",
+    "allowed_other": "{{count}} fallos permitidos no se envían.",
+    "attemptsFresh": "Todavía no se ha intentado nada en este commit.",
+    "attemptsUsed_one": "Ya se ha hecho {{count}} intento en este commit.",
+    "attemptsUsed_other": "Ya se han hecho {{count}} intentos en este commit.",
+    "label": "Arreglo de las comprobaciones fallidas",
+    "waiting": "te espera",
+    "push": "Subir el arreglo",
+    "attempt_one": "intento {{count}}",
+    "attempt_other": "intento {{count}}",
+    "origin": {
+      "person": "a petición tuya",
+      "decision": "decidido por checks.fix"
+    },
+    "stage": {
+      "fixing": "El desarrollador arregla las comprobaciones",
+      "verifying": "QA verifica el arreglo",
+      "push": "El arreglo está listo para subirse"
+    },
+    "hint": {
+      "person": "Cuando QA dé el arreglo por bueno, se sube solo: tu clic era la aprobación. Mover la tarjeta mientras tanto la retira.",
+      "decision": "Cuando QA dé el arreglo por bueno, esperará a que lo subas tú.",
+      "push": "QA ha dado el arreglo por bueno. Subirlo es siempre un clic tuyo."
+    }
+  },
+  "log": {
+    "loading": "Leyendo el registro…",
+    "unavailable": "El registro de esta comprobación ya no está en el host, o el trabajo no llegó a empezar.",
+    "failed": "No se ha podido leer el registro.",
+    "annotations": "Anotaciones",
+    "noOutputYet": "Aún sin salida: el trabajo no ha escrito nada.",
+    "empty": "Este registro está vacío.",
+    "tail": "Final del registro",
+    "gap": "⋯ líneas omitidas",
+    "foot": "Agentry oculta los posibles secretos",
+    "footTruncated": "El final del registro · 16 KiB como máximo · Agentry oculta los posibles secretos",
+    "of": "Registro de {{name}}",
+    "close": "Cerrar el registro",
+    "level": {
+      "failure": "fallo",
+      "warning": "aviso",
+      "notice": "nota"
+    }
+  },
+  "errors": {
+    "rerun": "No se han podido repetir las comprobaciones",
+    "cancel": "No se han podido cancelar las comprobaciones",
+    "run": "No se ha podido ejecutar el trabajo",
+    "refresh": "No se han podido volver a leer las comprobaciones",
+    "fix": "No se ha podido empezar el arreglo",
+    "push": "No se ha podido subir el arreglo"
+  }
+}

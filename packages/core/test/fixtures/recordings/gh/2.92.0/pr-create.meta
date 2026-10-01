@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr create -R yeyo11/agentry-probe --head pr-fail --base main --title Failing PR --body-file -
+exit: 0
+secs: 2.595900918
+env: 

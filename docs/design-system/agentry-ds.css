@@ -666,6 +666,13 @@ a.part-of { color: inherit; text-decoration: none; }
 .wi-strip .no-pr { flex-basis: 100%; display: inline-flex; gap: 5px; color: var(--warn); }
 /* A PR's checks as a badge with its word: passing .ok, failing .bad, pending and none neutral, never looping */
 .pr-ci { flex-shrink: 0; }
+/* Why a project offers no PR or MR (docs/plans/code-hosts.md, reason codes): one warn line with its remedy as a link, never a command to copy. On a card the line sits in the strip (.no-pr, then .pr-remedy on its own line); on an item's page .pr-not-ready says it in a sentence with the host's own line in mono under it. */
+.wi-strip .pr-remedy { flex-basis: 100%; padding-left: 18px; }
+.pr-remedy { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; }
+.m-screen .pr-remedy { min-height: var(--touch); font-size: 13px; }
+.pr-not-ready { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.5; color: var(--fg-2); }
+.pr-not-ready > .ico { flex-shrink: 0; margin-top: 2px; color: var(--warn); }
+.pr-not-ready .detail { font-family: var(--mono); font-size: 11.5px; color: var(--fg-3); overflow-wrap: anywhere; }
 /* The board's checkout behind origin/<default>: one quiet warn line under the toolbar, never a command */
 .wi-checkout { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: var(--warn); }
 /* Selection mode ("Orquestar"): the chosen cards take the accent ring and a checked box. */
@@ -1463,3 +1470,137 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
 .prov-first { width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
 .prov-step-note { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--fg-3); }
 /* ---------- end of Providers ---------- */
+
+/* ---------- Code hosts (plans/code-hosts.md): the hosts a CLI knows, under its state. The rows, cells
+   and binary panel are the providers' (.prov-*). ---------- */
+.host-known { display: flex; flex-direction: column; gap: 6px; align-self: stretch; margin-top: 4px; }
+.host-known ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.host-known li { display: flex; align-items: center; flex-wrap: wrap; column-gap: 10px; row-gap: 2px; min-height: 24px; font-size: 13px; }
+.host-name { font-family: var(--mono); font-size: 12px; color: var(--fg); }
+.host-user { color: var(--fg-2); }
+/* ---------- end of Code hosts ---------- */
+/* ---------- Fixing failing checks: the panel on an item, its check list and the attempts (plans/code-hosts.md, phase 2, P0 k-p3) ----------
+   .fix-panel is the item page's zone while a fix runs, waits for QA or waits for "Subir el arreglo". It borrows
+   .rail-live while an agent works (the Developer, then QA) and the idle wash while it waits for the person; the
+   energy border stays with the composer or the running orchestration. .fix-check is one check it received. */
+.fix-panel { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--bg-1); min-width: 0; }
+.fix-panel.live { background: color-mix(in srgb, var(--live-soft) 45%, var(--bg-1)); }
+.fix-panel.wait { background: color-mix(in srgb, var(--idle-soft) 55%, var(--bg-1)); }
+.fix-panel.rail-live::before { top: 14px; bottom: 14px; }
+.fix-head { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.fix-title { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: 14px; font-weight: 500; color: var(--fg); }
+.fix-panel.live .fix-title { color: var(--live); }
+.fix-sub { font-size: 12.5px; line-height: 1.5; color: var(--fg-3); }
+.fix-sub .mono { color: var(--fg-2); }
+.fix-attempts { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; font-family: var(--mono); font-size: 11.5px; color: var(--fg-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.segbar.attempts { flex: 0 0 auto; width: 36px; height: 4px; }
+.segbar.attempts > i.used { background: var(--fg-3); }
+.fix-checks { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); overflow: hidden; }
+.fix-check { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 2px 10px; min-height: 40px; padding: 8px 12px; border-top: 1px solid var(--line); }
+.fix-check:first-child { border-top: 0; }
+.fix-check .name { font-family: var(--mono); font-size: 12.5px; color: var(--fg); overflow-wrap: anywhere; }
+.fix-check .dur { font-family: var(--mono); font-size: 11.5px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.fix-check .verdict { grid-column: 1 / -1; font-size: 12.5px; line-height: 1.45; color: var(--fg-2); }
+.fix-check.skipped .name { color: var(--fg-3); }
+.fix-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.fix-foot .grow { flex: 1 1 auto; }
+.m-screen .fix-head { flex-direction: column; align-items: stretch; gap: 8px; }
+.m-screen .fix-foot .btn { flex: 1 1 auto; justify-content: center; }
+/* ---------- end of Fixing failing checks ---------- */
+/* ---------- Host line: where a project's code lives, detected and never chosen (plans/code-hosts.md, P0 p2) ---------- */
+.host-line { display: flex; flex-direction: column; gap: 10px; }
+.host-line-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.host-line .proj { width: 36px; height: 36px; border-radius: var(--r); font-size: 12px; flex-shrink: 0; }
+.host-line-id { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 0; }
+.host-path { font-family: var(--mono); font-size: 13px; color: var(--fg-2); overflow-wrap: anywhere; }
+.host-path b { font-weight: 500; color: var(--fg); }
+.host-line-why { display: flex; align-items: center; gap: 12px; padding-left: 50px; }
+.host-line-why .prov-reason { flex: 1 1 0; }
+.host-line.stacked .host-line-why { flex-direction: column; align-items: stretch; padding-left: 0; gap: 10px; }
+.host-line.stacked .prov-reason { font-size: 14px; }
+.host-line.stacked .badge { align-self: flex-start; }
+/* ---------- end of Host line ---------- */
+/* ---------- Checks of a change request: the item page's list, its log tail and its states (plans/code-hosts.md, phase 2, P0 k-p1) ---------- */
+/* One row per check: status mark, name with its stage, the status as a word, the duration in mono, and a "⋯" that is its own button
+   beside the row's main button, never inside it. Only a running row is live (the ring and the rail); every other state stands still. */
+.check-group-head { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 0 14px; border-bottom: 1px solid var(--line); background: var(--bg-1); font-size: 12px; color: var(--fg-2); }
+.check-group-head .t-label { color: var(--fg-2); }
+.check-group-head .n { font-family: var(--mono); font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+button.check-group-head { width: 100%; border-left: 0; border-right: 0; border-top: 0; text-align: left; cursor: pointer; }
+.check-row { position: relative; display: flex; align-items: stretch; min-height: 40px; border-bottom: 1px solid var(--line); }
+.check-row.on { background: var(--bg-3); }
+.check-row.rail-live::before { top: 8px; bottom: 8px; }
+.check-main { flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto 56px; align-items: center; gap: 12px; padding: 0 6px 0 14px; border: 0; background: none; color: var(--fg); text-align: left; cursor: pointer; font-size: 13px; }
+.check-main:hover { background: var(--bg-3); }
+.check-mark { display: grid; place-items: center; width: 18px; height: 18px; color: var(--fg-3); }
+.check-mark.ok { color: var(--ok); } .check-mark.bad { color: var(--bad); } .check-mark.warn { color: var(--warn); } .check-mark.idle { color: var(--idle); }
+.check-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.check-name b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.check-name .stage { font-family: var(--mono); font-size: 11px; color: var(--fg-3); white-space: nowrap; }
+.check-dur { font-family: var(--mono); font-size: 12px; color: var(--fg-2); font-variant-numeric: tabular-nums; text-align: right; }
+.check-more { flex-shrink: 0; width: 36px; display: grid; place-items: center; border: 0; background: none; color: var(--fg-3); cursor: pointer; }
+.check-more:hover { background: var(--bg-3); color: var(--fg); }
+.check-menu { position: absolute; right: 8px; z-index: 5; animation: none; }
+.check-menu .menu-item[disabled] { color: var(--fg-3); cursor: not-allowed; }
+.check-menu .menu-why { padding: 2px 10px 8px 40px; font-size: 12px; line-height: 1.45; color: var(--fg-3); }
+/* The log tail: a panel under the list on a desktop, a Sheet on a phone. Annotations come first, then the tail in mono and dimmed;
+   no line is coloured green or red. A line an annotation points to is only brighter, on a neutral fill. */
+.check-log { border-top: 1px solid var(--line-2); background: var(--bg-1); }
+.check-log-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; }
+.check-notes { display: flex; flex-direction: column; gap: 8px; padding: 0 14px 12px; }
+.check-note { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.5; color: var(--fg-2); }
+.check-note .badge { margin-top: 1px; }
+.check-note .where { font-family: var(--mono); font-size: 12px; color: var(--fg); overflow-wrap: anywhere; }
+.check-tail { margin: 0 14px; padding: 8px 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); overflow: hidden; font-family: var(--mono); font-size: 12px; line-height: 19px; color: var(--fg-3); }
+.check-line { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 8px; padding: 0 10px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.check-line > .no { text-align: right; color: var(--fg-3); font-variant-numeric: tabular-nums; user-select: none; }
+.check-line.hit { background: var(--bg-3); color: var(--fg); }
+.check-line.hit > .no { color: var(--fg-2); }
+.check-gap { padding: 2px 10px 2px 46px; font-size: 11px; color: var(--fg-3); }
+.check-log-foot { display: flex; align-items: center; gap: 10px; padding: 10px 14px 12px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+.check-quiet { display: flex; align-items: flex-start; gap: 10px; padding: 14px; font-size: 13px; line-height: 1.5; color: var(--fg-2); }
+.check-quiet > .ico { flex-shrink: 0; margin-top: 2px; color: var(--fg-3); }
+.check-quiet.warn > .ico { color: var(--warn); }
+.check-asof { font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+/* Phone: each row is two lines (name, then word, stage and time) and every target is --touch tall; the log and the menu are Sheets */
+.m-screen .check-row { min-height: var(--touch); }
+.m-screen .check-main { grid-template-columns: 18px minmax(0, 1fr) auto; grid-template-rows: auto auto; row-gap: 3px; padding: 8px 4px 8px 14px; min-height: var(--touch); }
+.m-screen .check-main .check-mark { grid-row: 1 / span 2; align-self: start; margin-top: 2px; }
+.m-screen .check-main .check-name { grid-column: 2 / span 2; font-size: 14px; }
+.m-screen .check-main .meta { grid-column: 2 / span 2; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.m-screen .check-more { width: var(--touch); }
+.m-screen .check-group-head { min-height: var(--touch); }
+.m-screen .check-tail { margin: 0; font-size: 12px; }
+.m-screen .menu-item { min-height: var(--touch); }
+/* ---------- end of Checks ---------- */
+/* ---------- Orchestration checks (plans/code-hosts.md, phase 2, P0 k-p2): the checks of an orchestration's change request, their log tail and the fix that waits for "Subir el arreglo". Status is a badge with its word; only a running row carries --live and the ring; a log tail is mono and dimmed, with the annotations above it, and never coloured by syntax. ---------- */
+.ochk-group { display: flex; flex-direction: column; gap: 2px; }
+.ochk-group-head { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 10px; }
+.ochk-row { display: flex; align-items: center; gap: 6px; border-radius: var(--r); }
+.ochk-row.on { background: var(--bg-3); box-shadow: inset 0 0 0 1px var(--line-2); }
+.ochk-main { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 6px 4px 6px 10px; border: 0; background: none; color: var(--fg); font-size: 13px; text-align: left; cursor: pointer; }
+.ochk-state { flex: 0 0 150px; display: flex; }
+.ochk-name { flex: 1 1 0; min-width: 0; font-family: var(--mono); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ochk-stage { font-family: var(--mono); font-size: 11px; color: var(--fg-3); white-space: nowrap; }
+.ochk-dur { flex: 0 0 48px; text-align: right; font-family: var(--mono); font-size: 12px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.ochk-fold { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 10px; color: var(--fg-2); font-size: 12.5px; }
+.ochk-log { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--bg-1); overflow: hidden; }
+.ochk-log-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.ochk-why { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--fg-2); }
+.ochk-why dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 0; }
+.ochk-why dt { font-family: var(--mono); font-size: 11.5px; color: var(--fg-3); }
+.ochk-why dd { margin: 0; font-family: var(--mono); font-size: 12px; color: var(--fg); overflow-wrap: anywhere; }
+.ochk-tail { margin: 0; padding: 10px 0 12px; font-family: var(--mono); font-size: 11.5px; line-height: 1.65; color: var(--fg-3); }
+.ochk-tail > span { display: block; padding: 0 14px; white-space: pre-wrap; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.ochk-tail > .mark { color: var(--fg); background: var(--bg-3); box-shadow: inset 2px 0 0 var(--line-3); }
+.ochk-tail-note { padding: 8px 14px 0; font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+.m-screen .ochk-main { min-height: var(--touch); font-size: 14px; }
+.m-screen .ochk-tail { font-size: 12px; }
+.ochk-fix { display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: var(--r-lg); }
+.ochk-fix-facts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-family: var(--mono); font-size: 12px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.ochk-result { display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 13px; }
+.ochk-result .ochk-name { flex: 0 1 190px; }
+.ochk-result .why { flex: 1 1 0; min-width: 0; color: var(--fg-2); }
+.m-screen .ochk-result { flex-wrap: wrap; gap: 4px 10px; padding: 8px 0; }
+.m-screen .ochk-result .why { flex-basis: 100%; }
+/* ---------- end of Orchestration checks ---------- */

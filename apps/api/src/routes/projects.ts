@@ -28,6 +28,13 @@ export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
 
   app.get<{ Params: { id: string } }>('/projects/:id/settings', (req) => core.projectSettings(req.params.id));
 
+  // Whether the project can open pull and merge requests, and where `origin` points
+  app.get<{ Params: { id: string } }>('/projects/:id/code-host', async (req) => {
+    const host = await core.projectCodeHost(req.params.id);
+    if (!host) throw Object.assign(new Error(`project ${req.params.id} not found`), { statusCode: 404 });
+    return host;
+  });
+
   // Validated in core, whole: a document is replaced, never merged
   app.put<{ Params: { id: string }; Body: unknown }>('/projects/:id/settings', (req) => core.saveProjectSettings(req.params.id, req.body));
 

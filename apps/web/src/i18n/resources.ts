@@ -1,10 +1,12 @@
 // Every namespace of both languages, bundled: the UI never waits on a request to show its text.
+// `common` and `primitives` belong to @agentry/ui and `chat` to @agentry/chat-ui; all three are spread in from them.
+import { chatUiEn, chatUiEs } from '@agentry/chat-ui/locales';
+import { uiEn, uiEs } from '@agentry/ui/i18n/resources';
 import enAccountsConfig from './locales/en/accountsConfig.json';
 import enAssistant from './locales/en/assistant.json';
 import enChanges from './locales/en/changes.json';
-import enChat from './locales/en/chat.json';
+import enChecks from './locales/en/checks.json';
 import enChats from './locales/en/chats.json';
-import enCommon from './locales/en/common.json';
 import enComponents from './locales/en/components.json';
 import enConfig from './locales/en/config.json';
 import enConnectors from './locales/en/connectors.json';
@@ -15,8 +17,8 @@ import enObserve from './locales/en/observe.json';
 import enOrchestration from './locales/en/orchestration.json';
 import enOrchestrationDetail from './locales/en/orchestrationDetail.json';
 import enOrchestrationV2 from './locales/en/orchestrationV2.json';
-import enPrimitives from './locales/en/primitives.json';
 import enProjects from './locales/en/projects.json';
+import enIntegrations from './locales/en/integrations.json';
 import enProviders from './locales/en/providers.json';
 import enSchedules from './locales/en/schedules.json';
 import enServer from './locales/en/server.json';
@@ -30,9 +32,8 @@ import enWorkItem from './locales/en/workItem.json';
 import esAccountsConfig from './locales/es/accountsConfig.json';
 import esAssistant from './locales/es/assistant.json';
 import esChanges from './locales/es/changes.json';
-import esChat from './locales/es/chat.json';
+import esChecks from './locales/es/checks.json';
 import esChats from './locales/es/chats.json';
-import esCommon from './locales/es/common.json';
 import esComponents from './locales/es/components.json';
 import esConfig from './locales/es/config.json';
 import esConnectors from './locales/es/connectors.json';
@@ -43,8 +44,8 @@ import esObserve from './locales/es/observe.json';
 import esOrchestration from './locales/es/orchestration.json';
 import esOrchestrationDetail from './locales/es/orchestrationDetail.json';
 import esOrchestrationV2 from './locales/es/orchestrationV2.json';
-import esPrimitives from './locales/es/primitives.json';
 import esProjects from './locales/es/projects.json';
+import esIntegrations from './locales/es/integrations.json';
 import esProviders from './locales/es/providers.json';
 import esSchedules from './locales/es/schedules.json';
 import esServer from './locales/es/server.json';
@@ -59,21 +60,22 @@ import esWorkItem from './locales/es/workItem.json';
 export const defaultNS = 'common';
 
 export const en = {
-  common: enCommon,
+  ...uiEn,
   assistant: enAssistant,
   components: enComponents,
-  primitives: enPrimitives,
   config: enConfig,
   work: enWork,
-  chat: enChat,
+  ...chatUiEn,
   chats: enChats,
   home: enHome,
   projects: enProjects,
   providers: enProviders,
+  integrations: enIntegrations,
   orchestration: enOrchestration,
   orchestrationDetail: enOrchestrationDetail,
   observe: enObserve,
   changes: enChanges,
+  checks: enChecks,
   schedules: enSchedules,
   usage: enUsage,
   orchestrationV2: enOrchestrationV2,
@@ -95,21 +97,22 @@ export type Namespace = keyof typeof en;
 type Shape<T> = { [K in keyof T]: T[K] extends string ? string : Shape<T[K]> };
 
 export const es = {
-  common: esCommon,
+  ...uiEs,
   assistant: esAssistant,
   components: esComponents,
-  primitives: esPrimitives,
   config: esConfig,
   work: esWork,
-  chat: esChat,
+  ...chatUiEs,
   chats: esChats,
   home: esHome,
   projects: esProjects,
   providers: esProviders,
+  integrations: esIntegrations,
   orchestration: esOrchestration,
   orchestrationDetail: esOrchestrationDetail,
   observe: esObserve,
   changes: esChanges,
+  checks: esChecks,
   schedules: esSchedules,
   usage: esUsage,
   orchestrationV2: esOrchestrationV2,

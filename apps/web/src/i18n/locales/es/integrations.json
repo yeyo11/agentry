@@ -1,0 +1,68 @@
+{
+  "tab": "Integraciones",
+  "intro": "Agentry abre y sigue las PR de GitHub (#12) y las MR de GitLab (!12) con los programas gh y glab de este equipo. No guarda ninguna clave: usa la sesión que ya tiene cada programa.",
+  "checkedAgo": "Comprobado {{time}}",
+  "notChecked": "Sin comprobar todavía",
+  "refresh": "Volver a comprobar",
+  "refreshFailed": "No se han podido comprobar los programas",
+  "saveFailed": "No se han podido guardar las integraciones",
+  "list": {
+    "title": "Programas",
+    "aria": "Programas",
+    "total_one": "{{count}} programa",
+    "total_other": "{{count}} programas",
+    "ready_one": "{{count}} listo",
+    "ready_other": "{{count}} listos"
+  },
+  "row": {
+    "checking": "Leyendo la versión y los hosts…",
+    "install": "Ver instalación",
+    "update": "Actualizar",
+    "signIn": "Cómo iniciar sesión",
+    "chooseBinary": "Elegir binario",
+    "retry": "Reintentar",
+    "opensNewTab": "se abre en una pestaña nueva"
+  },
+  "reason": {
+    "ready": "Instalado, con sesión iniciada y respondiendo.",
+    "version-untested": "Funciona, pero la {{version}} es más nueva que la {{recorded}}, la última con la que se ha probado Agentry.",
+    "below-minimum": "La {{version}} es anterior a la {{minimum}}, la más antigua con la que funciona Agentry.",
+    "no-hosts": "{{cli}} está instalado, pero no tiene la sesión iniciada en ningún host.",
+    "signed-out": "{{cli}} está instalado, pero no tiene la sesión iniciada en ningún host.",
+    "not-installed": "{{cli}} no está instalado, o Agentry no lo encuentra.",
+    "probe-failed": "{{cli}} no ha respondido como Agentry espera.",
+    "timeout": "{{cli}} no ha respondido a tiempo, así que Agentry lo ha detenido.",
+    "unknown": "Agentry todavía no ha comprobado {{cli}}.",
+    "disabled": "Agentry no lo usa mientras esté desactivado. Los proyectos de sus hosts no pueden abrir solicitudes."
+  },
+  "hosts": {
+    "group": "Hosts que conoce {{cli}}",
+    "signedOut": "Sin sesión"
+  },
+  "bin": {
+    "title": "Binario de {{cli}}",
+    "path": "Ruta del binario de {{cli}}",
+    "placeholder": "/ruta/a/{{cli}}",
+    "hint": "Agentry usa este programa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que no es anterior a la {{minimum}}.",
+    "absolute": "Escribe una ruta absoluta, que empiece por /.",
+    "check": "Comprobar y guardar",
+    "checking": "Comprobando…",
+    "cancel": "Cancelar",
+    "usePath": "Usar el del PATH",
+    "rejected": "No se ha guardado. {{reason}}",
+    "saved": "Binario de {{cli}} guardado",
+    "cleared": "{{cli}} vuelve a usar el del PATH"
+  },
+  "empty": {
+    "title": "Agentry no encuentra gh ni glab",
+    "body": "Sin uno de los dos no puede abrir PR ni MR. Instálalo y aparecerá aquí solo, sin volver a comprobar.",
+    "install": "Ver cómo instalar gh",
+    "also": "O también",
+    "installGlab": "Instalar glab para GitLab",
+    "chooseBinary": "Elegir un binario"
+  },
+  "missing": {
+    "text": "¿Falta un host? Inicia sesión en él con el programa que corresponda y aparecerá aquí solo.",
+    "link": "Cómo iniciar sesión en otro host"
+  }
+}

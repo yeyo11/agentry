@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T06:00:00Z
-updated_at: 2026-09-29T12:00:00Z
+updated_at: 2026-10-01T12:00:00Z
 tags:
     - work-items
     - pull-request
@@ -10,6 +10,7 @@ tags:
     - chats
     - project-ecosystem
     - decision
+    - checks
 ---
 # Work items: the board, and what works on it
 
@@ -247,15 +248,21 @@ The owner's decision of 2026-09-28 (option A, [plans/work-item-pull-requests.md]
 rejected because it changes `main` without a PR or CI, and warnings alone (C) because nothing would
 reach `main` without a person pushing each branch by hand.
 
-`PullRequestService` (`packages/core/src/pull-requests.ts`) runs `git` and `gh` itself, in Agentry's
+`PullRequestService` (`packages/core/src/pull-requests.ts`) runs `git` itself and reaches the host
+through its CLI (`gh` for GitHub, `glab` for GitLab) behind the `CodeHost` adapters, in Agentry's
 own process, as the person and only on their request, as `Orchestrator.pullRequest()` does for an
-integration branch. No agent ever pushes: every flow run keeps `git push` denied
+integration branch. What a code host is, how a project's host is detected and what every CLI call
+goes through is in [code-hosts.md](code-hosts.md). No agent ever pushes: every flow run keeps `git push` denied
 ([team-and-flow.md](team-and-flow.md#what-a-run-may-do)).
 
-**Readiness.** `readiness(projectPath)` answers `ready` or one reason: `not-git`, `no-remote`,
-`not-github` (a host `gh` does not know), `no-gh`, `gh-unauthenticated` or `no-default-branch`. The
-default branch is `refs/remotes/origin/HEAD`, or else what `gh repo view` says. The answer is cached
-for 60 s per project, so a board read does not run `gh auth status` every time. It comes back on the
+**Readiness.** `readiness(projectPath)` answers `ready` or one reason, checked in this order:
+`not-git`, `no-remote`, `unsupported-host` (no host, a ported host, or one neither `gh` nor `glab`
+is signed in to), `cli-missing`, `cli-incompatible`, `cli-signed-out` or `no-default-branch`. Each
+comes with a remedy, a link and never a command. They replace the GitHub-only `not-github`, `no-gh`
+and `gh-unauthenticated`; the table, with what each one used to be, is in
+[code-hosts.md](code-hosts.md#readiness). The default branch is `refs/remotes/origin/HEAD`, or else
+what the host's CLI says. The answer is cached for 60 s per project, so a board read does not run an
+auth probe every time. It comes back on the
 project's board (`Board.pullRequestReadiness`) and on the item's page
 (`WorkItemDetail.pullRequestReadiness`). A project that is not ready says why on the card and on the
 item page, in warn with words, and "Mover a Hecho" keeps working as before. On the item page, before
@@ -321,8 +328,37 @@ PR. The closed one stays in the item's rows and history.
 **Storage.** A PR is an accumulating record: one row per PR in `work_item_pull_requests`, and
 `WorkItem.pullRequest` is the item's newest.
 
-Out of scope: updating the branches of other open items when `main` moves, hosts other than GitHub,
-webhooks, deleting the remote branch after a merge, and merging from Agentry.
+**Failing checks go back to the Developer** (code hosts phase 2; the checks themselves are in
+[code-hosts.md](code-hosts.md#checks-logs-and-fixing)). The watcher now reads through the checks
+service, so it knows the head commit and the rollup together. With the rollup `failing`, the person
+can click **Fix failing checks** (`POST /change-requests/:id/checks/fix`), or the `checks.fix`
+decision can start the same fix. The path mirrors a conflict:
+
+1. The row stays `open`, because the change request is still open on the host. It gains
+   `fix_state: 'fixing'`, `fix_origin` (`person` or `decision`), `fix_attempts` (per head) and
+   `fix_head`, the head the failures were read on.
+2. The item moves to `in_progress` with the cause `pr.checks-fix`: as the person for a click, as the
+   system for the decision. With the flow on, that starts the Developer's run, whose prompt carries
+   the failing checks; with it off nothing moves and the person gets the prompt for a chat of their
+   own, in the item's worktree.
+3. The run ending well makes the fix `awaiting-verify`, and QA verifies as usual.
+4. QA passing: a **person's** fix pushes at once, with no second click (the click was the approval),
+   unless a person moved the card since it started: that drops the remembered approval, as for a
+   conflict. A **decision's** fix becomes `awaiting-push`; the item waits in `in_review` with
+   `waiting: 'approval'` and the button reads **Push the fix** (`POST /change-requests/:id/push-fix`).
+5. The push is Agentry's own, a plain `git push` after committing what the Developer left, never
+   forced. A failure leaves the fix `awaiting-push` with `error.code: 'push'` and the button retries.
+   A success clears the fix state and sets `waiting: 'merge'`; the change request picks up the new
+   head.
+
+A fix is refused with a reason when the row is not open (`not-open`), a fix is already under way
+(`fix-under-way`), the item has a chat or run working on it (`busy`), no check failed on the head
+(`no-failing-checks`) or the item is not in `in_review` (`not-in-review`). A failure the pipeline
+allows is not a failure. Fixes are counted per head (`fix_attempts`); the decision stops at the
+project's `flow.checksFixAttempts` (default 2, at most 5) and a person's click is never counted.
+
+Out of scope: updating the branches of other open items when `main` moves, webhooks, deleting the
+remote branch after a merge, and merging from Agentry.
 
 ### "Orchestrate"
 
@@ -437,7 +473,8 @@ the automation makes (actor `system`) never starts a flow run, and the flow's ow
 actor `agent` with the member's role. See [team-and-flow.md](team-and-flow.md#the-flow-by-column).
 
 **The item's pull request** moves it too, with causes of its own: `pr.conflict` (back to
-`in_progress`, as the person), `pr.merged` (to Done, as the person, from any column but Done), and
+`in_progress`, as the person), `pr.checks-fix` (back to `in_progress` to fix failing checks, as the
+person for a click and as the system for the `checks.fix` decision), `pr.merged` (to Done, as the person, from any column but Done), and
 `pr.opened` and `pr.closed` on its `waiting` (`merge`, then `approval` again). See
 [Approving opens its pull request](#approving-opens-its-pull-request).
 
@@ -729,4 +766,4 @@ without descriptions, with Done and the lists paged (20).
 
 ## Related
 
-[[projects.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/work-item-pull-requests.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[projects.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/work-item-pull-requests.md]] · [[plans/project-ecosystem-audit.md]] · [[code-hosts.md]] · [[design-system.md]] · [[status.md]]

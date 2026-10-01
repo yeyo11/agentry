@@ -1,0 +1,192 @@
+#!/bin/sh
+# One script behind the two names, gh and glab: the name it is called by picks its state file and its
+# dialect. They answer only what the Integrations page, a project's readiness and the change request
+# flow ask. See README.md.
+name=$(basename "$0")
+dir="${AGENTRY_DATA_DIR:-.}/fake-hosts"
+file="$dir/$name.json"
+
+read_key() {
+  [ -f "$file" ] || return 0
+  sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\{0,1\}\([^\",}]*\)\"\{0,1\}.*/\1/p" "$file" | head -n 1
+}
+
+# The value after a flag
+flag() {
+  want="$1"; shift
+  while [ $# -gt 0 ]; do
+    if [ "$1" = "$want" ]; then echo "$2"; return; fi
+    shift
+  done
+}
+
+# Every call is written down, one line, for a spec that wants to see what was asked
+mkdir -p "$dir"
+echo "$*" >> "$dir/$name.calls"
+
+case "$name" in
+  gh) default_version=2.92.0 ;;
+  glab) default_version=1.120.0 ;;
+esac
+version=$(read_key version)
+version=${version:-$default_version}
+signed_in=$(read_key signedIn)
+user=$(read_key user)
+branch=$(read_key defaultBranch)
+branch=${branch:-main}
+# The number the next change request gets, and the CI and state the open one reports
+next=$(cat "$dir/$name.next" 2>/dev/null || read_key next)
+next=${next:-7}
+ci=$(read_key ci)
+ci=${ci:-none}
+mr_state=$(read_key state)
+mr_state=${mr_state:-open}
+# The checks of the open change request, for the change request routes: none, failing, running,
+# mixed or fixed. A rerun or a cancel the CLI is asked for moves them (the .checks file wins over the
+# JSON), which is what a spec then sees on its next read
+checks=$(cat "$dir/$name.checks" 2>/dev/null || read_key checks)
+checks=${checks:-none}
+head_sha=$(read_key headSha)
+head_sha=${head_sha:-a1b2c3d4e5f60718293a4b5c6d7e8f9012345678}
+
+# The repository a -R names, as a web address
+repo_url() {
+  r=$(flag -R "$@")
+  case "$r" in http*) echo "$r" ;; *) echo "https://$r" ;; esac
+}
+
+# ---- gh: the checks of a head commit, as the REST and GraphQL answers print them ----
+check_run() {
+  # id name status conclusion app
+  if [ -n "$4" ]; then conclusion="\"$4\""; else conclusion=null; fi
+  if [ "$3" = completed ]; then done_at='"2026-10-01T09:53:12Z"'; else done_at=null; fi
+  printf '{"id":%s,"name":"%s","status":"%s","conclusion":%s,"app":{"slug":"%s"},"html_url":"https://github.com/acme/shop/actions/runs/900/job/%s","started_at":"2026-10-01T09:50:00Z","completed_at":%s}' \
+    "$1" "$2" "$3" "$conclusion" "$5" "$1" "$done_at"
+}
+
+check_runs_json() {
+  case "$checks" in
+    failing) list="$(check_run 1001 lint completed success github-actions),$(check_run 1002 unit completed failure github-actions),$(check_run 1003 build completed success github-actions)"; total=3 ;;
+    running) list="$(check_run 1001 lint completed success github-actions),$(check_run 1003 e2e in_progress '' github-actions),$(check_run 1004 build queued '' github-actions)"; total=3 ;;
+    mixed) list="$(check_run 1001 lint completed success github-actions),$(check_run 1002 unit completed failure github-actions),$(check_run 1003 e2e in_progress '' github-actions),$(check_run 1004 docs completed skipped github-actions),$(check_run 1005 coverage completed success codecov)"; total=5 ;;
+    fixed) list="$(check_run 1001 lint completed success github-actions),$(check_run 1002 unit completed success github-actions),$(check_run 1003 build completed success github-actions)"; total=3 ;;
+    *) list=""; total=0 ;;
+  esac
+  printf '[{"total_count":%s,"check_runs":[%s]}]\n' "$total" "$list"
+}
+
+# What the GraphQL read says of the head commit's rollup, in the shape the CI badge reads
+rollup_nodes() {
+  case "$checks" in
+    failing|mixed) echo '{"__typename":"CheckRun","name":"unit","status":"COMPLETED","conclusion":"FAILURE"}' ;;
+    running) echo '{"__typename":"CheckRun","name":"e2e","status":"IN_PROGRESS","conclusion":null}' ;;
+    fixed) echo '{"__typename":"CheckRun","name":"unit","status":"COMPLETED","conclusion":"SUCCESS"}' ;;
+  esac
+}
+
+change_request_json() {
+  nodes=$(rollup_nodes)
+  rollup=null
+  [ -n "$nodes" ] && rollup="{\"state\":\"PENDING\",\"contexts\":{\"nodes\":[$nodes],\"pageInfo\":{\"hasNextPage\":false}}}"
+  case "$mr_state" in merged) st=MERGED; at='"2026-10-01T10:00:00Z"' ;; closed) st=CLOSED; at=null ;; *) st=OPEN; at=null ;; esac
+  number=$(echo "$*" | sed -n 's/.*number=\([0-9]*\).*/\1/p')
+  printf 'HTTP/2.0 200 OK\r\nx-ratelimit-remaining: 4990\r\n\r\n'
+  printf '{"data":{"repository":{"pullRequest":{"number":%s,"url":"https://github.com/acme/shop/pull/%s","state":"%s","mergedAt":%s,"isDraft":false,"headRefOid":"%s","baseRefName":"main","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":null,"autoMergeRequest":null,"commits":{"nodes":[{"commit":{"statusCheckRollup":%s}}]}}},"rateLimit":{"cost":1,"remaining":4990,"resetAt":"2026-10-01T11:00:00Z"}}}\n' "${number:-7}" "${number:-7}" "$st" "$at" "$head_sha" "$rollup"
+}
+
+# The failed job prints what a runner prints: ANSI colour, a group marker, the error line
+job_log() {
+  printf '2026-10-01T09:50:01Z \033[36;1m##[group]Run pnpm test\033[0m\n'
+  printf '2026-10-01T09:50:02Z \033[90m$ node --test test/*.test.ts\033[0m\n'
+  printf '2026-10-01T09:50:09Z ok 41 - cart totals\n'
+  printf '2026-10-01T09:50:10Z \033[31mnot ok 42 - cart rounds half up\033[0m\n'
+  printf '2026-10-01T09:50:10Z   AssertionError: expected 10.01 to equal 10.02\n'
+  printf '2026-10-01T09:50:11Z \033[31;1m##[error]Process completed with exit code 1.\033[0m\n'
+}
+
+# Only the failed run carries annotations: once it passes (same id, as the fixed scenario keeps it)
+# a real host has none for it
+annotations_json() {
+  case "$checks" in failing|mixed) ;; *) echo '[]'; return ;; esac
+  echo '[{"path":".github","start_line":1,"end_line":1,"annotation_level":"failure","title":null,"message":"Process completed with exit code 1."},{"path":"src/cart.ts","start_line":12,"end_line":12,"annotation_level":"failure","title":"cart rounds half up","message":"expected 10.01 to equal 10.02"}]'
+}
+
+version_out() {
+  code=$(read_key versionExit)
+  if [ -n "$code" ] && [ "$code" != 0 ]; then echo "fake $name: broken" >&2; exit "$code"; fi
+  case "$name" in
+    gh) printf 'gh version %s (2026-04-28)\nhttps://github.com/cli/cli/releases/tag/v%s\n' "$version" "$version" ;;
+    glab) printf 'glab %s (fake)\n' "$version" ;;
+  esac
+  exit 0
+}
+
+case "$name" in
+  gh)
+    case "$1" in
+      --version) version_out ;;
+      auth)
+        # One call lists every host and exits 0 whatever the token's state, as 2.92 does
+        if [ "$signed_in" = false ]; then echo '{"hosts":{}}'; exit 0; fi
+        printf '{"hosts":{"github.com":[{"state":"success","active":true,"host":"github.com","login":"%s","tokenSource":"keyring","gitProtocol":"https"}]}}\n' "${user:-octocat}"
+        exit 0 ;;
+      api)
+        case "$*" in
+          *graphql*) change_request_json "$@"; exit 0 ;;
+          */check-runs/*/annotations*) annotations_json; exit 0 ;;
+          */check-runs\?*) check_runs_json; exit 0 ;;
+          */commits/*/status\?*) echo '[{"statuses":[]}]'; exit 0 ;;
+          */actions/jobs/*/logs) job_log; exit 0 ;;
+          */rules/branches/*) echo '[]'; exit 0 ;;
+          */branches/*) echo '{"protected":false}'; exit 0 ;;
+        esac
+        printf '{"default_branch":"%s","private":true}\n' "$branch"; exit 0 ;;
+      run)
+        # A rerun starts the checks again, a cancel leaves the failure standing
+        case "$2" in
+          rerun) echo running > "$dir/gh.checks"; exit 0 ;;
+          cancel) echo failing > "$dir/gh.checks"; exit 0 ;;
+        esac ;;
+      pr)
+        case "$2" in
+          create)
+            cat > "$dir/gh.body-$next"
+            echo "$next" > "$dir/gh.created"
+            echo $((next + 1)) > "$dir/gh.next"
+            echo "$(repo_url "$@")/pull/$next"; exit 0 ;;
+          list)
+            n=$(cat "$dir/gh.created" 2>/dev/null)
+            if [ -n "$n" ]; then printf '[{"number":%s,"url":"%s/pull/%s","state":"OPEN","headRefName":"x","baseRefName":"x","isCrossRepository":false}]\n' "$n" "$(repo_url "$@")" "$n"
+            else echo '[]'; fi
+            exit 0 ;;
+          view)
+            case "$ci" in passing) roll='[{"status":"COMPLETED","conclusion":"SUCCESS"}]' ;; failing) roll='[{"status":"COMPLETED","conclusion":"FAILURE"}]' ;; pending) roll='[{"status":"IN_PROGRESS","conclusion":""}]' ;; *) roll='[]' ;; esac
+            case "$mr_state" in merged) st=MERGED; at='"2026-10-01T10:00:00Z"' ;; closed) st=CLOSED; at=null ;; *) st=OPEN; at=null ;; esac
+            printf '{"state":"%s","mergedAt":%s,"statusCheckRollup":%s,"url":"%s/pull/%s"}\n' "$st" "$at" "$roll" "$(repo_url "$@")" "$3"; exit 0 ;;
+        esac ;;
+    esac ;;
+  glab)
+    case "$1 $2" in
+      "version "*|"--version "*) version_out ;;
+      "auth status")
+        if [ "$signed_in" = false ]; then echo "x No token found" >&2; exit 1; fi
+        echo "Logged in to $(flag --hostname "$@") as ${user:-tanuki} (fake)" >&2; exit 0 ;;
+      "repo view") printf '{"default_branch":"%s","visibility":"private"}\n' "$branch"; exit 0 ;;
+      "mr create")
+        cat > "$dir/glab.body-$next"
+        echo "$next" > "$dir/glab.created"
+        echo $((next + 1)) > "$dir/glab.next"
+        echo "$(repo_url "$@")/-/merge_requests/$next"; exit 0 ;;
+      "mr list")
+        n=$(cat "$dir/glab.created" 2>/dev/null)
+        if [ -n "$n" ]; then printf '[{"iid":%s,"web_url":"%s/-/merge_requests/%s","state":"opened"}]\n' "$n" "$(repo_url "$@")" "$n"
+        else echo '[]'; fi
+        exit 0 ;;
+      "mr view")
+        case "$ci" in none) pipe=null ;; passing) pipe='{"status":"success"}' ;; failing) pipe='{"status":"failed"}' ;; *) pipe='{"status":"running"}' ;; esac
+        case "$mr_state" in merged) st=merged; at='"2026-10-01T10:00:00Z"' ;; closed) st=closed; at=null ;; *) st=opened; at=null ;; esac
+        printf '{"iid":%s,"web_url":"%s/-/merge_requests/%s","state":"%s","merged_at":%s,"head_pipeline":%s}\n' "$3" "$(repo_url "$@")" "$3" "$st" "$at" "$pipe"; exit 0 ;;
+    esac ;;
+esac
+echo "fake $name: $* is not part of the fake" >&2
+exit 1

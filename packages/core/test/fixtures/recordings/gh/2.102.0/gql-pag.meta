@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api graphql --paginate -f query=query($endCursor:String){repository(owner:"yeyo11",name:"agentry"){pullRequests(first:40,after:$endCursor,states:MERGED){nodes{number} pageInfo{hasNextPage endCursor}}}} --jq .data.repository.pullRequests.nodes|length
+exit: 0
+secs: 2.590202819
+env: 

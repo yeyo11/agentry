@@ -1,4 +1,7 @@
 import type {
+  ChangeRequestFixOrigin,
+  ChangeRequestFixState,
+  CodeHostId,
   DocumentKind,
   Milestone,
   MilestoneProgress,
@@ -273,6 +276,10 @@ export interface PullRequestRow {
   id: string;
   item_id: string;
   project_id: string;
+  /** A `CodeHostId`; rows opened before hosts existed read `github` */
+  host: string;
+  /** Null until read from origin */
+  hostname: string | null;
   phase: string;
   number: number | null;
   url: string | null;
@@ -288,12 +295,62 @@ export interface PullRequestRow {
   closed_at: string | null;
   checked_at: string | null;
   claimed_until: string | null;
+  /** Optional only until the fix flow writes whole rows; SELECT always returns them. A `ChangeRequestFixState` while a fix is under way, else null */
+  fix_state?: string | null;
+  /** A `ChangeRequestFixOrigin` */
+  fix_origin?: string | null;
+  /** Fixes started for `fix_head` */
+  fix_attempts?: number;
+  /** The head the failures were seen on */
+  fix_head?: string | null;
   created_at: string;
   updated_at: string;
 }
 
 const PR_PHASES: readonly WorkItemPullRequestPhase[] = ['preparing', 'conflict', 'awaiting-verify', 'open', 'merged', 'closed', 'failed'];
 const PR_CI: readonly WorkItemPullRequestCi[] = ['none', 'pending', 'passing', 'failing'];
+
+/** How each host writes a change request's number: GitHub's `#12`, GitLab's `!12` */
+const REF_PREFIX: Record<CodeHostId, string> = { github: '#', gitlab: '!' };
+
+const FIX_STATES: readonly ChangeRequestFixState[] = ['fixing', 'awaiting-verify', 'awaiting-push'];
+const FIX_ORIGINS: readonly ChangeRequestFixOrigin[] = ['person', 'decision'];
+
+/** The fix columns as the contract carries them; a value this version does not know reads as none */
+export function fixOf(row: Pick<PullRequestRow, 'fix_state' | 'fix_origin' | 'fix_attempts' | 'fix_head'>): {
+  fixState: ChangeRequestFixState | null;
+  fixOrigin: ChangeRequestFixOrigin | null;
+  fixAttempts: number;
+  fixHead: string | null;
+} {
+  return {
+    fixState: FIX_STATES.find((s) => s === row.fix_state) ?? null,
+    fixOrigin: FIX_ORIGINS.find((o) => o === row.fix_origin) ?? null,
+    fixAttempts: row.fix_attempts ?? 0,
+    fixHead: row.fix_head ?? null,
+  };
+}
+
+/** The last read of a change request's checks; `checks` is the JSON list of `Check` */
+export interface ChangeRequestSnapshotRow {
+  cr_id: string;
+  /** A `ChangeRequestKind` */
+  kind: string;
+  head_sha: string | null;
+  checks: string | null;
+  rollup: string | null;
+  fetched_at: string;
+}
+
+/** A host this version does not know reads as github, which every row before hosts was */
+export function hostOf(value: string): CodeHostId {
+  return value === 'gitlab' ? 'gitlab' : 'github';
+}
+
+/** `#12` or `!12`; null without a number */
+export function refOf(host: CodeHostId, number: number | null): string | null {
+  return number === null ? null : `${REF_PREFIX[host]}${String(number)}`;
+}
 
 /** A stored PR as the contract carries it; a phase this version does not know reads as failed. */
 export function pullRequestOf(row: PullRequestRow): WorkItemPullRequest {
@@ -304,9 +361,13 @@ export function pullRequestOf(row: PullRequestRow): WorkItemPullRequest {
   } catch {
     // an unreadable list reads as none
   }
+  const host = hostOf(row.host);
   return {
+    id: row.id,
     phase: PR_PHASES.find((p) => p === row.phase) ?? 'failed',
+    host,
     number: row.number,
+    ref: refOf(host, row.number),
     url: row.url,
     branch: row.branch,
     base: row.base,
@@ -316,5 +377,6 @@ export function pullRequestOf(row: PullRequestRow): WorkItemPullRequest {
     openedAt: row.opened_at,
     closedAt: row.closed_at,
     checkedAt: row.checked_at,
+    ...fixOf(row),
   };
 }

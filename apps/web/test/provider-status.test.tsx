@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { keys } from '../src/api';
-import { TooltipProvider } from '../src/components/controls/Tooltip';
+import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
 import { ProviderDots } from '../src/components/shell/ProviderDots';
 import i18n from '../src/i18n';
 import { en, es } from '../src/i18n/resources';

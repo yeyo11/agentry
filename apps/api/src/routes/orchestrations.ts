@@ -170,7 +170,7 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
   );
 
   // The one step that leaves the machine, so it only ever happens on request
-  app.post<{ Params: { id: string } }>('/orchestrations/:id/pull-request', (req) => core.orchestrator.pullRequest(req.params.id));
+  app.post<{ Params: { id: string } }>('/orchestrations/:id/pull-request', async (req) => await core.orchestrator.pullRequest(req.params.id));
 
   // The workflow script the graph runs as, or would: generated from the graph, never hand-written
   app.get<{ Params: { id: string } }>('/orchestrations/:id/workflow', (req) => core.orchestrator.workflowScript(req.params.id));

@@ -1,0 +1,2 @@
+{"type":"assistant","parent_tool_use_id":null,"message":{"role":"assistant","model":"claude-opus-5","content":[{"type":"text","text":"First thought."}]}}
+{"type":"assistant","parent_tool_use_id":null,"message":{"role":"assistant","model":"claude-opus-5","content":[{"type":"text","text":"Second thought."}],"stop_reason":"end_turn"}}

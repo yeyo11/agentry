@@ -2,8 +2,8 @@ import type { ProjectModule, ProjectTemplateId } from '@agentry/shared';
 import { EyeOff } from 'lucide-react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Switch } from '../../components/controls';
-import { ICON, ICON_SM } from '../../components/icons';
+import { Switch } from '@agentry/ui/components/controls';
+import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { MODULE_ICON, PROJECT_MODULES, TEMPLATE_ICON } from './model';
 
 /**

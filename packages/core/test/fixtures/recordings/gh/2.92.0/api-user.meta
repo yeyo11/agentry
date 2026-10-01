@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api user --jq .login
+exit: 0
+secs: .630254434
+env: 

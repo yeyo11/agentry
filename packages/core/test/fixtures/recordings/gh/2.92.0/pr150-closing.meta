@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr view 150 -R yeyo11/agentry --json closingIssuesReferences,autoMergeRequest,mergeStateStatus,mergeable,reviewDecision,latestReviews,fullDatabaseId,baseRefOid
+exit: 0
+secs: 1.267833976
+env: 

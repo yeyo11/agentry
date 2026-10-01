@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr view 4 -R yeyo11/agentry-probe --json title,body,isDraft
+exit: 0
+secs: 1.305753321
+env: 

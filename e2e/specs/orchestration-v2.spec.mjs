@@ -139,14 +139,14 @@ export default async ({ page, api, check, dirs }) => {
     await finish(relaunched.id);
 
     // ---------- the list ----------
-    await page.goto('/orchestration?q=e2e-v2-source', 1500);
-    check((await page.text('main .orch-list')).includes('e2e-v2-source'), 'searching finds the graph by name');
+    await page.goto('/orchestration?q=e2e-v2-source', 0);
+    await page.waitFor(`return document.querySelector('main .orch-list')?.innerText.includes('e2e-v2-source')`, { label: 'searching finds the graph by name' });
     check(await page.eval(`return !!document.querySelector('main .orch-list [role=progressbar][aria-label*="tasks done"]')`), 'a row carries its progress, named in words');
-    await page.goto('/orchestration?q=no-such-graph-anywhere', 1200);
-    check((await page.text('main')).includes('No orchestration matches'), 'a search that finds nothing says so');
+    await page.goto('/orchestration?q=no-such-graph-anywhere', 0);
+    await page.waitFor(`return document.querySelector('main')?.innerText.includes('No orchestration matches')`, { label: 'a search that finds nothing says so' });
     // The search is kept until it is reset, so a bare /orchestration would still find nothing
-    await page.goto('/orchestration', 1200);
-    check((await page.text('main')).includes('No orchestration matches'), 'the search is kept on a later visit');
+    await page.goto('/orchestration', 0);
+    await page.waitFor(`return document.querySelector('main')?.innerText.includes('No orchestration matches')`, { label: 'the search is kept on a later visit' });
     await page.click('main .state-empty button', 'Show them all', 600);
     await page.waitFor(`return !location.search.includes('q=')`, { label: 'Show all resets the search' });
 

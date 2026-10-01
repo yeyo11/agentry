@@ -5,7 +5,7 @@
  * and the colours the page may ask for are tested without a window.
  */
 
-/** The web's top bar height (`--topbar-h` in apps/web/src/styles/tokens.css); the overlay matches it */
+/** The web's top bar height (`--topbar-h` in packages/ui/src/styles/tokens.css); the overlay matches it */
 export const TITLE_BAR_HEIGHT = 52;
 
 export interface TitleBarTheme {

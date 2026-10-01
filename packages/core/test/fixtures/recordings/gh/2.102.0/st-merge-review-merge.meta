@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr merge 12 -R yeyo11/agentry-probe --merge --admin
+exit: 1
+secs: 1.995076247
+env: 

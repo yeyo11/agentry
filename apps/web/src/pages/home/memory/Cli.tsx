@@ -6,8 +6,8 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useJournal } from '../../../api';
 import { CodeEditor } from '../../../components/CodeEditor';
-import { ICON, ICON_SM } from '../../../components/icons';
-import { formatBytes, formatNumber } from '../../../lib/format';
+import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { formatBytes, formatNumber } from '@agentry/ui/lib/format';
 import { byteSize, memoryDir, sortMemoryFiles } from './model';
 
 /** The project's `CLAUDE.md` and the CLI's memory files: what every chat of the project reads. */

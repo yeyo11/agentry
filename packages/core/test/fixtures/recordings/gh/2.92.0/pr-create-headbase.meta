@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr create -R yeyo11/agentry-probe --head main --base main --title T --body B
+exit: 1
+secs: .699745727
+env: 

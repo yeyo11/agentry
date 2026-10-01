@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr merge 5 -R yeyo11/agentry-probe --squash --subject Clean squash subject (#5) --body Squash body line. --delete-branch --match-head-commit 936e107e51c821012afbbacaec17d45acadb905c
+exit: 0
+secs: 4.519179537
+env: 

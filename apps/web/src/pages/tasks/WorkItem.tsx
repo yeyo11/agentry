@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useWorkItemByKey } from '../../api';
-import { usePageTitle } from '../../components/ui';
+import { usePageTitle } from '@agentry/ui/components/ui';
 import { DirtyScope, useDirtyKeys } from '../../lib/dirty';
 import { normalizeKey, taskPath } from '../../lib/work-items';
 import { ItemByKey } from './item/Panel';

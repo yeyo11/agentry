@@ -14,13 +14,14 @@ import { ChevronRight, Cpu, KeyRound, Save, ShieldCheck, TriangleAlert } from 'l
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { NumberInput, Slider } from '../../components/controls';
-import { useConfirm } from '../../components/Dialog';
-import { ICON, ICON_SM } from '../../components/icons';
-import { useToast } from '../../components/Toast';
-import { ErrorBox, ModelCombobox, Segmented, Skeleton, Tag } from '../../components/ui';
+import { NumberInput, Slider } from '@agentry/ui/components/controls';
+import { useConfirm } from '@agentry/ui/components/Dialog';
+import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { useToast } from '@agentry/ui/components/Toast';
+import { ErrorBox, Segmented, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { ModelCombobox } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
-import { formatNumber, timeAgo } from '../../lib/format';
+import { formatNumber, timeAgo } from '@agentry/ui/lib/format';
 import { BulkConsentDialog } from './decisions/BulkConsentDialog';
 import { BulkMode } from './decisions/BulkMode';
 import { ConsentDialog } from './decisions/ConsentDialog';
@@ -67,11 +68,12 @@ export const POINT_KEY: Record<DecisionPointId, string> = {
   'health.semantic-loop': 'healthSemanticLoop',
   'health.test-weakening': 'healthTestWeakening',
   'changes.unexplained-hunk': 'changesUnexplainedHunk',
+  'checks.fix': 'checksFix',
   'notification.urgency': 'notificationUrgency',
   'palette.intent': 'paletteIntent',
 };
 
-export type AreaId = 'flow' | 'board' | 'memory' | 'assistant' | 'orchestrations' | 'health' | 'review' | 'notifications' | 'palette';
+export type AreaId = 'flow' | 'board' | 'memory' | 'assistant' | 'orchestrations' | 'health' | 'review' | 'hosts' | 'notifications' | 'palette';
 
 /** `run.continuation` sits under Orchestrations although it also serves the flow (the plan's call). */
 export const AREAS: ReadonlyArray<{ id: AreaId; points: readonly DecisionPointId[] }> = [
@@ -82,6 +84,7 @@ export const AREAS: ReadonlyArray<{ id: AreaId; points: readonly DecisionPointId
   { id: 'orchestrations', points: ['orchestration.retry', 'orchestration.model', 'orchestration.fixer', 'run.continuation'] },
   { id: 'health', points: ['supervisor.intervene', 'health.semantic-loop', 'health.test-weakening'] },
   { id: 'review', points: ['changes.unexplained-hunk'] },
+  { id: 'hosts', points: ['checks.fix'] },
   { id: 'notifications', points: ['notification.urgency'] },
   { id: 'palette', points: ['palette.intent'] },
 ];
