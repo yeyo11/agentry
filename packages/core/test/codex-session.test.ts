@@ -226,7 +226,7 @@ test('a signed-out account fails the handshake with auth-required before any tur
   while (!events.some((e) => e.kind === 'failed') && Date.now() < end) await new Promise((r) => setTimeout(r, 10));
   proc.kill('SIGTERM');
   const failed = events.find((e) => e.kind === 'failed');
-  assert.ok(failed?.kind === 'failed' && failed.reason === 'auth-required');
+  assert.ok(failed?.kind === 'failed' && failed.reason.startsWith('auth-required'));
   assert.ok(!events.some((e) => e.kind === 'init' || e.kind === 'result'));
 });
 

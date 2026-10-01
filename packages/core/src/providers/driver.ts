@@ -282,10 +282,5 @@ export type DriverEvent =
   | { kind: 'stderr'; text: string }
   /** Agentry's own words about something the agent did that the person may want to see, with no change of status */
   | { kind: 'notice'; text: string }
-  /**
-   * The session cannot go on: the handshake failed. The execution ends `failed` with `reason` first
-   * in its error (`auth-required`, `protocol`, `version`), never `completed`.
-   */
-  | { kind: 'failed'; reason: 'auth-required' | 'protocol' | 'version'; message: string }
   /** A stdout line that is not the protocol */
   | { kind: 'unreadable'; text: string };

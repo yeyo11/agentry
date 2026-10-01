@@ -190,10 +190,6 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
     case 'notice':
       chat.push({ kind: 'notice', text: event.text });
       return;
-
-    case 'failed':
-      host.failProtocol(chat, `${event.reason}: ${event.message}`);
-      return;
   }
 }
 

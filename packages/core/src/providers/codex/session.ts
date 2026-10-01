@@ -97,9 +97,9 @@ export class CodexSession implements DriverSession {
     void this.handshake();
   }
 
-  private fail(reason: Extract<DriverEvent, { kind: 'failed' }>['reason'], message: string): void {
+  private fail(reason: 'auth-required' | 'protocol' | 'version', message: string): void {
     if (this.ended) return;
-    this.sink({ kind: 'failed', reason, message });
+    this.sink({ kind: 'failed', reason: `${reason}: ${message}` });
   }
 
   /** `initialize`, then the account, then the thread: the turn goes out only after all three. */
