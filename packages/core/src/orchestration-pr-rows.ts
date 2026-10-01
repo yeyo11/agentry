@@ -1,5 +1,5 @@
 import type { OrchestrationPullRequest, OrchestrationPullRequestPhase, WorkItemPullRequestCi } from '@agentry/shared';
-import { hostOf, refOf } from './work-item-rows.ts';
+import { fixOf, hostOf, refOf } from './work-item-rows.ts';
 
 /**
  * The orchestration change request table as SQLite hands its rows back, and the conversion to the
@@ -24,6 +24,10 @@ export interface OrchestrationPullRequestRow {
   closed_at: string | null;
   checked_at: string | null;
   claimed_until: string | null;
+  fix_state?: string | null;
+  fix_origin?: string | null;
+  fix_attempts?: number;
+  fix_head?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -47,5 +51,6 @@ export function orchestrationPullRequestOf(row: OrchestrationPullRequestRow): Or
     openedAt: row.opened_at,
     closedAt: row.closed_at,
     checkedAt: row.checked_at,
+    ...fixOf(row),
   };
 }
