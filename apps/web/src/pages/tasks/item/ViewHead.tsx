@@ -14,6 +14,7 @@ import { useToast } from '@agentry/ui/components/Toast';
 import { columnMeta, returnPath, returnState, taskPath } from '../../../lib/work-items';
 import { workOnItNeutral } from '../../../lib/reviews';
 import { useFixOffered } from './Checks';
+import { useMergeLeads } from './Merge';
 import { useReviewDrafts } from './Review';
 import { useMoveItem, type ItemActions } from './hooks';
 import { deleteWarning, workOnBlocker } from './model';
@@ -46,11 +47,13 @@ export function useItemButtons(item: WorkItemDetail, actions: ItemActions) {
   const blocker = workOnBlocker(item);
   const activeChat = item.activeLink?.chatId;
   const move = useMoveItem(item, actions);
-  // The zone's one gradient action is "Fix failing checks" while it is on the page, and "Submit
-  // review" while the person has a draft review: this is neutral then
+  // The zone's one gradient action is "Fix failing checks" while it is on the page, "Submit
+  // review" while the person has a draft review, and Merge (or Turn on auto-merge) when it leads:
+  // this is neutral then
   const fixOffered = useFixOffered(item.pullRequest);
   const draftNotes = useReviewDrafts(item.pullRequest).data?.length ?? 0;
-  const neutral = workOnItNeutral({ drafts: draftNotes, checksFixShowing: fixOffered });
+  const mergeLeads = useMergeLeads(item.pullRequest);
+  const neutral = workOnItNeutral({ drafts: draftNotes, checksFixShowing: fixOffered, mergeLeading: mergeLeads });
   const done =
     item.status === 'done' ? null : (
       <button type="button" className="btn workitem-done" onClick={() => move('done')} disabled={actions.move.isPending}>

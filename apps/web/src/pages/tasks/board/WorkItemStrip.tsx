@@ -12,6 +12,7 @@ import { chatActivity, orchestrationProgress } from '../../../lib/shell-live';
 import { approvalOpensPullRequest, notReadyReason, pullRequestErrorKey, stripOffersApproval, stripTone, type StripActor, type WorkItemStripState } from '../../../lib/work-items';
 import { useRoleName } from '../../team/RoleAvatar';
 import { roleHue, roleInitials } from '../../team/model';
+import { AutoMergeNote } from './AutoMergeNote';
 import type { LiveSources } from './LiveLine';
 import { CiBadge, NotReadyNote, reasonValues, useBoardReadiness, useChangeRequestWords, useOpenPullRequest } from './PullRequest';
 import { useBoardTeam } from './team';
@@ -267,6 +268,7 @@ export function WorkItemStrip({
           <span className="workitem-strip-verb">{t('pr.waitingMerge')}</span>
           <CiBadge ci={strip.ci} />
           {!inline && <PrLink url={strip.url} number={strip.number} refText={strip.ref} host={strip.host} />}
+          {!inline && <AutoMergeNote id={strip.id} />}
         </>
       );
       break;
