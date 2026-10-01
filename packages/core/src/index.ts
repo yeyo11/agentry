@@ -128,12 +128,15 @@ import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
 import { FlowError, FlowService, type FlowLaunch } from './flow.ts';
 import { ChangeRequestService } from './change-requests.ts';
 import { ChecksService } from './hosts/checks-service.ts';
+import { MergeService, type MergeTarget } from './hosts/merge-service.ts';
+import { mergeTargetOf } from './hosts/merge-target.ts';
 import { ReviewsService } from './hosts/reviews-service.ts';
 import { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
 import { codeHostAdapter, PullRequestService, PullRequestWatcher, type ApproveResult } from './pull-requests.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
 import { assistantGit } from './assistant-sources.ts';
-import { git, isGitRepo } from './git.ts';
+import { git, isGitRepo, mainCheckout } from './git.ts';
+import { hostOf } from './work-item-rows.ts';
 import { DecisionEngine } from './decisions/engine.ts';
 import { ReviewTriage } from './decisions/review-triage.ts';
 import { DecisionResolvers } from './decisions/resolve.ts';
@@ -403,6 +406,8 @@ export class Core {
   /** The checks of a change request: the head commit's list, log tails, re-runs and cancels */
   readonly checks: ChecksService;
   readonly reviews: ReviewsService;
+  /** Merge, auto-merge and update from the base of a change request: the person's click, never a run */
+  readonly merge: MergeService;
   /** `/change-requests/:id/…`: a row id of either table, resolved to the service that owns it */
   readonly changeRequests: ChangeRequestService;
   /** The project assistant: read-only runs that propose a team, resources and work items, each accepted on its own */
@@ -686,10 +691,23 @@ export class Core {
     });
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.reviews = new ReviewsService({ db: this.db.connection, resolve: (id) => this.changeRequests.reviewsTarget(id), emit: (event) => this.events.emit(event) });
+    this.merge = new MergeService({
+      db: this.db.connection,
+      resolve: (id) => this.mergeTarget(id),
+      checks: async (id) => (await this.checks.list(id, {})).checks,
+      unresolvedThreads: async (id) => (await this.reviews.threads(id)).threads.filter((t) => !t.isResolved).length,
+      // The row's own watcher reads the host and moves the item to Done as the person (`merged()`)
+      merged: async (id) => {
+        const kind = this.changeRequests.kindOf(id);
+        if (kind === 'work-item') await this.pullRequests.check(id, true);
+        else if (kind === 'orchestration') await this.orchestrationPullRequests.check(id, true);
+      },
+    });
     this.pullRequests = new PullRequestService({
       db: this.db,
       checks: this.checks,
       reviews: this.reviews,
+      merge: this.merge,
       flowOn: (projectId) => this.flow.projectFlow(projectId).enabled,
       settings: () => this.hostsSettings.get(),
       items: this.workItems,
@@ -715,6 +733,7 @@ export class Core {
       emit: (event) => this.events.emit(event),
       checks: this.checks,
       reviews: this.reviews,
+      merge: this.merge,
       runFix: (req) => this.orchestrator.runChecksFix(req),
     });
     this.changeRequests = new ChangeRequestService({
@@ -1866,6 +1885,28 @@ export class Core {
       throw new DocumentError("the Documents module is off in this project: switch it on in the project's settings to change its documents", 409);
     }
     return { projectPath: record.path, root: settings.documents?.path ?? DEFAULT_DOCUMENTS_PATH };
+  }
+
+  /** What `MergeService` needs for one row of either table: the host's calls, and the checkouts the branch lives in */
+  private async mergeTarget(id: string): Promise<MergeTarget | null> {
+    const base = await this.changeRequests.target(id);
+    if (!base) return null;
+    const sql = this.db.connection;
+    const item = sql.prepare('SELECT host, item_id, project_id FROM work_item_pull_requests WHERE id = ?').get(id) as { host: string; item_id: string; project_id: string } | undefined;
+    if (item) {
+      const adapter = codeHostAdapter(hostOf(item.host));
+      if (!adapter) return null;
+      const record = this.projectStore.get(item.project_id);
+      const work = this.workItems.find(item.item_id);
+      const place = record && work ? itemWorktree(record.path, work) : null;
+      return mergeTargetOf(base, hostOf(item.host), adapter, record ? { home: mainCheckout(record.path), worktree: place?.worktree ?? null } : null);
+    }
+    const orch = sql.prepare('SELECT host, orchestration_id, cwd FROM orchestration_pull_requests WHERE id = ?').get(id) as { host: string; orchestration_id: string; cwd: string } | undefined;
+    if (!orch) return null;
+    const adapter = codeHostAdapter(hostOf(orch.host));
+    if (!adapter) return null;
+    const worktree = this.orchestrator.get(orch.orchestration_id)?.integration?.worktree ?? null;
+    return mergeTargetOf(base, hostOf(orch.host), adapter, { home: mainCheckout(orch.cwd), worktree: worktree && existsSync(worktree) ? worktree : null });
   }
 
   /** The item, after the same check on the project it belongs to. Reads of a removed project's items still work. */

@@ -1,0 +1,14 @@
+# merge-github-merge
+gh api --hostname github.com repos/yeyo11/agentry-probe
+gh api --hostname github.com repos/yeyo11/agentry-probe/rules/branches/main
+gh api --hostname github.com repos/yeyo11/agentry-probe/rules/branches/main
+gh api --hostname github.com repos/yeyo11/agentry-probe/branches/main
+gh pr view 12 -R github.com/yeyo11/agentry-probe --json id,number,url,state,isDraft,headRefOid,headRefName,baseRefName,mergeable,mergeStateStatus,reviewDecision,autoMergeRequest
+gh pr merge 12 -R github.com/yeyo11/agentry-probe --squash --match-head-commit 1edb6cba70c6420d6e75a44963ca93fed97ec760 --subject Add the cart (#12) --body-file - --delete-branch <<< Closes the loop.
+gh pr view 12 -R github.com/yeyo11/agentry-probe --json id,number,url,state,isDraft,headRefOid,headRefName,baseRefName,mergeable,mergeStateStatus,reviewDecision,autoMergeRequest
+gh api -i --hostname github.com repos/yeyo11/agentry-probe/branches/task%2Fcw-1
+gh api --hostname github.com repos/yeyo11/agentry-probe
+gh api --hostname github.com repos/yeyo11/agentry-probe/rules/branches/main
+gh api --hostname github.com repos/yeyo11/agentry-probe/rules/branches/main
+gh api --hostname github.com repos/yeyo11/agentry-probe/branches/main
+gh pr view 12 -R github.com/yeyo11/agentry-probe --json id,number,url,state,isDraft,headRefOid,headRefName,baseRefName,mergeable,mergeStateStatus,reviewDecision,autoMergeRequest
