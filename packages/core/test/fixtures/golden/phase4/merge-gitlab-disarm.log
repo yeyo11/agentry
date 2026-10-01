@@ -1,0 +1,9 @@
+# merge-gitlab-disarm
+glab mr view 12 -R https://gitlab.com/yeyo11/agentry -F json
+glab api --hostname gitlab.com -X POST projects/87089091/merge_requests/12/cancel_merge_when_pipeline_succeeds
+glab mr view 12 -R https://gitlab.com/yeyo11/agentry -F json
+glab mr view 12 -R https://gitlab.com/yeyo11/agentry -F json
+glab api --hostname gitlab.com -X POST projects/87089091/merge_requests/12/cancel_merge_when_pipeline_succeeds
+glab mr view 12 -R https://gitlab.com/yeyo11/agentry -F json
+glab repo view -R https://gitlab.com/yeyo11/agentry -F json
+glab mr view 12 -R https://gitlab.com/yeyo11/agentry -F json

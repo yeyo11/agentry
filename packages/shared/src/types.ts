@@ -5254,6 +5254,176 @@ export interface ChangeRequestReviewEvent extends AgentryEventBase {
   decision: ChangeRequestReviewers['decision'];
 }
 
+// ---------- Merging (code hosts, phase 4) ----------
+
+/** How a change request is merged. The host's own words differ (`rebase_merge`, `ff`); this is Agentry's. */
+export type MergeMethod = 'squash' | 'merge' | 'rebase';
+
+/**
+ * Why a merge is not offered, in the order docs/plans/code-hosts.md lists them: the first that
+ * applies is the state's `blocker`, the rest are `others`. A value the host sends that no row knows
+ * is `blocked-by-policy`.
+ */
+export type MergeBlockerCode =
+  | 'not-open'
+  | 'computing'
+  | 'draft'
+  | 'conflicts'
+  | 'nothing-to-merge'
+  | 'behind'
+  | 'checks-running'
+  | 'checks-failing'
+  | 'checks-missing'
+  | 'external-checks'
+  | 'review-required'
+  | 'changes-requested'
+  | 'threads-unresolved'
+  | 'tracker-key-missing'
+  | 'title-rejected'
+  | 'blocked-by-dependency'
+  | 'not-yet'
+  | 'locked-files'
+  | 'merge-queue'
+  | 'blocked-by-policy';
+
+/**
+ * The one thing the person can do about a blocker. Each is an Agentry action or a link, never a
+ * command to copy: `update-from-base` is Agentry's own merge of the base into the branch,
+ * `rebase-on-host` a host-side rebase (GitLab `ff` projects only).
+ */
+export type MergeBlockerAction =
+  | 'mark-ready'
+  | 'update-from-base'
+  | 'rebase-on-host'
+  | 'close'
+  | 'auto-merge'
+  | 'fix-checks'
+  | 'rerun-checks'
+  | 'request-reviewers'
+  | 'address-review'
+  | 'show-threads'
+  | 'edit-title'
+  | 'open-on-host'
+  | 'refresh';
+
+export interface MergeBlocker {
+  code: MergeBlockerCode;
+  /** The host's own words, or the name that makes the sentence exact (a check's name); null when there are none */
+  detail: string | null;
+  action: MergeBlockerAction | null;
+}
+
+/** Whether an auto-merge may be armed, and whether one is. */
+export interface AutoMergeState {
+  /**
+   * Agentry may arm one now: the repository allows it (GitHub `allow_auto_merge`; GitLab always)
+   * and something is left to wait for. When false, `reason` says why.
+   */
+  available: boolean;
+  reason: Extract<HostReason, 'auto-merge-not-allowed' | 'auto-merge-not-needed' | 'waiting-for-pipeline'> | null;
+  armed: boolean;
+  /** The method it will merge with; null when it is not armed or the host does not say */
+  method: MergeMethod | null;
+  /** Who armed it and when, as the host says; null when it is not armed or the host does not say */
+  armedBy: string | null;
+  armedAt: string | null;
+}
+
+/** `GET /change-requests/:id/merge`: what the person may do about merging, read from the host. */
+export interface MergeState {
+  changeRequestId: string;
+  host: CodeHostId;
+  /** The head commit (full id) this state was read at; a merge carries it back as `expectedHead` */
+  headSha: string | null;
+  /** What the repository's settings and rules allow, in the order Agentry offers them; empty when none is allowed */
+  methods: MergeMethod[];
+  /** The method to preselect: the first of `methods`; null when there is none */
+  defaultMethod: MergeMethod | null;
+  /** The branch box's default: `delete_branch_on_merge` / `remove_source_branch_after_merge` */
+  deleteBranchDefault: boolean;
+  /** Merge now is possible: no blocker, and on GitLab the pipeline guard allows it */
+  canMerge: boolean;
+  /** The first blocker, or null */
+  blocker: MergeBlocker | null;
+  /** The blockers after the first, in order */
+  others: MergeBlocker[];
+  /** `UNSTABLE` on GitHub: a check that is not required failed; Merge stays on */
+  warning: 'optional-checks-failing' | null;
+  autoMerge: AutoMergeState;
+  /** GitLab: the head's pipeline has not appeared yet; Agentry re-reads every 10 s */
+  waitingForPipeline: boolean;
+  /** GitLab `ff` project: Rebase on GitLab is an option for `behind` */
+  canRebaseOnHost: boolean;
+  readAt: string;
+  /** While the host's rate limit is used up: when Agentry may read again; the state is the last one it had */
+  limitedUntil?: string | null;
+}
+
+/** `POST /change-requests/:id/merge`. The merge is the person's click: a chat token gets 403. */
+export interface MergeRequestBody {
+  method: MergeMethod;
+  /** The full id of the head the person looked at; a head that moved is `head-moved` and nothing is merged */
+  expectedHead: string;
+  deleteBranch: boolean;
+  /** The commit's subject and body, for `squash` and `merge`; the host's own when absent */
+  subject?: string;
+  body?: string;
+}
+
+/** `POST /change-requests/:id/auto-merge`. */
+export interface AutoMergeRequestBody {
+  method: MergeMethod;
+  expectedHead: string;
+}
+
+/** What `POST /change-requests/:id/merge` answers once the host merged. */
+export interface MergeResult {
+  state: MergeState;
+  merged: true;
+  /** Whether the source branch is gone from the host; null when nobody asked or the host did not say */
+  branchDeleted: boolean | null;
+}
+
+/** What `POST /change-requests/:id/update-branch` answers when the branch was updated. */
+export interface UpdateBranchResult {
+  state: MergeState;
+  /** Empty: a conflicting update is a 409 that names the paths */
+  conflicts: string[];
+  /** Agentry's own merge of the base into the branch, or a host-side rebase */
+  via: 'merge' | 'rebase';
+}
+
+/** `POST /change-requests/:id/ready`: mark ready for review, or back to a draft. */
+export interface MergeReadyRequest {
+  ready: boolean;
+}
+
+export type ChangeRequestMergeAction = 'merge' | 'arm' | 'disarm';
+
+/** What became of one merge click or arming. `requested` is written before the host is called. */
+export type ChangeRequestMergeOutcome = 'requested' | 'merged' | 'armed' | 'disarmed' | 'failed';
+
+/**
+ * One row of the audit of merge clicks and armings (`change_request_merges`): who asked, with which
+ * method and head, and what the host answered.
+ */
+export interface ChangeRequestMerge {
+  id: string;
+  changeRequestId: string;
+  action: ChangeRequestMergeAction;
+  /** Null for a disarm */
+  method: MergeMethod | null;
+  expectedHead: string | null;
+  deleteBranch: boolean;
+  requestedAt: string;
+  /** The person who clicked; `agentry` for the disarm Agentry does before it pushes */
+  requestedBy: string;
+  outcome: ChangeRequestMergeOutcome;
+  /** Why it failed: a reason code, and the host's first line */
+  reason: HostReason | null;
+  detail: string | null;
+}
+
 /** One provider's detected state on this host, as served from the detector's cache. */
 export interface ProviderStatus {
   id: ProviderId;

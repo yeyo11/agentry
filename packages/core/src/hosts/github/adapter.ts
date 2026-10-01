@@ -2,13 +2,14 @@ import {
   HostParseError,
   type ChangeRequestState,
   type ChangeRequestView,
-  type ReviewsCodeHostAdapter,
+  type MergeCodeHostAdapter,
   type HostCall,
   type HostRepo,
   type HostResult,
 } from '../code-host.ts';
 import { envOf } from '../env.ts';
 import { githubChecks } from './checks.ts';
+import { githubMerge } from './merge.ts';
 import { githubReviews } from './reviews.ts';
 import { ciOf } from './ci.ts';
 
@@ -50,9 +51,10 @@ function accountsOf(value: unknown): AuthAccount[] {
   });
 }
 
-export const githubAdapter: ReviewsCodeHostAdapter = {
+export const githubAdapter: MergeCodeHostAdapter = {
   ...githubChecks,
   ...githubReviews,
+  ...githubMerge,
   id: 'github',
   refPrefix: '#',
 

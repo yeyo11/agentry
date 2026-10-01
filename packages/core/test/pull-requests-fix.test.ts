@@ -5,6 +5,7 @@ import type { AgentryEvent, ChangeRequestChecks, Check, Orchestration, WorkItem 
 import { checksFixPrompt, flowPrompt, flowResultSchema, parseResult } from '../src/flow.ts';
 import type { ChecksService } from '../src/hosts/checks-service.ts';
 import type { ChangeRequestRead } from '../src/hosts/code-host.ts';
+import type { MergeService } from '../src/hosts/merge-service.ts';
 import { runHostCall } from '../src/hosts/exec.ts';
 import { OrchestrationPullRequestService } from '../src/orchestration-pull-requests.ts';
 import { PullRequestService, type ChecksFailingNotice } from '../src/pull-requests.ts';
@@ -78,6 +79,18 @@ interface Fixture {
   item: WorkItem;
   notices: ChecksFailingNotice[];
   remoteHead: () => string;
+  /** The change requests Agentry asked to turn auto-merge off for before it pushed */
+  disarmed: string[];
+}
+
+/** A merge service that only records the one call the push paths make */
+function disarming(log: string[]): MergeService {
+  return {
+    disarmBeforePush: async (id: string) => {
+      log.push(id);
+      return { disarmed: false };
+    },
+  } as unknown as MergeService;
 }
 
 /** An item with an open change request whose checks fail, and a service that can fix it. */
@@ -87,6 +100,7 @@ async function failing(flowOn = true): Promise<Fixture> {
   await opened(s, item);
   const st = stub();
   const notices: ChecksFailingNotice[] = [];
+  const disarmed: string[] = [];
   const service = new PullRequestService({
     db: s.db,
     items: s.items,
@@ -99,9 +113,10 @@ async function failing(flowOn = true): Promise<Fixture> {
     run: (call, where) => runHostCall(call, { binaryPath: where.binaryPath, cwd: where.cwd, baseEnv: where.env, retry: { sleep: async () => undefined, ...(call.class === 'probe' ? { delaysMs: [] } : {}) } }),
     checks: st.checks,
     flowOn: () => flowOn,
+    merge: disarming(disarmed),
     onChecksFailing: (n) => notices.push(n),
   });
-  return { s, service, stub: st, item, notices, remoteHead: () => sh(s.r.remote, 'rev-parse', 'task/cw-1') };
+  return { s, service, stub: st, item, notices, remoteHead: () => sh(s.r.remote, 'rev-parse', 'task/cw-1'), disarmed };
 }
 
 /** The Developer's run: a commit in the item's worktree, then the flow's own moves. */
@@ -165,7 +180,9 @@ test("a decision's fix moves the card as the system, and waits in review for Pus
     assert.equal(row(f)?.fixState, 'awaiting-push');
     assert.equal(f.remoteHead(), before, 'nothing is pushed until a person clicks');
 
+    assert.deepEqual(f.disarmed, [], 'nothing is asked of the host before the click');
     await f.service.pushFix(f.item.id);
+    assert.deepEqual(f.disarmed, [row(f)?.id], 'auto-merge is turned off before the push');
     assert.equal(row(f)?.fixState ?? null, null);
     assert.equal(f.remoteHead(), sh(f.item.worktree ?? '', 'rev-parse', 'HEAD'));
     await assert.rejects(f.service.pushFix(f.item.id), (err: { reason: string }) => err.reason === 'no-fix-to-push');
@@ -338,6 +355,7 @@ test("an orchestration's fix runs the fixer in the integration worktree and alwa
     const st = stub();
     const events: AgentryEvent[] = [];
     const started: Array<{ cwd: string; prompt: string }> = [];
+    const disarmed: string[] = [];
     let finish: (v: { ok: boolean }) => void = () => undefined;
     const path = `${s.r.bin}:${process.env.PATH ?? ''}`;
     const service = new OrchestrationPullRequestService({
@@ -348,6 +366,7 @@ test("an orchestration's fix runs the fixer in the integration worktree and alwa
       searchPath: async () => path,
       run: (call, where) => runHostCall(call, { binaryPath: where.binaryPath, cwd: where.cwd, baseEnv: where.env, retry: { sleep: async () => undefined, ...(call.class === 'probe' ? { delaysMs: [] } : {}) } }),
       checks: st.checks,
+      merge: disarming(disarmed),
       runFix: (req) => {
         started.push({ cwd: req.cwd, prompt: req.prompt });
         return new Promise((resolve) => {
@@ -374,7 +393,9 @@ test("an orchestration's fix runs the fixer in the integration worktree and alwa
     assert.equal(service.newest('o1')?.fixState, 'awaiting-push');
     assert.notEqual(sh(s.r.remote, 'rev-parse', branch), sh(worktree, 'rev-parse', 'HEAD'));
 
+    assert.deepEqual(disarmed, []);
     const pushed = await service.pushFix(orch);
+    assert.deepEqual(disarmed, [pushed?.id]);
     assert.equal(pushed?.fixState ?? null, null);
     assert.equal(sh(s.r.remote, 'rev-parse', branch), sh(worktree, 'rev-parse', 'HEAD'));
     assert.ok(events.some((e) => e.type === 'orchestration.pull-request' && e.title === 'Fix pushed'));

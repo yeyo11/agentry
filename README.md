@@ -879,6 +879,12 @@ The hosts Agentry opens pull and merge requests on, GitHub through `gh` and GitL
 | GET | `/change-requests/:id/reviewers` | The requested reviewers, the review decision and the unresolved count |
 | POST | `/change-requests/:id/reviewers` | Request reviewers (`{ add, remove? }`), then read back what the host says. Not open to a chat's token |
 | POST | `/change-requests/:id/address` | Address review threads with an agent (`{ threadIds }`, all unresolved when empty) on the fix path of the checks; nothing is replied or resolved by Agentry → `{ started, prompt, worktree, pullRequest }`. Not open to a chat's token |
+| GET | `/change-requests/:id/merge` | The merge state: allowed methods and the default, the branch box's default, `canMerge`, the first blocker and the others (code, the host's words, one action), the auto-merge state, `waitingForPipeline`, `canRebaseOnHost` and `headSha`; `?refresh=1` reads the host now |
+| POST | `/change-requests/:id/merge` | Merge (`{ method, expectedHead, deleteBranch, subject?, body? }`) on the head the person saw → `{ state, merged, branchDeleted }`; `409 head-moved` merges nothing. The person's click: not open to a chat's token |
+| POST | `/change-requests/:id/auto-merge` | Arm the host's auto-merge (`{ method, expectedHead }`) → the merge state. Not open to a chat's token |
+| DELETE | `/change-requests/:id/auto-merge` | Turn auto-merge off, confirmed by a re-read → the merge state. Not open to a chat's token |
+| POST | `/change-requests/:id/update-branch` | Update the branch from its base (Agentry's merge, or the host's rebase on a GitLab `ff` project) → `{ state, conflicts, via }`; `409 conflicts` names the paths and pushes nothing. Not open to a chat's token |
+| POST | `/change-requests/:id/ready` | Mark ready for review or back to a draft (`{ ready }`) → the merge state. Not open to a chat's token |
 | GET | `/projects/:id/code-host` | Whether the project can open pull and merge requests (the readiness, with its reason and remedy) and its parsed `origin`; `404` for an unknown project |
 
 ### Decisions
