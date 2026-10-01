@@ -475,7 +475,7 @@ test('nothing that would move the branch is allowed while the checks run, and no
   const started = launch(orchestrator, repo, { commands: ['sleep 120'], fixer: false, maxAttempts: 1 });
   await until(() => orchestrator.get(started.id)?.verification?.status === 'running', 'the check to be running');
 
-  assert.throws(() => orchestrator.pullRequest(started.id), /checks are still running/);
+  await assert.rejects(() => orchestrator.pullRequest(started.id), /checks are still running/);
   assert.throws(() => orchestrator.retryIntegration(started.id), /still running|checks are running/);
   assert.throws(() => orchestrator.verify(started.id), /finishes|still running|already running/);
   orchestrator.stop(started.id);
@@ -738,7 +738,7 @@ test('failGraph: failed checks fail the graph and hold back the pull request, un
   assert.match(orch.error ?? '', /The checks on the merged branch failed: `echo the build broke; exit 2` exited with code 2/);
   // Every task did its part: the failure is the checks'
   assert.ok(orch.tasks.every((t) => t.status === 'completed'));
-  assert.throws(() => orchestrator.pullRequest(orch.id), /launched to fail with them/);
+  await assert.rejects(() => orchestrator.pullRequest(orch.id), /launched to fail with them/);
 
   orchestrator.verify(orch.id, { verification: { ...spec, commands: ['true'] } });
   await until(() => orchestrator.get(orch.id)?.verification?.status === 'passed', 'the checks to pass');
