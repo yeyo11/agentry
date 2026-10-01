@@ -587,6 +587,25 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      updated_at    TEXT NOT NULL,
      PRIMARY KEY (host, bucket)
    );`,
+  // Checks and the fix flow (docs/plans/code-hosts.md, phase 2): the last read of a change request's
+  // checks, one row per change request of either kind, and the fix a change request is going through.
+  // Every row so far has no fix, and zero attempts says so
+  `CREATE TABLE change_request_snapshots (
+     cr_id      TEXT PRIMARY KEY,
+     kind       TEXT NOT NULL,
+     head_sha   TEXT,
+     checks     TEXT,
+     rollup     TEXT,
+     fetched_at TEXT NOT NULL
+   );
+   ALTER TABLE work_item_pull_requests ADD COLUMN fix_state TEXT;
+   ALTER TABLE work_item_pull_requests ADD COLUMN fix_origin TEXT;
+   ALTER TABLE work_item_pull_requests ADD COLUMN fix_attempts INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE work_item_pull_requests ADD COLUMN fix_head TEXT;
+   ALTER TABLE orchestration_pull_requests ADD COLUMN fix_state TEXT;
+   ALTER TABLE orchestration_pull_requests ADD COLUMN fix_origin TEXT;
+   ALTER TABLE orchestration_pull_requests ADD COLUMN fix_attempts INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE orchestration_pull_requests ADD COLUMN fix_head TEXT;`,
 ];
 
 /**
@@ -612,6 +631,9 @@ export const CHAT_PROVIDER_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m
 
 /** The version that added the code hosts' columns and tables, for the test that upgrades a database from the one before */
 export const CODE_HOSTS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE host_rate_limits')) + 1;
+
+/** The version that added the checks' snapshots and the fix columns, for the test that upgrades a database from the one before */
+export const CHECKS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE change_request_snapshots')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by
