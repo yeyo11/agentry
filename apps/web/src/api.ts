@@ -235,13 +235,16 @@ export class ApiRequestError extends Error {
   readonly detail?: string;
   /** The refusal's code, when the route names one (`{ error, code }`), so the page can word it */
   readonly code?: string;
+  /** The review post a refusal belongs to: a partly posted review is published or discarded by it */
+  readonly postId?: string;
 
-  constructor(message: string, status: number, detail?: string, code?: string) {
+  constructor(message: string, status: number, detail?: string, code?: string, postId?: string) {
     super(message);
     this.name = 'ApiRequestError';
     this.status = status;
     this.detail = detail;
     this.code = code;
+    this.postId = postId;
   }
 }
 
@@ -323,7 +326,8 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
     // the person's language and keep the status line as the detail
     if (!err?.error) throw new ApiRequestError(i18n.t('common:httpError', { status: res.status }), res.status, `HTTP ${res.status} ${res.statusText}`.trim());
     const code = (err as { code?: unknown }).code;
-    throw new ApiRequestError(err.error, res.status, err.detail, typeof code === 'string' ? code : undefined);
+    const postId = (err as { postId?: unknown }).postId;
+    throw new ApiRequestError(err.error, res.status, err.detail, typeof code === 'string' ? code : undefined, typeof postId === 'string' ? postId : undefined);
   }
   return json as T;
 }
