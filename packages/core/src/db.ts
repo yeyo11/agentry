@@ -606,6 +606,36 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    ALTER TABLE orchestration_pull_requests ADD COLUMN fix_origin TEXT;
    ALTER TABLE orchestration_pull_requests ADD COLUMN fix_attempts INTEGER NOT NULL DEFAULT 0;
    ALTER TABLE orchestration_pull_requests ADD COLUMN fix_head TEXT;`,
+  // Reviews (docs/plans/code-hosts.md, phase 3): the person's draft review, one row per note, and
+  // each attempt to post it. A draft with no path is the review's general note. A fix that started
+  // before this has no kind, which reads as checks
+  `CREATE TABLE review_drafts (
+     id         TEXT PRIMARY KEY,
+     cr_id      TEXT NOT NULL,
+     path       TEXT,
+     side       TEXT,
+     line       INTEGER,
+     start_line INTEGER,
+     body       TEXT NOT NULL,
+     suggestion INTEGER NOT NULL DEFAULT 0,
+     created_at TEXT NOT NULL,
+     updated_at TEXT NOT NULL
+   );
+   CREATE INDEX review_drafts_cr ON review_drafts(cr_id, created_at);
+   CREATE TABLE review_posts (
+     id         TEXT PRIMARY KEY,
+     cr_id      TEXT NOT NULL,
+     marker     TEXT NOT NULL,
+     event      TEXT NOT NULL,
+     state      TEXT NOT NULL,
+     remote_id  TEXT,
+     detail     TEXT,
+     created_at TEXT NOT NULL,
+     updated_at TEXT NOT NULL
+   );
+   CREATE INDEX review_posts_cr ON review_posts(cr_id, created_at);
+   ALTER TABLE work_item_pull_requests ADD COLUMN fix_kind TEXT;
+   ALTER TABLE orchestration_pull_requests ADD COLUMN fix_kind TEXT;`,
 ];
 
 /**
@@ -634,6 +664,9 @@ export const CODE_HOSTS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m ==
 
 /** The version that added the checks' snapshots and the fix columns, for the test that upgrades a database from the one before */
 export const CHECKS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE change_request_snapshots')) + 1;
+
+/** The version that added the review drafts and posts and the fix kind, for the test that upgrades a database from the one before */
+export const REVIEWS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE review_drafts')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by
