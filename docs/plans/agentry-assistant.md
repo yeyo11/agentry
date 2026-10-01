@@ -39,8 +39,9 @@ and can act on them.
 ## Shape (to refine in the plan of its orchestration)
 
 - **The MCP server** (`packages/core` or a small `packages/mcp`), stdio, started by the CLI. Its read
-  tools are specified in [agentry-mcp-server.md](agentry-mcp-server.md) (CW-6), which proposes
-  `packages/mcp` and fixes the server name `agentry`:
+  tools are specified in [agentry-mcp-server.md](agentry-mcp-server.md) (CW-6), which built
+  `packages/mcp` (feature doc: [../agentry-mcp-server.md](../agentry-mcp-server.md)) and fixed the
+  server name `agentry`:
   - read tools: projects, work items (board, one item with its history, links and runs),
     orchestrations (list, one with tasks, verification and final report), flow runs and team,
     journal and documents, chats (list, summary, waiting), usage and limits, accounts;

@@ -432,6 +432,7 @@ transpiler.
 | `VITE_API_TARGET` | `http://localhost:8787` | Where the Vite dev server proxies `/api` |
 | `AGENTRY_IDLE_TIMEOUT_MS` | `600000` | Idle runs are closed after this (they resume transparently) |
 | `AGENTRY_WEB_DIST` | `apps/web/dist` (`/app/web` in the image) | Built UI the API serves (the desktop app points it at its bundled copy) |
+| `AGENTRY_MCP_ENTRY` | the `mcp.mjs` beside the API bundle, when it exists | The bundle of Agentry's own MCP server a confined chat's CLI starts; from source it runs `packages/mcp` with tsx. See [docs/agentry-mcp-server.md](docs/agentry-mcp-server.md) |
 | `LOG_LEVEL` | `info` | Fastify/pino log level (`trace` … `fatal`, or `silent`) |
 
 Agentry sets two variables for every chat it starts, so an agent that calls the REST API reaches the
