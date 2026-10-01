@@ -1,4 +1,4 @@
-import type { ChangedFile, EditStep } from '@agentry/shared';
+import type { ChangedFile, EditStep, ReviewSide } from '@agentry/shared';
 import { useQuery } from '@tanstack/react-query';
 import { AlignJustify, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Columns2, Copy, Link2, Sparkle, TextQuote } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -14,6 +14,7 @@ import { ScrollingBlockRail } from './BlockRail';
 import { DiffView } from './DiffView';
 import { Counts } from './FileMap';
 import { Intent } from './Intent';
+import { FileThreadsFold, ThreadsChip, threadLayer, useFileThreads, useReviewThreads } from './ReviewThreads';
 import { hourMinute, reviewKey, scopeQuery, splitPath, type ReviewScope } from './review-model';
 import { LIVE_REFRESH_MS, type ReviewSource } from './source';
 import { plainIntent } from './steps/steps-model';
@@ -66,6 +67,7 @@ export function FileReview({
   back,
   refs,
   paneLabel,
+  review,
 }: {
   source: ReviewSource;
   file: ChangedFile;
@@ -89,6 +91,16 @@ export function FileReview({
   back?: string;
   refs?: { before?: string; after?: string };
   paneLabel?: string;
+  /**
+   * The change request this diff belongs to: its threads are drawn on their lines and its file-level
+   * ones above the diff. `extra` is what the draft review adds under a line (notes, the composer);
+   * `onAddNote` shows the gutter's "+" and opens a note on a line.
+   */
+  review?: {
+    changeRequestId: string;
+    extra?: (side: ReviewSide, line: number) => ReactNode;
+    onAddNote?: (side: ReviewSide, line: number) => void;
+  };
 }) {
   const { t, i18n } = useTranslation('changes');
   const live = source.live;
@@ -129,6 +141,14 @@ export function FileReview({
   useEffect(() => {
     if (hash) onHashRef.current(hash);
   }, [hash]);
+
+  // ---- the review's threads on this file ----
+  const threadsQ = useReviewThreads(review?.changeRequestId);
+  const mine = useFileThreads(threadsQ.data, file.path);
+  const layer = useMemo(
+    () => (review ? threadLayer({ changeRequestId: review.changeRequestId, file: mine.file, phone, extra: review.extra, onAddNote: review.onAddNote }) : undefined),
+    [review, mine.file, phone],
+  );
 
   // ---- blocks ----
   const marks = useMemo(() => (shown ? blockStarts(shown) : []), [shown]);
@@ -278,6 +298,7 @@ export function FileReview({
         <div className="changes-diff-scroll" ref={scrollRef} data-scroll-root>
           {tooBig && <p className="changes-diff-note">{t('blocksOnly')}</p>}
           <div className="changes-diff-content" ref={contentRef}>
+            {review && mine.file && <FileThreadsFold changeRequestId={review.changeRequestId} file={mine.file} phone={phone} />}
             <DiffView
               diff={shown}
               mode={mode}
@@ -289,6 +310,7 @@ export function FileReview({
               currentBlock={current}
               refs={refs}
               scrollRef={scrollRef}
+              layer={layer}
             />
           </div>
         </div>
@@ -323,6 +345,11 @@ export function FileReview({
           {seenChip}
           <MoreActions entries={menu} label={t('more.label')} />
         </header>
+        {mine.threads.length > 0 && (
+          <div className="changes-phone-modes">
+            <ThreadsChip threads={mine.threads} />
+          </div>
+        )}
         {textual && (
           <div className="changes-phone-modes">
             <Segmented value={mode} options={modes.map((m) => ({ value: m, label: t(`mode.${m}`) }))} onChange={onMode} label={t('mode.label')} />
@@ -370,6 +397,7 @@ export function FileReview({
           </span>
         )}
         {!file.binary && <Counts additions={file.additions} deletions={file.deletions} />}
+        <ThreadsChip threads={mine.threads} />
         {textual && (
           <>
             <span className="changes-sep" aria-hidden />
