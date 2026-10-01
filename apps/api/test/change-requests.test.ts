@@ -60,6 +60,7 @@ test('an id no table has is a 404 with a code, on every route', async () => {
     ['POST', `/api/change-requests/${id}/push-fix`],
     ['GET', `/api/change-requests/${id}/threads`],
     ['GET', `/api/change-requests/${id}/review-drafts`],
+    ['GET', `/api/change-requests/${id}/review-posts`],
     ['POST', `/api/change-requests/${id}/review-drafts`, { body: 'x' }],
     ['PUT', `/api/change-requests/${id}/review-drafts/d1`, { body: 'x' }],
     ['DELETE', `/api/change-requests/${id}/review-drafts/d1`],
@@ -119,6 +120,7 @@ test('review writes are validated before they reach the host', async () => {
   assert.equal((await post('/reviews', {})).statusCode, 400);
   assert.equal((await post('/reviews', { event: 'merge' })).statusCode, 400);
   assert.equal((await post('/reviews', { event: 'comment', body: 3 })).statusCode, 400);
+  assert.equal((await post('/reviews', { event: 'approve', body: '', headSha: 7 })).statusCode, 400);
   assert.equal((await post('/threads/t1/reply', { body: '  ' })).statusCode, 400);
   assert.equal((await post('/approval', {})).statusCode, 400);
   assert.equal((await post('/reviewers', { add: 'a' })).statusCode, 400);
@@ -190,7 +192,7 @@ test("a chat's token reads the checks but cannot re-run, cancel, play or fix", a
       const res = await guarded.inject({ method, url, ...fromChat(token, body ?? {}) });
       assert.equal(res.statusCode, 403, `${method} ${url}`);
     }
-    for (const path of ['threads', 'review-drafts', 'approval', 'reviewers']) {
+    for (const path of ['threads', 'review-drafts', 'review-posts', 'approval', 'reviewers']) {
       const read = await guarded.inject({ url: `/api/change-requests/${id}/${path}`, ...fromChat(token) });
       assert.equal(read.statusCode, 404, path);
     }
@@ -202,4 +204,17 @@ test("a chat's token reads the checks but cannot re-run, cancel, play or fix", a
     guardedCore.shutdown();
     rmSync(secured, { recursive: true, force: true });
   }
+});
+
+test('GET /change-requests/:id/review-posts answers the recorded posts of a row, newest first, and survives a new process', async () => {
+  const sql = core.db.connection;
+  const insert = sql.prepare("INSERT INTO review_posts (id, cr_id, marker, event, state, detail, created_at, updated_at) VALUES (?, ?, ?, 'comment', ?, ?, ?, ?)");
+  insert.run('p-old', ORCH_ROW, '<!-- agentry:1 -->', 'failed', JSON.stringify({ code: 'line-not-in-diff', detail: 'a.ts:7' }), '2026-10-01T10:00:00.000Z', '2026-10-01T10:00:00.000Z');
+  insert.run('p-new', ORCH_ROW, '<!-- agentry:2 -->', 'posted', null, '2026-10-01T11:00:00.000Z', '2026-10-01T11:00:00.000Z');
+  const res = await app.inject(`/api/change-requests/${ORCH_ROW}/review-posts`);
+  assert.equal(res.statusCode, 200, res.body);
+  const body = res.json<{ posts: Array<{ id: string; state: string; detail: { code: string } | null }>; savedOnHost: Record<string, number> | null }>();
+  assert.deepEqual(body.posts.map((p) => [p.id, p.state]), [['p-new', 'posted'], ['p-old', 'failed']]);
+  assert.equal(body.posts[1]?.detail?.code, 'line-not-in-diff');
+  assert.deepEqual(body.savedOnHost, {}, 'no post is partly posted, so the host is not asked');
 });

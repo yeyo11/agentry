@@ -320,3 +320,42 @@ test("an orchestration's address runs the fixer on the chosen threads and waits 
     cleanup(s);
   }
 });
+
+test('the chosen thread ids outlive a restart: the prompt is rebuilt from them, and an empty list hands over nothing', async () => {
+  const f = await withThreads();
+  try {
+    await f.service.addressReview(f.item.id, ['T2']);
+    const stored = f.s.db.connection.prepare('SELECT fix_threads FROM work_item_pull_requests WHERE item_id = ?').get(f.item.id) as { fix_threads: string | null };
+    assert.deepEqual(JSON.parse(stored.fix_threads ?? 'null'), ['T2']);
+
+    // What a restart does to the process: the prompt kept in memory is gone
+    (f.service as unknown as { addressed: Map<string, string> }).addressed.clear();
+    const prompt = (await f.service.fixPrompt(f.item.id)) ?? '';
+    assert.ok(prompt.includes('"threadId": "T2"'));
+    assert.ok(!prompt.includes('"threadId": "T1"'), 'the thread nobody chose is not handed over after the restart');
+
+    // A thread that was resolved on the host meanwhile is dropped from what is handed over
+    f.stub.list.threads = f.stub.list.threads.map((t) => (t.id === 'T2' ? { ...t, isResolved: true } : t));
+    assert.equal(await f.service.fixPrompt(f.item.id), null, 'every chosen thread is resolved: nothing, not every other thread');
+
+    // An empty or missing list is nothing, never everything
+    for (const empty of ['[]', null, 'not json']) {
+      f.s.db.connection.prepare('UPDATE work_item_pull_requests SET fix_threads = ? WHERE item_id = ?').run(empty, f.item.id);
+      f.stub.list.threads = f.stub.list.threads.map((t) => (t.id === 'T2' ? { ...t, isResolved: false } : t));
+      assert.equal(await f.service.fixPrompt(f.item.id), null, `fix_threads ${String(empty)}`);
+    }
+  } finally {
+    cleanup(f.s);
+  }
+});
+
+test('an address with no thread named stores the unresolved ids it handed over', async () => {
+  const f = await withThreads();
+  try {
+    await f.service.addressReview(f.item.id, []);
+    const stored = f.s.db.connection.prepare('SELECT fix_threads FROM work_item_pull_requests WHERE item_id = ?').get(f.item.id) as { fix_threads: string | null };
+    assert.deepEqual(JSON.parse(stored.fix_threads ?? 'null'), ['T1', 'T2']);
+  } finally {
+    cleanup(f.s);
+  }
+});

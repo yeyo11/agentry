@@ -187,6 +187,17 @@ export function threadsToAddress(list: ChangeRequestThreads, threadIds: readonly
   return { threads: chosen.slice(0, ADDRESS_THREADS_MAX) };
 }
 
+/** The thread ids stored with an address; anything that is not a list of ids reads as none */
+export function chosenThreadIds(stored: string | null | undefined): string[] {
+  if (!stored) return [];
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 /** What a refused address says, by its code */
 export const ADDRESS_REFUSALS = {
   'not-found': 'one of those threads is not in the list any more',
@@ -921,8 +932,8 @@ export class PullRequestService {
     const attempts = read.headSha && row.fix_head === read.headSha ? (row.fix_attempts ?? 0) + 1 : 1;
     const at = new Date(this.now()).toISOString();
     const started = this.sql
-      .prepare("UPDATE work_item_pull_requests SET fix_state = 'fixing', fix_origin = ?, fix_kind = 'review', fix_attempts = ?, fix_head = ?, moved_at = ?, error_code = NULL, error_detail = NULL, updated_at = ? WHERE id = ? AND phase = 'open' AND fix_state IS NULL")
-      .run(origin, attempts, read.headSha, at, at, row.id).changes;
+      .prepare("UPDATE work_item_pull_requests SET fix_state = 'fixing', fix_origin = ?, fix_kind = 'review', fix_threads = ?, fix_attempts = ?, fix_head = ?, moved_at = ?, error_code = NULL, error_detail = NULL, updated_at = ? WHERE id = ? AND phase = 'open' AND fix_state IS NULL")
+      .run(origin, JSON.stringify(read.threads.map((t) => t.id)), attempts, read.headSha, at, at, row.id).changes;
     if (started !== 1) throw new PullRequestError(`a fix of ${item.key}'s change request is already under way`, 409, 'fix-under-way');
     this.addressed.set(row.id, prompt);
     this.changed(itemId, null, SYSTEM, null);
@@ -930,7 +941,7 @@ export class PullRequestService {
       this.deps.items.move(itemId, { status: 'in_progress' }, { actor: origin === 'person' ? PERSON : SYSTEM, cause: prCause(REVIEW_ADDRESS_CAUSE) });
     } catch (err) {
       this.addressed.delete(row.id);
-      this.update(row.id, { fix_state: null, fix_origin: row.fix_origin ?? null, fix_kind: row.fix_kind ?? null, fix_attempts: row.fix_attempts ?? 0, fix_head: row.fix_head ?? null });
+      this.update(row.id, { fix_state: null, fix_origin: row.fix_origin ?? null, fix_kind: row.fix_kind ?? null, fix_threads: row.fix_threads ?? null, fix_attempts: row.fix_attempts ?? 0, fix_head: row.fix_head ?? null });
       this.changed(itemId, null, SYSTEM, null);
       throw err;
     }
@@ -938,10 +949,20 @@ export class PullRequestService {
     return { started: true, prompt, worktree: item.worktree, item: this.deps.items.find(itemId) ?? item, pullRequest: pullRequestOf(current) };
   }
 
-  /** The prompt of an address whose chosen threads were lost to a restart: every unresolved thread, as read now. */
+  /**
+   * The prompt of an address that outlived the process: the threads it was started for, read again
+   * and still unresolved. A list that is empty, unreadable or all resolved hands over nothing, never
+   * every unresolved thread.
+   */
   private async addressPromptOf(row: PullRequestRow): Promise<string | null> {
+    const ids = chosenThreadIds(row.fix_threads);
+    if (!ids.length) return null;
     try {
-      return addressPromptFor((await this.readThreads(row, [])).threads);
+      const reviews = this.deps.reviews;
+      if (!reviews) return null;
+      const list = await reviews.threads(row.id, { refresh: true });
+      const open = ids.flatMap((id) => list.threads.filter((t) => t.id === id && !t.isResolved));
+      return open.length ? addressPromptFor(open) : null;
     } catch {
       return null;
     }

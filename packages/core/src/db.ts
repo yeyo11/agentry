@@ -651,6 +651,9 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    CREATE INDEX review_posts_cr ON review_posts(cr_id, created_at);
    ALTER TABLE work_item_pull_requests ADD COLUMN fix_kind TEXT;
    ALTER TABLE orchestration_pull_requests ADD COLUMN fix_kind TEXT;`,
+  // The thread ids an address of review comments was started for, as a JSON array: a restart before the
+  // run starts rebuilds the prompt from them. A fix of another kind, or one from before this, has none
+  `ALTER TABLE work_item_pull_requests ADD COLUMN fix_threads TEXT;`,
 ];
 
 /**

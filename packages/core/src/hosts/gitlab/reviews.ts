@@ -218,7 +218,8 @@ export const gitlabReviews: ReviewsAdapter = {
       approvalsRequired: numberOrNull(body.approvals_required),
       approvalsLeft: numberOrNull(body.approvals_left),
       viewerHasApproved,
-      // `user_can_approve` is false for an author whose approval succeeds (recorded), so it is not the rule
+      // `user_can_approve` is false for an author whose approval succeeds (recorded), so it is not the rule, and
+      // neither is being the author: a project whose rules forbid it refuses the approval and the host's reason is shown
       canApprove: !viewerHasApproved,
       canRevoke: viewerHasApproved,
       approvedBy: by,

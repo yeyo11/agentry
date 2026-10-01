@@ -1728,8 +1728,11 @@ review (notes on lines, suggestions) posted as one review; reply, resolve and un
   review's body carries the marker; recovery after a timeout looks for it (D12 list, D1 threads).
 - **Approve and request changes on GitHub** are not offered in Agentry
   ([decision 1](#decisions-for-the-owner): their success path was never recorded); the review bar
-  links them as "Open on GitHub". GitLab gets Comment and Approve (D9, recorded), hidden when the
-  viewer is the author; request changes is not offered (D10).
+  links them as "Open on GitHub". GitLab gets Comment and Approve (D9, recorded), offered while the
+  viewer has not approved: the recordings show GitLab letting an author approve their own merge
+  request on a project without approval rules, so being the author is not a reason to hide it (a
+  project whose rules forbid it refuses, and the host's reason is shown); request changes is not
+  offered (D10).
 - **Address with an agent** follows the fix path of phase 2 (`fix_state`, `fix_origin`,
   `awaiting-verify`, the same push rule), with `fix_kind = 'review'`. The prompt carries each chosen
   thread (path, lines, the diff hunk, every comment with its author) inside `<review-comment>`
@@ -1878,6 +1881,26 @@ The e2e spec had never run. Running it, with `checks`, `merge-requests`, `integr
   said "all unresolved, by default"; it now says the person chooses. The spec chooses before it sends.
 - **The test wrapper of the item page had no `ConfirmProvider`**, which the review block needs and
   the app provides at its root.
+
+An independent audit then found pieces built and tested but reachable from nothing. The core, API
+and shared-type ones are fixed:
+
+- **`review.triage` was never asked.** Reading a change request's threads now asks it in the
+  background, once per set of open threads, and the answer is in the decision history under the
+  change request's id, where the dialog reads it. It still ships off.
+- **The head the person looked at is part of a submit** (`headSha`): the review is posted on it, an
+  approval is given on it, and a head that moved is `head-moved` before anything is posted. Before,
+  GitLab approved on the head read at that moment, so the guard could never fire.
+- **A partly posted review survives a reload**: `GET /change-requests/:id/review-posts` reads the
+  posts back with what is still saved on the host.
+- **The chosen threads of an address are stored** (`fix_threads`), so a restart rebuilds the same
+  prompt; an empty list is nothing, never every unresolved thread.
+- **Discard saved deletes only what Agentry saved** (the recorded draft note ids and the note with
+  the post's marker), as D12 says, not every draft note of the viewer.
+- **Approve on GitLab is not hidden for the author**: the recordings show the host allowing it, so
+  the rule is `!viewerHasApproved` and the sentence above changed, not the code.
+- Not part of that slice and still open: nothing in `index.ts` hands `PullRequestService` an
+  `onChecksFailing` hook, so `checks.fix` (phase 2) is never asked either.
 
 ## Phase 4: merging
 

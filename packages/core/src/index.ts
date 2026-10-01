@@ -134,6 +134,7 @@ import { AssistantError, AssistantService, type AssistantKnown, type AssistantLa
 import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo } from './git.ts';
 import { DecisionEngine } from './decisions/engine.ts';
+import { ReviewTriage } from './decisions/review-triage.ts';
 import { DecisionResolvers } from './decisions/resolve.ts';
 import { CliDecisionProvider } from './decisions/providers/cli.ts';
 import { JevProvider } from './decisions/providers/jev.ts';
@@ -722,6 +723,7 @@ export class Core {
       orchestrationPullRequests: this.orchestrationPullRequests,
       orchestration: (id) => this.orchestrator.get(id),
       itemAccess: (itemId, access) => this.workItemAccess(itemId, access),
+      triage: new ReviewTriage({ decisions: this.decisions }),
     });
     this.orchestrator.pullRequests = this.orchestrationPullRequests;
     this.pullRequestWatcher = new PullRequestWatcher([this.pullRequests, this.orchestrationPullRequests]);

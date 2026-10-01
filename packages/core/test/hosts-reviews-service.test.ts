@@ -516,3 +516,89 @@ test('GitLab reviewers: `+user` adds one name; the list is read back and the dec
   assert.ok(h.calls.some((c) => c.includes('--reviewer=+yeyo11')));
   golden('reviews-gitlab-reviewers', h.calls);
 });
+
+// ---------- the audit's findings: the head the person looked at, what a discard deletes, the posts after a reload ----------
+
+const STALE = 'a'.repeat(40);
+
+test('submit: a head that moved since the person looked is head-moved, and nothing is posted or recorded', async () => {
+  for (const [name, h] of [['gitlab', gitlab()], ['github', github()]] as const) {
+    await h.service.addDraft('cr-1', { body: 'a general note' });
+    await assert.rejects(h.service.submit('cr-1', { event: 'comment', body: 'x', headSha: STALE }), (e) => reasonOfError(e) === 'head-moved', name);
+    assert.ok(!h.calls.some((c) => c.includes('<<<') || c.includes('note publish') || c.includes('mr approve')), `${name}: no write was made`);
+    assert.equal(h.service.posts('cr-1').length, 0, `${name}: a refusal leaves no post behind`);
+    assert.equal(h.service.listDrafts('cr-1').length, 1, `${name}: the person keeps the note`);
+  }
+});
+
+test('submit: the approval and the GitHub commit_id are the head the person looked at, not the one read later', async () => {
+  const gl1 = gitlab();
+  gl1.answer(/mr approve 12/, ok(gl('d9_approve')));
+  gl1.answer(/merge_requests\/12\/approvals$/, ok(approvals(true)));
+  const post = await gl1.service.submit('cr-1', { event: 'approve', body: '', headSha: GL_HEAD });
+  assert.equal(post.state, 'posted');
+  assert.ok(gl1.calls.some((c) => new RegExp(`^glab mr approve 12 .*--sha ${GL_HEAD}`).test(c)));
+  golden('reviews-gitlab-submit-approve-head', gl1.calls);
+
+  // The branch moves between the person's look and the approval: no approve call is made on the new head
+  const moved = gitlab();
+  let reads = 0;
+  moved.answer(/mr view 12/, () => ok(gl('mrview_after_post').replaceAll(GL_HEAD, reads++ === 0 ? GL_HEAD : STALE)));
+  moved.answer(/mr approve 12/, ok(gl('d9_approve')));
+  await assert.rejects(moved.service.submit('cr-1', { event: 'approve', body: '', headSha: GL_HEAD }), (e) => reasonOfError(e) === 'head-moved');
+  assert.ok(!moved.calls.some((c) => c.includes('mr approve')), 'the approval was refused before it was sent');
+
+  const gh1 = github();
+  gh1.answer(/pulls\/12\/reviews --input -$/, ok(gh('d8_review_comment')));
+  await gh1.service.addDraft('cr-1', { body: 'general' });
+  await gh1.service.submit('cr-1', { event: 'comment', body: 'hello', headSha: GH_HEAD });
+  const write = gh1.calls.find((c) => c.includes('<<<')) ?? '';
+  assert.equal((JSON.parse(write.slice(write.indexOf('<<<') + 4)) as { commit_id: string }).commit_id, GH_HEAD);
+});
+
+/** A draft note as the host lists it */
+const draftNote = (id: number, note: string): Record<string, unknown> => ({ id, author_id: 1, merge_request_id: 9, note, commit_id: null, line_code: null, position: null });
+
+test('GitLab discard saved deletes only the draft notes Agentry saved, never the persons others', async () => {
+  const h = gitlab();
+  h.sequence(/draft_notes -H/, [ok(gl('d8_draft_general')), failed(1, 'HTTP 500', { http: { status: 500, headers: {} } })]);
+  await twoDrafts(h);
+  await h.service.submit('cr-1', { event: 'comment', body: 'x' }).catch(() => undefined);
+  const partly = h.service.posts('cr-1')[0];
+  assert.deepEqual(partly?.detail?.draftIds, ['83394153'], 'the id of the note saved is recorded with the post');
+
+  // The viewer also has a draft note of their own, written on GitLab in the meantime
+  h.answer(/draft_notes$/, ok(JSON.stringify([draftNote(83394153, 'saved by agentry'), draftNote(777, 'my own thought')])));
+  h.answer(/-X DELETE/, ok(''));
+  const discarded = await h.service.discardSaved('cr-1', partly?.id ?? '');
+  assert.equal(discarded.state, 'failed');
+  const deletes = h.calls.filter((c) => c.includes('-X DELETE'));
+  assert.equal(deletes.length, 1);
+  assert.ok(deletes[0]?.endsWith('draft_notes/83394153'));
+  assert.ok(!h.calls.some((c) => c.endsWith('draft_notes/777')), 'the persons own draft note was left alone');
+  golden('reviews-gitlab-discard-own-only', h.calls);
+});
+
+test('review posts: a partly posted review is read back from the store, with what is still saved on the host', async () => {
+  const h = gitlab();
+  h.sequence(/draft_notes -H/, [ok(gl('d8_draft_general')), failed(1, 'HTTP 500', { http: { status: 500, headers: {} } })]);
+  await twoDrafts(h);
+  await h.service.submit('cr-1', { event: 'comment', body: 'x' }).catch(() => undefined);
+  const id = h.service.posts('cr-1')[0]?.id ?? '';
+
+  h.answer(/draft_notes$/, ok(JSON.stringify([draftNote(83394153, 'saved by agentry'), draftNote(777, 'not ours')])));
+  const read = await h.service.reviewPosts('cr-1');
+  assert.equal(read.posts[0]?.state, 'partly');
+  assert.deepEqual(read.savedOnHost, { [id]: 1 });
+
+  // A host that does not answer leaves the stored post and says it could not look
+  h.answer(/draft_notes$/, failed(1, 'HTTP 500', { http: { status: 500, headers: {} } }));
+  const blind = await h.service.reviewPosts('cr-1');
+  assert.equal(blind.posts[0]?.state, 'partly');
+  assert.equal(blind.savedOnHost, null);
+
+  // Nothing partly posted: nothing is read from the host
+  const clean = gitlab();
+  assert.deepEqual(await clean.service.reviewPosts('cr-1'), { posts: [], savedOnHost: {} });
+  assert.equal(clean.calls.length, 0);
+});
