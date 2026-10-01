@@ -2061,6 +2061,12 @@ Generator `merge.py`.
   `MobileOrquestacionFusion.html`) and the board card's "auto-merge on" badge.
 - Check: `lint.py`, `check.mjs`; the owner validates.
 
+P0 was built by `merge-prototypes` (3 tasks, 19.96 USD; `lint.py` and `check.mjs` clean) and validated
+on 2026-10-01 by delegation, after one correction found by looking at the screenshots, which `lint.py`
+does not catch: the item page showed three gradient surfaces (the top bar's "New chat", "Work on it"
+and "Merge"). On the item page, **Merge** is that zone's gradient action (or **Submit review** while the
+person has a draft review), and the header's **Work on it** and the phone's bottom bar render neutral.
+
 ### P1 · `merge-core`
 
 - `m0` (recording, owner's assistant): on the GitLab probe project, turn on

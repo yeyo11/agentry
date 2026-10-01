@@ -250,6 +250,8 @@ def item_desktop(name, title, draft, height=1240):
   h = _swap(h, crit, rev.block(s) + block_ready('github', lead=not draft) + crit)
   diff = '<div class="row" style="gap: 8px"><a href="#" class="btn btn-sm grow">'
   h = _swap(h, diff, rev.pr_row('github') + diff)
+  # The zone has one gradient action, Merge (or Submit review while a draft waits): Work on it turns neutral
+  h = _swap(h, '<a href="DesktopChatTarea.html" class="btn btn-primary">', '<a href="DesktopChatTarea.html" class="btn">')
   h = _swap(h, 'height: 1024px', f'height: {height}px')
   write(name, h.replace('<title>Agentry · Tarea (desktop)', f'<title>Agentry · {title} (desktop)'))
 
@@ -262,7 +264,7 @@ def item_mobile(name, title, draft, shift=0, method='squash'):
   body = (rev.bar(s, True) if draft else '') + block_ready('github', True, lead=not draft, method=method)
   # Scrolled down: what does not fit is the part above (the shift), never the merge button
   inner = (f'{head_}\n<div class="m-body stack" style="gap: 14px"><div class="col" style="gap: 14px; margin-top: -{shift}px">{body}</div></div>\n'
-           f'{foot_mr().replace("MR !12", "PR #12")}')
+           f'{foot_mr().replace("MR !12", "PR #12").replace("btn btn-primary btn-lg", "btn btn-lg")}')
   write(name, mobile(title, inner))
 
 
