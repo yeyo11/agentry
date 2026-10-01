@@ -247,15 +247,21 @@ The owner's decision of 2026-09-28 (option A, [plans/work-item-pull-requests.md]
 rejected because it changes `main` without a PR or CI, and warnings alone (C) because nothing would
 reach `main` without a person pushing each branch by hand.
 
-`PullRequestService` (`packages/core/src/pull-requests.ts`) runs `git` and `gh` itself, in Agentry's
+`PullRequestService` (`packages/core/src/pull-requests.ts`) runs `git` itself and reaches the host
+through its CLI (`gh` for GitHub, `glab` for GitLab) behind the `CodeHost` adapters, in Agentry's
 own process, as the person and only on their request, as `Orchestrator.pullRequest()` does for an
-integration branch. No agent ever pushes: every flow run keeps `git push` denied
+integration branch. What a code host is, how a project's host is detected and what every CLI call
+goes through is in [code-hosts.md](code-hosts.md). No agent ever pushes: every flow run keeps `git push` denied
 ([team-and-flow.md](team-and-flow.md#what-a-run-may-do)).
 
-**Readiness.** `readiness(projectPath)` answers `ready` or one reason: `not-git`, `no-remote`,
-`not-github` (a host `gh` does not know), `no-gh`, `gh-unauthenticated` or `no-default-branch`. The
-default branch is `refs/remotes/origin/HEAD`, or else what `gh repo view` says. The answer is cached
-for 60 s per project, so a board read does not run `gh auth status` every time. It comes back on the
+**Readiness.** `readiness(projectPath)` answers `ready` or one reason, checked in this order:
+`not-git`, `no-remote`, `unsupported-host` (no host, a ported host, or one neither `gh` nor `glab`
+is signed in to), `cli-missing`, `cli-incompatible`, `cli-signed-out` or `no-default-branch`. Each
+comes with a remedy, a link and never a command. They replace the GitHub-only `not-github`, `no-gh`
+and `gh-unauthenticated`; the table, with what each one used to be, is in
+[code-hosts.md](code-hosts.md#readiness). The default branch is `refs/remotes/origin/HEAD`, or else
+what the host's CLI says. The answer is cached for 60 s per project, so a board read does not run an
+auth probe every time. It comes back on the
 project's board (`Board.pullRequestReadiness`) and on the item's page
 (`WorkItemDetail.pullRequestReadiness`). A project that is not ready says why on the card and on the
 item page, in warn with words, and "Mover a Hecho" keeps working as before. On the item page, before
