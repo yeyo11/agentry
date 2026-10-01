@@ -1,0 +1,113 @@
+#!/bin/sh
+# One script behind the two names, gh and glab: the name it is called by picks its state file and its
+# dialect. They answer only what the Integrations page, a project's readiness and the change request
+# flow ask. See README.md.
+name=$(basename "$0")
+dir="${AGENTRY_DATA_DIR:-.}/fake-hosts"
+file="$dir/$name.json"
+
+read_key() {
+  [ -f "$file" ] || return 0
+  sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\{0,1\}\([^\",}]*\)\"\{0,1\}.*/\1/p" "$file" | head -n 1
+}
+
+# The value after a flag
+flag() {
+  want="$1"; shift
+  while [ $# -gt 0 ]; do
+    if [ "$1" = "$want" ]; then echo "$2"; return; fi
+    shift
+  done
+}
+
+# Every call is written down, one line, for a spec that wants to see what was asked
+mkdir -p "$dir"
+echo "$*" >> "$dir/$name.calls"
+
+case "$name" in
+  gh) default_version=2.92.0 ;;
+  glab) default_version=1.120.0 ;;
+esac
+version=$(read_key version)
+version=${version:-$default_version}
+signed_in=$(read_key signedIn)
+user=$(read_key user)
+branch=$(read_key defaultBranch)
+branch=${branch:-main}
+# The number the next change request gets, and the CI and state the open one reports
+next=$(cat "$dir/$name.next" 2>/dev/null || read_key next)
+next=${next:-7}
+ci=$(read_key ci)
+ci=${ci:-none}
+mr_state=$(read_key state)
+mr_state=${mr_state:-open}
+
+# The repository a -R names, as a web address
+repo_url() {
+  r=$(flag -R "$@")
+  case "$r" in http*) echo "$r" ;; *) echo "https://$r" ;; esac
+}
+
+version_out() {
+  code=$(read_key versionExit)
+  if [ -n "$code" ] && [ "$code" != 0 ]; then echo "fake $name: broken" >&2; exit "$code"; fi
+  case "$name" in
+    gh) printf 'gh version %s (2026-04-28)\nhttps://github.com/cli/cli/releases/tag/v%s\n' "$version" "$version" ;;
+    glab) printf 'glab %s (fake)\n' "$version" ;;
+  esac
+  exit 0
+}
+
+case "$name" in
+  gh)
+    case "$1" in
+      --version) version_out ;;
+      auth)
+        # One call lists every host and exits 0 whatever the token's state, as 2.92 does
+        if [ "$signed_in" = false ]; then echo '{"hosts":{}}'; exit 0; fi
+        printf '{"hosts":{"github.com":[{"state":"success","active":true,"host":"github.com","login":"%s","tokenSource":"keyring","gitProtocol":"https"}]}}\n' "${user:-octocat}"
+        exit 0 ;;
+      api) printf '{"default_branch":"%s","private":true}\n' "$branch"; exit 0 ;;
+      pr)
+        case "$2" in
+          create)
+            cat > "$dir/gh.body-$next"
+            echo "$next" > "$dir/gh.created"
+            echo $((next + 1)) > "$dir/gh.next"
+            echo "$(repo_url "$@")/pull/$next"; exit 0 ;;
+          list)
+            n=$(cat "$dir/gh.created" 2>/dev/null)
+            if [ -n "$n" ]; then printf '[{"number":%s,"url":"%s/pull/%s","state":"OPEN","headRefName":"x","baseRefName":"x","isCrossRepository":false}]\n' "$n" "$(repo_url "$@")" "$n"
+            else echo '[]'; fi
+            exit 0 ;;
+          view)
+            case "$ci" in passing) roll='[{"status":"COMPLETED","conclusion":"SUCCESS"}]' ;; failing) roll='[{"status":"COMPLETED","conclusion":"FAILURE"}]' ;; pending) roll='[{"status":"IN_PROGRESS","conclusion":""}]' ;; *) roll='[]' ;; esac
+            case "$mr_state" in merged) st=MERGED; at='"2026-10-01T10:00:00Z"' ;; closed) st=CLOSED; at=null ;; *) st=OPEN; at=null ;; esac
+            printf '{"state":"%s","mergedAt":%s,"statusCheckRollup":%s,"url":"%s/pull/%s"}\n' "$st" "$at" "$roll" "$(repo_url "$@")" "$3"; exit 0 ;;
+        esac ;;
+    esac ;;
+  glab)
+    case "$1 $2" in
+      "version "*|"--version "*) version_out ;;
+      "auth status")
+        if [ "$signed_in" = false ]; then echo "x No token found" >&2; exit 1; fi
+        echo "Logged in to $(flag --hostname "$@") as ${user:-tanuki} (fake)" >&2; exit 0 ;;
+      "repo view") printf '{"default_branch":"%s","visibility":"private"}\n' "$branch"; exit 0 ;;
+      "mr create")
+        cat > "$dir/glab.body-$next"
+        echo "$next" > "$dir/glab.created"
+        echo $((next + 1)) > "$dir/glab.next"
+        echo "$(repo_url "$@")/-/merge_requests/$next"; exit 0 ;;
+      "mr list")
+        n=$(cat "$dir/glab.created" 2>/dev/null)
+        if [ -n "$n" ]; then printf '[{"iid":%s,"web_url":"%s/-/merge_requests/%s","state":"opened"}]\n' "$n" "$(repo_url "$@")" "$n"
+        else echo '[]'; fi
+        exit 0 ;;
+      "mr view")
+        case "$ci" in none) pipe=null ;; passing) pipe='{"status":"success"}' ;; failing) pipe='{"status":"failed"}' ;; *) pipe='{"status":"running"}' ;; esac
+        case "$mr_state" in merged) st=merged; at='"2026-10-01T10:00:00Z"' ;; closed) st=closed; at=null ;; *) st=opened; at=null ;; esac
+        printf '{"iid":%s,"web_url":"%s/-/merge_requests/%s","state":"%s","merged_at":%s,"head_pipeline":%s}\n' "$3" "$(repo_url "$@")" "$3" "$st" "$at" "$pipe"; exit 0 ;;
+    esac ;;
+esac
+echo "fake $name: $* is not part of the fake" >&2
+exit 1
