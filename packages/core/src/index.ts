@@ -93,6 +93,11 @@ import type { SessionInit } from './providers/driver.ts';
 import { CodeHostDetector } from './hosts/detector.ts';
 import { CodeHostsSettingsStore } from './hosts/settings.ts';
 import { ProviderDetector } from './providers/detector.ts';
+import { AcpDriver } from './providers/acp/driver.ts';
+import { ChatEntriesTranscripts } from './providers/chat-entries.ts';
+import { CodexDriver } from './providers/codex/driver.ts';
+import { CodexTranscripts } from './providers/codex/transcripts.ts';
+import { OpencodeTranscripts } from './providers/opencode/transcripts.ts';
 import { ProvidersSettingsStore } from './providers/settings.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
@@ -569,12 +574,14 @@ export class Core {
       onBad: (chat, task, signals) => void this.supervisor.wake(chat, task, signals),
     });
     this.healthMonitor.start();
+    this.wireTranscripts();
     this.chats = new ChatService({
       health: this.health,
       config,
       runtime: this.runtime,
       tools: new ChatTools(config, this.mcp, this.toolPresets),
       sessions: this.sessions,
+      entries: new ChatEntriesTranscripts(this.db),
       orchestrator: this.orchestrator,
       place: (dir, recorded) => this.place(dir, recorded),
       environmentOf: (dir) => this.runtime.environments.get(dir),
@@ -1030,6 +1037,18 @@ export class Core {
    * Where a chat belongs: its project, and the worktree when it works in one. The CLI's own record
    * of the worktree it created wins over anything guessed from the path.
    */
+  /**
+   * Gives each driver the store its provider's history is read with. Copilot and Gemini keep none
+   * Agentry can read, so theirs stays null and a chat of theirs is read from what it streamed.
+   */
+  private wireTranscripts(): void {
+    for (const manifest of this.runtime.providers.list()) {
+      const driver = this.runtime.providers.driverFor(manifest.id);
+      if (driver instanceof CodexDriver) driver.transcripts = new CodexTranscripts();
+      else if (driver instanceof AcpDriver && manifest.id === 'opencode') driver.transcripts = new OpencodeTranscripts();
+    }
+  }
+
   private place(dir: string, recorded: TranscriptSummary['worktree']): Placement {
     if (recorded) this.locator.learn(recorded);
     return this.projectOf(dir);

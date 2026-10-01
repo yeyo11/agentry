@@ -1,7 +1,9 @@
+import { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import type { CoreConfig } from '../src/paths.ts';
 import { CodexDriver } from '../src/providers/codex/driver.ts';
+import { CodexTranscripts } from '../src/providers/codex/transcripts.ts';
 import { codexManifest } from '../src/providers/codex/manifest.ts';
 import type { BranchTracker, DriverEvent, DriverSession, LaunchPlan, SessionIO, SessionLaunch, UserTurn } from '../src/providers/driver.ts';
 import { driverConformance } from './conformance/suite.ts';
@@ -56,9 +58,15 @@ class Probe implements DriverSession {
   dispose = (reason: string) => this.inner.dispose(reason);
 }
 
+/** Each rig's reader process of the store, ended with the file: a child left running would hold the test process open */
+const readers: CodexTranscripts[] = [];
+after(() => readers.forEach((r) => r.dispose()));
+
 class FakeBackedCodex extends CodexDriver {
   constructor(private readonly state: string) {
     super(FAKE_CODEX);
+    this.transcripts = new CodexTranscripts({ bin: FAKE_CODEX, args: ['app-server'], env: { FAKE_CODEX_STATE: state } });
+    readers.push(this.transcripts as CodexTranscripts);
   }
 
   /** Threads live in a file, so a later process can resume or fork one an earlier process made */
@@ -90,6 +98,7 @@ driverConformance('codex', {
     holdUntilCancel: 'ASK command',
     signedOut: SIGNED_OUT,
   },
+  writesTranscripts: true,
   structuredResult: { verdict: 'pass', notes: ['a', 'b'] },
   decision: (result) => (/^declined/.test(result) ? 'deny' : /^(done|pushed)/.test(result) ? 'allow' : null),
   stderrText: 'ERROR codex_core::something: a log line, not a protocol message',

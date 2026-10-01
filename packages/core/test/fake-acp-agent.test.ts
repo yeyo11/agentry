@@ -32,6 +32,8 @@ class Client {
   readonly child: ChildProcessWithoutNullStreams;
   readonly seen: Msg[] = [];
   readonly stderr: string[] = [];
+  /** Lines on stdout that are not the protocol */
+  readonly banner: string[] = [];
   private waiting: Array<() => void> = [];
   private nextId = 0;
   readonly exited: Promise<number | null>;
@@ -41,7 +43,11 @@ class Client {
       env: { PATH: process.env.PATH ?? '', ...env },
     });
     createInterface({ input: this.child.stdout }).on('line', (line) => {
-      this.seen.push(JSON.parse(line) as Msg);
+      try {
+        this.seen.push(JSON.parse(line) as Msg);
+      } catch {
+        this.banner.push(line);
+      }
       for (const w of this.waiting.splice(0)) w();
     });
     this.child.stderr.on('data', (d: Buffer) => this.stderr.push(String(d)));
@@ -250,6 +256,7 @@ for (const p of PROFILES) {
       await prompt(c, sid, 'NOISY');
       assert.equal(c.updates('agent_message_chunk').length, 50);
       assert.match(c.stderr.join(''), /agent log line 0/);
+      assert.deepEqual(c.banner, ['agent banner, not json']);
       await c.close();
     });
 

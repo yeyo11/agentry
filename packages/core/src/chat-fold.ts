@@ -1,8 +1,27 @@
 import { entryText, isModelName, type PolicyPart, type RunOutcome, type ToolPolicy } from '@agentry/shared';
+import { LEGACY_PROVIDER } from './chat-records.ts';
 import { commandKind } from './commands.ts';
 import { judge, type NeutralRequest } from './policy-judge.ts';
 import { now, type ChatHost, type LiveChat } from './live-chat.ts';
 import type { DriverEvent, SessionInit } from './providers/driver.ts';
+
+/** The next `seq` of a chat's stored entries; read once from the table, so a resumed chat carries on after what an earlier process wrote */
+const entrySeq = new WeakMap<LiveChat, number>();
+
+/**
+ * Records what a non-Claude chat streamed as rows, the transcript of a provider that keeps none
+ * Agentry can read. Claude's own JSONL is its transcript, so it is not copied.
+ */
+function recordEntry(host: ChatHost, chat: LiveChat, entry: Extract<DriverEvent, { kind: 'message' }>['entry']): void {
+  if (chat.driver.manifest.id === LEGACY_PROVIDER) return;
+  try {
+    const seq = entrySeq.get(chat) ?? (host.db.chatEntries(chat.id).at(-1)?.seq ?? -1) + 1;
+    host.db.appendChatEntries(chat.id, [{ seq, at: entry.timestamp || now(), entry }]);
+    entrySeq.set(chat, seq + 1);
+  } catch {
+    // the transcript only loses this entry; the chat goes on
+  }
+}
 
 const IDLE_TIMEOUT_MS = Number(process.env.AGENTRY_IDLE_TIMEOUT_MS ?? 10 * 60_000);
 
@@ -133,6 +152,7 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
     case 'message': {
       const { entry } = event;
       trackActivity(chat, entry);
+      recordEntry(host, chat, entry);
       // The agent can start a turn on its own (e.g. after a background task notification)
       if (entry.role === 'assistant' && chat.status === 'idle') {
         if (chat.idleTimer) clearTimeout(chat.idleTimer);

@@ -217,6 +217,8 @@ async function runTurn(session, text, reply) {
     for (let i = 0; i < 50; i++) {
       chunk(`chunk ${i} `);
       if (i % 10 === 0) process.stderr.write(`agent log line ${i}\n`);
+      // A line on stdout that is not the protocol, as a CLI that prints a banner would
+      if (i === 5) process.stdout.write('agent banner, not json\n');
     }
     return end('end_turn');
   }
@@ -334,7 +336,7 @@ function handle(msg) {
       return ok(sessionNewResult(sid, s.cwd));
     }
     case 'session/fork': {
-      if (!needSession()) return;
+      // As a load does, a source this process has not seen is accepted: the real stores are on disk
       const forked = spec.newId();
       sessions.set(forked, { id: forked, cwd: params?.cwd, createdAt: new Date().toISOString() });
       return ok({ ...sessionNewResult(forked, params?.cwd) });

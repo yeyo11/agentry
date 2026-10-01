@@ -21,7 +21,7 @@ export const opencodeManifest: ProviderManifest = {
   versions: {
     // Source: https://opencode.ai/docs/cli/, "--version / -v: print the version number".
     args: ['--version'],
-    range: null,
+    range: '>=1.18.34 <1.19.0',
   },
   // Source: https://opencode.ai/docs/ (install script, npm `opencode-ai`, Homebrew, pacman, choco, scoop).
   install: { url: 'https://opencode.ai/docs/' },
@@ -36,5 +36,9 @@ export const opencodeManifest: ProviderManifest = {
   // Source: https://opencode.ai/docs/cli/: `opencode acp` starts an Agent Client Protocol server over
   // stdin/stdout (nd-JSON).
   transport: 'acp',
-  capabilities: [],
+  // `autoupdate: false` goes in OPENCODE_CONFIG_CONTENT (documented); OPENCODE_DISABLE_AUTOUPDATE is a
+  // string in the binary. Whether to add `--pure` is settled by the signed-in recording.
+  launch: { args: ['acp'], env: { OPENCODE_DISABLE_AUTOUPDATE: '1' }, unsetEnv: [] },
+  // Confirmed by `initialize`: `sessionCapabilities.resume` and `.fork`, and a `model` config option.
+  capabilities: ['interactivePermissions', 'resume', 'fork', 'interrupt', 'setModel', 'mcp'],
 };
