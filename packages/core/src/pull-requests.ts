@@ -9,6 +9,8 @@ import {
   type AgentryEvent,
   type BoardCheckout,
   type ChangeRequestFixOrigin,
+  type ChangeRequestThreads,
+  type ReviewThread,
   type ChangeRequestKind,
   type CheckoutBehindReason,
   type CodeHostId,
@@ -42,8 +44,9 @@ import {
   removeWorktree,
   uncommittedFiles,
 } from './git.ts';
-import { checksFixPrompt } from './flow.ts';
+import { checksFixPrompt, reviewFixPrompt } from './flow.ts';
 import { ChecksError, type ChecksService, type ChecksTarget } from './hosts/checks-service.ts';
+import { ReviewsError, type ReviewsService } from './hosts/reviews-service.ts';
 import type { ChangeRequestRead, ChangeRequestView, ChecksCodeHostAdapter, HostCall, HostRepo } from './hosts/code-host.ts';
 import { defaultHostRun, hostSearchPath, resolveHostBinary, type HostRun } from './hosts/detector.ts';
 import { runHostCall, type HostResult } from './hosts/exec.ts';
@@ -162,6 +165,38 @@ export async function fixPromptFor(checks: ChecksService | undefined, crId: stri
   return checksFixPrompt(withLogs);
 }
 
+/** The most threads one address hands an agent, as `review.triage` reads at most */
+export const ADDRESS_THREADS_MAX = 40;
+/** The cause an address of review threads writes on the item's move to In progress */
+export const REVIEW_ADDRESS_CAUSE = 'pr.review-address';
+
+/** The threads an address hands over: the ones asked for, or every unresolved one; a code for what cannot be addressed. */
+export function threadsToAddress(list: ChangeRequestThreads, threadIds: readonly string[]): { threads: ReviewThread[] } | { code: 'not-found' | 'already-resolved' | 'no-threads' } {
+  if (!threadIds.length) {
+    const open = list.threads.filter((t) => !t.isResolved).slice(0, ADDRESS_THREADS_MAX);
+    return open.length ? { threads: open } : { code: 'no-threads' };
+  }
+  const chosen: ReviewThread[] = [];
+  for (const id of new Set(threadIds)) {
+    const thread = list.threads.find((t) => t.id === id);
+    if (!thread) return { code: 'not-found' };
+    if (thread.isResolved) return { code: 'already-resolved' };
+    chosen.push(thread);
+  }
+  return { threads: chosen.slice(0, ADDRESS_THREADS_MAX) };
+}
+
+/** What a refused address says, by its code */
+export const ADDRESS_REFUSALS = {
+  'not-found': 'one of those threads is not in the list any more',
+  'already-resolved': 'one of those threads is resolved already',
+  'no-threads': 'no review thread is waiting to be addressed',
+} as const;
+
+/** The prompt section for the threads handed over. */
+export const addressPromptFor = (threads: readonly ReviewThread[]): string =>
+  reviewFixPrompt(threads.map((t) => ({ id: t.id, path: t.path, startLine: t.startLine, line: t.line, diffHunk: t.diffHunk, comments: t.comments.map((c) => ({ author: c.author, body: c.body })) })));
+
 /** What the watcher tells the `checks.fix` decision when a change request's rollup reads `failing` for a head it has not announced. */
 export interface ChecksFailingNotice {
   kind: ChangeRequestKind;
@@ -270,6 +305,8 @@ export interface PullRequestDeps {
   run?: HostRun;
   /** The checks of a change request. The watcher reads through it, and a fix takes its failures from it; without one neither does */
   checks?: ChecksService;
+  /** The review threads of a change request; without it nothing is addressed */
+  reviews?: ReviewsService;
   /** The project's flow is on, so a fix can be a run of its Developer; off, the person gets the prompt for a chat */
   flowOn?: (projectId: string) => boolean;
   /** The hook of `checks.fix`: a change request turned `failing` for a head not announced before */
@@ -326,6 +363,8 @@ export class PullRequestService {
   private readonly hostFacts: HostFactsCache;
   /** Fixes being pushed now, so that a double click pushes once */
   private readonly pushing = new Set<string>();
+  /** The prompt of an address under way, by row: a restart loses it, and the run then reads every unresolved thread again */
+  private readonly addressed = new Map<string, string>();
   /** The head each open change request was last announced `failing` for, so `checks.fix` is asked once per head and not once per poll */
   private readonly announced = new Map<string, string | null>();
 
@@ -819,7 +858,7 @@ export class PullRequestService {
     const at = new Date(this.now()).toISOString();
     // moved_at stamps the start: a person's move after it drops the approval the click was
     const started = this.sql
-      .prepare("UPDATE work_item_pull_requests SET fix_state = 'fixing', fix_origin = ?, fix_attempts = ?, fix_head = ?, moved_at = ?, error_code = NULL, error_detail = NULL, updated_at = ? WHERE id = ? AND phase = 'open' AND fix_state IS NULL")
+      .prepare("UPDATE work_item_pull_requests SET fix_state = 'fixing', fix_origin = ?, fix_kind = 'checks', fix_attempts = ?, fix_head = ?, moved_at = ?, error_code = NULL, error_detail = NULL, updated_at = ? WHERE id = ? AND phase = 'open' AND fix_state IS NULL")
       .run(origin, attempts, read.headSha, at, at, row.id).changes;
     if (started !== 1) throw new PullRequestError(`a fix of ${item.key}'s checks is already under way`, 409, 'fix-under-way');
     this.changed(itemId, null, SYSTEM, null);
@@ -845,8 +884,70 @@ export class PullRequestService {
   async fixPrompt(itemId: string): Promise<string | null> {
     const row = this.newestRow(itemId);
     if (!row || row.phase !== 'open' || row.fix_state !== 'fixing') return null;
+    if (row.fix_kind === 'review') return this.addressed.get(row.id) ?? (await this.addressPromptOf(row));
     const read = await this.readFailures(row);
     return read.failing.length ? this.fixPromptOf(row.id, read.failing) : null;
+  }
+
+  /**
+   * `POST /change-requests/:id/address` for a work item: the chosen threads (every unresolved one
+   * when none is named) go to the flow's Developer as a fix of kind `review`, on the path of
+   * {@link fixChecks}: the same states, the same push rule. The click is the approval to push the
+   * QA-verified fix; nothing here replies to or resolves a thread.
+   */
+  async addressReview(itemId: string, threadIds: readonly string[], origin: ChangeRequestFixOrigin = 'person'): Promise<FixChecksResult> {
+    const item = this.deps.items.find(itemId);
+    if (!item) throw new PullRequestError('work item not found', 404);
+    const row = this.newestRow(itemId);
+    if (!row || row.phase !== 'open' || row.number === null) throw new PullRequestError(`${item.key} has no open change request to address`, 409, 'not-open');
+    if (row.fix_state) throw new PullRequestError(`a fix of ${item.key}'s change request is already under way`, 409, 'fix-under-way');
+    if (this.deps.busy(itemId)) throw new PullRequestError(`${item.key} is being worked on: wait for its chat or run to end`, 409, 'busy');
+    const read = await this.readThreads(row, threadIds);
+    const prompt = addressPromptFor(read.threads);
+    const flow = this.deps.flowOn?.(item.projectId) === true;
+    if (!flow) return { started: false, prompt, worktree: item.worktree, item, pullRequest: pullRequestOf(row) };
+    if (item.status !== 'in_review') throw new PullRequestError(`${item.key} is not in review: a fix starts from an item waiting in In review`, 409, 'not-in-review');
+    const attempts = read.headSha && row.fix_head === read.headSha ? (row.fix_attempts ?? 0) + 1 : 1;
+    const at = new Date(this.now()).toISOString();
+    const started = this.sql
+      .prepare("UPDATE work_item_pull_requests SET fix_state = 'fixing', fix_origin = ?, fix_kind = 'review', fix_attempts = ?, fix_head = ?, moved_at = ?, error_code = NULL, error_detail = NULL, updated_at = ? WHERE id = ? AND phase = 'open' AND fix_state IS NULL")
+      .run(origin, attempts, read.headSha, at, at, row.id).changes;
+    if (started !== 1) throw new PullRequestError(`a fix of ${item.key}'s change request is already under way`, 409, 'fix-under-way');
+    this.addressed.set(row.id, prompt);
+    this.changed(itemId, null, SYSTEM, null);
+    try {
+      this.deps.items.move(itemId, { status: 'in_progress' }, { actor: origin === 'person' ? PERSON : SYSTEM, cause: prCause(REVIEW_ADDRESS_CAUSE) });
+    } catch (err) {
+      this.addressed.delete(row.id);
+      this.update(row.id, { fix_state: null, fix_origin: row.fix_origin ?? null, fix_kind: row.fix_kind ?? null, fix_attempts: row.fix_attempts ?? 0, fix_head: row.fix_head ?? null });
+      this.changed(itemId, null, SYSTEM, null);
+      throw err;
+    }
+    const current = this.rowById(row.id) ?? row;
+    return { started: true, prompt, worktree: item.worktree, item: this.deps.items.find(itemId) ?? item, pullRequest: pullRequestOf(current) };
+  }
+
+  /** The prompt of an address whose chosen threads were lost to a restart: every unresolved thread, as read now. */
+  private async addressPromptOf(row: PullRequestRow): Promise<string | null> {
+    try {
+      return addressPromptFor((await this.readThreads(row, [])).threads);
+    } catch {
+      return null;
+    }
+  }
+
+  private async readThreads(row: PullRequestRow, threadIds: readonly string[]): Promise<{ threads: ReviewThread[]; headSha: string | null }> {
+    const reviews = this.deps.reviews;
+    if (!reviews) throw new PullRequestError('Agentry cannot read review threads here', 409, 'reviews-unavailable');
+    try {
+      const list = await reviews.threads(row.id, { refresh: true });
+      const chosen = threadsToAddress(list, threadIds);
+      if ('code' in chosen) throw new PullRequestError(ADDRESS_REFUSALS[chosen.code], 409, chosen.code);
+      return { threads: chosen.threads, headSha: list.headSha };
+    } catch (err) {
+      if (err instanceof ReviewsError) throw new PullRequestError(`the review threads could not be read${err.detail ? `: ${err.detail}` : ''}`, 409, err.reason);
+      throw err;
+    }
   }
 
   private async readFailures(row: PullRequestRow): Promise<{ failing: Check[]; headSha: string | null }> {
@@ -894,6 +995,7 @@ export class PullRequestService {
   /** A person took the card over: whatever was remembered of the fix goes. Its attempts stay counted. */
   private dropFix(row: PullRequestRow): void {
     const r = this.sql.prepare("UPDATE work_item_pull_requests SET fix_state = NULL, fix_origin = NULL, updated_at = ? WHERE id = ? AND phase = 'open' AND fix_state IS NOT NULL").run(new Date(this.now()).toISOString(), row.id);
+    this.addressed.delete(row.id);
     if (r.changes === 1) this.changed(row.item_id, null, SYSTEM, null);
   }
 
@@ -926,7 +1028,7 @@ export class PullRequestService {
         if (!item || !place) throw new StepError('commit', 'the item has no worktree');
         try {
           // Concludes work the Developer left uncommitted, as an approval does
-          commitAll(place.worktree, `chore(${item.key.toLowerCase()}): fix the failing checks`);
+          commitAll(place.worktree, `chore(${item.key.toLowerCase()}): ${row.fix_kind === 'review' ? 'address the review comments' : 'fix the failing checks'}`);
         } catch (err) {
           throw new StepError('commit', messageOf(err));
         }
@@ -941,6 +1043,7 @@ export class PullRequestService {
         return;
       }
       if (!this.update(row.id, { fix_state: null, fix_origin: null, error_code: null, error_detail: null }, ['open'])) return;
+      this.addressed.delete(row.id);
       // The head moved: what was read for the old one is stale
       try {
         this.sql.prepare('DELETE FROM change_request_snapshots WHERE cr_id = ?').run(row.id);
