@@ -2,7 +2,9 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import compress from '@fastify/compress';
 import cors from '@fastify/cors';
+import etag from '@fastify/etag';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Core } from '@agentry/core';
@@ -144,6 +146,13 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
   // Before every route: the guard must also cover /docs and the OpenAPI document
   registerSecurity(app, core);
 
+  // The lists are JSON whose keys repeat on every row, so they shrink to a fifth or less; that is
+  // what a phone behind the tunnel feels. The event streams are hijacked replies, which no hook
+  // sees, so they stay uncompressed and flush each event as it is written. The tag is computed on
+  // the JSON before it is compressed, and is weak because the bytes sent depend on the encoding
+  await app.register(etag, { weak: true });
+  await app.register(compress);
+
   // The panel sends the person's language with every request: the chats Agentry starts on its own
   // later, with no request behind them (the flow's runs), are titled in it. After the guard, so only
   // an allowed caller sets it
@@ -153,6 +162,12 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
 
   await app.register(
     async (api) => {
+      // Every answer here is someone's own data and changes at any moment: a browser may keep a
+      // copy, but asks with its tag each time, and an unchanged list comes back as an empty 304
+      api.addHook('onSend', async (req, reply, payload) => {
+        if (req.method === 'GET' && !reply.hasHeader('cache-control')) void reply.header('cache-control', 'private, no-cache');
+        return payload;
+      });
       await api.register(systemRoutes, { core });
       await api.register(securityRoutes, { core });
       await api.register(accountRoutes, { core });

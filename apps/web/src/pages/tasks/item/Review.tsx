@@ -1,6 +1,6 @@
 import type { ApprovalState, ChangeRequestReviewers, ReviewDraft, ReviewEvent, WorkItemPullRequest } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CircleAlert, ExternalLink, Info, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { CircleAlert, ExternalLink, Info, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useId, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -27,6 +27,7 @@ import {
   type ReviewTone,
 } from '../../../lib/reviews';
 import { useChangeRequestWords } from '../board/PullRequest';
+import { AddressButton } from './AddressReview';
 
 const shortSha = (sha: string | null | undefined): string => (sha ?? '').slice(0, 7);
 
@@ -320,11 +321,10 @@ function SubmitSheet({
  * the person's own draft review with the one gradient action that sends it. Reference:
  * DesktopTareaRevision, DesktopTareaRevisionEstados and their phone versions.
  *
- * `onAddress` opens the Address with an agent dialog (the page's other task owns it): the button
- * shows only when there is something to address. `changesPath` is the item's changes page, where
+ * The threads row offers Address with an agent when there is something to address. `changesPath` is the item's changes page, where
  * the threads and the draft's notes are left on their lines.
  */
-export function Review({ pr, itemId, changesPath, onAddress }: { pr: WorkItemPullRequest | null | undefined; itemId: string; changesPath?: string; onAddress?: () => void }) {
+export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | null | undefined; itemId: string; changesPath?: string }) {
   const { t } = useTranslation('reviews');
   const words = useChangeRequestWords(pr?.host);
   const qc = useQueryClient();
@@ -512,12 +512,7 @@ export function Review({ pr, itemId, changesPath, onAddress }: { pr: WorkItemPul
                   {t('threads.view')}
                 </Link>
               )}
-              {onAddress && unresolved > 0 && (
-                <button type="button" className="btn btn-small rv-address" onClick={onAddress}>
-                  <Sparkles {...ICON_SM} />
-                  {t('threads.address')}
-                </button>
-              )}
+              {pr && unresolved > 0 && <AddressButton pr={pr} className="btn btn-small rv-address" />}
             </span>
           </div>
 

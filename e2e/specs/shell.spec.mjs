@@ -19,9 +19,10 @@ export default async ({ page, api, check, dirs }) => {
   let projectId = null;
   try {
     await page.viewport(1440, 900);
-    await page.goto('/', 1500);
+    await page.goto('/', 0);
 
     // ---- the top bar: one row, no preferences in it ----
+    await page.waitFor(`return !!document.querySelector('.topbar .select-trigger')`, { label: 'the top bar and its project select' });
     const bar = await page.eval(`const b = document.querySelector('.topbar'); return { text: b.innerText, height: b.getBoundingClientRect().height, selects: b.querySelectorAll('.select-trigger').length }`);
     check(bar.selects === 1, `the top bar has one select, the project (got ${bar.selects})`);
     check(!/theme/i.test(await page.eval(`return [...document.querySelectorAll('.topbar [aria-label]')].map((e) => e.getAttribute('aria-label')).join('|')`)), 'the theme toggle left the top bar');
@@ -83,8 +84,8 @@ export default async ({ page, api, check, dirs }) => {
     check(!(await page.eval(`return document.querySelector('#sidebar a.nav-link[href="/"]').classList.contains('is-active')`)), "Home is not current on a project's page");
     check((await page.eval(`return document.querySelector('#sidebar a.nav-link[href="/projects"]').getAttribute('aria-current')`)) === 'page', 'and a screen reader hears it as the current page');
     check((await page.eval(`return document.querySelectorAll('#sidebar .nav-link[aria-current=page]').length`)) === 1, 'one current section');
-    await page.goto(`/?project=${projectId}&view=board`, 900);
-    check(await page.eval(`return document.querySelector('#sidebar a.nav-link[href="/projects"]').classList.contains('is-active')`), "and on the project's tabs");
+    await page.goto(`/?project=${projectId}&view=board`, 0);
+    await page.waitFor(`return document.querySelector('#sidebar a.nav-link[href="/projects"]')?.classList.contains('is-active')`, { label: "and on the project's tabs" });
     await page.goto('/?project=all', 900);
     await page.waitFor(`return document.querySelector('#sidebar a.nav-link[href="/"]')?.classList.contains('is-active')`, { label: 'Home is current on the Home of every project' });
     await page.goto(`/?project=${projectId}`, 900);
@@ -116,8 +117,8 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return location.pathname + location.search === '/tasks?new=1'`, { label: 'New task opens Tasks with its form' });
 
     // ---- Settings → Appearance: the first tab, and what /settings opens on ----
-    await page.goto('/settings', 1200);
-    const selected = await page.eval(`return document.querySelector('main [role=tab][aria-selected=true]')?.textContent.trim()`);
+    await page.goto('/settings', 0);
+    const selected = await page.waitFor(`return document.querySelector('main [role=tab][aria-selected=true]')?.textContent.trim()`, { label: 'the selected Settings tab' });
     check(selected === 'Appearance', `Settings opens on Appearance (got ${selected})`);
     const panel = await page.text('[role=tabpanel]');
     for (const heading of ['Theme', 'Language', 'Motion']) check(panel.includes(heading), `Appearance has ${heading}`);
@@ -211,11 +212,11 @@ export default async ({ page, api, check, dirs }) => {
     check(!(await page.eval(topBarShown)), '[390px /projects/new] no top bar over the wizard, which heads itself');
     check(await page.eval(`const b = document.querySelector('main a[href="/projects"] svg.lucide-x, main button svg.lucide-x'); return !!b && b.closest('a, button').getBoundingClientRect().top < 80`), '[390px /projects/new] its header closes it, at the top');
     // Tasks keeps the project scope, in its own header
-    await page.goto('/tasks', 1200);
-    check(await page.eval(`return !!document.querySelector('main .tasks-phone-head .project-selector')?.getClientRects().length`), '[390px /tasks] the project scope is in the header');
+    await page.goto('/tasks', 0);
+    await page.waitFor(`return !!document.querySelector('main .tasks-phone-head .project-selector')?.getClientRects().length`, { label: '[390px /tasks] the project scope is in the header' });
     for (const path of ['/chats', '/orchestration', '/projects', '/?project=all']) {
-      await page.goto(path, 1200);
-      check(await page.eval(topBarShown), `[390px ${path}] the top bar stays`);
+      await page.goto(path, 0);
+      await page.waitFor(topBarShown, { label: `[390px ${path}] the top bar stays` });
       check((await page.eval(`return document.querySelector('.shell')?.dataset.phoneHeader`)) === 'app', `[390px ${path}] the route keeps the app's header`);
     }
     await page.goto(`/?project=${projectId}`, 900);

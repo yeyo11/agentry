@@ -179,6 +179,7 @@ export default async ({ page, api, check, dirs }) => {
       const block = await page.text('.rv');
       check(/Review/.test(block) && /review required/i.test(block) && /hubot/i.test(block) && /monalisa/i.test(block), `[${theme}] the block names the decision and the reviewers (${block.slice(0, 160)})`);
       check(/\d+ unresolved/i.test(block), `[${theme}] and counts the unresolved threads`);
+      check(await page.eval(`return !!document.querySelector('.rv .rv-address')`), `[${theme}] the threads row offers Address with an agent`);
       check(/your review/i.test(block) && /draft/i.test(block), `[${theme}] the draft review is listed`);
 
       // The zone has one gradient action: Submit review, and the header's Work on it is neutral

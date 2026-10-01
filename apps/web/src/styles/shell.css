@@ -1380,6 +1380,21 @@ a.statusbar-item:focus-visible {
 }
 
 /*
+ * The screens that stand in for the whole app (the first-run step, the sign-in) have no top bar, so
+ * the window would have no drag region at all: on Wayland the pointer then reached nothing in it
+ * until the person got into the shell by keyboard. A strip the height of the title bar gives them
+ * the region the top bar gives every other page; nothing clickable sits inside it.
+ */
+.is-desktop :is(.prov-first-page, .signin)::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: var(--topbar-h);
+  app-region: drag;
+  -webkit-app-region: drag;
+}
+
+/*
  * The window controls are painted over the page, and a panel that reaches the top of the window put
  * its own close button right under them: pressing the drawer's corner closed the window instead.
  * Anything that opens against the right edge starts below the title bar, so its corner is its own.

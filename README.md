@@ -346,6 +346,7 @@ pnpm typecheck
 pnpm test         # unit tests (core, web, desktop) + API integration tests (node:test)
 pnpm build && pnpm e2e   # browser suite: isolated wrapper + headless Chrome, never touches ~/.claude
                          # E2E_SPEC_TIMEOUT (180000 ms) and E2E_TIMEOUT (1500000 ms) bound a spec and the run
+                         # E2E_SERVER_START_TIMEOUT (120000 ms) bounds the wait for the API's /api/health
                          # E2E_SHARDS=N runs N isolated shards side by side (default: cores/2, at most 4);
                          # E2E_SHARD=k/N runs only shard k, as each CI job does (split: e2e/timings.json)
 E2E_LIVE=1 pnpm e2e chat # specs that talk to Claude (logged-in CLI, costs a few tokens)
@@ -1061,7 +1062,7 @@ every 3 s and only while a client listens.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/orchestrations` | List |
+| GET | `/orchestrations` | List, each graph as a summary: task prompts and results, the synthesis and check output are left to `GET /orchestrations/:id` |
 | POST | `/orchestrations` | Launch. Body: `OrchestrationSpec`; a task naming a `workItemId` is linked to that item, which follows its status |
 | POST | `/orchestrations/plan/start` | `{ objective, cwd?, model?, maxTasks? }` → the planner chat (housekeeping), returned at once so it can be streamed at `/chats/:id/stream` |
 | GET | `/orchestrations/plans` | Plans generated but not launched; each is kept when its planner finishes |

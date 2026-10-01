@@ -125,9 +125,11 @@ export default async ({ page, api, check, dirs }) => {
     await page.fill('input[aria-label="Time limit in minutes for task survey"]', '15');
     await clickButton('Relaunch 2 tasks');
     await page.waitFor(`return location.pathname.startsWith('/orchestration/') && location.pathname !== '/orchestration/${source}'`, { label: 'the relaunched graph opened' });
-    const relaunched = (await api.get('/orchestrations')).body.find((o) => o.relaunchedFrom === source);
-    check(relaunched, 'a new orchestration records where it came from');
-    made.push(relaunched.id);
+    const listedRelaunch = (await api.get('/orchestrations')).body.find((o) => o.relaunchedFrom === source);
+    check(listedRelaunch, 'a new orchestration records where it came from');
+    made.push(listedRelaunch.id);
+    // The list leaves the prompts out; the graph's own route has them
+    const relaunched = await orchestration(listedRelaunch.id);
     const survey = relaunched.tasks.find((t) => t.id === 'survey');
     check(survey?.prompt === 'Survey the code twice', 'the corrected prompt was relaunched');
     check(survey?.limits?.maxMinutes === 15, 'the time limit was relaunched');
@@ -137,14 +139,14 @@ export default async ({ page, api, check, dirs }) => {
     await finish(relaunched.id);
 
     // ---------- the list ----------
-    await page.goto('/orchestration?q=e2e-v2-source', 1500);
-    check((await page.text('main .orch-list')).includes('e2e-v2-source'), 'searching finds the graph by name');
+    await page.goto('/orchestration?q=e2e-v2-source', 0);
+    await page.waitFor(`return document.querySelector('main .orch-list')?.innerText.includes('e2e-v2-source')`, { label: 'searching finds the graph by name' });
     check(await page.eval(`return !!document.querySelector('main .orch-list [role=progressbar][aria-label*="tasks done"]')`), 'a row carries its progress, named in words');
-    await page.goto('/orchestration?q=no-such-graph-anywhere', 1200);
-    check((await page.text('main')).includes('No orchestration matches'), 'a search that finds nothing says so');
+    await page.goto('/orchestration?q=no-such-graph-anywhere', 0);
+    await page.waitFor(`return document.querySelector('main')?.innerText.includes('No orchestration matches')`, { label: 'a search that finds nothing says so' });
     // The search is kept until it is reset, so a bare /orchestration would still find nothing
-    await page.goto('/orchestration', 1200);
-    check((await page.text('main')).includes('No orchestration matches'), 'the search is kept on a later visit');
+    await page.goto('/orchestration', 0);
+    await page.waitFor(`return document.querySelector('main')?.innerText.includes('No orchestration matches')`, { label: 'the search is kept on a later visit' });
     await page.click('main .state-empty button', 'Show them all', 600);
     await page.waitFor(`return !location.search.includes('q=')`, { label: 'Show all resets the search' });
 

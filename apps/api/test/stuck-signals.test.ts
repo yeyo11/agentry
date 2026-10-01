@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@agentry/core';
-import type { CancelCommandResult, ChatDetail, ChatSummary, Orchestration } from '@agentry/shared';
+import type { CancelCommandResult, ChatDetail, ChatSummary, Orchestration, OrchestrationSummary } from '@agentry/shared';
 import { buildApp } from '../src/app.ts';
 
 // Stepping in on a worker over HTTP: cancel one command, send a hint, and the health an
@@ -145,9 +145,11 @@ test('an orchestration reports the health of the tasks that are running and take
   assert.equal(running.tasks[0]?.health?.level, 'ok');
   assert.deepEqual(running.tasks[0]?.activity?.kind, 'tool', 'the board says what the worker is doing right now');
   assert.equal(running.tasks[0]?.activity?.target, 'sleep 60');
-  const listed = (await app.inject('/api/orchestrations')).json<Orchestration[]>().find((o) => o.id === orch.id);
+  const listed = (await app.inject('/api/orchestrations')).json<OrchestrationSummary[]>().find((o) => o.id === orch.id);
   assert.ok(listed?.tasks[0]?.health, 'the list carries it too');
   assert.ok(listed?.tasks[0]?.activity, 'and what it is doing');
+  assert.equal(listed && 'prompt' in (listed.tasks[0] ?? {}), false, "the list leaves the prompt to the graph's own page");
+  assert.equal(running.tasks[0]?.prompt, 'SLEEP 60', 'which has it whole');
 
   const bad = await app.inject({ method: 'POST', url: '/api/orchestrations', payload: { name: 'bad', cwd: workspace, tasks: [{ id: 'a', name: 'a', prompt: 'x', limits: { maxMinutes: -5 } }] } });
   assert.equal(bad.statusCode, 400);

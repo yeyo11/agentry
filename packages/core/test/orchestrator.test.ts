@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import type { Orchestration, OrchestrationSpec, OrchestrationTaskState, PermissionMode } from '@agentry/shared';
 import { Db } from '../src/db.ts';
-import { Orchestrator, validateSpecSettings, validateTasks } from '../src/orchestrator.ts';
+import { Orchestrator, summarizeOrchestration, validateSpecSettings, validateTasks } from '../src/orchestrator.ts';
 import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
 import { effectiveLimits, remainingUsd } from '../src/task-limits.ts';
@@ -88,6 +88,38 @@ function stoppedGraph(cwd: string, overrides: Partial<Orchestration> = {}): Orch
     ...overrides,
   };
 }
+
+test('a graph as a list serves it leaves its long texts out and keeps everything a card reads', () => {
+  const graph = stoppedGraph('/tmp/x', {
+    finalResult: 'the whole synthesis',
+    verification: {
+      status: 'failed',
+      attempts: 1,
+      commands: [{ command: 'pnpm test', status: 'failed', output: 'a long log', durationMs: 10, group: 0 }],
+      commits: [],
+      report: 'tests failed',
+      costUsd: 0.2,
+    },
+  });
+  const summary = summarizeOrchestration(graph);
+  assert.equal('finalResult' in summary, false);
+  assert.equal(summary.hasFinalResult, true);
+  for (const task of summary.tasks) {
+    assert.equal('prompt' in task, false);
+    assert.equal('result' in task, false);
+  }
+  assert.deepEqual(
+    summary.tasks.map((task) => [task.id, task.status, task.costUsd]),
+    [['api', 'completed', 0.5], ['assets', 'completed', 0.5], ['shell', 'stopped', 0]],
+  );
+  assert.deepEqual(summary.verification?.commands, [{ command: 'pnpm test', status: 'failed', durationMs: 10, group: 0 }]);
+  assert.equal(summary.verification?.report, 'tests failed', 'the report is a line, and the card shows it');
+  assert.equal(graph.tasks[0]?.prompt, 'do api', 'the stored graph is not touched');
+  // A graph without a synthesis or checks says so, instead of growing fields it never had
+  const bare = summarizeOrchestration(stoppedGraph('/tmp/x'));
+  assert.equal(bare.hasFinalResult, false);
+  assert.equal('verification' in bare, false);
+});
 
 /** A config whose CLI does not exist, so resuming schedules without launching real agents. */
 function offlineConfig() {

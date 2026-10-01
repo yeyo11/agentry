@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-10-01T16:00:00Z
+updated_at: 2026-10-01T18:40:00Z
 tags:
     - plan
     - git
@@ -1844,6 +1844,40 @@ header's **Work on it** renders neutral, as it does while **Fix failing checks**
 - `ru3` address dialog and triage marks: `pages/tasks/item/AddressReview.tsx`,
   `pages/tasks/item/PullRequest.tsx`.
 - `ru4` e2e: fakes' review scenarios, `e2e/specs/reviews.spec.mjs`. Written, not run.
+
+## Outcome of phase 3 (2026-10-01)
+
+Phase 3 is built on `feat/code-hosts-reviews`, in four steps:
+
+- **`r0`, by the owner's assistant.** The `gh` and `glab` review calls, recorded; where they
+  disagree with the matrix is in [Recorded by `r0`](#recorded-by-r0-2026-10-01).
+- **P0 `reviews-prototypes`** (3 tasks, 10.73 USD): threads in the diff, the review block on the
+  item page and Address with an agent. Validated with the same correction as phase 2: a screen keeps
+  at most two gradient surfaces, so while a draft review waits, "Submit review" is the zone's
+  gradient action and "Work on it" turns neutral.
+- **P1 `reviews-core`** (8 tasks, 14.42 USD, verification passed): the review types, both adapters'
+  threads, drafts, submit, approvals and reviewers, the store, `ReviewsService`, the address flow on
+  phase 2's fix states, the `review.triage` point, the routes and the docs.
+- **P2 `reviews-web`** (5 tasks, 20.92 USD, verification passed): the model, threads in the diff,
+  the draft review and its submit dialog, the address dialog with its triage marks, and an e2e spec
+  with fake scenarios.
+
+The e2e spec had never run. Running it, with `checks`, `merge-requests`, `integrations` and
+`changes-review` alone (the full suite is left to CI), found these, all fixed:
+
+- **The review block was built, tested and never rendered.** `Review.tsx` was mounted nowhere, and
+  its Address with an agent button waited for a prop nobody passed. The block now sits on the item
+  page under the PR's panel, and the threads row offers the dialog, as the validated prototype has it.
+- **The spec counted what the core does not.** An outdated thread is folded, so it is not an
+  unresolved one. The spec also read labels as written in the source, where the person reads them
+  uppercase, and counted the split "New chat" button as two gradient surfaces.
+- **The fake `glab` printed no project id** in `repo view`, which the real one does and every GitLab
+  call needs. The core resolves it once per host and project, as phase 2's checks do.
+- **The address dialog starts with nothing chosen** unless `review.triage` marks threads for an
+  agent, which is what the validated prototype shows ("0 of 5 chosen", then "3 of 5"). This plan had
+  said "all unresolved, by default"; it now says the person chooses. The spec chooses before it sends.
+- **The test wrapper of the item page had no `ConfirmProvider`**, which the review block needs and
+  the app provides at its root.
 
 ## Phase 4: merging
 

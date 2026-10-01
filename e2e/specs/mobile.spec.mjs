@@ -81,7 +81,9 @@ export default async ({ page, api, check, dirs }) => {
     for (const title of ['Filters in the list', 'The FAB covers the last row']) await api.post(`/projects/${projectId}/work-items`, { title });
     // An epic is not an open item: the sheet still says two
     await api.post(`/projects/${projectId}/work-items`, { title: 'Phone polish', type: 'epic' });
-    await page.goto(`/?project=${projectId}`, 900);
+    await page.goto(`/?project=${projectId}`, 0);
+    // A tab bar not drawn yet has no Tasks tab either: the check is only worth something once it is
+    await page.waitFor(`return document.querySelectorAll('.tabbar-tab').length > 0`, { label: 'the tab bar' });
     check((await page.eval(`return [...document.querySelectorAll('.tabbar-tab')].some((t) => t.getAttribute('href') === '/tasks')`)) === false, 'Tasks is not one of the four tabs');
     await page.click('.tabbar-more', undefined, 600);
     await page.waitFor(`return !!document.querySelector('.more-sheet .more-nav a.more-cell')`, { label: 'the More sheet opens' });

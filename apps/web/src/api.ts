@@ -91,6 +91,7 @@ import type {
   ToolPresetsConfig,
   ToolPresetsOverview,
   Orchestration,
+  OrchestrationSummary,
   OrchestrationSpec,
   OrchestrationTemplate,
   Overview,
@@ -532,7 +533,7 @@ export const api = {
   savedWorkflows: (cwd?: string) => request<WorkflowDefinition[]>(`/workflows/saved${qs({ cwd })}`),
   /** Starts a chat that runs a saved workflow */
   runWorkflow: (req: RunWorkflowRequest) => request<ChatSummary>('/workflows/saved/run', { method: 'POST', body: req }),
-  orchestrations: (o: ReadOptions = {}) => request<Orchestration[]>('/orchestrations', o),
+  orchestrations: (o: ReadOptions = {}) => request<OrchestrationSummary[]>('/orchestrations', o),
   orchestration: (id: string, o?: ReadOptions) => request<Orchestration>(`/orchestrations/${enc(id)}`, o),
   createOrchestration: (spec: OrchestrationSpec) =>
     request<Orchestration>('/orchestrations', { method: 'POST', body: spec }),
