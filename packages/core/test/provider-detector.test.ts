@@ -408,14 +408,12 @@ describe('driver handshakes', () => {
     assert.equal(spawns(log), 2, 'a new version is read again');
   });
 
-  it('keeps the probes\' answer when the handshake fails, and retries after the TTL', async () => {
+  it('keeps the probes\' answer when the handshake fails', async () => {
     await fake('codex', 'case "$1" in --version) echo "codex-cli 0.159.3";; login) exit 0;; *) exit 3;; esac');
-    let clock = 0;
     const d = detector();
     const status = await statusOf(d, 'codex');
     assert.deepEqual([status.state, status.account, status.confirmed ?? null], ['ready', null, null]);
     assert.ok(status.permissionModes && status.permissionModes.length > 0, 'the modes come from the driver, not the handshake');
-    void clock;
   });
 
   it('asks an ACP agent only to initialize, with Copilot\'s updates off, and confirms what it offers', async () => {
