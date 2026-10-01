@@ -1115,3 +1115,17 @@
 .limit-field input {
   text-align: center;
 }
+
+/* ---- Host line: where a project's code lives, detected and never chosen. Reference: section "Host line" of agentry-ds.css, on ProyectoAjustes ---- */
+.host-line { display: flex; flex-direction: column; gap: 10px; }
+.host-line-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.host-line .monogram { flex-shrink: 0; }
+.host-line-id { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 0; }
+.host-path { font-family: var(--mono); font-size: 13px; color: var(--fg-2); overflow-wrap: anywhere; }
+.host-path b { font-weight: 500; color: var(--fg); }
+.host-line-why { display: flex; align-items: center; gap: 12px; padding-left: 50px; }
+.host-line-why .prov-reason { flex: 1 1 0; }
+.host-line.stacked .host-line-why { flex-direction: column; align-items: stretch; padding-left: 0; gap: 10px; }
+.host-line.stacked .prov-reason { font-size: 14px; }
+.host-line.stacked .badge { align-self: flex-start; }
+.project-host-card { padding: 14px; }
