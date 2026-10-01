@@ -1604,3 +1604,35 @@ button.check-group-head { width: 100%; border-left: 0; border-right: 0; border-t
 .m-screen .ochk-result { flex-wrap: wrap; gap: 4px 10px; padding: 8px 0; }
 .m-screen .ochk-result .why { flex-basis: 100%; }
 /* ---------- end of Orchestration checks ---------- */
+
+/* ---------- Address with an agent: the thread list of its dialog, the triage marks and the "Atendido en" follow-up (plans/code-hosts.md, phase 3, P0 r-p3) ----------
+   .addr-list is the thread list; .addr-thread is one row to choose (a label with the app's .checkbox on a desktop,
+   a pressed button on a phone, which has no checkboxes); .addr-done is one thread after the Developer's run. The
+   triage marks are the existing .badge (accent for the agent's, idle for the person's, neutral for none) and the
+   .decided-face label. The follow-up borrows .fix-panel.wait. Nothing here moves or takes --live. */
+.addr-list { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); overflow: hidden; }
+.addr-thread, .addr-done { display: flex; gap: 12px; min-width: 0; margin: 0; padding: 12px 14px; border: 0; border-top: 1px solid var(--line); background: none; color: inherit; font: inherit; text-align: left; }
+.addr-thread:first-child, .addr-done:first-child { border-top: 0; }
+.addr-thread:not(.static) { align-items: flex-start; width: 100%; cursor: pointer; transition: background var(--dur-fast); }
+.addr-thread:not(.static):hover { background: var(--bg-3); }
+.addr-thread.on { background: var(--sel-bg); }
+.addr-thread > .checkbox { margin-top: 2px; }
+.addr-thread.static { padding: 10px 14px; }
+.addr-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.addr-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-width: 0; }
+.addr-path { font-family: var(--mono); font-size: 12.5px; color: var(--fg); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.addr-quote { margin: 0; padding-left: 10px; box-shadow: inset 2px 0 0 var(--line-2); font-size: 13px; line-height: 1.5; color: var(--fg-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.addr-by { font-size: 12px; line-height: 1.45; color: var(--fg-3); }
+.addr-by .mono { color: var(--fg-2); }
+.addr-state { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 12px; color: var(--fg-3); white-space: nowrap; }
+.addr-state.on { color: var(--fg); }
+.addr-done { flex-direction: column; gap: 8px; padding: 12px 14px; }
+.addr-done .addr-quote { -webkit-line-clamp: 3; }
+.addr-why { font-size: 12.5px; line-height: 1.45; color: var(--fg-2); }
+.addr-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.addr-reply { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--fg-2); }
+.addr-reply .mono { color: var(--fg); }
+.m-screen .addr-thread:not(.static) { min-height: var(--touch); }
+.m-screen .addr-quote { font-size: 14px; -webkit-line-clamp: 3; }
+.m-screen .addr-acts .btn { flex: 1 1 100%; justify-content: center; }
+/* ---------- end of Address with an agent ---------- */
