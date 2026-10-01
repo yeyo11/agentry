@@ -16,6 +16,7 @@
   "AppearanceTab [AppearanceTab]",
   "Assistant [AssistantPage]",
   "Attachments [AttachButton, AttachedFile, AttachedFiles, AttachmentTray, AttachmentsState, MediaBlock, splitAttached, useAttachments]",
+  "AutoMergeNote [AutoMergeNote]",
   "AutoSwitchCard [AutoSwitchCard]",
   "BackButton [BackButton]",
   "BarChart [Bar, BarChart]",
