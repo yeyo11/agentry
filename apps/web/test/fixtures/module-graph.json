@@ -221,6 +221,7 @@
   "board [Board]",
   "calendar [Weekday, addDays, addMonths, clampDay, firstDayOfWeek, monthGrid, moveFocus, outOfRange, parseDay, sameDay, toDay]",
   "cards [Describe, DoneLine, EmptyLine, NoRun, ReadPanel, ResourcesCard, TasksCard, TeamCard]",
+  "change-requests [CheckGroup, CheckGroupId, CheckMark, CheckTone, ChecksActions, ChecksCounts, FixStage, attemptsLeft, checkDurationMs, checkMark, checksActions, clockOf, countChecks, fixStage, groupChecks, isFailure, isManual, sectionRollup]",
   "changes-summary [EditChip, StatusLetter, baseName, editChips, isEditTool, liveFile, reviewLink, reviewPath, statusLetter, stepFiles, workFiles]",
   "chat-live [ChatPill, PillLink, PillTone, RECONNECTING_AFTER_MS, chatPill, checklistCounts, checklistStepState, tickerActivity]",
   "chat-model [ALL_ORIGINS, ChatFilters, ChatOriginFilter, ChatSort, ContextLevel, DayGroup, FacetOption, ORIGIN_LABEL, RowTag, SORTERS, SORT_LABEL, STATE_LABEL, contextLevel, contextShare, dayGroup, deleteBlocker, displayTitle, facetOptions, formatPercent, formatTokens, formatUsd, groupByDay, isWorker, lastEnded, listRequest, matchesFilters, originsToFetch, projectKey, rowTags, searchText, stateCounts, stepCursor]",

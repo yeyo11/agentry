@@ -113,6 +113,7 @@
       "healthSemanticLoop": "Detect loops that do not repeat literally",
       "healthTestWeakening": "Warn about weakened tests",
       "changesUnexplainedHunk": "Flag unexplained changes in a review",
+      "checksFix": "Decide whether to fix the failing checks of a branch",
       "notificationUrgency": "Pick the urgency of each notification",
       "paletteIntent": "Interpret what you type in the palette"
     },
@@ -124,6 +125,7 @@
       "orchestrations": "Orchestrations",
       "health": "Health and supervisor",
       "review": "Review",
+      "hosts": "Code hosts",
       "notifications": "Notifications",
       "palette": "Palette",
       "other": "Other"
@@ -301,6 +303,7 @@
       "healthSemanticLoop": "Spotted a loop",
       "healthTestWeakening": "Flagged a weakened test",
       "changesUnexplainedHunk": "Flagged an unexplained change",
+      "checksFix": "Decided on fixing the checks",
       "notificationUrgency": "Set the urgency",
       "paletteIntent": "Picked the command"
     }

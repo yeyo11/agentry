@@ -113,6 +113,7 @@
       "healthSemanticLoop": "Detectar bucles que no repiten literalmente",
       "healthTestWeakening": "Avisar de tests debilitados",
       "changesUnexplainedHunk": "Marcar cambios sin explicar en la revisión",
+      "checksFix": "Decidir si arreglar los checks fallidos de una rama",
       "notificationUrgency": "Elegir la urgencia de cada aviso",
       "paletteIntent": "Interpretar lo que escribes en la paleta"
     },
@@ -124,6 +125,7 @@
       "orchestrations": "Orquestaciones",
       "health": "Salud y supervisor",
       "review": "Revisión",
+      "hosts": "Alojamiento del código",
       "notifications": "Avisos",
       "palette": "Paleta",
       "other": "Otros"
@@ -301,6 +303,7 @@
       "healthSemanticLoop": "Detectó un bucle",
       "healthTestWeakening": "Marcó un test debilitado",
       "changesUnexplainedHunk": "Marcó un cambio sin explicar",
+      "checksFix": "Decidió si arreglar los checks",
       "notificationUrgency": "Fijó la urgencia",
       "paletteIntent": "Eligió el comando"
     }
