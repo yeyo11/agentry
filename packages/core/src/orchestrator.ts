@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
@@ -11,6 +10,7 @@ import type {
   Orchestration,
   OrchestrationEngine,
   OrchestrationIntegration,
+  OrchestrationPullRequest,
   OrchestrationSpec,
   OrchestrationTaskSpec,
   OrchestrationTaskState,
@@ -78,6 +78,7 @@ import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
 import { designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, scopeAndCompletion, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
 import { MAX_CONTINUATIONS } from '@agentry/shared';
 import { rulesFor } from './tool-policy.ts';
+import type { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
 
 const ID_RE = /^[\w-]{1,40}$/;
 /** The planner's own name, which is how a past planner run is recognised later. */
@@ -387,6 +388,8 @@ export class Orchestrator {
   projectOf: ((cwd: string) => string | null) | null = null;
   /** Decisions being asked, so a test (and a shutdown) can wait for them */
   private readonly deciding = new Set<Promise<unknown>>();
+  /** Opens and follows an integration branch's change request; set by Core, which owns the host service */
+  pullRequests: OrchestrationPullRequestService | null = null;
 
   constructor(
     private readonly config: CoreConfig,
@@ -519,8 +522,9 @@ export class Orchestrator {
       now.set(task.id, { health: read ? read(task) : null, activity: this.runs.get(task.runId)?.activity ?? null });
     }
     // Nothing of this moment to say: the stored graph is already the answer, copies and all
-    if ([...now.values()].every((of) => !of.health && !of.activity)) return orch;
-    return { ...orch, tasks: orch.tasks.map((t) => (now.has(t.id) ? { ...t, ...now.get(t.id) } : t)) };
+    const pullRequest = this.pullRequests?.newest(orch.id) ?? null;
+    if (!pullRequest && [...now.values()].every((of) => !of.health && !of.activity)) return orch;
+    return { ...orch, ...(pullRequest ? { pullRequest } : {}), tasks: orch.tasks.map((t) => (now.has(t.id) ? { ...t, ...now.get(t.id) } : t)) };
   }
 
   /** The graph and task a chat works for, with the limits that apply to it; null for a chat that is not a running task. */
@@ -1897,38 +1901,22 @@ ${quoted}
    * Publishes the integration branch and opens a pull request for it. Only ever on request: pushing
    * is the one step that leaves the machine.
    */
-  pullRequest(id: string): { branch: string; url: string | null; detail: string } {
+  async pullRequest(id: string): Promise<{ branch: string; url: string | null; detail: string; pullRequest: OrchestrationPullRequest | null }> {
     const orch = this.items.get(id);
     if (!orch) throw new Error('orchestration not found');
     const integration = orch.integration;
     if (integration?.status !== 'merged') throw new Error('the orchestration has no integrated branch yet');
-    if (integration.pullRequestUrl) return { branch: integration.branch, url: integration.pullRequestUrl, detail: 'already open' };
+    if (integration.pullRequestUrl) return { branch: integration.branch, url: integration.pullRequestUrl, detail: 'already open', pullRequest: this.pullRequests?.newest(orch.id) ?? null };
     // A branch being fixed is a moving one, and what is pushed must be what was checked
     if (this.verifying.has(orch.id)) throw new Error('the checks are still running on the integration branch: wait for their outcome before opening a pull request');
     if (checksFailGraph(orch)) throw new Error('the checks failed on the integration branch, and the graph was launched to fail with them: fix the branch and verify again before opening a pull request');
-    git(orch.cwd, ['push', '-u', 'origin', integration.branch], 180_000);
-    let url: string | null = null;
-    let detail = `pushed ${integration.branch}`;
-    try {
-      const checked = orch.verification && orch.verification.status !== 'pending' ? `Verification: ${orch.verification.status}. ${orch.verification.report}` : null;
-      const body = [orch.objective, checked, orch.finalResult].filter(Boolean).join('\n\n---\n\n') || orch.name;
-      url = execFileSync('gh', ['pr', 'create', '--head', integration.branch, '--title', orch.name, '--body', body.slice(0, 60_000)], {
-        cwd: orch.cwd,
-        stdio: 'pipe',
-        timeout: 120_000,
-        encoding: 'utf8',
-      })
-        .trim()
-        .split('\n')
-        .pop() ?? null;
-      integration.pullRequestUrl = url;
-      detail = 'pull request opened';
-    } catch (err) {
-      const e = err as { stderr?: string; message: string };
-      detail = `pushed ${integration.branch}, but no pull request was opened: ${(e.stderr || e.message).trim().split('\n')[0]}`;
+    if (!this.pullRequests) throw new Error('pull requests are not available');
+    const opened = await this.pullRequests.open(orch);
+    if (opened.url && !integration.pullRequestUrl) {
+      integration.pullRequestUrl = opened.url;
+      this.persist();
     }
-    this.persist();
-    return { branch: integration.branch, url, detail };
+    return opened;
   }
 
   /**

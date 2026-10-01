@@ -117,6 +117,7 @@ import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
 import { FlowError, FlowService, type FlowLaunch } from './flow.ts';
+import { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
 import { codeHostAdapter, PullRequestService, PullRequestWatcher, type ApproveResult } from './pull-requests.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
 import { assistantGit } from './assistant-sources.ts';
@@ -232,6 +233,7 @@ export {
   type ApproveResult,
   type PullRequestDeps,
 } from './pull-requests.ts';
+export { OrchestrationPullRequestError, OrchestrationPullRequestService, type OpenedPullRequest } from './orchestration-pull-requests.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
 export {
@@ -380,6 +382,8 @@ export class Core {
   /** Approved items' pull requests: opened with git and gh on the person's request, and watched until merged */
   readonly pullRequests: PullRequestService;
   private readonly pullRequestWatcher: PullRequestWatcher;
+  /** The change requests of orchestrations' integration branches */
+  readonly orchestrationPullRequests: OrchestrationPullRequestService;
   /** The project assistant: read-only runs that propose a team, resources and work items, each accepted on its own */
   readonly assistant: AssistantService;
   private readonly startedAt = Date.now();
@@ -676,7 +680,14 @@ export class Core {
         return tunnel.state === 'active' && tunnel.url ? tunnel.url : (this.runtime.apiUrl?.replace(/\/api$/, '') ?? null);
       },
     });
-    this.pullRequestWatcher = new PullRequestWatcher([this.pullRequests]);
+    this.orchestrationPullRequests = new OrchestrationPullRequestService({
+      db: this.db,
+      settings: () => this.hostsSettings.get(),
+      codeHost: (path) => this.pullRequests.codeHost(path),
+      emit: (event) => this.events.emit(event),
+    });
+    this.orchestrator.pullRequests = this.orchestrationPullRequests;
+    this.pullRequestWatcher = new PullRequestWatcher([this.pullRequests, this.orchestrationPullRequests]);
     this.events.observe((event) => this.pullRequests.observe(event));
     this.flow = new FlowService({
       db: this.db,
