@@ -302,6 +302,7 @@ export class ChatService {
       title: summary?.title ?? runtime?.name ?? id,
       // A chat read from Claude's transcripts is a Claude Code one
       provider: runtime?.provider ?? LEGACY_PROVIDER,
+      providerSessionId: null,
       firstPrompt: summary?.firstPrompt ?? runtime?.prompt ?? null,
       messageCount: summary?.messageCount ?? 0,
       startedAt: summary?.startedAt ?? runtime?.createdAt ?? null,
