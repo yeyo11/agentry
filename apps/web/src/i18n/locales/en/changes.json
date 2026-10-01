@@ -183,5 +183,17 @@
     "chip_other": "{{count}} threads",
     "chipOpen": "{{count}} unresolved",
     "chipTitle": "Review threads on this file"
+  },
+  "draft": {
+    "label": "Draft comment on {{where}}",
+    "badge": "draft",
+    "suggestion": "suggestion",
+    "edit": "Edit the comment on {{where}}",
+    "remove": "Remove the comment on {{where}}",
+    "saveFailed": "Could not save the comment",
+    "removeFailed": "Could not remove the comment",
+    "chip_one": "{{count}} draft comment",
+    "chip_other": "{{count}} draft comments",
+    "chipTitle": "Comments in your draft review on this file"
   }
 }
