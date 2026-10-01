@@ -5698,6 +5698,7 @@ export type DecisionPointId =
 /** What a decision was about; the `subject_kind` column of the history */
 export type DecisionSubjectKind =
   | 'work_item'
+  | 'change_request'
   | 'flow_run'
   | 'task'
   | 'chat'

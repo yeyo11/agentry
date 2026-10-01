@@ -17,6 +17,14 @@ export interface ReviewTriageDeps {
   decisions: DecisionAsker;
 }
 
+/**
+ * The threads waiting for someone: not resolved and not outdated, as the Address dialog lists and counts
+ * them. Triage asks about them and an address with no ids hands them over, so the three agree.
+ */
+export function unresolvedThreads(threads: readonly ReviewThread[], max: number = TRIAGE_THREADS_MAX): ReviewThread[] {
+  return threads.filter((t) => !t.isResolved && !t.isOutdated).slice(0, max);
+}
+
 /** The start of a text that fits `bytes` */
 function startOf(text: string, bytes: number): string {
   const buf = Buffer.from(text, 'utf8');
@@ -37,14 +45,14 @@ export class ReviewTriage {
 
   /** Called with every read of a change request's threads; asks in the background and never throws */
   onThreads(crId: string, projectId: string | null, title: string, list: ChangeRequestThreads): void {
-    const open = list.threads.filter((t) => !t.isResolved).slice(0, TRIAGE_THREADS_MAX);
+    const open = unresolvedThreads(list.threads);
     if (!open.length) return;
     if (stanceOf(this.deps.decisions, 'review.triage', projectId) === 'off') return;
     const key = `${crId}:${open.map((t) => t.id).join(',')}`;
     if (this.asked.has(key)) return;
     this.asked.add(key);
     const run = this.deps.decisions
-      .ask('review.triage', { kind: 'work_item', id: crId, data: { title, threads: open.map(threadState) } }, { projectId })
+      .ask('review.triage', { kind: 'change_request', id: crId, data: { title, threads: open.map(threadState) } }, { projectId })
       .catch(() => undefined);
     this.pending.add(run);
     void run.finally(() => this.pending.delete(run));

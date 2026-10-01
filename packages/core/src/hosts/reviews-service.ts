@@ -104,6 +104,14 @@ const failed = (result: HostResult): boolean => result.exitCode !== 0 || Boolean
 
 const MARKER = /\n*<!-- agentry:[0-9a-f-]+ -->/g;
 const markerOf = (uuid: string): string => `<!-- agentry:${uuid} -->`;
+
+/**
+ * The drafts whose text is among `bodies`, the notes that are on the host: a general draft travels in
+ * the review's own body, which is the one carrying the marker; a line note is a note of its own.
+ */
+export function wentOut(drafts: ReviewDraft[], bodies: string[], marker: string): ReviewDraft[] {
+  return drafts.filter((d) => (d.path === null || d.line === null ? bodies.some((b) => b.includes(marker)) : bodies.some((b) => b.includes(d.body))));
+}
 /** The marker is for recovery: nobody reads it, and an agent should not see it */
 const clean = (body: string): string => body.replace(MARKER, '');
 
@@ -583,7 +591,12 @@ export class ReviewsService {
             // A published note that is not there is a note the host dropped
             const after = await this.fetchThreads(target);
             const made = after.threads.filter((t) => !before?.has(t.id)).length;
-            if (made < plan.calls.length) fail(new ReviewsError('the host published fewer notes than were saved', 'review-partly-posted', `${String(made)} of ${String(plan.calls.length)}`), 'review-partly-posted', { saved: made, total: plan.calls.length, draftIds: [...created] });
+            if (made < plan.calls.length) {
+              // What went out is the host's now: its rows go, so a Discard then Submit never posts it twice
+              const bodies = after.threads.filter((t) => !before?.has(t.id)).flatMap((t) => t.comments.map((c) => c.body));
+              this.dropDrafts(wentOut(drafts, bodies, marker).map((d) => d.id));
+              fail(new ReviewsError('the host published fewer notes than were saved', 'review-partly-posted', `${String(made)} of ${String(plan.calls.length)}`), 'review-partly-posted', { saved: made, total: plan.calls.length, draftIds: [...created] });
+            }
             this.announce(id, this.store(id, after), null, true);
             settled = true;
             post = this.setPost(postId, 'posted');
@@ -619,7 +632,7 @@ export class ReviewsService {
     });
   }
 
-  /** GitLab: publish what a partly posted review saved. The drafts of the person are done with once it is out. */
+  /** GitLab: publish what a partly posted review saved, and only when nothing else of the viewer's is waiting. */
   publishSaved(id: string, postId: string): Promise<ReviewPost> {
     return this.serial(id, async () => {
       const target = await this.target(id);
@@ -627,9 +640,17 @@ export class ReviewsService {
       if (!row) throw new ReviewsError('that review is not recorded', 'not-found');
       const call = target.adapter.publishSaved(target.repo, target.number);
       if (row.state !== 'partly' || !call) throw new HostActionNotOffered('there is nothing saved to publish');
+      // `glab mr note publish` has no way to pick notes: it publishes every draft of the viewer. So it runs only
+      // when every draft there is one Agentry saved for this post, and the person's own are never published
+      const recorded = new Set(reviewPostOf(row).detail?.draftIds ?? []);
+      const pending = await this.pendingIn(target);
+      const ours = pending.filter((e) => recorded.has(e.id) || e.body.includes(row.marker));
+      const foreign = pending.length - ours.length;
+      if (foreign > 0) throw new ReviewsError('draft notes of yours that Agentry did not save are waiting, and publishing would send them too', 'pending-review-exists', `${String(foreign)} draft note of yours on GitLab`);
       const result = await target.run(call);
       if (failed(result) && !(await this.landed(target, row.marker)).found) throw this.failure('publishing the saved notes', 'submit', target, call, result);
-      this.dropDrafts(this.rows(id).map((r) => r.id));
+      // Only the rows whose note was saved went out; the rest are still the person's to post
+      this.dropDrafts(wentOut(this.rows(id).map(reviewDraftOf), ours.map((e) => e.body), row.marker).map((d) => d.id));
       const post = this.setPost(postId, 'posted');
       await this.reread(id).catch(() => undefined);
       return post;

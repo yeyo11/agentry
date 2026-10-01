@@ -9,7 +9,8 @@ import { HostActionNotOffered, type HostCall, type HostRepo } from '../src/hosts
 import type { HostResult } from '../src/hosts/exec.ts';
 import { githubAdapter } from '../src/hosts/github/adapter.ts';
 import { gitlabAdapter } from '../src/hosts/gitlab/adapter.ts';
-import { diffLines, ReviewInputError, ReviewsError, ReviewsService, THREADS_TTL, type ReviewsTarget } from '../src/hosts/reviews-service.ts';
+import type { ReviewDraft } from '@agentry/shared';
+import { diffLines, ReviewInputError, ReviewsError, ReviewsService, THREADS_TTL, wentOut, type ReviewsTarget } from '../src/hosts/reviews-service.ts';
 import { tempConfig } from './helpers.ts';
 
 // The service against the replay of what r0 recorded: calls are answered by the end of their argv,
@@ -275,10 +276,26 @@ test('GitLab: publish-saved publishes a partly posted review and drops the draft
   await twoDrafts(h);
   await h.service.submit('cr-1', { event: 'comment', body: 'x' }).catch(() => undefined);
   const partly = h.service.posts('cr-1')[0];
+  // Only the saved general note is on the host: the line note never was, so its row stays to be posted
+  const saved = partly?.detail?.draftIds ?? [];
+  h.answer(/draft_notes$/, ok(JSON.stringify([{ id: saved[0], note: `x\n\na general note\n\n${MARKER}` }])));
   h.answer(/mr note publish 12/, ok('Published 1'));
   const post = await h.service.publishSaved('cr-1', partly?.id ?? '');
   assert.equal(post.state, 'posted');
-  assert.equal(h.service.listDrafts('cr-1').length, 0);
+  assert.deepEqual(h.service.listDrafts('cr-1').map((d) => d.body), ['a line note']);
+});
+
+test('GitLab: publish-saved is refused while a draft note Agentry did not save is waiting, since glab publishes them all', async () => {
+  const h = gitlab();
+  h.sequence(/draft_notes -H/, [ok(gl('d8_draft_general')), failed(1, 'HTTP 500', { http: { status: 500, headers: {} } })]);
+  await twoDrafts(h);
+  await h.service.submit('cr-1', { event: 'comment', body: 'x' }).catch(() => undefined);
+  const partly = h.service.posts('cr-1')[0];
+  const saved = partly?.detail?.draftIds ?? [];
+  h.answer(/draft_notes$/, ok(JSON.stringify([{ id: saved[0], note: `x ${MARKER}` }, { id: '999', note: 'a draft of the person' }])));
+  await assert.rejects(h.service.publishSaved('cr-1', partly?.id ?? ''), (e) => reasonOfError(e) === 'pending-review-exists' && e instanceof ReviewsError && e.detail === '1 draft note of yours on GitLab');
+  assert.ok(!h.calls.some((c) => c.includes('note publish')), 'nothing was published');
+  assert.equal(h.service.posts('cr-1')[0]?.state, 'partly');
 });
 
 test('GitLab: a draft note already waiting stops a post, so it is never published with ours', async () => {
@@ -294,11 +311,22 @@ test('GitLab: publish that reports fewer discussions than saved is partly posted
   h.sequence(/draft_notes -H/, [ok(gl('d8_draft_general')), ok(gl('d8_draft_line'))]);
   h.answer(/mr note publish 12/, ok('Published 1'));
   // After the publish, one discussion only: a note was dropped
-  const one = gl('d1_discussions_after_publish').split('\n').filter((l) => l.startsWith('{'))[0] ?? '';
+  // The one that is there carries the general review text (and its marker), so the line note is the one dropped
+  const one = (gl('d1_discussions_after_publish').split('\n').filter((l) => l.startsWith('{'))[0] ?? '').replace('probe r0: D3 line discussion on new line 2', `x\\n\\na general note\\n\\n${MARKER}`);
   h.sequence(/discussions\?per_page=100$/, [ok(''), ok(one)]);
   await twoDrafts(h);
   await assert.rejects(h.service.submit('cr-1', { event: 'comment', body: 'x' }), (e) => reasonOfError(e) === 'review-partly-posted');
   assert.equal(h.service.posts('cr-1')[0]?.state, 'partly');
+  // What went out has no row any more; what did not stays, so Discard then Submit cannot post a note twice
+  const left = h.service.listDrafts('cr-1').map((d) => d.body);
+  assert.deepEqual(left, ['a line note']);
+});
+
+test('GitLab: wentOut drops only the drafts whose text reached the host', () => {
+  const draft = (id: string, body: string, line: number | null): ReviewDraft => ({ id, changeRequestId: 'cr-1', path: line === null ? null : 'a.ts', line, startLine: null, side: null, body, suggestion: false, createdAt: '', updatedAt: '' });
+  const drafts = [draft('1', 'on a line', 3), draft('2', 'dropped one', 4), draft('3', 'general', null)];
+  assert.deepEqual(wentOut(drafts, ['review text <!-- agentry:m -->', 'on a line'], '<!-- agentry:m -->').map((d) => d.id), ['1', '3']);
+  assert.deepEqual(wentOut(drafts, ['unrelated'], '<!-- agentry:m -->'), []);
 });
 
 test('GitLab: a write that times out with no marker on the host is unconfirmed, and one that landed is posted', async () => {

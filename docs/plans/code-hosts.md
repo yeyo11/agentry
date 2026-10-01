@@ -1897,6 +1897,15 @@ and shared-type ones are fixed:
   prompt; an empty list is nothing, never every unresolved thread.
 - **Discard saved deletes only what Agentry saved** (the recorded draft note ids and the note with
   the post's marker), as D12 says, not every draft note of the viewer.
+- **Publish saved only publishes Agentry's notes.** `glab mr note publish -y` sends every draft note
+  of the viewer and cannot pick, so the route is refused with `pending-review-exists` while a draft
+  Agentry did not save is waiting; the person's own drafts are never published. A publish that sends
+  fewer notes than were saved drops the rows of the notes that went out and keeps the others, so
+  Discard saved then Submit never posts a note twice.
+- **One rule for unresolved**: not resolved and not outdated, in one function
+  (`unresolvedThreads`) shared by `review.triage`, an address with no ids and the dialog's count.
+- **`review.triage` has its own subject kind** (`change_request`), so its rows no longer fill the
+  `work_item` window the decision marks read.
 - **Approve on GitLab is not hidden for the author**: the recordings show the host allowing it, so
   the rule is `!viewerHasApproved` and the sentence above changed, not the code.
 - Not part of that slice and still open: nothing in `index.ts` hands `PullRequestService` an

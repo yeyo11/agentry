@@ -437,7 +437,7 @@ be read).
 | Events | `comment` only | `comment`, and `approve` as a separate approval after the post |
 | A bad line | 422 with `errors: ["Line could not be resolved"]` → `line-not-in-diff`; nothing posted | **accepted silently** by the draft POST and dropped silently by publish, so the service checks every line against the diff before creating the draft and counts the notes after publishing |
 | A timeout | looks for the marker in the reviews list, then the threads | looks for the marker in note bodies (a published general draft is a resolvable discussion, `individual_note: false`, not a review) |
-| Partial failure | none | a note that fails after others were saved → `review-partly-posted`; **Publish saved** (`…/reviews/:postId/publish-saved`) or **Discard saved** (`…/discard-saved`) |
+| Partial failure | none | a note that fails after others were saved → `review-partly-posted`; **Publish saved** (`…/reviews/:postId/publish-saved`) or **Discard saved** (`…/discard-saved`). `glab mr note publish` cannot publish selectively (it sends every draft note of the viewer), so Publish saved is refused with `pending-review-exists` while a draft Agentry did not save is waiting. A publish that sends fewer notes than were saved drops the rows of the notes that went out and keeps the rest |
 
 A post is refused while a pending review is in the way: a GitHub review in state `PENDING` by the
 viewer, or any GitLab draft note (`pending-review-exists`, whose detail names the count and the

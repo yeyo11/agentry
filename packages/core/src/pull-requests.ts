@@ -58,6 +58,7 @@ import { projectReadiness } from './hosts/readiness.ts';
 import { firstLine } from './hosts/redact.ts';
 import { CodeHostRegistry } from './hosts/registry.ts';
 import { parseRemote } from './hosts/remote.ts';
+import { unresolvedThreads } from './decisions/review-triage.ts';
 import { hostOf, pullRequestOf, type PullRequestRow } from './work-item-rows.ts';
 import { WorkItemError } from './work-item-validation.ts';
 import { itemWorktree, ownsPlace } from './work-links.ts';
@@ -174,7 +175,7 @@ export const REVIEW_ADDRESS_CAUSE = 'pr.review-address';
 /** The threads an address hands over: the ones asked for, or every unresolved one; a code for what cannot be addressed. */
 export function threadsToAddress(list: ChangeRequestThreads, threadIds: readonly string[]): { threads: ReviewThread[] } | { code: 'not-found' | 'already-resolved' | 'no-threads' } {
   if (!threadIds.length) {
-    const open = list.threads.filter((t) => !t.isResolved).slice(0, ADDRESS_THREADS_MAX);
+    const open = unresolvedThreads(list.threads, ADDRESS_THREADS_MAX);
     return open.length ? { threads: open } : { code: 'no-threads' };
   }
   const chosen: ReviewThread[] = [];
