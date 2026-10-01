@@ -20,14 +20,20 @@
 //    threads with the host's text drawn as text, never as HTML.
 // 4. A phone: the submit form and the address dialog are Sheets, targets are 44 px, nothing scrolls
 //    sideways.
+// 4b. The features are reachable from a screen, not only from the API. With `review.triage` on (the
+//    fake CLI answers it) the address dialog shows the marks and chooses what is marked agent; the
+//    unresolved count reads the same in the block, the strip, the dialog, the diff's header and the
+//    API; the item's changes page draws the thread under its line, and Reply works from it; a note
+//    is added from a line of the diff (inline on a desktop, a Sheet on a phone) and appears in the
+//    review block; Submit review sends the three notes as ONE review; a review that stopped half
+//    way is still offered Publish / Discard after a reload; and a review fix shows one live surface.
 // 5. A GitLab project: the same threads read as discussions, the approval is the person's own call
 //    (approve and revoke go through glab), and a request for a reviewer replaces nothing.
 //
-// What is not covered: the thread cards inside the diff (the changes page of an item needs a
-// worktree with a branch; `review-threads.test.tsx` covers the cards), starting the address flow
-// (it starts a chat of the project's flow), the GitLab draft-note publish (the core suite covers it
-// against recordings) and the partly-posted state, which needs a host that fails half way.
-// Axe runs on every screen above.
+// What is not covered: starting the address flow (it starts a chat of the project's flow) and the
+// GitLab draft-note publish (the core suite covers it against recordings; the partly-posted state
+// here is a stored post with a saved review the fake gh lists as pending).
+// Axe runs on every screen above, in both themes where the screen is new.
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -42,6 +48,13 @@ const THREAD_OPEN = 'PRRT_kwDOe2e0001';
 const THREAD_RESOLVED = 'PRRT_kwDOe2e0002';
 const THREAD_OUTDATED = 'PRRT_kwDOe2e0003';
 const GITLAB_OPEN = '1111111111111111111111111111111111111111';
+
+/** 20 lines; the item's branch rewrites 12 to 14, where the fake host's threads and the notes sit */
+const cartSource = (changed) =>
+  Array.from({ length: 20 }, (_, i) => (changed && i >= 11 && i <= 13 ? `export const total${i + 1} = round(${i + 1});` : `export const line${i + 1} = ${i + 1};`)).join('\n') + '\n';
+
+const POINT = 'review.triage';
+const unresolvedIn = (text) => Number(/(\d+) unresolved/i.exec(text)?.[1] ?? Number.NaN);
 
 function git(cwd, ...args) {
   const run = spawnSync('git', args, { cwd, encoding: 'utf8' });
@@ -79,6 +92,8 @@ export default async ({ page, api, check, dirs }) => {
     git(root, 'config', 'user.email', 'e2e@example.com');
     git(root, 'config', 'user.name', 'e2e');
     writeFileSync(join(root, 'README.md'), '# shop\n');
+    mkdirSync(join(root, 'src'), { recursive: true });
+    writeFileSync(join(root, 'src', 'cart.ts'), cartSource(false));
     git(root, 'add', '.');
     git(root, 'commit', '-q', '-m', 'first commit');
     git(root, 'remote', 'add', 'origin', 'https://github.com/acme/shop.git');
@@ -213,21 +228,18 @@ export default async ({ page, api, check, dirs }) => {
       // The address dialog: the unresolved threads, the host's words as text
       await page.waitFor(`return !!document.querySelector('.item-pr-wait.is-address')`, { label: `[${theme}] the address strip` });
       const strip = await page.text('.item-pr-wait.is-address');
-      check(/2 review threads wait for an answer/.test(strip), `[${theme}] the strip counts what waits (${strip})`);
+      check(/1 review thread waits for an answer/.test(strip), `[${theme}] the strip counts what waits, an outdated thread not among them (${strip})`);
       await page.click('.item-pr-wait.is-address .btn', 'Address with an agent', 500);
       await page.waitFor(`return !!document.querySelector('[role=dialog] .addr-list')`, { label: `[${theme}] the address dialog` });
       const address = await page.text('[role=dialog]');
-      check(/Unresolved threads · 2/i.test(address) && /outdated/i.test(address) && /src\/cart\.ts/.test(address), `[${theme}] it lists the unresolved threads, the outdated one marked (${address.replace(/\s+/g, " ").slice(0, 700)})`);
+      check(/Unresolved threads · 1/i.test(address) && !/outdated/i.test(address) && /src\/cart\.ts/.test(address), `[${theme}] it lists the unresolved threads, the outdated one not (${address.replace(/\s+/g, ' ').slice(0, 700)})`);
       check(/These comments are other people's/.test(address) && /Nothing is answered or resolved/.test(address), `[${theme}] and warns whose words they are and what it will not do`);
       // Nothing is chosen until the person chooses (or `review.triage` marks), as the validated prototype has it
-      check(/0 of 2 chosen/.test(address) && /Address 0 comments/.test(address), `[${theme}] nothing is chosen beforehand (${address.replace(/\s+/g, ' ').slice(-120)})`);
-      // One at a time: two clicks in one tick both start from the choice before the first
-      for (const index of [0, 1]) {
-        await page.eval(`document.querySelectorAll('[role=dialog] .addr-thread')[${index}].click(); return true`);
-        await page.sleep(250);
-      }
+      check(/0 of 1 chosen/.test(address) && /Address 0 comments/.test(address), `[${theme}] nothing is chosen beforehand (${address.replace(/\s+/g, ' ').slice(-120)})`);
+      await page.eval(`document.querySelectorAll('[role=dialog] .addr-thread')[0].click(); return true`);
+      await page.sleep(250);
       const chosen = await page.text('[role=dialog]');
-      check(/Address 2 comments/.test(chosen), `[${theme}] with the count in its action once they are chosen (${chosen.replace(/\s+/g, ' ').slice(-120)})`);
+      check(/Address 1 comment/.test(chosen), `[${theme}] with the count in its action once they are chosen (${chosen.replace(/\s+/g, ' ').slice(-120)})`);
       check(await page.eval(`return !document.querySelector('[role=dialog] img') && window.__pwned !== 1`), `[${theme}] a host's HTML is text: no element came of it`);
       check(!/Resolved|README/.test(address), `[${theme}] the resolved thread is not offered`);
       check((await page.axe()).length === 0, `[${theme}] axe finds nothing on the address dialog`);
@@ -264,6 +276,214 @@ export default async ({ page, api, check, dirs }) => {
     await scan(page, check, 'the address sheet on a phone');
     await page.key('Escape');
     await page.viewport(1440, 900);
+
+    // ---- 4b. Reachable from a screen ----
+    const branch = `task/${item.key.toLowerCase()}`;
+    git(root, 'checkout', '-q', '-b', branch);
+    writeFileSync(join(root, 'src', 'cart.ts'), cartSource(true));
+    git(root, 'commit', '-q', '-am', 'round the total');
+    git(root, 'checkout', '-q', 'main');
+    {
+      const writer = db();
+      writer.prepare('UPDATE work_items SET branch = ? WHERE id = ?').run(branch, item.id);
+      writer.close();
+    }
+    const setTheme = (theme) => page.eval(`localStorage.setItem('agentry-theme', '${theme}'); return true`);
+    const changesUrl = `/tasks/${item.key}/changes?file=${encodeURIComponent('src/cart.ts')}&mode=unified`;
+    const unresolvedNow = async () => (await api.get(`/change-requests/${crId}/reviewers`)).body.unresolvedThreads;
+    await api.del('/decisions').catch(() => {});
+    scenario('gh', {});
+
+    // review.triage on: the fake CLI marks the first open thread `agent` and the rest `person`
+    const triageInfo = (await api.get('/decisions/points')).body.find((p) => p.id === POINT);
+    check(Boolean(triageInfo), 'review.triage is a decision point of the build');
+    const triageSettings = async (mode) => {
+      const { jev, ...rest } = (await api.get('/decisions/settings')).body;
+      await api.put('/decisions/settings', { ...rest, points: { ...rest.points, [POINT]: { mode, threshold: triageInfo.defaultThreshold, consent: null } } });
+    };
+    const triageOff = async () => {
+      await api.put(`/decisions/points/${POINT}/consent`, { granted: false, stateVersion: triageInfo.stateVersion, providers: [] });
+      await triageSettings('off');
+    };
+    await api.put(`/decisions/points/${POINT}/consent`, { granted: true, stateVersion: triageInfo.stateVersion, providers: ['cli'] });
+    await triageSettings('shadow');
+    try {
+      await api.get(`/change-requests/${crId}/threads?refresh=1`);
+      for (const end = Date.now() + 40_000; Date.now() < end; ) {
+        if ((await api.get(`/decisions?point=${POINT}`)).body?.items?.length) break;
+        await page.sleep(300);
+      }
+      const answered = (await api.get(`/decisions?point=${POINT}`)).body?.items?.[0];
+      check(answered?.answers?.[THREAD_OPEN]?.value === 'agent', `review.triage was asked for the open threads and marked the first one agent (${JSON.stringify(answered?.answers)})`);
+
+      for (const theme of ['dark', 'light']) {
+        await setTheme(theme);
+        await page.goto(`/tasks/${item.key}`, 1500);
+        await page.waitFor(`return !!document.querySelector('.rv')`, { label: `[${theme}] the review block (triage)` });
+        // The same count before the threads load (the block has the reviewers' number) and after
+        const early = unresolvedIn(await page.text('.rv'));
+        await page.waitFor(`return !!document.querySelector('.item-pr-wait.is-address')`, { label: `[${theme}] the address strip (triage)` });
+        const late = unresolvedIn(await page.text('.rv'));
+        const stripCount = Number(/(\d+) review thread/.exec(await page.text('.item-pr-wait.is-address'))?.[1] ?? Number.NaN);
+        const apiCount = await unresolvedNow();
+        check(early === late && late === stripCount && stripCount === apiCount && apiCount === 1, `[${theme}] one unresolved count everywhere, before and after the threads load (${early}, ${late}, strip ${stripCount}, api ${apiCount})`);
+        await page.click('.item-pr-wait.is-address .btn', 'Address with an agent', 500);
+        await page.waitFor(`return !!document.querySelector('[role=dialog] .addr-list')`, { label: `[${theme}] the address dialog (triage)` });
+        const marked = await page.text('[role=dialog]');
+        check(/review\.triage/.test(marked) && /1 of 1 chosen/.test(marked) && /Address 1 comment/.test(marked), `[${theme}] the point's marks are shown and what it marked agent is chosen (${marked.replace(/\s+/g, ' ').slice(-220)})`);
+        check(await page.eval(`return !!document.querySelector('[role=dialog] .decided-face') && document.querySelector('[role=dialog] .addr-thread')?.getAttribute('aria-pressed') === 'true'`), `[${theme}] the marked thread is the chosen one`);
+        check((await page.axe()).length === 0, `[${theme}] axe finds nothing on the address dialog with marks`);
+        await page.shot(`reviews-address-triage-${theme}`);
+        await page.key('Escape');
+        await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: `[${theme}] the dialog closes (triage)` });
+      }
+    } finally {
+      await triageOff().catch(() => {});
+      await api.del('/decisions').catch(() => {});
+    }
+
+    // The item's changes page: the thread under its line, Reply from it, a note from a line
+    await setTheme('dark');
+    await page.goto(changesUrl, 1500);
+    await page.waitFor(`return !!document.querySelector('.changes-review .diff .rt.open')`, { label: 'the thread under its line in the diff' });
+    const card = await page.eval(`const c = document.querySelector('.changes-review .diff .rt.open'); return { label: c.getAttribute('aria-label'), text: c.textContent, inDiff: !!c.closest('.diff') }`);
+    check(card.inDiff && /cart\.ts:12/.test(card.label) && /Round half up here/.test(card.text), `the open thread is drawn in the diff on src/cart.ts:12 (${card.label})`);
+    check(/Math\.round/.test(card.text), 'with its suggestion drawn as lines');
+    check(await page.eval(`return !document.querySelector('.changes-review img') && window.__pwned !== 1`), "a host's HTML in an outdated thread is text here too");
+    const chip = await page.eval(`return document.querySelector('.changes-threads-chip')?.textContent ?? ''`);
+    check(unresolvedIn(chip) === 1, `the diff's header counts the same unresolved threads (${chip})`);
+
+    await page.fill('.rt.open .rt-foot input', 'Fixed, thanks.');
+    await page.click('.rt.open .rt-foot button[type=submit]', 'Reply', 600);
+    await page.waitFor(`return document.querySelector('.rt.open')?.textContent.includes('Fixed, thanks.')`, { label: 'the reply comes back in the thread' });
+    check(/comments\/5001\/replies/.test(calls('gh')) && /Fixed, thanks\./.test(read('gh.replies')), 'Reply from the diff reached the host');
+    await page.click('.rt.open .rt-foot button[type=button]', 'Resolve', 800);
+    for (const end = Date.now() + 15_000; Date.now() < end && !new RegExp(`${THREAD_OPEN} resolved`).test(read('gh.threadstate')); ) await page.sleep(250);
+    check(new RegExp(`${THREAD_OPEN} resolved`).test(read('gh.threadstate')), 'Resolve from the diff reached the host, and only by that click');
+    await api.post(`/change-requests/${crId}/threads/${THREAD_OPEN}/unresolve`);
+
+    // A note from the line's gutter, inline on a desktop
+    await page.goto(changesUrl, 1500);
+    await page.waitFor(`return !!document.querySelector('.diff-add-note[aria-label="Add a note on line 13"]')`, { label: 'the add-note button on line 13' });
+    await page.click('.diff-add-note[aria-label="Add a note on line 13"]', undefined, 400);
+    await page.waitFor(`return !!document.querySelector('.changes-review .diff .rc')`, { label: 'the composer under the line' });
+    await page.fill('.rc .rc-note', 'Please name this total.');
+    await page.click('.rc .rc-foot .btn-primary', 'Add to the review', 700);
+    await page.waitFor(`return !!document.querySelector('.changes-review .diff .rt.draft')`, { label: 'the note is drawn under its line' });
+    check(read('gh.reviews-posted') === '', 'a note in the diff reaches nothing: it is saved as a draft');
+    check((await api.get(`/change-requests/${crId}/review-drafts`)).body.length === 2, 'the note is a second draft of the review');
+    for (const theme of ['dark', 'light']) {
+      await setTheme(theme);
+      await page.goto(changesUrl, 1500);
+      await page.waitFor(`return !!document.querySelector('.changes-review .diff .rt.open') && !!document.querySelector('.changes-review .diff .rt.draft')`, { label: `[${theme}] a thread and a note in the diff` });
+      check((await page.axe()).length === 0, `[${theme}] axe finds nothing on the changes page with a thread and a note`);
+      await page.shot(`reviews-changes-${theme}`);
+      await page.click('.diff-add-note[aria-label="Add a note on line 15"]', undefined, 400);
+      await page.waitFor(`return !!document.querySelector('.changes-review .diff .rc')`, { label: `[${theme}] the composer` });
+      check((await page.axe()).length === 0, `[${theme}] axe finds nothing on the composer`);
+      await page.shot(`reviews-composer-${theme}`);
+      await page.click('.rc .rc-foot .btn-ghost', 'Cancel', 400);
+    }
+
+    // The same from a phone: the composer and the reply are Sheets
+    await setTheme('dark');
+    await page.viewport(390, 844);
+    await page.goto(changesUrl, 1500);
+    await page.waitFor(`return !!document.querySelector('.diff-add-note[aria-label="Add a note on line 14"]')`, { label: 'the add-note button on a phone' });
+    await page.click('.diff-add-note[aria-label="Add a note on line 14"]', undefined, 500);
+    await page.waitFor(`return !!document.querySelector('[role=dialog] .rc-note')`, { label: 'the note Sheet' });
+    check(await page.eval(`const d = document.querySelector('[role=dialog]'); const r = d.getBoundingClientRect(); return r.width <= innerWidth && r.bottom >= innerHeight - 1`), 'the note form is a Sheet from the bottom edge');
+    check(await page.eval(`return [...document.querySelectorAll('[role=dialog] .rc-foot .btn')].every((b) => b.getBoundingClientRect().height >= 44) && [...document.querySelectorAll('[role=dialog] textarea')].every((el) => parseFloat(getComputedStyle(el).fontSize) >= 16)`), 'its buttons are 44 px targets and its inputs 16 px');
+    await scan(page, check, 'the note Sheet on a phone');
+    await page.shot('reviews-composer-phone');
+    await page.fill('[role=dialog] .rc-note', 'And a test for it.');
+    await page.click('[role=dialog] .rc-foot .btn-primary', 'Add to the review', 800);
+    await page.waitFor(`return !document.querySelector('[role=dialog]') && !!document.querySelector('.changes-review .diff .rt.draft')`, { label: 'the Sheet closes and the note is drawn' });
+    check((await api.get(`/change-requests/${crId}/review-drafts`)).body.length === 3, 'the phone note is the third draft');
+    await page.click('.rt.open .rt-foot .btn', 'Reply', 500);
+    await page.waitFor(`return !!document.querySelector('[role=dialog] textarea')`, { label: 'the reply Sheet' });
+    await page.fill('[role=dialog] textarea', 'On it.');
+    await page.click('[role=dialog] button[type=submit]', 'Reply', 800);
+    await page.waitFor(`return /On it\\./.test(document.querySelector('.rt.open')?.textContent ?? '')`, { label: 'the phone reply comes back' });
+    await scan(page, check, 'the changes page on a phone');
+    await page.shot('reviews-changes-phone');
+    await page.viewport(1440, 900);
+
+    // The notes are in the review block, and Submit review sends ONE review
+    await page.goto(`/tasks/${item.key}`, 1500);
+    await page.waitFor(`return !!document.querySelector('.rv-submit-btn')`, { label: 'the review block with three notes' });
+    check(/3 comments/.test(await page.text('.rv')), `the three notes show in the review block (${(await page.text('.rv-draft')).replace(/\s+/g, ' ').slice(0, 160)})`);
+    await page.click('.rv-submit-btn', 'Submit review', 500);
+    await page.waitFor(`return !!document.querySelector('[role=dialog] .rv-send')`, { label: 'the submit dialog (three notes)' });
+    await page.fill('[role=dialog] textarea', 'Reviewed from the diff.');
+    await page.click('[role=dialog] .rv-send', undefined, 800);
+    for (const end = Date.now() + 20_000; Date.now() < end && read('gh.reviews-posted').trim() !== '1'; ) await page.sleep(250);
+    check(read('gh.reviews-posted').trim() === '1', `Submit review posted ONE review (${read('gh.reviews-posted').trim()})`);
+    const oneReview = read('gh.review-1');
+    check(oneReview.includes('"event":"COMMENT"') && oneReview.includes(`"commit_id":"${HEAD}"`) && (oneReview.match(/"path":"src\/cart\.ts"/g) ?? []).length === 3, 'with the three notes of the diff, a COMMENT on the head the person looked at');
+    check(oneReview.includes('Please name this total.') && oneReview.includes('And a test for it.') && oneReview.includes('Reviewed from the diff.'), 'and the words the person wrote');
+    await page.waitFor(`return !document.querySelector('.rv-submit-btn')`, { label: 'the draft is gone from the block' });
+    check((await api.get(`/change-requests/${crId}/review-drafts`)).body.length === 0, 'no draft is left once it is out');
+
+    // A review that stopped half way is still offered Publish / Discard after a reload
+    scenario('gh', { pendingReview: true });
+    const partlyId = randomUUID();
+    {
+      const writer = db();
+      const at = new Date().toISOString();
+      writer
+        .prepare('INSERT INTO review_posts (id, cr_id, marker, event, state, remote_id, detail, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)')
+        .run(partlyId, crId, '<!-- agentry:e2e-partly -->', 'comment', 'partly', JSON.stringify({ code: 'review-partly-posted', detail: '', saved: 1, total: 2, draftIds: ['8001'] }), at, at);
+      writer.close();
+    }
+    for (const theme of ['dark', 'light']) {
+      await setTheme(theme);
+      for (const visit of ['first load', 'after a reload']) {
+        await page.goto(`/tasks/${item.key}`, 1500);
+        await page.waitFor(`return !!document.querySelector('.rv-draft .rv-foot')`, { label: `[${theme}] the partly sent review (${visit})` });
+        const partly = await page.text('.rv-draft');
+        check(/partly sent/i.test(partly) && /Some comments were saved as drafts on GitHub/.test(partly) && /1 saved comment still waits on GitHub/.test(partly), `[${theme}] the block says what stopped (${visit}) (${partly.replace(/\s+/g, ' ').slice(0, 220)})`);
+        const buttons = await page.eval(`return [...document.querySelectorAll('.rv-draft .rv-foot .btn')].map((b) => ({ text: b.textContent.trim(), disabled: b.disabled, primary: b.classList.contains('btn-primary') }))`);
+        check(buttons.some((b) => b.text === 'Publish the saved' && !b.disabled && b.primary) && buttons.some((b) => b.text === 'Discard the saved' && !b.disabled), `[${theme}] Publish the saved and Discard the saved are offered (${visit}) (${JSON.stringify(buttons)})`);
+        check(await page.eval(`return !document.querySelector('.rv-submit-btn')`), `[${theme}] and Submit review is not, a second post would double the comments (${visit})`);
+      }
+      check((await page.axe()).length === 0, `[${theme}] axe finds nothing on the partly sent review`);
+      await page.shot(`reviews-partly-${theme}`);
+    }
+    {
+      const writer = db();
+      writer.prepare('DELETE FROM review_posts WHERE id = ?').run(partlyId);
+      writer.close();
+    }
+    scenario('gh', {});
+
+    // A review fix is ONE live surface: the review block's, not the checks' as well
+    {
+      const writer = db();
+      writer.prepare("UPDATE work_item_pull_requests SET fix_state = 'fixing', fix_kind = 'review', fix_origin = 'person', fix_attempts = 1, fix_head = ? WHERE id = ?").run(HEAD, crId);
+      writer.close();
+    }
+    try {
+      for (const theme of ['dark', 'light']) {
+        await setTheme(theme);
+        await page.goto(`/tasks/${item.key}`, 1500);
+        await page.waitFor(`return !!document.querySelector('.check-fix')`, { label: `[${theme}] the review fix` });
+        const live = await page.eval(`return [...document.querySelectorAll('.check-fix')].map((f) => ({ label: f.getAttribute('aria-label'), live: f.classList.contains('live-rail') }))`);
+        check(live.length === 1 && live[0].label === 'Comments under way' && live[0].live === true, `[${theme}] a review fix draws one live surface, the review's (${JSON.stringify(live)})`);
+        check(await page.eval(`return !document.querySelector('.workitem-fix-checks') && !document.querySelector('.item-pr-wait.is-address')`), `[${theme}] with no checks fix action and no second offer to address`);
+        check((await page.axe()).length === 0, `[${theme}] axe finds nothing on the item with a review fix`);
+        await page.shot(`reviews-fix-${theme}`);
+      }
+      await setTheme('dark');
+      await page.goto(`/tasks?project=${projectId}`, 1500);
+      await page.waitFor(`return !!document.querySelector('[data-item-id="${item.id}"] .workitem-strip')`, { label: 'the board strip of the review fix' });
+      const strip = await page.text(`[data-item-id="${item.id}"] .workitem-strip`);
+      check(/addressing the comments/i.test(strip), `the board strip says the comments are being addressed (${strip})`);
+    } finally {
+      const writer = db();
+      writer.prepare('UPDATE work_item_pull_requests SET fix_state = NULL, fix_kind = NULL, fix_origin = NULL, fix_attempts = 0, fix_head = NULL WHERE id = ?').run(crId);
+      writer.close();
+    }
 
     // ---- 5. A GitLab project: discussions, and the approval is a call of its own ----
     const gitlabRoot = join(dirs.workspaceDir, 'e2e-reviews-gitlab');

@@ -44,6 +44,13 @@ with the author's 422, and a login that starts with `ghost` exits 0 and adds nob
 (the body of the n-th review posted, `gh.reviews-posted` counts them) and `glab.approved` (the
 approval, moved by `mr approve` and `mr revoke`). glab's draft notes are not part of the fake.
 
+A review that stopped half way is a stored post, not something the fake does: a spec inserts a
+`review_posts` row in state `partly` whose `detail.draftIds` names `8001`, and sets `pendingReview:
+true`, so gh lists that pending review and the read of the post counts one saved comment still on the
+host. The thread cards in the item's changes page need a branch: the spec commits `task/<key>` with
+`src/cart.ts` rewritten on lines 12 to 14, where the threads sit. `review.triage` is answered by the
+fake CLI (`e2e/fake-cli`), not by this fake: it marks the first thread `agent`.
+
 Beside the JSON, in the same directory: `<name>.calls` (one line per call, the arguments joined by
 spaces), `<name>.body-<n>` (the description a create was given on stdin) and `<name>.created` (the
 number the last create returned, which `list` then finds).

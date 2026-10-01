@@ -81,6 +81,10 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
   them. One with neither answers `Heard: <its first line>`. Every turn ends with a `result` event
   (`subtype: "success"`, `is_error: false`, `num_turns: 1`, `total_cost_usd`, `result`).
 
+**A `review.triage` question** (a prompt with lines `<thread id>: Who should take this review comment…`)
+is answered with no script: the structured output marks the first thread `agent` and the others
+`person`, so a spec turns the point on and sees the marks in the address dialog.
+
 **A message that arrives during a turn** is logged at once, and answered at the turn's next step
 (300 ms after a command ends) with one assistant text `Heard: <first line>` per message, before
 the next `run:` command starts. What is still waiting when the turn ends starts a turn of its own.

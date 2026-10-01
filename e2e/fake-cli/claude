@@ -210,6 +210,10 @@ const heard = (text) => ({ type: 'text', text: `Heard: ${firstLine(text)}` });
  * orchestrator's own words, which is why a key is looked for inside the message and not matched whole.
  */
 function scriptFor(text) {
+  // `review.triage` asks one question per thread ("<id>: Who should take this review comment…"): the
+  // first thread is the agent's and the rest are a person's, so a spec sees marks without a script
+  const asked = [...text.matchAll(/^(\S+): Who should take this review comment/gm)].map((m) => m[1]);
+  if (asked.length > 0) return `json: ${JSON.stringify(Object.fromEntries(asked.map((id, i) => [id, i === 0 ? 'agent' : 'person'])))}`;
   if (!env.AGENTRY_FAKE_CLI_SCRIPTS) return text;
   let scripts;
   try {
