@@ -1727,3 +1727,26 @@ button.check-group-head { width: 100%; border-left: 0; border-right: 0; border-t
 .m-screen .addr-quote { font-size: 14px; -webkit-line-clamp: 3; }
 .m-screen .addr-acts .btn { flex: 1 1 100%; justify-content: center; }
 /* ---------- end of Address with an agent ---------- */
+
+/* ---------- Merge block of a change request (plans/code-hosts.md, phase 4, P0 m-p1) ----------
+   Built on .rv-card and .rv-row from Reviews: the block is one card of rows (method, message, branch) with a
+   footer that holds the one action. .mg-check is a label around the app's .checkbox (a desktop and phone form
+   field, not a list selection). .mg-live is the GitLab wait: the braille spinner stands next to the verb, the only
+   thing that moves. The footer's primary is the page's gradient only when no draft review leads. */
+.mg { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.mg-fields { display: flex; flex-direction: column; gap: 10px; flex: 1 1 100%; min-width: 0; }
+.mg-check { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.45; color: var(--fg); cursor: pointer; }
+.mg-check > .checkbox { margin-top: 2px; }
+.mg-check[aria-disabled="true"] { color: var(--fg-2); cursor: not-allowed; }
+.mg-check[aria-disabled="true"] > .checkbox { opacity: 0.55; }
+.mg-live { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.5; color: var(--fg); }
+.mg-live > .spin-braille { margin-top: 2px; }
+.mg-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 12px 14px; border-top: 1px solid var(--line); background: var(--bg-2); }
+.mg-foot .note { flex: 1 1 220px; min-width: 0; font-size: 12px; line-height: 1.45; color: var(--fg-3); }
+.mg-acts { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.m-screen .mg-check { min-height: var(--touch); align-items: center; font-size: 14px; }
+.m-screen .mg-foot { flex-direction: column-reverse; align-items: stretch; }
+.m-screen .mg-acts { flex-direction: column-reverse; align-items: stretch; }
+.m-screen .mg-acts .btn { justify-content: center; }
+.m-screen .mg-foot .note { flex: 0 0 auto; }
+/* ---------- end of Merge block ---------- */
