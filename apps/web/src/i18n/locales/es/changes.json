@@ -183,5 +183,17 @@
     "chip_other": "{{count}} hilos",
     "chipOpen": "{{count}} sin resolver",
     "chipTitle": "Hilos de revisión de este archivo"
+  },
+  "draft": {
+    "label": "Comentario en borrador en {{where}}",
+    "badge": "borrador",
+    "suggestion": "sugerencia",
+    "edit": "Editar el comentario de {{where}}",
+    "remove": "Quitar el comentario de {{where}}",
+    "saveFailed": "No se ha podido guardar el comentario",
+    "removeFailed": "No se ha podido quitar el comentario",
+    "chip_one": "{{count}} comentario en borrador",
+    "chip_other": "{{count}} comentarios en borrador",
+    "chipTitle": "Comentarios de tu revisión en borrador en este archivo"
   }
 }

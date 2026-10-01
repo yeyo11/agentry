@@ -1,4 +1,4 @@
-import type { ChangedFile, EditStep, ReviewSide } from '@agentry/shared';
+import type { ChangedFile, EditStep } from '@agentry/shared';
 import { useQuery } from '@tanstack/react-query';
 import { AlignJustify, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Columns2, Copy, Link2, Sparkle, TextQuote } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -12,6 +12,7 @@ import { ICON_SM } from '@agentry/ui/components/icons';
 import { ErrorBox, Segmented, Skeleton, Tag } from '@agentry/ui/components/ui';
 import { ScrollingBlockRail } from './BlockRail';
 import { DiffView } from './DiffView';
+import { DraftsChip, useDraftNotes } from './DraftNotes';
 import { Counts } from './FileMap';
 import { Intent } from './Intent';
 import { FileThreadsFold, ThreadsChip, threadLayer, useFileThreads, useReviewThreads } from './ReviewThreads';
@@ -93,14 +94,10 @@ export function FileReview({
   paneLabel?: string;
   /**
    * The change request this diff belongs to: its threads are drawn on their lines and its file-level
-   * ones above the diff. `extra` is what the draft review adds under a line (notes, the composer);
-   * `onAddNote` shows the gutter's "+" and opens a note on a line.
+   * ones above the diff, and a line offers a note for the draft review. Absent where the source has no
+   * change request (a chat, a task), and then nothing of the review is drawn or offered.
    */
-  review?: {
-    changeRequestId: string;
-    extra?: (side: ReviewSide, line: number) => ReactNode;
-    onAddNote?: (side: ReviewSide, line: number) => void;
-  };
+  review?: { changeRequestId: string };
 }) {
   const { t, i18n } = useTranslation('changes');
   const live = source.live;
@@ -145,10 +142,9 @@ export function FileReview({
   // ---- the review's threads on this file ----
   const threadsQ = useReviewThreads(review?.changeRequestId);
   const mine = useFileThreads(threadsQ.data, file.path);
-  const layer = useMemo(
-    () => (review ? threadLayer({ changeRequestId: review.changeRequestId, file: mine.file, phone, extra: review.extra, onAddNote: review.onAddNote }) : undefined),
-    [review, mine.file, phone],
-  );
+  const notes = useDraftNotes({ changeRequestId: review?.changeRequestId, path: file.path, diff: shown });
+  // The layer follows the notes' state (the composer, the drafts), so it is built on every render
+  const layer = review ? threadLayer({ changeRequestId: review.changeRequestId, file: mine.file, phone, extra: notes.extra, onAddNote: notes.onAddNote }) : undefined;
 
   // ---- blocks ----
   const marks = useMemo(() => (shown ? blockStarts(shown) : []), [shown]);
@@ -345,9 +341,10 @@ export function FileReview({
           {seenChip}
           <MoreActions entries={menu} label={t('more.label')} />
         </header>
-        {mine.threads.length > 0 && (
+        {(mine.threads.length > 0 || notes.count > 0) && (
           <div className="changes-phone-modes">
             <ThreadsChip threads={mine.threads} />
+            <DraftsChip count={notes.count} />
           </div>
         )}
         {textual && (
@@ -398,6 +395,7 @@ export function FileReview({
         )}
         {!file.binary && <Counts additions={file.additions} deletions={file.deletions} />}
         <ThreadsChip threads={mine.threads} />
+        <DraftsChip count={notes.count} />
         {textual && (
           <>
             <span className="changes-sep" aria-hidden />
