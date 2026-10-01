@@ -1,0 +1,11 @@
+[
+ {"send":{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false},"clientInfo":{"name":"agentry-recorder","title":"Agentry recorder","version":"0.0.0"}}}},
+ {"await":0,"ms":60000},
+ {"send":{"jsonrpc":"2.0","id":1,"method":"session/new","params":{"cwd":"<home>/work","mcpServers":[]}}},
+ {"await":1,"ms":60000},
+ {"sleep":1500},
+ {"send":{"jsonrpc":"2.0","id":2,"method":"session/list","params":{}}},
+ {"await":2,"ms":10000},
+ {"send":{"jsonrpc":"2.0","id":3,"method":"no/such/method","params":{}}},
+ {"await":3,"ms":10000}
+]

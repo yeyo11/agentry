@@ -1,0 +1,22 @@
+[
+ {"send":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"agentry_recorder","title":"Agentry recorder","version":"0.0.0"},"capabilities":{"experimentalApi":false,"requestAttestation":false}}}},
+ {"await":1,"ms":15000},
+ {"send":{"jsonrpc":"2.0","method":"initialized"}},
+ {"send":{"jsonrpc":"2.0","id":2,"method":"account/read","params":{}}},
+ {"await":2},
+ {"send":{"jsonrpc":"2.0","id":3,"method":"model/list","params":{}}},
+ {"await":3},
+ {"send":{"jsonrpc":"2.0","id":4,"method":"account/rateLimits/read"}},
+ {"await":4},
+ {"send":{"jsonrpc":"2.0","id":5,"method":"config/read","params":{}}},
+ {"await":5},
+ {"send":{"jsonrpc":"2.0","id":6,"method":"thread/start","params":{"cwd":"<home>/work","approvalPolicy":"on-request","sandbox":"workspace-write"}}},
+ {"await":6},
+ {"sleep":1500},
+ {"send":{"jsonrpc":"2.0","id":7,"method":"thread/list","params":{}}},
+ {"await":7},
+ {"send":{"jsonrpc":"2.0","id":8,"method":"permissionProfile/list","params":{}}},
+ {"await":8},
+ {"send":{"jsonrpc":"2.0","id":9,"method":"no/such/method","params":{}}},
+ {"await":9}
+]

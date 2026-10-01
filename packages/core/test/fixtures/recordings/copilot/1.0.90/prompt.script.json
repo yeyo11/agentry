@@ -1,0 +1,14 @@
+[
+ {"send":{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false},"clientInfo":{"name":"agentry-recorder","title":"Agentry recorder","version":"0.0.0"}}}},
+ {"await":0,"ms":60000},
+ {"send":{"jsonrpc":"2.0","id":1,"method":"session/new","params":{"cwd":"<home>/work","mcpServers":[]}}},
+ {"await":1,"ms":60000},
+ {"send":{"jsonrpc":"2.0","id":2,"method":"session/set_mode","params":{"sessionId":{"$fromResult":1,"path":"sessionId"},"modeId":"https://agentclientprotocol.com/protocol/session-modes#plan"}}},
+ {"await":2,"ms":10000},
+ {"send":{"jsonrpc":"2.0","id":3,"method":"session/set_config_option","params":{"sessionId":{"$fromResult":1,"path":"sessionId"},"configId":"allow_all","value":"off"}}},
+ {"await":3,"ms":10000},
+ {"send":{"jsonrpc":"2.0","id":4,"method":"session/prompt","params":{"sessionId":{"$fromResult":1,"path":"sessionId"},"prompt":[{"type":"text","text":"Say hi"}]}}},
+ {"await":4,"ms":60000},
+ {"send":{"jsonrpc":"2.0","method":"session/cancel","params":{"sessionId":{"$fromResult":1,"path":"sessionId"}}}},
+ {"sleep":1000}
+]

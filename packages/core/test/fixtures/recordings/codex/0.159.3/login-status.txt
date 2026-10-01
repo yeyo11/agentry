@@ -1,0 +1,2 @@
+Not logged in
+exit 1
