@@ -1758,6 +1758,37 @@ failed, remote_id, detail, created_at, updated_at)`; `fix_kind TEXT` on both PR 
 `POST /change-requests/:id/reviewers`; `POST /change-requests/:id/address` (`{threadIds}`). Chat
 tokens: 403 on every write.
 
+### Recorded by `r0` (2026-10-01)
+
+`r0` is done: 57 `glab` 1.120.0 calls on the GitLab probe project and 24 + 14 `gh` calls (2.102.0,
+2.92.0) on the GitHub probe repository. They are under `packages/core/test/fixtures/recordings/`,
+with [`r0-NOTES.md`](../../packages/core/test/fixtures/recordings/r0-NOTES.md). Where they disagree
+with the matrix, the recordings win:
+
+1. **A GitLab draft note on a line outside the diff is accepted** (`line_code: null`, exit 0) and
+   **vanishes on publish without an error** ("Published 4", three notes). So `review-partly-posted`
+   never fires on its own: Agentry checks every draft's line against the diff before creating it,
+   and counts the notes after publishing.
+2. **D4 and D8 on GitLab need `-H "Content-Type: application/json"`** with `--input -`; without it
+   GitLab answers 415 and stderr says only `glab: HTTP 415`.
+3. **GitHub's bad-line refusal** reads `errors: ["Line could not be resolved"]` (not
+   `pull_request_review_thread.line`); `line-not-in-diff` maps that text. The review stays all or
+   nothing.
+4. **A published GitLab general draft** (the review body) becomes a resolvable discussion with
+   `individual_note: false`, so D2's filter misses it; there is no review object, and recovery looks
+   for the marker in note bodies.
+5. **GitLab `--reviewer user` replaces the whole list**; adding is `+user`, removing `-user`. An
+   unknown user fails inside `glab` before any request. Requesting the author is accepted.
+6. **GitHub: an unknown reviewer login exits 0 and adds nobody**, so the re-read decides.
+7. **GitLab: `user_can_approve` stays `false` for the author** although the author's approval
+   succeeds (approving twice: 401; wrong `--sha`: 409; revoke works). Agentry does not use that
+   field to offer Approve.
+8. **GitHub: every reply creates its own COMMENTED review**, so the reviews list passes 100 and
+   needs `--paginate`.
+9. **GitLab returns every note of a discussion at once** (102 seen) and `per_page` counts
+   discussions: the 100-comment follow-up is GitHub's only. GitHub's `--paginate` follows the
+   threads cursor only; the follow-up starts from the first page's comments cursor.
+
 ### P0 · `reviews-prototypes`
 
 Generator `reviews.py`.

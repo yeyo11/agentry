@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api -i graphql --paginate -F query=@/home/yeyo/.local/share/code-hosts-research/r0/work/threads.graphql -F owner=yeyo11 -F repo=agentry-probe -F number=31 -F first=100
+exit: 0
+secs: 1.994831032
+env: 

@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api graphql -f query=mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{id isResolved resolvedBy{login}}}} -F id=PRRT_kwDOU1zIIM6n-Zjq
+exit: 0
+secs: .970655044
+env: 
