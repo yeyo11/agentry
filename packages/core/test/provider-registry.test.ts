@@ -36,7 +36,7 @@ test('the registry rejects a repeated id or command', () => {
 
 test('only providers with a driver declare capabilities or a tested range', () => {
   for (const manifest of PROVIDER_MANIFESTS) {
-    if (manifest.id === 'claude-code') continue;
+    if (manifest.id === 'claude-code' || manifest.id === 'codex') continue;
     assert.deepEqual(manifest.capabilities, [], manifest.id);
     assert.equal(manifest.versions.range, null, manifest.id);
   }
