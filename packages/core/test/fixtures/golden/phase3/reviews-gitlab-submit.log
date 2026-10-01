@@ -1,0 +1,10 @@
+# reviews-gitlab-submit
+glab mr view 12 -R https://gitlab.com/yeyo11/agentry -F json
+glab api --hostname gitlab.com projects/87089091/merge_requests/12/draft_notes
+glab mr view 12 -R https://gitlab.com/yeyo11/agentry -F json
+glab api --hostname gitlab.com --paginate --output ndjson projects/87089091/merge_requests/12/discussions?per_page=100
+glab api --hostname gitlab.com -X POST projects/87089091/merge_requests/12/draft_notes -H Content-Type: application/json --input - <<< {"note":"looks fine\n\na general note\n\n<!-- agentry:11111111-2222-3333-4444-555555555555 -->"}
+glab api --hostname gitlab.com -X POST projects/87089091/merge_requests/12/draft_notes -H Content-Type: application/json --input - <<< {"note":"a line note","position":{"position_type":"text","base_sha":"f994c06e55abf29383c4a4bab9d8a22991edd3e3","start_sha":"f994c06e55abf29383c4a4bab9d8a22991edd3e3","head_sha":"6e0dab83d5074227e4d2827ebb745edf1aa2c943","old_path":"probe-r0.txt","new_path":"probe-r0.txt","new_line":7}}
+glab mr note publish 12 -y -R https://gitlab.com/yeyo11/agentry
+glab mr view 12 -R https://gitlab.com/yeyo11/agentry -F json
+glab api --hostname gitlab.com --paginate --output ndjson projects/87089091/merge_requests/12/discussions?per_page=100

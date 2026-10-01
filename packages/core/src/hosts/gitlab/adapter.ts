@@ -4,7 +4,7 @@ import {
   type ChangeRequestState,
   type ChangeRequestView,
   type ChangeRequestRead,
-  type ChecksCodeHostAdapter,
+  type ReviewsCodeHostAdapter,
   type HeadPipeline,
   type HostCall,
   type HostRepo,
@@ -12,6 +12,7 @@ import {
 } from '../code-host.ts';
 import { envOf } from '../env.ts';
 import { gitlabChecks } from './checks.ts';
+import { gitlabReviews } from './reviews.ts';
 import { parseJson } from '../json.ts';
 
 // Every argument and every field below is what glab 1.120.0 was recorded to take and print
@@ -61,8 +62,9 @@ export function parseProjectId(stdout: string): number | null {
   }
 }
 
-export const gitlabAdapter: ChecksCodeHostAdapter = {
+export const gitlabAdapter: ReviewsCodeHostAdapter = {
   ...gitlabChecks,
+  ...gitlabReviews,
   id: 'gitlab',
   refPrefix: '!',
 
@@ -198,8 +200,13 @@ export const gitlabAdapter: ChecksCodeHostAdapter = {
     const id = numberOf(pipeline?.id);
     const headPipeline: HeadPipeline | null =
       pipeline && id !== null ? { id, status: text(pipeline.status) ?? '', sha: text(pipeline.sha), source: text(pipeline.source) } : null;
+    const refs = typeof mr.diff_refs === 'object' && mr.diff_refs !== null ? (mr.diff_refs as Record<string, unknown>) : null;
+    const baseSha = text(refs?.base_sha);
+    const startSha = text(refs?.start_sha);
+    const refsHead = text(refs?.head_sha);
     return {
       view,
+      diffRefs: baseSha && startSha && refsHead ? { baseSha, startSha, headSha: refsHead } : null,
       // The merge request's head, which is also the head pipeline's commit unless a newer push has no pipeline yet
       headSha: text(mr.sha),
       baseRef: text(mr.target_branch),
