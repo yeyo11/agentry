@@ -3490,6 +3490,437 @@
     ],
     "description": "One commit, as `git log` reports it."
   },
+  "OrchestrationSummary": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "objective": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "status": {
+        "$ref": "#/components/schemas/OrchestrationStatus"
+      },
+      "cwd": {
+        "type": "string"
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "permissionMode": {
+        "$ref": "#/components/schemas/PermissionMode"
+      },
+      "concurrency": {
+        "type": "number"
+      },
+      "synthesize": {
+        "type": "boolean"
+      },
+      "worktree": {
+        "type": "boolean",
+        "description": "Each task gets its own git worktree and branch instead of sharing the checkout"
+      },
+      "maxAttempts": {
+        "type": "number",
+        "description": "Attempts a failed task gets in total, the first included, before it is left for a person to decide"
+      },
+      "allowedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Tools pre-authorised for every worker"
+      },
+      "permissionPrompts": {
+        "type": "string",
+        "enum": [
+          "host",
+          "none"
+        ],
+        "description": "Where a worker's permission prompts go"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "costUsd": {
+        "type": "number"
+      },
+      "baseCommit": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Commit every worktree branches from, recorded when the graph starts"
+      },
+      "integration": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/OrchestrationIntegration"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The one branch a worktree graph delivers, built once its tasks finish"
+      },
+      "pullRequest": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/OrchestrationPullRequest"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The newest change request opened for the integration branch; null or absent before one"
+      },
+      "synthesisRunId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The synthesis run, so its report can be continued like any other conversation"
+      },
+      "engine": {
+        "$ref": "#/components/schemas/OrchestrationEngine"
+      },
+      "engineReason": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "workflow": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/OrchestrationWorkflow"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The workflow engine's run and script, when the graph runs as a workflow"
+      },
+      "limits": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/TaskLimits"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Default ceiling for every task that does not set its own"
+      },
+      "verificationSpec": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/VerificationSpec"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The checks the graph asked for, kept so a relaunch, a template and a re-run of the checks start from them"
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Why the graph failed when its tasks did not: its checks failed and it was launched with `verification.failGraph`. Null or absent otherwise."
+      },
+      "relaunchedFrom": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The orchestration this one was relaunched from, when it was"
+      },
+      "templateId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The template it was launched from, when it was"
+      },
+      "plannerRunId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The planner run whose draft filled the form it was launched from; lets `orchestration.model` compare its suggestion"
+      },
+      "tasks": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/OrchestrationTaskSummary"
+        }
+      },
+      "hasFinalResult": {
+        "type": "boolean",
+        "description": "Whether the graph has a synthesis, which its own page shows"
+      },
+      "verification": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/VerificationSummary"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "allowedTools",
+      "concurrency",
+      "costUsd",
+      "createdAt",
+      "cwd",
+      "endedAt",
+      "hasFinalResult",
+      "id",
+      "maxAttempts",
+      "model",
+      "name",
+      "objective",
+      "permissionMode",
+      "permissionPrompts",
+      "status",
+      "synthesize",
+      "tasks",
+      "worktree"
+    ],
+    "description": "An orchestration as `GET /orchestrations` serves it. The long texts (each task's prompt and result, the synthesis, what the checks printed) were over nine tenths of the list, and every screen that shows it wants statuses, counts and costs; `GET /orchestrations/:id` has them whole."
+  },
+  "OrchestrationTaskSummary": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "$ref": "#/components/schemas/OrchestrationTaskStatus"
+      },
+      "worktree": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Git worktree this task works in, when the orchestration isolates its workers"
+      },
+      "branch": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Branch created for that worktree"
+      },
+      "baseCommit": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The commit the worker started from: where its branch was cut, after any dependencies' branches were merged in. What it changed is everything since; absent on graphs older than this field, which are compared against the graph's `baseCommit`."
+      },
+      "commit": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Commit the wrapper made of work the worker left uncommitted, when there was any"
+      },
+      "attempts": {
+        "type": "number",
+        "description": "Executions of its chat so far, the first included"
+      },
+      "continuations": {
+        "type": "number",
+        "description": "Times the orchestrator sent the worker back to its chat because its turn ended as a report with work still owed (`openItems`), at most three; absent on a task that never needed it. These are not attempts: nothing failed."
+      },
+      "runId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "costUsd": {
+        "type": "number"
+      },
+      "health": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Health"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Computed while it runs, from the same signals as a chat's; absent once it has ended"
+      },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What the worker's live execution is doing right now; absent once the task has ended"
+      },
+      "clockStartedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Where the task's time limit counts from: when it first started, or when a person last sent it around again. `startedAt` cannot serve, since it survives a retry and the limit would trip the moment the person decided the task was worth another go."
+      },
+      "clockCostUsd": {
+        "type": "number",
+        "description": "What the task had cost when that clock started, so a cost limit counts from the same moment"
+      },
+      "id": {},
+      "name": {},
+      "dependsOn": {},
+      "cwd": {},
+      "model": {},
+      "limits": {},
+      "workItemId": {}
+    },
+    "required": [
+      "status",
+      "attempts",
+      "runId",
+      "sessionId",
+      "error",
+      "startedAt",
+      "endedAt",
+      "costUsd",
+      "id",
+      "name",
+      "dependsOn",
+      "cwd",
+      "model",
+      "limits",
+      "workItemId"
+    ],
+    "description": "A task as a list shows it: its prompt and its result are left out, and the graph's own page has them."
+  },
+  "VerificationSummary": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "$ref": "#/components/schemas/VerificationStatus"
+      },
+      "attempts": {
+        "type": "number",
+        "description": "Fixer attempts spent, over every command"
+      },
+      "commits": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Commit"
+        },
+        "description": "What the fixer committed on the integration branch"
+      },
+      "commit": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The head of the integration branch the checks last ran on; when it moves, they are stale"
+      },
+      "report": {
+        "type": "string",
+        "description": "What happened, in words: shown before the pull request is offered"
+      },
+      "costUsd": {
+        "type": "number",
+        "description": "What the fixer spent, as the CLI reported it; counted in the graph's cost"
+      },
+      "commands": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/VerificationCommandSummary"
+        }
+      }
+    },
+    "required": [
+      "attempts",
+      "commands",
+      "commits",
+      "costUsd",
+      "report",
+      "status"
+    ]
+  },
+  "VerificationCommandSummary": {
+    "type": "object",
+    "properties": {
+      "command": {
+        "type": "string"
+      },
+      "install": {
+        "type": "boolean",
+        "description": "The install step that runs before the checks: detected from the lockfile, or the spec's `install`"
+      },
+      "group": {
+        "type": "number",
+        "description": "Index of the `commands` entry it came from; commands of one parallel group share it. Absent on the install step"
+      },
+      "status": {
+        "$ref": "#/components/schemas/VerificationStatus"
+      },
+      "durationMs": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "command",
+      "status",
+      "durationMs"
+    ],
+    "description": "A check as a list shows it: what it printed is left out."
+  },
   "OrchestrationSpec": {
     "type": "object",
     "properties": {

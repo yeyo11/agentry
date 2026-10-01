@@ -1,9 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { QueryClient } from '@tanstack/react-query';
-import type { ChatActivityEvent, ChatSummary, Orchestration, OrchestrationTaskState, Overview, RunUpdatedEvent } from '@agentry/shared';
+import type {
+  ChatActivityEvent,
+  ChatSummary,
+  Orchestration,
+  OrchestrationSummary,
+  OrchestrationTaskEvent,
+  OrchestrationTaskState,
+  Overview,
+  RunUpdatedEvent,
+} from '@agentry/shared';
 import { keys } from '../src/api';
-import { patchActivity, patchRun, runState, targetsFor } from '../src/lib/events';
+import { patchActivity, patchOrchestrationTask, patchRun, runState, targetsFor } from '../src/lib/events';
 
 // `chat.activity` is the one event on the feed that refetches nothing: it carries the whole line a
 // row shows, so it is written straight into the caches that show it.
@@ -59,6 +68,46 @@ test("a worker's activity also reaches the task on its orchestration, in the lis
   assert.equal(page?.tasks[0]?.activity, undefined, 'the task that is not the worker keeps what it had');
   assert.equal(page?.tasks[1]?.activity?.tool, 'Edit');
   assert.equal(client.getQueryData<Orchestration[]>(keys.orchestrations)?.[0]?.tasks[1]?.activity?.tool, 'Edit');
+});
+
+// `orchestration.task` says which task moved and to what: the list's cards and bars move with the
+// event, and the read of the (summarised) list that brings the rest can wait like the chat lists.
+
+const moved = (over: Partial<OrchestrationTaskEvent> = {}): OrchestrationTaskEvent => ({
+  id: 3,
+  at: '2026-09-21T10:01:00.000Z',
+  title: 'Task b completed',
+  type: 'orchestration.task',
+  orchestrationId: 'graph-1',
+  orchestrationName: 'redesign',
+  taskId: 'b',
+  taskName: 'b',
+  status: 'completed',
+  previousStatus: 'running',
+  runId: 'chat-b',
+  error: null,
+  ...over,
+});
+
+test('a task that moved is moved in the list of graphs, and the list is read again later, not at once', () => {
+  const client = new QueryClient();
+  const busy = { ...task('b'), activity: { kind: 'tool', tool: 'Edit', target: 'x', since: '2026-09-21T10:00:00.000Z' } } as OrchestrationTaskState;
+  const other = { id: 'graph-2', name: 'other', tasks: [task('b')] } as unknown as OrchestrationSummary;
+  client.setQueryData(keys.orchestrations, [{ id: 'graph-1', name: 'redesign', tasks: [task('a'), busy] } as unknown as OrchestrationSummary, other]);
+
+  patchOrchestrationTask(client, moved());
+
+  const [graph, untouched] = client.getQueryData<OrchestrationSummary[]>(keys.orchestrations) ?? [];
+  assert.equal(graph?.tasks[1]?.status, 'completed');
+  assert.equal(graph?.tasks[1]?.runId, 'chat-b');
+  assert.equal(graph?.tasks[1]?.activity, null, 'a task that ended is doing nothing');
+  assert.equal(graph?.tasks[0]?.status, 'running', 'the other task keeps what it had');
+  assert.equal(untouched, other, 'another graph with a task of the same id is left alone');
+
+  const list = targetsFor(moved()).find(([key]) => JSON.stringify(key) === JSON.stringify(keys.orchestrations));
+  assert.ok(list && list[1] >= 1000, 'the list waits like the chat lists');
+  const page = targetsFor(moved()).find(([key]) => JSON.stringify(key) === JSON.stringify(keys.orchestration('graph-1')));
+  assert.ok(page && page[1] < 1000, "the graph's own page is read at once");
 });
 
 // `run.updated` comes every quarter second per working run. Without a status change it is the run's
