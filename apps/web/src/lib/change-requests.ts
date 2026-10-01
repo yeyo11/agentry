@@ -69,7 +69,7 @@ export function countChecks(checks: readonly Check[]): ChecksCounts {
 export interface CheckMark {
   tone: CheckTone;
   /** The word that always goes with the colour */
-  label: string;
+  label: `state.${'failed' | 'allowedFailure' | 'running' | 'queued' | 'passed' | 'neutral' | 'skipped' | 'cancelled' | 'manual'}`;
 }
 
 /** The colour and the word of one row: an allowed failure is a warning, `running` alone is live. */
@@ -131,7 +131,7 @@ export interface ChecksActions {
  * - Fix failing checks needs a failure that counts and no fix under way: while one runs or waits
  *   for its push, the section shows that state instead.
  */
-export function checksActions(list: Pick<ChangeRequestChecks, 'checks'> | undefined, cr: Pick<ChangeRequest, 'fixState'> | undefined): ChecksActions {
+export function checksActions(list: Pick<ChangeRequestChecks, 'checks'> | undefined, cr: { fixState?: ChangeRequest['fixState'] } | undefined): ChecksActions {
   const checks = list?.checks ?? [];
   return {
     rerunFailed: checks.some((c) => c.state === 'failed' && c.rerunnable),
@@ -144,7 +144,7 @@ export function checksActions(list: Pick<ChangeRequestChecks, 'checks'> | undefi
 /** Where a fix stands, as the card and the page word it; `null` when none is under way. */
 export type FixStage = 'fixing' | 'verifying' | 'push';
 
-export function fixStage(cr: Pick<ChangeRequest, 'fixState'> | undefined): FixStage | null {
+export function fixStage(cr: { fixState?: ChangeRequest['fixState'] } | undefined): FixStage | null {
   switch (cr?.fixState) {
     case 'fixing':
       return 'fixing';

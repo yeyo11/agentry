@@ -1,0 +1,122 @@
+{
+  "title": "Checks",
+  "loading": "Reading the checks…",
+  "failed": "Agentry could not read the checks from {{host}}.",
+  "retry": "Try again",
+  "truncated": "The list is cut at its first 1,000 checks.",
+  "openOn": "Open on {{host}}",
+  "none": {
+    "title": "This {{noun}} has no checks.",
+    "hint": "If the repository has CI, its checks will show here as soon as {{host}} starts it."
+  },
+  "sum": {
+    "failed_one": "{{count}} failed",
+    "failed_other": "{{count}} failed",
+    "running_one": "{{count}} running",
+    "running_other": "{{count}} running",
+    "passed_one": "{{count}} passed",
+    "passed_other": "{{count}} passed",
+    "skipped_one": "{{count}} skipped",
+    "skipped_other": "{{count}} skipped"
+  },
+  "group": {
+    "failed": "Failed",
+    "running": "Running",
+    "passed": "Passed",
+    "skipped": "Skipped",
+    "withAllowed_one": "{{total}} · {{count}} allowed",
+    "withAllowed_other": "{{total}} · {{count}} allowed"
+  },
+  "state": {
+    "failed": "failed",
+    "allowedFailure": "allowed to fail",
+    "running": "running",
+    "queued": "queued",
+    "passed": "passed",
+    "neutral": "neutral",
+    "skipped": "skipped",
+    "cancelled": "cancelled",
+    "manual": "manual"
+  },
+  "row": {
+    "viewLog": "View the log of {{name}}",
+    "more": "More actions of {{name}}"
+  },
+  "menu": {
+    "run": "Run this job",
+    "rerun": "Re-run this check",
+    "notRerunnable": "{{host}} cannot re-run this check from here.",
+    "refresh": "Check again"
+  },
+  "actions": {
+    "rerunFailed": "Re-run failed",
+    "rerunAll": "Re-run all",
+    "cancel": "Cancel",
+    "fix": "Fix failing checks",
+    "more": "More check actions"
+  },
+  "limited": {
+    "badge": "API limit",
+    "body": "The {{host}} API rate limit for your account is used up until {{time}}. Agentry waits until then.",
+    "asOf": "List read at {{time}}"
+  },
+  "fix": {
+    "title_one": "Fix {{count}} failing check",
+    "title_other": "Fix {{count}} failing checks",
+    "cancel": "Cancel",
+    "start_one": "Fix {{count}} check",
+    "start_other": "Fix {{count}} checks",
+    "intro": "The Developer starts with these checks and the end of their logs, and fixes the ones this branch caused. When QA passes the fix it is pushed: this click is your approval.",
+    "allowed_one": "{{count}} allowed failure is not sent.",
+    "allowed_other": "{{count}} allowed failures are not sent.",
+    "attemptsFresh": "No attempt has been made on this commit yet.",
+    "attemptsUsed_one": "{{count}} attempt already made on this commit.",
+    "attemptsUsed_other": "{{count}} attempts already made on this commit.",
+    "label": "Fix of the failing checks",
+    "waiting": "waiting for you",
+    "push": "Push the fix",
+    "attempt_one": "attempt {{count}}",
+    "attempt_other": "attempt {{count}}",
+    "origin": {
+      "person": "at your request",
+      "decision": "decided by checks.fix"
+    },
+    "stage": {
+      "fixing": "The Developer is fixing the checks",
+      "verifying": "QA is verifying the fix",
+      "push": "The fix is ready to push"
+    },
+    "hint": {
+      "person": "When QA passes the fix it is pushed on its own: your click was the approval. Moving the card meanwhile withdraws it.",
+      "decision": "When QA passes the fix it waits for you to push it.",
+      "push": "QA passed the fix. Pushing it is always your click."
+    }
+  },
+  "log": {
+    "loading": "Reading the log…",
+    "unavailable": "The log of this check is no longer on the host, or the job never started.",
+    "failed": "The log could not be read.",
+    "annotations": "Annotations",
+    "noOutputYet": "No output yet: the job has not printed anything.",
+    "empty": "This log is empty.",
+    "tail": "End of the log",
+    "gap": "⋯ lines left out",
+    "foot": "Agentry hides likely secrets",
+    "footTruncated": "The end of the log · 16 KiB at most · Agentry hides likely secrets",
+    "of": "Log of {{name}}",
+    "close": "Close the log",
+    "level": {
+      "failure": "failure",
+      "warning": "warning",
+      "notice": "notice"
+    }
+  },
+  "errors": {
+    "rerun": "Could not re-run the checks",
+    "cancel": "Could not cancel the checks",
+    "run": "Could not run the job",
+    "refresh": "Could not read the checks again",
+    "fix": "Could not start the fix",
+    "push": "Could not push the fix"
+  }
+}
