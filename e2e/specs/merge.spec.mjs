@@ -135,6 +135,10 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
   // The page of an item, once its merge block has read the host
   const visit = async (it, label, ready = '.mg .mg-foot, .mg .mb-note, .mg .rv-card') => {
+    // A scenario changes what the host says between visits, and the repository's rules are cached for a minute:
+    // the person's Refresh reads them again, so the page starts from what the scenario says
+    const found = (await api.get(`/work-items/${it.id}`)).body;
+    if (found?.pullRequest?.id) await api.get(`/change-requests/${found.pullRequest.id}/merge?refresh=1`);
     await page.goto(`/tasks/${it.key}`, 1500);
     await page.waitFor(`return !!document.querySelector('${ready}')`, { timeout: 60_000, label });
   };
@@ -155,7 +159,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
   const text = (selector) => page.eval(`return document.querySelector(${JSON.stringify(selector)})?.textContent ?? ''`);
   const buttons = (scope) => page.eval(`return [...document.querySelectorAll(${JSON.stringify(`${scope} button, ${scope} a.btn`)})].map((b) => ({ text: b.textContent.trim(), primary: b.classList.contains('btn-primary'), disabled: b.disabled === true }))`);
   const press = async (scope, label) => {
-    await page.eval(`const b = [...document.querySelectorAll(${JSON.stringify(`${scope} button`)})].find((x) => x.textContent.trim() === ${JSON.stringify(label)} && !x.disabled); if (!b) throw new Error('no ${label} button'); b.click(); return true`);
+    await page.eval(`const b = [...document.querySelectorAll(${JSON.stringify(`${scope} button`)})].find((x) => x.textContent.trim() === ${JSON.stringify(label)} && !x.disabled); if (!b) throw new Error('no ${label} button in ${scope}: ' + [...document.querySelectorAll(${JSON.stringify(`${scope} button`)})].map((x) => x.textContent.trim() + (x.disabled ? ' (disabled)' : '')).join(', ')); b.click(); return true`);
   };
 
   try {
@@ -233,7 +237,10 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       );
       check(note.word === c.word && WORDS.test(note.word), `[${c.name}] the notice carries its word (${note.word})`);
       check(note.text.includes(c.sentence), `[${c.name}] and its sentence (${note.text})`);
-      check(note.acts.length === 1 && note.acts[0].includes(c.remedy), `[${c.name}] and one remedy, ${c.remedy} (${JSON.stringify(note.acts)})`);
+      // One remedy; where the host can wait for what blocks (a review, a running check) the same notice also offers auto-merge
+      const waits = c.code === 'review-required' || c.code === 'checks-running';
+      const remedies = waits ? note.acts.filter((a) => !/auto-merge/i.test(a)) : note.acts;
+      check(remedies.length === 1 && remedies[0].includes(c.remedy) && note.acts.length <= (waits ? 2 : 1), `[${c.name}] and one remedy, ${c.remedy} (${JSON.stringify(note.acts)})`);
       check(/is-(warn|bad|idle|live)/.test(note.tone) && !note.code && !note.merge, `[${c.name}] in a status tone, with no Merge and nothing to copy (${note.tone})`);
       await page.shot(`merge-item-blocked-${c.name}`);
       await scan(page, check, `the blocked state ${c.name}`);
@@ -306,9 +313,11 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     const before = lines('gh', /^pr merge/).length;
     await press('.mg .mg-foot', 'Merge');
     await page.waitFor(`return !!document.querySelector('.mg .callout-warn')`, { timeout: 30_000, label: 'the head moved notice' });
+    // The state is read again after the refusal, and the new head arrives with it
+    await page.waitFor(`return document.querySelectorAll('.mg .rv-row .mg-mono').length >= 2`, { timeout: 30_000, label: 'the head now, read again' });
     const movedNote = await page.eval(`const b = document.querySelector('.mg'); return { text: b.textContent, badge: b.querySelector('.badge-warn')?.textContent ?? '', buttons: [...b.querySelectorAll('.mg-foot button')].map((x) => ({ text: x.textContent.trim(), disabled: x.disabled, primary: x.classList.contains('btn-primary') })) }`);
     check(movedNote.text.includes('The branch changed while you were looking, and nothing was merged.') && movedNote.badge === 'branch changed', `the block says the branch changed, in words (${movedNote.badge})`);
-    check(movedNote.text.includes(HEAD.slice(0, 7)) && movedNote.text.includes(MOVED.slice(0, 7)), 'it names both heads: the one seen and the one now');
+    check(movedNote.text.includes(HEAD.slice(0, 7)) && movedNote.text.includes(MOVED.slice(0, 7)), `it names both heads: the one seen and the one now (${movedNote.text.replace(/\s+/g, ' ').slice(0, 400)})`);
     check(movedNote.buttons.some((b) => b.text === 'Merge' && b.disabled) && movedNote.buttons.some((b) => b.text === 'Read again' && !b.disabled), `Merge is off and Read again is offered (${JSON.stringify(movedNote.buttons)})`);
     check(lines('gh', /^pr merge/).length === before, 'no `pr merge` reached the host: a commit nobody saw is never merged');
     const refused = await api.post(`/change-requests/${movesId}/merge`, { method: 'squash', expectedHead: HEAD, deleteBranch: false });
@@ -351,9 +360,15 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     }
     check(done === 'done', `the item moved to Done after the merge (${done})`);
     {
-      const reader = db();
-      const row = reader.prepare('SELECT action, method, outcome, requested_by, delete_branch FROM change_request_merges WHERE cr_id = ?').get(mergeId);
-      reader.close();
+      // The row is written when the click arrives and settled when the host has answered
+      let row;
+      for (let tries = 0; tries < 80; tries++) {
+        const reader = db();
+        row = reader.prepare('SELECT action, method, outcome, requested_by, delete_branch FROM change_request_merges WHERE cr_id = ?').get(mergeId);
+        reader.close();
+        if (row?.outcome && row.outcome !== 'requested') break;
+        await page.sleep(250);
+      }
       check(row?.outcome === 'merged' && row.method === 'merge' && row.delete_branch === 1 && !!row.requested_by, `the click is recorded with the person as actor (${JSON.stringify(row)})`);
     }
     await page.shot('merge-item-merged');
@@ -429,6 +444,9 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     // Update from base: a fast-forward project is rebased on GitLab, and the block reads the result
     const behind = await item(glProject.id, 'Behind the base');
     open(glProject.id, behind, 9, 'gitlab');
+    // The checkout has pushed what it has: the branch's remote-tracking ref is where its head is, so a rebase on GitLab
+    // loses nothing here (without it Agentry cannot say, and offers its own update instead)
+    git(glRoot, 'update-ref', `refs/remotes/origin/task/${behind.key.toLowerCase()}`, 'HEAD');
     scenario('glab', { ci: 'passing', mergeDetail: 'need_rebase' });
     await visit(behind, 'a branch behind its base', '.mg .mb-note[data-reason="behind"]');
     {
@@ -493,7 +511,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.waitFor(`return !!document.querySelector('.omrg .omrg-blocked')`, { timeout: 60_000, label: 'the orchestration blocked state' });
     {
       const blocked = await page.eval(`const b = document.querySelector('.omrg .omrg-blocked'); return { text: b.textContent, badge: b.querySelector('.badge')?.textContent.trim() ?? '', merge: [...document.querySelectorAll('.omrg-foot .btn-primary')].length }`);
-      check(blocked.badge === 'not approved' && blocked.text.includes('approval') && blocked.merge === 0, `a blocked orchestration says its word and sentence, with no Merge (${blocked.text})`);
+      check(blocked.badge === 'not approved' && blocked.text.includes('approval') && blocked.merge === 0, `a blocked orchestration says its word and sentence, with no Merge (${JSON.stringify({ badge: blocked.badge, merge: blocked.merge })} ${blocked.text})`);
       await scan(page, check, 'the orchestration blocked state');
     }
     // The head guard here too: the fake host's head moves between the page and the click
@@ -502,16 +520,18 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.waitFor(`return !!document.querySelector('.omrg .omrg-foot .btn-primary')`, { timeout: 60_000, label: 'the orchestration block again' });
     scenario('gh', { headSha: MOVED });
     const orchBefore = lines('gh', /^pr merge/).length;
-    await press('.omrg-foot', 'Merge');
+    await press('.omrg-foot', 'Merge PR #20');
     await page.waitFor(`return !!document.querySelector('.omrg [role=alert]')`, { timeout: 30_000, label: 'the orchestration refusal' });
     check((await text('.omrg [role=alert]')).includes('Nothing was merged') && lines('gh', /^pr merge/).length === orchBefore, 'a head that moved is refused with its reason and nothing is merged');
     await page.shot('merge-orchestration-head-moved');
     scenario('gh');
     await page.goto(`/orchestration/${orchestrationId}`, 1500);
     await page.waitFor(`return !!document.querySelector('.omrg .omrg-foot .btn-primary')`, { timeout: 60_000, label: 'the orchestration block on the new head' });
-    await press('.omrg-foot', 'Merge');
+    await press('.omrg-foot', 'Merge PR #20');
     await page.waitFor(`return !document.querySelector('.omrg .omrg-foot .btn-primary') || (document.querySelector('.omrg')?.textContent ?? '').includes('merged')`, { timeout: 60_000, label: 'the orchestration after the merge' });
-    check(lines('gh', /^pr merge 20 .*--match-head-commit a1b2c3d4/).length === 1, `gh was asked to merge the orchestration's pull request on the head shown (${lines('gh', /^pr merge 2/)})`);
+    // The call reaches the fake a moment after the button is gone: wait for it, not for the page
+    for (let tries = 0; tries < 80 && lines('gh', /^pr merge 2/).length === 0; tries++) await page.sleep(250);
+    check(lines('gh', /^pr merge 20 .*--match-head-commit a1b2c3d4/).length === 1, `gh was asked to merge the orchestration's pull request on the head shown (${lines('gh', /^pr merge 2/)}) calls: ${calls('gh').slice(-700)}`);
 
     // ================= 7. A phone =================
     await page.viewport(390, 844);

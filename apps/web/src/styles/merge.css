@@ -251,6 +251,10 @@
     font-size: 16px;
   }
 
+  .mg input {
+    min-height: var(--touch);
+  }
+
   .mg-foot,
   .mg-acts {
     flex-direction: column-reverse;

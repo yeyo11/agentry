@@ -124,7 +124,7 @@ export interface MergeServiceDeps {
   /** The target of a row id from either table; null when no change request has it or it has no number */
   resolve: (id: string) => Promise<MergeTarget | null>;
   /** The head's checks, for the required ones that are pending or failed; without it GitHub's `BLOCKED` is read as a policy */
-  checks?: (id: string) => Promise<Check[]>;
+  checks?: (id: string, refresh?: boolean) => Promise<Check[]>;
   /** Unresolved review threads, when a rule asks for them to be resolved */
   unresolvedThreads?: (id: string) => Promise<number>;
   /** The host merged it: lets the owner of the row see that now, instead of at its next poll */
@@ -357,7 +357,10 @@ export class MergeService {
     const offered = gitlab && settings.fastForward && blockers.some((b) => b.code === 'behind') && target.adapter.rebase(target.repo, target.number) !== null;
     const cost = offered ? await this.rebaseCost(target) : null;
     const methods = allowedMethods(settings, cached.rules);
-    const [first, ...others] = blockers;
+    // A rebase on the host that would drop what is only in the checkout is not offered: the way out of `behind` is then
+    // Agentry's own update, which keeps it, and the notice says why
+    const shown = cost === null ? blockers : blockers.map((b) => (b.code === 'behind' && b.action === 'rebase-on-host' ? { ...b, action: 'update-from-base' as const } : b));
+    const [first, ...others] = shown;
     const canMerge = read.state === 'open' && blockers.length === 0 && !guard.waiting && !guard.running && methods.length > 0;
     const state: MergeState = {
       changeRequestId: target.id,
@@ -457,12 +460,18 @@ export class MergeService {
    * read again after 5 s, up to three times; GitLab's `unchecked` is not that wait (it lasts minutes,
    * recorded), so it is read from the checks GraphQL names and not waited on.
    */
-  async state(id: string, options: { refresh?: boolean } = {}): Promise<MergeState> {
+  async state(id: string, options: { refresh?: boolean; rules?: boolean } = {}): Promise<MergeState> {
     return (await this.settledCompute(await this.target(id), options)).state;
   }
 
-  private async settledCompute(target: MergeTarget, options: { refresh?: boolean } = {}): Promise<Computed> {
+  private async settledCompute(target: MergeTarget, options: { refresh?: boolean; rules?: boolean } = {}): Promise<Computed> {
     const id = target.id;
+    // A refresh the person asked for reads the repository's settings and rules again too, not only the request
+    if (options.rules) {
+      this.cache.delete(`${target.repo.host}/${target.repo.path}#${target.base}`);
+      // and the checks it is about: the snapshot the state is computed from is read again, not the last one kept
+      await this.deps.checks?.(id, true).catch(() => undefined);
+    }
     try {
       let computed = await this.compute(target);
       // GitHub's `UNKNOWN` settles in seconds; GitLab's wait is minutes and is never slept through

@@ -253,6 +253,21 @@ test('GitHub state: a required check still running blocks, offers auto-merge whe
   assert.deepEqual([refused.autoMerge.available, refused.autoMerge.reason], [false, 'auto-merge-not-allowed']);
 });
 
+test('GitHub state: a refresh the person asks for reads the repository rules again, and a plain read does not', async () => {
+  const h = harness('github');
+  h.answer(/rules\/branches\/main$/, ok(JSON.stringify([])));
+  h.answer(/^gh pr view 12/, ok(ghView({ mergeStateStatus: 'BLOCKED' })));
+  assert.equal((await h.service.state('cr-1')).blocker?.code, 'blocked-by-policy');
+  // The host's rules change (a required check is added): a plain read inside the minute still has the old ones
+  h.answer(/rules\/branches\/main$/, ok(JSON.stringify([{ type: 'required_status_checks', parameters: { required_status_checks: [{ context: 'build' }] } }])));
+  const plain = h.calls.length;
+  await h.service.state('cr-1');
+  assert.ok(!h.calls.slice(plain).some((c) => /rules\/branches/.test(c)), 'the rules are cached for the minute');
+  const before = h.calls.length;
+  await h.service.state('cr-1', { refresh: true, rules: true });
+  assert.ok(h.calls.slice(before).some((c) => /rules\/branches/.test(c)), 'a refresh reads them again');
+});
+
 test('GitHub state: a conflict is not something auto-merge waits for, and the rules narrow the methods', async () => {
   const h = harness('github');
   h.answer(/rules\/branches\/main$/, ok(JSON.stringify([{ type: 'required_linear_history' }, { type: 'pull_request', parameters: { allowed_merge_methods: ['squash', 'merge'] } }])));
@@ -821,12 +836,16 @@ test('Rebase on GitLab is offered only when the checkout loses nothing, and says
   assert.equal((await ffHarness({}).service.state('cr-1')).canRebaseOnHost, true);
   const clean = await ffHarness({ checkout: async () => ({ uncommitted: false, unpushed: false }) }).service.state('cr-1');
   assert.deepEqual([clean.canRebaseOnHost, clean.rebaseOnHostWhy], [true, null]);
+  assert.equal(clean.blocker?.action, 'rebase-on-host');
   const dirty = await ffHarness({ checkout: async () => ({ uncommitted: true, unpushed: true }) }).service.state('cr-1');
   assert.deepEqual([dirty.canRebaseOnHost, dirty.rebaseOnHostWhy], [false, 'uncommitted-changes']);
+  assert.equal(dirty.blocker?.action, 'update-from-base', 'with no host rebase on offer the way out of behind is Agentry\'s own update');
   const ahead = await ffHarness({ checkout: async () => ({ uncommitted: false, unpushed: true }) }).service.state('cr-1');
   assert.deepEqual([ahead.canRebaseOnHost, ahead.rebaseOnHostWhy], [false, 'unpushed-commits']);
+  assert.equal(ahead.blocker?.action, 'update-from-base', 'with no host rebase on offer the way out of behind is Agentry\'s own update');
   const unreadable = await ffHarness({ checkout: () => Promise.reject(new Error('git failed')) }).service.state('cr-1');
   assert.deepEqual([unreadable.canRebaseOnHost, unreadable.rebaseOnHostWhy], [false, 'unpushed-commits']);
+  assert.equal(unreadable.blocker?.action, 'update-from-base', 'with no host rebase on offer the way out of behind is Agentry\'s own update');
 
   // With the rebase not offered, Update from base is Agentry's own merge, and the host is never asked to rebase
   let merged = 0;

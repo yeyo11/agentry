@@ -695,7 +695,7 @@ export class Core {
     this.merge = new MergeService({
       db: this.db.connection,
       resolve: (id) => this.mergeTarget(id),
-      checks: async (id) => (await this.checks.list(id, {})).checks,
+      checks: async (id, refresh) => (await this.checks.list(id, refresh ? { refresh: true } : {})).checks,
       unresolvedThreads: async (id) => (await this.reviews.threads(id)).threads.filter((t) => !t.isResolved).length,
       emit: (event) => this.events.emit(event),
       // The row's own watcher reads the host and moves the item to Done as the person (`merged()`)

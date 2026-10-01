@@ -86,7 +86,7 @@ test('a blocked request says what blocks it, with its word and remedy, and Merge
   assert.match(html, /badge badge-bad[^>]*>Conflicts</);
   assert.match(html, /This MR conflicts with main\./);
   assert.match(html, /Update from main/);
-  assert.match(html, /<button[^>]*class="btn btn-primary"[^>]*disabled/);
+  assert.match(html, /<button[^>]*class="btn"[^>]*disabled/);
 });
 
 test('GitLab waiting for the pipeline is the live thing: a spinner beside the words', () => {

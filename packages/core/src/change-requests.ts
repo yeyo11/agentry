@@ -337,7 +337,8 @@ export class ChangeRequestService {
 
   async mergeState(id: string, refresh: boolean): Promise<MergeState> {
     await this.reading(id);
-    return guarded(this.deps.merge.state(id, { refresh }));
+    // The person's own Refresh reads the rules again as well; the reads after a write do not need to
+    return guarded(this.deps.merge.state(id, { refresh, rules: refresh }));
   }
 
   /** `by` is the person who clicked: a merge is never a run's, a decision's or a chat token's. */

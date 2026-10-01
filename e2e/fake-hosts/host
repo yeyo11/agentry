@@ -623,6 +623,8 @@ case "$name" in
           */draft_notes*)
             case "$*" in *"-X POST"*) draft_create; exit 0 ;; esac
             drafts_json; exit 0 ;;
+          # The merge request itself, read the way the core reads it: its REST body, with the merge status asked for again
+          */merge_requests/[0-9]|*/merge_requests/[0-9]\?*) glab_merge_view "$(echo "$*" | sed -n 's#.*/merge_requests/\([0-9]*\).*#\1#p')" "$@"; exit 0 ;;
         esac ;;
     esac ;;
 esac

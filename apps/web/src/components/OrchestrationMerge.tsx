@@ -214,7 +214,7 @@ export function OrchestrationMerge({ orch, pr, words }: { orch: Orchestration; p
             <div className="omrg-foot">
               {state.canMerge && state.headSha && <span className="small muted omrg-guard">{t('merge.guard', { head: state.headSha.slice(0, 8) })}</span>}
               <span className="grow" />
-              <button type="button" className="btn btn-primary" disabled={busy || !body} onClick={() => body && doMerge.mutate(body)}>
+              <button type="button" className={`btn ${state.canMerge ? 'btn-primary' : ''}`.trim()} disabled={busy || !body || !state.canMerge} onClick={() => body && doMerge.mutate(body)}>
                 <GitMerge {...ICON_SM} /> {doMerge.isPending ? t('merge.merging') : t('merge.action', { label })}
               </button>
             </div>
