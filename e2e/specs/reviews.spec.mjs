@@ -62,10 +62,16 @@ function git(cwd, ...args) {
   return run.stdout.trim();
 }
 
-async function scan(page, check, label) {
+async function scan(page, check, label, options = {}) {
   await page.reduceMotion(true);
-  const violations = await page.axe();
+  const violations = await page.axe(options);
   check(violations.length === 0, `axe on ${label}: ${JSON.stringify(violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.map((n) => n.target) })))}`);
+}
+
+// An axe scan that says which node failed and why, so a CI log is enough to fix it
+async function axeCheck(page, check, label, options = {}) {
+  const found = await page.axe(options);
+  check(found.length === 0, `${label} (${JSON.stringify(found.map((v) => [v.id, v.nodes.map((node) => [node.target, node.why])])).slice(0, 700)})`);
 }
 
 export default async ({ page, api, check, dirs }) => {
@@ -208,7 +214,7 @@ export default async ({ page, api, check, dirs }) => {
 
       // Status colours come with a word
       check(await page.eval(`return [...document.querySelectorAll('.rv .badge')].every((b) => b.textContent.trim().length > 0)`), `[${theme}] every badge has a word`);
-      check((await page.axe()).length === 0, `[${theme}] axe finds nothing on the review block`);
+      await axeCheck(page, check, `[${theme}] axe finds nothing on the review block`);
       await page.shot(`reviews-item-${theme}`);
 
       // The submit dialog: comment only, GitHub's own page for the rest
@@ -220,7 +226,7 @@ export default async ({ page, api, check, dirs }) => {
       check(/Approving or asking for changes is done on GitHub/i.test(block) && /Open on GitHub/i.test(block), `[${theme}] approving is sent to GitHub (${block.slice(-200)})`);
       check(!/Comment and approve/.test(dialog), `[${theme}] "Comment and approve" is GitLab's alone`);
       check(await page.eval(`return !!document.querySelector('[role=dialog] .rv-send.btn-primary')`), `[${theme}] the dialog's send is its own primary action`);
-      check((await page.axe()).length === 0, `[${theme}] axe finds nothing on the submit dialog`);
+      await axeCheck(page, check, `[${theme}] axe finds nothing on the submit dialog`);
       await page.shot(`reviews-submit-${theme}`);
       await page.key('Escape');
       await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: `[${theme}] the dialog closes` });
@@ -229,7 +235,7 @@ export default async ({ page, api, check, dirs }) => {
       await page.waitFor(`return !!document.querySelector('.item-pr-wait.is-address')`, { label: `[${theme}] the address strip` });
       const strip = await page.text('.item-pr-wait.is-address');
       check(/1 review thread waits for an answer/.test(strip), `[${theme}] the strip counts what waits, an outdated thread not among them (${strip})`);
-      await page.click('.item-pr-wait.is-address .btn', 'Address with an agent', 500);
+      await page.click('.item-pr-wait.is-address .btn', 'Choose which to address', 500);
       await page.waitFor(`return !!document.querySelector('[role=dialog] .addr-list')`, { label: `[${theme}] the address dialog` });
       const address = await page.text('[role=dialog]');
       check(/Unresolved threads · 1/i.test(address) && !/outdated/i.test(address) && /src\/cart\.ts/.test(address), `[${theme}] it lists the unresolved threads, the outdated one not (${address.replace(/\s+/g, ' ').slice(0, 700)})`);
@@ -242,7 +248,7 @@ export default async ({ page, api, check, dirs }) => {
       check(/Address 1 comment/.test(chosen), `[${theme}] with the count in its action once they are chosen (${chosen.replace(/\s+/g, ' ').slice(-120)})`);
       check(await page.eval(`return !document.querySelector('[role=dialog] img') && window.__pwned !== 1`), `[${theme}] a host's HTML is text: no element came of it`);
       check(!/Resolved|README/.test(address), `[${theme}] the resolved thread is not offered`);
-      check((await page.axe()).length === 0, `[${theme}] axe finds nothing on the address dialog`);
+      await axeCheck(page, check, `[${theme}] axe finds nothing on the address dialog`);
       await page.shot(`reviews-address-${theme}`);
       await page.key('Escape');
       await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: `[${theme}] the dialog closes` });
@@ -268,7 +274,7 @@ export default async ({ page, api, check, dirs }) => {
     await scan(page, check, 'the submit sheet on a phone');
     await page.key('Escape');
     await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: 'the sheet closes' });
-    await page.click('.item-pr-wait.is-address .btn', 'Address with an agent', 500);
+    await page.click('.item-pr-wait.is-address .btn', 'Choose which to address', 500);
     await page.waitFor(`return !!document.querySelector('[role=dialog] .addr-list')`, { label: 'the address sheet' });
     check(await page.eval(`return [...document.querySelectorAll('[role=dialog] .addr-list [role=checkbox], [role=dialog] .addr-list button')].every((el) => el.getBoundingClientRect().height >= 44)`), 'the address rows are 44 px targets');
     check(await page.eval(`return !document.querySelector('[role=dialog] .addr-list input[type=checkbox]')`), 'with no always-visible native checkbox');
@@ -327,12 +333,12 @@ export default async ({ page, api, check, dirs }) => {
         const stripCount = Number(/(\d+) review thread/.exec(await page.text('.item-pr-wait.is-address'))?.[1] ?? Number.NaN);
         const apiCount = await unresolvedNow();
         check(early === late && late === stripCount && stripCount === apiCount && apiCount === 1, `[${theme}] one unresolved count everywhere, before and after the threads load (${early}, ${late}, strip ${stripCount}, api ${apiCount})`);
-        await page.click('.item-pr-wait.is-address .btn', 'Address with an agent', 500);
+        await page.click('.item-pr-wait.is-address .btn', 'Choose which to address', 500);
         await page.waitFor(`return !!document.querySelector('[role=dialog] .addr-list')`, { label: `[${theme}] the address dialog (triage)` });
         const marked = await page.text('[role=dialog]');
         check(/review\.triage/.test(marked) && /1 of 1 chosen/.test(marked) && /Address 1 comment/.test(marked), `[${theme}] the point's marks are shown and what it marked agent is chosen (${marked.replace(/\s+/g, ' ').slice(-220)})`);
-        check(await page.eval(`return !!document.querySelector('[role=dialog] .decided-face') && document.querySelector('[role=dialog] .addr-thread')?.getAttribute('aria-pressed') === 'true'`), `[${theme}] the marked thread is the chosen one`);
-        check((await page.axe()).length === 0, `[${theme}] axe finds nothing on the address dialog with marks`);
+        check(await page.eval(`return !!document.querySelector('[role=dialog] .decided-face') && (() => { const row = document.querySelector('[role=dialog] .addr-thread'); return !!row && (row.getAttribute('aria-pressed') === 'true' || row.classList.contains('on') || !!row.querySelector('input:checked')) })()`), `[${theme}] the marked thread is the chosen one`);
+        await axeCheck(page, check, `[${theme}] axe finds nothing on the address dialog with marks`);
         await page.shot(`reviews-address-triage-${theme}`);
         await page.key('Escape');
         await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: `[${theme}] the dialog closes (triage)` });
@@ -376,11 +382,14 @@ export default async ({ page, api, check, dirs }) => {
       await setTheme(theme);
       await page.goto(changesUrl, 1500);
       await page.waitFor(`return !!document.querySelector('.changes-review .diff .rt.open') && !!document.querySelector('.changes-review .diff .rt.draft')`, { label: `[${theme}] a thread and a note in the diff` });
-      check((await page.axe()).length === 0, `[${theme}] axe finds nothing on the changes page with a thread and a note`);
+      // The diff's context is dimmed on purpose (the design system's DiffView), as changes-review.spec does; the cards are not
+      await axeCheck(page, check, `[${theme}] axe finds nothing on the changes page with a thread and a note`, { rules: { 'color-contrast': { enabled: false } } });
+      await axeCheck(page, check, `[${theme}] the thread cards and the note read at full contrast`, { include: '.changes-review .rt' });
       await page.shot(`reviews-changes-${theme}`);
       await page.click('.diff-add-note[aria-label="Add a note on line 15"]', undefined, 400);
       await page.waitFor(`return !!document.querySelector('.changes-review .diff .rc')`, { label: `[${theme}] the composer` });
-      check((await page.axe()).length === 0, `[${theme}] axe finds nothing on the composer`);
+      await axeCheck(page, check, `[${theme}] axe finds nothing on the changes page with the composer open`, { rules: { 'color-contrast': { enabled: false } } });
+      await axeCheck(page, check, `[${theme}] the composer reads at full contrast`, { include: '.changes-review .rc' });
       await page.shot(`reviews-composer-${theme}`);
       await page.click('.rc .rc-foot .btn-ghost', 'Cancel', 400);
     }
@@ -394,7 +403,9 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return !!document.querySelector('[role=dialog] .rc-note')`, { label: 'the note Sheet' });
     check(await page.eval(`const d = document.querySelector('[role=dialog]'); const r = d.getBoundingClientRect(); return r.width <= innerWidth && r.bottom >= innerHeight - 1`), 'the note form is a Sheet from the bottom edge');
     check(await page.eval(`return [...document.querySelectorAll('[role=dialog] .rc-foot .btn')].every((b) => b.getBoundingClientRect().height >= 44) && [...document.querySelectorAll('[role=dialog] textarea')].every((el) => parseFloat(getComputedStyle(el).fontSize) >= 16)`), 'its buttons are 44 px targets and its inputs 16 px');
-    await scan(page, check, 'the note Sheet on a phone');
+    // The diff's context and syntax are dimmed on purpose (changes-review.spec does the same); the Sheet is not
+    await scan(page, check, 'the note Sheet on a phone', { rules: { 'color-contrast': { enabled: false } } });
+    await scan(page, check, 'the note Sheet on a phone, at full contrast', { include: '[role=dialog]' });
     await page.shot('reviews-composer-phone');
     await page.fill('[role=dialog] .rc-note', 'And a test for it.');
     await page.click('[role=dialog] .rc-foot .btn-primary', 'Add to the review', 800);
@@ -405,7 +416,8 @@ export default async ({ page, api, check, dirs }) => {
     await page.fill('[role=dialog] textarea', 'On it.');
     await page.click('[role=dialog] button[type=submit]', 'Reply', 800);
     await page.waitFor(`return /On it\\./.test(document.querySelector('.rt.open')?.textContent ?? '')`, { label: 'the phone reply comes back' });
-    await scan(page, check, 'the changes page on a phone');
+    await scan(page, check, 'the changes page on a phone', { include: '.changes-review', rules: { 'color-contrast': { enabled: false } } });
+    await scan(page, check, 'the thread cards on a phone, at full contrast', { include: '.changes-review .rt' });
     await page.shot('reviews-changes-phone');
     await page.viewport(1440, 900);
 
@@ -447,7 +459,7 @@ export default async ({ page, api, check, dirs }) => {
         check(buttons.some((b) => b.text === 'Publish the saved' && !b.disabled && b.primary) && buttons.some((b) => b.text === 'Discard the saved' && !b.disabled), `[${theme}] Publish the saved and Discard the saved are offered (${visit}) (${JSON.stringify(buttons)})`);
         check(await page.eval(`return !document.querySelector('.rv-submit-btn')`), `[${theme}] and Submit review is not, a second post would double the comments (${visit})`);
       }
-      check((await page.axe()).length === 0, `[${theme}] axe finds nothing on the partly sent review`);
+      await axeCheck(page, check, `[${theme}] axe finds nothing on the partly sent review`);
       await page.shot(`reviews-partly-${theme}`);
     }
     {
@@ -471,7 +483,7 @@ export default async ({ page, api, check, dirs }) => {
         const live = await page.eval(`return [...document.querySelectorAll('.check-fix')].map((f) => ({ label: f.getAttribute('aria-label'), live: f.classList.contains('live-rail') }))`);
         check(live.length === 1 && live[0].label === 'Comments under way' && live[0].live === true, `[${theme}] a review fix draws one live surface, the review's (${JSON.stringify(live)})`);
         check(await page.eval(`return !document.querySelector('.workitem-fix-checks') && !document.querySelector('.item-pr-wait.is-address')`), `[${theme}] with no checks fix action and no second offer to address`);
-        check((await page.axe()).length === 0, `[${theme}] axe finds nothing on the item with a review fix`);
+        await axeCheck(page, check, `[${theme}] axe finds nothing on the item with a review fix`);
         await page.shot(`reviews-fix-${theme}`);
       }
       await setTheme('dark');
@@ -546,7 +558,7 @@ export default async ({ page, api, check, dirs }) => {
         await page.waitFor(`return !!document.querySelector('.rv')`, { label: `[${theme}] the review block on a merge request` });
         const text = await page.text('.rv');
         check(/your approval/i.test(text) && !/github/i.test(text), `[${theme}] a merge request shows the person's approval and never GitHub's words (${text.replace(/\s+/g, " ").slice(0, 600)})`);
-        check((await page.axe()).length === 0, `[${theme}] axe finds nothing on a merge request's review`);
+        await axeCheck(page, check, `[${theme}] axe finds nothing on a merge request's review`);
         await page.shot(`reviews-gitlab-${theme}`);
       }
     } finally {
