@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T23:00:00Z
-updated_at: 2026-09-29T12:00:00Z
+updated_at: 2026-10-01T18:00:00Z
 tags:
     - work-items
     - flow
@@ -27,6 +27,11 @@ checkout that falls further behind `origin/main` after every merge.
 
 Option A (owner, 2026-09-28): **approving a card opens its pull request**. The person merges it on
 GitHub as always (squash). **A merged PR moves the card to Done and brings the checkout forward.**
+
+Since code hosts phase 4 the person can also merge from Agentry (Merge, Auto-merge, Update from
+base), still as their own click and never a run or a chat token; a merge from there reaches Done
+through the same `merged()` path. See [code-hosts.md](../code-hosts.md#merging) and
+[work-items.md](../work-items.md#merging-from-agentry).
 
 Rejected:
 
