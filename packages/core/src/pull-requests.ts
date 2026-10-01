@@ -36,6 +36,7 @@ import {
   currentBranch,
   git,
   hasTrackedChanges,
+  headCommit,
   identity,
   isGitRepo,
   mainCheckout,
@@ -881,7 +882,7 @@ export class PullRequestService {
     const at = new Date(this.now()).toISOString();
     // moved_at stamps the start: a person's move after it drops the approval the click was
     const started = this.sql
-      .prepare("UPDATE work_item_pull_requests SET fix_state = 'fixing', fix_origin = ?, fix_kind = 'checks', fix_attempts = ?, fix_head = ?, moved_at = ?, error_code = NULL, error_detail = NULL, updated_at = ? WHERE id = ? AND phase = 'open' AND fix_state IS NULL")
+      .prepare("UPDATE work_item_pull_requests SET fix_state = 'fixing', fix_origin = ?, fix_kind = 'checks', address_pushed = NULL, fix_attempts = ?, fix_head = ?, moved_at = ?, error_code = NULL, error_detail = NULL, updated_at = ? WHERE id = ? AND phase = 'open' AND fix_state IS NULL")
       .run(origin, attempts, read.headSha, at, at, row.id).changes;
     if (started !== 1) throw new PullRequestError(`a fix of ${item.key}'s checks is already under way`, 409, 'fix-under-way');
     this.changed(itemId, null, SYSTEM, null);
@@ -933,7 +934,7 @@ export class PullRequestService {
     const attempts = read.headSha && row.fix_head === read.headSha ? (row.fix_attempts ?? 0) + 1 : 1;
     const at = new Date(this.now()).toISOString();
     const started = this.sql
-      .prepare("UPDATE work_item_pull_requests SET fix_state = 'fixing', fix_origin = ?, fix_kind = 'review', fix_threads = ?, fix_attempts = ?, fix_head = ?, moved_at = ?, error_code = NULL, error_detail = NULL, updated_at = ? WHERE id = ? AND phase = 'open' AND fix_state IS NULL")
+      .prepare("UPDATE work_item_pull_requests SET fix_state = 'fixing', fix_origin = ?, fix_kind = 'review', fix_threads = ?, address_pushed = NULL, fix_attempts = ?, fix_head = ?, moved_at = ?, error_code = NULL, error_detail = NULL, updated_at = ? WHERE id = ? AND phase = 'open' AND fix_state IS NULL")
       .run(origin, JSON.stringify(read.threads.map((t) => t.id)), attempts, read.headSha, at, at, row.id).changes;
     if (started !== 1) throw new PullRequestError(`a fix of ${item.key}'s change request is already under way`, 409, 'fix-under-way');
     this.addressed.set(row.id, prompt);
@@ -1075,7 +1076,17 @@ export class PullRequestService {
         if (this.update(row.id, { fix_state: 'awaiting-push', error_code: step.code, error_detail: step.detail }, ['open'])) this.changed(row.item_id, null, SYSTEM, null);
         return;
       }
-      if (!this.update(row.id, { fix_state: null, fix_origin: null, error_code: null, error_detail: null }, ['open'])) return;
+      // What the address pushed is written with the push, so the page says "Addressed in <sha>" for a push
+      // that happened and for no other head
+      let pushed: string | null = null;
+      if (row.fix_kind === 'review' && place) {
+        try {
+          pushed = JSON.stringify({ head: headCommit(place.worktree), threadIds: chosenThreadIds(row.fix_threads) });
+        } catch {
+          // an unreadable head leaves nothing to say
+        }
+      }
+      if (!this.update(row.id, { fix_state: null, fix_origin: null, address_pushed: pushed, error_code: null, error_detail: null }, ['open'])) return;
       this.addressed.delete(row.id);
       // The head moved: what was read for the old one is stale
       try {

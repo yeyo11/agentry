@@ -654,6 +654,10 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // The thread ids an address of review comments was started for, as a JSON array: a restart before the
   // run starts rebuilds the prompt from them. A fix of another kind, or one from before this, has none
   `ALTER TABLE work_item_pull_requests ADD COLUMN fix_threads TEXT;`,
+  // What the last address of review comments pushed, as JSON `{head, threadIds}`: written by the push
+  // itself, cleared when another fix starts. A card taken over leaves none, which is how the page tells
+  // a push from a fix that was dropped
+  `ALTER TABLE work_item_pull_requests ADD COLUMN address_pushed TEXT;`,
 ];
 
 /**

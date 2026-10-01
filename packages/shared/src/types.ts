@@ -1543,6 +1543,11 @@ export interface WorkItemPullRequest {
   fixAttempts?: number;
   /** The head commit the failures were seen on */
   fixHead?: string | null;
+  /**
+   * The push the last address of review comments made: the head it left and the threads it was handed.
+   * Null when it made none (a card taken over drops the fix without one), or after another fix started.
+   */
+  addressed?: { head: string; threadIds: string[] } | null;
 }
 
 /**
