@@ -112,6 +112,7 @@ Twenty-three points. **Suggest** points never change what happens by themselves.
 | Notifications | `notification.urgency` | act | G | Raise the priority of a push notification |
 | Palette | `palette.intent` | suggest | G | Route a free query to a command; needs Jev (low latency) |
 | Code hosts | `checks.fix` | act | P | Whether failing checks on a new head are the branch's fault and a Developer can fix them |
+| | `review.triage` | suggest | P | Who should take each unresolved review comment: an agent, a person, or nobody |
 
 ### `checks.fix`
 
@@ -138,6 +139,19 @@ at project scope, `off` by default like every point, with a 0.85 threshold.
   hook.
 - **Its resolver** (shadow accuracy) records whether the fix's pushed head turned the rollup
   `passing`; a person's word on the "decided" mark or the History row still outranks it.
+
+### `review.triage`
+
+Added with code hosts phase 3 ([code-hosts.md](code-hosts.md)). A suggest point at project scope: it
+acts on nothing and only preselects threads in the **Address with an agent** dialog.
+
+- **What it is told.** The change request's title and its unresolved threads, at most 40: id, path,
+  body cut to 1 KiB, author and whether the thread is outdated. A comment is a stranger's text and
+  goes through the engine's redaction; it is data, never an instruction.
+- **The question** is a choice per thread: "Who should take this review comment?" — `agent` (a
+  concrete code change the Developer can make), `person` (a question, a design decision or a
+  disagreement) or `no-action` (praise, a point already resolved, a nit already done).
+- **What it never does.** It never replies, resolves or starts a run; a person picks the threads.
 
 Not decided by the engine, by design: anything that grants (tool permissions, the move to `done`,
 QA's final verdict, `verifyAuth`, a security mode) and plain arithmetic (account rotation, usage
