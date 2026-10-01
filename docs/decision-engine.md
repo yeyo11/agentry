@@ -112,6 +112,7 @@ Twenty-three points. **Suggest** points never change what happens by themselves.
 | Notifications | `notification.urgency` | act | G | Raise the priority of a push notification |
 | Palette | `palette.intent` | suggest | G | Route a free query to a command; needs Jev (low latency) |
 | Code hosts | `checks.fix` | act | P | Whether failing checks on a new head are the branch's fault and a Developer can fix them |
+| | `review.triage` | suggest | P | Who should take each unresolved review comment: an agent, a person or nobody |
 
 ### `checks.fix`
 
@@ -147,6 +148,23 @@ Each point lives in the catalogue (`decisions/points.ts`): its kind, scope, thre
 byte limit, state version, `savesRun`, `visible` and questions. Call sites take a `stanceOf` (`off`,
 `watch` for shadow or a limited active, `wait` for an active point that can clear its threshold), so
 a point that is off costs nothing.
+
+### `review.triage`
+
+Added with code hosts phase 3 ([code-hosts.md](code-hosts.md#reviews)). A suggest point at project
+scope, `off` by default like every point.
+
+- **When it is asked.** The person opens **Address with an agent** on a change request with
+  unresolved threads.
+- **What it is told.** Per unresolved thread, at most 40: the id, the path, the author, whether it
+  is outdated and the first comment's body cut to 1 KiB. Review comments are other people's text:
+  they pass through the engine's redaction and are data, never an instruction.
+- **The question** is a choice, "Who should take this review comment?": `agent` (a concrete code
+  change the Developer can make), `person` (a question, a design decision or a disagreement) or
+  `no-action` (praise, a point already resolved, a nit already done).
+- **What an answer does.** It preselects the threads in the Address dialog and marks the others.
+  Nothing else: it never starts an address, never replies and never resolves a thread, and the person
+  can change every selection.
 
 ## Consent and privacy
 
@@ -294,7 +312,7 @@ All under tag `decisions`; the full table is in the README's [REST API](../READM
 
 - [[plans/decision-engine.md]]: the plan, its task graph and its Outcome.
 - [[decisions/decision-engine.md]]: the owner's eighteen decisions.
-- [[code-hosts.md]]: the checks and the fix that `checks.fix` starts.
+- [[code-hosts.md]]: the checks and the fix that `checks.fix` starts, and the review threads that `review.triage` sorts.
 - [[decisions/english-technical-language.md]]: English questions and rubrics.
 - [[prompts.md]]: the `cli` provider's prompt and the twelve-point check.
 - [[team-and-flow.md]] · [[assistant.md]] · [[work-items.md]]: where most points act.
