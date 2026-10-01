@@ -106,6 +106,7 @@
   "MemberRuns [NowAndBefore, RunRow]",
   "Members [AnswersFor, FileState, MemberCells, MemberGrid, ProposeButton, TeamEmpty, WritesFacts, useProposeTeam]",
   "Menu [Menu, MenuEntry, MenuGroup, MenuItem]",
+  "Merge [Merge, mergePrimary, useMergeLeads]",
   "Milestones [Milestones]",
   "ModelPicker [ModelPick, ModelPicker, modelPicks]",
   "MoreActions [MoreActions]",

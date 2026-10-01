@@ -245,9 +245,9 @@ export function partlyPost<P extends Pick<ReviewPost, 'state'>>(posts: readonly 
 /**
  * One gradient action per zone. While the person has a draft review, **Submit review** is the
  * zone's, and the header's **Work on it** renders neutral, as it does while **Fix failing checks**
- * shows (`checksFixShowing`).
+ * shows (`checksFixShowing`), and while **Merge** leads the merge block (`mergeLeading`).
  */
-export const workOnItNeutral = (opts: { drafts: number; checksFixShowing: boolean }): boolean => opts.drafts > 0 || opts.checksFixShowing;
+export const workOnItNeutral = (opts: { drafts: number; checksFixShowing: boolean; mergeLeading?: boolean }): boolean => opts.drafts > 0 || opts.checksFixShowing || opts.mergeLeading === true;
 
 // ---------- addressing with an agent ----------
 

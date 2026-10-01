@@ -1,0 +1,207 @@
+{
+  "title": "Fusión",
+  "sub": "{{ref}} · {{head}} → {{base}} · {{sha}}",
+  "loading": "Leyendo qué impide la fusión…",
+  "failed": "Agentry no ha podido leer el estado de la fusión en {{host}}.",
+  "retry": "Reintentar",
+  "limited": "{{host}} está limitando las lecturas. Este es el último estado que tenía Agentry; vuelve a leer a las {{time}}.",
+  "badge": {
+    "ready": "lista para fusionar",
+    "warning": "se puede, con aviso",
+    "armed": "fusión automática activada",
+    "waitingPipeline": "esperando a la pipeline",
+    "merging": "fusionando",
+    "headMoved": "la rama cambió",
+    "checksPending": "CI pendiente"
+  },
+  "row": {
+    "method": "Método",
+    "message": "Mensaje",
+    "branch": "Rama",
+    "warning": "Aviso",
+    "autoMerge": "Fusión automática",
+    "waitsFor": "Espera a",
+    "pipeline": "Pipeline",
+    "commit": "Commit",
+    "now": "Ahora",
+    "others": "También impide"
+  },
+  "method": {
+    "squash": "Squash",
+    "merge": "Fusión",
+    "rebase": "Rebase",
+    "label": "Método de fusión",
+    "fixed": "Lo fija {{host}} para este proyecto",
+    "hint": {
+      "squash": "Un solo commit en {{base}}, con el asunto y el cuerpo de abajo.",
+      "merge": "Un commit de fusión en {{base}}, con el asunto y el cuerpo de abajo.",
+      "rebase": "Cada commit de {{head}} se repite sobre {{base}}; no hay mensaje que escribir."
+    }
+  },
+  "message": {
+    "subject": "Asunto",
+    "subjectLabel": "Asunto del commit",
+    "body": "Cuerpo (opcional)",
+    "bodyLabel": "Cuerpo del commit",
+    "hostWrites": "{{host}} escribe el suyo"
+  },
+  "branch": {
+    "delete": "Borrar la rama {{head}} en {{host}} al fusionar",
+    "localStays": "La rama local se queda: los cambios de la tarea la leen."
+  },
+  "warning": {
+    "optional-checks-failing": "Algunas comprobaciones que no son obligatorias han fallado. {{host}} no las exige para fusionar.",
+    "word": "no obligatoria"
+  },
+  "note": {
+    "done": "Al fusionar, la tarea pasa sola a Hecho.",
+    "arm": "{{host}} fusionará la {{noun}} cuando terminen las comprobaciones, aunque Agentry esté cerrado.",
+    "armed": "Si Agentry sube cambios a la rama, la desactiva antes y te avisa para que la actives otra vez.",
+    "pipelineWait": "Fusionar ahora podría saltarse la pipeline del commit que acabas de subir.",
+    "merging": "Enviando la fusión a {{host}}…"
+  },
+  "autoMerge": {
+    "on": "activada",
+    "by": "@{{who}} · {{when}} · {{method}}",
+    "byUnknown": "{{when}} · {{method}}",
+    "unknown": "{{host}} no dice quién ni cuándo",
+    "waitsFor": "La {{noun}} se fusiona cuando las comprobaciones y las reglas lo permitan"
+  },
+  "pipeline": {
+    "waiting": "Esperando a la pipeline",
+    "waitingDetail": "commit {{sha}} · {{host}} aún no la ha asociado · se comprueba cada 10 s"
+  },
+  "headMoved": {
+    "title": "La rama cambió mientras mirabas, y no se fusionó nada.",
+    "text": "Lee los cambios nuevos y vuelve a fusionar: Agentry nunca fusiona un commit que no hayas visto.",
+    "seen": "el que viste",
+    "now": "el que tiene la rama ahora",
+    "changes": "Ver los cambios"
+  },
+  "actions": {
+    "merge": "Fusionar",
+    "merging": "Fusionando",
+    "mergeWhenPipeline": "Fusionar al terminar la pipeline",
+    "arm": "Activar fusión automática",
+    "disarm": "Desactivar",
+    "reread": "Volver a leer",
+    "waiting": "Esperando a la pipeline"
+  },
+  "toast": {
+    "merged": "{{ref}} fusionada",
+    "armed": "Fusión automática activada",
+    "disarmed": "Fusión automática desactivada",
+    "updated": "{{head}} está al día con {{base}}",
+    "ready": "Marcada como lista para revisar",
+    "fixStarted": "Un agente se ha puesto con ello",
+    "failed": "La acción ha fallado",
+    "conflicts": "Actualizar {{head}} desde {{base}} ha dado conflictos. Los conflictos pasan al desarrollador."
+  },
+  "failure": {
+    "head-moved": "La rama cambió mientras mirabas. No se ha fusionado nada.",
+    "method-not-allowed": "El repositorio ya no permite ese método. Elige otro.",
+    "auto-merge-not-allowed": "La fusión automática está desactivada en este repositorio.",
+    "auto-merge-not-needed": "No queda nada que esperar, así que no hay nada que activar. Fusiona ya.",
+    "waiting-for-pipeline": "{{host}} aún no ha asociado la pipeline de este commit. Inténtalo de nuevo en un momento.",
+    "rate-limited": "{{host}} está limitando las peticiones. Inténtalo más tarde.",
+    "forbidden": "Solo una persona puede fusionar, y esta cuenta no puede.",
+    "merge-failed": "{{host}} ha rechazado la fusión."
+  },
+  "blocker": {
+    "not-open": {
+      "word": "cerrada",
+      "text": "Esta {{noun}} está {{state}}."
+    },
+    "computing": {
+      "word": "calculando",
+      "text": "{{host}} aún está calculando si se puede fusionar."
+    },
+    "draft": {
+      "word": "borrador",
+      "text": "Esta {{noun}} es un borrador."
+    },
+    "conflicts": {
+      "word": "en conflicto",
+      "text": "{{head}} tiene conflictos con {{base}}."
+    },
+    "nothing-to-merge": {
+      "word": "sin cambios",
+      "text": "{{head}} no tiene nada que {{base}} no tenga."
+    },
+    "behind": {
+      "word": "desactualizada",
+      "text": "{{base}} exige que {{head}} esté al día."
+    },
+    "checks-running": {
+      "word": "en marcha",
+      "text": "Las comprobaciones obligatorias no han terminado."
+    },
+    "checks-failing": {
+      "word": "fallida",
+      "text": "La comprobación obligatoria {{name}} ha fallado."
+    },
+    "checks-missing": {
+      "word": "sin informar",
+      "text": "La comprobación obligatoria {{name}} no ha informado del último commit."
+    },
+    "external-checks": {
+      "word": "bloqueada",
+      "text": "Las comprobaciones externas tienen que pasar primero."
+    },
+    "review-required": {
+      "word": "sin aprobar",
+      "text": "Hace falta la aprobación de alguien con acceso de escritura."
+    },
+    "changes-requested": {
+      "word": "cambios pedidos",
+      "text": "Un revisor ha pedido cambios."
+    },
+    "threads-unresolved": {
+      "word": "sin resolver",
+      "text": "Hay que resolver todas las conversaciones antes."
+    },
+    "tracker-key-missing": {
+      "word": "sin clave",
+      "text": "{{host}} exige una clave de Jira en el título o en la descripción."
+    },
+    "title-rejected": {
+      "word": "título rechazado",
+      "text": "El título no cumple el patrón que exige este proyecto."
+    },
+    "blocked-by-dependency": {
+      "word": "depende de otra",
+      "text": "Otra {{noun}} tiene que fusionarse antes."
+    },
+    "not-yet": {
+      "word": "programada",
+      "text": "Esta {{noun}} no puede fusionarse antes de su hora programada."
+    },
+    "locked-files": {
+      "word": "archivos bloqueados",
+      "text": "Otra persona tiene bloqueados archivos de esta {{noun}}."
+    },
+    "merge-queue": {
+      "word": "por cola",
+      "text": "Esta rama se fusiona mediante una cola; añádela allí."
+    },
+    "blocked-by-policy": {
+      "word": "bloqueada",
+      "text": "Las reglas de {{host}} para {{base}} aún no permiten esta fusión."
+    }
+  },
+  "action": {
+    "mark-ready": "Marcar como lista",
+    "update-from-base": "Actualizar desde {{base}}",
+    "rebase-on-host": "Rebasar en {{host}}",
+    "close": "Cerrar en {{host}}",
+    "auto-merge": "Activar fusión automática",
+    "fix-checks": "Arreglar las comprobaciones fallidas",
+    "rerun-checks": "Repetir las comprobaciones",
+    "request-reviewers": "Pedir revisores",
+    "address-review": "Atender con un agente",
+    "show-threads": "Ver hilos sin resolver",
+    "edit-title": "Editar el título en {{host}}",
+    "open-on-host": "Abrir en {{host}}",
+    "refresh": "Volver a comprobar"
+  }
+}
