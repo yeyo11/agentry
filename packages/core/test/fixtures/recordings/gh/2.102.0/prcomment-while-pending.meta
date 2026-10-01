@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr comment 12 -R yeyo11/agentry-probe --body issue comment while pending
+exit: 0
+secs: 1.597257149
+env: 

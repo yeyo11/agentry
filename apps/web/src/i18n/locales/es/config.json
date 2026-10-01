@@ -932,19 +932,19 @@
   },
   "detail": {
     "result": "Resultado",
-    "prOpened": "Pull request abierta",
+    "prOpened": "{{noun}} abierta",
     "pushed": "Se ha subido {{branch}}",
     "worktreesKept_one": "Se ha conservado {{count}} worktree",
     "worktreesKept_other": "Se han conservado {{count}} worktrees",
     "worktreesRemoved": "Worktrees eliminados",
     "branchesKept": "Se conservan todas las ramas.",
     "integration": "Integración",
-    "pullRequest": "Pull request",
+    "pullRequest": "Abrir {{noun}} {{ref}} en {{host}}",
     "pushTitle": "¿Subir {{branch}}?",
-    "pushBody": "La rama se sube a origin y se abre una pull request para ella con gh.",
+    "pushBody": "La rama se sube a origin y se abre una {{noun}} para ella en {{host}}.",
     "pushConfirm": "Subir y abrir",
     "pushing": "Subiendo…",
-    "push": "Subir y abrir la PR",
+    "push": "Subir y abrir la {{noun}}",
     "integrateAgain": "Volver a integrar",
     "integrate": "Integrar las ramas",
     "pruneTitle": "¿Quitar los worktrees?",
@@ -994,7 +994,17 @@
     "synthesis": "Síntesis",
     "synthesisHint": "Agente final que informa de todo lo que han hecho las tareas.",
     "finalResult": "Resultado final",
-    "continue": "Continuar la conversación"
+    "continue": "Continuar la conversación",
+    "pullRequestUnnumbered": "Abrir la {{noun}} en {{host}}",
+    "prPhase": {
+      "preparing": "preparando",
+      "open": "esperando fusión",
+      "merged": "fusionada",
+      "closed": "cerrada sin fusionar",
+      "failed": "fallida"
+    },
+    "prBranches": "{{branch}} → {{base}}",
+    "prFollows": "Agentry sigue la {{noun}} en {{host}}. Cuando se fusione, te lo dirá aquí."
   },
   "install": {
     "title": "Instalar en este dispositivo",

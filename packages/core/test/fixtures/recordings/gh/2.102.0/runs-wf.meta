@@ -1,0 +1,5 @@
+gh: 102
+argv: gh run list -R yeyo11/agentry -L 3 -w desktop.yml --json databaseId,attempt,conclusion
+exit: 0
+secs: 1.095446564
+env: 

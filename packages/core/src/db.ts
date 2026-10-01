@@ -543,6 +543,50 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // session, so the default is what an old process, which never writes the column, leaves behind
   `ALTER TABLE chats ADD COLUMN provider TEXT NOT NULL DEFAULT 'claude-code';
    CREATE INDEX chats_provider ON chats (provider, created_at DESC);`,
+  // Code hosts (docs/plans/code-hosts.md): every PR row so far was opened by gh on a host gh knew, so
+  // 'github' is true of all of them; hostname stays null and the watcher reads it from origin as it
+  // does today. An orchestration's change requests are the same lifecycle minus the flow's phases, and
+  // cascade with the orchestration's row, which is upserted and never deleted and reinserted. The
+  // unique index lets only one of two clicks, or two processes, open the change request. The breaker
+  // of the execution layer is a row per host and bucket, shared by every process on the data directory
+  `ALTER TABLE work_item_pull_requests ADD COLUMN host TEXT NOT NULL DEFAULT 'github';
+   ALTER TABLE work_item_pull_requests ADD COLUMN hostname TEXT;
+   CREATE TABLE orchestration_pull_requests (
+     id               TEXT PRIMARY KEY,
+     orchestration_id TEXT NOT NULL REFERENCES orchestrations (id) ON DELETE CASCADE,
+     cwd              TEXT NOT NULL,
+     host             TEXT NOT NULL,
+     hostname         TEXT,
+     phase            TEXT NOT NULL,
+     number           INTEGER,
+     url              TEXT,
+     branch           TEXT NOT NULL,
+     base             TEXT NOT NULL,
+     ci               TEXT,
+     error_code       TEXT,
+     error_detail     TEXT,
+     opened_at        TEXT,
+     closed_at        TEXT,
+     checked_at       TEXT,
+     claimed_until    TEXT,
+     created_at       TEXT NOT NULL,
+     updated_at       TEXT NOT NULL
+   );
+   CREATE INDEX orchestration_pull_requests_orch ON orchestration_pull_requests (orchestration_id, created_at);
+   CREATE INDEX orchestration_pull_requests_phase ON orchestration_pull_requests (phase);
+   CREATE UNIQUE INDEX orchestration_pull_requests_live ON orchestration_pull_requests (orchestration_id)
+     WHERE phase IN ('preparing', 'open');
+   CREATE TABLE host_rate_limits (
+     host          TEXT NOT NULL,
+     bucket        TEXT NOT NULL,
+     limit_value   INTEGER,
+     remaining     INTEGER,
+     reset_at      TEXT,
+     blocked_until TEXT,
+     strikes       INTEGER NOT NULL DEFAULT 0,
+     updated_at    TEXT NOT NULL,
+     PRIMARY KEY (host, bucket)
+   );`,
 ];
 
 /**
@@ -565,6 +609,9 @@ export const DECISION_SIGNALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeo
 
 /** The version that added the chats' provider column, for the test that upgrades a database from the one before */
 export const CHAT_PROVIDER_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE INDEX chats_provider')) + 1;
+
+/** The version that added the code hosts' columns and tables, for the test that upgrades a database from the one before */
+export const CODE_HOSTS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE host_rate_limits')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by

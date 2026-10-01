@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api --paginate --slurp repos/yeyo11/agentry/pulls/150/files?per_page=50 --jq map(length)
+exit: 1
+secs: .105024916
+env: 

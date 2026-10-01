@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr list -R yeyo11/agentry --json
+exit: 1
+secs: .382845373
+env: 

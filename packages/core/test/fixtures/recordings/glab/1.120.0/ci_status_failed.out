@@ -1,0 +1,8 @@
+(manual) • not started	test		probe-manual
+(failed) • 00m 25s	test		probe-fail
+(success) • 00m 58s	test		probe-ok
+
+https://gitlab.com/yeyo11/agentry/-/pipelines/2898393321
+SHA: b05cd70b9747b23aaaaf6028b1bda0b6edec27c9
+Pipeline state: failed
+

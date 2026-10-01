@@ -1,0 +1,23 @@
+Unknown JSON field: "issueType"
+Available fields:
+  assignees
+  author
+  body
+  closed
+  closedAt
+  closedByPullRequestsReferences
+  comments
+  createdAt
+  id
+  isPinned
+  labels
+  milestone
+  number
+  projectCards
+  projectItems
+  reactionGroups
+  state
+  stateReason
+  title
+  updatedAt
+  url

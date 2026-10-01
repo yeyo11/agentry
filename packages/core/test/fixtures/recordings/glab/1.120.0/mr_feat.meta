@@ -1,0 +1,5 @@
+glab: 1.120.0
+argv: glab mr create -R yeyo11/agentry -s probe/feat -b probe/base -t probe feat mergeable -d probe -l probe-label,probe-two --reviewer yeyo11 --remove-source-branch=false --squash-before-merge=false -y
+exit: 0
+env: 
+stdin-sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855

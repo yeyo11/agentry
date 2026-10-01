@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api repos/yeyo11/agentry-probe/rules/branches/main
+exit: 0
+secs: .757270684
+env: 

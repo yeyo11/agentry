@@ -7,8 +7,10 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { DecisionRecord, Execution } from '@agentry/shared';
 import type { LegacyRun, StoredChat } from '../src/chat-records.ts';
-import { CHAT_PROVIDER_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, migrate, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
+import { CHAT_PROVIDER_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, migrate, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
+import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from '../src/orchestration-pr-rows.ts';
+import { pullRequestOf, type PullRequestRow } from '../src/work-item-rows.ts';
 import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
 import { tempConfig } from './helpers.ts';
@@ -567,4 +569,42 @@ test('decisions delete one, clear a filtered set, and prune by age', () => {
   assert.equal(db.clearDecisions(), 1);
   assert.equal(db.listDecisions().items.length, 0);
   db.close();
+});
+
+test('pull requests stored before the code hosts read as github, with a ref, and the new tables exist', () => {
+  const raw = new DatabaseSync(':memory:');
+  // The rows below name no parent: the test is about columns and indexes, not the work item's own rows
+  raw.exec('PRAGMA foreign_keys = OFF');
+  migrate(raw, CODE_HOSTS_SCHEMA_VERSION - 1);
+  const insert = raw.prepare(
+    `INSERT INTO work_item_pull_requests (id, item_id, project_id, phase, number, branch, base, approved_at, created_at, updated_at)
+     VALUES (?, 'i', 'p', 'open', 12, 'task/CW-1', 'main', ?, ?, ?)`,
+  );
+  insert.run('old', at(1), at(1), at(1));
+  migrate(raw);
+  const row = raw.prepare('SELECT * FROM work_item_pull_requests WHERE id = ?').get('old') as unknown as PullRequestRow;
+  assert.equal(row.host, 'github');
+  assert.equal(row.hostname, null);
+  assert.deepEqual([pullRequestOf(row).host, pullRequestOf(row).ref], ['github', '#12']);
+  assert.equal(pullRequestOf({ ...row, host: 'gitlab' }).ref, '!12');
+  assert.equal(pullRequestOf({ ...row, number: null }).ref, null);
+  // A process still on the old schema writes no host, and SQLite fills the default
+  insert.run('older-writer', at(2), at(2), at(2));
+  assert.equal((raw.prepare('SELECT host FROM work_item_pull_requests WHERE id = ?').get('older-writer') as { host: string }).host, 'github');
+
+  const add = raw.prepare(
+    `INSERT INTO orchestration_pull_requests (id, orchestration_id, cwd, host, phase, branch, base, created_at, updated_at)
+     VALUES (?, 'o', '/repo', 'gitlab', ?, 'b', 'main', ?, ?)`,
+  );
+  add.run('a', 'open', at(1), at(1));
+  // One live change request per orchestration; a finished one frees the slot
+  assert.throws(() => add.run('b', 'preparing', at(2), at(2)), /UNIQUE/);
+  raw.prepare("UPDATE orchestration_pull_requests SET phase = 'closed' WHERE id = 'a'").run();
+  add.run('c', 'preparing', at(3), at(3));
+  const read = orchestrationPullRequestOf(raw.prepare('SELECT * FROM orchestration_pull_requests WHERE id = ?').get('c') as unknown as OrchestrationPullRequestRow);
+  assert.deepEqual([read.phase, read.host, read.ref, read.error], ['preparing', 'gitlab', null, null]);
+
+  raw.prepare("INSERT INTO host_rate_limits (host, bucket, updated_at) VALUES ('github.com', 'core', ?)").run(at(1));
+  assert.equal((raw.prepare('SELECT strikes FROM host_rate_limits').get() as { strikes: number }).strikes, 0);
+  raw.close();
 });

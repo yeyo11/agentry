@@ -1,0 +1,5 @@
+gh: 102
+argv: gh run view --job 109958356198 -R yeyo11/agentry --log
+exit: 0
+secs: 2.255931913
+env: 

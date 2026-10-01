@@ -200,6 +200,42 @@
     "next": "Siguiente",
     "back": "Volver"
   },
+  "host": {
+    "title": "Alojamiento del código",
+    "titleShort": "Repositorio",
+    "detected": "detectado del remoto origin",
+    "detectedShort": "Detectado del remoto origin; no se elige.",
+    "noun": "Las propuestas de cambio de este proyecto son {{noun}}: se leen como",
+    "loadFailed": "No se ha podido leer el alojamiento del código del proyecto",
+    "noRemote": "Sin remoto origin",
+    "cliFallback": "El CLI del alojamiento",
+    "state": {
+      "ready": "Listo",
+      "not-git": "No es un repositorio git",
+      "no-remote": "Sin remoto",
+      "unsupported-host": "No compatible",
+      "no-default-branch": "Sin rama predeterminada",
+      "cli-missing": "Sin instalar",
+      "cli-incompatible": "Hay que actualizar",
+      "cli-signed-out": "Sin sesión"
+    },
+    "reason": {
+      "ready": "{{cli}} tiene sesión en {{hostname}} y responde.",
+      "not-git": "El directorio no es un repositorio git, así que no hay alojamiento al que preguntar.",
+      "no-remote": "El proyecto no tiene remoto origin, así que Agentry no sabe dónde vive su código.",
+      "unsupported-host": "{{cli}} no tiene sesión en {{hostname}}, o el alojamiento está desactivado en Integraciones.",
+      "no-default-branch": "{{host}} no dijo cuál es la rama predeterminada.",
+      "cli-missing": "{{cli}} no está instalado, y es a quien Agentry pregunta por {{host}}.",
+      "cli-incompatible": "{{cli}} es anterior a las versiones con las que funciona Agentry.",
+      "cli-signed-out": "{{cli}} no tiene sesión en {{hostname}}."
+    },
+    "remedy": {
+      "install": "Cómo instalar {{cli}}",
+      "sign-in": "Cómo iniciar sesión",
+      "docs": "Leer la documentación",
+      "settings": "Abrir Integraciones"
+    }
+  },
   "general": {
     "title": "General",
     "name": "Nombre",

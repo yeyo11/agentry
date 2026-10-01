@@ -1,0 +1,5 @@
+gh: 102
+argv: gh run view 36736141177 -R yeyo11/agentry --exit-status --json conclusion
+exit: 0
+secs: .983620084
+env: 

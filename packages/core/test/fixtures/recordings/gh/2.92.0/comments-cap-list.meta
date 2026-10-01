@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr list -R yeyo11/agentry-probe --state open --json number,comments --jq .[]|select(.number==29)|.comments|length
+exit: 0
+secs: 1.472181964
+env: 

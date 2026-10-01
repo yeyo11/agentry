@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr comment 4 -R yeyo11/agentry-probe --delete-last --yes
+exit: 0
+secs: 2.636837987
+env: 

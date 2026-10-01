@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api -X POST repos/yeyo11/agentry-probe/statuses/3354b42ec1e87edb1af3e50fb417c33b294378ec -f state=pending -f context=probe/status -f description=probe pending -f target_url=https://example.invalid/probe --jq {id,state,context,description}
+exit: 0
+secs: 3.269997105
+env: 

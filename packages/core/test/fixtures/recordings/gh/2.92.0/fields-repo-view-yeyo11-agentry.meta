@@ -1,0 +1,5 @@
+gh: 92
+argv: gh repo view yeyo11/agentry --json
+exit: 1
+secs: .140936017
+env: 

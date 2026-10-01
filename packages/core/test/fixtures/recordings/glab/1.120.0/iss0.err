@@ -1,0 +1,7 @@
+          
+   ERROR  
+          
+  Invalid argument "json" for "-F, --output-format" flag: must be one of [urls details ids].                          
+
+  Try --help for usage.
+

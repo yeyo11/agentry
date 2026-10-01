@@ -142,6 +142,88 @@ def proj_tabs(on):
   return f'<nav class="tabs proj-tabs" role="tablist" aria-label="Secciones del proyecto">{out}</nav>'
 
 
+# ---------------------------------------------------------------- the project's host line (plans/code-hosts.md, P0 p2)
+# Detected from the origin remote, never chosen. variant -> what the line shows. `mono` is the host's
+# monogram and hue (never red, green or cyan); a host no CLI knows has none and gets the git icon.
+HOST_LINES = {
+  'gh-ready': dict(host='github.com', path='yeyochico/claude-wrapper', mono=('GH', 262), cli='gh 2.92.0', account='yeyochico', state='ready',
+                   reason='gh tiene sesión en github.com y responde.', noun='PR', ref='#12'),
+  'gl-ready': dict(host='gitlab.inmoseo.net', path='equipo/pagos-api', mono=('GL', 35), cli='glab 1.120.0', account='yeyo', state='ready',
+                   reason='glab tiene sesión en gitlab.inmoseo.net y responde.', noun='MR', ref='!12'),
+  'unsupported': dict(host='git.acme.internal', path='equipo/facturas', mono=None, cli='', account='', state='unsupported',
+                      reason='Agentry no puede llegar a git.acme.internal: ni gh ni glab tienen sesión en él.',
+                      action=('Ir a Integraciones', 'DesktopIntegraciones.html', False)),
+  'signed-out': dict(host='github.com', path='yeyochico/claude-wrapper', mono=('GH', 262), cli='gh 2.92.0', account='', state='signed-out',
+                     reason='gh no tiene sesión en github.com.', noun='PR', ref='#12',
+                     action=('Ver cómo iniciar sesión', '#', True)),
+}
+HOST_STATE = {'ready': ('Listo', 'b-ok', 'dot-ok'), 'signed-out': ('Sin sesión', 'b-warn', 'dot-warn'), 'unsupported': ('No disponible', 'b-warn', 'dot-warn')}
+P.setdefault('ext', 'M14 4h6v6M20 4l-8 8M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5')
+
+
+def host_badge(v):
+  word, cls, dot = HOST_STATE[v['state']]
+  return f'<span class="badge {cls}"><span class="dot {dot}" style="width: 6px; height: 6px"></span>{word}</span>'
+
+
+def host_icon(v):
+  if v['mono']:
+    letters, hue = v['mono']
+    name = 'GitHub' if letters == 'GH' else 'GitLab'
+    return f'<span class="proj monogram" style="--hue: {hue}" role="img" aria-label="{name}" title="{name}">{letters}</span>'
+  return f'<span class="proj" style="background: var(--bg-3); color: var(--fg-2)" role="img" aria-label="Host sin CLI" title="Host sin CLI">{ico("git")}</span>'
+
+
+def host_meta(v):
+  if not v['cli']:
+    return 'ninguna CLI conoce este host'
+  return v['cli'] + (f' · {v["account"]}' if v['account'] else ' · sin cuenta')
+
+
+def host_action(v, lg=False):
+  if 'action' not in v:
+    return ''
+  label, href, ext = v['action']
+  size = ' btn-lg' if lg else ''
+  style = ' style="justify-content: center"' if lg else ''
+  return f'<a href="{href}" class="btn{size}"{style}>{label}{ico("ext", "ico ico-sm") if ext else ""}</a>'
+
+
+def host_hint(v):
+  if v['state'] == 'unsupported':
+    return 'Sin un host conocido Agentry no abre ni sigue PR ni MR de este proyecto.'
+  if v['state'] == 'signed-out':
+    return f'Hasta que tenga sesión, Agentry no abre ni sigue {v["noun"]} ({v["ref"]}) de este proyecto.'
+  return f'Las propuestas de cambio de este proyecto son {v["noun"]}: se leen como <span class="mono fg-2">{v["ref"]}</span>.'
+
+
+def host_line(variant='gh-ready', stacked=False):
+  """The line itself: host icon, hostname/path in mono, the CLI and its account, the readiness word,
+  and under it the reason with its one action. Desktop puts the word on the right, a phone stacks."""
+  v = HOST_LINES[variant]
+  ident = (f'<div class="host-line-id"><span class="host-path"><b>{v["host"]}</b>/{v["path"]}</span>'
+           f'<span class="mono t-xs fg-3">{host_meta(v)}</span></div>')
+  if stacked:
+    why = f'<div class="host-line-why">{host_badge(v)}<p class="prov-reason">{v["reason"]}</p>{host_action(v, lg=True)}</div>'
+    return f'<div class="host-line stacked"><div class="host-line-main">{host_icon(v)}{ident}</div>{why}</div>'
+  why = f'<div class="host-line-why"><p class="prov-reason">{v["reason"]}</p>{host_action(v)}</div>'
+  return f'<div class="host-line"><div class="host-line-main">{host_icon(v)}{ident}{host_badge(v)}</div>{why}</div>'
+
+
+def host_card(variant='gh-ready'):
+  v = HOST_LINES[variant]
+  return (f'<section class="card col" style="padding: 18px; gap: 14px" aria-labelledby="sec-host"><div class="row"><h2 class="t-h2 grow" id="sec-host">Alojamiento del código</h2>'
+          f'<span class="mono t-xs fg-3">detectado del remoto origin</span></div>{host_line(variant)}'
+          f'<span class="form-hint">{host_hint(v)}</span></section>')
+
+
+def mhost_section(variant='gh-ready'):
+  v = HOST_LINES[variant]
+  return (f'<div class="col" style="gap: 8px"><span class="t-label" style="padding: 0 4px">Repositorio</span>'
+          f'<section class="card" style="padding: 14px" aria-label="Alojamiento del código">{host_line(variant, stacked=True)}</section>'
+          f'<span class="form-hint" style="padding: 0 4px">Detectado del remoto origin; no se elige. {host_hint(v)}</span></div>')
+
+
 def project_settings_desktop():
   limits = ''.join(f'<div class="form-row" style="gap: 6px"><span class="row t-xs fg-2" style="gap: 6px">{sico(s)}{n}</span><label class="field mono" style="height: 34px"><input value="{LIMITS.get(s, "")}" placeholder="—" aria-label="Límite de {n}" style="font-size: 13px"></label></div>' for s, n in COLS)
   main = f'''<main class="page" style="gap: 18px">
@@ -154,6 +236,7 @@ def project_settings_desktop():
 <div class="form-row"><span class="t-label">Prefijo de clave</span><label class="field mono" style="width: 160px"><input value="AGN" aria-label="Prefijo de clave"></label><span class="form-hint">Las claves se componen al leerlas: si lo cambias a <span class="mono fg-2">CW</span>, <span class="mono fg-2">AGN-12</span> pasa a leerse <span class="mono fg-2">CW-12</span>. El número no cambia nunca y no se reutiliza.</span></div>
 <div class="form-row"><span class="t-label">Directorio</span><span class="mono t-sm fg-2">~/Escritorio/claude-wrapper</span></div>
 </section>
+{host_card()}
 <section class="card col" style="padding: 18px; gap: 14px"><div class="col" style="gap: 4px"><h2 class="t-h2">Tablero</h2><span class="t-sm fg-2">Límite por columna. Pasarse se permite: la columna lo avisa con una palabra, sin bloquear el movimiento.</span></div>
 <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px">{limits}</div>
 </section>
@@ -190,6 +273,7 @@ def project_settings_mobile():
 </div>
 <span class="form-hint" style="padding: 0 4px">Cambiarlo cambia cómo se leen las claves: <span class="mono">AGN-12</span> pasaría a <span class="mono">CW-12</span>. El número no cambia.</span>
 </div>
+{mhost_section()}
 <div class="col" style="gap: 8px"><span class="t-label" style="padding: 0 4px">Módulos</span>
 <div class="card" style="overflow: hidden">
 {cell_sw('board', True, '13 abiertas · 25 en total')}

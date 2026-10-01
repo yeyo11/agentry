@@ -1,0 +1,5 @@
+gh: 92
+argv: gh issue view 25 -R yeyo11/agentry-probe --json issueType
+exit: 1
+secs: .116652179
+env: 

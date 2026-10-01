@@ -1,0 +1,5 @@
+gh: 92
+argv: gh issue close --help
+exit: 0
+secs: .138649917
+env: 

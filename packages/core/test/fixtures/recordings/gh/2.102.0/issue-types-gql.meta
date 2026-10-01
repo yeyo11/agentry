@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api graphql -f query={repository(owner:"yeyo11",name:"agentry-probe"){issueTypes(first:10){nodes{name}}}}
+exit: 0
+secs: .793968718
+env: 

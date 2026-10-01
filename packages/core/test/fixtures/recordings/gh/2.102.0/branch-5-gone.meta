@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api repos/yeyo11/agentry-probe/branches/st-clean
+exit: 1
+secs: 1.048081256
+env: 

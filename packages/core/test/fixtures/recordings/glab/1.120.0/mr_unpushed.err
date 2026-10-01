@@ -1,0 +1,11 @@
+
+Creating merge request for probe/feat into probe/base in yeyo11/agentry
+
+Failed to create merge request. Created recovery file: /home/yeyo/.config/glab-cli/recover/yeyo11/agentry/mr.json
+Run the command again with the '--recover' option to retry.
+          
+   ERROR  
+          
+  Post https://gitlab.com/api/v4/projects/yeyo11%2Fagentry/merge_requests: 400 {message: {source_branch: [does not    
+  exist]}}.                                                                                                           
+

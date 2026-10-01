@@ -1,0 +1,6 @@
+glab: 1.120.0
+argv: glab ci trace 16845688157 -R yeyo11/agentry
+exit: 124
+env: 
+stdin-sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+wrapper: timeout -s INT 8

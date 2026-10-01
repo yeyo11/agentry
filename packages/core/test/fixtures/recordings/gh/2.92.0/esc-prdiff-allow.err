@@ -1,0 +1,11 @@
+unknown flag: --allow-escape-sequences
+
+Usage:  gh pr diff [<number> | <url> | <branch>] [flags]
+
+Flags:
+      --color string       Use color in diff output: {always|never|auto} (default "auto")
+  -e, --exclude patterns   Exclude files matching glob patterns from the diff
+      --name-only          Display only names of changed files
+      --patch              Display diff in patch format
+  -w, --web                Open the pull request diff in the browser
+  

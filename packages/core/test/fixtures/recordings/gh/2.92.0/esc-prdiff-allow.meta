@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr diff 30 -R yeyo11/agentry-probe --allow-escape-sequences
+exit: 1
+secs: .086255581
+env: 

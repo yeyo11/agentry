@@ -1,0 +1,5 @@
+gh: 102
+argv: gh issue view 1 -R yeyo11/agentry
+exit: 0
+secs: 1.744550621
+env: 

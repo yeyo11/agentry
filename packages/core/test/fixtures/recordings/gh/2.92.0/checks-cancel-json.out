@@ -1,0 +1,6 @@
+ok	pass	SUCCESS
+bad	pass	SUCCESS
+matrix (1)	pass	SUCCESS
+matrix (2)	pass	SUCCESS
+slow	cancel	CANCELLED
+long	pass	SUCCESS

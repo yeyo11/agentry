@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api graphql -f query=mutation($id:ID!,$oid:GitObjectID!){mergePullRequest(input:{pullRequestId:$id,mergeMethod:SQUASH,expectedHeadOid:$oid}){pullRequest{number state mergedAt}}} -f id=PR_kwDOU1zIIM8AAAABF9KH-w -f oid=78065b787e14c44f6feda8395e204e0370b53dcc
+exit: 0
+secs: 3.632704799
+env: 

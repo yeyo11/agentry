@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api -X POST repos/yeyo11/agentry-probe/pulls/12/comments/4148159984/replies -f body=blocked reply?
+exit: 1
+secs: .810265365
+env: 

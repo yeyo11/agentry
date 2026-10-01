@@ -141,8 +141,20 @@ writeFileSync(
   join(dirs.dataDir, 'providers.json'),
   `${JSON.stringify({ providers: { codex: { enabled: true, binaryPath: join(here, 'fake-providers', 'codex') } }, order: ['claude-code', 'codex', 'gemini', 'copilot', 'opencode'], defaultProvider: null }, null, 2)}\n`,
 );
+// The code hosts are fakes too (e2e/fake-hosts), reached by the override in hosts.json: no real gh or
+// glab on the machine changes what the Integrations and merge request specs see
+writeFileSync(
+  join(dirs.dataDir, 'hosts.json'),
+  `${JSON.stringify({ hosts: { github: { enabled: true, binaryPath: join(here, 'fake-hosts', 'gh') }, gitlab: { enabled: true, binaryPath: join(here, 'fake-hosts', 'glab') } } }, null, 2)}\n`,
+);
+// glab lists the hosts it knows in its own config.yml: the sandbox has one, with gitlab.com and an
+// account, so a real ~/.config/glab-cli never changes what the specs see
+const glabConfigDir = join(sandbox, 'glab-config');
+mkdirSync(glabConfigDir, { recursive: true });
+writeFileSync(join(glabConfigDir, 'config.yml'), 'hosts:\n  gitlab.com:\n    user: tanuki\n');
 const env = {
   ...process.env,
+  GLAB_CONFIG_DIR: glabConfigDir,
   CODEX_HOME: providerHomes.codex,
   GEMINI_CLI_HOME: providerHomes.gemini,
   COPILOT_HOME: providerHomes.copilot,

@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr view 1 -R yeyo11/agentry-probe --json title,body,labels,assignees,milestone,reviewRequests --jq {title,body,labels:[.labels[].name],assignees:[.assignees[].login],milestone:.milestone.title,reviewRequests}
+exit: 0
+secs: .831939123
+env: 

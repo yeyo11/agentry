@@ -1,0 +1,5 @@
+glab: 1.120.0
+argv: glab mr note create 4 -R yeyo11/agentry
+exit: 0
+env: 
+stdin-sha256: 583b7de1ec2090be4ebf81c8f0d0525ca1b6691156c208d3ae655a4bec44c932

@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import type { DatabaseSync } from 'node:sqlite';
 import {
   CONVENTIONAL_TYPES,
@@ -8,8 +9,10 @@ import {
   type AgentryEvent,
   type BoardCheckout,
   type CheckoutBehindReason,
+  type CodeHostId,
+  type CodeHostsSettings,
   type FlowCriterionResult,
-  type PullRequestNotReadyReason,
+  type ProjectCodeHost,
   type PullRequestReadiness,
   type WorkItem,
   type WorkItemActor,
@@ -36,7 +39,17 @@ import {
   removeWorktree,
   uncommittedFiles,
 } from './git.ts';
-import { pullRequestOf, type PullRequestRow } from './work-item-rows.ts';
+import type { ChangeRequestView, CodeHostAdapter, HostRepo } from './hosts/code-host.ts';
+import { defaultHostRun, hostSearchPath, resolveHostBinary, type HostRun } from './hosts/detector.ts';
+import { runHostCall, type HostResult } from './hosts/exec.ts';
+import { githubAdapter } from './hosts/github/adapter.ts';
+import { gitlabAdapter } from './hosts/gitlab/adapter.ts';
+import { HostRateLimiter } from './hosts/rate-limit.ts';
+import { projectReadiness } from './hosts/readiness.ts';
+import { firstLine } from './hosts/redact.ts';
+import { CodeHostRegistry } from './hosts/registry.ts';
+import { parseRemote } from './hosts/remote.ts';
+import { hostOf, pullRequestOf, type PullRequestRow } from './work-item-rows.ts';
 import { WorkItemError } from './work-item-validation.ts';
 import { itemWorktree, ownsPlace } from './work-links.ts';
 import type { WorkItemService } from './work-items.ts';
@@ -44,15 +57,15 @@ import type { WorkItemService } from './work-items.ts';
 /**
  * A work item's pull request (docs/plans/work-item-pull-requests.md): the person approves the item,
  * and Agentry commits what QA verified, updates the item's branch with the default branch, pushes it
- * and opens the PR with `gh`. The person merges it on GitHub, and the watcher brings the merge back:
+ * and opens the PR (or MR) with the project's host CLI. The person merges it on the host, and the watcher brings the merge back:
  * the item reaches Done and the project's checkout moves forward.
  *
- * The one rule holds: everything goes through `git` and `gh`, run by this process on the person's
+ * The one rule holds: everything goes through `git` and the host's CLI (`hosts/exec.ts`), run by this process on the person's
  * request, as `Orchestrator.pullRequest()` does. No flow run ever pushes; `stageRules` denies it to
  * every stage, the run that resolves a conflict included.
  *
  * GitHub cannot push events to a local CLI, so the watcher is the one deliberate poll in the work
- * item automation: every 60 s, one PR at a time, backing off to 5 min for a project whose `gh`
+ * item automation: every 60 s, one PR at a time, backing off to 5 min for a project whose host CLI
  * failed. Several wrapper processes share the database, so a PR's check is claimed and its outcome
  * written with guarded updates, and a merge is handled once.
  */
@@ -68,7 +81,7 @@ export class PullRequestError extends WorkItemError {
   }
 }
 
-/** How long a project's readiness is trusted: `gh auth status` must not run on every board read */
+/** How long a project's readiness is trusted: the host's auth probe must not run on every board read */
 const READINESS_TTL = 60_000;
 export const WATCH_INTERVAL = 60_000;
 export const WATCH_BACKOFF = 5 * 60_000;
@@ -84,9 +97,9 @@ function prCause(event: string): WorkItemCause {
   return { kind: 'chat', chatId: null, orchestrationId: null, taskId: null, event };
 }
 
-// ---------- running git and gh without blocking the server ----------
+// ---------- running git and the host's CLI without blocking the server ----------
 
-/** A failed step: its code, and the first line git or gh said about it. */
+/** A failed step: its code, and the first line git or the host's CLI said about it. */
 class StepError extends Error {
   constructor(
     readonly code: string,
@@ -96,37 +109,28 @@ class StepError extends Error {
   }
 }
 
-interface Ran {
-  stdout: string;
-}
-
-function firstLine(text: string): string {
-  return (
-    text
-      .split('\n')
-      .map((l) => l.trim())
-      .find(Boolean) ?? ''
-  ).slice(0, 500);
-}
-
-/**
- * Runs a command with arguments, never a shell string. A failure throws with the first line of what
- * it wrote on stderr (or stdout), which is the line the person reads beside the worded reason.
- */
-function run(cmd: string, args: string[], opts: { cwd: string; timeout: number; input?: string; env: NodeJS.ProcessEnv }): Promise<Ran> {
+/** Runs git with arguments, never a shell string. A failure throws with the first line it wrote on stderr (or stdout). */
+function runGit(cwd: string, args: string[], opts: { timeout: number; env: NodeJS.ProcessEnv }): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = execFile(cmd, args, { cwd: opts.cwd, timeout: opts.timeout, env: opts.env, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
-      if (!err) return resolve({ stdout });
-      const e = err as NodeJS.ErrnoException & { killed?: boolean };
-      if (e.code === 'ENOENT') return reject(Object.assign(new Error(`${cmd}: not found`), { missing: true }));
-      const detail = firstLine(stderr) || firstLine(stdout) || (e.killed ? `${cmd} timed out` : e.message);
-      reject(new Error(detail));
+    execFile('git', ['-C', cwd, ...args], { cwd, timeout: opts.timeout, env: opts.env, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
+      if (!err) return resolve();
+      const killed = (err as { killed?: boolean }).killed;
+      reject(new Error(firstLine(stderr) || firstLine(stdout) || (killed ? 'git timed out' : err.message)));
     });
-    if (opts.input !== undefined) child.stdin?.end(opts.input);
   });
 }
 
 const messageOf = (err: unknown): string => firstLine(err instanceof Error ? err.message : String(err));
+
+/** The line a person reads beside a failed host call: what the CLI said, else Agentry's own reason. */
+const failureOf = (result: HostResult): string => result.stderrFirstLine || result.reason || `exit ${result.exitCode ?? 'none'}`;
+
+const ADAPTERS: Readonly<Record<CodeHostId, CodeHostAdapter>> = { github: githubAdapter, gitlab: gitlabAdapter };
+
+/** The adapter of a code host: the one place that maps an id to its translator. */
+export const codeHostAdapter = (id: CodeHostId): CodeHostAdapter | undefined => ADAPTERS[id];
+
+export { ciOf } from './hosts/github/adapter.ts';
 
 // ---------- what the PR says ----------
 
@@ -166,37 +170,6 @@ export function pullRequestBody(item: Pick<WorkItem, 'key' | 'description' | 'ac
   return body.length > BODY_MAX ? `${body.slice(0, BODY_MAX)}\n\n… cut at ${BODY_MAX} characters` : body;
 }
 
-/**
- * The CI state `statusCheckRollup` comes to: none without checks; failing when one failed, was
- * cancelled or timed out; pending while one is queued or running; passing when all succeeded or
- * were skipped.
- */
-export function ciOf(rollup: unknown): WorkItemPullRequestCi {
-  const checks = Array.isArray(rollup) ? rollup.filter((c): c is Record<string, unknown> => typeof c === 'object' && c !== null) : [];
-  if (!checks.length) return 'none';
-  const up = (v: unknown): string => (typeof v === 'string' ? v.toUpperCase() : '');
-  const failing = checks.some((c) => ['FAILURE', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED', 'STARTUP_FAILURE', 'ERROR'].includes(up(c.conclusion) || up(c.state)));
-  if (failing) return 'failing';
-  const pending = checks.some((c) => {
-    // A check run has a status and, once completed, a conclusion; a commit status has a state
-    if (c.status !== undefined && up(c.status) !== 'COMPLETED') return true;
-    return ['PENDING', 'EXPECTED', 'QUEUED', 'IN_PROGRESS'].includes(up(c.state));
-  });
-  return pending ? 'pending' : 'passing';
-}
-
-/** The host of a git remote URL, or null for a local path (a bare repository beside the project). */
-export function remoteHost(url: string): string | null {
-  const scp = /^[\w.-]+@([\w.-]+):/.exec(url);
-  if (scp) return scp[1]?.toLowerCase() ?? null;
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'file:' ? null : parsed.hostname.toLowerCase() || null;
-  } catch {
-    return null;
-  }
-}
-
 // ---------- the service ----------
 
 export interface PullRequestDeps {
@@ -210,9 +183,15 @@ export interface PullRequestDeps {
   verdicts: (itemId: string) => FlowCriterionResult[];
   /** The origin the web UI is served on, for the card's link; null when unknown */
   webOrigin: () => string | null;
-  /** Merged over the process's environment for git and gh: where a test puts its fake gh */
+  /** Merged over the process's environment for git and the host CLIs: where a test puts its fakes */
   env?: NodeJS.ProcessEnv;
   now?: () => number;
+  /** `hosts.json`: which hosts are on and a binary of the person's own; null means every host is on */
+  settings?: () => CodeHostsSettings | null;
+  /** Where the host CLIs are looked for; the process's PATH and the usual install directories unless a test narrows it */
+  searchPath?: () => Promise<string>;
+  /** Runs one host call; the execution layer, with the shared breaker, unless a test brings its own */
+  run?: HostRun;
 }
 
 export interface ApproveResult {
@@ -222,15 +201,44 @@ export interface ApproveResult {
   pullRequest: WorkItemPullRequest;
 }
 
+/** What a host call needs about a project: the adapter, the CLI's binary and the repository that pins every call. */
+interface HostTarget {
+  adapter: CodeHostAdapter;
+  binaryPath: string;
+  repo: HostRepo;
+}
+
+/** Where `origin` points: what is read from git once per readiness TTL, never the URL with its user. */
+interface OriginPath {
+  until: number;
+  hostname: string;
+  path: string;
+}
+
+/** `owner/name` of a path with any number of groups: the name is the last segment, the owner the rest. */
+function repoOf(hostname: string, path: string): HostRepo {
+  const at = path.lastIndexOf('/');
+  return { host: hostname, path, owner: at === -1 ? '' : path.slice(0, at), name: path.slice(at + 1) };
+}
+
 export class PullRequestService {
   private readonly sql: DatabaseSync;
+  private readonly registry = new CodeHostRegistry();
+  private readonly breaker: HostRateLimiter;
+  private readonly runHost: HostRun;
   private readonly readinessCache = new Map<string, { until: number; value: Promise<PullRequestReadiness> }>();
-  /** Projects whose `gh` failed, and until when the watcher leaves them alone */
+  private readonly originCache = new Map<string, OriginPath>();
+  /** Projects whose host CLI failed, and until when the watcher leaves them alone */
   private readonly backoff = new Map<string, number>();
   private readonly pending = new Set<Promise<void>>();
 
   constructor(private readonly deps: PullRequestDeps) {
     this.sql = deps.db.connection;
+    this.breaker = new HostRateLimiter(this.sql);
+    // A probe is never retried: a signed-out `glab auth status` exits 1 like a host that cannot be reached, and would wait 5 s for it
+    this.runHost =
+      deps.run ??
+      ((call, where) => runHostCall(call, { binaryPath: where.binaryPath, cwd: where.cwd, baseEnv: where.env, breaker: this.breaker, ...(call.class === 'probe' ? { retry: { delaysMs: [] } } : {}) }));
   }
 
   private now(): number {
@@ -239,15 +247,11 @@ export class PullRequestService {
 
   private env(): NodeJS.ProcessEnv {
     // Nothing may stop to ask for a password or a confirmation in a process nobody watches
-    return { ...process.env, ...this.deps.env, GIT_TERMINAL_PROMPT: '0', GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1' };
+    return { ...process.env, ...this.deps.env, GIT_TERMINAL_PROMPT: '0' };
   }
 
-  private gh(cwd: string, args: string[], timeout = 60_000, input?: string): Promise<Ran> {
-    return run('gh', args, { cwd, timeout, env: this.env(), ...(input !== undefined ? { input } : {}) });
-  }
-
-  private gitAsync(cwd: string, args: string[], timeout = 120_000): Promise<Ran> {
-    return run('git', ['-C', cwd, ...args], { cwd, timeout, env: this.env() });
+  private gitAsync(cwd: string, args: string[], timeout = 120_000): Promise<void> {
+    return runGit(cwd, args, { timeout, env: this.env() });
   }
 
   /** Waits for every approval started so far; for tests and for shutting down cleanly. */
@@ -271,59 +275,61 @@ export class PullRequestService {
     return value;
   }
 
-  /** Forgets what was cached, so the next read asks git and gh again. */
+  /** Forgets what was cached, so the next read asks git and the host's CLI again. */
   forgetReadiness(projectPath?: string): void {
-    if (projectPath) this.readinessCache.delete(projectPath);
-    else this.readinessCache.clear();
+    if (projectPath) {
+      this.readinessCache.delete(projectPath);
+      this.originCache.delete(projectPath);
+    } else {
+      this.readinessCache.clear();
+      this.originCache.clear();
+    }
   }
 
-  private async computeReadiness(projectPath: string): Promise<PullRequestReadiness> {
-    const no = (status: PullRequestNotReadyReason, detail: string | null, defaultBranch: string | null = null): PullRequestReadiness => ({ status, detail, defaultBranch });
-    if (!existsSync(projectPath) || !isGitRepo(projectPath)) return no('not-git', null);
-    const home = mainCheckout(projectPath);
-    let url: string;
+  private computeReadiness(projectPath: string): Promise<PullRequestReadiness> {
+    return projectReadiness(projectPath, { registry: this.registry, adapter: codeHostAdapter, settings: this.deps.settings, run: this.runHost, env: this.env(), ...(this.deps.searchPath ? { resolvePath: this.deps.searchPath } : {}) });
+  }
+
+  /** `GET /projects/:id/code-host`: the readiness and where `origin` points, without the URL's user or secret. */
+  async codeHost(projectPath: string): Promise<ProjectCodeHost> {
+    const readiness = await this.readiness(projectPath);
+    let remote: ProjectCodeHost['remote'] = null;
     try {
-      url = git(home, ['remote', 'get-url', 'origin'], 10_000);
-    } catch (err) {
-      return no('no-remote', messageOf(err));
-    }
-    try {
-      await this.gh(home, ['--version'], 15_000);
-    } catch (err) {
-      return no('no-gh', (err as { missing?: boolean }).missing ? null : messageOf(err));
-    }
-    const host = remoteHost(url);
-    if (host && host !== 'github.com') {
-      // A GitHub Enterprise host counts only when gh knows it
-      try {
-        await this.gh(home, ['auth', 'status', '--hostname', host], 30_000);
-      } catch (err) {
-        return no('not-github', `${host}: ${messageOf(err)}`);
-      }
-    } else {
-      try {
-        await this.gh(home, ['auth', 'status', ...(host ? ['--hostname', host] : [])], 30_000);
-      } catch (err) {
-        return no('gh-unauthenticated', messageOf(err));
-      }
-    }
-    let base: string | null = null;
-    try {
-      base = git(home, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'], 10_000).replace(/^origin\//, '') || null;
+      const parsed = parseRemote(git(mainCheckout(projectPath), ['remote', 'get-url', 'origin'], 10_000));
+      if (parsed) remote = { hostname: readiness.hostname ?? parsed.hostname, path: parsed.path, protocol: parsed.protocol };
     } catch {
-      // not set locally: gh knows it
+      // no origin, or not a repository: the readiness says so
     }
-    if (!base) {
-      try {
-        base = (await this.gh(home, ['repo', 'view', '--json', 'defaultBranchRef', '-q', '.defaultBranchRef.name'], 30_000)).stdout.trim() || null;
-      } catch (err) {
-        const detail = messageOf(err);
-        // gh names the case itself when no remote points at a host it knows
-        return /known github host|not a github|could not resolve to a repository/i.test(detail) ? no('not-github', detail) : no('no-default-branch', detail);
-      }
-    }
-    if (!base) return no('no-default-branch', null);
-    return { status: 'ready', detail: null, defaultBranch: base };
+    return { readiness, remote };
+  }
+
+  // ---------- reaching the host ----------
+
+  private origin(projectPath: string): OriginPath {
+    const cached = this.originCache.get(projectPath);
+    if (cached && cached.until > this.now()) return cached;
+    const parsed = parseRemote(git(mainCheckout(projectPath), ['remote', 'get-url', 'origin'], 10_000));
+    if (!parsed) throw new Error('origin does not name a repository on a host');
+    const origin = { until: this.now() + READINESS_TTL, hostname: parsed.hostname, path: parsed.path };
+    this.originCache.set(projectPath, origin);
+    return origin;
+  }
+
+  /** The adapter, binary and repository of a project's host. A row's own hostname wins over the remote's, which may be an SSH alias. */
+  private async target(projectPath: string, row: Pick<PullRequestRow, 'host' | 'hostname'>): Promise<HostTarget> {
+    const id = hostOf(row.host);
+    const adapter = codeHostAdapter(id);
+    const manifest = this.registry.get(id);
+    if (!adapter || !manifest) throw new Error(`no adapter for ${id}`);
+    const origin = this.origin(projectPath);
+    const searchPath = await (this.deps.searchPath ? this.deps.searchPath() : hostSearchPath(this.env(), homedir()));
+    const binaryPath = await resolveHostBinary(manifest, this.deps.settings?.()?.hosts[id]?.binaryPath ?? null, searchPath);
+    if (!binaryPath) throw new Error(`${manifest.cli} is not installed, or Agentry cannot find it`);
+    return { adapter, binaryPath, repo: repoOf(row.hostname ?? origin.hostname, origin.path) };
+  }
+
+  private call(target: HostTarget, call: ReturnType<CodeHostAdapter['version']>, cwd: string): Promise<HostResult> {
+    return this.runHost(call, { binaryPath: target.binaryPath, cwd, env: this.env() });
   }
 
   // ---------- the checkout ----------
@@ -447,16 +453,16 @@ export class PullRequestService {
       }
       this.sql
         .prepare(
-          `INSERT INTO work_item_pull_requests (id, item_id, project_id, phase, branch, base, approved_at, created_at, updated_at)
-           VALUES (?, ?, ?, 'preparing', ?, ?, ?, ?, ?)`,
+          `INSERT INTO work_item_pull_requests (id, item_id, project_id, phase, branch, base, host, hostname, approved_at, created_at, updated_at)
+           VALUES (?, ?, ?, 'preparing', ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(id, itemId, item.projectId, place.branch, base, now, now, now);
+        .run(id, itemId, item.projectId, place.branch, base, ready.host ?? 'github', ready.hostname, now, now, now);
     });
     if (existing) return { status: 200, item, pullRequest: pullRequestOf(existing) };
     this.changed(itemId, null, PERSON, null);
     this.track(this.prepare(id));
     const row = this.rowById(id);
-    return { status: 202, item: this.deps.items.find(itemId) ?? item, pullRequest: row ? pullRequestOf(row) : pullRequestOf({ ...emptyRow(id, itemId, item.projectId, place.branch, base, now) }) };
+    return { status: 202, item: this.deps.items.find(itemId) ?? item, pullRequest: row ? pullRequestOf(row) : pullRequestOf({ ...emptyRow(id, itemId, item.projectId, place.branch, base, now, ready.host ?? 'github', ready.hostname) }) };
   }
 
   /**
@@ -512,25 +518,39 @@ export class PullRequestService {
         throw new StepError('push', messageOf(err));
       }
       const body = pullRequestBody(this.deps.items.find(item.id) ?? item, this.deps.verdicts(item.id), this.deps.webOrigin());
-      try {
-        await this.gh(wt, ['pr', 'create', '--head', row.branch, '--base', row.base, '--title', pullRequestTitle(item), '--body-file', '-'], 120_000, body);
-      } catch (err) {
-        // One already open for the branch (opened by hand, say) is the one to watch
-        if (!/already exists/i.test(messageOf(err))) throw new StepError('create', messageOf(err));
-      }
-      let view: { number?: unknown; url?: unknown };
-      try {
-        view = JSON.parse((await this.gh(wt, ['pr', 'view', row.branch, '--json', 'number,url,state'], 60_000)).stdout) as { number?: unknown; url?: unknown };
-      } catch (err) {
-        throw new StepError('create', messageOf(err));
-      }
-      const number = typeof view.number === 'number' ? view.number : null;
-      const url = typeof view.url === 'string' ? view.url : null;
+      const { number, url } = await this.create(row, project.path, wt, { title: pullRequestTitle(item), body });
       this.opened(row, item, number, url);
     } catch (err) {
       const step = err instanceof StepError ? err : new StepError('create', messageOf(err));
       this.failed(row, step.code, step.detail);
     }
+  }
+
+  /**
+   * Opens the change request and finds it. The lookup by head and base follows every create: it
+   * gives the number, and after a failed create it is how one that is already open (opened by hand,
+   * say) is adopted. Agentry decides nothing from the CLI's stderr.
+   */
+  private async create(row: PullRequestRow, projectPath: string, cwd: string, req: { title: string; body: string }): Promise<{ number: number | null; url: string | null }> {
+    let target: HostTarget;
+    try {
+      target = await this.target(projectPath, row);
+    } catch (err) {
+      throw new StepError('create', messageOf(err));
+    }
+    const created = await this.call(target, target.adapter.create(target.repo, { head: row.branch, base: row.base, title: req.title, body: req.body }), cwd);
+    const found = await this.call(target, target.adapter.find(target.repo, { head: row.branch, base: row.base }), cwd);
+    let open: Array<{ number: number; url: string }> = [];
+    if (found.exitCode === 0) {
+      try {
+        open = target.adapter.parseFind(found.stdout).filter((c) => c.state === 'open');
+      } catch {
+        // an answer in a shape this version does not know finds nothing
+      }
+    }
+    const only = open.length === 1 ? open[0] : undefined;
+    if (!only) throw new StepError('create', created.exitCode !== 0 ? failureOf(created) : found.exitCode !== 0 ? failureOf(found) : open.length ? 'more than one pull request is open for the branch' : 'the host lists no open pull request for the branch');
+    return { number: only.number, url: only.url };
   }
 
   private opened(row: PullRequestRow, item: WorkItem, number: number | null, url: string | null): void {
@@ -657,13 +677,13 @@ export class PullRequestService {
 
   // ---------- watching ----------
 
-  /** The open PRs to ask gh about, oldest checked first. */
+  /** The open PRs to ask the host about, oldest checked first. */
   openRows(): PullRequestRow[] {
     return this.sql.prepare("SELECT * FROM work_item_pull_requests WHERE phase = 'open' ORDER BY COALESCE(checked_at, ''), created_at").all() as unknown as PullRequestRow[];
   }
 
   /**
-   * Asks gh about one open PR and writes what changed. `force` is a person's refresh, which does not
+   * Asks the host about one open PR and writes what changed. `force` is a person's refresh, which does not
    * wait out a project's back-off. Only a change reaches the feed.
    */
   async check(rowId: string, force = false): Promise<void> {
@@ -681,10 +701,13 @@ export class PullRequestService {
           .run(new Date(now + CLAIM_TTL).toISOString(), row.id, new Date(now).toISOString()).changes === 1;
     });
     if (!claimed) return;
-    let view: { state?: unknown; mergedAt?: unknown; statusCheckRollup?: unknown; url?: unknown };
+    let view: ChangeRequestView;
     try {
-      const out = await this.gh(mainCheckout(project.path), ['pr', 'view', String(row.number), '--json', 'state,mergedAt,statusCheckRollup,url'], 60_000);
-      view = JSON.parse(out.stdout) as typeof view;
+      const home = mainCheckout(project.path);
+      const target = await this.target(project.path, row);
+      const out = await this.call(target, target.adapter.view(target.repo, row.number), home);
+      if (out.exitCode !== 0) throw new Error(failureOf(out));
+      view = target.adapter.parseView(out.stdout);
       this.backoff.delete(row.project_id);
     } catch {
       this.backoff.set(row.project_id, this.now() + WATCH_BACKOFF);
@@ -692,16 +715,15 @@ export class PullRequestService {
       return;
     }
     const at = new Date(this.now()).toISOString();
-    const ci = ciOf(view.statusCheckRollup);
-    const url = typeof view.url === 'string' ? view.url : row.url;
-    const state = typeof view.state === 'string' ? view.state.toUpperCase() : 'OPEN';
-    if (state === 'MERGED') {
-      const mergedAt = typeof view.mergedAt === 'string' && view.mergedAt ? view.mergedAt : at;
+    const ci = view.ci;
+    const url = view.url ?? row.url;
+    if (view.state === 'merged') {
+      const mergedAt = view.mergedAt || at;
       // Guarded on the phase: of two processes, only the one whose update lands handles the merge
       if (this.update(row.id, { phase: 'merged', ci, url, closed_at: mergedAt, checked_at: at, claimed_until: null }, ['open'])) await this.merged({ ...row, url }, project.path);
       return;
     }
-    if (state === 'CLOSED') {
+    if (view.state === 'closed') {
       if (this.update(row.id, { phase: 'closed', ci, url, closed_at: at, checked_at: at, claimed_until: null }, ['open'])) this.closed({ ...row, url });
       return;
     }
@@ -710,7 +732,7 @@ export class PullRequestService {
   }
 
   /**
-   * GitHub merged it, which was the person's act: the item moves to Done as the person, its worktree
+   * The host merged it, which was the person's act: the item moves to Done as the person, its worktree
    * goes when nothing is left uncommitted there, and the project's checkout moves forward when it is
    * on the default branch and clean.
    */
@@ -779,7 +801,7 @@ export class PullRequestService {
     }
   }
 
-  /** `POST /work-items/:itemId/pull-request/refresh`: asks gh about the item's open PR now. */
+  /** `POST /work-items/:itemId/pull-request/refresh`: asks the host about the item's open PR now. */
   async refresh(itemId: string): Promise<WorkItem> {
     const item = this.deps.items.find(itemId);
     if (!item) throw new PullRequestError('work item not found', 404);
@@ -789,7 +811,7 @@ export class PullRequestService {
   }
 }
 
-function emptyRow(id: string, itemId: string, projectId: string, branch: string, base: string, now: string): PullRequestRow {
+function emptyRow(id: string, itemId: string, projectId: string, branch: string, base: string, now: string, host: string, hostname: string | null): PullRequestRow {
   return {
     id,
     item_id: itemId,
@@ -799,6 +821,8 @@ function emptyRow(id: string, itemId: string, projectId: string, branch: string,
     url: null,
     branch,
     base,
+    host,
+    hostname,
     ci: null,
     conflicts: '[]',
     error_code: null,
@@ -814,18 +838,28 @@ function emptyRow(id: string, itemId: string, projectId: string, branch: string,
   };
 }
 
+/** What the watcher polls: rows to check, and the check that claims one and writes its outcome. */
+export interface WatchSource {
+  openRows(): ReadonlyArray<{ id: string }>;
+  check(rowId: string, force?: boolean): Promise<void>;
+}
+
 /**
- * Asks gh about every open PR, one at a time: every 60 s, once on start, and on a person's refresh.
- * The one deliberate poll of the work item automation, since GitHub cannot reach a local CLI.
+ * Asks the host about every open change request of its sources, one at a time: every 60 s, once on
+ * start, and on a person's refresh. The one deliberate poll of the work item automation, since a
+ * host cannot reach a local CLI. A source is the work items' PRs now; the orchestrations' join them.
  */
 export class PullRequestWatcher {
   private timer: NodeJS.Timeout | null = null;
   private running: Promise<void> | null = null;
+  private readonly sources: readonly WatchSource[];
 
   constructor(
-    private readonly service: PullRequestService,
+    sources: WatchSource | readonly WatchSource[],
     private readonly interval = WATCH_INTERVAL,
-  ) {}
+  ) {
+    this.sources = 'openRows' in sources ? [sources] : sources;
+  }
 
   start(): void {
     if (this.timer) return;
@@ -839,12 +873,14 @@ export class PullRequestWatcher {
     this.timer = null;
   }
 
-  /** One pass over the open PRs; a pass still going is not started twice. */
+  /** One pass over the open rows of every source; a pass still going is not started twice. */
   tick(): Promise<void> {
     if (this.running) return this.running;
     this.running = (async () => {
       try {
-        for (const row of this.service.openRows()) await this.service.check(row.id).catch(() => undefined);
+        for (const source of this.sources) {
+          for (const row of source.openRows()) await source.check(row.id).catch(() => undefined);
+        }
       } catch {
         // a closed database (shutting down)
       } finally {

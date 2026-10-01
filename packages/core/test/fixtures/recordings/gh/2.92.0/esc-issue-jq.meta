@@ -1,0 +1,5 @@
+gh: 92
+argv: gh issue view 26 -R yeyo11/agentry-probe --json body --jq .body
+exit: 0
+secs: .616210388
+env: 

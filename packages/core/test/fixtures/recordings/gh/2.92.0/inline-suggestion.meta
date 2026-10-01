@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api -X POST repos/yeyo11/agentry-probe/pulls/12/comments -F body=@/tmp/ghm-sugg.md -f commit_id=97bafbb3b999e1174d1d9d5060665c89dc05b371 -f path=review.txt -F line=5 -f side=RIGHT --jq {id,body,line}
+exit: 0
+secs: 1.212128135
+env: 

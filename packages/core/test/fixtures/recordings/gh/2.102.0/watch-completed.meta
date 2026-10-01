@@ -1,0 +1,5 @@
+gh: 102
+argv: gh run watch 36760053094 -R yeyo11/agentry-probe --exit-status
+exit: 1
+secs: .910526762
+env: 

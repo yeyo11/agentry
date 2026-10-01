@@ -1,4 +1,4 @@
-import type { FlowRunCause, WorkItem } from '@agentry/shared';
+import type { CodeHostId, FlowRunCause, WorkItem } from '@agentry/shared';
 import { Check, CircleAlert, Clock, ExternalLink, GitPullRequest, Workflow, X } from 'lucide-react';
 import { useMemo, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -13,7 +13,7 @@ import { approvalOpensPullRequest, notReadyReason, pullRequestErrorKey, stripOff
 import { useRoleName } from '../../team/RoleAvatar';
 import { roleHue, roleInitials } from '../../team/model';
 import type { LiveSources } from './LiveLine';
-import { CiBadge, NotReadyNote, useBoardReadiness, useOpenPullRequest } from './PullRequest';
+import { CiBadge, NotReadyNote, reasonValues, useBoardReadiness, useChangeRequestWords, useOpenPullRequest } from './PullRequest';
 import { useBoardTeam } from './team';
 import { useMoveWorkItem } from './useMoveWorkItem';
 
@@ -58,17 +58,19 @@ export function StripActorMark({ actor }: { actor: StripActor }) {
   );
 }
 
-/** `PR #123` in mono with tabular figures, or `PR` while GitHub has not numbered it yet. */
-function PrNumber({ number }: { number: number | null }) {
+/** `PR #123` or `MR !7` in mono with tabular figures, or the bare noun while the host has not numbered it yet. */
+function PrNumber({ number, refText, host }: { number: number | null; refText: string | null; host: CodeHostId | null }) {
   const { t } = useTranslation('tasks');
-  return <span className="workitem-strip-num">{number === null ? t('pr.unnumbered') : t('pr.number', { number: String(number) })}</span>;
+  const words = useChangeRequestWords(host);
+  return <span className="workitem-strip-num">{number === null ? t('pr.unnumbered', { noun: words.noun }) : t('pr.number', { noun: words.noun, ref: words.ref(number, refText) })}</span>;
 }
 
-/** The card's way to its PR on GitHub: a plain external link that opens it and never the card under it. */
-function PrLink({ url, number }: { url: string | null; number: number | null }) {
+/** The card's way to its PR or MR on its host: a plain external link that opens it and never the card under it. */
+function PrLink({ url, number, refText, host }: { url: string | null; number: number | null; refText: string | null; host: CodeHostId | null }) {
   const { t } = useTranslation('tasks');
+  const words = useChangeRequestWords(host);
   if (!url) return null;
-  const said = number === null ? t('pr.linkUnnumbered') : t('pr.link', { number: String(number) });
+  const said = number === null ? t('pr.linkUnnumbered', { noun: words.noun, host: words.host }) : t('pr.link', { noun: words.noun, host: words.host, ref: words.ref(number, refText) });
   return (
     <Tooltip content={said}>
       <a
@@ -111,6 +113,8 @@ export function WorkItemStrip({
   const move = useMoveWorkItem();
   const openPr = useOpenPullRequest();
   const readiness = useBoardReadiness();
+  // A PR's own host speaks in its strip; the approval before any PR exists speaks in the project's
+  const words = useChangeRequestWords(strip && 'host' in strip && strip.host ? strip.host : readiness?.host);
   if (!strip) return null;
   const tone = stripTone(strip);
   const className = ['workitem-strip', tone && `is-${tone}`, inline && 'is-inline'].filter(Boolean).join(' ');
@@ -131,13 +135,13 @@ export function WorkItemStrip({
             // The card around it opens the item; this button only approves
             event.stopPropagation();
             event.preventDefault();
-            if (opensPr) openPr.mutate(item);
+            if (opensPr) openPr.mutate({ ...item, pullRequestReadiness: readiness });
             else move.mutate({ item, drop: { status: 'done', index: 0 }, column: [] });
           }}
           onKeyDown={(event) => event.stopPropagation()}
         >
           {opensPr ? <GitPullRequest size={14} strokeWidth={1.75} aria-hidden /> : <Check size={14} strokeWidth={1.75} aria-hidden />}
-          {opensPr ? t('pr.approve') : t('strip.approve')}
+          {opensPr ? t('pr.approve', { noun: words.noun }) : t('strip.approve')}
         </button>
       </>
     ) : null;
@@ -218,7 +222,7 @@ export function WorkItemStrip({
       body = (
         <>
           <GitPullRequest {...MARK} />
-          <span className="workitem-strip-verb is-quiet">{t('pr.preparing')}</span>
+          <span className="workitem-strip-verb is-quiet">{t('pr.preparing', { noun: words.noun })}</span>
         </>
       );
       break;
@@ -234,7 +238,7 @@ export function WorkItemStrip({
       body = (
         <>
           <GitPullRequest {...MARK} />
-          <span className="workitem-strip-verb is-quiet">{t('pr.awaiting', { base: strip.base })}</span>
+          <span className="workitem-strip-verb is-quiet">{t('pr.awaiting', { base: strip.base, noun: words.noun })}</span>
         </>
       );
       break;
@@ -242,10 +246,10 @@ export function WorkItemStrip({
       body = (
         <>
           <GitPullRequest {...MARK} />
-          <PrNumber number={strip.number} />
+          <PrNumber number={strip.number} refText={strip.ref} host={strip.host} />
           <span className="workitem-strip-verb">{t('pr.waitingMerge')}</span>
           <CiBadge ci={strip.ci} />
-          {!inline && <PrLink url={strip.url} number={strip.number} />}
+          {!inline && <PrLink url={strip.url} number={strip.number} refText={strip.ref} host={strip.host} />}
         </>
       );
       break;
@@ -253,7 +257,7 @@ export function WorkItemStrip({
       body = (
         <>
           <GitPullRequest {...MARK} />
-          <PrNumber number={strip.number} />
+          <PrNumber number={strip.number} refText={strip.ref} host={strip.host} />
           <span className="workitem-strip-verb">{t('pr.closed')}</span>
           {approval}
         </>
@@ -264,7 +268,7 @@ export function WorkItemStrip({
         <>
           <X {...MARK} className="workitem-strip-fail-mark" />
           <span className="workitem-strip-verb" title={strip.detail ?? undefined}>
-            <b>{t('pr.failed')}</b> · {t(pullRequestErrorKey(strip.code))}
+            <b>{t('pr.failed', { noun: words.noun })}</b> · {t(pullRequestErrorKey(strip.code), { ...reasonValues(t, { host: strip.host ?? readiness?.host ?? null, hostname: readiness?.hostname ?? null }), host: words.host })}
           </span>
           {approval}
         </>

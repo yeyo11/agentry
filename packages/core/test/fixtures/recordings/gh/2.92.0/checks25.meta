@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr checks 25 -R yeyo11/agentry --json name,bucket
+exit: 1
+secs: 1.680972977
+env: 

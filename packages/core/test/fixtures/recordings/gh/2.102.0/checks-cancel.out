@@ -1,0 +1,6 @@
+bad	pass	4s	https://github.com/yeyo11/agentry-probe/actions/runs/36760053094/job/110040017646	
+matrix (1)	pass	3s	https://github.com/yeyo11/agentry-probe/actions/runs/36760053094/job/110040017359	
+matrix (2)	pass	4s	https://github.com/yeyo11/agentry-probe/actions/runs/36760053094/job/110040016923	
+ok	pass	4s	https://github.com/yeyo11/agentry-probe/actions/runs/36760053094/job/110040017442	
+slow	fail	1m30s	https://github.com/yeyo11/agentry-probe/actions/runs/36760053094/job/110040017268	
+long	pass	5s	https://github.com/yeyo11/agentry-probe/actions/runs/36760053094/job/110040017298	

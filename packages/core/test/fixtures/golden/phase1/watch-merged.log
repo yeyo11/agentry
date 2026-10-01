@@ -1,0 +1,91 @@
+# tick, ci pending
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+gh pr view 7 -R github.com/acme/shop --json state,mergedAt,statusCheckRollup,url
+  cwd: <root>/project
+  env: GIT_TERMINAL_PROMPT=0
+  env: GH_PROMPT_DISABLED=1
+  env: GH_NO_UPDATE_NOTIFIER=1
+  env: GH_HOST=<unset>
+  env: GH_REPO=<unset>
+  env: NO_PROMPT=<unset>
+  env: GH_NO_EXTENSION_UPDATE_NOTIFIER=1
+  env: GH_SPINNER_DISABLED=1
+  env: GH_PAGER=cat
+  env: GH_TELEMETRY=0
+  env: DO_NOT_TRACK=1
+  env: NO_COLOR=1
+  env: LC_ALL=C
+# tick, ci failing
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+gh pr view 7 -R github.com/acme/shop --json state,mergedAt,statusCheckRollup,url
+  cwd: <root>/project
+  env: GIT_TERMINAL_PROMPT=0
+  env: GH_PROMPT_DISABLED=1
+  env: GH_NO_UPDATE_NOTIFIER=1
+  env: GH_HOST=<unset>
+  env: GH_REPO=<unset>
+  env: NO_PROMPT=<unset>
+  env: GH_NO_EXTENSION_UPDATE_NOTIFIER=1
+  env: GH_SPINNER_DISABLED=1
+  env: GH_PAGER=cat
+  env: GH_TELEMETRY=0
+  env: DO_NOT_TRACK=1
+  env: NO_COLOR=1
+  env: LC_ALL=C
+# tick, ci passing
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+gh pr view 7 -R github.com/acme/shop --json state,mergedAt,statusCheckRollup,url
+  cwd: <root>/project
+  env: GIT_TERMINAL_PROMPT=0
+  env: GH_PROMPT_DISABLED=1
+  env: GH_NO_UPDATE_NOTIFIER=1
+  env: GH_HOST=<unset>
+  env: GH_REPO=<unset>
+  env: NO_PROMPT=<unset>
+  env: GH_NO_EXTENSION_UPDATE_NOTIFIER=1
+  env: GH_SPINNER_DISABLED=1
+  env: GH_PAGER=cat
+  env: GH_TELEMETRY=0
+  env: DO_NOT_TRACK=1
+  env: NO_COLOR=1
+  env: LC_ALL=C
+# tick, merged
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+gh pr view 7 -R github.com/acme/shop --json state,mergedAt,statusCheckRollup,url
+  cwd: <root>/project
+  env: GIT_TERMINAL_PROMPT=0
+  env: GH_PROMPT_DISABLED=1
+  env: GH_NO_UPDATE_NOTIFIER=1
+  env: GH_HOST=<unset>
+  env: GH_REPO=<unset>
+  env: NO_PROMPT=<unset>
+  env: GH_NO_EXTENSION_UPDATE_NOTIFIER=1
+  env: GH_SPINNER_DISABLED=1
+  env: GH_PAGER=cat
+  env: GH_TELEMETRY=0
+  env: DO_NOT_TRACK=1
+  env: NO_COLOR=1
+  env: LC_ALL=C
+git -C <root>/project/.claude/worktrees/task-cw-1 diff -M --name-status -z HEAD --
+git -C <root>/project/.claude/worktrees/task-cw-1 diff -M --numstat -z HEAD --
+git -C <root>/project/.claude/worktrees/task-cw-1 ls-files --others --exclude-standard -z
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+git -C <root>/project worktree unlock <root>/project/.claude/worktrees/task-cw-1
+git -C <root>/project worktree remove <root>/project/.claude/worktrees/task-cw-1
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+git -C <root>/project fetch origin main
+git -C <root>/project symbolic-ref --short -q HEAD
+git -C <root>/project status --porcelain --untracked-files=no
+git -C <root>/project merge --ff-only origin/main

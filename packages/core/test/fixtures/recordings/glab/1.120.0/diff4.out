@@ -1,0 +1,16 @@
+diff --git a/probe-feat.txt b/probe-feat.txt
+new file mode 100644
+--- /dev/null
++++ b/probe-feat.txt
+@@ -0,0 +1 @@
++new
+diff --git a/probe-notes.txt b/probe-notes.txt
+--- a/probe-notes.txt
++++ b/probe-notes.txt
+@@ -1,5 +1,5 @@
+ probe line 1
+-probe line 2
++probe line 2 changed by feat
+ probe line 3
+ probe line 4
+ probe line 5

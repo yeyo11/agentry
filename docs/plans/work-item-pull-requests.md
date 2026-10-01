@@ -49,7 +49,9 @@ conflict. The push is Agentry's own, after the person approved.
 - **Default branch**: `git symbolic-ref --short refs/remotes/origin/HEAD` in the main checkout, with
   the `origin/` prefix dropped. When that ref is missing, it falls back to
   `gh repo view --json defaultBranchRef`.
-- **Remote**: `origin`. Only GitHub, through `gh`. Other hosts get the reason `not-github`.
+- **Remote**: `origin`. GitHub through `gh` and GitLab through `glab` (see
+  [code-hosts.md](../code-hosts.md)); a host neither CLI is signed in to gets `unsupported-host`.
+  When this plan was written only GitHub was supported, and that case was `not-github`.
 - **Main checkout**: `mainCheckout(projectPath)` in `packages/core/src/git.ts`.
 - **Item worktree**: `itemWorktree()` in `packages/core/src/work-links.ts`.
 
@@ -62,10 +64,17 @@ code the web words in en/es, and the raw detail in mono:
 | --- | --- |
 | `not-git` | The project is not a git repository. |
 | `no-remote` | The project has no `origin` remote. |
-| `not-github` | `origin` is not a GitHub host that `gh` knows. |
-| `no-gh` | `gh` is not on the PATH. |
-| `gh-unauthenticated` | `gh auth status --hostname <host>` fails. |
+| `unsupported-host` | `origin` has no host, a ported host, or a host neither `gh` nor `glab` is signed in to. |
+| `cli-missing` | The host's CLI is not found, or `--version` fails. |
+| `cli-incompatible` | The CLI's version is below the minimum Agentry works with. |
+| `cli-signed-out` | The CLI is not signed in to the host. |
 | `no-default-branch` | Neither way above finds the default branch. |
+
+This table is the one the code-hosts work put in place. The plan was first written for GitHub alone
+and named `not-github`, `no-gh` and `gh-unauthenticated`; those became `unsupported-host`,
+`cli-missing` and `cli-signed-out` (`not-github` from a refused `gh repo view` became
+`no-default-branch`). The reference, with the remedy of each reason and the detection steps, is
+[code-hosts.md](../code-hosts.md#readiness).
 
 The answer is cached per project for 60 s. `gh auth status` must not run on every board read.
 
@@ -331,8 +340,9 @@ Where the build settled what the plan left open, or read it more narrowly:
   shell), with `GIT_TERMINAL_PROMPT=0` and `GH_PROMPT_DISABLED=1`, so nothing waits for a password.
 - **Readiness** is on the item's page (`WorkItemDetail.pullRequestReadiness`, where the plan said
   `WorkItemPage`, the list's page type) and on a project's board (`Board.pullRequestReadiness`), as
-  `{ status: 'ready' | <reason>, detail, defaultBranch }`. A host other than `github.com` is
-  `not-github` unless `gh auth status --hostname <host>` knows it.
+  `{ status: 'ready' | <reason>, detail, defaultBranch }`. As built, a host other than `github.com`
+  was `not-github` unless `gh auth status --hostname <host>` knew it; it is now `unsupported-host`
+  unless the CLI's own list of hosts has it ([code-hosts.md](../code-hosts.md#how-a-projects-host-is-detected)).
 - **The history** gains the change `pull_request`, whose value is `{ phase, number, url, conflicts }`,
   for opened, conflicted, merged and closed; the `pr.*` causes are on it and on the moves and
   `waiting` changes they make (`WORK_ITEM_PR_CAUSE` in `packages/shared/src/work-items.ts`). A cause

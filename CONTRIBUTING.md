@@ -15,6 +15,14 @@ one, is in [docs/providers.md](docs/providers.md). For Claude Code, the table in
 
 This is what keeps the project honest: whatever an agent does, Agentry does, and nothing more.
 
+**Code hosts follow the same rule.** GitHub is reached through `gh` and GitLab through `glab`, with
+the session the person already has in each, and through their `api` subcommands, which call the
+host's documented API. No REST client of Agentry's own, no token of Agentry's own for a code host,
+and no agent ever pushes. Every call to `gh` or `glab` goes through `packages/core/src/hosts/exec.ts`
+and nowhere else; an adapter builds the call and never runs it. glab's `config.yml` is read for
+host names only, never a token. What a code host is, and how to add one, is in
+[docs/code-hosts.md](docs/code-hosts.md).
+
 **One bounded exception: typed decision services.** Agentry may call an optional outside service
 that only answers small typed questions (a choice, a score, a yes/no) for its decision engine.
 Today there is exactly one, TypeSafe's Jev. It is allowed only while all of this holds: it is off

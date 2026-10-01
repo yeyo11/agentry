@@ -1,0 +1,19 @@
+Specify one or more comma-separated fields for `--json`:
+  apiUrl
+  assets
+  author
+  body
+  createdAt
+  databaseId
+  id
+  isDraft
+  isImmutable
+  isPrerelease
+  name
+  publishedAt
+  tagName
+  tarballUrl
+  targetCommitish
+  uploadUrl
+  url
+  zipballUrl

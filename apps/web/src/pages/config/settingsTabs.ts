@@ -9,6 +9,7 @@ export const TAB_LABELS = {
   notifications: 'config:config.tabs.notifications',
   account: 'config:config.tabs.account',
   providers: 'providers:tab',
+  integrations: 'integrations:tab',
   instructions: 'config:config.tabs.instructions',
   settings: 'config:config.tabs.settings',
   memory: 'home:settings.tabs.memory',
@@ -31,12 +32,12 @@ export const TAB_LABELS = {
 export type TabId = keyof typeof TAB_LABELS;
 
 /**
- * Twenty-one tabs read as four questions: how Agentry itself behaves, what Claude Code is told, what it
+ * Twenty-two tabs read as four questions: how Agentry itself behaves, what Claude Code is told, what it
  * is extended with, and the machine it runs on. The `?tab=` ids are the old flat ones, so every
  * deep link (the palette, the update dot, the docs) still lands where it did.
  */
 export const GROUPS: ReadonlyArray<{ id: 'agentry' | 'claude' | 'extensions' | 'system'; tabs: readonly TabId[] }> = [
-  { id: 'agentry', tabs: ['appearance', 'notifications', 'account', 'providers', 'decisions'] },
+  { id: 'agentry', tabs: ['appearance', 'notifications', 'account', 'providers', 'integrations', 'decisions'] },
   { id: 'claude', tabs: ['instructions', 'settings', 'memory', 'rules', 'output-styles'] },
   { id: 'extensions', tabs: ['mcp', 'plugins', 'skills', 'agents', 'commands', 'workflows', 'tools'] },
   { id: 'system', tabs: ['files', 'install', 'security', 'remote'] },

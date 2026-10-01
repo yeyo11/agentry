@@ -1,0 +1,14 @@
+Refreshing checks status every 3 seconds. Press Ctrl+C to quit.
+
+bad	fail	5s	https://github.com/yeyo11/agentry-probe/actions/runs/36763795149/job/110052725854	
+ok	pending	0	https://github.com/yeyo11/agentry-probe/actions/runs/36763795149/job/110052725417	
+slow	pending	0	https://github.com/yeyo11/agentry-probe/actions/runs/36763795149/job/110052725941	
+long	pass	3s	https://github.com/yeyo11/agentry-probe/actions/runs/36763795149/job/110052725797	
+matrix (1)	pass	2s	https://github.com/yeyo11/agentry-probe/actions/runs/36763795149/job/110052725887	
+matrix (2)	pass	3s	https://github.com/yeyo11/agentry-probe/actions/runs/36763795149/job/110052725953	
+bad	fail	5s	https://github.com/yeyo11/agentry-probe/actions/runs/36763795149/job/110052725854	
+ok	pending	0	https://github.com/yeyo11/agentry-probe/actions/runs/36763795149/job/110052725417	
+slow	pending	0	https://github.com/yeyo11/agentry-probe/actions/runs/36763795149/job/110052725941	
+long	pass	3s	https://github.com/yeyo11/agentry-probe/actions/runs/36763795149/job/110052725797	
+matrix (1)	pass	2s	https://github.com/yeyo11/agentry-probe/actions/runs/36763795149/job/110052725887	
+matrix (2)	pass	3s	https://github.com/yeyo11/agentry-probe/actions/runs/36763795149/job/110052725953	

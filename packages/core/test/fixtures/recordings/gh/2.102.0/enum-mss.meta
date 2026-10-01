@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api graphql -f query={__type(name:"MergeStateStatus"){enumValues(includeDeprecated:true){name isDeprecated deprecationReason}}} --jq .data.__type.enumValues[]|[.name,.isDeprecated,(.deprecationReason//"")]|@tsv
+exit: 0
+secs: 1.577497532
+env: 

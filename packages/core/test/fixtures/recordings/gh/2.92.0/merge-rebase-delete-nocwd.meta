@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr merge 4 -R yeyo11/agentry-probe --rebase --delete-branch
+exit: 0
+secs: 5.380051512
+env: 

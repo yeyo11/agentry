@@ -1,0 +1,57 @@
+
+X pr-fail ci yeyo11/agentry-probe#1 · 36759652349
+Triggered via pull_request less than a minute ago
+
+JOBS
+✓ long in 4s (ID 110038755039)
+✓ slow in 4s (ID 110038755268)
+✓ ok in 4s (ID 110038755378)
+X bad in 3s (ID 110038755393)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  X Fail when FAIL exists
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ matrix (1) in 3s (ID 110038755476)
+✓ matrix (2) in 3s (ID 110038755694)
+
+ANNOTATIONS
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+long: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+slow: .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+slow: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+ok: .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+ok: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+bad: .github#2
+
+X Process completed with exit code 1.
+bad: .github#14
+
+X bad job failed on purpose
+bad: README.md#2
+
+! probe warning annotation
+bad: README.md#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+bad: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+matrix (1): .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+matrix (2): .github#1
+
+
+To see what failed, try: gh run view 36759652349 --log-failed
+View this run on GitHub: https://github.com/yeyo11/agentry-probe/actions/runs/36759652349

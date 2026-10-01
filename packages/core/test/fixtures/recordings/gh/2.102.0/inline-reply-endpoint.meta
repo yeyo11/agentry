@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api -X POST repos/yeyo11/agentry-probe/pulls/12/comments/4148159984/replies -f body=Reply via replies endpoint. --jq {id,in_reply_to_id}
+exit: 0
+secs: 1.684209714
+env: 

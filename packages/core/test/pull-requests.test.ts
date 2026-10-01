@@ -9,120 +9,14 @@ import type { AgentryEvent, FlowCriterionResult, WorkItem, WorkItemHistoryPullRe
 import { Db } from '../src/db.ts';
 import { flowPrompt, stageRules } from '../src/flow.ts';
 import { branchExists, mergeInProgress } from '../src/git.ts';
-import { ciOf, pullRequestBody, pullRequestTitle, PullRequestService, PullRequestWatcher, remoteHost } from '../src/pull-requests.ts';
+import { ciOf, pullRequestBody, pullRequestTitle, PullRequestWatcher, WATCH_BACKOFF, WATCH_INTERVAL } from '../src/pull-requests.ts';
 import { itemWorktree } from '../src/work-links.ts';
 import { WorkItemService } from '../src/work-items.ts';
-import { tempConfig } from './helpers.ts';
+import { cleanup, landOnMain, opened, repo, reviewed, setup, sh, view, write, type Repo, type Setup } from './fixtures/pr-harness.ts';
 
-// A project with a bare repository beside it as `origin`, and a fake `gh` on the PATH
-// (fixtures/fake-gh.sh) that answers as GitHub would and writes down what it was asked. Everything
-// else is real git.
-
-const FAKE_GH = fileURLToPath(new URL('./fixtures/fake-gh.sh', import.meta.url));
-
-function sh(cwd: string, ...args: string[]): string {
-  return execFileSync('git', ['-C', cwd, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', ...args], { encoding: 'utf8', stdio: 'pipe' }).trim();
-}
-
-function write(dir: string, file: string, content: string): void {
-  writeFileSync(join(dir, file), content);
-}
-
-interface Repo {
-  root: string;
-  project: string;
-  remote: string;
-  /** Another clone, for what "GitHub" does to main meanwhile */
-  other: string;
-  state: string;
-  bin: string;
-}
-
-function repo(): Repo {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-pr-'));
-  const remote = join(root, 'remote.git');
-  const project = join(root, 'project');
-  const other = join(root, 'other');
-  const state = join(root, 'gh-state');
-  const bin = join(root, 'bin');
-  mkdirSync(state);
-  mkdirSync(bin);
-  copyFileSync(FAKE_GH, join(bin, 'gh'));
-  chmodSync(join(bin, 'gh'), 0o755);
-  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', remote]);
-  execFileSync('git', ['init', '-q', '-b', 'main', project]);
-  sh(project, 'config', 'user.name', 'Test');
-  sh(project, 'config', 'user.email', 'test@example.com');
-  write(project, 'README.md', 'shop\n');
-  write(project, 'cart.ts', 'export const total = 1;\n');
-  sh(project, 'add', '-A');
-  sh(project, 'commit', '-q', '-m', 'first');
-  sh(project, 'remote', 'add', 'origin', remote);
-  sh(project, 'push', '-q', '-u', 'origin', 'main');
-  sh(project, 'remote', 'set-head', 'origin', 'main');
-  execFileSync('git', ['clone', '-q', remote, other]);
-  return { root, project, remote, other, state, bin };
-}
-
-/** A commit on the remote's main, as a PR merged on GitHub leaves it. */
-function landOnMain(r: Repo, file: string, content: string): void {
-  sh(r.other, 'pull', '-q', 'origin', 'main');
-  write(r.other, file, content);
-  sh(r.other, 'add', '-A');
-  sh(r.other, 'commit', '-q', '-m', `land ${file}`);
-  sh(r.other, 'push', '-q', 'origin', 'main');
-}
-
-function setup(opts: { r?: Repo; db?: Db; busy?: Set<string>; env?: NodeJS.ProcessEnv; verdicts?: FlowCriterionResult[] } = {}) {
-  const r = opts.r ?? repo();
-  const config = tempConfig();
-  mkdirSync(config.dataDir, { recursive: true });
-  const db = opts.db ?? new Db(config);
-  const events: AgentryEvent[] = [];
-  const services: PullRequestService[] = [];
-  const items = new WorkItemService({
-    db,
-    project: (id) => (id === 'p1' ? { keyPrefix: 'CW', columnLimits: {} } : null),
-    emit: (e) => {
-      const event = { ...e, id: events.length + 1, at: new Date().toISOString() } as AgentryEvent;
-      events.push(event);
-      for (const s of services) s.observe(event);
-    },
-  });
-  const busy = opts.busy ?? new Set<string>();
-  const env = opts.env ?? { PATH: `${r.bin}:${process.env.PATH ?? ''}`, FAKE_GH_STATE: r.state };
-  const service = new PullRequestService({
-    db,
-    items,
-    project: (id) => (id === 'p1' ? { path: r.project } : null),
-    busy: (id) => busy.has(id),
-    verdicts: () => opts.verdicts ?? [],
-    webOrigin: () => 'http://localhost:8787',
-    env,
-  });
-  services.push(service);
-  return { r, db, items, service, events, busy };
-}
-
-type Setup = ReturnType<typeof setup>;
-
-/** An item in review whose own worktree has one commit of work. */
-function reviewed(s: Setup): WorkItem {
-  const item = s.items.create('p1', {
-    title: 'Fix the cart total',
-    description: 'The total was off by one.',
-    type: 'task',
-    acceptanceCriteria: [{ text: 'The total adds up' }, { text: 'A test covers it' }],
-  });
-  const place = itemWorktree(s.r.project, { ...item, projectId: 'p1' });
-  assert.ok(place);
-  s.items.setWorktree(item.id, { worktree: place.worktree, branch: place.branch });
-  write(place.worktree, 'cart.ts', 'export const total = 2;\n');
-  sh(place.worktree, 'add', '-A');
-  sh(place.worktree, 'commit', '-q', '-m', 'fix the total');
-  s.items.move(item.id, { status: 'in_review' });
-  return s.items.find(item.id) ?? item;
-}
+// A project with a bare repository beside it as `origin` (named as github.com for the tests), and a
+// fake `gh` on the PATH (fixtures/fake-gh.sh) that answers as GitHub would and writes down what it
+// was asked. Everything else is real git. The project is built by fixtures/pr-harness.ts.
 
 const calls = (r: Repo): string[] => (existsSync(join(r.state, 'calls')) ? readFileSync(join(r.state, 'calls'), 'utf8').trim().split('\n') : []);
 const creates = (r: Repo): string[] => calls(r).filter((c) => c.startsWith('pr create'));
@@ -137,22 +31,6 @@ const lastMove = (s: Setup, itemId: string) =>
     .history(itemId)
     .filter((e) => e.change === 'status')
     .pop();
-
-async function opened(s: Setup, item: WorkItem): Promise<void> {
-  const result = await s.service.approve(item.id);
-  assert.equal(result.status, 202);
-  await s.service.settled();
-  assert.equal(s.items.find(item.id)?.pullRequest?.phase, 'open');
-}
-
-function view(r: Repo, state: 'OPEN' | 'MERGED' | 'CLOSED', rollup: unknown[] = [], n = 7): void {
-  writeFileSync(
-    join(r.state, 'view.json'),
-    JSON.stringify({ state, mergedAt: state === 'MERGED' ? '2026-09-29T10:00:00Z' : null, statusCheckRollup: rollup, url: `https://github.com/acme/shop/pull/${n}` }),
-  );
-}
-
-const cleanup = (s: Setup) => rmSync(s.r.root, { recursive: true, force: true });
 
 type Refusal = { statusCode: number; reason: string | null };
 const refusedWith = (status: number, reason?: string) => (err: Refusal) => err.statusCode === status && (reason === undefined || err.reason === reason);
@@ -197,13 +75,6 @@ test('statusCheckRollup maps to none, pending, passing and failing', () => {
   assert.equal(ciOf([{ status: 'COMPLETED', conclusion: 'CANCELLED' }]), 'failing');
 });
 
-test("a remote's host is read from HTTPS and SSH URLs, and a local path has none", () => {
-  assert.equal(remoteHost('https://github.com/acme/shop.git'), 'github.com');
-  assert.equal(remoteHost('git@github.com:acme/shop.git'), 'github.com');
-  assert.equal(remoteHost('ssh://git@github.example.com/acme/shop'), 'github.example.com');
-  assert.equal(remoteHost('/home/me/remote.git'), null);
-});
-
 test('no stage of the flow may push, the work run that resolves a conflict included', () => {
   const extra = { documentsPath: 'docs', testCommands: ['Bash(pnpm test)'] };
   const variants = [
@@ -225,26 +96,25 @@ test('no stage of the flow may push, the work run that resolves a conflict inclu
 test('a project with no remote, no gh, gh not logged in, a host gh does not know or no git says why it cannot open a PR', async () => {
   const s = setup();
   try {
-    assert.deepEqual(await s.service.readiness(s.r.project), { status: 'ready', detail: null, defaultBranch: 'main' });
+    assert.deepEqual(await s.service.readiness(s.r.project), { status: 'ready', detail: null, defaultBranch: 'main', host: 'github', hostname: 'github.com', remedy: null });
 
     writeFileSync(join(s.r.state, 'unauth'), '');
     s.service.forgetReadiness();
     const unauth = await s.service.readiness(s.r.project);
-    assert.equal(unauth.status, 'gh-unauthenticated');
+    assert.equal(unauth.status, 'cli-signed-out');
     assert.match(unauth.detail ?? '', /not logged into any GitHub hosts/);
 
-    // A host other than github.com that gh has no login for
-    sh(s.r.project, 'remote', 'set-url', 'origin', 'https://gitlab.com/acme/shop.git');
+    // A host that neither gh nor glab knows is never sent to a CLI
+    sh(s.r.project, 'remote', 'set-url', 'origin', 'https://git.example.org/acme/shop.git');
     s.service.forgetReadiness();
-    assert.equal((await s.service.readiness(s.r.project)).status, 'not-github');
+    assert.equal((await s.service.readiness(s.r.project)).status, 'unsupported-host');
     rmSync(join(s.r.state, 'unauth'));
 
     // Only git on the PATH: gh is missing
-    const noGh = join(s.r.root, 'nogh');
-    mkdirSync(noGh);
-    symlinkSync(execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim(), join(noGh, 'git'));
-    const bare = setup({ r: s.r, env: { PATH: noGh, FAKE_GH_STATE: s.r.state } });
-    assert.equal((await bare.service.readiness(s.r.project)).status, 'no-gh');
+    sh(s.r.project, 'remote', 'set-url', 'origin', s.r.remote);
+    s.service.forgetReadiness();
+    const bare = setup({ r: s.r, noGh: true });
+    assert.equal((await bare.service.readiness(s.r.project)).status, 'cli-missing');
 
     sh(s.r.project, 'remote', 'remove', 'origin');
     s.service.forgetReadiness();
@@ -362,7 +232,7 @@ test('approving refuses an epic, an item not in review, one being worked on, not
 
     writeFileSync(join(s.r.state, 'unauth'), '');
     s.service.forgetReadiness();
-    await assert.rejects(s.service.approve(item.id), refusedWith(409, 'gh-unauthenticated'));
+    await assert.rejects(s.service.approve(item.id), refusedWith(409, 'cli-signed-out'));
     assert.equal(creates(s.r).length, 0);
     assert.equal(s.items.find(item.id)?.pullRequest ?? null, null);
   } finally {
@@ -525,13 +395,14 @@ test('after a gh error the watcher leaves the project alone for five minutes, an
     writeFileSync(join(s.r.state, 'fail'), '');
     const views = () => calls(s.r).filter((c) => c.startsWith('pr view 7')).length;
     await watcher.tick();
-    assert.equal(views(), 1);
+    // The execution layer retries a read that fails with nothing structured, twice
+    assert.equal(views(), 3);
     await watcher.tick();
-    assert.equal(views(), 1, 'backed off');
+    assert.equal(views(), 3, 'backed off');
     rmSync(join(s.r.state, 'fail'));
     view(s.r, 'OPEN', [{ state: 'SUCCESS' }]);
     await s.service.refresh(item.id);
-    assert.equal(views(), 2);
+    assert.equal(views(), 4);
     assert.equal(s.items.find(item.id)?.pullRequest?.ci, 'passing');
   } finally {
     cleanup(s);
@@ -667,4 +538,13 @@ test('a PR closed without merging leaves the item in review waiting for approval
   } finally {
     cleanup(s);
   }
+});
+
+test('the timings and limits moved from the GitHub-only service are unchanged', () => {
+  assert.equal(WATCH_INTERVAL, 60_000);
+  assert.equal(WATCH_BACKOFF, 5 * 60_000);
+  const title = pullRequestTitle({ key: 'CW-1', title: 'x'.repeat(200), type: 'task', labels: [] });
+  assert.equal(title, `feat: ${'x'.repeat(65)}… (CW-1)`);
+  const body = pullRequestBody({ key: 'CW-1', description: 'y'.repeat(70_000), acceptanceCriteria: [] }, [], null);
+  assert.ok(body.startsWith('y'.repeat(60_000)) && body.endsWith('… cut at 60000 characters'));
 });

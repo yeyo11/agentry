@@ -24,6 +24,8 @@ import type {
   DecisionSettings,
   DecisionSettingsUpdate,
   DecisionTestResult,
+  CodeHostStatus,
+  CodeHostsSettings,
   DecisionProviderId,
   ApiError,
   AuditFilter,
@@ -109,6 +111,7 @@ import type {
   PluginsOverview,
   Project,
   ProjectCandidate,
+  ProjectCodeHost,
   ProviderStatus,
   ProvidersSettings,
   PushKeyInfo,
@@ -846,6 +849,14 @@ export const api = {
   refreshProviders: () => request<ProviderStatus[]>('/providers/refresh', { method: 'POST' }),
   providerSettings: (o: ReadOptions = {}) => request<ProvidersSettings>('/providers/settings', o),
   putProviderSettings: (settings: ProvidersSettings) => request<ProvidersSettings>('/providers/settings', { method: 'PUT', body: settings }),
+  hosts: (o: ReadOptions = {}) => request<CodeHostStatus[]>('/hosts', o),
+  host: (id: string, o: ReadOptions = {}) => request<CodeHostStatus>(`/hosts/${enc(id)}`, o),
+  /** Skips the detector's cache; the answer is the fresh statuses */
+  refreshHosts: () => request<CodeHostStatus[]>('/hosts/refresh', { method: 'POST' }),
+  hostSettings: (o: ReadOptions = {}) => request<CodeHostsSettings>('/hosts/settings', o),
+  putHostSettings: (settings: CodeHostsSettings) => request<CodeHostsSettings>('/hosts/settings', { method: 'PUT', body: settings }),
+  /** Whether the project's origin can open pull or merge requests, and the remote as parsed */
+  projectCodeHost: (id: string, o: ReadOptions = {}) => request<ProjectCodeHost>(`/projects/${enc(id)}/code-host`, o),
 };
 
 // A drift between the chat package's client and the real one fails the build here, not at a call
@@ -862,6 +873,9 @@ export const keys = {
   release: ['release'] as const,
   providers: ['providers'] as const,
   providerSettings: ['providers', 'settings'] as const,
+  hosts: ['hosts'] as const,
+  hostSettings: ['hosts', 'settings'] as const,
+  projectCodeHost: (id: string) => ['project-code-host', id] as const,
   projects: ['projects'] as const,
   projectCandidates: ['projects', 'candidates'] as const,
   chatList: (filter: ChatFilter) =>

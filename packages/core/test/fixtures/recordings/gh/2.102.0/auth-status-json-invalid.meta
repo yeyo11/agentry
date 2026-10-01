@@ -1,0 +1,5 @@
+gh: 102
+argv: gh auth status --json hosts
+exit: 0
+secs: 1.002226807
+env: 

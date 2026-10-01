@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api repos/yeyo11/agentry-probe/commits/334aba468c4b6a04dbeff0ab0544c8fb3894d57b/status --jq {state,total_count}
+exit: 0
+secs: .613208195
+env: 

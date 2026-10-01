@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api graphql --cache 60s -f query={rateLimit{remaining}}
+exit: 0
+secs: .318213436
+env: 

@@ -1,0 +1,13 @@
+title:	probe feat mergeable (renamed)
+state:	open
+author:	yeyo11
+labels:	probe-label
+assignees:	
+reviewers:	yeyo11
+source_branch:	probe/feat
+target_branch:	probe/base
+comments:	0
+number:	4
+url:	https://gitlab.com/yeyo11/agentry/-/merge_requests/4
+--
+probe updated description

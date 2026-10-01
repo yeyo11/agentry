@@ -1,0 +1,17 @@
+Specify one or more comma-separated fields for `--json`:
+  attempt
+  conclusion
+  createdAt
+  databaseId
+  displayTitle
+  event
+  headBranch
+  headSha
+  name
+  number
+  startedAt
+  status
+  updatedAt
+  url
+  workflowDatabaseId
+  workflowName

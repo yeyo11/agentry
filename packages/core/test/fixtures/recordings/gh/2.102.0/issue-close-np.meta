@@ -1,0 +1,5 @@
+gh: 102
+argv: gh issue close 21 -R yeyo11/agentry-probe --reason not planned --comment closing as not planned
+exit: 0
+secs: 3.062923745
+env: 

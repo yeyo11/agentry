@@ -1,0 +1,6 @@
+          
+   ERROR  
+          
+  Get "https://gitlab.invalid.example/api/v4/user": dial tcp: lookup gitlab.invalid.example on 127.0.0.53:53: no such 
+  host.                                                                                                               
+

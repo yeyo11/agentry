@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr view 29 -R yeyo11/agentry-probe --json comments --jq .comments|length
+exit: 0
+secs: 1.646970940
+env: 

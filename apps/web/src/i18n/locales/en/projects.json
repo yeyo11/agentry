@@ -200,6 +200,42 @@
     "next": "Next",
     "back": "Back"
   },
+  "host": {
+    "title": "Code host",
+    "titleShort": "Repository",
+    "detected": "detected from the origin remote",
+    "detectedShort": "Detected from the origin remote; it is not chosen.",
+    "noun": "This project's change requests are {{noun}}s: they read as",
+    "loadFailed": "Could not read the project's code host",
+    "noRemote": "No origin remote",
+    "cliFallback": "The host's CLI",
+    "state": {
+      "ready": "Ready",
+      "not-git": "Not a git repository",
+      "no-remote": "No remote",
+      "unsupported-host": "Not supported",
+      "no-default-branch": "No default branch",
+      "cli-missing": "Not installed",
+      "cli-incompatible": "Update needed",
+      "cli-signed-out": "Signed out"
+    },
+    "reason": {
+      "ready": "{{cli}} is signed in to {{hostname}} and answers.",
+      "not-git": "The directory is not a git repository, so there is no host to ask.",
+      "no-remote": "The project has no origin remote, so Agentry cannot tell where its code lives.",
+      "unsupported-host": "{{hostname}} is not a host that {{cli}} is signed in to, or the host is turned off in Integrations.",
+      "no-default-branch": "{{host}} did not say which branch is the default.",
+      "cli-missing": "{{cli}} is not installed, and it is what Agentry asks about {{host}}.",
+      "cli-incompatible": "{{cli}} is older than Agentry works with.",
+      "cli-signed-out": "{{cli}} is not signed in to {{hostname}}."
+    },
+    "remedy": {
+      "install": "How to install {{cli}}",
+      "sign-in": "How to sign in",
+      "docs": "Read the docs",
+      "settings": "Open Integrations"
+    }
+  },
   "general": {
     "title": "General",
     "name": "Name",

@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api --paginate --slurp repos/yeyo11/agentry/commits/6eec081b/check-runs?per_page=5 --jq [.[]|.check_runs|length]
+exit: 1
+secs: .246530567
+env: 

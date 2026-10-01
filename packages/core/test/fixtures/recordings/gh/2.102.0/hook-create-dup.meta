@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api -X POST repos/yeyo11/agentry-probe/hooks --input /tmp/ghm-hook.json
+exit: 1
+secs: .636638069
+env: 

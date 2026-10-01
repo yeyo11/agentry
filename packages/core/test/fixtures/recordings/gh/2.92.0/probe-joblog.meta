@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api repos/yeyo11/agentry-probe/actions/jobs/110038755393/logs
+exit: 0
+secs: 1.077064472
+env: 

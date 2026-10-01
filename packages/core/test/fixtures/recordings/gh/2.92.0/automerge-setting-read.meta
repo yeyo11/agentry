@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api repos/yeyo11/agentry-probe --jq {allow_auto_merge,allow_merge_commit,allow_squash_merge,allow_rebase_merge}
+exit: 0
+secs: .667931711
+env: 

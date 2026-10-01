@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api --allow-escape-sequences repos/yeyo11/agentry/actions/jobs/109958356198/logs
+exit: 1
+secs: .100590231
+env: 

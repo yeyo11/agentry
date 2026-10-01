@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr checks 127 -R yeyo11/agentry --json name,bucket,state --jq .[]|[.name,.bucket,.state]|@tsv
+exit: 0
+secs: 2.185513074
+env: 

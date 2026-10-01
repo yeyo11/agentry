@@ -17,6 +17,7 @@ import enOrchestration from './locales/en/orchestration.json';
 import enOrchestrationDetail from './locales/en/orchestrationDetail.json';
 import enOrchestrationV2 from './locales/en/orchestrationV2.json';
 import enProjects from './locales/en/projects.json';
+import enIntegrations from './locales/en/integrations.json';
 import enProviders from './locales/en/providers.json';
 import enSchedules from './locales/en/schedules.json';
 import enServer from './locales/en/server.json';
@@ -42,6 +43,7 @@ import esOrchestration from './locales/es/orchestration.json';
 import esOrchestrationDetail from './locales/es/orchestrationDetail.json';
 import esOrchestrationV2 from './locales/es/orchestrationV2.json';
 import esProjects from './locales/es/projects.json';
+import esIntegrations from './locales/es/integrations.json';
 import esProviders from './locales/es/providers.json';
 import esSchedules from './locales/es/schedules.json';
 import esServer from './locales/es/server.json';
@@ -66,6 +68,7 @@ export const en = {
   home: enHome,
   projects: enProjects,
   providers: enProviders,
+  integrations: enIntegrations,
   orchestration: enOrchestration,
   orchestrationDetail: enOrchestrationDetail,
   observe: enObserve,
@@ -101,6 +104,7 @@ export const es = {
   home: esHome,
   projects: esProjects,
   providers: esProviders,
+  integrations: esIntegrations,
   orchestration: esOrchestration,
   orchestrationDetail: esOrchestrationDetail,
   observe: esObserve,

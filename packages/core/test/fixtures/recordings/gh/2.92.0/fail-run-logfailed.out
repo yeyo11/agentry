@@ -1,0 +1,14 @@
+bad	Fail when FAIL exists	﻿2026-09-30T18:35:44.0033303Z ##[group]Run echo "::warning file=README.md,line=1::probe warning annotation"
+bad	Fail when FAIL exists	2026-09-30T18:35:44.0034480Z ^[[36;1mecho "::warning file=README.md,line=1::probe warning annotation"^[[0m
+bad	Fail when FAIL exists	2026-09-30T18:35:44.0035424Z ^[[36;1mprintf '\033[31mred text with an escape sequence\033[0m\n'^[[0m
+bad	Fail when FAIL exists	2026-09-30T18:35:44.0036222Z ^[[36;1mif [ -f FAIL ] || [ "" = "true" ]; then^[[0m
+bad	Fail when FAIL exists	2026-09-30T18:35:44.0037243Z ^[[36;1m  echo "::error file=README.md,line=2,endLine=3,title=Probe failure::bad job failed on purpose"^[[0m
+bad	Fail when FAIL exists	2026-09-30T18:35:44.0038189Z ^[[36;1m  exit 1^[[0m
+bad	Fail when FAIL exists	2026-09-30T18:35:44.0038655Z ^[[36;1mfi^[[0m
+bad	Fail when FAIL exists	2026-09-30T18:35:44.0039146Z ^[[36;1mecho "bad job passed"^[[0m
+bad	Fail when FAIL exists	2026-09-30T18:35:44.0338920Z shell: /usr/bin/bash -e {0}
+bad	Fail when FAIL exists	2026-09-30T18:35:44.0339592Z ##[endgroup]
+bad	Fail when FAIL exists	2026-09-30T18:35:44.0471476Z ##[warning]probe warning annotation
+bad	Fail when FAIL exists	2026-09-30T18:35:44.0480274Z ^[[31mred text with an escape sequence^[[0m
+bad	Fail when FAIL exists	2026-09-30T18:35:44.0483347Z ##[error]bad job failed on purpose
+bad	Fail when FAIL exists	2026-09-30T18:35:44.0488612Z ##[error]Process completed with exit code 1.

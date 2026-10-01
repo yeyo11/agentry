@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api repos/yeyo11/agentry-probe --jq {private,visibility,size,default_branch,allow_auto_merge,allow_merge_commit,allow_rebase_merge,allow_squash_merge,delete_branch_on_merge,allow_update_branch,permissions,created_at,pushed_at}
+exit: 0
+secs: .795627834
+env: 

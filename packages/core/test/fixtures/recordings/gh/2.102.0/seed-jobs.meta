@@ -1,0 +1,5 @@
+gh: 102
+argv: gh run view 36759507773 -R yeyo11/agentry-probe --json jobs --jq .jobs[]|[.databaseId,.name,.conclusion,(.steps|map(.name)|join("|"))]|@tsv
+exit: 0
+secs: 1.698520326
+env: 

@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr view 12 -R yeyo11/agentry-probe --json mergeStateStatus,reviewDecision,latestReviews --jq {mergeStateStatus,reviewDecision,latest:[.latestReviews[]|.state]}
+exit: 0
+secs: 1.148146688
+env: 

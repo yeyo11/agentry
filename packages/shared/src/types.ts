@@ -1356,7 +1356,11 @@ export interface WorkItemHistoryCriterion {
 /** A pull request as a history entry records it: opened, conflicted, merged or closed. */
 export interface WorkItemHistoryPullRequest {
   phase: WorkItemPullRequestPhase;
+  /** The host that holds it; absent reads as `github` (entries written before hosts existed) */
+  host?: CodeHostId;
   number: number | null;
+  /** How the host writes the number: `#12` or `!12`; null without a number */
+  ref?: string | null;
   url: string | null;
   /** The conflicting paths, for `conflict` */
   conflicts: string[];
@@ -1469,8 +1473,12 @@ export type WorkItemPullRequestCi = 'none' | 'pending' | 'passing' | 'failing';
 /** An item's pull request, the newest of its rows: an item keeps every PR it had, closed ones too. */
 export interface WorkItemPullRequest {
   phase: WorkItemPullRequestPhase;
-  /** Null until `gh pr create` answered */
+  /** The host that holds it; absent reads as `github` (rows opened before hosts existed) */
+  host?: CodeHostId;
+  /** Null until the host's CLI answered the create */
   number: number | null;
+  /** How the host writes the number: `#12` or `!12`; null without a number */
+  ref?: string | null;
   url: string | null;
   /** The item's branch, `task/<key>` */
   branch: string;
@@ -1488,19 +1496,41 @@ export interface WorkItemPullRequest {
   checkedAt: string | null;
 }
 
-/** Why a project cannot open pull requests; `ready` when it can. */
-export type PullRequestNotReadyReason = 'not-git' | 'no-remote' | 'not-github' | 'no-gh' | 'gh-unauthenticated' | 'no-default-branch';
+/**
+ * Why a project cannot open pull requests (or merge requests); `ready` when it can. "Pull request"
+ * in these types means a PR or an MR: the host decides the word.
+ */
+export type PullRequestNotReadyReason =
+  | 'not-git'
+  | 'no-remote'
+  | 'unsupported-host'
+  | 'no-default-branch'
+  | 'cli-missing'
+  | 'cli-incompatible'
+  | 'cli-signed-out';
+
+/** What a person can do about a not-ready project: a link to follow, never a command to copy. */
+export interface PullRequestRemedy {
+  kind: 'install' | 'sign-in' | 'docs' | 'settings';
+  url: string | null;
+}
 
 /**
- * Whether approving an item of this project opens its pull request. Computed from git and gh and
- * cached for 60 s, so a board read never waits on `gh auth status`.
+ * Whether approving an item of this project opens its pull request. Computed from git and the
+ * host's CLI and cached for 60 s, so a board read never waits on an auth probe.
  */
 export interface PullRequestReadiness {
   status: 'ready' | PullRequestNotReadyReason;
-  /** The raw line git or gh answered with, shown in mono beside the worded reason; null when ready */
+  /** The raw line git or the CLI answered with, shown in mono beside the worded reason; null when ready */
   detail: string | null;
   /** The default branch, when it could be found */
   defaultBranch: string | null;
+  /** The code host the remote belongs to; null when none could be told */
+  host: CodeHostId | null;
+  /** The remote's host name, without user, secret or port; null when there is none */
+  hostname: string | null;
+  /** The one thing to do about a not-ready status; null when ready or when nothing can be done */
+  remedy: PullRequestRemedy | null;
 }
 
 /**
@@ -3085,6 +3115,8 @@ export interface Orchestration {
   baseCommit?: string | null;
   /** The one branch a worktree graph delivers, built once its tasks finish */
   integration?: OrchestrationIntegration | null;
+  /** The newest change request opened for the integration branch; null or absent before one */
+  pullRequest?: OrchestrationPullRequest | null;
   /** The synthesis run, so its report can be continued like any other conversation */
   synthesisRunId?: string | null;
   engine?: OrchestrationEngine;
@@ -4652,6 +4684,159 @@ export type ProviderReasonCode =
   | 'no-probe'
   | 'disabled';
 
+/** The code hosts Agentry reaches through their own CLI. Closed: adding one is a code change. */
+export type CodeHostId = 'github' | 'gitlab';
+
+/** `degraded`: installed and signed in, but on a release the facts were not recorded on. */
+export type CodeHostState = 'ready' | 'degraded' | 'signed-out' | 'incompatible' | 'not-installed' | 'unknown';
+
+export type CodeHostReason = 'version-untested' | 'below-minimum' | 'no-hosts' | 'probe-failed' | 'timeout';
+
+/** One host name a CLI knows, and who is signed in to it. */
+export interface CodeHostHostEntry {
+  hostname: string;
+  /** The CLI's own default host (`github.com`, `gitlab.com`) */
+  default: boolean;
+  /** Null while the host has not been probed */
+  signedIn: boolean | null;
+  user: string | null;
+}
+
+/** One code host's CLI as detected on this machine, served from the detector's cache. */
+export interface CodeHostStatus {
+  id: CodeHostId;
+  label: string;
+  cli: string;
+  /** The binary that was resolved: the override, or the first match on the PATH or an install directory */
+  binaryPath: string | null;
+  version: string | null;
+  /** The oldest release Agentry works with */
+  minimum: string;
+  /** The releases the CLI facts were recorded on */
+  recorded: string[];
+  state: CodeHostState;
+  /** Why the state is not `ready`; null when it is */
+  reason: CodeHostReason | null;
+  hosts: CodeHostHostEntry[];
+  /** ISO timestamp of the detection this status came from */
+  checkedAt: string;
+}
+
+/** What a person chose for one code host. */
+export interface CodeHostSettingsEntry {
+  enabled: boolean;
+  /** Absolute path of the binary to use instead of searching for one; null searches */
+  binaryPath: string | null;
+}
+
+/** `hosts.json` in the data directory. A disabled host's projects read `unsupported-host`. */
+export interface CodeHostsSettings {
+  hosts: Record<CodeHostId, CodeHostSettingsEntry>;
+}
+
+/** A project's remote as Agentry parsed it: never the URL, which can carry a user and a secret. */
+export interface ProjectCodeHostRemote {
+  hostname: string;
+  path: string;
+  protocol: 'https' | 'ssh' | 'git';
+}
+
+/** `GET /projects/:id/code-host`: the readiness and the parsed remote. */
+export interface ProjectCodeHost {
+  readiness: PullRequestReadiness;
+  remote: ProjectCodeHostRemote | null;
+}
+
+/**
+ * Why a call to a code host did not do what was asked: one taxonomy for every phase. The web words
+ * each code; the host's first line travels beside it as the detail.
+ */
+export type HostReason =
+  | 'cli-missing'
+  | 'cli-incompatible'
+  | 'cli-signed-out'
+  | 'unsupported-host'
+  | 'no-default-branch'
+  | 'timeout'
+  | 'output-too-large'
+  | 'unexpected-output'
+  | 'auth-failed'
+  | 'forbidden'
+  | 'not-found'
+  | 'rate-limited'
+  | 'slowed-down'
+  | 'server-error'
+  | 'unreachable'
+  | 'busy'
+  | 'write-unconfirmed'
+  | 'already-open'
+  | 'create-failed'
+  | 'nothing-to-propose'
+  | 'log-unavailable'
+  | 'rerun-refused'
+  | 'check-not-rerunnable'
+  | 'own-change-request'
+  | 'pending-review-exists'
+  | 'line-not-in-diff'
+  | 'not-resolvable'
+  | 'review-partly-posted'
+  | 'head-moved'
+  | 'method-not-allowed'
+  | 'merge-failed'
+  | 'auto-merge-not-allowed'
+  | 'auto-merge-not-needed'
+  | 'waiting-for-pipeline'
+  | 'tracker-signed-out'
+  | 'transition-unknown'
+  | 'issue-is-pull-request'
+  | 'hook-no-permission'
+  | 'hook-unreachable';
+
+/**
+ * A code host's detected status changed: its CLI was installed, signed in, updated or removed, or
+ * the settings turned it on or off. Sent only when a status actually differs.
+ */
+export interface HostsChangedEvent extends AgentryEventBase {
+  type: 'hosts.changed';
+  hosts: CodeHostStatus[];
+}
+
+/** Where an orchestration's change request stands; the flow's `conflict` and `awaiting-verify` do not apply. */
+export type OrchestrationPullRequestPhase = 'preparing' | 'open' | 'merged' | 'closed' | 'failed';
+
+/** The change request opened for an orchestration's integration branch. */
+export interface OrchestrationPullRequest {
+  phase: OrchestrationPullRequestPhase;
+  host: CodeHostId;
+  /** How the host writes the number: `#12` or `!12`; null without a number */
+  ref: string | null;
+  number: number | null;
+  url: string | null;
+  branch: string;
+  base: string;
+  ci: WorkItemPullRequestCi | null;
+  /** Why the last attempt failed: a step or reason code, and the first line of the host's error */
+  error: { code: string; detail: string } | null;
+  openedAt: string | null;
+  closedAt: string | null;
+  checkedAt: string | null;
+}
+
+/** An orchestration's change request was opened, or moved to another phase or CI state. */
+export interface OrchestrationPullRequestEvent extends AgentryEventBase {
+  type: 'orchestration.pull-request';
+  orchestrationId: string;
+  pullRequest: OrchestrationPullRequest;
+}
+
+/** The answer of `POST /orchestrations/:id/pull-request`; the first three fields are what it always had. */
+export interface OrchestrationPullRequestAnswer {
+  branch: string;
+  url: string | null;
+  detail: string;
+  pullRequest: OrchestrationPullRequest | null;
+}
+
 /** One provider's detected state on this host, as served from the detector's cache. */
 export interface ProviderStatus {
   id: ProviderId;
@@ -5005,6 +5190,8 @@ export type AgentryEvent =
   | SessionsChangedEvent
   | SystemReleaseEvent
   | ProvidersChangedEvent
+  | HostsChangedEvent
+  | OrchestrationPullRequestEvent
   | ScheduleChangedEvent
   | ScheduleFiredEvent
   | SupervisorProposedEvent

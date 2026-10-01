@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api -X POST repos/yeyo11/agentry-probe/pulls/12/comments -f body=Multi-line remark on lines 3-4. -f commit_id=97bafbb3b999e1174d1d9d5060665c89dc05b371 -f path=review.txt -F start_line=3 -F line=4 -f side=RIGHT -f start_side=RIGHT --jq {id,node_id,line,start_line,side,start_side,original_line,subject_type,pull_request_review_id}
+exit: 0
+secs: 1.418608936
+env: 

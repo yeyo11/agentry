@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api repos/yeyo11/agentry-probe/hooks/689845722/deliveries?per_page=1 --jq .[0].id|tostring
+exit: 0
+secs: .911243445
+env: 

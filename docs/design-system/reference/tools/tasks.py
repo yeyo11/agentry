@@ -473,9 +473,67 @@ def milestones_mobile():
   write('MobileHitos.html', mobile('Hitos', inner))
 
 
+# ---------- The item of a GitLab project with its merge request open (docs/plans/code-hosts.md, P0 p3) ----------
+def _captured(fn):
+  """Runs a generator that writes one screen and returns its HTML instead of writing it."""
+  global write
+  real, got = write, []
+  write = lambda name, html: got.append(html)
+  try:
+    fn()
+  finally:
+    write = real
+  return got[0]
+
+
+def _swap(html, old, new):
+  assert old in html, old[:60]
+  return html.replace(old, new, 1)
+
+
+MR_BRANCH = 'task/agn-26 → main'
+
+
+def mr_wait_panel(mobile=False):
+  # What waiting for the merge means, in idle, with the CI state and the way to GitLab.
+  size = 'btn btn-lg' if mobile else 'btn btn-sm'
+  return f'''<section class="callout" aria-label="Merge request" style="align-items: flex-start; flex-wrap: wrap">{ico('branch', 'ico fg-3', 'flex-shrink: 0; margin-top: 2px')}
+<div class="col grow" style="gap: 6px; min-width: 0"><span class="row" style="gap: 8px; flex-wrap: wrap"><b style="color: var(--fg); font-weight: 500">La MR !12 espera que la fusiones en GitLab</b>{ci_badge('pending')}</span>
+<span>Cuando se fusione, la tarea pasará sola a Hecho.</span></div>
+<a href="#" class="{size}" target="_blank" rel="noreferrer">{ext_ico()}Abrir MR !12 en GitLab</a></section>'''
+
+
+def mr_row():
+  return (f'<a href="#" class="pr-row" target="_blank" rel="noreferrer" aria-label="Abrir MR !12 en GitLab"><span class="pr-num">MR !12</span>'
+          f'<span class="pr-branch">{MR_BRANCH}</span>{ci_badge("pending")}{ext_ico()}</a>')
+
+
+def detail_mr_desktop():
+  h = _captured(detail_desktop)
+  h = _swap(h, '<span class="badge b-idle">te espera</span>', '<span class="badge b-idle">espera tu fusión</span>')
+  crit = '<section class="col" style="gap: 8px"><div class="row" style="gap: 10px"><h2 class="t-h2">Criterios'
+  h = _swap(h, crit, mr_wait_panel() + crit)
+  diff = '<div class="row" style="gap: 8px"><a href="#" class="btn btn-sm grow">'
+  h = _swap(h, diff, mr_row() + diff)
+  write('DesktopTareaMR.html', h.replace('<title>Agentry · Tarea (desktop)', '<title>Agentry · Tarea con MR (desktop)'))
+
+
+def detail_mr_mobile():
+  h = _captured(detail_mobile)
+  h = _swap(h, '<span class="badge b-idle">te espera</span>', '<span class="badge b-idle">espera tu fusión</span>')
+  desc = '<p class="t-sm fg-2" style="margin: 0; line-height: 1.55">'
+  h = _swap(h, desc, mr_wait_panel(True) + desc)
+  links = '<div class="row" style="gap: 8px; padding: 0 2px"><span class="t-label grow">Chats y orquestaciones</span>'
+  h = _swap(h, links, '<div class="row" style="gap: 8px; padding: 0 2px"><span class="t-label grow">Su merge request</span></div>' + mr_row() + links)
+  done = f'<button type="button" class="btn btn-lg" style="flex: 0 0 auto">{ico("check", "ico ico-lg")}Mover a Hecho</button>'
+  h = _swap(h, done, f'<a href="#" class="btn btn-lg" style="flex: 0 0 auto" target="_blank" rel="noreferrer">{ext_ico("ico ico-lg")}Abrir MR !12</a>')
+  write('MobileTareaMR.html', h.replace('<title>Agentry · Tarea (móvil)', '<title>Agentry · Tarea con MR (móvil)'))
+
+
 if __name__ == '__main__':
   empty_desktop(); empty_mobile()
   list_desktop(); list_mobile()
   detail_desktop(); detail_mobile()
   new_task_desktop(); new_task_mobile()
   milestones_desktop(); milestones_mobile()
+  detail_mr_desktop(); detail_mr_mobile()

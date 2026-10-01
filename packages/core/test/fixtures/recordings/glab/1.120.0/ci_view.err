@@ -1,0 +1,9 @@
+          
+   ERROR  
+          
+  Ci view requires an interactive terminal (TTY).                                                                     
+  For non-interactive use, try:                                                                                       
+    - 'glab ci status' to check pipeline status                                                                       
+    - 'glab ci get' to view pipeline details                                                                          
+    - 'glab ci trace' to view job logs.                                                                               
+

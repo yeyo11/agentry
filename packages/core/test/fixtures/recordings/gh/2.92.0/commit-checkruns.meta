@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api repos/yeyo11/agentry-probe/commits/334aba468c4b6a04dbeff0ab0544c8fb3894d57b/check-runs?per_page=100 --jq {total_count, runs:[.check_runs[]|{id,name,status,conclusion,app:.app.slug,output:{title:.output.title,summary:.output.summary,annotations_count:.output.annotations_count},check_suite:.check_suite.id}]}
+exit: 0
+secs: .662265095
+env: 

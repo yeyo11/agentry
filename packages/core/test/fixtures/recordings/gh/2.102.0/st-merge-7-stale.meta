@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr merge 7 -R yeyo11/agentry-probe --squash --match-head-commit 0000000000000000000000000000000000000000
+exit: 1
+secs: 2.627354085
+env: 
