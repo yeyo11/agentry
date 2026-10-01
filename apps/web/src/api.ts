@@ -156,6 +156,13 @@ import type {
   MoveWorkItemRequest,
   MoveWorkItemResult,
   WorkItemPullRequestResult,
+  ChangeRequest,
+  ChangeRequestChecks,
+  CheckLog,
+  CheckState,
+  ChecksRerunRequest,
+  OrchestrationPullRequest,
+  WorkItemPullRequest,
   OrchestrateWorkItemsRequest,
   ProjectSettings,
   ProjectTemplate,
@@ -259,6 +266,14 @@ function either(a: AbortSignal, b: AbortSignal): AbortSignal {
     signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true, signal: controller.signal });
   }
   return controller.signal;
+}
+
+/** What `POST /change-requests/:id/checks/fix` answers (core's `ChangeRequestFix`, which shared does not export). */
+export interface ChangeRequestFixResult {
+  started: boolean;
+  prompt: string;
+  worktree: string | null;
+  pullRequest: WorkItemPullRequest | OrchestrationPullRequest | null;
 }
 
 async function request<T>(path: string, init: { method?: string; body?: unknown; timeoutMs?: number; signal?: AbortSignal } = {}): Promise<T> {
@@ -740,6 +755,23 @@ export const api = {
   openPullRequest: (itemId: string) => request<WorkItemPullRequestResult>(`/work-items/${enc(itemId)}/pull-request`, { method: 'POST', body: {} }),
   /** Ask gh about the item's open pull request now, rather than at the watcher's next pass */
   refreshPullRequest: (itemId: string) => request<WorkItem>(`/work-items/${enc(itemId)}/pull-request/refresh`, { method: 'POST', body: {} }),
+  /** The neutral change request of either table; `id` is the pull request row's, not the item's */
+  changeRequest: (id: string, o?: ReadOptions) => request<ChangeRequest>(`/change-requests/${enc(id)}`, o),
+  /** `refresh` skips the 30 s cache by head, for the person's own "check again" */
+  changeRequestChecks: (id: string, refresh = false, o?: ReadOptions) =>
+    request<ChangeRequestChecks>(`/change-requests/${enc(id)}/checks${refresh ? '?refresh=1' : ''}`, o),
+  checkLog: (id: string, checkId: string, o?: ReadOptions) =>
+    request<CheckLog>(`/change-requests/${enc(id)}/checks/${enc(checkId)}/log`, o),
+  rerunChecks: (id: string, req: ChecksRerunRequest) =>
+    request<ChangeRequestChecks>(`/change-requests/${enc(id)}/checks/rerun`, { method: 'POST', body: req }),
+  cancelChecks: (id: string) => request<ChangeRequestChecks>(`/change-requests/${enc(id)}/checks/cancel`, { method: 'POST', body: {} }),
+  /** Play a GitLab manual job */
+  runCheck: (id: string, checkId: string) =>
+    request<ChangeRequestChecks>(`/change-requests/${enc(id)}/checks/${enc(checkId)}/run`, { method: 'POST', body: {} }),
+  /** Fix failing checks; `started` false means the project's flow is off and `prompt` is for a chat of the person's own */
+  fixChecks: (id: string) => request<ChangeRequestFixResult>(`/change-requests/${enc(id)}/checks/fix`, { method: 'POST', body: {} }),
+  pushFix: (id: string) =>
+    request<WorkItemPullRequest | OrchestrationPullRequest | null>(`/change-requests/${enc(id)}/push-fix`, { method: 'POST', body: {} }),
   checkCriterion: (itemId: string, criterionId: string, checked: boolean) =>
     request<WorkItem>(`/work-items/${enc(itemId)}/criteria/${enc(criterionId)}`, { method: 'PATCH', body: { checked } }),
   workItemComments: (itemId: string, o?: ReadOptions) => request<WorkItemComment[]>(`/work-items/${enc(itemId)}/comments`, o),
@@ -906,6 +938,15 @@ export const keys = {
   orchestrations: ['orchestrations'] as const,
   planDrafts: ['orchestrations', 'plans'] as const,
   orchestration: (id: string) => ['orchestration', id] as const,
+  /** Prefix of a change request's reads (itself, its checks, their logs): `change-request.checks` refreshes them all */
+  changeRequest: (id: string) => ['change-request', id] as const,
+  changeRequestChecks: (id: string) => ['change-request', id, 'checks'] as const,
+  /**
+   * A check keeps its id when its state moves (a job that finishes, a failed run that passes on a
+   * re-read), and its log moves with it: the state is part of the key so the tail is read again
+   */
+  checkLog: (id: string, checkId: string, state?: CheckState) =>
+    ['change-request', id, 'checks', checkId, 'log', ...(state ? [state] : [])] as const,
   // A task's and the integration branch's changes sit under the graph, which `changes.updated` refreshes
   taskChanges: (id: string, taskId: string, scope: ChangeScope = {}) =>
     ['orchestration', id, 'changes', 'task', taskId, scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,

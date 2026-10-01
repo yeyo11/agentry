@@ -1,0 +1,1 @@
+{"valid":true,"errors":[],"warnings":[],"merged_yaml":"---\ndefault:\n  image: alpine:3.20\nprobe-child-ok:\n  script:\n  - echo \"probe child ok\"\nprobe-child-fail:\n  script:\n  - echo \"probe child fails\"\n  - exit 5\n","includes":[]}

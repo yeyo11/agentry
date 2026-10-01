@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { ICON_SM } from '@agentry/ui/components/icons';
 import { notReadyReason, pullRequestErrorKey } from '../../../lib/work-items';
 import { CiBadge, NotReadyNote, reasonValues, useChangeRequestWords, useOpenPullRequest } from '../board/PullRequest';
+import { Checks } from './Checks';
 import { pullRequestAction, pullRequestPanel } from './model';
 
 const BADGE = { size: 11, strokeWidth: 2, 'aria-hidden': true } as const;
@@ -57,7 +58,7 @@ export function PullRequestRow({ pr }: { pr: WorkItemPullRequest | null | undefi
  * badge of its own would be a second headline for the same wait. The line adds only what the head
  * does not say, the PR it can open or why it cannot (DesktopTarea draws no approval panel).
  */
-export function PullRequestState({ item }: { item: WorkItemDetail }) {
+function PullRequestPanel({ item }: { item: WorkItemDetail }) {
   const { t } = useTranslation(['workItem', 'tasks']);
   const { t: tt } = useTranslation('tasks');
   const open = useOpenPullRequest();
@@ -206,5 +207,15 @@ export function PullRequestState({ item }: { item: WorkItemDetail }) {
         </div>
       )}
     </section>
+  );
+}
+
+/** The panel of what the item's PR is doing, and under it the checks of the PR while it is open. */
+export function PullRequestState({ item }: { item: WorkItemDetail }) {
+  return (
+    <>
+      <PullRequestPanel item={item} />
+      <Checks pr={item.pullRequest} itemId={item.id} />
+    </>
   );
 }

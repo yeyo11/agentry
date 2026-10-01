@@ -3088,6 +3088,10 @@
   "OrchestrationPullRequest": {
     "type": "object",
     "properties": {
+      "id": {
+        "type": "string",
+        "description": "The row id the `/change-requests/:id/…` routes take; the server always sends it"
+      },
       "phase": {
         "$ref": "#/components/schemas/OrchestrationPullRequestPhase"
       },
@@ -3169,6 +3173,36 @@
           "string",
           "null"
         ]
+      },
+      "fixState": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixState"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "An orchestration has no QA stage: its fix goes `fixing`, then `awaiting-push` for the person"
+      },
+      "fixOrigin": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixOrigin"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "fixAttempts": {
+        "type": "number"
+      },
+      "fixHead": {
+        "type": [
+          "string",
+          "null"
+        ]
       }
     },
     "required": [
@@ -3215,6 +3249,23 @@
       "failing"
     ],
     "description": "A PR's checks, from `gh pr view --json statusCheckRollup`: none, any still running, any failed, or all green."
+  },
+  "ChangeRequestFixState": {
+    "type": "string",
+    "enum": [
+      "fixing",
+      "awaiting-verify",
+      "awaiting-push"
+    ],
+    "description": "Where a fix of failing checks stands while the change request is still open on the host (docs/plans/code-hosts.md, phase 2): `fixing`, an agent has the failures in its prompt; `awaiting-verify`, the Developer's run ended and QA verifies it; `awaiting-push`, verified and waiting for the person's **Push the fix**. Null when no fix is under way."
+  },
+  "ChangeRequestFixOrigin": {
+    "type": "string",
+    "enum": [
+      "person",
+      "decision"
+    ],
+    "description": "Who asked for the fix: a person's click, or the `checks.fix` decision."
   },
   "OrchestrationEngine": {
     "type": "string",
@@ -4794,6 +4845,9 @@
       },
       {
         "$ref": "#/components/schemas/OrchestrationPullRequestEvent"
+      },
+      {
+        "$ref": "#/components/schemas/ChangeRequestChecksEvent"
       },
       {
         "$ref": "#/components/schemas/ScheduleChangedEvent"
@@ -7002,6 +7056,49 @@
       "type"
     ],
     "description": "An orchestration's change request was opened, or moved to another phase or CI state."
+  },
+  "ChangeRequestChecksEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "change-request.checks"
+      },
+      "changeRequestId": {
+        "type": "string",
+        "description": "The change request's row id; `id` is the feed's sequence number"
+      },
+      "rollup": {
+        "$ref": "#/components/schemas/WorkItemPullRequestCi"
+      },
+      "headSha": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "at",
+      "changeRequestId",
+      "headSha",
+      "id",
+      "rollup",
+      "title",
+      "type"
+    ],
+    "description": "The head commit's checks changed rollup, or the list was read again after a write."
   },
   "ScheduleChangedEvent": {
     "type": "object",
@@ -12215,6 +12312,10 @@
       "maxCostUsd": {
         "type": "number",
         "description": "What one run may spend, in USD, passed to the CLI as `--max-budget-usd`: the CLI stops the run once it is reached. Absent (the default) means no limit of Agentry's own."
+      },
+      "checksFixAttempts": {
+        "type": "number",
+        "description": "Fixes of failing checks Agentry may start on its own for one head commit (`checks.fix`). Absent reads as 2 (`DEFAULT_CHECKS_FIX_ATTEMPTS`); a person's click is never counted against it."
       }
     },
     "required": [
@@ -12529,6 +12630,19 @@
             }
           },
           "notification.urgency": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "checks.fix": {
             "type": "object",
             "properties": {
               "mode": {
@@ -13081,6 +13195,10 @@
   "WorkItemPullRequest": {
     "type": "object",
     "properties": {
+      "id": {
+        "type": "string",
+        "description": "The row id the `/change-requests/:id/…` routes take; the server always sends it"
+      },
       "phase": {
         "$ref": "#/components/schemas/WorkItemPullRequestPhase"
       },
@@ -13175,6 +13293,38 @@
           "null"
         ],
         "description": "When the watcher last asked gh about it"
+      },
+      "fixState": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixState"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The fix of failing checks under way; absent or null when none"
+      },
+      "fixOrigin": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixOrigin"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "fixAttempts": {
+        "type": "number",
+        "description": "Fixes started for `fixHead`, a person's and the decision's together"
+      },
+      "fixHead": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The head commit the failures were seen on"
       }
     },
     "required": [
@@ -17269,6 +17419,404 @@
     ],
     "description": "A project's remote as Agentry parsed it: never the URL, which can carry a user and a secret."
   },
+  "ChangeRequest": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/ChangeRequestKind"
+      },
+      "ownerId": {
+        "type": "string",
+        "description": "The work item's id or the orchestration's id"
+      },
+      "host": {
+        "$ref": "#/components/schemas/CodeHostId"
+      },
+      "phase": {
+        "$ref": "#/components/schemas/WorkItemPullRequestPhase"
+      },
+      "number": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "ref": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "branch": {
+        "type": "string"
+      },
+      "base": {
+        "type": "string"
+      },
+      "ci": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemPullRequestCi"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The checks' rollup as the watcher last read it"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "detail": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "detail"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "openedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "closedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "checkedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "fixState": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixState"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "fixOrigin": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixOrigin"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "fixAttempts": {
+        "type": "number"
+      },
+      "fixHead": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "kind",
+      "ownerId",
+      "host",
+      "phase",
+      "number",
+      "ref",
+      "url",
+      "branch",
+      "base",
+      "ci",
+      "error",
+      "openedAt",
+      "closedAt",
+      "checkedAt",
+      "fixState",
+      "fixOrigin",
+      "fixAttempts",
+      "fixHead"
+    ],
+    "description": "The neutral change request of `GET /change-requests/:id`; `id` is the row id of either table (UUIDs, unique across both). `ref` is how the host writes the number: `#12` or `!12`."
+  },
+  "ChangeRequestKind": {
+    "type": "string",
+    "enum": [
+      "work-item",
+      "orchestration"
+    ],
+    "description": "Whose change request it is: a work item's or an orchestration's."
+  },
+  "ChangeRequestChecks": {
+    "type": "object",
+    "properties": {
+      "headSha": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "rollup": {
+        "$ref": "#/components/schemas/WorkItemPullRequestCi"
+      },
+      "checks": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Check"
+        }
+      },
+      "truncated": {
+        "type": "boolean",
+        "description": "The list reached its ceiling (1 000): the first ones are shown"
+      },
+      "checkedAt": {
+        "type": "string"
+      },
+      "limitedUntil": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "While the host's rate limit is used up: when Agentry may read again; the list is the last one it had"
+      }
+    },
+    "required": [
+      "headSha",
+      "rollup",
+      "checks",
+      "truncated",
+      "checkedAt"
+    ],
+    "description": "The checks of a change request's head commit, cached by head for 30 s."
+  },
+  "Check": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "The host's job or check-run id, as text so a 64-bit id never loses precision"
+      },
+      "name": {
+        "type": "string"
+      },
+      "group": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The workflow (GitHub) or stage (GitLab); null when the host names none"
+      },
+      "state": {
+        "$ref": "#/components/schemas/CheckState"
+      },
+      "allowedToFail": {
+        "type": "boolean",
+        "description": "A failed job that the pipeline lets fail: shown as a warning, never as a failure"
+      },
+      "required": {
+        "type": "boolean",
+        "description": "A rule of the base branch needs it to pass before a merge"
+      },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "finishedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Its page on the host"
+      },
+      "rerunnable": {
+        "type": "boolean",
+        "description": "Agentry can ask the host to run it again: false for a commit status, another app's check or a bridge"
+      },
+      "hasLog": {
+        "type": "boolean",
+        "description": "A log can be read: false for a bridge, a commit status and another app's check"
+      },
+      "source": {
+        "$ref": "#/components/schemas/CheckSource"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "group",
+      "state",
+      "allowedToFail",
+      "required",
+      "startedAt",
+      "finishedAt",
+      "url",
+      "rerunnable",
+      "hasLog",
+      "source"
+    ],
+    "description": "One check of a change request's head commit."
+  },
+  "CheckState": {
+    "type": "string",
+    "enum": [
+      "queued",
+      "running",
+      "passed",
+      "failed",
+      "cancelled",
+      "skipped",
+      "manual",
+      "neutral"
+    ],
+    "description": "One check's state. `neutral` is a finished check that neither passed nor failed (a notice)."
+  },
+  "CheckSource": {
+    "type": "string",
+    "enum": [
+      "actions",
+      "app",
+      "status",
+      "job",
+      "bridge"
+    ],
+    "description": "Where a check comes from: `actions` a GitHub Actions job, `app` another app's check run, `status` a commit status, `job` a GitLab job, `bridge` a GitLab job that triggers a child pipeline."
+  },
+  "CheckLog": {
+    "type": "object",
+    "properties": {
+      "lines": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "truncated": {
+        "type": "boolean",
+        "description": "Lines were left out: the log is longer than the tail"
+      },
+      "noOutputYet": {
+        "type": "boolean"
+      },
+      "annotations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/CheckAnnotation"
+        }
+      }
+    },
+    "required": [
+      "lines",
+      "truncated",
+      "noOutputYet",
+      "annotations"
+    ],
+    "description": "The tail of a check's log, with escape sequences, carriage returns, section markers and secrets removed (docs/plans/code-hosts.md, \"Log tails\"). `noOutputYet` is a job that has printed nothing (running, or a manual job that never ran), which is not an unavailable log."
+  },
+  "CheckAnnotation": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "startLine": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "endLine": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "level": {
+        "type": "string",
+        "enum": [
+          "notice",
+          "warning",
+          "failure"
+        ]
+      },
+      "title": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "message": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path",
+      "startLine",
+      "endLine",
+      "level",
+      "title",
+      "message"
+    ],
+    "description": "What a check says about a file, or about the run when `path` is null."
+  },
+  "ChecksRerunRequest": {
+    "type": "object",
+    "properties": {
+      "scope": {
+        "type": "string",
+        "enum": [
+          "failed",
+          "check",
+          "all"
+        ]
+      },
+      "checkId": {
+        "type": "string",
+        "description": "Required when `scope` is `check`"
+      }
+    },
+    "required": [
+      "scope"
+    ],
+    "description": "`POST /change-requests/:id/checks/rerun`: the failed jobs, one check, or the whole run."
+  },
   "OrchestrationPullRequestAnswer": {
     "type": "object",
     "properties": {
@@ -17420,6 +17968,9 @@
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "notification.urgency": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "checks.fix": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
@@ -17577,6 +18128,9 @@
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "notification.urgency": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "checks.fix": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
@@ -17818,7 +18372,8 @@
       "health.test-weakening",
       "changes.unexplained-hunk",
       "palette.intent",
-      "notification.urgency"
+      "notification.urgency",
+      "checks.fix"
     ]
   },
   "DecisionPointKind": {

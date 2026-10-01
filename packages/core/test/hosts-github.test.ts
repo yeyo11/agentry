@@ -112,6 +112,29 @@ const recordedOutputs: RecordedOutputs = {
       expect: { number: 12, url: 'https://github.com/acme/shop/pull/12', state: 'closed' as const, mergedAt: null, ci: 'none' as const },
     },
   ],
+  checks: [
+    {
+      // recorded: three pages of check runs of one commit (`--paginate --slurp`), plus an empty status list
+      name: 'recorded check runs, slurped',
+      ref: { headSha: '41c7063bc02b17a76a069d47c9a718245e6c2843', pipelineId: null },
+      results: [recorded('2.92.0', 'api-slurp-obj2'), '[{"state":"pending","total_count":0,"statuses":[]}]'],
+      expect: {
+        checks: [
+          { id: '109950177801', name: 'test', state: 'passed', source: 'actions', hasLog: true, rerunnable: true },
+          { id: '109947414499', name: 'e2e (3/4)', state: 'passed' },
+          { id: '109947414481', name: 'e2e (1/4)' },
+          { id: '109947414378' },
+          { id: '109947414284' },
+          { id: '109947353497' },
+          { id: '109947353476' },
+          { id: '109947352997', name: 'changes' },
+        ],
+        truncated: false,
+        next: 0,
+      },
+    },
+  ],
+  malformedChecks: [{ name: 'a check run page without check_runs', results: ['[{"total_count":1}]', '[{"statuses":[]}]'] }],
   malformedViews: [
     // 2.92 answers this, with exit 0, for a pull request that does not exist
     ...VERSIONS.map((v) => ({ name: `${v} {"number":N} alone`, stdout: recorded(v, 'pr-view-150-number') })),

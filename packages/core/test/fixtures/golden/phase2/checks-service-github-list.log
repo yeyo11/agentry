@@ -1,0 +1,40 @@
+# checks-service-github-list
+gh api -i --hostname github.com graphql -f query=query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      number
+      url
+      state
+      mergedAt
+      isDraft
+      headRefOid
+      baseRefName
+      mergeable
+      mergeStateStatus
+      reviewDecision
+      autoMergeRequest { enabledAt }
+      commits(last: 1) {
+        nodes {
+          commit {
+            statusCheckRollup {
+              state
+              contexts(first: 100) {
+                nodes {
+                  __typename
+                  ... on CheckRun { name status conclusion detailsUrl startedAt completedAt }
+                  ... on StatusContext { context state targetUrl createdAt }
+                }
+                pageInfo { hasNextPage }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  rateLimit { cost remaining resetAt }
+} -f owner=acme -f repo=shop -F number=12
+gh api --hostname github.com --paginate --slurp repos/acme/shop/commits/abc123/check-runs?per_page=100
+gh api --hostname github.com --paginate --slurp repos/acme/shop/commits/abc123/status?per_page=100
+gh api --hostname github.com repos/acme/shop/rules/branches/main
+gh api --hostname github.com repos/acme/shop/branches/main

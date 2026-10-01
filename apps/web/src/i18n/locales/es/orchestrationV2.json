@@ -135,5 +135,80 @@
     "bodyWithDependants_other": "Ella y las {{count}} tareas que dependen de ella empiezan de nuevo en chats nuevos. Las demás conservan sus chats, ramas y resultados. Después el grafo vuelve a integrar y a sintetizar, y se borran su resultado y sus comprobaciones anteriores.",
     "confirm": "Repetir",
     "blockedByPullRequest": "No se pueden repetir tareas: la rama de integración se subió para una pull request, y reconstruirla dejaría atrás esa. Relanza el grafo en su lugar."
+  },
+  "checks": {
+    "title": "Checks",
+    "summary": {
+      "failed_one": "{{count}} falla",
+      "failed_other": "{{count}} fallan",
+      "allowed_one": "{{count}} fallo permitido",
+      "allowed_other": "{{count}} fallos permitidos",
+      "running_one": "{{count}} en curso",
+      "running_other": "{{count}} en curso",
+      "passed_one": "{{count}} superado",
+      "passed_other": "{{count}} superados",
+      "skipped_one": "{{count}} omitido",
+      "skipped_other": "{{count}} omitidos"
+    },
+    "groups": {
+      "failed": "Fallan",
+      "allowed": "Fallo permitido",
+      "running": "En curso",
+      "passed": "Superados",
+      "skipped": "Omitidos"
+    },
+    "none": "El host aún no ha informado de ningún check para este commit.",
+    "limited": "Se ha agotado el límite de peticiones del host. Se muestra la última lista; Agentry vuelve a leer a las {{time}}.",
+    "unavailable": "No se han podido leer los checks.",
+    "rerunFailed": "Volver a ejecutar los fallidos",
+    "cancel": "Cancelar",
+    "fix": "Arreglar los checks",
+    "fixHint": "Un chat intentará arreglar los checks en el worktree de integración y los confirmará en {{branch}}. Nada se sube hasta que pulses «Subir el arreglo».",
+    "fixStarted": "Arreglando los checks",
+    "fixPrompt": "El flujo del proyecto está desactivado, así que no se ha iniciado ningún chat. El prompt para uno propio viene en la respuesta.",
+    "fixing": "Un chat está arreglando los checks que fallan en la rama de integración.",
+    "row": {
+      "open": "Ver el log de {{name}}",
+      "more": "Más acciones de {{name}}",
+      "rerun": "Volver a ejecutar este job",
+      "run": "Ejecutar este job",
+      "openOnHost": "Abrir en {{host}}"
+    },
+    "log": {
+      "close": "Cerrar",
+      "job": "job {{id}}",
+      "why": "Por qué falló",
+      "tail": "Últimas {{count}} líneas · secretos ocultos",
+      "tailTruncated": "Últimas {{count}} líneas de un log más largo · secretos ocultos",
+      "noOutput": "Aún no hay salida.",
+      "unavailable": "El log no está disponible.",
+      "loading": "Leyendo el log…",
+      "tailLabel": "Final del log de {{name}}",
+      "panel": "Log de {{name}}"
+    },
+    "push": {
+      "title": "Arreglo listo para subir",
+      "waiting": "te espera",
+      "body": "Agentry ha arreglado lo que ha podido y lo ha confirmado en la rama de integración. No sube nada hasta que pulses «Subir el arreglo».",
+      "facts": "en {{branch}}",
+      "head": "La {{noun}} {{ref}} sigue en el commit {{sha}} hasta que lo subas.",
+      "button": "Subir el arreglo",
+      "pushing": "Subiendo…",
+      "confirmTitle": "¿Subir el arreglo a {{branch}}?",
+      "confirmBody": "El arreglo va a la {{noun}}, que vuelve a ejecutar sus checks.",
+      "confirmLabel": "Subir el arreglo",
+      "pushed": "Arreglo subido"
+    },
+    "state": {
+      "failed": "fallido",
+      "allowedFailure": "fallo permitido",
+      "running": "en curso",
+      "queued": "en cola",
+      "passed": "superado",
+      "neutral": "neutral",
+      "skipped": "omitido",
+      "cancelled": "cancelado",
+      "manual": "manual"
+    }
   }
 }

@@ -371,6 +371,21 @@
     "approve": "Aprobar y abrir {{noun}}",
     "open": "Abrir {{noun}}",
     "noPr": "Sin {{noun}}: {{reason}}",
+    "fix": {
+      "fixing": "arreglando los checks",
+      "verifying": "verificando el arreglo",
+      "push": "arreglo verificado, espera tu subida",
+      "attempt": "intento {{count}}",
+      "origin": {
+        "person": "a petición tuya",
+        "decision": "decidido por checks.fix"
+      },
+      "note": {
+        "fixing": { "person": "después lo verifica QA", "decision": "después lo verifica QA" },
+        "verifying": { "person": "se sube solo si QA lo da por bueno", "decision": "esperará tu subida" },
+        "push": { "person": "súbelo desde la tarea", "decision": "súbelo desde la tarea" }
+      }
+    },
     "ci": {
       "none": "sin CI",
       "pending": "CI pendiente",
