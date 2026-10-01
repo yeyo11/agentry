@@ -332,7 +332,7 @@
   "proposals [MemberProposalRow, ResourceProposalRow, SECTION_ICON, SectionHead, WorkItemProposalRow, useDecide]",
   "provider-settings [effectiveDefault, entryOf, latestCheck, moveBy, moveTo, orderedIds, withEntry, withOrder]",
   "provider-state [CLAUDE_CODE_ID, ProviderAction, ProviderActionKind, ProviderTone, SIGN_IN_SETTINGS_PATH, STATE_TONE, actionsFor, isUsable, providerLink, stateLabelKey]",
-  "provider-status [PROVIDERS_SETTINGS_PATH, ProviderSetup, enabledProviders, providerSetup, reasonText, useEnabledProviders]",
+  "provider-status [PROVIDERS_SETTINGS_PATH, ProviderSetup, enabledProviders, providerSetup, reasonText, useEnabledProviders, useNewChatProviders, useProviderLabel, useProviderModels]",
   "providers [useProviders, useRefreshProviders]",
   "pulse [HomePulse, NEW_ORCHESTRATION_PATH, WAITING_ORIGINS, localDay, useHomePulse]",
   "pulse [KpisWidget, LimitsWidget]",
