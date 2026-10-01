@@ -1,0 +1,68 @@
+{
+  "tab": "Integrations",
+  "intro": "Agentry opens and follows GitHub's pull requests (#12) and GitLab's merge requests (!12) with the gh and glab programs on this machine. It stores no key: it uses the session each program already has.",
+  "checkedAgo": "Checked {{time}}",
+  "notChecked": "Not checked yet",
+  "refresh": "Check again",
+  "refreshFailed": "Could not check the programs",
+  "saveFailed": "Could not save the integrations",
+  "list": {
+    "title": "Programs",
+    "aria": "Programs",
+    "total_one": "{{count}} program",
+    "total_other": "{{count}} programs",
+    "ready_one": "{{count}} ready",
+    "ready_other": "{{count}} ready"
+  },
+  "row": {
+    "checking": "Reading the version and the hosts…",
+    "install": "See installation",
+    "update": "Update",
+    "signIn": "How to sign in",
+    "chooseBinary": "Choose binary",
+    "retry": "Retry",
+    "opensNewTab": "opens in a new tab"
+  },
+  "reason": {
+    "ready": "Installed, signed in and answering.",
+    "version-untested": "It works, but {{version}} is newer than {{recorded}}, the latest Agentry has been tested with.",
+    "below-minimum": "{{version}} is older than {{minimum}}, the oldest release Agentry works with.",
+    "no-hosts": "{{cli}} is installed, but not signed in to any host.",
+    "signed-out": "{{cli}} is installed, but not signed in to any host.",
+    "not-installed": "{{cli}} is not installed, or Agentry cannot find it.",
+    "probe-failed": "{{cli}} did not answer the way Agentry expects.",
+    "timeout": "{{cli}} did not answer in time, so Agentry stopped it.",
+    "unknown": "Agentry has not checked {{cli}} yet.",
+    "disabled": "Agentry does not use it while it is off. Projects on its hosts cannot open requests."
+  },
+  "hosts": {
+    "group": "Hosts {{cli}} knows",
+    "signedOut": "Signed out"
+  },
+  "bin": {
+    "title": "{{cli}} binary",
+    "path": "Path of the {{cli}} binary",
+    "placeholder": "/path/to/{{cli}}",
+    "hint": "Agentry uses this program instead of searching the PATH. Before saving it, it reads its version and checks it is not older than {{minimum}}.",
+    "absolute": "Enter an absolute path, starting with /.",
+    "check": "Check and save",
+    "checking": "Checking…",
+    "cancel": "Cancel",
+    "usePath": "Use the one on PATH",
+    "rejected": "Not saved. {{reason}}",
+    "saved": "{{cli}} binary saved",
+    "cleared": "{{cli}} now uses the one on PATH"
+  },
+  "empty": {
+    "title": "Agentry cannot find gh or glab",
+    "body": "Without one of them it cannot open pull requests or merge requests. Install it and it will show up here by itself, with no need to check again.",
+    "install": "See how to install gh",
+    "also": "Or also",
+    "installGlab": "Install glab for GitLab",
+    "chooseBinary": "Choose a binary"
+  },
+  "missing": {
+    "text": "Missing a host? Sign in to it with the program that fits and it will show up here by itself.",
+    "link": "How to sign in to another host"
+  }
+}

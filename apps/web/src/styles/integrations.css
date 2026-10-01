@@ -1,0 +1,100 @@
+/* Settings → Integrations (plans/code-hosts.md, u1): the hosts a CLI knows, under its state. The rows,
+   cells, binary panel and sheet are the providers' (.prov-*). */
+.host-intro {
+  margin: 0 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+
+.host-known {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-self: stretch;
+  margin-top: 4px;
+}
+
+.host-known ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.host-known li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 10px;
+  row-gap: 2px;
+  min-height: 24px;
+  font-size: 13px;
+}
+
+.host-name {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg);
+}
+
+.host-user {
+  color: var(--fg-2);
+}
+
+.host-noun {
+  color: var(--fg-3);
+}
+
+.host-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.host-bin {
+  padding-left: 68px;
+}
+
+.host-missing {
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.host-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.host-also {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0 24px 28px;
+}
+
+.host-also-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* A phone: touch targets of 44 px, and the sign-in link on its own line */
+@media (max-width: 900px) {
+  .host-link,
+  .host-also-chips .chip,
+  .host-actions .btn {
+    min-height: var(--touch);
+  }
+
+  .host-bin {
+    padding-left: 14px;
+  }
+}

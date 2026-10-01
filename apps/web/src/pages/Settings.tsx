@@ -16,6 +16,7 @@ import { AppearanceTab } from './config/AppearanceTab';
 import { DecisionsTab } from './config/DecisionsTab';
 import { FilesTab } from './config/FilesTab';
 import { InstallTab } from './config/InstallTab';
+import { IntegrationsTab } from './config/IntegrationsTab';
 import { ProvidersTab } from './config/ProvidersTab';
 import { InstructionsTab } from './config/InstructionsTab';
 import { McpTab } from './config/McpTab';
@@ -118,6 +119,7 @@ function TabContent({ tab, section }: { tab: TabId; section?: DecisionsSection }
       {tab === 'appearance' && <AppearanceTab />}
       {tab === 'account' && <AccountTab />}
       {tab === 'providers' && <ProvidersTab />}
+      {tab === 'integrations' && <IntegrationsTab />}
       {tab === 'instructions' && <InstructionsTab scope={USER_SCOPE} scopeKey="user" />}
       {tab === 'settings' && <SettingsTab scope={USER_SCOPE} scopeKey="user" filesHref="/settings?tab=files" />}
       {tab === 'mcp' && <McpTab scope={USER_SCOPE} />}
@@ -141,9 +143,10 @@ function groupOf(tab: TabId): string {
 
 /** What the heading of a tab says under its name, when there is something worth saying. */
 function useTabSubtitle(tab: TabId): string | null {
-  const { t } = useTranslation(['config', 'shell', 'providers']);
+  const { t } = useTranslation(['config', 'shell', 'providers', 'integrations']);
   if (tab === 'appearance') return t('shell:appearance.intro');
   if (tab === 'providers') return t('providers:intro');
+  if (tab === 'integrations') return t('integrations:intro');
   // Tool presets are Agentry's own, kept by the server and not in ~/.claude
   if (CLAUDE_GROUPS.has(groupOf(tab)) && tab !== 'tools') return t('config.userScope');
   return null;
@@ -155,7 +158,7 @@ function useTabSubtitle(tab: TabId): string | null {
  * sighted reader scans; a screen reader hears each one as the description of its tabs.
  */
 function DesktopSettings({ tab, section, onSelect }: { tab: TabId; section?: DecisionsSection; onSelect: (next: TabId) => void }) {
-  const { t } = useTranslation(['home', 'config', 'observe', 'shell', 'components', 'decisions', 'providers']);
+  const { t } = useTranslation(['home', 'config', 'observe', 'shell', 'components', 'decisions', 'providers', 'integrations']);
   const dirtyKeys = useDirtyKeys();
   const group = useTabGroup();
   const subtitle = useTabSubtitle(tab);
@@ -229,7 +232,7 @@ function DesktopSettings({ tab, section, onSelect }: { tab: TabId; section?: Dec
 
 /** The phone's first screen: the theme at hand, then every tab as a cell in its group's card. */
 function PhoneSettingsList() {
-  const { t } = useTranslation(['home', 'config', 'observe', 'shell', 'components', 'decisions', 'providers']);
+  const { t } = useTranslation(['home', 'config', 'observe', 'shell', 'components', 'decisions', 'providers', 'integrations']);
   const dirtyKeys = useDirtyKeys();
   const theme = useThemePreference();
 
@@ -281,7 +284,7 @@ function PhoneSettingsList() {
 
 /** A tab on a phone is a screen of its own, with the way back to the list above it. */
 function PhoneSettingsTab({ tab, section, onBack }: { tab: TabId; section?: DecisionsSection; onBack: () => void }) {
-  const { t } = useTranslation(['home', 'config', 'observe', 'shell', 'components', 'decisions', 'providers']);
+  const { t } = useTranslation(['home', 'config', 'observe', 'shell', 'components', 'decisions', 'providers', 'integrations']);
   const subtitle = useTabSubtitle(tab);
   return (
     <div className={`settings-phone ${tab === 'install' ? 'glow-top settings-phone-install' : ''}`}>
