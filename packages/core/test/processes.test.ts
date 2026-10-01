@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { test } from 'node:test';
-import { cliProcessOf, commandRoots, descendantsOf, processTable, terminateTree, type ProcessEntry } from '../src/processes.ts';
+import { agentryChildren, cliProcessOf, commandRoots, descendantsOf, processTable, terminateTree, type ProcessEntry } from '../src/processes.ts';
 
 // Cancelling a command kills a process tree, so what is under test is that it is exactly that tree:
 // found from the process table by parentage and start time, and nothing else on the machine.
@@ -110,5 +110,21 @@ test('a process that ignores SIGTERM is killed after the grace period', async ()
     assert.ok(await until(() => !alive(root.pid), 4000), 'SIGKILL followed');
   } finally {
     stubborn.kill('SIGKILL');
+  }
+});
+
+test('agentryChildren finds a process by the chat id in its environment, and no other', { skip: process.platform !== 'linux' }, () => {
+  const idle = ['-e', 'setInterval(() => {}, 1000)'];
+  const mine = spawn(process.execPath, idle, { env: { ...process.env, AGENTRY_CHAT_ID: 'chat-under-test' }, stdio: 'ignore' });
+  const stranger = spawn(process.execPath, idle, { env: { ...process.env, AGENTRY_CHAT_ID: '' }, stdio: 'ignore' });
+  try {
+    const found = agentryChildren();
+    const own = found.find((p) => p.pid === mine.pid);
+    assert.equal(own?.chatId, 'chat-under-test');
+    assert.ok(own?.argv.includes('-e'));
+    assert.equal(found.some((p) => p.pid === stranger.pid), false);
+  } finally {
+    mine.kill();
+    stranger.kill();
   }
 });
