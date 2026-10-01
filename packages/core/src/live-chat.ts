@@ -143,6 +143,8 @@ export interface ChatRuntime {
   id: string;
   /** The provider whose agent runs the chat; a runtime built without a driver states none */
   provider?: string;
+  /** The agent's own id for the session once it named it; null for a provider that takes Agentry's id */
+  nativeSessionId?: string | null;
   name: string;
   cwd: string;
   /** Directory the CLI actually works in, which differs from `cwd` when it runs in a worktree */
@@ -224,6 +226,8 @@ export interface ChatHost {
   learnModelCosts(execution: Execution, modelUsage: ModelUsage[]): void;
   learnWindows(modelUsage: ModelUsage[]): void;
   maybeRotate(chat: LiveChat): void;
+  /** Ends the chat's execution as failed for a protocol fault and takes the process down */
+  failProtocol(chat: LiveChat, message: string): void;
 }
 
 /**
@@ -295,6 +299,11 @@ export class LiveChat {
   created: boolean;
   /** The chat this one is a copy of, until the copy is confirmed: the first spawn forks it */
   forkFrom: string | null = null;
+  /**
+   * The agent's own id for the session, once a process has reported it; null before, and always
+   * null for a provider that takes the id Agentry chose. Once set it never changes.
+   */
+  nativeId: string | null = null;
   /** The last turn sent, files included, so a turn lost to a rate limit is replayed whole */
   lastUserTurn: { text: string; attachments: string[] } | null = null;
   /** The turn died against the account's rate limit */
@@ -376,6 +385,7 @@ export class LiveChat {
     chat.lastText = record.lastText;
     chat.error = last?.error ?? null;
     chat.workingDir = record.workingDir;
+    chat.nativeId = record.nativeSessionId ?? null;
     return chat;
   }
 
@@ -482,6 +492,7 @@ export class LiveChat {
       orchestrationTaskId: this.meta.orchestrationTaskId ?? null,
       account: this.opts.account ?? null,
       permissionPrompts: this.opts.permissionPrompts === 'host' ? 'host' : 'none',
+      ...(this.nativeId ? { nativeSessionId: this.nativeId } : {}),
       pendingPrompts: this.pendingPrompts,
       // A chat with no process of ours is doing nothing, whatever the last stream left behind
       activity: this.alive ? this.activity.current() : null,
@@ -511,6 +522,7 @@ export class LiveChat {
       permissionMode: this.permissionMode,
       account: this.opts.account ?? null,
       permissionPrompts: this.opts.permissionPrompts === 'host' ? 'host' : 'none',
+      ...(this.nativeId ? { nativeSessionId: this.nativeId } : {}),
       tools: this.tools,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,

@@ -656,6 +656,35 @@ a.list-row:hover {
   gap: 2px;
 }
 
+/* The agent's mark leads the title, so a list of mixed chats reads at a glance */
+.crow-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.crow-title-row .prov-mark {
+  align-self: center;
+  width: 18px;
+  height: 18px;
+  font-size: 10px;
+}
+
+/* An agent in New chat's picker: its mark, then its name */
+.new-agent-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The agent's badge between the id and the model in the chat's header */
+.chat-sub-agent {
+  display: inline-block;
+  margin-inline: 8px;
+  vertical-align: middle;
+}
+
 .crow-title-text {
   min-width: 0;
   overflow: hidden;
@@ -925,6 +954,9 @@ a.list-row:hover {
   }
   .crow-time {
     padding-top: 2px;
+  }
+  .crow-title-row .prov-mark {
+    margin-top: 1px;
   }
   .crow.live-rail {
     background: linear-gradient(90deg, var(--live-soft), transparent 55%);

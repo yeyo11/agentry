@@ -1,5 +1,35 @@
 /* Chats: the list, the page of one chat, and the pieces both share. */
 
+/* ---------- the agent a chat runs on: the pill of the header and the details ---------- */
+.prov-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 10px 0 3px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elev);
+  color: var(--text-muted);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+.prov-badge .prov-mark {
+  border-radius: var(--radius-pill);
+}
+
+/* ---------- the working line: the agent by name, at the end of a chat that is working ---------- */
+.working-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
 /* ---------- context meter ---------- */
 .ctx {
   display: inline-flex;

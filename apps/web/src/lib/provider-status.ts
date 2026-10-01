@@ -1,5 +1,6 @@
-import type { ProviderStatus, ProvidersSettings } from '@agentry/shared';
+import type { ProviderId, ProviderStatus, ProvidersSettings } from '@agentry/shared';
 import { useQuery } from '@tanstack/react-query';
+import { useCallback, useMemo } from 'react';
 import type { TFunction } from 'i18next';
 import { api, keys } from '../api';
 import { useProviders } from './providers';
@@ -59,4 +60,33 @@ export function useEnabledProviders() {
   const settings = useQuery({ queryKey: keys.providerSettings, queryFn: () => api.providerSettings() });
   const statuses = providers.data ? enabledProviders(providers.data, settings.data) : undefined;
   return { statuses, loading: providers.isPending };
+}
+
+/**
+ * The name of the agent a chat runs on, from the provider's own label. Before the list is read the
+ * id stands in, so a sentence never waits on it.
+ */
+export function useProviderLabel(): (provider: ProviderId) => string {
+  const statuses = useProviders().data;
+  return useCallback((provider) => statuses?.find((s) => s.id === provider)?.label ?? provider, [statuses]);
+}
+
+/**
+ * The providers a new chat can start on: enabled and usable, in the person's order with the default
+ * first. A provider detected as usable has a session driver. One Agentry cannot check (`no-probe`,
+ * Copilot's) is offered too: no probe will ever call it ready, and its first session says whether it
+ * is signed in.
+ */
+export function useNewChatProviders(): ProviderStatus[] {
+  const { statuses } = useEnabledProviders();
+  const defaultProvider = useQuery({ queryKey: keys.providerSettings, queryFn: () => api.providerSettings() }).data?.defaultProvider;
+  return useMemo(() => {
+    const usable = (statuses ?? []).filter((s) => isUsable(s) || (s.state === 'unknown' && s.reason === 'no-probe'));
+    return defaultProvider ? [...usable.filter((s) => s.id === defaultProvider), ...usable.filter((s) => s.id !== defaultProvider)] : usable;
+  }, [statuses, defaultProvider]);
+}
+
+/** What the provider offers for the model picker; nothing is read for an empty id. */
+export function useProviderModels(provider: ProviderId) {
+  return useQuery({ queryKey: keys.providerModels(provider), queryFn: () => api.providerModels(provider), enabled: provider !== '', retry: false });
 }

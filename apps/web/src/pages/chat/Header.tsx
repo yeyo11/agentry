@@ -15,7 +15,9 @@ import type { TranscriptFind } from '@agentry/chat-ui/components/TranscriptSearc
 import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { api } from '../../api';
 import { chatPill, checklistCounts, RECONNECTING_AFTER_MS } from '@agentry/chat-ui/lib/chat-live';
+import { ProviderBadge } from '@agentry/chat-ui/components/ChatBadges';
 import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
+import { useChatUi } from '@agentry/chat-ui/lib/context';
 import { COMPACT, useMediaQuery } from '@agentry/ui/lib/media';
 import { checklistProgress } from '../../lib/observe';
 import type { InspectorTab } from './Inspector';
@@ -81,12 +83,12 @@ function ChecklistProgress({ chat, onOpen }: { chat: Chat; onOpen: () => void })
   );
 }
 
-/** Project · short id · model: enough to tell two chats with the same first prompt apart. */
-function headingFacts(chat: Chat): string[] {
+/** Project · short id, then the agent, then the model: enough to tell two chats with the same first prompt apart. */
+function headingFacts(chat: Chat): { where: string; model: string | null | undefined } {
   const dir = chat.cwd.split(/[\\/]/).filter(Boolean).at(-1);
   const project = chat.project?.name ?? dir;
   const model = chat.execution?.model ?? chat.executions.at(-1)?.model ?? chat.model;
-  return [project, chat.id.slice(0, 6), model].filter((fact): fact is string => Boolean(fact));
+  return { where: [project, chat.id.slice(0, 6)].filter((fact): fact is string => Boolean(fact)).join(' · '), model };
 }
 
 export interface HeaderActions {
@@ -111,6 +113,8 @@ export const ChatHeader = memo(function ChatHeader({ chat, connected, actions }:
   const { t } = useTranslation(['chat', 'work', 'common', 'components']);
   const toast = useToast();
   const { control } = chat;
+  const { agentNameFor } = useChatUi();
+  const facts = headingFacts(chat);
   const working = chat.state === 'working';
   const live = Boolean(chat.execution);
   const held = control.mode === 'readOnly';
@@ -199,7 +203,13 @@ export const ChatHeader = memo(function ChatHeader({ chat, connected, actions }:
       <div className="chat-heading">
         <h1 className="chat-title ellipsis">{displayTitle(chat)}</h1>
         {/* Where it runs, which chat it is and on what, in the mono of ids: the title is the prompt */}
-        <span className="chat-sub ellipsis">{headingFacts(chat).join(' · ')}</span>
+        <span className="chat-sub ellipsis">
+          {facts.where}
+          <span className="chat-sub-agent">
+            <ProviderBadge provider={chat.provider} label={agentNameFor(chat)} />
+          </span>
+          {facts.model}
+        </span>
       </div>
       <StatePill chat={chat} connected={connected} />
       {chat.health.level !== 'ok' && <HealthBadge health={chat.health} />}
@@ -216,7 +226,7 @@ export const ChatHeader = memo(function ChatHeader({ chat, connected, actions }:
             the menu's Stop is not enough for, since nothing else on the page says it is still up */}
         {stoppable && live && !working && (
           <Tooltip content={t('view.stopHint')}>
-            <button type="button" className="btn btn-small btn-danger chat-stop" disabled={actions.stop.pending} onClick={actions.stop.run}>
+            <button type="button" className={`btn btn-small btn-danger chat-stop${compact ? ' is-icon' : ''}`} aria-label={t('common:actions.stop')} disabled={actions.stop.pending} onClick={actions.stop.run}>
               <Square {...ICON_SM} />
               {!compact && t('common:actions.stop')}
             </button>

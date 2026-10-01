@@ -44,6 +44,7 @@ import {
   type ReviewMode,
   type SeenMap,
 } from '../lib/review-state';
+import { AgentProviderScope, useAgentCopy } from '../lib/agent-name';
 import { useWidth } from '../lib/use-width';
 import { isLive, taskPath } from '../lib/work-items';
 
@@ -86,7 +87,11 @@ export function ChatChangesReview() {
     [id, live, target, chat?.firstPrompt, chat?.title, chat?.cwd, chat?.worktree?.path, t],
   );
   if (head.error) return <ErrorBox error={head.error} />;
-  return <ReviewScreen source={source} />;
+  return (
+    <AgentProviderScope provider={chat?.provider}>
+      <ReviewScreen source={source} />
+    </AgentProviderScope>
+  );
 }
 
 export function TaskChangesReview() {
@@ -479,12 +484,13 @@ function ReviewHeader({
   stepCount: number | null;
 }) {
   const { t } = useTranslation('changes');
+  const { agent, Agent } = useAgentCopy();
   const navigate = useNavigate();
   const totals = totalsOf(files);
   const stepsLens = lens === 'steps';
   const metaParts = stepsLens
     ? stepCount
-      ? [t('steps.count', { count: stepCount })]
+      ? [t('steps.count', { count: stepCount, agent })]
       : []
     : summary
     ? [
@@ -536,7 +542,7 @@ function ReviewHeader({
   const live = source.live && (
     <span className="changes-live">
       <Spinner />
-      {t('live')}
+      {t('live', { agent: Agent })}
     </span>
   );
   const back = (

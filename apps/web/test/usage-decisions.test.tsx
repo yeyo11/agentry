@@ -39,11 +39,11 @@ test('the line says what Jev cost and how many runs were saved, with a link to t
   const html = render(stats(12));
   assert.match(html, /Decisions/);
   assert.match(html, /Jev (US)?\$?0[.,]38/);
-  assert.match(html, /37 Claude runs saved/);
+  assert.match(html, /37 agent runs saved/);
   assert.match(html, /href="\/settings\?tab=decisions"/);
   setLanguage('es');
   await i18n.changeLanguage('es');
-  assert.match(render(stats(12, { claudeRunsSaved: 1 })), /1 ejecución de Claude ahorrada/);
+  assert.match(render(stats(12, { claudeRunsSaved: 1 })), /1 ejecución del agente ahorrada/);
   setLanguage('en');
   await i18n.changeLanguage('en');
 });

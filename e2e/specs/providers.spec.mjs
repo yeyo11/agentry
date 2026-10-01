@@ -55,7 +55,7 @@ export default async ({ page, api, check, dirs }) => {
     // ---- The sandbox: Codex signed out, Gemini and Copilot used before ----
     mkdirSync(homes.gemini, { recursive: true });
     mkdirSync(homes.copilot, { recursive: true });
-    state('codex', { version: '0.50.0', signedIn: false });
+    state('codex', { version: '0.159.3', signedIn: false });
     await api.put('/providers/settings', { providers: { codex: savedSettings.providers.codex, gemini: { enabled: true, binaryPath: NOWHERE.gemini }, copilot: { enabled: true, binaryPath: NOWHERE.copilot } }, order: ['claude-code', 'codex', 'gemini', 'copilot', 'opencode'], defaultProvider: null });
     await api.post('/providers/refresh');
     const codexAtStart = await statusOf('codex');
@@ -65,7 +65,7 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---- First run: the step stands in for the app until Continue or Skip ----
     await api.put('/settings/app', { providersStepSeen: false });
-    state('codex', { version: '0.50.0', signedIn: true });
+    state('codex', { version: '0.159.3', signedIn: true });
     await api.post('/providers/refresh');
     // The theme lives in the app's localStorage, which a blank page does not have: open the app first
     await page.goto('/', 300);
@@ -150,13 +150,13 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return document.querySelectorAll('.prov-row[data-provider]').length === 5`, { label: 'the rows, dark again' });
 
     // States follow the machine: Codex signs out in a terminal, and the page learns it without a click
-    state('codex', { version: '0.50.0', signedIn: false });
+    state('codex', { version: '0.159.3', signedIn: false });
     await page.click('.prov-toolbar .btn', undefined, 200);
     await page.waitFor(rowIs('codex', 'signed-out'), { label: 'codex signed out on the page' });
     check((await page.text('.prov-row[data-provider="codex"] .prov-actions')).includes('Sign in'), 'a signed-out provider offers Sign in');
     const checkedText = await page.text('.prov-checked');
     check(checkedText.startsWith('Checked'), `the page says when it checked (${checkedText})`);
-    state('codex', { version: '0.50.0', signedIn: true });
+    state('codex', { version: '0.159.3', signedIn: true });
     await page.click('.prov-toolbar .btn', undefined, 200);
     await page.waitFor(rowIs('codex', 'ready'), { label: 'codex ready again' });
 
@@ -226,7 +226,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.click('.prov-bin .btn', 'Check and save', 300);
     await page.waitFor(rowIs('codex', 'ready'), { label: 'codex ready through its new path' });
     const codex = await statusOf('codex');
-    check(codex.binaryPath === join(fakes, 'codex') && codex.version === '0.50.0', `codex reads the version of the program it was given (${JSON.stringify(codex)})`);
+    check(codex.binaryPath === join(fakes, 'codex') && codex.version === '0.159.3', `codex reads the version of the program it was given (${JSON.stringify(codex)})`);
     check((await api.get('/providers/settings')).body.providers.codex.binaryPath === join(fakes, 'codex'), 'and the path is saved');
     check(await page.eval(`return !document.querySelector('.prov-bin')`), 'the editor closes once it is saved');
 

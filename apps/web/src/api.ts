@@ -78,6 +78,7 @@ import type {
   ForkChatRequest,
   HintRequest,
   ImportProjectRequest,
+  ModelOption,
   NewChatRequest,
   EffectiveEnvironment,
   InstructionsDoc,
@@ -925,6 +926,8 @@ export const api = {
   testPush: (body: SendTestPushRequest = {}) => request<PushSendResult>('/push/test', { method: 'POST', body }),
   providers: (o: ReadOptions = {}) => request<ProviderStatus[]>('/providers', o),
   provider: (id: string, o: ReadOptions = {}) => request<ProviderStatus>(`/providers/${enc(id)}`, o),
+  /** What the provider's driver offers for the model picker */
+  providerModels: (id: string, o: ReadOptions = {}) => request<ModelOption[]>(`/providers/${enc(id)}/models`, o),
   /** Skips the detector's cache; the answer is the fresh statuses */
   refreshProviders: () => request<ProviderStatus[]>('/providers/refresh', { method: 'POST' }),
   providerSettings: (o: ReadOptions = {}) => request<ProvidersSettings>('/providers/settings', o),
@@ -953,6 +956,7 @@ export const keys = {
   release: ['release'] as const,
   providers: ['providers'] as const,
   providerSettings: ['providers', 'settings'] as const,
+  providerModels: (id: string) => ['providers', id, 'models'] as const,
   hosts: ['hosts'] as const,
   hostSettings: ['hosts', 'settings'] as const,
   projectCodeHost: (id: string) => ['project-code-host', id] as const,

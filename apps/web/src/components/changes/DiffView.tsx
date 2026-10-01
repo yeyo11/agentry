@@ -18,6 +18,7 @@ import {
   type SplitCell,
   type SplitRow,
 } from '../../lib/diff';
+import { useAgentName } from '@agentry/chat-ui/lib/agent';
 import { Lru } from '@agentry/ui/lib/lru';
 import { wordDiff, type Range, type WordDiff } from '../../lib/word-diff';
 import { highlightRoles, languageOfPath, SYNTAX_CLASS, type Role, type RoleLine } from '@agentry/ui/components/highlight';
@@ -106,6 +107,7 @@ export function DiffView({
   className,
 }: DiffViewProps) {
   const { t } = useTranslation('components');
+  const agent = useAgentName();
   const [ownOpened, setOwnOpened] = useState<ReadonlySet<number>>(() => new Set());
   const open = opened ?? ownOpened;
   const toggle = (block: number) => {
@@ -165,7 +167,7 @@ export function DiffView({
     <div className={cls} ref={host} data-mode={mode}>
       {unexplained && (
         <div className="diff-unexplained">
-          <span>{t('diff.unexplained')}</span>
+          <span>{t('diff.unexplained', { agent })}</span>
           <DecisionMarkOf decision={unexplained} />
         </div>
       )}

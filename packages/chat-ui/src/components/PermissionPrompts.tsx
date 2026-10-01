@@ -4,6 +4,8 @@ import { Check, CheckCheck, ChevronLeft, ChevronRight, ClipboardList, MessageCir
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useSearchParams } from 'react-router-dom';
+import { upperFirst, useAgentName } from '../lib/agent';
+import { modeLabel, toolKindLabel } from '../lib/wire-words';
 import i18n from 'i18next';
 import { chatKeys, useChatUi } from '../lib/context';
 import { useChatPermissions } from '../lib/chats';
@@ -26,7 +28,7 @@ function summarize(request: PermissionRequest): string {
 
 /** What accepting a suggestion would remember, in words. */
 function describeSuggestion(update: PermissionUpdate): string {
-  if (update.type === 'setMode' && typeof update.mode === 'string') return i18n.t('chat:permissions.switchTo', { mode: update.mode });
+  if (update.type === 'setMode' && typeof update.mode === 'string') return i18n.t('chat:permissions.switchTo', { mode: modeLabel(update.mode) });
   if (update.type === 'addRules' && Array.isArray(update.rules)) {
     const rules = (update.rules as Array<{ toolName?: string; ruleContent?: string }>).map((r) =>
       r.ruleContent ? `${r.toolName ?? ''}(${r.ruleContent})` : (r.toolName ?? ''),
@@ -69,7 +71,7 @@ function ToolPrompt({ request }: { request: PermissionRequest }) {
     <li className="permission" id={promptDomId(request.id)} tabIndex={-1} aria-live="polite">
       <div className="permission-head">
         <ShieldQuestion {...ICON_SM} aria-hidden />
-        <strong>{request.toolName}</strong>
+        <strong>{toolKindLabel(request.toolName)}</strong>
         <span className="muted small">{t('permissions.wantsToRun')}</span>
       </div>
       {/* Focusable so a long command can be scrolled sideways from the keyboard */}
@@ -144,6 +146,7 @@ function Panel({ group, tab, tabbed, children }: { group: string; tab: string; t
  */
 function QuestionPrompt({ request }: { request: PermissionRequest }) {
   const { t } = useTranslation('chat');
+  const agent = useAgentName();
   const answer = useAnswer(request);
   const group = useTabGroup();
   const questions = (Array.isArray(request.input.questions) ? request.input.questions : []) as Question[];
@@ -186,7 +189,7 @@ function QuestionPrompt({ request }: { request: PermissionRequest }) {
     <li className="permission permission-question" id={promptDomId(request.id)} tabIndex={-1} aria-live="polite">
       <div className="permission-head">
         <MessageCircleQuestion {...ICON_SM} aria-hidden />
-        <strong>{t('permissions.agentIsAsking')}</strong>
+        <strong>{t('permissions.agentIsAsking', { agent: upperFirst(agent) })}</strong>
         {questions.length > 1 && (
           <span className="muted small">
             {t('permissions.answeredCount', { answered, total: questions.length })}

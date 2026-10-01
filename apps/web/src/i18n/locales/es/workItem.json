@@ -279,7 +279,7 @@
       "not-started": "Su chat no llegó a empezar.",
       "not-continued": "Su chat no se pudo retomar después de un reinicio.",
       "chat-ended": "Su chat terminó, o se borró, sin dejar un resultado.",
-      "chat-failed": "Su chat terminó con un error de Claude Code.",
+      "chat-failed": "Su chat terminó con un error del agente.",
       "unknown": "No dio ningún motivo.",
       "conflict-unresolved": "Terminó con la fusión de la rama predeterminada aún en conflicto."
     },

@@ -101,11 +101,11 @@ export function StatusDot({ tone = 'muted', live = false, title }: { tone?: DotT
   );
 }
 
-/** Three bouncing dots shown while Claude is producing a turn. */
-export function ThinkingDots({ label }: { label?: string }) {
+/** Three bouncing dots shown while the agent is producing a turn. */
+export function ThinkingDots({ label, agent }: { label?: string; /** The agent that is working, as the person reads its name */ agent?: string }) {
   const { t } = useTranslation('primitives');
   return (
-    <span className="thinking-dots" role="status" aria-label={label ?? t('ui.claudeIsWorking')}>
+    <span className="thinking-dots" role="status" aria-label={label ?? t('ui.agentIsWorking', { agent: agent ?? t('ui.agentGeneric') })}>
       <span />
       <span />
       <span />

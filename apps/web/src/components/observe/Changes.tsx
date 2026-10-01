@@ -4,6 +4,7 @@ import { ArrowRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
+import { AgentProviderScope, useAgentCopy } from '../../lib/agent-name';
 import { baseName, liveFile, reviewLink, reviewPath, statusLetter, stepFiles, workFiles } from '../../lib/changes-summary';
 import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
 import type { TickerActivity } from '@agentry/ui/lib/live';
@@ -57,6 +58,7 @@ interface Row {
 
 function FileRows({ rows, live, to, more, label }: { rows: Row[]; live: string | null; to: (path: string) => string; more: number; label: string }) {
   const { t } = useTranslation('observe');
+  const { Agent } = useAgentCopy();
   return (
     <ul className="obs-files obs-changes-files" aria-label={label}>
       {rows.map((row) => (
@@ -78,7 +80,7 @@ function FileRows({ rows, live, to, more, label }: { rows: Row[]; live: string |
               {row.path === live && (
                 <>
                   <Spinner />
-                  <span className="sr-only">{t('changes.editingNow')}</span>
+                  <span className="sr-only">{t('changes.editingNow', { agent: Agent })}</span>
                 </>
               )}
               {row.additions !== null && row.deletions !== null && <Counts additions={row.additions} deletions={row.deletions} />}
@@ -239,13 +241,15 @@ export function ChatChangesSummary({ chat }: { chat: Chat }) {
   if (changes.error) return <ErrorBox error={changes.error} />;
   if (!changes.data) return null;
   return (
-    <ChangesSummary
-      summary={changes.data.summary}
-      steps={steps.data ?? null}
-      touched={changes.data.touched}
-      activity={live ? chat.activity : null}
-      base={reviewPath.chat(chat.id)}
-    />
+    <AgentProviderScope provider={chat.provider}>
+      <ChangesSummary
+        summary={changes.data.summary}
+        steps={steps.data ?? null}
+        touched={changes.data.touched}
+        activity={live ? chat.activity : null}
+        base={reviewPath.chat(chat.id)}
+      />
+    </AgentProviderScope>
   );
 }
 

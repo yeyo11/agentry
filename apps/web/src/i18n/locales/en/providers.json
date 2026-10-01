@@ -27,6 +27,9 @@
     "handshake-failed": "It started but did not answer the way Agentry expects.",
     "capability-missing": "It is missing something Agentry needs from it in this version.",
     "no-probe": "Agentry cannot check this one yet.",
+    "auth-required": "It needs a sign-in the vendor's own tool has to ask for.",
+    "schema-untested": "Its structured output was not tested on this version, so Agentry does not use it for that.",
+    "busy": "It is busy with another session and could not be checked now.",
     "disabled": "It is not searched for or checked while it is off."
   },
   "row": {

@@ -15,7 +15,20 @@ import type {
 import type { Launch } from '../accounts.ts';
 import type { BackgroundTask, SubagentInfo, WorkflowRun } from '../cli-facts.ts';
 import type { ChatConfinement, NewChat } from '../live-chat.ts';
+import type { NeutralRequest } from '../policy-judge.ts';
 import type { ProviderManifest } from './manifest.ts';
+import type { TranscriptStore } from './transcripts.ts';
+
+/**
+ * The executable a driver starts: a fixed path, or one read again at every start. Core passes the
+ * latter, so the person's binary override in Settings → Providers applies to the next process
+ * without rebuilding the driver.
+ */
+export type BinarySource = string | (() => string);
+
+export function binaryOf(source: BinarySource): string {
+  return typeof source === 'function' ? source() : source;
+}
 
 /**
  * The code half of a provider; the manifest is the data half. Everything that is the agent's own
@@ -30,6 +43,14 @@ export interface ProviderDriver {
   translatePolicy(policy: ToolPolicy): PolicyTranslation;
   /** What the picker offers for this provider */
   models(): ModelOption[];
+  /** Who names the session: Agentry (`imposed`, Claude) or the agent (`assigned`, Codex and ACP) */
+  readonly sessionIds: 'imposed' | 'assigned';
+  /** The permission modes this provider can honour, each with its native value; the picker offers only these */
+  permissionModes(): Array<{ mode: PermissionMode; native: string }>;
+  /** Reads what the provider wrote; null when it keeps nothing Agentry can read */
+  readonly transcripts: TranscriptStore | null;
+  /** A handshake that spends nothing, for detection: version, account, models, confirmed capabilities */
+  handshake?(env: NodeJS.ProcessEnv, signal: AbortSignal): Promise<HandshakeResult>;
 
   /** How one process of a session starts: binary, argv and environment (claude-swap included) */
   launch(spec: SessionLaunch): LaunchPlan;
@@ -51,6 +72,15 @@ export interface ProviderDriver {
   accounts?: AccountSupport | null;
 }
 
+/** What a handshake that spends nothing learns about the installed provider. */
+export interface HandshakeResult {
+  version: string | null;
+  /** Who is signed in, when the protocol says; null when it does not */
+  account: string | null;
+  models: ModelOption[];
+  confirmed: ProviderCapability[];
+}
+
 /** What the runner needs to know about claude-swap, injected by Core to avoid a cycle. */
 export interface AccountSupport {
   /** claude-swap is installed and has at least one account registered */
@@ -66,6 +96,8 @@ export interface AccountSupport {
 export interface SessionLaunch {
   /** The session id, chosen by Agentry and imposed on the agent */
   id: string;
+  /** The agent's own id once it has named the session; null before the first process confirms it */
+  nativeId: string | null;
   /** The agent has confirmed the session exists: a process resumes it */
   created: boolean;
   /** The session this one is a copy of, until the copy is confirmed */
@@ -94,6 +126,8 @@ export interface SessionLaunch {
   agentsFile?: string;
   /** The account the chat is pinned to */
   account: string | null;
+  /** Agentry's policy for this run; the driver applies the settings part, the judge the host part */
+  policy: ToolPolicy | null;
 }
 
 /** The process to start. `ChatManager` adds `AGENTRY_CHAT_ID`, `AGENTRY_API_URL` and the minted token itself. */
@@ -180,6 +214,8 @@ export interface PermissionQuestion {
   description?: string;
   suggestions?: PermissionUpdate[];
   requiresUserInteraction?: boolean;
+  /** The request in neutral terms, for a driver whose translation leaves a part to the judge */
+  request?: NeutralRequest;
 }
 
 /** A per-model cost and window, as the agent reports them at the end of a turn. */
@@ -203,6 +239,8 @@ export type DriverEvent =
   | {
       kind: 'init';
       sessionId: string | null;
+      /** The id the agent itself gave the session; a driver that imposes the id leaves it out, and `sessionId` is the native one */
+      nativeSessionId?: string | null;
       model: string | null;
       permissionMode: PermissionMode | null;
       cwd: string | null;
@@ -228,6 +266,8 @@ export type DriverEvent =
   | { kind: 'command-started'; toolUseId: string; command: string }
   | { kind: 'command-ended'; toolUseId: string; isError: boolean }
   | { kind: 'task'; run: RunDraft }
+  /** The session cannot go on: the execution fails with `reason` (`auth-required: …`, `protocol: …`) and the process is stopped */
+  | { kind: 'failed'; reason: string }
   | { kind: 'rate-limit'; info: RateLimitInfo }
   /** The agent's wording says the account's window is spent: what a rotation is asked for on */
   | { kind: 'rate-limited' }
@@ -251,5 +291,7 @@ export type DriverEvent =
       run: RunDraft;
     }
   | { kind: 'stderr'; text: string }
+  /** Agentry's own words about something the agent did that the person may want to see, with no change of status */
+  | { kind: 'notice'; text: string }
   /** A stdout line that is not the protocol */
   | { kind: 'unreadable'; text: string };

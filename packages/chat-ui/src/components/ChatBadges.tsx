@@ -7,6 +7,7 @@ import '../chats.css';
 import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
 import { usageTone } from '@agentry/ui/components/motion';
 import { statusText } from '@agentry/ui/components/ui';
+import { ProviderMark } from '@agentry/ui/components/ProviderMark';
 
 /*
  * What a chat is, said the same way wherever it appears: in words and with an icon, never with a
@@ -65,6 +66,19 @@ export function BranchStatus({ status }: { status: ChatBranchStatus }) {
     <span className={`badge badge-${BRANCH_TONE[status]}`}>
       {Icon ? <Icon size={12} strokeWidth={2} aria-hidden /> : <span className="spinner spinner-xs" aria-hidden />}
       {statusText(status)}
+    </span>
+  );
+}
+
+/**
+ * The agent a chat runs on: its mark and its label, neutral (the agent being live is the state's
+ * badge, never the provider's). A list row shows `ProviderMark` alone, named by the label.
+ */
+export function ProviderBadge({ provider, label }: { provider: string; label: string }) {
+  return (
+    <span className="prov-badge">
+      <ProviderMark provider={provider} label={label} decorative />
+      {label}
     </span>
   );
 }

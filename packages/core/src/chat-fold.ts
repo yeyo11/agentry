@@ -1,7 +1,27 @@
-import { entryText, isModelName, type RunOutcome } from '@agentry/shared';
+import { entryText, isModelName, type PolicyPart, type RunOutcome, type ToolPolicy } from '@agentry/shared';
+import { LEGACY_PROVIDER } from './chat-records.ts';
 import { commandKind } from './commands.ts';
+import { judge, type NeutralRequest } from './policy-judge.ts';
 import { now, type ChatHost, type LiveChat } from './live-chat.ts';
 import type { DriverEvent, SessionInit } from './providers/driver.ts';
+
+/** The next `seq` of a chat's stored entries; read once from the table, so a resumed chat carries on after what an earlier process wrote */
+const entrySeq = new WeakMap<LiveChat, number>();
+
+/**
+ * Records what a non-Claude chat streamed as rows, the transcript of a provider that keeps none
+ * Agentry can read. Claude's own JSONL is its transcript, so it is not copied.
+ */
+function recordEntry(host: ChatHost, chat: LiveChat, entry: Extract<DriverEvent, { kind: 'message' }>['entry']): void {
+  if (chat.driver.manifest.id === LEGACY_PROVIDER) return;
+  try {
+    const seq = entrySeq.get(chat) ?? (host.db.chatEntries(chat.id).at(-1)?.seq ?? -1) + 1;
+    host.db.appendChatEntries(chat.id, [{ seq, at: entry.timestamp || now(), entry }]);
+    entrySeq.set(chat, seq + 1);
+  } catch {
+    // the transcript only loses this entry; the chat goes on
+  }
+}
 
 const IDLE_TIMEOUT_MS = Number(process.env.AGENTRY_IDLE_TIMEOUT_MS ?? 10 * 60_000);
 
@@ -16,9 +36,21 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
       // The session exists now: a respawn resumes it, and a fork is no longer waiting to be made
       chat.created = true;
       chat.forkFrom = null;
-      // The id was Agentry's to choose, and the agent takes it; if it ever answered otherwise, the
-      // chat would be one row on disk and another here, so say so where the person can see it
-      if (event.sessionId && event.sessionId !== chat.id) {
+      if (chat.driver.sessionIds === 'assigned') {
+        // The agent names the session. The first id is recorded; another one later would point the
+        // chat at a different conversation without anyone noticing, so it fails the execution
+        const native = event.nativeSessionId ?? event.sessionId;
+        if (native && chat.nativeId && native !== chat.nativeId) {
+          host.failProtocol(chat, `The agent reported session ${native} for a chat bound to ${chat.nativeId}; refusing to rebind it.`);
+          return;
+        }
+        if (native && !chat.nativeId) {
+          chat.nativeId = native;
+          host.persist();
+        }
+      } else if (event.sessionId && event.sessionId !== chat.id) {
+        // The id was Agentry's to choose, and the agent takes it; if it ever answered otherwise, the
+        // chat would be one row on disk and another here, so say so where the person can see it
         chat.push({ kind: 'notice', text: `The CLI reported session ${event.sessionId} for the chat ${chat.id}; its transcript is not where this chat expects it.` });
       }
       // What the alias this process was started with stands for now: the cache of models labels
@@ -120,6 +152,7 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
     case 'message': {
       const { entry } = event;
       trackActivity(chat, entry);
+      recordEntry(host, chat, entry);
       // The agent can start a turn on its own (e.g. after a background task notification)
       if (entry.role === 'assistant' && chat.status === 'idle') {
         if (chat.idleTimer) clearTimeout(chat.idleTimer);
@@ -138,6 +171,10 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
 
     case 'task':
       chat.push(event.run);
+      return;
+
+    case 'failed':
+      host.failProtocol(chat, event.reason);
       return;
 
     case 'rate-limit':
@@ -168,6 +205,10 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
 
     case 'unreadable':
       chat.push({ kind: 'other', text: event.text });
+      return;
+
+    case 'notice':
+      chat.push({ kind: 'notice', text: event.text });
       return;
   }
 }
@@ -207,10 +248,44 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
   host.maybeRotate(chat);
 }
 
+/** The parts of a policy a request falls under; a driver lists in `host` the ones it leaves to the judge. */
+function partsOf(request: NeutralRequest): PolicyPart[] {
+  switch (request.kind) {
+    case 'command':
+      return ['commands', 'gitPush'];
+    case 'edit':
+      return ['edit'];
+    case 'read':
+      return ['read'];
+    case 'fetch':
+      return ['network'];
+    case 'delegate':
+      return ['delegate'];
+    case 'other':
+      return [];
+  }
+}
+
+function hostJudges(chat: LiveChat, policy: ToolPolicy, request: NeutralRequest): boolean {
+  const host = chat.driver.translatePolicy(policy).host;
+  return !!host && partsOf(request).some((part) => host.includes(part));
+}
+
 /** The agent asks the host something: a tool permission, a question, a plan to approve. */
 function askPermission(host: ChatHost, chat: LiveChat, question: Extract<DriverEvent, { kind: 'permission-request' }>['question']): void {
   const session = chat.session;
   const broker = host.permissions;
+  const policy = chat.opts.toolConfig?.policy;
+  if (policy && question.request && hostJudges(chat, policy, question.request)) {
+    // Decided by Agentry's policy, not by the agent's own rules: the part is listed as `host`
+    const verdict = judge(policy, question.request);
+    if (verdict !== 'ask') {
+      const allowed = verdict === 'allow';
+      chat.push({ kind: 'notice', text: `${allowed ? 'Allowed' : 'Denied'} by the chat's policy: ${question.toolName}`, data: { toolUseId: question.toolUseId, verdict } });
+      session?.answerPermission(question.id, allowed ? { behavior: 'allow' } : { behavior: 'deny', message: "Denied by the chat's tool policy" });
+      return;
+    }
+  }
   if (!broker || chat.opts.permissionPrompts !== 'host') {
     session?.answerPermission(question.id, { behavior: 'deny', message: 'Nobody is answering permission prompts for this chat' });
     return;

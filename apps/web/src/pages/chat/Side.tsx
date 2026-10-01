@@ -4,7 +4,9 @@ import { useId, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { AnimatedNumber } from '@agentry/ui/components/AnimatedNumber';
-import { BranchStatus, ControlBadge, LastOutcome, OriginBadge, OutcomeBadge, StateBadge } from '@agentry/chat-ui/components/ChatBadges';
+import { BranchStatus, ControlBadge, LastOutcome, OriginBadge, OutcomeBadge, ProviderBadge, StateBadge } from '@agentry/chat-ui/components/ChatBadges';
+import { upperFirst, useAgentName } from '@agentry/chat-ui/lib/agent';
+import { modeLabel } from '@agentry/chat-ui/lib/wire-words';
 import { Collapsible } from '@agentry/ui/components/controls/Collapsible';
 import { HealthBadge, HealthPanel, isStepIn } from '../../components/observe/Health';
 import { EnvironmentBody } from '../../components/EnvironmentPanel';
@@ -45,6 +47,7 @@ function useMoney(): (usd: number | null) => string {
 
 export function UsageCard({ chat }: { chat: Chat }) {
   const { t } = useTranslation(['chat', 'work', 'common']);
+  const agent = useAgentName();
   const money = useMoney();
   const { context, cost } = chat;
   // A placeholder message carries no model and no tokens: nothing to show for it
@@ -76,7 +79,7 @@ export function UsageCard({ chat }: { chat: Chat }) {
           )
         }
       >
-        {cost.usd === null && <div className="small muted">{t('side.usage.costNotReported')}</div>}
+        {cost.usd === null && <div className="small muted">{t('side.usage.costNotReported', { agent: upperFirst(agent) })}</div>}
         {rows.length > 0 && (
           <table className="chat-tokens">
             <caption className="sr-only">{t('side.usage.tokensCaption')}</caption>
@@ -318,7 +321,8 @@ export function HealthCard({ chat }: { chat: Chat }) {
 // ---------- facts ----------
 
 export function FactsCard({ chat }: { chat: Chat }) {
-  const { t } = useTranslation(['chat', 'work', 'common']);
+  const { t } = useTranslation(['chat', 'chats', 'work', 'common']);
+  const agent = useAgentName();
   const live = chat.execution;
   const origin = chat.orchestration ? `${chat.orchestration.name} · ${chat.orchestration.taskName ?? t('view.synthesis')}` : t(`badges.origin.${chat.origin}`);
   return (
@@ -331,9 +335,13 @@ export function FactsCard({ chat }: { chat: Chat }) {
         <OriginBadge origin={chat.origin} label={origin} />
       </div>
       <dl className="insp-facts">
+        <dt>{t('chats:provider.agent')}</dt>
+        <dd>
+          <ProviderBadge provider={chat.provider} label={agent} />
+        </dd>
         <dt>{t('chat:runView.permissions')}</dt>
         <dd>
-          <span className="badge insp-mode">{live?.permissionMode ?? chat.executions.at(-1)?.permissionMode ?? t('chat:shared.default')}</span>
+          <span className="badge insp-mode">{modeLabel(live?.permissionMode ?? chat.executions.at(-1)?.permissionMode ?? t('chat:shared.default'))}</span>
         </dd>
         <dt>{t('chat:shared.model')}</dt>
         <dd className="mono">{live?.model ?? chat.model ?? t('chat:shared.default')}</dd>
@@ -351,6 +359,14 @@ export function FactsCard({ chat }: { chat: Chat }) {
         <dd className="mono insp-id">
           <span className="ellipsis">{chat.id}</span> <CopyButton text={chat.id} label={t('view.copyId')} />
         </dd>
+        {chat.providerSessionId && chat.providerSessionId !== chat.id && (
+          <>
+            <dt>{t('chats:provider.nativeSession', { agent })}</dt>
+            <dd className="mono insp-id">
+              <span className="ellipsis">{chat.providerSessionId}</span> <CopyButton text={chat.providerSessionId} label={t('chats:provider.copyNativeSession')} />
+            </dd>
+          </>
+        )}
         <dt>{t('side.facts.messages')}</dt>
         <dd>{t('view.messages', { count: chat.messageCount })}</dd>
         {live && (
@@ -396,17 +412,18 @@ export function FactsCard({ chat }: { chat: Chat }) {
 
 export function EnvironmentCard({ chat }: { chat: Chat }) {
   const { t } = useTranslation(['chat', 'work', 'common']);
+  const agent = useAgentName();
   return (
     <Collapsible
       className="fold insp-fold"
       title={
         <>
-          <span className="fold-card-title">{t('chat:runView.loadedByClaude')}</span>
+          <span className="fold-card-title">{t('chat:runView.loadedByAgent', { agent })}</span>
           <span className="small muted">{t('chat:runView.loadedHint')}</span>
         </>
       }
     >
-      {chat.environment ? <EnvironmentBody env={chat.environment} /> : <div className="small muted">{t('side.facts.environmentEmpty')}</div>}
+      {chat.environment ? <EnvironmentBody env={chat.environment} /> : <div className="small muted">{t('side.facts.environmentEmpty', { agent })}</div>}
     </Collapsible>
   );
 }

@@ -19,7 +19,7 @@ export const geminiManifest: ProviderManifest = {
   versions: {
     // Source: docs/cli/cli-reference.md, `--version` / `-v`.
     args: ['--version'],
-    range: null,
+    range: '>=0.62.0 <0.63.0',
   },
   // Source: the README's install section (npm, Homebrew, MacPorts).
   install: { url: 'https://github.com/google-gemini/gemini-cli' },
@@ -33,5 +33,7 @@ export const geminiManifest: ProviderManifest = {
   },
   // Source: packages/cli/src/config/config.ts defines `--acp` (and the deprecated `--experimental-acp`).
   transport: 'acp',
-  capabilities: [],
+  launch: { args: ['--acp'], env: {}, unsetEnv: [] },
+  // `setModel` and `fork` wait for a signed-in recording of `session/new`'s `models`.
+  capabilities: ['interactivePermissions', 'resume', 'interrupt', 'mcp'],
 };
