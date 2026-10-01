@@ -203,5 +203,14 @@
     "edit-title": "Edit title on {{host}}",
     "open-on-host": "Open on {{host}}",
     "refresh": "Check again"
+  },
+  "autoMergeOff": {
+    "pushing": "Agentry turned auto-merge off and is pushing to the branch. Turn it on again when the push is done.",
+    "push": "Agentry turned auto-merge off {{when}} because it pushed to the branch. Turn it on again if you still want it.",
+    "update": "Auto-merge was turned off {{when}} by {{who}} for Update from base. Turn it on again if you still want it."
+  },
+  "rebaseOnHostWhy": {
+    "uncommitted-changes": "Rebase on {{host}} is not offered: the checkout has changes that are not committed, and the rebase would leave it behind.",
+    "unpushed-commits": "Rebase on {{host}} is not offered: the checkout has commits that were never pushed, and the rebase would drop them."
   }
 }

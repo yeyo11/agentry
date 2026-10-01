@@ -203,5 +203,14 @@
     "edit-title": "Editar el título en {{host}}",
     "open-on-host": "Abrir en {{host}}",
     "refresh": "Volver a comprobar"
+  },
+  "autoMergeOff": {
+    "pushing": "Agentry ha desactivado la fusión automática y está subiendo cambios a la rama. Vuelve a activarla cuando termine.",
+    "push": "Agentry desactivó la fusión automática {{when}} porque subió cambios a la rama. Vuelve a activarla si aún la quieres.",
+    "update": "{{who}} desactivó la fusión automática {{when}} al actualizar desde la base. Vuelve a activarla si aún la quieres."
+  },
+  "rebaseOnHostWhy": {
+    "uncommitted-changes": "No se ofrece rebase en {{host}}: la copia local tiene cambios sin confirmar y el rebase la dejaría atrasada.",
+    "unpushed-commits": "No se ofrece rebase en {{host}}: la copia local tiene commits que no se han subido y el rebase los perdería."
   }
 }

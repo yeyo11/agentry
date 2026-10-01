@@ -11,7 +11,7 @@ const state = (over: Partial<MergeState> = {}): MergeState => ({
   changeRequestId: 'cr-1', host: 'github', headSha: 'a'.repeat(40), methods: ['squash', 'merge'], defaultMethod: 'squash', deleteBranchDefault: true,
   canMerge: true, blocker: null, others: [], warning: null,
   autoMerge: { available: false, reason: null, armed: false, method: null, armedBy: null, armedAt: null },
-  waitingForPipeline: false, canRebaseOnHost: false, readAt: '2026-10-01T10:00:00Z', ...over,
+  autoMergeOff: null, waitingForPipeline: false, canRebaseOnHost: false, rebaseOnHostWhy: null, readAt: '2026-10-01T10:00:00Z', ...over,
 });
 
 const CODES: MergeBlockerCode[] = [

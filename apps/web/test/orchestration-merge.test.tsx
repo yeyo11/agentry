@@ -44,7 +44,7 @@ const state = (over: Partial<MergeState> = {}): MergeState => ({
   changeRequestId: 'cr1', host: 'gitlab', headSha: 'a81d3f0'.padEnd(40, '0'), methods: ['squash', 'merge', 'rebase'], defaultMethod: 'squash', deleteBranchDefault: true,
   canMerge: true, blocker: null, others: [], warning: null,
   autoMerge: { available: false, reason: null, armed: false, method: null, armedBy: null, armedAt: null },
-  waitingForPipeline: false, canRebaseOnHost: false, readAt: '2026-10-01T10:00:00Z', ...over,
+  autoMergeOff: null, waitingForPipeline: false, canRebaseOnHost: false, rebaseOnHostWhy: null, readAt: '2026-10-01T10:00:00Z', ...over,
 });
 
 const words = { noun: 'MR', host: 'GitLab', ref: (n: number | null) => (n === null ? '' : `!${n}`) };

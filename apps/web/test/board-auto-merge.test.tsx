@@ -65,8 +65,10 @@ const state = (armed: boolean): MergeState => ({
   others: [],
   warning: null,
   autoMerge: { available: !armed, reason: null, armed, method: armed ? 'squash' : null, armedBy: null, armedAt: null },
+  autoMergeOff: null,
   waitingForPipeline: false,
   canRebaseOnHost: false,
+  rebaseOnHostWhy: null,
   readAt: '2026-09-28T10:00:00Z',
 });
 

@@ -32,7 +32,7 @@ const state = (over: Partial<MergeState> = {}): MergeState => ({
   changeRequestId: 'cr1', host: 'github', headSha: 'a81d3f0b2c4d5e6f708192a3b4c5d6e7f8091a2b', methods: ['squash', 'merge', 'rebase'], defaultMethod: 'squash', deleteBranchDefault: true,
   canMerge: true, blocker: null, others: [], warning: null,
   autoMerge: { available: false, reason: null, armed: false, method: null, armedBy: null, armedAt: null },
-  waitingForPipeline: false, canRebaseOnHost: false, readAt: '2026-10-01T10:00:00Z', ...over,
+  autoMergeOff: null, waitingForPipeline: false, canRebaseOnHost: false, rebaseOnHostWhy: null, readAt: '2026-10-01T10:00:00Z', ...over,
 });
 
 const blocked = (code: MergeBlockerCode, detail: string | null = null, action: MergeBlockerAction | null = null, over: Partial<MergeState> = {}) =>
@@ -193,6 +193,18 @@ test('the host\'s own words are drawn as text, and the others that block are lis
 test('a code this version does not know reads as the policy block', () => {
   const html = render(blocked('made-up' as MergeBlockerCode, null, 'open-on-host'));
   assert.match(text(html), /GitHub&#x27;s rules for main do not allow this merge yet/);
+});
+
+test('the person is told when Agentry turned auto-merge off for a push, and why a host rebase is not offered', () => {
+  const off = text(render(state({ autoMergeOff: { by: 'agentry', at: '2026-10-01T09:30:00Z', why: 'push', pushing: false } })));
+  assert.match(off, /Agentry turned auto-merge off .* because it pushed to the branch/);
+  const pushing = text(render(state({ autoMergeOff: { by: 'agentry', at: '2026-10-01T09:30:00Z', why: 'push', pushing: true } })));
+  assert.match(pushing, /is pushing to the branch/);
+  const update = text(render(state({ autoMergeOff: { by: 'marta', at: '2026-10-01T09:30:00Z', why: 'update', pushing: false } })));
+  assert.match(update, /turned off .* by marta for Update from base/);
+  const rebase = text(render(state({ host: 'gitlab', rebaseOnHostWhy: 'unpushed-commits' }), pr({ host: 'gitlab', ref: '!12' })));
+  assert.match(rebase, /commits that were never pushed/);
+  assert.doesNotMatch(text(render(state())), /turned auto-merge off|not offered/, 'nothing to say when nothing happened');
 });
 
 test('the block waits for its state, and says so, and renders nothing without an open request', () => {
