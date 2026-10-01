@@ -75,6 +75,33 @@ runConformance({
       { name: 'unknown state', stdout: withView({ state: 'on-hold' }) },
       { name: 'recorded 404 body', stdout: recorded('view404.out') },
     ],
+    checks: [
+      {
+        // recorded: pipeline 2900783081, whose jobs came with `--paginate --output ndjson`, and its bridge to a child
+        name: 'recorded jobs and bridge',
+        ref: { headSha: null, pipelineId: 2900783081 },
+        results: [recorded('jobs_ndjson.out'), recorded('bridges_child.out')],
+        expect: {
+          checks: [
+            { id: '16862617994', name: 'probe-manual', group: 'test', state: 'manual', source: 'job', rerunnable: false, allowedToFail: false },
+            { id: '16862617993', name: 'probe-allowed', state: 'failed', allowedToFail: true, rerunnable: true },
+            { id: '16862617992', name: 'probe-fail', state: 'failed', allowedToFail: false },
+            { id: '16862617991', name: 'probe-sleep', state: 'running', rerunnable: false },
+            { id: '16862617995', name: 'probe-child', group: 'child', state: 'failed', source: 'bridge', hasLog: false, rerunnable: true },
+          ],
+          truncated: false,
+          next: 1,
+        },
+      },
+      {
+        // recorded: the child could not be created, so its bridge has no downstream pipeline and no follow-up
+        name: 'recorded bridge without a child',
+        ref: { headSha: null, pipelineId: 2900771578 },
+        results: ['[]', recorded('bridges_running.out')],
+        expect: { checks: [{ id: '16862533391', name: 'probe-child', state: 'failed', source: 'bridge' }], truncated: false, next: 0 },
+      },
+    ],
+    malformedChecks: [{ name: 'jobs that are an object of strings', results: ['{"a":"b"}\n"x"', '[]'] }],
     finds: [
       { name: 'recorded list', stdout: recorded('mrlist.out'), expect: mrlist.map((mr) => ({ number: mr.iid, url: mr.web_url, state: 'open' as const })) },
       { name: 'none', stdout: '[]', expect: [] },
