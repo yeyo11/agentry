@@ -1,6 +1,8 @@
+import { existsSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
+import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
-import { Core } from '@agentry/core';
+import { Core, MCP_ENTRY_ENV } from '@agentry/core';
 import { buildApp } from './app.ts';
 
 export interface StartServerOptions {
@@ -90,6 +92,10 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   const urlHost = host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host.includes(':') ? `[${host}]` : host;
   const url = `http://${urlHost}:${port}`;
   core.runtime.apiUrl = `${url}/api`;
+  // In a bundle (the container, the desktop app) mcp.mjs sits beside this file; from source it does
+  // not, and the core starts the server through tsx instead
+  const bundledMcp = fileURLToPath(new URL('./mcp.mjs', import.meta.url));
+  if (!process.env[MCP_ENTRY_ENV] && existsSync(bundledMcp)) process.env[MCP_ENTRY_ENV] = bundledMcp;
   // The port it bound to, which is not always the one it asked for; this also opens the tunnel
   // when "start with Agentry" is on
   core.tunnel.attach(port, urlHost);

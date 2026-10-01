@@ -249,3 +249,13 @@ test('the compose file, the .env example and the chart all say how to turn the t
   // Written whatever the value, so a release that says "off" is off even on an image that changed its default
   assert.match(read('deploy/helm/agentry/templates/deployment.yaml'), /- name: AGENTRY_TUNNEL\n\s+value: \{\{ ternary "on" "off" \.Values\.tunnel\.enabled \| quote \}\}/);
 });
+
+test('the MCP server is bundled on its own, imports only node: built-ins, and the desktop package ships it beside server.mjs', { timeout: 120_000 }, async () => {
+  const bundler = spawn(process.execPath, [join(apiRoot, 'scripts/bundle.mjs')], { cwd: apiRoot, stdio: 'ignore' });
+  assert.deepEqual(await once(bundler, 'exit'), [0, null]);
+  const bundle = readFileSync(join(apiRoot, 'dist/mcp.mjs'), 'utf8');
+  const specifiers = [...bundle.matchAll(/^import\b[^\n]*?["']([^"']+)["'];?$/gm)].map((m) => m[1] ?? '');
+  assert.deepEqual(specifiers.filter((s) => !s.startsWith('node:')), []);
+  const builder = readFileSync(resolve(here, '../../desktop/electron-builder.yml'), 'utf8');
+  assert.match(builder, /^\s+- server\.mjs\n\s+- mcp\.mjs$/m);
+});

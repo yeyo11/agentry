@@ -5,6 +5,8 @@ import { app } from 'electron';
 export interface Resources {
   /** Bundled API server (single-file ESM) */
   serverEntry: string;
+  /** Bundled MCP server a chat's CLI starts (single-file ESM, next to serverEntry) */
+  mcpEntry: string;
   /** Built UI served by the API */
   webDist: string;
   /** Window icon */
@@ -19,6 +21,7 @@ export function resolveResources(): Resources {
   if (app.isPackaged) {
     return {
       serverEntry: join(process.resourcesPath, 'server', 'server.mjs'),
+      mcpEntry: join(process.resourcesPath, 'server', 'mcp.mjs'),
       webDist: join(process.resourcesPath, 'web'),
       icon: join(process.resourcesPath, 'icon.png'),
     };
@@ -26,6 +29,7 @@ export function resolveResources(): Resources {
   const repoRoot = resolve(__dirname, '..', '..', '..');
   return {
     serverEntry: join(repoRoot, 'apps', 'api', 'dist', 'server.mjs'),
+    mcpEntry: join(repoRoot, 'apps', 'api', 'dist', 'mcp.mjs'),
     webDist: join(repoRoot, 'apps', 'web', 'dist'),
     icon: join(repoRoot, 'apps', 'desktop', 'build', 'icon.png'),
   };
@@ -35,6 +39,7 @@ export function resolveResources(): Resources {
 export function missingResources(res: Resources): string[] {
   const missing: string[] = [];
   if (!existsSync(res.serverEntry)) missing.push(res.serverEntry);
+  if (!existsSync(res.mcpEntry)) missing.push(res.mcpEntry);
   if (!existsSync(join(res.webDist, 'index.html'))) missing.push(join(res.webDist, 'index.html'));
   return missing;
 }
