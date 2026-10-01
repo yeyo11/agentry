@@ -57,6 +57,26 @@ case "$1 $2" in
     echo "$@" > "$state/create-$n"
     if [ -f "$state/exists" ]; then printf 'a pull request for branch "task/cw-1" into branch "main" already exists:\nhttps://github.com/acme/shop/pull/%s\n' "$n" >&2; exit 1; fi
     echo "https://github.com/acme/shop/pull/$n"; exit 0 ;;
+  "api -i")
+    # The watcher's read (one GraphQL query through `api -i`): the same document `pr view` serves
+    # from $state/view.json, put in the shape of the query's answer, with the status line first
+    if [ -f "$state/fail" ]; then printf 'HTTP/2.0 502 Bad Gateway\r\ncontent-type: application/json\r\n\r\n{"message":"Bad Gateway"}\n'; echo "gh: Bad Gateway (HTTP 502)" >&2; exit 1; fi
+    number=$(printf '%s\n' "$@" | sed -n 's/^number=//p')
+    printf 'HTTP/2.0 200 OK\r\ncontent-type: application/json\r\n\r\n'
+    NUMBER="$number" VIEW="$state/view.json" node -e '
+      const fs = require("node:fs");
+      const n = Number(process.env.NUMBER);
+      const view = fs.existsSync(process.env.VIEW) ? JSON.parse(fs.readFileSync(process.env.VIEW, "utf8")) : { state: "OPEN", mergedAt: null, statusCheckRollup: [], url: `https://github.com/acme/shop/pull/${n}` };
+      const nodes = view.statusCheckRollup ?? [];
+      const pullRequest = {
+        number: n, url: view.url || `https://github.com/acme/shop/pull/${n}`, state: view.state, mergedAt: view.mergedAt,
+        isDraft: false, headRefOid: "0123456789abcdef0123456789abcdef01234567", baseRefName: "main",
+        mergeable: "MERGEABLE", mergeStateStatus: "CLEAN", reviewDecision: null, autoMergeRequest: null,
+        commits: { nodes: [{ commit: { statusCheckRollup: nodes.length ? { state: "PENDING", contexts: { nodes, pageInfo: { hasNextPage: false } } } : null } }] },
+      };
+      process.stdout.write(JSON.stringify({ data: { repository: { pullRequest }, rateLimit: { cost: 1, remaining: 4999, resetAt: "2026-10-01T12:00:00Z" } } }) + "\n");
+    '
+    exit 0 ;;
   "pr view")
     if [ -f "$state/fail" ]; then echo "HTTP 502: Bad Gateway (https://api.github.com/graphql)" >&2; exit 1; fi
     case "$3" in
