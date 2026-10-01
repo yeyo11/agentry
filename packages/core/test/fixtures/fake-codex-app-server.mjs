@@ -270,13 +270,16 @@ function turnFlow(t, turn, params) {
     async ASK() {
       const kind = rest[0] ?? 'command';
       const id = uuid7();
+      // What the turn's answer says the person decided, so a test can read it off the result
+      let granted = true;
       if (kind === 'file') {
         const change = { path: `${t.cwd}/notes.txt`, kind: { type: 'add' }, diff: 'hello\n' };
         await item({ type: 'fileChange', id, changes: [change], status: 'inProgress' });
         const ok = await approval('item/fileChange/requestApproval', { ...base, itemId: id, startedAtMs: Date.now(), reason: 'write notes.txt', grantRoot: null });
+        granted = ok;
         await done({ type: 'fileChange', id, changes: [change], status: ok ? 'completed' : 'declined' });
       } else if (kind === 'permissions') {
-        await approval('item/permissions/requestApproval', {
+        granted = await approval('item/permissions/requestApproval', {
           ...base, itemId: id, environmentId: 'local', startedAtMs: Date.now(), cwd: t.cwd, reason: 'needs the network',
           permissions: { network: { enabled: true }, fileSystem: null },
         });
@@ -287,13 +290,13 @@ function turnFlow(t, turn, params) {
         });
       } else {
         const cmd = rest.slice(1).join(' ') || 'npm test';
-        await runCommand(id, cmd);
+        granted = await runCommand(id, cmd);
       }
-      await answer('done');
+      await answer(granted ? 'done' : 'declined');
     },
     async GITPUSH() {
-      await runCommand(uuid7(), 'git push origin HEAD');
-      await answer('pushed');
+      const granted = await runCommand(uuid7(), 'git push origin HEAD');
+      await answer(granted ? 'pushed' : 'declined');
     },
     async ODD() {
       await ask('item/odd/request', { ...base });
@@ -373,10 +376,14 @@ function turnFlow(t, turn, params) {
       kind: 'command', ...base, itemId: id, startedAtMs: Date.now(), approvalId: null, environmentId: 'local',
       reason: null, command: cmd, cwd: t.cwd, commandActions: [{ type: 'unknown', command: cmd }],
     });
-    if (!ok) return done(command(id, cmd, 'declined'));
+    if (!ok) {
+      await done(command(id, cmd, 'declined'));
+      return false;
+    }
     await step();
     notify('item/commandExecution/outputDelta', { ...base, itemId: id, delta: 'ok\n' });
-    return done(command(id, cmd, 'completed', { aggregatedOutput: 'ok\n', exitCode: 0, durationMs: 12 }));
+    await done(command(id, cmd, 'completed', { aggregatedOutput: 'ok\n', exitCode: 0, durationMs: 12 }));
+    return true;
   }
 
   return async () => {

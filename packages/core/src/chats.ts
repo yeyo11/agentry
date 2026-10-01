@@ -560,7 +560,8 @@ export class ChatManager extends EventEmitter {
       this.chatDefaults(),
       driver,
     );
-    chat.forkFrom = sourceId;
+    // An agent that names its own sessions is asked to copy by the name it gave, not the chat's
+    chat.forkFrom = driver.sessionIds === 'assigned' ? (known?.nativeId ?? sourceId) : sourceId;
     chat.workingDir = source.cwd;
     if (known) chat.permissionMode = known.permissionMode;
     this.applyStartOptions(chat, request);

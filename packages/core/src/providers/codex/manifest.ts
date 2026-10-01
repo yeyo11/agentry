@@ -19,7 +19,9 @@ export const codexManifest: ProviderManifest = {
   versions: {
     // Source: codex-rs/cli/src/main.rs declares clap's `version`, which gives `--version`.
     args: ['--version'],
-    range: null,
+    // Source: the protocol types in providers/codex/protocol are written from the 0.159.3 output of
+    // `codex app-server generate-ts`; the next minor is recorded before the range moves.
+    range: '>=0.159.3 <0.160.0',
   },
   // Source: https://github.com/openai/codex README, install section.
   install: { url: 'https://github.com/openai/codex' },
@@ -31,5 +33,9 @@ export const codexManifest: ProviderManifest = {
   },
   // Source: the CLI reference lists `codex app-server` (experimental, stdio JSON-RPC).
   transport: 'json-rpc',
-  capabilities: [],
+  // `CODEX_HOME` passes through untouched: Agentry never sets it
+  launch: { args: ['app-server'], env: {}, unsetEnv: [] },
+  // Not declared: budgetLimit, costReport (no cost field), multiAccount, worktreeFlag, subagents,
+  // workflowTool, transcriptFiles
+  capabilities: ['interactivePermissions', 'structuredOutput', 'resume', 'fork', 'interrupt', 'setModel', 'effort', 'mcp', 'rateLimitWindows'],
 };
