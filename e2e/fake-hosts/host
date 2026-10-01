@@ -41,11 +41,71 @@ ci=$(read_key ci)
 ci=${ci:-none}
 mr_state=$(read_key state)
 mr_state=${mr_state:-open}
+# The checks of the open change request, for the change request routes: none, failing, running,
+# mixed or fixed. A rerun or a cancel the CLI is asked for moves them (the .checks file wins over the
+# JSON), which is what a spec then sees on its next read
+checks=$(cat "$dir/$name.checks" 2>/dev/null || read_key checks)
+checks=${checks:-none}
+head_sha=$(read_key headSha)
+head_sha=${head_sha:-a1b2c3d4e5f60718293a4b5c6d7e8f9012345678}
 
 # The repository a -R names, as a web address
 repo_url() {
   r=$(flag -R "$@")
   case "$r" in http*) echo "$r" ;; *) echo "https://$r" ;; esac
+}
+
+# ---- gh: the checks of a head commit, as the REST and GraphQL answers print them ----
+check_run() {
+  # id name status conclusion app
+  if [ -n "$4" ]; then conclusion="\"$4\""; else conclusion=null; fi
+  if [ "$3" = completed ]; then done_at='"2026-10-01T09:53:12Z"'; else done_at=null; fi
+  printf '{"id":%s,"name":"%s","status":"%s","conclusion":%s,"app":{"slug":"%s"},"html_url":"https://github.com/acme/shop/actions/runs/900/job/%s","started_at":"2026-10-01T09:50:00Z","completed_at":%s}' \
+    "$1" "$2" "$3" "$conclusion" "$5" "$1" "$done_at"
+}
+
+check_runs_json() {
+  case "$checks" in
+    failing) list="$(check_run 1001 lint completed success github-actions),$(check_run 1002 unit completed failure github-actions),$(check_run 1003 build completed success github-actions)"; total=3 ;;
+    running) list="$(check_run 1001 lint completed success github-actions),$(check_run 1003 e2e in_progress '' github-actions),$(check_run 1004 build queued '' github-actions)"; total=3 ;;
+    mixed) list="$(check_run 1001 lint completed success github-actions),$(check_run 1002 unit completed failure github-actions),$(check_run 1003 e2e in_progress '' github-actions),$(check_run 1004 docs completed skipped github-actions),$(check_run 1005 coverage completed success codecov)"; total=5 ;;
+    fixed) list="$(check_run 1001 lint completed success github-actions),$(check_run 1002 unit completed success github-actions),$(check_run 1003 build completed success github-actions)"; total=3 ;;
+    *) list=""; total=0 ;;
+  esac
+  printf '[{"total_count":%s,"check_runs":[%s]}]\n' "$total" "$list"
+}
+
+# What the GraphQL read says of the head commit's rollup, in the shape the CI badge reads
+rollup_nodes() {
+  case "$checks" in
+    failing|mixed) echo '{"__typename":"CheckRun","name":"unit","status":"COMPLETED","conclusion":"FAILURE"}' ;;
+    running) echo '{"__typename":"CheckRun","name":"e2e","status":"IN_PROGRESS","conclusion":null}' ;;
+    fixed) echo '{"__typename":"CheckRun","name":"unit","status":"COMPLETED","conclusion":"SUCCESS"}' ;;
+  esac
+}
+
+change_request_json() {
+  nodes=$(rollup_nodes)
+  rollup=null
+  [ -n "$nodes" ] && rollup="{\"state\":\"PENDING\",\"contexts\":{\"nodes\":[$nodes],\"pageInfo\":{\"hasNextPage\":false}}}"
+  case "$mr_state" in merged) st=MERGED; at='"2026-10-01T10:00:00Z"' ;; closed) st=CLOSED; at=null ;; *) st=OPEN; at=null ;; esac
+  number=$(echo "$*" | sed -n 's/.*number=\([0-9]*\).*/\1/p')
+  printf 'HTTP/2.0 200 OK\r\nx-ratelimit-remaining: 4990\r\n\r\n'
+  printf '{"data":{"repository":{"pullRequest":{"number":%s,"url":"https://github.com/acme/shop/pull/%s","state":"%s","mergedAt":%s,"isDraft":false,"headRefOid":"%s","baseRefName":"main","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":null,"autoMergeRequest":null,"commits":{"nodes":[{"commit":{"statusCheckRollup":%s}}]}}},"rateLimit":{"cost":1,"remaining":4990,"resetAt":"2026-10-01T11:00:00Z"}}}\n' "${number:-7}" "${number:-7}" "$st" "$at" "$head_sha" "$rollup"
+}
+
+# The failed job prints what a runner prints: ANSI colour, a group marker, the error line
+job_log() {
+  printf '2026-10-01T09:50:01Z \033[36;1m##[group]Run pnpm test\033[0m\n'
+  printf '2026-10-01T09:50:02Z \033[90m$ node --test test/*.test.ts\033[0m\n'
+  printf '2026-10-01T09:50:09Z ok 41 - cart totals\n'
+  printf '2026-10-01T09:50:10Z \033[31mnot ok 42 - cart rounds half up\033[0m\n'
+  printf '2026-10-01T09:50:10Z   AssertionError: expected 10.01 to equal 10.02\n'
+  printf '2026-10-01T09:50:11Z \033[31;1m##[error]Process completed with exit code 1.\033[0m\n'
+}
+
+annotations_json() {
+  echo '[{"path":".github","start_line":1,"end_line":1,"annotation_level":"failure","title":null,"message":"Process completed with exit code 1."},{"path":"src/cart.ts","start_line":12,"end_line":12,"annotation_level":"failure","title":"cart rounds half up","message":"expected 10.01 to equal 10.02"}]'
 }
 
 version_out() {
@@ -67,7 +127,23 @@ case "$name" in
         if [ "$signed_in" = false ]; then echo '{"hosts":{}}'; exit 0; fi
         printf '{"hosts":{"github.com":[{"state":"success","active":true,"host":"github.com","login":"%s","tokenSource":"keyring","gitProtocol":"https"}]}}\n' "${user:-octocat}"
         exit 0 ;;
-      api) printf '{"default_branch":"%s","private":true}\n' "$branch"; exit 0 ;;
+      api)
+        case "$*" in
+          *graphql*) change_request_json "$@"; exit 0 ;;
+          */check-runs/*/annotations*) annotations_json; exit 0 ;;
+          */check-runs\?*) check_runs_json; exit 0 ;;
+          */commits/*/status\?*) echo '[{"statuses":[]}]'; exit 0 ;;
+          */actions/jobs/*/logs) job_log; exit 0 ;;
+          */rules/branches/*) echo '[]'; exit 0 ;;
+          */branches/*) echo '{"protected":false}'; exit 0 ;;
+        esac
+        printf '{"default_branch":"%s","private":true}\n' "$branch"; exit 0 ;;
+      run)
+        # A rerun starts the checks again, a cancel leaves the failure standing
+        case "$2" in
+          rerun) echo running > "$dir/gh.checks"; exit 0 ;;
+          cancel) echo failing > "$dir/gh.checks"; exit 0 ;;
+        esac ;;
       pr)
         case "$2" in
           create)
