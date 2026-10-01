@@ -4,6 +4,7 @@ import type {
   AddressReviewRequest,
   ApprovalRequest,
   ApprovalState,
+  AutoMergeRequestBody,
   ChangeRequest,
   ChangeRequestChecks,
   ChangeRequestReviewPosts,
@@ -11,6 +12,10 @@ import type {
   ChangeRequestThreads,
   CheckLog,
   ChecksRerunRequest,
+  MergeReadyRequest,
+  MergeRequestBody,
+  MergeResult,
+  MergeState,
   OrchestrationPullRequest,
   ReviewDraft,
   ReviewDraftInput,
@@ -19,6 +24,7 @@ import type {
   ReviewSubmitRequest,
   ReviewThread,
   ReviewersRequest,
+  UpdateBranchResult,
   WorkItemPullRequest,
 } from '@agentry/shared';
 
@@ -26,8 +32,21 @@ import type {
  * A change request's checks and their fixes. `:id` is the row id of either change request table
  * (a work item's or an orchestration's), which core resolves; every refusal arrives as an error
  * with a status and a `code` (the host's reason or the fix flow's). Writes are the person's: a
- * chat's token is refused in `security.ts`.
+ * chat's token is refused in `security.ts`. Merging above all: the merge, the arming and the update
+ * of the branch are the person's click, so the caller's own identity is what the audit records.
  */
+const METHODS: readonly string[] = ['squash', 'merge', 'rebase'];
+
+function methodOf(value: unknown): MergeRequestBody['method'] {
+  if (typeof value !== 'string' || !METHODS.includes(value)) throw new Error("method must be 'squash', 'merge' or 'rebase'");
+  return value as MergeRequestBody['method'];
+}
+
+function headOf(value: unknown): string {
+  if (typeof value !== 'string' || !value) throw new Error('expectedHead is required: the full id of the head the person looked at');
+  return value;
+}
+
 export const changeRequestRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   app.get<{ Params: { id: string } }>('/change-requests/:id', (req): Promise<ChangeRequest> => core.changeRequests.get(req.params.id));
 
@@ -153,5 +172,45 @@ export const changeRequestRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
     const body: Partial<AddressReviewRequest> = req.body ?? {};
     if (body.threadIds !== undefined && !(Array.isArray(body.threadIds) && body.threadIds.every((t) => typeof t === 'string'))) throw new Error('threadIds must be a list of thread ids');
     return core.changeRequests.address(req.params.id, { threadIds: body.threadIds ?? [] });
+  });
+
+  // ---------- merging ----------
+
+  app.get<{ Params: { id: string }; Querystring: { refresh?: string } }>(
+    '/change-requests/:id/merge',
+    (req): Promise<MergeState> => core.changeRequests.mergeState(req.params.id, req.query.refresh === '1'),
+  );
+
+  app.post<{ Params: { id: string }; Body: MergeRequestBody }>('/change-requests/:id/merge', (req): Promise<MergeResult> => {
+    const body: Partial<MergeRequestBody> = req.body ?? {};
+    if (typeof body.deleteBranch !== 'boolean') throw new Error('deleteBranch must be true or false: the box the person saw');
+    if (body.subject !== undefined && typeof body.subject !== 'string') throw new Error('subject must be text');
+    if (body.body !== undefined && typeof body.body !== 'string') throw new Error('body must be text');
+    return core.changeRequests.merge(
+      req.params.id,
+      {
+        method: methodOf(body.method),
+        expectedHead: headOf(body.expectedHead),
+        deleteBranch: body.deleteBranch,
+        ...(body.subject !== undefined ? { subject: body.subject } : {}),
+        ...(body.body !== undefined ? { body: body.body } : {}),
+      },
+      req.actor ?? 'local',
+    );
+  });
+
+  app.post<{ Params: { id: string }; Body: AutoMergeRequestBody }>('/change-requests/:id/auto-merge', (req): Promise<MergeState> => {
+    const body: Partial<AutoMergeRequestBody> = req.body ?? {};
+    return core.changeRequests.arm(req.params.id, { method: methodOf(body.method), expectedHead: headOf(body.expectedHead) }, req.actor ?? 'local');
+  });
+
+  app.delete<{ Params: { id: string } }>('/change-requests/:id/auto-merge', (req): Promise<MergeState> => core.changeRequests.disarm(req.params.id, req.actor ?? 'local'));
+
+  app.post<{ Params: { id: string } }>('/change-requests/:id/update-branch', (req): Promise<UpdateBranchResult> => core.changeRequests.updateBranch(req.params.id));
+
+  app.post<{ Params: { id: string }; Body: MergeReadyRequest }>('/change-requests/:id/ready', (req): Promise<MergeState> => {
+    const body: Partial<MergeReadyRequest> = req.body ?? {};
+    if (typeof body.ready !== 'boolean') throw new Error('ready must be true (ready for review) or false (back to a draft)');
+    return core.changeRequests.ready(req.params.id, body.ready);
   });
 };

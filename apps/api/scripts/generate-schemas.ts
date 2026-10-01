@@ -76,6 +76,8 @@ const ROOT_TYPES = [
   'CodeHostStatus', 'CodeHostsSettings', 'ProjectCodeHost', 'ChangeRequest', 'ChangeRequestChecks', 'CheckLog', 'ChecksRerunRequest', 'OrchestrationPullRequest', 'OrchestrationPullRequestAnswer',
   // Reviews
   'ChangeRequestThreads', 'ReviewThread', 'ReviewDraft', 'ReviewDraftInput', 'ReviewSubmitRequest', 'ReviewPost', 'ChangeRequestReviewPosts', 'ChangeRequestReviewers', 'ReviewersRequest', 'ApprovalState', 'ApprovalRequest', 'ReviewReplyRequest', 'AddressReviewRequest',
+  // Merging
+  'MergeState', 'MergeRequestBody', 'AutoMergeRequestBody', 'MergeResult', 'UpdateBranchResult', 'MergeReadyRequest', 'ChangeRequestMerge',
   // The decision engine
   'DecisionSettings', 'DecisionSettingsUpdate', 'DecisionCredentialsUpdate', 'DecisionCredentialsResult', 'DecisionTestRequest', 'DecisionTestResult',
   'DecisionPointInfo', 'DecisionPreview', 'DecisionConsentRequest', 'DecisionRecord', 'DecisionPage', 'DecisionPageQuery', 'DecisionFilter',
