@@ -135,5 +135,80 @@
     "bodyWithDependants_other": "It and the {{count}} tasks that depend on it start over in new chats. The others keep their chats, branches and results. The graph then integrates and synthesises again, and its earlier result and checks are cleared.",
     "confirm": "Re-run",
     "blockedByPullRequest": "Tasks cannot be re-run: the integration branch was pushed for a pull request, and rebuilding it would leave that one behind. Relaunch the graph instead."
+  },
+  "checks": {
+    "title": "Checks",
+    "summary": {
+      "failed_one": "{{count}} failing",
+      "failed_other": "{{count}} failing",
+      "allowed_one": "{{count}} allowed failure",
+      "allowed_other": "{{count}} allowed failures",
+      "running_one": "{{count}} running",
+      "running_other": "{{count}} running",
+      "passed_one": "{{count}} passed",
+      "passed_other": "{{count}} passed",
+      "skipped_one": "{{count}} skipped",
+      "skipped_other": "{{count}} skipped"
+    },
+    "groups": {
+      "failed": "Failing",
+      "allowed": "Allowed failure",
+      "running": "Running",
+      "passed": "Passed",
+      "skipped": "Skipped"
+    },
+    "none": "The host has not reported any check for this commit yet.",
+    "limited": "The host's rate limit is used up. Showing the last list; Agentry reads again at {{time}}.",
+    "unavailable": "The checks could not be read.",
+    "rerunFailed": "Re-run failed",
+    "cancel": "Cancel",
+    "fix": "Fix failing checks",
+    "fixHint": "A chat will try to fix the checks in the integration worktree and commit on {{branch}}. Nothing is pushed until you press “Push the fix”.",
+    "fixStarted": "Fixing the checks",
+    "fixPrompt": "The project's flow is off, so no chat started. The prompt for a chat of your own is in the response.",
+    "fixing": "A chat is fixing the failing checks on the integration branch.",
+    "row": {
+      "open": "View the log of {{name}}",
+      "more": "More actions for {{name}}",
+      "rerun": "Re-run this job",
+      "run": "Run this job",
+      "openOnHost": "Open on {{host}}"
+    },
+    "log": {
+      "close": "Close",
+      "job": "job {{id}}",
+      "why": "Why it failed",
+      "tail": "Last {{count}} lines · secrets hidden",
+      "tailTruncated": "Last {{count}} lines of a longer log · secrets hidden",
+      "noOutput": "No output yet.",
+      "unavailable": "The log is not available.",
+      "loading": "Reading the log…",
+      "tailLabel": "End of the log of {{name}}",
+      "panel": "Log of {{name}}"
+    },
+    "push": {
+      "title": "Fix ready to push",
+      "waiting": "waits for you",
+      "body": "Agentry fixed what it could and committed it on the integration branch. It pushes nothing until you press “Push the fix”.",
+      "facts": "on {{branch}}",
+      "head": "{{noun}} {{ref}} stays on commit {{sha}} until you push it.",
+      "button": "Push the fix",
+      "pushing": "Pushing…",
+      "confirmTitle": "Push the fix to {{branch}}?",
+      "confirmBody": "The fix goes to the {{noun}}, which runs its checks again.",
+      "confirmLabel": "Push the fix",
+      "pushed": "Fix pushed"
+    },
+    "state": {
+      "failed": "failed",
+      "allowedFailure": "allowed failure",
+      "running": "running",
+      "queued": "queued",
+      "passed": "passed",
+      "neutral": "neutral",
+      "skipped": "skipped",
+      "cancelled": "cancelled",
+      "manual": "manual"
+    }
   }
 }
