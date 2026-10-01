@@ -85,7 +85,7 @@ always global.
 
 ## The points
 
-Twenty-three points. **Suggest** points never change what happens by themselves.
+Twenty-four points. **Suggest** points never change what happens by themselves.
 
 | Area | Point | Kind | Scope | What it decides |
 | --- | --- | --- | --- | --- |
@@ -112,6 +112,7 @@ Twenty-three points. **Suggest** points never change what happens by themselves.
 | Notifications | `notification.urgency` | act | G | Raise the priority of a push notification |
 | Palette | `palette.intent` | suggest | G | Route a free query to a command; needs Jev (low latency) |
 | Code hosts | `checks.fix` | act | P | Whether failing checks on a new head are the branch's fault and a Developer can fix them |
+| | `review.triage` | suggest | P | Who should take each unresolved review comment: an agent, a person, or nobody |
 
 ### `checks.fix`
 
@@ -138,6 +139,25 @@ at project scope, `off` by default like every point, with a 0.85 threshold.
   hook.
 - **Its resolver** (shadow accuracy) records whether the fix's pushed head turned the rollup
   `passing`; a person's word on the "decided" mark or the History row still outranks it.
+
+### `review.triage`
+
+Added with code hosts phase 3 ([code-hosts.md](code-hosts.md#reviews)). A suggest point at project scope, `off` by default: it
+acts on nothing and only preselects threads in the **Address with an agent** dialog.
+
+- **What it is told.** The change request's title and its unresolved threads, at most 40: id, path,
+  body cut to 1 KiB, author and whether the thread is outdated. A comment is a stranger's text and
+  goes through the engine's redaction; it is data, never an instruction.
+- **The question** is a choice per thread: "Who should take this review comment?" — `agent` (a
+  concrete code change the Developer can make), `person` (a question, a design decision or a
+  disagreement) or `no-action` (praise, a point already resolved, a nit already done).
+- **When it is asked.** Whenever a change request's threads are read (`ChangeRequestService.threads`
+  hands them to `ReviewTriage`), in the background, once per set of unresolved threads in a process (not resolved and not outdated: the threads the
+  dialog lists). Its rows have the subject kind `change_request`.
+  The answers are kept in the history by thread id under the change request's id; the **Address
+  with an agent** dialog reads the latest and preselects the threads marked `agent`, and marks the
+  others. The person can change every selection.
+- **What it never does.** It never replies, resolves or starts a run; a person picks the threads.
 
 Not decided by the engine, by design: anything that grants (tool permissions, the move to `done`,
 QA's final verdict, `verifyAuth`, a security mode) and plain arithmetic (account rotation, usage
@@ -294,7 +314,7 @@ All under tag `decisions`; the full table is in the README's [REST API](../READM
 
 - [[plans/decision-engine.md]]: the plan, its task graph and its Outcome.
 - [[decisions/decision-engine.md]]: the owner's eighteen decisions.
-- [[code-hosts.md]]: the checks and the fix that `checks.fix` starts.
+- [[code-hosts.md]]: the checks and the fix that `checks.fix` starts, and the review threads that `review.triage` sorts.
 - [[decisions/english-technical-language.md]]: English questions and rubrics.
 - [[prompts.md]]: the `cli` provider's prompt and the twelve-point check.
 - [[team-and-flow.md]] · [[assistant.md]] · [[work-items.md]]: where most points act.

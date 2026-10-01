@@ -49,6 +49,230 @@ checks=${checks:-none}
 head_sha=$(read_key headSha)
 head_sha=${head_sha:-a1b2c3d4e5f60718293a4b5c6d7e8f9012345678}
 
+# The review scenario, for the review routes: none, threads (three threads, a comment review waiting,
+# a review still required) or changes (the same, with a request for changes on record). What a spec
+# does to the host through the CLI moves it: replies, resolves and the reviewers asked for are kept
+# beside the JSON, so the next read shows them.
+reviews=$(read_key reviews)
+reviews=${reviews:-none}
+pending_review=$(read_key pendingReview)
+
+# Three review threads, as both hosts print them: an open one with a suggestion on src/cart.ts line 12,
+# a resolved one on README.md, and an outdated one whose line moved, with a body that tries HTML
+THREAD_1=PRRT_kwDOe2e0001
+THREAD_2=PRRT_kwDOe2e0002
+THREAD_3=PRRT_kwDOe2e0003
+GL_1=1111111111111111111111111111111111111111
+GL_2=2222222222222222222222222222222222222222
+GL_3=3333333333333333333333333333333333333333
+BODY_1='"Round half up here: a float total prints 10.01.\n\n```suggestion\n  return Math.round(total * 100) / 100;\n```"'
+BODY_2='"The heading reads fine now."'
+BODY_3='"Keep the old helper <img src=x onerror=\"window.__pwned=1\"> **as it was** please"'
+
+# "resolved" or "open": what a resolve or a reopen last said wins over the scenario's own state
+thread_state() {
+  last=$(grep "^$1 " "$dir/$name.threadstate" 2>/dev/null | tail -n 1 | cut -d' ' -f2)
+  echo "${last:-$2}"
+}
+
+# The replies a spec posted to a thread, as comments: "<root id> <JSON string>" per line
+reply_nodes() {
+  n=0
+  grep "^$1 " "$dir/$name.replies" 2>/dev/null | cut -d' ' -f2- | while IFS= read -r reply_body; do
+    n=$((n + 1))
+    if [ "$name" = gh ]; then
+      printf ',{"id":"PRRC_reply%s","databaseId":%s,"body":%s,"author":{"login":"%s"},"createdAt":"2026-10-01T10:30:00Z","outdated":false,"diffHunk":"","replyTo":null}' "$n" "$((6000 + n))" "$reply_body" "${user:-octocat}"
+    else
+      printf ',{"id":%s,"author":{"username":"%s"},"body":%s,"created_at":"2026-10-01T10:30:00Z","system":false,"position":null,"suggestions":null}' "$((6000 + n))" "${user:-tanuki}" "$reply_body"
+    fi
+  done
+}
+
+# ---- gh: the review threads, the reviewers and the reviews ----
+gh_thread() {
+  # node id, database id, scenario state, outdated, line, original line, body, author
+  resolved=false
+  [ "$(thread_state "$1" "$3")" = resolved ] && resolved=true
+  if [ "$4" = true ]; then line=null; else line=$5; fi
+  if [ "$resolved" = true ]; then by='{"login":"hubot"}'; else by=null; fi
+  path=src/cart.ts
+  [ "$1" = "$THREAD_2" ] && path=README.md
+  printf '{"id":"%s","isResolved":%s,"isOutdated":%s,"path":"%s","line":%s,"originalLine":%s,"startLine":null,"originalStartLine":null,"diffSide":"RIGHT","startDiffSide":null,"subjectType":"LINE","resolvedBy":%s,"viewerCanResolve":true,"viewerCanUnresolve":true,"viewerCanReply":true,"comments":{"totalCount":1,"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[{"id":"PRRC_%s","databaseId":%s,"body":%s,"author":{"login":"%s"},"createdAt":"2026-10-01T10:00:00Z","outdated":%s,"diffHunk":"@@ -10,3 +10,3 @@ export function total(items) {\\n-  return sum;\\n+  return sum / 100;\\n }","replyTo":null,"pullRequestReview":{"databaseId":9000,"state":"COMMENTED"}}%s]}}' \
+    "$1" "$resolved" "$4" "$path" "$line" "$6" "$by" "$1" "$2" "$7" "$8" "$4" "$(reply_nodes "$2")"
+}
+
+threads_json() {
+  nodes=""
+  count=0
+  if [ "$reviews" != none ]; then
+    nodes="$(gh_thread $THREAD_1 5001 open false 12 12 "$BODY_1" hubot),$(gh_thread $THREAD_2 5002 resolved false 1 1 "$BODY_2" hubot),$(gh_thread $THREAD_3 5003 open true 20 20 "$BODY_3" hubot)"
+    count=3
+  fi
+  printf 'HTTP/2.0 200 OK\r\nx-ratelimit-remaining: 4990\r\n\r\n'
+  printf '{"data":{"rateLimit":{"cost":1,"remaining":4990,"resetAt":"2026-10-01T11:00:00Z","used":10},"repository":{"pullRequest":{"headRefOid":"%s","reviewThreads":{"totalCount":%s,"pageInfo":{"hasNextPage":false,"endCursor":"Y3Vyc29yOjM="},"nodes":[%s]}}}}}\n' "$head_sha" "$count" "$nodes"
+}
+
+# resolve (true) or reopen (false) the thread named by -F id=
+thread_mutation() {
+  want="$1"; shift
+  id=$(echo "$*" | sed -n 's/.*-F id=\([A-Za-z0-9_=-]*\).*/\1/p')
+  if [ "$want" = true ]; then st=resolved; verb=resolve; else st=open; verb=unresolve; fi
+  echo "$id $st" >> "$dir/$name.threadstate"
+  printf '{"data":{"%sReviewThread":{"thread":{"id":"%s","isResolved":%s}}}}\n' "$verb" "$id" "$want"
+}
+
+# The requested reviewers: the scenario's own first, then whoever a spec asked for
+requested_json() {
+  list="$1"
+  for who in $(cat "$dir/$name.requested" 2>/dev/null); do
+    if [ -n "$list" ]; then list="$list,{\"login\":\"$who\"}"; else list="{\"login\":\"$who\"}"; fi
+  done
+  echo "$list"
+}
+
+pr_reviews_json() {
+  case "$reviews" in
+    threads) decision='"REVIEW_REQUIRED"'; given='[{"author":{"login":"hubot"},"state":"COMMENTED"}]'; first='{"login":"monalisa"}' ;;
+    changes) decision='"CHANGES_REQUESTED"'; given='[{"author":{"login":"hubot"},"state":"CHANGES_REQUESTED"}]'; first='{"login":"monalisa"}' ;;
+    *) decision='""'; given='[]'; first='' ;;
+  esac
+  printf '{"reviewDecision":%s,"reviewRequests":[%s],"reviews":%s}\n' "$decision" "$(requested_json "$first")" "$given"
+}
+
+# ---- glab: the discussions, the approvals and the reviewers ----
+glab_discussion() {
+  # discussion id (40 hex), scenario state, new line, head sha the note was left on, body
+  resolved=false
+  [ "$(thread_state "$1" "$2")" = resolved ] && resolved=true
+  path=src/cart.ts
+  [ "$1" = "$GL_2" ] && path=README.md
+  if [ "$1" = "$GL_1" ]; then
+    suggestions='[{"from_line":12,"to_line":12,"from_content":"  return sum / 100;","to_content":"  return Math.round(total * 100) / 100;","appliable":true,"applied":false}]'
+  else
+    suggestions='[]'
+  fi
+  printf '{"id":"%s","individual_note":false,"resolvable":true,"resolved":%s,"notes":[{"id":%s,"type":"DiffNote","author":{"username":"hubot"},"body":%s,"created_at":"2026-10-01T10:00:00Z","system":false,"resolved_by":%s,"position":{"new_path":"%s","old_path":"%s","new_line":%s,"old_line":null,"head_sha":"%s","line_range":null},"suggestions":%s}%s]}\n' \
+    "$1" "$resolved" "$6" "$5" "$( [ "$resolved" = true ] && echo '{"username":"hubot"}' || echo null )" "$path" "$path" "$3" "$4" "$suggestions" "$(reply_nodes "$1")"
+}
+
+# What `mr note publish` made of the draft notes: one discussion per note, in the order they were saved.
+# "<discussion id> <note id> <path or -> <new line or -> <head sha> <JSON string>" per line
+published_discussions() {
+  [ -f "$dir/glab.published" ] || return 0
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    disc=$(printf '%s' "$entry" | cut -d' ' -f1)
+    note_id=$(printf '%s' "$entry" | cut -d' ' -f2)
+    path=$(printf '%s' "$entry" | cut -d' ' -f3)
+    line=$(printf '%s' "$entry" | cut -d' ' -f4)
+    at_head=$(printf '%s' "$entry" | cut -d' ' -f5)
+    note_body=$(printf '%s' "$entry" | cut -d' ' -f6-)
+    if [ "$path" = - ]; then
+      position=null
+    else
+      position="{\"new_path\":\"$path\",\"old_path\":\"$path\",\"new_line\":$line,\"old_line\":null,\"head_sha\":\"$at_head\",\"line_range\":null}"
+    fi
+    printf '{"id":"%s","individual_note":false,"resolvable":true,"resolved":false,"notes":[{"id":%s,"type":"DiffNote","author":{"username":"%s"},"body":%s,"created_at":"2026-10-01T10:40:00Z","system":false,"resolved_by":null,"position":%s,"suggestions":[]}]}\n' "$disc" "$note_id" "${user:-tanuki}" "$note_body" "$position"
+  done < "$dir/glab.published"
+}
+
+# The note text of a draft's JSON, still a JSON string
+draft_note() {
+  printf '%s' "$1" | sed -nE 's/^\{"note":("([^"\\]|\\.)*").*/\1/p'
+}
+
+# Draft notes, as GitLab keeps them: "<id> <the JSON the CLI was given>" per line. The person's own
+# drafts (not Agentry's) are lines a spec writes there; every draft is listed and published alike
+drafts_json() {
+  printf '['
+  first=1
+  if [ -f "$dir/glab.drafts" ]; then
+    while IFS= read -r entry; do
+      [ -n "$entry" ] || continue
+      [ "$first" = 1 ] || printf ','
+      first=0
+      printf '{"id":%s,"note":%s}' "${entry%% *}" "$(draft_note "${entry#* }")"
+    done < "$dir/glab.drafts"
+  fi
+  printf ']\n'
+}
+
+# POST draft_notes. `draftFailAfter` N makes the call after the N-th one saved fail, which is how a
+# review stops half way with notes still saved on the host
+draft_create() {
+  body=$(cat)
+  made=$(cat "$dir/glab.draftposts" 2>/dev/null || echo 0)
+  echo $((made + 1)) > "$dir/glab.draftposts"
+  limit=$(read_key draftFailAfter)
+  if [ -n "$limit" ] && [ "$made" -ge "$limit" ]; then
+    echo "glab: 422 Unprocessable Entity" >&2
+    exit 1
+  fi
+  id=$(cat "$dir/glab.draftseq" 2>/dev/null || echo 7000)
+  id=$((id + 1))
+  echo "$id" > "$dir/glab.draftseq"
+  printf '%s %s\n' "$id" "$body" >> "$dir/glab.drafts"
+  line=$(printf '%s' "$body" | sed -n 's/.*"new_line":\([0-9]*\).*/\1/p')
+  if [ -n "$line" ]; then
+    printf '{"id":%s,"line_code":"e2e_%s_%s","position":{"new_line":%s}}\n' "$id" "$line" "$line" "$line"
+  else
+    printf '{"id":%s,"line_code":null,"position":null}\n' "$id"
+  fi
+}
+
+# `mr note publish`: every draft there is becomes a discussion, the first `publishLimit` of them; the
+# rest vanish with exit 0, as a note the host cannot place does (recorded)
+draft_publish() {
+  if [ ! -s "$dir/glab.drafts" ]; then echo "No pending review comments on !$1." >&2; exit 1; fi
+  limit=$(read_key publishLimit)
+  total=$(grep -c . "$dir/glab.drafts")
+  made=0
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    if [ -n "$limit" ] && [ "$made" -ge "$limit" ]; then continue; fi
+    made=$((made + 1))
+    raw="${entry#* }"
+    path=$(printf '%s' "$raw" | sed -n 's/.*"new_path":"\([^"]*\)".*/\1/p')
+    line=$(printf '%s' "$raw" | sed -n 's/.*"new_line":\([0-9]*\).*/\1/p')
+    at_head=$(printf '%s' "$raw" | sed -n 's/.*"head_sha":"\([0-9a-f]*\)".*/\1/p')
+    n=$(grep -c . "$dir/glab.published" 2>/dev/null)
+    n=${n:-0}
+    printf '%040d %s %s %s %s %s\n' "$((4000 + n))" "${entry%% *}" "${path:--}" "${line:--}" "${at_head:-$head_sha}" "$(draft_note "$raw")" >> "$dir/glab.published"
+  done < "$dir/glab.drafts"
+  : > "$dir/glab.drafts"
+  echo "✓ Published $total pending review comments."
+}
+
+discussions_ndjson() {
+  published_discussions
+  [ "$reviews" = none ] && return
+  glab_discussion "$GL_1" open 12 "$head_sha" "$BODY_1" 5001
+  glab_discussion "$GL_2" resolved 1 "$head_sha" "$BODY_2" 5002
+  # Left on another commit than the head: the thread is outdated
+  glab_discussion "$GL_3" open 20 0000000000000000000000000000000000000000 "$BODY_3" 5003
+}
+
+# The viewer has approved once `mr approve` ran; the rule wants one approval
+approvals_json() {
+  if [ -f "$dir/glab.approved" ]; then
+    printf '{"approved":true,"approvals_required":1,"approvals_left":0,"user_has_approved":true,"approved_by":[{"user":{"username":"%s"}}]}\n' "${user:-tanuki}"
+  else
+    echo '{"approved":false,"approvals_required":1,"approvals_left":1,"user_has_approved":false,"approved_by":[]}'
+  fi
+}
+
+glab_reviewers_json() {
+  list=""
+  case "$reviews" in
+    threads) list='{"user":{"username":"hubot"},"state":"reviewed"},{"user":{"username":"monalisa"},"state":"unreviewed"}' ;;
+    changes) list='{"user":{"username":"hubot"},"state":"requested_changes"},{"user":{"username":"monalisa"},"state":"unreviewed"}' ;;
+  esac
+  for who in $(cat "$dir/$name.requested" 2>/dev/null); do
+    if [ -n "$list" ]; then list="$list,{\"user\":{\"username\":\"$who\"},\"state\":\"unreviewed\"}"; else list="{\"user\":{\"username\":\"$who\"},\"state\":\"unreviewed\"}"; fi
+  done
+  echo "[$list]"
+}
+
 # The repository a -R names, as a web address
 repo_url() {
   r=$(flag -R "$@")
@@ -132,7 +356,38 @@ case "$name" in
         exit 0 ;;
       api)
         case "$*" in
+          *unresolveReviewThread*) thread_mutation false "$@"; exit 0 ;;
+          *resolveReviewThread*) thread_mutation true "$@"; exit 0 ;;
+          *'reviewThreads(first'*) threads_json; exit 0 ;;
           *graphql*) change_request_json "$@"; exit 0 ;;
+          */pulls/*/comments/*/replies*)
+            root=$(echo "$*" | sed -n 's#.*/comments/\([0-9]*\)/replies.*#\1#p')
+            # printf, not echo: a dash echo turns the \n of the JSON string into a line break
+            printf '%s %s\n' "$root" "$(cat | sed -n 's/^{"body":\(.*\)}$/\1/p')" >> "$dir/gh.replies"
+            printf '{"id":6000}\n'; exit 0 ;;
+          */pulls/*/requested_reviewers*)
+            # The author cannot be asked (a 422 that names it); an unknown login exits 0 and adds nobody
+            for who in $(cat | grep -o '"[A-Za-z0-9][A-Za-z0-9-]*"' | tr -d '"' | grep -v '^reviewers$'); do
+              if [ "$who" = "${user:-octocat}" ]; then
+                echo '{"message":"Review cannot be requested from pull request author.","status":"422"}'
+                echo "gh: Review cannot be requested from pull request author. (HTTP 422)" >&2
+                exit 1
+              fi
+              case "$who" in ghost*) ;; *) echo "$who" >> "$dir/gh.requested" ;; esac
+            done
+            echo '{}'; exit 0 ;;
+          */pulls/*/reviews*)
+            case "$*" in
+              *"-X POST"*)
+                k=$(cat "$dir/gh.reviews-posted" 2>/dev/null || echo 0)
+                k=$((k + 1))
+                echo "$k" > "$dir/gh.reviews-posted"
+                cat > "$dir/gh.review-$k"
+                printf '{"id":%s,"state":"COMMENTED"}\n' "$((9000 + k))"; exit 0 ;;
+            esac
+            # A review of the person's own that is still pending is in the way of a post
+            if [ "$pending_review" = true ]; then echo '[[{"id":8001,"state":"PENDING","body":"","user":{"login":"octocat"}}]]'; else echo '[[]]'; fi
+            exit 0 ;;
           */check-runs/*/annotations*) annotations_json; exit 0 ;;
           */check-runs\?*) check_runs_json; exit 0 ;;
           */commits/*/status\?*) echo '[{"statuses":[]}]'; exit 0 ;;
@@ -160,6 +415,7 @@ case "$name" in
             else echo '[]'; fi
             exit 0 ;;
           view)
+            case "$*" in *reviewRequests*) pr_reviews_json; exit 0 ;; esac
             case "$ci" in passing) roll='[{"status":"COMPLETED","conclusion":"SUCCESS"}]' ;; failing) roll='[{"status":"COMPLETED","conclusion":"FAILURE"}]' ;; pending) roll='[{"status":"IN_PROGRESS","conclusion":""}]' ;; *) roll='[]' ;; esac
             case "$mr_state" in merged) st=MERGED; at='"2026-10-01T10:00:00Z"' ;; closed) st=CLOSED; at=null ;; *) st=OPEN; at=null ;; esac
             printf '{"state":"%s","mergedAt":%s,"statusCheckRollup":%s,"url":"%s/pull/%s"}\n' "$st" "$at" "$roll" "$(repo_url "$@")" "$3"; exit 0 ;;
@@ -171,7 +427,7 @@ case "$name" in
       "auth status")
         if [ "$signed_in" = false ]; then echo "x No token found" >&2; exit 1; fi
         echo "Logged in to $(flag --hostname "$@") as ${user:-tanuki} (fake)" >&2; exit 0 ;;
-      "repo view") printf '{"default_branch":"%s","visibility":"private"}\n' "$branch"; exit 0 ;;
+      "repo view") printf '{"id":4242,"default_branch":"%s","visibility":"private"}\n' "$branch"; exit 0 ;;
       "mr create")
         cat > "$dir/glab.body-$next"
         echo "$next" > "$dir/glab.created"
@@ -185,7 +441,44 @@ case "$name" in
       "mr view")
         case "$ci" in none) pipe=null ;; passing) pipe='{"status":"success"}' ;; failing) pipe='{"status":"failed"}' ;; *) pipe='{"status":"running"}' ;; esac
         case "$mr_state" in merged) st=merged; at='"2026-10-01T10:00:00Z"' ;; closed) st=closed; at=null ;; *) st=opened; at=null ;; esac
-        printf '{"iid":%s,"web_url":"%s/-/merge_requests/%s","state":"%s","merged_at":%s,"head_pipeline":%s}\n' "$3" "$(repo_url "$@")" "$3" "$st" "$at" "$pipe"; exit 0 ;;
+        printf '{"iid":%s,"web_url":"%s/-/merge_requests/%s","state":"%s","merged_at":%s,"head_pipeline":%s,"sha":"%s","target_branch":"main","diff_refs":{"base_sha":"%s","start_sha":"%s","head_sha":"%s"}}\n' "$3" "$(repo_url "$@")" "$3" "$st" "$at" "$pipe" "$head_sha" "$head_sha" "$head_sha" "$head_sha"; exit 0 ;;
+      "mr approve") touch "$dir/glab.approved"; echo "- Approving merge request !$3"; exit 0 ;;
+      "mr revoke") rm -f "$dir/glab.approved"; echo "- Revoking approval for merge request !$3"; exit 0 ;;
+      "mr update")
+        # --reviewer=+name adds one name, --reviewer=-name takes one off; an unknown user fails in glab
+        case "$*" in
+          *--reviewer=+ghost*) echo "glab: 404 user not found" >&2; exit 1 ;;
+          *--reviewer=+*) echo "$(echo "$*" | sed -n 's/.*--reviewer=+\([A-Za-z0-9._-]*\).*/\1/p')" >> "$dir/glab.requested" ;;
+          *--reviewer=-*) who=$(echo "$*" | sed -n 's/.*--reviewer=-\([A-Za-z0-9._-]*\).*/\1/p'); grep -v "^$who\$" "$dir/glab.requested" > "$dir/glab.requested.tmp" 2>/dev/null; mv "$dir/glab.requested.tmp" "$dir/glab.requested" 2>/dev/null ;;
+        esac
+        exit 0 ;;
+      "mr note")
+        case "$3" in
+          resolve) echo "$5 resolved" >> "$dir/glab.threadstate"; exit 0 ;;
+          reopen) echo "$5 open" >> "$dir/glab.threadstate"; exit 0 ;;
+          publish) draft_publish "$4"; exit 0 ;;
+        esac ;;
+      "api "*)
+        case "$*" in
+          */discussions/*/notes*)
+            root=$(echo "$*" | sed -n 's#.*/discussions/\([0-9a-f]*\)/notes.*#\1#p')
+            printf '%s %s\n' "$root" "$(cat | sed -n 's/^{"body":\(.*\)}$/\1/p')" >> "$dir/glab.replies"
+            printf '{"id":6000}\n'; exit 0 ;;
+          */discussions*) discussions_ndjson; exit 0 ;;
+          */approvals*) approvals_json; exit 0 ;;
+          */reviewers*) glab_reviewers_json; exit 0 ;;
+          */draft_notes/*)
+            case "$*" in
+              *"-X DELETE"*)
+                gone=$(echo "$*" | sed -n 's#.*/draft_notes/\([0-9]*\).*#\1#p')
+                grep -v "^$gone " "$dir/glab.drafts" > "$dir/glab.drafts.tmp" 2>/dev/null
+                mv "$dir/glab.drafts.tmp" "$dir/glab.drafts" 2>/dev/null
+                exit 0 ;;
+            esac ;;
+          */draft_notes*)
+            case "$*" in *"-X POST"*) draft_create; exit 0 ;; esac
+            drafts_json; exit 0 ;;
+        esac ;;
     esac ;;
 esac
 echo "fake $name: $* is not part of the fake" >&2

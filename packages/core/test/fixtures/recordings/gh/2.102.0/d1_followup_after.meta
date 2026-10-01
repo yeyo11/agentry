@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api graphql -F query=@/home/yeyo/.local/share/code-hosts-research/r0/work/thread-comments.graphql -F id=PRRT_kwDOU1zIIM6n-Zov -F first=100 -F endCursor=Y3Vyc29yOnYyOpK0MjAyNi0xMC0wMVQxNDowNzozMlrO97xvxQ==
+exit: 0
+secs: 1.099416583
+env: 

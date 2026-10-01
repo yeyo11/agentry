@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Check } from '@agentry/shared';
+import type { Check, ReviewThread } from '@agentry/shared';
 import {
+  HostActionNotOffered,
   HostParseError,
   HostRequestError,
   type ChangeRequestView,
@@ -10,6 +11,7 @@ import {
   type HostCall,
   type HostRepo,
   type HostResult,
+  type ReviewsAdapter,
 } from '../../src/hosts/code-host.ts';
 import type { CodeHostManifest } from '../../src/hosts/manifest.ts';
 
@@ -67,6 +69,15 @@ export interface RecordedOutputs {
   }>;
   /** Outputs `parseChecks` must refuse, one per call of `checks()` */
   malformedChecks?: Array<{ name: string; results: string[] }>;
+  /** What `parseThreads` must make of a threads read: the fields named are compared, in order */
+  threads?: Array<{
+    name: string;
+    stdout: string;
+    headSha: string | null;
+    expect: { headSha: string | null; threads: Array<Partial<ReviewThread>>; truncated: boolean; followUps: number };
+  }>;
+  /** Outputs `parseThreads` must refuse */
+  malformedThreads?: Array<{ name: string; stdout: string }>;
   auth?: Array<{
     name: string;
     hostname: string;
@@ -76,8 +87,8 @@ export interface RecordedOutputs {
 }
 
 export interface ConformanceOptions {
-  /** The checks half is held to its rules only when the adapter has it */
-  adapter: CodeHostAdapter & Partial<ChecksAdapter>;
+  /** The checks and the reviews half are held to their rules only when the adapter has them */
+  adapter: CodeHostAdapter & Partial<ChecksAdapter> & Partial<ReviewsAdapter>;
   manifest: CodeHostManifest;
   /** A repository on `host`; GitLab's carries `projectId`, which its API calls are pinned on */
   repo: HostRepo;
@@ -105,7 +116,7 @@ interface NamedCall {
 }
 
 function calls(options: ConformanceOptions): NamedCall[] {
-  return [...baseCalls(options), ...checksCalls(options)];
+  return [...baseCalls(options), ...checksCalls(options), ...reviewsCalls(options)];
 }
 
 function baseCalls(options: ConformanceOptions): NamedCall[] {
@@ -157,6 +168,51 @@ function checksCalls(options: ConformanceOptions): NamedCall[] {
   return named;
 }
 
+/** A thread as the adapters read one, so every call an adapter can build for it is built. */
+const GITHUB_THREAD = { id: 'PRRT_kwDOU1zIIM6n-Zjq', comments: [{ id: '4156242983' }] } as unknown as Pick<ReviewThread, 'id' | 'comments'>;
+const GITLAB_THREAD = { id: 'fa6571a09985f36099fe7832fd2e8937f6f1de90', comments: [{ id: '3938170135' }] } as unknown as Pick<ReviewThread, 'id' | 'comments'>;
+
+const REVIEW = {
+  headSha: '38ff2ab8b0e31ee069cb9f9556605ae9c90cc21e',
+  body: BODY,
+  diffRefs: { baseSha: '1af4427008da39d223f59e4ce18dc137940b966c', startSha: '1af4427008da39d223f59e4ce18dc137940b966c', headSha: '38ff2ab8b0e31ee069cb9f9556605ae9c90cc21e' },
+  notes: [
+    { path: 'a.txt', side: 'right' as const, line: 2, suggestion: false, body: BODY },
+    { path: 'a.txt', side: 'right' as const, line: 5, startLine: 4, suggestion: true, body: 'one\n```\ntwo' },
+    { path: 'a.txt', side: 'left' as const, line: 3, suggestion: false, body: 'old' },
+  ],
+};
+
+/** The review calls that read; every other `reviews:` call is a write. */
+const REVIEW_READS = /^reviews:(threads|threadComments|pendingReviews|approvals|reviewers)/;
+
+function reviewsCalls(options: ConformanceOptions): NamedCall[] {
+  const { adapter, repo } = options;
+  if (!adapter.threads || !adapter.submit || !adapter.reply || !adapter.resolve || !adapter.requestReviewers || !adapter.reviewers) return [];
+  const thread = adapter.id === 'github' ? GITHUB_THREAD : GITLAB_THREAD;
+  const named: NamedCall[] = [];
+  const one = (name: string, call: HostCall | null): void => {
+    if (call) named.push({ name: `reviews:${name}`, call, scoped: true });
+  };
+  one('threads', adapter.threads(repo, 4242));
+  one('threadComments', adapter.threadComments?.(repo, { threadId: thread.id, after: 'Y3Vyc29yOnYyOpK0MjAyNi0xMC0wMVQxNDowNzozMlrO97xvxQ==' }) ?? null);
+  one('reply', adapter.reply(repo, 4242, thread, BODY));
+  one('resolve', adapter.resolve(repo, 4242, thread.id, true));
+  one('unresolve', adapter.resolve(repo, 4242, thread.id, false));
+  const plan = adapter.submit(repo, 4242, REVIEW);
+  plan.calls.forEach((call, at) => one(`submit[${String(at)}]`, call));
+  one('publish', plan.publish);
+  one('pendingReviews', adapter.pendingReviews?.(repo, 4242) ?? null);
+  one('publishSaved', adapter.publishSaved?.(repo, 4242) ?? null);
+  one('discardDraft', adapter.discardDraft?.(repo, 4242, '83394157') ?? null);
+  one('approve', adapter.approve?.(repo, 4242, REVIEW.headSha) ?? null);
+  one('revoke', adapter.revoke?.(repo, 4242) ?? null);
+  one('approvals', adapter.approvals?.(repo, 4242) ?? null);
+  adapter.requestReviewers(repo, 4242, { add: ['octocat', 'hubot'], remove: adapter.id === 'gitlab' ? ['mona'] : [] }).forEach((call, at) => one(`requestReviewers[${String(at)}]`, call));
+  one('reviewers', adapter.reviewers(repo, 4242));
+  return named;
+}
+
 const isAbsoluteUrl = (word: string): boolean => /^[a-z][a-z0-9+.-]*:\/\//i.test(word);
 
 function valueAfter(args: string[], flag: string): string | undefined {
@@ -199,7 +255,9 @@ function pinning({ adapter, manifest, repo }: ConformanceOptions, { name, call, 
     // A GraphQL call has no path: the repository is in its variables
     if (valueAfter(call.args, '--hostname') !== repo.host) problems.push(`${name}() is an api call without --hostname ${repo.host}`);
     const fields = call.args.filter((word) => word.startsWith('owner=') || word.startsWith('repo='));
-    if (!fields.includes(`owner=${repo.owner}`) || !fields.includes(`repo=${repo.name}`)) {
+    // A node id (a review thread's) is global: such a call names no repository and is pinned by its host only
+    const byNodeId = call.args.some((word) => word.startsWith('id=')) && fields.length === 0;
+    if (!byNodeId && (!fields.includes(`owner=${repo.owner}`) || !fields.includes(`repo=${repo.name}`))) {
       problems.push(`${name}() is a graphql call that does not carry owner=${repo.owner} and repo=${repo.name}`);
     }
   } else if (call.args[0] === 'api') {
@@ -370,7 +428,7 @@ export function checkConformance(options: ConformanceOptions): ConformanceReport
 
     report['only the calls that change a check are writes, and they are class write'] = (() => {
       const problems: string[] = [];
-      for (const { name, call } of all.filter((n) => !/^(version|authStatus|defaultBranch|create|find|view)$/.test(n.name))) {
+      for (const { name, call } of all.filter((n) => !/^(version|authStatus|defaultBranch|create|find|view)$/.test(n.name) && !n.name.startsWith('reviews:'))) {
         const writes = /^(rerun|cancel|playManual)/.test(name);
         if ((call.kind === 'write') !== writes) problems.push(`${name}() is declared ${call.kind}`);
         if (writes && call.class !== 'write' && call.class !== 'long-write') problems.push(`${name}() is a write of class ${call.class}`);
@@ -450,7 +508,119 @@ export function checkConformance(options: ConformanceOptions): ConformanceReport
     })();
   }
 
+  if (adapter.threads && adapter.submit && adapter.reply && adapter.resolve && adapter.requestReviewers && adapter.reviewers && adapter.parseThreads) {
+    const reviews = adapter as CodeHostAdapter & ReviewsAdapter;
+    const mine = all.filter((n) => n.name.startsWith('reviews:'));
+    const wrap = (stdout: string, exitCode = 0): HostResult => ({ exitCode, stdout, stderrFirstLine: '', http: null, truncated: false, durationMs: 0 });
+    const thread = adapter.id === 'github' ? GITHUB_THREAD : GITLAB_THREAD;
+    const refuses = (what: string, run: () => unknown, error: new (...args: never[]) => Error): string[] => {
+      try {
+        run();
+        return [`${what} was accepted`];
+      } catch (thrown) {
+        return thrown instanceof error ? [] : [`${what} threw ${String(thrown)}`];
+      }
+    };
+
+    report['reviews: a read is a read, every other review call is a write of class write'] = mine.flatMap(({ name, call }) => {
+      const reads = REVIEW_READS.test(name);
+      const problems: string[] = [];
+      if ((call.kind === 'read') !== reads) problems.push(`${name}() is declared ${call.kind}`);
+      if (!reads && call.class !== 'write') problems.push(`${name}() is a write of class ${call.class}`);
+      return problems;
+    });
+
+    report['reviews: a body travels on stdin, never in argv'] = (() => {
+      const problems: string[] = [];
+      for (const { name, call } of mine) {
+        if (call.args.some((word) => word.includes('ends here') || word.includes('subshell'))) problems.push(`${name}() puts a body in argv`);
+      }
+      const submit = reviews.submit(options.repo, 1, REVIEW).calls[0];
+      for (const [what, call] of [['reply', reviews.reply(options.repo, 1, thread, BODY)], ['submit', submit]] as const) {
+        if (!call?.input?.includes('ends here')) problems.push(`${what}() does not carry the body as input`);
+        if (call && !call.args.includes('--input')) problems.push(`${what}() does not read its input from stdin`);
+      }
+      return problems;
+    })();
+
+    report['reviews: a JSON body is sent with its content type (a missing one is a 415 that says nothing)'] = mine.flatMap(({ name, call }) => {
+      if (adapter.id !== 'gitlab' || !call.args.includes('--input')) return [];
+      const at = call.args.indexOf('-H');
+      return at >= 0 && call.args[at + 1] === 'Content-Type: application/json' ? [] : [`${name}() sends --input without -H "Content-Type: application/json"`];
+    });
+
+    report['reviews: the threads read is paged'] = (() => {
+      const call = reviews.threads(options.repo, 4242);
+      const problems: string[] = [];
+      if (!call.args.includes('--paginate')) problems.push('threads() does not page');
+      if (adapter.id === 'github') {
+        const query = call.args.find((word) => word.startsWith('query=')) ?? '';
+        if (!query.includes('$endCursor') || !query.includes('pageInfo')) problems.push('the threads query has no $endCursor and pageInfo for --paginate to follow');
+      }
+      return problems;
+    })();
+
+    report['reviews: an id that reaches argv is a node id, hex or digits, and nothing else'] = (() => {
+      const problems: string[] = [];
+      for (const hostile of ['1; rm -rf', '--help', '../x', '-x']) {
+        problems.push(...refuses(`resolve(${hostile})`, () => reviews.resolve(options.repo, 1, hostile, true), HostParseError));
+        problems.push(...refuses(`reply(${hostile})`, () => reviews.reply(options.repo, 1, { id: hostile, comments: [{ id: hostile } as ReviewThread['comments'][number]] }, 'x'), HostParseError));
+      }
+      if (reviews.discardDraft(options.repo, 1, '1') !== null) problems.push(...refuses('discardDraft(--help)', () => reviews.discardDraft(options.repo, 1, '--help'), HostParseError));
+      if (reviews.approve(options.repo, 1, REVIEW.headSha) !== null) problems.push(...refuses('approve(--help)', () => reviews.approve(options.repo, 1, '--help'), HostParseError));
+      problems.push(...refuses('requestReviewers(--help)', () => reviews.requestReviewers(options.repo, 1, { add: ['--help'] }), HostParseError));
+      return problems;
+    })();
+
+    report['reviews: the reviewer list is never replaced'] = (() => {
+      const problems: string[] = [];
+      for (const call of reviews.requestReviewers(options.repo, 1, { add: ['octocat'], remove: adapter.id === 'gitlab' ? ['mona'] : [] })) {
+        const flag = call.args.find((word) => word.startsWith('--reviewer'));
+        if (adapter.id === 'gitlab' && !/^--reviewer=[+-]/.test(flag ?? '')) problems.push(`a bare --reviewer replaces the list: ${call.args.join(' ')}`);
+      }
+      return problems;
+    })();
+
+    report['reviews: an action the host does not offer is refused before any call'] = (() => {
+      const problems = refuses('submit(approve)', () => reviews.submit(options.repo, 1, REVIEW, 'approve'), HostActionNotOffered);
+      problems.push(...refuses('submit(request-changes)', () => reviews.submit(options.repo, 1, REVIEW, 'request-changes'), HostActionNotOffered));
+      if (adapter.id === 'github') {
+        if (reviews.approve(options.repo, 1, REVIEW.headSha) !== null) problems.push('GitHub builds an approve call');
+        problems.push(...refuses('requestReviewers(remove)', () => reviews.requestReviewers(options.repo, 1, { add: [], remove: ['octocat'] }), HostActionNotOffered));
+      }
+      return problems;
+    })();
+
+    report['reviews: parseThreads maps every recorded output'] = (recorded?.threads ?? []).flatMap((item) => {
+      try {
+        const parsed = reviews.parseThreads(wrap(item.stdout), { headSha: item.headSha });
+        assert.equal(parsed.headSha, item.expect.headSha, 'headSha');
+        assert.equal(parsed.threads.length, item.expect.threads.length, 'number of threads');
+        assert.deepEqual(parsed.threads.map((t, at) => pickFields(t, item.expect.threads[at])), item.expect.threads);
+        assert.equal(parsed.truncated, item.expect.truncated, 'truncated');
+        assert.equal(parsed.followUps.length, item.expect.followUps, 'follow-ups');
+        return [];
+      } catch (error) {
+        return [`parseThreads ${item.name}: ${error instanceof Error ? error.message : String(error)}`];
+      }
+    });
+
+    report['reviews: parseThreads throws HostParseError on output it cannot read, and on a failed read'] = (() => {
+      const problems: string[] = [];
+      const cases = [...['', 'not json', '[1]', '{"data":{}}'].map((stdout) => ({ name: JSON.stringify(stdout), stdout })), ...(recorded?.malformedThreads ?? [])];
+      for (const { name, stdout } of cases) problems.push(...refuses(`parseThreads(${name})`, () => reviews.parseThreads(wrap(stdout), { headSha: null }), HostParseError));
+      problems.push(...refuses('parseThreads(exit 1)', () => reviews.parseThreads(wrap('{}', 1), { headSha: null }), HostParseError));
+      return problems;
+    })();
+  }
+
   return report;
+}
+
+/** The fields of a thread that `expected` names */
+function pickFields<T extends object>(actual: T, expected: Partial<T> | undefined): Partial<T> {
+  if (!expected) return actual;
+  return Object.fromEntries(Object.keys(expected).map((key) => [key, actual[key as keyof T]])) as Partial<T>;
 }
 
 /** The fields of `actual` that `expected` names: a recorded list is compared on what the test cares about. */

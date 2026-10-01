@@ -7,10 +7,10 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { DecisionRecord, Execution } from '@agentry/shared';
 import type { LegacyRun, StoredChat } from '../src/chat-records.ts';
-import { CHAT_ENTRIES_SCHEMA_VERSION, CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, migrate, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
+import { CHAT_ENTRIES_SCHEMA_VERSION, CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, migrate, REVIEWS_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
 import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from '../src/orchestration-pr-rows.ts';
-import { pullRequestOf, type PullRequestRow } from '../src/work-item-rows.ts';
+import { pullRequestOf, reviewDraftOf, reviewPostOf, type PullRequestRow, type ReviewDraftRow, type ReviewPostRow } from '../src/work-item-rows.ts';
 import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
 import { tempConfig } from './helpers.ts';
@@ -682,5 +682,40 @@ test('pull requests stored before the checks have no fix, and the snapshot table
   raw.prepare("INSERT INTO change_request_snapshots (cr_id, kind, fetched_at) VALUES ('x', 'work-item', ?)").run(at(1));
   const snap = raw.prepare('SELECT head_sha, checks, rollup FROM change_request_snapshots').get() as { head_sha: string | null; checks: string | null; rollup: string | null };
   assert.deepEqual([snap.head_sha, snap.checks, snap.rollup], [null, null, null]);
+  raw.close();
+});
+
+test('migrate adds the review tables and reads a fix with no kind as checks', () => {
+  const raw = new DatabaseSync(':memory:');
+  migrate(raw, REVIEWS_SCHEMA_VERSION - 1);
+  // The orchestration's own row is not what this test is about
+  raw.exec('PRAGMA foreign_keys = OFF');
+  const at = (n: number): string => new Date(Date.UTC(2026, 0, 1, 0, 0, n)).toISOString();
+  raw
+    .prepare("INSERT INTO orchestration_pull_requests (id, orchestration_id, cwd, host, phase, branch, base, created_at, updated_at) VALUES ('o', 'o', '/repo', 'gitlab', 'open', 'b', 'main', ?, ?)")
+    .run(at(1), at(1));
+  migrate(raw);
+  const orchRow = (): OrchestrationPullRequestRow => raw.prepare('SELECT * FROM orchestration_pull_requests WHERE id = ?').get('o') as unknown as OrchestrationPullRequestRow;
+  assert.equal(orchestrationPullRequestOf(orchRow()).fixKind, 'checks');
+  raw.prepare("UPDATE orchestration_pull_requests SET fix_kind = 'review' WHERE id = 'o'").run();
+  assert.equal(orchestrationPullRequestOf(orchRow()).fixKind, 'review');
+  assert.equal(orchestrationPullRequestOf({ ...orchRow(), fix_kind: 'later' }).fixKind, 'checks');
+
+  raw.prepare("INSERT INTO review_drafts (id, cr_id, body, created_at, updated_at) VALUES ('d', 'cr', 'note', ?, ?)").run(at(1), at(1));
+  const draft = reviewDraftOf(raw.prepare('SELECT * FROM review_drafts').get() as unknown as ReviewDraftRow);
+  assert.deepEqual([draft.path, draft.side, draft.line, draft.startLine, draft.suggestion], [null, null, null, null, false]);
+  raw.prepare("UPDATE review_drafts SET path = 'a.ts', side = 'right', line = 4, start_line = 2, suggestion = 1").run();
+  const ranged = reviewDraftOf(raw.prepare('SELECT * FROM review_drafts').get() as unknown as ReviewDraftRow);
+  assert.deepEqual([ranged.path, ranged.side, ranged.line, ranged.startLine, ranged.suggestion], ['a.ts', 'right', 4, 2, true]);
+
+  raw.prepare("INSERT INTO review_posts (id, cr_id, marker, event, state, detail, created_at, updated_at) VALUES ('p', 'cr', 'm', 'comment', 'partly', ?, ?, ?)").run(
+    JSON.stringify({ code: 'review-partly-posted', detail: 'one failed', saved: 2, total: 3 }),
+    at(1),
+    at(1),
+  );
+  const post = reviewPostOf(raw.prepare('SELECT * FROM review_posts').get() as unknown as ReviewPostRow);
+  assert.deepEqual([post.state, post.remoteId, post.detail], ['partly', null, { code: 'review-partly-posted', detail: 'one failed', saved: 2, total: 3 }]);
+  const odd = reviewPostOf({ ...(raw.prepare('SELECT * FROM review_posts').get() as unknown as ReviewPostRow), state: 'later', event: 'later', detail: '{' });
+  assert.deepEqual([odd.state, odd.event, odd.detail], ['failed', 'comment', null]);
   raw.close();
 });

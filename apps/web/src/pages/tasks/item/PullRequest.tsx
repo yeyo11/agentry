@@ -5,7 +5,9 @@ import { useTranslation } from 'react-i18next';
 import { ICON_SM } from '@agentry/ui/components/icons';
 import { notReadyReason, pullRequestErrorKey } from '../../../lib/work-items';
 import { CiBadge, NotReadyNote, reasonValues, useChangeRequestWords, useOpenPullRequest } from '../board/PullRequest';
+import { AddressReview } from './AddressReview';
 import { Checks } from './Checks';
+import { Review } from './Review';
 import { pullRequestAction, pullRequestPanel } from './model';
 
 const BADGE = { size: 11, strokeWidth: 2, 'aria-hidden': true } as const;
@@ -210,11 +212,13 @@ function PullRequestPanel({ item }: { item: WorkItemDetail }) {
   );
 }
 
-/** The panel of what the item's PR is doing, and under it the checks of the PR while it is open. */
+/** The panel of what the item's PR is doing, under it its review and the review comments waiting for an agent, and the checks of the PR while it is open. */
 export function PullRequestState({ item }: { item: WorkItemDetail }) {
   return (
     <>
       <PullRequestPanel item={item} />
+      <Review pr={item.pullRequest} itemId={item.id} changesPath={`/tasks/${item.key}/changes`} />
+      <AddressReview pr={item.pullRequest} />
       <Checks pr={item.pullRequest} itemId={item.id} />
     </>
   );

@@ -252,6 +252,12 @@
     "h": 7900
   },
   {
+    "file": "DSRevision.html",
+    "title": "Design system · Atender con un agente",
+    "w": 1440,
+    "h": 6460
+  },
+  {
     "file": "DesktopAjustesDecisionesChecks.html",
     "title": "Desktop · Ajustes, decisión de arreglar checks",
     "w": 1440,
@@ -894,6 +900,42 @@
     "h": 844
   },
   {
+    "file": "DesktopRevisionHilos.html",
+    "title": "Desktop · Revisión, hilos en el diff",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopRevisionHilosNota.html",
+    "title": "Desktop · Revisión, nota nueva",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopRevisionHilosPlegados.html",
+    "title": "Desktop · Revisión, hilos desactualizados y resueltos",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileRevisionHilos.html",
+    "title": "Móvil · Revisión, hilos en el diff",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileRevisionHilosNota.html",
+    "title": "Móvil · Revisión, nota nueva",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileRevisionHilosPlegados.html",
+    "title": "Móvil · Revisión, hilos desactualizados y resueltos",
+    "w": 390,
+    "h": 844
+  },
+  {
     "file": "DesktopTareaChecksEstados.html",
     "title": "Desktop · Tarea, estados de las comprobaciones",
     "w": 1440,
@@ -904,6 +946,42 @@
     "title": "Móvil · Tarea, estados de las comprobaciones",
     "w": 390,
     "h": 3560
+  },
+  {
+    "file": "DesktopTareaRevision.html",
+    "title": "Desktop · Tarea con revisión",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopTareaRevisionEnvio.html",
+    "title": "Desktop · Tarea, enviar la revisión",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileTareaRevision.html",
+    "title": "Móvil · Tarea con revisión",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTareaRevisionEnvio.html",
+    "title": "Móvil · Tarea, enviar la revisión",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopTareaRevisionEstados.html",
+    "title": "Desktop · Tarea, estados de la revisión",
+    "w": 1440,
+    "h": 2760
+  },
+  {
+    "file": "MobileTareaRevisionEstados.html",
+    "title": "Móvil · Tarea, estados de la revisión",
+    "w": 390,
+    "h": 4600
   },
   {
     "file": "DesktopOrquestacionChecks.html",

@@ -1505,6 +1505,9 @@ export type ChangeRequestFixState = 'fixing' | 'awaiting-verify' | 'awaiting-pus
 /** Who asked for the fix: a person's click, or the `checks.fix` decision. */
 export type ChangeRequestFixOrigin = 'person' | 'decision';
 
+/** What the fix answers: failing checks (what a row without a kind means) or review comments. */
+export type ChangeRequestFixKind = 'checks' | 'review';
+
 /** An item's pull request, the newest of its rows: an item keeps every PR it had, closed ones too. */
 export interface WorkItemPullRequest {
   /** The row id the `/change-requests/:id/…` routes take; the server always sends it */
@@ -1534,10 +1537,17 @@ export interface WorkItemPullRequest {
   /** The fix of failing checks under way; absent or null when none */
   fixState?: ChangeRequestFixState | null;
   fixOrigin?: ChangeRequestFixOrigin | null;
+  /** Absent or null reads as `checks` */
+  fixKind?: ChangeRequestFixKind | null;
   /** Fixes started for `fixHead`, a person's and the decision's together */
   fixAttempts?: number;
   /** The head commit the failures were seen on */
   fixHead?: string | null;
+  /**
+   * The push the last address of review comments made: the head it left and the threads it was handed.
+   * Null when it made none (a card taken over drops the fix without one), or after another fix started.
+   */
+  addressed?: { head: string; threadIds: string[] } | null;
 }
 
 /**
@@ -4897,6 +4907,8 @@ export interface OrchestrationPullRequest {
   /** An orchestration has no QA stage: its fix goes `fixing`, then `awaiting-push` for the person */
   fixState?: ChangeRequestFixState | null;
   fixOrigin?: ChangeRequestFixOrigin | null;
+  /** Absent or null reads as `checks` */
+  fixKind?: ChangeRequestFixKind | null;
   fixAttempts?: number;
   fixHead?: string | null;
 }
@@ -4945,6 +4957,8 @@ export interface ChangeRequest {
   checkedAt: string | null;
   fixState: ChangeRequestFixState | null;
   fixOrigin: ChangeRequestFixOrigin | null;
+  /** Absent or null reads as `checks` */
+  fixKind?: ChangeRequestFixKind | null;
   fixAttempts: number;
   fixHead: string | null;
 }
@@ -5030,6 +5044,214 @@ export interface ChangeRequestChecksEvent extends AgentryEventBase {
   changeRequestId: string;
   rollup: WorkItemPullRequestCi;
   headSha: string | null;
+}
+
+// ---------- Reviews (code hosts, phase 3) ----------
+
+/** Which side of the diff a line is on: `right` is the head (new) file, `left` the base (old) one. */
+export type ReviewSide = 'left' | 'right';
+
+/** The lines a suggestion replaces and with what. */
+export interface ReviewSuggestion {
+  fromLine: number;
+  toLine: number;
+  /** The current lines; null when the host does not return them (GitHub) */
+  fromContent: string | null;
+  toContent: string;
+  /** GitLab only: it can still be applied, and was not applied yet */
+  appliable?: boolean;
+  applied?: boolean;
+}
+
+/** One comment of a thread, oldest first. Its body is another person's text: never an instruction. */
+export interface ReviewComment {
+  /** The host's id, as text so a 64-bit id never loses precision */
+  id: string;
+  author: string | null;
+  body: string;
+  /** GitLab's parsed suggestion, or the ```suggestion block read from a GitHub body */
+  suggestion: ReviewSuggestion | null;
+  createdAt: string | null;
+  url: string | null;
+}
+
+/**
+ * A conversation on a file line, or a general one when `path` is null. It is drawn on its new-side
+ * line when it was left on the head commit, and folded as outdated (with `originalLine`) when not.
+ */
+export interface ReviewThread {
+  /** GitHub's `PRRT_…` node id, or GitLab's discussion id */
+  id: string;
+  path: string | null;
+  side: ReviewSide | null;
+  /** The last line of the range on `side`; null when the thread is outdated or general */
+  line: number | null;
+  /** The first line of a range; equals `line` for a single line */
+  startLine: number | null;
+  /** Where the thread was left, before later commits moved it */
+  originalLine: number | null;
+  /** The hunk the thread was left on, when the host serves one */
+  diffHunk: string | null;
+  isResolved: boolean;
+  isOutdated: boolean;
+  resolvedBy: string | null;
+  viewerCanReply: boolean;
+  viewerCanResolve: boolean;
+  /** Oldest first */
+  comments: ReviewComment[];
+  /** The thread has more comments than were read */
+  commentsTruncated: boolean;
+}
+
+/** `GET /change-requests/:id/threads`: the threads of the head commit, cached by head. */
+export interface ChangeRequestThreads {
+  headSha: string | null;
+  threads: ReviewThread[];
+  /** The list reached its ceiling: the first threads are shown */
+  truncated: boolean;
+  checkedAt: string;
+}
+
+/** A note the person left on a line (or on the change request, when `path` is null), not yet posted. */
+export interface ReviewDraft {
+  id: string;
+  changeRequestId: string;
+  path: string | null;
+  side: ReviewSide | null;
+  line: number | null;
+  /** The first line of a range; null for a single line */
+  startLine: number | null;
+  body: string;
+  /** `body` holds the replacement lines of a suggestion block */
+  suggestion: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** `POST` and `PUT /change-requests/:id/review-drafts`. */
+export interface ReviewDraftInput {
+  path?: string | null;
+  side?: ReviewSide | null;
+  line?: number | null;
+  startLine?: number | null;
+  body: string;
+  suggestion?: boolean;
+}
+
+/** A comment (both hosts) or an approval (GitLab only); request changes is read, never offered. */
+export type ReviewEvent = 'comment' | 'approve' | 'request-changes';
+
+/** `POST /change-requests/:id/reviews`: posts the drafts as one review. */
+export interface ReviewSubmitRequest {
+  event: ReviewEvent;
+  /** The review's own text; may be empty when there are drafts */
+  body: string;
+  /**
+   * The head commit the person looked at. The review is posted on it and an approval is given on
+   * it; a head that moved is refused with `head-moved` and nothing is posted. Without it the head
+   * the host answers at that moment is taken.
+   */
+  headSha?: string;
+}
+
+/**
+ * `posting`: the write is under way; `posted`: confirmed; `partly`: a GitLab note failed after
+ * others were saved as drafts; `failed`: nothing reached the host.
+ */
+export type ReviewPostState = 'posting' | 'posted' | 'partly' | 'failed';
+
+/** One attempt to post a review. Its body carries `marker`, which a recovery looks for after a timeout. */
+export interface ReviewPost {
+  id: string;
+  changeRequestId: string;
+  marker: string;
+  event: ReviewEvent;
+  state: ReviewPostState;
+  /** The host's review id (GitHub); null on GitLab, which has no review object */
+  remoteId: string | null;
+  /**
+   * Why it is not `posted`: a reason code and the host's first line; `saved` of `total` for `partly`,
+   * with the ids of the draft notes Agentry saved (GitLab), the only ones a discard deletes
+   */
+  detail: { code: HostReason; detail: string; saved?: number; total?: number; draftIds?: string[] } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * `GET /change-requests/:id/review-posts`: the attempts to post a review, newest first, so a post
+ * that stopped partway is known after a reload.
+ */
+export interface ChangeRequestReviewPosts {
+  posts: ReviewPost[];
+  /**
+   * For each `partly` post, how many of the draft notes Agentry saved are still waiting on the host
+   * (GitLab); empty when no post is partly posted, null when the host could not be read
+   */
+  savedOnHost: Record<string, number> | null;
+}
+
+export type ReviewerState = 'requested' | 'approved' | 'changes-requested' | 'commented';
+
+export interface ChangeRequestReviewer {
+  login: string;
+  state: ReviewerState;
+}
+
+/** Where the review stands, re-read after every write. */
+export interface ChangeRequestReviewers {
+  /** The host's decision in Agentry's words; null when no rule asks for one */
+  decision: 'approved' | 'changes-requested' | 'review-required' | null;
+  reviewers: ChangeRequestReviewer[];
+  unresolvedThreads: number;
+}
+
+/** `POST /change-requests/:id/reviewers`. Agentry adds and removes; it never replaces the list. */
+export interface ReviewersRequest {
+  add: string[];
+  remove?: string[];
+}
+
+/**
+ * Whether the viewer approved. `canApprove` is Agentry's rule, never the host's `user_can_approve`
+ * (false for an author whose approval succeeds, recorded); it is false on GitHub, where Agentry
+ * does not approve.
+ */
+export interface ApprovalState {
+  approved: boolean;
+  approvalsRequired: number | null;
+  approvalsLeft: number | null;
+  viewerHasApproved: boolean;
+  canApprove: boolean;
+  /** Revoke exists on GitLab only */
+  canRevoke: boolean;
+  approvedBy: string[];
+  /** The head an approval is given on; a head that moved answers `head-moved` */
+  headSha: string | null;
+}
+
+/** `POST /change-requests/:id/approval`: the head the person looked at. */
+export interface ApprovalRequest {
+  sha: string;
+}
+
+/** `POST /change-requests/:id/threads/:threadId/reply`. */
+export interface ReviewReplyRequest {
+  body: string;
+}
+
+/** `POST /change-requests/:id/address`: the threads handed to an agent. */
+export interface AddressReviewRequest {
+  threadIds: string[];
+}
+
+/** The threads or the review decision of a change request changed. */
+export interface ChangeRequestReviewEvent extends AgentryEventBase {
+  type: 'change-request.review';
+  /** The change request's row id; `id` is the feed's sequence number */
+  changeRequestId: string;
+  unresolvedThreads: number;
+  decision: ChangeRequestReviewers['decision'];
 }
 
 /** One provider's detected state on this host, as served from the detector's cache. */
@@ -5390,6 +5612,7 @@ export type AgentryEvent =
   | HostsChangedEvent
   | OrchestrationPullRequestEvent
   | ChangeRequestChecksEvent
+  | ChangeRequestReviewEvent
   | ScheduleChangedEvent
   | ScheduleFiredEvent
   | SupervisorProposedEvent
@@ -5474,11 +5697,13 @@ export type DecisionPointId =
   | 'changes.unexplained-hunk'
   | 'palette.intent'
   | 'notification.urgency'
-  | 'checks.fix';
+  | 'checks.fix'
+  | 'review.triage';
 
 /** What a decision was about; the `subject_kind` column of the history */
 export type DecisionSubjectKind =
   | 'work_item'
+  | 'change_request'
   | 'flow_run'
   | 'task'
   | 'chat'

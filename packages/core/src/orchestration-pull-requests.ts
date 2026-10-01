@@ -3,12 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import type { DatabaseSync } from 'node:sqlite';
-import type { Check, CodeHostsSettings, Orchestration, OrchestrationPullRequest, OrchestrationPullRequestPhase, ProjectCodeHost, WorkItemPullRequestCi } from '@agentry/shared';
+import type { Check, CodeHostsSettings, Orchestration, OrchestrationPullRequest, OrchestrationPullRequestPhase, ProjectCodeHost, ReviewThread, WorkItemPullRequestCi } from '@agentry/shared';
 import type { Db } from './db.ts';
 import type { AgentryEventInput } from './events.ts';
 import { aheadCount, commitAll, git, mainCheckout, refExists } from './git.ts';
 import { ChecksError, type ChecksService, type ChecksTarget } from './hosts/checks-service.ts';
-import type { ChangeRequestRead, ChangeRequestView, ChecksCodeHostAdapter, HostCall, HostRepo } from './hosts/code-host.ts';
+import type { ChangeRequestRead, ChangeRequestView, ChecksCodeHostAdapter, HostCall, HostRepo, ReviewsCodeHostAdapter } from './hosts/code-host.ts';
 import { hostSearchPath, resolveHostBinary, type HostRun } from './hosts/detector.ts';
 import { runHostCall, type HostResult } from './hosts/exec.ts';
 import { HostRateLimiter } from './hosts/rate-limit.ts';
@@ -16,7 +16,9 @@ import { firstLine } from './hosts/redact.ts';
 import { CodeHostRegistry } from './hosts/registry.ts';
 import { parseRemote } from './hosts/remote.ts';
 import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from './orchestration-pr-rows.ts';
-import { codeHostAdapter, failingChecks, fixPromptFor, HostFactsCache, WATCH_BACKOFF, type ChecksFailingNotice } from './pull-requests.ts';
+import { reviewDiff } from './hosts/review-diff.ts';
+import { ReviewsError, type ReviewsService, type ReviewsTarget } from './hosts/reviews-service.ts';
+import { ADDRESS_REFUSALS, addressPromptFor, codeHostAdapter, failingChecks, fixPromptFor, HostFactsCache, threadsToAddress, WATCH_BACKOFF, type ChecksFailingNotice } from './pull-requests.ts';
 import { hostOf } from './work-item-rows.ts';
 
 /**
@@ -49,6 +51,8 @@ export interface OrchestrationPullRequestDeps {
   run?: HostRun;
   /** The checks of a change request. The watcher reads through it, and a fix takes its failures from it; without one neither does */
   checks?: ChecksService;
+  /** The review threads of a change request; without it nothing is addressed */
+  reviews?: ReviewsService;
   /**
    * Starts the fixer's chat in the integration worktree (the orchestration's fixer model and cost
    * limit) and settles when it ends. It commits on the integration branch and never pushes.
@@ -189,7 +193,7 @@ export class OrchestrationPullRequestService {
 
   // ---------- reaching the host ----------
 
-  private async target(host: ProjectCodeHost, id: string): Promise<{ adapter: ChecksCodeHostAdapter; binaryPath: string; repo: HostRepo }> {
+  private async target(host: ProjectCodeHost, id: string): Promise<{ adapter: ReviewsCodeHostAdapter; binaryPath: string; repo: HostRepo }> {
     const adapter = codeHostAdapter(hostOf(id));
     const manifest = this.registry.get(hostOf(id));
     if (!adapter || !manifest || !host.remote) throw new Error(`no adapter for ${id}`);
@@ -216,6 +220,15 @@ export class OrchestrationPullRequestService {
     const run = (call: HostCall): Promise<HostResult> => this.call(target.binaryPath, call, home);
     const facts = await this.hostFacts.of(target.adapter, target.repo, target.binaryPath, run);
     return { id: row.id, kind: 'orchestration', adapter: target.adapter, repo: facts.repo, number: row.number, branch: row.branch, base: row.base, cliVersion: facts.cliVersion, run };
+  }
+
+  /** What `ReviewsService` needs for one row: the checks target and the local diff the person reviews. */
+  async reviewsTarget(row: OrchestrationPullRequestRow): Promise<ReviewsTarget | null> {
+    const base = await this.checksTarget(row);
+    const adapter = codeHostAdapter(hostOf(row.host));
+    if (!base || !adapter) return null;
+    const home = mainCheckout(row.cwd);
+    return { id: base.id, kind: base.kind, adapter, repo: base.repo, number: base.number, run: base.run, diff: async () => reviewDiff(home, row.base, row.branch) };
   }
 
   // ---------- opening ----------
@@ -353,10 +366,54 @@ export class OrchestrationPullRequestService {
     const prompt = await fixPromptFor(checks, row.id, failing);
     const attempts = headSha && row.fix_head === headSha ? (row.fix_attempts ?? 0) + 1 : 1;
     const started = this.sql
-      .prepare("UPDATE orchestration_pull_requests SET fix_state = 'fixing', fix_origin = 'person', fix_attempts = ?, fix_head = ?, error_code = NULL, error_detail = NULL, updated_at = ? WHERE id = ? AND phase = 'open' AND fix_state IS NULL")
+      .prepare("UPDATE orchestration_pull_requests SET fix_state = 'fixing', fix_origin = 'person', fix_kind = 'checks', fix_attempts = ?, fix_head = ?, error_code = NULL, error_detail = NULL, updated_at = ? WHERE id = ? AND phase = 'open' AND fix_state IS NULL")
       .run(attempts, headSha, this.iso(), row.id).changes;
     if (started !== 1) throw new OrchestrationPullRequestError('a fix of the checks is already under way', 'fix-under-way');
     this.announce(row, 'Fixing the failing checks');
+    const work = runFix({ orchestrationId: orch.id, cwd, branch: row.branch, prompt }).then(
+      (result) => this.settleFix(orch.id, result.ok),
+      () => this.settleFix(orch.id, false),
+    );
+    const tracked = work.finally(() => this.pending.delete(tracked));
+    this.pending.add(tracked);
+    return { prompt, pullRequest: this.newest(orch.id) };
+  }
+
+  /**
+   * `POST /change-requests/:id/address` for an orchestration: the chosen threads (every unresolved
+   * one when none is named) go to the fixer's chat, as {@link fixChecks} hands it failures. The
+   * fixer commits and never pushes, never replies and never resolves; the request then waits for
+   * **Push the fix**.
+   */
+  async addressReview(orch: Orchestration, threadIds: readonly string[]): Promise<FixStarted> {
+    const row = this.newestRow(orch.id);
+    if (!row || row.phase !== 'open' || row.number === null) throw new OrchestrationPullRequestError('the orchestration has no open change request to address', 'not-open');
+    if (row.fix_state) throw new OrchestrationPullRequestError('a fix of the change request is already under way', 'fix-under-way');
+    const runFix = this.deps.runFix;
+    if (!runFix) throw new OrchestrationPullRequestError('Agentry cannot start the fixer here', 'fix-unavailable');
+    const cwd = orch.integration?.worktree;
+    if (!cwd || !existsSync(cwd)) throw new OrchestrationPullRequestError('the integration worktree is gone, so there is nowhere to fix the branch', 'no-worktree');
+    const reviews = this.deps.reviews;
+    if (!reviews) throw new OrchestrationPullRequestError('Agentry cannot read review threads here', 'reviews-unavailable');
+    let threads: ReviewThread[];
+    let headSha: string | null;
+    try {
+      const list = await reviews.threads(row.id, { refresh: true });
+      const chosen = threadsToAddress(list, threadIds);
+      if ('code' in chosen) throw new OrchestrationPullRequestError(ADDRESS_REFUSALS[chosen.code], chosen.code);
+      threads = chosen.threads;
+      headSha = list.headSha;
+    } catch (err) {
+      if (err instanceof ReviewsError) throw new OrchestrationPullRequestError(`the review threads could not be read${err.detail ? `: ${err.detail}` : ''}`, err.reason);
+      throw err;
+    }
+    const prompt = addressPromptFor(threads);
+    const attempts = headSha && row.fix_head === headSha ? (row.fix_attempts ?? 0) + 1 : 1;
+    const started = this.sql
+      .prepare("UPDATE orchestration_pull_requests SET fix_state = 'fixing', fix_origin = 'person', fix_kind = 'review', fix_attempts = ?, fix_head = ?, error_code = NULL, error_detail = NULL, updated_at = ? WHERE id = ? AND phase = 'open' AND fix_state IS NULL")
+      .run(attempts, headSha, this.iso(), row.id).changes;
+    if (started !== 1) throw new OrchestrationPullRequestError('a fix of the change request is already under way', 'fix-under-way');
+    this.announce(row, 'Addressing the review comments');
     const work = runFix({ orchestrationId: orch.id, cwd, branch: row.branch, prompt }).then(
       (result) => this.settleFix(orch.id, result.ok),
       () => this.settleFix(orch.id, false),
@@ -386,7 +443,7 @@ export class OrchestrationPullRequestService {
       const worktree = orch.integration?.worktree;
       try {
         // Concludes what the fixer left uncommitted on the integration branch; only in its own worktree, never in the project's checkout
-        if (worktree && existsSync(worktree)) commitAll(worktree, 'chore: fix the failing checks');
+        if (worktree && existsSync(worktree)) commitAll(worktree, row.fix_kind === 'review' ? 'chore: address the review comments' : 'chore: fix the failing checks');
         await pushBranch(worktree && existsSync(worktree) ? worktree : row.cwd, row.branch, this.env());
       } catch (err) {
         const detail = messageOf(err);

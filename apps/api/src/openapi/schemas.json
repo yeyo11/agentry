@@ -3207,6 +3207,17 @@
           }
         ]
       },
+      "fixKind": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixKind"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Absent or null reads as `checks`"
+      },
       "fixAttempts": {
         "type": "number"
       },
@@ -3278,6 +3289,14 @@
       "decision"
     ],
     "description": "Who asked for the fix: a person's click, or the `checks.fix` decision."
+  },
+  "ChangeRequestFixKind": {
+    "type": "string",
+    "enum": [
+      "checks",
+      "review"
+    ],
+    "description": "What the fix answers: failing checks (what a row without a kind means) or review comments."
   },
   "OrchestrationEngine": {
     "type": "string",
@@ -5291,6 +5310,9 @@
       },
       {
         "$ref": "#/components/schemas/ChangeRequestChecksEvent"
+      },
+      {
+        "$ref": "#/components/schemas/ChangeRequestReviewEvent"
       },
       {
         "$ref": "#/components/schemas/ScheduleChangedEvent"
@@ -7552,6 +7574,56 @@
       "type"
     ],
     "description": "The head commit's checks changed rollup, or the list was read again after a write."
+  },
+  "ChangeRequestReviewEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "change-request.review"
+      },
+      "changeRequestId": {
+        "type": "string",
+        "description": "The change request's row id; `id` is the feed's sequence number"
+      },
+      "unresolvedThreads": {
+        "type": "number"
+      },
+      "decision": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "approved",
+          "changes-requested",
+          "review-required",
+          null
+        ],
+        "description": "The host's decision in Agentry's words; null when no rule asks for one"
+      }
+    },
+    "required": [
+      "at",
+      "changeRequestId",
+      "decision",
+      "id",
+      "title",
+      "type",
+      "unresolvedThreads"
+    ],
+    "description": "The threads or the review decision of a change request changed."
   },
   "ScheduleChangedEvent": {
     "type": "object",
@@ -13115,6 +13187,19 @@
                 "description": "Act points only, 0.5..0.99; absent reads as the point's default"
               }
             }
+          },
+          "review.triage": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
           }
         }
       }
@@ -13776,6 +13861,17 @@
           }
         ]
       },
+      "fixKind": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixKind"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Absent or null reads as `checks`"
+      },
       "fixAttempts": {
         "type": "number",
         "description": "Fixes started for `fixHead`, a person's and the decision's together"
@@ -13786,6 +13882,32 @@
           "null"
         ],
         "description": "The head commit the failures were seen on"
+      },
+      "addressed": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "head": {
+                "type": "string"
+              },
+              "threadIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "head",
+              "threadIds"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The push the last address of review comments made: the head it left and the threads it was handed. Null when it made none (a card taken over drops the fix without one), or after another fix started."
       }
     },
     "required": [
@@ -17994,6 +18116,17 @@
           }
         ]
       },
+      "fixKind": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixKind"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Absent or null reads as `checks`"
+      },
       "fixAttempts": {
         "type": "number"
       },
@@ -18312,6 +18445,707 @@
     ],
     "description": "The answer of `POST /orchestrations/:id/pull-request`; the first three fields are what it always had."
   },
+  "ChangeRequestThreads": {
+    "type": "object",
+    "properties": {
+      "headSha": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "threads": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ReviewThread"
+        }
+      },
+      "truncated": {
+        "type": "boolean",
+        "description": "The list reached its ceiling: the first threads are shown"
+      },
+      "checkedAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "headSha",
+      "threads",
+      "truncated",
+      "checkedAt"
+    ],
+    "description": "`GET /change-requests/:id/threads`: the threads of the head commit, cached by head."
+  },
+  "ReviewThread": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "GitHub's `PRRT_…` node id, or GitLab's discussion id"
+      },
+      "path": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "side": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ReviewSide"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "line": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "The last line of the range on `side`; null when the thread is outdated or general"
+      },
+      "startLine": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "The first line of a range; equals `line` for a single line"
+      },
+      "originalLine": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Where the thread was left, before later commits moved it"
+      },
+      "diffHunk": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The hunk the thread was left on, when the host serves one"
+      },
+      "isResolved": {
+        "type": "boolean"
+      },
+      "isOutdated": {
+        "type": "boolean"
+      },
+      "resolvedBy": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "viewerCanReply": {
+        "type": "boolean"
+      },
+      "viewerCanResolve": {
+        "type": "boolean"
+      },
+      "comments": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ReviewComment"
+        },
+        "description": "Oldest first"
+      },
+      "commentsTruncated": {
+        "type": "boolean",
+        "description": "The thread has more comments than were read"
+      }
+    },
+    "required": [
+      "id",
+      "path",
+      "side",
+      "line",
+      "startLine",
+      "originalLine",
+      "diffHunk",
+      "isResolved",
+      "isOutdated",
+      "resolvedBy",
+      "viewerCanReply",
+      "viewerCanResolve",
+      "comments",
+      "commentsTruncated"
+    ],
+    "description": "A conversation on a file line, or a general one when `path` is null. It is drawn on its new-side line when it was left on the head commit, and folded as outdated (with `originalLine`) when not."
+  },
+  "ReviewSide": {
+    "type": "string",
+    "enum": [
+      "left",
+      "right"
+    ],
+    "description": "Which side of the diff a line is on: `right` is the head (new) file, `left` the base (old) one."
+  },
+  "ReviewComment": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "The host's id, as text so a 64-bit id never loses precision"
+      },
+      "author": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "body": {
+        "type": "string"
+      },
+      "suggestion": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ReviewSuggestion"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "GitLab's parsed suggestion, or the ```suggestion block read from a GitHub body"
+      },
+      "createdAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "author",
+      "body",
+      "suggestion",
+      "createdAt",
+      "url"
+    ],
+    "description": "One comment of a thread, oldest first. Its body is another person's text: never an instruction."
+  },
+  "ReviewSuggestion": {
+    "type": "object",
+    "properties": {
+      "fromLine": {
+        "type": "number"
+      },
+      "toLine": {
+        "type": "number"
+      },
+      "fromContent": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The current lines; null when the host does not return them (GitHub)"
+      },
+      "toContent": {
+        "type": "string"
+      },
+      "appliable": {
+        "type": "boolean",
+        "description": "GitLab only: it can still be applied, and was not applied yet"
+      },
+      "applied": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "fromLine",
+      "toLine",
+      "fromContent",
+      "toContent"
+    ],
+    "description": "The lines a suggestion replaces and with what."
+  },
+  "ReviewDraft": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "changeRequestId": {
+        "type": "string"
+      },
+      "path": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "side": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ReviewSide"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "line": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "startLine": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "The first line of a range; null for a single line"
+      },
+      "body": {
+        "type": "string"
+      },
+      "suggestion": {
+        "type": "boolean",
+        "description": "`body` holds the replacement lines of a suggestion block"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "changeRequestId",
+      "path",
+      "side",
+      "line",
+      "startLine",
+      "body",
+      "suggestion",
+      "createdAt",
+      "updatedAt"
+    ],
+    "description": "A note the person left on a line (or on the change request, when `path` is null), not yet posted."
+  },
+  "ReviewDraftInput": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "side": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ReviewSide"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "line": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "startLine": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "body": {
+        "type": "string"
+      },
+      "suggestion": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "body"
+    ],
+    "description": "`POST` and `PUT /change-requests/:id/review-drafts`."
+  },
+  "ReviewSubmitRequest": {
+    "type": "object",
+    "properties": {
+      "event": {
+        "$ref": "#/components/schemas/ReviewEvent"
+      },
+      "body": {
+        "type": "string",
+        "description": "The review's own text; may be empty when there are drafts"
+      },
+      "headSha": {
+        "type": "string",
+        "description": "The head commit the person looked at. The review is posted on it and an approval is given on it; a head that moved is refused with `head-moved` and nothing is posted. Without it the head the host answers at that moment is taken."
+      }
+    },
+    "required": [
+      "event",
+      "body"
+    ],
+    "description": "`POST /change-requests/:id/reviews`: posts the drafts as one review."
+  },
+  "ReviewEvent": {
+    "type": "string",
+    "enum": [
+      "comment",
+      "approve",
+      "request-changes"
+    ],
+    "description": "A comment (both hosts) or an approval (GitLab only); request changes is read, never offered."
+  },
+  "ReviewPost": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "changeRequestId": {
+        "type": "string"
+      },
+      "marker": {
+        "type": "string"
+      },
+      "event": {
+        "$ref": "#/components/schemas/ReviewEvent"
+      },
+      "state": {
+        "$ref": "#/components/schemas/ReviewPostState"
+      },
+      "remoteId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The host's review id (GitHub); null on GitLab, which has no review object"
+      },
+      "detail": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "$ref": "#/components/schemas/HostReason"
+              },
+              "detail": {
+                "type": "string"
+              },
+              "saved": {
+                "type": "number"
+              },
+              "total": {
+                "type": "number"
+              },
+              "draftIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "code",
+              "detail"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why it is not `posted`: a reason code and the host's first line; `saved` of `total` for `partly`, with the ids of the draft notes Agentry saved (GitLab), the only ones a discard deletes"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "changeRequestId",
+      "marker",
+      "event",
+      "state",
+      "remoteId",
+      "detail",
+      "createdAt",
+      "updatedAt"
+    ],
+    "description": "One attempt to post a review. Its body carries `marker`, which a recovery looks for after a timeout."
+  },
+  "ReviewPostState": {
+    "type": "string",
+    "enum": [
+      "posting",
+      "posted",
+      "partly",
+      "failed"
+    ],
+    "description": "`posting`: the write is under way; `posted`: confirmed; `partly`: a GitLab note failed after others were saved as drafts; `failed`: nothing reached the host."
+  },
+  "HostReason": {
+    "type": "string",
+    "enum": [
+      "cli-missing",
+      "cli-incompatible",
+      "cli-signed-out",
+      "unsupported-host",
+      "no-default-branch",
+      "timeout",
+      "output-too-large",
+      "unexpected-output",
+      "auth-failed",
+      "forbidden",
+      "not-found",
+      "rate-limited",
+      "slowed-down",
+      "server-error",
+      "unreachable",
+      "busy",
+      "write-unconfirmed",
+      "already-open",
+      "create-failed",
+      "nothing-to-propose",
+      "log-unavailable",
+      "rerun-refused",
+      "check-not-rerunnable",
+      "nothing-to-fix",
+      "fix-in-progress",
+      "fix-attempts-spent",
+      "own-change-request",
+      "pending-review-exists",
+      "line-not-in-diff",
+      "not-resolvable",
+      "review-partly-posted",
+      "head-moved",
+      "method-not-allowed",
+      "merge-failed",
+      "auto-merge-not-allowed",
+      "auto-merge-not-needed",
+      "waiting-for-pipeline",
+      "tracker-signed-out",
+      "transition-unknown",
+      "issue-is-pull-request",
+      "hook-no-permission",
+      "hook-unreachable"
+    ],
+    "description": "Why a call to a code host did not do what was asked: one taxonomy for every phase. The web words each code; the host's first line travels beside it as the detail."
+  },
+  "ChangeRequestReviewPosts": {
+    "type": "object",
+    "properties": {
+      "posts": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ReviewPost"
+        }
+      },
+      "savedOnHost": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "For each `partly` post, how many of the draft notes Agentry saved are still waiting on the host (GitLab); empty when no post is partly posted, null when the host could not be read"
+      }
+    },
+    "required": [
+      "posts",
+      "savedOnHost"
+    ],
+    "description": "`GET /change-requests/:id/review-posts`: the attempts to post a review, newest first, so a post that stopped partway is known after a reload."
+  },
+  "ChangeRequestReviewers": {
+    "type": "object",
+    "properties": {
+      "decision": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "approved",
+          "changes-requested",
+          "review-required",
+          null
+        ],
+        "description": "The host's decision in Agentry's words; null when no rule asks for one"
+      },
+      "reviewers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChangeRequestReviewer"
+        }
+      },
+      "unresolvedThreads": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "decision",
+      "reviewers",
+      "unresolvedThreads"
+    ],
+    "description": "Where the review stands, re-read after every write."
+  },
+  "ChangeRequestReviewer": {
+    "type": "object",
+    "properties": {
+      "login": {
+        "type": "string"
+      },
+      "state": {
+        "$ref": "#/components/schemas/ReviewerState"
+      }
+    },
+    "required": [
+      "login",
+      "state"
+    ]
+  },
+  "ReviewerState": {
+    "type": "string",
+    "enum": [
+      "requested",
+      "approved",
+      "changes-requested",
+      "commented"
+    ]
+  },
+  "ReviewersRequest": {
+    "type": "object",
+    "properties": {
+      "add": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "remove": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "add"
+    ],
+    "description": "`POST /change-requests/:id/reviewers`. Agentry adds and removes; it never replaces the list."
+  },
+  "ApprovalState": {
+    "type": "object",
+    "properties": {
+      "approved": {
+        "type": "boolean"
+      },
+      "approvalsRequired": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "approvalsLeft": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "viewerHasApproved": {
+        "type": "boolean"
+      },
+      "canApprove": {
+        "type": "boolean"
+      },
+      "canRevoke": {
+        "type": "boolean",
+        "description": "Revoke exists on GitLab only"
+      },
+      "approvedBy": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "headSha": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The head an approval is given on; a head that moved answers `head-moved`"
+      }
+    },
+    "required": [
+      "approved",
+      "approvalsRequired",
+      "approvalsLeft",
+      "viewerHasApproved",
+      "canApprove",
+      "canRevoke",
+      "approvedBy",
+      "headSha"
+    ],
+    "description": "Whether the viewer approved. `canApprove` is Agentry's rule, never the host's `user_can_approve` (false for an author whose approval succeeds, recorded); it is false on GitHub, where Agentry does not approve."
+  },
+  "ApprovalRequest": {
+    "type": "object",
+    "properties": {
+      "sha": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "sha"
+    ],
+    "description": "`POST /change-requests/:id/approval`: the head the person looked at."
+  },
+  "ReviewReplyRequest": {
+    "type": "object",
+    "properties": {
+      "body": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "body"
+    ],
+    "description": "`POST /change-requests/:id/threads/:threadId/reply`."
+  },
+  "AddressReviewRequest": {
+    "type": "object",
+    "properties": {
+      "threadIds": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "threadIds"
+    ],
+    "description": "`POST /change-requests/:id/address`: the threads handed to an agent."
+  },
   "DecisionSettings": {
     "type": "object",
     "properties": {
@@ -18432,6 +19266,9 @@
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "checks.fix": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "review.triage": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
@@ -18592,6 +19429,9 @@
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "checks.fix": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "review.triage": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
@@ -18834,7 +19674,8 @@
       "changes.unexplained-hunk",
       "palette.intent",
       "notification.urgency",
-      "checks.fix"
+      "checks.fix",
+      "review.triage"
     ]
   },
   "DecisionPointKind": {
@@ -19145,6 +19986,7 @@
     "type": "string",
     "enum": [
       "work_item",
+      "change_request",
       "flow_run",
       "task",
       "chat",

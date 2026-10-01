@@ -1,4 +1,16 @@
-import type { Check, CheckAnnotation, CodeHostId, WorkItemPullRequestCi } from '@agentry/shared';
+import type {
+  ApprovalState,
+  Check,
+  CheckAnnotation,
+  ChangeRequestReviewers,
+  CodeHostId,
+  HostReason,
+  ReviewComment,
+  ReviewEvent,
+  ReviewSide,
+  ReviewThread,
+  WorkItemPullRequestCi,
+} from '@agentry/shared';
 
 /**
  * One call to a CLI, as an adapter describes it. An adapter never runs anything: it returns this
@@ -115,6 +127,8 @@ export interface ChangeRequestRead {
   /** Auto-merge is armed */
   autoMerge: boolean | null;
   headPipeline: HeadPipeline | null;
+  /** GitLab's `diff_refs`, which a review note is placed on; absent on GitHub */
+  diffRefs?: DiffRefs | null;
   /** The host listed fewer contexts than it has: `view.ci` then comes from its own rollup state */
   truncated: boolean;
   rateLimit: { cost: number | null; remaining: number | null; resetAt: string | null } | null;
@@ -176,6 +190,18 @@ export class HostRequestError extends Error {
 }
 
 /**
+ * The host offers no such action (Agentry does not approve or request changes on GitHub, nor remove
+ * a reviewer there, and a review is posted as comments only). It is Agentry's own refusal before a
+ * call is made, never a host failure.
+ */
+export class HostActionNotOffered extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'HostActionNotOffered';
+  }
+}
+
+/**
  * What an adapter adds in phase 2: reading a change request for checks, the checks, their logs,
  * annotations and the writes on them. Writes return calls to run in order, never retried, and the
  * service re-reads after every one.
@@ -209,3 +235,138 @@ export interface ChecksAdapter {
 
 /** An adapter that does checks too: both shipped ones. */
 export type ChecksCodeHostAdapter = CodeHostAdapter & ChecksAdapter;
+
+// ---------- Reviews (phase 3) ----------
+
+/** The most threads one read keeps; GitHub paginates without a bound of its own. */
+export const MAX_THREADS = 500;
+
+/** A comment thread of GitHub that has more comments than the first page holds. */
+export interface ThreadFollowUp {
+  threadId: string;
+  /** The cursor the first read ended its comments at: the remainder starts there */
+  after: string;
+}
+
+/** What a threads read says; the service runs `followUps` and appends their comments. */
+export interface ThreadsRead {
+  headSha: string | null;
+  threads: ReviewThread[];
+  /** The list reached `MAX_THREADS` */
+  truncated: boolean;
+  followUps: ThreadFollowUp[];
+}
+
+/** A note of the person's draft review that belongs on a file line. General notes go in the review body. */
+export interface ReviewNote {
+  path: string;
+  /** GitLab: the file's old path, when the file was renamed */
+  oldPath?: string | null;
+  side: ReviewSide;
+  /** The last line of the range on `side` */
+  line: number;
+  /** The first line of a range; GitLab places a plain note on `line` and uses this only for a suggestion */
+  startLine?: number | null;
+  /** GitLab: the old-side line of a context line, which needs both */
+  oldLine?: number | null;
+  /** `body` holds the replacement lines of a suggestion; the adapter writes the fence */
+  suggestion: boolean;
+  body: string;
+}
+
+/** The three commits GitLab pins a position on (`diff_refs` of the merge request). */
+export interface DiffRefs {
+  baseSha: string;
+  startSha: string;
+  headSha: string;
+}
+
+export interface ReviewSubmission {
+  /** The head the person looked at */
+  headSha: string;
+  /** The review's own text, marker included; never empty */
+  body: string;
+  notes: ReviewNote[];
+  /** Required by GitLab, ignored by GitHub */
+  diffRefs?: DiffRefs | null;
+}
+
+/**
+ * How a review reaches the host. GitHub is one request, all or nothing. GitLab has no review
+ * object: a note per call is saved as a draft, then `publish` turns them into discussions.
+ */
+export interface SubmitPlan {
+  /** In order; a failed one stops the rest */
+  calls: HostCall[];
+  /** GitLab only, run after every call succeeded */
+  publish: HostCall | null;
+}
+
+/** What creating one GitLab draft note answered. */
+export interface DraftNoteMade {
+  id: string;
+  /** GitLab accepts a line outside the diff and drops it on publish (`line_code: null`, recorded) */
+  placed: boolean;
+}
+
+/** A review (GitHub) or draft note (GitLab) of the viewer, found when a post may be in the way or may have landed. */
+export interface PendingReviewEntry {
+  id: string;
+  /** Still unpublished: a GitHub review in state PENDING, any GitLab draft note */
+  pending: boolean;
+  body: string;
+  author: string | null;
+}
+
+export type ReviewOperation = 'submit' | 'draft' | 'reply' | 'resolve' | 'reviewers' | 'approve';
+
+/** What an adapter adds in phase 3. Writes are calls to run, never retried; the service re-reads after each. */
+export interface ReviewsAdapter {
+  /** Round one of the threads read (`$endCursor` pagination on GitHub, `per_page` on GitLab) */
+  threads(repo: HostRepo, number: number): HostCall;
+  /** `headSha` marks a GitLab thread left on another commit as outdated; GitHub says so itself */
+  parseThreads(result: HostResult, ctx: { headSha: string | null }): ThreadsRead;
+  /** GitHub only: the comments of a thread past its first 100. Null on GitLab, which returns them all */
+  threadComments(repo: HostRepo, follow: ThreadFollowUp): HostCall | null;
+  parseThreadComments(result: HostResult): { comments: ReviewComment[]; after: string | null };
+
+  reply(repo: HostRepo, number: number, thread: Pick<ReviewThread, 'id' | 'comments'>, body: string): HostCall;
+  /** Resolve or unresolve; both are idempotent */
+  resolve(repo: HostRepo, number: number, threadId: string, resolved: boolean): HostCall;
+
+  /**
+   * Throws `HostActionNotOffered` for an event the host does not offer (only `comment` is posted: an
+   * approval is `approve`), `HostParseError` for a note it cannot place.
+   */
+  submit(repo: HostRepo, number: number, review: ReviewSubmission, event?: ReviewEvent): SubmitPlan;
+  /** The host's review id from the answer of GitHub's single call; null on GitLab, which has no review object */
+  parseSubmitted(result: HostResult): { remoteId: string | null };
+  /** GitLab: one draft note per call of `submit`; null on GitHub */
+  parseDraftNote(result: HostResult): DraftNoteMade | null;
+  /** The viewer's pending reviews (GitHub, all reviews) or draft notes (GitLab) */
+  pendingReviews(repo: HostRepo, number: number): HostCall;
+  parsePendingReviews(result: HostResult): PendingReviewEntry[];
+  /** GitLab: publish what was saved. Null on GitHub */
+  publishSaved(repo: HostRepo, number: number): HostCall | null;
+  /** GitLab: delete a draft note. Null on GitHub, where a person's pending review is never deleted */
+  discardDraft(repo: HostRepo, number: number, draftId: string): HostCall | null;
+
+  /** Null where Agentry does not approve (GitHub, decision 1) */
+  approve(repo: HostRepo, number: number, headSha: string): HostCall | null;
+  revoke(repo: HostRepo, number: number): HostCall | null;
+  /** GitLab's approvals endpoint; null on GitHub, whose decision comes with `reviewers` */
+  approvals(repo: HostRepo, number: number): HostCall | null;
+  parseApprovals(result: HostResult, headSha: string | null): ApprovalState;
+
+  /** Adds and removes; never replaces the list */
+  requestReviewers(repo: HostRepo, number: number, req: { add: string[]; remove?: string[] }): HostCall[];
+  /** The reviewers, the decision and the unresolved count, re-read after every write */
+  reviewers(repo: HostRepo, number: number): HostCall;
+  parseReviewers(result: HostResult, unresolvedThreads: number): ChangeRequestReviewers;
+
+  /** A reason only the answer's own body can say (stdout, never stderr); null leaves it to the generic one */
+  reasonOf(op: ReviewOperation, result: HostResult): HostReason | null;
+}
+
+/** An adapter that does reviews too: both shipped ones. */
+export type ReviewsCodeHostAdapter = ChecksCodeHostAdapter & ReviewsAdapter;

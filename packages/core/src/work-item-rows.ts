@@ -1,11 +1,18 @@
 import type {
+  ChangeRequestFixKind,
   ChangeRequestFixOrigin,
   ChangeRequestFixState,
   CodeHostId,
+  HostReason,
   DocumentKind,
   Milestone,
   MilestoneProgress,
   WorkItemActor,
+  ReviewDraft,
+  ReviewEvent,
+  ReviewPost,
+  ReviewPostState,
+  ReviewSide,
   WorkItemAssignee,
   WorkItemChange,
   WorkItemComment,
@@ -303,6 +310,12 @@ export interface PullRequestRow {
   fix_attempts?: number;
   /** The head the failures were seen on */
   fix_head?: string | null;
+  /** A `ChangeRequestFixKind`; null reads as checks */
+  fix_kind?: string | null;
+  /** JSON array of the thread ids an address was started for */
+  fix_threads?: string | null;
+  /** JSON `{head, threadIds}` of the push the last address made; null when it made none */
+  address_pushed?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -315,17 +328,20 @@ const REF_PREFIX: Record<CodeHostId, string> = { github: '#', gitlab: '!' };
 
 const FIX_STATES: readonly ChangeRequestFixState[] = ['fixing', 'awaiting-verify', 'awaiting-push'];
 const FIX_ORIGINS: readonly ChangeRequestFixOrigin[] = ['person', 'decision'];
+const FIX_KINDS: readonly ChangeRequestFixKind[] = ['checks', 'review'];
 
 /** The fix columns as the contract carries them; a value this version does not know reads as none */
-export function fixOf(row: Pick<PullRequestRow, 'fix_state' | 'fix_origin' | 'fix_attempts' | 'fix_head'>): {
+export function fixOf(row: Pick<PullRequestRow, 'fix_state' | 'fix_origin' | 'fix_attempts' | 'fix_head' | 'fix_kind'>): {
   fixState: ChangeRequestFixState | null;
   fixOrigin: ChangeRequestFixOrigin | null;
+  fixKind: ChangeRequestFixKind;
   fixAttempts: number;
   fixHead: string | null;
 } {
   return {
     fixState: FIX_STATES.find((s) => s === row.fix_state) ?? null,
     fixOrigin: FIX_ORIGINS.find((o) => o === row.fix_origin) ?? null,
+    fixKind: FIX_KINDS.find((k) => k === row.fix_kind) ?? 'checks',
     fixAttempts: row.fix_attempts ?? 0,
     fixHead: row.fix_head ?? null,
   };
@@ -340,6 +356,85 @@ export interface ChangeRequestSnapshotRow {
   checks: string | null;
   rollup: string | null;
   fetched_at: string;
+}
+
+/** One note of the person's draft review; `suggestion` is 0 or 1 */
+export interface ReviewDraftRow {
+  id: string;
+  cr_id: string;
+  path: string | null;
+  side: string | null;
+  line: number | null;
+  start_line: number | null;
+  body: string;
+  suggestion: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** An attempt to post a review; `detail` is the JSON of `ReviewPost.detail` */
+export interface ReviewPostRow {
+  id: string;
+  cr_id: string;
+  marker: string;
+  event: string;
+  state: string;
+  remote_id: string | null;
+  detail: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+const REVIEW_EVENTS: readonly ReviewEvent[] = ['comment', 'approve', 'request-changes'];
+const REVIEW_POST_STATES: readonly ReviewPostState[] = ['posting', 'posted', 'partly', 'failed'];
+
+export function reviewDraftOf(row: ReviewDraftRow): ReviewDraft {
+  const side: ReviewSide | null = row.side === 'left' || row.side === 'right' ? row.side : null;
+  return {
+    id: row.id,
+    changeRequestId: row.cr_id,
+    path: row.path,
+    side,
+    line: row.line,
+    startLine: row.start_line,
+    body: row.body,
+    suggestion: row.suggestion !== 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** A post whose state this version does not know reads as failed, its event as comment, the lowest-stakes one */
+export function reviewPostOf(row: ReviewPostRow): ReviewPost {
+  let detail: ReviewPost['detail'] = null;
+  if (row.detail) {
+    try {
+      const parsed: unknown = JSON.parse(row.detail);
+      if (typeof parsed === 'object' && parsed !== null && 'code' in parsed && typeof parsed.code === 'string') {
+        const d = parsed as { code: string; detail?: unknown; saved?: unknown; total?: unknown; draftIds?: unknown };
+        detail = {
+          code: d.code as HostReason,
+          detail: typeof d.detail === 'string' ? d.detail : '',
+          ...(typeof d.saved === 'number' ? { saved: d.saved } : {}),
+          ...(typeof d.total === 'number' ? { total: d.total } : {}),
+          ...(Array.isArray(d.draftIds) ? { draftIds: d.draftIds.filter((id): id is string => typeof id === 'string') } : {}),
+        };
+      }
+    } catch {
+      // an unreadable detail reads as none
+    }
+  }
+  return {
+    id: row.id,
+    changeRequestId: row.cr_id,
+    marker: row.marker,
+    event: REVIEW_EVENTS.find((e) => e === row.event) ?? 'comment',
+    state: REVIEW_POST_STATES.find((s) => s === row.state) ?? 'failed',
+    remoteId: row.remote_id,
+    detail,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 /** A host this version does not know reads as github, which every row before hosts was */
@@ -378,5 +473,18 @@ export function pullRequestOf(row: PullRequestRow): WorkItemPullRequest {
     closedAt: row.closed_at,
     checkedAt: row.checked_at,
     ...fixOf(row),
+    addressed: addressedOf(row.address_pushed),
   };
+}
+
+/** The push an address made: the head it left and the threads it was handed; anything unreadable reads as none */
+export function addressedOf(stored: string | null | undefined): { head: string; threadIds: string[] } | null {
+  if (!stored) return null;
+  try {
+    const parsed = JSON.parse(stored) as { head?: unknown; threadIds?: unknown } | null;
+    if (!parsed || typeof parsed.head !== 'string' || !parsed.head || !Array.isArray(parsed.threadIds)) return null;
+    return { head: parsed.head, threadIds: parsed.threadIds.filter((id): id is string => typeof id === 'string') };
+  } catch {
+    return null;
+  }
 }

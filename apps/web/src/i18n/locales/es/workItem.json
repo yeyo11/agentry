@@ -96,7 +96,7 @@
     "from": "desde {{base}}",
     "counts": "{{additions}} líneas añadidas, {{deletions}} quitadas",
     "viewDiff": "Revisar los cambios",
-    "note": "Lo que cambió en el worktree de la tarea. Nada se fusiona ni abre una pull request solo:"
+    "note": "Lo que ha cambiado en el worktree de la tarea. Nada se fusiona ni abre una pull request solo:"
   },
   "activity": {
     "title": "Actividad",
@@ -342,5 +342,79 @@
     "readyBadge": "te espera",
     "approveWhy": "Aprobarla abre su {{noun}} hacia {{base}}.",
     "offerWhy": "Abrir su {{noun}} sube su rama y la propone a {{base}}."
+  },
+  "address": {
+    "strip": {
+      "why_one": "{{count}} hilo de la revisión espera respuesta",
+      "why_other": "{{count}} hilos de la revisión esperan respuesta",
+      "start": "Atender con un agente",
+      "choose": "Elegir qué atender"
+    },
+    "dialog": {
+      "title": "Atender con un agente los comentarios de la {{noun}} {{ref}}",
+      "titleUnnumbered": "Atender con un agente los comentarios de la {{noun}}",
+      "intro": "El desarrollador de la tarea recibe cada hilo elegido (el archivo, las líneas, el trozo del diff y todos sus comentarios con su autor) y hace el cambio que pidan. No sube nada por su cuenta.",
+      "threads": "Hilos sin resolver · {{count}}",
+      "suggested": "sugerido · review.triage",
+      "suggestedTitle": "Lo sugiere review.triage",
+      "onlyAgent": "Elegir solo los del agente",
+      "choose": "Elegir el hilo de {{where}}",
+      "chosen": "Elegido",
+      "general": "la {{noun}}",
+      "outdated": "desactualizado",
+      "by_one": "{{author}} · {{count}} comentario",
+      "by_other": "{{author}} · {{count}} comentarios",
+      "noAuthor": "alguien",
+      "capped": "Solo se listan los primeros {{max}} hilos sin resolver.",
+      "untrustedLead": "Los comentarios son de otras personas.",
+      "untrusted": "El desarrollador los pesa como peticiones, no como órdenes: hace lo que la tarjeta y el comentario acuerdan, y te dice cuáles ha atendido y cuáles no, y por qué.",
+      "push": "Como lo pides tú, el cambio se sube solo cuando QA lo dé por bueno. Mover la tarjeta antes retira ese permiso. No se responde ni se resuelve nada en la {{noun}}: eso lo haces tú después.",
+      "resolved_one": "{{count}} hilo resuelto: no se envía",
+      "resolved_other": "{{count}} hilos resueltos: no se envían",
+      "count": "{{n}} de {{total}} elegidos",
+      "cancel": "Cancelar",
+      "start_one": "Atender {{count}} comentario",
+      "start_other": "Atender {{count}} comentarios"
+    },
+    "triage": {
+      "agent": "agente",
+      "person": "persona",
+      "no-action": "sin acción"
+    },
+    "run": {
+      "label": "Comentarios en curso",
+      "stage": {
+        "fixing": "Un agente está atendiendo los comentarios",
+        "verifying": "QA está comprobando el cambio",
+        "push": "El cambio espera tu subida"
+      },
+      "hint": {
+        "person": "Lo has pedido tú: se sube cuando QA lo dé por bueno.",
+        "decision": "Lo ha pedido un punto de decisión: espera tu subida.",
+        "push": "Nada llega a la {{noun}} hasta que lo subas."
+      },
+      "waiting": "te espera",
+      "push": "Subir el arreglo"
+    },
+    "followUp": {
+      "label": "Comentarios atendidos",
+      "title_one": "{{count}} hilo espera tu respuesta",
+      "title_other": "{{count}} hilos esperan tu respuesta",
+      "sub": "El cambio está en {{sha}}. Agentry no responde ni resuelve nada por su cuenta.",
+      "replyText": "Atendido en {{sha}}",
+      "reply": "Responder «Atendido en {{sha}}»",
+      "resolve": "Resolver",
+      "replied": "respondido",
+      "replyAndResolve_one": "Responder y resolver {{count}} hilo",
+      "replyAndResolve_other": "Responder y resolver {{count}} hilos",
+      "published": "Respuesta que se publicará",
+      "dismiss": "Descartar"
+    },
+    "errors": {
+      "address": "No se han podido pasar los comentarios a un agente",
+      "reply": "No se ha podido publicar la respuesta",
+      "resolve": "No se ha podido resolver el hilo",
+      "push": "No se ha podido subir el arreglo"
+    }
   }
 }

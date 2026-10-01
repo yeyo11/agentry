@@ -130,7 +130,13 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
     const exposed = (err as { expose?: unknown }).expose === true;
     // A refusal a client acts on by its kind (why no pull request can be opened) names it as a code
     const reason = refusal && status < 500 ? (err as { reason?: unknown }).reason : undefined;
-    void reply.status(status).send({ error: status >= 500 && !exposed ? 'internal error' : err.message, ...(typeof reason === 'string' ? { code: reason } : {}) });
+    // A review that was only partly posted names its post, which the person publishes or discards
+    const postId = refusal && status < 500 ? (err as { postId?: unknown }).postId : undefined;
+    void reply.status(status).send({
+      error: status >= 500 && !exposed ? 'internal error' : err.message,
+      ...(typeof reason === 'string' ? { code: reason } : {}),
+      ...(typeof postId === 'string' ? { postId } : {}),
+    });
   });
 
   // Core has no logger of its own, and a push that cannot be delivered is a log line rather than

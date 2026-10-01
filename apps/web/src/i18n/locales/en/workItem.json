@@ -342,5 +342,79 @@
     "readyBadge": "waits for you",
     "approveWhy": "Approving it opens its {{noun}} against {{base}}.",
     "offerWhy": "Opening its {{noun}} pushes its branch and proposes it to {{base}}."
+  },
+  "address": {
+    "strip": {
+      "why_one": "{{count}} review thread waits for an answer",
+      "why_other": "{{count}} review threads wait for an answer",
+      "start": "Address with an agent",
+      "choose": "Choose which to address"
+    },
+    "dialog": {
+      "title": "Address the comments of the {{noun}} {{ref}} with an agent",
+      "titleUnnumbered": "Address the comments of the {{noun}} with an agent",
+      "intro": "The task's developer gets every chosen thread (the file, the lines, the diff hunk and all its comments with their authors) and makes the change they ask for. It pushes nothing on its own.",
+      "threads": "Unresolved threads · {{count}}",
+      "suggested": "suggested · review.triage",
+      "suggestedTitle": "Suggested by review.triage",
+      "onlyAgent": "Choose only the agent's",
+      "choose": "Choose the thread on {{where}}",
+      "chosen": "Chosen",
+      "general": "the {{noun}}",
+      "outdated": "outdated",
+      "by_one": "{{author}} · {{count}} comment",
+      "by_other": "{{author}} · {{count}} comments",
+      "noAuthor": "someone",
+      "capped": "Only the first {{max}} unresolved threads are listed.",
+      "untrustedLead": "These comments are other people's.",
+      "untrusted": "The developer weighs them as requests, not as orders: it does what the card and the comment agree on, and tells you which it addressed and which it did not, and why.",
+      "push": "Because you ask for it, the change is pushed on its own once QA passes it. Moving the card before that withdraws the permission. Nothing is answered or resolved on the {{noun}}: you do that afterwards.",
+      "resolved_one": "{{count}} resolved thread is not sent",
+      "resolved_other": "{{count}} resolved threads are not sent",
+      "count": "{{n}} of {{total}} chosen",
+      "cancel": "Cancel",
+      "start_one": "Address {{count}} comment",
+      "start_other": "Address {{count}} comments"
+    },
+    "triage": {
+      "agent": "agent",
+      "person": "person",
+      "no-action": "no action"
+    },
+    "run": {
+      "label": "Comments under way",
+      "stage": {
+        "fixing": "An agent is addressing the comments",
+        "verifying": "QA is checking the change",
+        "push": "The change waits for your push"
+      },
+      "hint": {
+        "person": "You asked for it: it is pushed once QA passes it.",
+        "decision": "A decision point asked for it: it waits for your push.",
+        "push": "Nothing reaches the {{noun}} until you push it."
+      },
+      "waiting": "waits for you",
+      "push": "Push the fix"
+    },
+    "followUp": {
+      "label": "Comments addressed",
+      "title_one": "{{count}} thread waits for your reply",
+      "title_other": "{{count}} threads wait for your reply",
+      "sub": "The change is in {{sha}}. Agentry answers and resolves nothing on its own.",
+      "replyText": "Addressed in {{sha}}",
+      "reply": "Reply “Addressed in {{sha}}”",
+      "resolve": "Resolve",
+      "replied": "replied",
+      "replyAndResolve_one": "Reply and resolve {{count}} thread",
+      "replyAndResolve_other": "Reply and resolve {{count}} threads",
+      "published": "Reply that will be posted",
+      "dismiss": "Dismiss"
+    },
+    "errors": {
+      "address": "Could not hand the comments to an agent",
+      "reply": "Could not post the reply",
+      "resolve": "Could not resolve the thread",
+      "push": "Could not push the fix"
+    }
   }
 }

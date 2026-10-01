@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-10-01T16:00:00Z
+updated_at: 2026-10-01T20:10:00Z
 tags:
     - plan
     - git
@@ -150,7 +150,7 @@ Capabilities are declared per host (`draft`, `autoMerge`, `mergeMethods`, `check
 ### 5. Reviews
 
 - **Read:** review threads appear on the item page and inside `DiffView`, on their lines.
-  **Address with an agent** hands the chosen threads (all unresolved, by default) to a run in the
+  **Address with an agent** hands the chosen threads (the person's choice, those `review.triage` marks for an agent first) to a run in the
   item's worktree, with each comment's file, lines and body, marked as other people's text.
 - **Write:** notes a person leaves in `DiffView` form a draft review, posted as one real review
   (comment, approve or request changes) through `gh api` / `glab api`. Threads can be answered and
@@ -1728,8 +1728,11 @@ review (notes on lines, suggestions) posted as one review; reply, resolve and un
   review's body carries the marker; recovery after a timeout looks for it (D12 list, D1 threads).
 - **Approve and request changes on GitHub** are not offered in Agentry
   ([decision 1](#decisions-for-the-owner): their success path was never recorded); the review bar
-  links them as "Open on GitHub". GitLab gets Comment and Approve (D9, recorded), hidden when the
-  viewer is the author; request changes is not offered (D10).
+  links them as "Open on GitHub". GitLab gets Comment and Approve (D9, recorded), offered while the
+  viewer has not approved: the recordings show GitLab letting an author approve their own merge
+  request on a project without approval rules, so being the author is not a reason to hide it (a
+  project whose rules forbid it refuses, and the host's reason is shown); request changes is not
+  offered (D10).
 - **Address with an agent** follows the fix path of phase 2 (`fix_state`, `fix_origin`,
   `awaiting-verify`, the same push rule), with `fix_kind = 'review'`. The prompt carries each chosen
   thread (path, lines, the diff hunk, every comment with its author) inside `<review-comment>`
@@ -1757,6 +1760,37 @@ failed, remote_id, detail, created_at, updated_at)`; `fix_kind TEXT` on both PR 
 `POST /change-requests/:id/approval`, `DELETE …/approval` (GitLab revoke);
 `POST /change-requests/:id/reviewers`; `POST /change-requests/:id/address` (`{threadIds}`). Chat
 tokens: 403 on every write.
+
+### Recorded by `r0` (2026-10-01)
+
+`r0` is done: 57 `glab` 1.120.0 calls on the GitLab probe project and 24 + 14 `gh` calls (2.102.0,
+2.92.0) on the GitHub probe repository. They are under `packages/core/test/fixtures/recordings/`,
+with [`r0-NOTES.md`](../../packages/core/test/fixtures/recordings/r0-NOTES.md). Where they disagree
+with the matrix, the recordings win:
+
+1. **A GitLab draft note on a line outside the diff is accepted** (`line_code: null`, exit 0) and
+   **vanishes on publish without an error** ("Published 4", three notes). So `review-partly-posted`
+   never fires on its own: Agentry checks every draft's line against the diff before creating it,
+   and counts the notes after publishing.
+2. **D4 and D8 on GitLab need `-H "Content-Type: application/json"`** with `--input -`; without it
+   GitLab answers 415 and stderr says only `glab: HTTP 415`.
+3. **GitHub's bad-line refusal** reads `errors: ["Line could not be resolved"]` (not
+   `pull_request_review_thread.line`); `line-not-in-diff` maps that text. The review stays all or
+   nothing.
+4. **A published GitLab general draft** (the review body) becomes a resolvable discussion with
+   `individual_note: false`, so D2's filter misses it; there is no review object, and recovery looks
+   for the marker in note bodies.
+5. **GitLab `--reviewer user` replaces the whole list**; adding is `+user`, removing `-user`. An
+   unknown user fails inside `glab` before any request. Requesting the author is accepted.
+6. **GitHub: an unknown reviewer login exits 0 and adds nobody**, so the re-read decides.
+7. **GitLab: `user_can_approve` stays `false` for the author** although the author's approval
+   succeeds (approving twice: 401; wrong `--sha`: 409; revoke works). Agentry does not use that
+   field to offer Approve.
+8. **GitHub: every reply creates its own COMMENTED review**, so the reviews list passes 100 and
+   needs `--paginate`.
+9. **GitLab returns every note of a discussion at once** (102 seen) and `per_page` counts
+   discussions: the 100-comment follow-up is GitHub's only. GitHub's `--paginate` follows the
+   threads cursor only; the follow-up starts from the first page's comments cursor.
 
 ### P0 · `reviews-prototypes`
 
@@ -1800,6 +1834,11 @@ Generator `reviews.py`.
 
 ### P2 · `reviews-web`, dependsOn P0 (validated) and P1
 
+P0 was validated on 2026-10-01 (by delegation) with the correction phase 2 also needed: a screen
+keeps at most two gradient surfaces (the top bar's split "New chat" counts once). On the item page,
+while the person has a draft review, **Submit review** is that zone's gradient action and the
+header's **Work on it** renders neutral, as it does while **Fix failing checks** shows.
+
 - `ru0` model (`lib/reviews.ts`, `api.ts`, events).
 - `ru1` threads in the diff: `components/changes/ReviewThreads.tsx`, `FileReview.tsx`,
   `changes.css` (tokens only), `i18n/locales/{en,es}/changes.json`.
@@ -1808,6 +1847,112 @@ Generator `reviews.py`.
 - `ru3` address dialog and triage marks: `pages/tasks/item/AddressReview.tsx`,
   `pages/tasks/item/PullRequest.tsx`.
 - `ru4` e2e: fakes' review scenarios, `e2e/specs/reviews.spec.mjs`. Written, not run.
+
+## Outcome of phase 3 (2026-10-01)
+
+Phase 3 is built on `feat/code-hosts-reviews`, in four steps:
+
+- **`r0`, by the owner's assistant.** The `gh` and `glab` review calls, recorded; where they
+  disagree with the matrix is in [Recorded by `r0`](#recorded-by-r0-2026-10-01).
+- **P0 `reviews-prototypes`** (3 tasks, 10.73 USD): threads in the diff, the review block on the
+  item page and Address with an agent. Validated with the same correction as phase 2: a screen keeps
+  at most two gradient surfaces, so while a draft review waits, "Submit review" is the zone's
+  gradient action and "Work on it" turns neutral.
+- **P1 `reviews-core`** (8 tasks, 14.42 USD, verification passed): the review types, both adapters'
+  threads, drafts, submit, approvals and reviewers, the store, `ReviewsService`, the address flow on
+  phase 2's fix states, the `review.triage` point, the routes and the docs.
+- **P2 `reviews-web`** (5 tasks, 20.92 USD, verification passed): the model, threads in the diff,
+  the draft review and its submit dialog, the address dialog with its triage marks, and an e2e spec
+  with fake scenarios.
+
+The e2e spec had never run. Running it, with `checks`, `merge-requests`, `integrations` and
+`changes-review` alone (the full suite is left to CI), found these, all fixed:
+
+- **The review block was built, tested and never rendered.** `Review.tsx` was mounted nowhere, and
+  its Address with an agent button waited for a prop nobody passed. The block now sits on the item
+  page under the PR's panel, and the threads row offers the dialog, as the validated prototype has it.
+- **The spec counted what the core does not.** An outdated thread is folded, so it is not an
+  unresolved one. The spec also read labels as written in the source, where the person reads them
+  uppercase, and counted the split "New chat" button as two gradient surfaces.
+- **The fake `glab` printed no project id** in `repo view`, which the real one does and every GitLab
+  call needs. The core resolves it once per host and project, as phase 2's checks do.
+- **The address dialog starts with nothing chosen** unless `review.triage` marks threads for an
+  agent, which is what the validated prototype shows ("0 of 5 chosen", then "3 of 5"). This plan had
+  said "all unresolved, by default"; it now says the person chooses. The spec chooses before it sends.
+- **The test wrapper of the item page had no `ConfirmProvider`**, which the review block needs and
+  the app provides at its root.
+
+An independent audit then found pieces built and tested but reachable from nothing. The core, API
+and shared-type ones are fixed:
+
+- **`review.triage` was never asked.** Reading a change request's threads now asks it in the
+  background, once per set of open threads, and the answer is in the decision history under the
+  change request's id, where the dialog reads it. It still ships off.
+- **The head the person looked at is part of a submit** (`headSha`): the review is posted on it, an
+  approval is given on it, and a head that moved is `head-moved` before anything is posted. Before,
+  GitLab approved on the head read at that moment, so the guard could never fire.
+- **A partly posted review survives a reload**: `GET /change-requests/:id/review-posts` reads the
+  posts back with what is still saved on the host.
+- **The chosen threads of an address are stored** (`fix_threads`), so a restart rebuilds the same
+  prompt; an empty list is nothing, never every unresolved thread.
+- **Discard saved deletes only what Agentry saved** (the recorded draft note ids and the note with
+  the post's marker), as D12 says, not every draft note of the viewer.
+- **Publish saved only publishes Agentry's notes.** `glab mr note publish -y` sends every draft note
+  of the viewer and cannot pick, so the route is refused with `pending-review-exists` while a draft
+  Agentry did not save is waiting; the person's own drafts are never published. A publish that sends
+  fewer notes than were saved drops the rows of the notes that went out and keeps the others, so
+  Discard saved then Submit never posts a note twice.
+- **One rule for unresolved**: not resolved and not outdated, in one function
+  (`unresolvedThreads`) shared by `review.triage`, an address with no ids and the dialog's count.
+- **`review.triage` has its own subject kind** (`change_request`), so its rows no longer fill the
+  `work_item` window the decision marks read.
+- **Approve on GitLab is not hidden for the author**: the recordings show the host allowing it, so
+  the rule is `!viewerHasApproved` and the sentence above changed, not the code.
+
+The second audit's item-page and diff fixes:
+
+- **"Addressed in <sha>" is the core's word, not the browser's.** The push of an address of review
+  comments records the head it left and the thread ids it was handed (`address_pushed`, served as
+  `addressed` on a work item's change request); a fix that is dropped, or another one starting,
+  clears it. The page offers the reply only from that record. The browser's own memory of the head,
+  which a card taken over and then pushed by someone else could fake, is gone. A dismissal of the
+  follow-up lasts for the tab only.
+- **A submit is posted on the head the notes were written on.** The draft row and the submit request
+  carry no head per note, so the tab pins each note it writes to the commit the diff showed, and the
+  submit sends the first of those that is not the current head: notes written at A with the head at B
+  are refused with `head-moved`, never posted on B. The refusal no longer needs a reload: the sheet
+  stays open, reads the head again, says in words which commit it moved from and to, and the next
+  Send posts on the new one. A note the tab does not know (after a reload) is read on the head the
+  page last looked at.
+- **A note is offered only where the page can send it.** The draft review is submitted from the
+  item's own page, so the diff of an orchestration's integration branch reads its threads and offers
+  no note. The review block is not mounted on the orchestration page: its address has no screen in
+  the validated prototypes.
+- **The Address button hides while a fix is under way**, under the same condition as the strip.
+
+- Not part of that slice and still open: nothing in `index.ts` hands `PullRequestService` an
+  `onChecksFailing` hook, so `checks.fix` (phase 2) is never asked either.
+
+Two audits by an independent reviewer, each followed by an orchestration, found what no check
+had: parts that were built and tested but reached no screen, and gaps in what was wired.
+
+- **`reviews-wire`** (4 tasks, 14.94 USD): the threads were never drawn in the diff (nothing passed
+  `FileReview` its change request), no draft note could be made from the UI (`ReviewComposer` was
+  mounted nowhere), `review.triage` was never asked, the GitLab approve sent no head so its guard
+  could not fire, a review fix was shown as a checks fix, a partly posted review lived in a tab
+  and was lost on reload, the chosen thread ids lived in memory so a restart handed over
+  everything, and "Discard saved" removed every draft of the viewer. All fixed, with a migration
+  appended last for the chosen ids.
+- **`reviews-polish`** (3 tasks, 9.97 USD): "Publish saved" and "Discard saved" touch only the notes
+  Agentry saved; a partly posted review drops the rows of what went out, so Submit again does not
+  duplicate; one rule for "unresolved" in the core, the web and the dialog; `review.triage` records
+  have their own subject; the "Addressed in" follow-up rests on the core's record of the finished
+  address, not on a head the browser saw change; the head guard follows what the person reviewed
+  and a refusal does not lock the sheet; a note is offered only where the page can send the review
+  (the item's changes page); and the e2e spec's checks can fail for the reason they state (the fake
+  host's head moves, and the real GitLab partly path runs).
+
+The five orchestrations of the phase (prototypes, core, web, wire, polish) cost 70.98 USD in all.
 
 ## Phase 4: merging
 

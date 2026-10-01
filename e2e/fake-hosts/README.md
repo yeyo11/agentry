@@ -23,7 +23,9 @@ restarting anything:
 | `ci` | `none` | The CI of `view`: `none`, `pending`, `passing` or `failing` |
 | `state` | `open` | The state of `view`: `open`, `merged` or `closed` |
 | `checks` | `none` | gh only: the head commit's checks, `none`, `failing`, `running`, `mixed` or `fixed` |
-| `headSha` | a fixed sha | gh only: the head commit the change request reports |
+| `headSha` | a fixed sha | The head commit the change request reports (gh's GraphQL read, glab's `mr view`): a spec moves it between what the person looked at and what is read later |
+| `draftFailAfter` | unset | glab only: the draft note call after the N-th one saved fails (exit 1), so a review stops half way with notes still saved |
+| `publishLimit` | unset | glab only: `mr note publish` makes discussions of the first N drafts and drops the rest, exit 0, as a note the host cannot place is dropped |
 
 The checks scenarios answer the change request routes: the GraphQL read (`gh api -i … graphql`), the
 check runs and statuses of the head, a job's log (ANSI colour, a group marker and an `##[error]`
@@ -31,6 +33,31 @@ line, as a runner prints it), the annotations, and the branch rules. `run rerun`
 the scenario (to `running` and `failing`) through `gh.checks`, which wins over the JSON until a spec
 removes it. `failing` has one failed check, `running` one running and one queued, `mixed` a failed,
 a running, a skipped and another app's check, and `fixed` has all passed.
+
+The review scenarios answer the review routes of a change request. `reviews` is `none` (the default: no
+threads, no reviewers), `threads` or `changes`; both give three threads, one open with a suggestion on
+`src/cart.ts` line 12, one resolved on `README.md`, one outdated whose text tries HTML, plus a
+reviewer who commented (or asked for changes) and one still asked. On gh they are GraphQL nodes
+(`PRRT_kwDOe2e0001` to `0003`), on glab discussions (`111…1`, `222…2`, `333…3`, the third left on
+another commit). `pendingReview: true` makes gh list a pending review of the person's own, which
+stops a post. What a spec does moves the scenario, kept beside the JSON: `<name>.threadstate` (resolve
+and reopen), `<name>.replies`, `<name>.requested` (reviewers asked for: gh refuses the signed-in user
+with the author's 422, and a login that starts with `ghost` exits 0 and adds nobody), `gh.review-<n>`
+(the body of the n-th review posted, `gh.reviews-posted` counts them) and `glab.approved` (the
+approval, moved by `mr approve` and `mr revoke`). glab's draft notes are kept in `glab.drafts` (`<id> <the JSON the CLI was given>` per line, ids from
+7001, `glab.draftseq` and `glab.draftposts` count): a POST saves one, a GET lists them, a DELETE takes
+one off, and `mr note publish` turns every draft there is into a discussion (kept in `glab.published`
+and listed ahead of the scenario's own) and empties the list. A draft of the person's own, which Agentry
+never saved, is a line a spec appends there (`9001 {"note":"..."}`): it is listed and published like
+any other, which is what the publish rule is checked against.
+
+A review that stops half way is made through the real GitLab path, not stored: `draftFailAfter` or
+`publishLimit` make the post stop with some notes saved or some dropped. GitHub never leaves a
+partly posted review (it is one request), so nothing here makes gh do it; `pendingReview: true` only
+makes gh list a pending review of the person's own, which stops a post. The thread cards in the item's
+changes page need a branch: the spec commits `task/<key>` with
+`src/cart.ts` rewritten on lines 12 to 14, where the threads sit. `review.triage` is answered by the
+fake CLI (`e2e/fake-cli`), not by this fake: it marks the first thread `agent`.
 
 Beside the JSON, in the same directory: `<name>.calls` (one line per call, the arguments joined by
 spaces), `<name>.body-<n>` (the description a create was given on stdin) and `<name>.created` (the

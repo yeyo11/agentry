@@ -1,0 +1,145 @@
+{
+  "title": "Revisión",
+  "sub": "{{noun}} {{ref}}",
+  "loading": "Leyendo la revisión…",
+  "failed": "Agentry no ha podido leer la revisión de {{host}}.",
+  "retry": "Reintentar",
+  "row": {
+    "decision": "Decisión",
+    "reviewers": "Revisores",
+    "threads": "Hilos",
+    "approval": "Tu aprobación"
+  },
+  "decision": {
+    "approved": "aprobada",
+    "changes-requested": "cambios pedidos",
+    "review-required": "revisión necesaria",
+    "none": "sin regla de revisión"
+  },
+  "reviewer": {
+    "approved": "ha aprobado",
+    "changes-requested": "ha pedido cambios",
+    "commented": "ha comentado",
+    "requested": "pendiente"
+  },
+  "approvals": "{{given}} de {{required}} aprobaciones",
+  "noReviewers": "Todavía no se ha pedido a nadie.",
+  "request": {
+    "action": "Pedir revisión",
+    "title": "Pedir revisión",
+    "intro": "Escribe los usuarios a quienes pedírsela, separados por espacios o comas. Quienes ya están en la lista se quedan como están.",
+    "label": "Usuarios",
+    "placeholder": "marta.ruiz dani.lopez",
+    "send": "Pedir revisión",
+    "cancel": "Cancelar",
+    "failed": "No se ha podido pedir la revisión",
+    "nobody": "No se ha añadido a nadie. Comprueba que el usuario existe en {{host}}."
+  },
+  "threads": {
+    "unresolved_one": "{{count}} sin resolver",
+    "unresolved_other": "{{count}} sin resolver",
+    "allResolved": "todo resuelto",
+    "none": "sin hilos",
+    "resolved_one": "{{count}} resuelto",
+    "resolved_other": "{{count}} resueltos",
+    "view": "Ver en los cambios"
+  },
+  "approve": {
+    "mine": "aprobada",
+    "commit": "commit {{sha}}",
+    "revoke": "Revocar mi aprobación",
+    "revoked": "Aprobación revocada",
+    "failed": "No se ha podido revocar la aprobación"
+  },
+  "draft": {
+    "title": "Tu revisión",
+    "badge": "borrador",
+    "partlyBadge": "envío a medias",
+    "comments_one": "{{count}} comentario",
+    "comments_other": "{{count}} comentarios",
+    "suggestions_one": "{{count}} sugerencia",
+    "suggestions_other": "{{count}} sugerencias",
+    "empty": "Todavía no hay comentarios. Pulsa en una línea de los cambios para dejar uno; se envían todos juntos, como una sola revisión.",
+    "general": "Sobre toda la {{noun}}",
+    "suggestion": "sugerencia",
+    "discard": "Descartar",
+    "discardTitle": "¿Descartar tu revisión en borrador?",
+    "discardBody_one": "Se eliminará la {{count}} nota. No se ha enviado nada.",
+    "discardBody_other": "Se eliminarán las {{count}} notas. No se ha enviado nada.",
+    "discardConfirm": "Descartar el borrador",
+    "submit": "Enviar revisión",
+    "sending": "Enviando",
+    "remove": "Quitar la nota de {{where}}",
+    "viewChanges": "Ver los cambios",
+    "failed": {
+      "discard": "No se ha podido descartar el borrador",
+      "remove": "No se ha podido quitar la nota"
+    }
+  },
+  "host": {
+    "githubOnly": "Aprobar o pedir cambios se hace en GitHub.",
+    "open": "Abrir en GitHub",
+    "own": "{{host}} no deja aprobar ni pedir cambios en tu propia {{noun}}. Puedes comentar y pedir la revisión de otras personas.",
+    "pending": "Tienes una revisión en {{host}} sin enviar. Envíala o descártala allí primero.",
+    "pendingOpen": "Abrir en {{host}}"
+  },
+  "partly": {
+    "text": "Algunos comentarios se han guardado como borradores en {{host}} y el envío de la {{noun}} se ha detenido.",
+    "publish": "Publicar los guardados",
+    "discard": "Descartar los guardados",
+    "published": "Se han publicado los comentarios guardados",
+    "discarded": "Se han descartado los comentarios guardados; tu borrador sigue aquí",
+    "failedPublish": "No se han podido publicar los comentarios guardados",
+    "failedDiscard": "No se han podido descartar los comentarios guardados",
+    "onHost_one": "{{count}} comentario guardado sigue esperando en {{host}}.",
+    "onHost_other": "{{count}} comentarios guardados siguen esperando en {{host}}.",
+    "gone": "No queda nada guardado en {{host}}: descarta para volver a enviar."
+  },
+  "submit": {
+    "title": "Enviar tu revisión",
+    "sub": "{{ref}} · {{sha}}",
+    "how": "Cómo se envía",
+    "comment": "Comentar",
+    "approve": "Comentar y aprobar",
+    "commentHelp": "Comentar publica los comentarios a la vez.",
+    "approveHelp": "Aprobar, además, aprueba el commit {{sha}}: si llegan commits nuevos antes, GitLab lo rechaza.",
+    "summary": "Resumen (opcional)",
+    "summaryPlaceholder": "Qué opinas de la {{noun}} en conjunto",
+    "goes": "Se envía con {{summary}}",
+    "nothing": "No hay notas que enviar: escribe un resumen o aprueba.",
+    "cancel": "Cancelar",
+    "send": "Enviar revisión",
+    "sending": "Enviando",
+    "sent": "Revisión enviada",
+    "failed": "No se ha podido enviar la revisión",
+    "reason": {
+      "own-change-request": "{{host}} no deja revisar tu propia {{noun}}.",
+      "pending-review-exists": "Ya tienes una revisión en {{host}} sin enviar.",
+      "line-not-in-diff": "Una nota está en una línea que no forma parte de los cambios de la {{noun}}: {{detail}}",
+      "review-partly-posted": "El envío se ha detenido a medias.",
+      "write-unconfirmed": "{{host}} no ha confirmado la revisión. Mira la {{noun}} antes de volver a enviarla.",
+      "head-moved": "Han llegado commits nuevos. Recarga la página y revísalos primero."
+    },
+    "moved": {
+      "text": "La {{noun}} ha pasado de {{from}} a {{to}} después de que escribieras estas notas. Si envías ahora, se publican sobre {{to}}: antes, lee lo que ha cambiado si no lo has hecho.",
+      "unknown": "La {{noun}} tiene commits nuevos desde que escribiste estas notas y no se ha podido leer su estado actual. Recarga la página y revísalos primero."
+    }
+  },
+  "composer": {
+    "new": "Nota nueva",
+    "edit": "Editar la nota",
+    "label": "Nota",
+    "placeholder": "¿Qué cambiarías?",
+    "suggest": "Sugerir un cambio",
+    "suggestion": "Sugerencia",
+    "replaces": "sustituye la línea {{line}}",
+    "replacesRange": "sustituye las líneas {{from}}–{{to}}",
+    "replacement": "Las líneas que la sustituyen",
+    "private": "Solo la ves tú hasta que envíes la revisión.",
+    "add": "Añadir a la revisión",
+    "save": "Guardar la nota",
+    "cancel": "Cancelar",
+    "failed": "No se ha podido guardar la nota",
+    "close": "Cerrar la nota"
+  }
+}

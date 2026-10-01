@@ -1,0 +1,515 @@
+/* ==========================================================================
+   The review of a change request: the block on a work item's page (pages/tasks/item/Review.tsx)
+   with the person's draft review and its submit sheet, and the note composer on a line of the diff
+   (components/changes/ReviewComposer.tsx). Reference: DesktopTareaRevision, DesktopTareaRevisionEnvio,
+   DesktopTareaRevisionEstados, DesktopRevisionHilosNota, their phone versions, and `.rv-*` in
+   agentry-ds.css.
+
+   A status is a badge with its word. Nothing here is live except the ring of a send in progress.
+   The draft's "Submit review" is the zone's one gradient action; the composer's border is the
+   hairline gradient of what the screen is about.
+   ========================================================================== */
+
+.rv {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.rv-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.rv-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rv-title h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.rv-sub,
+.rv-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.rv-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.rv-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.rv-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-1);
+  overflow: hidden;
+}
+
+.rv-row {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 14px;
+  min-height: 52px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+}
+
+.rv-row:first-child {
+  border-top: 0;
+}
+
+.rv-v {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.rv-side {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.rv-person {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 0 6px 0 4px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-pill);
+  background: var(--bg-2);
+  color: var(--fg);
+}
+
+.rv-person .name {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.rv-mono {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+}
+
+.rv-quiet {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-1);
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.rv-quiet.warn > svg {
+  color: var(--warn);
+}
+
+/* ---- the draft review ---- */
+
+.rv-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+  min-width: 0;
+}
+
+.rv-draft-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 14px;
+  color: var(--fg);
+}
+
+.rv-draft-head b {
+  font-weight: 500;
+}
+
+.rv-ico {
+  color: var(--fg-3);
+}
+
+.rv-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.rv-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+}
+
+.rv-note:first-child {
+  border-top: 0;
+}
+
+.rv-where {
+  flex: 1 1 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.rv-where .l {
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.rv-note-remove {
+  margin: -4px -6px -4px 0;
+}
+
+/* The note is somebody's text: shown as text, wrapped and never read as markup */
+.rv-text {
+  flex: 1 1 100%;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--fg-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.rv-text.is-code {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.badge-suggest {
+  --tone: var(--accent);
+  --tone-soft: var(--accent-soft);
+  border-color: transparent;
+}
+
+.rv-empty {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 12px;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.rv-empty p {
+  margin: 0;
+  max-width: 62ch;
+  line-height: 1.5;
+}
+
+.rv-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.rv-open {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.rv-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+
+.rv-callout > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--fg-3);
+}
+
+.rv-callout.warn {
+  border-color: var(--warn-soft);
+  background: var(--warn-soft);
+}
+
+.rv-callout.warn > svg {
+  color: var(--warn);
+}
+
+.rv-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-size: 12.5px;
+}
+
+/* ---- the submit sheet ---- */
+
+.rv-submit {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.rv-submit p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.rv-field,
+.rv-goes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rv-dialog-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rv-dialog-title b {
+  font-weight: 600;
+}
+
+.rv-dialog-title .mono {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--fg-3);
+}
+
+.rv-sheet-foot {
+  display: flex;
+  gap: 8px;
+}
+
+.rv-sheet-foot .btn {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+.rv-send .spinner-ring {
+  margin-right: 2px;
+}
+
+/* ---- the note composer under a line of the diff ---- */
+
+.rc {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: 8px 0;
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+}
+
+.rc-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 0;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.rc-where {
+  font-family: var(--mono);
+  color: var(--fg-2);
+  overflow-wrap: anywhere;
+}
+
+.rc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 14px;
+  min-width: 0;
+}
+
+.rc-note,
+.rc-code {
+  width: 100%;
+  resize: vertical;
+}
+
+.rc-code {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.rc-suggest {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.rc-suggest-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.rc-suggest .rc-code {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.rc-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.rc-private {
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.rc-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 14px 12px;
+}
+
+.rc-foot.is-sheet {
+  padding: 0;
+}
+
+.rc-foot.is-sheet .btn {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+/* ---- a phone: rows stack, buttons are 44 px, the draft's buttons stack with the primary last ---- */
+
+@media (max-width: 900px) {
+  .rv-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 12px 14px;
+  }
+
+  .rv-side {
+    justify-content: flex-start;
+  }
+
+  .rv-side .btn,
+  .rv-foot .btn,
+  .rv-open .btn,
+  .rv-empty .btn,
+  .rc-tools .btn {
+    min-height: var(--touch);
+    justify-content: center;
+  }
+
+  .rv-side .btn {
+    flex: 1 1 auto;
+  }
+
+  .rv-note-remove {
+    width: var(--touch);
+    height: var(--touch);
+  }
+
+  .rv-foot {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .rv-open {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rv-submit textarea,
+  .rv-submit input,
+  .rv .rc textarea,
+  .rc-body textarea,
+  .field-label + input,
+  .form input {
+    font-size: 16px;
+  }
+
+  .rv-sheet-foot .btn,
+  .rc-foot.is-sheet .btn {
+    min-height: var(--touch);
+  }
+}

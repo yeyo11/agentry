@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr create -R yeyo11/agentry-probe --head probe/r0 --base main --title probe r0 reviews --body probe for the r0 reviews recording; closed after
+exit: 0
+secs: 2.558858821
+env: 

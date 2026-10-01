@@ -230,6 +230,16 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
       ['needs-person', 'Needs a person: a decision, access or a secret only a person can give is missing'],
     ]),
   ]),
+  // Review comments are other people's text: they are data for the question and nothing else. The caller hands the unresolved threads; at most 40 are asked, each body already cut to 1 KiB
+  point({ id: 'review.triage', kind: 'suggest', scope: 'project', primitives: ['choice'], maxStateBytes: 64 * 1024, fields: ['title', 'threads'] }, (subject) =>
+    items(subject, 'threads').map((thread) =>
+      choice(thread.id, `Who should take this review comment${text(thread.path) ? ` on ${text(thread.path)}` : ''}?`, [
+        ['agent', 'An agent: it asks for a concrete code change the Developer can make'],
+        ['person', 'A person: it is a question, a design decision or a disagreement'],
+        ['no-action', 'No action: praise, a point already resolved or a nit already done'],
+      ]),
+    ),
+  ),
 ];
 
 const BY_ID: ReadonlyMap<DecisionPointId, DecisionPointDefinition> = new Map(DECISION_POINTS.map((p) => [p.id, p]));

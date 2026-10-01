@@ -114,6 +114,7 @@
       "healthTestWeakening": "Avisar de tests debilitados",
       "changesUnexplainedHunk": "Marcar cambios sin explicar en la revisión",
       "checksFix": "Decidir si arreglar los checks fallidos de una rama",
+      "reviewTriage": "Sugerir quién atiende cada comentario de revisión",
       "notificationUrgency": "Elegir la urgencia de cada aviso",
       "paletteIntent": "Interpretar lo que escribes en la paleta"
     },
@@ -304,6 +305,7 @@
       "healthTestWeakening": "Marcó un test debilitado",
       "changesUnexplainedHunk": "Marcó un cambio sin explicar",
       "checksFix": "Decidió si arreglar los checks",
+      "reviewTriage": "Sugirió quién atiende cada comentario",
       "notificationUrgency": "Fijó la urgencia",
       "paletteIntent": "Eligió el comando"
     }

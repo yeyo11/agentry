@@ -1,0 +1,6 @@
+# reviews-gitlab-reviewers
+glab mr update 12 --reviewer=+yeyo11 -R https://gitlab.com/yeyo11/agentry
+glab mr view 12 -R https://gitlab.com/yeyo11/agentry -F json
+glab api --hostname gitlab.com --paginate --output ndjson projects/87089091/merge_requests/12/discussions?per_page=100
+glab api --hostname gitlab.com projects/87089091/merge_requests/12/reviewers
+glab api --hostname gitlab.com projects/87089091/merge_requests/12/approvals

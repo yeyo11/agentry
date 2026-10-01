@@ -12,8 +12,10 @@ import { ICON_SM } from '@agentry/ui/components/icons';
 import { ErrorBox, Segmented, Skeleton, Tag } from '@agentry/ui/components/ui';
 import { ScrollingBlockRail } from './BlockRail';
 import { DiffView } from './DiffView';
+import { DraftsChip, useDraftNotes } from './DraftNotes';
 import { Counts } from './FileMap';
 import { Intent } from './Intent';
+import { FileThreadsFold, ThreadsChip, threadLayer, useFileThreads, useReviewThreads } from './ReviewThreads';
 import { hourMinute, reviewKey, scopeQuery, splitPath, type ReviewScope } from './review-model';
 import { LIVE_REFRESH_MS, type ReviewSource } from './source';
 import { plainIntent } from './steps/steps-model';
@@ -66,6 +68,7 @@ export function FileReview({
   back,
   refs,
   paneLabel,
+  review,
 }: {
   source: ReviewSource;
   file: ChangedFile;
@@ -89,6 +92,13 @@ export function FileReview({
   back?: string;
   refs?: { before?: string; after?: string };
   paneLabel?: string;
+  /**
+   * The change request this diff belongs to: its threads are drawn on their lines and its file-level
+   * ones above the diff, and a line offers a note for the draft review. Absent where the source has no
+   * change request (a chat, a task), and then nothing of the review is drawn or offered. `notes` is whether
+   * the page can send the draft review: where it cannot, threads are read and no note is offered.
+   */
+  review?: { changeRequestId: string; notes: boolean };
 }) {
   const { t, i18n } = useTranslation('changes');
   const live = source.live;
@@ -129,6 +139,13 @@ export function FileReview({
   useEffect(() => {
     if (hash) onHashRef.current(hash);
   }, [hash]);
+
+  // ---- the review's threads on this file ----
+  const threadsQ = useReviewThreads(review?.changeRequestId);
+  const mine = useFileThreads(threadsQ.data, file.path);
+  const notes = useDraftNotes({ changeRequestId: review?.notes ? review.changeRequestId : undefined, path: file.path, diff: shown, head: threadsQ.data?.headSha });
+  // The layer follows the notes' state (the composer, the drafts), so it is built on every render
+  const layer = review ? threadLayer({ changeRequestId: review.changeRequestId, file: mine.file, phone, extra: notes.extra, onAddNote: notes.onAddNote }) : undefined;
 
   // ---- blocks ----
   const marks = useMemo(() => (shown ? blockStarts(shown) : []), [shown]);
@@ -278,6 +295,7 @@ export function FileReview({
         <div className="changes-diff-scroll" ref={scrollRef} data-scroll-root>
           {tooBig && <p className="changes-diff-note">{t('blocksOnly')}</p>}
           <div className="changes-diff-content" ref={contentRef}>
+            {review && mine.file && <FileThreadsFold changeRequestId={review.changeRequestId} file={mine.file} phone={phone} />}
             <DiffView
               diff={shown}
               mode={mode}
@@ -289,6 +307,7 @@ export function FileReview({
               currentBlock={current}
               refs={refs}
               scrollRef={scrollRef}
+              layer={layer}
             />
           </div>
         </div>
@@ -323,6 +342,12 @@ export function FileReview({
           {seenChip}
           <MoreActions entries={menu} label={t('more.label')} />
         </header>
+        {(mine.threads.length > 0 || notes.count > 0) && (
+          <div className="changes-phone-modes">
+            <ThreadsChip threads={mine.threads} />
+            <DraftsChip count={notes.count} />
+          </div>
+        )}
         {textual && (
           <div className="changes-phone-modes">
             <Segmented value={mode} options={modes.map((m) => ({ value: m, label: t(`mode.${m}`) }))} onChange={onMode} label={t('mode.label')} />
@@ -370,6 +395,8 @@ export function FileReview({
           </span>
         )}
         {!file.binary && <Counts additions={file.additions} deletions={file.deletions} />}
+        <ThreadsChip threads={mine.threads} />
+        <DraftsChip count={notes.count} />
         {textual && (
           <>
             <span className="changes-sep" aria-hidden />

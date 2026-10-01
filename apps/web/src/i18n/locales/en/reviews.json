@@ -1,0 +1,145 @@
+{
+  "title": "Review",
+  "sub": "{{noun}} {{ref}}",
+  "loading": "Reading the review…",
+  "failed": "Agentry could not read the review from {{host}}.",
+  "retry": "Try again",
+  "row": {
+    "decision": "Decision",
+    "reviewers": "Reviewers",
+    "threads": "Threads",
+    "approval": "Your approval"
+  },
+  "decision": {
+    "approved": "approved",
+    "changes-requested": "changes requested",
+    "review-required": "review required",
+    "none": "no review rule"
+  },
+  "reviewer": {
+    "approved": "approved",
+    "changes-requested": "asked for changes",
+    "commented": "commented",
+    "requested": "pending"
+  },
+  "approvals": "{{given}} of {{required}} approvals",
+  "noReviewers": "Nobody has been asked yet.",
+  "request": {
+    "action": "Ask for a review",
+    "title": "Ask for a review",
+    "intro": "Type the logins of the people to ask, separated by spaces or commas. People already on the list are left as they are.",
+    "label": "Logins",
+    "placeholder": "marta.ruiz dani.lopez",
+    "send": "Ask for a review",
+    "cancel": "Cancel",
+    "failed": "Could not ask for the review",
+    "nobody": "Nobody was added. Check that the login exists on {{host}}."
+  },
+  "threads": {
+    "unresolved_one": "{{count}} unresolved",
+    "unresolved_other": "{{count}} unresolved",
+    "allResolved": "all resolved",
+    "none": "no threads",
+    "resolved_one": "{{count}} resolved",
+    "resolved_other": "{{count}} resolved",
+    "view": "View in the changes"
+  },
+  "approve": {
+    "mine": "approved",
+    "commit": "commit {{sha}}",
+    "revoke": "Revoke my approval",
+    "revoked": "Approval revoked",
+    "failed": "Could not revoke the approval"
+  },
+  "draft": {
+    "title": "Your review",
+    "badge": "draft",
+    "partlyBadge": "partly sent",
+    "comments_one": "{{count}} comment",
+    "comments_other": "{{count}} comments",
+    "suggestions_one": "{{count}} suggestion",
+    "suggestions_other": "{{count}} suggestions",
+    "empty": "No comments yet. Press a line in the changes to leave one; they are all sent together, as a single review.",
+    "general": "On the whole {{noun}}",
+    "suggestion": "suggestion",
+    "discard": "Discard",
+    "discardTitle": "Discard your draft review?",
+    "discardBody_one": "The {{count}} note will be deleted. Nothing has been sent.",
+    "discardBody_other": "The {{count}} notes will be deleted. Nothing has been sent.",
+    "discardConfirm": "Discard the draft",
+    "submit": "Submit review",
+    "sending": "Sending",
+    "remove": "Remove the note on {{where}}",
+    "viewChanges": "View the changes",
+    "failed": {
+      "discard": "Could not discard the draft",
+      "remove": "Could not remove the note"
+    }
+  },
+  "host": {
+    "githubOnly": "Approving or asking for changes is done on GitHub.",
+    "open": "Open on GitHub",
+    "own": "{{host}} does not let you approve or ask for changes on your own {{noun}}. You can comment and ask others for a review.",
+    "pending": "You have a review on {{host}} that is not sent. Send it or discard it there first.",
+    "pendingOpen": "Open on {{host}}"
+  },
+  "partly": {
+    "text": "Some comments were saved as drafts on {{host}} and the sending of the {{noun}} stopped.",
+    "publish": "Publish the saved",
+    "discard": "Discard the saved",
+    "published": "The saved comments were published",
+    "discarded": "The saved comments were discarded; your draft is still here",
+    "failedPublish": "Could not publish the saved comments",
+    "failedDiscard": "Could not discard the saved comments",
+    "onHost_one": "{{count}} saved comment still waits on {{host}}.",
+    "onHost_other": "{{count}} saved comments still wait on {{host}}.",
+    "gone": "Nothing saved is left on {{host}}: discard to send again."
+  },
+  "submit": {
+    "title": "Submit your review",
+    "sub": "{{ref}} · {{sha}}",
+    "how": "How it is sent",
+    "comment": "Comment",
+    "approve": "Comment and approve",
+    "commentHelp": "Comment sends all the comments at once.",
+    "approveHelp": "Approve also approves commit {{sha}}: if new commits arrive first, GitLab refuses it.",
+    "summary": "Summary (optional)",
+    "summaryPlaceholder": "What you think of the {{noun}} as a whole",
+    "goes": "Goes with {{summary}}",
+    "nothing": "There are no notes to send: write a summary, or approve.",
+    "cancel": "Cancel",
+    "send": "Submit review",
+    "sending": "Sending",
+    "sent": "Review sent",
+    "failed": "Could not send the review",
+    "reason": {
+      "own-change-request": "{{host}} does not let you review your own {{noun}}.",
+      "pending-review-exists": "You already have a review on {{host}} that is not sent.",
+      "line-not-in-diff": "A note is on a line that is not in the {{noun}}'s changes: {{detail}}",
+      "review-partly-posted": "The sending stopped half way.",
+      "write-unconfirmed": "{{host}} did not confirm the review. Look at the {{noun}} before sending it again.",
+      "head-moved": "New commits arrived. Reload the page and check them first."
+    },
+    "moved": {
+      "text": "The {{noun}} moved from {{from}} to {{to}} after you wrote these notes. Sending now posts them on {{to}}: read what changed first if you have not.",
+      "unknown": "The {{noun}} has new commits after you wrote these notes, and its head could not be read now. Reload the page and check them first."
+    }
+  },
+  "composer": {
+    "new": "New note",
+    "edit": "Edit note",
+    "label": "Note",
+    "placeholder": "What would you change?",
+    "suggest": "Suggest a change",
+    "suggestion": "Suggestion",
+    "replaces": "replaces line {{line}}",
+    "replacesRange": "replaces lines {{from}}–{{to}}",
+    "replacement": "The lines that replace it",
+    "private": "Only you see it until you submit the review.",
+    "add": "Add to the review",
+    "save": "Save the note",
+    "cancel": "Cancel",
+    "failed": "Could not save the note",
+    "close": "Close the note"
+  }
+}

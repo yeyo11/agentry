@@ -22,6 +22,11 @@ export interface ReviewSource {
   back: { to: string; label: string };
   /** The chat's first prompt, the task's name: what the work was about */
   subject: string | null;
+  /**
+   * The open change request this branch is the head of: its threads are drawn on the diff and the
+   * person's notes go to its draft review. Null where there is none (a chat, a task, a branch with no PR).
+   */
+  changeRequestId: string | null;
   /** What the agent is running now, to find the file it is editing */
   activity: { target: string | null; cwd: string | null; top: string | null } | null;
 }

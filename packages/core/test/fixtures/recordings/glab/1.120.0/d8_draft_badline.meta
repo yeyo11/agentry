@@ -1,0 +1,5 @@
+glab: 1.120.0
+argv: glab api -X POST projects/87089091/merge_requests/13/draft_notes -H Content-Type: application/json --input -
+exit: 0
+env: 
+stdin-sha256: 775d10cb087d1780176ae8c85fd3971db244008318634f24dd6a81557e8505d6

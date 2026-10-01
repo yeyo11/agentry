@@ -1,0 +1,26 @@
+HTTP/2.0 200 OK
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset, Warning
+Content-Security-Policy: default-src 'none'
+Content-Type: application/json; charset=utf-8
+Date: Thu, 01 Oct 2026 14:01:12 GMT
+Referrer-Policy: origin-when-cross-origin, strict-origin-when-cross-origin
+Server: github.com
+Strict-Transport-Security: max-age=31536000; includeSubdomains; preload
+Vary: Accept-Encoding, Accept, X-Requested-With
+X-Accepted-Oauth-Scopes: repo
+X-Content-Type-Options: nosniff
+X-Frame-Options: deny
+X-Github-Edge-Region: fra
+X-Github-Media-Type: github.v4; format=json
+X-Github-Request-Id: D29A:192DC1:1937301:191F2A5:6ABE67A8
+X-Oauth-Client-Id: 178c6fc778ccc68e1d6a
+X-Oauth-Scopes: admin:public_key, gist, read:org, repo
+X-Ratelimit-Limit: 5000
+X-Ratelimit-Remaining: 4955
+X-Ratelimit-Reset: 1790865699
+X-Ratelimit-Resource: graphql
+X-Ratelimit-Used: 45
+X-Xss-Protection: 0
+
+{"data":{"rateLimit":{"cost":1,"remaining":4955,"resetAt":"2026-10-01T14:41:39Z","used":45},"repository":{"pullRequest":{"headRefOid":"1edb6cba70c6420d6e75a44963ca93fed97ec760","reviewThreads":{"totalCount":4,"pageInfo":{"hasNextPage":false,"endCursor":"Y3Vyc29yOnYyOpK0MjAyNi0xMC0wMVQxNDowMDo1OVrOp_maLw=="},"nodes":[{"id":"PRRT_kwDOU1zIIM6n-Zjq","isResolved":false,"isOutdated":false,"path":"probe-r0.txt","line":2,"originalLine":2,"startLine":2,"originalStartLine":null,"diffSide":"RIGHT","startDiffSide":null,"subjectType":"LINE","resolvedBy":null,"viewerCanResolve":true,"viewerCanUnresolve":false,"viewerCanReply":true,"comments":{"totalCount":1,"pageInfo":{"hasNextPage":false,"endCursor":"Y3Vyc29yOnYyOpK0MjAyNi0xMC0wMVQxNDowMDo1NlrO97s8Jw=="},"nodes":[{"id":"PRRC_kwDOU1zIIM73uzwn","databaseId":4156242983,"body":"probe r0: line 2","author":{"login":"yeyo11"},"createdAt":"2026-10-01T14:00:56Z","outdated":false,"diffHunk":"@@ -0,0 +1,10 @@\n+line one of the r0 probe\n+line two of the r0 probe","replyTo":null,"pullRequestReview":{"databaseId":5380332359,"state":"COMMENTED"}}]}},{"id":"PRRT_kwDOU1zIIM6n-Zjx","isResolved":false,"isOutdated":false,"path":"probe-r0.txt","line":5,"originalLine":5,"startLine":4,"originalStartLine":4,"diffSide":"RIGHT","startDiffSide":"RIGHT","subjectType":"LINE","resolvedBy":null,"viewerCanResolve":true,"viewerCanUnresolve":false,"viewerCanReply":true,"comments":{"totalCount":1,"pageInfo":{"hasNextPage":false,"endCursor":"Y3Vyc29yOnYyOpK0MjAyNi0xMC0wMVQxNDowMDo1NlrO97s8NQ=="},"nodes":[{"id":"PRRC_kwDOU1zIIM73uzw1","databaseId":4156242997,"body":"probe r0: lines 4-5","author":{"login":"yeyo11"},"createdAt":"2026-10-01T14:00:56Z","outdated":false,"diffHunk":"@@ -0,0 +1,10 @@\n+line one of the r0 probe\n+line two of the r0 probe\n+line three of the r0 probe\n+line four of the r0 probe\n+line five of the r0 probe","replyTo":null,"pullRequestReview":{"databaseId":5380332359,"state":"COMMENTED"}}]}},{"id":"PRRT_kwDOU1zIIM6n-Zj8","isResolved":false,"isOutdated":false,"path":"probe-r0.txt","line":3,"originalLine":3,"startLine":3,"originalStartLine":null,"diffSide":"RIGHT","startDiffSide":null,"subjectType":"LINE","resolvedBy":null,"viewerCanResolve":true,"viewerCanUnresolve":false,"viewerCanReply":true,"comments":{"totalCount":1,"pageInfo":{"hasNextPage":false,"endCursor":"Y3Vyc29yOnYyOpK0MjAyNi0xMC0wMVQxNDowMDo1NlrO97s8Qw=="},"nodes":[{"id":"PRRC_kwDOU1zIIM73uzxD","databaseId":4156243011,"body":"probe r0: suggestion\n\n```suggestion\nline THREE of the r0 probe\n```","author":{"login":"yeyo11"},"createdAt":"2026-10-01T14:00:56Z","outdated":false,"diffHunk":"@@ -0,0 +1,10 @@\n+line one of the r0 probe\n+line two of the r0 probe\n+line three of the r0 probe","replyTo":null,"pullRequestReview":{"databaseId":5380332359,"state":"COMMENTED"}}]}},{"id":"PRRT_kwDOU1zIIM6n-Zov","isResolved":false,"isOutdated":false,"path":"probe-r0.txt","line":7,"originalLine":7,"startLine":7,"originalStartLine":null,"diffSide":"RIGHT","startDiffSide":null,"subjectType":"LINE","resolvedBy":null,"viewerCanResolve":true,"viewerCanUnresolve":false,"viewerCanReply":true,"comments":{"totalCount":1,"pageInfo":{"hasNextPage":false,"endCursor":"Y3Vyc29yOnYyOpK0MjAyNi0xMC0wMVQxNDowMDo1OVrO97s-JA=="},"nodes":[{"id":"PRRC_kwDOU1zIIM73uz4k","databaseId":4156243492,"body":"probe r0: line 7","author":{"login":"yeyo11"},"createdAt":"2026-10-01T14:00:59Z","outdated":false,"diffHunk":"@@ -0,0 +1,10 @@\n+line one of the r0 probe\n+line two of the r0 probe\n+line three of the r0 probe\n+line four of the r0 probe\n+line five of the r0 probe\n+line six of the r0 probe\n+line seven of the r0 probe","replyTo":null,"pullRequestReview":{"databaseId":5380332952,"state":"COMMENTED"}}]}}]}}}}}

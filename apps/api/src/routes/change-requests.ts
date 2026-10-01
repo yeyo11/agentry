@@ -1,6 +1,26 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core, ChangeRequestFix } from '@agentry/core';
-import type { ChangeRequest, ChangeRequestChecks, CheckLog, ChecksRerunRequest, OrchestrationPullRequest, WorkItemPullRequest } from '@agentry/shared';
+import type {
+  AddressReviewRequest,
+  ApprovalRequest,
+  ApprovalState,
+  ChangeRequest,
+  ChangeRequestChecks,
+  ChangeRequestReviewPosts,
+  ChangeRequestReviewers,
+  ChangeRequestThreads,
+  CheckLog,
+  ChecksRerunRequest,
+  OrchestrationPullRequest,
+  ReviewDraft,
+  ReviewDraftInput,
+  ReviewPost,
+  ReviewReplyRequest,
+  ReviewSubmitRequest,
+  ReviewThread,
+  ReviewersRequest,
+  WorkItemPullRequest,
+} from '@agentry/shared';
 
 /**
  * A change request's checks and their fixes. `:id` is the row id of either change request table
@@ -41,4 +61,97 @@ export const changeRequestRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
     '/change-requests/:id/push-fix',
     (req): Promise<WorkItemPullRequest | OrchestrationPullRequest | null> => core.changeRequests.pushFix(req.params.id),
   );
+
+  // ---------- reviews ----------
+
+  app.get<{ Params: { id: string }; Querystring: { refresh?: string } }>(
+    '/change-requests/:id/threads',
+    (req): Promise<ChangeRequestThreads> => core.changeRequests.threads(req.params.id, req.query.refresh === '1'),
+  );
+
+  app.get<{ Params: { id: string } }>('/change-requests/:id/review-drafts', (req): Promise<ReviewDraft[]> => core.changeRequests.drafts(req.params.id));
+
+  app.get<{ Params: { id: string } }>('/change-requests/:id/review-posts', (req): Promise<ChangeRequestReviewPosts> => core.changeRequests.reviewPosts(req.params.id));
+
+  app.post<{ Params: { id: string }; Body: ReviewDraftInput }>(
+    '/change-requests/:id/review-drafts',
+    async (req, reply): Promise<ReviewDraft> => {
+      const draft = await core.changeRequests.addDraft(req.params.id, req.body ?? ({} as ReviewDraftInput));
+      void reply.status(201);
+      return draft;
+    },
+  );
+
+  app.put<{ Params: { id: string; draftId: string }; Body: ReviewDraftInput }>(
+    '/change-requests/:id/review-drafts/:draftId',
+    (req): Promise<ReviewDraft> => core.changeRequests.updateDraft(req.params.id, req.params.draftId, req.body ?? ({} as ReviewDraftInput)),
+  );
+
+  app.delete<{ Params: { id: string; draftId: string } }>('/change-requests/:id/review-drafts/:draftId', async (req): Promise<{ ok: true }> => {
+    await core.changeRequests.deleteDraft(req.params.id, req.params.draftId);
+    return { ok: true };
+  });
+
+  app.post<{ Params: { id: string }; Body: ReviewSubmitRequest }>('/change-requests/:id/reviews', (req): Promise<ReviewPost> => {
+    const body: Partial<ReviewSubmitRequest> = req.body ?? {};
+    if (body.event !== 'comment' && body.event !== 'approve' && body.event !== 'request-changes') throw new Error("event must be 'comment', 'approve' or 'request-changes'");
+    if (body.body !== undefined && typeof body.body !== 'string') throw new Error('body must be text');
+    if (body.headSha !== undefined && typeof body.headSha !== 'string') throw new Error('headSha must be text');
+    return core.changeRequests.submit(req.params.id, { event: body.event, body: body.body ?? '', ...(body.headSha ? { headSha: body.headSha } : {}) });
+  });
+
+  app.post<{ Params: { id: string; postId: string } }>(
+    '/change-requests/:id/reviews/:postId/publish-saved',
+    (req): Promise<ReviewPost> => core.changeRequests.publishSaved(req.params.id, req.params.postId),
+  );
+
+  app.post<{ Params: { id: string; postId: string } }>(
+    '/change-requests/:id/reviews/:postId/discard-saved',
+    (req): Promise<ReviewPost> => core.changeRequests.discardSaved(req.params.id, req.params.postId),
+  );
+
+  app.post<{ Params: { id: string; threadId: string }; Body: ReviewReplyRequest }>(
+    '/change-requests/:id/threads/:threadId/reply',
+    (req): Promise<ReviewThread> => {
+      const body: Partial<ReviewReplyRequest> = req.body ?? {};
+      if (typeof body.body !== 'string' || !body.body.trim()) throw new Error('a reply needs text');
+      return core.changeRequests.reply(req.params.id, req.params.threadId, body.body);
+    },
+  );
+
+  app.post<{ Params: { id: string; threadId: string } }>(
+    '/change-requests/:id/threads/:threadId/resolve',
+    (req): Promise<ReviewThread> => core.changeRequests.resolve(req.params.id, req.params.threadId, true),
+  );
+
+  app.post<{ Params: { id: string; threadId: string } }>(
+    '/change-requests/:id/threads/:threadId/unresolve',
+    (req): Promise<ReviewThread> => core.changeRequests.resolve(req.params.id, req.params.threadId, false),
+  );
+
+  app.get<{ Params: { id: string } }>('/change-requests/:id/approval', (req): Promise<ApprovalState> => core.changeRequests.approval(req.params.id));
+
+  app.post<{ Params: { id: string }; Body: ApprovalRequest }>('/change-requests/:id/approval', (req): Promise<ApprovalState> => {
+    const body: Partial<ApprovalRequest> = req.body ?? {};
+    if (typeof body.sha !== 'string' || !body.sha) throw new Error('sha is required: the head the approval is given on');
+    return core.changeRequests.approve(req.params.id, body.sha);
+  });
+
+  app.delete<{ Params: { id: string } }>('/change-requests/:id/approval', (req): Promise<ApprovalState> => core.changeRequests.revoke(req.params.id));
+
+  app.get<{ Params: { id: string } }>('/change-requests/:id/reviewers', (req): Promise<ChangeRequestReviewers> => core.changeRequests.reviewers(req.params.id));
+
+  app.post<{ Params: { id: string }; Body: ReviewersRequest }>('/change-requests/:id/reviewers', (req): Promise<ChangeRequestReviewers> => {
+    const body: Partial<ReviewersRequest> = req.body ?? {};
+    const names = (value: unknown): value is string[] => Array.isArray(value) && value.every((v) => typeof v === 'string');
+    if (!names(body.add)) throw new Error('add must be a list of logins');
+    if (body.remove !== undefined && !names(body.remove)) throw new Error('remove must be a list of logins');
+    return core.changeRequests.requestReviewers(req.params.id, { add: body.add, ...(body.remove ? { remove: body.remove } : {}) });
+  });
+
+  app.post<{ Params: { id: string }; Body: AddressReviewRequest }>('/change-requests/:id/address', (req): Promise<ChangeRequestFix> => {
+    const body: Partial<AddressReviewRequest> = req.body ?? {};
+    if (body.threadIds !== undefined && !(Array.isArray(body.threadIds) && body.threadIds.every((t) => typeof t === 'string'))) throw new Error('threadIds must be a list of thread ids');
+    return core.changeRequests.address(req.params.id, { threadIds: body.threadIds ?? [] });
+  });
 };
