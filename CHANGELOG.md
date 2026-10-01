@@ -3,6 +3,31 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.30.0](https://github.com/yeyo11/agentry/compare/v0.29.1...v0.30.0) (2026-10-01)
+
+
+### Features
+
+* **core:** put Claude Code behind a provider driver ([#155](https://github.com/yeyo11/agentry/issues/155)) ([31905a3](https://github.com/yeyo11/agentry/commit/31905a3085c2a2313d3c6b07896edfd9a7ee0786))
+* **hosts:** CI checks and fixing them, code hosts phase 2 ([#165](https://github.com/yeyo11/agentry/issues/165)) ([d57069b](https://github.com/yeyo11/agentry/commit/d57069b3cbb09719ad8462c7686b6098a2516136))
+* **hosts:** GitHub and GitLab as code hosts, phase 1 ([#159](https://github.com/yeyo11/agentry/issues/159)) ([654745f](https://github.com/yeyo11/agentry/commit/654745f09a7c91a401ab2cbc8580b5bd219df28b))
+
+
+### Bug fixes
+
+* **e2e:** wait on conditions, not on time ([#166](https://github.com/yeyo11/agentry/issues/166)) ([93b4f7c](https://github.com/yeyo11/agentry/commit/93b4f7ce07e8e4613b75fca70c3a4ea9d2c66bde))
+
+
+### Refactoring
+
+* **web:** split the web UI into @agentry/ui and @agentry/chat-ui ([#156](https://github.com/yeyo11/agentry/issues/156)) ([f994c06](https://github.com/yeyo11/agentry/commit/f994c06e55abf29383c4a4bab9d8a22991edd3e3))
+
+
+### Documentation
+
+* **plans:** plan phase 3 of multiple providers from recorded CLI facts ([#163](https://github.com/yeyo11/agentry/issues/163)) ([7242b4f](https://github.com/yeyo11/agentry/commit/7242b4fee4455dcf60f7e8d891b564b5b20f6075))
+* **plans:** verify roadmap-completion and post-roadmap against main ([#164](https://github.com/yeyo11/agentry/issues/164)) ([1af4427](https://github.com/yeyo11/agentry/commit/1af4427008da39d223f59e4ce18dc137940b966c))
+
 ## [0.29.1](https://github.com/yeyo11/agentry/compare/v0.29.0...v0.29.1) (2026-09-30)
 
 
