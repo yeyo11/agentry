@@ -2,6 +2,7 @@ import type { EditStep } from '@agentry/shared';
 import { ChevronDown, ChevronLeft, ChevronRight, Sparkle } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAgentCopy } from '../../../lib/agent-name';
 import { Link, useNavigate } from 'react-router-dom';
 import { parseUnified } from '../../../lib/diff';
 import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
@@ -277,16 +278,17 @@ function StepMove({ to, dir, hrefOf, big = false }: { to: EditStep | null; dir: 
 /** The sentence Claude wrote before the edit, as the step's heading, and the way to its place */
 function Why({ step, conversation, compact = false }: { step: EditStep; conversation: string | null; compact?: boolean }) {
   const { t } = useTranslation('changes');
+  const { agent, Agent } = useAgentCopy();
   const href = conversation ? conversationHref(conversation, step) : null;
   return (
     <div className="edit-step-why">
       <h2 className="edit-step-heading">
         <Sparkle size={compact ? 16 : 18} strokeWidth={1.75} fill="currentColor" aria-hidden className="edit-step-spark" />
-        <span>{step.intent ? <Intent text={step.intent} /> : <span className="edit-step-silent">{t('steps.noIntent')}</span>}</span>
+        <span>{step.intent ? <Intent text={step.intent} /> : <span className="edit-step-silent">{t('steps.noIntent', { agent: Agent })}</span>}</span>
       </h2>
       {(!compact || href) && (
         <span className="edit-step-source">
-          {step.intent && !compact && <span>{t('steps.intentLabel')}</span>}
+          {step.intent && !compact && <span>{t('steps.intentLabel', { agent })}</span>}
           {step.intent && !compact && href && <span aria-hidden>·</span>}
           {href && <Link to={href}>{t('steps.seeInChat')}</Link>}
         </span>
@@ -298,12 +300,13 @@ function Why({ step, conversation, compact = false }: { step: EditStep; conversa
 /** The step's own patch, in Unified, as the file was at that moment */
 function Patch({ step, wrap, conversation }: { step: EditStep; wrap: boolean; conversation: string | null }) {
   const { t } = useTranslation('changes');
+  const { Agent } = useAgentCopy();
   const rows = useUnexplainedRows(conversation);
   const unexplained = useMemo(() => unexplainedOf(rows, step), [rows, step]);
   const diff = useMemo(() => (step.diff ? parseUnified(step.diff) : null), [step.diff]);
   const span = diff ? patchSpan(diff) : null;
   if (!diff || diff.hunks.length === 0)
-    return <p className="edit-steps-note edit-step-nopatch">{step.pending ? t('steps.pendingPatch') : t('steps.noPatch')}</p>;
+    return <p className="edit-steps-note edit-step-nopatch">{step.pending ? t('steps.pendingPatch', { agent: Agent }) : t('steps.noPatch')}</p>;
   return (
     <div className="card edit-step-patch">
       {!wrap && (
@@ -321,6 +324,7 @@ function Patch({ step, wrap, conversation }: { step: EditStep; wrap: boolean; co
 /** The other steps on the same file, as cards around this one */
 function SameFile({ steps, current, hrefOf, resultHref }: { steps: EditStep[]; current: EditStep; hrefOf: (id: string) => string; resultHref: ((path: string) => string) | null }) {
   const { t, i18n } = useTranslation('changes');
+  const { Agent } = useAgentCopy();
   const around = sameFileWindow(steps, current);
   if (around.total < 2 && !resultHref) return null;
   return (
@@ -346,7 +350,7 @@ function SameFile({ steps, current, hrefOf, resultHref }: { steps: EditStep[]; c
                   <span className="edit-steps-grow" />
                   <Counts additions={s.additions} deletions={s.deletions} />
                 </span>
-                <span className="edit-step-card-intent">{s.intent ? plainIntent(s.intent) : t('steps.noIntent')}</span>
+                <span className="edit-step-card-intent">{s.intent ? plainIntent(s.intent) : t('steps.noIntent', { agent: Agent })}</span>
               </>
             );
             return on ? (
@@ -370,6 +374,7 @@ function SameFile({ steps, current, hrefOf, resultHref }: { steps: EditStep[]; c
 
 function PhoneStep({ steps, current, prev, next, hrefOf, conversation, live, back, note }: DetailProps) {
   const { t } = useTranslation('changes');
+  const { agent } = useAgentCopy();
   const navigate = useNavigate();
   const start = useRef<{ x: number; y: number } | null>(null);
   const onTouchStart = (e: TouchEvent) => {
@@ -398,7 +403,7 @@ function PhoneStep({ steps, current, prev, next, hrefOf, conversation, live, bac
         </Link>
         <div className="changes-head-text">
           <h1 className="edit-steps-phone-title">{t('lens.steps')}</h1>
-          <span className="changes-phone-sub">{t('steps.countShort', { count: steps.length })}</span>
+          <span className="changes-phone-sub">{t('steps.countShort', { count: steps.length, agent })}</span>
         </div>
         {live && (
           <span className="changes-live">

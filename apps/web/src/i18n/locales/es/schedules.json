@@ -145,7 +145,7 @@
       "orchestration": "Una orquestación"
     },
     "prompt": "Prompt",
-    "promptPlaceholder": "¿Qué debe hacer Claude cada vez?",
+    "promptPlaceholder": "¿Qué debe hacer el agente cada vez?",
     "objective": "Objetivo",
     "optional": "Opcional",
     "tasks": "Tareas",
