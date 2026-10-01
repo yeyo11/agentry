@@ -17,6 +17,7 @@ import { CodeHostRegistry } from './hosts/registry.ts';
 import { parseRemote } from './hosts/remote.ts';
 import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from './orchestration-pr-rows.ts';
 import { reviewDiff } from './hosts/review-diff.ts';
+import type { MergeService } from './hosts/merge-service.ts';
 import { ReviewsError, type ReviewsService, type ReviewsTarget } from './hosts/reviews-service.ts';
 import { ADDRESS_REFUSALS, addressPromptFor, codeHostAdapter, failingChecks, fixPromptFor, HostFactsCache, threadsToAddress, WATCH_BACKOFF, type ChecksFailingNotice } from './pull-requests.ts';
 import { hostOf } from './work-item-rows.ts';
@@ -53,6 +54,8 @@ export interface OrchestrationPullRequestDeps {
   checks?: ChecksService;
   /** The review threads of a change request; without it nothing is addressed */
   reviews?: ReviewsService;
+  /** Turns auto-merge off before a push to the branch of an open change request */
+  merge?: MergeService;
   /**
    * Starts the fixer's chat in the integration worktree (the orchestration's fixer model and cost
    * limit) and settles when it ends. It commits on the integration branch and never pushes.
@@ -444,6 +447,7 @@ export class OrchestrationPullRequestService {
       try {
         // Concludes what the fixer left uncommitted on the integration branch; only in its own worktree, never in the project's checkout
         if (worktree && existsSync(worktree)) commitAll(worktree, row.fix_kind === 'review' ? 'chore: address the review comments' : 'chore: fix the failing checks');
+        await this.deps.merge?.disarmBeforePush(row.id);
         await pushBranch(worktree && existsSync(worktree) ? worktree : row.cwd, row.branch, this.env());
       } catch (err) {
         const detail = messageOf(err);

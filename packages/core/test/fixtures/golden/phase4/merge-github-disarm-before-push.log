@@ -1,0 +1,5 @@
+# merge-github-disarm-before-push
+gh pr view 12 -R github.com/yeyo11/agentry-probe --json id,number,url,state,isDraft,headRefOid,headRefName,baseRefName,mergeable,mergeStateStatus,reviewDecision,autoMergeRequest
+gh pr merge 12 -R github.com/yeyo11/agentry-probe --disable-auto
+gh pr view 12 -R github.com/yeyo11/agentry-probe --json id,number,url,state,isDraft,headRefOid,headRefName,baseRefName,mergeable,mergeStateStatus,reviewDecision,autoMergeRequest
+gh pr view 12 -R github.com/yeyo11/agentry-probe --json id,number,url,state,isDraft,headRefOid,headRefName,baseRefName,mergeable,mergeStateStatus,reviewDecision,autoMergeRequest

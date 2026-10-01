@@ -1,0 +1,6 @@
+# merge-gitlab-arm
+glab repo view -R https://gitlab.com/yeyo11/agentry -F json
+glab mr view 12 -R https://gitlab.com/yeyo11/agentry -F json
+glab mr merge 12 -R https://gitlab.com/yeyo11/agentry -y --auto-merge --sha 6e0dab83d5074227e4d2827ebb745edf1aa2c943
+glab mr view 12 -R https://gitlab.com/yeyo11/agentry -F json
+glab mr view 12 -R https://gitlab.com/yeyo11/agentry -F json

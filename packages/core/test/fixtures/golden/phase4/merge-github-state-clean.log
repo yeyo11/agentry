@@ -1,0 +1,6 @@
+# merge-github-state-clean
+gh api --hostname github.com repos/yeyo11/agentry-probe
+gh api --hostname github.com repos/yeyo11/agentry-probe/rules/branches/main
+gh api --hostname github.com repos/yeyo11/agentry-probe/rules/branches/main
+gh api --hostname github.com repos/yeyo11/agentry-probe/branches/main
+gh pr view 12 -R github.com/yeyo11/agentry-probe --json id,number,url,state,isDraft,headRefOid,headRefName,baseRefName,mergeable,mergeStateStatus,reviewDecision,autoMergeRequest
