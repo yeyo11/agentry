@@ -18,7 +18,7 @@ import { createInterface } from 'node:readline';
 const argv = process.argv.slice(2);
 const env = process.env;
 // A recording of the UI wants a footer that reads like an account, not like the test double it is
-const VERSION = env.AGENTRY_FAKE_CLI_VERSION || '2.1.0-fake';
+const VERSION = env.AGENTRY_FAKE_CLI_VERSION || '2.1.1-fake';
 function authStatus() {
   let extra = {};
   try {

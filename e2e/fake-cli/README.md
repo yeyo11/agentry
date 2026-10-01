@@ -26,14 +26,14 @@ It calls no model and no network. Its own test: `node --test e2e/fake-cli/claude
 | `AGENTRY_FAKE_CLI_ELAPSED_S` | `0` | Seconds added to every heartbeat's `elapsed_time_seconds` |
 | `AGENTRY_FAKE_CLI_TURN_COST_USD` | `0` | Added to `total_cost_usd` per turn (the CLI's total is per process) |
 | `AGENTRY_FAKE_CLI_SCRIPTS` | none | A JSON object `{ "<text>": "<script>" }`: a message containing one of the texts is played as its script instead (see below) |
-| `AGENTRY_FAKE_CLI_VERSION` | `2.1.0-fake` | The version it reports, for a recording that should not say "fake" in its footer |
+| `AGENTRY_FAKE_CLI_VERSION` | `2.1.1-fake` | The version it reports, for a recording that should not say "fake" in its footer |
 | `AGENTRY_FAKE_CLI_AUTH` | none | A JSON object merged into what `auth status` answers (`email`, `subscriptionType`…) |
 
 ## Subcommands
 
 | Invocation | Output |
 | --- | --- |
-| `--version`, `-v` | `2.1.0-fake (Claude Code)`, or `AGENTRY_FAKE_CLI_VERSION` |
+| `--version`, `-v` | `2.1.1-fake (Claude Code)`, or `AGENTRY_FAKE_CLI_VERSION` |
 | `auth status [--json]` | `{"loggedIn":true,"authMethod":"fake","apiProvider":"firstParty"}` |
 | `agents [--json]` | `[]` |
 | `mcp list` | `No MCP servers configured. …` |

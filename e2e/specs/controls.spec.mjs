@@ -1,5 +1,8 @@
 // Themed controls from the keyboard: a Select inside a dialog owns Escape, the Combobox is driven
 // with arrows and Enter, and the number stepper clamps to its range.
+// The fake Claude is ready and first in the order, so a New chat starts on Claude and its models; with only the sandbox's fake Codex ready it would start on Codex
+export const fakeCli = true;
+
 const openListbox = `return !!document.querySelector('[role=listbox]')`;
 
 export default async ({ page, api, check }) => {

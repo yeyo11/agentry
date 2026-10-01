@@ -19,6 +19,9 @@ const overflow = `return document.documentElement.scrollWidth - innerWidth`;
 
 async function scan(page, check, label) {
   await page.reduceMotion(true);
+  // A segment's colour transitions while its background does not, so a scan that lands inside it reads
+  // grey on a light pill; on a slow runner that is the scan
+  await page.sleep(500);
   const violations = await page.axe();
   check(violations.length === 0, `axe on ${label}: ${JSON.stringify(violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.map((n) => n.target) })))}`);
 }
