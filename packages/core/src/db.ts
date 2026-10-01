@@ -543,6 +543,19 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // session, so the default is what an old process, which never writes the column, leaves behind
   `ALTER TABLE chats ADD COLUMN provider TEXT NOT NULL DEFAULT 'claude-code';
    CREATE INDEX chats_provider ON chats (provider, created_at DESC);`,
+  // Providers whose session id is not the chat's (docs/plans/multi-provider.md, phase 3): the native
+  // id is null for a Claude chat, whose id is the native one. chat_entries holds a transcript the
+  // provider does not keep in a file we can read; (chat_id, seq) makes a replay by a second process
+  // a no-op
+  `ALTER TABLE chats ADD COLUMN native_session_id TEXT;
+   CREATE INDEX chats_native_session ON chats (provider, native_session_id);
+   CREATE TABLE chat_entries (
+     chat_id TEXT NOT NULL,
+     seq     INTEGER NOT NULL,
+     at      TEXT NOT NULL,
+     entry   TEXT NOT NULL,
+     PRIMARY KEY (chat_id, seq)
+   );`,
   // Code hosts (docs/plans/code-hosts.md): every PR row so far was opened by gh on a host gh knew, so
   // 'github' is true of all of them; hostname stays null and the watcher reads it from origin as it
   // does today. An orchestration's change requests are the same lifecycle minus the flow's phases, and
@@ -609,6 +622,9 @@ export const DECISION_SIGNALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeo
 
 /** The version that added the chats' provider column, for the test that upgrades a database from the one before */
 export const CHAT_PROVIDER_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE INDEX chats_provider')) + 1;
+
+/** The version that added the chats' native session id and transcript entries, for the test that upgrades a database from the one before */
+export const CHAT_ENTRIES_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE chat_entries')) + 1;
 
 /** The version that added the code hosts' columns and tables, for the test that upgrades a database from the one before */
 export const CODE_HOSTS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE host_rate_limits')) + 1;
@@ -1010,7 +1026,48 @@ export class Db {
   }
 
   deleteChat(id: string): void {
-    this.db.prepare('DELETE FROM chats WHERE id = ?').run(id);
+    this.tx(() => {
+      this.db.prepare('DELETE FROM chats WHERE id = ?').run(id);
+      this.db.prepare('DELETE FROM chat_entries WHERE chat_id = ?').run(id);
+    });
+  }
+
+  /** Records the id the provider gave a chat's session; `saveChats` leaves the column alone, so it outlives a re-save. */
+  setNativeSessionId(chatId: string, nativeSessionId: string | null): void {
+    this.db.prepare('UPDATE chats SET native_session_id = ? WHERE id = ?').run(nativeSessionId, chatId);
+  }
+
+  /** The provider's own session id for a chat; null for a Claude chat, or one not stored. */
+  nativeSessionId(chatId: string): string | null {
+    const row = this.db.prepare('SELECT native_session_id FROM chats WHERE id = ?').get(chatId) as { native_session_id: string | null } | undefined;
+    return row?.native_session_id ?? null;
+  }
+
+  /**
+   * Appends entries to a chat's transcript. An entry whose `seq` is already stored is skipped, so a
+   * second process replaying the same entries cannot duplicate them. Returns how many were new.
+   */
+  appendChatEntries(chatId: string, entries: ReadonlyArray<{ seq: number; at: string; entry: unknown }>): number {
+    const insert = this.db.prepare('INSERT INTO chat_entries (chat_id, seq, at, entry) VALUES (?, ?, ?, ?) ON CONFLICT(chat_id, seq) DO NOTHING');
+    let added = 0;
+    this.tx(() => {
+      for (const e of entries) added += Number(insert.run(chatId, e.seq, e.at, JSON.stringify(e.entry)).changes);
+    });
+    return added;
+  }
+
+  /** A chat's transcript entries in order, from `afterSeq` (exclusive) when given. An unreadable entry is skipped. */
+  chatEntries(chatId: string, afterSeq = -1): Array<{ seq: number; at: string; entry: unknown }> {
+    const rows = this.db.prepare('SELECT seq, at, entry FROM chat_entries WHERE chat_id = ? AND seq > ? ORDER BY seq ASC').all(chatId, afterSeq) as unknown as Array<{ seq: number; at: string; entry: string }>;
+    const out: Array<{ seq: number; at: string; entry: unknown }> = [];
+    for (const row of rows) {
+      try {
+        out.push({ seq: row.seq, at: row.at, entry: JSON.parse(row.entry) });
+      } catch {
+        // one unreadable entry leaves a gap, not a lost transcript
+      }
+    }
+    return out;
   }
 
   /** Which of `ids` are stored now: a trim, ours or another process's, may have taken one since it was saved. */
