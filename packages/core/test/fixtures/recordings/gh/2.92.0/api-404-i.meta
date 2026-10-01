@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api -i repos/yeyo11/agentry-probe/pulls/999999
+exit: 1
+secs: .531634613
+env: 

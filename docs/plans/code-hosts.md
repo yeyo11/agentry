@@ -1555,6 +1555,40 @@ NULL DEFAULT 0`, `fix_head TEXT`. Project settings gain `checksFixAttempts`.
 `POST /change-requests/:id/checks/fix`, `POST /change-requests/:id/push-fix`. Event
 `change-request.checks` (`id`, `rollup`, `headSha`).
 
+### Recorded by `k0` (2026-10-01)
+
+`k0` is done: 71 `glab` 1.120.0 calls on the GitLab probe project (a parent pipeline with a child
+pipeline, a failing job, an `allow_failure` job, a manual job and MR pipelines) and the `gh api -i`
+404 on 2.92.0 and 2.102.0. They are under `packages/core/test/fixtures/recordings/`, with
+[`k0-NOTES.md`](../../packages/core/test/fixtures/recordings/k0-NOTES.md). They change this phase
+where they disagree with the matrix, and the recordings win:
+
+1. **A bridge can be retried** (`POST jobs/<bridge>/retry`, a new bridge id), but a pipeline retry
+   does not re-run a failed bridge; retrying the child pipeline does, and reopens the parent. A
+   bridge has no log: its GET and trace answer 404.
+2. **`downstream_pipeline` can be `null`** when the child could not be created
+   (`failure_reason: downstream_pipeline_creation_failed`); the reason text is only in GraphQL
+   `detailedStatus.tooltip`. With `strategy: depend`, a bridge whose child failed says
+   `unknown_failure`.
+3. **`failure_reason` is absent** from the REST jobs of jobs that did not fail (`""` in `ci get`);
+   retried attempts carry no `retried` flag; bridges and child jobs never appear in the jobs list.
+4. **The checks list must read bridges and child pipelines itself**: `glab ci get --merge-request`
+   has neither, so it is not enough as the interim source.
+5. **Child pipelines are hidden from pipeline lists** unless `source=parent_pipeline` is passed;
+   deleting a parent does not delete its child.
+6. **A running job's trace lags** up to about a minute (exit 0, only the runner preamble first, then
+   chunks); a manual job's trace is empty with exit 0, not 404. The log tail says "no output yet"
+   instead of "log unavailable" for both.
+7. **Cancel answers `running`, then `canceling`**, never `canceled` at once; a pipeline with an
+   earlier failure ends `failed`. Agentry re-reads after a cancel, as after every write.
+8. **Playing a manual job keeps its id**; only a retry creates a new one.
+9. **`gh api -i` on a 404** prints the status line, headers and body on stdout and only
+   `gh: Not Found (HTTP 404)` on stderr, exit 1, on both releases. A GraphQL not-found is
+   `HTTP/2.0 200` with `errors[]` and exit 1, so the status line alone never decides.
+
+Still not recorded: a fine-grained read-only `gh` token (kept for a later pass; the safe default in
+[What is still not recorded](#what-is-still-not-recorded) stands).
+
 ### P0 · `checks-prototypes` (gates P2)
 
 Generator `docs/design-system/reference/tools/checks.py` (imports `common.py`, `tasks.py`); every
