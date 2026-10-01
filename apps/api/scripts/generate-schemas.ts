@@ -72,6 +72,8 @@ const ROOT_TYPES = [
   'AppSettings', 'UpdateAppSettingsRequest', 'TunnelStatus', 'TunnelSettings', 'UpdateTunnelSettingsRequest',
   // Providers
   'ProviderStatus', 'ProvidersSettings',
+  // Code hosts
+  'CodeHostStatus', 'CodeHostsSettings', 'ProjectCodeHost', 'OrchestrationPullRequest', 'OrchestrationPullRequestAnswer',
   // The decision engine
   'DecisionSettings', 'DecisionSettingsUpdate', 'DecisionCredentialsUpdate', 'DecisionCredentialsResult', 'DecisionTestRequest', 'DecisionTestResult',
   'DecisionPointInfo', 'DecisionPreview', 'DecisionConsentRequest', 'DecisionRecord', 'DecisionPage', 'DecisionPageQuery', 'DecisionFilter',

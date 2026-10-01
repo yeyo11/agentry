@@ -17177,6 +17177,132 @@
     ],
     "description": "What a person chose for one provider."
   },
+  "CodeHostsSettings": {
+    "type": "object",
+    "properties": {
+      "hosts": {
+        "type": "object",
+        "properties": {
+          "github": {
+            "$ref": "#/components/schemas/CodeHostSettingsEntry"
+          },
+          "gitlab": {
+            "$ref": "#/components/schemas/CodeHostSettingsEntry"
+          }
+        },
+        "required": [
+          "github",
+          "gitlab"
+        ]
+      }
+    },
+    "required": [
+      "hosts"
+    ],
+    "description": "`hosts.json` in the data directory. A disabled host's projects read `unsupported-host`."
+  },
+  "CodeHostSettingsEntry": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "binaryPath": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Absolute path of the binary to use instead of searching for one; null searches"
+      }
+    },
+    "required": [
+      "enabled",
+      "binaryPath"
+    ],
+    "description": "What a person chose for one code host."
+  },
+  "ProjectCodeHost": {
+    "type": "object",
+    "properties": {
+      "readiness": {
+        "$ref": "#/components/schemas/PullRequestReadiness"
+      },
+      "remote": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProjectCodeHostRemote"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "readiness",
+      "remote"
+    ],
+    "description": "`GET /projects/:id/code-host`: the readiness and the parsed remote."
+  },
+  "ProjectCodeHostRemote": {
+    "type": "object",
+    "properties": {
+      "hostname": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "protocol": {
+        "type": "string",
+        "enum": [
+          "https",
+          "ssh",
+          "git"
+        ]
+      }
+    },
+    "required": [
+      "hostname",
+      "path",
+      "protocol"
+    ],
+    "description": "A project's remote as Agentry parsed it: never the URL, which can carry a user and a secret."
+  },
+  "OrchestrationPullRequestAnswer": {
+    "type": "object",
+    "properties": {
+      "branch": {
+        "type": "string"
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "detail": {
+        "type": "string"
+      },
+      "pullRequest": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/OrchestrationPullRequest"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "branch",
+      "url",
+      "detail",
+      "pullRequest"
+    ],
+    "description": "The answer of `POST /orchestrations/:id/pull-request`; the first three fields are what it always had."
+  },
   "DecisionSettings": {
     "type": "object",
     "properties": {

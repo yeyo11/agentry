@@ -789,8 +789,8 @@ event feed. Filters take comma-separated lists: `status`, `type`, `priority`, `l
 | DELETE | `/work-items/:itemId/links/:linkId` | Untie it; the chat, orchestration or file is not touched |
 | GET | `/work-items/:itemId/history` | Every change to the item, oldest first, with who made it and why |
 | POST | `/work-items/:itemId/work` | "Work on it": a chat prompted with the item, in its own worktree on `task/<key>` (made again if it was deleted by hand), with the options a new chat takes, each checked for its type (400). The item enters `in_progress` when a turn starts and `in_review` when one ends well. An epic is refused (400), and so are an item in `done`, one already being worked on and a plain directory where its worktree goes (409) |
-| POST | `/work-items/:itemId/pull-request` | The person's approval: Agentry commits what is left, merges `origin/<default>` into `task/<key>`, pushes it and opens the PR with `gh` (202; 200 with the PR already open). A conflict pushes nothing and sends the item back to `in_progress` for the Developer. 400 for an epic; 409 with a `code` when the item is not in review, is being worked on, has nothing to propose, or the project cannot open PRs |
-| POST | `/work-items/:itemId/pull-request/refresh` | Ask `gh` for the item's open PR now: its CI state, a merge (the item moves to Done) or a close |
+| POST | `/work-items/:itemId/pull-request` | The person's approval: Agentry commits what is left, merges `origin/<default>` into `task/<key>`, pushes it and opens the pull or merge request with the project's host CLI (202; 200 with it already open). A conflict pushes nothing and sends the item back to `in_progress` for the Developer. 400 for an epic; 409 with a `code` when the item is not in review, is being worked on, has nothing to propose, or the project cannot open them (`reason` names why, with the host and a remedy) |
+| POST | `/work-items/:itemId/pull-request/refresh` | Ask the host for the item's open PR or MR now: its CI state, a merge (the item moves to Done) or a close |
 | GET | `/work-items/:itemId/changes` | What the item's branch changed: commits, files and what is not committed yet. The branch is the last chat's or orchestration node's that worked on the item. `?commit=`/`?uncommitted=1` scope it as `/chats/:id/changes` does |
 | GET | `/work-items/:itemId/changes/diff?path=` | One file's diff on the item's branch, with `?context=`, `?commit=` and `?uncommitted=1` as `/chats/:id/changes/diff` takes them |
 | POST | `/chats/:id/work-items` | `{ text, title?, type?, priority? }` — create a task in `backlog` from a chat's message, linked to the chat |
@@ -839,6 +839,19 @@ The agents Agentry can drive, as detection finds them on this machine: one cache
 | POST | `/providers/refresh` | Detect again now. Not open to a chat's token |
 | GET | `/providers/settings` | The document from `providers.json`: enabled and binary override per provider, order, default |
 | PUT | `/providers/settings` | Replace it, validated; providers are detected again in the background. Not open to a chat's token |
+
+### Code hosts
+
+The hosts Agentry opens pull and merge requests on, GitHub through `gh` and GitLab through `glab`, as detection finds them on this machine: one cache with one 5-minute TTL, refreshed by watchers and on demand, with `hosts.changed` on the event stream when a status differs. A chat's token gets `403` on the settings write and the refresh.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/hosts` | Every code host's status (state, reason, version, binary, the host names its CLI knows), from the cache |
+| GET | `/hosts/:id` | One status (`github` or `gitlab`); `404` for another id |
+| POST | `/hosts/refresh` | Detect again now. Not open to a chat's token |
+| GET | `/hosts/settings` | The document from `hosts.json`: enabled and binary override per host |
+| PUT | `/hosts/settings` | Replace it, validated; hosts are detected again in the background and every project's readiness is read again. Not open to a chat's token |
+| GET | `/projects/:id/code-host` | Whether the project can open pull and merge requests (the readiness, with its reason and remedy) and its parsed `origin`; `404` for an unknown project |
 
 ### Decisions
 
@@ -1055,7 +1068,7 @@ every 3 s and only while a client listens.
 | DELETE | `/orchestrations/:id` | Delete a graph that is not running, with its worktrees; refused while a worktree holds uncommitted work |
 | POST | `/orchestrations/:id/integrate` | Merge the task branches into the integration branch again: after resolving by hand, or for a graph that predates integration |
 | POST | `/orchestrations/:id/verify` | `{ verification? }` — run the graph's checks (`verification.commands`, where an entry that is a list runs its commands in parallel, then a fixer if asked) on the integration branch, or again after it changed; outcome on `verification`: `passed`, `fixed` or `failed`. Returns at once |
-| POST | `/orchestrations/:id/pull-request` | Push the integration branch and open a pull request with `gh` → `{ branch, url, detail }` |
+| POST | `/orchestrations/:id/pull-request` | Check the project's readiness, push the integration branch and open a pull or merge request with the host CLI → `{ branch, url, detail, pullRequest }`; `409` with the reason when the project cannot open one or the branch has nothing to propose |
 | GET | `/orchestrations/:id/workflow` | The graph as a workflow script → `{ path, script }` |
 | POST | `/orchestrations/:id/workflow/save` | `{ name?, overwrite? }` — copy that script into the project's `.claude/workflows/` |
 | POST | `/orchestrations/:id/worktrees/prune` | `{ force? }` — remove the graph's worktrees; branches are always kept |
