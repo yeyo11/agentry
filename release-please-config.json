@@ -37,6 +37,11 @@
         },
         {
           "type": "json",
+          "path": "packages/mcp/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "packages/shared/package.json",
           "jsonpath": "$.version"
         },

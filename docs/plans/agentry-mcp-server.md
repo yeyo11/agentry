@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T23:59:00Z
-updated_at: 2026-09-28T23:59:00Z
+updated_at: 2026-10-01T19:20:00Z
 tags:
     - plan
     - spec
@@ -303,9 +303,10 @@ Decisions taken, besides the ones written above: the file is the same for every 
 the token as `${…}` references, which refines "written into the file's `env`" so the token never reaches
 the disk.
 
-Left for others: `docker/Dockerfile` needs `COPY packages/mcp/package.json packages/mcp/`, because the
-core now depends on `@agentry/mcp`; and the chat-level plumbing (a route, `chats.create` accepting the
-helper's output) is CW-18's.
+Done when the branch was verified: `docker/Dockerfile` copies `packages/mcp/package.json`, because the
+core depends on `@agentry/mcp`, and `packages/mcp` is in `release-please-config.json` at the repository's
+version, so a release does not leave it behind. Left for others: the chat-level plumbing (a route,
+`chats.create` accepting the helper's output) is CW-18's.
 
 ## Out of scope
 
