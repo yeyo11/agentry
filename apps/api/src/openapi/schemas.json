@@ -18760,6 +18760,10 @@
       "body": {
         "type": "string",
         "description": "The review's own text; may be empty when there are drafts"
+      },
+      "headSha": {
+        "type": "string",
+        "description": "The head commit the person looked at. The review is posted on it and an approval is given on it; a head that moved is refused with `head-moved` and nothing is posted. Without it the head the host answers at that moment is taken."
       }
     },
     "required": [
@@ -18818,6 +18822,12 @@
               },
               "total": {
                 "type": "number"
+              },
+              "draftIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             },
             "required": [
@@ -18829,7 +18839,7 @@
             "type": "null"
           }
         ],
-        "description": "Why it is not `posted`: a reason code and the host's first line; `saved` of `total` for `partly`"
+        "description": "Why it is not `posted`: a reason code and the host's first line; `saved` of `total` for `partly`, with the ids of the draft notes Agentry saved (GitLab), the only ones a discard deletes"
       },
       "createdAt": {
         "type": "string"
@@ -18908,6 +18918,36 @@
       "hook-unreachable"
     ],
     "description": "Why a call to a code host did not do what was asked: one taxonomy for every phase. The web words each code; the host's first line travels beside it as the detail."
+  },
+  "ChangeRequestReviewPosts": {
+    "type": "object",
+    "properties": {
+      "posts": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ReviewPost"
+        }
+      },
+      "savedOnHost": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "For each `partly` post, how many of the draft notes Agentry saved are still waiting on the host (GitLab); empty when no post is partly posted, null when the host could not be read"
+      }
+    },
+    "required": [
+      "posts",
+      "savedOnHost"
+    ],
+    "description": "`GET /change-requests/:id/review-posts`: the attempts to post a review, newest first, so a post that stopped partway is known after a reload."
   },
   "ChangeRequestReviewers": {
     "type": "object",

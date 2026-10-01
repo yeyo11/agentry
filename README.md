@@ -865,9 +865,10 @@ The hosts Agentry opens pull and merge requests on, GitHub through `gh` and GitL
 | POST | `/change-requests/:id/review-drafts` | Add a note (`path`, `side`, `line`, `startLine`, `body`, `suggestion`) → `201`. Not open to a chat's token |
 | PUT | `/change-requests/:id/review-drafts/:draftId` | Change a note. Not open to a chat's token |
 | DELETE | `/change-requests/:id/review-drafts/:draftId` | Delete a note. Not open to a chat's token |
-| POST | `/change-requests/:id/reviews` | Post the drafts as one review (`{ event: 'comment' \| 'approve', body }`; approve is GitLab only); `409` with a `code`, and a `postId` for `review-partly-posted`. Not open to a chat's token |
+| GET | `/change-requests/:id/review-posts` | The attempts to post a review, newest first, and what a partly posted one still has saved on the host, so a stopped review is known after a reload |
+| POST | `/change-requests/:id/reviews` | Post the drafts as one review (`{ event: 'comment' \| 'approve', body, headSha? }`; approve is GitLab only; `headSha` is the head the person looked at, refused with `head-moved` when it moved); `409` with a `code`, and a `postId` for `review-partly-posted`. Not open to a chat's token |
 | POST | `/change-requests/:id/reviews/:postId/publish-saved` | GitLab: publish the notes a partly posted review saved. Not open to a chat's token |
-| POST | `/change-requests/:id/reviews/:postId/discard-saved` | GitLab: discard them. Not open to a chat's token |
+| POST | `/change-requests/:id/reviews/:postId/discard-saved` | GitLab: discard them (only the notes Agentry saved). Not open to a chat's token |
 | POST | `/change-requests/:id/threads/:threadId/reply` | Reply to a thread (`{ body }`) → the thread as the host has it. Not open to a chat's token |
 | POST | `/change-requests/:id/threads/:threadId/resolve` | Resolve a thread (idempotent). Not open to a chat's token |
 | POST | `/change-requests/:id/threads/:threadId/unresolve` | Reopen a thread (idempotent). Not open to a chat's token |

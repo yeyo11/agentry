@@ -3,6 +3,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type {
   ApprovalState,
   ChangeRequestKind,
+  ChangeRequestReviewPosts,
   ChangeRequestReviewers,
   ChangeRequestThreads,
   HostReason,
@@ -389,6 +390,30 @@ export class ReviewsService {
     return (this.deps.db.prepare('SELECT * FROM review_posts WHERE cr_id = ? ORDER BY created_at DESC, rowid DESC').all(id) as unknown as ReviewPostRow[]).map(reviewPostOf);
   }
 
+  /**
+   * The posts of a change request with what each `partly` one still has saved on the host, so a
+   * review that stopped partway is known after a reload and its Publish saved / Discard saved choice
+   * is offered against what is really there.
+   */
+  async reviewPosts(id: string): Promise<ChangeRequestReviewPosts> {
+    const posts = this.posts(id);
+    const partly = posts.filter((p) => p.state === 'partly');
+    if (!partly.length) return { posts, savedOnHost: {} };
+    try {
+      const target = await this.target(id);
+      const pending = await this.pendingIn(target);
+      const savedOnHost: Record<string, number> = {};
+      for (const post of partly) {
+        const ids = new Set(post.detail?.draftIds ?? []);
+        savedOnHost[post.id] = pending.filter((e) => ids.has(e.id) || e.body.includes(post.marker)).length;
+      }
+      return { posts, savedOnHost };
+    } catch {
+      // A host that does not answer leaves the stored counts, which the client shows as they were
+      return { posts, savedOnHost: null };
+    }
+  }
+
   private setPost(postId: string, state: ReviewPost['state'], extra: { remoteId?: string | null; detail?: ReviewPost['detail'] } = {}): ReviewPost {
     this.deps.db
       .prepare('UPDATE review_posts SET state = ?, remote_id = COALESCE(?, remote_id), detail = ?, updated_at = ? WHERE id = ?')
@@ -473,6 +498,9 @@ export class ReviewsService {
       if (req.event === 'request-changes') throw new HostActionNotOffered('Agentry does not request changes; the host does');
       // The call is built only to learn whether the host has one
       if (req.event === 'approve' && !target.adapter.approve(target.repo, target.number, '0000000')) throw new HostActionNotOffered('Agentry does not approve on this host');
+      // The head the person looked at: a review is posted on it and an approval given on it, or neither happens
+      const looked = typeof req.headSha === 'string' && req.headSha !== '' ? await this.readHead(target) : null;
+      if (looked && looked.headSha !== null && looked.headSha !== req.headSha) throw new ReviewsError('the change request has a newer commit than the one you looked at', 'head-moved');
       const rows = this.rows(id);
       const drafts = rows.map(reviewDraftOf);
       const text = typeof req.body === 'string' ? req.body.trim() : '';
@@ -482,7 +510,7 @@ export class ReviewsService {
       const postId = randomUUID();
       const at = new Date(this.now()).toISOString();
       this.deps.db.prepare('INSERT INTO review_posts (id, cr_id, marker, event, state, remote_id, detail, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?)').run(postId, id, marker, req.event, 'posting', at, at);
-      const fail = (error: ReviewsError, code: HostReason = error.reason, extra: { saved?: number; total?: number } = {}): never => {
+      const fail = (error: ReviewsError, code: HostReason = error.reason, extra: { saved?: number; total?: number; draftIds?: string[] } = {}): never => {
         const state = code === 'review-partly-posted' ? 'partly' : 'failed';
         this.setPost(postId, state, { detail: { code, detail: error.detail ?? '', ...extra } });
         throw new ReviewsError(error.message, error.reason, error.detail, postId);
@@ -494,7 +522,7 @@ export class ReviewsService {
         let headSha: string | null = null;
         if (content) {
           // The head and refs come first: GitLab pins every note to them, and GitHub to the commit
-          const head = await this.readHead(target);
+          const head = looked ?? (await this.readHead(target));
           headSha = head.headSha;
           if (!headSha) throw new ReviewsError('the host did not say which commit the change request is at', 'unexpected-output');
           const diff = target.adapter.id === 'gitlab' && target.diff ? await target.diff().catch(() => null) : null;
@@ -502,7 +530,7 @@ export class ReviewsService {
           const body = [text, ...general, marker].filter((part) => part !== '').join('\n\n');
           const pending = await this.pendingIn(target);
           // GitLab publishes every draft note there is: one that is not ours would go out with the review
-          if (pending.some((p) => p.pending)) fail(new ReviewsError('a review is already waiting to be published', 'pending-review-exists', `${String(pending.filter((p) => p.pending).length)} pending`));
+          if (pending.some((p) => p.pending)) fail(new ReviewsError('a review is already waiting to be published', 'pending-review-exists', `${String(pending.filter((p) => p.pending).length)} ${target.adapter.id === 'github' ? 'pending review' : 'draft note'} of yours on ${target.adapter.id === 'github' ? 'GitHub' : 'GitLab'}`));
           const before = target.adapter.id === 'gitlab' ? new Set((await this.fetchThreads(target)).threads.map((t) => t.id)) : null;
           let plan;
           try {
@@ -526,7 +554,7 @@ export class ReviewsService {
                 fail(error);
               }
               if (created.length === 0) fail(error.reason === 'timeout' ? new ReviewsError('the host did not confirm the review', 'write-unconfirmed', error.detail) : error);
-              fail(new ReviewsError('a note was refused after others were saved', 'review-partly-posted', error.detail), 'review-partly-posted', { saved: created.length, total: plan.calls.length });
+              fail(new ReviewsError('a note was refused after others were saved', 'review-partly-posted', error.detail), 'review-partly-posted', { saved: created.length, total: plan.calls.length, draftIds: [...created] });
             }
             if (target.adapter.id === 'gitlab') {
               const draft = target.adapter.parseDraftNote(result);
@@ -550,12 +578,12 @@ export class ReviewsService {
             if (failed(result)) {
               const error = this.failure('publishing the review', 'submit', target, plan.publish, result);
               const found = await this.landed(target, marker);
-              if (!found.found) fail(new ReviewsError('the saved notes were not published', 'review-partly-posted', error.detail), 'review-partly-posted', { saved: created.length, total: plan.calls.length });
+              if (!found.found) fail(new ReviewsError('the saved notes were not published', 'review-partly-posted', error.detail), 'review-partly-posted', { saved: created.length, total: plan.calls.length, draftIds: [...created] });
             }
             // A published note that is not there is a note the host dropped
             const after = await this.fetchThreads(target);
             const made = after.threads.filter((t) => !before?.has(t.id)).length;
-            if (made < plan.calls.length) fail(new ReviewsError('the host published fewer notes than were saved', 'review-partly-posted', `${String(made)} of ${String(plan.calls.length)}`), 'review-partly-posted', { saved: made, total: plan.calls.length });
+            if (made < plan.calls.length) fail(new ReviewsError('the host published fewer notes than were saved', 'review-partly-posted', `${String(made)} of ${String(plan.calls.length)}`), 'review-partly-posted', { saved: made, total: plan.calls.length, draftIds: [...created] });
             this.announce(id, this.store(id, after), null, true);
             settled = true;
             post = this.setPost(postId, 'posted');
@@ -564,7 +592,7 @@ export class ReviewsService {
         }
         if (req.event === 'approve') {
           // The post stands; an approval that fails is its own failure
-          const sha = headSha ?? (await this.readHead(target)).headSha;
+          const sha = (looked ? req.headSha : headSha) ?? (await this.readHead(target)).headSha;
           if (!sha) throw new ReviewsError('the host did not say which commit the change request is at', 'unexpected-output', null, postId);
           if (!content) post = this.setPost(postId, 'posting');
           await this.approveNow(id, target, sha).catch((error: unknown) => {
@@ -615,8 +643,10 @@ export class ReviewsService {
       const row = this.postRow(id, postId);
       if (!row) throw new ReviewsError('that review is not recorded', 'not-found');
       if (row.state !== 'partly' || !target.adapter.discardDraft(target.repo, target.number, '0')) throw new HostActionNotOffered('there is nothing saved to discard');
-      // A post is refused while any draft note is pending, so everything pending is what this post saved
-      for (const entry of await this.pendingIn(target)) {
+      // The viewer's other draft notes are the person's own, never Agentry's to delete: only the ids this post
+      // recorded, and the note that carries its marker
+      const recorded = new Set(row.detail ? (reviewPostOf(row).detail?.draftIds ?? []) : []);
+      for (const entry of (await this.pendingIn(target)).filter((e) => recorded.has(e.id) || e.body.includes(row.marker))) {
         const call = target.adapter.discardDraft(target.repo, target.number, entry.id);
         if (!call) continue;
         const result = await target.run(call);

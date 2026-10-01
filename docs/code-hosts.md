@@ -420,9 +420,16 @@ is a suggestion), so they survive a reload and a second tab. At most 200 per cha
 A suggestion is a fenced block inside the body: ` ```suggestion ` on GitHub, ` ```suggestion:-0+0 `
 on GitLab, whose `-N+M` offsets are relative to the note's line.
 
-`POST /change-requests/:id/reviews` (`{event, body}`) posts the drafts as one review. Writes to one
-change request run one after the other, so a double click never posts twice. Every attempt is a row
-in `review_posts` (`posting`, `posted`, `partly`, `failed`) whose body carries a marker comment.
+`POST /change-requests/:id/reviews` (`{event, body, headSha?}`) posts the drafts as one review.
+`headSha` is the head the person looked at: the review is posted on it (GitHub's `commit_id`) and
+`approve` is given on it, and a head that moved is refused with `head-moved` before anything is
+posted or recorded. Without it the head read at that moment is used, which cannot notice a move.
+Writes to one change request run one after the other, so a double click never posts twice. Every
+attempt is a row in `review_posts` (`posting`, `posted`, `partly`, `failed`) whose body carries a
+marker comment. `GET /change-requests/:id/review-posts` reads those rows back, newest first, so a
+review that stopped partway is known after a reload; for a `partly` post it also counts the draft
+notes Agentry saved that are still waiting on the host (`savedOnHost`, null when the host could not
+be read).
 
 | | GitHub | GitLab |
 |---|---|---|
@@ -433,8 +440,11 @@ in `review_posts` (`posting`, `posted`, `partly`, `failed`) whose body carries a
 | Partial failure | none | a note that fails after others were saved → `review-partly-posted`; **Publish saved** (`…/reviews/:postId/publish-saved`) or **Discard saved** (`…/discard-saved`) |
 
 A post is refused while a pending review is in the way: a GitHub review in state `PENDING` by the
-viewer, or any GitLab draft note. Agentry deletes only the drafts it saved itself and only after the
-person chose Discard; it never deletes a pending review of theirs.
+viewer, or any GitLab draft note (`pending-review-exists`, whose detail names the count and the
+host). Agentry deletes only the drafts it saved itself and only after the person chose Discard: a
+`partly` post records the ids of the draft notes it saved (`detail.draftIds`), and Discard deletes
+those and the note carrying the post's marker, never another draft note of the viewer's; it never
+deletes a pending review of theirs.
 
 **Request changes is not offered**, on either host. GitHub's `APPROVE` and `REQUEST_CHANGES` success
 paths were never recorded (owner decision 1), so the review bar links to the host as "Open on
@@ -457,8 +467,11 @@ read, and still blocks a merge.
   on the other.
 - **Approve** is GitLab only and takes the head the person looked at: a head that moved is
   `head-moved` (409). Approving twice is a 401 and is settled by re-reading. Whether Approve is
-  offered is Agentry's rule (the viewer is not the author on a host that forbids it), never GitLab's
-  `user_can_approve`, which is `false` for an author whose approval succeeds.
+  offered is Agentry's rule, never GitLab's `user_can_approve`, which is `false` for an author whose
+  approval succeeds: the recordings show GitLab letting the author approve their own merge request
+  on a project without approval rules, so Approve is offered while the viewer has not approved
+  (`canApprove = !viewerHasApproved`) and hidden once they have. A project whose rules forbid it
+  refuses the approval, and the person reads the host's reason.
 - **Reviewers**: GitLab's `--reviewer user` *replaces* the list, so Agentry always sends `+user` and
   `-user`. GitHub's `gh pr edit --add-reviewer` drops the author silently, so the API is called
   instead. An unknown GitHub login exits 0 and adds nobody; the re-read decides what the person is
@@ -486,14 +499,17 @@ when none are named), and starts the flow's Developer with a prompt built by `re
   decision-origin address waits in In review for **Push the fix**. An orchestration's address runs
   in the integration worktree and always waits for **Push the fix**.
 - **Limits.** Attempts share `fix_attempts` and `fix_head` with checks fixes. The item moves to In
-  progress with the cause `pr.review-address`. The chosen threads' prompt is kept in memory: after a
-  restart before the run starts it falls back to all unresolved threads, read again.
+  progress with the cause `pr.review-address`. The chosen thread ids are stored with the fix
+  (`fix_threads`): after a restart before the run starts the prompt is rebuilt from them, and a list
+  that is empty, or whose threads were all resolved meanwhile, hands over nothing.
 - **Refusals** (`PullRequestError`): `not-open`, `fix-under-way`, `busy`, `not-in-review`,
   `reviews-unavailable`, `not-found` (an unknown thread), `already-resolved`, `no-threads`, or the
   reviews service's own reason.
 
 `review.triage` (see [decision-engine.md](decision-engine.md#reviewtriage)) only preselects the
-threads in the Address dialog.
+threads in the Address dialog. It is asked whenever the threads are read
+(`GET /change-requests/:id/threads`), in the background and once per set of open threads, and the
+dialog reads the answer from the decision history under the change request's id.
 
 ## Fakes and tests
 

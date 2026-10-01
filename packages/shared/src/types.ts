@@ -5141,6 +5141,12 @@ export interface ReviewSubmitRequest {
   event: ReviewEvent;
   /** The review's own text; may be empty when there are drafts */
   body: string;
+  /**
+   * The head commit the person looked at. The review is posted on it and an approval is given on
+   * it; a head that moved is refused with `head-moved` and nothing is posted. Without it the head
+   * the host answers at that moment is taken.
+   */
+  headSha?: string;
 }
 
 /**
@@ -5158,10 +5164,26 @@ export interface ReviewPost {
   state: ReviewPostState;
   /** The host's review id (GitHub); null on GitLab, which has no review object */
   remoteId: string | null;
-  /** Why it is not `posted`: a reason code and the host's first line; `saved` of `total` for `partly` */
-  detail: { code: HostReason; detail: string; saved?: number; total?: number } | null;
+  /**
+   * Why it is not `posted`: a reason code and the host's first line; `saved` of `total` for `partly`,
+   * with the ids of the draft notes Agentry saved (GitLab), the only ones a discard deletes
+   */
+  detail: { code: HostReason; detail: string; saved?: number; total?: number; draftIds?: string[] } | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * `GET /change-requests/:id/review-posts`: the attempts to post a review, newest first, so a post
+ * that stopped partway is known after a reload.
+ */
+export interface ChangeRequestReviewPosts {
+  posts: ReviewPost[];
+  /**
+   * For each `partly` post, how many of the draft notes Agentry saved are still waiting on the host
+   * (GitLab); empty when no post is partly posted, null when the host could not be read
+   */
+  savedOnHost: Record<string, number> | null;
 }
 
 export type ReviewerState = 'requested' | 'approved' | 'changes-requested' | 'commented';

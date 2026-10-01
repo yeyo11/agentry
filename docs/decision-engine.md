@@ -151,9 +151,11 @@ acts on nothing and only preselects threads in the **Address with an agent** dia
 - **The question** is a choice per thread: "Who should take this review comment?" — `agent` (a
   concrete code change the Developer can make), `person` (a question, a design decision or a
   disagreement) or `no-action` (praise, a point already resolved, a nit already done).
-- **When it is asked.** The person opens **Address with an agent** on a change request with
-  unresolved threads. An answer preselects the threads in that dialog and marks the others; the
-  person can change every selection.
+- **When it is asked.** Whenever a change request's threads are read (`ChangeRequestService.threads`
+  hands them to `ReviewTriage`), in the background, once per set of unresolved threads in a process.
+  The answers are kept in the history by thread id under the change request's id; the **Address
+  with an agent** dialog reads the latest and preselects the threads marked `agent`, and marks the
+  others. The person can change every selection.
 - **What it never does.** It never replies, resolves or starts a run; a person picks the threads.
 
 Not decided by the engine, by design: anything that grants (tool permissions, the move to `done`,

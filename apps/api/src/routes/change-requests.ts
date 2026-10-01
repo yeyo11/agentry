@@ -6,6 +6,7 @@ import type {
   ApprovalState,
   ChangeRequest,
   ChangeRequestChecks,
+  ChangeRequestReviewPosts,
   ChangeRequestReviewers,
   ChangeRequestThreads,
   CheckLog,
@@ -70,6 +71,8 @@ export const changeRequestRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
 
   app.get<{ Params: { id: string } }>('/change-requests/:id/review-drafts', (req): Promise<ReviewDraft[]> => core.changeRequests.drafts(req.params.id));
 
+  app.get<{ Params: { id: string } }>('/change-requests/:id/review-posts', (req): Promise<ChangeRequestReviewPosts> => core.changeRequests.reviewPosts(req.params.id));
+
   app.post<{ Params: { id: string }; Body: ReviewDraftInput }>(
     '/change-requests/:id/review-drafts',
     async (req, reply): Promise<ReviewDraft> => {
@@ -93,7 +96,8 @@ export const changeRequestRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
     const body: Partial<ReviewSubmitRequest> = req.body ?? {};
     if (body.event !== 'comment' && body.event !== 'approve' && body.event !== 'request-changes') throw new Error("event must be 'comment', 'approve' or 'request-changes'");
     if (body.body !== undefined && typeof body.body !== 'string') throw new Error('body must be text');
-    return core.changeRequests.submit(req.params.id, { event: body.event, body: body.body ?? '' });
+    if (body.headSha !== undefined && typeof body.headSha !== 'string') throw new Error('headSha must be text');
+    return core.changeRequests.submit(req.params.id, { event: body.event, body: body.body ?? '', ...(body.headSha ? { headSha: body.headSha } : {}) });
   });
 
   app.post<{ Params: { id: string; postId: string } }>(

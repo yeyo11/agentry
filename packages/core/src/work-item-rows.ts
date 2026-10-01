@@ -312,6 +312,8 @@ export interface PullRequestRow {
   fix_head?: string | null;
   /** A `ChangeRequestFixKind`; null reads as checks */
   fix_kind?: string | null;
+  /** JSON array of the thread ids an address was started for */
+  fix_threads?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -407,12 +409,13 @@ export function reviewPostOf(row: ReviewPostRow): ReviewPost {
     try {
       const parsed: unknown = JSON.parse(row.detail);
       if (typeof parsed === 'object' && parsed !== null && 'code' in parsed && typeof parsed.code === 'string') {
-        const d = parsed as { code: string; detail?: unknown; saved?: unknown; total?: unknown };
+        const d = parsed as { code: string; detail?: unknown; saved?: unknown; total?: unknown; draftIds?: unknown };
         detail = {
           code: d.code as HostReason,
           detail: typeof d.detail === 'string' ? d.detail : '',
           ...(typeof d.saved === 'number' ? { saved: d.saved } : {}),
           ...(typeof d.total === 'number' ? { total: d.total } : {}),
+          ...(Array.isArray(d.draftIds) ? { draftIds: d.draftIds.filter((id): id is string => typeof id === 'string') } : {}),
         };
       }
     } catch {

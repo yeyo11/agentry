@@ -4,6 +4,7 @@ import type {
   ChangeRequest,
   ChangeRequestChecks,
   ChangeRequestKind,
+  ChangeRequestReviewPosts,
   ChangeRequestReviewers,
   ChangeRequestThreads,
   CheckLog,
@@ -20,6 +21,7 @@ import type {
   WorkItemPullRequest,
 } from '@agentry/shared';
 import type { Db } from './db.ts';
+import type { ReviewTriage } from './decisions/review-triage.ts';
 import { HostActionNotOffered } from './hosts/code-host.ts';
 import { ChecksError, type ChecksService, type ChecksTarget } from './hosts/checks-service.ts';
 import { ReviewInputError, ReviewsError, type ReviewsService, type ReviewsTarget } from './hosts/reviews-service.ts';
@@ -82,6 +84,8 @@ export interface ChangeRequestServiceDeps {
   orchestration: (id: string) => Orchestration | null;
   /** The item after the check that its project lets the caller read or write it */
   itemAccess: (itemId: string, access: 'read' | 'write') => Promise<WorkItem>;
+  /** Asked who should take each unresolved thread whenever the threads are read; absent, nothing is asked */
+  triage?: ReviewTriage;
 }
 
 /** What `POST …/checks/fix` answers: whether a fix started, and the prompt for a chat of the person's own when it did not. */
@@ -222,13 +226,25 @@ export class ChangeRequestService {
   }
 
   async threads(id: string, refresh: boolean): Promise<ChangeRequestThreads> {
-    await this.reading(id);
-    return guarded(this.deps.reviews.threads(id, { refresh }));
+    const found = this.require(id);
+    const item = found.kind === 'work-item' ? await this.deps.itemAccess(found.ownerId, 'read') : null;
+    const list = await guarded(this.deps.reviews.threads(id, { refresh }));
+    // The Address dialog reads the answer from the decision history, so the question goes out as soon as the threads are seen
+    if (this.deps.triage) {
+      const title = item?.title ?? this.deps.orchestration(found.ownerId)?.name ?? '';
+      this.deps.triage.onThreads(id, item?.projectId ?? null, title, list);
+    }
+    return list;
   }
 
   async drafts(id: string): Promise<ReviewDraft[]> {
     await this.reading(id);
     return guarded(Promise.resolve().then(() => this.deps.reviews.listDrafts(id)));
+  }
+
+  async reviewPosts(id: string): Promise<ChangeRequestReviewPosts> {
+    await this.reading(id);
+    return guarded(this.deps.reviews.reviewPosts(id));
   }
 
   async addDraft(id: string, input: ReviewDraftInput): Promise<ReviewDraft> {
