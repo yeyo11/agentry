@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Revisión, hilos desactualizados y resueltos (desktop)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:var(--bg)}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)})}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
+<div class="app shell" data-theme="dark" style="width: 1440px; height: 1024px; position: relative">
+<div class="side">
+<nav class="app" data-theme="dark" aria-label="Principal" style="width: 256px; height: 1024px; background: var(--bg-1); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 14px 12px; gap: 18px">
+<div class="row" style="padding: 0 4px; height: 32px; gap: 10px">
+<a href="Main.html" class="row" style="gap: 10px; flex: 1 1 auto"><span style="width: 26px; height: 26px; border-radius: var(--r); background: var(--grad); display: grid; place-items: center; color: #fff; box-shadow: 0 4px 14px -4px color-mix(in srgb, var(--accent-2) 70%, transparent)"><svg class="ico ico-sm" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span><span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Agentry</span></a>
+<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Plegar barra lateral"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 4v16"></path></svg></button>
+</div>
+<button type="button" class="field" style="width: 100%; cursor: pointer; justify-content: flex-start; background: var(--bg-2)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg><span class="grow t-sm" style="text-align: left">Buscar o ejecutar…</span><span class="kbd">⌘K</span></button>
+<div class="col" style="gap: 1px">
+<a href="Main.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg><span class="grow">Inicio</span></a>
+<a href="DesktopChats.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg><span class="grow">Chats</span><span class="count">197</span></a>
+<a href="DesktopTablero.html" class="nav-item on"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM8.5 12l2.5 2.5 4.5-5"></path></svg><span class="grow">Tareas</span><span class="count">13</span></a>
+<a href="DesktopOrquestaciones.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg><span class="grow">Orquestaciones</span><span class="count-pill live">1</span></a>
+<a href="DesktopProgramaciones.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 5h13a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM3.5 10h17M8 3v4M16 3v4"></path></svg><span class="grow">Programaciones</span></a>
+</div>
+<div class="col" style="gap: 1px">
+<span class="t-label" style="padding: 0 10px 6px">Espacio</span>
+<a href="DesktopProyectos.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span class="grow">Proyectos</span></a>
+<a href="DesktopCuentas.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"></path></svg><span class="grow">Cuentas</span></a>
+<a href="DesktopConectores.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"></path></svg><span class="grow">Conectores</span></a>
+<a href="DesktopUso.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V11M10 20V4M16 20v-6M3 20.5h18"></path></svg><span class="grow">Uso</span></a>
+<a href="DesktopAjustes.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M17 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM11 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM19 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"></path></svg><span class="grow">Ajustes</span></a>
+</div>
+<div class="col" style="gap: 4px">
+<div class="row" style="padding: 0 10px 4px"><span class="t-label grow">En directo</span><span class="count-pill live">2</span></div>
+<a href="DesktopChatTarea.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 3px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis" style="font-weight: 500">Trabaja en AGN-28: tablero con columnas fijas</span></span>
+<span class="row t-xs" style="gap: 6px; padding-left: 15px"><span class="c-live">Ejecutando</span><span class="mono fg-3 ellipsis grow">pnpm test</span><span class="mono fg-3">4:12</span></span>
+</a>
+<a href="DesktopOrquestacion.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 6px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis grow" style="font-weight: 500">ecosystem-foundation</span><span class="mono t-xs fg-3">2/9</span></span>
+<span class="segbar" style="height: 4px; margin-left: 15px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 55%"></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+</a>
+</div>
+<div class="grow"></div>
+<a href="#" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5"></path></svg>Referencia de la API</a>
+</nav>
+</div>
+<div class="main-col" style="position: relative">
+<header class="app" data-theme="dark" style="width: 1184px; height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 20px 0 24px; border-bottom: 1px solid var(--line); background: var(--bg)">
+<nav aria-label="Ruta" class="row t-sm" style="gap: 6px">
+<button type="button" class="btn btn-ghost btn-sm project-selector" style="gap: 6px; padding: 0 8px; color: var(--fg-2)"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>claude-wrapper<svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+<span class="fg-3">/</span>
+<a href="DesktopTablero.html" class="fg-2">Tareas</a><span class="fg-3">/</span><a href="DesktopTareaMR.html" class="fg-2">AGN-26</a><span class="fg-3">/</span><span style="font-weight: 500">Cambios</span>
+</nav>
+<div class="grow"></div>
+<a href="DesktopOrquestaciones.html" class="chip" style="gap: 8px; border-color: transparent; background: var(--live-soft); color: var(--live); font-family: var(--mono); font-size: 11.5px"><span class="dot dot-live dot-ping" style="width: 6px; height: 6px"></span>2 agentes trabajando</a>
+<button type="button" class="btn btn-ghost btn-icon" aria-label="Notificaciones" style="position: relative"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"></path></svg><span class="dot" style="position: absolute; top: 8px; right: 9px; width: 6px; height: 6px; background: var(--accent)"></span></button>
+<div class="row" style="gap: 0">
+<a href="DesktopNuevoChat.html" class="btn btn-primary" style="border-radius: var(--r) 0 0 var(--r)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Nuevo chat</a>
+<button type="button" class="btn btn-primary btn-icon" aria-label="Más formas de empezar" style="border-radius: 0 var(--r) var(--r) 0; width: 30px; margin-left: 1px"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+</div>
+</header>
+<header class="row" style="flex-shrink: 0; gap: 12px; padding: 12px 20px 12px 12px; border-bottom: 1px solid var(--line)">
+<a href="DesktopTareaMR.html" class="btn btn-ghost btn-icon btn-sm" aria-label="Volver a la tarea"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"></path></svg></a>
+<div class="col grow" style="gap: 2px; min-width: 0"><span class="t-xs fg-3 ellipsis">AGN-26 · Plantillas de proyecto</span>
+<div class="row" style="gap: 12px"><h1 class="t-h1" style="font-size: 20px">Cambios de la PR #12</h1><span class="mono t-xs fg-3" style="white-space: nowrap">task/agn-26 → main · 4 archivos</span><span class="cnt"><span class="a">+214</span> <span class="d">−37</span></span></div></div>
+<span class="chip" style="height: 32px"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"></path></svg>Tu borrador<span class="n">1 nota</span></span>
+<a href="#" class="btn btn-sm" target="_blank" rel="noreferrer"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-8 8M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"></path></svg>Abrir PR #12 en GitHub</a>
+</header>
+<div class="row" style="flex: 1 1 auto; min-height: 0; align-items: stretch; gap: 0">
+<aside class="col" style="width: 288px; flex-shrink: 0; gap: 0; border-right: 1px solid var(--line); background: var(--bg-1)" aria-label="Archivos cambiados">
+<div class="row" style="height: 46px; padding: 0 12px 0 18px; gap: 8px; border-bottom: 1px solid var(--line)"><span class="t-label">Archivos</span><span class="count">4</span><span class="grow"></span><span class="mono t-xs fg-3">3 hilos</span></div>
+<nav class="fmap grow" style="padding: 8px 0; overflow: hidden">
+<div class="fdir"><svg class="ico ico-sm" viewBox="0 0 24 24" style="width: 12px; height: 12px" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>apps/api/src/routes</div>
+<a href="#" class="frow"><span class="st st-m">M</span><span class="row" style="gap: 6px; min-width: 0"><span class="fname">projects.ts</span></span><span class="row" style="gap: 8px"><span class="cnt"><span class="a">+21</span> <span class="d">−19</span></span></span></a>
+<div class="fdir"><svg class="ico ico-sm" viewBox="0 0 24 24" style="width: 12px; height: 12px" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>packages/core/src</div>
+<a href="#" class="frow"><span class="st st-a">A</span><span class="row" style="gap: 6px; min-width: 0"><span class="fname">project-templates.ts</span></span><span class="row" style="gap: 8px"><span class="cnt"><span class="a">+142</span> <span class="d"></span></span></span></a>
+<a href="#" class="frow sel"><span class="st st-m">M</span><span class="row" style="gap: 6px; min-width: 0"><span class="fname">project-settings.ts</span></span><span class="row" style="gap: 8px"><span class="row mono t-xs fg-2" style="gap: 3px" title="3 hilos"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>3</span><span class="cnt"><span class="a">+38</span> <span class="d">−12</span></span></span></a>
+<div class="fdir"><svg class="ico ico-sm" viewBox="0 0 24 24" style="width: 12px; height: 12px" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>packages/core/test</div>
+<a href="#" class="frow"><span class="st st-m">M</span><span class="row" style="gap: 6px; min-width: 0"><span class="fname">project-templates.test.ts</span></span><span class="row" style="gap: 8px"><span class="cnt"><span class="a">+13</span> <span class="d">−6</span></span></span></a>
+</nav>
+</aside>
+<section class="col grow" style="gap: 0; min-width: 0" aria-label="packages/core/src/project-settings.ts">
+<div class="dv-head"><span class="path grow"><span class="dir">packages/core/src/</span><span class="name">project-settings.ts</span></span><span class="cnt"><span class="a">+38</span> <span class="d">−12</span></span><span style="width: 1px; height: 20px; background: var(--line-2); margin: 0 4px"></span><div class="seg seg-compact" role="radiogroup" aria-label="Cómo comparar" style="padding: 2px"><button type="button" role="radio" aria-checked="true" class="on" style="height: 26px; padding: 0 9px"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"></path></svg><span class="lbl">Lectura</span></button><button type="button" role="radio" aria-checked="false" style="height: 26px; padding: 0 9px"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg><span class="lbl">Unificado</span></button></div><span class="chip" style="height: 28px"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>3 hilos<span class="n">1 sin resolver</span></span></div>
+<div class="app dv dv-read dv-review" data-theme="dark" style="display: block; flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 10px 0 0"><article class="rt outdated" aria-label="Hilo de revisión en project-settings.ts · línea original 31 · a81d3f0"><div class="rt-head"><span class="badge">desactualizado</span><span class="where">project-settings.ts · línea original 31 · a81d3f0</span><span class="t-xs fg-3">el código cambió después del comentario</span><span class="grow"></span><span class="mono t-xs fg-3">2 comentarios</span></div><div class="rt-hunk"><div class="rt-hunk-note">línea original 31 · a81d3f0</div><div class="rt-hunk-row ctx"><i> </i><code><span class="sx-kw">function</span> <span class="sx-fn">load</span>(file: <span class="sx-kw">string</span>) {</code></div><div class="rt-hunk-row ctx"><i> </i><code>  <span class="sx-kw">const</span> raw = <span class="sx-fn">readFileSync</span>(file, <span class="sx-str">&#x27;utf8&#x27;</span>);</code></div><div class="rt-hunk-row add"><i>+</i><code>  <span class="sx-kw">return</span> <span class="sx-type">JSON</span>.<span class="sx-fn">parse</span>(raw);</code></div></div><div class="rt-comment"><span class="proj monogram" style="--hue: 300" role="img" aria-label="dani" title="dani">D</span><div class="col" style="gap: 0; min-width: 0"><span class="rt-who"><b>dani</b><time>hace 2 d</time></span><p class="rt-body">Este <code>JSON.parse</code> sin <code>try</code> se rompe si el fichero está a medias.</p></div></div><div class="rt-comment"><span class="proj monogram" style="--hue: 24" role="img" aria-label="yeyo" title="yeyo">Y</span><div class="col" style="gap: 0; min-width: 0"><span class="rt-who"><b>yeyo</b><time>hace 2 d</time></span><p class="rt-body">Cierto; lo cambio a partir de este commit.</p></div></div><div class="rt-foot"><label class="field" style="gap: 6px"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg><input placeholder="Responder…" aria-label="Responder al hilo"></label><button type="button" class="btn btn-sm"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg>Resolver</button></div></article>
+<div class="dv-row add"><span class="dv-num">5</span><span class="dv-rail"></span><span class="dv-code"><span class="sx-com">/** The project&#x27;s settings live in one JSON file at its root. */</span></span></div>
+<div class="dv-row add noted"><span class="dv-num">6</span><span class="dv-rail"></span><span class="dv-code"><span class="sx-kw">const</span> SETTINGS_FILE = <span class="sx-str">&#x27;.agentry/settings.json&#x27;</span>;</span><span class="dv-note-pill" role="img" aria-label="2 comentarios"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>2</span></div>
+<article class="rt resolved" aria-label="Hilo de revisión en project-settings.ts:6"><div class="rt-head"><span class="badge b-ok"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg>resuelto</span><span class="where">project-settings.ts:6</span><span class="t-xs fg-3">por marta · hace 1 d</span><span class="grow"></span><span class="mono t-xs fg-3">2 comentarios</span></div><div class="rt-comment"><span class="proj monogram" style="--hue: 215" role="img" aria-label="marta" title="marta">M</span><div class="col" style="gap: 0; min-width: 0"><span class="rt-who"><b>marta</b><time>hace 1 d</time></span><p class="rt-body">¿Por qué una ruta fija y no un ajuste del proyecto?</p></div></div><div class="rt-comment"><span class="proj monogram" style="--hue: 24" role="img" aria-label="yeyo" title="yeyo">Y</span><div class="col" style="gap: 0; min-width: 0"><span class="rt-who"><b>yeyo</b><time>hace 1 d</time></span><p class="rt-body">Es el fichero donde viven los ajustes; no hay otro sitio donde guardarlo.</p></div></div><div class="rt-foot"><label class="field" style="gap: 6px"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg><input placeholder="Responder…" aria-label="Responder al hilo"></label><button type="button" class="btn btn-sm">Reabrir</button></div></article>
+<div class="dv-row ctx"><span class="dv-num">7</span><span class="dv-rail"></span><span class="dv-code"></span></div>
+<div class="dv-row ctx"><span class="dv-num">8</span><span class="dv-rail"></span><span class="dv-code"><span class="sx-kw">export</span> <span class="sx-kw">function</span> <span class="sx-fn">readSettings</span>(dir: <span class="sx-kw">string</span>): <span class="sx-type">ProjectSettings</span> {</span></div></div>
+</section>
+</div>
+<footer class="app statusbar" data-theme="dark" style="width: 1184px">
+<a href="DesktopCuentas.html" class="row" style="gap: 7px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>yeyo@inmoseo.net</a>
+<span class="row" style="gap: 6px">5h<span class="bar bar-thin grad"><i style="width: 45%"></i></span>45%</span>
+<span class="row" style="gap: 6px">7d<span class="bar bar-thin grad"><i style="width: 5%"></i></span>5%</span>
+<span class="grow"></span>
+<span class="row" style="gap: 6px"><span class="spin-braille"></span>2 en marcha</span>
+<span>hoy 3,41 US$</span>
+<span>Claude Code 2.1.282</span>
+</footer>
+</div>
+
+</div>
+<script>t()</script>
+</body></html>
