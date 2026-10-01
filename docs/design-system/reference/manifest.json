@@ -1006,5 +1006,29 @@
     "title": "Móvil · Orquestación, subir el arreglo",
     "w": 390,
     "h": 844
+  },
+  {
+    "file": "DesktopOrquestacionFusion.html",
+    "title": "Desktop · Orquestación, fusionar",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopTableroFusion.html",
+    "title": "Desktop · Tablero con fusión automática",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileOrquestacionFusion.html",
+    "title": "Móvil · Orquestación, fusionar",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTableroFusion.html",
+    "title": "Móvil · Tablero con fusión automática",
+    "w": 390,
+    "h": 844
   }
 ]
