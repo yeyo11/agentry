@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T12:43:36.708551256Z
-updated_at: 2026-10-01T17:55:00Z
+updated_at: 2026-10-01T21:30:00Z
 tags:
     - plan
     - providers
@@ -10,16 +10,18 @@ tags:
     - codex
     - acp
     - opencode
+    - rotation
     - planned
 ---
 # Multiple agent providers
 
-Status: **phases 1 and 2 landed** (#150, #155): detection, the first-run step, and Claude Code
-behind the driver interface. **Phase 3 is planned** as a task graph ("Phase 3: orchestrations and
-task graph", 2026-10-01): the Codex and ACP drivers, OpenCode's SQLite transcripts and the provider
-on the chat page. Its CLI facts were recorded that day, and four decisions are open for the owner.
-Phase 4 (rotation between providers) is planned. The owner answered phase 1's open questions on
-2026-09-30; see "Decisions" at the end, and "Outcome of phase 1".
+Status: **phases 1, 2 and 3 landed** (#150, #155, #167): detection and the first-run step, Claude
+Code behind the driver interface, then the Codex and ACP drivers, OpenCode's SQLite transcripts and
+the provider on the chat page. **Phase 4 is planned** as a task graph ("Phase 4: rotation between
+providers", 2026-10-01): limits per provider, moving work between providers at a limit, three
+decision points, and claude-swap retired. Four of its decisions are open for the owner. The owner
+answered phase 1's open questions on 2026-09-30; see "Decisions" at the end, and "Outcome of
+phase 1".
 
 On 2026-09-30 the owner decided that Agentry is no longer a wrapper around Claude Code: it has grown
 into an orchestrator of its own, and it should drive other coding agents too. On a clean install it
@@ -242,7 +244,8 @@ them, but they cannot run orchestration stages.
 3. **Codex and ACP drivers** (Copilot, Gemini and OpenCode on one ACP driver), OpenCode's SQLite
    transcripts and the provider on the chat page, each driver with its fake for core and e2e. See
    "Phase 3: orchestrations and task graph".
-4. **Rotation between providers**, and claude-swap retired (see "Rotation moves to providers").
+4. **Rotation between providers**, and claude-swap retired (see "Rotation moves to providers" and
+   "Phase 4: rotation between providers").
 
 Each phase keeps `pnpm typecheck`, `pnpm test` and `pnpm e2e` green, regenerates the OpenAPI schemas
 and adds its README rows.
@@ -1845,6 +1848,888 @@ that has none.
 make. The drivers are written from the recordings that needed none and from each CLI's own
 documentation, and their conformance runs against the fakes.
 
+## Phase 4: rotation between providers
+
+Phase 4 is one delivery on one feature branch, **`feat/multi-provider-4`**, cut from `main` after
+phase 3 (#167), and squash-merged once. It builds what "Rotation moves to providers" (owner,
+2026-09-30, decisions 6 to 9) asks for. When a provider reaches its usage limit, the work goes on in
+another provider, waits for the reset, or starts over. The person's settings decide which, and so
+do three decision points when they are on. claude-swap is retired in the same pull request, so there
+is never a release with neither kind of rotation.
+
+It is split into four orchestrations (P0, G, D, W). Every code-writing worker runs on
+`claude-sonnet-5-5` (the exact id, never the `sonnet` alias). Every task runs `pnpm typecheck` and
+the tests of the packages it touches. No worker runs `pnpm e2e`. The full `pnpm test`, `pnpm build`
+and `pnpm e2e` run once, at the end, on the branch.
+
+### What phase 4 builds
+
+- **A limit per provider**, not one for the whole app. Each driver's limit events become one neutral
+  `ProviderLimit` per provider (`ok`, `near`, `exhausted`, `unknown`, with the binding window and its
+  reset). It is kept as a SQLite row that every process on the data directory shares, and shown in
+  Settings → Providers, in the status bar and in readiness (`degraded`, `limit-reached`).
+- **Candidates.** One pure function says which providers can take a given run, and why each of the
+  others cannot. It reads the person's order (global, or the project's), readiness, capabilities, the
+  run's `ToolPolicy` (with `git push` denied), the model mapping and the limits. Starting work and
+  moving work use the same function.
+- **Three actions at a limit:**
+  - **handoff:** a new chat on the next candidate, in the same worktree, whose first turn is a
+    handoff built from the transcript;
+  - **restart:** a new chat on the next candidate, in the same worktree, with the original prompt;
+  - **wait:** the same chat replays its turn on the same provider once the limit resets.
+  Each move is recorded as a row, and every chat in the chain links to the others.
+- **Automated work carries a provider.** Flow runs, orchestration tasks, assistant runs and the
+  decision engine's `cli` chats choose a provider from the candidates. They hand that provider their
+  `ToolPolicy`, not Claude's rule strings. This closes a gap phase 3 left (see the facts below).
+- **The decision points** `provider.on-limit`, `provider.pick` and `provider.model-map`, each
+  shipping `off`, with consent, a state preview and a resolver, like every other point.
+- **claude-swap retired:** core, API, web, Docker, Helm, the desktop app and the docs. A one-time
+  notice tells existing multi-account users what changed and what was kept.
+
+### Out of scope
+
+- **Several accounts of one provider.** Decision 6: one account per provider, the one signed in to
+  its CLI. Nothing switches credentials, and nothing reads another vendor's credential files.
+- **Moving a live session.** A session belongs to its provider: Claude's JSONL cannot be resumed by
+  Codex, and the reverse is just as impossible. A move always means a new chat (decision P4-1).
+- **Summarising with a model.** The handoff is built by code from what Agentry already has. A
+  summary written by an agent would spend on a provider while the work is short of quota, and would
+  be one more thing to trust.
+- **Budgets on providers that report no cost.** A run under a budget (`flow.maxCostUsd`, a task's
+  `maxCostUsd`) moves only to a provider that declares `budgetLimit`, which is only Claude Code today.
+- **Workflow-tool orchestrations** (`engine: 'workflow'`) and anything else that needs `workflowTool`
+  stay on Claude. At a limit they can only wait.
+- **ACP limit detection** beyond what is recorded. Until `r2` records how Copilot, Gemini and OpenCode
+  report an exhausted quota, an ACP failure is an ordinary failure. Work can move to these agents,
+  never away from them.
+- **Dropping the old tables** (`rotation_events`, `usage_history`). Phase 4 stops writing them. A
+  migration in a later release drops them, once no older process on the same data directory can
+  still be writing.
+
+### Facts the design rests on (checked in the code, 2026-10-01, `main` at `7c7b6e03`)
+
+| Fact | Where |
+|---|---|
+| A rate limit reaches core as `DriverEvent` `rate-limit` (windows) or `rate-limited` (the wording), and as `result.rateLimited` | `providers/driver.ts:271-290` |
+| Claude Code: `rate_limit_event` gives `status`, `rateLimitType`, `resetsAt` (unix seconds) and `unifiedWindows`. A result is rate-limited on `api_error_status === 429` or on `RATE_LIMIT_RE` matching its text. A stderr line that matches `RATE_LIMIT_RE` emits `rate-limited` | `providers/claude-code/stream.ts:9, 87, 186-199, 217` |
+| Codex: `account/rateLimits/updated` becomes `rate-limit` (primary and secondary windows, `usedPercent`, `windowDurationMins`, `resetsAt`). A turn is rate-limited only when `codexErrorInfo` is `usageLimitExceeded` or `rateLimitExceeded`, never by its text. Status is `rejected` at 100 % and `allowed_warning` from 80 % | `providers/codex/events.ts:8, 20-40, 105-106, 225` |
+| ACP (Copilot, Gemini, OpenCode): **no limit signal at all**. Every result sets `rateLimited: false`. `usage_update` is the context window, not quota | `providers/acp/session.ts:404-428`, `acp/updates.ts:111` |
+| Declared `rateLimitWindows`: Claude Code and Codex only. `multiAccount`: Claude Code only (claude-swap) | `claude-code/manifest.ts:49-50`, `codex/manifest.ts:40` |
+| The last rate limit is **one value for the whole app**, overwritten by whichever chat reported last, and served as `Overview.rateLimit` | `chats.ts:94, 168-170`, `index.ts:2233`, `types.ts:4195` |
+| Rotation today: `rate-limited` → `rotateAndResume`, only with claude-swap managed and `rotateOnLimit` on. It rotates the account (pinned, by policy, or global), then `replayLastTurn` respawns the same chat with `--resume`. Orchestration workers and runs held to a schema are not replayed ("the next tasks use it") | `index.ts:871-938`, `chats.ts:1058-1114` |
+| One rotation per execution (`MAX_ROTATION_RETRIES = 1`) | `chats.ts:76` |
+| The flow waits for that rotation in memory (`awaitingRotation`) and fails the run with `no-account`, or `rate-limit` when the rotation was off | `flow.ts:240-244, 757-760, 1472-1521, 2067-2079` |
+| An orchestration task whose result has a `cause` (`rate-limit` included) is never retried and never asked about. Today it fails | `orchestrator.ts:1129-1145, 1201-1210` |
+| **Automated work names no provider.** Flow runs, orchestration tasks, assistant runs and the decision engine's `cli` chats start on `defaultSessionProvider`, which looks at the order and at whether a driver exists, **not at readiness**. They pass Claude's rule strings (`rulesFor('claude-code', …)`) and no `policy`, so on a non-Claude default the judge has no policy to enforce | `index.ts:1749-1758`, `flow.ts:1380-1381`, `orchestrator.ts:1429, 1858, 1902, 1993, 2403`, `assistant.ts:230`, `decisions/providers/cli.ts:108-122`, `chats.ts:196-202`, `providers/registry.ts:123-127`, `chats.ts:902` |
+| A flow run passes the member's Claude agent file (`--agents` file from `.claude/agents/<agent>.md`: description, prompt, model, tools) | `index.ts:1759, 1795-1820` |
+| `appendSystemPrompt` reaches Codex as `developerInstructions`. **ACP drivers drop it** | `codex/session.ts:127`; no reference in `providers/acp/` |
+| A chat has one provider (`chats.provider` column) and one native session id. A fork records `derivedFrom: { chatId, at }` | `db.ts:543-545`, `types.ts:618-622, 758-768` |
+| What a request asks for is gated by capability (`structuredOutput`, `budgetLimit`, `interactivePermissions`, `fork`, `multiAccount`…), with a 400 | `chat-service.ts:543-562` |
+| `ModelTier` (`fast`, `balanced`, `strong`) is already declared "what model mapping across providers builds on". Claude ranks its aliases. **Codex ranks none** | `types.ts:105-110`, `claude-code/models.ts:29`, `codex/models.ts:7` |
+| Codex can read its limits without spending: `account/rateLimits/read` (in the generated schema; signed out it answers "codex account authentication required"). The handshake calls only `initialize`, `account/read` and `model/list` today | phase 3 "Recorded facts", `codex/handshake.ts:27, 64-65` |
+| The `cli` decision provider answers `rate-limited` at once, with no rotation and no resume | `decisions/providers/cli.ts:137-138` |
+| docs/decision-engine.md lists "account rotation" as plain arithmetic the engine does not decide | `docs/decision-engine.md`, "Not decided by the engine" |
+| claude-swap owns the credential while it manages accounts: `CredentialStore.suspend` clears `CLAUDE_CODE_OAUTH_TOKEN` and `ANTHROPIC_API_KEY`. `tokenSource` reads `cswap` | `credentials.ts:42-55`, `index.ts:882-887, 1017-1018` |
+| A chat pinned to an account runs `cswap run <n> --share-history -- claude …`. An account may have its own `CLAUDE_CONFIG_DIR`, with `projects/` linked back so transcripts stay readable | `providers/claude-code/args.ts:65-76`, `account-config.ts:14-25`, `accounts.ts:462-474` |
+| claude-swap state: `accounts.json` (auto-switch) and `account-config.json` (config dirs, rotation policies) in the data directory; the managed binary in `data/tools`; the tables `rotation_events` and `usage_history` | `accounts.ts:197`, `account-config.ts:97`, `cswap-install.ts:48`, `db.ts:55-65, 146-155` |
+| Fakes: the core Claude fake has `FAKE-LIMIT-ONCE` (a 429, then the replay succeeds). The Codex fake has `RATE`. The ACP fake has none. The e2e Claude fake has no limit script. e2e runs with `CSWAP_BIN` pointing at nothing | `test/fixtures/fake-claude.mjs:14`, `fake-codex-app-server.mjs:18, 312`, `fake-acp-agent.mjs:31`, `e2e/run.mjs:183, 196` |
+| Docker installs claude-swap and declares its volume. Compose and Helm mount it | `docker/Dockerfile:62-80, 104`, `docker-compose.yml:18, 28, 64`, `deploy/helm/agentry/templates/deployment.yaml:108` |
+
+Two of these facts change the shape of the plan:
+
+- **Automated work must name its provider and carry its policy** before anything can move it. If
+  it does not, a move to Codex would hand Codex Claude's rule strings and no `git push` guard.
+- **Claude's limit is only known while it runs.** claude-swap polled each account's usage, and that
+  goes. Between turns, Agentry knows the last `rate_limit_event` it saw, and nothing newer. The UI
+  says how old the reading is.
+
+### How a limit is detected, per provider
+
+A new module, `packages/core/src/providers/limits.ts` (`ProviderLimits`), folds what the drivers
+already emit into one `ProviderLimit` per provider. It replaces `ChatManager.lastRateLimit`.
+
+```ts
+export type ProviderLimitState = 'ok' | 'near' | 'exhausted' | 'unknown';
+
+export interface ProviderLimit {
+  provider: ProviderId;
+  state: ProviderLimitState;
+  /** The window that binds (`5h`, `7d`, `primary`), when the provider names windows */
+  window: string | null;
+  /** Use of that window, 0..1; null when the provider reports none */
+  utilization: number | null;
+  /** ISO time the binding window resets; null when unknown */
+  resetsAt: string | null;
+  windows: Record<string, RateLimitWindow>;
+  /** When the reading was taken: the UI says how old it is */
+  observedAt: string;
+  /** `stream`: a live run reported it; `probe`: a read that spends nothing; `failure`: a turn died on it */
+  source: 'stream' | 'probe' | 'failure';
+}
+```
+
+| Provider | Signal | Becomes | Reset known? | Read without spending |
+|---|---|---|---|---|
+| Claude Code | `rate_limit_event` | `ok` / `near` (`allowed_warning`, or the binding window ≥ 60 %) / `exhausted` (`rejected`) | Yes (`resetsAt`) | No. The last reading stands, with its age |
+| Claude Code | result 429, or `RATE_LIMIT_RE` on the result or on stderr | `exhausted` (`source: failure`) | From the last `rate_limit_event` of that process, else unknown | — |
+| Codex | `account/rateLimits/updated` | as `rateLimitInfo()` already maps it | Yes (`resetsAt` per window) | **Yes:** `account/rateLimits/read` in the detector's handshake when signed in, and every `PROVIDERS_TTL_MS` while the provider is `near` or `exhausted` |
+| Codex | `turn/completed` failed with `usageLimitExceeded` / `rateLimitExceeded` | `exhausted` (`source: failure`) | From the last snapshot | — |
+| Copilot, Gemini, OpenCode | none recorded | `unknown`, always | No | No |
+
+- **Thresholds** follow the design system's usage bars: `near` from 60 % of the binding window,
+  `exhausted` at 100 % or on `rejected`. The bars are neutral below 60 %, `warn` from 60 % and `bad`
+  from 75 % or when exhausted.
+- **An exhausted provider recovers on its own** when `resetsAt` passes: the reading becomes `unknown`
+  (never `ok` without a new reading), and candidates may use it again.
+- **`ProviderLimits.observe(provider, event)`** is called from `chat-fold.ts` where `noteRateLimit`
+  is today, with the chat's provider. It writes the row (see "Persistence") only when the state or
+  the binding window changes, or every 60 s at most, so a stream of events does not become a stream
+  of writes.
+- **Readiness:** the detector reads the row. `exhausted` makes the provider `degraded` with the new
+  reason `limit-reached`; `near` gives `degraded` with `limit-near`. `ProviderStatus.limit` carries
+  the reading.
+- **What only an account can record (`r2`, the owner, any time before the final e2e):** Codex's
+  signed-in `account/rateLimits/read` reply; a real `usageLimitExceeded` turn; and, for each ACP
+  agent, what an exhausted quota looks like (error code, `data`, `stopReason`). Each recording that
+  shows a stable code adds a `limitErrors` matcher to that agent's `AcpProfile`. It matches codes and
+  fields, never message text. Until then ACP is `unknown`.
+
+### Which providers can take a run: the candidates
+
+`packages/core/src/providers/candidates.ts` is pure. `candidatesFor(run, context)` returns the
+providers in order, each with the model it would use, plus the excluded ones with a reason the UI
+shows ("Gemini: no structured output"):
+
+```ts
+export interface RunNeeds {
+  kind: 'chat' | 'flow-run' | 'task' | 'assistant' | 'decision';
+  projectId: string | null;
+  /** The provider and model the work is on now; null when it has not started */
+  from: { provider: ProviderId; model: string | null } | null;
+  /** The model the work asks for, and the provider whose catalog it comes from */
+  model: { provider: ProviderId; id: string } | null;
+  needs: ProviderCapability[];        // structuredOutput for a schema, budgetLimit for a budget, …
+  policy: ToolPolicy | null;          // null only for a person's chat with custom native rules
+  nativeRules: boolean;               // the chat runs on rules typed for one provider
+  automated: boolean;                 // Agentry started it: gitPush must be denied and enforced
+  exclude: ProviderId[];              // providers this run already left in its chain, until their reset
+}
+
+export type Exclusion = 'disabled' | 'not-ready' | 'no-driver' | 'capability' | 'policy' | 'policy-not-portable'
+  | 'no-mapping' | 'exhausted' | 'left-already' | 'not-in-order';
+```
+
+The filters, in order:
+
+1. **Order.** The project's `providers.order` when it sets one, else the global order of
+   `providers.json`. Only enabled providers count. A provider outside the order is never a candidate
+   (decision 8).
+2. **Readiness.** `ready`, or `degraded` for any reason except `limit-reached`. `unknown` with
+   `no-probe` (Copilot) is a candidate only for a person's chat, as New chat already offers it
+   (phase 3 outcome 4). Automated work needs a provider that has proved it is signed in.
+3. **A session driver** that declares (and, where confirmed, has confirmed) every capability in
+   `needs`. Schema → `structuredOutput`. Budget → `budgetLimit`. Host prompts →
+   `interactivePermissions`. Workflow engine → `workflowTool`. A flow member's agent file does
+   **not** need `subagents`: it is inlined (see "What moves").
+4. **Policy.** The candidate's translation enforces every part the policy sets: nothing the run
+   needs is in `unsupported`. For automated work, `gitPush: 'deny'` must sit in `rules` or
+   `settings`, and in `host` too where the driver has a judge (phase 3, conformance cases 11 and 16).
+   Copilot and Gemini flow stages stay off until `r1` confirms their native rule, as phase 3 decided.
+   A chat on custom native rules with no policy cannot be translated: `policy-not-portable`.
+5. **Model.** The model must be the candidate's own (its catalog lists it), or have a mapping from
+   its provider to the candidate. With no mapping: `no-mapping` (decision 7: such a run waits, and
+   says why). The target model's effort carries over when the candidate declares `effort` and lists
+   that level; otherwise the candidate's default effort is used.
+6. **Limit.** Not `exhausted` with a reset still ahead.
+7. **Chain.** Not a provider this run already left, until that provider's reset has passed, and at
+   most `rotation.onLimit.maxMoves` moves per run (default 2). This stops a run bouncing between two
+   providers that are both at their limit.
+
+**Starting automated work** uses the same function with `from: null`. The first candidate is what
+the setting picks, and `provider.pick` may choose another one (see the points). This also fixes the
+fact above: a flow run on a person whose default provider is Codex now starts on the first provider
+that can enforce its stage. Every automated launch passes `provider` and `policy`. The rule strings
+are derived from that provider's translation (`registry.translationFor`), never from
+`rulesFor('claude-code', …)`.
+
+### What happens at a limit
+
+`packages/core/src/rotation.ts` (`ProviderRotation`) replaces `rotateAndResume`.
+`ChatManager.maybeRotate` becomes `maybeLimit`, which emits `limit-hit` (chat, provider, the reading)
+once per execution, under the same conditions as today: rate-limited, a last user turn, and not
+already asked for this attempt.
+
+1. **Record.** `ProviderLimits` marks the provider. `run.rateLimited` is emitted with `provider` and
+   `resetsAt`.
+2. **Who decides.**
+   - A **person's chat** (origin `agentry`, not internal, no schema): nothing happens on its own
+     (decision P4-2). The chat gets a limit banner (see "What the person sees"). Its actions are the
+     feasible ones, and the setting's action is shown first.
+   - **Automated work** (flow run, orchestration task, assistant run, a schedule's chat): the
+     effective `onLimit` setting (the project's, else the global one), then `provider.on-limit` when
+     it is on (below). The decision engine's own `cli` chats never move: they answer `rate-limited`,
+     as today.
+3. **Feasible actions.** `handoff` and `restart` need at least one candidate. `wait` is always
+   feasible: it is the floor. An action the person did not allow is never taken, unless it is `wait`
+   standing in for an infeasible one. A run whose model has no mapping waits, and the notice says so
+   and links to the mapping editor on that pair.
+4. **Act.**
+   - **handoff / restart:**
+     1. The chat is stopped if its process is still up, as `replayLastTurn` does today.
+     2. A move row is inserted (`state: 'moved'`).
+     3. `ChatService.continueOn(chatId, { provider, model, action })` creates the new chat: same
+        `cwd` and worktree; mapped model; the same permission mode when the target offers it, else
+        `manual`; the run's policy; the same MCP selection where the target declares `mcp`; the same
+        `jsonSchema`; the remaining budget. Its first turn is the handoff, or the original prompt.
+     4. Both chats get the link. The run, task or item is re-pointed (below). `run.providerMoved` is
+        emitted.
+   - **wait:**
+     1. A move row is inserted with `state: 'waiting'` and `resets_at`. With an unknown reset, the
+        wait lasts up to `maxWaitHours` (default 6).
+     2. A timer in the process that owns the chat claims the row at the reset (guarded update, below)
+        and replays the last turn on the same chat and provider, as `replayLastTurn` does.
+     3. When the cap passes without a known reset, the row ends `failed`. The run fails with
+        `limit-wait-expired`.
+     `run.limitWaiting` is emitted when the wait starts.
+5. **Restart of Agentry.** `rotation.recover()` re-arms the timers of the `waiting` rows whose chat
+   this process restored. A claim whose `claimed_until` has passed may be taken again.
+
+**Per kind of work:**
+
+| Work | On a move | While waiting | Safety limits kept |
+|---|---|---|---|
+| A person's chat | Only by the person's click (P4-2). The old chat ends with a link to the new one | The banner shows the reset and a Cancel | — |
+| Flow run | `flow_runs.chat_id` and `provider` are re-pointed by `UPDATE … WHERE id = ? AND chat_id = ?` (the old chat). The item gets the new chat as a link with the same role. A Developer's later run continues the newest chat of the chain | The run stays `running` and **keeps its slot** (`maxParallel` counts paid work in flight, waits included) | Bounces unchanged (a move is not a bounce). Budget: the continuation gets `maxCostUsd − spent so far` and needs `budgetLimit`. `git push` denied. Only a person moves to Done |
+| Orchestration task | `task.runId` and `task.provider` move to the new chat; `task.chain` gets an entry. Not an attempt | `task.waiting` is set; the task stays `running` and keeps its place in `maxParallel` | `maxAttempts`, task limits (time and cost count across the chain) |
+| Assistant run | As a flow run: a new chat with the same schema, on a `structuredOutput` candidate | As a flow run | Its proposals still need a person |
+| Decision `cli` chat | Never moves. If its provider is at its limit, the engine's `cli` provider chooses the first candidate with `structuredOutput` and a mapping for its model (decision 9); otherwise `unavailable` (`rate-limited`), and today's behaviour decides | — | Its budget cap |
+
+### The handoff
+
+`packages/core/src/handoff.ts` is pure. `buildHandoff(input): { text, bytes, sections }` is built by
+code, never by a model. It is English, like every prompt (the English records rule), and cut to
+12 KiB:
+
+1. **What was asked:** the chat's first prompt, and for a flow run or a task, the stage's or the
+   task's own prompt as Agentry sent it.
+2. **What was done:** the edit steps (`editStepsFromEntries`: each changed file with the sentence the
+   agent wrote before changing it); the commands run, with their exit code (the last 20); and the
+   checklist (the agent's task list or plan entries) with its state.
+3. **Where it stands:** `git status --porcelain` and `git diff --stat` of the worktree, as the
+   changes review reads them; and the agent's last message.
+4. **What is left:** the open checklist items. For a flow run, the acceptance criteria not yet met;
+   for a task, the open items the orchestrator already computes (`openItems`).
+5. **The rules of this run:** the stage's or the task's closing instructions. For a flow member whose
+   agent file cannot be passed as `--agent` (any provider but Claude), the file's prompt. It goes
+   into `appendSystemPrompt` on a provider that takes one (Codex: `developerInstructions`), and at the
+   head of the first turn on ACP, which drops `appendSystemPrompt`.
+
+Everything that came from the transcript, git or a tool goes inside one `pasted()` block followed by
+`PASTED_NOTE` (`prompt-rules.ts`). The new agent reads it as data, never as instructions.
+`prompt-rules.test.ts` covers the module. The handoff never includes tool outputs longer than 2 KiB
+each, file contents, environment variables or anything `decisions/redact.ts` masks.
+
+### What moves, and what cannot
+
+| | Moves | Does not move |
+|---|---|---|
+| Session and context | — | The provider's session, its compacted context and its native id. The new agent knows only the handoff |
+| Transcript | Linked: the new chat's details show the old one, and the old one ends with a link to the new one | The old transcript stays with the old chat, in its provider's store |
+| Worktree and files | The same `cwd` and worktree, uncommitted changes included (owner decision 7) | — |
+| Model | Through the mapping only | A model with no mapping: the run waits |
+| Effort | When the target declares `effort` and lists the level | Otherwise the target's default |
+| Permission mode | The same mode when the target lists it in `permissionModes()`, else `manual` | Never a more permissive mode. "Allow always" grants given during the old session |
+| Tools | The run's `ToolPolicy`, translated by the target | Custom native rules with no policy (`policy-not-portable`) |
+| MCP servers | The chat's `McpSelection`, where the target declares `mcp` | claude.ai connectors (Claude only) |
+| Agents and workflows | A flow member's agent file, inlined as instructions | Running subagents, background tasks and workflow runs: they end with the old process. Workflow-engine orchestrations only wait |
+| Attachments | On a restart, the original attachments when the target takes images; otherwise listed by path | — |
+| Budget | What is left of it, on a `budgetLimit` provider | Spending on providers that report no cost |
+| Schema | The same `jsonSchema`, on a `structuredOutput` provider | — |
+
+### What the person sees
+
+- **Chat at a limit** (P0 `p2`):
+  - A `warn` banner above the composer: "Claude Code reached its 5-hour limit · resets at 14:05
+    (in 2 h 10 min)". When the reset is unknown, it says so, with the age of the last reading.
+  - The actions are the feasible ones: **Continue on Codex** (handoff), **Start over on Codex**
+    (restart), **Wait for the reset**. The one primary action of the zone is the setting's.
+  - **See the handoff** opens a `Sheet` (a dialog on desktop) with the exact text the next agent will
+    receive, its size, and the model it will run on.
+  - An excluded provider is listed with its reason, in the person's words, never a wire identifier.
+- **A moved chat:**
+  - The old chat ends with a divider: "Continued on Codex in *<title>*", linking to the new chat.
+  - The new chat's header shows its `ProviderBadge` and "Continued from Claude Code".
+  - Its first message is a collapsed "Handoff from Claude Code" card.
+- **Waiting:**
+  - The chat, the task row and the board card say "Waiting for Claude Code · resets 14:05", in
+    `warn` with a word, never colour alone.
+  - Actions: **Move now** (opens the same sheet) and **Stop waiting**.
+  - Nothing animates while waiting: it is not live work (design system, "Only live things move").
+- **Orchestration task row:** the chain as chips (Claude Code → Codex), each opening its chat; "moved
+  · handoff".
+- **Flow:**
+  - The item's activity has "Developer run moved from Claude Code to Codex (handoff)".
+  - `FailedFlowRun` words the new causes `no-provider` and `limit-wait-expired`.
+- **Status bar:**
+  - The phase 1 dot per provider gains the limit: `warn` near, `bad` exhausted, with the word
+    ("limit") and the reset in its title.
+  - The phone's More sheet card shows the default provider's limit in place of claude-swap's account.
+- **Settings → Providers** (P0 `p1`):
+  - each provider row gets its limit bars (the same thresholds) and the age of the reading;
+  - a **When a provider reaches its limit** card: the action, the allowed actions, the wait cap and
+    the moves cap;
+  - the **Model mapping** editor: a row per model of each provider, a counterpart per other
+    provider, a `warn` "no counterpart" mark, and suggestions from `provider.model-map` marked
+    "suggested" with Accept and Dismiss.
+- **Project settings → Providers:** the order override and the on-limit override, each with "Use
+  global".
+- **The "decided" mark** on a move or a pick made by a point in `active`, opening the answer.
+- **Notifications:** `run.providerMoved` ("<run> moved to Codex", "The turn goes on there with a
+  handoff") and `run.limitWaiting` ("<run> waits for Claude Code's reset at 14:05"), both of normal
+  urgency. They replace `run.accountRotated` and `account.switched`.
+
+### The three decision points
+
+All three follow the engine's rules:
+
+- they ship `off`, ask for consent with the exact state, and declare their state fields;
+- their questions are English;
+- with the point `off` or unavailable, the setting decides at once;
+- an act point on the `cli` provider can never clear its threshold (null confidence), so it is
+  `active` only on Jev, and `watch` (shadow) otherwise.
+
+The person's settings bound every answer: the options are only the feasible ones the person allowed.
+A point is not asked when there is only one option.
+
+#### `provider.on-limit` (act, project)
+
+| | |
+|---|---|
+| Subject | `flow_run`, `task` or `assistant_run`, with its id. Never a person's chat (P4-2) |
+| When asked | Step 2 of "What happens at a limit", for automated work, when at least two actions are feasible and allowed |
+| Fields | `work` (`flow-run` / `task` / `assistant`, and the stage or task name), `progress` (`checklistDone`, `checklistTotal`, `filesChanged`, `turns`, `minutes`), `from` (provider, model, `resetsInMin` or null), `candidates` (the first three: id, label, mapped model, utilization, `resetsInMin`), `allowed` |
+| Question | choice `action`: "This run hit its provider's usage limit. What should happen to it?" Options, only the feasible and allowed ones: `handoff` "Continue on the next provider with a handoff: enough useful work is done for a summary to carry it"; `restart` "Restart on the next provider from the original prompt: little useful work is done, or a summary would mislead"; `wait` "Wait for this provider's reset: it is soon, or the work depends on this provider" |
+| Defaults | `maxStateBytes` 4 KiB, threshold 0.85, `visible: true`, `savesRun: false` |
+| What an answer does | Active and above the threshold: the action replaces the setting's. Shadow: recorded; the setting decides |
+| Resolver | Reads the move row and what the work led to. Agreed when the run or task it led to ended `passed` or `completed`; not agreed when it ended `failed` or `rejected`. Not judged when a person stopped it. The detail records the cost on each provider of the chain |
+| Tests | The four-mode test; the options never include a disallowed or infeasible action; `wait` stands in for an infeasible answer; one answer per limit hit |
+
+#### `provider.pick` (act, project)
+
+| | |
+|---|---|
+| Subject | `flow_run`, `task` or `assistant_run`, at start |
+| When asked | Automated work is about to start and at least two candidates pass the filter. It sits beside `orchestration.model`: a planner's draft gets its models first, then each task its provider through this point and the mapping |
+| Fields | `work` (kind, stage or task name, title, `sizeEstimate`), `model`, `candidates` (id, label, mapped model, utilization, `resetsInMin`, and the last 30 days of this stage or kind on that provider in this project: `passed`, `failed`) |
+| Question | choice `provider`: "Which provider should run this work?" Each option is "<label>: <model>, <n> % of its limit used". The ids are the provider ids |
+| Defaults | 4 KiB, 0.85, `visible: true`, `savesRun: false` |
+| What an answer does | Active and above the threshold: that candidate instead of the first in order. It can never pick outside the candidates |
+| Resolver | Agreed when the run ended `passed` or `completed` on the chosen provider, and not agreed when it failed. In shadow, a pick equal to the order's first is judged the same way; a different pick is not judged (no counterfactual) |
+| Tests | The four-mode test; no answer outside the candidates; it is not asked with a single candidate; a flow run's policy is enforced on the pick |
+
+#### `provider.model-map` (suggest, global)
+
+| | |
+|---|---|
+| Subject | the new subject kind `model`, id `<provider>:<model>→<provider>` |
+| When asked | A limit or a pick finds `no-mapping` for a pair, at most once per pair per day; and when a person presses **Suggest** on an empty cell of the mapping editor |
+| Fields | `model` (provider, id, display name, tier, description), `targets` (the target catalog: id, display name, tier, description, efforts; at most 40) |
+| Question | choice `counterpart`: "Which model of <target> is the closest counterpart of <model> for coding work?" Options: the target's models, plus `none` "None: no model here can stand in for it" |
+| Defaults | 8 KiB, `visible: true` |
+| What an answer does | Active: a "suggested" chip in the mapping editor, with Accept and Dismiss. **A suggestion is never in force until a person accepts it**; accepting writes the entry with `origin: 'decision'` |
+| Resolver | Agreed when the person accepts the suggested model for that pair; not agreed when they dismiss it or map the pair to another model |
+| Tests | The four-mode test; nothing enters the mapping without a person; the target list is cut at 40 |
+
+**Catalogue and settings changes** (G `g7`):
+
+- the three entries in `decisions/points.ts`;
+- the ids in `DECISION_POINT_IDS`, and `provider.model-map` in `GLOBAL_ONLY_POINTS`;
+- `DecisionPointId` and `DecisionSubjectKind` (`model`) in shared types;
+- a new area `providers` in `DecisionsTab.tsx`, with its keys in `decisions.json` (`en`, `es`);
+- docs/decision-engine.md: 26 points, and the "Not decided by the engine" line reworded. The
+  arithmetic (headroom, resets, the filters) stays code; the engine only chooses among feasible
+  options.
+
+### Settings
+
+`providers.json` gains a `rotation` block. It is a settings document, rewritten whole and validated
+on `PUT`:
+
+```ts
+export type LimitAction = 'handoff' | 'restart' | 'wait';
+
+export interface RotationSettings {
+  onLimit: {
+    /** What automated work does at a limit; a person's chat offers it first */
+    action: LimitAction;
+    /** What a decision point may choose among; always includes `action` */
+    allowed: LimitAction[];
+    /** How long a wait with no known reset lasts before the run fails, 1..48 */
+    maxWaitHours: number;
+    /** Moves per run before it waits, 0..5 */
+    maxMoves: number;
+  };
+  /** Global only (decision 9); never filled without a person */
+  modelMap: ModelMapEntry[];
+}
+
+export interface ModelMapEntry {
+  from: { provider: ProviderId; model: string };
+  to: { provider: ProviderId; model: string };
+  origin: 'person' | 'decision';
+  at: string;
+}
+```
+
+- **Defaults:** `action: 'wait'`, `allowed: ['wait']`, `maxWaitHours: 6`, `maxMoves: 2`,
+  `modelMap: []`. A fresh install never sends work, or a handoff, to a second vendor until the person
+  turns it on. `wait` replaces today's failure on a limit and spends nothing more than the replayed
+  turn.
+- **Per project:** `ProjectSettings.providers?: { order?: ProviderId[]; onLimit?:
+  Partial<RotationSettings['onLimit']> }` in the project's settings document. A missing field
+  inherits.
+- **Validation:** known provider ids; mapping entries between two different providers; models are
+  not checked against a catalog (a catalog changes with a CLI update). An entry whose model has left
+  the catalog shows a `warn` "no longer offered" mark, and the candidate filter treats it as
+  missing.
+- **Who may change them:** `PUT /providers/settings` and the project's settings refuse a chat's own
+  token with `403`. An injected chat must not widen where work and its handoff go. Like the decision
+  settings, only the owner widens it.
+
+### Retiring claude-swap, and migrating its users
+
+**Removed** (owner decision 6):
+
+| Area | Files |
+|---|---|
+| Core | `accounts.ts`, `account-config.ts`, `cswap-install.ts`, `cswap-pin.ts`; the account parts of `chats.ts`, `live-chat.ts`, `chat-records.ts` (`account` read and ignored), `chat-fold.ts`, `providers/driver.ts` (`AccountSupport`, `SessionLaunch.account`), `providers/claude-code/args.ts` (`cswap run`), `claude-code/driver.ts`, `credentials.ts` (`suspend`), `paths.ts` (`cswapBin`, `cswapManaged`), `processes.ts` (the `cswap` comments and matching), `index.ts` (`AccountManager`, `rotateAndResume`, `syncCredentialOwner`); `multiAccount` dropped from Claude's manifest and from `ProviderCapability` |
+| API | `routes/accounts.ts` and its 18 rows in `openapi/routes.ts`; `security.ts` and `security/auth.ts` references; the README's Accounts table |
+| Shared | `CswapInfo`, `CswapManagedInfo`, `AccountSummary`, `AccountUsage*`, `AutoSwitch*`, `AccountsOverview`, `AccountsSnapshot`, `SwitchAccountRequest`, `AddAccountTokenRequest`, `SetAccountAliasRequest`, `RotationPolicy*`, `AccountConfig`, `UpdateAccountConfigRequest`, `UsageHistoryPoint`, `RunAccountRotatedEvent`, `AccountSwitchedEvent`, `ChatStartOptions.account`, `Execution.account`, `Overview.accounts`, `Overview.rateLimit`, `tokenSource: 'cswap'` |
+| Web | `pages/Accounts.tsx`, `pages/accounts/**`, `lib/cswap.ts`, the claude-swap parts of `CliCard.tsx`, `UpdatesCard.tsx`, `AccountTab.tsx`, `SecurityTab.tsx`, `StatusBar.tsx` (`AccountCard`), `lib/usage-now.ts` and `lib/shell-live.ts` (`swapUsageWindows`), `accountsConfig.json` (both locales); `/accounts` redirects to `/settings?tab=providers` |
+| Packaging | `docker/Dockerfile` (the claude-swap install and its `VOLUME`), `docker-compose.yml`, `deploy/helm/agentry/**`, `.env.example`, `.github/workflows/ci.yml`, `apps/desktop/src/*` references |
+| Docs and tests | `docs/desktop.md` "Multiple accounts", `docs/deploy.md`, `docs/plans/managed-claude-swap.md` and `docs/pinned-chat-rotation.md` marked superseded (kept as history); `e2e/specs/accounts-config.spec.mjs`, `packages/core/test/{accounts,account-config,cswap-install}.test.ts`, `apps/web/test/cswap.test.ts`; the web fixtures regenerated; `DesktopCuentas.html` and `MobileCuentas.html` removed from the references |
+
+**Migration** for someone who used claude-swap (recommended form, decision P4-4):
+
+1. **Nothing is deleted that Agentry did not write for itself.**
+   - claude-swap's data (`~/.local/share/claude-swap`, its accounts and tokens) is not touched, and
+     `cswap` keeps working from a terminal.
+   - `accounts.json` and `account-config.json` stay in the data directory, unread.
+   - The tables `rotation_events` and `usage_history` stay, unwritten.
+2. **The account in force** is the one claude-swap left active, since it swapped the shared
+   `.credentials.json`. Claude Code reads it as any signed-in CLI does. With the suspension gone, a
+   token saved through Settings → Account (`credentials.json`) applies again and wins, as it did
+   before claude-swap. The notice says which one is in force (`tokenSource`).
+3. **A one-time notice** appears when any of `accounts.json`, `account-config.json`, Agentry's
+   managed copy (`data/tools`) or `CSWAP_BIN` is found at boot. It is on Home's setup rows and at the
+   top of Settings → Providers until dismissed. Dismissing it is a flag in `app-settings.json`. It
+   says:
+   - Agentry no longer switches Claude accounts, and work now moves between providers;
+   - which account Claude Code is signed in with (`claude auth status`);
+   - how to change it (sign in again in Claude Code, or save a token in Settings → Account);
+   - which projects had a rotation policy, now gone, with a link to their provider order;
+   - that claude-swap and its accounts are untouched.
+   Its one action is **Remove Agentry's copy of claude-swap**, offered only when the managed copy
+   exists. It deletes `data/tools/**` and nothing else.
+4. **Pinned chats** lose the pin; their next execution runs on the account in force. Old executions
+   keep `account` in their stored JSON, which the type no longer reads.
+5. **Per-account `CLAUDE_CONFIG_DIR`s** are no longer passed. Their `projects/` was always linked
+   back (`account-config.ts:21-25`), so no transcript disappears. The directories stay on disk.
+6. **Docker and Helm:**
+   - the image stops installing claude-swap;
+   - `docs/deploy.md` says the `claude-swap` volume can be removed after the upgrade;
+   - the credential in `~/.claude` (its own volume) is the last one claude-swap placed there.
+7. **API clients:**
+   - `/accounts*` routes are gone (404);
+   - a chat request that still sends `account` gets `400` with "accounts were retired; see Settings
+     → Providers", for this release. The next release drops the check.
+
+### Persistence and API
+
+**SQLite**, one migration appended last to `MIGRATIONS` in `db.ts`, after phase 3's `chat_entries`
+(the same rule as phase 3's outcome 6: never before a released migration):
+
+```sql
+CREATE TABLE provider_limits (
+  provider       TEXT PRIMARY KEY,
+  state          TEXT NOT NULL,
+  binding_window TEXT,
+  utilization    REAL,
+  resets_at      TEXT,
+  windows        TEXT NOT NULL,
+  observed_at    TEXT NOT NULL,
+  source         TEXT NOT NULL
+);
+CREATE TABLE provider_moves (
+  id            TEXT PRIMARY KEY,
+  at            TEXT NOT NULL,
+  subject_kind  TEXT NOT NULL,
+  subject_id    TEXT NOT NULL,
+  project_id    TEXT,
+  from_chat     TEXT NOT NULL,
+  to_chat       TEXT,
+  from_provider TEXT NOT NULL,
+  to_provider   TEXT,
+  from_model    TEXT,
+  to_model      TEXT,
+  action        TEXT NOT NULL,
+  state         TEXT NOT NULL,
+  decided_by    TEXT NOT NULL,
+  decision_id   TEXT,
+  resets_at     TEXT,
+  claimed_until TEXT,
+  reason        TEXT,
+  updated_at    TEXT NOT NULL
+);
+CREATE INDEX provider_moves_subject ON provider_moves (subject_kind, subject_id, at);
+CREATE INDEX provider_moves_from_chat ON provider_moves (from_chat);
+CREATE UNIQUE INDEX provider_moves_open ON provider_moves (from_chat) WHERE state IN ('waiting', 'resuming');
+ALTER TABLE flow_runs ADD COLUMN provider TEXT;
+```
+
+- **`provider_limits`** is current state shared by every process on the data directory, like
+  `host_rate_limits`. It is written with
+  `INSERT … ON CONFLICT (provider) DO UPDATE SET … WHERE excluded.observed_at >= provider_limits.observed_at`,
+  so an older reading never overwrites a newer one.
+- **`provider_moves`** is the history and the wait queue in one. The unique partial index allows
+  one open wait per chat, so two processes cannot both arm one. A wait is claimed with
+  `UPDATE provider_moves SET state = 'resuming', claimed_until = ?, updated_at = ? WHERE id = ? AND (state = 'waiting' OR (state = 'resuming' AND claimed_until < ?))`.
+  Only the process that changed one row replays. Rows older than 90 days are pruned at start-up and
+  daily; open ones never are.
+- **`flow_runs.provider`** is null on old rows (read as `claude-code`). Orchestration tasks and chats
+  keep their new fields in their JSON documents (`orchestrations`, `chats.json` column), so they need
+  no column.
+
+**JSON:** `providers.json` (`rotation`), the project's settings (`providers`), and `app-settings.json`
+(the retirement notice's dismissal).
+
+**Shared types** (additive in `g1`; the removals in `w4`, once nothing uses them):
+
+- `LimitAction`, `ProviderLimitState`, `ProviderLimit`, `RotationSettings`, `ModelMapEntry`;
+  `ProvidersSettings.rotation`; `ProjectSettings.providers`.
+- `ProviderStatus.limit?: ProviderLimit | null`; `ProviderReasonCode` `limit-reached`, `limit-near`.
+- `ChatContinuation { chatId; provider; action: 'handoff' | 'restart'; at; moveId }`;
+  `Chat.continuedFrom` and `Chat.continuedIn` (null when absent).
+- `ProviderMove` (the row) and `ProviderMoveState` (`waiting`, `resuming`, `moved`, `resumed`,
+  `failed`, `cancelled`).
+- `OrchestrationTaskState.provider?`, `.chain?: Array<{ chatId; provider; model; action }>` and
+  `.waiting?: { provider; resetsAt; moveId } | null`.
+- `FlowRun.provider` and `FlowRun.waiting?`; `FlowRunCause` `no-provider` and
+  `limit-wait-expired` (`no-account` stays readable for old rows).
+- `Overview.limits: ProviderLimit[]` (beside `rateLimit` until `w4` removes it).
+- `MoveChatRequest { provider; action: 'handoff' | 'restart'; model? }`;
+  `HandoffPreview { text; bytes; provider; model; sections }`; `CandidateView { provider; model;
+  utilization; resetsAt } | { provider; excluded: Exclusion }`.
+- Events: `RunRateLimitedEvent` gains `provider` and `resetsAt`; `RunProviderMovedEvent`
+  (`run.providerMoved`: from, to, action, `decidedBy`); `RunLimitWaitingEvent`
+  (`run.limitWaiting`: provider, `resetsAt`).
+- Decisions: the three ids and the `model` subject kind (`g7`).
+- Then `pnpm --filter @agentry/api openapi:schemas`.
+
+**Routes** (each with a summary and a tag, and a README row):
+
+| Method | Route | What |
+|---|---|---|
+| `GET` | `/providers` | Existing; each status has `limit` |
+| `GET` `PUT` | `/providers/settings` | Existing; with `rotation`. A chat's token gets `403` on `PUT` |
+| `GET` | `/providers/candidates?chatId=` | The candidates for a chat at a limit, with exclusions, for the banner and the sheet |
+| `GET` | `/chats/:id/handoff?provider=&model=` | The handoff text, exactly as it would be sent, built locally and not sent |
+| `POST` | `/chats/:id/move` | A person moves a chat (`MoveChatRequest`); closes an open wait. `409` when the chat is live and not at a limit; `403` for a chat's token |
+| `GET` | `/providers/moves?chatId=&projectId=&state=&limit=` | Move history and open waits |
+| `POST` | `/providers/moves/:id/cancel` | Stop waiting. A flow run or task then ends `stopped` |
+| `GET` | `/providers/model-map/suggestions` | Open `provider.model-map` suggestions |
+| `POST` | `/providers/model-map/suggestions/:id` | `{ accept: boolean }`; accepting writes the entry. A chat's token gets `403` |
+| — | `/accounts*` (18 routes) | Removed |
+
+README: the Providers rows above; the Accounts table removed; "How it talks to Claude" loses the
+claude-swap rows and gains Codex's `account/rateLimits/read`.
+
+### Orchestrations and tasks
+
+#### P0 · `providers4-prototypes` (design; gates W)
+
+Night Shift screens per [docs/design-system.md](../design-system.md), dark and light, desktop and
+phone. Reference files under `docs/design-system/reference/`, with their screenshots and the index.
+
+- `p1`: Settings → Providers with the limits and the rotation:
+  - `DesktopProveedores.html` and `MobileProveedores.html` updated with limit bars and reading age;
+  - new `DesktopProveedoresRotacion.html` and `MobileProveedoresRotacion.html`: the on-limit card,
+    and the mapping editor with a missing counterpart, a suggestion with Accept and Dismiss, and an
+    entry no longer offered;
+  - `DesktopProyectoAjustes.html` and `MobileProyectoAjustes.html` with the providers override.
+- `p2`: the chat at a limit and after a move:
+  - new `DesktopChatLimite.html` and `MobileChatLimite.html`: the banner with three actions and the
+    handoff sheet, with one candidate excluded and its reason;
+  - new `DesktopChatContinuado.html` and `MobileChatContinuado.html`: the old chat's divider, and the
+    new chat's header and handoff card;
+  - the waiting state on the chat.
+- `p3`: automated work and the shell:
+  - `DesktopOrquestacion.html` and `MobileOrquestacion.html` with a task chain and a waiting task;
+  - `DesktopChatFlujo.html` with a moved flow run;
+  - `StatusBar.html` with limits per provider (near and exhausted);
+  - the retirement notice on Home (`Main.html`, `MobileInicio.html`) and Settings;
+  - `DesktopAjustesDecisiones.html` with the Providers area and its three points.
+- New variants (the limit bar inside a provider row, the chain chip, the handoff card) go into
+  `docs/design-system.md` and `agentry-ds.css`.
+- Check: the prototype tools pass (`lint.py`, `check.mjs`), and **the owner validates** before W
+  starts. The copy names tool kinds, modes and causes in the person's words, never wire identifiers
+  (phase 3's W correction).
+
+#### G · `providers4-groundwork` (runs beside P0)
+
+- `g1` (shared types, additive), dependsOn none.
+  - Everything "Shared types" lists except the decision ids and removals.
+  - Files: `packages/shared/src/types.ts`, `apps/api/src/openapi/schemas*` (regenerated),
+    `packages/shared/test/*`.
+  - Checks: shared tests; `openapi:schemas` with no drift; `pnpm typecheck`.
+- `g2` (the migration), dependsOn g1.
+  - Files: `packages/core/src/db.ts` (the migration, `PROVIDER_ROTATION_SCHEMA_VERSION`, the
+    `provider_limits` upsert and reads, the `provider_moves` insert, claim, list, prune and
+    `flow_runs.provider`), `packages/core/test/db.test.ts`.
+  - Checks: core tests, including:
+    - an upgrade from `CHAT_ENTRIES_SCHEMA_VERSION` with chats and flow runs;
+    - two connections racing one claim, with one winner;
+    - an older reading never overwriting a newer one.
+- `g3` (settings), dependsOn g1.
+  - `rotation` in `ProvidersSettingsStore` with its validation and defaults; `providers` in project
+    settings; the `403` for a chat's token on `PUT /providers/settings`.
+  - Files: `providers/settings.ts`, `project-settings.ts`, `apps/api/src/routes/providers.ts` (the
+    settings route only), `test/providers-settings.test.ts`, `apps/api/test/providers.test.ts`.
+  - Checks: core and API tests.
+- `g4` (limits), dependsOn g2.
+  - `providers/limits.ts`; Codex's `account/rateLimits/read` in `codex/handshake.ts`, with the
+    generated protocol subset regenerated to include it; the detector reads the row into
+    `ProviderStatus.limit` and the readiness reasons.
+  - Files: `providers/limits.ts`, `providers/codex/handshake.ts`, `providers/codex/protocol/**`,
+    `providers/detector.ts`, `test/provider-limits.test.ts`, `test/provider-detector.test.ts`.
+  - Checks: core tests; for each provider in the detection table, a fixture event gives the expected
+    `ProviderLimit`; a reset in the past reads `unknown`.
+- `g5` (candidates and mapping, pure), dependsOn g1.
+  - Files: `providers/candidates.ts`, `providers/model-map.ts`, `test/provider-candidates.test.ts`.
+  - Checks: core tests, one case per filter and per exclusion; `git push` not enforced excludes a
+    provider for automated work; Copilot `no-probe` only for a person's chat; the moves cap; a
+    project order override.
+- `g6` (the handoff, pure), dependsOn g1.
+  - Files: `packages/core/src/handoff.ts`, `test/handoff.test.ts`; `prompt-rules.test.ts` covers
+    the module.
+  - Checks: core tests:
+    - the 12 KiB cap keeps every section header;
+    - transcript text sits only inside `pasted()`;
+    - a secret in a command output is masked;
+    - an agent file is inlined when the target lacks `subagents`.
+- `g7` (the decision points declared), dependsOn g1.
+  - The three catalogue entries and their question builders (the options from the subject's
+    feasible list); `DECISION_POINT_IDS`, `GLOBAL_ONLY_POINTS`; `DecisionPointId` and
+    `DecisionSubjectKind` in shared types; the web map and area; the copy in `decisions.json`.
+  - Files: `decisions/points.ts`, `decisions/settings.ts`, `packages/shared/src/types.ts` (those two
+    unions only, after `g1`), `apps/web/src/pages/config/DecisionsTab.tsx` (map and areas),
+    `apps/web/src/i18n/locales/{en,es}/decisions.json`, `packages/core/test/decision-points-runtime.test.ts`,
+    `packages/core/test/decision-settings.test.ts`.
+  - Checks: core and web tests; `openapi:schemas` with no drift.
+
+When G is merged into the branch, D starts.
+
+#### D · `providers4-rotation`, dependsOn G
+
+- `d1` (runtime), dependsOn none within D.
+  - `ChatManager`:
+    - `maybeLimit` and `limit-hit`, with the chat's provider;
+    - `ProviderLimits.observe` in place of `lastRateLimit`;
+    - `replayLastTurn` kept for `wait`;
+    - every account field removed (`account` refused with `400` on create, resume and fork).
+  - `ChatService`: `continueOn` (stop, new chat, links, mapped options, the policy), the candidates
+    for a chat, and the handoff preview.
+  - `ChatRecord`: `continuedFrom` and `continuedIn`.
+  - The Claude driver without `cswap run`; `AccountSupport` gone from `driver.ts`.
+  - Files: `chats.ts`, `live-chat.ts`, `chat-fold.ts`, `chat-records.ts`, `chat-service.ts`,
+    `providers/driver.ts`, `providers/claude-code/{args,driver,manifest}.ts`, their tests,
+    `test/fixtures/golden/claude-args.json` (the pinned-account cases removed).
+  - Checks: core tests; the conformance suite for every driver; the Claude goldens unchanged except
+    the removed cases.
+- `d2` (decision call sites and resolvers), dependsOn none within D.
+  - `decisions/provider-points.ts`: the subject builders, `onLimit(stance, …)` and `pick(stance, …)`
+    as the other call sites do (`stanceOf`, `watch` / `wait`), and the model-map trigger at most
+    once per pair a day.
+  - Resolvers in `resolve.ts`. The `cli` decision provider chooses its provider (decision 9).
+  - Files: `decisions/provider-points.ts`, `decisions/resolve.ts`, `decisions/providers/cli.ts`,
+    `test/provider-points.test.ts`, `test/decision-cli-provider.test.ts`, `test/decision-resolve.test.ts`.
+  - Checks: core tests, the four-mode test of each point, and each resolver on fixture rows.
+- `d3` (rotation), dependsOn d1, d2.
+  - `rotation.ts`: the flow of "What happens at a limit", the wait timers, the claim, `recover()`.
+  - `index.ts`: wiring; `AccountManager`, `rotateAndResume` and `syncCredentialOwner` removed; the
+    retirement notice's detection; `Overview.limits`.
+  - Files: `rotation.ts`, `index.ts`, `credentials.ts`, `paths.ts`, `test/rotation.test.ts`.
+  - Checks: core tests over the fakes:
+    - handoff, restart and wait on Claude (`FAKE-LIMIT-ONCE`) and on Codex (`RATE`);
+    - a wait survives a restart of `Core`;
+    - two `Core`s on one data directory replay once;
+    - the moves cap;
+    - no move when every candidate is excluded.
+- `d4` (automated work), dependsOn d3.
+  - Flow:
+    - `awaitingRotation` replaced by the move rows;
+    - `rotated` replaced by `moved` and `waited`;
+    - `flow_runs.chat_id` and `provider` re-pointed by guarded update;
+    - the remaining budget;
+    - the new causes;
+    - the launch passes `provider` and `policy`, with the rules from the target's translation.
+  - Orchestrator: `task.provider`, `chain` and `waiting`; a `rate-limit` cause handed to the rotation
+    instead of failing; time and cost limits across the chain; `provider.pick` at task start.
+  - Assistant: the same at start and at a limit.
+  - Files: `flow.ts`, `orchestrator.ts`, `assistant.ts`, `index.ts` (the launch functions
+    `launchFlowRun`, `launchAssistantRun` and their options only, after `d3`), `test/flow*.test.ts`,
+    `test/orchestrator.test.ts`, `test/assistant*.test.ts`.
+  - Checks: core tests:
+    - a flow run on Claude at a limit continues on Codex with its policy and `git push` denied;
+    - a flow run under a budget waits (no `budgetLimit` candidate);
+    - `maxParallel` holds through a wait;
+    - a default provider set to Codex no longer runs a stage with Claude's rules.
+- `d5` (API), dependsOn d3.
+  - The routes of the table; events and notification texts (`packages/shared/src/notifications.ts`);
+    `/accounts*` removed; README rows; `apps/api/src/security.ts`.
+  - Files: `apps/api/src/routes/{providers,chats,accounts}.ts` (`accounts.ts` deleted),
+    `apps/api/src/openapi/routes.ts`, `packages/shared/src/notifications.ts`, `README.md`, API tests.
+  - Checks: API tests (every route, validation, `403` for a chat token, the summary-and-tag test, no
+    drift); shared notification tests.
+- `d6` (retirement in core and packaging), dependsOn d3.
+  - Delete `accounts.ts`, `account-config.ts`, `cswap-install.ts`, `cswap-pin.ts` and their tests.
+  - Docker, Compose, Helm, `.env.example`, CI, the desktop app's references; `docs/desktop.md`,
+    `docs/deploy.md`, the two superseded docs.
+  - Files: those, `apps/api/test/packaging.test.ts`, `apps/desktop/src/**` (references only).
+  - Checks: core, API and desktop tests; `docker build` is not run by a worker (the final check
+    builds the image once).
+- `d7` (e2e fakes), dependsOn none within D.
+  - `e2e/fake-cli/claude` gains `FAKE-LIMIT` (a `rate_limit_event` `rejected` with `resetsAt`, then a
+    429 result), the same as the core fake. `e2e/fake-providers/protocol.mjs` gains Codex `RATE`.
+  - `e2e/run.mjs` drops `CSWAP_BIN`.
+  - Files: `e2e/fake-cli/**`, `e2e/fake-providers/**`, `e2e/run.mjs`.
+  - Checks: `node --test e2e/fake-cli/claude.test.mjs` and the fake providers' self-test.
+- `r2` (recordings with an account; the owner, not a worker), any time before the final e2e.
+  - The rows of "How a limit is detected" that need an account, added to the fixtures with phase 3's
+    scrubbing. A recording that contradicts a safe default becomes a correction in this plan.
+
+#### W · `providers4-web`, dependsOn P0 (validated), D
+
+- `w1` (Settings), dependsOn none within W.
+  - Settings → Providers: the limit bars, the on-limit card, the mapping editor with suggestions,
+    and the retirement notice. Project settings: the providers override.
+  - Files: `apps/web/src/pages/config/ProvidersTab.tsx`, `apps/web/src/pages/config/providers/**`
+    (new), `apps/web/src/pages/home/ProjectSettings.tsx` (the providers section only), the locales'
+    `providers.json` and `config.json` keys they use, `apps/web/src/api.ts` (the new hooks only).
+  - Checks: web tests; the tokens test; the night-shift checklist.
+- `w2` (chat page), dependsOn w1.
+  - The limit banner, the move sheet with the handoff preview, the divider and the continued
+    header, the waiting state.
+  - The e2e spec `e2e/specs/provider-rotation.spec.mjs`:
+    - a Claude chat at a limit, then a move to Codex with a handoff;
+    - the old chat's divider and the new chat's header;
+    - a wait cancelled;
+    - phone layout and axe.
+  - Files: `apps/web/src/pages/ChatView.tsx`, `apps/web/src/pages/chat/{LimitBanner,MoveSheet,HandoffCard}.tsx`
+    (new), `chats.json` in both locales, the spec.
+  - Checks: web tests; the tokens test; the night-shift checklist.
+- `w3` (automated work and the shell), dependsOn w1.
+  - Orchestration task chain and waiting; the moved flow run on the item and the board; the
+    `FailedFlowRun` causes; the status bar per provider; the phone's More card; the notification copy.
+  - Files: `OrchestrationBoard.tsx`, `OrchestrationDetail.tsx`, `pages/tasks/item/Activity.tsx`,
+    `pages/chat/FailedFlowRun.tsx`, `components/shell/{StatusBar,TabBar}.tsx`,
+    `lib/{usage-now,shell-live,notifications-model}.ts`, `workItem.json`, `components.json`,
+    `orchestrationDetail.json` and `shell.json` keys.
+  - Checks: web tests; the night-shift checklist.
+- `w4` (retirement in the web, and the type removals), dependsOn w2, w3.
+  - Delete the Accounts page, `pages/accounts/**`, `lib/cswap.ts`, `accountsConfig.json` and the
+    claude-swap parts of the config cards; add the `/accounts` redirect.
+  - Remove the shared types of the retirement table; regenerate the schemas and the web fixtures
+    (`strings.json`, `class-names.json`, `module-graph.json`, `bundle-shape.json`).
+  - Delete `e2e/specs/accounts-config.spec.mjs` and the two Cuentas references.
+  - Files: those, `packages/shared/src/types.ts` (removals only), `apps/web/test/**` fixtures.
+  - Checks: `pnpm typecheck`; web, shared and API tests; i18n parity.
+
+When W is merged into the branch:
+
+- the full `pnpm typecheck`, `pnpm test`, `pnpm build` and `pnpm e2e`;
+- the Docker image built once;
+- the plan's "Outcome of phase 4", `docs/status.md`, `docs/providers.md` (limits, candidates,
+  rotation) and `docs/decision-engine.md`;
+- then one pull request to `main`.
+
+**Who owns what, so parallel workers do not collide:**
+
+| File or area | Owner |
+|---|---|
+| `packages/shared/src/types.ts`, schemas | `g1`; then `g7` (two unions); then `w4` (removals only) |
+| `db.ts` | `g2` only |
+| `providers/settings.ts`, `project-settings.ts` | `g3` |
+| `providers/limits.ts`, `codex/handshake.ts`, `codex/protocol/**`, `detector.ts` | `g4` |
+| `providers/candidates.ts`, `model-map.ts` | `g5` |
+| `handoff.ts` | `g6` |
+| `decisions/points.ts`, `decisions/settings.ts`, `DecisionsTab.tsx`, `decisions.json` | `g7` |
+| `chats.ts`, `live-chat.ts`, `chat-fold.ts`, `chat-records.ts`, `chat-service.ts`, `providers/driver.ts`, `providers/claude-code/**` | `d1` |
+| `decisions/provider-points.ts`, `resolve.ts`, `decisions/providers/cli.ts` | `d2` |
+| `rotation.ts`, `credentials.ts`, `paths.ts`; `index.ts` except the launch functions | `d3` |
+| `flow.ts`, `orchestrator.ts`, `assistant.ts`; `index.ts` launch functions | `d4` |
+| `apps/api/src/routes/**` (except the settings route of `g3`), `openapi/routes.ts`, `notifications.ts`, `README.md` | `d5` |
+| `accounts.ts`, `account-config.ts`, `cswap-*.ts`, packaging, desktop, deploy docs | `d6` |
+| `e2e/fake-cli/**`, `e2e/fake-providers/**`, `e2e/run.mjs` | `d7` |
+| `pages/config/ProvidersTab.tsx`, `pages/config/providers/**`, `ProjectSettings.tsx`, `api.ts` | `w1` |
+| `ChatView.tsx`, `pages/chat/{LimitBanner,MoveSheet,HandoffCard}.tsx`, `chats.json`, the rotation spec | `w2` |
+| orchestration, item, shell and notification files of `w3` | `w3` |
+| Accounts page and fixtures | `w4` |
+
+Regenerated OpenAPI schemas and web fixtures are never merged by hand: on a conflict, take either
+side and regenerate.
+
+### Risks
+
+| Risk | Where | What holds it |
+|---|---|---|
+| Work or a handoff goes to a second vendor without the person knowing | product | Defaults `wait` and `allowed: ['wait']`; a person's chat never moves on its own (P4-2); the handoff preview; the settings refuse a chat's token |
+| A moved run escapes `git push` denial or its stage's limits | `d4`, `g5` | The candidate filter requires the policy enforced, `gitPush` in two layers; a test per provider; Copilot and Gemini stages stay off until `r1` |
+| A flow budget is bypassed on a provider that reports no cost | `g5`, `d4` | `budgetLimit` required for a budgeted run; the remaining budget passed on |
+| Two processes replay one waiting turn, or both move one run | `g2`, `d3` | The unique open-wait index, the guarded claim, the flow's guarded re-point; the two-`Core` test |
+| A run bounces between two exhausted providers | `g5` | `maxMoves`, `left-already` until reset, `exhausted` excluded |
+| Claude's headroom is stale between runs without claude-swap's polling | `g4`, W | The reading's age is shown; an unknown reading is not `ok`; the reset time comes from the last event |
+| ACP quota failures are not recognised | `g4`, `r2` | Ordinary failures until recorded; ACP agents are only ever targets |
+| A handoff carries an injection from the transcript to the next agent | `g6` | `pasted()` with `PASTED_NOTE`; no tool output over 2 KiB; redaction |
+| The handoff misleads (a stale or partial picture) | product, `provider.on-limit` | `restart` offered beside it; git state, not the agent's word, says what changed; the resolver measures it |
+| Retirement locks a multi-account user out, or changes the account silently | `d3`, `d6` | Nothing outside Agentry's own files is deleted; the notice names the account in force and how to change it |
+| A waiting run holds a `maxParallel` slot for hours | `d4` | Accepted: it bounds paid work in flight; the wait cap; "Move now" and "Stop waiting" |
+| The default-provider gap (automated work on Claude's rules) is hit before phase 4 lands | today | `d4` fixes it; until then `docs/providers.md` says automated work expects Claude Code first in the order |
+
+### Decisions for phase 4 (open, for the owner)
+
+1. **P4-1. What a move is.**
+   - **Recommended:** a new chat on the next provider, linked both ways (`continuedFrom` /
+     `continuedIn`). The run, task or item points to the newest, and every chat page shows the chain.
+     Each chat keeps one provider, one session and one transcript store, as phases 2 and 3 built
+     them.
+   - One chat whose executions run on several providers: `provider` moves to the execution, and the
+     transcript is stitched from several stores on read.
+   - A cross-provider fork: reuse `derivedFrom` and the fork UI, with no link back from the old chat
+     and no chain on tasks.
+2. **P4-2. A person's own chat at a limit.**
+   - **Recommended:** ask. A banner offers the feasible actions with the setting's first, and nothing
+     spends on another vendor without a click. Automated work follows the setting and the point.
+   - Apply the setting as for automated work: the chat moves on its own, and the banner explains
+     afterwards.
+   - A person's chat only ever waits. Moving it means starting a new chat by hand, with no handoff.
+3. **P4-3. The model mapping a fresh install has.**
+   - **Recommended:** empty. The first limit with no mapping waits, and its notice opens the editor on
+     the missing pair. Suggestions come from `provider.model-map` when it is on, and from tiers where
+     both providers rank their models. A person accepts every entry.
+   - A table Agentry ships and maintains per recorded catalog version (Claude's aliases to Codex's
+     models), in force by default and editable.
+   - A tier rule in force by default: the same tier on the next provider. A person assigns a tier to
+     models their provider does not rank, which is every Codex model today.
+4. **P4-4. Existing claude-swap users at the upgrade.**
+   - **Recommended:** keep the account claude-swap left active. A one-time notice names it, says how
+     to change it, lists the projects whose rotation policy is gone, and offers to remove Agentry's
+     copy of claude-swap. claude-swap's own data is never touched.
+   - A one-time "Choose the account to keep" dialog that runs `cswap switch` once. claude-swap's
+     list and switch stay in core for this release only.
+   - Keep claude-swap read-only for one release: manual switching in Settings → Providers, no
+     rotation. Remove it in the next release. This departs from "retired in the same pull request".
+
 ## Decisions (owner, 2026-09-30)
 
 1. **The one rule is generalised** as in section 8. Rejected: relaxing it to allow internal
@@ -1918,4 +2803,4 @@ release with neither kind of rotation.
 
 ## Related
 
-[[decisions/decision-engine.md]] · [[providers.md]] · [[plans/code-hosts.md]] · [[plans/web-packages.md]] · [[plans/managed-claude-swap.md]] · [[desktop.md]] · [[deploy.md]] · [[plans/agentry-assistant.md]]
+[[decisions/decision-engine.md]] · [[decision-engine.md]] · [[plans/decision-engine.md]] · [[providers.md]] · [[plans/code-hosts.md]] · [[plans/web-packages.md]] · [[plans/managed-claude-swap.md]] · [[pinned-chat-rotation.md]] · [[desktop.md]] · [[deploy.md]] · [[design-system.md]] · [[plans/agentry-assistant.md]] · [[status.md]]
