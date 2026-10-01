@@ -74,7 +74,10 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     git(root, 'config', `url.${bare}.pushInsteadOf`, ORIGIN);
     git(root, 'push', '-q', bare, 'main');
     mkdirSync(stateDir, { recursive: true });
-    writeFileSync(join(stateDir, 'glab.json'), '{}');
+    // The PR watcher asks the fake glab about every open MR while the spec runs and writes back what
+    // it answers, so the fake reports the green pipeline seeded on !7 below; with no pipeline it would
+    // turn that CI into `none` before the second theme is checked.
+    writeFileSync(join(stateDir, 'glab.json'), JSON.stringify({ ci: 'passing' }));
     await api.post('/hosts/refresh');
 
     const imported = await api.post('/projects/import', { path: root, name: 'e2e-merge-requests', template: 'software' });

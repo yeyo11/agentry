@@ -86,7 +86,9 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(stateIs('github', 'signed-out'), { label: 'gh signed out after Check again' });
     const signIn = await page.eval(`const a = document.querySelector('.prov-row[data-host="github"] [data-action="sign-in"]'); return a ? { href: a.getAttribute('href'), target: a.getAttribute('target'), tag: a.tagName } : null`);
     check(signIn?.tag === 'A' && signIn.href === 'https://cli.github.com/manual/gh_auth_login' && signIn.target === '_blank', `signed out offers a link to how to sign in (${JSON.stringify(signIn)})`);
-    check((await page.text('.prov-row[data-host="github"]')).includes('Signed out'), 'the state carries its word');
+    // The badge is uppercase on screen (innerText), so its word is read from the DOM's own text
+    const word = await page.eval(`return document.querySelector('.prov-row[data-host="github"] .prov-state .badge-text')?.textContent ?? ''`);
+    check(word === 'Signed out', `the state carries its word (${word})`);
     check((await page.eval(`return !document.querySelector('.prov-row[data-host="github"] code, .prov-row[data-host="github"] [data-copy]')`)), 'no command to copy');
     check((await page.eval(stateOf('gitlab'))) === 'ready', 'the other row is untouched');
     state('gh', {});
@@ -114,6 +116,11 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(stateIs('gitlab', 'ready'), { label: 'Retry reads glab again' });
 
     // ---- The binary override: refused, relative, kept ----
+    // A ready row asks for nothing (the prototype offers Choose binary only where a state calls for it,
+    // and gh treats an untested release as ready), so gh is made too old first
+    state('gh', { version: '1.0.0' });
+    await checkAgain();
+    await page.waitFor(stateIs('github', 'incompatible'), { label: 'gh too old, so it offers Choose binary' });
     await page.click('.prov-row[data-host="github"] [data-action="choose-binary"]', undefined, 400);
     check(await page.eval(`return !!document.querySelector('.host-bin input')`), 'Choose binary opens the editor under the row');
     await page.fill('.host-bin input', 'gh');
@@ -124,7 +131,9 @@ export default async ({ page, api, check, dirs }) => {
     await page.click('.host-bin .btn', 'Check and save', 300);
     await page.waitFor(`return /^Not saved\\./.test(document.querySelector('.host-bin .field-error')?.textContent ?? '')`, { label: 'a missing program is refused' });
     check((await api.get('/hosts/settings')).body.hosts.github.binaryPath === savedSettings.hosts.github.binaryPath, 'the earlier path is put back');
-    check((await page.eval(stateOf('github'))) === 'ready', 'and the row is still ready');
+    check((await page.eval(stateOf('github'))) === 'incompatible', 'and the row keeps its state');
+    // The program at the new path is a release that works
+    state('gh', {});
     await page.fill('.host-bin input', join(fakes, 'gh'));
     await page.click('.host-bin .btn', 'Check and save', 300);
     await page.waitFor(`return !document.querySelector('.host-bin')`, { label: 'the editor closes once it is saved' });
