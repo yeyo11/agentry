@@ -105,6 +105,23 @@ test("a chat started on an alias records the model its system/init reports, whic
   }
 });
 
+// ---------- why an execution failed ----------
+
+test("a process that dies with an error says why: the last lines of its stderr are the execution's error", async () => {
+  const core = new Core({ ...tempConfig(), claudeBin: fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.meta.url)) });
+  try {
+    // The fake exits 1 at once with this line on stderr, as the CLI does with an option it refuses
+    const chat = core.runtime.start({ prompt: 'hello', model: 'fake-refused', keepAlive: false });
+    const done = await finished(core, chat.id, 1);
+    const execution = done.executions[0];
+    assert.equal(execution?.outcome, 'failed');
+    // The chat is finalized once the streams have been read to the end, not when the process exits
+    assert.match(execution?.error ?? '', /model 'fake-refused' not found/);
+  } finally {
+    core.shutdown();
+  }
+});
+
 // ---------- one chat per session ----------
 
 test('resuming a chat adds an execution to it and never a second chat', async () => {
