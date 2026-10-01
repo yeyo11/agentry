@@ -48,6 +48,21 @@ checks=$(cat "$dir/$name.checks" 2>/dev/null || read_key checks)
 checks=${checks:-none}
 head_sha=$(read_key headSha)
 head_sha=${head_sha:-a1b2c3d4e5f60718293a4b5c6d7e8f9012345678}
+# A merge the CLI took (`pr merge`, `mr merge`) leaves the change request merged for every read after it
+[ -f "$dir/$name.merged" ] && mr_state=merged
+
+# The merge scenario, for the merge routes. Auto-merge armed is a method name kept beside the JSON
+# (`<name>.armed`, written by the arming call, removed by the disarm; the JSON's `armed` seeds it)
+armed_method() {
+  cat "$dir/$name.armed" 2>/dev/null || read_key armed
+}
+
+# "true" or "false": whether the repository allows a method (`methods`, a space separated list)
+allows() {
+  list=$(read_key methods)
+  list=${list:-squash merge rebase}
+  case " $list " in *" $1 "*) echo true ;; *) echo false ;; esac
+}
 
 # The review scenario, for the review routes: none, threads (three threads, a comment review waiting,
 # a review still required) or changes (the same, with a request for changes on record). What a spec
@@ -335,6 +350,120 @@ annotations_json() {
   echo '[{"path":".github","start_line":1,"end_line":1,"annotation_level":"failure","title":null,"message":"Process completed with exit code 1."},{"path":"src/cart.ts","start_line":12,"end_line":12,"annotation_level":"failure","title":"cart rounds half up","message":"expected 10.01 to equal 10.02"}]'
 }
 
+# ---- gh: what the merge routes read and write ----
+gh_rules_json() {
+  required=$(read_key requiredChecks)
+  if [ -z "$required" ]; then echo '[]'; return; fi
+  list=""
+  for context in $required; do
+    [ -n "$list" ] && list="$list,"
+    list="$list{\"context\":\"$context\"}"
+  done
+  printf '[{"type":"required_status_checks","parameters":{"required_status_checks":[%s]}}]\n' "$list"
+}
+
+# `pr view --json id,number,url,state,isDraft,headRefOid,…,autoMergeRequest`
+gh_merge_view() {
+  number="$1"; shift
+  status=$(read_key mergeStatus)
+  status=${status:-CLEAN}
+  case "$status" in DIRTY) mergeable=CONFLICTING ;; UNKNOWN) mergeable=UNKNOWN ;; *) mergeable=MERGEABLE ;; esac
+  draft=false
+  [ "$(read_key draft)" = true ] && draft=true
+  decision=$(read_key reviewDecision)
+  if [ -n "$decision" ]; then decision="\"$decision\""; else decision=null; fi
+  method=$(armed_method)
+  if [ -n "$method" ]; then
+    auto="{\"mergeMethod\":\"$method\",\"enabledBy\":{\"login\":\"${user:-octocat}\"},\"enabledAt\":\"2026-10-01T10:00:00Z\"}"
+  else
+    auto=null
+  fi
+  case "$mr_state" in merged) st=MERGED ;; closed) st=CLOSED ;; *) st=OPEN ;; esac
+  printf '{"id":"PR_kwDOe2e%04d","number":%s,"url":"%s/pull/%s","state":"%s","isDraft":%s,"headRefOid":"%s","headRefName":"task/e2e","baseRefName":"main","mergeable":"%s","mergeStateStatus":"%s","reviewDecision":%s,"autoMergeRequest":%s}\n' \
+    "$number" "$number" "$(repo_url "$@")" "$number" "$st" "$draft" "$head_sha" "$mergeable" "$status" "$decision" "$auto"
+}
+
+# `pr merge`: the head guard is the CLI's own (--match-head-commit), the refusal is gh's first line
+gh_merge() {
+  case "$*" in
+    *--disable-auto*) rm -f "$dir/gh.armed"; exit 0 ;;
+  esac
+  want=$(flag --match-head-commit "$@")
+  if [ -n "$want" ] && [ "$want" != "$head_sha" ]; then
+    echo "GraphQL: Head branch was modified. Review and try the merge again. (mergePullRequest)" >&2
+    exit 1
+  fi
+  case "$*" in *--body-file*) cat > "$dir/gh.merge-body" ;; esac
+  case "$*" in *--squash*) echo squash > "$dir/gh.merged" ;; *--rebase*) echo rebase > "$dir/gh.merged" ;; *) echo merge > "$dir/gh.merged" ;; esac
+  rm -f "$dir/gh.armed"
+  echo "✓ Merged pull request #$3"
+  exit 0
+}
+
+# The arming mutation: the repository's setting and the expected head are checked as gh's server does
+gh_arm() {
+  method=$(echo "$*" | sed -n 's/.*-f m=\([A-Z]*\).*/\1/p')
+  oid=$(echo "$*" | sed -n 's/.*-f oid=\([0-9a-f]*\).*/\1/p')
+  if [ "$(read_key autoMergeAllowed)" = false ]; then
+    echo '{"errors":[{"message":"Auto merge is not allowed for this repository"}]}'
+    exit 1
+  fi
+  if [ -n "$oid" ] && [ "$oid" != "$head_sha" ]; then
+    echo '{"errors":[{"message":"the expected head oid does not match the pull request head"}]}'
+    exit 1
+  fi
+  echo "$method" > "$dir/gh.armed"
+  printf '{"data":{"enablePullRequestAutoMerge":{"pullRequest":{"autoMergeRequest":{"mergeMethod":"%s"}}}}}\n' "$method"
+  exit 0
+}
+
+# ---- glab: what the merge routes read and write ----
+glab_merge_view() {
+  number="$1"; shift
+  case "$ci" in none) pipe=null ;; passing) pipe="{\"id\":501,\"status\":\"success\",\"sha\":\"$head_sha\"}" ;; failing) pipe="{\"id\":501,\"status\":\"failed\",\"sha\":\"$head_sha\"}" ;; *) pipe="{\"id\":501,\"status\":\"running\",\"sha\":\"$head_sha\"}" ;; esac
+  case "$mr_state" in merged) st=merged; at='"2026-10-01T10:00:00Z"' ;; closed) st=closed; at=null ;; *) st=opened; at=null ;; esac
+  detail=$(read_key mergeDetail)
+  detail=${detail:-mergeable}
+  [ -f "$dir/glab.rebased" ] && detail=mergeable
+  draft=false
+  [ "$(read_key draft)" = true ] && draft=true
+  conflicts=false
+  [ "$detail" = conflict ] && conflicts=true
+  method=$(armed_method)
+  if [ -n "$method" ]; then
+    armed=true
+    merge_user="{\"username\":\"${user:-tanuki}\"}"
+  else
+    armed=false
+    merge_user=null
+  fi
+  squash=false
+  [ "$method" = squash ] && squash=true
+  printf '{"iid":%s,"web_url":"%s/-/merge_requests/%s","state":"%s","merged_at":%s,"draft":%s,"detailed_merge_status":"%s","has_conflicts":%s,"head_pipeline":%s,"sha":"%s","source_branch":"task/e2e","target_branch":"main","merge_when_pipeline_succeeds":%s,"merge_user":%s,"squash":%s,"merge_error":null,"diff_refs":{"base_sha":"%s","start_sha":"%s","head_sha":"%s"}}\n' \
+    "$number" "$(repo_url "$@")" "$number" "$st" "$at" "$draft" "$detail" "$conflicts" "$pipe" "$head_sha" "$armed" "$merge_user" "$squash" "$head_sha" "$head_sha" "$head_sha"
+}
+
+# `mr merge`: --auto-merge arms, --auto-merge=false merges now; a head that is not the one asked for
+# is refused in the boxed stderr glab prints (the 409 is the only status it says)
+glab_merge() {
+  want=$(flag --sha "$@")
+  if [ -n "$want" ] && [ "$want" != "$head_sha" ]; then
+    echo "All attempts fail: 409 {message: SHA does not match HEAD of source branch}" >&2
+    exit 1
+  fi
+  case "$*" in
+    *--auto-merge=false*) ;;
+    *--auto-merge*)
+      case "$*" in *--squash*) echo squash > "$dir/glab.armed" ;; *) echo merge > "$dir/glab.armed" ;; esac
+      echo "✓ Auto-merge enabled for !$3"
+      exit 0 ;;
+  esac
+  echo merge > "$dir/glab.merged"
+  rm -f "$dir/glab.armed"
+  echo "✓ Merged !$3"
+  exit 0
+}
+
 version_out() {
   code=$(read_key versionExit)
   if [ -n "$code" ] && [ "$code" != 0 ]; then echo "fake $name: broken" >&2; exit "$code"; fi
@@ -356,6 +485,7 @@ case "$name" in
         exit 0 ;;
       api)
         case "$*" in
+          *enablePullRequestAutoMerge*) gh_arm "$@" ;;
           *unresolveReviewThread*) thread_mutation false "$@"; exit 0 ;;
           *resolveReviewThread*) thread_mutation true "$@"; exit 0 ;;
           *'reviewThreads(first'*) threads_json; exit 0 ;;
@@ -392,10 +522,16 @@ case "$name" in
           */check-runs\?*) check_runs_json; exit 0 ;;
           */commits/*/status\?*) echo '[{"statuses":[]}]'; exit 0 ;;
           */actions/jobs/*/logs) job_log; exit 0 ;;
-          */rules/branches/*) echo '[]'; exit 0 ;;
+          */rules/branches/*) gh_rules_json; exit 0 ;;
           */branches/*) echo '{"protected":false}'; exit 0 ;;
         esac
-        printf '{"default_branch":"%s","private":true}\n' "$branch"; exit 0 ;;
+        # The repository's merge settings ride on the call that names the default branch
+        auto_allowed=true
+        [ "$(read_key autoMergeAllowed)" = false ] && auto_allowed=false
+        delete_on_merge=false
+        [ "$(read_key deleteBranchOnMerge)" = true ] && delete_on_merge=true
+        printf '{"default_branch":"%s","private":true,"allow_squash_merge":%s,"allow_merge_commit":%s,"allow_rebase_merge":%s,"allow_auto_merge":%s,"delete_branch_on_merge":%s}\n' \
+          "$branch" "$(allows squash)" "$(allows merge)" "$(allows rebase)" "$auto_allowed" "$delete_on_merge"; exit 0 ;;
       run)
         # A rerun starts the checks again, a cancel leaves the failure standing
         case "$2" in
@@ -414,8 +550,10 @@ case "$name" in
             if [ -n "$n" ]; then printf '[{"number":%s,"url":"%s/pull/%s","state":"OPEN","headRefName":"x","baseRefName":"x","isCrossRepository":false}]\n' "$n" "$(repo_url "$@")" "$n"
             else echo '[]'; fi
             exit 0 ;;
+          merge) gh_merge "$@" ;;
           view)
             case "$*" in *reviewRequests*) pr_reviews_json; exit 0 ;; esac
+            case "$*" in *autoMergeRequest*) gh_merge_view "$3" "$@"; exit 0 ;; esac
             case "$ci" in passing) roll='[{"status":"COMPLETED","conclusion":"SUCCESS"}]' ;; failing) roll='[{"status":"COMPLETED","conclusion":"FAILURE"}]' ;; pending) roll='[{"status":"IN_PROGRESS","conclusion":""}]' ;; *) roll='[]' ;; esac
             case "$mr_state" in merged) st=MERGED; at='"2026-10-01T10:00:00Z"' ;; closed) st=CLOSED; at=null ;; *) st=OPEN; at=null ;; esac
             printf '{"state":"%s","mergedAt":%s,"statusCheckRollup":%s,"url":"%s/pull/%s"}\n' "$st" "$at" "$roll" "$(repo_url "$@")" "$3"; exit 0 ;;
@@ -427,7 +565,13 @@ case "$name" in
       "auth status")
         if [ "$signed_in" = false ]; then echo "x No token found" >&2; exit 1; fi
         echo "Logged in to $(flag --hostname "$@") as ${user:-tanuki} (fake)" >&2; exit 0 ;;
-      "repo view") printf '{"id":4242,"default_branch":"%s","visibility":"private"}\n' "$branch"; exit 0 ;;
+      "repo view")
+        remove_source=false
+        [ "$(read_key deleteBranchOnMerge)" = true ] && remove_source=true
+        strategy=$(read_key mergeMethod)
+        squash_option=$(read_key squashOption)
+        printf '{"id":4242,"default_branch":"%s","visibility":"private","merge_method":"%s","squash_option":"%s","remove_source_branch_after_merge":%s,"only_allow_merge_if_pipeline_succeeds":false,"merge_trains_enabled":false,"ci_config_path":""}\n' \
+          "$branch" "${strategy:-merge}" "${squash_option:-default_off}" "$remove_source"; exit 0 ;;
       "mr create")
         cat > "$dir/glab.body-$next"
         echo "$next" > "$dir/glab.created"
@@ -438,10 +582,9 @@ case "$name" in
         if [ -n "$n" ]; then printf '[{"iid":%s,"web_url":"%s/-/merge_requests/%s","state":"opened"}]\n' "$n" "$(repo_url "$@")" "$n"
         else echo '[]'; fi
         exit 0 ;;
-      "mr view")
-        case "$ci" in none) pipe=null ;; passing) pipe='{"status":"success"}' ;; failing) pipe='{"status":"failed"}' ;; *) pipe='{"status":"running"}' ;; esac
-        case "$mr_state" in merged) st=merged; at='"2026-10-01T10:00:00Z"' ;; closed) st=closed; at=null ;; *) st=opened; at=null ;; esac
-        printf '{"iid":%s,"web_url":"%s/-/merge_requests/%s","state":"%s","merged_at":%s,"head_pipeline":%s,"sha":"%s","target_branch":"main","diff_refs":{"base_sha":"%s","start_sha":"%s","head_sha":"%s"}}\n' "$3" "$(repo_url "$@")" "$3" "$st" "$at" "$pipe" "$head_sha" "$head_sha" "$head_sha" "$head_sha"; exit 0 ;;
+      "mr merge") glab_merge "$@" ;;
+      "mr rebase") touch "$dir/glab.rebased"; echo "✓ Rebase successful"; exit 0 ;;
+      "mr view") glab_merge_view "$3" "$@"; exit 0 ;;
       "mr approve") touch "$dir/glab.approved"; echo "- Approving merge request !$3"; exit 0 ;;
       "mr revoke") rm -f "$dir/glab.approved"; echo "- Revoking approval for merge request !$3"; exit 0 ;;
       "mr update")
@@ -460,6 +603,8 @@ case "$name" in
         esac ;;
       "api "*)
         case "$*" in
+          *cancel_merge_when_pipeline_succeeds*) rm -f "$dir/glab.armed"; echo '{"id":1,"iid":7}'; exit 0 ;;
+          *include_rebase_in_progress*) echo '{"iid":7,"rebase_in_progress":false,"merge_error":null}'; exit 0 ;;
           */discussions/*/notes*)
             root=$(echo "$*" | sed -n 's#.*/discussions/\([0-9a-f]*\)/notes.*#\1#p')
             printf '%s %s\n' "$root" "$(cat | sed -n 's/^{"body":\(.*\)}$/\1/p')" >> "$dir/glab.replies"
