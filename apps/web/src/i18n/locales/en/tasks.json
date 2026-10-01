@@ -364,6 +364,16 @@
     "conflict_other": "Conflict with {{base}} · {{count}} files",
     "awaiting": "Approved · its {{noun}} opens when the verification passes",
     "waitingMerge": "waiting for merge",
+    "auto": {
+      "badge": "auto-merge on",
+      "note": "merges on its own once the checks pass · {{method}}",
+      "noteBare": "merges on its own once the checks pass",
+      "method": {
+        "squash": "squash",
+        "merge": "merge commit",
+        "rebase": "rebase"
+      }
+    },
     "closed": "closed without merging",
     "failed": "Could not open the {{noun}}",
     "link": "Open {{noun}} {{ref}} on {{host}}",

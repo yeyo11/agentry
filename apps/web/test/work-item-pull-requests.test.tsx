@@ -170,6 +170,7 @@ test("a card's strip says where its pull request stands, each phase only in the 
   assert.deepEqual(workItemStrip(item('in_review', { pullRequest: pr({ phase: 'awaiting-verify', number: null, url: null }) })), { kind: 'pr-awaiting', base: 'main', host: null });
   assert.deepEqual(workItemStrip(item('in_review', { waiting: 'merge', pullRequest: pr({ ci: 'pending' }) })), {
     kind: 'pr-open',
+    id: null,
     number: 123,
     ref: null,
     host: null,
