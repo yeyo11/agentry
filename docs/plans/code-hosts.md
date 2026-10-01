@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-09-30T20:30:17Z
+updated_at: 2026-10-01T10:00:00Z
 tags:
     - plan
     - git
@@ -11,7 +11,7 @@ tags:
     - reviews
     - webhooks
     - trackers
-    - planned
+    - in-progress
 ---
 # Code hosts and issue trackers
 
@@ -1441,6 +1441,37 @@ Outcome, `docs/status.md`, then one pull request to `main`.
 - **Paid automation is untouched:** no flow run pushes (`stageRules` still denies `git push`); a
   change request is only opened on a person's approval or click; merging stays the person's, on
   the host.
+
+## Outcome of phase 1 (2026-10-01)
+
+Phase 1 is built on `feat/code-hosts`, in four steps:
+
+- **`c12`, by the owner's assistant.** The recordings (gh 2.92.0 and 2.102.0, glab 1.120.0) are
+  scrubbed into `packages/core/test/fixtures/recordings/`, with the replay fake `fake-cli.mjs`, a
+  redaction script and a sentinel test that fails on any token or e-mail.
+- **P0 `hosts-prototypes`** (3 tasks, validated by the owner): Integrations, the project's host line,
+  the readiness notes and the GitLab MR screens. Its automatic check failed only because `lint.py`
+  ran over every screen, and `main` already has 312 older violations; the 16 new screens have none.
+- **P1 `hosts-core`** (13 tasks): the execution layer, `CodeHost` with the `gh` and `glab` adapters,
+  detection and readiness, the store, `PullRequestService` and the orchestration's change request
+  on it, the routes and [code-hosts.md](../code-hosts.md). The verification's fixer added the
+  `await` two tests needed once `Orchestrator.pullRequest()` became async.
+- **P2 `hosts-web`** (5 tasks): the web model, Settings → Integrations, the host line, neutral
+  PR/MR copy on every surface, and the fake `gh`/`glab` with two e2e specs.
+
+The one e2e run found four failing specs:
+
+- `home` passed when run alone.
+- `integrations` checked the badge's uppercased `innerText`, and opened the binary editor on a ready
+  row, which by design offers no action.
+- `merge-requests` left the fake `glab` without a pipeline, so the watcher rightly read !7's CI back
+  as none. It also found a real copy bug: the push dialog said "a MR". The dialog now spells out
+  "merge request" / "pull request" (`pr.long.*`).
+- `usage` failed on `main` too, on the first days of a month. It now looks for the day before the
+  range in the previous month's grid.
+
+Not checked: the screens against the reference screenshots side by side, and a real `glab` merge
+request opened from the app (the specs use the fakes).
 
 ## Phase 2: checks
 
