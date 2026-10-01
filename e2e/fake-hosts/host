@@ -155,7 +155,96 @@ glab_discussion() {
     "$1" "$resolved" "$6" "$5" "$( [ "$resolved" = true ] && echo '{"username":"hubot"}' || echo null )" "$path" "$path" "$3" "$4" "$suggestions" "$(reply_nodes "$1")"
 }
 
+# What `mr note publish` made of the draft notes: one discussion per note, in the order they were saved.
+# "<discussion id> <note id> <path or -> <new line or -> <head sha> <JSON string>" per line
+published_discussions() {
+  [ -f "$dir/glab.published" ] || return 0
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    disc=$(printf '%s' "$entry" | cut -d' ' -f1)
+    note_id=$(printf '%s' "$entry" | cut -d' ' -f2)
+    path=$(printf '%s' "$entry" | cut -d' ' -f3)
+    line=$(printf '%s' "$entry" | cut -d' ' -f4)
+    at_head=$(printf '%s' "$entry" | cut -d' ' -f5)
+    note_body=$(printf '%s' "$entry" | cut -d' ' -f6-)
+    if [ "$path" = - ]; then
+      position=null
+    else
+      position="{\"new_path\":\"$path\",\"old_path\":\"$path\",\"new_line\":$line,\"old_line\":null,\"head_sha\":\"$at_head\",\"line_range\":null}"
+    fi
+    printf '{"id":"%s","individual_note":false,"resolvable":true,"resolved":false,"notes":[{"id":%s,"type":"DiffNote","author":{"username":"%s"},"body":%s,"created_at":"2026-10-01T10:40:00Z","system":false,"resolved_by":null,"position":%s,"suggestions":[]}]}\n' "$disc" "$note_id" "${user:-tanuki}" "$note_body" "$position"
+  done < "$dir/glab.published"
+}
+
+# The note text of a draft's JSON, still a JSON string
+draft_note() {
+  printf '%s' "$1" | sed -nE 's/^\{"note":("([^"\\]|\\.)*").*/\1/p'
+}
+
+# Draft notes, as GitLab keeps them: "<id> <the JSON the CLI was given>" per line. The person's own
+# drafts (not Agentry's) are lines a spec writes there; every draft is listed and published alike
+drafts_json() {
+  printf '['
+  first=1
+  if [ -f "$dir/glab.drafts" ]; then
+    while IFS= read -r entry; do
+      [ -n "$entry" ] || continue
+      [ "$first" = 1 ] || printf ','
+      first=0
+      printf '{"id":%s,"note":%s}' "${entry%% *}" "$(draft_note "${entry#* }")"
+    done < "$dir/glab.drafts"
+  fi
+  printf ']\n'
+}
+
+# POST draft_notes. `draftFailAfter` N makes the call after the N-th one saved fail, which is how a
+# review stops half way with notes still saved on the host
+draft_create() {
+  body=$(cat)
+  made=$(cat "$dir/glab.draftposts" 2>/dev/null || echo 0)
+  echo $((made + 1)) > "$dir/glab.draftposts"
+  limit=$(read_key draftFailAfter)
+  if [ -n "$limit" ] && [ "$made" -ge "$limit" ]; then
+    echo "glab: 422 Unprocessable Entity" >&2
+    exit 1
+  fi
+  id=$(cat "$dir/glab.draftseq" 2>/dev/null || echo 7000)
+  id=$((id + 1))
+  echo "$id" > "$dir/glab.draftseq"
+  printf '%s %s\n' "$id" "$body" >> "$dir/glab.drafts"
+  line=$(printf '%s' "$body" | sed -n 's/.*"new_line":\([0-9]*\).*/\1/p')
+  if [ -n "$line" ]; then
+    printf '{"id":%s,"line_code":"e2e_%s_%s","position":{"new_line":%s}}\n' "$id" "$line" "$line" "$line"
+  else
+    printf '{"id":%s,"line_code":null,"position":null}\n' "$id"
+  fi
+}
+
+# `mr note publish`: every draft there is becomes a discussion, the first `publishLimit` of them; the
+# rest vanish with exit 0, as a note the host cannot place does (recorded)
+draft_publish() {
+  if [ ! -s "$dir/glab.drafts" ]; then echo "No pending review comments on !$1." >&2; exit 1; fi
+  limit=$(read_key publishLimit)
+  total=$(grep -c . "$dir/glab.drafts")
+  made=0
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    if [ -n "$limit" ] && [ "$made" -ge "$limit" ]; then continue; fi
+    made=$((made + 1))
+    raw="${entry#* }"
+    path=$(printf '%s' "$raw" | sed -n 's/.*"new_path":"\([^"]*\)".*/\1/p')
+    line=$(printf '%s' "$raw" | sed -n 's/.*"new_line":\([0-9]*\).*/\1/p')
+    at_head=$(printf '%s' "$raw" | sed -n 's/.*"head_sha":"\([0-9a-f]*\)".*/\1/p')
+    n=$(grep -c . "$dir/glab.published" 2>/dev/null)
+    n=${n:-0}
+    printf '%040d %s %s %s %s %s\n' "$((4000 + n))" "${entry%% *}" "${path:--}" "${line:--}" "${at_head:-$head_sha}" "$(draft_note "$raw")" >> "$dir/glab.published"
+  done < "$dir/glab.drafts"
+  : > "$dir/glab.drafts"
+  echo "✓ Published $total pending review comments."
+}
+
 discussions_ndjson() {
+  published_discussions
   [ "$reviews" = none ] && return
   glab_discussion "$GL_1" open 12 "$head_sha" "$BODY_1" 5001
   glab_discussion "$GL_2" resolved 1 "$head_sha" "$BODY_2" 5002
@@ -367,7 +456,7 @@ case "$name" in
         case "$3" in
           resolve) echo "$5 resolved" >> "$dir/glab.threadstate"; exit 0 ;;
           reopen) echo "$5 open" >> "$dir/glab.threadstate"; exit 0 ;;
-          publish) exit 0 ;;
+          publish) draft_publish "$4"; exit 0 ;;
         esac ;;
       "api "*)
         case "$*" in
@@ -378,7 +467,17 @@ case "$name" in
           */discussions*) discussions_ndjson; exit 0 ;;
           */approvals*) approvals_json; exit 0 ;;
           */reviewers*) glab_reviewers_json; exit 0 ;;
-          */draft_notes*) echo '[]'; exit 0 ;;
+          */draft_notes/*)
+            case "$*" in
+              *"-X DELETE"*)
+                gone=$(echo "$*" | sed -n 's#.*/draft_notes/\([0-9]*\).*#\1#p')
+                grep -v "^$gone " "$dir/glab.drafts" > "$dir/glab.drafts.tmp" 2>/dev/null
+                mv "$dir/glab.drafts.tmp" "$dir/glab.drafts" 2>/dev/null
+                exit 0 ;;
+            esac ;;
+          */draft_notes*)
+            case "$*" in *"-X POST"*) draft_create; exit 0 ;; esac
+            drafts_json; exit 0 ;;
         esac ;;
     esac ;;
 esac
