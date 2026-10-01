@@ -87,6 +87,12 @@ function start(env: Record<string, string> = {}, onServerRequest?: (m: Message) 
   return new Client(proc, onServerRequest);
 }
 
+/** Waits for a condition the child's other pipe will make true; a few seconds is a failure, not a slow runner */
+async function until(ok: () => boolean, ms = 5000): Promise<void> {
+  const end = Date.now() + ms;
+  while (!ok() && Date.now() < end) await new Promise((resolve) => setTimeout(resolve, 20));
+}
+
 async function thread(c: Client, params: Json = {}): Promise<string> {
   await c.request('initialize', { clientInfo: { name: 'agentry', title: 'Agentry', version: '0.0.0' }, capabilities: { experimentalApi: false, requestAttestation: false } });
   c.write({ jsonrpc: '2.0', method: 'initialized' });
@@ -312,6 +318,8 @@ test('NOISY adds a stray line, stderr logs, an unknown notification and a retrie
   const done = await turn(c, id, 'NOISY');
   assert.equal((done.params?.turn as Json).status, 'completed');
   assert.ok(c.raw.includes('this is not json'));
+  // stdout and stderr are two pipes: the answer can arrive before the log line does
+  await until(() => c.stderr.join('').includes('ERROR codex_core'));
   assert.ok(c.stderr.join('').includes('ERROR codex_core'));
   assert.ok(c.methods().includes('fake/unknownNotification'));
   assert.equal((c.notifications('error')[0]?.params as Json).willRetry, true);
