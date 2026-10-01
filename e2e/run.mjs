@@ -205,10 +205,20 @@ delete fakeEnv.CLAUDE_BIN;
 /** The server running now, and which CLI it was given */
 let server = null;
 let serverCli = null;
+/** The last lines the server wrote to stderr: what a failed start is reported with */
+let serverStderr = '';
+const STDERR_TAIL_CHARS = 4000;
 function startServer(cli) {
   // Its own process group: `pnpm`, `tsx` and the API are killed together, by the leader's PID
-  server = spawn('pnpm', ['--filter', '@agentry/api', 'start'], { cwd: root, env: cli === 'fake' ? fakeEnv : env, stdio: ['ignore', 'ignore', 'inherit'], detached: true });
-  server.on('error', () => {});
+  const child = spawn('pnpm', ['--filter', '@agentry/api', 'start'], { cwd: root, env: cli === 'fake' ? fakeEnv : env, stdio: ['ignore', 'ignore', 'pipe'], detached: true });
+  serverStderr = '';
+  // Still shown as it comes, as when stderr was inherited; kept as well, so a start that fails can say why
+  child.stderr.on('data', (chunk) => {
+    process.stderr.write(chunk);
+    if (server === child) serverStderr = (serverStderr + chunk).slice(-STDERR_TAIL_CHARS);
+  });
+  child.on('error', () => {});
+  server = child;
   serverCli = cli;
 }
 function stopServer() {
@@ -241,16 +251,40 @@ function within(work, ms, what) {
   return Promise.race([work, limit]).finally(() => clearTimeout(timer));
 }
 
+// Generous on purpose: a loaded machine (CI running suites side by side, shards starting together)
+// has taken well over 20 s to boot `pnpm`, `tsx` and the API. A server that died is reported at once.
+const SERVER_START_LIMIT_MS = envMs('E2E_SERVER_START_TIMEOUT', 120_000);
+
+/**
+ * Resolves once the API answers. `/api/health` is the probe because it is cheap and never measures
+ * anything (`/api/system` may start a `claude` process), and it answers only after every route is
+ * registered, since the server listens last. Its `ok` field speaks of the CLI's login, which the
+ * sandbox does not have: any 200 means the server is ready.
+ */
 async function waitForServer() {
-  for (let i = 0; i < 80; i++) {
-    try {
-      if ((await fetch(`${baseUrl}/api/system`)).ok) return;
-    } catch {
-      // not up yet
+  const child = server;
+  // Already gone if it failed between the spawn and this call
+  let exited = child.exitCode !== null || child.signalCode !== null ? { code: child.exitCode, signal: child.signalCode } : null;
+  const onExit = (code, signal) => (exited = { code, signal });
+  child.once('exit', onExit);
+  const started = Date.now();
+  try {
+    while (Date.now() - started < SERVER_START_LIMIT_MS) {
+      if (exited) {
+        throw new Error(`the API exited before it answered (${exited.signal ?? `code ${exited.code}`}):\n${serverStderr.trim() || '(no stderr)'}`);
+      }
+      try {
+        const res = await fetch(`${baseUrl}/api/health`, { signal: AbortSignal.timeout(5000) });
+        if (res.ok) return;
+      } catch {
+        // not up yet
+      }
+      await new Promise((r) => setTimeout(r, 250));
     }
-    await new Promise((r) => setTimeout(r, 250));
+    throw new Error(`the API did not answer /api/health within ${SERVER_START_LIMIT_MS / 1000}s (set E2E_SERVER_START_TIMEOUT to allow longer):\n${serverStderr.trim() || '(no stderr)'}`);
+  } finally {
+    child.off('exit', onExit);
   }
-  throw new Error('API did not start');
 }
 
 const api = {
