@@ -338,7 +338,7 @@ case "$name" in
       "auth status")
         if [ "$signed_in" = false ]; then echo "x No token found" >&2; exit 1; fi
         echo "Logged in to $(flag --hostname "$@") as ${user:-tanuki} (fake)" >&2; exit 0 ;;
-      "repo view") printf '{"default_branch":"%s","visibility":"private"}\n' "$branch"; exit 0 ;;
+      "repo view") printf '{"id":4242,"default_branch":"%s","visibility":"private"}\n' "$branch"; exit 0 ;;
       "mr create")
         cat > "$dir/glab.body-$next"
         echo "$next" > "$dir/glab.created"

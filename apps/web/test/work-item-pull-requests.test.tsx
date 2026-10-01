@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
 import { ToastProvider } from '@agentry/ui/components/Toast';
+import { ConfirmProvider } from '@agentry/ui/components/Dialog';
 import i18n, { setLanguage } from '../src/i18n';
 import enTasks from '../src/i18n/locales/en/tasks.json' with { type: 'json' };
 import esTasks from '../src/i18n/locales/es/tasks.json' with { type: 'json' };
@@ -100,9 +101,11 @@ function wrap(children: ReactNode, readiness: PullRequestReadiness | null = null
       <MemoryRouter>
         <TooltipProvider>
           <ToastProvider>
-            <BoardReadinessProvider value={readiness}>
-              <BoardTeamProvider value={team}>{children}</BoardTeamProvider>
-            </BoardReadinessProvider>
+            <ConfirmProvider>
+              <BoardReadinessProvider value={readiness}>
+                <BoardTeamProvider value={team}>{children}</BoardTeamProvider>
+              </BoardReadinessProvider>
+            </ConfirmProvider>
           </ToastProvider>
         </TooltipProvider>
       </MemoryRouter>

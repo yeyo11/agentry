@@ -150,7 +150,7 @@ Capabilities are declared per host (`draft`, `autoMerge`, `mergeMethods`, `check
 ### 5. Reviews
 
 - **Read:** review threads appear on the item page and inside `DiffView`, on their lines.
-  **Address with an agent** hands the chosen threads (all unresolved, by default) to a run in the
+  **Address with an agent** hands the chosen threads (the person's choice, those `review.triage` marks for an agent first) to a run in the
   item's worktree, with each comment's file, lines and body, marked as other people's text.
 - **Write:** notes a person leaves in `DiffView` form a draft review, posted as one real review
   (comment, approve or request changes) through `gh api` / `glab api`. Threads can be answered and

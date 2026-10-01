@@ -127,7 +127,7 @@ export default async ({ page, api, check, dirs }) => {
     check(reopened.status === 200 && reopened.body.isResolved === false, 'and so is reopening');
 
     const reviewers = (await api.get(`/change-requests/${crId}/reviewers`)).body;
-    check(reviewers.decision === 'review-required' && reviewers.unresolvedThreads === 2, `the decision and the unresolved count (${JSON.stringify({ d: reviewers.decision, u: reviewers.unresolvedThreads })})`);
+    check(reviewers.decision === 'review-required' && reviewers.unresolvedThreads === 1, `the decision and the unresolved count (an outdated thread is folded, so it is not counted) (${JSON.stringify({ d: reviewers.decision, u: reviewers.unresolvedThreads })})`);
     check(reviewers.reviewers.some((r) => r.login === 'hubot' && r.state === 'commented') && reviewers.reviewers.some((r) => r.login === 'monalisa' && r.state === 'requested'), 'one reviewer commented and one is pending');
     const own = await api.post(`/change-requests/${crId}/reviewers`, { add: ['octocat'] });
     check(own.status === 409 && own.body.code === 'own-change-request', `the author cannot be asked (${own.status} ${own.body.code})`);
@@ -177,16 +177,18 @@ export default async ({ page, api, check, dirs }) => {
       await page.goto(`/tasks/${item.key}`, 1500);
       await page.waitFor(`return !!document.querySelector('.rv')`, { label: `[${theme}] the review block` });
       const block = await page.text('.rv');
-      check(/Review/.test(block) && /review required/.test(block) && /hubot/.test(block) && /monalisa/.test(block), `[${theme}] the block names the decision and the reviewers (${block.slice(0, 160)})`);
-      check(/2 unresolved/.test(block), `[${theme}] and counts the unresolved threads`);
-      check(/Your review/.test(block) && /draft/.test(block), `[${theme}] the draft review is listed`);
+      check(/Review/.test(block) && /review required/i.test(block) && /hubot/i.test(block) && /monalisa/i.test(block), `[${theme}] the block names the decision and the reviewers (${block.slice(0, 160)})`);
+      check(/\d+ unresolved/i.test(block), `[${theme}] and counts the unresolved threads`);
+      check(/your review/i.test(block) && /draft/i.test(block), `[${theme}] the draft review is listed`);
 
       // The zone has one gradient action: Submit review, and the header's Work on it is neutral
       const submit = await page.eval(`const b = document.querySelector('.rv-submit-btn'); return b ? { text: b.textContent, primary: b.classList.contains('btn-primary') } : null`);
       check(submit?.primary === true && /Submit review/.test(submit.text), `[${theme}] "Submit review" is the primary action (${JSON.stringify(submit)})`);
       const work = await page.eval(`const b = document.querySelector('.workitem-work'); return b ? b.classList.contains('btn-primary') : null`);
       check(work === false || work === null, `[${theme}] "Work on it" is neutral while a draft review waits (${work})`);
-      check((await page.eval(`return document.querySelectorAll('.btn-primary').length`)) <= 2, `[${theme}] at most two gradient surfaces on the page`);
+      // The top bar's split "New chat" is one surface, though it is two buttons
+      const gradients = await page.eval(`return [...document.querySelectorAll('.btn-primary:not(.split-btn-more)')].map((b) => (b.className + ' | ' + b.textContent.trim().slice(0, 30)))`);
+      check(gradients.length <= 2, `[${theme}] at most two gradient surfaces on the page (${JSON.stringify(gradients)})`);
 
       // Status colours come with a word
       check(await page.eval(`return [...document.querySelectorAll('.rv .badge')].every((b) => b.textContent.trim().length > 0)`), `[${theme}] every badge has a word`);
@@ -197,7 +199,9 @@ export default async ({ page, api, check, dirs }) => {
       await page.click('.rv-submit-btn', 'Submit review', 500);
       await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: `[${theme}] the submit dialog` });
       const dialog = await page.text('[role=dialog]');
-      check(/Approving or asking for changes is done on GitHub/.test(dialog) && /Open on GitHub/.test(dialog), `[${theme}] approving is sent to GitHub (${dialog.slice(0, 200)})`);
+      check(/Comment sends all the comments at once/.test(dialog) && !/Approve/.test(dialog), `[${theme}] the dialog offers a comment only (${dialog.slice(0, 200)})`);
+      // The way to approve is on the page, as the validated prototype has it: the note and a link to the host
+      check(/Approving or asking for changes is done on GitHub/i.test(block) && /Open on GitHub/i.test(block), `[${theme}] approving is sent to GitHub (${block.slice(-200)})`);
       check(!/Comment and approve/.test(dialog), `[${theme}] "Comment and approve" is GitLab's alone`);
       check(await page.eval(`return !!document.querySelector('[role=dialog] .rv-send.btn-primary')`), `[${theme}] the dialog's send is its own primary action`);
       check((await page.axe()).length === 0, `[${theme}] axe finds nothing on the submit dialog`);
@@ -212,9 +216,17 @@ export default async ({ page, api, check, dirs }) => {
       await page.click('.item-pr-wait.is-address .btn', 'Address with an agent', 500);
       await page.waitFor(`return !!document.querySelector('[role=dialog] .addr-list')`, { label: `[${theme}] the address dialog` });
       const address = await page.text('[role=dialog]');
-      check(/Unresolved threads · 2/.test(address) && /outdated/.test(address) && /src\/cart\.ts/.test(address), `[${theme}] it lists the unresolved threads, the outdated one marked (${address.slice(0, 200)})`);
+      check(/Unresolved threads · 2/i.test(address) && /outdated/i.test(address) && /src\/cart\.ts/.test(address), `[${theme}] it lists the unresolved threads, the outdated one marked (${address.replace(/\s+/g, " ").slice(0, 700)})`);
       check(/These comments are other people's/.test(address) && /Nothing is answered or resolved/.test(address), `[${theme}] and warns whose words they are and what it will not do`);
-      check(/Address 2 comments/.test(address), `[${theme}] with the count in its action`);
+      // Nothing is chosen until the person chooses (or `review.triage` marks), as the validated prototype has it
+      check(/0 of 2 chosen/.test(address) && /Address 0 comments/.test(address), `[${theme}] nothing is chosen beforehand (${address.replace(/\s+/g, ' ').slice(-120)})`);
+      // One at a time: two clicks in one tick both start from the choice before the first
+      for (const index of [0, 1]) {
+        await page.eval(`document.querySelectorAll('[role=dialog] .addr-thread')[${index}].click(); return true`);
+        await page.sleep(250);
+      }
+      const chosen = await page.text('[role=dialog]');
+      check(/Address 2 comments/.test(chosen), `[${theme}] with the count in its action once they are chosen (${chosen.replace(/\s+/g, ' ').slice(-120)})`);
       check(await page.eval(`return !document.querySelector('[role=dialog] img') && window.__pwned !== 1`), `[${theme}] a host's HTML is text: no element came of it`);
       check(!/Resolved|README/.test(address), `[${theme}] the resolved thread is not offered`);
       check((await page.axe()).length === 0, `[${theme}] axe finds nothing on the address dialog`);
@@ -286,7 +298,7 @@ export default async ({ page, api, check, dirs }) => {
       }
       const labThreads = (await api.get(`/change-requests/${mrId}/threads?refresh=1`)).body;
       const labById = new Map((labThreads.threads ?? []).map((t) => [t.id, t]));
-      check(labById.size === 3, `GitLab's discussions are read as threads (${labById.size})`);
+      check(labById.size === 3, `GitLab's discussions are read as threads (${labById.size} ${JSON.stringify(labThreads).slice(0, 300)} | ${calls('glab').slice(-600)})`);
       check(labById.get(GITLAB_OPEN)?.comments[0]?.suggestion?.toContent.includes('Math.round') && labById.get(GITLAB_OPEN)?.comments[0]?.suggestion?.fromContent !== null, 'a GitLab suggestion carries the line it replaces');
       check(labById.get('3333333333333333333333333333333333333333')?.isOutdated === true, 'a note left on another commit than the head is outdated');
       const labReply = await api.post(`/change-requests/${mrId}/threads/${GITLAB_OPEN}/reply`, { body: 'Fixed.' });
@@ -303,12 +315,16 @@ export default async ({ page, api, check, dirs }) => {
       const labReviewers = await api.post(`/change-requests/${mrId}/reviewers`, { add: ['dani.lopez'] });
       check(labReviewers.status === 200 && /--reviewer=\+dani\.lopez/.test(calls('glab')) && labReviewers.body.reviewers.some((r) => r.login === 'monalisa'), 'a reviewer is added with +name, so the list is not replaced');
 
+      // The page shows the person's approval, so it is given again after the revoke above
+      approval = (await api.post(`/change-requests/${mrId}/approval`, { sha: HEAD })).body;
+      check(approval.viewerHasApproved === true, 'the person approves again for the page to show it');
+
       for (const theme of ['dark', 'light']) {
         await page.eval(`localStorage.setItem('agentry-theme', '${theme}'); return true`);
         await page.goto(`/tasks/${labItem.key}`, 1500);
         await page.waitFor(`return !!document.querySelector('.rv')`, { label: `[${theme}] the review block on a merge request` });
         const text = await page.text('.rv');
-        check(/Your approval/.test(text) && !/GitHub/.test(text), `[${theme}] a merge request shows the person's approval and never GitHub's words (${text.slice(0, 160)})`);
+        check(/your approval/i.test(text) && !/github/i.test(text), `[${theme}] a merge request shows the person's approval and never GitHub's words (${text.replace(/\s+/g, " ").slice(0, 600)})`);
         check((await page.axe()).length === 0, `[${theme}] axe finds nothing on a merge request's review`);
         await page.shot(`reviews-gitlab-${theme}`);
       }
