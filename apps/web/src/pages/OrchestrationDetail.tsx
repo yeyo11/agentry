@@ -1,10 +1,10 @@
-import type { ChatWorkflow, Orchestration, ResumeOrchestrationRequest } from '@agentry/shared';
+import type { ChatWorkflow, Orchestration, OrchestrationPullRequestPhase, ResumeOrchestrationRequest } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, BookmarkPlus, ChevronRight, Combine, ExternalLink, FolderGit2, GitMerge, GitPullRequest, MessageSquare, Play, Radio, RotateCw, Rocket, Save, Square, Trash2, Waypoints } from 'lucide-react';
 import { useCallback, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { api, ApiRequestError, keys, useOrchestration } from '../api';
+import { api, ApiRequestError, keys, useOrchestration, useProjects } from '../api';
 import { AnimatedNumber } from '../components/AnimatedNumber';
 import { CodeBlock } from '../components/CodeBlock';
 import { Collapsible, MoreActions, Switch, type MenuEntry } from '../components/controls';
@@ -26,8 +26,19 @@ import { NARROW, useMediaQuery } from '../lib/media';
 import { useClockTick } from '../lib/motion';
 import { costSplit } from '../lib/orchestration-board';
 import { followedStep, layerTasks, orchestrationSteps, type OrchestrationStep } from '../lib/orchestration-steps';
+import { pullRequestErrorKey } from '../lib/work-items';
+import { CiBadge, reasonValues, useChangeRequestWords } from './tasks/board/PullRequest';
 import { canRelaunch, pullRequestHeld, rerunBlockedByPullRequest } from '../lib/orchestration-v2';
 import type { StepState } from '../lib/progress';
+
+/** The badge tone of each phase of an orchestration's change request: waiting for the person idle, merged ok, failed bad. */
+const PR_PHASE_BADGE: Record<OrchestrationPullRequestPhase, string> = {
+  preparing: '',
+  open: 'badge-idle',
+  merged: 'badge-ok',
+  closed: '',
+  failed: 'badge-bad',
+};
 
 /**
  * The one branch a worktree graph delivers. Built by itself when the graph finishes; this shows
@@ -36,10 +47,22 @@ import type { StepState } from '../lib/progress';
 function IntegrationCard({ orch }: { orch: Orchestration }) {
   const { t } = useTranslation(['orchestrationDetail', 'config', 'common', 'observe']);
   const { t: tv } = useTranslation('orchestrationV2');
+  const { t: tt } = useTranslation('tasks');
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
   const integration = orch.integration ?? null;
+  // The host that will hold the change request: the one that holds it once it exists, else the project's remote
+  const projects = useProjects(false);
+  const project = projects.data?.find((p) => p.path === orch.cwd);
+  const codeHost = useQuery({
+    queryKey: keys.projectCodeHost(project?.id ?? ''),
+    queryFn: () => api.projectCodeHost(project?.id ?? ''),
+    enabled: Boolean(project) && !orch.pullRequest,
+  });
+  const readiness = codeHost.data?.readiness ?? null;
+  const pr = orch.pullRequest ?? null;
+  const words = useChangeRequestWords(pr?.host ?? readiness?.host);
   const refresh = () => queryClient.invalidateQueries({ queryKey: keys.orchestration(orch.id) });
   const integrate = useMutation({
     mutationFn: () => api.integrateOrchestration(orch.id),
@@ -48,7 +71,7 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
   const publish = useMutation({
     mutationFn: () => api.orchestrationPullRequest(orch.id),
     onSuccess: (res) => {
-      if (res.url) toast.success(t('config:detail.prOpened'), res.url);
+      if (res.url) toast.success(t('config:detail.prOpened', { noun: words.noun }), res.url);
       else toast.info(t('config:detail.pushed', { branch: res.branch }), res.detail);
       void refresh();
     },
@@ -87,7 +110,10 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
             {integration?.status === 'merged' &&
               (integration.pullRequestUrl ? (
                 <a className="btn btn-small" href={integration.pullRequestUrl} target="_blank" rel="noreferrer">
-                  <ExternalLink {...ICON_SM} /> {t('config:detail.pullRequest')}
+                  <ExternalLink {...ICON_SM} />{' '}
+                  {pr?.number == null
+                    ? t('config:detail.pullRequestUnnumbered', { noun: words.noun, host: words.host })
+                    : t('config:detail.pullRequest', { noun: words.noun, host: words.host, ref: words.ref(pr.number, pr.ref) })}
                 </a>
               ) : prHeld ? null : (
                 <button
@@ -97,14 +123,14 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
                   onClick={() =>
                     void confirm({
                       title: t('config:detail.pushTitle', { branch: integration.branch }),
-                      body: t('config:detail.pushBody'),
+                      body: t('config:detail.pushBody', { noun: words.noun, host: words.host }),
                       confirmLabel: t('config:detail.pushConfirm'),
                     }).then((ok) => {
                       if (ok) publish.mutate();
                     })
                   }
                 >
-                  <GitPullRequest {...ICON_SM} /> {publish.isPending ? t('config:detail.pushing') : t('config:detail.push')}
+                  <GitPullRequest {...ICON_SM} /> {publish.isPending ? t('config:detail.pushing') : t('config:detail.push', { noun: words.noun })}
                 </button>
               ))}
             {integration?.status !== 'merged' && (
@@ -145,6 +171,20 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
             <span>{t('config:detail.merged', { merged: integration.merged.length, count: branches })}</span>
             {integration.integratorRunId && <Link to={`/chats/${integration.integratorRunId}`}>{t('integratorChat')}</Link>}
           </div>
+          {pr && (
+            <div className="meta">
+              <span className={`badge ${PR_PHASE_BADGE[pr.phase]}`.trim()}>{t(`config:detail.prPhase.${pr.phase}`)}</span>
+              <span className="mono">{words.ref(pr.number, pr.ref) ? `${words.noun} ${words.ref(pr.number, pr.ref)}` : words.noun}</span>
+              <span className="mono">{t('config:detail.prBranches', { branch: pr.branch, base: pr.base })}</span>
+              {pr.phase === 'open' && <CiBadge ci={pr.ci} />}
+            </div>
+          )}
+          {pr?.phase === 'open' && <p className="muted small">{t('config:detail.prFollows', { noun: words.noun, host: words.host })}</p>}
+          {pr?.phase === 'failed' && pr.error && (
+            <div className="alert alert-warn small" title={pr.error.detail || undefined}>
+              {tt(pullRequestErrorKey(pr.error.code), { ...reasonValues(tt, { host: pr.host, hostname: null }), host: words.host })}
+            </div>
+          )}
           {checking && <p className="muted small">{tv('verification.holdsPush')}</p>}
           {prHeld && !integration.pullRequestUrl && <p className="muted small">{tv('verification.pullRequestHeld')}</p>}
           {integration.status === 'resolving' && <p className="muted small">{t('config:detail.resolving')}</p>}

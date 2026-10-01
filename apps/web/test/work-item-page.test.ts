@@ -81,7 +81,7 @@ test('every change is told by a key the English file has, ending on the value it
 
 test('an automatic move names its cause; a code this version does not know still reads as automatic', () => {
   const cause = { kind: 'chat' as const, chatId: '4c1d0e99-aaaa', orchestrationId: null, taskId: null };
-  assert.deepEqual(causeLine({ ...cause, event: 'chat.started' }), { key: 'cause.chatStarted', values: { chat: '4c1d0e' } });
+  assert.deepEqual(causeLine({ ...cause, event: 'chat.started' }), { key: 'cause.chatStarted', values: { chat: '4c1d0e', noun: 'PR', host: 'GitHub' } });
   assert.equal(causeLine({ ...cause, event: 'chat.turn-completed' })?.key, 'cause.turnCompleted');
   assert.equal(causeLine({ ...cause, event: 'orchestration.task.completed' })?.key, 'cause.taskCompleted');
   assert.equal(causeLine({ ...cause, event: 'something.new' })?.key, 'cause.other');

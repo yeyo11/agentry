@@ -868,6 +868,23 @@ button.workitem-mrow-more-link {
   margin-top: 2px;
 }
 
+/* The remedy beside the reason: underlined, so it reads as a link without leaning on colour */
+.pr-not-ready-remedy {
+  color: inherit;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.pr-not-ready-remedy:hover {
+  color: var(--fg);
+}
+
+.pr-not-ready-remedy:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .workitem-strip-note {
   flex-basis: 100%;
 }
