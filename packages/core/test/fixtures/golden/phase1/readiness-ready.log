@@ -1,0 +1,22 @@
+git -C <root>/project rev-parse --git-dir
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+git -C <root>/project remote get-url origin
+gh --version
+  cwd: <root>/project
+  env: GIT_TERMINAL_PROMPT=0
+  env: GH_PROMPT_DISABLED=1
+  env: GH_NO_UPDATE_NOTIFIER=1
+  env: GH_HOST=<unset>
+  env: GH_REPO=<unset>
+  env: NO_PROMPT=<unset>
+gh auth status
+  cwd: <root>/project
+  env: GIT_TERMINAL_PROMPT=0
+  env: GH_PROMPT_DISABLED=1
+  env: GH_NO_UPDATE_NOTIFIER=1
+  env: GH_HOST=<unset>
+  env: GH_REPO=<unset>
+  env: NO_PROMPT=<unset>
+git -C <root>/project symbolic-ref --short refs/remotes/origin/HEAD

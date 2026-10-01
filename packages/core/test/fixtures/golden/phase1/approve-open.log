@@ -1,0 +1,83 @@
+# approve
+git -C <root>/project rev-parse --git-dir
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+git -C <root>/project remote get-url origin
+gh --version
+  cwd: <root>/project
+  env: GIT_TERMINAL_PROMPT=0
+  env: GH_PROMPT_DISABLED=1
+  env: GH_NO_UPDATE_NOTIFIER=1
+  env: GH_HOST=<unset>
+  env: GH_REPO=<unset>
+  env: NO_PROMPT=<unset>
+gh auth status
+  cwd: <root>/project
+  env: GIT_TERMINAL_PROMPT=0
+  env: GH_PROMPT_DISABLED=1
+  env: GH_NO_UPDATE_NOTIFIER=1
+  env: GH_HOST=<unset>
+  env: GH_REPO=<unset>
+  env: NO_PROMPT=<unset>
+git -C <root>/project symbolic-ref --short refs/remotes/origin/HEAD
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+git -C <root>/project rev-parse --verify --quiet refs/heads/task/cw-1
+git -C <root>/project rev-parse --git-dir
+git -C <root>/project rev-parse HEAD
+git -C <root>/project rev-parse --show-toplevel
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+git -C <root>/project worktree list --porcelain
+git -C <root>/project worktree lock --reason agentry work item CW-1 of project p1 <root>/project/.claude/worktrees/task-cw-1
+git -C <root>/project/.claude/worktrees/task-cw-1 rev-parse --verify --quiet refs/remotes/origin/main^{commit}
+git -C <root>/project/.claude/worktrees/task-cw-1 diff -M --name-status -z HEAD --
+git -C <root>/project/.claude/worktrees/task-cw-1 diff -M --numstat -z HEAD --
+git -C <root>/project/.claude/worktrees/task-cw-1 ls-files --others --exclude-standard -z
+git -C <root>/project/.claude/worktrees/task-cw-1 diff --name-only --diff-filter=U
+git -C <root>/project/.claude/worktrees/task-cw-1 rev-list --count origin/main..HEAD
+git -C <root>/project rev-parse --git-dir
+git -C <root>/project rev-parse HEAD
+git -C <root>/project rev-parse --show-toplevel
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+git -C <root>/project worktree list --porcelain
+git -C <root>/project worktree lock --reason agentry work item CW-1 of project p1 <root>/project/.claude/worktrees/task-cw-1
+git -C <root>/project/.claude/worktrees/task-cw-1 diff --name-only --diff-filter=U
+git -C <root>/project/.claude/worktrees/task-cw-1 add -A
+git -C <root>/project/.claude/worktrees/task-cw-1 diff --cached --quiet
+git -C <root>/project/.claude/worktrees/task-cw-1 fetch origin main
+git -C <root>/project/.claude/worktrees/task-cw-1 config user.email
+git -C <root>/project/.claude/worktrees/task-cw-1 merge --no-edit origin/main
+git -C <root>/project/.claude/worktrees/task-cw-1 push -u origin task/cw-1
+gh pr create --head task/cw-1 --base main --title feat: Fix the cart total (CW-1) --body-file -
+  cwd: <root>/project/.claude/worktrees/task-cw-1
+  env: GIT_TERMINAL_PROMPT=0
+  env: GH_PROMPT_DISABLED=1
+  env: GH_NO_UPDATE_NOTIFIER=1
+  env: GH_HOST=<unset>
+  env: GH_REPO=<unset>
+  env: NO_PROMPT=<unset>
+  stdin:
+    | The total was off by one.
+    | 
+    | ## Acceptance criteria
+    | 
+    | - [x] The total adds up
+    | - [ ] A test covers it
+    | 
+    | ## Work item
+    | 
+    | [CW-1](http://localhost:8787/tasks/CW-1)
+gh pr view task/cw-1 --json number,url,state
+  cwd: <root>/project/.claude/worktrees/task-cw-1
+  env: GIT_TERMINAL_PROMPT=0
+  env: GH_PROMPT_DISABLED=1
+  env: GH_NO_UPDATE_NOTIFIER=1
+  env: GH_HOST=<unset>
+  env: GH_REPO=<unset>
+  env: NO_PROMPT=<unset>

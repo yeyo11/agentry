@@ -2,6 +2,7 @@ node_modules
 dist
 .env
 *.log
+!packages/core/test/fixtures/golden/**/*.log
 .DS_Store
 data/
 workspace/

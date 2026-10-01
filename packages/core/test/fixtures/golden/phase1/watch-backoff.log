@@ -1,0 +1,25 @@
+# tick, gh fails
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+gh pr view 7 --json state,mergedAt,statusCheckRollup,url
+  cwd: <root>/project
+  env: GIT_TERMINAL_PROMPT=0
+  env: GH_PROMPT_DISABLED=1
+  env: GH_NO_UPDATE_NOTIFIER=1
+  env: GH_HOST=<unset>
+  env: GH_REPO=<unset>
+  env: NO_PROMPT=<unset>
+# tick, backed off: no call
+# refresh
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+gh pr view 7 --json state,mergedAt,statusCheckRollup,url
+  cwd: <root>/project
+  env: GIT_TERMINAL_PROMPT=0
+  env: GH_PROMPT_DISABLED=1
+  env: GH_NO_UPDATE_NOTIFIER=1
+  env: GH_HOST=<unset>
+  env: GH_REPO=<unset>
+  env: NO_PROMPT=<unset>
