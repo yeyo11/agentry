@@ -108,7 +108,8 @@ export function IntegrationsTab() {
       const found = fresh.find((s) => s.id === id) ?? null;
       if (binaryPath !== null && found && !WORKS.has(found.state)) {
         await save.mutateAsync(withPath(previous.binaryPath));
-        void refresh.mutateAsync().catch(() => undefined);
+        // Awaited so "Not saved" shows once the row reads the program put back, never the refused one
+        await refresh.mutateAsync().catch(() => undefined);
       }
       return found;
     } catch (err) {
