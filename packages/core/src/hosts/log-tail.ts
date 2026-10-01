@@ -17,6 +17,12 @@ const ERROR_MARKER = /##\[error\]|\bERROR:|\bexit code [1-9]\d*/;
 /** GitLab's `section_start:<epoch>:<name>` and `section_end:…`, written with a trailing `\r` and a clear-line code */
 const SECTION_MARKER = /section_(?:start|end):\d+:[\w.-]+\r?/g;
 
+/**
+ * GitHub's layout markers: they fold the log in GitHub's viewer and mean nothing as text. `##[error]`
+ * and the other level markers stay, since they are what the tail and the page find errors by
+ */
+const GITHUB_LAYOUT = /##\[(?:group|endgroup|command|section|debug)\]/g;
+
 /** CSI sequences, OSC sequences and two-character escapes, as raw ESC or as the `^[` GitHub's CLI prints in its place */
 const ESCAPES = /(?:\x1b|\^\[)(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[@-Z\\-_])/g;
 
@@ -71,7 +77,12 @@ export function tailLog(raw: string, options: LogTailOptions = {}): LogTail {
   const cleaned: string[] = [];
   for (const line of raw.split('\n')) {
     const kept = withoutSections(line);
-    if (kept !== null) cleaned.push(cleanLine(kept));
+    if (kept === null) continue;
+    const clean = cleanLine(kept);
+    const bare = clean.replace(GITHUB_LAYOUT, '');
+    // A line that held only a marker (`##[endgroup]`, after its timestamp) disappears with it
+    if (bare !== clean && bare.replace(/^\d{4}-\d\d-\d\dT[\d:.]+Z/, '').trim() === '') continue;
+    cleaned.push(bare);
   }
   while (cleaned.length > 0 && cleaned[cleaned.length - 1] === '') cleaned.pop();
   if (cleaned.length === 0) return { lines: [], truncated: false, status: 'lines' };

@@ -29,6 +29,20 @@ test('a recorded GitHub job log (UNKNOWN STEP labels) keeps its end and an error
   assert.ok(tail.lines.length <= TAIL_LINES + 3 * (2 * ERROR_CONTEXT + 2) + 1);
 });
 
+test('GitHub layout markers leave the tail, a marker-only line goes with them, and ##[error] stays', () => {
+  const raw = [
+    '2026-10-01T09:50:01.1234567Z \x1b[36;1m##[group]Run pnpm test\x1b[0m',
+    '2026-10-01T09:50:02.1234567Z ##[command]node --test',
+    '2026-10-01T09:50:03.1234567Z ##[endgroup]',
+    '2026-10-01T09:50:11.1234567Z \x1b[31;1m##[error]Process completed with exit code 1.\x1b[0m',
+  ].join('\n');
+  assert.deepEqual(tailLog(raw, { state: 'failed' }).lines, [
+    '2026-10-01T09:50:01.1234567Z Run pnpm test',
+    '2026-10-01T09:50:02.1234567Z node --test',
+    '2026-10-01T09:50:11.1234567Z ##[error]Process completed with exit code 1.',
+  ]);
+});
+
 test('a recorded GitLab trace loses its section markers and ANSI, and keeps the error line', () => {
   const tail = tailLog(recorded('glab/1.120.0/api_trace.out'), { state: 'failed' });
   assert.equal(tail.status, 'lines');

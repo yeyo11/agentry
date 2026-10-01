@@ -338,8 +338,10 @@ layer already bounds the log to its last 512 KiB; the tail keeps the last 200 li
 non-zero `exit code`), each line cut at 500 characters and then redacted.
 
 - It strips the BOM, escape sequences (raw ESC and the `^[` rendering gh prints), other control
-  characters, carriage-return overwrites (a progress bar leaves its last frame) and GitLab's
-  `section_start` and `section_end` markers. It never depends on GitHub's step labels, which read
+  characters, carriage-return overwrites (a progress bar leaves its last frame), GitLab's
+  `section_start` and `section_end` markers and GitHub's layout markers (`##[group]`,
+  `##[endgroup]`, `##[command]`, `##[section]`, `##[debug]`; a line that held only one goes with
+  it). `##[error]` stays: it is what the tail and the page find errors by. It never depends on GitHub's step labels, which read
   `UNKNOWN STEP` a few hours after a run.
 - **"No output yet" is not "log unavailable".** A running job's trace lags up to about a minute
   (only the runner's preamble first), and a manual job's trace is empty with exit 0. Both come back
