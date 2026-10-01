@@ -8,7 +8,7 @@ import type { Db } from './db.ts';
 import type { AgentryEventInput } from './events.ts';
 import { aheadCount, commitAll, git, mainCheckout, refExists } from './git.ts';
 import { ChecksError, type ChecksService, type ChecksTarget } from './hosts/checks-service.ts';
-import type { ChangeRequestRead, ChangeRequestView, ChecksCodeHostAdapter, HostCall, HostRepo } from './hosts/code-host.ts';
+import type { ChangeRequestRead, ChangeRequestView, ChecksCodeHostAdapter, HostCall, HostRepo, ReviewsCodeHostAdapter } from './hosts/code-host.ts';
 import { hostSearchPath, resolveHostBinary, type HostRun } from './hosts/detector.ts';
 import { runHostCall, type HostResult } from './hosts/exec.ts';
 import { HostRateLimiter } from './hosts/rate-limit.ts';
@@ -16,7 +16,8 @@ import { firstLine } from './hosts/redact.ts';
 import { CodeHostRegistry } from './hosts/registry.ts';
 import { parseRemote } from './hosts/remote.ts';
 import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from './orchestration-pr-rows.ts';
-import { ReviewsError, type ReviewsService } from './hosts/reviews-service.ts';
+import { reviewDiff } from './hosts/review-diff.ts';
+import { ReviewsError, type ReviewsService, type ReviewsTarget } from './hosts/reviews-service.ts';
 import { ADDRESS_REFUSALS, addressPromptFor, codeHostAdapter, failingChecks, fixPromptFor, HostFactsCache, threadsToAddress, WATCH_BACKOFF, type ChecksFailingNotice } from './pull-requests.ts';
 import { hostOf } from './work-item-rows.ts';
 
@@ -192,7 +193,7 @@ export class OrchestrationPullRequestService {
 
   // ---------- reaching the host ----------
 
-  private async target(host: ProjectCodeHost, id: string): Promise<{ adapter: ChecksCodeHostAdapter; binaryPath: string; repo: HostRepo }> {
+  private async target(host: ProjectCodeHost, id: string): Promise<{ adapter: ReviewsCodeHostAdapter; binaryPath: string; repo: HostRepo }> {
     const adapter = codeHostAdapter(hostOf(id));
     const manifest = this.registry.get(hostOf(id));
     if (!adapter || !manifest || !host.remote) throw new Error(`no adapter for ${id}`);
@@ -219,6 +220,15 @@ export class OrchestrationPullRequestService {
     const run = (call: HostCall): Promise<HostResult> => this.call(target.binaryPath, call, home);
     const facts = await this.hostFacts.of(target.adapter, target.repo, target.binaryPath, run);
     return { id: row.id, kind: 'orchestration', adapter: target.adapter, repo: facts.repo, number: row.number, branch: row.branch, base: row.base, cliVersion: facts.cliVersion, run };
+  }
+
+  /** What `ReviewsService` needs for one row: the checks target and the local diff the person reviews. */
+  async reviewsTarget(row: OrchestrationPullRequestRow): Promise<ReviewsTarget | null> {
+    const base = await this.checksTarget(row);
+    const adapter = codeHostAdapter(hostOf(row.host));
+    if (!base || !adapter) return null;
+    const home = mainCheckout(row.cwd);
+    return { id: base.id, kind: base.kind, adapter, repo: base.repo, number: base.number, run: base.run, diff: async () => reviewDiff(home, row.base, row.branch) };
   }
 
   // ---------- opening ----------

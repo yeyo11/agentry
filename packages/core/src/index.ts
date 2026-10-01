@@ -119,6 +119,7 @@ import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
 import { FlowError, FlowService, type FlowLaunch } from './flow.ts';
 import { ChangeRequestService } from './change-requests.ts';
 import { ChecksService } from './hosts/checks-service.ts';
+import { ReviewsService } from './hosts/reviews-service.ts';
 import { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
 import { codeHostAdapter, PullRequestService, PullRequestWatcher, type ApproveResult } from './pull-requests.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
@@ -389,6 +390,7 @@ export class Core {
   readonly orchestrationPullRequests: OrchestrationPullRequestService;
   /** The checks of a change request: the head commit's list, log tails, re-runs and cancels */
   readonly checks: ChecksService;
+  readonly reviews: ReviewsService;
   /** `/change-requests/:id/…`: a row id of either table, resolved to the service that owns it */
   readonly changeRequests: ChangeRequestService;
   /** The project assistant: read-only runs that propose a team, resources and work items, each accepted on its own */
@@ -669,9 +671,11 @@ export class Core {
       decisions: this.decisions,
     });
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
+    this.reviews = new ReviewsService({ db: this.db.connection, resolve: (id) => this.changeRequests.reviewsTarget(id), emit: (event) => this.events.emit(event) });
     this.pullRequests = new PullRequestService({
       db: this.db,
       checks: this.checks,
+      reviews: this.reviews,
       flowOn: (projectId) => this.flow.projectFlow(projectId).enabled,
       settings: () => this.hostsSettings.get(),
       items: this.workItems,
@@ -696,11 +700,13 @@ export class Core {
       codeHost: (path) => this.pullRequests.codeHost(path),
       emit: (event) => this.events.emit(event),
       checks: this.checks,
+      reviews: this.reviews,
       runFix: (req) => this.orchestrator.runChecksFix(req),
     });
     this.changeRequests = new ChangeRequestService({
       db: this.db,
       checks: this.checks,
+      reviews: this.reviews,
       pullRequests: this.pullRequests,
       orchestrationPullRequests: this.orchestrationPullRequests,
       orchestration: (id) => this.orchestrator.get(id),

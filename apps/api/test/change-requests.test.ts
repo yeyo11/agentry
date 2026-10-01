@@ -58,9 +58,26 @@ test('an id no table has is a 404 with a code, on every route', async () => {
     ['POST', `/api/change-requests/${id}/checks/1/run`],
     ['POST', `/api/change-requests/${id}/checks/fix`],
     ['POST', `/api/change-requests/${id}/push-fix`],
+    ['GET', `/api/change-requests/${id}/threads`],
+    ['GET', `/api/change-requests/${id}/review-drafts`],
+    ['POST', `/api/change-requests/${id}/review-drafts`, { body: 'x' }],
+    ['PUT', `/api/change-requests/${id}/review-drafts/d1`, { body: 'x' }],
+    ['DELETE', `/api/change-requests/${id}/review-drafts/d1`],
+    ['POST', `/api/change-requests/${id}/reviews`, { event: 'comment', body: 'x' }],
+    ['POST', `/api/change-requests/${id}/reviews/p1/publish-saved`],
+    ['POST', `/api/change-requests/${id}/reviews/p1/discard-saved`],
+    ['POST', `/api/change-requests/${id}/threads/t1/reply`, { body: 'x' }],
+    ['POST', `/api/change-requests/${id}/threads/t1/resolve`],
+    ['POST', `/api/change-requests/${id}/threads/t1/unresolve`],
+    ['GET', `/api/change-requests/${id}/approval`],
+    ['POST', `/api/change-requests/${id}/approval`, { sha: 'abc' }],
+    ['DELETE', `/api/change-requests/${id}/approval`],
+    ['GET', `/api/change-requests/${id}/reviewers`],
+    ['POST', `/api/change-requests/${id}/reviewers`, { add: ['a'] }],
+    ['POST', `/api/change-requests/${id}/address`, { threadIds: [] }],
   ];
   for (const [method, url, body] of calls) {
-    const res = await app.inject({ method: method as 'GET' | 'POST', url, ...(body ? json(body) : {}) });
+    const res = await app.inject({ method: method as 'GET' | 'POST' | 'PUT' | 'DELETE', url, ...(body ? json(body) : {}) });
     assert.equal(res.statusCode, 404, `${method} ${url}`);
     assert.equal(res.json<{ code: string }>().code, 'not-found', `${method} ${url}`);
   }
@@ -94,6 +111,25 @@ test('a fix of a change request whose orchestration is gone is a 404 with a code
   const res = await app.inject({ method: 'POST', url: `/api/change-requests/${ORCH_ROW}/checks/fix` });
   assert.equal(res.statusCode, 404, res.body);
   assert.ok(res.json<{ code: string }>().code);
+});
+
+test('review writes are validated before they reach the host', async () => {
+  const base = `/api/change-requests/${ORCH_ROW}`;
+  const post = (path: string, body: unknown) => app.inject({ method: 'POST', url: `${base}${path}`, ...json(body) });
+  assert.equal((await post('/reviews', {})).statusCode, 400);
+  assert.equal((await post('/reviews', { event: 'merge' })).statusCode, 400);
+  assert.equal((await post('/reviews', { event: 'comment', body: 3 })).statusCode, 400);
+  assert.equal((await post('/threads/t1/reply', { body: '  ' })).statusCode, 400);
+  assert.equal((await post('/approval', {})).statusCode, 400);
+  assert.equal((await post('/reviewers', { add: 'a' })).statusCode, 400);
+  assert.equal((await post('/reviewers', { add: ['a'], remove: 'b' })).statusCode, 400);
+  assert.equal((await post('/address', { threadIds: 'all' })).statusCode, 400);
+});
+
+test('an address for an orchestration that is gone is a 404 with a code', async () => {
+  const res = await app.inject({ method: 'POST', url: `/api/change-requests/${ORCH_ROW}/address`, ...json({ threadIds: [] }) });
+  assert.equal(res.statusCode, 404, res.body);
+  assert.equal(res.json<{ code: string }>().code, 'not-found');
 });
 
 // ---------- a chat's own token ----------
@@ -133,6 +169,30 @@ test("a chat's token reads the checks but cannot re-run, cancel, play or fix", a
     for (const [url, body] of writes) {
       const res = await guarded.inject({ method: 'POST', url, ...fromChat(token, body ?? {}) });
       assert.equal(res.statusCode, 403, url);
+    }
+    // A review is posted under the person's name: none of its writes is a chat's
+    const reviews: Array<['POST' | 'PUT' | 'DELETE', string, unknown?]> = [
+      ['POST', `/api/change-requests/${id}/review-drafts`, { body: 'x' }],
+      ['PUT', `/api/change-requests/${id}/review-drafts/d1`, { body: 'x' }],
+      ['DELETE', `/api/change-requests/${id}/review-drafts/d1`],
+      ['POST', `/api/change-requests/${id}/reviews`, { event: 'comment', body: 'x' }],
+      ['POST', `/api/change-requests/${id}/reviews/p1/publish-saved`],
+      ['POST', `/api/change-requests/${id}/reviews/p1/discard-saved`],
+      ['POST', `/api/change-requests/${id}/threads/t1/reply`, { body: 'x' }],
+      ['POST', `/api/change-requests/${id}/threads/t1/resolve`],
+      ['POST', `/api/change-requests/${id}/threads/t1/unresolve`],
+      ['POST', `/api/change-requests/${id}/approval`, { sha: 'abc' }],
+      ['DELETE', `/api/change-requests/${id}/approval`],
+      ['POST', `/api/change-requests/${id}/reviewers`, { add: ['a'] }],
+      ['POST', `/api/change-requests/${id}/address`, { threadIds: [] }],
+    ];
+    for (const [method, url, body] of reviews) {
+      const res = await guarded.inject({ method, url, ...fromChat(token, body ?? {}) });
+      assert.equal(res.statusCode, 403, `${method} ${url}`);
+    }
+    for (const path of ['threads', 'review-drafts', 'approval', 'reviewers']) {
+      const read = await guarded.inject({ url: `/api/change-requests/${id}/${path}`, ...fromChat(token) });
+      assert.equal(read.statusCode, 404, path);
     }
     // A read passes the guard and reaches the route, which does not know the id
     const read = await guarded.inject({ url: `/api/change-requests/${id}/checks`, ...fromChat(token) });
