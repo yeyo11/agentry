@@ -85,7 +85,7 @@ always global.
 
 ## The points
 
-Twenty-three points. **Suggest** points never change what happens by themselves.
+Twenty-four points. **Suggest** points never change what happens by themselves.
 
 | Area | Point | Kind | Scope | What it decides |
 | --- | --- | --- | --- | --- |
