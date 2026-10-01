@@ -1761,9 +1761,10 @@ Regenerated OpenAPI schemas are never merged by hand: on a conflict, take either
 | Parallel edits to `types.ts`, `registry.ts` and the schemas collide | G, D | Additive types first (`g1`); the ownership table; schemas regenerated at integration |
 | Free hosted models (OpenCode Zen) send a person's code to a vendor without any sign-in | product | Decision P3-4 |
 
-### Decisions for the owner (phase 3)
+### Decisions for phase 3 (settled 2026-10-01)
 
-Each has three options, the recommendation first.
+The owner delegated these four to the assistant ("take the freedom to do everything until the flow
+is complete"); each was settled on its recommendation. The options are kept for the record.
 
 1. **P3-1. Permission modes on providers other than Claude.**
    - **Recommended:** keep `PermissionMode` as Agentry's vocabulary, each driver declaring the modes
