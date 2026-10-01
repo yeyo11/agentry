@@ -44,6 +44,7 @@ import {
   type ReviewMode,
   type SeenMap,
 } from '../lib/review-state';
+import { openChangeRequestId } from '../lib/review-lines';
 import { AgentProviderScope, useAgentCopy } from '../lib/agent-name';
 import { useWidth } from '../lib/use-width';
 import { isLive, taskPath } from '../lib/work-items';
@@ -82,6 +83,7 @@ export function ChatChangesReview() {
       live,
       back: { to: `/chats/${encodeURIComponent(id)}`, label: t('back.chat') },
       subject: chat ? (chat.firstPrompt ?? chat.title) : null,
+      changeRequestId: null,
       activity: { target, cwd: chat?.cwd ?? null, top: chat?.worktree?.path ?? null },
     }),
     [id, live, target, chat?.firstPrompt, chat?.title, chat?.cwd, chat?.worktree?.path, t],
@@ -114,6 +116,7 @@ export function TaskChangesReview() {
       live,
       back: { to: `/orchestration/${encodeURIComponent(id)}?task=${encodeURIComponent(taskId)}`, label: t('back.task') },
       subject: task ? task.name || task.id : null,
+      changeRequestId: null,
       // A worker's directory is its worktree, which is also the top level its files are listed from
       activity: { target, cwd: worktree, top: worktree },
     }),
@@ -141,9 +144,10 @@ export function IntegrationChangesReview() {
       live,
       back: { to: `/orchestration/${encodeURIComponent(id)}`, label: t('back.orchestration') },
       subject: orch.data?.name ?? null,
+      changeRequestId: openChangeRequestId(orch.data?.pullRequest),
       activity: null,
     }),
-    [id, live, orch.data?.name, t],
+    [id, live, orch.data?.name, orch.data?.pullRequest, t],
   );
   if (orch.error) return <ErrorBox error={orch.error} />;
   return <ReviewScreen source={source} />;
@@ -171,9 +175,10 @@ export function WorkItemChangesReview() {
       live,
       back: { to: taskPath(item?.key ?? key), label: t('back.workItem', { key: item?.key ?? key.toUpperCase() }) },
       subject: item?.title ?? null,
+      changeRequestId: openChangeRequestId(item?.pullRequest),
       activity: null,
     }),
-    [itemId, live, item?.key, item?.title, key, t],
+    [itemId, live, item?.key, item?.title, item?.pullRequest, key, t],
   );
   if (found.error) return <ErrorBox error={found.error} />;
   if (found.isPending) return <Skeleton rows={4} />;
@@ -417,6 +422,7 @@ function ReviewScreen({ source }: { source: ReviewSource }) {
             steps={steps ? stepsFor(steps, currentFile.path) : null}
             stepHref={stepHref}
             phone={phone}
+            review={source.changeRequestId ? { changeRequestId: source.changeRequestId } : undefined}
             nav={{
               prev,
               next,

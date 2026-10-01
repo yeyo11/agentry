@@ -1196,6 +1196,16 @@
   font-family: var(--sans);
 }
 
+/* A draft note is the person's own text: kept plain, with its line breaks */
+.rt .rt-plain {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--fg);
+}
+
 /* The person's own notes and the composer (ReviewComposer) share the card */
 .rt.draft {
   border-style: dashed;
@@ -1305,7 +1315,8 @@
   background: var(--bg-3);
 }
 
-.changes-threads-chip {
+.changes-threads-chip,
+.changes-drafts-chip {
   height: 28px;
   cursor: default;
 }
