@@ -29,7 +29,9 @@
  *    - `tasks`: the Tasks board, list and milestones (pages/tasks/Board, List, Milestones), and the
  *      words every work item screen shares: columns, types and priorities (lib/work-items.ts)
  *    - `workItem`: one work item's page and the New task form (pages/tasks/WorkItem, NewTask, item/*)
- *    - `team`: the Team tab of a project (pages/team/*): members, one member, the flow by column,
+ *    - `merge`: the merge block of a change request (pages/tasks/item/Merge): methods, blockers
+ *      with their remedies, auto-merge, the head guard
+    - `team`: the Team tab of a project (pages/team/*): members, one member, the flow by column,
  *      and what a board worked by a team adds to its cards (pages/tasks/board/team.tsx)
  *    - `assistant`: the project assistant's page (pages/assistant/*), the wizard's hand-off to it and
  *      the empty Team screen's "Ask for a proposal"

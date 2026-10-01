@@ -7,6 +7,7 @@ import { notReadyReason, pullRequestErrorKey } from '../../../lib/work-items';
 import { CiBadge, NotReadyNote, reasonValues, useChangeRequestWords, useOpenPullRequest } from '../board/PullRequest';
 import { AddressReview } from './AddressReview';
 import { Checks } from './Checks';
+import { Merge } from './Merge';
 import { Review } from './Review';
 import { pullRequestAction, pullRequestPanel } from './model';
 
@@ -212,13 +213,14 @@ function PullRequestPanel({ item }: { item: WorkItemDetail }) {
   );
 }
 
-/** The panel of what the item's PR is doing, under it its review and the review comments waiting for an agent, and the checks of the PR while it is open. */
+/** The panel of what the item's PR is doing, under it its review, the review comments waiting for an agent, the merge block and the checks of the PR while it is open. */
 export function PullRequestState({ item }: { item: WorkItemDetail }) {
   return (
     <>
       <PullRequestPanel item={item} />
       <Review pr={item.pullRequest} itemId={item.id} changesPath={`/tasks/${item.key}/changes`} />
       <AddressReview pr={item.pullRequest} />
+      <Merge pr={item.pullRequest} itemId={item.id} itemKey={item.key} />
       <Checks pr={item.pullRequest} itemId={item.id} />
     </>
   );
