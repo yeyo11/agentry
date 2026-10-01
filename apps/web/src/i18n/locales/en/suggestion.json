@@ -40,7 +40,7 @@
     "milestones": "The open milestones",
     "team": "The team",
     "resources": "The project's resources",
-    "chats": "The Claude Code chats in this directory",
+    "chats": "The agent’s chats in this directory",
     "git": "The git history"
   }
 }

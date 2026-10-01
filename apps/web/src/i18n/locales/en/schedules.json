@@ -145,7 +145,7 @@
       "orchestration": "An orchestration"
     },
     "prompt": "Prompt",
-    "promptPlaceholder": "What should Claude do each time?",
+    "promptPlaceholder": "What should the agent do each time?",
     "objective": "Objective",
     "optional": "Optional",
     "tasks": "Tasks",

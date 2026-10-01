@@ -217,6 +217,7 @@
   "WorkOn [WorkOnDialog, taskBranch]",
   "WorkflowCard [WorkflowCard]",
   "agent [AgentScope, upperFirst, useAgentName]",
+  "agent-name [AgentProviderScope, useAgentCopy]",
   "api [ApiRequestError, BASE, ChangeScope, ChatFilter, DiffOptions, JournalQuery, ReadOptions, Scope, UsageRange, api, chatListQuery, enc, keys, scopeHasBoard, useAccountEvents, useAccounts, useAssistantRun, useAssistantRuns, useChatWorkItems, useChats, useConnectors, useDocumentFile, useDocuments, useFlow, useFlowRuns, useJournal, useMemoryProposals, useMilestones, useOpenTaskCount, useOrchestration, useOrchestrations, useOverview, useProjectCandidates, useProjectSettings, useProjectTemplates, useProjects, useScheduleRuns, useSchedules, useTeam, useUsage, useUsageBreakdown, useUsageSeries, useWorkItem, useWorkItemBoard, useWorkItemByKey, useWorkItemChanges, useWorkItemList, useWorkItemPages, useWorkItemRuns, workItemBoardQuery]",
   "assistant [ASSISTANT_PROPOSAL_ACTIONS, ASSISTANT_PROPOSAL_KINDS, ASSISTANT_PROPOSAL_KINDS_OF_RUN, ASSISTANT_PROPOSAL_STATUSES, ASSISTANT_RESOURCE_KINDS, ASSISTANT_RUN_ACTIONS, ASSISTANT_RUN_KINDS, ASSISTANT_RUN_STATUSES, ASSISTANT_SOURCE_KINDS, ASSISTANT_SOURCE_STATES, ASSISTANT_SOURCE_UNITS, DEFAULT_ASSISTANT_MODEL, assistantOnCreateByDefault, assistantResourcePath]",
   "auth [authHeaders, getToken, probeAuth, setChallenge, setToken, signIn, useAuthChallenge, useAuthSettled, withToken]",
