@@ -21,6 +21,7 @@ import {
   noteHeadOf,
   parseLogins,
   partlyPost,
+  pinNoteHead,
   reviewedHead,
   reviewerMark,
   sortDrafts,
@@ -257,7 +258,10 @@ function SubmitSheet({
   ]
     .filter((part): part is string => !!part)
     .join(' · ');
-  const ready = canSubmit(drafts, event, summary) && !send.isPending;
+  // A refusal for a moved head whose new head could not be read leaves nothing to post on: the sheet says to
+  // reload, and a send now would go with no head to check against
+  const headKnown = !moved || moved.to !== null;
+  const ready = canSubmit(drafts, event, summary) && !send.isPending && headKnown;
   const ref = words.ref(pr.number, pr.ref);
 
   const body = (
@@ -673,8 +677,11 @@ export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | 
           headSha={reviewedHead(drafts, noteHeadOf, looked.current, headNow)}
           own={own}
           onMoved={(head) => {
-            // The page reads from the head the person was told about, not from the one it loaded on
+            // The page reads from the head the person was told about, not from the one it loaded on, and so
+            // do the notes: left pinned to the old head, each reopening of the sheet would send it again
+            // and be refused again
             looked.current = head;
+            if (head) for (const draft of drafts) pinNoteHead(draft.id, head);
           }}
           onClose={() => setSubmitting(false)}
           onDone={() => {

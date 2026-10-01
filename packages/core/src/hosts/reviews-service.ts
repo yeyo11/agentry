@@ -108,9 +108,23 @@ const markerOf = (uuid: string): string => `<!-- agentry:${uuid} -->`;
 /**
  * The drafts whose text is among `bodies`, the notes that are on the host: a general draft travels in
  * the review's own body, which is the one carrying the marker; a line note is a note of its own.
+ * A note on the host accounts for ONE draft, the longest text first, so a short note ("typo") is not
+ * counted as sent because a longer one that contains it was; a suggestion with no text is matched by
+ * a note that carries a suggestion fence, and by nothing else.
  */
 export function wentOut(drafts: ReviewDraft[], bodies: string[], marker: string): ReviewDraft[] {
-  return drafts.filter((d) => (d.path === null || d.line === null ? bodies.some((b) => b.includes(marker)) : bodies.some((b) => b.includes(d.body))));
+  const sent = new Set<string>();
+  for (const d of drafts) if ((d.path === null || d.line === null) && bodies.some((b) => b.includes(marker))) sent.add(d.id);
+  const free = [...bodies];
+  const lines = drafts.filter((d) => d.path !== null && d.line !== null).sort((x, y) => y.body.length - x.body.length);
+  for (const d of lines) {
+    const text = d.body.trim();
+    const at = free.findIndex((b) => (text === '' ? b.includes('```suggestion') : b.includes(d.body)));
+    if (at === -1) continue;
+    sent.add(d.id);
+    free.splice(at, 1);
+  }
+  return drafts.filter((d) => sent.has(d.id));
 }
 /** The marker is for recovery: nobody reads it, and an agent should not see it */
 const clean = (body: string): string => body.replace(MARKER, '');

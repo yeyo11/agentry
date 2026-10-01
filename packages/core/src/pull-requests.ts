@@ -890,7 +890,7 @@ export class PullRequestService {
       this.deps.items.move(itemId, { status: 'in_progress' }, { actor: origin === 'person' ? PERSON : SYSTEM, cause: prCause(CHECKS_FIX_CAUSE) });
     } catch (err) {
       // The card did not move, so no run will start: the attempt goes
-      this.update(row.id, { fix_state: null, fix_origin: row.fix_origin ?? null, fix_attempts: row.fix_attempts ?? 0, fix_head: row.fix_head ?? null });
+      this.update(row.id, { fix_state: null, fix_origin: row.fix_origin ?? null, fix_attempts: row.fix_attempts ?? 0, fix_head: row.fix_head ?? null, address_pushed: row.address_pushed ?? null });
       this.changed(itemId, null, SYSTEM, null);
       throw err;
     }
@@ -943,7 +943,7 @@ export class PullRequestService {
       this.deps.items.move(itemId, { status: 'in_progress' }, { actor: origin === 'person' ? PERSON : SYSTEM, cause: prCause(REVIEW_ADDRESS_CAUSE) });
     } catch (err) {
       this.addressed.delete(row.id);
-      this.update(row.id, { fix_state: null, fix_origin: row.fix_origin ?? null, fix_kind: row.fix_kind ?? null, fix_threads: row.fix_threads ?? null, fix_attempts: row.fix_attempts ?? 0, fix_head: row.fix_head ?? null });
+      this.update(row.id, { fix_state: null, fix_origin: row.fix_origin ?? null, fix_kind: row.fix_kind ?? null, fix_threads: row.fix_threads ?? null, address_pushed: row.address_pushed ?? null, fix_attempts: row.fix_attempts ?? 0, fix_head: row.fix_head ?? null });
       this.changed(itemId, null, SYSTEM, null);
       throw err;
     }
@@ -1081,7 +1081,10 @@ export class PullRequestService {
       let pushed: string | null = null;
       if (row.fix_kind === 'review' && place) {
         try {
-          pushed = JSON.stringify({ head: headCommit(place.worktree), threadIds: chosenThreadIds(row.fix_threads) });
+          const head = headCommit(place.worktree);
+          // An address that changed nothing pushes nothing: the head is the one it started on, and "Addressed in"
+          // that old commit would be a claim about a change that was never made
+          if (head !== row.fix_head) pushed = JSON.stringify({ head, threadIds: chosenThreadIds(row.fix_threads) });
         } catch {
           // an unreadable head leaves nothing to say
         }

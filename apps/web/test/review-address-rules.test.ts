@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ReviewThread } from '@agentry/shared';
-import { addressable, countThreads, followUp, isReviewFix, noteHeadOf, partlyPost, pinNoteHead, reviewedHead } from '../src/lib/reviews';
+import { addressable, answeredWith, countThreads, followUp, isReviewFix, noteHeadOf, partlyPost, pinNoteHead, reviewedHead } from '../src/lib/reviews';
 
 // The rules the item page's review block and its address follow-up stand on (docs/plans/code-hosts.md,
 // Phase 3 audit): what counts as unresolved, which fix is a review's, and when "Addressed in" may be said.
@@ -64,4 +64,21 @@ test('the head a note was written on is kept for the draft, and only when the he
   pinNoteHead('d-y', null);
   assert.equal(noteHeadOf('d-x'), 'A');
   assert.equal(noteHeadOf('d-y'), null);
+});
+
+test('a follow-up shown again does not post its reply twice: the host holds the last word', () => {
+  const reply = 'Addressed in abc1234.';
+  const comment = (body: string) => ({ id: 'c', author: 'monalisa', body, createdAt: '', url: null }) as unknown as ReviewThread['comments'][number];
+  assert.equal(answeredWith(thread({ comments: [comment('Please round'), comment(reply)] }), reply), true);
+  assert.equal(answeredWith(thread({ comments: [comment(reply), comment('Thanks, one more thing')] }), reply), false, 'a later comment is the last word');
+  assert.equal(answeredWith(thread({ comments: [] }), reply), false);
+  assert.equal(answeredWith(thread({ comments: [comment(`  ${reply}\n`)] }), reply), true, 'a host may trim or pad the text');
+});
+
+test('after a head-moved refusal the notes are pinned to the head the person was told about', () => {
+  const pinned = new Map<string, string>([['n1', 'A']]);
+  const read = (id: string) => pinned.get(id) ?? null;
+  assert.equal(reviewedHead([{ id: 'n1' }], read, 'A', 'B'), 'A', 'before: the note is on A and the head is B, so the server refuses');
+  pinNoteHead('n1', 'B');
+  assert.equal(reviewedHead([{ id: 'n1' }], noteHeadOf, 'B', 'B'), 'B', 'after: it is pinned to B and the next send goes on B');
 });

@@ -329,6 +329,17 @@ test('GitLab: wentOut drops only the drafts whose text reached the host', () => 
   assert.deepEqual(wentOut(drafts, ['unrelated'], '<!-- agentry:m -->'), []);
 });
 
+test('GitLab: wentOut counts a note on the host once, and an empty suggestion only by its fence', () => {
+  const draft = (id: string, body: string, suggestion = false): ReviewDraft => ({ id, changeRequestId: 'cr-1', path: 'a.ts', line: 3, startLine: null, side: 'right', body, suggestion, createdAt: '', updatedAt: '' });
+  // The longer note went out; the short one it contains did not
+  assert.deepEqual(wentOut([draft('1', 'typo'), draft('2', 'typo here too')], ['typo here too'], 'm').map((d) => d.id), ['2']);
+  // Both went out: two notes on the host
+  assert.deepEqual(wentOut([draft('1', 'typo'), draft('2', 'typo here too')], ['typo here too', 'typo'], 'm').map((d) => d.id), ['1', '2']);
+  // A suggestion with no text is not "contained" in any note
+  assert.deepEqual(wentOut([draft('1', '', true)], ['some other note'], 'm'), []);
+  assert.deepEqual(wentOut([draft('1', '', true)], ['```suggestion\nx\n```'], 'm').map((d) => d.id), ['1']);
+});
+
 test('GitLab: a write that times out with no marker on the host is unconfirmed, and one that landed is posted', async () => {
   const h = gitlab();
   h.answer(/draft_notes -H/, failed(0, 'timeout', { exitCode: null, reason: 'timeout' }));

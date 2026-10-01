@@ -278,6 +278,12 @@ export function preselected(threads: readonly ReviewThread[], marks: Readonly<Re
 /** An address of review threads is under way or waiting for its push. */
 export const isReviewFix = (cr: { fixKind?: ChangeRequest['fixKind']; fixState?: ChangeRequest['fixState'] } | null | undefined): boolean => cr?.fixKind === 'review' && !!cr.fixState;
 
+/**
+ * Whether the last word on a thread is `text`: the reply a follow-up posts. The host is the record of it,
+ * so a follow-up that is shown again (the page was reloaded, or left and come back to) does not post it twice.
+ */
+export const answeredWith = (thread: Pick<ReviewThread, 'comments'>, text: string): boolean => thread.comments.at(-1)?.body.trim() === text.trim();
+
 /** The threads a finished address offers "Addressed in" and Resolve for: its own, still open. */
 export function followUpThreads(threads: readonly ReviewThread[], addressedIds: readonly string[]): ReviewThread[] {
   const ids = new Set(addressedIds);

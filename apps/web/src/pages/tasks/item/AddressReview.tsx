@@ -15,6 +15,7 @@ import { fixStage } from '../../../lib/change-requests';
 import {
   ADDRESS_THREADS_MAX,
   addressable,
+  answeredWith,
   countThreads,
   followUp,
   followUpThreads,
@@ -229,9 +230,9 @@ function FollowUp({ pr, threads, sha, onDone }: { pr: WorkItemPullRequest; threa
   const toast = useToast();
   const where = useWhere();
   const crId = pr.id ?? '';
-  const [replied, setReplied] = useState<ReadonlySet<string>>(new Set());
-  const [busy, setBusy] = useState(false);
   const text = t('address.followUp.replyText', { sha });
+  const [replied, setReplied] = useState<ReadonlySet<string>>(() => new Set(threads.filter((thread) => answeredWith(thread, text)).map((thread) => thread.id)));
+  const [busy, setBusy] = useState(false);
   const refresh = () => void qc.invalidateQueries({ queryKey: keys.changeRequestThreads(crId) });
 
   const reply = async (thread: ReviewThread) => {
@@ -366,7 +367,10 @@ export function AddressReview({ pr }: { pr: WorkItemPullRequest | null | undefin
 
   // The core's record of the push the address made decides, never a head the browser saw change
   const done = followUp(pr);
-  const follow = done ? followUpThreads(list.data.threads, done.threadIds).filter((thread) => !dismissed.has(thread.id)) : [];
+  const replyText = done ? t('address.followUp.replyText', { sha: shortSha(done.sha) }) : '';
+  // A thread already answered with the reply, that this person cannot resolve, has nothing left to offer; and one they
+  // can resolve is offered Resolve alone, since the reply is on the host and is not posted again
+  const follow = done ? followUpThreads(list.data.threads, done.threadIds).filter((thread) => !dismissed.has(thread.id) && !(answeredWith(thread, replyText) && !thread.viewerCanResolve)) : [];
   if (follow.length > 0 && done)
     return <FollowUp pr={pr} threads={follow} sha={shortSha(done.sha)} onDone={(ids) => setDismissed((current) => new Set([...current, ...ids]))} />;
 

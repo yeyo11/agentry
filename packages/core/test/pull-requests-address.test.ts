@@ -158,6 +158,26 @@ test('with no thread named every unresolved one goes, and a decision-origin addr
   }
 });
 
+test('an address that changed nothing pushes nothing, so the page has no "Addressed in" to offer', async () => {
+  const f = await withThreads();
+  try {
+    const before = f.remoteHead();
+    await f.service.addressReview(f.item.id, ['T2']);
+    // The host's head the address started on is the worktree's own, as it is when the branch is in sync
+    (f.service as unknown as { update: (id: string, set: Record<string, unknown>) => void }).update(row(f)?.id ?? '', { fix_head: sh(f.item.worktree ?? '', 'rev-parse', 'HEAD') });
+    // The Developer answers in words and edits no file
+    assert.equal(f.service.settleConflict(f.item.id), null);
+    flowMove(f);
+    f.service.verified(f.item.id);
+    await f.service.settled();
+    assert.equal(f.remoteHead(), before, 'the branch is where it was');
+    assert.equal(row(f)?.fixState ?? null, null, 'the fix is over');
+    assert.equal(row(f)?.addressed ?? null, null, 'nothing was changed, so nothing is addressed in a commit');
+  } finally {
+    cleanup(f.s);
+  }
+});
+
 test("a person's move of the card drops the remembered approval of an address", async () => {
   const f = await withThreads();
   try {
