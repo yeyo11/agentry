@@ -206,7 +206,7 @@ export const changeRequestRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
 
   app.delete<{ Params: { id: string } }>('/change-requests/:id/auto-merge', (req): Promise<MergeState> => core.changeRequests.disarm(req.params.id, req.actor ?? 'local'));
 
-  app.post<{ Params: { id: string } }>('/change-requests/:id/update-branch', (req): Promise<UpdateBranchResult> => core.changeRequests.updateBranch(req.params.id));
+  app.post<{ Params: { id: string } }>('/change-requests/:id/update-branch', (req): Promise<UpdateBranchResult> => core.changeRequests.updateBranch(req.params.id, req.actor ?? 'local'));
 
   app.post<{ Params: { id: string }; Body: MergeReadyRequest }>('/change-requests/:id/ready', (req): Promise<MergeState> => {
     const body: Partial<MergeReadyRequest> = req.body ?? {};

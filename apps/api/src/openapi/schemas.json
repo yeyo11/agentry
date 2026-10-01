@@ -5315,6 +5315,9 @@
         "$ref": "#/components/schemas/ChangeRequestReviewEvent"
       },
       {
+        "$ref": "#/components/schemas/ChangeRequestAutoMergeOffEvent"
+      },
+      {
         "$ref": "#/components/schemas/ScheduleChangedEvent"
       },
       {
@@ -7624,6 +7627,50 @@
       "unresolvedThreads"
     ],
     "description": "The threads or the review decision of a change request changed."
+  },
+  "ChangeRequestAutoMergeOffEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "change-request.auto-merge-off"
+      },
+      "changeRequestId": {
+        "type": "string",
+        "description": "The change request's row id; `id` is the feed's sequence number"
+      },
+      "why": {
+        "$ref": "#/components/schemas/AutoMergeOffWhy"
+      }
+    },
+    "required": [
+      "at",
+      "changeRequestId",
+      "id",
+      "title",
+      "type",
+      "why"
+    ],
+    "description": "Agentry turned a change request's auto-merge off before a push of its own: the person arms it again afterwards."
+  },
+  "AutoMergeOffWhy": {
+    "type": "string",
+    "enum": [
+      "push",
+      "update"
+    ],
+    "description": "Why Agentry turned auto-merge off: before it pushed to the branch (a fix, an address, the first push), or to update it from its base"
   },
   "ScheduleChangedEvent": {
     "type": "object",
@@ -19220,6 +19267,17 @@
       "autoMerge": {
         "$ref": "#/components/schemas/AutoMergeState"
       },
+      "autoMergeOff": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AutoMergeOff"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Agentry turned auto-merge off for a push; null once the person arms it again (or turns it off themselves)"
+      },
       "waitingForPipeline": {
         "type": "boolean",
         "description": "GitLab: the head's pipeline has not appeared yet; Agentry re-reads every 10 s"
@@ -19227,6 +19285,18 @@
       "canRebaseOnHost": {
         "type": "boolean",
         "description": "GitLab `ff` project: Rebase on GitLab is an option for `behind`"
+      },
+      "rebaseOnHostWhy": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "uncommitted-changes",
+          "unpushed-commits",
+          null
+        ],
+        "description": "Rebase on GitLab would apply but is not offered: it would drop what is only in the checkout (uncommitted changes, or commits never pushed)"
       },
       "readAt": {
         "type": "string"
@@ -19251,8 +19321,10 @@
       "others",
       "warning",
       "autoMerge",
+      "autoMergeOff",
       "waitingForPipeline",
       "canRebaseOnHost",
+      "rebaseOnHostWhy",
       "readAt"
     ],
     "description": "`GET /change-requests/:id/merge`: what the person may do about merging, read from the host."
@@ -19397,6 +19469,32 @@
       "armedAt"
     ],
     "description": "Whether an auto-merge may be armed, and whether one is."
+  },
+  "AutoMergeOff": {
+    "type": "object",
+    "properties": {
+      "by": {
+        "type": "string",
+        "description": "Who: `agentry` for its own push, the person who clicked for Update from base"
+      },
+      "at": {
+        "type": "string"
+      },
+      "why": {
+        "$ref": "#/components/schemas/AutoMergeOffWhy"
+      },
+      "pushing": {
+        "type": "boolean",
+        "description": "The push is still going on: arming is refused (`busy`) until it ends"
+      }
+    },
+    "required": [
+      "by",
+      "at",
+      "why",
+      "pushing"
+    ],
+    "description": "The fact that Agentry turned auto-merge off, until the person arms it again"
   },
   "MergeRequestBody": {
     "type": "object",

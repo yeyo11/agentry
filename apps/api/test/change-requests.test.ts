@@ -162,7 +162,11 @@ test('a merge reaches the service as the caller, a refusal keeps its code, and a
     calls.push(args);
     return Promise.reject(new MergeError('new commits reached the branch after you looked', 'head-moved'));
   };
-  merge.updateBranch = () => Promise.resolve({ state: {}, conflicts: ['src/a.ts', 'b.md'], via: 'merge' });
+  const updates: unknown[][] = [];
+  merge.updateBranch = (...args: unknown[]) => {
+    updates.push(args);
+    return Promise.resolve({ state: {}, conflicts: ['src/a.ts', 'b.md'], via: 'merge' });
+  };
   try {
     const head = 'b'.repeat(40);
     const moved = await app.inject({ method: 'POST', url: `/api/change-requests/${ORCH_ROW}/merge`, ...json({ method: 'merge', expectedHead: head, deleteBranch: true }) });
@@ -174,6 +178,8 @@ test('a merge reaches the service as the caller, a refusal keeps its code, and a
 
     const conflict = await app.inject({ method: 'POST', url: `/api/change-requests/${ORCH_ROW}/update-branch` });
     assert.equal(conflict.statusCode, 409, conflict.body);
+    // The update is the person's click too: the disarm it makes is recorded as them
+    assert.deepEqual(updates[0], [ORCH_ROW, 'local']);
     assert.equal(conflict.json<{ code: string }>().code, 'conflicts');
     assert.match(conflict.json<{ error: string }>().error, /src\/a\.ts, b\.md/);
   } finally {

@@ -697,6 +697,7 @@ export class Core {
       resolve: (id) => this.mergeTarget(id),
       checks: async (id) => (await this.checks.list(id, {})).checks,
       unresolvedThreads: async (id) => (await this.reviews.threads(id)).threads.filter((t) => !t.isResolved).length,
+      emit: (event) => this.events.emit(event),
       // The row's own watcher reads the host and moves the item to Done as the person (`merged()`)
       merged: async (id) => {
         const kind = this.changeRequests.kindOf(id);
@@ -716,10 +717,7 @@ export class Core {
         const record = this.projectStore.get(id);
         return record ? { path: record.path } : null;
       },
-      busy: (itemId) => {
-        if (this.flow.itemRunning(itemId)) return true;
-        return this.workItems.links(itemId).some((l) => l.role === 'work' && (l.chatState === 'working' || l.chatState === 'waiting' || l.taskStatus === 'running'));
-      },
+      busy: (itemId) => this.itemBusy(itemId),
       verdicts: (itemId) => this.flow.verdicts(itemId),
       // The card's link is the address the person reaches the panel on: the tunnel when it is up
       webOrigin: () => {
@@ -1901,14 +1899,25 @@ export class Core {
       const record = this.projectStore.get(item.project_id);
       const work = this.workItems.find(item.item_id);
       const place = record && work ? itemWorktree(record.path, work) : null;
-      return mergeTargetOf(base, hostOf(item.host), adapter, record ? { home: mainCheckout(record.path), worktree: place?.worktree ?? null } : null);
+      const target = mergeTargetOf(base, hostOf(item.host), adapter, record ? { home: mainCheckout(record.path), worktree: place?.worktree ?? null } : null);
+      target.busy = () => this.itemBusy(item.item_id);
+      return target;
     }
     const orch = sql.prepare('SELECT host, orchestration_id, cwd FROM orchestration_pull_requests WHERE id = ?').get(id) as { host: string; orchestration_id: string; cwd: string } | undefined;
     if (!orch) return null;
     const adapter = codeHostAdapter(hostOf(orch.host));
     if (!adapter) return null;
     const worktree = this.orchestrator.get(orch.orchestration_id)?.integration?.worktree ?? null;
-    return mergeTargetOf(base, hostOf(orch.host), adapter, { home: mainCheckout(orch.cwd), worktree: worktree && existsSync(worktree) ? worktree : null });
+    const target = mergeTargetOf(base, hostOf(orch.host), adapter, { home: mainCheckout(orch.cwd), worktree: worktree && existsSync(worktree) ? worktree : null });
+    // The integration worktree is in use while the fixer Agentry started for this request works in it
+    target.busy = () => Boolean(sql.prepare("SELECT 1 FROM orchestration_pull_requests WHERE id = ? AND fix_state = 'fixing'").get(id));
+    return target;
+  }
+
+  /** A chat or a run is working on the item: what a push or a rewrite of its branch must not meet */
+  private itemBusy(itemId: string): boolean {
+    if (this.flow.itemRunning(itemId)) return true;
+    return this.workItems.links(itemId).some((l) => l.role === 'work' && (l.chatState === 'working' || l.chatState === 'waiting' || l.taskStatus === 'running'));
   }
 
   /** The item, after the same check on the project it belongs to. Reads of a removed project's items still work. */

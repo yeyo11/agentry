@@ -383,7 +383,7 @@ person's click, since an orchestration has no QA stage. With no integration work
 `no-worktree` and never touches the project's own checkout.
 
 **No agent pushes**, here as everywhere: the fix prompt says so and the flow's rules deny it.
-Disarming auto-merge before the push belongs to the merging phase and is not done yet.
+Auto-merge is turned off before the push, and the person is told (see [Merging](#the-merge-state)).
 
 ### What the watcher tells the decision engine
 
@@ -540,7 +540,11 @@ them.
   `remove_source_branch_after_merge`, the default of the branch box.
 - **`autoMerge`**: whether one may be armed (and the reason when not), and who armed it, when and
   with which method when one is.
-- **`waitingForPipeline`** and **`canRebaseOnHost`**: GitLab only (below).
+- **`autoMergeOff`**: set when Agentry turned auto-merge off for a push of its own or for Update from
+  base: `by` (`agentry` for a push, the person who clicked for an update), `at`, `why` (`push` or
+  `update`) and `pushing` (the push is still going on). It is read from the audit and lasts until the
+  person arms again (or the host shows it armed); the person's own disarm does not set it.
+- **`waitingForPipeline`**, **`canRebaseOnHost`** and **`rebaseOnHostWhy`**: GitLab only (below).
 
 The repository's settings, rules and required checks change rarely and are cached for 60 s.
 
@@ -649,21 +653,36 @@ state is re-read every 10 s.
 - **GitLab** arms through `glab mr merge --auto-merge --sha` and disarms through
   `POST …/cancel_merge_when_pipeline_succeeds`. glab's `status:error` answer is not trusted: the
   re-read decides whether it is armed.
-- **Before Agentry pushes** to a branch (a conflict update, a fix, an address run),
-  `disarmBeforePush(id)` reads the change request and, if armed, turns it off as `agentry` with the
-  detail "arm it again". It **fails closed**: if the host still shows it armed or cannot be read,
-  it throws and the push does not happen. `pull-requests.ts` (`pushFixRow`) and
-  `orchestration-pull-requests.ts` (`pushFix`) call it before every push, and it resets the
-  guard's push time. The person arms it again. The pushes that open a change request do not call
-  it, since nothing can be armed yet.
+- **Before Agentry pushes** to a branch (a fix, an address run, and the push that opens a change
+  request onto a branch that already has one), `holdForPush(id)` reads the change request and, if
+  armed, turns it off as `agentry` with the detail "arm it again". It **fails closed**: if the host
+  still shows it armed or cannot be read, it throws and the push does not happen. It also **holds**
+  the change request (arming, disarming, merging and updating are `busy`) until the caller calls
+  `release()` when the push ends, well or not, so nobody can arm in the gap and have the host merge
+  what the push brings. The person is told twice: a `change-request.auto-merge-off` event, and
+  `autoMergeOff` in the state. `pull-requests.ts` (`pushFixRow`, `prepare`) and
+  `orchestration-pull-requests.ts` (`pushFix`, `open`) call it. The two that open a request have no
+  number yet, so they look for an open request by head and base first (one `find` call), name its
+  number on the row and hold it; nothing found, or a host that cannot be asked, holds nothing.
+- **Arming what is already armed** answers the state and writes no row: the audit never says the
+  person armed what someone else did.
 
 ### Update from base
 
-`POST /change-requests/:id/update-branch` is Agentry's own, in the item's checkout. It disarms
-first, merges the base into the branch and pushes. A conflict aborts the merge, pushes nothing and
-returns the paths (409). On a GitLab `ff` project it may run the host's rebase instead (only with a
-clean worktree), poll `rebase_in_progress` with `include_rebase_in_progress=true` (the plain body
-does not carry it), then fetch and `reset --keep`. `POST …/ready` marks a draft ready.
+`POST /change-requests/:id/update-branch` is Agentry's own, in the item's checkout. It refuses with
+`busy` while a chat or a run works in that checkout (an item's links, an orchestration's fixer). It
+disarms first, as the person who clicked (the route passes `req.actor`; the disarm is recorded as
+theirs, with the detail that Agentry updated the branch), merges the base into the branch and
+pushes. A conflict aborts the merge, pushes nothing and returns the paths (409).
+
+On a GitLab `ff` project Rebase on GitLab is the host's rebase, offered only when the checkout loses
+nothing: no uncommitted changes and no commit that was never pushed (`reset --keep` after the host
+rewrote the branch would drop both). When it would apply but does not, `rebaseOnHostWhy` says
+`uncommitted-changes` or `unpushed-commits` and Update from base is Agentry's own merge. The rebase
+polls `rebase_in_progress` with `include_rebase_in_progress=true` (the plain body does not carry it),
+then fetches and `reset --keep`s. A rebase the host refuses about the content (its `merge_error`, a
+conflict) falls back to Agentry's own update, which names the paths; a host that did not answer does
+not. `POST …/ready` marks a draft ready.
 
 The service returns the conflicting paths and leaves the worktree as it was; how they reach the
 Developer is not decided in the service (see [work-items.md](work-items.md#merging-from-agentry)).

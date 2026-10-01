@@ -358,9 +358,9 @@ export class ChangeRequestService {
   }
 
   /** A conflict pushes nothing and is a 409 that names the paths. */
-  async updateBranch(id: string): Promise<UpdateBranchResult> {
+  async updateBranch(id: string, by: string): Promise<UpdateBranchResult> {
     await this.writing(id);
-    const done = await guarded(this.deps.merge.updateBranch(id));
+    const done = await guarded(this.deps.merge.updateBranch(id, by));
     if (done.conflicts.length > 0) throw new ChangeRequestError(`the base conflicts with the branch in ${done.conflicts.join(', ')}`, 409, 'conflicts');
     return done;
   }

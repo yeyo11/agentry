@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import type { CodeHostId } from '@agentry/shared';
-import { conflictedPaths, identity, mergeInProgress, uncommittedFiles } from '../git.ts';
+import { aheadCount, conflictedPaths, identity, mergeInProgress, refExists, uncommittedFiles } from '../git.ts';
 import type { MergeCodeHostAdapter } from './code-host.ts';
 import type { ChecksTarget } from './checks-service.ts';
 import type { MergeTarget } from './merge-service.ts';
@@ -95,6 +95,16 @@ export function mergeTargetOf(base: ChecksTarget, host: CodeHostId, adapter: Mer
       // Pushed as it is, never forced
       await runGit(worktree, ['push', 'origin', base.branch], 180_000, gitEnv);
       return { conflicts: [] };
+    };
+    // `reset --keep` after a host-side rebase drops what is not committed, and a commit that was never
+    // pushed is lost with the branch the host rewrote: Rebase on GitLab is offered only without either
+    target.checkout = async () => {
+      const remote = `refs/remotes/origin/${base.branch}`;
+      return {
+        uncommitted: uncommittedFiles(worktree).length > 0 || conflictedPaths(worktree).length > 0 || mergeInProgress(worktree),
+        // Without the remote-tracking ref nothing says what was pushed: the commits count as unpushed
+        unpushed: !refExists(worktree, remote) || aheadCount(worktree, remote) > 0,
+      };
     };
     // A host-side rebase moved the remote branch: the clean worktree follows it
     target.syncAfterRebase = async () => {

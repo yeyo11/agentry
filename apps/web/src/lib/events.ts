@@ -106,6 +106,7 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'orchestration.pull-request': true,
   'change-request.checks': true,
   'change-request.review': true,
+  'change-request.auto-merge-off': true,
   'schedule.changed': true,
   'schedule.fired': true,
   'supervisor.proposed': true,
@@ -314,6 +315,7 @@ export function targetsFor(event: AgentryEvent): Target[] {
       return [[keys.orchestrations, NOW], [keys.orchestration(event.orchestrationId), NOW]];
     case 'change-request.review':
     case 'change-request.checks':
+    case 'change-request.auto-merge-off':
       // The list, its logs and the request itself; the boards read the rollup from the item and the
       // orchestration, which their own events refresh when the watcher stores it
       return [[keys.changeRequest(event.changeRequestId), NOW]];

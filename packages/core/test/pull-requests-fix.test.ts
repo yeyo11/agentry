@@ -84,11 +84,11 @@ interface Fixture {
 }
 
 /** A merge service that only records the one call the push paths make */
-function disarming(log: string[]): MergeService {
+function disarming(log: string[], released: string[] = []): MergeService {
   return {
-    disarmBeforePush: async (id: string) => {
+    holdForPush: async (id: string) => {
       log.push(id);
-      return { disarmed: false };
+      return { disarmed: false, release: () => void released.push(id) };
     },
   } as unknown as MergeService;
 }

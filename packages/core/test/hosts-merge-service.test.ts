@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { Check, MergeMethod } from '@agentry/shared';
+import type { AgentryEventInput } from '../src/events.ts';
 import { Db } from '../src/db.ts';
 import { HostActionNotOffered, type HostCall, type HostRepo } from '../src/hosts/code-host.ts';
 import type { HostResult } from '../src/hosts/exec.ts';
@@ -76,6 +77,7 @@ interface Harness {
   sleeps: number[];
   clock: { now: number };
   merged: string[];
+  events: AgentryEventInput[];
   /** The detail of the first audit row */
   detail: () => string | null;
   /** The most recent rule whose pattern matches the call's line wins */
@@ -89,6 +91,8 @@ interface Options {
   fileAt?: MergeTarget['fileAt'];
   updateFromBase?: MergeTarget['updateFromBase'];
   syncAfterRebase?: MergeTarget['syncAfterRebase'];
+  busy?: MergeTarget['busy'];
+  checkout?: MergeTarget['checkout'];
   checks?: Check[];
   unresolved?: number;
 }
@@ -99,6 +103,7 @@ function harness(host: 'github' | 'gitlab', options: Options = {}): Harness {
   const calls: string[] = [];
   const sleeps: number[] = [];
   const merged: string[] = [];
+  const events: AgentryEventInput[] = [];
   const clock = { now: Date.parse('2026-10-01T12:00:00Z') };
   const run = async (call: HostCall): Promise<HostResult> => {
     const line = `${call.cli} ${call.args.join(' ')}`;
@@ -120,6 +125,8 @@ function harness(host: 'github' | 'gitlab', options: Options = {}): Harness {
     ...(options.fileAt ? { fileAt: options.fileAt } : {}),
     ...(options.updateFromBase ? { updateFromBase: options.updateFromBase } : {}),
     ...(options.syncAfterRebase ? { syncAfterRebase: options.syncAfterRebase } : {}),
+    ...(options.busy ? { busy: options.busy } : {}),
+    ...(options.checkout ? { checkout: options.checkout } : {}),
   };
   let n = 0;
   const service = new MergeService({
@@ -128,6 +135,7 @@ function harness(host: 'github' | 'gitlab', options: Options = {}): Harness {
     ...(options.checks ? { checks: async () => options.checks as Check[] } : {}),
     unresolvedThreads: async () => options.unresolved ?? 0,
     merged: async (id) => void merged.push(id),
+    emit: (event) => void events.push(event),
     now: () => clock.now,
     sleep: async (ms) => {
       sleeps.push(ms);
@@ -141,6 +149,7 @@ function harness(host: 'github' | 'gitlab', options: Options = {}): Harness {
     sleeps,
     clock,
     merged,
+    events,
     detail: () => (db.connection.prepare('SELECT detail FROM change_request_merges ORDER BY requested_at, rowid').get() as { detail: string | null } | undefined)?.detail ?? null,
     answer: (pattern, result) => rules.unshift({ pattern, result }),
     writes: () => calls.filter((c) => /pr merge|mr merge|mr rebase|mr update|pr ready|-X POST|graphql -f query=mutation/.test(c)),
@@ -623,27 +632,35 @@ test('disarmBeforePush: an armed auto-merge is turned off and confirmed before t
     armed = false;
     return ok();
   });
-  assert.deepEqual(await h.service.disarmBeforePush('cr-1'), { disarmed: true });
+  const hold = await h.service.holdForPush('cr-1');
+  assert.equal(hold.disarmed, true);
   assert.deepEqual(h.writes(), ['gh pr merge 12 -R github.com/yeyo11/agentry-probe --disable-auto']);
   assert.deepEqual(h.rows(), [{ action: 'disarm', outcome: 'disarmed', by: 'agentry', reason: null, method: null }]);
   assert.match(h.service.history('cr-1')[0]?.detail ?? '', /arm it again/);
-  assert.deepEqual(await h.service.disarmBeforePush('cr-1'), { disarmed: false });
+  assert.deepEqual(h.events.map((e) => [e.type, e.type === 'change-request.auto-merge-off' ? e.why : null]), [['change-request.auto-merge-off', 'push']]);
+  hold.release();
+  const again = await h.service.holdForPush('cr-1');
+  assert.equal(again.disarmed, false);
+  again.release();
   assert.equal(h.writes().length, 1);
+  assert.equal(h.events.length, 1);
   golden('merge-github-disarm-before-push', h.calls);
 
-  assert.deepEqual(await h.service.disarmBeforePush('nobody'), { disarmed: false });
+  assert.equal((await h.service.holdForPush('nobody')).disarmed, false);
 });
 
 test('disarmBeforePush fails closed: a host that still shows it armed, or cannot be read, stops the push', async () => {
   const stuck = harness('github');
   stuck.answer(/^gh pr view 12/, ok(ghView({ mergeStateStatus: 'BLOCKED', autoMergeRequest: armedOn })));
   stuck.answer(/--disable-auto/, ok());
-  await rejectsWith(stuck.service.disarmBeforePush('cr-1'), 'write-unconfirmed');
+  await rejectsWith(stuck.service.holdForPush('cr-1'), 'write-unconfirmed');
   assert.deepEqual(stuck.rows().map((r) => r.outcome), ['failed']);
+  // Nothing stays held after a refusal: the next push can try again
+  await rejectsWith(stuck.service.holdForPush('cr-1'), 'write-unconfirmed');
 
   const down = harness('github');
   down.answer(/^gh pr view 12/, failed(1, 'dial tcp: lookup github.com'));
-  await rejectsWith(down.service.disarmBeforePush('cr-1'), 'unreachable');
+  await rejectsWith(down.service.holdForPush('cr-1'), 'unreachable');
 });
 
 test('a push resets the guard: the pipeline that follows it is the one GitLab Merge now waits for', async () => {
@@ -652,7 +669,7 @@ test('a push resets the guard: the pipeline that follows it is the one GitLab Me
   await h.service.state('cr-1');
   h.clock.now += NO_PIPELINE_GRACE;
   assert.equal((await h.service.state('cr-1')).canMerge, true);
-  await h.service.disarmBeforePush('cr-1');
+  (await h.service.holdForPush('cr-1')).release();
   assert.equal((await h.service.state('cr-1')).waitingForPipeline, true);
 });
 
@@ -667,15 +684,15 @@ test('Update from base on GitHub is Agentry\'s own merge, after auto-merge is of
     armed = false;
     return ok();
   });
-  const conflicted = await h.service.updateBranch('cr-1');
+  const conflicted = await h.service.updateBranch('cr-1', PERSON);
   assert.deepEqual([conflicted.via, conflicted.conflicts], ['merge', ['src/a.ts']]);
-  const updated = await h.service.updateBranch('cr-1');
+  const updated = await h.service.updateBranch('cr-1', PERSON);
   assert.deepEqual(updated.conflicts, []);
   assert.deepEqual(h.writes(), ['gh pr merge 12 -R github.com/yeyo11/agentry-probe --disable-auto']);
   assert.ok(h.calls.every((c) => !/update-branch/.test(c)));
 
   const none = harness('github');
-  await assert.rejects(none.service.updateBranch('cr-1'), HostActionNotOffered);
+  await assert.rejects(none.service.updateBranch('cr-1', PERSON), HostActionNotOffered);
 });
 
 test('Update from base on a GitLab fast-forward project is the host\'s rebase, waited for, and the checkout follows', async () => {
@@ -686,7 +703,7 @@ test('Update from base on a GitLab fast-forward project is the host\'s rebase, w
   h.answer(/^glab mr rebase 12/, ok());
   let status = 0;
   h.answer(/include_rebase_in_progress=true/, () => ok(JSON.stringify({ rebase_in_progress: status++ < 1, merge_error: null })));
-  const outcome = await h.service.updateBranch('cr-1');
+  const outcome = await h.service.updateBranch('cr-1', PERSON);
   assert.equal(outcome.via, 'rebase');
   assert.equal(synced, 1);
   assert.deepEqual(h.sleeps, [5000]);
@@ -698,14 +715,14 @@ test('Update from base on a GitLab fast-forward project is the host\'s rebase, w
   broken.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ detailed_merge_status: 'need_rebase' })));
   broken.answer(/^glab mr rebase 12/, ok());
   broken.answer(/include_rebase_in_progress=true/, ok(JSON.stringify({ rebase_in_progress: false, merge_error: 'Rebase failed. Please rebase locally' })));
-  const error = await rejectsWith(broken.service.updateBranch('cr-1'), 'merge-failed');
+  const error = await rejectsWith(broken.service.updateBranch('cr-1', PERSON), 'merge-failed');
   assert.match(error.detail ?? '', /Rebase failed/);
 });
 
 test('a merge request that is not open cannot be updated, and Ready marks it and answers the state', async () => {
   const h = harness('github');
   h.answer(/^gh pr view 12/, ok(ghView({ state: 'MERGED' })));
-  await rejectsWith(h.service.updateBranch('cr-1'), 'merge-failed');
+  await rejectsWith(h.service.updateBranch('cr-1', PERSON), 'merge-failed');
 
   const draft = harness('github');
   let isDraft = true;
@@ -726,4 +743,127 @@ test('history lists the newest clicks first', async () => {
   await h.service.arm('cr-1', { method: 'squash', expectedHead: GH_HEAD }, PERSON).catch(() => undefined);
   assert.deepEqual(h.service.history('cr-1').map((r) => [r.action, r.outcome, r.requestedBy]), [['arm', 'failed', PERSON], ['merge', 'failed', PERSON]]);
   assert.deepEqual(h.service.history('other'), []);
+});
+
+// ---------- the person is told, and the guard holds ----------
+
+test('a push holds the change request: arming is busy until it ends, and the state says Agentry turned auto-merge off until the person arms again', async () => {
+  const h = harness('github');
+  let armed = true;
+  h.answer(/^gh pr view 12/, () => ok(ghView({ mergeStateStatus: 'BLOCKED', reviewDecision: 'REVIEW_REQUIRED', autoMergeRequest: armed ? armedOn : null })));
+  h.answer(/--disable-auto/, () => {
+    armed = false;
+    return ok();
+  });
+  h.answer(/graphql -f query=mutation/, () => {
+    armed = true;
+    return ok('{"data":{}}');
+  });
+  const hold = await h.service.holdForPush('cr-1');
+  await rejectsWith(h.service.arm('cr-1', { method: 'squash', expectedHead: GH_HEAD }, PERSON), 'busy');
+  await rejectsWith(h.service.disarm('cr-1', PERSON), 'busy');
+  const during = await h.service.state('cr-1');
+  assert.deepEqual(during.autoMergeOff, { by: 'agentry', at: '2026-10-01T12:00:00.000Z', why: 'push', pushing: true });
+  hold.release();
+  hold.release();
+  const after = await h.service.state('cr-1');
+  assert.equal(after.autoMergeOff?.pushing, false);
+
+  h.clock.now += 1000;
+  const rearmed = await h.service.arm('cr-1', { method: 'squash', expectedHead: GH_HEAD }, PERSON);
+  assert.equal(rearmed.autoMerge.armed, true);
+  assert.equal(rearmed.autoMergeOff, null);
+});
+
+test('the person turning auto-merge off themselves is not Agentry\'s doing', async () => {
+  const h = harness('github');
+  let armed = true;
+  h.answer(/^gh pr view 12/, () => ok(ghView({ mergeStateStatus: 'BLOCKED', reviewDecision: 'REVIEW_REQUIRED', autoMergeRequest: armed ? armedOn : null })));
+  h.answer(/--disable-auto/, () => {
+    armed = false;
+    return ok();
+  });
+  assert.equal((await h.service.disarm('cr-1', PERSON)).autoMergeOff, null);
+});
+
+test('arming what is already armed writes no row; Update from base records the person who clicked, not agentry', async () => {
+  const h = harness('github', { updateFromBase: async () => ({ conflicts: [] }) });
+  let armed = true;
+  h.answer(/^gh pr view 12/, () => ok(ghView({ mergeStateStatus: 'BLOCKED', reviewDecision: 'REVIEW_REQUIRED', autoMergeRequest: armed ? armedOn : null })));
+  h.answer(/--disable-auto/, () => {
+    armed = false;
+    return ok();
+  });
+  const state = await h.service.arm('cr-1', { method: 'squash', expectedHead: GH_HEAD }, 'someone-else');
+  assert.equal(state.autoMerge.armedBy, PERSON);
+  assert.deepEqual(h.rows(), []);
+  assert.deepEqual(h.writes(), []);
+
+  h.clock.now += 1000;
+  const outcome = await h.service.updateBranch('cr-1', 'maria');
+  assert.deepEqual(h.rows(), [{ action: 'disarm', outcome: 'disarmed', by: 'maria', reason: null, method: null }]);
+  assert.equal(outcome.state.autoMergeOff?.by, 'maria');
+  assert.equal(outcome.state.autoMergeOff?.why, 'update');
+  assert.match(h.service.history('cr-1')[0]?.detail ?? '', /updated the branch/);
+  assert.deepEqual(h.events.map((e) => (e.type === 'change-request.auto-merge-off' ? e.why : e.type)), ['update']);
+});
+
+// ---------- Update from base: the guards ----------
+
+const ffHarness = (options: Options): Harness => {
+  const h = harness('gitlab', options);
+  h.answer(/^glab repo view/, ok(glRepoJson({ merge_method: 'ff' })));
+  h.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ detailed_merge_status: 'need_rebase' })));
+  return h;
+};
+
+test('Rebase on GitLab is offered only when the checkout loses nothing, and says why otherwise', async () => {
+  assert.equal((await ffHarness({}).service.state('cr-1')).canRebaseOnHost, true);
+  const clean = await ffHarness({ checkout: async () => ({ uncommitted: false, unpushed: false }) }).service.state('cr-1');
+  assert.deepEqual([clean.canRebaseOnHost, clean.rebaseOnHostWhy], [true, null]);
+  const dirty = await ffHarness({ checkout: async () => ({ uncommitted: true, unpushed: true }) }).service.state('cr-1');
+  assert.deepEqual([dirty.canRebaseOnHost, dirty.rebaseOnHostWhy], [false, 'uncommitted-changes']);
+  const ahead = await ffHarness({ checkout: async () => ({ uncommitted: false, unpushed: true }) }).service.state('cr-1');
+  assert.deepEqual([ahead.canRebaseOnHost, ahead.rebaseOnHostWhy], [false, 'unpushed-commits']);
+  const unreadable = await ffHarness({ checkout: () => Promise.reject(new Error('git failed')) }).service.state('cr-1');
+  assert.deepEqual([unreadable.canRebaseOnHost, unreadable.rebaseOnHostWhy], [false, 'unpushed-commits']);
+
+  // With the rebase not offered, Update from base is Agentry's own merge, and the host is never asked to rebase
+  let merged = 0;
+  const own = ffHarness({
+    checkout: async () => ({ uncommitted: true, unpushed: false }),
+    updateFromBase: async () => {
+      merged += 1;
+      return { conflicts: [] };
+    },
+  });
+  assert.equal((await own.service.updateBranch('cr-1', PERSON)).via, 'merge');
+  assert.equal(merged, 1);
+  assert.deepEqual(own.writes(), []);
+});
+
+test('Update from base is refused while a chat or a run works in the checkout, and a host rebase that conflicts falls back to Agentry\'s own update', async () => {
+  let working = true;
+  let merged = 0;
+  const updateFromBase = async (): Promise<{ conflicts: string[] }> => {
+    merged += 1;
+    return { conflicts: ['src/a.ts'] };
+  };
+  const busy = ffHarness({ busy: () => working, updateFromBase });
+  await rejectsWith(busy.service.updateBranch('cr-1', PERSON), 'busy');
+  assert.deepEqual(busy.writes(), []);
+  assert.equal(merged, 0);
+
+  working = false;
+  busy.answer(/^glab mr rebase 12/, ok());
+  busy.answer(/include_rebase_in_progress=true/, ok(JSON.stringify({ rebase_in_progress: false, merge_error: 'Rebase failed. Please rebase locally' })));
+  const outcome = await busy.service.updateBranch('cr-1', PERSON);
+  assert.deepEqual([outcome.via, outcome.conflicts, merged], ['merge', ['src/a.ts'], 1]);
+  assert.deepEqual(busy.writes(), ['glab mr rebase 12 -R https://gitlab.com/yeyo11/agentry']);
+
+  // A host that did not answer is not a conflict: nothing falls back
+  const down = ffHarness({ updateFromBase });
+  down.answer(/^glab mr rebase 12/, failed(1, 'dial tcp: lookup gitlab.com'));
+  await rejectsWith(down.service.updateBranch('cr-1', PERSON), 'unreachable');
+  assert.equal(merged, 1);
 });
