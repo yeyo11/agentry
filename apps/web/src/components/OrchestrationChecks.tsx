@@ -24,7 +24,7 @@ function StateBadge({ check }: { check: Check }) {
   const mark = checkMark(check);
   return (
     <span className={`badge ${TONE_CLASS[mark.tone]}`}>
-      {mark.tone === 'live' && <span className="spinner-xs" aria-hidden />}
+      {mark.tone === 'live' && <span className="spinner-ring spinner-xs" aria-hidden />}
       {t(`checks.${mark.label}` as 'checks.state.failed')}
     </span>
   );
@@ -54,7 +54,7 @@ function Annotations({ items }: { items: CheckAnnotation[] }) {
 function CheckLogPanel({ crId, check, words, sheet }: { crId: string; check: Check; words: Words; sheet: boolean }) {
   const { t } = useTranslation('orchestrationV2');
   const log = useQuery({
-    queryKey: keys.checkLog(crId, check.id),
+    queryKey: keys.checkLog(crId, check.id, check.state),
     queryFn: ({ signal }) => api.checkLog(crId, check.id, { signal }),
     enabled: check.hasLog,
   });

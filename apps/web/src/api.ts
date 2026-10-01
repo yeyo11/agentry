@@ -159,6 +159,7 @@ import type {
   ChangeRequest,
   ChangeRequestChecks,
   CheckLog,
+  CheckState,
   ChecksRerunRequest,
   OrchestrationPullRequest,
   WorkItemPullRequest,
@@ -940,7 +941,12 @@ export const keys = {
   /** Prefix of a change request's reads (itself, its checks, their logs): `change-request.checks` refreshes them all */
   changeRequest: (id: string) => ['change-request', id] as const,
   changeRequestChecks: (id: string) => ['change-request', id, 'checks'] as const,
-  checkLog: (id: string, checkId: string) => ['change-request', id, 'checks', checkId, 'log'] as const,
+  /**
+   * A check keeps its id when its state moves (a job that finishes, a failed run that passes on a
+   * re-read), and its log moves with it: the state is part of the key so the tail is read again
+   */
+  checkLog: (id: string, checkId: string, state?: CheckState) =>
+    ['change-request', id, 'checks', checkId, 'log', ...(state ? [state] : [])] as const,
   // A task's and the integration branch's changes sit under the graph, which `changes.updated` refreshes
   taskChanges: (id: string, taskId: string, scope: ChangeScope = {}) =>
     ['orchestration', id, 'changes', 'task', taskId, scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,

@@ -63,7 +63,7 @@ export function CheckLogBody({ changeRequestId, check }: { changeRequestId: stri
   const { t } = useTranslation('checks');
   const running = check.state === 'running';
   const log = useQuery({
-    queryKey: keys.checkLog(changeRequestId, check.id),
+    queryKey: keys.checkLog(changeRequestId, check.id, check.state),
     queryFn: ({ signal }) => api.checkLog(changeRequestId, check.id, { signal }),
     // A running job's trace lags behind it by up to a minute, so the tail is read again while it runs
     refetchInterval: running ? 15_000 : false,
