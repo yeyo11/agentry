@@ -127,6 +127,8 @@ export interface ChangeRequestRead {
   /** Auto-merge is armed */
   autoMerge: boolean | null;
   headPipeline: HeadPipeline | null;
+  /** GitLab's `diff_refs`, which a review note is placed on; absent on GitHub */
+  diffRefs?: DiffRefs | null;
   /** The host listed fewer contexts than it has: `view.ci` then comes from its own rollup state */
   truncated: boolean;
   rateLimit: { cost: number | null; remaining: number | null; resetAt: string | null } | null;

@@ -93,7 +93,8 @@ export const gitlabReviews: ReviewsAdapter = {
     if (result.exitCode !== 0) throw new HostParseError(`discussions read exited ${String(result.exitCode)}`);
     const threads: ReviewThread[] = [];
     let truncated = false;
-    for (const discussion of documentsOf(result.stdout, 'discussions')) {
+    // A merge request nobody commented on prints nothing
+    for (const discussion of result.stdout.trim() === '' ? [] : documentsOf(result.stdout, 'discussions')) {
       const notes = (Array.isArray(discussion.notes) ? discussion.notes : []).flatMap((raw) => {
         const note = objectOf(raw);
         return note && note.system !== true ? [note] : [];
