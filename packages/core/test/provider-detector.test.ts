@@ -54,7 +54,7 @@ function detector(options: { settings?: ProvidersSettings | null; events?: Agent
 const CLAUDE = (version: string, loggedIn: boolean) =>
   `case "$1" in --version) echo "${version} (Claude Code)";; auth) echo '{"loggedIn": ${String(loggedIn)}, "email": "me@example.com"}';; esac`;
 const CODEX = (loginExit: number) =>
-  `case "$1" in --version) echo "codex-cli 0.5.0";; login) exit ${String(loginExit)};; esac`;
+  `case "$1" in --version) echo "codex-cli 0.159.3";; login) exit ${String(loginExit)};; esac`;
 
 async function statusOf(d: ProviderDetector, id: string) {
   const status = (await d.refresh()).find((s) => s.id === id);
@@ -111,7 +111,7 @@ describe('ProviderDetector', () => {
     const all = await detector().refresh();
     assert.equal(all.find((s) => s.id === 'claude-code')?.state, 'signed-out');
     const codex = all.find((s) => s.id === 'codex');
-    assert.deepEqual([codex?.state, codex?.reason, codex?.version], ['signed-out', 'missing-credentials', '0.5.0']);
+    assert.deepEqual([codex?.state, codex?.reason, codex?.version], ['signed-out', 'missing-credentials', '0.159.3']);
   });
 
   it('reads an exit-code login probe as ready', async () => {
@@ -186,7 +186,7 @@ describe('ProviderDetector', () => {
   });
 
   it('does not probe a disabled provider, and follows the order in settings', async () => {
-    await fake('codex', 'echo probed >> "$0.log"; echo "codex-cli 0.5.0"');
+    await fake('codex', 'echo probed >> "$0.log"; echo "codex-cli 0.159.3"');
     const settings: ProvidersSettings = {
       providers: { codex: { enabled: false, binaryPath: null } },
       order: ['copilot', 'codex'],
@@ -215,7 +215,7 @@ describe('ProviderDetector', () => {
 
   it('serves the cache inside the TTL and reads once for concurrent refreshes', async () => {
     const counter = join(root, `count${n}`);
-    await fake('codex', `echo x >> "${counter}"; case "$1" in --version) echo "codex-cli 0.5.0";; login) exit 0;; esac`);
+    await fake('codex', `echo x >> "${counter}"; case "$1" in --version) echo "codex-cli 0.159.3";; login) exit 0;; esac`);
     const d = detector();
     await Promise.all([d.refresh(), d.refresh()]);
     const lines = () => readFileSync(counter, 'utf8').trim().split('\n').length;
@@ -229,7 +229,7 @@ describe('ProviderDetector', () => {
     const release = join(root, `release${n}`);
     // Each login probe reads the state as it starts, then the first one waits for the test to let it
     // go, so the first detection is still running when the state changes
-    await fake('codex', `case "$1" in --version) echo "codex-cli 0.5.0";; login) s=$(/bin/cat "${state}"); while [ ! -e "${release}" ]; do /bin/sleep 0.05; done; exit "$s";; esac`);
+    await fake('codex', `case "$1" in --version) echo "codex-cli 0.159.3";; login) s=$(/bin/cat "${state}"); while [ ! -e "${release}" ]; do /bin/sleep 0.05; done; exit "$s";; esac`);
     await writeFile(state, '1');
     const d = detector();
     const first = d.refresh();
@@ -275,7 +275,7 @@ describe('ProviderDetector', () => {
   it('lands a full detection that ends after a newer reading of Claude Code alone', async () => {
     const release = join(root, `release${n}`);
     await fake('claude', CLAUDE('2.1.285', false));
-    await fake('codex', `case "$1" in --version) echo "codex-cli 0.5.0";; login) while [ ! -e "${release}" ]; do /bin/sleep 0.05; done; exit 0;; esac`);
+    await fake('codex', `case "$1" in --version) echo "codex-cli 0.159.3";; login) while [ ! -e "${release}" ]; do /bin/sleep 0.05; done; exit 0;; esac`);
     const d = detector();
     const full = d.refresh();
     await new Promise((resolve) => setTimeout(resolve, 150));
