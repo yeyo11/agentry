@@ -138,9 +138,10 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       const summary = await page.text('.checks .checks-sum');
       check(summary.includes('1 failed') && summary.includes('1 running'), `[${theme}] the summary counts them (${summary})`);
 
-      // The zone's one gradient action; the header's action is neutral meanwhile
+      // The zone's one gradient action; the header's action is neutral meanwhile. A split button
+      // (the top bar's New chat and its chevron) is one surface drawn as two buttons, so it counts once
       const buttons = await page.eval(
-        `return { fix: document.querySelector('.workitem-fix-checks')?.className ?? null, primaries: [...document.querySelectorAll('.btn-primary')].map((b) => b.textContent.trim()), work: [...document.querySelectorAll('button, a.btn')].filter((b) => /Work on it/.test(b.textContent)).map((b) => b.className) }`,
+        `return { fix: document.querySelector('.workitem-fix-checks')?.className ?? null, primaries: [...new Set([...document.querySelectorAll('.btn-primary')].map((b) => b.closest('.split-btn') ?? b))].map((b) => b.textContent.trim()), work: [...document.querySelectorAll('button, a.btn')].filter((b) => /Work on it/.test(b.textContent)).map((b) => b.className) }`,
       );
       check(buttons.fix?.includes('btn-primary'), `[${theme}] Fix failing checks is the gradient action (${buttons.fix})`);
       check(buttons.work.length > 0 && buttons.work.every((c) => !c.includes('btn-primary')), `[${theme}] "Work on it" is neutral meanwhile (${JSON.stringify(buttons.work)})`);
@@ -178,8 +179,13 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
     // ---- Check again reads the fixed scenario ----
     scenario('fixed');
-    await page.click('.checks .checks-actions .icon-btn, .checks .checks-actions [aria-label="More check actions"]', '', 300);
-    await page.click('[role=menuitem]', 'Check again', 800);
+    // The menu sits in the head beside the actions, not among them: on a phone the actions stack
+    // under the title and the menu stays next to it. A synthetic click does not open a Radix menu
+    // (it opens on pointerdown), so it is opened from the keyboard, as the other specs do
+    await page.focus('.checks .checks-head [aria-label="More check actions"]');
+    await page.press('Enter');
+    await page.waitFor(`return !!document.querySelector('[role=menu]')`, { label: 'the checks menu' });
+    await page.click('[role=menu] [role=menuitem]', 'Check again', 800);
     await page.waitFor(`return (document.querySelector('.checks .checks-sum')?.textContent ?? '').includes('3 passed')`, { timeout: 30_000, label: 'the fixed list' });
     check(await page.eval(`return !document.querySelector('.checks .badge-bad') && !document.querySelector('.workitem-fix-checks')`), 'a fixed head shows nothing failing and no fix action');
     await page.shot('checks-item-fixed');

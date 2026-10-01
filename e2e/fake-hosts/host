@@ -104,7 +104,10 @@ job_log() {
   printf '2026-10-01T09:50:11Z \033[31;1m##[error]Process completed with exit code 1.\033[0m\n'
 }
 
+# Only the failed run carries annotations: once it passes (same id, as the fixed scenario keeps it)
+# a real host has none for it
 annotations_json() {
+  case "$checks" in failing|mixed) ;; *) echo '[]'; return ;; esac
   echo '[{"path":".github","start_line":1,"end_line":1,"annotation_level":"failure","title":null,"message":"Process completed with exit code 1."},{"path":"src/cart.ts","start_line":12,"end_line":12,"annotation_level":"failure","title":"cart rounds half up","message":"expected 10.01 to equal 10.02"}]'
 }
 
