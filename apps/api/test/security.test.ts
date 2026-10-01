@@ -124,6 +124,13 @@ test('the event stream takes the token in the query string, which EventSource ca
   assert.equal((await app.inject('/api/projects/nope/export')).statusCode, 401);
   assert.equal((await app.inject(`/api/projects/nope/export?token=${encodeURIComponent(token)}`)).statusCode, 404);
 
+  // The other two a browser opens without a header: a chat's own stream and an attachment shown
+  // inline. Unknown ids again, so only the guard's answer is under test.
+  for (const path of ['/api/chats/nope/stream', '/api/uploads/nope/content']) {
+    assert.equal((await app.inject(path)).statusCode, 401, path);
+    assert.notEqual((await app.inject(`${path}?token=${encodeURIComponent(token)}`)).statusCode, 401, path);
+  }
+
   // Only the routes a browser cannot put a header on: anything callable with `fetch` may not
   assert.equal((await app.inject(`/api/overview?token=${encodeURIComponent(token)}`)).statusCode, 401);
 });
