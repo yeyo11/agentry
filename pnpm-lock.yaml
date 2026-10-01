@@ -258,6 +258,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@agentry/mcp':
+        specifier: workspace:*
+        version: link:../mcp
       '@agentry/shared':
         specifier: workspace:*
         version: link:../shared

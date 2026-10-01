@@ -12,6 +12,7 @@
     "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
+    "@agentry/mcp": "workspace:*",
     "@agentry/shared": "workspace:*",
     "@typesafe-ai/sdk": "0.6.0",
     "web-push": "^3.6.7"

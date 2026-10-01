@@ -25,6 +25,13 @@
 //                                 differs by stage, so one item's description can script each role;
 //                                 ASSISTANT is an assistant run's, whose schema asks for `read`
 //   FAKE-RESULT-DECISION <json>   the same for a decision chat, whatever its schema asks for
+//   FAKE-MCP-CALL <server> <tool> <json>
+//                                 makes one MCP tool call as the CLI does: reads --mcp-config, refuses
+//                                 the call (a denial, as in dontAsk) unless mcp__<server>__<tool> is in
+//                                 --allowedTools, else starts the server from the file (expanding ${VAR}
+//                                 from its own environment), asks it with initialize and tools/call,
+//                                 and ends with a result that quotes what came back. <server> and
+//                                 <tool> may name a built-in, such as `- Bash`'s: FAKE-MCP-CALL - Bash {}
 //   FAKE-STREAM-HOLD <file>       with a FAKE-RESULT, streams it first as the CLI does, as the input of
 //                                 its StructuredOutput tool call: the first half, then, once <file>
 //                                 exists, the rest, and only then the result
@@ -42,7 +49,7 @@
 //                                 background work finishes
 //
 // It reports the files it could see and its working directory, which is what the tests check.
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -87,6 +94,44 @@ if (!existsSync(dir)) {
 }
 const out = (msg) => process.stdout.write(`${JSON.stringify(msg)}\n`);
 const git = (...a) => execFileSync('git', ['-C', dir, '-c', 'user.name=Worker', '-c', 'user.email=w@example.com', ...a], { stdio: 'pipe' });
+
+// One tool call, in the events the CLI streams for it: the assistant's tool_use, the user's tool_result, the result
+async function mcpCall(server, tool, input, sessionId) {
+  const name = server === '-' ? tool : `mcp__${server}__${tool}`;
+  const id = `toolu_${randomUUID().slice(0, 8)}`;
+  const finish = (text, isError) => {
+    out({ type: 'user', session_id: sessionId, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: text, is_error: isError }] } });
+    out({ type: 'result', subtype: 'success', is_error: false, num_turns: 2, total_cost_usd: 0.01, result: isError ? `${name} failed: ${text}` : `${name} answered: ${text}` });
+  };
+  out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'tool_use', id, name, input }] } });
+  const allowed = (flag('--allowedTools') ?? args.find((a) => a.startsWith('--allowedTools='))?.slice('--allowedTools='.length) ?? '').split(',');
+  if (!allowed.includes(name)) return finish(`Permission to use ${name} was denied`, true);
+  const file = args.find((a) => a.startsWith('--mcp-config='))?.slice('--mcp-config='.length);
+  const def = file ? JSON.parse(readFileSync(file, 'utf8')).mcpServers?.[server] : undefined;
+  if (!def) return finish(`no MCP server '${server}' in the config`, true);
+  const expand = (v) => v.replace(/\$\{(\w+)\}/g, (_, n) => process.env[n] ?? '');
+  const env = { ...process.env, ...Object.fromEntries(Object.entries(def.env ?? {}).map(([k, v]) => [k, expand(v)])) };
+  const child = spawn(def.command, def.args ?? [], { env, stdio: ['pipe', 'pipe', 'inherit'] });
+  const replies = createInterface({ input: child.stdout });
+  const pending = new Map();
+  replies.on('line', (l) => {
+    const m = JSON.parse(l);
+    pending.get(m.id)?.(m);
+  });
+  let next = 0;
+  const ask = (method, params) =>
+    new Promise((resolve) => {
+      pending.set(++next, resolve);
+      child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: next, method, params })}\n`);
+    });
+  child.on('error', (err) => finish(`the server did not start: ${err.message}`, true));
+  await ask('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'fake-claude', version: '0' } });
+  child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`);
+  const reply = await ask('tools/call', { name: tool, arguments: input });
+  child.stdin.end();
+  const text = (reply.result?.content ?? []).map((c) => c.text ?? '').join('\n');
+  finish(reply.error ? reply.error.message : text, reply.error !== undefined || reply.result?.isError === true);
+}
 
 const lines = createInterface({ input: process.stdin });
 let handled = false;
@@ -153,6 +198,12 @@ lines.on('line', (line) => {
   const failure = /^FAKE-FAIL (.*)$/m.exec(prompt);
   if (failure) {
     out({ type: 'result', subtype: 'error_during_execution', is_error: true, num_turns: 1, total_cost_usd: 0.01, result: failure[1] });
+    return;
+  }
+
+  const mcp = /^FAKE-MCP-CALL (\S+) (\S+) (.*)$/m.exec(prompt);
+  if (mcp) {
+    void mcpCall(mcp[1], mcp[2], JSON.parse(mcp[3]), sessionId);
     return;
   }
 

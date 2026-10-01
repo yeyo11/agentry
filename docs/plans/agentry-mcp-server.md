@@ -95,6 +95,25 @@ the server reads `AGENTRY_VERSION` for its `serverInfo.version`, so the helper m
 server's `env`. `get_orchestration` needs one route only: the orchestration view already carries the
 tasks, the verification and the final result.
 
+**Decision (m2): how the helper starts it and what the file holds.** `packages/core/src/agentry-mcp.ts`
+exports `agentryMcp({ dataDir, apiUrl, version })` (also `Core.agentryMcp()`), which returns what a
+caller spreads into `runtime.start`: `mcp: { servers: ['agentry'], config }`, `allowedTools`,
+`confine: { tools: [], settingSources: [] }` and `permissionMode: 'dontAsk'`. Its command is
+`mcpCommand`: when `AGENTRY_MCP_ENTRY` names an existing file, `process.execPath` on it; otherwise, from
+source, `process.execPath --import <tsx loader> packages/mcp/src/main.ts` (tsx resolved from the mcp
+package, because the chat's directory is not where it lives); otherwise it throws. `startServer`
+(`apps/api/src/server.ts`) sets `AGENTRY_MCP_ENTRY` to the `mcp.mjs` beside its own bundle when that file
+exists, which covers the API bundle and the desktop app (it sits beside `server.mjs`) with no change in
+`apps/desktop`. Under Electron the helper adds `ELECTRON_RUN_AS_NODE=1` to the server's `env`.
+
+**Checked with the real CLI (2.1.286):** it passes its whole environment to a stdio server, it expands
+`${NAME}` in a config file's `env` from that environment, and `--tools=` (empty) does **not** hide the
+tools of `--mcp-config`: a tool named in `--allowedTools` is called under `dontAsk`. So the MCP names do
+not go into `--tools`. Because the chat id and the token are only known when a process spawns (the token
+is minted per process), and the file is the same for every chat, it holds `AGENTRY_API_URL` and
+`AGENTRY_VERSION` as literals and `AGENTRY_CHAT_ID` and `AGENTRY_API_TOKEN` as `${…}` references: the
+secret never reaches the file.
+
 The architect picks the exact mechanism, for example a `runtime.mcpEntry` field or an env variable
 such as `AGENTRY_MCP_ENTRY`. When no entry can be resolved, the helper throws a clear error. It never
 writes a config the CLI cannot start.

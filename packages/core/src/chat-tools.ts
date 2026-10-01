@@ -280,20 +280,20 @@ export class ChatTools {
       if (!server) throw new Error(`MCP server '${name}' is not configured (see GET /config/mcp)`);
       mcpServers[name] = server;
     }
-    return { servers: names, config: await this.writeConfig(mcpServers) };
+    return { servers: names, config: await writeMcpConfig(this.config.dataDir, mcpServers) };
   }
+}
 
-  /**
-   * The file is named by what it holds, so choosing the same servers twice reuses one file. It can
-   * carry the servers' `env` and `headers`, which are secrets: only the owner may read it.
-   */
-  private async writeConfig(mcpServers: Record<string, Record<string, unknown>>): Promise<string> {
-    const body = `${JSON.stringify({ mcpServers }, null, 2)}\n`;
-    const dir = join(this.config.dataDir, 'mcp');
-    await mkdir(dir, { recursive: true, mode: 0o700 });
-    const file = join(dir, `${createHash('sha256').update(body).digest('hex').slice(0, 16)}.json`);
-    await writeFile(file, body, { mode: 0o600 });
-    await chmod(file, 0o600);
-    return file;
-  }
+/**
+ * The file is named by what it holds, so choosing the same servers twice reuses one file. It can
+ * carry the servers' `env` and `headers`, which are secrets: only the owner may read it.
+ */
+export async function writeMcpConfig(dataDir: string, mcpServers: Record<string, Record<string, unknown>>): Promise<string> {
+  const body = `${JSON.stringify({ mcpServers }, null, 2)}\n`;
+  const dir = join(dataDir, 'mcp');
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  const file = join(dir, `${createHash('sha256').update(body).digest('hex').slice(0, 16)}.json`);
+  await writeFile(file, body, { mode: 0o600 });
+  await chmod(file, 0o600);
+  return file;
 }
