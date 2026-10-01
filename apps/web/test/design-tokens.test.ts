@@ -7,8 +7,10 @@ import { join, relative } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-const SRC = fileURLToPath(new URL('../src/', import.meta.url));
-const TOKENS = 'styles/tokens.css';
+const REPO = fileURLToPath(new URL('../../../', import.meta.url));
+// The app and the packages it is built from.
+const ROOTS = [join(REPO, 'apps/web/src'), join(REPO, 'packages/ui/src'), join(REPO, 'packages/chat-ui/src')];
+const TOKENS = join(REPO, 'packages/ui/src/styles/tokens.css');
 
 function cssFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -71,9 +73,9 @@ function violations(d: Declaration): string[] {
 }
 
 test('stylesheets take colours, radii and durations from tokens.css only', () => {
-  const files = cssFiles(SRC).filter((path) => relative(SRC, path) !== TOKENS);
+  const files = ROOTS.flatMap(cssFiles).filter((path) => path !== TOKENS);
   assert.ok(files.length > 10, 'found the app stylesheets');
-  const found = files.flatMap((path) => declarations(relative(SRC, path), stripComments(readFileSync(path, 'utf8'))).flatMap(violations));
+  const found = files.flatMap((path) => declarations(relative(REPO, path), stripComments(readFileSync(path, 'utf8'))).flatMap(violations));
   assert.deepEqual(found, []);
 });
 
@@ -91,7 +93,7 @@ test('the guard catches what it is meant to catch', () => {
 });
 
 test('the light theme is the same whether chosen or asked for by the OS', () => {
-  const css = stripComments(readFileSync(join(SRC, TOKENS), 'utf8'));
+  const css = stripComments(readFileSync(TOKENS, 'utf8'));
   const chosen = /:root\[data-theme='light'\]\s*\{([^}]*)\}/.exec(css)?.[1];
   const system = /:root\[data-theme='system'\]\s*\{([^}]*)\}/.exec(css)?.[1];
   assert.ok(chosen && system, 'both light blocks exist');
@@ -100,7 +102,7 @@ test('the light theme is the same whether chosen or asked for by the OS', () => 
 });
 
 test('the light theme only follows the OS under the system preference', () => {
-  const css = stripComments(readFileSync(join(SRC, TOKENS), 'utf8'));
+  const css = stripComments(readFileSync(TOKENS, 'utf8'));
   for (const media of css.matchAll(/@media\s*\(prefers-color-scheme:\s*light\)\s*\{\s*([^{]+)\{/g)) {
     assert.equal(media[1]?.trim(), ":root[data-theme='system']");
   }

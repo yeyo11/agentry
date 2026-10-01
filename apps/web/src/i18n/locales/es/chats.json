@@ -1,24 +1,4 @@
 {
-  "model": {
-    "notAvailable": "no disponible",
-    "state": {
-      "working": "Trabajando",
-      "waiting": "Esperándote",
-      "idle": "Inactivo"
-    },
-    "origin": {
-      "agentry": "Agentry",
-      "external": "Terminal",
-      "orchestration": "Orquestación",
-      "internal": "Interno"
-    },
-    "sort": {
-      "activity": "Actividad reciente",
-      "started": "Iniciados recientemente",
-      "context": "Más contexto en uso",
-      "messages": "Más mensajes"
-    }
-  },
   "list": {
     "title": "Chats",
     "synthesis": "síntesis",

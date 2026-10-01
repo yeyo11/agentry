@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readNotices } from '../src/lib/chat-notice.ts';
+import { readNotices } from '@agentry/chat-ui/lib/chat-notice';
 
 // Claude Code writes a few things into the transcript as `user` messages. Read wrong they show as
 // the person speaking XML; read here they become the system's own line, and a real message that

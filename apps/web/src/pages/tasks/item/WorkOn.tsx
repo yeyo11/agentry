@@ -6,10 +6,11 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys, useAccounts, useOverview } from '../../../api';
 import { ChatToolsPicker, type ToolChoices } from '../../../components/ChatToolsPicker';
-import { Select, Switch } from '../../../components/controls';
-import { Dialog } from '../../../components/Dialog';
-import { ICON_SM } from '../../../components/icons';
-import { ErrorBox, Field, ModelCombobox, PERMISSION_MODES } from '../../../components/ui';
+import { Select, Switch } from '@agentry/ui/components/controls';
+import { Dialog } from '@agentry/ui/components/Dialog';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { ErrorBox, Field } from '@agentry/ui/components/ui';
+import { ModelCombobox, PERMISSION_MODES } from '../../../components/ui';
 
 /** The branch "Work on it" works on, as the API names it: `task/<key>` in lower case. */
 export const taskBranch = (key: string) => `task/${key.toLowerCase()}`;

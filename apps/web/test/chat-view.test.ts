@@ -4,8 +4,8 @@ import { QueryClient } from '@tanstack/react-query';
 import type { ChatDetail, TranscriptEntry } from '@agentry/shared';
 import { keys } from '../src/api';
 import { patchActivity } from '../src/lib/events';
-import { callHint, rowOf, stepDuration, stepTools, subagentFor, transcriptRows } from '../src/lib/chat-steps.ts';
-import { chatPill, checklistCounts, checklistStepState, tickerActivity } from '../src/lib/chat-live.ts';
+import { callHint, rowOf, stepDuration, stepTools, subagentFor, transcriptRows } from '@agentry/chat-ui/lib/chat-steps';
+import { chatPill, checklistCounts, checklistStepState, tickerActivity } from '@agentry/chat-ui/lib/chat-live';
 
 // The chat page folds a turn's tool calls into one step and says who wrote a row only when that
 // changes. These rules decide what a person sees of a conversation, so they are pinned here.

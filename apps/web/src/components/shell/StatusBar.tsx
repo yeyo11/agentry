@@ -1,13 +1,13 @@
 import { ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
-import { ICON } from '../icons';
-import { formatCost } from '../../lib/format';
+import { ICON } from '@agentry/ui/components/icons';
+import { formatCost } from '@agentry/ui/lib/format';
 import type { UsageWindowReading } from '../../lib/shell-live';
 import { useUsageNow } from '../../lib/usage-now';
-import { StatusDot, usageTone, type DotTone } from '../motion';
-import { Spinner } from '../Spinner';
-import { Tooltip } from '../controls/Tooltip';
+import { StatusDot, usageTone, type DotTone } from '@agentry/ui/components/motion';
+import { Spinner } from '@agentry/ui/components/Spinner';
+import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
 import { ProviderDots } from './ProviderDots';
 
 type Now = ReturnType<typeof useUsageNow>;

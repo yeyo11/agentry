@@ -3,10 +3,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Combobox, Select } from '../../components/controls';
-import { Dialog } from '../../components/Dialog';
-import { useToast } from '../../components/Toast';
-import { Field, ModelCombobox } from '../../components/ui';
+import { Combobox, Select } from '@agentry/ui/components/controls';
+import { Dialog } from '@agentry/ui/components/Dialog';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Field } from '@agentry/ui/components/ui';
+import { ModelCombobox } from '../../components/ui';
 import { AGENT_NAME, agentNameFor, isKnownRole, KNOWN_ROLES, roleIdFor } from './model';
 import { useRoleName } from './RoleAvatar';
 

@@ -1,11 +1,11 @@
 import type { Orchestration, VerificationStatus } from '@agentry/shared';
 import { ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { formatCost, formatDateTime, formatDuration } from '../lib/format';
-import { CodeBlock } from './CodeBlock';
-import { Collapsible } from './controls';
-import { ICON_SM } from './icons';
-import { Card, StatusBadge, Tag } from './ui';
+import { formatCost, formatDateTime, formatDuration } from '@agentry/ui/lib/format';
+import { CodeBlock } from '@agentry/ui/components/CodeBlock';
+import { Collapsible } from '@agentry/ui/components/controls';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { Card, StatusBadge, Tag } from '@agentry/ui/components/ui';
 
 /** Passed and fixed are both good news but not the same news, so each says its own word. */
 function VerificationBadge({ status }: { status: VerificationStatus }) {

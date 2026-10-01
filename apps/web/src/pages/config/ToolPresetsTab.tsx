@@ -4,11 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Select } from '../../components/controls';
-import { useConfirm } from '../../components/Dialog';
+import { Select } from '@agentry/ui/components/controls';
+import { useConfirm } from '@agentry/ui/components/Dialog';
 import { StringListEditor } from '../../components/editors';
-import { useToast } from '../../components/Toast';
-import { Card, Empty, ErrorBox, Field, Skeleton, Tag } from '../../components/ui';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Card, Empty, ErrorBox, Field, Skeleton, Tag } from '@agentry/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
 
 /** `Docs only` → `docs-only`: the id is what a chat request names, so it stays readable. */

@@ -18,7 +18,7 @@ test('no title bar colours until the stylesheet has applied, or when a token is 
 });
 
 test('every theme block defines --bg and --text as hex, so the title bar can follow it', () => {
-  const css = readFileSync(new URL('../src/styles/tokens.css', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../../../packages/ui/src/styles/tokens.css', import.meta.url), 'utf8');
   const values = (name: string) => [...css.matchAll(new RegExp(`${name}:\\s*([^;]+);`, 'g'))].map((m) => m[1]?.trim() ?? '');
   for (const name of ['--bg', '--text']) {
     const found = values(name);

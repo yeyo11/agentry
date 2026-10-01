@@ -7,11 +7,11 @@ import { useProjectScope } from '../../lib/project-scope';
 import type { LiveSummary } from '../../lib/shell-live';
 import { normalizeKey, TASKS_PATH } from '../../lib/work-items';
 import { CommandPaletteTrigger } from '../CommandPalette';
-import type { MenuItem } from '../controls/Menu';
-import { BrandMark } from '../icons';
+import type { MenuItem } from '@agentry/ui/components/controls/Menu';
+import { BrandMark } from '@agentry/ui/components/icons';
 import { NotificationBell } from '../Notifications';
 import { ProjectSelector } from '../ProjectSelector';
-import { SplitButton } from '../SplitButton';
+import { SplitButton } from '@agentry/ui/components/SplitButton';
 import { LiveChip } from './live';
 import { TeamCrumbs } from './TeamCrumbs';
 

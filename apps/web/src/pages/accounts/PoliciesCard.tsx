@@ -4,11 +4,11 @@ import { ArrowDown, ArrowUp, Check, Pencil, Plus, Route, Trash2, X } from 'lucid
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useProjects } from '../../api';
-import { Checkbox, Slider, Tooltip } from '../../components/controls';
-import { useConfirm } from '../../components/Dialog';
-import { ICON_SM } from '../../components/icons';
-import { useToast } from '../../components/Toast';
-import { Card, Empty, ErrorBox, Field } from '../../components/ui';
+import { Checkbox, Slider, Tooltip } from '@agentry/ui/components/controls';
+import { useConfirm } from '@agentry/ui/components/Dialog';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Card, Empty, ErrorBox, Field } from '@agentry/ui/components/ui';
 
 interface Draft {
   /** Absent while a new policy is being written */

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { DecisionPointInfo, DecisionSettings } from '@agentry/shared';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { TooltipProvider } from '../src/components/controls/Tooltip';
+import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
 import i18n from '../src/i18n';
 import { PointRow } from '../src/pages/config/DecisionsTab';
 import { GROUPS, resolveTab } from '../src/pages/config/settingsTabs';

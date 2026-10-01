@@ -4,11 +4,12 @@ import { ChevronRight, Plus, Search, Sparkles } from 'lucide-react';
 import { useDeferredValue, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useWorkItemList } from '../../api';
-import { Select } from '../../components/controls';
-import { Dialog } from '../../components/Dialog';
-import { ICON_SM, WorkItemKey, WorkItemStatusIcon } from '../../components/icons';
-import { useToast } from '../../components/Toast';
-import { formatNumber } from '../../lib/format';
+import { Select } from '@agentry/ui/components/controls';
+import { Dialog } from '@agentry/ui/components/Dialog';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { WorkItemKey, WorkItemStatusIcon } from '../../components/work-item-icons';
+import { useToast } from '@agentry/ui/components/Toast';
+import { formatNumber } from '@agentry/ui/lib/format';
 import { DOCUMENT_KINDS, newDocumentContent, newDocumentPath, normalizeNewPath, type TiedDocument } from './model';
 import { RoleAvatar, useRoleName } from '../team/RoleAvatar';
 

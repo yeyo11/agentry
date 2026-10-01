@@ -18,11 +18,11 @@ import {
   type SplitCell,
   type SplitRow,
 } from '../../lib/diff';
-import { Lru } from '../../lib/lru';
+import { Lru } from '@agentry/ui/lib/lru';
 import { wordDiff, type Range, type WordDiff } from '../../lib/word-diff';
-import { highlightRoles, languageOfPath, SYNTAX_CLASS, type Role, type RoleLine } from '../highlight';
+import { highlightRoles, languageOfPath, SYNTAX_CLASS, type Role, type RoleLine } from '@agentry/ui/components/highlight';
 import { DecisionMarkOf } from '../DecisionMark';
-import { ICON_SM } from '../icons';
+import { ICON_SM } from '@agentry/ui/components/icons';
 
 // One file's diff, drawn the three ways of design system §5: Reading (the file as it is now, what
 // was removed folded into pills), Unified and Side by side. Everything it draws comes from

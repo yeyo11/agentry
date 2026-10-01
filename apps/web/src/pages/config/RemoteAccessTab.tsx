@@ -5,13 +5,13 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
-import { Switch } from '../../components/controls';
-import { useConfirm } from '../../components/Dialog';
-import { ICON } from '../../components/icons';
+import { Switch } from '@agentry/ui/components/controls';
+import { useConfirm } from '@agentry/ui/components/Dialog';
+import { ICON } from '@agentry/ui/components/icons';
 import { QrCode } from '../../components/QrCode';
-import { useToast } from '../../components/Toast';
-import { Card, CopyButton, Empty, ErrorBox, Skeleton, Tag } from '../../components/ui';
-import { timeAgo } from '../../lib/format';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Card, CopyButton, Empty, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { timeAgo } from '@agentry/ui/lib/format';
 import { localized } from '../../lib/server-strings';
 
 /** The state as a colour, always beside its word: ok is open, warn is on its way or leaving, idle waits for the person. */

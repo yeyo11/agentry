@@ -231,11 +231,6 @@
       "journal_other": "journal with {{n}} entries"
     }
   },
-  "illustration": {
-    "refine": "refine",
-    "work": "build",
-    "verify": "verify"
-  },
   "decisions": {
     "title": "Decisions",
     "intro": "What Agentry decides for you in this project. Each point inherits the global setting until you change it here; consent stays global.",

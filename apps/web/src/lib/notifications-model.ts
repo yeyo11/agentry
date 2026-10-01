@@ -15,7 +15,7 @@ import {
   type PermissionRequest,
 } from '@agentry/shared';
 import i18n from '../i18n';
-import { displayTitle } from './chat-model';
+import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
 import { serverText } from './server-strings';
 
 /*
@@ -33,7 +33,6 @@ export {
   interrupts,
   KINDS,
   LEVELS,
-  PROMPT_PARAM,
   settlesWaiting,
   type NotificationDraft,
   type NotificationKind,
@@ -41,6 +40,7 @@ export {
   type NotificationPriority,
   type NotificationTone,
 } from '@agentry/shared';
+export { PROMPT_PARAM } from '@agentry/chat-ui/lib/permission-param';
 
 /** A notification once the store has given it a read state. */
 export type AppNotification = Omit<NotificationDraft, 'dedupeMs'> & {

@@ -48,6 +48,9 @@ export default defineConfig({
   plugins: [react(), serviceWorkerShell()],
   // Compared with the version the server puts in every `stream.hello` (src/lib/reload.ts)
   define: { __AGENTRY_VERSION__: JSON.stringify(VERSION) },
+  // One instance of each stateful library across the app and the packages it imports: two React
+  // Query caches or two i18next instances would each be silently empty for half the screens.
+  resolve: { dedupe: ['react', 'react-dom', 'i18next', 'react-i18next', '@tanstack/react-query', 'react-router-dom', 'motion'] },
   server: {
     port: 5173,
     proxy: {

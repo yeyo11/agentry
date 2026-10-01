@@ -93,7 +93,7 @@ searches are documents nobody wrote.
 - **UI work follows the Night Shift design system** in [docs/design-system.md](docs/design-system.md):
   open the screen's reference in `docs/design-system/reference/` first, and go through its checklist
   before you finish.
-- **UI controls come from `apps/web/src/components/controls`** (Select, Combobox, Checkbox,
+- **UI controls come from `packages/ui/src/components/controls`** (Select, Combobox, Checkbox,
   Switch, Slider, NumberInput, Tooltip, Collapsible, Menu, Sheet), not from native `<select>`, `<datalist>`,
   checkbox/range/number inputs, `<details>` or `title=` on interactive elements: the native ones
   render with the operating system's look and ignore the theme. Plain text inputs and textareas
@@ -101,12 +101,12 @@ searches are documents nobody wrote.
   and multi-choice lists. In e2e specs, `page.select(trigger, optionText)` drives a Select.
   Pages import from the `controls` barrel; modules loaded on first paint (App, Dialog…)
   import the file they need, or the barrel pulls the lazy form controls into the initial bundle.
-- **Styles live one file per area** under `apps/web/src/styles/` (tokens, base, shell, primitives,
+- **Styles live one file per area** under `apps/web/src/styles/` and `packages/ui/src/styles/` (tokens, base, shell, primitives,
   lists, transcript, chat, orchestration, dashboard…), imported in cascade order by `styles.css`. A
   rule goes in the file that defines its selector, with its responsive and reduced-motion variants
   next to it. `--live` (cyan) means "an agent is doing this right now" and the brand orange means
   "you can press this"; never swap them. Decorative motion follows the motion level
-  (`apps/web/src/lib/motion.ts`): at `subtle` nothing loops, at `off` nothing moves.
+  (`packages/ui/src/lib/motion.ts`): at `subtle` nothing loops, at `off` nothing moves.
 - **Lazy routes go through `lazyPage()`** (`apps/web/src/components/ReloadOffer.tsx`), never a bare
   `React.lazy`: a page that outlived a deploy asks for a chunk the new build no longer has, and
   `lazyPage()` turns that into the reload offer instead of a broken route. An e2e spec that needs a
@@ -130,7 +130,9 @@ searches are documents nobody wrote.
 | `packages/shared` | Types shared by every other package |
 | `packages/core` | The CLI driver: runs, sessions, accounts, orchestration, config, storage |
 | `apps/api` | Fastify REST API and the OpenAPI document |
-| `apps/web` | React UI |
+| `packages/ui` | `@agentry/ui`: the web's primitives (tokens, controls, dialogs, toasts, icons, illustrations, formatters, Markdown, highlighting) |
+| `packages/chat-ui` | `@agentry/chat-ui`: the conversation (transcript, composer, permission prompts, chat hooks) |
+| `apps/web` | React UI, built on the two packages above |
 | `apps/desktop` | Electron shell and packaging for the Linux desktop app |
 | `e2e/` | Browser suite driven over the Chrome DevTools Protocol |
 | `docker/` | The single image |

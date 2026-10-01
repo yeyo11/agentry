@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { MotionLevel } from '../src/lib/motion.ts';
+import type { MotionLevel } from '@agentry/ui/lib/motion';
 
 // The motion level decides whether anything on screen loops. What matters is that it is decided
 // before the first paint, that the operating system's answer beats the stored one, and that a
@@ -36,7 +36,7 @@ async function load({ reduced = false, stored }: { reduced?: boolean; stored?: s
     },
     window: { matchMedia: () => ({ matches: reduced, addEventListener: listen }) },
   });
-  const module = await import(`../src/lib/motion.ts?case=${++instance}`);
+  const module = await import(`../../../packages/ui/src/lib/motion.ts?case=${++instance}`);
   const fire = (type: string) => handlers.get(type)?.forEach((fn) => fn());
   return {
     root,

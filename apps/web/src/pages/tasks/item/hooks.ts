@@ -2,8 +2,8 @@ import type { CreateWorkItemRelationRequest, UpdateWorkItemRequest, WorkItem, Wo
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useOverview } from '../../../api';
-import { useConfirm } from '../../../components/Dialog';
-import { useToast } from '../../../components/Toast';
+import { useConfirm } from '@agentry/ui/components/Dialog';
+import { useToast } from '@agentry/ui/components/Toast';
 import { personName, uncheckedCriteria } from './model';
 
 /**

@@ -3,8 +3,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { Illustration, ILLUSTRATION_NAMES, type IllustrationSize, type IllustrationTone } from '../src/components/illustrations';
-import { Empty } from '../src/components/ui';
+import { Illustration, ILLUSTRATION_NAMES, type IllustrationSize, type IllustrationTone } from '@agentry/ui/components/illustrations';
+import { Empty } from '@agentry/ui/components/ui';
 
 // The illustrations share one page with the rest of the app (and sometimes with each other), so
 // their defs ids must be unique per instance, and they must stay invisible to assistive tech.

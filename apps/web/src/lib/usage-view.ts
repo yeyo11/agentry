@@ -1,26 +1,10 @@
 import type { UsagePoint, UsageSlice } from '@agentry/shared';
+import { parseDay, toDay } from '@agentry/ui/lib/calendar';
 
 /** What a chart plots. Cost is what the CLI reported; a chat started from a terminal has tokens only. */
 export type UsageMetric = 'cost' | 'tokens' | 'chats';
 
 export type RangePreset = '7d' | '30d' | '90d' | 'all' | 'custom';
-
-const DAY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-/** `YYYY-MM-DD` in the browser's zone: the range the person picks is a range of their own days. */
-export function toDay(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-/** A real calendar day, so `2026-02-31` is not accepted. */
-export function parseDay(value: string): Date | null {
-  const match = DAY_RE.exec(value);
-  if (!match) return null;
-  const [y, m, d] = [Number(match[1]), Number(match[2]), Number(match[3])];
-  const date = new Date(y, m - 1, d);
-  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d ? date : null;
-}
 
 /** The days a preset covers, inclusive of today; `all` leaves both ends open. */
 export function presetRange(preset: Exclude<RangePreset, 'custom'>, now: Date): { from?: string; to?: string } {

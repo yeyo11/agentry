@@ -5,10 +5,10 @@ import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
-import { Select } from '../../components/controls';
-import { ICON_SM } from '../../components/icons';
-import { useToast } from '../../components/Toast';
-import { Card, ErrorBox, Field, Skeleton, Tag } from '../../components/ui';
+import { Select } from '@agentry/ui/components/controls';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Card, ErrorBox, Field, Skeleton, Tag } from '@agentry/ui/components/ui';
 import { CliCard } from './CliCard';
 import { UpdatesCard } from './UpdatesCard';
 

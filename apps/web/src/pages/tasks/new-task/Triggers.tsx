@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { ComponentPropsWithRef, ReactNode } from 'react';
-import { ICON_SM } from '../../../components/icons';
+import { ICON_SM } from '@agentry/ui/components/icons';
 
 /** A field's trigger in the dialog: the app's select look, with the value drawn as the board draws it. */
 export function FieldButton({ label, children, ...rest }: { label: string; children: ReactNode } & Omit<ComponentPropsWithRef<'button'>, 'children'>) {

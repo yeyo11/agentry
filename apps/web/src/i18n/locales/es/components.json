@@ -38,30 +38,6 @@
     "runWorkflow": "Ejecutar un workflow",
     "skipToContent": "Saltar al contenido"
   },
-  "ui": {
-    "loadingShort": "Cargando",
-    "copy": "Copiar",
-    "copied": "Copiado",
-    "copyPath": "Copiar la ruta",
-    "copyCode": "Copiar el código",
-    "requestFailed": "La petición ha fallado",
-    "unsavedChangesLabel": "cambios sin guardar",
-    "claudeIsWorking": "Claude está trabajando"
-  },
-  "controls": {
-    "decrease": "Reducir",
-    "increase": "Aumentar"
-  },
-  "dialog": {
-    "close": "Cerrar el diálogo",
-    "confirm": "Confirmar",
-    "areYouSure": "¿Seguro?"
-  },
-  "toast": {
-    "region": "Notificaciones",
-    "showOutput": "Mostrar la salida",
-    "dismiss": "Descartar la notificación"
-  },
   "editors": {
     "add": "Añadir",
     "none": "Ninguno",
@@ -78,25 +54,6 @@
   },
   "codeEditor": {
     "loading": "Cargando el editor…"
-  },
-  "markdown": {
-    "taskDone": "hecho",
-    "taskTodo": "pendiente",
-    "table": "Tabla"
-  },
-  "scrollJump": {
-    "transcript": {
-      "group": "Saltar dentro de la transcripción",
-      "start": "Saltar al principio de la transcripción",
-      "end": "Saltar al final de la transcripción"
-    },
-    "output": {
-      "group": "Saltar dentro de la salida",
-      "start": "Saltar al principio de la salida",
-      "end": "Saltar al final de la salida"
-    },
-    "oldest": "Lo más antiguo (arriba)",
-    "newest": "Lo más reciente (abajo)"
   },
   "runSettings": {
     "permissionMode": "Modo de permisos",
@@ -179,34 +136,6 @@
     "script": "Script",
     "agentsDoneLabel": "Agentes completados"
   },
-  "transcript": {
-    "thinking": "Thinking",
-    "thinkingNow": "Thinking…",
-    "toolError": "Error de la herramienta",
-    "toolResult": "Resultado de la herramienta",
-    "empty": "(vacío)",
-    "moreChars": "… [{{count}} caracteres más]",
-    "user": "Usuario",
-    "subagent": "subagente",
-    "streamingThinking": "thinking",
-    "streamingWriting": "escribiendo",
-    "tools_one": "{{count}} herramienta",
-    "tools_other": "{{count}} herramientas",
-    "failedCalls_one": "{{count}} falló",
-    "failedCalls_other": "{{count}} fallaron",
-    "stepCurrent": "en curso",
-    "callFailed": "falló",
-    "callRunning": "en curso",
-    "callWaiting": "Esperando el resultado…",
-    "openSubagent": "Abrir la transcripción del subagente",
-    "notice": {
-      "task": "Tarea en segundo plano",
-      "reminder": "Nota del sistema",
-      "command": "Comando",
-      "output": "Salida del comando",
-      "interrupt": "Interrumpido"
-    }
-  },
   "detail": {
     "status": "Estado",
     "byYou": "por ti",
@@ -250,40 +179,6 @@
     "openChat": "Abrir el chat",
     "earlierInChat_one": "{{count}} entrada anterior en el chat",
     "earlierInChat_other": "{{count}} entradas anteriores en el chat"
-  },
-  "permissions": {
-    "waitingForYou": "Te está esperando",
-    "wantsToRun": "quiere ejecutarse",
-    "allow": "Permitir",
-    "allowAnd": "Permitir y {{what}}",
-    "deny": "Denegar",
-    "denyReason": "¿Por qué no? (se envía al modelo al denegar)",
-    "switchTo": "cambiar a {{mode}}",
-    "alwaysAllow": "permitir siempre {{rules}}",
-    "allowDirectories": "permitir {{directories}}",
-    "claudeIsAsking": "Claude te pregunta",
-    "answeredCount": "{{answered}} de {{total}} respondidas",
-    "questions": "Preguntas",
-    "answered": "respondida",
-    "question": "Pregunta {{n}}",
-    "pickAny": "elige las que quieras",
-    "otherAnswer": "Otra respuesta…",
-    "declineReason": "¿Por qué no? (opcional, se envía al modelo)",
-    "decline": "Rechazar",
-    "backToQuestions": "Volver a las preguntas",
-    "previous": "Anterior",
-    "next": "Siguiente",
-    "answer": "Responder",
-    "answerProgress": "Responder ({{answered}}/{{total}})",
-    "planReady": "Plan listo para revisar",
-    "approve": "Aprobar",
-    "approveAcceptEditsHint": "Aprobar y dejarle editar archivos sin preguntar durante el resto de la sesión",
-    "approveAcceptEdits": "Aprobar y aceptar las ediciones",
-    "keepPlanning": "Seguir planificando",
-    "planFeedback": "¿Qué debería cambiar? (se envía al modelo)",
-    "otherAnswerTo": "Otra respuesta a: {{question}}",
-    "whatItWantsToRun": "Lo que quiere ejecutar",
-    "plan": "Plan"
   },
   "palette": {
     "trigger": "Buscar o ejecutar…",
@@ -353,33 +248,6 @@
     "language": "Idioma: {{name}}",
     "motion": "Movimiento: {{level}}"
   },
-  "find": {
-    "button": "Buscar",
-    "buttonHint": "Buscar en toda la transcripción ({{shortcut}})",
-    "field": "Buscar en toda la transcripción",
-    "failed": "La búsqueda ha fallado",
-    "searching": "Buscando…",
-    "noMatches": "Sin coincidencias",
-    "counter": "{{n}} de {{total}}",
-    "older": "Coincidencia anterior",
-    "olderHint": "Coincidencia anterior (Intro)",
-    "newer": "Coincidencia siguiente",
-    "newerHint": "Coincidencia siguiente (Mayús+Intro)",
-    "close": "Cerrar la búsqueda",
-    "closeHint": "Cerrar (Esc)",
-    "transcript": "Transcripción"
-  },
-  "attachments": {
-    "image": "imagen",
-    "imageTitle": "Imagen",
-    "document": "Documento",
-    "pasted": "pegado",
-    "attachFiles": "Adjuntar archivos",
-    "attachHint": "Adjunta archivos, o suéltalos o pégalos aquí. Claude ve las imágenes y los PDF; el resto lo lee del disco.",
-    "attach": "Adjuntar",
-    "uploading": "Subiendo",
-    "remove": "Quitar {{name}}"
-  },
   "theme": {
     "system": "Tema del sistema",
     "light": "Tema claro",
@@ -421,19 +289,6 @@
     "fromSubagent": "Lo ha iniciado un subagente.",
     "supervisorProposed": "{{name}}: el supervisor propone una pista"
   },
-  "codeBlock": {
-    "label": "Código",
-    "labelLang": "Código {{lang}}"
-  },
-  "combobox": {
-    "suggestions": "Sugerencias"
-  },
-  "datePicker": {
-    "open": "Abrir el calendario de {{field}}",
-    "previousMonth": "Mes anterior",
-    "nextMonth": "Mes siguiente",
-    "today": "Hoy"
-  },
   "projectExport": {
     "title": "Exportar {{name}}",
     "body": "Todos los chats del proyecto en un archivo, del más antiguo al más reciente, con el coste que informó el CLI.",
@@ -459,24 +314,6 @@
       "unconfigured": "Este servidor no tiene clave de firma para push, así que no se podría entregar nada de lo que enviara. Su registro dice por qué.",
       "denied": "Las notificaciones están bloqueadas para este sitio. Permítelas en los ajustes del navegador y este interruptor vuelve."
     }
-  },
-  "viewer": {
-    "close": "Cerrar",
-    "download": "Descargar",
-    "openTab": "Abrir en otra pestaña",
-    "previous": "Archivo anterior",
-    "next": "Archivo siguiente",
-    "count": "{{n}} de {{total}}",
-    "noPreview": "Este archivo solo puede descargarse"
-  },
-  "illustrations": {
-    "noResults": "0 coinciden",
-    "notFound": "¿por aquí?",
-    "weekday": "lun"
-  },
-  "slashMenu": {
-    "label": "Comandos",
-    "skill": "skill"
   },
   "diff": {
     "lineUnchanged": "línea {{n}}",

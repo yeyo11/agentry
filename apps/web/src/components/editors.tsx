@@ -1,8 +1,8 @@
 import { Eye, EyeOff, X } from 'lucide-react';
 import { useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Tooltip } from './controls/Tooltip';
-import { ICON_SM } from './icons';
+import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
+import { ICON_SM } from '@agentry/ui/components/icons';
 
 /** Chip list with an "add" input: permission rules, args, directories… */
 export function StringListEditor({

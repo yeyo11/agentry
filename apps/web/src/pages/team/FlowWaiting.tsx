@@ -3,10 +3,10 @@ import type { TFunction } from 'i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Dialog } from '../../components/Dialog';
-import { Sheet } from '../../components/controls';
-import { WorkItemStatusIcon } from '../../components/icons';
-import { useToast } from '../../components/Toast';
+import { Dialog } from '@agentry/ui/components/Dialog';
+import { Sheet } from '@agentry/ui/components/controls';
+import { WorkItemStatusIcon } from '../../components/work-item-icons';
+import { useToast } from '@agentry/ui/components/Toast';
 import { columnMeta } from '../../lib/work-items';
 import { RoleAvatar, useRoleName } from './RoleAvatar';
 

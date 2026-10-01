@@ -4,11 +4,12 @@ import { ChevronRight, FileWarning, Pencil, Plus, Sparkle, UserMinus } from 'luc
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiRequestError, keys } from '../../api';
-import { MoreActions } from '../../components/controls';
-import { useConfirm } from '../../components/Dialog';
-import { ICON_SM, WorkItemStatusIcon } from '../../components/icons';
-import { useToast } from '../../components/Toast';
-import { Empty } from '../../components/ui';
+import { MoreActions } from '@agentry/ui/components/controls';
+import { useConfirm } from '@agentry/ui/components/Dialog';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { WorkItemStatusIcon } from '../../components/work-item-icons';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Empty } from '@agentry/ui/components/ui';
 import { columnMeta } from '../../lib/work-items';
 import { assistantPath } from '../assistant/model';
 import { writeScope } from './model';

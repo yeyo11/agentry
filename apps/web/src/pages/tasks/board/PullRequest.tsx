@@ -4,7 +4,7 @@ import { Check, CircleAlert, Clock, Minus, X } from 'lucide-react';
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, ApiRequestError, keys } from '../../../api';
-import { useToast } from '../../../components/Toast';
+import { useToast } from '@agentry/ui/components/Toast';
 import { checkoutNote, ciTone, notReadyReason } from '../../../lib/work-items';
 
 // The pieces of an item's pull request that the board and the item's page share

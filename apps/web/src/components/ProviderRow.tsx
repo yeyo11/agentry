@@ -12,9 +12,9 @@ import {
   stateLabelKey,
   type ProviderAction,
 } from '../lib/provider-state';
-import { ICON_SM, Monogram } from './icons';
-import { Spinner } from './Spinner';
-import { Tag } from './ui';
+import { ICON_SM, Monogram } from '@agentry/ui/components/icons';
+import { Spinner } from '@agentry/ui/components/Spinner';
+import { Tag } from '@agentry/ui/components/ui';
 
 export interface ProviderRowProps {
   status: ProviderStatus;

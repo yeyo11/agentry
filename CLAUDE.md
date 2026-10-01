@@ -17,7 +17,11 @@ describes what a provider is.
 - `packages/shared` — types shared by every package (`src/types.ts` is the API contract)
 - `packages/core` — the CLI driver: runs, sessions, accounts, orchestration, config, SQLite store
 - `apps/api` — Fastify REST API; route docs in `src/openapi/routes.ts`
-- `apps/web` — React + Vite UI
+- `packages/ui` — `@agentry/ui`, the web's primitives: tokens and shared styles, controls, dialogs,
+  toasts, icons, illustrations, formatters, Markdown and syntax highlighting
+- `packages/chat-ui` — `@agentry/chat-ui`, the conversation: transcript, composer, permission
+  prompts, chat hooks; it reaches the server only through a client the app hands it
+- `apps/web` — React + Vite UI; depends on both packages (`apps/web` → `chat-ui` → `ui` → `shared`)
 - `apps/desktop` — Electron shell for the Linux desktop app
 - `e2e/` — headless Chrome over CDP, against an isolated wrapper
 
@@ -44,7 +48,7 @@ orchestration launched on the other one does not show up in yours.
 - Comments explain why, not what.
 - Settings-shaped documents go in JSON files; streams and accumulating records go in SQLite
   (`packages/core/src/db.ts`), as rows.
-- UI controls come from `apps/web/src/components/controls`, never native select/checkbox/range.
+- UI controls come from `packages/ui/src/components/controls`, never native select/checkbox/range.
 - Commits follow Conventional Commits: release-please builds `CHANGELOG.md` from them, so never
   edit the changelog by hand. Pull requests are squash-merged.
 - Locally the wrapper uses the real `~/.claude`; set `CLAUDE_CONFIG_DIR` to experiment safely.
@@ -60,7 +64,7 @@ result against it before you finish.
 A change that breaks one of these rules is not done:
 
 - **Tokens only.** Colours, radii, shadows, fonts, durations and easings come from
-  `apps/web/src/styles/tokens.css`. No hex, `rgb()`, pixel radius or millisecond value in any other
+  `packages/ui/src/styles/tokens.css`. No hex, `rgb()`, pixel radius or millisecond value in any other
   stylesheet; the web test that guards this must pass. `#fff` on the brand gradient is the only
   exception.
 - **Dark first, both themes.** Dark is the default theme, and every screen also works in
@@ -99,7 +103,7 @@ A change that breaks one of these rules is not done:
     always-visible checkboxes.
 - **Illustrations.**
   - Empty, error and system states, New chat and Install use `Empty` with an illustration from
-    `apps/web/src/components/illustrations` (design system §4). Use at most one per screen, never
+    `packages/ui/src/components/illustrations` (design system §4). Use at most one per screen, never
     next to live data, and never as filler on a page that has content. Dialogs, editors and panels
     beside other content keep the compact icon version.
   - Colour comes from the classes in `styles/illustrations.css`, never from hex in the SVG, and
@@ -117,7 +121,7 @@ A change that breaks one of these rules is not done:
   - Where there is a transcript, a change carries its why: the step that made it and the sentence
     Claude wrote before it.
 - **Restyle, don't duplicate.** Style the classes the app already has (the doc maps each design
-  component to them) and the controls in `apps/web/src/components/controls`. A new variant goes
+  component to them) and the controls in `packages/ui/src/components/controls`. A new variant goes
   into `docs/design-system.md` and `agentry-ds.css` in the same PR. Keep the classes the e2e specs
   select.
 - **Copy.** Every string goes through i18n with `en`/`es` parity. The `es` copy follows
