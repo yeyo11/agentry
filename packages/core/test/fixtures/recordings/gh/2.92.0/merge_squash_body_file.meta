@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr merge 33 -R yeyo11/agentry-probe --squash --subject probe m0 squash subject --body-file - --match-head-commit e01cf17537f46fe901f2f1b43f76a4b2b6e1aa55
+exit: 0
+secs: 5.072138016
+env: 

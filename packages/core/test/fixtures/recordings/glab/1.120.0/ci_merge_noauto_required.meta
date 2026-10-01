@@ -1,0 +1,5 @@
+glab: 1.120.0
+argv: glab mr merge 15 -R yeyo11/agentry -y --sha a9a9fc242675cb60f38e9ce533a14ecfbb27e594 --auto-merge=false
+exit: 1
+env: 
+stdin-sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855

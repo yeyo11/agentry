@@ -1,0 +1,5 @@
+glab: 1.120.0
+argv: glab api -X POST projects/87089091/merge_requests/14/discussions -H Content-Type: application/json --input -
+exit: 0
+env: 
+stdin-sha256: 000f7715eb6457bd17a7213a29b52b75acf9d14fa1ee6770e1a95f876d81b9f6

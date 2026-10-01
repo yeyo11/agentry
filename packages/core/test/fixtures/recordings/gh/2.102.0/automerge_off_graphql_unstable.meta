@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api graphql -f query=mutation($id:ID!,$m:PullRequestMergeMethod!,$oid:GitObjectID!){enablePullRequestAutoMerge(input:{pullRequestId:$id,mergeMethod:$m,expectedHeadOid:$oid}){pullRequest{autoMergeRequest{mergeMethod enabledAt}}}} -F id=PR_kwDOU1zIIM8AAAABGIG3lg -f m=SQUASH -f oid=e01cf17537f46fe901f2f1b43f76a4b2b6e1aa55
+exit: 1
+secs: .604874204
+env: 

@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api repos/yeyo11/agentry-probe/branches/probe%2Fm0-a --jq .name
+exit: 0
+secs: 1.673023306
+env: 

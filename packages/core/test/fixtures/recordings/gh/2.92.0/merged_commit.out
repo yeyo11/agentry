@@ -1,0 +1,1 @@
+{"message":"probe m0 squash subject\n\nprobe m0 squash body, line one\n\nline three, with `code` and a #32 reference","parents":["efd5a5d22702cab470824112ba49b79f6f3c41a2"]}

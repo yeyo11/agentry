@@ -1,0 +1,5 @@
+glab: 1.120.0
+argv: glab mr create -R yeyo11/agentry --source-branch probe/m0-disc --target-branch probe/m0-base --title probe m0 discussions --description probe m0: merge blocked by unresolved discussions --yes
+exit: 0
+env: 
+stdin-sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855

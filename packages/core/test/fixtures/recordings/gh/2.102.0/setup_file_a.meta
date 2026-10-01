@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api -X PUT repos/yeyo11/agentry-probe/contents/probe-m0-a.txt --input -
+exit: 0
+secs: 1.719864449
+env: 

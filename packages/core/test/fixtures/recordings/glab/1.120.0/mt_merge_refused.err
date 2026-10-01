@@ -1,0 +1,7 @@
+          
+   ERROR  
+          
+  All attempts fail:                                                                                                  
+  #1: PUT https://gitlab.com/api/v4/projects/yeyo11%2Fagentry/merge_requests/14/merge: 405 {message: 405 Method Not   
+  Allowed}.                                                                                                           
+
