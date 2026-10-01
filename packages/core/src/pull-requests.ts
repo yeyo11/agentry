@@ -48,7 +48,7 @@ import {
 import { checksFixPrompt, reviewFixPrompt } from './flow.ts';
 import { ChecksError, type ChecksService, type ChecksTarget } from './hosts/checks-service.ts';
 import { reviewDiff } from './hosts/review-diff.ts';
-import type { MergeService } from './hosts/merge-service.ts';
+import type { MergeService, PushHold } from './hosts/merge-service.ts';
 import { ReviewsError, type ReviewsService, type ReviewsTarget } from './hosts/reviews-service.ts';
 import type { ChangeRequestRead, ChangeRequestView, ChecksCodeHostAdapter, HostCall, HostRepo, MergeCodeHostAdapter, ReviewsCodeHostAdapter } from './hosts/code-host.ts';
 import { defaultHostRun, hostSearchPath, resolveHostBinary, type HostRun } from './hosts/detector.ts';
@@ -688,10 +688,14 @@ export class PullRequestService {
         this.conflicted(row, item, conflicts);
         return;
       }
+      let hold: PushHold | null = null;
       try {
+        hold = await this.holdExisting(row, project.path, wt);
         await this.gitAsync(wt, ['push', '-u', 'origin', row.branch], 180_000);
       } catch (err) {
         throw new StepError('push', messageOf(err));
+      } finally {
+        hold?.release();
       }
       const body = pullRequestBody(this.deps.items.find(item.id) ?? item, this.deps.verdicts(item.id), this.deps.webOrigin());
       const { number, url } = await this.create(row, project.path, wt, { title: pullRequestTitle(item), body });
@@ -700,6 +704,31 @@ export class PullRequestService {
       const step = err instanceof StepError ? err : new StepError('create', messageOf(err));
       this.failed(row, step.code, step.detail);
     }
+  }
+
+  /**
+   * The push that opens a request can land on a branch that already has one (opened by hand, or by an
+   * earlier try) with auto-merge armed. The open request is found by head and base, and the push is held
+   * the way a fix's is: auto-merge off first, the request guarded until the push ends. Nothing found, or a
+   * host that cannot be asked, holds nothing: the create that follows meets the same host.
+   */
+  private async holdExisting(row: PullRequestRow, projectPath: string, cwd: string): Promise<PushHold | null> {
+    if (!this.deps.merge) return null;
+    let number: number | null = null;
+    try {
+      const target = await this.target(projectPath, row);
+      const found = await this.call(target, target.adapter.find(target.repo, { head: row.branch, base: row.base }), cwd);
+      if (found.exitCode === 0) {
+        const open = target.adapter.parseFind(found.stdout).filter((c) => c.state === 'open');
+        if (open.length === 1) number = open[0]?.number ?? null;
+      }
+    } catch {
+      return null;
+    }
+    if (number === null) return null;
+    // The row now names the request, which is how the merge service resolves it
+    this.update(row.id, { number }, ['preparing']);
+    return this.deps.merge.holdForPush(row.id);
   }
 
   /**
@@ -1069,11 +1098,15 @@ export class PullRequestService {
         } catch (err) {
           throw new StepError('commit', messageOf(err));
         }
+        let hold: PushHold | undefined;
         try {
-          await this.deps.merge?.disarmBeforePush(row.id);
+          hold = await this.deps.merge?.holdForPush(row.id);
           await this.gitAsync(place.worktree, ['push', 'origin', row.branch], 180_000);
         } catch (err) {
           throw new StepError('push', messageOf(err));
+        } finally {
+          // The push is over, well or not: the person may arm again
+          hold?.release();
         }
       } catch (err) {
         const step = err instanceof StepError ? err : new StepError('push', messageOf(err));

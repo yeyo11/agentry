@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type {
   AutoMergeRequestBody,
+  AutoMergeOff,
+  AutoMergeOffWhy,
   AutoMergeState,
   Check,
   ChangeRequestKind,
@@ -14,6 +16,7 @@ import type {
   MergeRequestBody,
   MergeState,
 } from '@agentry/shared';
+import type { AgentryEventInput } from '../events.ts';
 import { changeRequestMergeOf, type ChangeRequestMergeRow } from '../work-item-rows.ts';
 import { reasonOf } from './classify.ts';
 import {
@@ -55,6 +58,11 @@ const REBASE_WAIT = 5_000;
 const REBASE_ROUNDS = 12;
 /** Who the disarm that precedes Agentry's own push is recorded as */
 const AGENTRY = 'agentry';
+/** What the audit row of a disarm Agentry did on its own account says, which is also how the state finds it again */
+const OFF_DETAIL: Record<AutoMergeOffWhy, string> = {
+  push: 'turned off before Agentry pushed: arm it again afterwards',
+  update: 'turned off before Agentry updated the branch: arm it again afterwards',
+};
 
 /** A pipeline in one of these states will not change on its own: Merge no longer waits for it */
 const FINISHED_PIPELINE: ReadonlySet<string> = new Set(['success', 'failed', 'canceled', 'skipped', 'manual']);
@@ -102,6 +110,13 @@ export interface MergeTarget {
   updateFromBase?: () => Promise<{ conflicts: string[] }>;
   /** After a host-side rebase: fetch the branch and `reset --keep` onto it in the clean checkout */
   syncAfterRebase?: () => Promise<void>;
+  /** A chat or a run is working in the branch's checkout: Agentry does not rewrite the branch under it */
+  busy?: () => boolean;
+  /**
+   * What a host-side rebase would cost the checkout: `reset --keep` drops what is not committed, and
+   * commits that were never pushed are lost with the rewritten branch. Absent when there is no checkout.
+   */
+  checkout?: () => Promise<{ uncommitted: boolean; unpushed: boolean }>;
 }
 
 export interface MergeServiceDeps {
@@ -114,6 +129,8 @@ export interface MergeServiceDeps {
   unresolvedThreads?: (id: string) => Promise<number>;
   /** The host merged it: lets the owner of the row see that now, instead of at its next poll */
   merged?: (id: string) => Promise<void>;
+  /** The feed: Agentry turned auto-merge off, and the person is told */
+  emit?: (event: AgentryEventInput) => void;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   uuid?: () => string;
@@ -125,6 +142,12 @@ export interface MergeOutcome {
   merged: true;
   /** After the merge, whether the source branch is gone from the host; null when the host did not say or nobody asked */
   branchDeleted: boolean | null;
+}
+
+/** What `holdForPush` answers: whether auto-merge was on and is now off, and how the push says it is over */
+export interface PushHold {
+  disarmed: boolean;
+  release: () => void;
 }
 
 /** What `updateBranch` answers: the paths that conflicted (nothing was pushed then) and the state after */
@@ -178,6 +201,8 @@ export class MergeService {
   private readonly pushes = new Map<string, { sha: string | null; at: number }>();
   /** Writes to one change request, one at a time */
   private readonly writing = new Set<string>();
+  /** Change requests whose branch Agentry is pushing to right now, with auto-merge already off */
+  private readonly pushing = new Set<string>();
 
   constructor(private readonly deps: MergeServiceDeps) {
     this.now = deps.now ?? Date.now;
@@ -329,6 +354,8 @@ export class MergeService {
     const guard = gitlab && read.state === 'open' ? await this.pipelineGuard(target, read, settings, pipeline, found.blockers) : { waiting: false, running: false, blockers: found.blockers };
     const blockers = guard.blockers;
 
+    const offered = gitlab && settings.fastForward && blockers.some((b) => b.code === 'behind') && target.adapter.rebase(target.repo, target.number) !== null;
+    const cost = offered ? await this.rebaseCost(target) : null;
     const methods = allowedMethods(settings, cached.rules);
     const [first, ...others] = blockers;
     const canMerge = read.state === 'open' && blockers.length === 0 && !guard.waiting && !guard.running && methods.length > 0;
@@ -345,7 +372,9 @@ export class MergeService {
       warning: found.warning,
       autoMerge: this.autoMerge(read, settings, blockers, gitlab, pipeline !== null && !FINISHED_PIPELINE.has(pipeline.status), guard.waiting),
       waitingForPipeline: guard.waiting,
-      canRebaseOnHost: gitlab && settings.fastForward && blockers.some((b) => b.code === 'behind') && target.adapter.rebase(target.repo, target.number) !== null,
+      autoMergeOff: read.autoMerge.armed ? null : this.autoMergeOff(target.id),
+      canRebaseOnHost: offered && cost === null,
+      rebaseOnHostWhy: cost,
       readAt: new Date(this.now()).toISOString(),
     };
     this.lastRead.set(target.id, read);
@@ -384,6 +413,28 @@ export class MergeService {
     }
     // A pipeline is coming (or Agentry cannot tell): wait for it, never merge ahead of it
     return { waiting: true, running: false, blockers };
+  }
+
+  /** Why Rebase on GitLab is not offered although it would apply: it would cost the checkout work that is not on the host */
+  private async rebaseCost(target: MergeTarget): Promise<MergeState['rebaseOnHostWhy']> {
+    if (!target.checkout) return null;
+    try {
+      const { uncommitted, unpushed } = await target.checkout();
+      return uncommitted ? 'uncommitted-changes' : unpushed ? 'unpushed-commits' : null;
+    } catch {
+      // The checkout cannot be read: the rebase would reset it blind
+      return 'unpushed-commits';
+    }
+  }
+
+  /** The newest arming or disarm on record is a disarm Agentry did for a push or an update: that is still what happened to it */
+  private autoMergeOff(id: string): AutoMergeOff | null {
+    const row = this.deps.db
+      .prepare("SELECT action, requested_at, requested_by, detail FROM change_request_merges WHERE cr_id = ? AND action IN ('arm', 'disarm') AND outcome IN ('armed', 'disarmed') ORDER BY requested_at DESC, rowid DESC LIMIT 1")
+      .get(id) as { action: string; requested_at: string; requested_by: string; detail: string | null } | undefined;
+    if (row?.action !== 'disarm') return null;
+    const why = (Object.keys(OFF_DETAIL) as AutoMergeOffWhy[]).find((key) => OFF_DETAIL[key] === row.detail);
+    return why ? { by: row.requested_by, at: row.requested_at, why, pushing: this.pushing.has(id) } : null;
   }
 
   private autoMerge(read: MergeRead, settings: MergeSettings, blockers: MergeBlocker[], gitlab: boolean, pipelineRunning: boolean, waiting: boolean): AutoMergeState {
@@ -586,19 +637,18 @@ export class MergeService {
   async arm(id: string, body: AutoMergeRequestBody, by: string): Promise<MergeState> {
     const target = await this.target(id);
     return this.exclusive(id, async () => {
-      const row = this.record(id, 'arm', body.method, body.expectedHead, false, by);
+      // The row is written once there is something to record: arming what is already armed changes nothing
+      let row: string | null = null;
       try {
         const computed = await this.settledCompute(target, { refresh: true });
         const state = computed.state;
         if (state.headSha !== body.expectedHead) throw new MergeError('new commits reached the branch after you looked', 'head-moved', state.headSha);
         if (!state.methods.includes(body.method)) throw new MergeError(`this repository does not allow ${body.method} merges`, 'method-not-allowed', body.method);
+        if (state.autoMerge.armed) return state;
         if (!state.autoMerge.available) {
-          if (state.autoMerge.armed) {
-            this.settle(row, 'armed');
-            return state;
-          }
           throw new MergeError('auto-merge cannot be turned on now', state.autoMerge.reason ?? 'auto-merge-not-needed', state.blocker?.code ?? null, state.blocker);
         }
+        row = this.record(id, 'arm', body.method, body.expectedHead, false, by);
         const call = target.adapter.arm(target.repo, { number: target.number, method: body.method, expectedHead: body.expectedHead, nodeId: computed.read.nodeId });
         const result = await target.run(call);
         const after = await this.tryRead(target);
@@ -612,7 +662,7 @@ export class MergeService {
         return await this.state(id, { refresh: true });
       } catch (err) {
         const error = err instanceof HostParseError ? new MergeError('the request is not one Agentry can send', 'merge-failed', firstLine(err.message)) : err;
-        if (error instanceof MergeError) this.settle(row, 'failed', error.reason, error.detail);
+        if (error instanceof MergeError) this.settle(row ?? this.record(id, 'arm', body.method, body.expectedHead, false, by), 'failed', error.reason, error.detail);
         throw error;
       }
     });
@@ -622,13 +672,13 @@ export class MergeService {
   async disarm(id: string, by: string): Promise<MergeState> {
     const target = await this.target(id);
     return this.exclusive(id, async () => {
-      await this.disarmNow(target, by);
+      await this.disarmNow(target, by, null);
       return this.state(id, { refresh: true });
     });
   }
 
   /** Disarms when armed; the row is written either way a call is made. Throws when the host still shows it armed. */
-  private async disarmNow(target: MergeTarget, by: string): Promise<boolean> {
+  private async disarmNow(target: MergeTarget, by: string, why: AutoMergeOffWhy | null): Promise<boolean> {
     const read = await this.readMerge(target);
     if (!read.autoMerge.armed) return false;
     const row = this.record(target.id, 'disarm', null, read.headSha, false, by);
@@ -638,7 +688,8 @@ export class MergeService {
     // The host's own words about it are not trusted: a failure can come back as a success (recorded on GitLab)
     const after = await this.tryRead(target);
     if (after && !after.autoMerge.armed) {
-      this.settle(row, 'disarmed', null, by === AGENTRY ? 'turned off before Agentry pushed: arm it again afterwards' : null);
+      this.settle(row, 'disarmed', null, why ? OFF_DETAIL[why] : null);
+      if (why) this.deps.emit?.({ type: 'change-request.auto-merge-off', title: 'Auto-merge turned off', changeRequestId: target.id, why });
       return true;
     }
     const error = new MergeError('the host did not turn auto-merge off', clean ? 'write-unconfirmed' : (reasonOf(result, call.cli) ?? 'write-unconfirmed'), result.stderrFirstLine || null);
@@ -647,44 +698,69 @@ export class MergeService {
   }
 
   /**
-   * Called before Agentry pushes to a change request's branch (a fix, an address, an update): an
-   * armed auto-merge would merge what the push brings before anyone looked at it. It is turned off and
-   * confirmed, and the push goes on; the person arms it again. Fails closed: when it cannot be
-   * confirmed that nothing is armed, the push does not happen. A change request the service cannot
-   * resolve (no number yet, the project gone) has nothing armed.
+   * Called before Agentry pushes to a change request's branch (a fix, an address, the push that opens
+   * one): an armed auto-merge would merge what the push brings before anyone looked at it. It is turned
+   * off and confirmed, the person is told (an event, and `autoMergeOff` in the state), and the push goes
+   * on; the person arms it again. The change request stays held until `release()` (call it when the push
+   * ends, whatever came of it): arming in between would be merged by the host the moment the push landed.
+   * Fails closed: when it cannot be confirmed that nothing is armed, the push does not happen. A change
+   * request the service cannot resolve (no number yet, the project gone) has nothing armed.
    */
-  async disarmBeforePush(id: string): Promise<{ disarmed: boolean }> {
+  async holdForPush(id: string): Promise<PushHold> {
     const target = await this.deps.resolve(id);
-    if (!target) return { disarmed: false };
-    const disarmed = await this.exclusive(id, () => this.disarmNow(target, AGENTRY));
-    // The head is about to move: a pipeline that appears after it is the one the guard waits for
-    this.pushes.set(id, { sha: null, at: this.now() });
-    this.lastState.delete(id);
-    return { disarmed };
+    if (!target) return { disarmed: false, release: () => undefined };
+    if (this.writing.has(id)) throw new MergeError('another merge action on this change request is running', 'busy');
+    this.writing.add(id);
+    this.pushing.add(id);
+    let released = false;
+    const release = (): void => {
+      if (released) return;
+      released = true;
+      this.pushing.delete(id);
+      this.writing.delete(id);
+    };
+    try {
+      const disarmed = await this.disarmNow(target, AGENTRY, 'push');
+      // The head is about to move: a pipeline that appears after it is the one the guard waits for
+      this.pushes.set(id, { sha: null, at: this.now() });
+      this.lastState.delete(id);
+      return { disarmed, release };
+    } catch (err) {
+      release();
+      throw err;
+    }
   }
 
   // ---------- update from the base ----------
 
   /**
    * Brings the base into the branch (E9). On GitLab `ff` projects that is the host's rebase, then the
-   * checkout follows; everywhere else it is Agentry's own merge in the item's checkout, pushed after
-   * auto-merge is off. A merge that conflicts pushes nothing and names the paths.
+   * checkout follows; everywhere else (and when the host's rebase conflicts) it is Agentry's own merge
+   * in the item's checkout, pushed after auto-merge is off. Nothing is done while a chat or a run works
+   * in that checkout. A merge that conflicts pushes nothing and names the paths. `by` is the person who
+   * clicked: the disarm that comes first is theirs, done for the update.
    */
-  async updateBranch(id: string): Promise<UpdateOutcome> {
+  async updateBranch(id: string, by: string): Promise<UpdateOutcome> {
     const target = await this.target(id);
     return this.exclusive(id, async () => {
+      if (target.busy?.()) throw new MergeError('a chat or a run is working in this branch: wait for it to end', 'busy');
       const state = await this.state(id, { refresh: true });
       if (state.blocker?.code === 'not-open') throw new MergeError('the change request is not open', 'merge-failed', state.blocker.code, state.blocker);
       const rebase = state.canRebaseOnHost ? target.adapter.rebase(target.repo, target.number) : null;
       if (rebase) {
-        await this.disarmNow(target, AGENTRY);
-        await this.rebaseOnHost(target, rebase);
-        await target.syncAfterRebase?.();
-        this.pushes.set(id, { sha: null, at: this.now() });
-        return { state: await this.state(id, { refresh: true }), conflicts: [], via: 'rebase' };
+        await this.disarmNow(target, by, 'update');
+        try {
+          await this.rebaseOnHost(target, rebase);
+          await target.syncAfterRebase?.();
+          this.pushes.set(id, { sha: null, at: this.now() });
+          return { state: await this.state(id, { refresh: true }), conflicts: [], via: 'rebase' };
+        } catch (err) {
+          // A conflict is the host's refusal about the content: Agentry's own update names the paths
+          if (!(err instanceof MergeError && err.reason === 'merge-failed' && target.updateFromBase)) throw err;
+        }
       }
       if (!target.updateFromBase) throw new HostActionNotOffered('this change request has no checkout to update the branch in');
-      await this.disarmNow(target, AGENTRY);
+      await this.disarmNow(target, by, 'update');
       let conflicts: string[];
       try {
         ({ conflicts } = await target.updateFromBase());

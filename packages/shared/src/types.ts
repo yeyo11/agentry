@@ -5256,6 +5256,14 @@ export interface ChangeRequestReviewEvent extends AgentryEventBase {
 
 // ---------- Merging (code hosts, phase 4) ----------
 
+/** Agentry turned a change request's auto-merge off before a push of its own: the person arms it again afterwards. */
+export interface ChangeRequestAutoMergeOffEvent extends AgentryEventBase {
+  type: 'change-request.auto-merge-off';
+  /** The change request's row id; `id` is the feed's sequence number */
+  changeRequestId: string;
+  why: AutoMergeOffWhy;
+}
+
 /** How a change request is merged. The host's own words differ (`rebase_merge`, `ff`); this is Agentry's. */
 export type MergeMethod = 'squash' | 'merge' | 'rebase';
 
@@ -5329,6 +5337,19 @@ export interface AutoMergeState {
   armedAt: string | null;
 }
 
+/** Why Agentry turned auto-merge off: before it pushed to the branch (a fix, an address, the first push), or to update it from its base */
+export type AutoMergeOffWhy = 'push' | 'update';
+
+/** The fact that Agentry turned auto-merge off, until the person arms it again */
+export interface AutoMergeOff {
+  /** Who: `agentry` for its own push, the person who clicked for Update from base */
+  by: string;
+  at: string;
+  why: AutoMergeOffWhy;
+  /** The push is still going on: arming is refused (`busy`) until it ends */
+  pushing: boolean;
+}
+
 /** `GET /change-requests/:id/merge`: what the person may do about merging, read from the host. */
 export interface MergeState {
   changeRequestId: string;
@@ -5350,10 +5371,14 @@ export interface MergeState {
   /** `UNSTABLE` on GitHub: a check that is not required failed; Merge stays on */
   warning: 'optional-checks-failing' | null;
   autoMerge: AutoMergeState;
+  /** Agentry turned auto-merge off for a push; null once the person arms it again (or turns it off themselves) */
+  autoMergeOff: AutoMergeOff | null;
   /** GitLab: the head's pipeline has not appeared yet; Agentry re-reads every 10 s */
   waitingForPipeline: boolean;
   /** GitLab `ff` project: Rebase on GitLab is an option for `behind` */
   canRebaseOnHost: boolean;
+  /** Rebase on GitLab would apply but is not offered: it would drop what is only in the checkout (uncommitted changes, or commits never pushed) */
+  rebaseOnHostWhy: 'uncommitted-changes' | 'unpushed-commits' | null;
   readAt: string;
   /** While the host's rate limit is used up: when Agentry may read again; the state is the last one it had */
   limitedUntil?: string | null;
@@ -5783,6 +5808,7 @@ export type AgentryEvent =
   | OrchestrationPullRequestEvent
   | ChangeRequestChecksEvent
   | ChangeRequestReviewEvent
+  | ChangeRequestAutoMergeOffEvent
   | ScheduleChangedEvent
   | ScheduleFiredEvent
   | SupervisorProposedEvent
