@@ -5,7 +5,8 @@ import test, { after } from 'node:test';
 import type { ChangeRequestThreads, ReviewThread, WorkItem } from '@agentry/shared';
 import { ChangeRequestService } from '../src/change-requests.ts';
 import { Db } from '../src/db.ts';
-import { ReviewTriage, TRIAGE_THREADS_MAX } from '../src/decisions/review-triage.ts';
+import { threadsToAddress } from '../src/pull-requests.ts';
+import { ReviewTriage, TRIAGE_THREADS_MAX, unresolvedThreads } from '../src/decisions/review-triage.ts';
 import type { ReviewsService } from '../src/hosts/reviews-service.ts';
 import type { OrchestrationPullRequestService } from '../src/orchestration-pull-requests.ts';
 import type { PullRequestService } from '../src/pull-requests.ts';
@@ -119,4 +120,22 @@ test('reading a change request\'s threads asks review.triage: the point is reach
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.subjectId, 'cr1');
   assert.equal((s.rig.provider.calls[0]?.state as { title: string }).title, 'Round totals');
+});
+
+test('an outdated thread is not unresolved: triage asks only about what the dialog lists, and an address with no ids hands over the same', async () => {
+  const s = setup();
+  s.rig.provider.script = () => ({});
+  await s.rig.configure('review.triage', 'shadow');
+  const stale = Array.from({ length: TRIAGE_THREADS_MAX }, (_, i) => thread(`O${String(i)}`, { isOutdated: true }));
+  const list = listOf([...stale, thread('T1'), thread('T2')]);
+  s.triage.onThreads('cr1', 'p1', 'Stale', list);
+  await s.triage.idle();
+  const state = s.rig.provider.calls[0]?.state as { threads: Array<{ id: string }> };
+  assert.deepEqual(state.threads.map((t) => t.id), ['T1', 'T2'], 'the listed threads are not crowded out by outdated ones');
+  assert.deepEqual(unresolvedThreads(list.threads).map((t) => t.id), ['T1', 'T2']);
+  const asked = s.rig.rows('review.triage')[0];
+  assert.equal(asked?.subjectKind, 'change_request', 'its own subject kind keeps it out of the work item window');
+  const handed = threadsToAddress(list, []);
+  assert.ok('threads' in handed && handed.threads.map((t) => t.id).join() === 'T1,T2');
+  assert.deepEqual(threadsToAddress(listOf(stale), []), { code: 'no-threads' });
 });

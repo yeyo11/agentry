@@ -152,7 +152,8 @@ acts on nothing and only preselects threads in the **Address with an agent** dia
   concrete code change the Developer can make), `person` (a question, a design decision or a
   disagreement) or `no-action` (praise, a point already resolved, a nit already done).
 - **When it is asked.** Whenever a change request's threads are read (`ChangeRequestService.threads`
-  hands them to `ReviewTriage`), in the background, once per set of unresolved threads in a process.
+  hands them to `ReviewTriage`), in the background, once per set of unresolved threads in a process (not resolved and not outdated: the threads the
+  dialog lists). Its rows have the subject kind `change_request`.
   The answers are kept in the history by thread id under the change request's id; the **Address
   with an agent** dialog reads the latest and preselects the threads marked `agent`, and marks the
   others. The person can change every selection.

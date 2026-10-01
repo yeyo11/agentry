@@ -19960,6 +19960,7 @@
     "type": "string",
     "enum": [
       "work_item",
+      "change_request",
       "flow_run",
       "task",
       "chat",
