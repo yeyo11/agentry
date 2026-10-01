@@ -85,6 +85,16 @@ starts it:
 - the API bundle resolves `mcp.mjs` from its own `import.meta.url`;
 - from source, the entry is the source file with `tsx`.
 
+**Decision (m1): an env variable, `AGENTRY_MCP_ENTRY`, holding the absolute path of the bundled
+`mcp.mjs`.** The desktop resolves it with `resolveResources().mcpEntry` (`apps/desktop/src/resources.ts`)
+and the API bundle sets it from its own `import.meta.url`; that wiring, and the core helper that reads it
+(with `tsx` on `packages/mcp/src/main.ts` as the from-source fallback), belong to the core task, not to
+`packages/mcp`. It is one string that works in all three runtimes and needs no new runtime field.
+`packages/mcp` exports the names only (`src/names.ts`: `AGENTRY_MCP_SERVER`, `AGENTRY_MCP_READ_TOOLS`);
+the server reads `AGENTRY_VERSION` for its `serverInfo.version`, so the helper must put it in the
+server's `env`. `get_orchestration` needs one route only: the orchestration view already carries the
+tasks, the verification and the final result.
+
 The architect picks the exact mechanism, for example a `runtime.mcpEntry` field or an env variable
 such as `AGENTRY_MCP_ENTRY`. When no entry can be resolved, the helper throws a clear error. It never
 writes a config the CLI cannot start.
