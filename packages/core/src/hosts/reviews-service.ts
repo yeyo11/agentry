@@ -232,6 +232,8 @@ export class ReviewsService {
     // GitLab places "outdated" by comparing with the head, which its discussions do not print
     const head = target.adapter.id === 'gitlab' ? (await this.readHead(target)).headSha : null;
     const result = await this.runRead(target, target.adapter.threads(target.repo, target.number), 'reading the threads', 'reply');
+    // A merge request nobody commented on prints nothing, which the parser rightly does not take for a thread list
+    if (target.adapter.id === 'gitlab' && result.stdout.trim() === '') return { headSha: head, threads: [], truncated: false, followUps: [] };
     let read: ThreadsRead;
     try {
       read = target.adapter.parseThreads(result, { headSha: head });
