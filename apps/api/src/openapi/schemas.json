@@ -3169,6 +3169,36 @@
           "string",
           "null"
         ]
+      },
+      "fixState": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixState"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "An orchestration has no QA stage: its fix goes `fixing`, then `awaiting-push` for the person"
+      },
+      "fixOrigin": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixOrigin"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "fixAttempts": {
+        "type": "number"
+      },
+      "fixHead": {
+        "type": [
+          "string",
+          "null"
+        ]
       }
     },
     "required": [
@@ -3215,6 +3245,23 @@
       "failing"
     ],
     "description": "A PR's checks, from `gh pr view --json statusCheckRollup`: none, any still running, any failed, or all green."
+  },
+  "ChangeRequestFixState": {
+    "type": "string",
+    "enum": [
+      "fixing",
+      "awaiting-verify",
+      "awaiting-push"
+    ],
+    "description": "Where a fix of failing checks stands while the change request is still open on the host (docs/plans/code-hosts.md, phase 2): `fixing`, an agent has the failures in its prompt; `awaiting-verify`, the Developer's run ended and QA verifies it; `awaiting-push`, verified and waiting for the person's **Push the fix**. Null when no fix is under way."
+  },
+  "ChangeRequestFixOrigin": {
+    "type": "string",
+    "enum": [
+      "person",
+      "decision"
+    ],
+    "description": "Who asked for the fix: a person's click, or the `checks.fix` decision."
   },
   "OrchestrationEngine": {
     "type": "string",
@@ -4794,6 +4841,9 @@
       },
       {
         "$ref": "#/components/schemas/OrchestrationPullRequestEvent"
+      },
+      {
+        "$ref": "#/components/schemas/ChangeRequestChecksEvent"
       },
       {
         "$ref": "#/components/schemas/ScheduleChangedEvent"
@@ -7002,6 +7052,49 @@
       "type"
     ],
     "description": "An orchestration's change request was opened, or moved to another phase or CI state."
+  },
+  "ChangeRequestChecksEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "change-request.checks"
+      },
+      "changeRequestId": {
+        "type": "string",
+        "description": "The change request's row id; `id` is the feed's sequence number"
+      },
+      "rollup": {
+        "$ref": "#/components/schemas/WorkItemPullRequestCi"
+      },
+      "headSha": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "at",
+      "changeRequestId",
+      "headSha",
+      "id",
+      "rollup",
+      "title",
+      "type"
+    ],
+    "description": "The head commit's checks changed rollup, or the list was read again after a write."
   },
   "ScheduleChangedEvent": {
     "type": "object",
@@ -12215,6 +12308,10 @@
       "maxCostUsd": {
         "type": "number",
         "description": "What one run may spend, in USD, passed to the CLI as `--max-budget-usd`: the CLI stops the run once it is reached. Absent (the default) means no limit of Agentry's own."
+      },
+      "checksFixAttempts": {
+        "type": "number",
+        "description": "Fixes of failing checks Agentry may start on its own for one head commit (`checks.fix`). Absent reads as 2 (`DEFAULT_CHECKS_FIX_ATTEMPTS`); a person's click is never counted against it."
       }
     },
     "required": [
@@ -12529,6 +12626,19 @@
             }
           },
           "notification.urgency": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "checks.fix": {
             "type": "object",
             "properties": {
               "mode": {
@@ -13175,6 +13285,38 @@
           "null"
         ],
         "description": "When the watcher last asked gh about it"
+      },
+      "fixState": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixState"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The fix of failing checks under way; absent or null when none"
+      },
+      "fixOrigin": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixOrigin"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "fixAttempts": {
+        "type": "number",
+        "description": "Fixes started for `fixHead`, a person's and the decision's together"
+      },
+      "fixHead": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The head commit the failures were seen on"
       }
     },
     "required": [
@@ -17421,6 +17563,9 @@
           },
           "notification.urgency": {
             "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "checks.fix": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
       },
@@ -17577,6 +17722,9 @@
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "notification.urgency": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "checks.fix": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
@@ -17818,7 +17966,8 @@
       "health.test-weakening",
       "changes.unexplained-hunk",
       "palette.intent",
-      "notification.urgency"
+      "notification.urgency",
+      "checks.fix"
     ]
   },
   "DecisionPointKind": {
