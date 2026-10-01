@@ -200,8 +200,13 @@ export const gitlabAdapter: ReviewsCodeHostAdapter = {
     const id = numberOf(pipeline?.id);
     const headPipeline: HeadPipeline | null =
       pipeline && id !== null ? { id, status: text(pipeline.status) ?? '', sha: text(pipeline.sha), source: text(pipeline.source) } : null;
+    const refs = typeof mr.diff_refs === 'object' && mr.diff_refs !== null ? (mr.diff_refs as Record<string, unknown>) : null;
+    const baseSha = text(refs?.base_sha);
+    const startSha = text(refs?.start_sha);
+    const refsHead = text(refs?.head_sha);
     return {
       view,
+      diffRefs: baseSha && startSha && refsHead ? { baseSha, startSha, headSha: refsHead } : null,
       // The merge request's head, which is also the head pipeline's commit unless a newer push has no pipeline yet
       headSha: text(mr.sha),
       baseRef: text(mr.target_branch),

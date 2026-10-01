@@ -1,0 +1,35 @@
+# reviews-github-threads
+gh api -i --hostname github.com graphql --paginate -f query=query($owner: String!, $repo: String!, $number: Int!, $first: Int!, $endCursor: String) {
+  rateLimit { cost remaining resetAt used }
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      headRefOid
+      reviewThreads(first: $first, after: $endCursor) {
+        totalCount
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id isResolved isOutdated path line originalLine startLine originalStartLine diffSide startDiffSide subjectType
+          resolvedBy { login } viewerCanResolve viewerCanUnresolve viewerCanReply
+          comments(first: 100) {
+            totalCount
+            pageInfo { hasNextPage endCursor }
+            nodes { id databaseId body author { login } createdAt outdated diffHunk replyTo { databaseId } pullRequestReview { databaseId state } }
+          }
+        }
+      }
+    }
+  }
+} -f owner=yeyo11 -f repo=agentry-probe -F number=12 -F first=100
+gh api --hostname github.com graphql -f query=query($id: ID!, $first: Int!, $endCursor: String) {
+  rateLimit { cost remaining resetAt used }
+  node(id: $id) {
+    ... on PullRequestReviewThread {
+      id
+      comments(first: $first, after: $endCursor) {
+        totalCount
+        pageInfo { hasNextPage endCursor }
+        nodes { id databaseId body author { login } createdAt replyTo { databaseId } }
+      }
+    }
+  }
+} -F id=PRRT_kwDOU1zIIM6n-Zov -F first=100 -F endCursor=Y3Vyc29yOnYyOpK0MjAyNi0xMC0wMVQxNDowNzozMlrO97xvxQ==
