@@ -3,11 +3,15 @@ import {
   HostParseError,
   type ChangeRequestState,
   type ChangeRequestView,
-  type CodeHostAdapter,
+  type ChangeRequestRead,
+  type ChecksCodeHostAdapter,
+  type HeadPipeline,
   type HostCall,
   type HostRepo,
+  type HostResult,
 } from '../code-host.ts';
 import { envOf } from '../env.ts';
+import { gitlabChecks } from './checks.ts';
 import { parseJson } from '../json.ts';
 
 // Every argument and every field below is what glab 1.120.0 was recorded to take and print
@@ -57,7 +61,8 @@ export function parseProjectId(stdout: string): number | null {
   }
 }
 
-export const gitlabAdapter: CodeHostAdapter = {
+export const gitlabAdapter: ChecksCodeHostAdapter = {
+  ...gitlabChecks,
   id: 'gitlab',
   refPrefix: '!',
 
@@ -179,5 +184,33 @@ export const gitlabAdapter: CodeHostAdapter = {
       mergedAt: typeof mr.merged_at === 'string' ? mr.merged_at : null,
       ci,
     } satisfies ChangeRequestView;
+  },
+
+  // GitLab's watcher keeps `mr view`: a failure there classifies as unreachable (plan, phase 2)
+  readChangeRequest: (repo, number) => gitlabAdapter.view(repo, number),
+
+  parseChangeRequest(result: HostResult): ChangeRequestRead {
+    const view = gitlabAdapter.parseView(result.stdout);
+    const mr = parseObject(result.stdout, 'mr view');
+    const text = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
+    const raw = mr.head_pipeline;
+    const pipeline = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : null;
+    const id = numberOf(pipeline?.id);
+    const headPipeline: HeadPipeline | null =
+      pipeline && id !== null ? { id, status: text(pipeline.status) ?? '', sha: text(pipeline.sha), source: text(pipeline.source) } : null;
+    return {
+      view,
+      // The merge request's head, which is also the head pipeline's commit unless a newer push has no pipeline yet
+      headSha: text(mr.sha),
+      baseRef: text(mr.target_branch),
+      isDraft: typeof mr.draft === 'boolean' ? mr.draft : null,
+      mergeable: text(mr.detailed_merge_status),
+      mergeStateStatus: null,
+      reviewDecision: null,
+      autoMerge: typeof mr.merge_when_pipeline_succeeds === 'boolean' ? mr.merge_when_pipeline_succeeds : null,
+      headPipeline,
+      truncated: false,
+      rateLimit: null,
+    };
   },
 };

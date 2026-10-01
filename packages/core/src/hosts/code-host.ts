@@ -1,4 +1,4 @@
-import type { CodeHostId, WorkItemPullRequestCi } from '@agentry/shared';
+import type { Check, CheckAnnotation, CodeHostId, WorkItemPullRequestCi } from '@agentry/shared';
 
 /**
  * One call to a CLI, as an adapter describes it. An adapter never runs anything: it returns this
@@ -89,3 +89,123 @@ export interface CodeHostAdapter {
   /** Throws `HostParseError` on a shape it cannot read */
   parseView(stdout: string): ChangeRequestView;
 }
+
+/** The newest pipeline of a GitLab merge request, as `mr view` prints it. */
+export interface HeadPipeline {
+  id: number;
+  status: string;
+  sha: string | null;
+  /** `merge_request_event` when the pipeline runs for the merge request, else a branch pipeline */
+  source: string | null;
+}
+
+/**
+ * Everything one read of a change request says that checks need: the view, the head commit the
+ * checks belong to and the host's own merge facts. GitHub fills it from one GraphQL query, GitLab
+ * from `mr view`; a fact a host does not print is null.
+ */
+export interface ChangeRequestRead {
+  view: ChangeRequestView;
+  headSha: string | null;
+  baseRef: string | null;
+  isDraft: boolean | null;
+  mergeable: string | null;
+  mergeStateStatus: string | null;
+  reviewDecision: string | null;
+  /** Auto-merge is armed */
+  autoMerge: boolean | null;
+  headPipeline: HeadPipeline | null;
+  /** The host listed fewer contexts than it has: `view.ci` then comes from its own rollup state */
+  truncated: boolean;
+  rateLimit: { cost: number | null; remaining: number | null; resetAt: string | null } | null;
+}
+
+/** What a check list is read for: GitHub reads the commit, GitLab the head pipeline. */
+export interface ChecksRef {
+  headSha: string | null;
+  pipelineId: number | null;
+}
+
+/** A call to make after the first round, and the group its checks belong to. */
+export interface ChecksFollowUp {
+  call: HostCall;
+  group: string;
+}
+
+/**
+ * One round of a check list read. The adapter never runs a call: the service runs `next` and hands
+ * the results to `parseChecksMore`; the checks of every round are appended.
+ */
+export interface ChecksParse {
+  checks: Check[];
+  /** The list reached its ceiling, or a pipeline's children were left out */
+  truncated: boolean;
+  next: ChecksFollowUp[];
+}
+
+/** The most checks a list holds; GitHub paginates without a bound of its own. */
+export const MAX_CHECKS = 1000;
+
+export interface RerunRequest {
+  scope: 'failed' | 'check' | 'all';
+  /** The list the person saw: what a scope is resolved against */
+  checks: Check[];
+  /** For `check`: the check to run again */
+  checkId?: string;
+  number: number;
+  /** The source branch, for a GitLab pipeline that is not a merge request's */
+  branch: string;
+  headPipeline: HeadPipeline | null;
+}
+
+export interface JobLogRead {
+  text: string;
+  /** The job printed nothing: it is running and the host's log lags, or it never ran */
+  noOutputYet: boolean;
+}
+
+/** A refusal before any call is made: the request names something the host cannot do. */
+export class HostRequestError extends Error {
+  constructor(
+    message: string,
+    readonly reason: 'check-not-rerunnable' | 'rerun-refused',
+  ) {
+    super(message);
+    this.name = 'HostRequestError';
+  }
+}
+
+/**
+ * What an adapter adds in phase 2: reading a change request for checks, the checks, their logs,
+ * annotations and the writes on them. Writes return calls to run in order, never retried, and the
+ * service re-reads after every one.
+ */
+export interface ChecksAdapter {
+  readChangeRequest(repo: HostRepo, number: number): HostCall;
+  /** Reads the whole result: GitHub says some failures on a 200, so the status line is not enough */
+  parseChangeRequest(result: HostResult): ChangeRequestRead;
+  /** Round one of a list read; empty when there is nothing to read yet */
+  checks(repo: HostRepo, ref: ChecksRef): HostCall[];
+  /** `results` are the outputs of `checks()`, in order */
+  parseChecks(repo: HostRepo, ref: ChecksRef, results: HostResult[]): ChecksParse;
+  /** Later rounds: `results` are the outputs of the previous `next`, in order */
+  parseChecksMore(repo: HostRepo, follow: ChecksFollowUp[], results: HostResult[]): ChecksParse;
+  /** Null when the check has no log (a bridge, a commit status, another app's check) */
+  jobLog(repo: HostRepo, check: Check, cliVersion: string | null): HostCall | null;
+  parseJobLog(result: HostResult): JobLogRead;
+  /** Null when the host has none (GitLab) or the check is not a check run */
+  annotations(repo: HostRepo, check: Check): HostCall | null;
+  parseAnnotations(stdout: string): CheckAnnotation[];
+  /** Calls to run in order; throws `HostRequestError` when nothing can be run again */
+  rerun(repo: HostRepo, req: RerunRequest): HostCall[];
+  cancel(repo: HostRepo, req: { checks: Check[]; pipelineId: number | null }): HostCall[];
+  /** Null on GitHub, which has no manual jobs per pull request */
+  playManual(repo: HostRepo, check: Check): HostCall | null;
+  /** The calls that say which checks the base branch requires; empty when the host has no such rule */
+  required(repo: HostRepo, base: string): HostCall[];
+  /** The required check names, or null when `results` do not say */
+  parseRequired(results: HostResult[]): string[] | null;
+}
+
+/** An adapter that does checks too: both shipped ones. */
+export type ChecksCodeHostAdapter = CodeHostAdapter & ChecksAdapter;
