@@ -121,6 +121,7 @@
   "OrchestrationBoard [BoardStatus, BoardStatusBadge, StageHead, TaskCard, TaskDuration, TaskRow, WaitingNotice]",
   "OrchestrationChecks [OrchestrationChecks]",
   "OrchestrationDetail [OrchestrationDetail]",
+  "OrchestrationMerge [OrchestrationMerge]",
   "OrchestrationTemplates [SaveTemplateDialog, TemplatesList]",
   "Pane [DocumentOrigin, DocumentPane, DocumentView, PaneMode]",
   "Panel [ITEM_PANEL_PARAM, ItemByKey, WorkItemPanelHost, itemPanelSearch]",

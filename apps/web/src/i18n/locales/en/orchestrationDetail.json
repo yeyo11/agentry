@@ -45,5 +45,35 @@
     "parallel": "Parallel"
   },
   "stageTasks_one": "{{count}} task",
-  "stageTasks_other": "{{count}} tasks in parallel"
+  "stageTasks_other": "{{count}} tasks in parallel",
+  "merge": {
+    "title": "Merge",
+    "ready": "ready to merge",
+    "reading": "Reading what {{host}} allows…",
+    "armed": "Auto-merge on",
+    "armedBy": "Merges with {{method}} once the host is satisfied, armed by {{who}}",
+    "methodUnknown": "the default method",
+    "turnOff": "Turn off",
+    "waitingForPipeline": "{{host}} has not attached the pipeline to this commit yet. Agentry reads it again every 10 seconds.",
+    "others": "Also: {{words}}",
+    "optionalChecksFailing": "A check that is not required failed. You can still merge.",
+    "method": {
+      "label": "Method",
+      "group": "Merge method",
+      "squash": "Squash",
+      "merge": "Merge commit",
+      "rebase": "Rebase"
+    },
+    "methodHint": "{{base}} allows {{methods}}.",
+    "deleteBranch": "Delete <mono>{{branch}}</mono> on {{host}} when merged",
+    "message": "Commit message",
+    "subject": "Commit subject",
+    "subjectPlaceholder": "Subject, or the host’s own",
+    "body": "Commit body",
+    "bodyPlaceholder": "Body, optional",
+    "guard": "Merges commit {{head}}, the one shown here. If the branch changes first, nothing is merged.",
+    "action": "Merge {{label}}",
+    "merging": "Merging…",
+    "merged": "{{noun}} merged"
+  }
 }
