@@ -25,6 +25,7 @@ import {
   type CheckGroup,
   type CheckGroupId,
 } from '../../../lib/change-requests';
+import { isReviewFix } from '../../../lib/reviews';
 import { CiBadge, useChangeRequestWords } from '../board/PullRequest';
 import { CheckLogBody, CheckLogPanel, CheckMarkIcon, checkFacts, markBadge } from './CheckLog';
 
@@ -188,7 +189,8 @@ function FixDialog({ list, pr, busy, onStart, onClose }: { list: ChangeRequestCh
 function FixState({ pr, onPush, pushing }: { pr: WorkItemPullRequest; onPush: () => void; pushing: boolean }) {
   const { t } = useTranslation('checks');
   const stage = fixStage(pr);
-  if (!stage) return null;
+  // An address of review comments has its own rail and push in the review block (AddressReview): two surfaces for one fix would say the checks are being fixed
+  if (!stage || isReviewFix(pr)) return null;
   const facts = [pr.fixOrigin ? t(`fix.origin.${pr.fixOrigin}`) : null, pr.fixAttempts ? t('fix.attempt', { count: pr.fixAttempts }) : null].filter((part): part is string => !!part).join(' · ');
   return (
     <div className={`check-fix ${stage === 'push' ? '' : 'live-rail'}`.trim()} role="status" aria-label={t('fix.label')}>

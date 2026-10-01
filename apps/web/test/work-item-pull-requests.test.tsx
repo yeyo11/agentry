@@ -128,9 +128,21 @@ test.beforeEach(async () => {
 
 // ---------- the strip's state ----------
 
+test('a fix of review comments reads on the card as comments being addressed, not as the checks', async () => {
+  const fixing = item('in_progress', { pullRequest: pr({ fixState: 'fixing', fixKind: 'review', fixOrigin: 'person', fixAttempts: 1 }) });
+  const state = workItemStrip(fixing);
+  assert.equal(state?.kind === 'pr-fix' && state.fix, 'review');
+  const html = text(strip(fixing));
+  assert.match(html, /addressing the comments/);
+  assert.doesNotMatch(html, /fixing the checks/);
+  const waiting = item('in_review', { waiting: 'approval', pullRequest: pr({ fixState: 'awaiting-push', fixKind: 'review', fixOrigin: 'decision' }) });
+  assert.match(text(strip(waiting)), /waits for your push/);
+  assert.doesNotMatch(strip(waiting), /fix verified/);
+});
+
 test('a fix of failing checks reads on the card by its stage, and only the pushable one waits for the person', async () => {
   const fixing = item('in_progress', { pullRequest: pr({ fixState: 'fixing', fixOrigin: 'person', fixAttempts: 1 }) });
-  assert.deepEqual(workItemStrip(fixing), { kind: 'pr-fix', stage: 'fixing', origin: 'person', attempt: 1, number: 123, ref: null, host: null });
+  assert.deepEqual(workItemStrip(fixing), { kind: 'pr-fix', fix: 'checks', stage: 'fixing', origin: 'person', attempt: 1, number: 123, ref: null, host: null });
   assert.equal(stripTone(workItemStrip(fixing)!), null);
   const html = text(strip(fixing));
   assert.match(html, /fixing the checks/);

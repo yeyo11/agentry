@@ -162,6 +162,7 @@ import type {
   AddressReviewRequest,
   ApprovalState,
   ChangeRequestChecks,
+  ChangeRequestReviewPosts,
   ChangeRequestReviewers,
   ChangeRequestThreads,
   CheckLog,
@@ -801,6 +802,8 @@ export const api = {
   /** Post the drafts as one review */
   submitReview: (id: string, req: ReviewSubmitRequest) =>
     request<ReviewPost>(`/change-requests/${enc(id)}/reviews`, { method: 'POST', body: req }),
+  /** The attempts to post a review, newest first: a review that stopped half way is known after a reload */
+  reviewPosts: (id: string, o?: ReadOptions) => request<ChangeRequestReviewPosts>(`/change-requests/${enc(id)}/review-posts`, o),
   /** GitLab, after a partly-posted review: publish the notes that were saved, or drop them */
   publishSavedReview: (id: string, postId: string) =>
     request<ReviewPost>(`/change-requests/${enc(id)}/reviews/${enc(postId)}/publish-saved`, { method: 'POST', body: {} }),
@@ -996,6 +999,7 @@ export const keys = {
   // The review's reads sit under the request too: `change-request.review` refreshes them all
   changeRequestThreads: (id: string) => ['change-request', id, 'threads'] as const,
   reviewDrafts: (id: string) => ['change-request', id, 'review-drafts'] as const,
+  reviewPosts: (id: string) => ['change-request', id, 'review-posts'] as const,
   changeRequestReviewers: (id: string) => ['change-request', id, 'reviewers'] as const,
   changeRequestApproval: (id: string) => ['change-request', id, 'approval'] as const,
   /**

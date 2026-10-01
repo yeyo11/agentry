@@ -87,7 +87,7 @@ test('a triage mark only preselects the threads marked agent', () => {
   const threads = [thread({ id: 'a' }), thread({ id: 'b' }), thread({ id: 'c' })];
   assert.deepEqual([...preselected(threads, { a: 'agent', b: 'person', c: 'no-action' })], ['a']);
   assert.equal(preselected(threads, undefined).size, 0);
-  assert.equal(triageMark('agent').label, 'triage.agent');
+  assert.equal(triageMark('agent').tone, 'ok');
   assert.deepEqual(followUpThreads([thread({ id: 'a' }), thread({ id: 'b', isResolved: true }), thread({ id: 'c' })], ['a', 'b']).map((t) => t.id), ['a']);
 });
 

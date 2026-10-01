@@ -42,8 +42,7 @@
     "none": "no threads",
     "resolved_one": "{{count}} resolved",
     "resolved_other": "{{count}} resolved",
-    "view": "View in the changes",
-    "address": "Address with an agent"
+    "view": "View in the changes"
   },
   "approve": {
     "mine": "approved",
@@ -81,28 +80,20 @@
     "githubOnly": "Approving or asking for changes is done on GitHub.",
     "open": "Open on GitHub",
     "own": "{{host}} does not let you approve or ask for changes on your own {{noun}}. You can comment and ask others for a review.",
-    "pending": "You have a review on GitHub that is not sent. Send it or discard it there first.",
-    "pendingOpen": "Open on GitHub"
+    "pending": "You have a review on {{host}} that is not sent. Send it or discard it there first.",
+    "pendingOpen": "Open on {{host}}"
   },
   "partly": {
-    "text": "Some comments were saved as drafts on GitLab and the sending stopped.",
+    "text": "Some comments were saved as drafts on {{host}} and the sending of the {{noun}} stopped.",
     "publish": "Publish the saved",
     "discard": "Discard the saved",
     "published": "The saved comments were published",
     "discarded": "The saved comments were discarded; your draft is still here",
     "failedPublish": "Could not publish the saved comments",
-    "failedDiscard": "Could not discard the saved comments"
-  },
-  "post": {
-    "posted": "sent",
-    "partly": "partly sent",
-    "failed": "not sent",
-    "posting": "sending"
-  },
-  "triage": {
-    "agent": "agent",
-    "person": "person",
-    "no-action": "no action"
+    "failedDiscard": "Could not discard the saved comments",
+    "onHost_one": "{{count}} saved comment still waits on {{host}}.",
+    "onHost_other": "{{count}} saved comments still wait on {{host}}.",
+    "gone": "Nothing saved is left on {{host}}: discard to send again."
   },
   "submit": {
     "title": "Submit your review",
@@ -123,7 +114,7 @@
     "failed": "Could not send the review",
     "reason": {
       "own-change-request": "{{host}} does not let you review your own {{noun}}.",
-      "pending-review-exists": "You already have a review on GitHub that is not sent.",
+      "pending-review-exists": "You already have a review on {{host}} that is not sent.",
       "line-not-in-diff": "A note is on a line that is not in the {{noun}}'s changes: {{detail}}",
       "review-partly-posted": "The sending stopped half way.",
       "write-unconfirmed": "{{host}} did not confirm the review. Look at the {{noun}} before sending it again.",

@@ -17,9 +17,9 @@
     "none": "sin regla de revisión"
   },
   "reviewer": {
-    "approved": "aprobó",
-    "changes-requested": "pidió cambios",
-    "commented": "comentó",
+    "approved": "ha aprobado",
+    "changes-requested": "ha pedido cambios",
+    "commented": "ha comentado",
     "requested": "pendiente"
   },
   "approvals": "{{given}} de {{required}} aprobaciones",
@@ -42,8 +42,7 @@
     "none": "sin hilos",
     "resolved_one": "{{count}} resuelto",
     "resolved_other": "{{count}} resueltos",
-    "view": "Ver en los cambios",
-    "address": "Atender con un agente"
+    "view": "Ver en los cambios"
   },
   "approve": {
     "mine": "aprobada",
@@ -81,28 +80,20 @@
     "githubOnly": "Aprobar o pedir cambios se hace en GitHub.",
     "open": "Abrir en GitHub",
     "own": "{{host}} no deja aprobar ni pedir cambios en tu propia {{noun}}. Puedes comentar y pedir la revisión de otras personas.",
-    "pending": "Tienes una revisión en GitHub sin enviar. Envíala o descártala allí primero.",
-    "pendingOpen": "Abrir en GitHub"
+    "pending": "Tienes una revisión en {{host}} sin enviar. Envíala o descártala allí primero.",
+    "pendingOpen": "Abrir en {{host}}"
   },
   "partly": {
-    "text": "Algunos comentarios se guardaron como borradores en GitLab y el envío se detuvo.",
+    "text": "Algunos comentarios se han guardado como borradores en {{host}} y el envío de la {{noun}} se ha detenido.",
     "publish": "Publicar los guardados",
     "discard": "Descartar los guardados",
     "published": "Se han publicado los comentarios guardados",
     "discarded": "Se han descartado los comentarios guardados; tu borrador sigue aquí",
     "failedPublish": "No se han podido publicar los comentarios guardados",
-    "failedDiscard": "No se han podido descartar los comentarios guardados"
-  },
-  "post": {
-    "posted": "enviada",
-    "partly": "envío a medias",
-    "failed": "no enviada",
-    "posting": "enviando"
-  },
-  "triage": {
-    "agent": "agente",
-    "person": "persona",
-    "no-action": "sin acción"
+    "failedDiscard": "No se han podido descartar los comentarios guardados",
+    "onHost_one": "{{count}} comentario guardado sigue esperando en {{host}}.",
+    "onHost_other": "{{count}} comentarios guardados siguen esperando en {{host}}.",
+    "gone": "No queda nada guardado en {{host}}: descarta para volver a enviar."
   },
   "submit": {
     "title": "Enviar tu revisión",
@@ -123,7 +114,7 @@
     "failed": "No se ha podido enviar la revisión",
     "reason": {
       "own-change-request": "{{host}} no deja revisar tu propia {{noun}}.",
-      "pending-review-exists": "Ya tienes una revisión en GitHub sin enviar.",
+      "pending-review-exists": "Ya tienes una revisión en {{host}} sin enviar.",
       "line-not-in-diff": "Una nota está en una línea que no forma parte de los cambios de la {{noun}}: {{detail}}",
       "review-partly-posted": "El envío se ha detenido a medias.",
       "write-unconfirmed": "{{host}} no ha confirmado la revisión. Mira la {{noun}} antes de volver a enviarla.",

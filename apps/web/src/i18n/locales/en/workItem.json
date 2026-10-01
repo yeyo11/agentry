@@ -347,7 +347,8 @@
     "strip": {
       "why_one": "{{count}} review thread waits for an answer",
       "why_other": "{{count}} review threads wait for an answer",
-      "start": "Address with an agent"
+      "start": "Address with an agent",
+      "choose": "Choose which to address"
     },
     "dialog": {
       "title": "Address the comments of the {{noun}} {{ref}} with an agent",
