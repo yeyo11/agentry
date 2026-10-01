@@ -105,6 +105,7 @@ import { ProvidersSettingsStore } from './providers/settings.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
 import { PushService } from './push.ts';
+import { agentryMcp, type AgentryMcpLaunch } from './agentry-mcp.ts';
 import { ChatTools, ToolPresetStore } from './chat-tools.ts';
 import { McpConfig } from './config/mcp.ts';
 import { ConfigResources } from './config/resources.ts';
@@ -164,6 +165,7 @@ import { encodeProjectId, Workspace } from './workspace.ts';
 
 export { parseMcpScope } from './config/mcp.ts';
 export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
+export { MCP_ENTRY_ENV, type AgentryMcpLaunch } from './agentry-mcp.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
@@ -1227,6 +1229,11 @@ export class Core {
   /** The version this server runs, as every client should expect it */
   get version(): string {
     return AGENTRY_VERSION;
+  }
+
+  /** Agentry's own MCP server for a chat, and the flags that confine the chat to its read tools. */
+  agentryMcp(): Promise<AgentryMcpLaunch> {
+    return agentryMcp({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: AGENTRY_VERSION });
   }
 
   async setCredentials(credentials: StoredCredentials): Promise<SystemInfo> {

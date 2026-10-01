@@ -13,6 +13,7 @@ COPY packages/core/package.json packages/core/
 COPY apps/api/package.json apps/api/
 COPY packages/ui/package.json packages/ui/
 COPY packages/chat-ui/package.json packages/chat-ui/
+COPY packages/mcp/package.json packages/mcp/
 COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile
 
@@ -80,8 +81,9 @@ RUN curl -fsSL -o /tmp/uv-install.sh https://astral.sh/uv/${UV_VERSION}/install.
  && cswap --version
 
 WORKDIR /app
-# The whole of the wrapper: one JavaScript file and the built UI beside it
+# The whole of the wrapper: one JavaScript file, the assistant's MCP server beside it, and the built UI
 COPY --from=build --chown=node:node /app/apps/api/dist/api.mjs /app/api.mjs
+COPY --from=build --chown=node:node /app/apps/api/dist/mcp.mjs /app/mcp.mjs
 COPY --from=build --chown=node:node /app/apps/web/dist /app/web
 
 # Keeping .claude.json inside the config dir means one volume persists the whole account setup.

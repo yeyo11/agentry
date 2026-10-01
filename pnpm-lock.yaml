@@ -264,6 +264,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@agentry/mcp':
+        specifier: workspace:*
+        version: link:../mcp
       '@agentry/shared':
         specifier: workspace:*
         version: link:../shared
@@ -277,6 +280,24 @@ importers:
       '@types/web-push':
         specifier: ^3.6.4
         version: 3.6.4
+
+  packages/mcp:
+    devDependencies:
+      '@agentry/api':
+        specifier: workspace:*
+        version: link:../../apps/api
+      '@agentry/core':
+        specifier: workspace:*
+        version: link:../core
+      '@agentry/shared':
+        specifier: workspace:*
+        version: link:../shared
+      fastify:
+        specifier: ^5.12.5
+        version: 5.12.5
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
 
   packages/shared: {}
 
