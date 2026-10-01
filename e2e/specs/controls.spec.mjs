@@ -32,8 +32,9 @@ export default async ({ page, api, check }) => {
   await page.eval(`const i=document.querySelector('input[aria-label="Model"]');i.select();return true`);
   await page.type('son');
   await page.sleep(200);
-  const options = await page.eval(`return [...document.querySelectorAll('[role=listbox] [role=option]')].map(o=>o.textContent).join(',')`);
-  check(options === 'sonnet', `typing filters the suggestions (got ${options})`);
+  const options = await page.eval(`return [...document.querySelectorAll('[role=listbox] [role=option]')].map(o=>o.textContent)`);
+  // An option reads as the alias or, once the CLI has named it, as its label ("Sonnet 5"): one option, and a Sonnet
+  check(options.length === 1 && /^sonnet/i.test(options[0]), `typing filters the suggestions (got ${options.join(',')})`);
   await page.key('Escape');
   await page.sleep(200);
   check(!(await page.eval(openListbox)), 'Escape closes the suggestions');

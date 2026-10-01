@@ -23,7 +23,7 @@ async function scan(page, check, label) {
   // grey on a light pill; on a slow runner that is the scan
   await page.sleep(500);
   const violations = await page.axe();
-  check(violations.length === 0, `axe on ${label}: ${JSON.stringify(violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.map((n) => n.target) })))}`);
+  check(violations.length === 0, `axe on ${label}: ${JSON.stringify(violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.map((n) => [n.target, n.why]) })))}`);
 }
 
 export default async ({ page, api, check, dirs }) => {
