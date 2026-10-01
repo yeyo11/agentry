@@ -41,7 +41,17 @@ export interface DriverHarness {
     noisy: string;
     /** Delegates work and runs commands, so that task events come out */
     delegating: string;
+    /** A first turn whose fake holds the handshake back, so a second turn can be sent before it completes (case 15) */
+    slowHandshake?: string;
+    /** The agent asks to run `git push` and reports what it was told (case 16) */
+    gitPush?: string;
+    /** The agent asks permission and holds the request until the host cancels it (case 17) */
+    holdUntilCancel?: string;
+    /** The session cannot start because nobody is signed in (case 18) */
+    signedOut?: string;
   };
+  /** Set when the provider's fake writes what a real session would, so `transcripts` can be read back (case 19) */
+  writesTranscripts?: boolean;
   /** What the turn `structured` returns */
   structuredResult: unknown;
   /** What the agent was told, read from the text of the result that ended an `ask` turn */
@@ -117,9 +127,10 @@ function rig(harness: DriverHarness): Rig {
 }
 
 /** Runs one case on its own rig, closed whatever happens. */
-function scenario(harness: DriverHarness, name: string, run: (r: Rig) => Promise<void>, needs?: ProviderCapability): void {
+function scenario(harness: DriverHarness, name: string, run: (r: Rig) => Promise<void>, needs?: ProviderCapability, skip?: string | false): void {
   const missing = needs && !harness.manifest.capabilities.includes(needs);
-  test(name, missing ? { skip: `${harness.manifest.id} does not declare ${needs}` } : {}, async () => {
+  const reason = missing ? `${harness.manifest.id} does not declare ${needs}` : skip;
+  test(name, reason ? { skip: reason } : {}, async () => {
     const r = rig(harness);
     try {
       await run(r);
@@ -152,6 +163,21 @@ const PROBES: Array<{ part: string; policy: ToolPolicy }> = [
   { part: 'exclusive', policy: { ...BASE, read: { allow: true }, exclusive: true } },
 ];
 
+const GIT_PUSH_POLICY: ToolPolicy = { ...BASE, commands: { allow: 'any' }, gitPush: 'deny' };
+
+/** Case 16 applies to a driver whose policy translation leaves `commands` to the judge. */
+function hostSkip(harness: DriverHarness): string | false {
+  const host = harness.driver(tempConfig()).translatePolicy(GIT_PUSH_POLICY).host;
+  if (!host?.includes('commands')) return `${harness.manifest.id} has no host part for the judge to enforce`;
+  return harness.script.gitPush ? false : 'the harness has no git push script';
+}
+
+/** Case 19 applies to a driver that keeps transcripts and a fake that writes them. */
+function transcriptsSkip(harness: DriverHarness): string | false {
+  if (!harness.driver(tempConfig()).transcripts) return `${harness.manifest.id} has no transcript store in the suite's rig`;
+  return harness.writesTranscripts ? false : `the ${harness.manifest.id} fake writes no transcript`;
+}
+
 /** Every case every driver must pass; call it from a test file with the provider's harness. */
 export function driverConformance(name: string, harness: DriverHarness): void {
   const declared = new Set(harness.manifest.capabilities);
@@ -178,7 +204,13 @@ export function driverConformance(name: string, harness: DriverHarness): void {
       const events = chats.events(chat.id);
       const init = events.filter((e) => e.kind === 'init');
       assert.equal(init.length, 1, 'one init event');
-      assert.equal(init[0]?.init?.sessionId, chat.id);
+      if (driver.sessionIds === 'imposed') {
+        assert.equal(init[0]?.init?.sessionId, chat.id);
+      } else {
+        const native = chats.get(chat.id)?.nativeSessionId;
+        assert.ok(native, 'the native id is recorded on the chat');
+        assert.equal(init[0]?.init?.sessionId, native);
+      }
       const first = inits[0];
       assert.ok(first, 'the session announced what it is');
       const confirmation = driver.confirm(first);
@@ -219,7 +251,7 @@ export function driverConformance(name: string, harness: DriverHarness): void {
     scenario(
       harness,
       'resume keeps the id',
-      async ({ chats }) => {
+      async ({ chats, driver }) => {
         const chat = chats.start({ prompt: harness.script.turn, name: 'conformance', keepAlive: false });
         await chats.exited(chat.id);
         chats.resume(chat.id, { prompt: harness.script.turn });
@@ -228,7 +260,9 @@ export function driverConformance(name: string, harness: DriverHarness): void {
         assert.equal(chats.get(chat.id)?.id, chat.id);
         const inits = chats.events(chat.id).filter((e) => e.kind === 'init');
         assert.equal(inits.length, 2);
-        assert.ok(inits.every((e) => e.init?.sessionId === chat.id), 'every process reports the same session');
+        const expected = driver.sessionIds === 'imposed' ? chat.id : chats.get(chat.id)?.nativeSessionId;
+        assert.ok(expected, 'there is a session id to compare');
+        assert.ok(inits.every((e) => e.init?.sessionId === expected), 'every process reports the same session');
       },
       'resume',
     );
@@ -236,7 +270,7 @@ export function driverConformance(name: string, harness: DriverHarness): void {
     scenario(
       harness,
       'fork makes a new id that records its source',
-      async ({ chats }) => {
+      async ({ chats, driver }) => {
         const source = chats.start({ prompt: harness.script.turn, name: 'conformance', keepAlive: false });
         await chats.exited(source.id);
         const summary = chats.get(source.id);
@@ -245,7 +279,9 @@ export function driverConformance(name: string, harness: DriverHarness): void {
         assert.notEqual(copy.id, source.id);
         assert.equal(copy.derivedFrom?.chatId, source.id);
         await until(() => chats.events(copy.id).some((e) => e.kind === 'init'), 'the copy to start');
-        assert.equal(chats.events(copy.id).find((e) => e.kind === 'init')?.init?.sessionId, copy.id);
+        const copyInit = chats.events(copy.id).find((e) => e.kind === 'init')?.init?.sessionId;
+        if (driver.sessionIds === 'imposed') assert.equal(copyInit, copy.id);
+        else assert.notEqual(copyInit, chats.get(source.id)?.nativeSessionId, 'the copy has an id of its own');
       },
       'fork',
     );
@@ -432,18 +468,21 @@ export function driverConformance(name: string, harness: DriverHarness): void {
           assert.deepEqual(driver.translatePolicy(policy), translation, 'pure: the same policy gives the same rules');
           const listed = translation.unsupported.some((u) => u === part || u.startsWith(`${part}.`) || part.startsWith(`${u}.`));
           const { allowedTools, disallowedTools, tools } = translation.rules;
-          const enforced = allowedTools.length > 0 || disallowedTools.length > 0 || (tools?.length ?? 0) > 0;
-          assert.ok(listed || enforced, `${part} is neither in rules nor listed as unsupported`);
+          const inRules = allowedTools.length > 0 || disallowedTools.length > 0 || (tools?.length ?? 0) > 0;
+          const inSettings = (translation.settings ?? []).some((s) => s.part === part || part.startsWith(`${s.part}.`));
+          const inHost = (translation.host ?? []).some((h) => h === part || part.startsWith(`${h}.`));
+          assert.ok(listed || inRules || inSettings || inHost, `${part} is not in rules, settings or host, and not listed as unsupported`);
         });
       }
       test('gitPush deny is enforced: a driver that cannot enforce it fails', () => {
         const translation = driver.translatePolicy({ ...BASE, gitPush: 'deny' });
         assert.ok(!translation.unsupported.includes('gitPush'), 'gitPush deny may not be listed as unsupported');
-        assert.ok(translation.rules.disallowedTools.length > 0, 'gitPush deny denies something');
-        assert.ok(
-          translation.rules.disallowedTools.every((rule) => !driver.translatePolicy(BASE).rules.disallowedTools.includes(rule)),
-          'and what it denies is new',
-        );
+        const newRules = translation.rules.disallowedTools.filter((rule) => !baseline.rules.disallowedTools.includes(rule));
+        const inSettings = (translation.settings ?? []).some((s) => s.part === 'gitPush');
+        assert.ok(newRules.length > 0 || inSettings, 'gitPush deny is a new rule or a native setting');
+        if (translation.host?.includes('commands')) {
+          assert.ok(harness.script.gitPush, 'a driver that leaves commands to the judge must script case 16');
+        }
       });
     });
 
@@ -470,6 +509,97 @@ export function driverConformance(name: string, harness: DriverHarness): void {
       await until(() => !alive(pid), 'the process to go');
       await until(() => driver.sessionHolders(chat.id).length === 0 && !driver.liveSessions().some((s) => s.sessionId === chat.id), 'the driver to stop seeing it');
     });
+
+    // 15
+    scenario(
+      harness,
+      'a turn sent before the handshake completes is delivered once, after it',
+      async ({ chats }) => {
+        const first = harness.script.slowHandshake;
+        assert.ok(first);
+        const chat = chats.start({ prompt: first, name: 'conformance' });
+        chats.send(chat.id, harness.script.turn);
+        await until(() => resultOf(chats.events(chat.id)).length >= 2 && chats.get(chat.id)?.status === 'idle', 'both turns to end');
+        await new Promise((r) => setTimeout(r, 300));
+        const events = chats.events(chat.id);
+        assert.equal(resultOf(events).length, 2, 'each turn was delivered exactly once');
+        const initAt = events.findIndex((e) => e.kind === 'init');
+        const secondResult = events.map((e) => e.kind).lastIndexOf('result');
+        assert.ok(initAt >= 0 && initAt < secondResult, 'the second turn ran after the session started');
+      },
+      undefined,
+      !harness.script.slowHandshake && 'the harness has no slow handshake',
+    );
+
+    // 16
+    scenario(
+      harness,
+      'a git push the policy leaves to the judge is denied without reaching the broker',
+      async ({ chats, broker, results }) => {
+        const script = harness.script.gitPush;
+        assert.ok(script);
+        const chat = chats.start({ prompt: script, name: 'conformance', keepAlive: false, permissionPrompts: 'host', toolConfig: { preset: null, allowedTools: [], disallowedTools: [], mcp: null, policy: GIT_PUSH_POLICY } });
+        await chats.exited(chat.id);
+        assert.deepEqual(broker.list(chat.id), [], 'nothing reached the broker');
+        assert.equal(harness.decision(results[0]?.result ?? ''), 'deny', 'the agent was told no');
+      },
+      undefined,
+      hostSkip(harness),
+    );
+
+    // 17
+    scenario(
+      harness,
+      'interrupt answers a pending permission request before the turn ends',
+      async ({ chats, broker, results }) => {
+        const script = harness.script.holdUntilCancel;
+        assert.ok(script);
+        const chat = chats.start({ prompt: script, name: 'conformance', permissionPrompts: 'host' });
+        await until(() => broker.list(chat.id)[0], 'the request');
+        await chats.interrupt(chat.id);
+        await until(() => results.length > 0, 'the held turn to end');
+        assert.equal(results.at(-1)?.cause, 'stopped');
+        assert.deepEqual(broker.list(chat.id), []);
+      },
+      'interrupt',
+      !harness.script.holdUntilCancel && 'the harness has no request held until cancel',
+    );
+
+    // 18
+    scenario(
+      harness,
+      'an authentication failure at session start ends failed with auth-required',
+      async ({ chats }) => {
+        const script = harness.script.signedOut;
+        assert.ok(script);
+        const chat = chats.start({ prompt: script, name: 'conformance', keepAlive: false });
+        await chats.exited(chat.id);
+        const done = chats.get(chat.id);
+        assert.equal(done?.status, 'failed', 'the chat is not left starting');
+        assert.match(done?.error ?? '', /auth-required/);
+      },
+      undefined,
+      !harness.script.signedOut && 'the harness has no signed-out session',
+    );
+
+    // 19
+    scenario(
+      harness,
+      'transcripts lists the session the turn created, with its entries, by native id',
+      async ({ chats, driver }) => {
+        const store = driver.transcripts;
+        assert.ok(store);
+        const chat = chats.start({ prompt: harness.script.turn, name: 'conformance', keepAlive: false });
+        await chats.exited(chat.id);
+        const native = chats.get(chat.id)?.nativeSessionId ?? chat.id;
+        const listed = await store.list();
+        assert.ok(listed.some((t) => t.id === native), 'the session is listed');
+        const page = await store.page(native);
+        assert.ok(page && page.entries.length > 0, 'its entries can be read');
+      },
+      undefined,
+      transcriptsSkip(harness),
+    );
 
     // 14
     describe('a driver whose manifest lacks a capability is refused the request that needs it', () => {
