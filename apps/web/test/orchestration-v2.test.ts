@@ -5,11 +5,14 @@ import * as shared from '@agentry/shared';
 import {
   canRelaunch,
   canRerun,
+  checksShown,
   cleanTask,
   dependantsOf,
   draftOfVerification,
   EMPTY_VERIFICATION,
+  isErrorLine,
   limitsOf,
+  orchestrationFix,
   commandsText,
   parseCommands,
   pullRequestHeld,
@@ -219,4 +222,27 @@ test('a pull request is held back only for a graph its failed checks failed', ()
   assert.equal(pullRequestHeld({ verificationSpec: { ...spec, failGraph: true }, verification: { ...VERIFIED, status: 'failed' } }), true);
   assert.equal(pullRequestHeld({ verificationSpec: spec, verification: { ...VERIFIED, status: 'failed' } }), false);
   assert.equal(pullRequestHeld({ verificationSpec: { ...spec, failGraph: true }, verification: VERIFIED }), false);
+});
+
+test('the checks are listed only for an open change request whose row the server named', () => {
+  assert.equal(checksShown({ id: 'cr-1', phase: 'open' }), true);
+  assert.equal(checksShown({ id: 'cr-1', phase: 'merged' }), false);
+  assert.equal(checksShown({ phase: 'open' }), false);
+  assert.equal(checksShown(null), false);
+});
+
+test('an orchestration fix is under way or waits for the person, and never verifies', () => {
+  assert.equal(orchestrationFix({ fixState: 'fixing' }), 'fixing');
+  assert.equal(orchestrationFix({ fixState: 'awaiting-push' }), 'push');
+  assert.equal(orchestrationFix({ fixState: 'awaiting-verify' }), null);
+  assert.equal(orchestrationFix({ fixState: null }), null);
+  assert.equal(orchestrationFix(undefined), null);
+});
+
+test('the lines of a log that say why it failed are the host error markers and a non-zero exit', () => {
+  assert.equal(isErrorLine('##[error]Process completed with exit code 1.'), true);
+  assert.equal(isErrorLine('ERROR: Job failed: exit code 1'), true);
+  assert.equal(isErrorLine('Command exited with exit code 2'), true);
+  assert.equal(isErrorLine('exit code 0'), false);
+  assert.equal(isErrorLine('  ✓ src/orchestration/stages.test.ts (18 tests)'), false);
 });
