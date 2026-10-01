@@ -942,6 +942,42 @@
     "h": 3560
   },
   {
+    "file": "DesktopTareaRevision.html",
+    "title": "Desktop · Tarea con revisión",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopTareaRevisionEnvio.html",
+    "title": "Desktop · Tarea, enviar la revisión",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileTareaRevision.html",
+    "title": "Móvil · Tarea con revisión",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTareaRevisionEnvio.html",
+    "title": "Móvil · Tarea, enviar la revisión",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopTareaRevisionEstados.html",
+    "title": "Desktop · Tarea, estados de la revisión",
+    "w": 1440,
+    "h": 2760
+  },
+  {
+    "file": "MobileTareaRevisionEstados.html",
+    "title": "Móvil · Tarea, estados de la revisión",
+    "w": 390,
+    "h": 4600
+  },
+  {
     "file": "DesktopOrquestacionChecks.html",
     "title": "Desktop · Orquestación, checks y log",
     "w": 1440,

@@ -1660,3 +1660,29 @@ button.check-group-head { width: 100%; border-left: 0; border-right: 0; border-t
 .m-screen .ochk-result { flex-wrap: wrap; gap: 4px 10px; padding: 8px 0; }
 .m-screen .ochk-result .why { flex-basis: 100%; }
 /* ---------- end of Orchestration checks ---------- */
+/* ---------- Reviews (plans/code-hosts.md, phase 3, P0 r-p2): the review block on the item page. A decision, the reviewers, the unresolved threads and the person's draft review, whose one gradient action sends it. Status is a badge with its word; nothing here is live except the ring of a send in progress. ---------- */
+.rv-card { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--bg-1); overflow: hidden; }
+.rv-row { display: grid; grid-template-columns: 104px minmax(0, 1fr) auto; align-items: center; gap: 8px 14px; min-height: 52px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.rv-row:first-child { border-top: 0; }
+.rv-v { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-width: 0; font-size: 13px; color: var(--fg-2); }
+.rv-side { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.rv-person { display: inline-flex; align-items: center; gap: 7px; min-height: 28px; padding: 0 6px 0 4px; border: 1px solid var(--line-2); border-radius: var(--r-full); background: var(--bg-2); color: var(--fg); }
+.rv-person .name { font-family: var(--mono); font-size: 12px; }
+.rv-draft { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border: 1px solid var(--line-2); border-radius: var(--r-lg); background: var(--bg-2); min-width: 0; }
+.rv-draft-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; font-size: 14px; color: var(--fg); }
+.rv-draft-head b { font-weight: 500; }
+.rv-notes { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); overflow: hidden; }
+.rv-note { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; padding: 8px 12px; border-top: 1px solid var(--line); }
+.rv-note:first-child { border-top: 0; }
+.rv-where { font-family: var(--mono); font-size: 12px; color: var(--fg); overflow-wrap: anywhere; min-width: 0; }
+.rv-where .l { color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.rv-text { flex: 1 1 100%; font-size: 12.5px; line-height: 1.45; color: var(--fg-2); }
+.rv-foot { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.rv-open { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 8px 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.m-screen .rv-row { grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 12px 14px; }
+.m-screen .rv-side { justify-content: flex-start; }
+.m-screen .rv-side .btn { flex: 1 1 auto; justify-content: center; }
+.m-screen .rv-foot { flex-direction: column-reverse; align-items: stretch; }
+.m-screen .rv-foot .btn, .m-screen .rv-open .btn { justify-content: center; }
+.m-screen .rv-open { flex-direction: column; align-items: stretch; }
+/* ---------- end of Reviews ---------- */
