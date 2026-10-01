@@ -5,17 +5,17 @@ import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useSta
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useChats, useProjects } from '../api';
-import { ActivityTicker } from '../components/ActivityTicker';
+import { ActivityTicker } from '@agentry/ui/components/ActivityTicker';
 import { FabStandIn } from '../components/shell/Fab';
-import { ContextBar } from '../components/ChatBadges';
-import { Checkbox, hasOpenLayer } from '../components/controls';
-import { useConfirm } from '../components/Dialog';
-import { ICON_SM } from '../components/icons';
-import { ListToolbar, type ListFilterChip } from '../components/ListToolbar';
-import { usageTone } from '../components/motion';
-import { Spinner } from '../components/Spinner';
-import { useToast } from '../components/Toast';
-import { Card, Empty, ErrorBox, PageHeader, Skeleton } from '../components/ui';
+import { ContextBar } from '@agentry/chat-ui/components/ChatBadges';
+import { Checkbox, hasOpenLayer } from '@agentry/ui/components/controls';
+import { useConfirm } from '@agentry/ui/components/Dialog';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { ListToolbar, type ListFilterChip } from '@agentry/ui/components/ListToolbar';
+import { usageTone } from '@agentry/ui/components/motion';
+import { Spinner } from '@agentry/ui/components/Spinner';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Card, Empty, ErrorBox, PageHeader, Skeleton } from '@agentry/ui/components/ui';
 import {
   ALL_ORIGINS,
   contextShare,
@@ -41,10 +41,10 @@ import {
   type DayGroup,
   type FacetOption,
   type RowTag,
-} from '../lib/chat-model';
-import { formatDateTime, formatNumber, timeAgo } from '../lib/format';
+} from '@agentry/chat-ui/lib/chat-model';
+import { formatDateTime, formatNumber, timeAgo } from '@agentry/ui/lib/format';
 import { useListKeys } from '../lib/list-keys';
-import { COARSE, COMPACT, NARROW, useMediaQuery } from '../lib/media';
+import { COARSE, COMPACT, NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { useMinute } from '../lib/minute';
 import { useListParams } from '../lib/list-params';
 import { ALL_PROJECTS, useProjectScope } from '../lib/project-scope';

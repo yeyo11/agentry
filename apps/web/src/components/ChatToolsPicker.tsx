@@ -1,17 +1,13 @@
-import type { ChatToolConfig, McpSelection } from '@agentry/shared';
+import type { ChatToolConfig } from '@agentry/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { api, keys, type Scope } from '../api';
-import { Checkbox, Select } from './controls';
-import { Tag } from './ui';
+import type { StartChoices } from '@agentry/chat-ui/lib/context';
+import { Checkbox, Select } from '@agentry/ui/components/controls';
+import { Tag } from '@agentry/ui/components/ui';
 
-/** What a start or a resume chooses about tools; a key left out keeps what the chat had. */
-export interface ToolChoices {
-  /** `null` asks for no preset at all: not the default on a new chat, not the one it had on a resume */
-  toolPreset?: string | null;
-  /** `null` goes back to the servers the CLI loads on its own, an object picks exactly those */
-  mcp?: McpSelection | null;
-}
+/** What a start or a resume chooses about tools: the tool half of `StartChoices`. */
+export type ToolChoices = Pick<StartChoices, 'toolPreset' | 'mcp'>;
 
 type ServerMode = 'keep' | 'default' | 'choose';
 

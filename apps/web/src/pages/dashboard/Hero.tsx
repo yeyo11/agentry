@@ -3,10 +3,10 @@ import { Plus } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { ICON_SM } from '../../components/icons';
-import { usePageTitle } from '../../components/ui';
-import { intlLocale } from '../../i18n/language';
-import { formatNumber } from '../../lib/format';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { usePageTitle } from '@agentry/ui/components/ui';
+import { intlLocale } from '@agentry/ui/i18n/language';
+import { formatNumber } from '@agentry/ui/lib/format';
 import { homeHeadline } from './model';
 import { NEW_ORCHESTRATION_PATH, useHomePulse, type HomePulse } from './pulse';
 

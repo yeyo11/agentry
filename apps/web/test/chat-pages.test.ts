@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { QueryClient } from '@tanstack/react-query';
-import { evictRuns, joinRun, joinToPage, RUN_TAG, trimRun } from '../src/lib/chat-pages.ts';
+import { evictRuns, joinRun, joinToPage, RUN_TAG, trimRun } from '@agentry/chat-ui/lib/chat-pages';
 
 // The pages of a transcript read further back are one run, joined by index onto the newest page.
 // These rules decide what a page landing on that run does to it.

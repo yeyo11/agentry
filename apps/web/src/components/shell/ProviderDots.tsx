@@ -4,9 +4,9 @@ import { NavLink } from 'react-router-dom';
 import { PROVIDERS_SETTINGS_PATH, useEnabledProviders } from '../../lib/provider-status';
 import { STATE_TONE, stateLabelKey } from '../../lib/provider-state';
 import { useProviderReason } from '../ProviderRow';
-import { Tooltip } from '../controls/Tooltip';
-import { StatusDot } from '../motion';
-import { Spinner } from '../Spinner';
+import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
+import { StatusDot } from '@agentry/ui/components/motion';
+import { Spinner } from '@agentry/ui/components/Spinner';
 
 /** "Claude Code 2.1.282" when it works; "Copilot · signed out" when it needs a person. */
 function ProviderDot({ status }: { status: ProviderStatus }) {

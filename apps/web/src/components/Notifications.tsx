@@ -22,9 +22,9 @@ import {
 import { takeNotificationParam } from '../lib/notification-open';
 import { pushIsActive, syncPush } from '../lib/push';
 import '../notifications.css';
-import { Tooltip } from './controls/Tooltip';
-import { ICON } from './icons';
-import { useToast } from './Toast';
+import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
+import { ICON } from '@agentry/ui/components/icons';
+import { useToast } from '@agentry/ui/components/Toast';
 
 // The panel (list, preferences, motion) loads on the first click; the shell only carries the bell
 const NotificationPanel = lazy(() => import('./NotificationPanel').then((m) => ({ default: m.NotificationPanel })));

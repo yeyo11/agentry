@@ -6,13 +6,14 @@ import { api, keys, useUsageBreakdown, useUsageSeries, type UsageRange } from '.
 import { BarChart } from '../components/BarChart';
 import { DecisionsLineView } from '../components/DecisionsLine';
 import { ProjectExportCard } from '../components/ProjectExport';
-import { DatePicker } from '../components/controls';
-import { Card, Empty, ErrorBox, PageHeader, Segmented, Skeleton } from '../components/ui';
-import { formatCost, formatNumber } from '../lib/format';
-import { intlLocale } from '../i18n/language';
-import { NARROW, useMediaQuery } from '../lib/media';
+import { DatePicker } from '@agentry/ui/components/controls';
+import { Card, Empty, ErrorBox, PageHeader, Segmented, Skeleton } from '@agentry/ui/components/ui';
+import { formatCost, formatNumber } from '@agentry/ui/lib/format';
+import { intlLocale } from '@agentry/ui/i18n/language';
+import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { useProjectScope } from '../lib/project-scope';
-import { bucketFor, customRangeError, metricValue, parseDay, presetRange, sumMetric, topSlices, toDay, type RangePreset, type UsageMetric } from '../lib/usage-view';
+import { bucketFor, customRangeError, metricValue, presetRange, sumMetric, topSlices, type RangePreset, type UsageMetric } from '../lib/usage-view';
+import { parseDay, toDay } from '@agentry/ui/lib/calendar';
 import '../insights.css';
 
 const PRESETS: readonly RangePreset[] = ['7d', '30d', '90d', 'all', 'custom'];

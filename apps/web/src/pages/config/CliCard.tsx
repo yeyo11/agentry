@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Card, ErrorBox, Skeleton, Tag } from '../../components/ui';
-import { timeAgo } from '../../lib/format';
+import { Card, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { timeAgo } from '@agentry/ui/lib/format';
 
 /**
  * Which Claude Code this wrapper runs and whether a newer one is out. Reading is free; the registry

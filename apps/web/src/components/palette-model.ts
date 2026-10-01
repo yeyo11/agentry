@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import type { MotionLevel } from '../lib/motion';
+import type { MotionLevel } from '@agentry/ui/lib/motion';
 
 /*
  * The command palette's model: what a command is, how a query ranks it, and the recent commands

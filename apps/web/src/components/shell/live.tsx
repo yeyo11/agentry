@@ -6,12 +6,12 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { api, keys } from '../../api';
 import { useFallbackInterval } from '../../lib/events';
 import { liveSummary, type LiveItem, type LiveSummary } from '../../lib/shell-live';
-import { ActivityTicker } from '../ActivityTicker';
-import { Menu, type MenuEntry } from '../controls/Menu';
-import { ICON } from '../icons';
-import { StatusDot } from '../motion';
-import { ProgressBar } from '../ProgressBar';
-import { Spinner } from '../Spinner';
+import { ActivityTicker } from '@agentry/ui/components/ActivityTicker';
+import { Menu, type MenuEntry } from '@agentry/ui/components/controls/Menu';
+import { ICON } from '@agentry/ui/components/icons';
+import { StatusDot } from '@agentry/ui/components/motion';
+import { ProgressBar } from '@agentry/ui/components/ProgressBar';
+import { Spinner } from '@agentry/ui/components/Spinner';
 
 /** How many chats of each state the shell asks for: it lists what is live, not the history. */
 const LIVE_LIMIT = 10;

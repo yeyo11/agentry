@@ -19,7 +19,7 @@ brings the app to it is planned in [plans/redesign-night-shift.md](plans/redesig
 | Screenshots, dark and light, 1440 px desktop and 390 px phone | [`design-system/reference/screenshots/`](design-system/reference/screenshots) |
 | The 15 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
 | The diff comparator: its rules, modes, pieces and states (§5) | `DSComparador` and the **Changes** section of the reference |
-| The tokens the app actually uses | `apps/web/src/styles/tokens.css` |
+| The tokens the app actually uses | `packages/ui/src/styles/tokens.css` |
 
 The app reached this design in the `night-shift` orchestration. Where the implementation settled a
 detail differently from what is written below, the [Landed](#landed) section at the end says so,
@@ -27,6 +27,13 @@ and it wins.
 
 The prototypes use Spanish copy because they were designed on the `es` locale. The app keeps every
 string in i18n: `en` is the source and `es` follows `apps/web/src/i18n/GLOSSARY.md`.
+
+**Where the code lives.** The design system is implemented in two workspace packages and the app.
+`packages/ui` (`@agentry/ui`) holds the tokens, the shared stylesheets, the controls, dialogs,
+toasts, icons, illustrations, motion, formatters, Markdown and syntax highlighting.
+`packages/chat-ui` (`@agentry/chat-ui`) holds the conversation. `apps/web` holds the screens, the
+other components and `styles.css`, the one manifest of the cascade. Paths in this document name
+the package when a file is in one (see [plans/web-packages.md](plans/web-packages.md)).
 
 ## Idea
 
@@ -47,7 +54,7 @@ in Settings → Appearance, and every screen must work in both themes.
 
 ## 1. Tokens
 
-These live in `apps/web/src/styles/tokens.css`. Dark sits on `:root` / `[data-theme='dark']`; light
+These live in `packages/ui/src/styles/tokens.css`. Dark sits on `:root` / `[data-theme='dark']`; light
 sits on `[data-theme='light']`, and under `prefers-color-scheme: light` only when the preference is
 "System".
 
@@ -198,15 +205,15 @@ reference's class next to it.** The e2e specs select several of the app's classe
 | `.menu`, `.menu-item`, `.danger` | `.menu`, `.menu-item` (controls.css) | desktop overflow menus. On a phone, use `Sheet`: `MoreActions` (components/controls) is the `⋯` that is a menu on a desktop and a `.sheet-actions` column of buttons on a phone |
 | `.tooltip` · `.toast` · `.callout` | `Tooltip`, `.toast*`, `.alert*` | the toast drains a gradient bar |
 | `.spin-braille` · `.spin-ring` · `.spin-dots` · `.shimmer` · `.skeleton` · `.caret` | `Spinner`, `.ticker*`, `.skeleton`, `.caret` | see §3 |
-| `.empty-state` + `Illustration` | `Empty` (`components/ui.tsx`), and the new `components/illustrations/` | see §4 |
+| `.empty-state` + `Illustration` | `Empty` (`packages/ui/src/components/ui.tsx`), and the new `packages/ui/src/components/illustrations/` | see §4 |
 | `.avatar` (initials) | `.monogram` | a soft tint of the name's hue with letters in that hue; the gradient only on the active one |
 | `.fab` | `.fab` (components/shell/Fab.tsx), the round "+" alone on every page, named by `aria-label` | a page's own button for the same action carries `.page-action-fab` and hides wherever the FAB shows |
 | `.dv`, `.dv-row`, `.dv-ghost`, `.dv-seam`, `.dv-fold`, `.dv-map` | new: `.diff`, `.diff-row`, `.diff-fold-pill`, `.diff-seam`, `.diff-gap`, `.diff-rail` (`components/changes/`) | see §5 |
 | `.fp`, `.fmap`, `.frow`, `.edit-step`, `.scrub`, `.why` | new: `.changes-print`, `.changes-map`, `.changes-file`, `.edit-step`, `.edit-scrub`, `.changes-why` | see §5 |
 
 These keep their behaviour and take the new styling: the controls in
-`apps/web/src/components/controls`, and the primitives in `components/ui.tsx` and
-`components/motion.tsx`. Never use native selects, checkboxes or ranges. The prototypes only use
+`packages/ui/src/components/controls`, and the primitives in `packages/ui/src/components/ui.tsx` and
+`motion.tsx` beside it. Never use native selects, checkboxes or ranges. The prototypes only use
 them as mockups.
 
 **Usage thresholds.** A bar or ring for context, limits or quota is neutral below 60 %, turns warn
@@ -744,7 +751,7 @@ reference's `DSIlustraciones`, and the pattern in use is on `DSEstados`.
 
 **How they are built in the app**
 
-- One React component per illustration under `apps/web/src/components/illustrations/`, plus an
+- One React component per illustration under `packages/ui/src/components/illustrations/`, plus an
   `<Illustration name size tone />` entry point.
 - **Colour comes only from classes.** SVG presentation attributes don't resolve `var()`, so the
   classes (`.c1`, `.ln-grad`, `.f-tone` …) live in `styles/illustrations.css` and use tokens. The

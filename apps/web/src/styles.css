@@ -9,16 +9,16 @@
    their own. `controls.css`, `chats.css`, `observe.css` and the other
    component sheets stay where they are and are imported by what needs them.
    ========================================================================== */
-@import './styles/tokens.css';
+@import '@agentry/ui/styles/tokens.css';
 @import './styles/base.css';
 @import './styles/shell.css';
-@import './styles/primitives.css';
-@import './styles/feedback.css';
-@import './styles/illustrations.css';
+@import '@agentry/ui/styles/primitives.css';
+@import '@agentry/ui/styles/feedback.css';
+@import '@agentry/ui/styles/illustrations.css';
 @import './styles/work-item-marks.css';
 @import './styles/lists.css';
-@import './styles/transcript.css';
-@import './styles/chat.css';
+@import '@agentry/chat-ui/styles/transcript.css';
+@import '@agentry/chat-ui/styles/chat.css';
 @import './styles/orchestration.css';
 @import './styles/dashboard.css';
 @import './styles/projects.css';
@@ -35,4 +35,4 @@
 @import './styles/suggest.css';
 @import './styles/diff.css';
 @import './styles/overlays.css';
-@import './styles/motion.css';
+@import '@agentry/ui/styles/motion.css';

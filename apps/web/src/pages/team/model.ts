@@ -1,6 +1,6 @@
 import type { FlowRun, FlowRunCause, FlowStage, FlowStep, ProjectFlowSettings, ProjectSettings, PutTeamMemberRequest, TeamMember, WorkItemStatus, WorkItemType } from '@agentry/shared';
 import { DEFAULT_FLOW_MAX_PARALLEL, flowStepOf, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, teamCommandProblem, WORK_ITEM_STATUSES, type TeamCommandProblem } from '@agentry/shared';
-import { daysAgo } from '../../lib/format';
+import { daysAgo } from '@agentry/ui/lib/format';
 
 /**
  * The Team tab's pure model: role names and initials, the flow as the screens edit it, and what the

@@ -5,18 +5,19 @@ import { useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } fro
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useAccounts, useOverview, useProjects } from '../api';
-import { AttachButton, AttachmentTray, useAttachments } from '../components/Attachments';
+import { AttachButton, AttachmentTray, useAttachments } from '@agentry/chat-ui/components/Attachments';
 import { ChatToolsPicker, type ToolChoices } from '../components/ChatToolsPicker';
 import { NEW_ORCHESTRATION_PATH } from '../components/CommandPalette';
-import { Combobox, Select, Switch } from '../components/controls';
-import { Tooltip } from '../components/controls/Tooltip';
-import { ICON, ICON_SM } from '../components/icons';
-import { Illustration } from '../components/illustrations';
-import { SlashMenu, useSlashMenu } from '../components/SlashMenu';
+import { Combobox, Select, Switch } from '@agentry/ui/components/controls';
+import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
+import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { Illustration } from '@agentry/ui/components/illustrations';
+import { SlashMenu, useSlashMenu } from '@agentry/chat-ui/components/SlashMenu';
 import { useProjectScope } from '../lib/project-scope';
-import { NARROW, useMediaQuery } from '../lib/media';
-import { ErrorBox, Field, ModelCombobox, PERMISSION_MODES, Segmented, usePageTitle } from '../components/ui';
-import { KeysHint, OptionsPanel, StatusChips } from './chat/Composer';
+import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { ErrorBox, Field, Segmented, usePageTitle } from '@agentry/ui/components/ui';
+import { ModelCombobox, PERMISSION_MODES } from '../components/ui';
+import { KeysHint, OptionsPanel, StatusChips } from '@agentry/chat-ui/composer/Composer';
 
 type Kind = 'chat' | 'orchestration';
 

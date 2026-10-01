@@ -6,22 +6,22 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { ApiRequestError, api, keys, useDocumentFile } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
-import { MoreActions } from '../../components/controls';
-import type { MenuEntry } from '../../components/controls/Menu';
-import { useConfirm } from '../../components/Dialog';
-import { ICON_SM } from '../../components/icons';
+import { MoreActions } from '@agentry/ui/components/controls';
+import type { MenuEntry } from '@agentry/ui/components/controls/Menu';
+import { useConfirm } from '@agentry/ui/components/Dialog';
+import { ICON_SM } from '@agentry/ui/components/icons';
 import { PhoneHeader } from '../../components/shell/PhoneHeader';
-import { useToast } from '../../components/Toast';
-import { Empty, ErrorBox, Segmented, Skeleton, Tag } from '../../components/ui';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Empty, ErrorBox, Segmented, Skeleton, Tag } from '@agentry/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
-import { timeAgo } from '../../lib/format';
+import { timeAgo } from '@agentry/ui/lib/format';
 import { queryView } from '../../lib/query-view';
 import { shortcut } from '../../lib/shortcut';
 import { taskPath } from '../../lib/work-items';
 import { mainTie } from './model';
 import { RoleAvatar, useRoleName } from '../team/RoleAvatar';
 
-const Markdown = lazy(() => import('../../components/Markdown'));
+const Markdown = lazy(() => import('@agentry/ui/components/Markdown'));
 
 export type PaneMode = 'view' | 'edit';
 

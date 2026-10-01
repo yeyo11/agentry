@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { addMonths, clampDay, firstDayOfWeek, monthGrid, moveFocus, outOfRange, toDay } from '../src/lib/calendar.ts';
+import { addMonths, clampDay, firstDayOfWeek, monthGrid, moveFocus, outOfRange, toDay } from '@agentry/ui/lib/calendar';
 
 const day = (y: number, m: number, d: number) => new Date(y, m - 1, d);
 

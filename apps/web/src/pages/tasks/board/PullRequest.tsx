@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useRef, type ReactNode } from 're
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, ApiRequestError, keys } from '../../../api';
-import { useToast } from '../../../components/Toast';
+import { useToast } from '@agentry/ui/components/Toast';
 import { changeRequestRef, changeRequestWords } from '../../../lib/code-hosts';
 import { checkoutNote, ciTone, notReadyReason, pullRequestErrorKey } from '../../../lib/work-items';
 

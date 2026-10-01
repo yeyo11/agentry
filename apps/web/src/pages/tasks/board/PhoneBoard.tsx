@@ -4,10 +4,11 @@ import { ArrowDown, ArrowUp, Check, CornerDownRight, TriangleAlert } from 'lucid
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { MoreActions } from '../../../components/controls/MoreActions';
-import type { MenuEntry } from '../../../components/controls/Menu';
-import { nameHue, PriorityMark, WorkItemKey, WorkItemStatusIcon, WorkItemTypeIcon } from '../../../components/icons';
-import { Segmented } from '../../../components/ui';
+import { MoreActions } from '@agentry/ui/components/controls/MoreActions';
+import type { MenuEntry } from '@agentry/ui/components/controls/Menu';
+import { nameHue } from '@agentry/ui/components/icons';
+import { PriorityMark, WorkItemKey, WorkItemStatusIcon, WorkItemTypeIcon } from '../../../components/work-item-icons';
+import { Segmented } from '@agentry/ui/components/ui';
 import { columnMeta, stripNamesAssignee, taskPath, workItemLiveState, workItemStrip } from '../../../lib/work-items';
 import { DonePageSkeleton, MoreButton, type BoardSelection } from './BoardColumns';
 import type { LiveSources } from './LiveLine';

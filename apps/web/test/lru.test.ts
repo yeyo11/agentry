@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Lru } from '../src/lib/lru.ts';
+import { Lru } from '@agentry/ui/lib/lru';
 
 test('the cache forgets what was used longest ago, and a hit counts as a use', () => {
   const cache = new Lru<string, number>(2);

@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { createHighlighter, type BundledLanguage } from 'shiki';
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
-import { highlight, type Highlighted } from '../src/components/highlight.ts';
+import { highlight, type Highlighted } from '@agentry/ui/components/highlight';
 
 const THEMES = { light: 'github-light-default', dark: 'github-dark-default' } as const;
 

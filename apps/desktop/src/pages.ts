@@ -3,7 +3,7 @@ export const ACTION_SCHEME = 'agentry-action:';
 
 /*
  * These pages load before the web UI and cannot read its tokens, so they carry the Night Shift dark
- * palette as literals (apps/web/src/styles/tokens.css, `:root`). Keep the two in step. Fonts are the
+ * palette as literals (packages/ui/src/styles/tokens.css, `:root`). Keep the two in step. Fonts are the
  * system's: Geist ships inside the web bundle, which is exactly what has not loaded yet.
  */
 const BASE_STYLE = `

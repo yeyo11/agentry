@@ -2,11 +2,11 @@ import { Check, ChevronDown, Flag, Kanban, List, Plus, Sparkle, SquareCheck } fr
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Menu } from '../../../components/controls/Menu';
+import { Menu } from '@agentry/ui/components/controls/Menu';
 import { ProjectSelector } from '../../../components/ProjectSelector';
 import { PhoneHeader } from '../../../components/shell/PhoneHeader';
-import { ICON_SM } from '../../../components/icons';
-import { Segmented, usePageTitle } from '../../../components/ui';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { Segmented, usePageTitle } from '@agentry/ui/components/ui';
 import { MILESTONES_PATH, TASKS_PATH, VIEW_PARAM } from '../../../lib/work-items';
 
 export type TasksViewName = 'board' | 'list' | 'milestones';

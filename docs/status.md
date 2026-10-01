@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-09-30T20:30:17Z
+updated_at: 2026-10-01T10:00:00Z
 tags:
     - status
     - project-state
@@ -134,6 +134,7 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 | [`plans/flow-start-and-chat-token.md`](plans/flow-start-and-chat-token.md) | Proposed; part 1 (starting the waiting cards) built by CW-9 on its own branch, not yet on `main`; part 2 (the chat token) not started |
 | [`plans/multi-provider.md`](plans/multi-provider.md) | Phase 1 built on `feat/multi-provider` (2026-09-30): five provider manifests (Claude Code, Codex, Gemini, Copilot, OpenCode), readiness detection, `/providers` routes, the first-run Providers step, Settings → Providers and the status bar dots; the one rule generalised. Phases 2–4 (Claude on the Agent SDK, Codex/ACP drivers, rotation between providers) planned. See [Outcome of phase 1](plans/multi-provider.md#outcome-of-phase-1) and [`providers.md`](providers.md) |
 | [`plans/code-hosts.md`](plans/code-hosts.md) | Phase 1 built (2026-10-01): hosts and readiness, `gh` and `glab` adapters at parity, Settings → Integrations, neutral PR/MR copy; phases 2–6 planned. GitHub (`gh` ≥ 2.92.0) and GitLab (`glab` ≥ 1.120.0) as code hosts, complete — PRs/MRs, CI checks and fixing them, reviews, merging from Agentry — and GitHub/GitLab issues, Jira (`acli`) and YouTrack (`youtrack-app`) as work items; polling with optional webhooks. Six phases, each a task graph of orchestrations (prototypes, core, web); one execution layer for every CLI call; an action matrix of 138 GitHub/GitLab cells (110 recorded, 11 doc-only, 17 done outside the CLI) plus 24 doc-only Jira/YouTrack cells recorded before phase 5; the owner's four decisions settled |
+| [`plans/web-packages.md`](plans/web-packages.md) | Planned (2026-09-30): the web UI split into two internal workspace packages, `@agentry/ui` (primitives, tokens, controls, renderers) and `@agentry/chat-ui` (the conversation, behind an injected client), with guard tests on the dependency direction and vendor names; no screen changes. Runs beside phase 2 of multiple providers on `feat/web-packages` |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.
@@ -203,4 +204,4 @@ possible to keep honest.
 [[plans/tunnel.md]] · [[design-system.md]] · [[plans/project-ecosystem.md]] ·
 [[plans/project-ecosystem-audit.md]] · [[projects.md]] · [[work-items.md]] · [[team-and-flow.md]] · [[assistant.md]] ·
 [[decision-engine.md]] · [[plans/decision-engine.md]] · [[decisions/decision-engine.md]] · [[plans/orchestration-speed.md]] · [[plans/agentry-assistant.md]] ·
-[[decisions/english-technical-language.md]] · [[plans/flow-start-and-chat-token.md]]
+[[decisions/english-technical-language.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/web-packages.md]]

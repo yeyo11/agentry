@@ -1,8 +1,9 @@
 import type { TaskLimits } from '@agentry/shared';
 import { useTranslation } from 'react-i18next';
 import { limitsOf, type InstallMode, type VerificationDraft } from '../lib/orchestration-v2';
-import { NumberInput, Select, Switch } from './controls';
-import { Field, ModelCombobox } from './ui';
+import { NumberInput, Select, Switch } from '@agentry/ui/components/controls';
+import { Field } from '@agentry/ui/components/ui';
+import { ModelCombobox } from './ui';
 
 const INSTALL_MODES: readonly InstallMode[] = ['detected', 'command', 'none'];
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundledThemes } from 'shiki/themes';
-import { highlight, PALETTE, type Segment } from '../src/components/highlight.ts';
+import { highlight, PALETTE, type Segment } from '@agentry/ui/components/highlight';
 
 const text = (lines: Segment[][]) => lines.map((line) => line.map((run) => (typeof run === 'string' ? run : run.content)).join('')).join('\n');
 

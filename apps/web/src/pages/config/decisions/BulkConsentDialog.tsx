@@ -3,11 +3,11 @@ import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';
-import { Collapsible, Sheet } from '../../../components/controls';
-import { Dialog } from '../../../components/Dialog';
-import { ErrorBox, Skeleton } from '../../../components/ui';
-import { formatBytes } from '../../../lib/format';
-import { NARROW, useMediaQuery } from '../../../lib/media';
+import { Collapsible, Sheet } from '@agentry/ui/components/controls';
+import { Dialog } from '@agentry/ui/components/Dialog';
+import { ErrorBox, Skeleton } from '@agentry/ui/components/ui';
+import { formatBytes } from '@agentry/ui/lib/format';
+import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { ConsentNotice, JEV_HOST } from './ConsentDialog';
 import { consentProviders } from './model';
 

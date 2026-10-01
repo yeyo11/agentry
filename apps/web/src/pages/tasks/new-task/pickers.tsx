@@ -1,6 +1,6 @@
 import type { ReactElement, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PriorityMark, WorkItemStatusIcon } from '../../../components/icons';
+import { PriorityMark, WorkItemStatusIcon } from '../../../components/work-item-icons';
 import { columnMeta, priorityMeta } from '../../../lib/work-items';
 import {
   AssigneeMark,

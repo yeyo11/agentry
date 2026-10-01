@@ -4,10 +4,10 @@ import { ChartLine } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Collapsible, Select } from '../../components/controls';
-import { ICON_SM } from '../../components/icons';
-import { Card, Empty, ErrorBox, Loading, Segmented } from '../../components/ui';
-import { formatDateTime } from '../../lib/format';
+import { Collapsible, Select } from '@agentry/ui/components/controls';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { Card, Empty, ErrorBox, Loading, Segmented } from '@agentry/ui/components/ui';
+import { formatDateTime } from '@agentry/ui/lib/format';
 import { seriesOf, sinceOf, summarise, USAGE_RANGES, type UsageRange } from '../../lib/usage-history';
 import { UsageChart } from './UsageChart';
 

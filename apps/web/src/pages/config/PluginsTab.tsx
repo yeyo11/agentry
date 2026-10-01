@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { api, keys } from '../../api';
-import { Collapsible, Select } from '../../components/controls';
-import { Dialog, useConfirm } from '../../components/Dialog';
-import { useToast } from '../../components/Toast';
-import { Card, Empty, ErrorBox, Skeleton, TabPanel, Tabs, Tag, useTabGroup } from '../../components/ui';
-import { timeAgo } from '../../lib/format';
+import { Collapsible, Select } from '@agentry/ui/components/controls';
+import { Dialog, useConfirm } from '@agentry/ui/components/Dialog';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Card, Empty, ErrorBox, Skeleton, TabPanel, Tabs, Tag, useTabGroup } from '@agentry/ui/components/ui';
+import { timeAgo } from '@agentry/ui/lib/format';
 import { GLOBAL_SCOPE, useListParams } from '../../lib/list-params';
 
 const SCOPES: PluginScope[] = ['user', 'project', 'local'];

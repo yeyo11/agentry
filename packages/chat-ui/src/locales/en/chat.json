@@ -1,0 +1,475 @@
+{
+  "view": {
+    "pageTitle": "{{title}} · chat",
+    "pageTitleFallback": "Chat",
+    "loading": "Loading chat…",
+    "notFound": "Chat not found",
+    "notFoundHint": "It may have been deleted. <anchor>Browse chats</anchor> to find the conversation.",
+    "conversation": "Conversation",
+    "back": "Back to chats",
+    "subagentMessages": "Subagent messages",
+    "interruptHint": "End this turn and keep the chat open for your next message",
+    "export": {
+      "markdown": "Export Markdown",
+      "json": "Export JSON"
+    },
+    "fork": "Fork",
+    "deleteLive": "A chat with a process working on it cannot be deleted",
+    "deleteHeld": "Something else holds this chat",
+    "messages_one": "{{count}} messages",
+    "messages_other": "{{count}} messages",
+    "sendHint": "Send a hint on the board",
+    "transcript": "Transcript",
+    "nothingWritten": "Nothing written yet",
+    "forkIntro": "A new chat with this one's whole history. This chat stays as it is, and the copy records where it came from.",
+    "details": "Chat details",
+    "synthesis": "synthesis",
+    "partOf": {
+      "label": "Part of orchestration",
+      "stage": "stage {{n}} of {{total}}"
+    },
+    "cancelFork": "Cancel the fork",
+    "copyId": "Copy chat id",
+    "copiedId": "Chat id copied",
+    "copyFailed": "Could not copy the id",
+    "moreActions": "More chat actions",
+    "showDetails": "Show details",
+    "hideDetails": "Hide details",
+    "queued": {
+      "title": "Waiting for this turn to end",
+      "files_one": "{{count}} file",
+      "files_other": "{{count}} files",
+      "hint_one": "1 message waits for the current turn",
+      "hint_other": "{{count}} messages wait for the current turn",
+      "sendNow": "Send now",
+      "sending": "Ending the turn…",
+      "sendNowHint": "Ends the turn Claude is on, so it reads what is waiting next",
+      "undelivered": "Not delivered — the turn ended before the chat read it",
+      "restore": "Put it back in the box"
+    },
+    "stopHint": "Kill the process this chat runs in. Anything sent into it and not yet read goes with it",
+    "workItem": {
+      "works": "Works on",
+      "origin": "Created from this chat",
+      "criteria": "criteria {{done}}/{{total}}",
+      "step": {
+        "refine": "Refinement of",
+        "check": "Check of",
+        "verify": "Verification of"
+      },
+      "openChat": "Open chat {{chat}}",
+      "openItem": "Open {{key}}"
+    }
+  },
+  "composer": {
+    "message": "Message",
+    "firstMessage": "First message for the copy",
+    "placeholderFork": "First message for the copy… (drop or paste files to attach them)",
+    "placeholderResume": "Send a message — the chat will be resumed…",
+    "resume": "Resume",
+    "resuming": "Resuming…",
+    "fork": "Fork",
+    "forking": "Forking…",
+    "couldNotResume": "Could not resume",
+    "couldNotFork": "Could not fork",
+    "keys": "↵ send · ⇧↵ new line"
+  },
+  "controls": {
+    "permissionModeNew": "Permission mode for the new execution",
+    "modelNew": "Model for the new execution",
+    "asBefore": "As before ({{mode}})",
+    "default": "Default"
+  },
+  "tools": {
+    "preset": "Tool preset",
+    "presetHint": "Which tools it may use without asking and which it may not use at all. Edit the presets in Settings.",
+    "noPreset": "No preset",
+    "asBeforePreset": "As before ({{name}})",
+    "asBeforeNone": "As before (no preset)",
+    "servers": "MCP servers",
+    "serversHint": "Choosing servers starts the chat with only those: connectors from claude.ai and plugin servers are left out.",
+    "serversDefault": "As the CLI loads them",
+    "serversAsBeforeChosen_one": "As before ({{count}} chosen)",
+    "serversAsBeforeChosen_other": "As before ({{count}} chosen)",
+    "serversAsBeforeDefault": "As before (as the CLI loads them)",
+    "serversChoose": "Only the ones I choose",
+    "onlyThese": "Start with only these servers",
+    "noServers": "No MCP servers are configured.",
+    "noneChosen": "None chosen: the chat starts without any MCP server.",
+    "card": {
+      "title": "Tools and servers",
+      "noPreset": "no preset",
+      "allowed": "Allowed without asking",
+      "disallowed": "Blocked",
+      "none": "none",
+      "noServers": "none: the chat started without any MCP server",
+      "serversDefault": "as the CLI loads them",
+      "strictNote": "Only these servers load: nothing else is picked up from the project, the user or claude.ai.",
+      "frozenNote": "Fixed when the chat started or was last resumed. Editing a preset afterwards does not change it."
+    },
+    "defaultPreset": "Default ({{name}})",
+    "noPresetAtAll": "No preset: the CLI's own tools",
+    "newDefaultHint": "Left as it is, the chat starts with the default preset, {{name}}. Edit the presets and the default in Settings.",
+    "resumeHint": "Left as it is, the chat resumes with the tools it had. Picking a preset replaces them.",
+    "forkHint": "Left as it is, the fork inherits this chat's tools and MCP servers. Picking others replaces them in the copy only."
+  },
+  "badges": {
+    "state": {
+      "working": "Working",
+      "waiting": "Waiting for you",
+      "idle": "Idle"
+    },
+    "stateHint": {
+      "working": "A process is generating or running tools",
+      "waiting": "Stopped until a person answers a permission, a question or a plan",
+      "idle": "Nothing is running and nothing is waiting"
+    },
+    "outcome": {
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed",
+      "stopped": "Stopped",
+      "interrupted": "Interrupted"
+    },
+    "origin": {
+      "agentry": "Agentry",
+      "external": "Terminal",
+      "orchestration": "Orchestration",
+      "internal": "Internal"
+    },
+    "originHint": {
+      "agentry": "Started from Agentry",
+      "external": "Started in a terminal with Claude Code",
+      "orchestration": "Works for an orchestration",
+      "internal": "Housekeeping of Agentry itself"
+    },
+    "control": {
+      "interactive": "Interactive",
+      "interactiveHint": "Agentry is driving this chat: write to it, interrupt it, change how it runs",
+      "resumable": "Resumable",
+      "resumableHint": "Nothing holds this chat: sending a message resumes it",
+      "readOnly": "Read-only"
+    },
+    "context": {
+      "none": "no context yet",
+      "unknownWindow": "The window of this model is not known yet, so no percentage is shown",
+      "tokens": "{{n}} tokens",
+      "detail": "{{used}} of {{window}} tokens",
+      "inUse": "Context in use",
+      "aboutToCompact": "about to compact",
+      "fillingUp": "filling up"
+    }
+  },
+  "side": {
+    "notAvailable": "not available",
+    "usage": {
+      "title": "Context and cost",
+      "costNotReported": "Claude Code reports a cost only for what Agentry launched.",
+      "tokensCaption": "Tokens spent, per model",
+      "input": "In",
+      "output": "Out",
+      "cache": "Cache",
+      "total": "Total",
+      "subagentsNote": "Tokens include what its subagents spent.",
+      "tokensOfWindow": "tokens of {{window}}",
+      "tokensWindowUnknown": "tokens · the window of this model is not known yet"
+    },
+    "executions": {
+      "title": "Executions ({{n}})",
+      "empty": "Agentry has not run this chat: it was written in a terminal.",
+      "lasted": "lasted {{duration}}",
+      "up": "up {{duration}}",
+      "turns_one": "{{count}} turns",
+      "turns_other": "{{count}} turns",
+      "account": "account {{name}}",
+      "budget": "budget {{amount}}",
+      "errorPrefix": "Error:"
+    },
+    "branches": {
+      "title": "Branches ({{n}})",
+      "empty": "Nothing was delegated: no subagents, background tasks or workflows.",
+      "subagents": "Subagents",
+      "backgroundTasks": "Background tasks",
+      "workflows": "Workflows",
+      "fromSubagent": "from a subagent"
+    },
+    "health": {
+      "title": "Health",
+      "level": {
+        "ok": "OK",
+        "warn": "Warning",
+        "bad": "Problem"
+      },
+      "levelSaid": "{{level}}:"
+    },
+    "facts": {
+      "title": "Chat",
+      "noProject": "none: loose chat",
+      "worktree": "Worktree",
+      "forkedFrom": "Forked from",
+      "updated": "Updated",
+      "environmentEmpty": "Nothing has reported what Claude loaded for this chat yet.",
+      "messages": "Messages"
+    },
+    "workItem": {
+      "title": "Task",
+      "open": "Open",
+      "openLabel": "Open {{key}}",
+      "key": "Key",
+      "status": "Status",
+      "criteria": "Criteria",
+      "worktree": "Worktree",
+      "onEnd": "When it ends",
+      "onEndHint": "moves to In review if the turn ends well",
+      "none": "none"
+    }
+  },
+  "delete": {
+    "deleted": "Chat deleted",
+    "failed": "Could not delete the chat",
+    "title": "Delete this chat?",
+    "body_one": "The transcript ({{count}} messages) is removed from disk and the chat can no longer be resumed or forked. This cannot be undone.",
+    "body_other": "The transcript ({{count}} messages) is removed from disk and the chat can no longer be resumed or forked. This cannot be undone.",
+    "confirm": "Delete chat"
+  },
+  "head": {
+    "checklist": "Checklist: {{progress}}"
+  },
+  "pill": {
+    "link": {
+      "live": "live",
+      "reconnecting": "reconnecting…",
+      "interactive": "interactive",
+      "resumable": "resumable",
+      "readOnly": "read-only"
+    },
+    "hint": {
+      "live": "Agentry is driving this chat and its stream is connected",
+      "reconnecting": "The stream dropped a few seconds ago; the browser is reconnecting",
+      "interactive": "Agentry is driving this chat: write to it, interrupt it, change how it runs",
+      "resumable": "Nothing holds this chat: sending a message resumes it",
+      "readOnly": "Something else holds this chat"
+    }
+  },
+  "status": {
+    "noPreset": "no preset",
+    "mcpDefault": "MCP: CLI default",
+    "mcpChosen_one": "MCP: {{count}} server",
+    "mcpChosen_other": "MCP: {{count}} servers",
+    "open": "Run options: {{status}}",
+    "liveTitle": "How this chat runs",
+    "resumeTitle": "Resume with",
+    "forkTitle": "Fork with",
+    "liveHint": "Permission mode and model switch at once. The tools and servers were fixed when the chat started; resuming it later can change them."
+  },
+  "inspector": {
+    "tabs": "Chat details",
+    "tab": {
+      "summary": "Summary",
+      "activity": "Activity",
+      "changes": "Changes",
+      "environment": "Environment"
+    }
+  },
+  "newChat": {
+    "advanced": "Advanced options",
+    "defaultModel": "default model",
+    "defaultMode": "default mode ({{mode}})",
+    "hero": "What are we <grad>building</grad> today?",
+    "heroShort": "What are we <grad>building</grad>?",
+    "lead": "Claude Code runs it in your project and answers here.",
+    "kind": "Kind",
+    "kindChat": "Chat",
+    "kindOrchestration": "Orchestration",
+    "placeholder": "Describe the task: a change, a review, an investigation…",
+    "start": "Start",
+    "keys": "Ctrl ↵",
+    "where": "runs in {{dir}} · drag or paste files to attach them",
+    "examples": "To get started",
+    "close": "Close"
+  },
+  "launch": {
+    "phase": "phase {{n}} of {{total}}",
+    "agents": "{{done}}/{{total}} agents",
+    "open": "Open",
+    "openHint": "Open {{name}} in the details"
+  },
+  "messageMenu": {
+    "label": "Message actions",
+    "copy": "Copy the message",
+    "copied": "Message copied",
+    "createTask": "Create a task from this message",
+    "createTaskHint": "In Backlog of {{project}}, linked to this chat",
+    "noProject": "This chat is under no project",
+    "noBoard": "The Board module of {{project}} is off",
+    "created": "{{key}} created in Backlog",
+    "createdDetail": "Linked to this chat",
+    "openTask": "Open",
+    "createFailed": "The task could not be created"
+  },
+  "edits": {
+    "label": "Files this step edited",
+    "chip": "{{file}}: see this step",
+    "chipCounts": "{{file}}, {{additions}} lines added and {{deletions}} removed: see this step"
+  },
+  "transcript": {
+    "thinking": "Thinking",
+    "thinkingNow": "Thinking…",
+    "toolError": "Tool error",
+    "toolResult": "Tool result",
+    "empty": "(empty)",
+    "moreChars": "… [{{count}} more chars]",
+    "user": "User",
+    "subagent": "subagent",
+    "streamingThinking": "thinking",
+    "streamingWriting": "writing",
+    "tools_one": "{{count}} tool",
+    "tools_other": "{{count}} tools",
+    "failedCalls_one": "{{count}} failed",
+    "failedCalls_other": "{{count}} failed",
+    "stepCurrent": "in progress",
+    "callFailed": "failed",
+    "callRunning": "running",
+    "callWaiting": "Waiting for the result…",
+    "openSubagent": "Open the subagent's transcript",
+    "notice": {
+      "task": "Background task",
+      "reminder": "System note",
+      "command": "Command",
+      "output": "Command output",
+      "interrupt": "Interrupted"
+    }
+  },
+  "permissions": {
+    "waitingForYou": "Waiting for you",
+    "wantsToRun": "wants to run",
+    "allow": "Allow",
+    "allowAnd": "Allow and {{what}}",
+    "deny": "Deny",
+    "denyReason": "Why not? (sent to the model when denying)",
+    "switchTo": "switch to {{mode}}",
+    "alwaysAllow": "always allow {{rules}}",
+    "allowDirectories": "allow {{directories}}",
+    "agentIsAsking": "Claude is asking",
+    "answeredCount": "{{answered}} of {{total}} answered",
+    "questions": "Questions",
+    "answered": "answered",
+    "question": "Question {{n}}",
+    "pickAny": "pick any",
+    "otherAnswer": "Other answer…",
+    "declineReason": "Why not? (optional, sent to the model)",
+    "decline": "Decline",
+    "backToQuestions": "Back to the questions",
+    "previous": "Previous",
+    "next": "Next",
+    "answer": "Answer",
+    "answerProgress": "Answer ({{answered}}/{{total}})",
+    "planReady": "Plan ready for review",
+    "approve": "Approve",
+    "approveAcceptEditsHint": "Approve and let it edit files without asking for the rest of the session",
+    "approveAcceptEdits": "Approve and accept edits",
+    "keepPlanning": "Keep planning",
+    "planFeedback": "What should change? (sent to the model)",
+    "otherAnswerTo": "Other answer to: {{question}}",
+    "whatItWantsToRun": "What it wants to run",
+    "plan": "Plan"
+  },
+  "find": {
+    "button": "Search",
+    "buttonHint": "Search the whole transcript ({{shortcut}})",
+    "field": "Search the whole transcript",
+    "failed": "Search failed",
+    "searching": "Searching…",
+    "noMatches": "No matches",
+    "counter": "{{n}} of {{total}}",
+    "older": "Older match",
+    "olderHint": "Older match (Enter)",
+    "newer": "Newer match",
+    "newerHint": "Newer match (Shift+Enter)",
+    "close": "Close search",
+    "closeHint": "Close (Esc)",
+    "transcript": "Transcript"
+  },
+  "attachments": {
+    "image": "image",
+    "imageTitle": "Image",
+    "document": "Document",
+    "pasted": "pasted",
+    "attachFiles": "Attach files",
+    "attachHint": "Attach files, or drop or paste them here. Images and PDFs are shown to Claude; anything else it reads from disk.",
+    "attach": "Attach",
+    "uploading": "Uploading",
+    "remove": "Remove {{name}}"
+  },
+  "viewer": {
+    "close": "Close",
+    "download": "Download",
+    "openTab": "Open in a new tab",
+    "previous": "Previous file",
+    "next": "Next file",
+    "count": "{{n}} of {{total}}",
+    "noPreview": "This file can only be downloaded"
+  },
+  "slashMenu": {
+    "label": "Slash commands",
+    "skill": "skill"
+  },
+  "shared": {
+    "default": "default",
+    "model": "Model",
+    "project": "Project",
+    "uploading": "Uploading…"
+  },
+  "sessionView": {
+    "deleteTranscript": "Delete the transcript",
+    "deleting": "Deleting…",
+    "continueCopy": "Continue in a copy",
+    "continue": "Continue",
+    "loadEarlier": "Load earlier messages ({{n}} above)"
+  },
+  "runView": {
+    "placeholderQueued": "Send a message (queued until the current turn ends)…",
+    "placeholderFollowUp": "Send a follow-up message…",
+    "sending": "Sending…",
+    "send": "Send",
+    "notSent": "Message not sent",
+    "streamConnected": "Stream connected",
+    "streamReconnecting": "Stream reconnecting…",
+    "interrupt": "Interrupt",
+    "working": "Claude is working…",
+    "jumpToLatest": "Jump to latest",
+    "permissions": "Permissions",
+    "prompts": "Prompts",
+    "promptsHost": "answered here",
+    "directory": "Directory",
+    "session": "Session",
+    "cost": "Cost",
+    "started": "Started",
+    "orchestration": "Orchestration",
+    "backgroundTasks": "Background tasks ({{n}})",
+    "subagents": "Subagents ({{n}})",
+    "workflows": "Workflows ({{n}})",
+    "loadedByClaude": "Loaded by Claude",
+    "loadedHint": "tools, MCP servers, agents, skills…"
+  },
+  "model": {
+    "notAvailable": "not available",
+    "state": {
+      "working": "Working",
+      "waiting": "Waiting for you",
+      "idle": "Idle"
+    },
+    "origin": {
+      "agentry": "Agentry",
+      "external": "Terminal",
+      "orchestration": "Orchestration",
+      "internal": "Internal"
+    },
+    "sort": {
+      "activity": "Recent activity",
+      "started": "Recently started",
+      "context": "Most context in use",
+      "messages": "Most messages"
+    }
+  }
+}

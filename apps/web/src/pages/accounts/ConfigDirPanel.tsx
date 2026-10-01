@@ -4,11 +4,11 @@ import { FolderCog, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Collapsible, Switch } from '../../components/controls';
-import { useConfirm } from '../../components/Dialog';
-import { ICON_SM } from '../../components/icons';
-import { useToast } from '../../components/Toast';
-import { ErrorBox, Field } from '../../components/ui';
+import { Collapsible, Switch } from '@agentry/ui/components/controls';
+import { useConfirm } from '@agentry/ui/components/Dialog';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { useToast } from '@agentry/ui/components/Toast';
+import { ErrorBox, Field } from '@agentry/ui/components/ui';
 
 /**
  * Where this account's Claude Code keeps its own files. Off by default: every account shares the

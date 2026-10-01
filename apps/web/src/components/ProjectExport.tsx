@@ -3,9 +3,9 @@ import { Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api';
 // Not the barrel: Activity is in the first-paint bundle and the barrel would pull the form controls in
-import { Tooltip } from './controls/Tooltip';
-import { ICON_SM } from './icons';
-import { Card } from './ui';
+import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { Card } from '@agentry/ui/components/ui';
 
 /**
  * Every chat of a project in one file. Plain links, like a chat's export: the route answers with

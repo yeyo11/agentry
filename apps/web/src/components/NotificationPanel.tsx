@@ -6,14 +6,14 @@ import { useEffect, useId, useState, type KeyboardEvent, type RefObject } from '
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
-import { timeAgo } from '../lib/format';
+import { timeAgo } from '@agentry/ui/lib/format';
 import { clearNotifications, markAllRead, markRead, removeNotification, unreadCount, useNotifications, type AppNotification } from '../lib/notifications';
-import { Collapsible } from './controls/Collapsible';
-import { LAYER_ATTR } from './controls/layer';
-import { Tooltip } from './controls/Tooltip';
-import { ICON, ICON_SM } from './icons';
+import { Collapsible } from '@agentry/ui/components/controls/Collapsible';
+import { LAYER_ATTR } from '@agentry/ui/components/controls/layer';
+import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
+import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { NotificationPreferences } from './NotificationPreferences';
-import { useToast } from './Toast';
+import { useToast } from '@agentry/ui/components/Toast';
 
 function iconFor(n: AppNotification): LucideIcon {
   switch (n.kind) {

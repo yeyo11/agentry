@@ -3,12 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Send, Smartphone, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { useConfirm } from '../../components/Dialog';
-import { ICON_SM } from '../../components/icons';
+import { useConfirm } from '@agentry/ui/components/Dialog';
+import { ICON_SM } from '@agentry/ui/components/icons';
 import { NotificationPreferences } from '../../components/NotificationPreferences';
-import { useToast } from '../../components/Toast';
-import { Card, Empty, ErrorBox, Skeleton, Tag } from '../../components/ui';
-import { timeAgo } from '../../lib/format';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Card, Empty, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { timeAgo } from '@agentry/ui/lib/format';
 import { disablePush, usePushState } from '../../lib/push';
 
 /**

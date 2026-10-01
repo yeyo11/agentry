@@ -2,7 +2,7 @@ import type { WorkItemDetail, WorkItemPullRequest } from '@agentry/shared';
 import { Check, CircleAlert, ExternalLink, GitPullRequest, Hourglass, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ICON_SM } from '../../../components/icons';
+import { ICON_SM } from '@agentry/ui/components/icons';
 import { notReadyReason, pullRequestErrorKey } from '../../../lib/work-items';
 import { CiBadge, NotReadyNote, reasonValues, useChangeRequestWords, useOpenPullRequest } from '../board/PullRequest';
 import { pullRequestAction, pullRequestPanel } from './model';

@@ -43,14 +43,14 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
 import { LANGUAGES, setLanguage } from '../i18n';
-import { displayTitle } from '../lib/chat-model';
+import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
 import { assistantPath } from '../pages/assistant/model';
-import { setMotionPreference } from '../lib/motion';
+import { setMotionPreference } from '@agentry/ui/lib/motion';
 import { useProjectScope } from '../lib/project-scope';
 import { liveSummary } from '../lib/shell-live';
 import { setThemePreference } from '../lib/theme';
 import { NEW_PROJECT_PATH, NEW_TASK_PATH, TASKS_PATH } from '../lib/work-items';
-import { statusText } from './ui';
+import { statusText } from '@agentry/ui/components/ui';
 import '../palette.css';
 import { createPaletteReporter, MAX_RECENT, MAX_RESULTS, MOTION_LEVELS, readRecent, RECENT_KEY, score, type Command, type Group } from './palette-model';
 

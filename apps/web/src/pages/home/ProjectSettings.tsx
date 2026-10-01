@@ -1,9 +1,9 @@
 import type { Project } from '@agentry/shared';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
-import { Collapsible } from '../../components/controls';
+import { Collapsible } from '@agentry/ui/components/controls';
 import { EnvironmentPanel } from '../../components/EnvironmentPanel';
-import { TabPanel, Tabs, useTabGroup } from '../../components/ui';
+import { TabPanel, Tabs, useTabGroup } from '@agentry/ui/components/ui';
 import { useDirtyKeys, useLeaveGuard } from '../../lib/dirty';
 import { FilesTab } from '../config/FilesTab';
 import { InstructionsTab } from '../config/InstructionsTab';

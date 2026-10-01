@@ -1,0 +1,120 @@
+{
+  "activity": {
+    "editing": "Editando",
+    "reading": "Leyendo",
+    "running": "Ejecutando",
+    "searching": "Buscando",
+    "delegating": "Delegando",
+    "browsing": "Navegando",
+    "writing": "Escribiendo",
+    "thinking": "Pensando",
+    "waiting": "Esperándote",
+    "working": "Trabajando"
+  },
+  "progress": {
+    "done": "Completado: {{done}} de {{total}}",
+    "doneOf": "Completado: {{done}} de {{total}} {{unit}}",
+    "running_one": "{{count}} en curso",
+    "running_other": "{{count}} en curso",
+    "failed_one": "{{count}} con error",
+    "failed_other": "{{count}} con error",
+    "skipped_one": "{{count}} sin ejecutar",
+    "skipped_other": "{{count}} sin ejecutar",
+    "nothing": "Todavía no hay nada que hacer"
+  },
+  "step": {
+    "done": "Hecho",
+    "current": "En curso",
+    "waiting": "Te espera",
+    "failed": "Con error",
+    "skipped": "Omitido",
+    "pending": "Sin empezar"
+  },
+  "menu": {
+    "more": "Más acciones"
+  },
+  "splitButton": {
+    "more": "Más opciones de {{action}}"
+  },
+  "sheet": {
+    "close": "Cerrar"
+  },
+  "toolbar": {
+    "search": "Buscar",
+    "searchLabel": "Buscar en esta lista",
+    "filters": "Filtros",
+    "filtersActive_one": "Filtros, {{count}} activo",
+    "filtersActive_other": "Filtros, {{count}} activos",
+    "activeFilters": "Filtros activos",
+    "removeFilter": "Quitar el filtro {{filter}}",
+    "sort": "Ordenar por",
+    "reset": "Restablecer",
+    "views": "Mostrar"
+  },
+  "ui": {
+    "loadingShort": "Cargando",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "copyPath": "Copiar la ruta",
+    "copyCode": "Copiar el código",
+    "requestFailed": "La petición ha fallado",
+    "unsavedChangesLabel": "cambios sin guardar",
+    "claudeIsWorking": "Claude está trabajando"
+  },
+  "controls": {
+    "decrease": "Reducir",
+    "increase": "Aumentar"
+  },
+  "dialog": {
+    "close": "Cerrar el diálogo",
+    "confirm": "Confirmar",
+    "areYouSure": "¿Seguro?"
+  },
+  "toast": {
+    "region": "Notificaciones",
+    "showOutput": "Mostrar la salida",
+    "dismiss": "Descartar la notificación"
+  },
+  "combobox": {
+    "suggestions": "Sugerencias"
+  },
+  "datePicker": {
+    "open": "Abrir el calendario de {{field}}",
+    "previousMonth": "Mes anterior",
+    "nextMonth": "Mes siguiente",
+    "today": "Hoy"
+  },
+  "illustrations": {
+    "noResults": "0 coinciden",
+    "notFound": "¿por aquí?",
+    "weekday": "lun"
+  },
+  "markdown": {
+    "taskDone": "hecho",
+    "taskTodo": "pendiente",
+    "table": "Tabla"
+  },
+  "codeBlock": {
+    "label": "Código",
+    "labelLang": "Código {{lang}}"
+  },
+  "scrollJump": {
+    "transcript": {
+      "group": "Saltar dentro de la transcripción",
+      "start": "Saltar al principio de la transcripción",
+      "end": "Saltar al final de la transcripción"
+    },
+    "output": {
+      "group": "Saltar dentro de la salida",
+      "start": "Saltar al principio de la salida",
+      "end": "Saltar al final de la salida"
+    },
+    "oldest": "Lo más antiguo (arriba)",
+    "newest": "Lo más reciente (abajo)"
+  },
+  "illustration": {
+    "refine": "refinar",
+    "work": "implementar",
+    "verify": "verificar"
+  }
+}

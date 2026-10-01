@@ -4,7 +4,7 @@ import test from 'node:test';
 // Formatting follows navigator.languages; pin it so the result does not depend on the machine.
 Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }, configurable: true });
 const { setLanguage } = await import('../src/i18n/index.ts');
-const { daysAgo, formatBytes, formatAmountShort, formatCost, formatDateTime, formatDuration, formatHour, formatNumber, timeAgo, timeUntil } = await import('../src/lib/format.ts');
+const { daysAgo, formatBytes, formatAmountShort, formatCost, formatDateTime, formatDuration, formatHour, formatNumber, timeAgo, timeUntil } = await import('@agentry/ui/lib/format');
 
 const SEC = 1000;
 const MIN = 60 * SEC;

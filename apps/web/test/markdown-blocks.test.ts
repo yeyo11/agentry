@@ -3,9 +3,9 @@ import test from 'node:test';
 import { parseMarkdown } from '@tanstack/markdown/parser';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { TooltipProvider } from '../src/components/controls/Tooltip.tsx';
-import Markdown, { pieceOptions } from '../src/components/Markdown.tsx';
-import { splitMarkdownBlocks, type BlockSplit } from '../src/lib/markdown-blocks.ts';
+import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
+import Markdown, { pieceOptions } from '@agentry/ui/components/Markdown';
+import { splitMarkdownBlocks, type BlockSplit } from '@agentry/ui/lib/markdown-blocks';
 import { ANSWERS } from './fixtures/answers.ts';
 
 const html = (text: string, streaming: boolean) =>

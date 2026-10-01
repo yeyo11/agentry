@@ -3,11 +3,11 @@ import { CircleCheck, CircleX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { useDetailPanel } from '../lib/detail';
-import { durationBetween, formatDuration, formatNumber, truncate } from '../lib/format';
-import { BranchStatus } from './ChatBadges';
-import { CodeBlock } from './CodeBlock';
+import { durationBetween, formatDuration, formatNumber, truncate } from '@agentry/ui/lib/format';
+import { BranchStatus } from '@agentry/chat-ui/components/ChatBadges';
+import { CodeBlock } from '@agentry/ui/components/CodeBlock';
 // Direct import: the chat page that renders this is in the shell bundle
-import { Collapsible } from './controls/Collapsible';
+import { Collapsible } from '@agentry/ui/components/controls/Collapsible';
 
 // Ungrouped, as before: 1234.5k tokens, never 1,234.5k
 const tokens = (n: number | null) =>

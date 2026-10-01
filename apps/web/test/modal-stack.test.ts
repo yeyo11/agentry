@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createModalStack } from '../src/components/modal-stack';
+import { createModalStack } from '@agentry/ui/components/modal-stack';
 
 // A dialog opened from another (a relation picker over New task, a confirmation over the item
 // panel) takes the keyboard; the one under it hears nothing until it closes. Before, each listened

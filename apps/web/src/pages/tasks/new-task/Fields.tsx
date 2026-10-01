@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { ICON_SM } from '../../../components/icons';
+import { ICON_SM } from '@agentry/ui/components/icons';
 import { addLabel } from '../item/model';
 
 /** The dialog's labels: a removable chip per label and an input that adds on Enter, a comma or blur. */

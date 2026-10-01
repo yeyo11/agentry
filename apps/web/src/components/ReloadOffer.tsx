@@ -2,8 +2,8 @@ import { RefreshCw, X } from 'lucide-react';
 import { lazy, useState, type ComponentType } from 'react';
 import { useTranslation } from 'react-i18next';
 import { dismissReloadOffer, isChunkLoadError, noticeStaleChunk, reloadApp, useReloadOffer } from '../lib/reload';
-import { ICON, ICON_SM } from './icons';
-import { Empty } from './ui';
+import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { Empty } from '@agentry/ui/components/ui';
 
 function ReloadButton() {
   const { t } = useTranslation('shell');

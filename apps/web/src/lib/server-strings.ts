@@ -1,6 +1,6 @@
 import type { ChatHealth, ConnectorAction, ConnectorLimit, HealthSignal, Localized, LocalizedParams } from '@agentry/shared';
 import i18n from '../i18n';
-import { formatNumber } from './format';
+import { formatNumber } from '@agentry/ui/lib/format';
 
 /*
  * Sentences the server writes come with a stable code and the figures they were built from. The

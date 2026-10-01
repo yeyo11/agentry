@@ -1,11 +1,11 @@
 import type { AccountConfig, AccountSummary, AccountUsageWindow } from '@agentry/shared';
 import { CircleCheck, CirclePause, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { MoreActions, type MenuItem } from '../../components/controls';
-import { ICON_SM } from '../../components/icons';
-import { usageTone } from '../../components/motion';
-import { StatusBadge, Tag } from '../../components/ui';
-import { formatDateTime } from '../../lib/format';
+import { MoreActions, type MenuItem } from '@agentry/ui/components/controls';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { usageTone } from '@agentry/ui/components/motion';
+import { StatusBadge, Tag } from '@agentry/ui/components/ui';
+import { formatDateTime } from '@agentry/ui/lib/format';
 import { ConfigDirPanel } from './ConfigDirPanel';
 import { accountExhausted, bindingReset, timeToReset, windowExhausted } from './usage';
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { detectLanguage, intlLocale } from '../src/i18n/language.ts';
+import { detectLanguage, intlLocale } from '@agentry/ui/i18n/language';
 import { en, es, withManyPlurals } from '../src/i18n/resources.ts';
 
 function keys(tree: object, prefix = ''): string[] {

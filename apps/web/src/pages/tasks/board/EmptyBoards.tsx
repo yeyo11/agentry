@@ -2,9 +2,9 @@ import type { Project } from '@agentry/shared';
 import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { ICON_SM } from '../../../components/icons';
+import { ICON_SM } from '@agentry/ui/components/icons';
 import { FabStandIn } from '../../../components/shell/Fab';
-import { Card, Empty } from '../../../components/ui';
+import { Card, Empty } from '@agentry/ui/components/ui';
 import { firstKey } from '../../../lib/work-items';
 
 /** What Tasks shows instead of a board: the module off, no project with one, an empty board, a filter that finds nothing. */

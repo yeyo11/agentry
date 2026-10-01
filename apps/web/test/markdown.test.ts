@@ -5,8 +5,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 // The labels follow navigator.languages; pin it so the markup does not depend on the machine.
 Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }, configurable: true });
-const { TooltipProvider } = await import('../src/components/controls/Tooltip.tsx');
-const { default: Markdown } = await import('../src/components/Markdown.tsx');
+await import('../src/i18n'); // the app's language setup; no primitive loads it any more
+const { TooltipProvider } = await import('@agentry/ui/components/controls/Tooltip');
+const { default: Markdown } = await import('@agentry/ui/components/Markdown');
 
 // CodeBlock's copy button carries a tooltip
 const html = (text: string) => renderToStaticMarkup(createElement(TooltipProvider, null, createElement(Markdown, { text })));

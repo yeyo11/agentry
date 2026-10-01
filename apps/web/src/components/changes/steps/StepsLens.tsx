@@ -4,11 +4,11 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEve
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { parseUnified } from '../../../lib/diff';
-import { formatDateTime, timeAgo } from '../../../lib/format';
-import { Menu, type MenuEntry } from '../../controls';
-import { ICON_SM } from '../../icons';
-import { Spinner } from '../../Spinner';
-import { Empty, ErrorBox, Skeleton } from '../../ui';
+import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
+import { Menu, type MenuEntry } from '@agentry/ui/components/controls';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { Spinner } from '@agentry/ui/components/Spinner';
+import { Empty, ErrorBox, Skeleton } from '@agentry/ui/components/ui';
 import { DiffView } from '../DiffView';
 import { Intent } from '../Intent';
 import { Counts } from '../FileMap';

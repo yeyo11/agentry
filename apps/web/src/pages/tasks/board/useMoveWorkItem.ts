@@ -2,7 +2,7 @@ import type { Board, MoveWorkItemResult, WorkItem } from '@agentry/shared';
 import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';
-import { useToast } from '../../../components/Toast';
+import { useToast } from '@agentry/ui/components/Toast';
 import { columnMeta } from '../../../lib/work-items';
 import { afterIdFor, moveOnBoard, type Drop } from './model';
 

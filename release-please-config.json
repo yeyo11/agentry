@@ -27,12 +27,22 @@
         },
         {
           "type": "json",
+          "path": "packages/chat-ui/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "packages/core/package.json",
           "jsonpath": "$.version"
         },
         {
           "type": "json",
           "path": "packages/shared/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/ui/package.json",
           "jsonpath": "$.version"
         }
       ]

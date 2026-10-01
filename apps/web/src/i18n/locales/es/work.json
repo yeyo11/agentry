@@ -1,42 +1,4 @@
 {
-  "shared": {
-    "default": "predeterminado",
-    "model": "Modelo",
-    "project": "Proyecto",
-    "uploading": "Subiendo…"
-  },
-  "sessionView": {
-    "deleteTranscript": "Eliminar la transcripción",
-    "deleting": "Eliminando…",
-    "continueCopy": "Continuar en una copia",
-    "continue": "Continuar",
-    "loadEarlier": "Cargar mensajes anteriores ({{n}} más arriba)"
-  },
-  "runView": {
-    "placeholderQueued": "Envía un mensaje (queda en cola hasta que acabe el turno actual)…",
-    "placeholderFollowUp": "Envía un mensaje de seguimiento…",
-    "sending": "Enviando…",
-    "send": "Enviar",
-    "notSent": "Mensaje no enviado",
-    "streamConnected": "Stream conectado",
-    "streamReconnecting": "Reconectando el stream…",
-    "interrupt": "Interrumpir",
-    "working": "Claude está trabajando…",
-    "jumpToLatest": "Saltar a lo último",
-    "permissions": "Permisos",
-    "prompts": "Peticiones de permiso",
-    "promptsHost": "se responden aquí",
-    "directory": "Directorio",
-    "session": "Sesión",
-    "cost": "Coste",
-    "started": "Inicio",
-    "orchestration": "Orquestación",
-    "backgroundTasks": "Tareas en segundo plano ({{n}})",
-    "subagents": "Subagentes ({{n}})",
-    "workflows": "Workflows ({{n}})",
-    "loadedByClaude": "Cargado por Claude",
-    "loadedHint": "herramientas, servidores MCP, agentes, skills…"
-  },
   "projects": {
     "title": "Proyectos",
     "newProjectCard": "Nuevo proyecto en el espacio de trabajo",

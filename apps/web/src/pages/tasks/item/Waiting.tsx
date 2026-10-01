@@ -2,8 +2,8 @@ import type { WorkItemComment, WorkItemDetail } from '@agentry/shared';
 import { Check, Hourglass, Undo2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useProjectSettings } from '../../../api';
-import { ICON_SM } from '../../../components/icons';
-import { formatNumber } from '../../../lib/format';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { formatNumber } from '@agentry/ui/lib/format';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 import { useMoveItem, type ItemActions } from './hooks';
 

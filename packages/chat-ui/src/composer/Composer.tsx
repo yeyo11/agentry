@@ -1,0 +1,286 @@
+import type { Chat } from '@agentry/shared';
+import * as RadixPopover from '@radix-ui/react-popover';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { ArrowUp, GitFork, Play, Square } from 'lucide-react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { AttachButton, AttachmentTray, useAttachments } from '../components/Attachments';
+import { LAYER_ATTR } from '@agentry/ui/components/controls/layer';
+import { Sheet } from '@agentry/ui/components/controls/Sheet';
+import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { SlashMenu, useSlashMenu } from '../components/SlashMenu';
+import { ErrorBox } from '@agentry/ui/components/ui';
+import { chatKeys, useChatUi, type StartChoices } from '../lib/context';
+import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+
+// Its Select and Combobox are Radix controls kept out of the shell bundle this page lives in: the
+// app hands them over as lazy components (`lib/chat-ui.tsx`)
+export type { StartChoices };
+
+/** What a message does: reaches a live process, resumes the chat in place, or continues a copy of it. */
+export type ComposerKind = 'send' | 'resume' | 'fork';
+
+/**
+ * The status line's words: model · mode · preset · servers, each what the next message will run
+ * with. A choice made for a resume or a fork wins over what the chat last ran with.
+ */
+function useStatusWords(chat: Chat, kind: ComposerKind, choices: StartChoices): string[] {
+  const { t } = useTranslation('chat');
+  const last = chat.execution ?? chat.executions.at(-1) ?? null;
+  const starting = kind !== 'send';
+  const model = (starting ? choices.model : undefined) ?? last?.model ?? chat.model ?? t('shared.default');
+  const mode = (starting ? choices.permissionMode : undefined) ?? last?.permissionMode ?? t('controls.default');
+  const presetChoice = starting ? choices.toolPreset : undefined;
+  const preset =
+    presetChoice === null
+      ? t('status.noPreset')
+      : presetChoice !== undefined
+        ? presetChoice
+        : (chat.tools?.preset?.name ?? t('status.noPreset'));
+  const mcpChoice = starting ? choices.mcp : undefined;
+  const servers = mcpChoice === undefined ? (chat.tools?.mcp ?? null) : mcpChoice;
+  const mcp = servers ? t('status.mcpChosen', { count: servers.servers.length }) : t('status.mcpDefault');
+  return [model, mode, preset, mcp];
+}
+
+/** A popover by the line on a wide screen, a sheet from the bottom on a phone. */
+export function OptionsPanel({ trigger, title, open, onOpenChange, children }: { trigger: ReactNode; title: string; open: boolean; onOpenChange: (open: boolean) => void; children: ReactNode }) {
+  const narrow = useMediaQuery(NARROW);
+  if (narrow) {
+    return (
+      <>
+        {trigger}
+        <Sheet open={open} onOpenChange={onOpenChange} title={title}>
+          <div className="composer-options">{children}</div>
+        </Sheet>
+      </>
+    );
+  }
+  return (
+    <RadixPopover.Root open={open} onOpenChange={onOpenChange}>
+      <RadixPopover.Trigger asChild>{trigger}</RadixPopover.Trigger>
+      <RadixPopover.Portal>
+        <RadixPopover.Content className="popover composer-options" side="top" align="start" sideOffset={6} collisionPadding={8} aria-label={title} {...LAYER_ATTR}>
+          {children}
+        </RadixPopover.Content>
+      </RadixPopover.Portal>
+    </RadixPopover.Root>
+  );
+}
+
+/**
+ * The chips under the message box, `opus · bypassPermissions · no preset · MCP: CLI default`, as one
+ * button that opens what used to be four labelled fields under it: the permission mode and model of
+ * the live process, or everything a resume or a fork may start with. The permission mode is the
+ * chip in the accent: it decides what the chat may do without asking.
+ */
+function StatusLine({ chat, kind, choices, onChoices }: { chat: Chat; kind: ComposerKind; choices: StartChoices; onChoices: (next: StartChoices) => void }) {
+  const { t } = useTranslation('chat');
+  const { slots } = useChatUi();
+  const { StartOptions, LiveOptions } = slots;
+  const [open, setOpen] = useState(false);
+  const words = useStatusWords(chat, kind, choices);
+  const narrow = useMediaQuery(NARROW);
+  const title = kind === 'send' ? t('status.liveTitle') : kind === 'resume' ? t('status.resumeTitle') : t('status.forkTitle');
+  const changed = kind !== 'send' && Object.values(choices).some((v) => v !== undefined);
+  const trigger = (
+    <button
+      type="button"
+      className={`composer-status ${changed ? 'is-changed' : ''}`.trim()}
+      aria-label={t('status.open', { status: words.join(' · ') })}
+      aria-expanded={open}
+      onClick={narrow ? () => setOpen(true) : undefined}
+    >
+      <StatusChips words={words} accent={1} />
+    </button>
+  );
+  return (
+    <OptionsPanel trigger={trigger} title={title} open={open} onOpenChange={setOpen}>
+      <Suspense fallback={null}>
+        {kind === 'send' ? <LiveOptions chat={chat} /> : <StartOptions chat={chat} value={choices} onChange={onChoices} forking={kind === 'fork'} />}
+      </Suspense>
+    </OptionsPanel>
+  );
+}
+
+/** The status line's words as chips; `accent` is the index of the permission mode's. */
+export function StatusChips({ words, accent, icon }: { words: string[]; accent: number; icon?: ReactNode }) {
+  return (
+    <span className="composer-status-words">
+      {words.map((word, i) => (
+        <span key={i} className={`composer-status-word ${i === accent ? 'is-accent' : ''}`.trim()}>
+          {i === 0 && icon}
+          <span className="composer-status-text">{word}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** Which keys send and which break the line, for a box with a keyboard under it; a phone hides it. */
+export function KeysHint({ children }: { children: ReactNode }) {
+  return (
+    <span className="composer-keys" aria-hidden>
+      {children}
+    </span>
+  );
+}
+
+/**
+ * The message box, with its own text state: the transcript above it can be thousands of nodes, and
+ * re-rendering the page on every character typed here is enough to lock the tab up.
+ */
+export function Composer({
+  chat,
+  kind,
+  onSent,
+  interrupt,
+  restore,
+}: {
+  chat: Chat;
+  kind: ComposerKind;
+  /** The message left for the chat: the page holds it until the transcript shows it */
+  onSent: (sent: { text: string; files: number }) => void;
+  /** While the chat works, an empty box's button stops the turn instead of sending */
+  interrupt?: { run: () => void; pending: boolean };
+  /** Words handed back to the box: a message the chat never read (see `chat/queued.ts`) */
+  restore?: { text: string; at: number } | null;
+}) {
+  const { t } = useTranslation('chat');
+  const queryClient = useQueryClient();
+  const { client, paths } = useChatUi();
+  const navigate = useNavigate();
+  const [text, setText] = useState('');
+  const [choices, setChoices] = useState<StartChoices>({});
+  const files = useAttachments();
+  const box = useRef<HTMLTextAreaElement>(null);
+  const working = chat.state === 'working';
+  const narrow = useMediaQuery(NARROW);
+  const slash = useSlashMenu({ text, setText, commands: chat.environment?.slashCommands ?? [], skills: chat.environment?.skills, box });
+
+  const submit = useMutation({
+    mutationFn: (message: string) => {
+      const attachments = files.ids.length ? { attachments: files.ids } : {};
+      if (kind === 'send') return client.sendMessage(chat.id, { text: message, ...attachments });
+      // A chat resumed or forked from here is answered here: permissions would otherwise be denied unasked
+      const request = { prompt: message, ...attachments, permissionPrompts: 'host' as const, ...choices };
+      return kind === 'resume' ? client.resumeChat(chat.id, request) : client.forkChat(chat.id, request);
+    },
+    onSuccess: (result, message) => {
+      setText('');
+      const sentFiles = files.ids.length;
+      files.clear();
+      onSent({ text: message, files: sentFiles });
+      void queryClient.invalidateQueries({ queryKey: chatKeys.chats });
+      void queryClient.invalidateQueries({ queryKey: chatKeys.chatScope(chat.id) });
+      if (kind === 'fork') navigate(paths.chat(result.id));
+    },
+  });
+
+  // A message that was never delivered comes back here, after whatever is half-typed
+  const restoredAt = useRef(0);
+  useEffect(() => {
+    if (!restore || restore.at === restoredAt.current) return;
+    restoredAt.current = restore.at;
+    setText((held) => (held.trim() ? `${held.replace(/\s+$/, '')}\n\n${restore.text}` : restore.text));
+    box.current?.focus();
+  }, [restore]);
+
+  // Auto-growing composer
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
+  }, [text]);
+
+  const send = () => {
+    const message = text.trim();
+    // A file on its own is a message too; one still uploading is not sent without it
+    if (!(message || files.ids.length) || files.uploading || submit.isPending) return;
+    // On a phone the keyboard covers half the screen, and what happens next is worth watching: the
+    // box lets go once the message is away, and a tap on it brings the keyboard back
+    if (window.matchMedia('(pointer: coarse)').matches) box.current?.blur();
+    submit.mutate(message);
+  };
+  const label = {
+    send: { idle: t('runView.send'), pending: t('runView.sending') },
+    resume: { idle: t('composer.resume'), pending: t('composer.resuming') },
+    fork: { idle: t('composer.fork'), pending: t('composer.forking') },
+  }[kind];
+  const placeholder =
+    kind === 'fork'
+      ? t('composer.placeholderFork')
+      : kind === 'resume'
+        ? t('composer.placeholderResume')
+        : working
+          ? t('runView.placeholderQueued')
+          : t('runView.placeholderFollowUp');
+  const Icon = kind === 'fork' ? GitFork : kind === 'resume' ? Play : ArrowUp;
+  const empty = !text.trim() && files.ids.length === 0;
+  // While the chat works its turn can be ended from here; a message written meanwhile is queued
+  const stoppable = Boolean(interrupt) && kind === 'send' && working;
+  // A phone has room for one round button: on an empty box it is the one that stops
+  const sendable = !(narrow && stoppable && empty);
+  const sendName = submit.isPending ? label.pending : files.uploading ? t('shared.uploading') : label.idle;
+
+  return (
+    <div className="composer-wrap">
+      <div {...files.dropProps}>
+        <AttachmentTray state={files} />
+        <SlashMenu state={slash}>
+          <form
+            className={`composer ${working ? 'live-energy is-working' : ''}`.trim()}
+            aria-label={kind === 'fork' ? t('sessionView.continueCopy') : t('composer.message')}
+            onSubmit={(e) => {
+              e.preventDefault();
+              send();
+            }}
+          >
+            <AttachButton state={files} compact disabled={submit.isPending} />
+            <textarea
+              aria-label={kind === 'fork' ? t('composer.firstMessage') : t('composer.message')}
+              autoFocus={kind === 'fork'}
+              onPaste={files.onPaste}
+              ref={box}
+              rows={1}
+              placeholder={placeholder}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              {...slash.inputProps}
+              onKeyDown={(e) => {
+                if (slash.onKeyDown(e)) return;
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
+            />
+            {stoppable && interrupt && (
+              <Tooltip content={t('view.interruptHint')}>
+                <button type="button" className="btn btn-danger composer-stop" aria-label={t('runView.interrupt')} disabled={interrupt.pending} onClick={interrupt.run}>
+                  <Square size={12} strokeWidth={2.5} fill="currentColor" aria-hidden />
+                  <span className="composer-stop-word">{t('runView.interrupt')}</span>
+                </button>
+              </Tooltip>
+            )}
+            {sendable && (
+              <Tooltip content={sendName}>
+                <button type="submit" className="composer-send" aria-label={sendName} disabled={empty || files.uploading || submit.isPending}>
+                  <Icon {...ICON_SM} />
+                </button>
+              </Tooltip>
+            )}
+          </form>
+        </SlashMenu>
+      </div>
+      <div className="composer-foot">
+        <StatusLine chat={chat} kind={kind} choices={choices} onChoices={setChoices} />
+        <KeysHint>{t('composer.keys')}</KeysHint>
+      </div>
+      <ErrorBox error={submit.error} title={kind === 'send' ? t('runView.notSent') : kind === 'resume' ? t('composer.couldNotResume') : t('composer.couldNotFork')} />
+    </div>
+  );
+}

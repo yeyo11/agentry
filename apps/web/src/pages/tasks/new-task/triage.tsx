@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';
 import { DecisionMarkOf } from '../../../components/DecisionMark';
-import { ICON_SM } from '../../../components/icons';
+import { ICON_SM } from '@agentry/ui/components/icons';
 import type { SetDraft } from './model';
 
 /** The title is asked about once it is long enough to say something, and only when the person pauses. */

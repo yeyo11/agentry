@@ -2,10 +2,10 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useOverview } from '../../../api';
-import { ProgressRing, usageTone } from '../../../components/motion';
-import { Spinner } from '../../../components/Spinner';
-import { Skeleton } from '../../../components/ui';
-import { formatAmountShort, formatCost, formatNumber, timeUntil } from '../../../lib/format';
+import { ProgressRing, usageTone } from '@agentry/ui/components/motion';
+import { Spinner } from '@agentry/ui/components/Spinner';
+import { Skeleton } from '@agentry/ui/components/ui';
+import { formatAmountShort, formatCost, formatNumber, timeUntil } from '@agentry/ui/lib/format';
 import { useHomePulse } from '../pulse';
 import type { WidgetProps } from '../registry';
 

@@ -206,7 +206,7 @@ import type {
 } from '@agentry/shared';
 import i18n from './i18n';
 import { authHeaders, setChallenge, withToken } from './lib/auth';
-import { RUN_TAG } from './lib/chat-pages';
+import { chatKeys, type ChatClient } from '@agentry/chat-ui/lib/context';
 import { accountsRefetchInterval, normalizeCswap } from './lib/cswap';
 import { useFallbackInterval } from './lib/feed';
 import { filterKey, normalizeKey, openCount } from './lib/work-items';
@@ -859,9 +859,14 @@ export const api = {
   projectCodeHost: (id: string, o: ReadOptions = {}) => request<ProjectCodeHost>(`/projects/${enc(id)}/code-host`, o),
 };
 
+// A drift between the chat package's client and the real one fails the build here, not at a call
+void (api satisfies Omit<ChatClient, 'streamUrl' | 'contentUrl'>);
+
 // ---------- Query hooks ----------
 
 export const keys = {
+  // The chat package's keys, with the prefixes the event feed invalidates: every list and every open chat sits under them
+  ...chatKeys,
   overview: ['overview'] as const,
   auth: ['auth'] as const,
   cliVersion: ['cli-version'] as const,
@@ -873,15 +878,8 @@ export const keys = {
   projectCodeHost: (id: string) => ['project-code-host', id] as const,
   projects: ['projects'] as const,
   projectCandidates: ['projects', 'candidates'] as const,
-  // Prefixes the event feed invalidates: every list and every open chat sits under them
-  chats: ['chats'] as const,
   chatList: (filter: ChatFilter) =>
     ['chats', filter.project === undefined ? 'all' : (filter.project ?? 'loose'), filter.origin?.join(',') ?? '', filter.state ?? '', filter.limit ?? 0, filter.workers === false ? 'no-workers' : ''] as const,
-  /** Prefix of a chat's page and of everything read for it */
-  chatScope: (id: string) => ['chat', id] as const,
-  chat: (id: string, sidechains: boolean) => ['chat', id, sidechains] as const,
-  /** The pages of a chat read back from its newest one, kept across visits */
-  chatEarlier: (id: string, sidechains: boolean) => ['chat', id, sidechains, RUN_TAG] as const,
   // A chat's changes sit under its scope: `changes.updated` never names a chat, but its own events
   // (and the panel's timer while it works) refresh everything there
   chatChanges: (id: string, scope: ChangeScope = {}) => ['chat', id, 'changes', scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,
@@ -903,16 +901,10 @@ export const keys = {
   subagents: ['subagents'] as const,
   workflows: ['workflows'] as const,
   // Prefixes the event feed invalidates (lib/events.ts): a panel's queries all sit under them
-  agentDetail: ['agent-detail'] as const,
-  agent: (chatId: string, workflowId: string, agentId: string) => ['agent-detail', chatId, workflowId, agentId] as const,
-  taskOutput: ['task-output'] as const,
-  output: (chatId: string, taskId: string) => ['task-output', chatId, taskId] as const,
-  chatTasks: (chatId: string) => ['tasks', 'chat', chatId] as const,
   savedWorkflowsAll: ['workflows', 'saved'] as const,
   savedWorkflows: (cwd: string) => ['workflows', 'saved', cwd] as const,
   orchestrations: ['orchestrations'] as const,
   planDrafts: ['orchestrations', 'plans'] as const,
-  chatPermissions: (id: string) => ['chat', id, 'permissions'] as const,
   orchestration: (id: string) => ['orchestration', id] as const,
   // A task's and the integration branch's changes sit under the graph, which `changes.updated` refreshes
   taskChanges: (id: string, taskId: string, scope: ChangeScope = {}) =>

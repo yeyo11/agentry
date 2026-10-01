@@ -5,31 +5,31 @@ import { useCallback, useId, useLayoutEffect, useRef, useState, type ReactNode }
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, ApiRequestError, keys, useOrchestration, useProjects } from '../api';
-import { AnimatedNumber } from '../components/AnimatedNumber';
-import { CodeBlock } from '../components/CodeBlock';
-import { Collapsible, MoreActions, Switch, type MenuEntry } from '../components/controls';
-import { useConfirm } from '../components/Dialog';
-import { ICON, ICON_SM } from '../components/icons';
+import { AnimatedNumber } from '@agentry/ui/components/AnimatedNumber';
+import { CodeBlock } from '@agentry/ui/components/CodeBlock';
+import { Collapsible, MoreActions, Switch, type MenuEntry } from '@agentry/ui/components/controls';
+import { useConfirm } from '@agentry/ui/components/Dialog';
+import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { BoardStatusBadge, StageHead, TaskCard, TaskRow, WaitingNotice } from '../components/OrchestrationBoard';
 import { SaveTemplateDialog } from '../components/OrchestrationTemplates';
 import { RelaunchPanel } from '../components/RelaunchPanel';
-import { Stepper, type StepItem } from '../components/Stepper';
-import { useToast } from '../components/Toast';
-import { RichText } from '../components/Transcript';
+import { Stepper, type StepItem } from '@agentry/ui/components/Stepper';
+import { useToast } from '@agentry/ui/components/Toast';
+import { RichText } from '@agentry/chat-ui/components/Transcript';
 import { FailedByChecksNotice, VerificationCard } from '../components/VerificationCard';
 import { WorkflowCard as WorkflowRunCard } from '../components/WorkflowCard';
 import { IntegrationChanges, TaskWork } from '../components/observe/Work';
-import { Card, Empty, ErrorBox, Field, Loading, Segmented, StatusBadge, usePageTitle } from '../components/ui';
-import { formatCost, formatDateTime, formatNumber, shortPath } from '../lib/format';
-import { elapsedSince, formatElapsed } from '../lib/live';
-import { NARROW, useMediaQuery } from '../lib/media';
-import { useClockTick } from '../lib/motion';
+import { Card, Empty, ErrorBox, Field, Loading, Segmented, StatusBadge, usePageTitle } from '@agentry/ui/components/ui';
+import { formatCost, formatDateTime, formatNumber, shortPath } from '@agentry/ui/lib/format';
+import { elapsedSince, formatElapsed } from '@agentry/ui/lib/live';
+import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { useClockTick } from '@agentry/ui/lib/motion';
 import { costSplit } from '../lib/orchestration-board';
 import { followedStep, layerTasks, orchestrationSteps, type OrchestrationStep } from '../lib/orchestration-steps';
 import { pullRequestErrorKey } from '../lib/work-items';
 import { CiBadge, reasonValues, useChangeRequestWords } from './tasks/board/PullRequest';
 import { canRelaunch, pullRequestHeld, rerunBlockedByPullRequest } from '../lib/orchestration-v2';
-import type { StepState } from '../lib/progress';
+import type { StepState } from '@agentry/ui/lib/progress';
 
 /** The badge tone of each phase of an orchestration's change request: waiting for the person idle, merged ok, failed bad. */
 const PR_PHASE_BADGE: Record<OrchestrationPullRequestPhase, string> = {

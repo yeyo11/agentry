@@ -4,14 +4,14 @@ import { ExternalLink, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Sheet } from '../../components/controls';
-import { ICON_SM, Monogram } from '../../components/icons';
-import { Spinner } from '../../components/Spinner';
-import { useToast } from '../../components/Toast';
-import { Card, Empty, ErrorBox, Skeleton, Tag } from '../../components/ui';
+import { Sheet } from '@agentry/ui/components/controls';
+import { ICON_SM, Monogram } from '@agentry/ui/components/icons';
+import { Spinner } from '@agentry/ui/components/Spinner';
+import { useToast } from '@agentry/ui/components/Toast';
+import { Card, Empty, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
 import { changeRequestWords } from '../../lib/code-hosts';
-import { timeAgo } from '../../lib/format';
-import { NARROW, useMediaQuery } from '../../lib/media';
+import { timeAgo } from '@agentry/ui/lib/format';
+import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { STATE_TONE } from '../../lib/provider-state';
 
 /**

@@ -5,11 +5,11 @@ import type { KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, keys, type Scope } from '../api';
-import { ICON } from '../components/icons';
-import { Card, Empty, ErrorBox, Segmented, Skeleton, usePageTitle, useTabGroup } from '../components/ui';
+import { ICON } from '@agentry/ui/components/icons';
+import { Card, Empty, ErrorBox, Segmented, Skeleton, usePageTitle, useTabGroup } from '@agentry/ui/components/ui';
 import { DirtyProvider, useDirtyKeys, useLeaveGuard } from '../lib/dirty';
-import { timeAgo } from '../lib/format';
-import { NARROW, useMediaQuery } from '../lib/media';
+import { timeAgo } from '@agentry/ui/lib/format';
+import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { setThemePreference, useThemePreference, type ThemePreference } from '../lib/theme';
 import { AccountTab } from './config/AccountTab';
 import { AppearanceTab } from './config/AppearanceTab';
@@ -44,7 +44,7 @@ const USER_SCOPE: Scope = {};
 
 /** Claude's memory is kept per project, so the user scope only gets the way to each project's. */
 function MemoryOverview() {
-  const { t } = useTranslation(['home', 'config', 'work']);
+  const { t } = useTranslation(['home', 'config', 'chat']);
   const { data, error, isLoading } = useQuery({ queryKey: keys.memoryProjects, queryFn: api.memoryProjects, refetchInterval: 15_000 });
   const projects = data ?? [];
 
@@ -72,7 +72,7 @@ function MemoryOverview() {
           <table className="table">
             <thead>
               <tr>
-                <th scope="col">{t('work:shared.project')}</th>
+                <th scope="col">{t('chat:shared.project')}</th>
                 <th scope="col">{t('config:config.tabs.files')}</th>
                 <th scope="col">{t('settings.memory.lastUpdate')}</th>
                 <th scope="col">
@@ -158,7 +158,7 @@ function useTabSubtitle(tab: TabId): string | null {
  * sighted reader scans; a screen reader hears each one as the description of its tabs.
  */
 function DesktopSettings({ tab, section, onSelect }: { tab: TabId; section?: DecisionsSection; onSelect: (next: TabId) => void }) {
-  const { t } = useTranslation(['home', 'config', 'observe', 'shell', 'components', 'decisions', 'providers', 'integrations']);
+  const { t } = useTranslation(['home', 'config', 'observe', 'shell', 'primitives', 'decisions', 'providers', 'integrations']);
   const dirtyKeys = useDirtyKeys();
   const group = useTabGroup();
   const subtitle = useTabSubtitle(tab);
@@ -210,7 +210,7 @@ function DesktopSettings({ tab, section, onSelect }: { tab: TabId; section?: Dec
                   >
                     <span className="settings-nav-name">{t(TAB_LABELS[id])}</span>
                     {dirty && <span className="tab-dirty" aria-hidden />}
-                    {dirty && <span className="sr-only"> ({t('components:ui.unsavedChangesLabel')})</span>}
+                    {dirty && <span className="sr-only"> ({t('primitives:ui.unsavedChangesLabel')})</span>}
                   </button>
                 );
               })}
@@ -232,7 +232,7 @@ function DesktopSettings({ tab, section, onSelect }: { tab: TabId; section?: Dec
 
 /** The phone's first screen: the theme at hand, then every tab as a cell in its group's card. */
 function PhoneSettingsList() {
-  const { t } = useTranslation(['home', 'config', 'observe', 'shell', 'components', 'decisions', 'providers', 'integrations']);
+  const { t } = useTranslation(['home', 'config', 'observe', 'shell', 'primitives', 'decisions', 'providers', 'integrations']);
   const dirtyKeys = useDirtyKeys();
   const theme = useThemePreference();
 
@@ -268,7 +268,7 @@ function PhoneSettingsList() {
                   {isDirtyTab(dirtyKeys, id) && (
                     <>
                       <span className="tab-dirty" aria-hidden />
-                      <span className="sr-only"> ({t('components:ui.unsavedChangesLabel')})</span>
+                      <span className="sr-only"> ({t('primitives:ui.unsavedChangesLabel')})</span>
                     </>
                   )}
                   <ChevronRight className="settings-cell-chevron" {...ICON} />
@@ -284,7 +284,7 @@ function PhoneSettingsList() {
 
 /** A tab on a phone is a screen of its own, with the way back to the list above it. */
 function PhoneSettingsTab({ tab, section, onBack }: { tab: TabId; section?: DecisionsSection; onBack: () => void }) {
-  const { t } = useTranslation(['home', 'config', 'observe', 'shell', 'components', 'decisions', 'providers', 'integrations']);
+  const { t } = useTranslation(['home', 'config', 'observe', 'shell', 'primitives', 'decisions', 'providers', 'integrations']);
   const subtitle = useTabSubtitle(tab);
   return (
     <div className={`settings-phone ${tab === 'install' ? 'glow-top settings-phone-install' : ''}`}>

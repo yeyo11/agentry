@@ -6,13 +6,13 @@ import { useMemo, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
-import { formatCost, formatNumber, timeAgo } from '../lib/format';
-import { NARROW, useMediaQuery } from '../lib/media';
+import { formatCost, formatNumber, timeAgo } from '@agentry/ui/lib/format';
+import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { answerLines, type AnswerLine } from '../pages/config/decisions/model';
-import { LAYER_ATTR } from './controls/layer';
-import { Sheet } from './controls/Sheet';
-import { ICON_SM } from './icons';
-import { ErrorBox } from './ui';
+import { LAYER_ATTR } from '@agentry/ui/components/controls/layer';
+import { Sheet } from '@agentry/ui/components/controls/Sheet';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { ErrorBox } from '@agentry/ui/components/ui';
 
 /** Enough to cover the subjects on a board or a list: the newest visible decisions of one kind. */
 const RECENT = 200;

@@ -3,10 +3,10 @@ import { Check, ChevronDown, PanelLeft, Search } from 'lucide-react';
 import type { RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { Tooltip } from '../controls';
-import { spinnerGlyph } from '../../lib/live';
-import { ICON_SM } from '../icons';
-import { Spinner } from '../Spinner';
+import { Tooltip } from '@agentry/ui/components/controls';
+import { spinnerGlyph } from '@agentry/ui/lib/live';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { Spinner } from '@agentry/ui/components/Spinner';
 import { groupByDir, splitPath, statusLetter } from './review-model';
 
 // The file map of the review screen (design system §5): the tree by directory, each file a row with

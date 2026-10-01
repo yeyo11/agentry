@@ -267,11 +267,6 @@
       "journal_other": "diario con {{n}} entradas"
     }
   },
-  "illustration": {
-    "refine": "refinar",
-    "work": "implementar",
-    "verify": "verificar"
-  },
   "decisions": {
     "title": "Decisiones",
     "intro": "Qué decide Agentry por ti en este proyecto. Cada punto hereda el ajuste global hasta que lo cambias aquí; el consentimiento sigue siendo global.",

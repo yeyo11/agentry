@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StringListEditor } from '../../components/editors';
-import { Segmented } from '../../components/ui';
+import { Segmented } from '@agentry/ui/components/ui';
 import { commandsProblem, type CommandScope, type WriteScope } from './model';
 
 /** Where a member may write: anywhere, only the documents folder, or these paths. */

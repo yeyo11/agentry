@@ -13,7 +13,9 @@
     "icons": "tsx scripts/icons.ts"
   },
   "dependencies": {
+    "@agentry/chat-ui": "workspace:*",
     "@agentry/shared": "workspace:*",
+    "@agentry/ui": "workspace:*",
     "@codemirror/lang-javascript": "^6.2.5",
     "@codemirror/lang-json": "^6.0.2",
     "@codemirror/lang-markdown": "^6.5.2",
