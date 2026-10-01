@@ -26,7 +26,7 @@
     "emptyFiltered": "Ningún chat coincide",
     "empty": "Aún no hay chats",
     "emptyFilteredBody": "Nada de esta lista coincide con la búsqueda ni con los filtros aplicados.",
-    "emptyBody": "Los chats que inicies aquí, y los que Claude Code haya ejecutado en un proyecto importado, aparecen en esta lista.",
+    "emptyBody": "Los chats que inicies aquí, y los que tus agentes hayan ejecutado en un proyecto importado, aparecen en esta lista.",
     "showMore": "Mostrar más ({{n}} restantes)",
     "filtersTitle": "Filtrar chats",
     "projectLabel": "Proyecto",
@@ -98,15 +98,19 @@
   },
   "new": {
     "title": "Nuevo chat",
-    "subtitle": "Inicia una conversación de Claude Code que Agentry conserva",
+    "subtitle": "Inicia una conversación con {{agent}} que Agentry conserva",
     "prompt": "Prompt",
     "promptHint": "Suelta o pega archivos sobre el prompt para adjuntarlos.",
-    "promptPlaceholder": "¿Qué debería hacer Claude?",
+    "promptPlaceholder": "¿Qué debería hacer {{agent}}?",
     "workingDirectory": "Directorio de trabajo",
     "workingDirectoryHint": "Predeterminado: {{dir}}",
     "wrapperWorkspace": "espacio de trabajo del wrapper",
+    "agent": "Agente",
+    "agentHint": "El modelo y los modos de permisos son los del agente elegido",
     "model": "Modelo",
     "modelHint": "Alias o id completo del modelo. Vacío = el predeterminado del CLI",
+    "modelLocked": "{{agent}} elige el modelo cuando empieza el chat",
+    "modelAuto": "auto",
     "modelPlaceholder": "predeterminado",
     "permissionMode": "Modo de permisos",
     "permissionModeHint": "Se puede cambiar mientras el chat trabaja",
@@ -130,6 +134,11 @@
       }
     },
     "options": "Dónde se ejecutará el chat: {{status}}"
+  },
+  "provider": {
+    "agent": "Agente",
+    "nativeSession": "Sesión de {{agent}}",
+    "copyNativeSession": "Copiar el id de la sesión"
   },
   "runWorkflow": {
     "titleRun": "Ejecutar {{name}}",

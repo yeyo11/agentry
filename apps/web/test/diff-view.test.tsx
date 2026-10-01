@@ -207,7 +207,7 @@ test('a patch judged unexplained carries a note and the decided mark; without a 
     confidence: 0.8,
   } as unknown as Parameters<typeof DiffView>[0]['unexplained'];
   const flagged = renderToStaticMarkup(<DiffView diff={GIT} mode="unified" path={PATH} syntax={null} unexplained={decision} />);
-  assert.match(flagged, /class="diff-unexplained"><span>What Claude wrote before this change does not explain it\./);
+  assert.match(flagged, /class="diff-unexplained"><span>What the agent wrote before this change does not explain it\./);
   assert.match(flagged, /class="decided"[^>]*data-decision="d1"/);
   assert.equal(count(renderToStaticMarkup(<DiffView diff={GIT} mode="unified" path={PATH} syntax={null} />), /diff-unexplained/g), 0);
 });

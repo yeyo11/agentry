@@ -16,7 +16,11 @@ import { SlashMenu, useSlashMenu } from '@agentry/chat-ui/components/SlashMenu';
 import { useProjectScope } from '../lib/project-scope';
 import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { ErrorBox, Field, Segmented, usePageTitle } from '@agentry/ui/components/ui';
-import { ModelCombobox, PERMISSION_MODES } from '../components/ui';
+import { PERMISSION_MODES, useModelOptions } from '../components/ui';
+import { useNewChatProviders, useProviderModels } from '../lib/provider-status';
+import { ProviderMark } from '@agentry/ui/components/ProviderMark';
+import { upperFirst } from '@agentry/chat-ui/lib/agent';
+import { modeLabel } from '@agentry/chat-ui/lib/wire-words';
 import { KeysHint, OptionsPanel, StatusChips } from '@agentry/chat-ui/composer/Composer';
 
 type Kind = 'chat' | 'orchestration';
@@ -49,6 +53,7 @@ export function NewChat() {
   const ready = (prompt.trim() || files.ids.length > 0) && !files.uploading;
   const [cwd, setCwd] = useState(params.get('cwd') ?? scope.project?.path ?? '');
   const [model, setModel] = useState('');
+  const [chosenProvider, setChosenProvider] = useState('');
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [askHere, setAskHere] = useState(true);
   const [appendSystemPrompt, setAppendSystemPrompt] = useState('');
@@ -57,6 +62,28 @@ export function NewChat() {
   const [tools, setTools] = useState<ToolChoices>({});
   const [options, setOptions] = useState(false);
   usePageTitle(t('new.title'));
+  // The default provider leads the list; until the person picks, it is the one that starts the chat
+  const providers = useNewChatProviders();
+  const provider = providers.find((p) => p.id === chosenProvider) ?? providers[0];
+  const providerId = provider?.id ?? '';
+  const hasMcp = !provider || provider.capabilities.includes('mcp');
+  const claude = providerId === '' || providerId === 'claude-code';
+  const agent = provider?.label ?? tc('agent.generic');
+  const providerModels = useProviderModels(claude ? '' : providerId);
+  const claudeModels = useModelOptions();
+  const modelOptions = claude
+    ? claudeModels
+    : (providerModels.data ?? []).filter((m) => !m.disabled).map((m) => ({ value: m.value, label: m.label ?? m.value, hint: m.description }));
+  // A provider that picks its model when the chat starts has nothing to switch to
+  const modelLocked = Boolean(provider) && !provider?.capabilities.includes('setModel');
+  const modes: readonly PermissionMode[] = provider?.permissionModes ?? PERMISSION_MODES;
+  const pickProvider = (id: string) => {
+    setChosenProvider(id);
+    // A model or a mode of the other agent means nothing to this one
+    setModel('');
+    setPermissionMode('');
+    setAccount('');
+  };
   const known = (projects.data ?? []).find((p) => p.path === cwd.trim());
   // The servers offered are the ones the chat will see from its directory
   const toolScope = { projectId: known?.id };
@@ -65,11 +92,12 @@ export function NewChat() {
     mutationFn: () => {
       const opts: NewChatRequest = { prompt: prompt.trim(), permissionPrompts: askHere ? 'host' : 'none' };
       if (files.ids.length) opts.attachments = files.ids;
+      if (providerId) opts.provider = providerId;
       if (cwd.trim()) opts.cwd = cwd.trim();
-      if (model.trim()) opts.model = model.trim();
+      if (model.trim() && !modelLocked) opts.model = model.trim();
       if (permissionMode) opts.permissionMode = permissionMode;
       if (appendSystemPrompt.trim()) opts.appendSystemPrompt = appendSystemPrompt.trim();
-      if (account) opts.account = account;
+      if (account && claude) opts.account = account;
       if (tools.toolPreset !== undefined) opts.toolPreset = tools.toolPreset;
       if (tools.mcp) opts.mcp = tools.mcp;
       return api.createChat(opts);
@@ -86,6 +114,9 @@ export function NewChat() {
   }, [prompt]);
 
   const system = overview.data?.system;
+  const systemMode = system?.defaultPermissionMode;
+  const defaultMode = systemMode && modes.includes(systemMode) ? systemMode : modes[0];
+  const defaultModeWord = defaultMode ? modeLabel(defaultMode) : '…';
   const directory = cwd.trim() || system?.workspaceDir || t('new.wrapperWorkspace');
   // What the CLI reported the last time a chat started in that directory: a new chat gets the same
   const where = cwd.trim() || system?.workspaceDir || '';
@@ -93,7 +124,7 @@ export function NewChat() {
   const slash = useSlashMenu({ text: prompt, setText: setPrompt, commands: environment.data?.[0]?.slashCommands ?? [], skills: environment.data?.[0]?.skills, box });
   // The chips: where it runs, with what — the same words the chat's own chips show
   const place = known?.name ?? directory.split(/[\\/]/).filter(Boolean).at(-1) ?? directory;
-  const words = [place, model.trim() || tc('newChat.defaultModel'), permissionMode || tc('newChat.defaultMode', { mode: system?.defaultPermissionMode ?? '…' })];
+  const words = [place, ...(providers.length > 1 ? [agent] : []), model.trim() || tc('newChat.defaultModel'), permissionMode ? modeLabel(permissionMode) : tc('newChat.defaultMode', { mode: defaultModeWord })];
 
   const send = () => {
     if (ready && !start.isPending) start.mutate();
@@ -142,8 +173,30 @@ export function NewChat() {
               options={(projects.data ?? []).filter((p) => p.exists).map((p) => ({ value: p.path, label: p.name, hint: p.path }))}
             />
           </Field>
-          <Field label={t('new.model')} hint={t('new.modelHint')}>
-            <ModelCombobox aria-label={t('new.model')} placeholder={t('new.modelPlaceholder')} value={model} onChange={setModel} />
+          {providers.length > 1 && (
+            <Field label={t('new.agent')} hint={t('new.agentHint')}>
+              <Select
+                aria-label={t('new.agent')}
+                value={providerId}
+                onChange={pickProvider}
+                options={providers.map((p) => ({
+                  value: p.id,
+                  label: (
+                    <span className="new-agent-option">
+                      <ProviderMark provider={p.id} label={p.label} decorative />
+                      {p.label}
+                    </span>
+                  ),
+                }))}
+              />
+            </Field>
+          )}
+          <Field label={t('new.model')} hint={modelLocked ? t('new.modelLocked', { agent }) : t('new.modelHint')}>
+            {modelLocked ? (
+              <input type="text" disabled aria-label={t('new.model')} placeholder={t('new.modelAuto')} value="" readOnly />
+            ) : (
+              <Combobox aria-label={t('new.model')} placeholder={t('new.modelPlaceholder')} value={model} onChange={setModel} options={modelOptions} />
+            )}
           </Field>
           <Field label={t('new.permissionMode')} hint={t('new.permissionModeHint')}>
             <Select<PermissionMode | ''>
@@ -151,12 +204,12 @@ export function NewChat() {
               value={permissionMode}
               onChange={setPermissionMode}
               options={[
-                { value: '', label: t('new.permissionModeDefault', { mode: system?.defaultPermissionMode ?? '…' }) },
-                ...PERMISSION_MODES.map((m) => ({ value: m, label: m })),
+                { value: '', label: t('new.permissionModeDefault', { mode: defaultModeWord }) },
+                ...modes.map((m) => ({ value: m, label: modeLabel(m) })),
               ]}
             />
           </Field>
-          {(accounts.data?.accounts.length ?? 0) > 1 && (
+          {claude && (accounts.data?.accounts.length ?? 0) > 1 && (
             <Field label={t('new.account')} hint={t('new.accountHint')}>
               <Select
                 aria-label={t('new.account')}
@@ -176,7 +229,7 @@ export function NewChat() {
         <Field label={t('new.appendSystemPrompt')} hint={t('new.optional')}>
           <textarea rows={2} value={appendSystemPrompt} onChange={(e) => setAppendSystemPrompt(e.target.value)} />
         </Field>
-        <ChatToolsPicker value={tools} onChange={setTools} scope={toolScope} />
+        {hasMcp && <ChatToolsPicker value={tools} onChange={setTools} scope={toolScope} />}
         <Switch checked={askHere} onChange={setAskHere}>
           {t('new.askHere')}
         </Switch>
@@ -190,7 +243,7 @@ export function NewChat() {
       autoFocus={!narrow}
       rows={narrow ? 1 : 4}
       aria-label={t('new.prompt')}
-      placeholder={narrow ? t('new.promptPlaceholder') : tc('newChat.placeholder')}
+      placeholder={narrow ? t('new.promptPlaceholder', { agent }) : tc('newChat.placeholder')}
       value={prompt}
       onChange={(e) => setPrompt(e.target.value)}
       onPaste={files.onPaste}
@@ -211,7 +264,7 @@ export function NewChat() {
       <h1 className="new-hero-title text-display">
         <Trans t={tc} i18nKey={narrow ? 'newChat.heroShort' : 'newChat.hero'} components={{ grad: <span className="grad-text" /> }} />
       </h1>
-      <p className="new-hero-lead">{tc('newChat.lead')}</p>
+      <p className="new-hero-lead">{tc('newChat.lead', { agent: upperFirst(agent) })}</p>
     </div>
   );
 

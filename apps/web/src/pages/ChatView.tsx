@@ -5,13 +5,14 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ActivityTicker } from '@agentry/ui/components/ActivityTicker';
+import { activityTarget } from '@agentry/ui/lib/live';
 import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
 import { useDeleteChat } from '@agentry/chat-ui/components/ChatDelete';
 import { PermissionPrompts } from '@agentry/chat-ui/components/PermissionPrompts';
 import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { AnimatePresence, motion } from '@agentry/ui/components/motion';
 import { useToast } from '@agentry/ui/components/Toast';
-import { endsWithAssistant, StreamingEntry, Transcript, type MessageActions, type SubagentLink, type TranscriptEdits, type WorkflowLaunches } from '@agentry/chat-ui/components/Transcript';
+import { endsWithAssistant, StreamingEntry, Transcript, WorkingLine, type MessageActions, type SubagentLink, type TranscriptEdits, type WorkflowLaunches } from '@agentry/chat-ui/components/Transcript';
 import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind, type FindTarget } from '@agentry/chat-ui/components/TranscriptSearch';
 import { entryParam } from '../components/changes/steps/steps-model';
 import '../components/changes/steps/at-jump.css';
@@ -24,6 +25,8 @@ import type { ChatStreamStore } from '@agentry/chat-ui/lib/chat-stream';
 import { useChatStream, useChatTranscript, useStreamSnapshot } from '@agentry/chat-ui/lib/chats';
 import { useDetailPanel } from '../lib/detail';
 import { taskPath } from '../lib/work-items';
+import { AgentScope } from '@agentry/chat-ui/lib/agent';
+import { useChatUi } from '@agentry/chat-ui/lib/context';
 import { Composer, type ComposerKind } from '@agentry/chat-ui/composer/Composer';
 import { ChatHeader, type HeaderActions } from './chat/Header';
 import { Inspector, useInspector } from './chat/Inspector';
@@ -36,7 +39,7 @@ import { useChatItemLinks, WorkItemPartOf } from './chat/WorkItemLinks';
 const AT_MARK_MS = 2400;
 
 /**
- * The end of the conversation that moves while Claude writes: the block being streamed and the
+ * The end of the conversation that moves while the agent writes: the block being streamed and the
  * ticker under it. The only part of the page that reads the stream's text, so it is the only part
  * rendered again on every frame of it.
  */
@@ -51,7 +54,7 @@ const LiveTail = memo(function LiveTail({ stream, chat, continued }: { stream: C
       {partial && partial.text && <StreamingEntry block={partial.block} text={partial.text} continued={continued} />}
       {activity && (
         <div className="chat-now" data-find-ignore>
-          <ActivityTicker activity={activity} showElapsed={Boolean(activity.since)} />
+          {chat.state === 'working' ? <WorkingLine detail={activityTarget(activity)} /> : <ActivityTicker activity={activity} showElapsed={Boolean(activity.since)} />}
         </div>
       )}
     </>
@@ -72,6 +75,7 @@ export function ChatView() {
 
   const transcript = useChatTranscript(id, sidechains);
   const { chat } = transcript;
+  const { agentNameFor } = useChatUi();
   const stream = useChatStream(id, Boolean(chat?.execution));
   const connected = useStreamSnapshot(stream, (snapshot) => snapshot.connected);
   const writing = useStreamSnapshot(stream, (snapshot) => snapshot.partial?.block === 'text');
@@ -258,13 +262,15 @@ export function ChatView() {
   }
 
   const { control } = chat;
+  const agent = agentNameFor(chat);
   const working = chat.state === 'working';
   const live = Boolean(chat.execution);
   const composer: ComposerKind | null = forking ? 'fork' : control.mode === 'interactive' ? 'send' : control.mode === 'resumable' ? 'resume' : null;
-  // While Claude writes the answer after its calls, the step above is done, not current
+  // While the agent writes the answer after its calls, the step above is done, not current
   const stepCurrent = working && !writing;
 
   return (
+    <AgentScope chat={chat}>
     <div className={`run-layout ${inspector.rail ? 'has-inspector' : ''}`.trim()}>
       <section className="run-main" aria-label={t('view.conversation')}>
         <ChatHeader chat={chat} connected={connected} actions={actions} />
@@ -396,7 +402,7 @@ export function ChatView() {
             <div className="chat-queued-foot">
               <span className="small muted">{queued.some((message) => message.undelivered) ? t('view.queued.undelivered') : t('view.queued.hint', { count: queued.length })}</span>
               {!queued.some((message) => message.undelivered) && (
-                <Tooltip content={t('view.queued.sendNowHint')}>
+                <Tooltip content={t('view.queued.sendNowHint', { agent })}>
                   <button type="button" className="btn btn-small" onClick={() => interruptChat()} disabled={interrupting}>
                     {interrupting ? t('view.queued.sending') : t('view.queued.sendNow')}
                   </button>
@@ -424,5 +430,6 @@ export function ChatView() {
 
       <Inspector chat={chat} entries={transcript.items} state={inspector} />
     </div>
+    </AgentScope>
   );
 }
