@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-10-01T11:30:00Z
+updated_at: 2026-10-01T13:40:00Z
 tags:
     - status
     - project-state
@@ -69,7 +69,7 @@ after the wizard, from the Team screen, from the project header's "Asistente" on
 palette, from the board ("Sugerir tareas") and from the Resources tab ("Sugerir", "Crear con IA")
 ([assistant.md](assistant.md)).
 
-The **decision engine** is built on `feat/decision-engine` and goes to `main` as one pull request.
+The **decision engine** was merged into `main` in #141 on 2026-09-30.
 It gives the small judgments Agentry makes (refine or not, retry or not, which journal entries an
 agent reads, a hint for a stuck worker) one home: three typed questions, two providers (the Claude
 Code CLI by default, TypeSafe's Jev with the owner's own key), a mode per point (`off`, `shadow`,
@@ -102,9 +102,6 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
   types, but the layout is not editable or persisted per project, and the Documents and Flows
   widgets do not exist. Left out of the redesign deliberately — see
   [the UI redesign plan](plans/ui-redesign.md#not-in-this-orchestration). It is listed under [Next](../ROADMAP.md#next).
-- **Two plans whose final verification never ran.** [`plans/roadmap-completion.md`](plans/roadmap-completion.md)
-  and [`plans/post-roadmap.md`](plans/post-roadmap.md) are both marked *built; final verification
-  pending*. The code landed; the closing pass over it did not.
 - **What Night Shift left for later**: cron descriptions built in English in core (translating them
   needs an API change), four look-alike segmented bar classes to merge, and one unused meter
   style. See the plan's [Outcome](plans/redesign-night-shift.md#outcome).
@@ -120,15 +117,15 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 | [`plans/agent-observability.md`](plans/agent-observability.md) | Landed, in full |
 | [`plans/ui-redesign.md`](plans/ui-redesign.md) | Done, every task delivered |
 | [`plans/mobile.md`](plans/mobile.md) | Shipped — all five tasks, see [Outcome](plans/mobile.md#outcome) |
-| [`plans/roadmap-completion.md`](plans/roadmap-completion.md) | Built; final verification pending |
-| [`plans/post-roadmap.md`](plans/post-roadmap.md) | Built; final verification pending |
+| [`plans/roadmap-completion.md`](plans/roadmap-completion.md) | Verified — see [Verification](plans/roadmap-completion.md#verification-2026-10-01) (2026-10-01, 0.29.1; a full `pnpm e2e` run still open) |
+| [`plans/post-roadmap.md`](plans/post-roadmap.md) | Verified — see [Verification](plans/post-roadmap.md#verification-2026-10-01) (2026-10-01, 0.29.1; a full `pnpm e2e` run still open) |
 | [`plans/spanish-copy.md`](plans/spanish-copy.md) | Landed (#94) — see [Outcome](plans/spanish-copy.md#outcome) |
 | [`plans/app-updates.md`](plans/app-updates.md) | Landed (#95) — see [Outcome](plans/app-updates.md#outcome) |
 | [`plans/redesign-night-shift.md`](plans/redesign-night-shift.md) | Landed (#101) — see [Outcome](plans/redesign-night-shift.md#outcome) |
 | [`plans/tunnel.md`](plans/tunnel.md) | Landed (#110) — see [Outcome](plans/tunnel.md#outcome) and [tunnel.md](tunnel.md) |
 | [`plans/changes-review.md`](plans/changes-review.md) | Landed (#115) — see [Outcome](plans/changes-review.md#outcome) |
 | [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | Landed (#118) — see [Outcome](plans/project-ecosystem.md#outcome) |
-| [`plans/decision-engine.md`](plans/decision-engine.md) | Built on `feat/decision-engine`, one pull request to `main`: the engine, both providers, 22 points (all ship off) and the Decisions tab. See [Outcome](plans/decision-engine.md#outcome) and [decision-engine.md](decision-engine.md). The owner's 18 decisions are in [`decisions/decision-engine.md`](decisions/decision-engine.md) |
+| [`plans/decision-engine.md`](plans/decision-engine.md) | Landed (#141): the engine, both providers, 22 points (all ship off) and the Decisions tab. See [Outcome](plans/decision-engine.md#outcome) and [decision-engine.md](decision-engine.md). The owner's 18 decisions are in [`decisions/decision-engine.md`](decisions/decision-engine.md) |
 | [`plans/orchestration-speed.md`](plans/orchestration-speed.md) | Proposed, not started |
 | [`plans/agentry-assistant.md`](plans/agentry-assistant.md) | Proposed, next after the ecosystem |
 | [`plans/flow-start-and-chat-token.md`](plans/flow-start-and-chat-token.md) | Proposed; part 1 (starting the waiting cards) built by CW-9 on its own branch, not yet on `main`; part 2 (the chat token) not started |
@@ -147,9 +144,24 @@ pnpm test
 pnpm build && pnpm e2e
 ```
 
-Last run on `main` at `cc08204e` (0.23.0, the ecosystem of #118 plus its release), on 2026-09-28,
-on a machine with a load average near 50. What `main` gained after it, #120 and the 0.23.1 release,
-changes only documents and version numbers, so the results hold for the same code:
+Last run on 2026-10-01 by the verification of the two roadmap plans
+([roadmap-completion](plans/roadmap-completion.md#the-checks),
+[post-roadmap](plans/post-roadmap.md#the-checks)), on `main` at `7242b4fe` (0.29.1) plus two
+commits of its own (`e0efe0eb`), with a load average between 23 and 58:
+
+- `pnpm typecheck`: passes.
+- `pnpm test`: passes, 2,714 tests across the seven packages (core 1,443, web 967, api 217, desktop
+  49, shared 31, chat-ui 4, ui 3), none failing.
+- `pnpm build`: passes. The OpenAPI schemas regenerate with no drift.
+- `node --test e2e/harness.test.mjs`: 14 of 14 pass on their own. A whole run under load failed 4
+  with `API did not start`, because the runner waits about 20 s for the server.
+- Browser specs: only the 12 that prove the two plans ran, one at a time. All pass, and
+  `connectors.spec.mjs` is flaky under load: it failed once and passed alone. **The full suite was
+  not run.** Its last full run is the one below.
+
+The full suite last ran on `main` at `cc08204e` (0.23.0, the ecosystem of #118 plus its release), on 2026-09-28,
+on a machine with a load average near 50. `main` has changed a great deal since then (multiple
+providers, code hosts, the web packages), so treat this as history, not as today's state:
 
 - `pnpm typecheck`: passes.
 - `pnpm test`: passes, 1,898 tests across the five packages (core 810, web 849, api 166, desktop 42,
@@ -200,7 +212,7 @@ possible to keep honest.
 [[knowledge-base.md]] · [[deploy.md]] · [[desktop.md]] · [[plans/roadmap-completion.md]] ·
 [[plans/post-roadmap.md]] · [[plans/ui-redesign.md]] · [[plans/agent-observability.md]] ·
 [[plans/agents-redesign.md]] · [[plans/mobile.md]] · [[plans/spanish-copy.md]] ·
-[[plans/app-updates.md]] · [[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] ·
+[[plans/app-updates.md]] · [[plans/verify-roadmap-plans.md]] · [[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] ·
 [[plans/tunnel.md]] · [[design-system.md]] · [[plans/project-ecosystem.md]] ·
 [[plans/project-ecosystem-audit.md]] · [[projects.md]] · [[work-items.md]] · [[team-and-flow.md]] · [[assistant.md]] ·
 [[decision-engine.md]] · [[plans/decision-engine.md]] · [[decisions/decision-engine.md]] · [[plans/orchestration-speed.md]] · [[plans/agentry-assistant.md]] ·

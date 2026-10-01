@@ -1,20 +1,21 @@
 ---
 created_at: 2026-09-21T19:36:16Z
-updated_at: 2026-09-21T19:36:16Z
+updated_at: 2026-10-01T13:40:00Z
 tags:
     - plan
     - roadmap
-    - verification-pending
+    - verified
 ---
 # Plan: what the roadmap left open
 
-Status: **built; final verification pending**. Written on 2026-09-21 on top of `main` at `3aca743`
+Status: **Verified on `e0efe0eb` (0.29.1)**: see [Verification](#verification-2026-10-01). A full
+`pnpm e2e` run is the one item still open. Written on 2026-09-21 on top of `main` at `3aca743`
 (v0.14.0), after the two orchestrations that built [agents-redesign.md](agents-redesign.md) (#60)
 and [roadmap-completion.md](roadmap-completion.md) (#62), and run as one orchestration the same day.
 Every task below landed; what each one delivered, and where it went past or around this text, is in
 [Outcome](#outcome). `pnpm typecheck` and `pnpm test` are green on the integrated branch, and **no
-task ran `pnpm e2e`** (the rules forbade it), so the browser specs the tasks wrote are unrun until
-the verification phase runs the suite. It closes the **Not built yet** list of
+task ran `pnpm e2e`** (the rules forbade it), so the browser specs the tasks wrote went unrun until
+the verification of 2026-10-01 ran them one at a time. It closes the **Not built yet** list of
 [ROADMAP.md](../../ROADMAP.md), minus what was decided against (below), and re-records the README's
 media, which still shows the navigation from before #60.
 
@@ -526,6 +527,121 @@ lines added over 143 files, with the OpenAPI schemas regenerated alongside.
   the roadmap's short **Noticed and not fixed** list, because it belongs to how a chat is named
   rather than to any task here.
 
+## Verification (2026-10-01)
+
+This section checks every bullet of the [Outcome](#outcome) (stages 0–3),
+[Decided against](#decided-against-and-why), [What no task built](#what-no-task-built-and-why) and
+[What "done" means](#what-done-means) against `main` at 0.29.1, following
+[verify-roadmap-plans.md](verify-roadmap-plans.md) (CW-7). The marks are the ones
+[roadmap-completion](roadmap-completion.md#verification-2026-10-01) uses: done, fixed, dropped and
+open. Since this plan, the web UI has been split into `@agentry/ui` and `@agentry/chat-ui`, so some
+evidence is in those packages now.
+
+### Decided against
+
+| Item | Mark | Evidence / reason |
+| --- | --- | --- |
+| A banner on every page while read-only is on | dropped | ROADMAP *Decided against, for now*: "a person who turned it on knows" |
+| A sign-in through an identity provider | dropped | ROADMAP *Decided against, for now*. README Known limitations: "does not sign anyone in with OIDC: it only validates a JWT" |
+| Helm Ingress, the chart under release-please, a real cluster in CI | dropped | ROADMAP *Decided against, for now*, "Packaging, taken separately". There is still no Ingress template in `deploy/helm/agentry/templates`, and `release-please-config.json` does not name the chart |
+| The e2e harness test in CI | done | Decided against here, then built by #128: `.github/workflows/ci.yml`, `checks` job, step "The e2e runner and its shards" runs `node --test e2e/shards.test.mjs e2e/harness.test.mjs`. ROADMAP's packaging bullet no longer lists it |
+
+### Outcome
+
+| Item | Mark | Evidence / reason |
+| --- | --- | --- |
+| Stage 0 `types` | done | `AuditFilter`, `ToolPresetsConfig.defaultPresetId`, `VerificationSpec.maxCostUsd`/`install`/`failGraph`, `VerificationState.costUsd`, `RotationPolicy.looseChats`, `ScheduleOverlap`, `ScheduleRunStatus` with `overlapped` and `queued`, `ProjectExport`, `Localized`, `HealthSignal.reasonCode`/`hintCode`/`params`, `SupervisorConfig`, `SupervisorProposal`, `ChatHealth.proposal` in `packages/shared/src/types.ts`. Regenerating the schemas leaves no diff |
+| `security-2` | done | `auditPage` in `packages/core/src/db.ts` (`path LIKE ? ESCAPE '\'`, method and status), `AGENTRY_AUTH_TOKEN_RESET` in `security/auth.ts`, `.env.example`, `SECURITY.md` and the README; `packages/core/test/security.test.ts`, `apps/api/test/security.test.ts` |
+| `tool-presets-2` | done | `GET /config/tool-presets` → `{ defaultPresetId, presets }`, `PUT /config/tool-presets/default`, `POST /config/tool-presets/restore`. `chat-tools.test.ts`: "restoring the shipped presets…", "a fork runs with the tools and servers of its source…", "a resume that picks no servers starts them as they are defined now" |
+| `verification-2` | done | `packages/core/src/verification.ts`; `verification.test.ts` (from "a spec keeps its cost limit, install step and failGraph…" through "a verification recorded before the fixer had a cost reads as zero") |
+| `loose-rotation` | done | `account-config.ts`; `account-config.test.ts` "at most one policy governs the chats without a project…" and "a chat without a project runs under the loose chats policy…" |
+| `scheduling-2` | done | `schedules.ts` with `parallel`/`skip`/`queue`, the `queued` row and `EventBus.observe` (`events.ts`); `schedules.test.ts`, from "parallel, the default…" through "a client that reconnects with the last id it saw gets the schedule events it missed"; `schedules.spec.mjs` passes |
+| `usage-2` | done | `GET /projects/:id/export` (`project-export.ts`), which takes `?token=`; `project-export.test.ts`; `security.test.ts` checks the export with `?token=` |
+| `i18n-server-strings` | done | `health-strings.ts`; codes and params on connector strings in `connectors.ts`; `packages/core/test/server-strings.test.ts` (codes pinned, "every health text has a code…") |
+| `supervisor` | done | `supervisor.ts`, `/settings/supervisor`, send and dismiss under `/chats/:id/supervisor/…` and `/orchestrations/:id/tasks/:taskId/supervisor/…`; `supervisor.test.ts` (core and api); `supervisor.spec.mjs` passes |
+| `editor-settings-server` | dropped | Built, then removed with the editor integration by [changes-review](changes-review.md) decision 1 (#115). `/settings/editor` is not in `routes.ts`, and [status.md](../status.md#what-is-built) says the editor integration is gone |
+| `e2e-health-actions` | done | `e2e/fake-cli/claude` (with its own `claude.test.mjs`). `fakeCli = true` is now exported by 12 specs, `health-actions.spec.mjs` among them, and it passes. The CI timeout this task raised to 20 minutes now applies to each of the four e2e shard jobs (`ci.yml`, `timeout-minutes: 20`), since #128 split the old `test` job |
+| `web-security-2` | done | Audit filters on `SecurityTab.tsx`; `PermissionAnswer` (Allow and Deny) in `components/NotificationPanel.tsx`; `notifications.spec.mjs` ("a tool permission has Allow and Deny in the list", "a question has no Allow or Deny") and `security.spec.mjs` pass |
+| `web-chats-tools` | done | Default preset and restore in `pages/config/ToolPresetsTab.tsx` (`tool-presets.spec.mjs` passes); template renamed in place (`orchestration-v2.spec.mjs` "rename a template in place"); "From an existing orchestration" in the schedule form; "Chats without a project" (`looseChats` in `locales/*/accountsConfig.json`, `accounts-config.spec.mjs` passes) |
+| `web-orchestration-3`: launch form, verification card, supervisor proposal | done | `orchestration-v2.spec.mjs` and `supervisor.spec.mjs` pass. Send and dismiss go through `api.ts` to the proposal routes from `components/observe/Health.tsx`, and `supervisor.proposed` becomes a notification (`notifications-model.ts`) |
+| `web-orchestration-3`: the Editor tab on `/settings/editor` | dropped | Removed with the editor integration (#115), as for `editor-settings-server` |
+| `web-schedules-usage-2` | done | Schedule queries poll only through `useFallbackInterval()` (`apps/web/src/api.ts`); `overlapped` and `queued` tags in `pages/Schedules.tsx`. The `DatePicker` is now in `packages/ui/src/components/controls/DatePicker.tsx`, with its arithmetic in `packages/ui/src/lib/calendar.ts` and tested by `apps/web/test/calendar.test.ts`. The project export is in `components/ProjectExport.tsx`, on the Usage page and as the project dashboard's export widget, since the Activity tab became a dashboard. `server-strings.test.ts` in the web checks the catalogue against core. `schedules.spec.mjs` and `usage.spec.mjs` pass |
+| `media` | done | `scripts/record-media.mjs` behind `pnpm media`. The README shows no screen from before Night Shift: every still and the tour were recorded again by this script, in #101 (Night Shift), #115 (changes review) and #118 (ecosystem). It was not run again here |
+| `docs`: README, `SECURITY.md`, `.env.example`, ROADMAP, the landed notes | done | Every one of the 276 routes in `routes.ts` has a README row, checked by script. `AGENTRY_AUTH_TOKEN_RESET` is in all three places |
+| `docs`: "the `?token=` list grown to five routes" | fixed | The code (`QUERY_TOKEN` in `apps/api/src/security.ts`) and the README name five. The OpenAPI description of `POST /security/token` named three. Fixed in `6d48feef` (`docs(api): name all five ?token= routes in the token route's description`). Until then only three of the five had a test; `e0efe0eb` (`test(api): cover ?token= on a chat's stream and an attachment's content`) adds the other two |
+
+### What no task built
+
+| Item | Mark | Evidence / reason |
+| --- | --- | --- |
+| The three decided-against items | dropped | As in [Decided against](#decided-against) above, except the harness test in CI, which #128 built |
+| Nothing was impossible over the CLI | done | The supervisor is a `claude` process with the `read-only` preset and `--max-budget-usd` (`supervisor.ts`). A search for `@anthropic-ai` and `api.anthropic.com` in the source finds only the npm registry read of `cli-version.ts` and a test fixture |
+| A chat Agentry starts is titled with the generated name until its transcript is on disk | done | Fixed in the UI by #101: `displayTitle` in `packages/shared/src/chat-title.ts` shows the first prompt when the title is the generated `<dir>-<id prefix>`. `firstPrompt` comes from the request before the transcript exists (`chat-service.ts`: `summary?.firstPrompt ?? runtime?.prompt`). Every chat surface uses it (`apps/web/test/chat-model.test.ts`, "a chat reads as its first prompt, not as the name Agentry gave the CLI"). The API's `title` field still carries the generated name until the transcript is on disk, and that is what an API reader sees. Removed from ROADMAP's *Noticed and not fixed* |
+
+### What "done" means
+
+| Item | Mark | Evidence / reason |
+| --- | --- | --- |
+| `pnpm typecheck`, `pnpm test`, `pnpm build` green | done | See [The checks](#the-checks) |
+| `pnpm e2e` green once at the end | open → follow-up | This plan's specs pass when run one at a time. The full suite was not run here; see [roadmap-completion](roadmap-completion.md#what-done-means) for the same item |
+| `e2e/harness.test.mjs` green | done | 14 of 14 pass on their own. A whole run under a load near 58 is flaky (see below and the follow-ups) |
+| OpenAPI schemas regenerated and committed | done | No drift |
+| The media regenerated from the script in the repo | done | `pnpm media`, recorded again since then (#101, #115, #118) |
+| Every task's result says what it delivered, left out and verified | done | The [Outcome](#outcome) above, checked bullet by bullet |
+
+### The checks
+
+Run on 2026-10-01 in a worktree off `main`, on a machine with a load average between 23 and 58.
+Typecheck and the unit tests ran on `main` at `7242b4fe` (0.29.1). The build, the harness test and
+the browser specs ran on `e0efe0eb`, which is `main` plus the two commits of this verification: a
+corrected route description and a new test. A third commit, `ff8e0b3d`, adds
+only a unit test.
+
+- `pnpm typecheck`: passes, all seven workspace projects (`TYPECHECK EXIT 0`).
+- `pnpm test`: passes. 2,714 tests (core 1,443, web 967, api 217, desktop 49, shared 31, chat-ui 4,
+  ui 3), `# fail 0` in every package. `apps/api/test/security.test.ts`, run again on its own after
+  `e0efe0eb`: `# pass 35`, `# fail 0`. The web suite, run again after `ff8e0b3d` added a test:
+  `# pass 969`, `# fail 0`.
+- `pnpm build`: passes (`✓ built in 13.93s`, `BUILD EXIT 0`).
+- `pnpm --filter @agentry/api openapi:schemas`: `wrote 502 schemas`, and `git status` shows no diff.
+- `node --test e2e/harness.test.mjs`: **14 tests pass on their own; the run as a whole is flaky under
+  load.** In one run at a load near 58, 10 passed and 4 failed. Two failed because a probe spec never
+  started inside the 12 s run limit. Two failed with `API did not start`: the runner waits about 20 s
+  for `/api/system`, and the server did not answer in that time. Run alone, two passed. The other two
+  (`E2E_SHARDS=1 and a single spec…` and `SIGTERM to a sharded run…`) failed again with the same
+  message, then passed on a second try at a load near 31 (`# pass 1`, `# fail 0` each). No port was
+  taken in the harness's range. This is the server's start-up time under load, not a fault in the
+  harness. See the follow-ups.
+- `pnpm e2e`: **the full suite was not run.** This verification ran only the specs that prove a
+  claim of these two plans, one at a time
+  (`node e2e/run.mjs <spec>` with `E2E_PORT=8863`): `observability`, `health-actions`, `security`,
+  `notifications`, `detail`, `schedules`, `usage`, `tool-presets`, `connectors`, `accounts-config`,
+  `orchestration-v2` and `supervisor`. On the first try, 11 passed and `connectors.spec.mjs` failed
+  with `assertion failed: Connectors is in the navigation`. Run again alone, it passed (`✓
+  connectors.spec.mjs (5.2s)`, `all 1 spec file(s) passed`). The spec reads the sidebar a fixed
+  1.2 s after it loads `/`, and the item is in `App.tsx`'s `space` group. So it is flaky under load.
+  It is not on the list of [known flaky specs](redesign-night-shift.md#before-launching), which names
+  `config`, `home`, `observability`, `chats` and `orchestration-v2`. The last full-suite results on
+  `main` are in [status.md](../status.md#how-it-is-checked).
+
+**Count:** 32 items. 24 done, 1 fixed, 6 dropped, 1 open. No claim failed: the one wrong text was the OpenAPI description of the `?token=` routes, and it is fixed.
+
+### Follow-ups
+
+None of these is created as a work item yet. Each needs one before it is picked up.
+
+- **Run the whole e2e suite on `main`** with a free `E2E_PORT`, compare it with the baseline in
+  [status.md](../status.md#how-it-is-checked), and fix or record each spec that fails alone. Its last
+  full run, on 2026-09-28, failed `home`, `paging` and `shell` alone.
+- **The runner's 20 s wait for the API is too short under load.** `waitForServer` in `e2e/run.mjs`
+  polls `/api/system` 80 times every 250 ms. At a load near 58, four harness tests failed with `API
+  did not start`, or with a probe spec that never started inside a 12 s run limit, and two of them
+  failed again when run alone. A budget scaled by `E2E_TIMEOUT`, or a readiness probe on
+  `/api/health`, which spawns nothing, would remove the flake.
+- **`connectors.spec.mjs` reads the sidebar a fixed 1.2 s after loading `/`**, and it failed once under
+  load. It should wait for `#sidebar nav a` the way the other specs wait with `page.waitFor`.
+
 ## Related
 
-[[plans/roadmap-completion.md]] · [[plans/agents-redesign.md]] · [[status.md]]
+[[plans/roadmap-completion.md]] · [[plans/agents-redesign.md]] · [[status.md]] ·
+[[plans/verify-roadmap-plans.md]] · [[plans/changes-review.md]]
