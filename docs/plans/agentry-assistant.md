@@ -38,7 +38,9 @@ and can act on them.
 
 ## Shape (to refine in the plan of its orchestration)
 
-- **The MCP server** (`packages/core` or a small `packages/mcp`), stdio, started by the CLI:
+- **The MCP server** (`packages/core` or a small `packages/mcp`), stdio, started by the CLI. Its read
+  tools are specified in [agentry-mcp-server.md](agentry-mcp-server.md) (CW-6), which proposes
+  `packages/mcp` and fixes the server name `agentry`:
   - read tools: projects, work items (board, one item with its history, links and runs),
     orchestrations (list, one with tasks, verification and final report), flow runs and team,
     journal and documents, chats (list, summary, waiting), usage and limits, accounts;
@@ -61,6 +63,12 @@ and can act on them.
   README's REST tables are the reference for the tools; the knowledge base (`docs/`) can be offered
   read-only.
 
+## Confirming writes (CW-17)
+
+**Owner's choice: pending.** The spec [assistant-write-tools.md](assistant-write-tools.md) is written
+for option A, the recommended one, but CW-17 is not built until the owner picks A, B or C here, with
+the date. Once they have answered, replace this paragraph with: "Decided on <date>: option <X>".
+
 ## Open questions
 
 - Where the entry lives in the design system (a new primary surface needs the designer; the gradient
@@ -71,4 +79,4 @@ and can act on them.
 
 ## Related
 
-[[assistant.md]] · [[chat-environment.md]] · [[plans/project-ecosystem.md]] · [[plans/orchestration-speed.md]] · [[decisions/decision-engine.md]]
+[[assistant.md]] · [[plans/agentry-mcp-server.md]] · [[plans/assistant-write-tools.md]] · [[plans/agentry-assistant-entry.md]] · [[plans/chat-api-token.md]] · [[chat-environment.md]] · [[plans/project-ecosystem.md]] · [[plans/orchestration-speed.md]] · [[decisions/decision-engine.md]]
