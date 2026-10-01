@@ -72,8 +72,8 @@ export default async ({ page, api, check }) => {
     // Everything the tab did so far ran while the wrapper was open, so the log has no row made by a
     // credential yet: this is the write whose actor is the token
     check((await authed(token)('PUT', '/security/auth', { readOnly: false })).status === 200, 'a write goes through with the token');
-    await page.goto('/settings?tab=security', 1800);
-    check((await panelText()).includes('Audit log'), 'this browser is still signed in after turning the guard on');
+    await page.goto('/settings?tab=security', 0);
+    await page.waitFor(`return document.querySelector('[role=tabpanel]')?.innerText.includes('Audit log')`, { label: 'this browser is still signed in after turning the guard on' });
 
     // The audit log lists the writes, filterable by path, and records who made them
     await page.fill('input[type=search]', '/security');
