@@ -161,6 +161,7 @@ import type {
   ChangeRequest,
   AddressReviewRequest,
   ApprovalState,
+  AutoMergeRequestBody,
   ChangeRequestChecks,
   ChangeRequestReviewPosts,
   ChangeRequestReviewers,
@@ -168,6 +169,11 @@ import type {
   CheckLog,
   CheckState,
   ChecksRerunRequest,
+  MergeReadyRequest,
+  MergeRequestBody,
+  MergeResult,
+  MergeState,
+  UpdateBranchResult,
   ReviewDraft,
   ReviewDraftInput,
   ReviewPost,
@@ -229,6 +235,7 @@ import { authHeaders, setChallenge, withToken } from './lib/auth';
 import { chatKeys, type ChatClient } from '@agentry/chat-ui/lib/context';
 import { accountsRefetchInterval, normalizeCswap } from './lib/cswap';
 import { useFallbackInterval } from './lib/feed';
+import { mergeRefetchMs } from './lib/merge';
 import { filterKey, normalizeKey, openCount } from './lib/work-items';
 
 export const BASE = '/api';
@@ -824,6 +831,20 @@ export const api = {
   /** Hand threads to the item's agent; the answer is Fix failing checks'. No `threadIds` means every unresolved one */
   addressReview: (id: string, req: AddressReviewRequest) =>
     request<ChangeRequestFixResult>(`/change-requests/${enc(id)}/address`, { method: 'POST', body: req }),
+  /** What the person may do about merging, read from the host; `refresh` skips the short cache for "check again" */
+  mergeState: (id: string, refresh = false, o?: ReadOptions) =>
+    request<MergeState>(`/change-requests/${enc(id)}/merge${refresh ? '?refresh=1' : ''}`, o),
+  /** The person's click: `expectedHead` is the head they saw, and a head that moved merges nothing */
+  mergeChangeRequest: (id: string, req: MergeRequestBody) =>
+    request<MergeResult>(`/change-requests/${enc(id)}/merge`, { method: 'POST', body: req }),
+  armAutoMerge: (id: string, req: AutoMergeRequestBody) =>
+    request<MergeState>(`/change-requests/${enc(id)}/auto-merge`, { method: 'POST', body: req }),
+  disarmAutoMerge: (id: string) => request<MergeState>(`/change-requests/${enc(id)}/auto-merge`, { method: 'DELETE' }),
+  /** Update from base: Agentry's own merge of the base into the branch (or a host-side rebase on GitLab `ff` projects) */
+  updateBranch: (id: string) => request<UpdateBranchResult>(`/change-requests/${enc(id)}/update-branch`, { method: 'POST', body: {} }),
+  /** Mark ready for review, or back to a draft */
+  markReady: (id: string, req: MergeReadyRequest) =>
+    request<MergeState>(`/change-requests/${enc(id)}/ready`, { method: 'POST', body: req }),
   checkCriterion: (itemId: string, criterionId: string, checked: boolean) =>
     request<WorkItem>(`/work-items/${enc(itemId)}/criteria/${enc(criterionId)}`, { method: 'PATCH', body: { checked } }),
   workItemComments: (itemId: string, o?: ReadOptions) => request<WorkItemComment[]>(`/work-items/${enc(itemId)}/comments`, o),
@@ -1002,6 +1023,8 @@ export const keys = {
   reviewPosts: (id: string) => ['change-request', id, 'review-posts'] as const,
   changeRequestReviewers: (id: string) => ['change-request', id, 'reviewers'] as const,
   changeRequestApproval: (id: string) => ['change-request', id, 'approval'] as const,
+  /** Under the request too: checks, reviews and pushes move what blocks a merge, and their events refresh the prefix */
+  changeRequestMerge: (id: string) => ['change-request', id, 'merge'] as const,
   /**
    * A check keeps its id when its state moves (a job that finishes, a failed run that passes on a
    * re-read), and its log moves with it: the state is part of the key so the tail is read again
@@ -1142,6 +1165,21 @@ export const keys = {
 
 // The queries below are kept fresh by the event feed (lib/events.ts); their intervals are only a
 // slow fallback that runs while it is disconnected.
+/**
+ * What the person may do about merging. The event feed refreshes it with the request's checks and
+ * reviews; the interval is only for what no event announces (the host working it out, a GitLab
+ * pipeline that has not attached yet) and the slow fallback while the feed is down.
+ */
+export function useMergeState(id: string | undefined, enabled = true) {
+  const fallback = useFallbackInterval();
+  return useQuery({
+    queryKey: keys.changeRequestMerge(id ?? ''),
+    queryFn: ({ signal }) => api.mergeState(id ?? '', false, { signal }),
+    enabled: enabled && !!id,
+    refetchInterval: (query) => mergeRefetchMs(query.state.data) || fallback,
+  });
+}
+
 export const useOverview = () => useQuery({ queryKey: keys.overview, queryFn: api.overview, refetchInterval: useFallbackInterval() });
 
 /** `poll: false` for pages that read the list once, e.g. to fill a picker. */
