@@ -908,3 +908,459 @@
     border-radius: var(--radius-lg);
   }
 }
+
+/* ---- review threads (docs/design-system.md §5, "Review threads in the diff") ----
+   A thread is a card under its line, never a new kind of diff. Nothing here is live: no spinner and
+   no --live. The card is indented to the code of the mode it sits in. */
+.diff {
+  --rt-indent: calc(var(--diff-num) + var(--diff-rail-w) + 18px);
+}
+
+.diff-uni {
+  --rt-indent: calc(42px + 42px + var(--diff-rail-w) + 16px + 4px);
+}
+
+.diff-split {
+  --rt-indent: 57px;
+}
+
+.diff-wrap {
+  --rt-indent: 12px;
+}
+
+.rt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: 6px 16px 10px var(--rt-indent);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  background: var(--bg-1);
+  font-family: var(--sans);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--fg);
+  white-space: normal;
+}
+
+.rt-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-height: 34px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--fg-3);
+}
+
+.rt-head .grow,
+.rt-fold .grow {
+  flex: 1 1 auto;
+}
+
+.rt-head .where {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-2);
+}
+
+.rt-count {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rt-comment {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.rt-comment + .rt-comment {
+  border-top: 1px solid var(--line);
+}
+
+.rt-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rt-avatar .monogram {
+  font-size: 10.5px;
+}
+
+.rt-who {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  font-size: 13px;
+}
+
+.rt-who b {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.rt-who time {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The body is another person's text, drawn by the sanitising markdown */
+.rt .rt-body {
+  margin: 2px 0 0;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.rt .rt-body code {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-3);
+}
+
+.rt.resolved .rt-body {
+  color: var(--fg-2);
+}
+
+.rt-more {
+  margin: 0;
+  padding: 0 12px 10px 46px;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.rt-note {
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.rt-sugg {
+  margin-top: 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.rt-sugg-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.rt-sugg-head .grow {
+  flex: 1 1 auto;
+}
+
+.rt-sugg-row,
+.rt-hunk-row {
+  display: grid;
+  grid-template-columns: 3px 18px minmax(0, 1fr);
+  min-height: 20px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--fg);
+}
+
+.rt-sugg-row > i,
+.rt-hunk-row > i {
+  grid-column: 2;
+  font-style: normal;
+  text-align: center;
+  color: var(--fg-3);
+  user-select: none;
+}
+
+.rt-sugg-row > code,
+.rt-hunk-row > code {
+  grid-column: 3;
+  padding: 0 10px 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.rt-sugg-row.add,
+.rt-hunk-row.add {
+  background: var(--diff-add-bg);
+  box-shadow: inset var(--diff-rail-w) 0 0 var(--diff-add);
+}
+
+.rt-sugg-row.del,
+.rt-hunk-row.del {
+  background: var(--diff-del-bg);
+  box-shadow: inset var(--diff-rail-w) 0 0 var(--diff-del);
+}
+
+.rt-hunk-row.ctx {
+  color: var(--fg-3);
+}
+
+.rt-hunk {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.rt-hunk-note {
+  padding: 2px 12px 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.rt-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+}
+
+.rt-foot .field {
+  flex: 1 1 160px;
+}
+
+.rt-quote {
+  margin: 0;
+  padding: 6px 10px;
+  border-left: var(--diff-rail-w) solid var(--line-2);
+  font-size: 13px;
+  color: var(--fg-3);
+  overflow-wrap: anywhere;
+}
+
+.rt-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rt-sheet textarea {
+  font-size: 16px;
+}
+
+/* A resolved or outdated thread folds into one row until it is opened */
+.rt-fold {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  margin: 4px 16px 4px var(--rt-indent);
+  padding: 0 8px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--fg-3);
+  white-space: normal;
+}
+
+.rt-fold .grow {
+  color: var(--fg-2);
+}
+
+.rt-fold .btn {
+  min-height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.rt-unfold {
+  display: flex;
+  justify-content: flex-end;
+  margin: 4px 16px 0 var(--rt-indent);
+  font-family: var(--sans);
+}
+
+/* The person's own notes and the composer (ReviewComposer) share the card */
+.rt.draft {
+  border-style: dashed;
+}
+
+.rt.compose:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.rt-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.rt-edit .field-mono textarea {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 20px;
+}
+
+.rt-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rt-tools .hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+/* A line with a conversation: its number at full strength, and a pill at the right */
+.diff-row.has-note .diff-num {
+  opacity: 1;
+  color: var(--fg);
+}
+
+.diff-note-pill {
+  position: absolute;
+  right: 12px;
+  top: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-3);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1;
+  color: var(--fg-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-note-pill svg {
+  width: 11px;
+  height: 11px;
+}
+
+/* A thread waits for the person: violet, the idle tone, never a moving one */
+.diff-note-pill.is-open {
+  background: var(--idle-soft);
+  box-shadow: none;
+  color: var(--idle);
+}
+
+/* The gutter's "+" shows on the line under the pointer and under focus */
+.diff-add-note {
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.diff-row:hover > .diff-add-note,
+.diff-add-note:focus-visible {
+  opacity: 1;
+}
+
+.diff-add-note svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.4;
+}
+
+.diff-row:has(+ .rt.compose) {
+  background: var(--bg-3);
+}
+
+.changes-threads-chip {
+  height: 28px;
+  cursor: default;
+}
+
+.changes-threads-chip .n {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--idle);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  /* A phone has no pointer: the whole line is the target of a new note, and the card says it has threads */
+  .diff-wrap .diff-add-note {
+    inset: 0;
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    opacity: 0;
+  }
+
+  .diff-wrap .diff-fold-pill {
+    z-index: 2;
+  }
+
+  .rt {
+    margin-right: 12px;
+  }
+
+  .rt-foot .btn,
+  .rt-fold .btn {
+    min-height: var(--touch);
+  }
+
+  .rt-foot .btn {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
+  .rt-foot .field {
+    flex-basis: 100%;
+  }
+
+  .rt-fold {
+    min-height: var(--touch);
+    padding-right: 6px;
+  }
+
+  .rt-unfold .btn {
+    min-height: var(--touch);
+  }
+
+  .rt-foot .field input {
+    font-size: 16px;
+  }
+}

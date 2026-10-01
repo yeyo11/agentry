@@ -21,6 +21,7 @@ import {
 import { Lru } from '@agentry/ui/lib/lru';
 import { wordDiff, type Range, type WordDiff } from '../../lib/word-diff';
 import { highlightRoles, languageOfPath, SYNTAX_CLASS, type Role, type RoleLine } from '@agentry/ui/components/highlight';
+import type { ReviewSide } from '@agentry/shared';
 import { DecisionMarkOf } from '../DecisionMark';
 import { ICON_SM } from '@agentry/ui/components/icons';
 
@@ -40,6 +41,20 @@ export interface DiffSyntax {
 const VIRTUAL_OVER = 400;
 
 const MODE_CLASS: Record<DiffMode, string> = { reading: 'diff-read', unified: 'diff-uni', split: 'diff-split' };
+
+/**
+ * What a review lays over the rows without the comparator knowing what a review is: cards under a
+ * line, a mark at its right and a gutter button. A line is named by its side (`left` is the old file,
+ * `right` the new one) and its number there.
+ */
+export interface LineLayer {
+  /** Drawn under the line, indented to the code */
+  after: (side: ReviewSide, line: number) => ReactNode;
+  /** At the right of the line (a pill with the thread count) */
+  mark?: (side: ReviewSide, line: number) => ReactNode;
+  /** In the gutter of the line (the "+" that opens a note) */
+  gutter?: (side: ReviewSide, line: number) => ReactNode;
+}
 
 export interface DiffViewProps {
   diff: ParsedDiff;
@@ -67,6 +82,8 @@ export interface DiffViewProps {
   scrollRef?: RefObject<HTMLElement | null>;
   /** The decision that judged this patch unexplained by the sentence before it: a note over the rows */
   unexplained?: DecisionRecord | null;
+  /** A review's layer over the lines */
+  layer?: LineLayer;
   className?: string;
 }
 
@@ -85,6 +102,7 @@ export function DiffView({
   trimEdges = false,
   scrollRef,
   unexplained,
+  layer,
   className,
 }: DiffViewProps) {
   const { t } = useTranslation('components');
@@ -125,9 +143,22 @@ export function DiffView({
 
   const draw = (row: DiffRow | SplitRow): ReactNode => {
     if (row.type === 'gap') return <GapLine row={row} onOpen={onOpenGap} />;
-    if (row.type === 'split') return <SplitLine row={row} syntax={syntax} current={row.block !== null && row.block === currentBlock} />;
+    if (row.type === 'split')
+      return (
+        <>
+          <SplitLine row={row} syntax={syntax} layer={layer} current={row.block !== null && row.block === currentBlock} />
+          {layer && row.left?.kind === 'del' && row.left.line.old !== null && layer.after('left', row.left.line.old)}
+          {layer && row.right && row.right.kind !== 'del' && row.right.line.new !== null && layer.after('right', row.right.line.new)}
+        </>
+      );
     if (row.type === 'seam') return <Seam pill={row.pill} onToggle={toggle} />;
-    return <Line row={row} mode={mode} syntax={syntax} onToggle={toggle} current={row.block !== null && row.block === currentBlock} />;
+    const at = lineOf(row.line);
+    return (
+      <>
+        <Line row={row} mode={mode} syntax={syntax} layer={layer} onToggle={toggle} current={row.block !== null && row.block === currentBlock} />
+        {layer && at && layer.after(at.side, at.line)}
+      </>
+    );
   };
 
   return (
@@ -158,7 +189,7 @@ export function DiffView({
         </div>
       )}
       {virtual ? (
-        <VirtualRows rows={rows} draw={draw} scrollRef={scrollRef} wrap={wrap} currentIndex={currentIndex} />
+        <VirtualRows rows={rows} draw={draw} scrollRef={scrollRef} wrap={wrap} measured={wrap || !!layer} currentIndex={currentIndex} />
       ) : (
         rows.map((row) => <Fragment key={row.key}>{draw(row)}</Fragment>)
       )}
@@ -172,12 +203,15 @@ function VirtualRows({
   draw,
   scrollRef,
   wrap,
+  measured,
   currentIndex,
 }: {
   rows: (DiffRow | SplitRow)[];
   draw: (row: DiffRow | SplitRow) => ReactNode;
   scrollRef?: RefObject<HTMLElement | null>;
   wrap: boolean;
+  /** A row's height depends on its content: wrapped text, or cards under a line */
+  measured: boolean;
   currentIndex: number;
 }) {
   // Its own box, not the diff's: a parent's ref is attached only after its children's layout
@@ -215,8 +249,8 @@ function VirtualRows({
         <div
           key={item.key}
           data-index={item.index}
-          // Only a wrapped row's height depends on its text; the others are what rowHeight says
-          ref={wrap ? virtualizer.measureElement : undefined}
+          // Only a wrapped row, or one with cards under it, has a height of its own; the others are what rowHeight says
+          ref={measured ? virtualizer.measureElement : undefined}
           style={{ position: 'absolute', top: 0, left: 0, right: 0, display: 'flow-root', transform: `translateY(${item.start - margin}px)` }}
         >
           {draw(rows[item.index]!)}
@@ -235,16 +269,24 @@ function rowHeight(row: DiffRow | SplitRow | undefined, wrap: boolean): number {
 // ---------------------------------------------------------------------------------------------
 // Rows
 
+/** The side and number a line is drawn under: a removed line on the old file, every other on the new one */
+function lineOf(line: DiffLine): { side: ReviewSide; line: number } | null {
+  if (line.kind === 'del') return line.old === null ? null : { side: 'left', line: line.old };
+  return line.new === null ? null : { side: 'right', line: line.new };
+}
+
 function Line({
   row,
   mode,
   syntax,
+  layer,
   onToggle,
   current,
 }: {
   row: Extract<DiffRow, { type: 'line' }>;
   mode: DiffMode;
   syntax: DiffSyntax | null;
+  layer: LineLayer | undefined;
   onToggle: (block: number) => void;
   current: boolean;
 }) {
@@ -254,10 +296,14 @@ function Line({
   const code = <Code text={line.text} roles={rolesOf(syntax, line)} marks={marks} />;
   const said = describe(t, line, kind);
   const start = row.blockStart ? { 'data-block-start': row.block ?? undefined } : {};
-  const cls = `diff-row is-${kind}${current ? ' is-current' : ''}`;
+  const at = layer ? lineOf(line) : null;
+  const gutter = at && layer?.gutter?.(at.side, at.line);
+  const mark = at && layer?.mark?.(at.side, at.line);
+  const cls = `diff-row is-${kind}${current ? ' is-current' : ''}${mark ? ' has-note' : ''}`;
   if (mode === 'unified') {
     return (
       <div className={cls} {...start}>
+        {gutter}
         <span className="sr-only">{said}</span>
         <span className="diff-num" aria-hidden="true">
           {line.old ?? ''}
@@ -270,17 +316,20 @@ function Line({
           {kind === 'add' ? '+' : kind === 'del' ? '−' : ' '}
         </span>
         <span className="diff-code">{code}</span>
+        {mark}
       </div>
     );
   }
   return (
     <div className={cls} {...start}>
+      {gutter}
       <span className="sr-only">{said}</span>
       <span className="diff-num" aria-hidden="true">
         {kind === 'del' ? line.old : line.new}
       </span>
       <span className="diff-line-rail" aria-hidden="true" />
       <span className="diff-code">{code}</span>
+      {mark}
       {row.pill && <PillButton pill={row.pill} onToggle={onToggle} />}
     </div>
   );
@@ -324,17 +373,22 @@ function GapLine({ row, onOpen }: { row: GapRow; onOpen?: (gap: Gap) => void }) 
   );
 }
 
-function SplitLine({ row, syntax, current }: { row: SplitRow; syntax: DiffSyntax | null; current: boolean }) {
+function SplitLine({ row, syntax, layer, current }: { row: SplitRow; syntax: DiffSyntax | null; layer: LineLayer | undefined; current: boolean }) {
   const { t } = useTranslation('components');
   const { left, right } = row;
   const said =
     left?.kind === 'ctx' ? describe(t, left.line, 'ctx') : [left && describe(t, left.line, left.kind), right && describe(t, right.line, right.kind)].filter(Boolean).join(', ');
+  // The new side carries the line's gutter and mark, as the other modes do
+  const at = layer && right && right.kind !== 'del' && right.line.new !== null ? { side: 'right' as const, line: right.line.new } : null;
+  const mark = at && layer?.mark?.(at.side, at.line);
   return (
-    <div className={`diff-row${current ? ' is-current' : ''}`} {...(row.blockStart ? { 'data-block-start': row.block ?? undefined } : {})}>
+    <div className={`diff-row${current ? ' is-current' : ''}${mark ? ' has-note' : ''}`} {...(row.blockStart ? { 'data-block-start': row.block ?? undefined } : {})}>
+      {at && layer?.gutter?.(at.side, at.line)}
       <span className="sr-only">{said}</span>
       <Side cell={left} syntax={syntax} />
       <span className="diff-split-seam" aria-hidden="true" />
       <Side cell={right} syntax={syntax} />
+      {mark}
     </div>
   );
 }
