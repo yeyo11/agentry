@@ -153,6 +153,10 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
       chat.push(event.run);
       return;
 
+    case 'failed':
+      host.failProtocol(chat, event.reason);
+      return;
+
     case 'rate-limit':
       if (event.info.status === 'rejected') chat.rateLimited = true;
       host.noteRateLimit(event.info);
