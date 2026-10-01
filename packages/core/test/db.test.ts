@@ -7,10 +7,10 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { DecisionRecord, Execution } from '@agentry/shared';
 import type { LegacyRun, StoredChat } from '../src/chat-records.ts';
-import { CHAT_ENTRIES_SCHEMA_VERSION, CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, migrate, REVIEWS_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
+import { CHAT_ENTRIES_SCHEMA_VERSION, CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, MERGES_SCHEMA_VERSION, migrate, REVIEWS_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
 import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from '../src/orchestration-pr-rows.ts';
-import { pullRequestOf, reviewDraftOf, reviewPostOf, type PullRequestRow, type ReviewDraftRow, type ReviewPostRow } from '../src/work-item-rows.ts';
+import { changeRequestMergeOf, pullRequestOf, reviewDraftOf, reviewPostOf, type ChangeRequestMergeRow, type PullRequestRow, type ReviewDraftRow, type ReviewPostRow } from '../src/work-item-rows.ts';
 import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
 import { tempConfig } from './helpers.ts';
@@ -717,5 +717,22 @@ test('migrate adds the review tables and reads a fix with no kind as checks', ()
   assert.deepEqual([post.state, post.remoteId, post.detail], ['partly', null, { code: 'review-partly-posted', detail: 'one failed', saved: 2, total: 3 }]);
   const odd = reviewPostOf({ ...(raw.prepare('SELECT * FROM review_posts').get() as unknown as ReviewPostRow), state: 'later', event: 'later', detail: '{' });
   assert.deepEqual([odd.state, odd.event, odd.detail], ['failed', 'comment', null]);
+  raw.close();
+});
+
+test('migrate adds the merge audit and reads a row it does not know as a failed merge', () => {
+  const raw = new DatabaseSync(':memory:');
+  migrate(raw, MERGES_SCHEMA_VERSION - 1);
+  migrate(raw);
+  raw
+    .prepare("INSERT INTO change_request_merges (id, cr_id, action, method, expected_head, requested_at, requested_by, outcome) VALUES ('m', 'cr', 'arm', 'squash', 'abc', ?, 'me', 'armed')")
+    .run(new Date(Date.UTC(2026, 0, 1)).toISOString());
+  const read = (): ChangeRequestMergeRow => raw.prepare('SELECT * FROM change_request_merges').get() as unknown as ChangeRequestMergeRow;
+  const merge = changeRequestMergeOf(read());
+  assert.deepEqual([merge.action, merge.method, merge.deleteBranch, merge.outcome, merge.reason, merge.detail], ['arm', 'squash', false, 'armed', null, null]);
+  raw.prepare("UPDATE change_request_merges SET delete_branch = 1, reason = 'head-moved', detail = 'x'").run();
+  assert.deepEqual([changeRequestMergeOf(read()).deleteBranch, changeRequestMergeOf(read()).reason], [true, 'head-moved']);
+  const odd = changeRequestMergeOf({ ...read(), action: 'later', method: 'later', outcome: 'later' });
+  assert.deepEqual([odd.action, odd.method, odd.outcome], ['merge', null, 'failed']);
   raw.close();
 });

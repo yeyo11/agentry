@@ -1,5 +1,9 @@
 import type {
   ChangeRequestFixKind,
+  ChangeRequestMerge,
+  ChangeRequestMergeAction,
+  ChangeRequestMergeOutcome,
+  MergeMethod,
   ChangeRequestFixOrigin,
   ChangeRequestFixState,
   CodeHostId,
@@ -487,4 +491,40 @@ export function addressedOf(stored: string | null | undefined): { head: string; 
   } catch {
     return null;
   }
+}
+
+/** One merge click or arming; `delete_branch` is 0 or 1 */
+export interface ChangeRequestMergeRow {
+  id: string;
+  cr_id: string;
+  action: string;
+  method: string | null;
+  expected_head: string | null;
+  delete_branch: number;
+  requested_at: string;
+  requested_by: string;
+  outcome: string;
+  reason: string | null;
+  detail: string | null;
+}
+
+const MERGE_ACTIONS: readonly ChangeRequestMergeAction[] = ['merge', 'arm', 'disarm'];
+const MERGE_OUTCOMES: readonly ChangeRequestMergeOutcome[] = ['requested', 'merged', 'armed', 'disarmed', 'failed'];
+const MERGE_METHODS: readonly MergeMethod[] = ['squash', 'merge', 'rebase'];
+
+/** A row this version does not know reads as the lowest-stakes value: a failed merge, never a merged one */
+export function changeRequestMergeOf(row: ChangeRequestMergeRow): ChangeRequestMerge {
+  return {
+    id: row.id,
+    changeRequestId: row.cr_id,
+    action: MERGE_ACTIONS.find((a) => a === row.action) ?? 'merge',
+    method: MERGE_METHODS.find((m) => m === row.method) ?? null,
+    expectedHead: row.expected_head,
+    deleteBranch: row.delete_branch !== 0,
+    requestedAt: row.requested_at,
+    requestedBy: row.requested_by,
+    outcome: MERGE_OUTCOMES.find((o) => o === row.outcome) ?? 'failed',
+    reason: row.reason as HostReason | null,
+    detail: row.detail,
+  };
 }
