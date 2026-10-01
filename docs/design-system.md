@@ -1038,6 +1038,28 @@ is `.fix-panel.wait` with the phase 2 fix path (`fix_state`, the same push rule)
   resolved thread folds its quote. Agentry never replies or resolves by itself.
 - **Hosts.** The noun and number follow the host (`PR #12`, `MR !12`); the thread semantics are the same.
 
+### Merging an orchestration, and the board card's auto-merge line
+
+Drawn for [code hosts](plans/code-hosts.md), phase 4 (task `m-p3` of P0), by `reference/tools/merge.py`:
+`DesktopOrquestacionFusion`, `MobileOrquestacionFusion`, `DesktopTableroFusion` and `MobileTableroFusion`.
+New classes `.omrg-*` and `.pr-auto`; everything else is an existing control (`.seg`, `.checkbox`, `.field`,
+`.pr-row`, `.btn-primary`).
+
+- **The merge block (`Fusionar`)** sits in the orchestration's "Su merge request" card, under the MR row,
+  once the MR is open: the method as a `.seg` radio group (Squash, Merge commit, Rebase, only those the
+  repository allows, the first allowed preselected), the branch box as a `.checkbox` with the integration
+  branch's name in mono, and the squash message as two `.field`s (subject, body). A line says which commit
+  is merged (`a81d3f0`, the head the person sees) and that a moved head merges nothing.
+- **The one gradient action** is **Fusionar MR !14** (`btn-primary`; on a phone, the foot). Merging is the
+  person's click on this page, never a run's. The state line above the form (`CI superada · sin
+  conflictos con main · …`) is mono and neutral; the MR row's badges keep their words.
+- **After the merge.** What is specific to an orchestration is said under the form: the orchestration is
+  marked merged and its worktrees are removed; the local branch stays.
+- **The board card's auto-merge line (`.pr-auto`)** is a second line of the PR or MR strip, under the
+  number, the verb, the CI badge and the link: a neutral `fusión automática` badge with the clock icon, and
+  "se fusiona sola al pasar la CI · squash". It is a waiting state, not a live one: no `--live`, no spinner,
+  no motion. On a phone the strip drops the 22 px host link (the item page has it).
+
 ## 3. Live states and motion
 
 | Situation | Pattern |

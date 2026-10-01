@@ -1780,3 +1780,15 @@ button.check-group-head { width: 100%; border-left: 0; border-right: 0; border-t
 .m-screen .mg-acts .btn { justify-content: center; }
 .m-screen .mg-foot .note { flex: 0 0 auto; }
 /* ---------- end of Merge block ---------- */
+
+/* ---------- Merging an orchestration's change request, and the board card's auto-merge line (code hosts, phase 4, m-p3) ----------
+   The method is a .seg, the branch box a .checkbox, the subject and body .field. */
+.omrg-opts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.omrg-row { display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 13px; color: var(--fg); cursor: pointer; }
+.omrg-row .mono { overflow-wrap: anywhere; }
+.omrg-guard { font-size: 12px; line-height: 1.45; color: var(--fg-3); }
+.m-screen .omrg-row { min-height: var(--touch); }
+.m-screen .omrg-opts { grid-template-columns: minmax(0, 1fr); }
+.m-screen .omrg-guard { font-size: 13px; }
+.wi-strip .pr-auto { flex-basis: 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; color: var(--fg-2); font-size: 11.5px; }
+/* ---------- end of merging an orchestration ---------- */
