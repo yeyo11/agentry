@@ -5,17 +5,19 @@ import { createInterface } from 'node:readline';
 import type { ModelOption, PermissionMode, PolicyTranslation, ProviderCapability, ToolPolicy } from '@agentry/shared';
 import { agentryChildren } from '../../processes.ts';
 import { satisfiesRange } from '../detector.ts';
-import type {
-  BranchTracker,
-  CapabilityConfirmation,
-  DriverEvent,
-  DriverSession,
-  HandshakeResult,
-  LaunchPlan,
-  ProviderDriver,
-  SessionInit,
-  SessionIO,
-  SessionLaunch,
+import {
+  binaryOf,
+  type BinarySource,
+  type BranchTracker,
+  type CapabilityConfirmation,
+  type DriverEvent,
+  type DriverSession,
+  type HandshakeResult,
+  type LaunchPlan,
+  type ProviderDriver,
+  type SessionInit,
+  type SessionIO,
+  type SessionLaunch,
 } from '../driver.ts';
 import type { ProviderManifest } from '../manifest.ts';
 import type { TranscriptStore } from '../transcripts.ts';
@@ -30,6 +32,8 @@ const HANDSHAKE_MS = 15_000;
 export interface AcpDriverOptions {
   /** Where a file a launch writes goes (Gemini's policy); the system's temporary directory by default */
   dataDir?: string;
+  /** The executable; the manifest's command on the `PATH` by default */
+  bin?: BinarySource;
 }
 
 /**
@@ -69,6 +73,7 @@ export class AcpDriver implements ProviderDriver {
 
   private readonly profile: AcpProfile;
   private readonly dataDir: string;
+  private readonly bin: BinarySource;
   /** What the last `initialize` said, for `confirm` */
   private agent: AgentFacts | null = null;
   private offeredModel: boolean | null = null;
@@ -87,6 +92,7 @@ export class AcpDriver implements ProviderDriver {
     if (!manifest.launch) throw new Error(`The "${manifest.id}" manifest has no launch arguments`);
     this.profile = profile;
     this.dataDir = options.dataDir ?? join(tmpdir(), 'agentry-acp');
+    this.bin = options.bin ?? manifest.commands.names[0] ?? manifest.id;
   }
 
   translatePolicy(policy: ToolPolicy): PolicyTranslation {
@@ -116,7 +122,7 @@ export class AcpDriver implements ProviderDriver {
     this.files.set(spec.id, extras.files);
     if (spec.nativeId) this.natives.set(spec.id, spec.nativeId);
     return {
-      bin: this.manifest.commands.names[0] ?? this.manifest.id,
+      bin: binaryOf(this.bin),
       args: [...launch.args, ...extras.args],
       env: { ...process.env, ...launch.env, ...extras.env },
       unsetEnv: [...launch.unsetEnv],
@@ -180,7 +186,7 @@ export class AcpDriver implements ProviderDriver {
   async handshake(env: NodeJS.ProcessEnv, signal: AbortSignal): Promise<HandshakeResult> {
     const { launch } = this.manifest;
     if (!launch) throw new Error(`The "${this.manifest.id}" manifest has no launch arguments`);
-    const child = spawn(this.manifest.commands.names[0] ?? this.manifest.id, launch.args, { env: { ...env, ...launch.env }, stdio: 'pipe' });
+    const child = spawn(binaryOf(this.bin), launch.args, { env: { ...env, ...launch.env }, stdio: 'pipe' });
     child.stdin.on('error', () => {});
     child.stderr.resume();
     const stop = (): void => {

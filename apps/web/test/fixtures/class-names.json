@@ -3679,6 +3679,7 @@
   "is-fresh",
   "is-full",
   "is-gone",
+  "is-icon",
   "is-idle",
   "is-inherited",
   "is-invalid",

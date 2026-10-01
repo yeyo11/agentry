@@ -226,7 +226,7 @@ export const ChatHeader = memo(function ChatHeader({ chat, connected, actions }:
             the menu's Stop is not enough for, since nothing else on the page says it is still up */}
         {stoppable && live && !working && (
           <Tooltip content={t('view.stopHint')}>
-            <button type="button" className="btn btn-small btn-danger chat-stop" disabled={actions.stop.pending} onClick={actions.stop.run}>
+            <button type="button" className={`btn btn-small btn-danger chat-stop${compact ? ' is-icon' : ''}`} aria-label={t('common:actions.stop')} disabled={actions.stop.pending} onClick={actions.stop.run}>
               <Square {...ICON_SM} />
               {!compact && t('common:actions.stop')}
             </button>

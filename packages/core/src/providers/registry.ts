@@ -7,7 +7,7 @@ import { copilotManifest } from './copilot/manifest.ts';
 import { geminiManifest } from './gemini/manifest.ts';
 import { opencodeManifest } from './opencode/manifest.ts';
 import { translateClaudePolicy } from './claude-code/policy.ts';
-import type { CapabilityConfirmation, ProviderDriver } from './driver.ts';
+import type { BinarySource, CapabilityConfirmation, ProviderDriver } from './driver.ts';
 import type { ProviderManifest } from './manifest.ts';
 
 export type { ProviderManifest } from './manifest.ts';
@@ -36,11 +36,12 @@ export function translationFor(id: ProviderId): ((policy: ToolPolicy) => PolicyT
 
 /**
  * The driver class each `transport` is run by. Each driver adds its own line here, and a manifest
- * whose transport is listed gets a driver built from it.
+ * whose transport is listed gets a driver built from it. Without `bin` the driver starts the
+ * manifest's first command.
  */
-export const DRIVER_TRANSPORTS: Readonly<Partial<Record<ProviderManifest['transport'], (manifest: ProviderManifest) => ProviderDriver>>> = {
-  'json-rpc': (manifest) => new CodexDriver(manifest.commands.names[0]),
-  acp: (manifest) => new AcpDriver(manifest),
+export const DRIVER_TRANSPORTS: Readonly<Partial<Record<ProviderManifest['transport'], (manifest: ProviderManifest, bin?: BinarySource) => ProviderDriver>>> = {
+  'json-rpc': (manifest, bin) => new CodexDriver(bin ?? manifest.commands.names[0]),
+  acp: (manifest, bin) => new AcpDriver(manifest, bin === undefined ? {} : { bin }),
 };
 
 /** What a session's first event confirmed about a provider's installed version, and when */

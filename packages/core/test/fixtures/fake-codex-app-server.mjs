@@ -31,7 +31,7 @@
 //                             is set, and to memory otherwise
 //   FAKE_CODEX_LOG=<file>     appends one JSON line `{ dir, line }` per message in or out
 //   FAKE_CODEX_SPAWNS=<file>  appends `<pid> <argv>` and the CODEX_HOME seen, as the Claude fake does
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -101,7 +101,11 @@ function ask(method, params) {
 const threads = new Map();
 if (STATE && existsSync(STATE)) for (const t of JSON.parse(readFileSync(STATE, 'utf8'))) threads.set(t.id, t);
 const save = () => {
-  if (STATE) writeFileSync(STATE, JSON.stringify([...threads.values()]));
+  if (STATE) {
+    // A real Codex makes its home as it needs it; the sandbox of a spec only names the directory
+    mkdirSync(dirname(STATE), { recursive: true });
+    writeFileSync(STATE, JSON.stringify([...threads.values()]));
+  }
 };
 
 const SANDBOXES = {

@@ -14,6 +14,7 @@ import { SlashMenu, useSlashMenu } from '../components/SlashMenu';
 import { ErrorBox } from '@agentry/ui/components/ui';
 import { AgentScope } from '../lib/agent';
 import { chatKeys, useChatUi, type StartChoices } from '../lib/context';
+import { modeLabel } from '../lib/wire-words';
 import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 
 // Its Select and Combobox are Radix controls kept out of the shell bundle this page lives in: the
@@ -32,7 +33,8 @@ function useStatusWords(chat: Chat, kind: ComposerKind, choices: StartChoices): 
   const last = chat.execution ?? chat.executions.at(-1) ?? null;
   const starting = kind !== 'send';
   const model = (starting ? choices.model : undefined) ?? last?.model ?? chat.model ?? t('shared.default');
-  const mode = (starting ? choices.permissionMode : undefined) ?? last?.permissionMode ?? t('controls.default');
+  const chosenMode = (starting ? choices.permissionMode : undefined) ?? last?.permissionMode;
+  const mode = chosenMode ? modeLabel(chosenMode) : t('controls.default');
   const presetChoice = starting ? choices.toolPreset : undefined;
   const preset =
     presetChoice === null

@@ -20,6 +20,17 @@ import type { ProviderManifest } from './manifest.ts';
 import type { TranscriptStore } from './transcripts.ts';
 
 /**
+ * The executable a driver starts: a fixed path, or one read again at every start. Core passes the
+ * latter, so the person's binary override in Settings → Providers applies to the next process
+ * without rebuilding the driver.
+ */
+export type BinarySource = string | (() => string);
+
+export function binaryOf(source: BinarySource): string {
+  return typeof source === 'function' ? source() : source;
+}
+
+/**
  * The code half of a provider; the manifest is the data half. Everything that is the agent's own
  * (its flags, its environment, its stream, its control protocol, the account wrapper in front of
  * it) sits behind this; everything that is Agentry's (chats, executions, queueing, tokens,

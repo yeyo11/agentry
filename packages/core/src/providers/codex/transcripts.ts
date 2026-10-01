@@ -13,6 +13,7 @@ import type { TranscriptPage, TranscriptSummary } from '../../cli-facts.ts';
 import { pageSize } from '../../sessions.ts';
 import { emptyTokenUsage } from '../../usage.ts';
 import { encodeProjectId } from '../../workspace.ts';
+import { binaryOf, type BinarySource } from '../driver.ts';
 import { TranscriptUnavailable, type TranscriptStore } from '../transcripts.ts';
 import { codexManifest } from './manifest.ts';
 import type { ThreadItem } from './protocol/types.ts';
@@ -114,7 +115,7 @@ export function itemEntries(item: ThreadItem, at: string | null, model: string |
 
 export interface CodexTranscriptsOptions {
   /** The executable, its arguments (up to and including `app-server`) and its environment */
-  bin?: string;
+  bin?: BinarySource;
   args?: readonly string[];
   env?: NodeJS.ProcessEnv;
 }
@@ -148,7 +149,7 @@ export class CodexTranscripts implements TranscriptStore {
   }
 
   private start(): Reader {
-    const bin = this.opts.bin ?? codexManifest.commands.names[0] ?? 'codex';
+    const bin = binaryOf(this.opts.bin ?? codexManifest.commands.names[0] ?? 'codex');
     const args = this.opts.args ?? codexManifest.launch?.args ?? ['app-server'];
     const proc = spawn(bin, [...args], { env: { ...process.env, ...codexManifest.launch?.env, ...this.opts.env }, stdio: 'pipe' });
     const rpc = new JsonRpc((line) => proc.stdin.write(line), {

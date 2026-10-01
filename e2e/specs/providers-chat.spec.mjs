@@ -26,25 +26,47 @@ async function scan(page, check, label) {
 export default async ({ page, api, check, dirs }) => {
   const saved = (await api.get('/providers/settings')).body;
   const created = [];
-  const ready = (id) => page.waitFor(`return fetch('/api/providers/${id}').then((r) => r.json()).then((s) => s.state === 'ready')`, { label: `${id} is ready` });
+  // Asked from here and not from the page: the runner leaves the page on about:blank before a spec,
+  // where a relative fetch never reaches the API
+  const detected = async (id, wanted, label) => {
+    const end = Date.now() + 30_000;
+    for (;;) {
+      const status = (await api.get(`/providers/${id}`)).body;
+      if (wanted(status)) return status;
+      if (Date.now() > end) throw new Error(`timed out waiting for: ${label} (${JSON.stringify(status)})`);
+      await page.sleep(250);
+    }
+  };
+  const ready = (id) => detected(id, (s) => s?.state === 'ready', `${id} is ready`);
+  // The badge as it is read out: its mark is a decorative monogram (aria-hidden), and the label is the
+  // provider id until /providers has answered, so wait for the id to be replaced before reading it
+  const badgeLabel = async (id) => {
+    const read = `const b=document.querySelector('.chat-head .prov-badge');if(!b)return null;const c=b.cloneNode(true);c.querySelectorAll('[aria-hidden]').forEach((n)=>n.remove());return c.textContent.trim()`;
+    await page.waitFor(`const t=(()=>{${read}})();return !!t && t !== ${JSON.stringify(id)}`, { label: `the ${id} badge has its label` });
+    return page.eval(read);
+  };
   const theme = (name) => page.eval(`localStorage.setItem('agentry-theme', ${JSON.stringify(name)}); return true`);
 
   try {
     await api.put('/providers/settings', { ...saved, providers: { ...saved.providers, copilot: { enabled: true, binaryPath: join(fakes, 'copilot') } }, defaultProvider: null });
     await api.post('/providers/refresh');
     await ready('codex');
-    await ready('copilot');
+    // Copilot documents no sign-in probe that costs nothing (its manifest's `auth.probe` is `none`), so
+    // the detector reads its version and says `unknown` / `no-probe`, never `ready`
+    const copilotFound = await detected('copilot', (s) => s?.binaryPath === join(fakes, 'copilot') && s.version !== null && s.reason !== null, 'copilot is found');
+    check(copilotFound.state === 'unknown' && copilotFound.reason === 'no-probe' && copilotFound.version === '1.0.90', `the fake copilot is found, with no probe to say it is signed in (${copilotFound.state} ${copilotFound.reason} ${copilotFound.version})`);
 
     // ---- A chat on the fake Codex: the provider in the header and its words in the transcript ----
     const codex = await api.post('/chats', { prompt: 'TURN tidy the build', cwd: dirs.workspaceDir, provider: 'codex', permissionPrompts: 'host' });
-    check(codex.status < 300 && codex.body.provider === 'codex', `the chat starts on codex (${codex.status} ${codex.body?.provider})`);
+    check(codex.status < 300 && codex.body.provider === 'codex', `the chat starts on codex (${codex.status} ${codex.body?.provider ?? JSON.stringify(codex.body)})`);
     created.push(codex.body.id);
     await page.viewport(1440, 900);
     await page.goto('/', 300);
     await theme('dark');
     await page.goto(`/chats/${codex.body.id}`, 1200);
     await page.waitFor(`return !!document.querySelector('.chat-head .prov-badge')`, { label: 'the provider badge in the header' });
-    check((await page.text('.chat-head .prov-badge')).trim() === 'Codex', 'the header names the provider');
+    const codexBadge = await badgeLabel('codex');
+    check(codexBadge === 'Codex', `the header names the provider (${JSON.stringify(codexBadge)})`);
     await page.waitFor(`return document.body.innerText.includes('reply: TURN tidy the build')`, { label: 'the fake codex answer' });
     const words = await page.eval(`return document.body.innerText`);
     check(!/commandExecution|COMMANDEXECUTION|fileChange|acceptEdits/.test(words), 'no wire identifier reaches the screen');
@@ -64,11 +86,12 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---- The permission request of a fake Copilot, answered from the chat ----
     const copilot = await api.post('/chats', { prompt: 'ASK execute', cwd: dirs.workspaceDir, provider: 'copilot', permissionPrompts: 'host' });
-    check(copilot.status < 300 && copilot.body.provider === 'copilot', `the chat starts on copilot (${copilot.status})`);
+    check(copilot.status < 300 && copilot.body.provider === 'copilot', `the chat starts on copilot (${copilot.status} ${copilot.body?.provider ?? JSON.stringify(copilot.body)})`);
     created.push(copilot.body.id);
     await page.goto(`/chats/${copilot.body.id}`, 1200);
     await page.waitFor(`return !!document.querySelector('.permission .btn-primary')`, { label: 'the permission request' });
-    check((await page.text('.chat-head .prov-badge')).trim() === 'GitHub Copilot', 'the header names Copilot');
+    const copilotBadge = await badgeLabel('copilot');
+    check(copilotBadge === 'GitHub Copilot', `the header names Copilot (${JSON.stringify(copilotBadge)})`);
     check((await page.text('.permission-head')).length > 0 && !/execute\b/.test(await page.text('.permission-head')), 'the kind of tool is said in words, not as the wire names it');
     await page.shot('providers-chat-copilot-permission');
     await page.click('.permission .btn-primary', undefined, 800);

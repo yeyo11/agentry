@@ -89,7 +89,8 @@ import { Db } from './db.ts';
 import { HealthMonitor, HealthService } from './health-service.ts';
 import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
 import { EventBus } from './events.ts';
-import type { SessionInit } from './providers/driver.ts';
+import type { ProviderDriver, SessionInit } from './providers/driver.ts';
+import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
 import { CodeHostDetector } from './hosts/detector.ts';
 import { CodeHostsSettingsStore } from './hosts/settings.ts';
 import { ProviderDetector } from './providers/detector.ts';
@@ -98,6 +99,8 @@ import { ChatEntriesTranscripts } from './providers/chat-entries.ts';
 import { CodexDriver } from './providers/codex/driver.ts';
 import { CodexTranscripts } from './providers/codex/transcripts.ts';
 import { OpencodeTranscripts } from './providers/opencode/transcripts.ts';
+import type { ProviderManifest } from './providers/manifest.ts';
+import { DRIVER_TRANSPORTS, PROVIDER_MANIFESTS } from './providers/registry.ts';
 import { ProvidersSettingsStore } from './providers/settings.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
@@ -480,7 +483,7 @@ export class Core {
       emit: (event) => this.events.emit(event),
     });
     this.uploads = new UploadStore(config.dataDir);
-    this.runtime = new ChatManager(config, this.db);
+    this.runtime = new ChatManager(config, this.db, this.sessionDrivers(config));
     // One store, so the token a chat's process is handed is the one the guard accepts
     this.runtime.chatTokens = this.security.chatTokens;
     this.runtime.defaults = this.appSettings;
@@ -1034,9 +1037,26 @@ export class Core {
   }
 
   /**
-   * Where a chat belongs: its project, and the worktree when it works in one. The CLI's own record
-   * of the worktree it created wins over anything guessed from the path.
+   * One driver per provider that has one: Claude Code's, and one per manifest whose transport is
+   * built. Each reads its binary as a process starts, the override in Settings → Providers first,
+   * then what detection found, so a changed override applies to the next chat without a restart.
    */
+  private sessionDrivers(config: CoreConfig): ProviderDriver[] {
+    const drivers: ProviderDriver[] = [new ClaudeCodeDriver(config.claudeBin)];
+    for (const manifest of PROVIDER_MANIFESTS) {
+      if (manifest.id === 'claude-code') continue;
+      const build = DRIVER_TRANSPORTS[manifest.transport];
+      if (!build) continue;
+      drivers.push(build(manifest, this.binaryFor(manifest)));
+    }
+    return drivers;
+  }
+
+  private binaryFor(manifest: ProviderManifest): () => string {
+    const fallback = manifest.commands.names[0] ?? manifest.id;
+    return () => this.providersSettings.get().providers[manifest.id]?.binaryPath ?? this.providers.knownOne(manifest.id)?.binaryPath ?? fallback;
+  }
+
   /**
    * Gives each driver the store its provider's history is read with. Copilot and Gemini keep none
    * Agentry can read, so theirs stays null and a chat of theirs is read from what it streamed.
@@ -1044,11 +1064,15 @@ export class Core {
   private wireTranscripts(): void {
     for (const manifest of this.runtime.providers.list()) {
       const driver = this.runtime.providers.driverFor(manifest.id);
-      if (driver instanceof CodexDriver) driver.transcripts = new CodexTranscripts();
+      if (driver instanceof CodexDriver) driver.transcripts = new CodexTranscripts({ bin: this.binaryFor(manifest) });
       else if (driver instanceof AcpDriver && manifest.id === 'opencode') driver.transcripts = new OpencodeTranscripts();
     }
   }
 
+  /**
+   * Where a chat belongs: its project, and the worktree when it works in one. The CLI's own record
+   * of the worktree it created wins over anything guessed from the path.
+   */
   private place(dir: string, recorded: TranscriptSummary['worktree']): Placement {
     if (recorded) this.locator.learn(recorded);
     return this.projectOf(dir);

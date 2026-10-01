@@ -1,17 +1,19 @@
 import type { ModelOption, PermissionMode, PolicyTranslation, ToolPolicy } from '@agentry/shared';
 import type { BackgroundTask, SubagentInfo, WorkflowRun } from '../../cli-facts.ts';
 import { agentryChildren } from '../../processes.ts';
-import type {
-  BranchTracker,
-  CapabilityConfirmation,
-  DriverEvent,
-  DriverSession,
-  HandshakeResult,
-  LaunchPlan,
-  ProviderDriver,
-  SessionInit,
-  SessionIO,
-  SessionLaunch,
+import {
+  binaryOf,
+  type BinarySource,
+  type BranchTracker,
+  type CapabilityConfirmation,
+  type DriverEvent,
+  type DriverSession,
+  type HandshakeResult,
+  type LaunchPlan,
+  type ProviderDriver,
+  type SessionInit,
+  type SessionIO,
+  type SessionLaunch,
 } from '../driver.ts';
 import type { TranscriptStore } from '../transcripts.ts';
 import { codexHandshake, confirmCodexInit } from './handshake.ts';
@@ -46,7 +48,7 @@ const MODES: Array<{ mode: PermissionMode; native: string }> = [
 
 /**
  * Codex behind the driver interface: `codex app-server`, JSON-RPC over stdio, one process per chat
- * execution. The binary is the one on the `PATH` unless a path is given.
+ * execution. The binary is the one on the `PATH` unless a path, or where to read one, is given.
  */
 export class CodexDriver implements ProviderDriver {
   readonly manifest = codexManifest;
@@ -59,7 +61,7 @@ export class CodexDriver implements ProviderDriver {
   /** What `launch` was asked for, for the `attach` that follows it at once: the protocol needs the session's settings, argv carries none */
   private launched: SessionLaunch | null = null;
 
-  constructor(private readonly bin: string = codexManifest.commands.names[0] ?? 'codex') {}
+  constructor(private readonly bin: BinarySource = codexManifest.commands.names[0] ?? 'codex') {}
 
   /** The account's models, as a handshake listed them */
   setCatalog(models: ModelOption[]): void {
@@ -81,7 +83,7 @@ export class CodexDriver implements ProviderDriver {
   launch(spec: SessionLaunch): LaunchPlan {
     this.launched = spec;
     const { args, env, unsetEnv } = codexManifest.launch ?? { args: [], env: {}, unsetEnv: [] };
-    return { bin: this.bin, args: [...args], env: { ...process.env, ...env }, unsetEnv: [...unsetEnv] };
+    return { bin: binaryOf(this.bin), args: [...args], env: { ...process.env, ...env }, unsetEnv: [...unsetEnv] };
   }
 
   attach(io: SessionIO, sink: (event: DriverEvent) => void, _branches: BranchTracker): DriverSession {
@@ -113,6 +115,6 @@ export class CodexDriver implements ProviderDriver {
   }
 
   handshake(env: NodeJS.ProcessEnv, signal: AbortSignal): Promise<HandshakeResult> {
-    return codexHandshake(this.bin, [...(codexManifest.launch?.args ?? [])], { ...env, ...codexManifest.launch?.env }, signal);
+    return codexHandshake(binaryOf(this.bin), [...(codexManifest.launch?.args ?? [])], { ...env, ...codexManifest.launch?.env }, signal);
   }
 }
