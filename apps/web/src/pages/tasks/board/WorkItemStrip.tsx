@@ -242,6 +242,19 @@ export function WorkItemStrip({
         </>
       );
       break;
+    case 'pr-fix': {
+      const detail = [strip.attempt > 0 && t('pr.fix.attempt', { count: strip.attempt }), strip.origin && t(`pr.fix.origin.${strip.origin}`), t(`pr.fix.note.${strip.stage}.${strip.origin ?? 'person'}`)].filter(Boolean).join(' · ');
+      body = (
+        <>
+          {strip.stage === 'push' && <span className="badge badge-idle">{t('strip.waitsForYou')}</span>}
+          <GitPullRequest {...MARK} />
+          <PrNumber number={strip.number} refText={strip.ref} host={strip.host} />
+          <span className={`workitem-strip-verb ${strip.stage === 'push' ? '' : 'is-quiet'}`.trim()}>{t(`pr.fix.${strip.stage}`)}</span>
+          {!inline && <span className="workitem-strip-detail">{detail}</span>}
+        </>
+      );
+      break;
+    }
     case 'pr-open':
       body = (
         <>

@@ -167,6 +167,12 @@ export const FLOW_VERDICTS = valuesOf<FlowVerdict>()(['pass', 'fail']);
 /** Flow runs of a project at once when its settings leave `flow.maxParallel` out */
 export const DEFAULT_FLOW_MAX_PARALLEL = 2;
 
+/** Fixes of failing checks the decision may start for one head when `flow.checksFixAttempts` is absent */
+export const DEFAULT_CHECKS_FIX_ATTEMPTS = 2;
+
+/** The highest `flow.checksFixAttempts` a project may set */
+export const MAX_CHECKS_FIX_ATTEMPTS = 5;
+
 /** The highest `flow.maxParallel` a project may set: the Flow screen's stepper stops there */
 export const MAX_FLOW_PARALLEL = 10;
 

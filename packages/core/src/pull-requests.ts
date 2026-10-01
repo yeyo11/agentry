@@ -8,6 +8,8 @@ import {
   WORK_ITEM_PR_CAUSE,
   type AgentryEvent,
   type BoardCheckout,
+  type ChangeRequestFixOrigin,
+  type ChangeRequestKind,
   type CheckoutBehindReason,
   type CodeHostId,
   type CodeHostsSettings,
@@ -18,6 +20,7 @@ import {
   type WorkItemActor,
   type WorkItemCause,
   type WorkItemHistoryPullRequest,
+  type Check,
   type WorkItemPullRequest,
   type WorkItemPullRequestCi,
   type WorkItemPullRequestPhase,
@@ -39,7 +42,9 @@ import {
   removeWorktree,
   uncommittedFiles,
 } from './git.ts';
-import type { ChangeRequestView, CodeHostAdapter, HostRepo } from './hosts/code-host.ts';
+import { checksFixPrompt } from './flow.ts';
+import { ChecksError, type ChecksService, type ChecksTarget } from './hosts/checks-service.ts';
+import type { ChangeRequestRead, ChangeRequestView, ChecksCodeHostAdapter, HostCall, HostRepo } from './hosts/code-host.ts';
 import { defaultHostRun, hostSearchPath, resolveHostBinary, type HostRun } from './hosts/detector.ts';
 import { runHostCall, type HostResult } from './hosts/exec.ts';
 import { githubAdapter } from './hosts/github/adapter.ts';
@@ -125,10 +130,81 @@ const messageOf = (err: unknown): string => firstLine(err instanceof Error ? err
 /** The line a person reads beside a failed host call: what the CLI said, else Agentry's own reason. */
 const failureOf = (result: HostResult): string => result.stderrFirstLine || result.reason || `exit ${result.exitCode ?? 'none'}`;
 
-const ADAPTERS: Readonly<Record<CodeHostId, CodeHostAdapter>> = { github: githubAdapter, gitlab: gitlabAdapter };
+const ADAPTERS: Readonly<Record<CodeHostId, ChecksCodeHostAdapter>> = { github: githubAdapter, gitlab: gitlabAdapter };
 
 /** The adapter of a code host: the one place that maps an id to its translator. */
-export const codeHostAdapter = (id: CodeHostId): CodeHostAdapter | undefined => ADAPTERS[id];
+export const codeHostAdapter = (id: CodeHostId): ChecksCodeHostAdapter | undefined => ADAPTERS[id];
+
+/** The cause a fix of failing checks writes on the item's move to In progress; a client words it by its code. */
+export const CHECKS_FIX_CAUSE = 'pr.checks-fix';
+
+/** The failing checks a fix is made of: a failure the pipeline lets pass is not one. */
+export const failingChecks = (checks: readonly Check[]): Check[] => checks.filter((c) => c.state === 'failed' && !c.allowedToFail);
+
+/** How many failing checks a prompt carries, each with its log tail */
+const FIX_CHECKS_MAX = 10;
+
+/** The failing checks with the tail of each log, as the prompt of a fix; a log that cannot be read leaves its check without one. */
+export async function fixPromptFor(checks: ChecksService | undefined, crId: string, failing: readonly Check[]): Promise<string> {
+  const withLogs = await Promise.all(
+    failing.slice(0, FIX_CHECKS_MAX).map(async (c) => {
+      let logTail = '';
+      if (checks && c.hasLog) {
+        try {
+          logTail = (await checks.log(crId, c.id)).lines.join('\n');
+        } catch {
+          // the check goes in without its log
+        }
+      }
+      return { name: c.name, state: c.state, jobId: c.id, url: c.url, logTail };
+    }),
+  );
+  return checksFixPrompt(withLogs);
+}
+
+/** What the watcher tells the `checks.fix` decision when a change request's rollup reads `failing` for a head it has not announced. */
+export interface ChecksFailingNotice {
+  kind: ChangeRequestKind;
+  /** The change request's row id: the id the checks routes take */
+  id: string;
+  /** The work item (work item kind) or the orchestration it belongs to */
+  ownerId: string;
+  headSha: string | null;
+  /** Fixes already started for this head, a person's and a decision's together */
+  attempts: number;
+}
+
+/**
+ * What a ChecksTarget needs that no row holds: the CLI's version, and GitLab's numeric project id
+ * (the checks calls address `projects/<id>`). Read once per TTL, since the watcher asks every poll.
+ */
+export class HostFactsCache {
+  private readonly facts = new Map<string, { until: number; projectId: number | undefined; cliVersion: string | null }>();
+
+  constructor(private readonly now: () => number) {}
+
+  async of(adapter: ChecksCodeHostAdapter, repo: HostRepo, binaryPath: string, run: (call: HostCall) => Promise<HostResult>): Promise<{ repo: HostRepo; cliVersion: string | null }> {
+    const key = `${adapter.id}\0${repo.host}\0${repo.path}\0${binaryPath}`;
+    let hit = this.facts.get(key);
+    if (!hit || hit.until <= this.now()) {
+      const version = await run(adapter.version());
+      const cliVersion = version.exitCode === 0 ? adapter.parseVersion(version.stdout) : null;
+      let projectId: number | undefined;
+      if (adapter.id === 'gitlab') {
+        const view = await run(adapter.defaultBranch(repo));
+        try {
+          const id: unknown = view.exitCode === 0 ? (JSON.parse(view.stdout) as { id?: unknown }).id : undefined;
+          if (typeof id === 'number') projectId = id;
+        } catch {
+          // a project the CLI could not describe has no checks to read
+        }
+      }
+      hit = { until: this.now() + READINESS_TTL, projectId, cliVersion };
+      this.facts.set(key, hit);
+    }
+    return { repo: hit.projectId === undefined ? repo : { ...repo, projectId: hit.projectId }, cliVersion: hit.cliVersion };
+  }
+}
 
 export { ciOf } from './hosts/github/adapter.ts';
 
@@ -192,6 +268,22 @@ export interface PullRequestDeps {
   searchPath?: () => Promise<string>;
   /** Runs one host call; the execution layer, with the shared breaker, unless a test brings its own */
   run?: HostRun;
+  /** The checks of a change request. The watcher reads through it, and a fix takes its failures from it; without one neither does */
+  checks?: ChecksService;
+  /** The project's flow is on, so a fix can be a run of its Developer; off, the person gets the prompt for a chat */
+  flowOn?: (projectId: string) => boolean;
+  /** The hook of `checks.fix`: a change request turned `failing` for a head not announced before */
+  onChecksFailing?: (notice: ChecksFailingNotice) => void;
+}
+
+/** What a request to fix a work item's checks answers: whether a run started, and the prompt either way. */
+export interface FixChecksResult {
+  /** False when the project's flow is off: nothing moved, and the person takes `prompt` to a chat in `worktree` */
+  started: boolean;
+  prompt: string;
+  worktree: string | null;
+  item: WorkItem;
+  pullRequest: WorkItemPullRequest;
 }
 
 export interface ApproveResult {
@@ -203,7 +295,7 @@ export interface ApproveResult {
 
 /** What a host call needs about a project: the adapter, the CLI's binary and the repository that pins every call. */
 interface HostTarget {
-  adapter: CodeHostAdapter;
+  adapter: ChecksCodeHostAdapter;
   binaryPath: string;
   repo: HostRepo;
 }
@@ -231,9 +323,15 @@ export class PullRequestService {
   /** Projects whose host CLI failed, and until when the watcher leaves them alone */
   private readonly backoff = new Map<string, number>();
   private readonly pending = new Set<Promise<void>>();
+  private readonly hostFacts: HostFactsCache;
+  /** Fixes being pushed now, so that a double click pushes once */
+  private readonly pushing = new Set<string>();
+  /** The head each open change request was last announced `failing` for, so `checks.fix` is asked once per head and not once per poll */
+  private readonly announced = new Map<string, string | null>();
 
   constructor(private readonly deps: PullRequestDeps) {
     this.sql = deps.db.connection;
+    this.hostFacts = new HostFactsCache(() => this.now());
     this.breaker = new HostRateLimiter(this.sql);
     // A probe is never retried: a signed-out `glab auth status` exits 1 like a host that cannot be reached, and would wait 5 s for it
     this.runHost =
@@ -328,8 +426,20 @@ export class PullRequestService {
     return { adapter, binaryPath, repo: repoOf(row.hostname ?? origin.hostname, origin.path) };
   }
 
-  private call(target: HostTarget, call: ReturnType<CodeHostAdapter['version']>, cwd: string): Promise<HostResult> {
+  private call(target: HostTarget, call: HostCall, cwd: string): Promise<HostResult> {
     return this.runHost(call, { binaryPath: target.binaryPath, cwd, env: this.env() });
+  }
+
+  /** What `ChecksService` needs to read one of this service's rows; null when the row has no number or its project is gone. */
+  async checksTarget(row: PullRequestRow): Promise<ChecksTarget | null> {
+    if (row.number === null) return null;
+    const project = this.deps.project(row.project_id);
+    if (!project) return null;
+    const target = await this.target(project.path, row);
+    const cwd = mainCheckout(project.path);
+    const run = (call: HostCall): Promise<HostResult> => this.call(target, call, cwd);
+    const facts = await this.hostFacts.of(target.adapter, target.repo, target.binaryPath, run);
+    return { id: row.id, kind: 'work-item', adapter: target.adapter, repo: facts.repo, number: row.number, branch: row.branch, base: row.base, cliVersion: facts.cliVersion, run };
   }
 
   // ---------- the checkout ----------
@@ -599,7 +709,8 @@ export class PullRequestService {
 
   /** The Developer resolved a merge an approval conflicted, and QA's next pass re-verifies it. */
   awaitingVerify(itemId: string): boolean {
-    return this.newestRow(itemId)?.phase === 'awaiting-verify';
+    const row = this.newestRow(itemId);
+    return row?.phase === 'awaiting-verify' || (row?.phase === 'open' && row.fix_state === 'awaiting-verify');
   }
 
   /** The merge a work run is to resolve: the default branch and the conflicting paths. */
@@ -616,6 +727,8 @@ export class PullRequestService {
    */
   settleConflict(itemId: string): string[] | null {
     const row = this.newestRow(itemId);
+    // The same hook ends a Developer's run on a fix of failing checks
+    if (row?.phase === 'open') return this.settleFix(itemId);
     if (!row || row.phase !== 'conflict') return null;
     const item = this.deps.items.find(itemId);
     const wt = item?.worktree;
@@ -637,6 +750,10 @@ export class PullRequestService {
    */
   verified(itemId: string): void {
     const row = this.newestRow(itemId);
+    if (row?.phase === 'open' && row.fix_state === 'awaiting-verify') {
+      this.verifiedFix(row);
+      return;
+    }
     if (!row || row.phase !== 'awaiting-verify') return;
     if (this.personMovedSince(itemId, row.moved_at ?? row.approved_at)) {
       this.drop(row);
@@ -670,8 +787,177 @@ export class PullRequestService {
       if (event.actor.kind !== 'person' || event.cause?.event.startsWith('pr.')) return;
       const row = this.newestRow(event.itemId);
       if (row && (row.phase === 'conflict' || row.phase === 'awaiting-verify')) this.drop(row);
+      else if (row?.phase === 'open' && row.fix_state) this.dropFix(row);
     } catch {
       // runs inside someone else's event
+    }
+  }
+
+  // ---------- fixing failing checks ----------
+
+  /**
+   * `POST /change-requests/:id/checks/fix` for a work item. The row stays `open`: the change request
+   * is still open on the host, and the fix is a state of it. The item goes back to In progress, as the
+   * person's move for a click and the system's for the decision, and the flow's Developer starts
+   * with the failures in its prompt. With the flow off nothing moves: the person gets the prompt for
+   * a chat of their own, in the item's worktree.
+   */
+  async fixChecks(itemId: string, origin: ChangeRequestFixOrigin = 'person'): Promise<FixChecksResult> {
+    const item = this.deps.items.find(itemId);
+    if (!item) throw new PullRequestError('work item not found', 404);
+    const row = this.newestRow(itemId);
+    if (!row || row.phase !== 'open' || row.number === null) throw new PullRequestError(`${item.key} has no open change request to fix`, 409, 'not-open');
+    if (row.fix_state) throw new PullRequestError(`a fix of ${item.key}'s checks is already under way`, 409, 'fix-under-way');
+    if (this.deps.busy(itemId)) throw new PullRequestError(`${item.key} is being worked on: wait for its chat or run to end`, 409, 'busy');
+    const read = await this.readFailures(row);
+    if (!read.failing.length) throw new PullRequestError('no check failed on the head commit', 409, 'no-failing-checks');
+    const prompt = await this.fixPromptOf(row.id, read.failing);
+    const flow = this.deps.flowOn?.(item.projectId) === true;
+    if (!flow) return { started: false, prompt, worktree: item.worktree, item, pullRequest: pullRequestOf(row) };
+    if (item.status !== 'in_review') throw new PullRequestError(`${item.key} is not in review: a fix starts from an item waiting in In review`, 409, 'not-in-review');
+    const attempts = read.headSha && row.fix_head === read.headSha ? (row.fix_attempts ?? 0) + 1 : 1;
+    const at = new Date(this.now()).toISOString();
+    // moved_at stamps the start: a person's move after it drops the approval the click was
+    const started = this.sql
+      .prepare("UPDATE work_item_pull_requests SET fix_state = 'fixing', fix_origin = ?, fix_attempts = ?, fix_head = ?, moved_at = ?, error_code = NULL, error_detail = NULL, updated_at = ? WHERE id = ? AND phase = 'open' AND fix_state IS NULL")
+      .run(origin, attempts, read.headSha, at, at, row.id).changes;
+    if (started !== 1) throw new PullRequestError(`a fix of ${item.key}'s checks is already under way`, 409, 'fix-under-way');
+    this.changed(itemId, null, SYSTEM, null);
+    try {
+      this.deps.items.move(itemId, { status: 'in_progress' }, { actor: origin === 'person' ? PERSON : SYSTEM, cause: prCause(CHECKS_FIX_CAUSE) });
+    } catch (err) {
+      // The card did not move, so no run will start: the attempt goes
+      this.update(row.id, { fix_state: null, fix_origin: row.fix_origin ?? null, fix_attempts: row.fix_attempts ?? 0, fix_head: row.fix_head ?? null });
+      this.changed(itemId, null, SYSTEM, null);
+      throw err;
+    }
+    const current = this.rowById(row.id) ?? row;
+    return { started: true, prompt, worktree: item.worktree, item: this.deps.items.find(itemId) ?? item, pullRequest: pullRequestOf(current) };
+  }
+
+  /** Fixes started for a head: what `checks.fix` weighs against the project's limit. */
+  fixAttemptsFor(itemId: string, headSha: string | null): number {
+    const row = this.newestRow(itemId);
+    return row && headSha && row.fix_head === headSha ? (row.fix_attempts ?? 0) : 0;
+  }
+
+  /** The prompt section of a fix under way, for the flow's work run; null when the item has none. */
+  async fixPrompt(itemId: string): Promise<string | null> {
+    const row = this.newestRow(itemId);
+    if (!row || row.phase !== 'open' || row.fix_state !== 'fixing') return null;
+    const read = await this.readFailures(row);
+    return read.failing.length ? this.fixPromptOf(row.id, read.failing) : null;
+  }
+
+  private async readFailures(row: PullRequestRow): Promise<{ failing: Check[]; headSha: string | null }> {
+    const checks = this.deps.checks;
+    if (!checks) throw new PullRequestError('Agentry cannot read checks here', 409, 'checks-unavailable');
+    try {
+      const list = await checks.list(row.id);
+      return { failing: failingChecks(list.checks), headSha: list.headSha };
+    } catch (err) {
+      if (err instanceof ChecksError) throw new PullRequestError(`the checks could not be read${err.detail ? `: ${err.detail}` : ''}`, 409, err.reason);
+      throw err;
+    }
+  }
+
+  private fixPromptOf(crId: string, failing: readonly Check[]): Promise<string> {
+    return fixPromptFor(this.deps.checks, crId, failing);
+  }
+
+  /**
+   * The Developer's run on a fix ended well: QA verifies next. Nothing to do for a run that was not
+   * a fix. Called through {@link settleConflict}, the hook the flow already has.
+   */
+  settleFix(itemId: string): null {
+    const row = this.newestRow(itemId);
+    if (row?.phase === 'open' && row.fix_state === 'fixing' && this.update(row.id, { fix_state: 'awaiting-verify' }, ['open'])) this.changed(itemId, null, SYSTEM, null);
+    return null;
+  }
+
+  /**
+   * QA passed a fix. A person's click was the approval to push it, remembered since, unless a person
+   * moved the card meanwhile; a decision's fix waits for **Push the fix**.
+   */
+  private verifiedFix(row: PullRequestRow): void {
+    if (this.personMovedSince(row.item_id, row.moved_at ?? row.approved_at)) {
+      this.dropFix(row);
+      return;
+    }
+    if (row.fix_origin === 'person') {
+      this.track(this.pushFixRow(row));
+      return;
+    }
+    if (this.update(row.id, { fix_state: 'awaiting-push' }, ['open'])) this.changed(row.item_id, null, SYSTEM, null);
+  }
+
+  /** A person took the card over: whatever was remembered of the fix goes. Its attempts stay counted. */
+  private dropFix(row: PullRequestRow): void {
+    const r = this.sql.prepare("UPDATE work_item_pull_requests SET fix_state = NULL, fix_origin = NULL, updated_at = ? WHERE id = ? AND phase = 'open' AND fix_state IS NOT NULL").run(new Date(this.now()).toISOString(), row.id);
+    if (r.changes === 1) this.changed(row.item_id, null, SYSTEM, null);
+  }
+
+  /** `POST /change-requests/:id/push-fix` for a work item: the person's click on **Push the fix**. */
+  async pushFix(itemId: string): Promise<{ item: WorkItem; pullRequest: WorkItemPullRequest }> {
+    const item = this.deps.items.find(itemId);
+    if (!item) throw new PullRequestError('work item not found', 404);
+    const row = this.newestRow(itemId);
+    if (!row || row.phase !== 'open' || row.fix_state !== 'awaiting-push') throw new PullRequestError(`${item.key} has no verified fix waiting to be pushed`, 409, 'no-fix-to-push');
+    if (this.deps.busy(itemId)) throw new PullRequestError(`${item.key} is being worked on: wait for its chat or run to end`, 409, 'busy');
+    await this.pushFixRow(row);
+    const after = this.rowById(row.id) ?? row;
+    if (after.fix_state === 'awaiting-push' && after.error_code) throw new PullRequestError(`could not push ${row.branch}: ${after.error_detail ?? after.error_code}`, 409, after.error_code);
+    return { item: this.deps.items.find(itemId) ?? item, pullRequest: pullRequestOf(after) };
+  }
+
+  /**
+   * Pushes the item's branch with the fix and lets the change request pick up the new head. The
+   * branch is pushed as it is, never forced: a branch that moved on the host is a failure the person
+   * sees, with the fix still waiting. A failed push leaves `awaiting-push`, so the button retries it.
+   */
+  private async pushFixRow(row: PullRequestRow): Promise<void> {
+    if (this.pushing.has(row.id)) return;
+    this.pushing.add(row.id);
+    try {
+      const item = this.deps.items.find(row.item_id);
+      const project = item ? this.deps.project(item.projectId) : null;
+      const place = item && project ? itemWorktree(project.path, { ...item, projectId: item.projectId }) : null;
+      try {
+        if (!item || !place) throw new StepError('commit', 'the item has no worktree');
+        try {
+          // Concludes work the Developer left uncommitted, as an approval does
+          commitAll(place.worktree, `chore(${item.key.toLowerCase()}): fix the failing checks`);
+        } catch (err) {
+          throw new StepError('commit', messageOf(err));
+        }
+        try {
+          await this.gitAsync(place.worktree, ['push', 'origin', row.branch], 180_000);
+        } catch (err) {
+          throw new StepError('push', messageOf(err));
+        }
+      } catch (err) {
+        const step = err instanceof StepError ? err : new StepError('push', messageOf(err));
+        if (this.update(row.id, { fix_state: 'awaiting-push', error_code: step.code, error_detail: step.detail }, ['open'])) this.changed(row.item_id, null, SYSTEM, null);
+        return;
+      }
+      if (!this.update(row.id, { fix_state: null, fix_origin: null, error_code: null, error_detail: null }, ['open'])) return;
+      // The head moved: what was read for the old one is stale
+      try {
+        this.sql.prepare('DELETE FROM change_request_snapshots WHERE cr_id = ?').run(row.id);
+      } catch {
+        // the snapshot expires by itself
+      }
+      this.announced.delete(row.id);
+      this.changed(row.item_id, null, SYSTEM, null);
+      if (item?.status === 'in_review' && item.waiting !== 'merge') {
+        try {
+          this.deps.items.setFlowState(item.id, { waiting: 'merge' }, { actor: SYSTEM, cause: null });
+        } catch {
+          // removed meanwhile
+        }
+      }
+    } finally {
+      this.pushing.delete(row.id);
     }
   }
 
@@ -702,12 +988,21 @@ export class PullRequestService {
     });
     if (!claimed) return;
     let view: ChangeRequestView;
+    let read: ChangeRequestRead | null = null;
     try {
-      const home = mainCheckout(project.path);
-      const target = await this.target(project.path, row);
-      const out = await this.call(target, target.adapter.view(target.repo, row.number), home);
-      if (out.exitCode !== 0) throw new Error(failureOf(out));
-      view = target.adapter.parseView(out.stdout);
+      const checks = this.deps.checks;
+      const checksTarget = checks ? await this.checksTarget(row) : null;
+      if (checks && checksTarget) {
+        // One read through the checks service: the state, the rollup and the head together
+        read = await checks.readChangeRequest(checksTarget);
+        view = read.view;
+      } else {
+        const home = mainCheckout(project.path);
+        const target = await this.target(project.path, row);
+        const out = await this.call(target, target.adapter.view(target.repo, row.number), home);
+        if (out.exitCode !== 0) throw new Error(failureOf(out));
+        view = target.adapter.parseView(out.stdout);
+      }
       this.backoff.delete(row.project_id);
     } catch {
       this.backoff.set(row.project_id, this.now() + WATCH_BACKOFF);
@@ -729,6 +1024,28 @@ export class PullRequestService {
     }
     this.update(row.id, { ci, url, checked_at: at, claimed_until: null }, ['open']);
     if (ci !== row.ci || url !== row.url) this.changed(row.item_id, null, SYSTEM, null);
+    this.announceFailing(row, ci, read?.headSha ?? null);
+  }
+
+  /**
+   * Tells `checks.fix` that the rollup reads `failing` for a head it was not told about, once per
+   * head. The memory is this process's: after a restart a head still failing is told again, and the
+   * decision owns its own limits (attempts, parallel runs, cost). Nothing is told while a fix is
+   * under way.
+   */
+  private announceFailing(row: PullRequestRow, ci: WorkItemPullRequestCi, headSha: string | null): void {
+    if (ci !== 'failing') {
+      this.announced.delete(row.id);
+      return;
+    }
+    if (!this.deps.onChecksFailing || row.fix_state) return;
+    if (this.announced.has(row.id) && this.announced.get(row.id) === headSha) return;
+    this.announced.set(row.id, headSha);
+    try {
+      this.deps.onChecksFailing({ kind: 'work-item', id: row.id, ownerId: row.item_id, headSha, attempts: headSha && row.fix_head === headSha ? (row.fix_attempts ?? 0) : 0 });
+    } catch {
+      // the decision's failure is not the watcher's
+    }
   }
 
   /**

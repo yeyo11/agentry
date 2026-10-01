@@ -222,6 +222,14 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
       ['high', 'High: the person would want to know right away'],
     ]),
   ]),
+  // The tails are the host's CI output, untrusted: they are data for the question and nothing else. `headSha` is what the resolver reads the outcome against
+  point({ id: 'checks.fix', kind: 'act', scope: 'project', primitives: ['choice'], savesRun: false, maxStateBytes: 32 * 1024, fields: ['checks', 'attempt', 'diffStat', 'headSha'] }, () => [
+    choice('fix', 'Did the changes on this branch cause these check failures, in a way the Developer can fix?', [
+      ['branch-fixable', 'Branch-fixable: the branch caused the failures and the Developer can fix them by changing code'],
+      ['not-branch', 'Not the branch: infrastructure, a flaky test or a change unrelated to this branch'],
+      ['needs-person', 'Needs a person: a decision, access or a secret only a person can give is missing'],
+    ]),
+  ]),
 ];
 
 const BY_ID: ReadonlyMap<DecisionPointId, DecisionPointDefinition> = new Map(DECISION_POINTS.map((p) => [p.id, p]));

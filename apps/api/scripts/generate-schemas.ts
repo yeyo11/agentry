@@ -73,7 +73,7 @@ const ROOT_TYPES = [
   // Providers
   'ProviderStatus', 'ProvidersSettings',
   // Code hosts
-  'CodeHostStatus', 'CodeHostsSettings', 'ProjectCodeHost', 'OrchestrationPullRequest', 'OrchestrationPullRequestAnswer',
+  'CodeHostStatus', 'CodeHostsSettings', 'ProjectCodeHost', 'ChangeRequest', 'ChangeRequestChecks', 'CheckLog', 'ChecksRerunRequest', 'OrchestrationPullRequest', 'OrchestrationPullRequestAnswer',
   // The decision engine
   'DecisionSettings', 'DecisionSettingsUpdate', 'DecisionCredentialsUpdate', 'DecisionCredentialsResult', 'DecisionTestRequest', 'DecisionTestResult',
   'DecisionPointInfo', 'DecisionPreview', 'DecisionConsentRequest', 'DecisionRecord', 'DecisionPage', 'DecisionPageQuery', 'DecisionFilter',

@@ -5,6 +5,7 @@ import { uiEn, uiEs } from '@agentry/ui/i18n/resources';
 import enAccountsConfig from './locales/en/accountsConfig.json';
 import enAssistant from './locales/en/assistant.json';
 import enChanges from './locales/en/changes.json';
+import enChecks from './locales/en/checks.json';
 import enChats from './locales/en/chats.json';
 import enComponents from './locales/en/components.json';
 import enConfig from './locales/en/config.json';
@@ -31,6 +32,7 @@ import enWorkItem from './locales/en/workItem.json';
 import esAccountsConfig from './locales/es/accountsConfig.json';
 import esAssistant from './locales/es/assistant.json';
 import esChanges from './locales/es/changes.json';
+import esChecks from './locales/es/checks.json';
 import esChats from './locales/es/chats.json';
 import esComponents from './locales/es/components.json';
 import esConfig from './locales/es/config.json';
@@ -73,6 +75,7 @@ export const en = {
   orchestrationDetail: enOrchestrationDetail,
   observe: enObserve,
   changes: enChanges,
+  checks: enChecks,
   schedules: enSchedules,
   usage: enUsage,
   orchestrationV2: enOrchestrationV2,
@@ -109,6 +112,7 @@ export const es = {
   orchestrationDetail: esOrchestrationDetail,
   observe: esObserve,
   changes: esChanges,
+  checks: esChecks,
   schedules: esSchedules,
   usage: esUsage,
   orchestrationV2: esOrchestrationV2,

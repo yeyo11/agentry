@@ -24,6 +24,7 @@ export function Sheet({
   footer,
   side = 'auto',
   className = '',
+  closeLabel,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -35,6 +36,8 @@ export function Sheet({
   /** `auto` is a bottom sheet on a narrow screen and a side panel on a wide one */
   side?: 'auto' | 'bottom' | 'right';
   className?: string;
+  /** Names what the close button closes ("Close the log") where a bare "Close" would be vague */
+  closeLabel?: string;
 }) {
   const { t } = useTranslation('primitives');
   const narrow = useMediaQuery(NARROW);
@@ -98,7 +101,7 @@ export function Sheet({
               {description ? <RadixDialog.Description className="sheet-description">{description}</RadixDialog.Description> : <RadixDialog.Description className="sr-only">{title}</RadixDialog.Description>}
             </div>
             <RadixDialog.Close asChild>
-              <button type="button" className="icon-btn" aria-label={t('sheet.close')}>
+              <button type="button" className="icon-btn" aria-label={closeLabel ?? t('sheet.close')}>
                 <X {...ICON} />
               </button>
             </RadixDialog.Close>

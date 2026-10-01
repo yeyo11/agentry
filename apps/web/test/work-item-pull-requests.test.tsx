@@ -125,6 +125,25 @@ test.beforeEach(async () => {
 
 // ---------- the strip's state ----------
 
+test('a fix of failing checks reads on the card by its stage, and only the pushable one waits for the person', async () => {
+  const fixing = item('in_progress', { pullRequest: pr({ fixState: 'fixing', fixOrigin: 'person', fixAttempts: 1 }) });
+  assert.deepEqual(workItemStrip(fixing), { kind: 'pr-fix', stage: 'fixing', origin: 'person', attempt: 1, number: 123, ref: null, host: null });
+  assert.equal(stripTone(workItemStrip(fixing)!), null);
+  const html = text(strip(fixing));
+  assert.match(html, /fixing the checks/);
+  assert.match(html, /attempt 1 · at your request/);
+  assert.doesNotMatch(strip(fixing), /badge-idle/);
+
+  const waiting = item('in_review', { waiting: 'approval', pullRequest: pr({ fixState: 'awaiting-push', fixOrigin: 'decision', fixAttempts: 1 }) });
+  assert.equal(workItemStrip(waiting)?.kind, 'pr-fix');
+  assert.equal(stripTone(workItemStrip(waiting)!), 'wait');
+  assert.match(strip(waiting), /badge-idle/);
+  assert.match(text(strip(waiting)), /waits for you .*fix verified, waiting to be pushed.*decided by checks\.fix/);
+
+  await inSpanish();
+  assert.match(text(strip(item('in_review', { pullRequest: pr({ fixState: 'awaiting-verify', fixOrigin: 'person', fixAttempts: 1 }) }))), /verificando el arreglo.*se sube solo si QA lo da por bueno/);
+});
+
 test("a card's strip says where its pull request stands, each phase only in the column it leaves the card in", () => {
   assert.deepEqual(workItemStrip(item('in_review', { pullRequest: pr({ phase: 'preparing', number: null, url: null, ci: null }) })), { kind: 'pr-preparing', host: null });
   assert.deepEqual(workItemStrip(item('in_progress', { pullRequest: pr({ phase: 'conflict', number: null, url: null, conflicts: ['a.ts', 'b.ts'] }) })), {

@@ -68,11 +68,12 @@ export const POINT_KEY: Record<DecisionPointId, string> = {
   'health.semantic-loop': 'healthSemanticLoop',
   'health.test-weakening': 'healthTestWeakening',
   'changes.unexplained-hunk': 'changesUnexplainedHunk',
+  'checks.fix': 'checksFix',
   'notification.urgency': 'notificationUrgency',
   'palette.intent': 'paletteIntent',
 };
 
-export type AreaId = 'flow' | 'board' | 'memory' | 'assistant' | 'orchestrations' | 'health' | 'review' | 'notifications' | 'palette';
+export type AreaId = 'flow' | 'board' | 'memory' | 'assistant' | 'orchestrations' | 'health' | 'review' | 'hosts' | 'notifications' | 'palette';
 
 /** `run.continuation` sits under Orchestrations although it also serves the flow (the plan's call). */
 export const AREAS: ReadonlyArray<{ id: AreaId; points: readonly DecisionPointId[] }> = [
@@ -83,6 +84,7 @@ export const AREAS: ReadonlyArray<{ id: AreaId; points: readonly DecisionPointId
   { id: 'orchestrations', points: ['orchestration.retry', 'orchestration.model', 'orchestration.fixer', 'run.continuation'] },
   { id: 'health', points: ['supervisor.intervene', 'health.semantic-loop', 'health.test-weakening'] },
   { id: 'review', points: ['changes.unexplained-hunk'] },
+  { id: 'hosts', points: ['checks.fix'] },
   { id: 'notifications', points: ['notification.urgency'] },
   { id: 'palette', points: ['palette.intent'] },
 ];

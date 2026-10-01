@@ -3,7 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, ArrowUp, Check, FolderOpen, MessageSquare, Network, Search, X, type LucideIcon } from 'lucide-react';
 import { useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useAccounts, useOverview, useProjects } from '../api';
 import { AttachButton, AttachmentTray, useAttachments } from '@agentry/chat-ui/components/Attachments';
 import { ChatToolsPicker, type ToolChoices } from '../components/ChatToolsPicker';
@@ -43,7 +43,9 @@ export function NewChat() {
   const scope = useProjectScope();
   const overview = useOverview();
   const narrow = useMediaQuery(NARROW);
-  const [prompt, setPrompt] = useState('');
+  // A prompt another page prepared (the fix of failing checks, with the project's flow off) arrives in the route's state
+  const handed = (useLocation().state as { prompt?: unknown } | null)?.prompt;
+  const [prompt, setPrompt] = useState(typeof handed === 'string' ? handed : '');
   const files = useAttachments();
   const box = useRef<HTMLTextAreaElement>(null);
   const ready = (prompt.trim() || files.ids.length > 0) && !files.uploading;

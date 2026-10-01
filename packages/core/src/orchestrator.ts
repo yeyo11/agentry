@@ -1870,6 +1870,39 @@ ${quoted}
     return { note: tail(note, 1500), budget };
   }
 
+  /**
+   * The fixer's chat for the failing checks of an orchestration's change request: in the integration
+   * worktree, with the verification's fixer model, never pushing. It commits what it leaves behind
+   * and settles when the chat ends; the person's click on Push the fix is what publishes it.
+   */
+  async runChecksFix(req: { orchestrationId: string; cwd: string; branch: string; prompt: string }): Promise<{ ok: boolean }> {
+    const orch = this.items.get(req.orchestrationId);
+    if (!orch) return { ok: false };
+    const spec = orch.verificationSpec;
+    const run = this.runs.start(
+      {
+        prompt: req.prompt,
+        cwd: req.cwd,
+        model: spec?.model ?? orch.model ?? undefined,
+        permissionMode: orch.permissionMode,
+        allowedTools: rulesFor('claude-code', VERIFICATION_POLICY, { allowedTools: orch.allowedTools }).allowedTools,
+        ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
+        name: `${orch.name}:checks-fix`.slice(0, 60),
+        keepAlive: false,
+        ...(spec?.maxCostUsd !== undefined ? { maxBudgetUsd: spec.maxCostUsd } : {}),
+      },
+      { orchestrationId: orch.id, orchestrationTaskId: '__checks-fix__' },
+    );
+    const result = await this.runs.waitForResult(run.id);
+    orch.costUsd += result.costUsd;
+    try {
+      commitAll(req.cwd, `chore: keep what the checks fixer left uncommitted\n\nOrchestration ${orch.name} (${orch.id.slice(0, 8)}).`);
+    } catch {
+      // the push step commits again and says why it could not
+    }
+    return { ok: !result.isError && result.cause !== 'budget' };
+  }
+
   /** Integrates a finished graph again: after resolving by hand, or one from before this existed. */
   retryIntegration(id: string): Orchestration {
     const orch = this.items.get(id);
