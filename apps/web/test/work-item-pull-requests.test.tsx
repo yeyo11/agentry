@@ -290,7 +290,7 @@ test('in a ready project the approval opens the PR; anywhere else it moves the c
 
   const notReady = strip(waiting, NO_AUTH);
   assert.match(notReady, /class="btn btn-small workitem-approve"/);
-  assert.match(text(notReady), /No PR: gh is not signed in .*Approve and move to Done/);
+  assert.match(text(notReady), /No PR: the host(?:'|&#x27;)s CLI is not signed in .*Approve and move to Done/);
   assert.match(notReady, /class="pr-not-ready workitem-strip-note" title="You are not logged into any GitHub hosts/);
 
   const unknown = strip(waiting, null);
@@ -299,7 +299,7 @@ test('in a ready project the approval opens the PR; anywhere else it moves the c
 
   await inSpanish();
   assert.match(text(strip(waiting, READY)), /Aprobar y abrir PR/);
-  assert.match(text(strip(waiting, NO_AUTH)), /Sin PR: la CLI del host no ha iniciado sesión .*Aprobar y pasar a Hecho/);
+  assert.match(text(strip(waiting, NO_AUTH)), /Sin PR: el CLI del host no ha iniciado sesión .*Aprobar y pasar a Hecho/);
   assert.match(text(strip(waiting, { status: 'no-remote', detail: null, defaultBranch: null, host: null, hostname: null, remedy: null })), /Sin PR: el proyecto no tiene remoto/);
 });
 
@@ -459,7 +459,7 @@ test('the waiting panel explains a PR waiting for the merge, a conflict with its
   assert.match(notReady, /class="item-wait is-quiet item-pr-wait is-not-ready"/);
   assert.doesNotMatch(notReady, /class="badge/, 'no status badge beside the head\'s own');
   assert.match(notReady, /class="pr-not-ready" title="You are not logged into any GitHub hosts/);
-  assert.match(text(notReady), /No PR: gh is not signed in/);
+  assert.match(text(notReady), /No PR: the host(?:'|&#x27;)s CLI is not signed in/);
   assert.doesNotMatch(notReady, /workitem-open-pr/, 'no PR button where it cannot open one: Move to Done stays in the head');
 
   const offer = wrap(<PullRequestState item={detail('in_review', { pullRequestReadiness: READY })} />);
@@ -470,7 +470,7 @@ test('the waiting panel explains a PR waiting for the merge, a conflict with its
   assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'merge', pullRequest: pr({ number: 12 }), pullRequestReadiness: READY })} />)), /La PR #12 espera que la fusiones en GitHub/);
   assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'approval', pullRequestReadiness: READY })} />)), /Aprobar y abrir PR/);
   assert.match(text(wrap(<PullRequestState item={detail('in_review', { pullRequestReadiness: READY })} />)), /Abrir PR/);
-  assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'approval', pullRequestReadiness: NO_AUTH })} />)), /Sin PR: la CLI del host no ha iniciado sesión/);
+  assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'approval', pullRequestReadiness: NO_AUTH })} />)), /Sin PR: el CLI del host no ha iniciado sesión/);
 });
 
 test("the item's PR row under Changes links to GitHub with its number in mono, its branch into the default one and its state in words", async () => {

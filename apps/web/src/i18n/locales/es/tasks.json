@@ -389,10 +389,10 @@
     "notReady": {
       "not-git": "el proyecto no es un repositorio git",
       "no-remote": "el proyecto no tiene remoto",
-      "unsupported-host": "Agentry no tiene una CLI con sesión iniciada para el host de origin",
-      "cli-missing": "la CLI del host no está instalada",
-      "cli-incompatible": "la CLI del host es anterior a las versiones con las que funciona Agentry",
-      "cli-signed-out": "la CLI del host no ha iniciado sesión",
+      "unsupported-host": "Agentry no tiene un CLI con sesión iniciada para el host de origin",
+      "cli-missing": "el CLI del host no está instalado",
+      "cli-incompatible": "el CLI del host es anterior a las versiones con las que funciona Agentry",
+      "cli-signed-out": "el CLI del host no ha iniciado sesión",
       "no-default-branch": "no se encuentra la rama predeterminada"
     },
     "noun": {
