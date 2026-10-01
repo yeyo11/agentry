@@ -3195,6 +3195,17 @@
           }
         ]
       },
+      "fixKind": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixKind"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Absent or null reads as `checks`"
+      },
       "fixAttempts": {
         "type": "number"
       },
@@ -3266,6 +3277,14 @@
       "decision"
     ],
     "description": "Who asked for the fix: a person's click, or the `checks.fix` decision."
+  },
+  "ChangeRequestFixKind": {
+    "type": "string",
+    "enum": [
+      "checks",
+      "review"
+    ],
+    "description": "What the fix answers: failing checks (what a row without a kind means) or review comments."
   },
   "OrchestrationEngine": {
     "type": "string",
@@ -4848,6 +4867,9 @@
       },
       {
         "$ref": "#/components/schemas/ChangeRequestChecksEvent"
+      },
+      {
+        "$ref": "#/components/schemas/ChangeRequestReviewEvent"
       },
       {
         "$ref": "#/components/schemas/ScheduleChangedEvent"
@@ -7099,6 +7121,56 @@
       "type"
     ],
     "description": "The head commit's checks changed rollup, or the list was read again after a write."
+  },
+  "ChangeRequestReviewEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "change-request.review"
+      },
+      "changeRequestId": {
+        "type": "string",
+        "description": "The change request's row id; `id` is the feed's sequence number"
+      },
+      "unresolvedThreads": {
+        "type": "number"
+      },
+      "decision": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "approved",
+          "changes-requested",
+          "review-required",
+          null
+        ],
+        "description": "The host's decision in Agentry's words; null when no rule asks for one"
+      }
+    },
+    "required": [
+      "at",
+      "changeRequestId",
+      "decision",
+      "id",
+      "title",
+      "type",
+      "unresolvedThreads"
+    ],
+    "description": "The threads or the review decision of a change request changed."
   },
   "ScheduleChangedEvent": {
     "type": "object",
@@ -12654,6 +12726,19 @@
                 "description": "Act points only, 0.5..0.99; absent reads as the point's default"
               }
             }
+          },
+          "review.triage": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
           }
         }
       }
@@ -13314,6 +13399,17 @@
             "type": "null"
           }
         ]
+      },
+      "fixKind": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixKind"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Absent or null reads as `checks`"
       },
       "fixAttempts": {
         "type": "number",
@@ -17533,6 +17629,17 @@
           }
         ]
       },
+      "fixKind": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFixKind"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Absent or null reads as `checks`"
+      },
       "fixAttempts": {
         "type": "number"
       },
@@ -17972,6 +18079,9 @@
           },
           "checks.fix": {
             "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "review.triage": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
       },
@@ -18131,6 +18241,9 @@
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "checks.fix": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "review.triage": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
@@ -18373,7 +18486,8 @@
       "changes.unexplained-hunk",
       "palette.intent",
       "notification.urgency",
-      "checks.fix"
+      "checks.fix",
+      "review.triage"
     ]
   },
   "DecisionPointKind": {
