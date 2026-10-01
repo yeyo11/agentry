@@ -1703,6 +1703,11 @@ When G is merged into the branch, D starts.
 
 #### W · `providers3-web`, dependsOn P0 (validated), D
 
+P0 was validated on 2026-10-01 (by delegation) with one correction for W: the prototypes show raw
+protocol names, a Codex tool chip reading `COMMANDEXECUTION` and the permission mode `ACCEPTEDITS`.
+The UI names tool kinds and modes in the person's words, through i18n (a command, a file change;
+"Accept edits"), never the wire's identifiers.
+
 - `u1` (chat-ui), dependsOn none within W.
   - `agentNameFor`, the `{{agent}}` keys of `chat.json` and `primitives.json`, `ProviderBadge` in
     `ChatBadges.tsx`, the boundaries test kept green.
