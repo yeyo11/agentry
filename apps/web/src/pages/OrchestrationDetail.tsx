@@ -28,7 +28,8 @@ import { costSplit } from '../lib/orchestration-board';
 import { followedStep, layerTasks, orchestrationSteps, type OrchestrationStep } from '../lib/orchestration-steps';
 import { pullRequestErrorKey } from '../lib/work-items';
 import { CiBadge, reasonValues, useChangeRequestWords } from './tasks/board/PullRequest';
-import { canRelaunch, pullRequestHeld, rerunBlockedByPullRequest } from '../lib/orchestration-v2';
+import { canRelaunch, checksShown, pullRequestHeld, rerunBlockedByPullRequest } from '../lib/orchestration-v2';
+import { OrchestrationChecks } from '../components/OrchestrationChecks';
 import type { StepState } from '@agentry/ui/lib/progress';
 
 /** The badge tone of each phase of an orchestration's change request: waiting for the person idle, merged ok, failed bad. */
@@ -180,6 +181,7 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
             </div>
           )}
           {pr?.phase === 'open' && <p className="muted small">{t('config:detail.prFollows', { noun: words.noun, host: words.host })}</p>}
+          {checksShown(pr) && <OrchestrationChecks orch={orch} pr={pr} words={words} />}
           {pr?.phase === 'failed' && pr.error && (
             <div className="alert alert-warn small" title={pr.error.detail || undefined}>
               {tt(pullRequestErrorKey(pr.error.code), { ...reasonValues(tt, { host: pr.host, hostname: null }), host: words.host })}

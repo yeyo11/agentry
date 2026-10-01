@@ -17,6 +17,7 @@ import {
   type BoardCheckout,
   type BoardColumn,
   type ChatActivity,
+  type ChangeRequestFixOrigin,
   type CodeHostId,
   type FlowRun,
   type FlowRunCause,
@@ -31,6 +32,7 @@ import {
   type WorkItemStatus,
   type WorkItemType,
 } from '@agentry/shared';
+import { fixStage, type FixStage } from './change-requests';
 
 // ---------- where things are ----------
 
@@ -415,6 +417,7 @@ export type WorkItemStripState =
   | { kind: 'pr-preparing'; host: CodeHostId | null }
   | { kind: 'pr-conflict'; base: string; count: number; host: CodeHostId | null }
   | { kind: 'pr-awaiting'; base: string; host: CodeHostId | null }
+  | { kind: 'pr-fix'; stage: FixStage; origin: ChangeRequestFixOrigin | null; attempt: number; number: number | null; ref: string | null; host: CodeHostId | null }
   | { kind: 'pr-open'; number: number | null; ref: string | null; host: CodeHostId | null; url: string | null; ci: WorkItemPullRequestCi | null }
   | { kind: 'pr-closed'; number: number | null; ref: string | null; host: CodeHostId | null }
   | { kind: 'pr-failed'; code: string; detail: string | null; host: CodeHostId | null };
@@ -444,6 +447,10 @@ function pullRequestStrip(item: StripItem): WorkItemStripState | null {
   const pr = item.pullRequest ?? null;
   if (item.status === 'done') return null;
   const host = pr?.host ?? null;
+  if (pr?.phase === 'open' && pr.fixState) {
+    const stage = fixStage({ fixState: pr.fixState ?? null });
+    if (stage) return { kind: 'pr-fix', stage, origin: pr.fixOrigin ?? null, attempt: pr.fixAttempts ?? 0, number: pr.number, ref: pr.ref ?? null, host };
+  }
   if (item.waiting === 'merge' || pr?.phase === 'open')
     return { kind: 'pr-open', number: pr?.number ?? null, ref: pr?.ref ?? null, host, url: pr?.url ?? null, ci: pr?.ci ?? null };
   if (!pr) return null;
@@ -543,6 +550,9 @@ export function stripTone(strip: WorkItemStripState): 'live' | 'wait' | 'fail' |
     case 'pr-open':
     case 'pr-closed':
       return 'wait';
+    // Agents fixing or verifying show as run strips while they work; with none running it is neutral and still
+    case 'pr-fix':
+      return strip.stage === 'push' ? 'wait' : null;
     case 'failed':
     case 'pr-failed':
       return 'fail';
