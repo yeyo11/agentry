@@ -4832,6 +4832,8 @@ export type OrchestrationPullRequestPhase = 'preparing' | 'open' | 'merged' | 'c
 
 /** The change request opened for an orchestration's integration branch. */
 export interface OrchestrationPullRequest {
+  /** The row id: what `/change-requests/:id/…` takes for this change request */
+  id?: string;
   phase: OrchestrationPullRequestPhase;
   host: CodeHostId;
   /** How the host writes the number: `#12` or `!12`; null without a number */

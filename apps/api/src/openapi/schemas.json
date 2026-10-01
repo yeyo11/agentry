@@ -3088,6 +3088,10 @@
   "OrchestrationPullRequest": {
     "type": "object",
     "properties": {
+      "id": {
+        "type": "string",
+        "description": "The row id: what `/change-requests/:id/…` takes for this change request"
+      },
       "phase": {
         "$ref": "#/components/schemas/OrchestrationPullRequestPhase"
       },
