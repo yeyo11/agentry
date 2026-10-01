@@ -91,7 +91,7 @@ test('a known refusal while "Work on it" creates its chat keeps its 4xx', async 
 });
 
 test('a chat on a provider with no session driver is refused with a 400', async () => {
-  const res = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hi', provider: 'codex' }) });
+  const res = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hi', provider: 'nope' }) });
   assert.equal(res.statusCode, 400, res.body);
   assert.match(res.json<{ error: string }>().error, /cannot run chats/);
   const bad = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hi', provider: 7 }) });

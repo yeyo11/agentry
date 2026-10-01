@@ -129,6 +129,9 @@ test('a provider\'s catalog is served with its tiers, and one with no driver is 
   const models = (await app.inject('/api/providers/claude-code/models')).json<ModelOption[]>();
   assert.deepEqual(models.map((m) => m.value).slice(0, 4), ['fable', 'opus', 'sonnet', 'haiku']);
   assert.equal(models.find((m) => m.value === 'haiku')?.tier, 'fast');
-  assert.equal((await app.inject('/api/providers/codex/models')).statusCode, 404);
+  // Codex has a driver since phase 3, so its catalog is served, whatever the account has listed so far
+  const codex = await app.inject('/api/providers/codex/models');
+  assert.equal(codex.statusCode, 200, codex.body);
+  assert.ok(Array.isArray(codex.json<ModelOption[]>()));
   assert.equal((await app.inject('/api/providers/nope/models')).statusCode, 404);
 });
