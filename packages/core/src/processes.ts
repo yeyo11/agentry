@@ -49,6 +49,35 @@ export function streamJsonProcesses(): CliProcess[] {
   return found;
 }
 
+/**
+ * Processes of the same user that Agentry started, found by the `AGENTRY_CHAT_ID` the manager puts
+ * in every spawn's environment: the agents that speak a protocol on stdio carry no session id in
+ * argv, so this is how a chat's process is told from a stranger's. Linux only; `[]` elsewhere, and
+ * for a process whose environment cannot be read (another user's).
+ */
+export function agentryChildren(): Array<{ pid: number; chatId: string; argv: string[] }> {
+  let names: string[];
+  try {
+    names = readdirSync('/proc');
+  } catch {
+    return [];
+  }
+  const found: Array<{ pid: number; chatId: string; argv: string[] }> = [];
+  for (const name of names) {
+    if (!/^\d+$/.test(name) || Number(name) === process.pid) continue;
+    try {
+      const environ = readFileSync(`/proc/${name}/environ`, 'utf8').split('\0');
+      const chatId = environ.find((entry) => entry.startsWith('AGENTRY_CHAT_ID='))?.slice('AGENTRY_CHAT_ID='.length);
+      if (!chatId) continue;
+      const argv = readFileSync(`/proc/${name}/cmdline`, 'utf8').split('\0').filter(Boolean);
+      if (argv.length > 0) found.push({ pid: Number(name), chatId, argv });
+    } catch {
+      // gone, or not ours to read
+    }
+  }
+  return found;
+}
+
 /** How long a read of the process table serves the lists: it is a file per process, and one request assembles many chats. */
 const PROCESSES_TTL_MS = 1_000;
 let recent: { at: number; value: CliProcess[] } | null = null;

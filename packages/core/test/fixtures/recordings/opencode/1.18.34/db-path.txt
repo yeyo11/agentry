@@ -1,0 +1,2 @@
+<home>/.local/share/opencode/opencode.db
+exit 0

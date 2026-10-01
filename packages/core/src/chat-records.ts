@@ -29,6 +29,8 @@ export interface ChatRecord {
   permissionMode: PermissionMode;
   /** The provider driving it; absent on a record written before the column existed, and always filled when loaded */
   provider?: string;
+  /** The id the agent gave the session, for a provider that names it itself; null for Claude, whose native id is `id` */
+  nativeSessionId?: string | null;
   /** Pinned claude-swap account, when it did not use the active one */
   account: string | null;
   /** Where permissions, questions and plans go, kept so a resumed execution asks the same way */
