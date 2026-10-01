@@ -304,7 +304,7 @@ the token as `${…}` references, which refines "written into the file's `env`" 
 the disk.
 
 Done when the branch was verified: `docker/Dockerfile` copies `packages/mcp/package.json`, because the
-core depends on `@agentry/mcp`, and `packages/mcp` is in `release-please-config.json` at the repository's
+core depends on `@agentry/mcp`, and the runtime image carries `mcp.mjs` beside `api.mjs`, where the server looks for it, and `packages/mcp` is in `release-please-config.json` at the repository's
 version, so a release does not leave it behind. Left for others: the chat-level plumbing (a route,
 `chats.create` accepting the helper's output) is CW-18's.
 
