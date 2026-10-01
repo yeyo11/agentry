@@ -575,22 +575,43 @@ export function approvalOpensPullRequest(readiness: Pick<PullRequestReadiness, '
   return readiness?.status === 'ready';
 }
 
+/**
+ * The reasons an older server still sends, for the three the host work renamed: GitHub was the only
+ * host then, so each one maps to the neutral reason that says the same.
+ */
+export const LEGACY_NOT_READY_REASONS: Readonly<Record<string, PullRequestNotReadyReason>> = {
+  'not-github': 'unsupported-host',
+  'no-gh': 'cli-missing',
+  'gh-unauthenticated': 'cli-signed-out',
+};
+
 /** Why the project offers no pull request, so the card and the item say it instead of failing silently; null when ready or unknown. */
 export function notReadyReason(readiness: Pick<PullRequestReadiness, 'status'> | null | undefined): PullRequestNotReadyReason | null {
-  return readiness && readiness.status !== 'ready' ? readiness.status : null;
+  if (!readiness || readiness.status === 'ready') return null;
+  return LEGACY_NOT_READY_REASONS[readiness.status] ?? readiness.status;
 }
 
 const PULL_REQUEST_STEPS = ['fetch', 'merge', 'push', 'create', 'commit', 'worktree-kept'] as const;
-const NOT_READY_REASONS: readonly PullRequestNotReadyReason[] = ['not-git', 'no-remote', 'not-github', 'no-gh', 'gh-unauthenticated', 'no-default-branch'];
+const NOT_READY_REASONS: readonly PullRequestNotReadyReason[] = [
+  'not-git',
+  'no-remote',
+  'unsupported-host',
+  'no-default-branch',
+  'cli-missing',
+  'cli-incompatible',
+  'cli-signed-out',
+];
 
 /**
  * The words for a pull request's error code (`tasks` namespace): the step that failed, or the
- * readiness reason the project lost since. A code this version does not know still reads as a failure.
+ * readiness reason the project lost since. A code this version does not know still reads as a
+ * failure; one an older server sends for a renamed reason reads as its neutral name.
  */
 export function pullRequestErrorKey(code: string): `pr.error.${(typeof PULL_REQUEST_STEPS)[number] | 'unknown'}` | `pr.notReady.${PullRequestNotReadyReason}` {
   const step = PULL_REQUEST_STEPS.find((known) => known === code);
   if (step) return `pr.error.${step}`;
-  const reason = NOT_READY_REASONS.find((known) => known === code);
+  const neutral = LEGACY_NOT_READY_REASONS[code] ?? code;
+  const reason = NOT_READY_REASONS.find((known) => known === neutral);
   return reason ? `pr.notReady.${reason}` : 'pr.error.unknown';
 }
 

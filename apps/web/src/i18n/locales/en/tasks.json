@@ -389,10 +389,15 @@
     "notReady": {
       "not-git": "the project is not a git repository",
       "no-remote": "the project has no origin remote",
-      "not-github": "origin is not on GitHub",
-      "no-gh": "gh is not installed",
-      "gh-unauthenticated": "gh is not signed in",
+      "unsupported-host": "Agentry has no signed-in CLI for the host of origin",
+      "cli-missing": "the host's CLI is not installed",
+      "cli-incompatible": "the host's CLI is older than Agentry works with",
+      "cli-signed-out": "the host's CLI is not signed in",
       "no-default-branch": "the default branch could not be found"
+    },
+    "noun": {
+      "pr": "PR",
+      "mr": "MR"
     },
     "refused": {
       "not-in-review": "Only a task in In review opens its PR",

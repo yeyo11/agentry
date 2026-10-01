@@ -1,11 +1,11 @@
-import type { BoardCheckout, PullRequestReadiness, WorkItem, WorkItemDetail, WorkItemPullRequestCi } from '@agentry/shared';
+import type { BoardCheckout, PullRequestNotReadyReason, PullRequestReadiness, WorkItem, WorkItemDetail, WorkItemPullRequestCi } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, CircleAlert, Clock, Minus, X } from 'lucide-react';
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, ApiRequestError, keys } from '../../../api';
 import { useToast } from '../../../components/Toast';
-import { checkoutNote, ciTone, notReadyReason } from '../../../lib/work-items';
+import { checkoutNote, ciTone, notReadyReason, pullRequestErrorKey } from '../../../lib/work-items';
 
 // The pieces of an item's pull request that the board and the item's page share
 // (docs/plans/work-item-pull-requests.md): the project's readiness, the approval that opens it, the
@@ -22,7 +22,6 @@ export function BoardReadinessProvider({ value, children }: { value: PullRequest
 
 /** The refusals `POST /work-items/:itemId/pull-request` names with a code, each worded in `tasks:pr.refused`. */
 const REFUSALS = ['not-in-review', 'busy', 'nothing-to-propose'] as const;
-const READINESS = ['not-git', 'no-remote', 'not-github', 'no-gh', 'gh-unauthenticated', 'no-default-branch'] as const;
 
 /**
  * Approving an item in a ready project: `POST /work-items/:itemId/pull-request`. The answer's item
@@ -44,8 +43,8 @@ export function useOpenPullRequest() {
       const worded =
         code && (REFUSALS as readonly string[]).includes(code)
           ? t(`pr.refused.${code as (typeof REFUSALS)[number]}`)
-          : code && (READINESS as readonly string[]).includes(code)
-            ? t('pr.noPr', { reason: t(`pr.notReady.${code as (typeof READINESS)[number]}`) })
+          : code && pullRequestErrorKey(code).startsWith('pr.notReady.')
+            ? t('pr.noPr', { reason: t(pullRequestErrorKey(code) as `pr.notReady.${PullRequestNotReadyReason}`) })
             : null;
       toast.error(t('pr.failed'), worded ? new ApiRequestError(worded, error instanceof ApiRequestError ? error.status : 0, error instanceof Error ? error.message : undefined) : error);
     },

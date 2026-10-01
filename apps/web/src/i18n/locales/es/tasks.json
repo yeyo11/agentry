@@ -389,10 +389,15 @@
     "notReady": {
       "not-git": "el proyecto no es un repositorio git",
       "no-remote": "el proyecto no tiene remoto",
-      "not-github": "origin no está en GitHub",
-      "no-gh": "gh no está instalado",
-      "gh-unauthenticated": "gh no ha iniciado sesión",
+      "unsupported-host": "Agentry no tiene una CLI con sesión iniciada para el host de origin",
+      "cli-missing": "la CLI del host no está instalada",
+      "cli-incompatible": "la CLI del host es anterior a las versiones con las que funciona Agentry",
+      "cli-signed-out": "la CLI del host no ha iniciado sesión",
       "no-default-branch": "no se encuentra la rama predeterminada"
+    },
+    "noun": {
+      "pr": "PR",
+      "mr": "MR"
     },
     "refused": {
       "not-in-review": "Solo una tarea en En revisión abre su PR",

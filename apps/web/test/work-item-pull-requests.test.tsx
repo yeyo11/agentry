@@ -77,8 +77,8 @@ const detail = (status: WorkItemStatus, extra: Partial<WorkItemDetail> = {}): Wo
   ...extra,
 });
 
-const READY: PullRequestReadiness = { status: 'ready', detail: null, defaultBranch: 'main' };
-const NO_AUTH: PullRequestReadiness = { status: 'gh-unauthenticated', detail: 'You are not logged into any GitHub hosts. Run gh auth login', defaultBranch: 'main' };
+const READY: PullRequestReadiness = { status: 'ready', detail: null, defaultBranch: 'main', host: 'github', hostname: 'github.com', remedy: null };
+const NO_AUTH: PullRequestReadiness = { status: 'cli-signed-out', detail: 'You are not logged into any GitHub hosts. Run gh auth login', defaultBranch: 'main', host: 'github', hostname: 'github.com', remedy: null };
 
 const team: BoardTeam = {
   flowOn: true,
@@ -256,7 +256,12 @@ test('a PR closed without merging and one that failed to open offer the approval
   assert.match(failed, /workitem-approve is-pr/);
   // A code this version does not know still reads as a failure
   assert.equal(pullRequestErrorKey('something-new'), 'pr.error.unknown');
-  assert.equal(pullRequestErrorKey('gh-unauthenticated'), 'pr.notReady.gh-unauthenticated');
+  assert.equal(pullRequestErrorKey('cli-signed-out'), 'pr.notReady.cli-signed-out');
+  // An older server still sends the names from before hosts: they read as their neutral reason
+  assert.equal(pullRequestErrorKey('gh-unauthenticated'), 'pr.notReady.cli-signed-out');
+  assert.equal(pullRequestErrorKey('no-gh'), 'pr.notReady.cli-missing');
+  assert.equal(pullRequestErrorKey('not-github'), 'pr.notReady.unsupported-host');
+  assert.equal(notReadyReason({ status: 'no-gh' as never }), 'cli-missing');
   assert.equal(stripOffersApproval(workItemStrip(item('in_review', { waiting: 'merge', pullRequest: pr() }))), false, 'an open PR is merged on GitHub, not approved again');
 
   await inSpanish();
@@ -273,7 +278,7 @@ test('in a ready project the approval opens the PR; anywhere else it moves the c
   assert.equal(approvalOpensPullRequest(READY), true);
   assert.equal(approvalOpensPullRequest(NO_AUTH), false);
   assert.equal(approvalOpensPullRequest(null), false, 'All projects says nothing, and approving moves the card as before');
-  assert.equal(notReadyReason(NO_AUTH), 'gh-unauthenticated');
+  assert.equal(notReadyReason(NO_AUTH), 'cli-signed-out');
   assert.equal(notReadyReason(READY), null);
   assert.equal(notReadyReason(null), null);
 
@@ -294,12 +299,12 @@ test('in a ready project the approval opens the PR; anywhere else it moves the c
 
   await inSpanish();
   assert.match(text(strip(waiting, READY)), /Aprobar y abrir PR/);
-  assert.match(text(strip(waiting, NO_AUTH)), /Sin PR: gh no ha iniciado sesión .*Aprobar y pasar a Hecho/);
-  assert.match(text(strip(waiting, { status: 'no-remote', detail: null, defaultBranch: null })), /Sin PR: el proyecto no tiene remoto/);
+  assert.match(text(strip(waiting, NO_AUTH)), /Sin PR: la CLI del host no ha iniciado sesión .*Aprobar y pasar a Hecho/);
+  assert.match(text(strip(waiting, { status: 'no-remote', detail: null, defaultBranch: null, host: null, hostname: null, remedy: null })), /Sin PR: el proyecto no tiene remoto/);
 });
 
 test('every reason a project cannot open a PR, and every step that can fail, is worded in English and Spanish', () => {
-  const reasons = ['not-git', 'no-remote', 'not-github', 'no-gh', 'gh-unauthenticated', 'no-default-branch'] as const;
+  const reasons = ['not-git', 'no-remote', 'unsupported-host', 'cli-missing', 'cli-incompatible', 'cli-signed-out', 'no-default-branch'] as const;
   const steps = ['fetch', 'merge', 'push', 'create', 'commit', 'worktree-kept', 'unknown'] as const;
   for (const locale of [enTasks, esTasks]) {
     for (const reason of reasons) assert.ok(locale.pr.notReady[reason], `pr.notReady.${reason}`);
@@ -465,7 +470,7 @@ test('the waiting panel explains a PR waiting for the merge, a conflict with its
   assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'merge', pullRequest: pr({ number: 12 }), pullRequestReadiness: READY })} />)), /La PR #12 espera que la fusiones en GitHub/);
   assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'approval', pullRequestReadiness: READY })} />)), /Aprobar y abrir PR/);
   assert.match(text(wrap(<PullRequestState item={detail('in_review', { pullRequestReadiness: READY })} />)), /Abrir PR/);
-  assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'approval', pullRequestReadiness: NO_AUTH })} />)), /Sin PR: gh no ha iniciado sesión/);
+  assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'approval', pullRequestReadiness: NO_AUTH })} />)), /Sin PR: la CLI del host no ha iniciado sesión/);
 });
 
 test("the item's PR row under Changes links to GitHub with its number in mono, its branch into the default one and its state in words", async () => {
