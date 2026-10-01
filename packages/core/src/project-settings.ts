@@ -13,7 +13,7 @@ import type {
   WorkItemStatus,
   WorkItemType,
 } from '@agentry/shared';
-import { isTeamCommandPattern, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@agentry/shared';
+import { isTeamCommandPattern, MAX_CHECKS_FIX_ATTEMPTS, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
 import { parseProjectDecisions } from './decisions/settings.ts';
 import type { CoreConfig } from './paths.ts';
@@ -239,6 +239,14 @@ function parseFlow(value: unknown): ProjectFlowSettings {
       throw new Error(`flow.maxCostUsd must be a number of USD above 0 and at most ${MAX_FLOW_COST_USD}`);
     }
     flow.maxCostUsd = maxCostUsd;
+  }
+  // How many fixes `checks.fix` may start for one failing head: kept absent the same way
+  const { checksFixAttempts } = value;
+  if (checksFixAttempts !== undefined && checksFixAttempts !== null) {
+    if (typeof checksFixAttempts !== 'number' || !Number.isInteger(checksFixAttempts) || checksFixAttempts < 1 || checksFixAttempts > MAX_CHECKS_FIX_ATTEMPTS) {
+      throw new Error(`flow.checksFixAttempts must be a whole number from 1 to ${MAX_CHECKS_FIX_ATTEMPTS}`);
+    }
+    flow.checksFixAttempts = checksFixAttempts;
   }
   return flow;
 }

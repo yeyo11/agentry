@@ -422,13 +422,30 @@ const viaItemOfChat: Resolver = (row, sql) => {
   const rejected = verify.outcome === 'rejected';
   return verdict(rejected, rejected ? 'QA rejected the card after the flag' : 'QA passed the card', { verify: verify.outcome });
 };
+/**
+ * `checks.fix`: judged by what the rollup read after the head the failures were seen on. A new head
+ * that passes says the branch was at fault and a fix worked; the same head turning green on its own
+ * says it was a flake. Anything else is not known yet.
+ */
+RESOLVERS['checks.fix'] = (row, sql) => {
+  const answer = choiceOf(row, 'fix');
+  const asked = typeof row.state.headSha === 'string' ? row.state.headSha : null;
+  if (!answer || !asked || !row.subjectId) return null;
+  const snapshot = sql
+    .prepare('SELECT s.head_sha, s.rollup FROM change_request_snapshots s JOIN work_item_pull_requests p ON p.id = s.cr_id WHERE p.item_id = ? ORDER BY p.created_at DESC, p.rowid DESC LIMIT 1')
+    .get(row.subjectId) as { head_sha: string | null; rollup: string | null } | undefined;
+  if (!snapshot || snapshot.rollup !== 'passing') return null;
+  if (snapshot.head_sha === asked) return verdict(answer === 'not-branch', 'The same head turned passing without a change', { rollup: 'passing', pushed: false });
+  const fixable = answer === 'branch-fixable';
+  return verdict(fixable, 'A new head turned the checks passing', { rollup: 'passing', pushed: true });
+};
 RESOLVERS['health.test-weakening'] = viaItemOfChat;
 RESOLVERS['changes.unexplained-hunk'] = viaItemOfChat;
 
 export const RESOLVED_POINTS: readonly DecisionPointId[] = Object.keys(RESOLVERS) as DecisionPointId[];
 
 /** The events after which an outcome may have become known */
-const EVENTS = /^(flow\.|orchestration\.|workitem\.|memory\.|assistant\.|supervisor\.|run\.ended$|health\.)/;
+const EVENTS = /^(flow\.|orchestration\.|workitem\.|change-request\.|memory\.|assistant\.|supervisor\.|run\.ended$|health\.)/;
 
 const SWEEP_MAX = 500;
 const SWEEP_EVERY_MS = 5 * 60_000;
