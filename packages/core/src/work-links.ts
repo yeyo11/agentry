@@ -169,6 +169,16 @@ export function ownsPlace(item: Pick<WorkItem, 'branch'>): boolean {
 const LOCK_REASON = 'agentry work item ';
 
 /**
+ * The worktree an item already has, or null: unlike {@link itemWorktree} it never makes one. Reading what a
+ * change request can do (its merge state) must not leave a branch and a checkout behind in the person's repository.
+ */
+export function existingItemWorktree(projectPath: string, item: Pick<WorkItem, 'key' | 'worktree' | 'branch'>): string | null {
+  if (!canBranch(projectPath)) return null;
+  const worktree = (ownsPlace(item) && item.worktree) || join(mainCheckout(projectPath), '.claude', 'worktrees', `task-${item.key.toLowerCase()}`);
+  return existsSync(worktree) ? worktree : null;
+}
+
+/**
  * The item's own worktree, on `task/<key>`, made the first time and found again after. It sits where
  * the CLI keeps the worktrees it makes, under the main checkout, so the chat that runs there is
  * attached to the project. Null when the project is not a git repository, or has no commit yet to

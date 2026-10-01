@@ -71,7 +71,7 @@ import { stateFromRun } from './chat-model.ts';
 import { chatLinkName, WorkItemError, WorkItemService, type WorkItemLinkState } from './work-items.ts';
 import { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentsPlace } from './documents.ts';
 import { documentsLine, ItemDocumentsError, syncItemDocuments, withDocumentsLine } from './item-documents.ts';
-import { canBranch, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
+import { canBranch, existingItemWorktree, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
 import { TunnelManager } from './tunnel.ts';
 import { ChatService, ChatStartError, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatConfinement, type ChatRuntime, type RunResult } from './chats.ts';
@@ -1898,8 +1898,9 @@ export class Core {
       if (!adapter) return null;
       const record = this.projectStore.get(item.project_id);
       const work = this.workItems.find(item.item_id);
-      const place = record && work ? itemWorktree(record.path, work) : null;
-      const target = mergeTargetOf(base, hostOf(item.host), adapter, record ? { home: mainCheckout(record.path), worktree: place?.worktree ?? null } : null);
+      // Only a worktree the item already has: reading a merge state makes no branch and no checkout
+      const worktree = record && work ? existingItemWorktree(record.path, work) : null;
+      const target = mergeTargetOf(base, hostOf(item.host), adapter, record ? { home: mainCheckout(record.path), worktree } : null);
       target.busy = () => this.itemBusy(item.item_id);
       return target;
     }

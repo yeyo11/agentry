@@ -7,7 +7,7 @@ import test from 'node:test';
 import type { AgentryEvent, Orchestration, OrchestrationTaskStatus, RunStatus, WorkItemHistoryEntry, WorkItemStatus } from '@agentry/shared';
 import { Db } from '../src/db.ts';
 import { mainCheckout } from '../src/git.ts';
-import { itemWorktree, orchestrationDraft, titleFromMessage, WorkItemAutomation, workItemPrompt } from '../src/work-links.ts';
+import { existingItemWorktree, itemWorktree, orchestrationDraft, titleFromMessage, WorkItemAutomation, workItemPrompt } from '../src/work-links.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { PASTED_NOTE, REAL_VERIFICATION, SCOPE_AND_COMPLETION, UNATTENDED } from '../src/prompt-rules.ts';
 import { tempConfig } from './helpers.ts';
@@ -324,6 +324,17 @@ test('a worktree deleted by hand is made again on the same branch, keeping its c
   assert.deepEqual(again, first);
   assert.ok(existsSync(join(first.worktree, 'work.txt')), 'the branch came back with its commit');
   assert.equal(gitIn(first.worktree, 'branch', '--show-current'), first.branch);
+});
+
+test('looking for an item\'s worktree makes none: no branch, no checkout, until work asks for one', () => {
+  const repo = repoWithCommit();
+  const item = { key: 'AGN-2', worktree: null, branch: null };
+  assert.equal(existingItemWorktree(repo, item), null);
+  assert.equal(gitIn(repo, 'branch', '--list', 'task/*'), '', 'reading made no branch');
+  assert.ok(!existsSync(join(repo, '.claude', 'worktrees', 'task-agn-2')), 'and no checkout');
+  const made = itemWorktree(repo, item);
+  assert.ok(made);
+  assert.equal(existingItemWorktree(repo, { key: 'AGN-2', worktree: made.worktree, branch: made.branch }), made.worktree, 'once it exists it is found');
 });
 
 test("recovering an item's worktree leaves git's record of every other worktree alone", () => {
