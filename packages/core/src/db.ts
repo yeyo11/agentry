@@ -543,19 +543,6 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // session, so the default is what an old process, which never writes the column, leaves behind
   `ALTER TABLE chats ADD COLUMN provider TEXT NOT NULL DEFAULT 'claude-code';
    CREATE INDEX chats_provider ON chats (provider, created_at DESC);`,
-  // Providers whose session id is not the chat's (docs/plans/multi-provider.md, phase 3): the native
-  // id is null for a Claude chat, whose id is the native one. chat_entries holds a transcript the
-  // provider does not keep in a file we can read; (chat_id, seq) makes a replay by a second process
-  // a no-op
-  `ALTER TABLE chats ADD COLUMN native_session_id TEXT;
-   CREATE INDEX chats_native_session ON chats (provider, native_session_id);
-   CREATE TABLE chat_entries (
-     chat_id TEXT NOT NULL,
-     seq     INTEGER NOT NULL,
-     at      TEXT NOT NULL,
-     entry   TEXT NOT NULL,
-     PRIMARY KEY (chat_id, seq)
-   );`,
   // Code hosts (docs/plans/code-hosts.md): every PR row so far was opened by gh on a host gh knew, so
   // 'github' is true of all of them; hostname stays null and the watcher reads it from origin as it
   // does today. An orchestration's change requests are the same lifecycle minus the flow's phases, and
@@ -600,6 +587,40 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      updated_at    TEXT NOT NULL,
      PRIMARY KEY (host, bucket)
    );`,
+  // Checks and the fix flow (docs/plans/code-hosts.md, phase 2): the last read of a change request's
+  // checks, one row per change request of either kind, and the fix a change request is going through.
+  // Every row so far has no fix, and zero attempts says so
+  `CREATE TABLE change_request_snapshots (
+     cr_id      TEXT PRIMARY KEY,
+     kind       TEXT NOT NULL,
+     head_sha   TEXT,
+     checks     TEXT,
+     rollup     TEXT,
+     fetched_at TEXT NOT NULL
+   );
+   ALTER TABLE work_item_pull_requests ADD COLUMN fix_state TEXT;
+   ALTER TABLE work_item_pull_requests ADD COLUMN fix_origin TEXT;
+   ALTER TABLE work_item_pull_requests ADD COLUMN fix_attempts INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE work_item_pull_requests ADD COLUMN fix_head TEXT;
+   ALTER TABLE orchestration_pull_requests ADD COLUMN fix_state TEXT;
+   ALTER TABLE orchestration_pull_requests ADD COLUMN fix_origin TEXT;
+   ALTER TABLE orchestration_pull_requests ADD COLUMN fix_attempts INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE orchestration_pull_requests ADD COLUMN fix_head TEXT;`,
+  // Appended after the code hosts' and the checks' migrations, which were released before this one:
+  // a database that has run them counts them as applied, so a migration placed before them would be skipped
+  // Providers whose session id is not the chat's (docs/plans/multi-provider.md, phase 3): the native
+  // id is null for a Claude chat, whose id is the native one. chat_entries holds a transcript the
+  // provider does not keep in a file we can read; (chat_id, seq) makes a replay by a second process
+  // a no-op
+  `ALTER TABLE chats ADD COLUMN native_session_id TEXT;
+   CREATE INDEX chats_native_session ON chats (provider, native_session_id);
+   CREATE TABLE chat_entries (
+     chat_id TEXT NOT NULL,
+     seq     INTEGER NOT NULL,
+     at      TEXT NOT NULL,
+     entry   TEXT NOT NULL,
+     PRIMARY KEY (chat_id, seq)
+   );`,
 ];
 
 /**
@@ -628,6 +649,9 @@ export const CHAT_ENTRIES_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m 
 
 /** The version that added the code hosts' columns and tables, for the test that upgrades a database from the one before */
 export const CODE_HOSTS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE host_rate_limits')) + 1;
+
+/** The version that added the checks' snapshots and the fix columns, for the test that upgrades a database from the one before */
+export const CHECKS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE change_request_snapshots')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by

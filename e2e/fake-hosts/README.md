@@ -22,6 +22,15 @@ restarting anything:
 | `next` | `7` | The number the first change request gets |
 | `ci` | `none` | The CI of `view`: `none`, `pending`, `passing` or `failing` |
 | `state` | `open` | The state of `view`: `open`, `merged` or `closed` |
+| `checks` | `none` | gh only: the head commit's checks, `none`, `failing`, `running`, `mixed` or `fixed` |
+| `headSha` | a fixed sha | gh only: the head commit the change request reports |
+
+The checks scenarios answer the change request routes: the GraphQL read (`gh api -i … graphql`), the
+check runs and statuses of the head, a job's log (ANSI colour, a group marker and an `##[error]`
+line, as a runner prints it), the annotations, and the branch rules. `run rerun` and `run cancel` move
+the scenario (to `running` and `failing`) through `gh.checks`, which wins over the JSON until a spec
+removes it. `failing` has one failed check, `running` one running and one queued, `mixed` a failed,
+a running, a skipped and another app's check, and `fixed` has all passed.
 
 Beside the JSON, in the same directory: `<name>.calls` (one line per call, the arguments joined by
 spaces), `<name>.body-<n>` (the description a create was given on stdin) and `<name>.created` (the

@@ -346,6 +346,7 @@ pnpm typecheck
 pnpm test         # unit tests (core, web, desktop) + API integration tests (node:test)
 pnpm build && pnpm e2e   # browser suite: isolated wrapper + headless Chrome, never touches ~/.claude
                          # E2E_SPEC_TIMEOUT (180000 ms) and E2E_TIMEOUT (1500000 ms) bound a spec and the run
+                         # E2E_SERVER_START_TIMEOUT (120000 ms) bounds the wait for the API's /api/health
                          # E2E_SHARDS=N runs N isolated shards side by side (default: cores/2, at most 4);
                          # E2E_SHARD=k/N runs only shard k, as each CI job does (split: e2e/timings.json)
 E2E_LIVE=1 pnpm e2e chat # specs that talk to Claude (logged-in CLI, costs a few tokens)
@@ -851,6 +852,14 @@ The hosts Agentry opens pull and merge requests on, GitHub through `gh` and GitL
 | POST | `/hosts/refresh` | Detect again now. Not open to a chat's token |
 | GET | `/hosts/settings` | The document from `hosts.json`: enabled and binary override per host |
 | PUT | `/hosts/settings` | Replace it, validated; hosts are detected again in the background and every project's readiness is read again. Not open to a chat's token |
+| GET | `/change-requests/:id` | One change request by the row id of a work item's or an orchestration's: kind, owner, host, `ref`, phase, CI rollup and the fix state |
+| GET | `/change-requests/:id/checks` | The checks of the head commit (state, allowed failure, required, rerunnable, has a log), cached 30 s; `?refresh=1` reads the host now; `limitedUntil` while rate-limited |
+| GET | `/change-requests/:id/checks/:checkId/log` | The tail of one check's log, cleaned and redacted, with its annotations; `noOutputYet` for a job that has printed nothing; `409 log-unavailable` for a check with no log |
+| POST | `/change-requests/:id/checks/rerun` | Run the failed jobs, one job or everything again (`{ scope: 'failed' \| 'check' \| 'all', checkId? }`), then read the list again. Not open to a chat's token |
+| POST | `/change-requests/:id/checks/cancel` | Cancel what is running, then read the list again. Not open to a chat's token |
+| POST | `/change-requests/:id/checks/:checkId/run` | Play a GitLab manual job, then read the list again. Not open to a chat's token |
+| POST | `/change-requests/:id/checks/fix` | Fix the failing checks: the item's Developer (or a chat in an orchestration's integration worktree) gets each failure's log tail → `{ started, prompt, worktree, pullRequest }`; `409` with a `code` when nothing can be fixed now. Not open to a chat's token |
+| POST | `/change-requests/:id/push-fix` | Push a finished fix that waits for the person (a plain push, never forced); a failure keeps it waiting for a retry. Not open to a chat's token |
 | GET | `/projects/:id/code-host` | Whether the project can open pull and merge requests (the readiness, with its reason and remedy) and its parsed `origin`; `404` for an unknown project |
 
 ### Decisions

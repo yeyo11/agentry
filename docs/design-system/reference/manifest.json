@@ -246,6 +246,24 @@
     "h": 4400
   },
   {
+    "file": "DSChecks.html",
+    "title": "Design system · Arreglar los checks",
+    "w": 1440,
+    "h": 7900
+  },
+  {
+    "file": "DesktopAjustesDecisionesChecks.html",
+    "title": "Desktop · Ajustes, decisión de arreglar checks",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileAjustesDecisionesChecks.html",
+    "title": "Móvil · Ajustes, un punto de decisión: arreglar checks",
+    "w": 390,
+    "h": 844
+  },
+  {
     "file": "DesktopChatsVacio.html",
     "title": "Desktop · Chats vacío",
     "w": 1440,
@@ -848,6 +866,66 @@
   {
     "file": "MobileOrquestacionMRSubir.html",
     "title": "Móvil · Orquestación, subir y abrir la MR",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopTareaChecks.html",
+    "title": "Desktop · Tarea con comprobaciones",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileTareaChecks.html",
+    "title": "Móvil · Tarea con comprobaciones",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTareaChecksRegistro.html",
+    "title": "Móvil · Tarea, registro de una comprobación",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTareaChecksMenu.html",
+    "title": "Móvil · Tarea, acciones de una comprobación",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopTareaChecksEstados.html",
+    "title": "Desktop · Tarea, estados de las comprobaciones",
+    "w": 1440,
+    "h": 1620
+  },
+  {
+    "file": "MobileTareaChecksEstados.html",
+    "title": "Móvil · Tarea, estados de las comprobaciones",
+    "w": 390,
+    "h": 3560
+  },
+  {
+    "file": "DesktopOrquestacionChecks.html",
+    "title": "Desktop · Orquestación, checks y log",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopOrquestacionChecksSubir.html",
+    "title": "Desktop · Orquestación, subir el arreglo",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileOrquestacionChecks.html",
+    "title": "Móvil · Orquestación, checks y log",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileOrquestacionChecksSubir.html",
+    "title": "Móvil · Orquestación, subir el arreglo",
     "w": 390,
     "h": 844
   }

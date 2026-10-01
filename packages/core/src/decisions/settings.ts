@@ -40,6 +40,7 @@ export const DECISION_POINT_IDS: readonly DecisionPointId[] = [
   'changes.unexplained-hunk',
   'palette.intent',
   'notification.urgency',
+  'checks.fix',
 ];
 
 /**

@@ -119,9 +119,11 @@ test('a spec that hangs trips its limit and leaves no browser or server behind',
 });
 
 test('the run limit stops a run even when every spec is within its own', { skip }, async () => {
-  const r = await run({ spec: hang, beforeEnd: () => {}, env: { E2E_SPEC_TIMEOUT: '600000', E2E_TIMEOUT: '12000' } });
+  // The run limit counts from the runner's start, the API's boot included, and that boot has taken
+  // more than 12 s on a loaded machine: the limit has to leave the spec time to start at all
+  const r = await run({ spec: hang, beforeEnd: () => {}, env: { E2E_SPEC_TIMEOUT: '600000', E2E_TIMEOUT: '45000' } });
   assert.equal(r.code, 1);
-  assert.match(r.output, /the e2e run exceeded 12s/);
+  assert.match(r.output, /the e2e run exceeded 45s/);
   assert.ok(r.during.length > 0);
   assert.deepEqual(r.survivors, { chrome: [], server: false });
 });

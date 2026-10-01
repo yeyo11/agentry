@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api -i graphql -f query={repository(owner:"yeyo11",name:"agentry-probe"){pullRequest(number:999999){number}}}
+exit: 1
+secs: .679168285
+env: 

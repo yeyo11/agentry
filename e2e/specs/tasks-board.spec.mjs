@@ -146,21 +146,24 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---- selection and "Orchestrate" ----
     await page.goto(`/tasks?project=${project.id}`, 1200);
-    await page.click('.workitem-select', undefined, 400);
-    check((await page.eval(`return document.querySelector('.workitem-select').getAttribute('aria-pressed')`)) === 'true', 'Select is pressed');
+    await page.click('.workitem-select', undefined, 0);
+    await page.waitFor(`return document.querySelector('.workitem-select')?.getAttribute('aria-pressed') === 'true'`, { label: 'Select is pressed' });
     const epicPick = await page.eval(`return document.querySelector('[data-item-id="${epic.id}"]').getAttribute('aria-disabled')`);
     check(epicPick === 'true', 'an epic cannot be picked');
-    await page.click(`[data-item-id="${blocker.id}"]`, undefined, 200);
-    await page.click(`[data-item-id="${first.id}"]`, undefined, 300);
-    const bar = await page.text('.selection-bar');
-    check(bar.includes('2 selected'), `the selection bar counts the picks (${bar})`);
+    await page.click(`[data-item-id="${blocker.id}"]`, undefined, 0);
+    await page.waitFor(`return document.querySelector('[data-item-id="${blocker.id}"]')?.getAttribute('aria-checked') === 'true'`, { label: 'the first pick is checked' });
+    await page.click(`[data-item-id="${first.id}"]`, undefined, 0);
+    await page.waitFor(`return document.querySelector('.selection-bar')?.innerText.includes('2 selected')`, { label: 'the selection bar counts the picks' });
     check((await page.eval(`return document.querySelector('[data-item-id="${first.id}"]').getAttribute('aria-checked')`)) === 'true', 'a picked card is checked');
-    await page.click('.selection-bar .btn-primary', undefined, 1500);
-    check((await page.eval(`return location.pathname`)) === '/orchestration', 'Orchestrate opens the orchestration editor with the draft');
+    // "Orchestrate" asks the API for the draft and only then navigates, so the address is waited for
+    await page.click('.selection-bar .btn-primary', undefined, 0);
+    await page.waitFor(`return location.pathname === '/orchestration'`, { label: 'Orchestrate opens the orchestration editor with the draft' });
 
     // ---- the list ----
-    await page.goto(`/tasks?project=${project.id}&view=list`, 1200);
-    await page.waitFor(`return document.querySelectorAll('.workitem-row').length === 6`, { label: 'the list shows every item' });
+    // A full load of the page and its two reads (the board for the figures, the first page of rows):
+    // on a loaded CI runner that has taken longer than the default 20 s
+    await page.goto(`/tasks?project=${project.id}&view=list`, 0);
+    await page.waitFor(`return document.querySelectorAll('.workitem-row').length === 6`, { label: 'the list shows every item', timeout: 60_000 });
     const groups = await page.eval(`return [...document.querySelectorAll('.workitem-list-group')].map((g) => g.getAttribute('aria-label'))`);
     check(JSON.stringify(groups) === JSON.stringify(['To do', 'In progress', 'In review']), `the list is grouped by column, empty ones left out (${groups})`);
     await page.focus('.workitem-row');

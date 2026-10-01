@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { Check } from '@agentry/shared';
 import {
   HostParseError,
+  HostRequestError,
   type ChangeRequestView,
+  type ChecksAdapter,
   type CodeHostAdapter,
   type HostCall,
   type HostRepo,
@@ -54,6 +57,16 @@ export interface RecordedOutputs {
   malformedViews?: Array<{ name: string; stdout: string }>;
   finds?: RecordedParse<ReturnType<CodeHostAdapter['parseFind']>>[];
   defaultBranches?: RecordedParse<string | null>[];
+  /** Round one of a list read: what `parseChecks` must make of the outputs of `checks()` */
+  checks?: Array<{
+    name: string;
+    ref: { headSha: string | null; pipelineId: number | null };
+    results: string[];
+    /** The fields named here are compared, in order; `next` is how many follow-up calls it asks for */
+    expect: { checks: Array<Partial<Check>>; truncated: boolean; next: number };
+  }>;
+  /** Outputs `parseChecks` must refuse, one per call of `checks()` */
+  malformedChecks?: Array<{ name: string; results: string[] }>;
   auth?: Array<{
     name: string;
     hostname: string;
@@ -63,7 +76,8 @@ export interface RecordedOutputs {
 }
 
 export interface ConformanceOptions {
-  adapter: CodeHostAdapter;
+  /** The checks half is held to its rules only when the adapter has it */
+  adapter: CodeHostAdapter & Partial<ChecksAdapter>;
   manifest: CodeHostManifest;
   /** A repository on `host`; GitLab's carries `projectId`, which its API calls are pinned on */
   repo: HostRepo;
@@ -91,6 +105,10 @@ interface NamedCall {
 }
 
 function calls(options: ConformanceOptions): NamedCall[] {
+  return [...baseCalls(options), ...checksCalls(options)];
+}
+
+function baseCalls(options: ConformanceOptions): NamedCall[] {
   const { adapter, repo } = options;
   return [
     { name: 'version', call: adapter.version(), scoped: false },
@@ -102,6 +120,43 @@ function calls(options: ConformanceOptions): NamedCall[] {
   ];
 }
 
+/** One of each kind of check, so every call an adapter can build for one is built. */
+export const SAMPLE_CHECKS: Check[] = [
+  { id: '1001', name: 'build', group: null, state: 'failed', allowedToFail: false, required: false, startedAt: null, finishedAt: null, url: 'https://example.com/acme/shop/actions/runs/555/job/1001', rerunnable: true, hasLog: true, source: 'actions' },
+  { id: '1002', name: 'unit', group: null, state: 'running', allowedToFail: false, required: false, startedAt: null, finishedAt: null, url: 'https://example.com/acme/shop/actions/runs/555/job/1002', rerunnable: false, hasLog: true, source: 'actions' },
+  { id: '1003', name: 'deploy', group: 'test', state: 'manual', allowedToFail: false, required: false, startedAt: null, finishedAt: null, url: null, rerunnable: false, hasLog: true, source: 'job' },
+  { id: '1004', name: 'child', group: 'test', state: 'failed', allowedToFail: false, required: false, startedAt: null, finishedAt: null, url: null, rerunnable: true, hasLog: false, source: 'bridge' },
+  { id: '1005', name: 'ci/other', group: null, state: 'passed', allowedToFail: false, required: false, startedAt: null, finishedAt: null, url: null, rerunnable: false, hasLog: false, source: 'status' },
+];
+
+function checksCalls(options: ConformanceOptions): NamedCall[] {
+  const { adapter, repo } = options;
+  if (!adapter.readChangeRequest || !adapter.checks || !adapter.jobLog || !adapter.annotations || !adapter.rerun || !adapter.cancel || !adapter.playManual || !adapter.required) return [];
+  const named: NamedCall[] = [{ name: 'readChangeRequest', call: adapter.readChangeRequest(repo, 4242), scoped: true }];
+  const add = (name: string, calls: HostCall[]): void => calls.forEach((call, at) => named.push({ name: `${name}[${String(at)}]`, call, scoped: true }));
+  add('checks', adapter.checks(repo, { headSha: 'abc123def', pipelineId: 777 }));
+  for (const check of SAMPLE_CHECKS) {
+    for (const version of ['2.92.0', '2.102.0']) {
+      const log = adapter.jobLog(repo, check, version);
+      if (log) named.push({ name: `jobLog(${check.name}, ${version})`, call: log, scoped: true });
+    }
+    const notes = adapter.annotations(repo, check);
+    if (notes) named.push({ name: `annotations(${check.name})`, call: notes, scoped: true });
+    const play = adapter.playManual(repo, check);
+    if (play) named.push({ name: `playManual(${check.name})`, call: play, scoped: true });
+  }
+  const pipelines = [null, { id: 777, status: 'failed', sha: null, source: 'merge_request_event' }, { id: 778, status: 'failed', sha: null, source: 'push' }];
+  for (const headPipeline of pipelines) {
+    for (const scope of ['failed', 'all'] as const) {
+      add(`rerun(${scope})`, adapter.rerun(repo, { scope, checks: SAMPLE_CHECKS, number: 4242, branch: HEAD, headPipeline }));
+    }
+  }
+  add('rerun(check)', adapter.rerun(repo, { scope: 'check', checkId: '1001', checks: SAMPLE_CHECKS, number: 4242, branch: HEAD, headPipeline: null }));
+  add('cancel', adapter.cancel(repo, { checks: SAMPLE_CHECKS, pipelineId: 777 }));
+  add('required', adapter.required(repo, 'release/2026.10'));
+  return named;
+}
+
 const isAbsoluteUrl = (word: string): boolean => /^[a-z][a-z0-9+.-]*:\/\//i.test(word);
 
 function valueAfter(args: string[], flag: string): string | undefined {
@@ -111,7 +166,7 @@ function valueAfter(args: string[], flag: string): string | undefined {
 
 /** The `api` endpoint: the first word after `api` that is not a flag or a flag's value we know. */
 function apiPath(args: string[]): string | undefined {
-  const valued = new Set(['--hostname', '-X', '--method', '-H', '--header', '--jq', '-q', '--cache', '--input']);
+  const valued = new Set(['--hostname', '-X', '--method', '-H', '--header', '--jq', '-q', '--cache', '--input', '--output']);
   for (let at = 1; at < args.length; at += 1) {
     const word = args[at];
     if (word === undefined) break;
@@ -140,7 +195,14 @@ function pinning({ adapter, manifest, repo }: ConformanceOptions, { name, call, 
     return problems;
   }
   if (call.host !== repo.host) problems.push(`${name}() is pinned to host ${String(call.host)}, not ${repo.host}`);
-  if (call.args[0] === 'api') {
+  if (call.args[0] === 'api' && call.args.includes('graphql')) {
+    // A GraphQL call has no path: the repository is in its variables
+    if (valueAfter(call.args, '--hostname') !== repo.host) problems.push(`${name}() is an api call without --hostname ${repo.host}`);
+    const fields = call.args.filter((word) => word.startsWith('owner=') || word.startsWith('repo='));
+    if (!fields.includes(`owner=${repo.owner}`) || !fields.includes(`repo=${repo.name}`)) {
+      problems.push(`${name}() is a graphql call that does not carry owner=${repo.owner} and repo=${repo.name}`);
+    }
+  } else if (call.args[0] === 'api') {
     if (valueAfter(call.args, '--hostname') !== repo.host) problems.push(`${name}() is an api call without --hostname ${repo.host}`);
     const path = apiPath(call.args);
     const scope = adapter.id === 'github' ? `repos/${repo.owner}/${repo.name}` : `projects/${String(repo.projectId)}`;
@@ -301,7 +363,100 @@ export function checkConformance(options: ConformanceOptions): ConformanceReport
     return problems;
   })();
 
+  if (adapter.checks && adapter.parseChecks && adapter.rerun && adapter.cancel && adapter.jobLog && adapter.playManual) {
+    const checksAdapter = adapter as CodeHostAdapter & ChecksAdapter;
+    const sample = (name: string): Check => SAMPLE_CHECKS.find((c) => c.name === name) as Check;
+    const wrap = (stdout: string, exitCode = 0): HostResult => ({ exitCode, stdout, stderrFirstLine: '', http: null, truncated: false, durationMs: 0 });
+
+    report['only the calls that change a check are writes, and they are class write'] = (() => {
+      const problems: string[] = [];
+      for (const { name, call } of all.filter((n) => !/^(version|authStatus|defaultBranch|create|find|view)$/.test(n.name))) {
+        const writes = /^(rerun|cancel|playManual)/.test(name);
+        if ((call.kind === 'write') !== writes) problems.push(`${name}() is declared ${call.kind}`);
+        if (writes && call.class !== 'write' && call.class !== 'long-write') problems.push(`${name}() is a write of class ${call.class}`);
+      }
+      return problems;
+    })();
+
+    report['a log is one read of class log, never followed or paged'] = (() => {
+      const problems: string[] = [];
+      for (const { name, call } of all.filter((n) => n.name.startsWith('jobLog'))) {
+        if (call.class !== 'log') problems.push(`${name} must be class log`);
+        if (call.args[0] === 'ci') problems.push(`${name} follows the log`);
+        if (call.args.includes('--paginate')) problems.push(`${name} pages a log`);
+      }
+      return problems;
+    })();
+
+    report['a check without a log, or that cannot be run again, builds no call, and an id is digits only'] = (() => {
+      const problems: string[] = [];
+      if (checksAdapter.jobLog(options.repo, sample('child'), '2.102.0') !== null) problems.push('jobLog() built a call for a bridge');
+      if (checksAdapter.jobLog(options.repo, sample('ci/other'), '2.102.0') !== null) problems.push('jobLog() built a call for a commit status');
+      for (const hostile of ['1; rm -rf', '--help', '../x']) {
+        try {
+          const call = checksAdapter.jobLog(options.repo, { ...sample('build'), id: hostile }, '2.102.0');
+          // a host that has no log for the sample answers null, which is no call either
+          if (call) problems.push(`jobLog() accepted the id ${hostile}: ${call.args.join(' ')}`);
+        } catch (error) {
+          if (!(error instanceof HostParseError)) problems.push(`jobLog() threw something other than HostParseError on ${hostile}`);
+        }
+      }
+      try {
+        checksAdapter.rerun(options.repo, { scope: 'check', checkId: '1002', checks: SAMPLE_CHECKS, number: 1, branch: HEAD, headPipeline: null });
+        problems.push('rerun(check) accepted a running check');
+      } catch (error) {
+        if (!(error instanceof HostRequestError) || error.reason !== 'check-not-rerunnable') {
+          problems.push('rerun(check) must throw HostRequestError check-not-rerunnable on a running check');
+        }
+      }
+      return problems;
+    })();
+
+    report['parseChecks maps every recorded output'] = (recorded?.checks ?? []).flatMap((item) => {
+      try {
+        const parsed = checksAdapter.parseChecks(options.repo, item.ref, item.results.map((stdout) => wrap(stdout)));
+        assert.equal(parsed.checks.length, item.expect.checks.length, 'number of checks');
+        assert.deepEqual(parsed.checks.map((c, at) => pick(c, item.expect.checks[at])), item.expect.checks);
+        assert.equal(parsed.truncated, item.expect.truncated, 'truncated');
+        assert.equal(parsed.next.length, item.expect.next, 'follow-up calls');
+        return [];
+      } catch (error) {
+        return [`parseChecks ${item.name}: ${error instanceof Error ? error.message : String(error)}`];
+      }
+    });
+
+    report['parseChecks throws HostParseError on output it cannot read, and on a failed read'] = (() => {
+      const problems: string[] = [];
+      const ref = { headSha: 'abc123def', pipelineId: 777 };
+      const cases = [
+        ...['not json', '"text"', '[1]'].map((stdout) => ({ name: JSON.stringify(stdout), results: [stdout, stdout] })),
+        ...(recorded?.malformedChecks ?? []),
+      ];
+      for (const { name, results } of cases) {
+        try {
+          checksAdapter.parseChecks(options.repo, ref, results.map((stdout) => wrap(stdout)));
+          problems.push(`parseChecks accepted ${name}`);
+        } catch (error) {
+          if (!(error instanceof HostParseError)) problems.push(`parseChecks threw something other than HostParseError on ${name}`);
+        }
+      }
+      try {
+        checksAdapter.parseChecks(options.repo, ref, [wrap('[]', 1), wrap('[]', 0)]);
+        problems.push('parseChecks accepted a read that exited 1');
+      } catch (error) {
+        if (!(error instanceof HostParseError)) problems.push('parseChecks threw something other than HostParseError on a failed read');
+      }
+      return problems;
+    })();
+  }
+
   return report;
+}
+
+/** The fields of `actual` that `expected` names: a recorded list is compared on what the test cares about. */
+function pick(actual: Check, expected: Partial<Check> | undefined): Partial<Check> {
+  if (!expected) return actual;
+  return Object.fromEntries(Object.keys(expected).map((key) => [key, actual[key as keyof Check]]));
 }
 
 /** Registers one test per rule, named after the adapter. */

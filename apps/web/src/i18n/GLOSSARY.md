@@ -197,6 +197,11 @@ imperative forms wholesale (see "Terms that changed" for the full old → new li
 | Push (a branch) | Subir |
 | Working copy (a project's main checkout) | La copia de trabajo |
 | CI (a pull request's checks): passing / pending / failing / none | la CI: CI superada / CI pendiente / CI fallida / sin CI |
+| Check (one job of a PR's CI), checks | la comprobación, las comprobaciones (feminine: fallida, superada, omitida) |
+| Check states: failed / allowed to fail / running / queued / passed / neutral / skipped / cancelled / manual | fallida / fallo permitido / en marcha / en cola / superada / neutra / omitida / cancelada / manual |
+| Log (of a check), log tail | el registro, el final del registro |
+| Re-run (a check) | Repetir |
+| Fix failing checks / Push the fix | Arreglar las comprobaciones fallidas / Subir el arreglo |
 | Waiting for merge (an open PR) | esperando fusión; "cerrada sin fusionar" for one closed unmerged |
 | Auto-rotation | Rotación automática |
 | Threshold | Umbral |

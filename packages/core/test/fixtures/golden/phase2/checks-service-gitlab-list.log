@@ -1,0 +1,5 @@
+# checks-service-gitlab-list
+glab mr view 12 -R https://gitlab.com/yeyo11/agentry -F json
+glab api --hostname gitlab.com --paginate --output ndjson projects/87089091/pipelines/2900799542/jobs?per_page=100
+glab api --hostname gitlab.com projects/87089091/pipelines/2900799542/bridges?per_page=100
+glab api --hostname gitlab.com --paginate --output ndjson projects/87089091/pipelines/2900783186/jobs?per_page=100

@@ -51,9 +51,8 @@ export default async ({ page, api, check, dirs }) => {
     await page.shot(`pages-${theme}`);
   }
   // Multi-account support is optional: without claude-swap the page must say so instead of breaking
-  await page.goto('/accounts', 900);
-  const accounts = await page.eval(`return document.querySelector('main')?.innerText ?? ''`);
-  check(/claude-swap is not installed/i.test(accounts), 'accounts page degrades without claude-swap');
+  await page.goto('/accounts', 0);
+  await page.waitFor(`return /claude-swap is not installed/i.test(document.querySelector('main')?.innerText ?? '')`, { label: 'accounts page degrades without claude-swap' });
 
   await page.viewport(420, 900);
   for (const path of ['/', '/settings?tab=settings', '/settings?tab=plugins', projectPages[0]]) {

@@ -125,6 +125,8 @@ import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
 import { FlowError, FlowService, type FlowLaunch } from './flow.ts';
+import { ChangeRequestService } from './change-requests.ts';
+import { ChecksService } from './hosts/checks-service.ts';
 import { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
 import { codeHostAdapter, PullRequestService, PullRequestWatcher, type ApproveResult } from './pull-requests.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
@@ -241,6 +243,7 @@ export {
   type ApproveResult,
   type PullRequestDeps,
 } from './pull-requests.ts';
+export { ChangeRequestError, type ChangeRequestFix } from './change-requests.ts';
 export { OrchestrationPullRequestError, OrchestrationPullRequestService, type OpenedPullRequest } from './orchestration-pull-requests.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
@@ -392,6 +395,10 @@ export class Core {
   private readonly pullRequestWatcher: PullRequestWatcher;
   /** The change requests of orchestrations' integration branches */
   readonly orchestrationPullRequests: OrchestrationPullRequestService;
+  /** The checks of a change request: the head commit's list, log tails, re-runs and cancels */
+  readonly checks: ChecksService;
+  /** `/change-requests/:id/…`: a row id of either table, resolved to the service that owns it */
+  readonly changeRequests: ChangeRequestService;
   /** The project assistant: read-only runs that propose a team, resources and work items, each accepted on its own */
   readonly assistant: AssistantService;
   private readonly startedAt = Date.now();
@@ -671,8 +678,11 @@ export class Core {
       item: itemRef,
       decisions: this.decisions,
     });
+    this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.pullRequests = new PullRequestService({
       db: this.db,
+      checks: this.checks,
+      flowOn: (projectId) => this.flow.projectFlow(projectId).enabled,
       settings: () => this.hostsSettings.get(),
       items: this.workItems,
       project: (id) => {
@@ -695,6 +705,16 @@ export class Core {
       settings: () => this.hostsSettings.get(),
       codeHost: (path) => this.pullRequests.codeHost(path),
       emit: (event) => this.events.emit(event),
+      checks: this.checks,
+      runFix: (req) => this.orchestrator.runChecksFix(req),
+    });
+    this.changeRequests = new ChangeRequestService({
+      db: this.db,
+      checks: this.checks,
+      pullRequests: this.pullRequests,
+      orchestrationPullRequests: this.orchestrationPullRequests,
+      orchestration: (id) => this.orchestrator.get(id),
+      itemAccess: (itemId, access) => this.workItemAccess(itemId, access),
     });
     this.orchestrator.pullRequests = this.orchestrationPullRequests;
     this.pullRequestWatcher = new PullRequestWatcher([this.pullRequests, this.orchestrationPullRequests]);
@@ -706,6 +726,7 @@ export class Core {
         settleConflict: (itemId) => this.pullRequests.settleConflict(itemId),
         verified: (itemId) => this.pullRequests.verified(itemId),
         awaitingVerify: (itemId) => this.pullRequests.awaitingVerify(itemId),
+        fixPrompt: (itemId) => this.pullRequests.fixPrompt(itemId),
       },
       decisions: this.decisions,
       workDone: (item) => {

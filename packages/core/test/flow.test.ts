@@ -1162,6 +1162,7 @@ test('a result is read defensively', () => {
     documents: [{ path: 'docs/a.md', kind: 'doc' }],
     description: null,
     acceptanceCriteria: [],
+    checks: [],
   });
 });
 

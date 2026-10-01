@@ -1,0 +1,70 @@
+2026-10-01T10:37:36.889435Z 00O [0KRunning with gitlab-runner 19.5.0~pre.2159.ga8432a3e (a8432a3e)[0;m
+2026-10-01T10:37:36.889447Z 00O [0K  on k8s.saas-linux-small-amd64.runners-manager.gitlab.com/default nezyxEJex, system ID: r_6HCZwrzTxV89[0;m
+2026-10-01T10:37:36.889449Z 00O [0K  UUID: 019fd6c6-56c4-78a2-8961-bbb53e204387[0;m
+2026-10-01T10:37:36.889455Z 00O [0K  feature flags: FF_USE_GIT_PROACTIVE_AUTH:true, FF_HASH_CACHE_KEYS:true, FF_MACHINE_OPTIONS_EXPAND_ENV:true, FF_DOCKER_MACHINE_JSON_OUTPUT:true[0;m
+2026-10-01T10:37:36.889481Z 00O section_start:1790851056:prepare_executor[0K
+2026-10-01T10:37:36.889483Z 00O+[0K[36;1mPreparing the "docker+machine" executor[0;m[0;m
+2026-10-01T10:37:37.025436Z 00O [0KUsing Docker executor with image alpine:3.20 ...[0;m
+2026-10-01T10:37:37.025482Z 00O [0KUsing helper image:  registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e  (overridden, default would be  registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-v19.5.0 )[0;m
+2026-10-01T10:37:37.025490Z 00O [0KUsing effective pull policy of [always] for container registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e[0;m
+2026-10-01T10:37:37.026141Z 00O [0KAuthenticating with credentials from job payload (GitLab Registry)[0;m
+2026-10-01T10:37:37.026149Z 00O [0KPulling docker image registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e ...[0;m
+2026-10-01T10:37:38.875491Z 00O [0KUsing docker image sha256:6bb853b7a2cda0cf31469babeb7e0edbdf202c63c5221070cfcf756214613e31 for registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e with digest registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper@sha256:2a3ccd2182c1ebedd2fa8efd30198b39b62861240c9bd07f1ffe0fe67871588a ...[0;m
+2026-10-01T10:37:40.632978Z 00O [0KUsing helper image:  registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e  (overridden, default would be  registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-v19.5.0 )[0;m
+2026-10-01T10:37:40.632991Z 00O [0KUsing effective pull policy of [always] for container registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e[0;m
+2026-10-01T10:37:40.633867Z 00O [0KUsing docker image sha256:6bb853b7a2cda0cf31469babeb7e0edbdf202c63c5221070cfcf756214613e31 for registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e with digest registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper@sha256:2a3ccd2182c1ebedd2fa8efd30198b39b62861240c9bd07f1ffe0fe67871588a ...[0;m
+2026-10-01T10:37:40.633876Z 00O [0KUsing effective pull policy of [always] for container alpine:3.20[0;m
+2026-10-01T10:37:40.634341Z 00O [0KPulling docker image alpine:3.20 ...[0;m
+2026-10-01T10:37:42.049046Z 00O [0KUsing docker image sha256:bf8527eb54c3680e728d5b4b383a8ba730d72dae7236fbc8dff97ed6b224a731 for alpine:3.20 with digest alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc ...[0;m
+2026-10-01T10:37:42.049111Z 00O section_end:1790851062:prepare_executor[0K
+2026-10-01T10:37:42.049183Z 00O+section_start:1790851062:prepare_script[0K
+2026-10-01T10:37:42.049186Z 00O+[0K[36;1mPreparing environment[0;m[0;m
+2026-10-01T10:37:42.049213Z 00O [0KUsing helper image:  registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e  (overridden, default would be  registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-v19.5.0 )[0;m
+2026-10-01T10:37:42.049221Z 00O [0KUsing effective pull policy of [always] for container registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e[0;m
+2026-10-01T10:37:42.050226Z 00O [0KUsing docker image sha256:6bb853b7a2cda0cf31469babeb7e0edbdf202c63c5221070cfcf756214613e31 for registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e with digest registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper@sha256:2a3ccd2182c1ebedd2fa8efd30198b39b62861240c9bd07f1ffe0fe67871588a ...[0;m
+2026-10-01T10:37:42.050237Z 00O [0KUsing effective pull policy of [always] for container sha256:6bb853b7a2cda0cf31469babeb7e0edbdf202c63c5221070cfcf756214613e31[0;m
+2026-10-01T10:37:42.390400Z 01O Running on runner-nezyxejex-project-87089091-concurrent-0 via runner-nezyxejex-s-l-s-amd64-1790851027-ffbe9e96...
+2026-10-01T10:37:42.542563Z 00O section_end:1790851062:prepare_script[0K
+2026-10-01T10:37:42.543027Z 00O+section_start:1790851062:get_sources[0K
+2026-10-01T10:37:42.543033Z 00O+[0K[36;1mGetting source from Git repository[0;m[0;m
+2026-10-01T10:37:42.908215Z 01O [32;1mGitaly correlation ID: 07afa7fbb5194f6dbe163b7138eaf40f[0;m
+2026-10-01T10:37:42.913474Z 01O [32;1mFetching changes with git depth set to 20...[0;m
+2026-10-01T10:37:42.916472Z 01O Initialized empty Git repository in /builds/yeyo11/agentry/.git/
+2026-10-01T10:37:42.918483Z 01O [32;1mCreated fresh repository.[0;m
+2026-10-01T10:37:46.472416Z 01O [32;1mChecking out e4f1ff76 as detached HEAD (ref is refs/merge-requests/12/head)...[0;m
+2026-10-01T10:37:46.797138Z 01O 
+2026-10-01T10:37:46.797144Z 01O [32;1mSkipping Git submodules setup[0;m
+2026-10-01T10:37:46.797233Z 01O [32;1m$ git remote set-url origin "${CI_REPOSITORY_URL}" || echo 'Not a git repository; skipping'[0;m
+2026-10-01T10:37:47.212392Z 00O section_end:1790851067:get_sources[0K
+2026-10-01T10:37:47.213003Z 00O+section_start:1790851067:step_script[0K
+2026-10-01T10:37:47.213009Z 00O+[0K[36;1mExecuting "step_script" stage of the job script[0;m[0;m
+2026-10-01T10:37:47.213017Z 00O [0KUsing effective pull policy of [always] for container alpine:3.20[0;m
+2026-10-01T10:37:47.213884Z 00O [0KUsing docker image sha256:bf8527eb54c3680e728d5b4b383a8ba730d72dae7236fbc8dff97ed6b224a731 for alpine:3.20 with digest alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc ...[0;m
+2026-10-01T10:37:47.556446Z 01O [32;1m$ echo "probe-sleep start"[0;m
+2026-10-01T10:37:47.556467Z 01O probe-sleep start
+2026-10-01T10:37:47.556468Z 01O [32;1m$ for i in $(seq 1 18); do echo "probe tick $i"; sleep 5; done[0;m
+2026-10-01T10:37:47.556816Z 01O probe tick 1
+2026-10-01T10:37:52.557384Z 01O probe tick 2
+2026-10-01T10:37:57.558196Z 01O probe tick 3
+2026-10-01T10:38:02.559108Z 01O probe tick 4
+2026-10-01T10:38:07.561050Z 01O probe tick 5
+2026-10-01T10:38:12.561025Z 01O probe tick 6
+2026-10-01T10:38:17.562090Z 01O probe tick 7
+2026-10-01T10:38:22.562787Z 01O probe tick 8
+2026-10-01T10:38:27.563794Z 01O probe tick 9
+2026-10-01T10:38:32.564640Z 01O probe tick 10
+2026-10-01T10:38:37.565560Z 01O probe tick 11
+2026-10-01T10:38:42.566422Z 01O probe tick 12
+2026-10-01T10:38:47.567327Z 01O probe tick 13
+2026-10-01T10:38:52.568205Z 01O probe tick 14
+2026-10-01T10:38:57.569069Z 01O probe tick 15
+2026-10-01T10:39:02.570005Z 01O probe tick 16
+2026-10-01T10:39:07.570989Z 01O probe tick 17
+2026-10-01T10:39:12.571898Z 01O probe tick 18
+2026-10-01T10:39:17.572792Z 01O [32;1m$ echo "probe-sleep done"[0;m
+2026-10-01T10:39:17.572797Z 01O probe-sleep done
+2026-10-01T10:39:17.766753Z 00O section_end:1790851157:step_script[0K
+2026-10-01T10:39:17.767357Z 00O+section_start:1790851157:cleanup_file_variables[0K
+2026-10-01T10:39:17.767361Z 00O+[0K[36;1mCleaning up project directory and file based variables[0;m[0;m
+2026-10-01T10:39:18.354405Z 00O section_end:1790851158:cleanup_file_variables[0K
+2026-10-01T10:39:18.367559Z 00O [32;1mJob succeeded[0;m

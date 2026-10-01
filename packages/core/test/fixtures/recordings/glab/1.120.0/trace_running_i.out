@@ -1,0 +1,39 @@
+HTTP/2.0 200 OK
+Cache-Control: max-age=0, private, must-revalidate
+Cf-Cache-Status: BYPASS
+Cf-Ray: a43ad63fcef8392c-MAD
+Content-Disposition: infile; filename="16862533387.log"
+Content-Security-Policy: default-src 'none'
+Content-Type: text/plain
+Date: Thu, 01 Oct 2026 10:38:17 GMT
+Etag: W/"623f87c2966979a098269148a091ff2a"
+Gitlab-Lb: haproxy-main-43-lb-gprd
+Gitlab-Sv: api-gke-us-east1-b
+Nel: {"max_age": 0}
+Ratelimit-Limit: 2000
+Ratelimit-Name: throttle_authenticated_api
+Ratelimit-Observed: 2
+Ratelimit-Remaining: 1998
+Ratelimit-Reset: 1790851140
+Referrer-Policy: strict-origin-when-cross-origin
+Server: cloudflare
+Strict-Transport-Security: max-age=31536000
+Vary: Origin
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-Gitlab-Meta: {"correlation_id":"a43ad63fcef8392c-MAD","version":"1"}
+X-Request-Id: a43ad63fcef8392c-MAD
+X-Runtime: 0.162067
+
+2026-10-01T10:37:36.889435Z 00O [0KRunning with gitlab-runner 19.5.0~pre.2159.ga8432a3e (a8432a3e)[0;m
+2026-10-01T10:37:36.889447Z 00O [0K  on k8s.saas-linux-small-amd64.runners-manager.gitlab.com/default nezyxEJex, system ID: r_6HCZwrzTxV89[0;m
+2026-10-01T10:37:36.889449Z 00O [0K  UUID: 019fd6c6-56c4-78a2-8961-bbb53e204387[0;m
+2026-10-01T10:37:36.889455Z 00O [0K  feature flags: FF_USE_GIT_PROACTIVE_AUTH:true, FF_HASH_CACHE_KEYS:true, FF_MACHINE_OPTIONS_EXPAND_ENV:true, FF_DOCKER_MACHINE_JSON_OUTPUT:true[0;m
+2026-10-01T10:37:36.889481Z 00O section_start:1790851056:prepare_executor[0K
+2026-10-01T10:37:36.889483Z 00O+[0K[36;1mPreparing the "docker+machine" executor[0;m[0;m
+2026-10-01T10:37:37.025436Z 00O [0KUsing Docker executor with image alpine:3.20 ...[0;m
+2026-10-01T10:37:37.025482Z 00O [0KUsing helper image:  registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e  (overridden, default would be  registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-v19.5.0 )[0;m
+2026-10-01T10:37:37.025490Z 00O [0KUsing effective pull policy of [always] for container registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e[0;m
+2026-10-01T10:37:37.026141Z 00O [0KAuthenticating with credentials from job payload (GitLab Registry)[0;m
+2026-10-01T10:37:37.026149Z 00O [0KPulling docker image registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e ...[0;m
+2026-10-01T10:37:38.875491Z 00O [0KUsing docker image sha256:6bb853b7a2cda0cf31469babeb7e0edbdf202c63c5221070cfcf756214613e31 for registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper:x86_64-a8432a3e with digest registry.gitlab.com/gitlab-org/gitlab-runner/gitlab-runner-helper@sha256:2a3ccd2182c1ebedd2fa8efd30198b39b62861240c9bd07f1ffe0fe67871588a ...[0;m

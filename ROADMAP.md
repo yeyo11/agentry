@@ -258,9 +258,9 @@ The rest of what is still open was decided against rather than left undone. The 
   A wrapper you cannot reach is a wrapper with nothing to say, and a stale transcript is worse than
   an honest "cannot reach the server".
 - **Packaging, taken separately** — a Helm Ingress template, the chart's version under
-  release-please, and running the image build, the Caddy profile, the chart and the e2e harness's
-  own test through a real cluster in CI. All of it is release plumbing rather than product, and it
-  wants its own change.
+  release-please, and running the image build, the Caddy profile and the chart through a real
+  cluster in CI. All of it is release plumbing rather than product, and it wants its own change.
+  (The e2e harness's own test, once on this list, runs in CI's `checks` job since #128.)
 - **An apt repository of our own** — updates would arrive through the system's updater like any
   other package, but it costs a GPG key, signing in CI and a hosted repository to keep alive, and the
   desktop app's own updater already installs a new `.deb` through `pkexec`. Revisit if people ask for
@@ -278,10 +278,10 @@ The rest of what is still open was decided against rather than left undone. The 
 
 ### Noticed and not fixed
 
-- **A chat Agentry starts is titled with the name the wrapper generated** (`my-project-ce007b`)
-  until its transcript is on disk; after that its first prompt becomes the title. Seen while
-  recording the README's media, and left alone: the fix belongs to how a chat is named, not to a
-  recorder.
+Nothing at the moment. The one item that was here, a chat Agentry starts shown under the name
+the wrapper generated (`my-project-ce007b`) until its transcript was on disk, was fixed in the UI
+by #101: every chat surface shows the first prompt instead. See
+[post-roadmap's verification](docs/plans/post-roadmap.md#what-no-task-built).
 
 ### Out of reach of the CLI
 

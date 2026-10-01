@@ -1181,6 +1181,11 @@ export interface ProjectFlowSettings {
    * once it is reached. Absent (the default) means no limit of Agentry's own.
    */
   maxCostUsd?: number;
+  /**
+   * Fixes of failing checks Agentry may start on its own for one head commit (`checks.fix`). Absent
+   * reads as 2 (`DEFAULT_CHECKS_FIX_ATTEMPTS`); a person's click is never counted against it.
+   */
+  checksFixAttempts?: number;
 }
 
 /** The Documents module: the repository's documents folder, and documents tied to work items. */
@@ -1489,8 +1494,21 @@ export type WorkItemPullRequestPhase = 'preparing' | 'conflict' | 'awaiting-veri
 /** A PR's checks, from `gh pr view --json statusCheckRollup`: none, any still running, any failed, or all green. */
 export type WorkItemPullRequestCi = 'none' | 'pending' | 'passing' | 'failing';
 
+/**
+ * Where a fix of failing checks stands while the change request is still open on the host
+ * (docs/plans/code-hosts.md, phase 2): `fixing`, an agent has the failures in its prompt;
+ * `awaiting-verify`, the Developer's run ended and QA verifies it; `awaiting-push`, verified and
+ * waiting for the person's **Push the fix**. Null when no fix is under way.
+ */
+export type ChangeRequestFixState = 'fixing' | 'awaiting-verify' | 'awaiting-push';
+
+/** Who asked for the fix: a person's click, or the `checks.fix` decision. */
+export type ChangeRequestFixOrigin = 'person' | 'decision';
+
 /** An item's pull request, the newest of its rows: an item keeps every PR it had, closed ones too. */
 export interface WorkItemPullRequest {
+  /** The row id the `/change-requests/:id/…` routes take; the server always sends it */
+  id?: string;
   phase: WorkItemPullRequestPhase;
   /** The host that holds it; absent reads as `github` (rows opened before hosts existed) */
   host?: CodeHostId;
@@ -1513,6 +1531,13 @@ export interface WorkItemPullRequest {
   closedAt: string | null;
   /** When the watcher last asked gh about it */
   checkedAt: string | null;
+  /** The fix of failing checks under way; absent or null when none */
+  fixState?: ChangeRequestFixState | null;
+  fixOrigin?: ChangeRequestFixOrigin | null;
+  /** Fixes started for `fixHead`, a person's and the decision's together */
+  fixAttempts?: number;
+  /** The head commit the failures were seen on */
+  fixHead?: string | null;
 }
 
 /**
@@ -4797,6 +4822,9 @@ export type HostReason =
   | 'log-unavailable'
   | 'rerun-refused'
   | 'check-not-rerunnable'
+  | 'nothing-to-fix'
+  | 'fix-in-progress'
+  | 'fix-attempts-spent'
   | 'own-change-request'
   | 'pending-review-exists'
   | 'line-not-in-diff'
@@ -4828,6 +4856,8 @@ export type OrchestrationPullRequestPhase = 'preparing' | 'open' | 'merged' | 'c
 
 /** The change request opened for an orchestration's integration branch. */
 export interface OrchestrationPullRequest {
+  /** The row id the `/change-requests/:id/…` routes take; the server always sends it */
+  id?: string;
   phase: OrchestrationPullRequestPhase;
   host: CodeHostId;
   /** How the host writes the number: `#12` or `!12`; null without a number */
@@ -4842,6 +4872,11 @@ export interface OrchestrationPullRequest {
   openedAt: string | null;
   closedAt: string | null;
   checkedAt: string | null;
+  /** An orchestration has no QA stage: its fix goes `fixing`, then `awaiting-push` for the person */
+  fixState?: ChangeRequestFixState | null;
+  fixOrigin?: ChangeRequestFixOrigin | null;
+  fixAttempts?: number;
+  fixHead?: string | null;
 }
 
 /** An orchestration's change request was opened, or moved to another phase or CI state. */
@@ -4857,6 +4892,122 @@ export interface OrchestrationPullRequestAnswer {
   url: string | null;
   detail: string;
   pullRequest: OrchestrationPullRequest | null;
+}
+
+// ---------- Change requests and their checks (code hosts, phase 2) ----------
+
+/** Whose change request it is: a work item's or an orchestration's. */
+export type ChangeRequestKind = 'work-item' | 'orchestration';
+
+/**
+ * The neutral change request of `GET /change-requests/:id`; `id` is the row id of either table
+ * (UUIDs, unique across both). `ref` is how the host writes the number: `#12` or `!12`.
+ */
+export interface ChangeRequest {
+  id: string;
+  kind: ChangeRequestKind;
+  /** The work item's id or the orchestration's id */
+  ownerId: string;
+  host: CodeHostId;
+  phase: WorkItemPullRequestPhase;
+  number: number | null;
+  ref: string | null;
+  url: string | null;
+  branch: string;
+  base: string;
+  /** The checks' rollup as the watcher last read it */
+  ci: WorkItemPullRequestCi | null;
+  error: { code: string; detail: string } | null;
+  openedAt: string | null;
+  closedAt: string | null;
+  checkedAt: string | null;
+  fixState: ChangeRequestFixState | null;
+  fixOrigin: ChangeRequestFixOrigin | null;
+  fixAttempts: number;
+  fixHead: string | null;
+}
+
+/** One check's state. `neutral` is a finished check that neither passed nor failed (a notice). */
+export type CheckState = 'queued' | 'running' | 'passed' | 'failed' | 'cancelled' | 'skipped' | 'manual' | 'neutral';
+
+/**
+ * Where a check comes from: `actions` a GitHub Actions job, `app` another app's check run, `status` a
+ * commit status, `job` a GitLab job, `bridge` a GitLab job that triggers a child pipeline.
+ */
+export type CheckSource = 'actions' | 'app' | 'status' | 'job' | 'bridge';
+
+/** One check of a change request's head commit. */
+export interface Check {
+  /** The host's job or check-run id, as text so a 64-bit id never loses precision */
+  id: string;
+  name: string;
+  /** The workflow (GitHub) or stage (GitLab); null when the host names none */
+  group: string | null;
+  state: CheckState;
+  /** A failed job that the pipeline lets fail: shown as a warning, never as a failure */
+  allowedToFail: boolean;
+  /** A rule of the base branch needs it to pass before a merge */
+  required: boolean;
+  startedAt: string | null;
+  finishedAt: string | null;
+  /** Its page on the host */
+  url: string | null;
+  /** Agentry can ask the host to run it again: false for a commit status, another app's check or a bridge */
+  rerunnable: boolean;
+  /** A log can be read: false for a bridge, a commit status and another app's check */
+  hasLog: boolean;
+  source: CheckSource;
+}
+
+/** The checks of a change request's head commit, cached by head for 30 s. */
+export interface ChangeRequestChecks {
+  headSha: string | null;
+  rollup: WorkItemPullRequestCi;
+  checks: Check[];
+  /** The list reached its ceiling (1 000): the first ones are shown */
+  truncated: boolean;
+  checkedAt: string;
+  /** While the host's rate limit is used up: when Agentry may read again; the list is the last one it had */
+  limitedUntil?: string | null;
+}
+
+/** What a check says about a file, or about the run when `path` is null. */
+export interface CheckAnnotation {
+  path: string | null;
+  startLine: number | null;
+  endLine: number | null;
+  level: 'notice' | 'warning' | 'failure';
+  title: string | null;
+  message: string;
+}
+
+/**
+ * The tail of a check's log, with escape sequences, carriage returns, section markers and secrets
+ * removed (docs/plans/code-hosts.md, "Log tails"). `noOutputYet` is a job that has printed nothing
+ * (running, or a manual job that never ran), which is not an unavailable log.
+ */
+export interface CheckLog {
+  lines: string[];
+  /** Lines were left out: the log is longer than the tail */
+  truncated: boolean;
+  noOutputYet: boolean;
+  annotations: CheckAnnotation[];
+}
+
+/** `POST /change-requests/:id/checks/rerun`: the failed jobs, one check, or the whole run. */
+export interface ChecksRerunRequest {
+  scope: 'failed' | 'check' | 'all';
+  /** Required when `scope` is `check` */
+  checkId?: string;
+}
+
+/** The head commit's checks changed rollup, or the list was read again after a write. */
+export interface ChangeRequestChecksEvent extends AgentryEventBase {
+  type: 'change-request.checks';
+  /** The change request's row id; `id` is the feed's sequence number */
+  changeRequestId: string;
+  rollup: WorkItemPullRequestCi;
+  headSha: string | null;
 }
 
 /** One provider's detected state on this host, as served from the detector's cache. */
@@ -5216,6 +5367,7 @@ export type AgentryEvent =
   | ProvidersChangedEvent
   | HostsChangedEvent
   | OrchestrationPullRequestEvent
+  | ChangeRequestChecksEvent
   | ScheduleChangedEvent
   | ScheduleFiredEvent
   | SupervisorProposedEvent
@@ -5299,7 +5451,8 @@ export type DecisionPointId =
   | 'health.test-weakening'
   | 'changes.unexplained-hunk'
   | 'palette.intent'
-  | 'notification.urgency';
+  | 'notification.urgency'
+  | 'checks.fix';
 
 /** What a decision was about; the `subject_kind` column of the history */
 export type DecisionSubjectKind =
