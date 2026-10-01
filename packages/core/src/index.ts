@@ -252,6 +252,7 @@ export {
   type PullRequestDeps,
 } from './pull-requests.ts';
 export { ChangeRequestError, type ChangeRequestFix } from './change-requests.ts';
+export { MergeError, type MergeOutcome, type UpdateOutcome } from './hosts/merge-service.ts';
 export { OrchestrationPullRequestError, OrchestrationPullRequestService, type OpenedPullRequest } from './orchestration-pull-requests.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
@@ -740,6 +741,7 @@ export class Core {
       db: this.db,
       checks: this.checks,
       reviews: this.reviews,
+      merge: this.merge,
       pullRequests: this.pullRequests,
       orchestrationPullRequests: this.orchestrationPullRequests,
       orchestration: (id) => this.orchestrator.get(id),

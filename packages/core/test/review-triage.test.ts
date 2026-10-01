@@ -106,6 +106,7 @@ test('reading a change request\'s threads asks review.triage: the point is reach
   const service = new ChangeRequestService({
     db: { connection: sql } as unknown as Db,
     checks: {} as never,
+    merge: {} as never,
     reviews: { threads: () => Promise.resolve(listOf([thread('T1')])) } as unknown as ReviewsService,
     pullRequests: {} as PullRequestService,
     orchestrationPullRequests: {} as OrchestrationPullRequestService,

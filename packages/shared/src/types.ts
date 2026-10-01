@@ -5376,6 +5376,28 @@ export interface AutoMergeRequestBody {
   expectedHead: string;
 }
 
+/** What `POST /change-requests/:id/merge` answers once the host merged. */
+export interface MergeResult {
+  state: MergeState;
+  merged: true;
+  /** Whether the source branch is gone from the host; null when nobody asked or the host did not say */
+  branchDeleted: boolean | null;
+}
+
+/** What `POST /change-requests/:id/update-branch` answers when the branch was updated. */
+export interface UpdateBranchResult {
+  state: MergeState;
+  /** Empty: a conflicting update is a 409 that names the paths */
+  conflicts: string[];
+  /** Agentry's own merge of the base into the branch, or a host-side rebase */
+  via: 'merge' | 'rebase';
+}
+
+/** `POST /change-requests/:id/ready`: mark ready for review, or back to a draft. */
+export interface MergeReadyRequest {
+  ready: boolean;
+}
+
 export type ChangeRequestMergeAction = 'merge' | 'arm' | 'disarm';
 
 /** What became of one merge click or arming. `requested` is written before the host is called. */
