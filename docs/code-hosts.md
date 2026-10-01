@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-01T09:00:00Z
-updated_at: 2026-10-01T15:00:00Z
+updated_at: 2026-10-01T18:00:00Z
 tags:
     - code-hosts
     - pull-request
@@ -10,6 +10,7 @@ tags:
     - checks
     - logs
     - reviews
+    - merge
 ---
 # Code hosts
 
@@ -27,7 +28,10 @@ fixing failing checks, described in [Checks, logs and fixing](#checks-logs-and-f
 and screens come with the tasks that own them. Phase 3 is built in `packages/core` and the
 contract (review threads, drafts, posting, reply and resolve, approval, reviewers, Address with an
 agent), described in [Reviews](#reviews); its routes and screens come with the tasks that own them.
-Merging, trackers and webhooks are later phases and not described here as if they existed.
+Phase 4 is built in `packages/core` and the contract (the merge state and its blockers, Merge,
+Auto-merge, Update from base, the GitLab pipeline guard, auto-merge turned off before Agentry
+pushes, the audit), described in [Merging](#merging); its routes and screens come with the tasks
+that own them. Trackers and webhooks are later phases and not described here as if they existed.
 
 In shared types and in this document "pull request" means a PR or an MR: the host decides the word
 (`#12` on GitHub, `!12` on GitLab).
@@ -511,6 +515,166 @@ threads in the Address dialog. It is asked whenever the threads are read
 (`GET /change-requests/:id/threads`), in the background and once per set of open threads, and the
 dialog reads the answer from the decision history under the change request's id.
 
+## Merging
+
+Merging is **the person's click**, from the item page or the orchestration page. It is never a run,
+a decision point or a chat token: the merge routes refuse a chat token with 403, and nothing in
+`packages/core` starts a merge on its own. `MergeService` (`hosts/merge-service.ts`, `core.merge`)
+runs it; the adapters (`hosts/github/merge.ts`, `hosts/gitlab/merge.ts`) only build calls and parse.
+The reasons and the evidence are in [plans/code-hosts.md](plans/code-hosts.md#phase-4-merging);
+where the m0 recordings disagreed with the design notes, the recordings won, and this page follows
+them.
+
+### The merge state
+
+`MergeState` (`GET /change-requests/:id/merge`) is read from the host when it is asked:
+
+- **`methods` and `defaultMethod`**: what the repository's settings and rules allow, in the order
+  squash, merge, rebase; the first is preselected. Empty means none is allowed.
+- **`headSha`**: the full id of the head the person is looking at. A merge carries it back as
+  `expectedHead`.
+- **`blocker` and `others`**: why a merge is not offered (below). `canMerge` is true when there is
+  no blocker and, on GitLab, the pipeline guard allows it.
+- **`warning`**: `optional-checks-failing` on GitHub's `UNSTABLE`; Merge stays on.
+- **`deleteBranchDefault`**: the repository's `delete_branch_on_merge` /
+  `remove_source_branch_after_merge`, the default of the branch box.
+- **`autoMerge`**: whether one may be armed (and the reason when not), and who armed it, when and
+  with which method when one is.
+- **`waitingForPipeline`** and **`canRebaseOnHost`**: GitLab only (below).
+
+The repository's settings, rules and required checks change rarely and are cached for 60 s.
+
+**`computing`.** GitHub's `UNKNOWN` settles in 2–5 s, so the service re-reads after 5 s, three
+times, before showing it. GitLab's `unchecked` does not: it stayed for minutes through every
+`with_merge_status_recheck` read, and `has_conflicts: false` came back for a conflicting merge
+request while it lasted. So on GitLab only `checking` is waited on; for `unchecked` the service
+reads `mergeabilityChecks` through GraphQL, maps the `FAILED` identifiers with the same table, and
+does not disable Merge on `unchecked` alone: GitLab checks again on merge and refuses.
+
+### What blocks a merge
+
+Computed from the fields, never from a CLI's refusal text (gh computes its own refusal client-side
+and glab's is a boxed stderr). The first that applies is `blocker`; the rest are `others`. The pure
+functions are `githubBlockers` and `gitlabBlockers` in `hosts/merge-blockers.ts`, tested with every
+recorded status, every documented `detailed_merge_status` and values nobody has seen: an unknown
+value is `blocked-by-policy`. Every blocker ends in an Agentry action or a link, never a command to
+copy.
+
+| Code | Action |
+|---|---|
+| `not-open`, `not-yet` | none |
+| `computing` | Refresh |
+| `draft` | Mark ready |
+| `conflicts` | Update from base |
+| `behind` | Update from base; on a GitLab `ff` project, Rebase on GitLab |
+| `nothing-to-merge` | Close |
+| `checks-running` | Auto-merge, when allowed |
+| `checks-failing` | Fix failing checks · Re-run |
+| `checks-missing` | Re-run the whole run |
+| `review-required` | Request reviewers |
+| `changes-requested` | Address with an agent |
+| `threads-unresolved` | Show unresolved threads |
+| `tracker-key-missing`, `title-rejected` | Edit title |
+| `external-checks`, `blocked-by-dependency`, `locked-files`, `merge-queue`, `blocked-by-policy` | Open on the host |
+
+A conflicting merge request in a GitLab `ff` project reads `need_rebase` (`behind`), not
+`conflict`. On GitHub the unresolved-thread count comes from the reviews' threads; on GitLab
+`threads-unresolved` comes only from `discussions_not_resolved`.
+
+### Merge
+
+`POST /change-requests/:id/merge` takes `{ method, expectedHead, deleteBranch, subject?, body? }`.
+
+1. The service writes the audit row `requested` **before** the host is called, as the person.
+2. It reads the state and refuses with `head-moved` when `headSha` is not `expectedHead`,
+   `method-not-allowed` when the repository does not allow the method, and the blocker when
+   `canMerge` is false. A second click while one runs gets `busy`.
+3. The adapter builds the call:
+   - **GitHub:** `gh pr merge <n> -R <host>/<owner>/<repo> --squash|--merge|--rebase
+     --match-head-commit <full id>`, with `--subject`, `--body-file -` (the body on stdin) and
+     `--delete-branch` when asked. `-R` is always there; `--admin` and `--auto` are never built.
+   - **GitLab:** `glab mr merge <n> -R <url> -y --sha <full id> --auto-merge=false`, plus
+     `--squash` and `--squash-message`, `-m` or `-d`. `--auto-merge=false` is always passed, so
+     glab's default can never turn a merge into an arming. The merge strategy (merge commit or
+     fast-forward) is the project's; only squash is asked for.
+4. **The re-read decides the outcome**, in this order: merged; `head-moved` (a different `sha`, or
+   the 409 parsed out of glab's box); an infrastructure reason (`auth-failed`, `forbidden`,
+   `not-found`, `rate-limited`, `server-error`); a blocker; `merge-failed`. Exit codes and refusal
+   text are not trusted: `glab mr merge` refuses in a boxed stderr and its 405 never says why.
+   `write-unconfirmed` means the host neither confirmed nor refused.
+5. After a merge the service tells the owner of the row (`merged(id)`), and the existing `merged()`
+   path moves the item to Done as the person ([work-items.md](work-items.md#merging-from-agentry)).
+   The local branch stays. The remote branch goes only when the box was ticked or the project
+   deletes it itself.
+
+`--sha` and `--match-head-commit` take the **full** id: a short one is a 409 and would read as
+`head-moved`. After a GitLab `ff` merge `merge_commit_sha` is null; the merged commit is `sha`.
+
+### The GitLab pipeline guard
+
+Merging a few seconds after a push merged before the pipeline attached, and the project's branch
+deletion then failed the running job. So on GitLab **Merge now** is allowed only when:
+
+- a pipeline for the head (`head_pipeline.sha` equal to the request's `sha`) exists and has
+  finished; or
+- there is no pipeline, the project has no CI file at the head (`git cat-file -e
+  <sha>:<ci_config_path or .gitlab-ci.yml>`, after one fetch when the commit is missing), the
+  project does not require a pipeline, and 90 s have passed since the last push Agentry saw.
+
+A pipeline still running adds a `checks-running` blocker. With `only_allow_merge_if_pipeline_succeeds`
+on and no pipeline the state is `checks-missing` and Merge never opens (glab refuses with
+`ci_must_pass`). With a CI file present, an unreadable one or a remote `ci_config_path`, the guard
+waits indefinitely and never merges ahead of the pipeline: `waitingForPipeline` is true and the
+state is re-read every 10 s.
+
+### Auto-merge
+
+`POST /change-requests/:id/auto-merge` arms and `DELETE` turns it off; both are recorded.
+
+- **Offered** only when the repository allows it (GitHub `allow_auto_merge`; GitLab always) and
+  something is left to wait for. On GitHub that is when every blocker is one waiting clears
+  (`checks-running`, `review-required`). On GitLab it is only while the head's pipeline runs. The
+  reasons when it is not: `auto-merge-not-allowed`, `auto-merge-not-needed`,
+  `waiting-for-pipeline`. GitHub's refusal says "not allowed" first, before a stale head, so the
+  order of `head-moved` and `auto-merge-not-needed` applies only when the setting is on.
+- **GitHub** arms through the `enablePullRequestAutoMerge` mutation with `expectedHeadOid`, never
+  `gh pr merge --auto`, which merges at once when it can. It disarms with
+  `gh pr merge --disable-auto`.
+- **GitLab** arms through `glab mr merge --auto-merge --sha` and disarms through
+  `POST …/cancel_merge_when_pipeline_succeeds`. glab's `status:error` answer is not trusted: the
+  re-read decides whether it is armed.
+- **Before Agentry pushes** to a branch (a conflict update, a fix, an address run),
+  `disarmBeforePush(id)` reads the change request and, if armed, turns it off as `agentry` with the
+  detail "arm it again". It **fails closed**: if the host still shows it armed or cannot be read,
+  it throws and the push does not happen. `pull-requests.ts` (`pushFixRow`) and
+  `orchestration-pull-requests.ts` (`pushFix`) call it before every push, and it resets the
+  guard's push time. The person arms it again. The pushes that open a change request do not call
+  it, since nothing can be armed yet.
+
+### Update from base
+
+`POST /change-requests/:id/update-branch` is Agentry's own, in the item's checkout. It disarms
+first, merges the base into the branch and pushes. A conflict aborts the merge, pushes nothing and
+returns the paths (409). On a GitLab `ff` project it may run the host's rebase instead (only with a
+clean worktree), poll `rebase_in_progress` with `include_rebase_in_progress=true` (the plain body
+does not carry it), then fetch and `reset --keep`. `POST …/ready` marks a draft ready.
+
+The service returns the conflicting paths and leaves the worktree as it was; how they reach the
+Developer is not decided in the service (see [work-items.md](work-items.md#merging-from-agentry)).
+
+### The audit
+
+`change_request_merges` has one row per click or arming: `action` (`merge`, `arm`, `disarm`),
+`method`, `expected_head`, `delete_branch`, `requested_at`, `requested_by` (the person, or `agentry`
+for the disarm before a push), `outcome` (`requested`, `merged`, `armed`, `disarmed`, `failed`),
+`reason` and `detail`. They are rows because they accumulate. `core.merge.history(id)` returns them.
+
+### Not recorded
+
+`ci_still_running` and `draft_status` in REST, `not_approved`, `requested_changes`,
+`status_checks_must_pass` and the other values that need Premium or Ultimate, the merge queue, and a
+`glab` token with only `read_api` are documented, not recorded; the blockers map them anyway.
+
 ## Fakes and tests
 
 - **Recordings** (`packages/core/test/fixtures/recordings/`): scrubbed captures of gh 2.92.0 and
@@ -537,6 +701,12 @@ dialog reads the answer from the decision history under the change request's id.
   publish with a bad line), replies, resolve and reopen, approve and revoke, `--reviewer`; GitHub
   threads, the follow-up, reviews, replies and requested reviewers on both gh releases. The reviews
   sections of the conformance suite and the service tests replay them.
+- **Phase 4 recordings** (`m0-NOTES.md`): `unchecked`, `discussions_not_resolved` and its refusal,
+  `merge_time`, `--target-branch`, `ci_must_pass` without a pipeline, `--auto-merge=false` while a
+  pipeline runs, `conflict`, `merge_method: ff` with `need_rebase` and a successful `mr rebase`;
+  GitHub's arming refusal and `--body-file -` on merge. The merge section of the conformance suite
+  checks that `--admin` and `--auto` are never built and that `-R` is always on `pr merge`;
+  `hosts-merge-service.test.ts` replays both hosts, with golden logs under `golden/phase4/`.
 - The registry test fails when two manifests share an id, a CLI or a default host.
 
 ## How to add a code host
