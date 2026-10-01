@@ -157,10 +157,20 @@ import type {
   MoveWorkItemResult,
   WorkItemPullRequestResult,
   ChangeRequest,
+  AddressReviewRequest,
+  ApprovalState,
   ChangeRequestChecks,
+  ChangeRequestReviewers,
+  ChangeRequestThreads,
   CheckLog,
   CheckState,
   ChecksRerunRequest,
+  ReviewDraft,
+  ReviewDraftInput,
+  ReviewPost,
+  ReviewSubmitRequest,
+  ReviewThread,
+  ReviewersRequest,
   OrchestrationPullRequest,
   WorkItemPullRequest,
   OrchestrateWorkItemsRequest,
@@ -772,6 +782,39 @@ export const api = {
   fixChecks: (id: string) => request<ChangeRequestFixResult>(`/change-requests/${enc(id)}/checks/fix`, { method: 'POST', body: {} }),
   pushFix: (id: string) =>
     request<WorkItemPullRequest | OrchestrationPullRequest | null>(`/change-requests/${enc(id)}/push-fix`, { method: 'POST', body: {} }),
+  /** The review threads of the head commit; `refresh` skips the cache by head */
+  changeRequestThreads: (id: string, refresh = false, o?: ReadOptions) =>
+    request<ChangeRequestThreads>(`/change-requests/${enc(id)}/threads${refresh ? '?refresh=1' : ''}`, o),
+  reviewDrafts: (id: string, o?: ReadOptions) => request<ReviewDraft[]>(`/change-requests/${enc(id)}/review-drafts`, o),
+  addReviewDraft: (id: string, req: ReviewDraftInput) =>
+    request<ReviewDraft>(`/change-requests/${enc(id)}/review-drafts`, { method: 'POST', body: req }),
+  updateReviewDraft: (id: string, draftId: string, req: ReviewDraftInput) =>
+    request<ReviewDraft>(`/change-requests/${enc(id)}/review-drafts/${enc(draftId)}`, { method: 'PUT', body: req }),
+  deleteReviewDraft: (id: string, draftId: string) =>
+    request<{ ok: true }>(`/change-requests/${enc(id)}/review-drafts/${enc(draftId)}`, { method: 'DELETE' }),
+  /** Post the drafts as one review */
+  submitReview: (id: string, req: ReviewSubmitRequest) =>
+    request<ReviewPost>(`/change-requests/${enc(id)}/reviews`, { method: 'POST', body: req }),
+  /** GitLab, after a partly-posted review: publish the notes that were saved, or drop them */
+  publishSavedReview: (id: string, postId: string) =>
+    request<ReviewPost>(`/change-requests/${enc(id)}/reviews/${enc(postId)}/publish-saved`, { method: 'POST', body: {} }),
+  discardSavedReview: (id: string, postId: string) =>
+    request<ReviewPost>(`/change-requests/${enc(id)}/reviews/${enc(postId)}/discard-saved`, { method: 'POST', body: {} }),
+  replyToThread: (id: string, threadId: string, body: string) =>
+    request<ReviewThread>(`/change-requests/${enc(id)}/threads/${enc(threadId)}/reply`, { method: 'POST', body: { body } }),
+  resolveThread: (id: string, threadId: string, resolved: boolean) =>
+    request<ReviewThread>(`/change-requests/${enc(id)}/threads/${enc(threadId)}/${resolved ? 'resolve' : 'unresolve'}`, { method: 'POST', body: {} }),
+  changeRequestApproval: (id: string, o?: ReadOptions) => request<ApprovalState>(`/change-requests/${enc(id)}/approval`, o),
+  /** GitLab: `sha` is the head the person looked at */
+  approveChangeRequest: (id: string, sha: string) =>
+    request<ApprovalState>(`/change-requests/${enc(id)}/approval`, { method: 'POST', body: { sha } }),
+  revokeApproval: (id: string) => request<ApprovalState>(`/change-requests/${enc(id)}/approval`, { method: 'DELETE' }),
+  changeRequestReviewers: (id: string, o?: ReadOptions) => request<ChangeRequestReviewers>(`/change-requests/${enc(id)}/reviewers`, o),
+  requestReviewers: (id: string, req: ReviewersRequest) =>
+    request<ChangeRequestReviewers>(`/change-requests/${enc(id)}/reviewers`, { method: 'POST', body: req }),
+  /** Hand threads to the item's agent; the answer is Fix failing checks'. No `threadIds` means every unresolved one */
+  addressReview: (id: string, req: AddressReviewRequest) =>
+    request<ChangeRequestFixResult>(`/change-requests/${enc(id)}/address`, { method: 'POST', body: req }),
   checkCriterion: (itemId: string, criterionId: string, checked: boolean) =>
     request<WorkItem>(`/work-items/${enc(itemId)}/criteria/${enc(criterionId)}`, { method: 'PATCH', body: { checked } }),
   workItemComments: (itemId: string, o?: ReadOptions) => request<WorkItemComment[]>(`/work-items/${enc(itemId)}/comments`, o),
@@ -941,6 +984,11 @@ export const keys = {
   /** Prefix of a change request's reads (itself, its checks, their logs): `change-request.checks` refreshes them all */
   changeRequest: (id: string) => ['change-request', id] as const,
   changeRequestChecks: (id: string) => ['change-request', id, 'checks'] as const,
+  // The review's reads sit under the request too: `change-request.review` refreshes them all
+  changeRequestThreads: (id: string) => ['change-request', id, 'threads'] as const,
+  reviewDrafts: (id: string) => ['change-request', id, 'review-drafts'] as const,
+  changeRequestReviewers: (id: string) => ['change-request', id, 'reviewers'] as const,
+  changeRequestApproval: (id: string) => ['change-request', id, 'approval'] as const,
   /**
    * A check keeps its id when its state moves (a job that finishes, a failed run that passes on a
    * re-read), and its log moves with it: the state is part of the key so the tail is read again
