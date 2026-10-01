@@ -8,6 +8,7 @@ import { HostParseError, type HostCall, type HostRepo, type HostResult, type Mer
 import { githubAdapter } from '../src/hosts/github/adapter.ts';
 import { githubManifest } from '../src/hosts/github/manifest.ts';
 import { gitlabAdapter } from '../src/hosts/gitlab/adapter.ts';
+import { boxedRefusal } from '../src/hosts/gitlab/merge.ts';
 import { gitlabManifest } from '../src/hosts/gitlab/manifest.ts';
 import { firstLine } from '../src/hosts/redact.ts';
 import { checkConformance, MERGE_HEAD, type RecordedOutputs } from './hosts/conformance.ts';
@@ -179,7 +180,7 @@ test('gitlab merge: settings from the recorded repo view and from every strategy
 });
 
 test('gitlab merge: the read of an open, a merged and an armed merge request', () => {
-  assert.equal(argv(gitlabAdapter.readForMerge(glRepo, 14)), 'mr view 14 -R https://gitlab.com/yeyo11/agentry -F json');
+  assert.equal(argv(gitlabAdapter.readForMerge(glRepo, 14)), 'api --hostname gitlab.com projects/87089091/merge_requests/14?with_merge_status_recheck=true');
   const open = gitlabAdapter.parseMergeRead(result(gl('disc_mr_view_blocked')));
   assert.equal(open.state, 'open');
   assert.equal(open.detailedMergeStatus, 'discussions_not_resolved');
@@ -244,15 +245,31 @@ test('gitlab merge: arming, and turning it off with the cancel that fails with e
   assert.equal(gitlabAdapter.parseDisarm(result('', { exitCode: 1 })), false);
 });
 
-test('gitlab merge: the refusal box is wrapped, and a 405 never says why', () => {
-  const box = (label: string): string => file('glab/1.120.0', label, 'err');
-  // The execution layer keeps the first line of stderr, which for the box is "ERROR": the 409 is only
-  // recognised when the whole box reaches the adapter, so the service decides head-moved on the re-read too
-  assert.equal(firstLine(box('merge_badsha')), 'ERROR');
-  assert.equal(gitlabAdapter.mergeReason('merge', result('', { exitCode: 1, stderrFirstLine: firstLine(box('merge_badsha')) })), null);
-  assert.equal(gitlabAdapter.mergeReason('merge', result('', { exitCode: 1, stderrFirstLine: box('merge_badsha').replace(/\s+/g, ' ') })), 'head-moved');
-  assert.equal(gitlabAdapter.mergeReason('merge', result('', { exitCode: 1, stderrFirstLine: box('disc_merge_refused').replace(/\s+/g, ' ') })), null);
-  assert.equal(gitlabAdapter.mergeReason('arm', result('', { exitCode: 1 })), null);
+test('gitlab merge: the recorded boxes are parsed for their status and message, never for ERROR', () => {
+  // What the execution layer hands over: the first line is "ERROR", the whole box is `stderrText`
+  const refused = (label: string): HostResult => {
+    const text = file('glab/1.120.0', label, 'err');
+    return result('', { exitCode: 1, stderrFirstLine: firstLine(text), stderrText: text });
+  };
+  assert.equal(firstLine(file('glab/1.120.0', 'ff_merge_stale_sha', 'err')), 'ERROR');
+  for (const label of ['ff_merge_stale_sha', 'disc_merge_short_sha']) {
+    assert.equal(gitlabAdapter.mergeReason('merge', refused(label)), 'head-moved', label);
+    const parsed = boxedRefusal(refused(label));
+    assert.equal(parsed?.status, 409);
+    assert.match(parsed?.detail ?? '', /^409 SHA does not match HEAD of source branch: [0-9a-f]{40}$/);
+  }
+  // A 405 never says why: it is a refusal with a status, and the re-read names the blocker
+  assert.deepEqual(boxedRefusal(refused('disc_merge_refused')), { status: 405, detail: '405 Method Not Allowed' });
+  assert.equal(gitlabAdapter.mergeReason('merge', refused('disc_merge_refused')), 'merge-failed');
+  // glab's own boxes carry no status; the detail is Agentry's wording, never glab's command to copy
+  assert.deepEqual(boxedRefusal(refused('conf_merge_refused')), { status: null, detail: 'the merge request has conflicts' });
+  assert.deepEqual(boxedRefusal(refused('nopipe_merge_refused')), { status: null, detail: 'a passing pipeline is required before merging' });
+  assert.deepEqual(boxedRefusal(refused('draft_merge_refused')), { status: null, detail: 'the merge request is a draft' });
+  assert.equal(gitlabAdapter.mergeDetail?.('merge', refused('draft_merge_refused')), 'the merge request is a draft');
+  // Text that is not a box says nothing, and an arm is never read as a merge
+  assert.equal(boxedRefusal(result('', { exitCode: 1, stderrFirstLine: 'boom' })), null);
+  assert.equal(gitlabAdapter.mergeReason('merge', result('', { exitCode: 1, stderrFirstLine: 'boom' })), null);
+  assert.equal(gitlabAdapter.mergeReason('arm', refused('ff_merge_stale_sha')), null);
 });
 
 test('gitlab merge: ready, the branch box, the host-side rebase and its status', () => {

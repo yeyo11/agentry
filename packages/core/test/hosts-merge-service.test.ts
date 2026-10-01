@@ -9,7 +9,7 @@ import { HostActionNotOffered, type HostCall, type HostRepo } from '../src/hosts
 import type { HostResult } from '../src/hosts/exec.ts';
 import { githubAdapter } from '../src/hosts/github/adapter.ts';
 import { gitlabAdapter } from '../src/hosts/gitlab/adapter.ts';
-import { MergeError, MergeService, NO_PIPELINE_GRACE, type MergeTarget } from '../src/hosts/merge-service.ts';
+import { COMPUTING_SHOWN, MergeError, MergeService, NO_PIPELINE_GRACE, type MergeTarget } from '../src/hosts/merge-service.ts';
 import { tempConfig } from './helpers.ts';
 
 // The service against what m0 recorded for the shapes, with the facts each scenario needs written
@@ -42,6 +42,10 @@ after(() => {
 
 // ---------- what the hosts print ----------
 
+/** A recorded glab stderr (m0), as the execution layer hands it over in `stderrText` */
+const file = (label: string): string => readFileSync(join(here, 'fixtures/recordings/glab/1.120.0', `${label}.err`), 'utf8');
+
+
 const ghRepoJson = (o: Record<string, unknown> = {}): string =>
   JSON.stringify({ default_branch: 'main', allow_squash_merge: true, allow_merge_commit: true, allow_rebase_merge: true, allow_auto_merge: true, delete_branch_on_merge: false, ...o });
 const ghView = (o: Record<string, unknown> = {}): string =>
@@ -72,6 +76,8 @@ interface Harness {
   sleeps: number[];
   clock: { now: number };
   merged: string[];
+  /** The detail of the first audit row */
+  detail: () => string | null;
   /** The most recent rule whose pattern matches the call's line wins */
   answer: (pattern: RegExp, result: Answer) => void;
   /** The writes among the calls */
@@ -135,6 +141,7 @@ function harness(host: 'github' | 'gitlab', options: Options = {}): Harness {
     sleeps,
     clock,
     merged,
+    detail: () => (db.connection.prepare('SELECT detail FROM change_request_merges ORDER BY requested_at, rowid').get() as { detail: string | null } | undefined)?.detail ?? null,
     answer: (pattern, result) => rules.unshift({ pattern, result }),
     writes: () => calls.filter((c) => /pr merge|mr merge|mr rebase|mr update|pr ready|-X POST|graphql -f query=mutation/.test(c)),
     rows: () =>
@@ -153,7 +160,7 @@ function harness(host: 'github' | 'gitlab', options: Options = {}): Harness {
     h.answer(/^gh pr view 12/, ok(ghView()));
   } else {
     h.answer(/^glab repo view/, ok(glRepoJson()));
-    h.answer(/^glab mr view 12/, ok(glView()));
+    h.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView()));
   }
   return h;
 }
@@ -161,10 +168,12 @@ function harness(host: 'github' | 'gitlab', options: Options = {}): Harness {
 function golden(name: string, calls: string[]): void {
   const file = join(GOLDEN, `${name}.log`);
   const actual = `# ${name}\n${calls.join('\n')}\n`;
-  if (process.env.UPDATE_GOLDEN || !existsSync(file)) {
+  // A missing golden is a failure: writing it would make the test pass on whatever it saw first
+  if (process.env.UPDATE_GOLDEN) {
     mkdirSync(GOLDEN, { recursive: true });
     writeFileSync(file, actual);
   }
+  assert.ok(existsSync(file), `golden ${name} is missing: run with UPDATE_GOLDEN=1 to record it`);
   assert.equal(actual, readFileSync(file, 'utf8'));
 }
 
@@ -278,7 +287,7 @@ test('GitLab state: a finished pipeline for the head lets Merge now through, and
   golden('merge-gitlab-state-pipeline-finished', h.calls);
 
   const stale = harness('gitlab', { fileAt: async () => true });
-  stale.answer(/^glab mr view 12/, ok(glView({ head_pipeline: { id: 6, status: 'success', sha: 'f'.repeat(40), source: 'merge_request_event' } })));
+  stale.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ head_pipeline: { id: 6, status: 'success', sha: 'f'.repeat(40), source: 'merge_request_event' } })));
   const waiting = await stale.service.state('cr-1');
   assert.equal(waiting.canMerge, false);
   assert.equal(waiting.waitingForPipeline, true);
@@ -287,14 +296,14 @@ test('GitLab state: a finished pipeline for the head lets Merge now through, and
 
 test('GitLab state: a pipeline still running blocks Merge now and is what auto-merge is for', async () => {
   const h = harness('gitlab');
-  h.answer(/^glab mr view 12/, ok(glView({ detailed_merge_status: 'ci_still_running', head_pipeline: { id: 7, status: 'running', sha: GL_HEAD, source: 'merge_request_event' } })));
+  h.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ detailed_merge_status: 'ci_still_running', head_pipeline: { id: 7, status: 'running', sha: GL_HEAD, source: 'merge_request_event' } })));
   const state = await h.service.state('cr-1');
   assert.equal(state.canMerge, false);
   assert.equal(state.blocker?.code, 'checks-running');
   assert.equal(state.autoMerge.available, true);
 
   // Nothing refused it, and the guard still holds Merge now back
-  h.answer(/^glab mr view 12/, ok(glView({ head_pipeline: { id: 7, status: 'pending', sha: GL_HEAD, source: 'merge_request_event' } })));
+  h.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ head_pipeline: { id: 7, status: 'pending', sha: GL_HEAD, source: 'merge_request_event' } })));
   const quiet = await h.service.state('cr-1');
   assert.equal(quiet.canMerge, false);
   assert.equal(quiet.blocker?.code, 'checks-running');
@@ -302,7 +311,7 @@ test('GitLab state: a pipeline still running blocks Merge now and is what auto-m
 
 test('GitLab state: with no pipeline the guard waits 90 s after the push when the project has no CI file, and never when it needs a pipeline', async () => {
   const noCi = harness('gitlab', { fileAt: async (sha, path) => (sha === GL_HEAD && path === '.gitlab-ci.yml' ? false : null) });
-  noCi.answer(/^glab mr view 12/, ok(glView({ head_pipeline: null })));
+  noCi.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ head_pipeline: null })));
   const early = await noCi.service.state('cr-1');
   assert.equal(early.canMerge, false);
   assert.equal(early.waitingForPipeline, true);
@@ -315,7 +324,7 @@ test('GitLab state: with no pipeline the guard waits 90 s after the push when th
 
   const required = harness('gitlab', { fileAt: async () => false });
   required.answer(/^glab repo view/, ok(glRepoJson({ only_allow_merge_if_pipeline_succeeds: true })));
-  required.answer(/^glab mr view 12/, ok(glView({ head_pipeline: null, detailed_merge_status: 'ci_must_pass' })));
+  required.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ head_pipeline: null, detailed_merge_status: 'ci_must_pass' })));
   const refused = await required.service.state('cr-1');
   assert.equal(refused.canMerge, false);
   assert.equal(refused.blocker?.code, 'checks-missing');
@@ -324,7 +333,7 @@ test('GitLab state: with no pipeline the guard waits 90 s after the push when th
   // A CI file at the head means a pipeline is coming; one Agentry cannot look for is not "no CI"
   for (const fileAt of [async () => true, async () => null] as Array<NonNullable<MergeTarget['fileAt']>>) {
     const coming = harness('gitlab', { fileAt });
-    coming.answer(/^glab mr view 12/, ok(glView({ head_pipeline: null })));
+    coming.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ head_pipeline: null })));
     await coming.service.state('cr-1');
     coming.clock.now += 10 * NO_PIPELINE_GRACE;
     assert.equal((await coming.service.state('cr-1')).waitingForPipeline, true);
@@ -332,7 +341,7 @@ test('GitLab state: with no pipeline the guard waits 90 s after the push when th
   // A configuration that lives in another project is not a file here
   const remote = harness('gitlab', { fileAt: async () => false });
   remote.answer(/^glab repo view/, ok(glRepoJson({ ci_config_path: 'ci/main.yml@group/templates' })));
-  remote.answer(/^glab mr view 12/, ok(glView({ head_pipeline: null })));
+  remote.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ head_pipeline: null })));
   await remote.service.state('cr-1');
   remote.clock.now += 10 * NO_PIPELINE_GRACE;
   assert.equal((await remote.service.state('cr-1')).waitingForPipeline, true);
@@ -340,35 +349,63 @@ test('GitLab state: with no pipeline the guard waits 90 s after the push when th
 
 test('GitLab state: unchecked is read from the mergeability checks and is not a wait unless one is still checking', async () => {
   const settled = harness('gitlab');
-  settled.answer(/^glab mr view 12/, ok(glView({ detailed_merge_status: 'unchecked' })));
+  settled.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ detailed_merge_status: 'unchecked' })));
   settled.answer(/graphql/, ok(glChecks(['CI_MUST_PASS', 'SUCCESS'], ['CONFLICT', 'SUCCESS'], ['DRAFT_STATUS', 'SUCCESS'])));
   const state = await settled.service.state('cr-1');
   assert.equal(state.canMerge, true);
   assert.deepEqual(settled.sleeps, []);
 
   const conflicting = harness('gitlab');
-  conflicting.answer(/^glab mr view 12/, ok(glView({ detailed_merge_status: 'unchecked', has_conflicts: false })));
+  conflicting.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ detailed_merge_status: 'unchecked', has_conflicts: false })));
   conflicting.answer(/graphql/, ok(glChecks(['CONFLICT', 'FAILED'], ['CI_MUST_PASS', 'SUCCESS'])));
   assert.equal((await conflicting.service.state('cr-1')).blocker?.code, 'conflicts');
 
+  // CONFLICT: CHECKING lasts minutes (recorded): computing shows for a fresh head only, and nothing is slept through
   const checking = harness('gitlab');
-  checking.answer(/^glab mr view 12/, ok(glView({ detailed_merge_status: 'checking' })));
-  let reads = 0;
-  checking.answer(/graphql/, () => ok(++reads < 3 ? glChecks(['CONFLICT', 'CHECKING']) : glChecks(['CONFLICT', 'SUCCESS'])));
-  const after = await checking.service.state('cr-1');
-  assert.deepEqual(checking.sleeps, [5000, 5000]);
-  assert.equal(after.canMerge, true);
+  checking.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ detailed_merge_status: 'unchecked' })));
+  checking.answer(/graphql/, ok(glChecks(['CONFLICT', 'CHECKING'], ['CI_MUST_PASS', 'SUCCESS'])));
+  const fresh = await checking.service.state('cr-1');
+  assert.deepEqual([fresh.blocker?.code, fresh.canMerge], ['computing', false]);
+  checking.clock.now += COMPUTING_SHOWN + 1;
+  const later = await checking.service.state('cr-1');
+  assert.deepEqual([later.blocker, later.canMerge], [null, true]);
+  assert.deepEqual(checking.sleeps, []);
+
+  // An unreadable GraphQL does not disable Merge either, and a real reason is not hidden behind computing
+  const unreadable = harness('gitlab');
+  unreadable.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ detailed_merge_status: 'unchecked' })));
+  unreadable.answer(/graphql/, failed(1, 'boom'));
+  assert.equal((await unreadable.service.state('cr-1')).canMerge, true);
+  const draft = harness('gitlab');
+  draft.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ detailed_merge_status: 'unchecked' })));
+  draft.answer(/graphql/, ok(glChecks(['DRAFT_STATUS', 'FAILED'], ['CONFLICT', 'CHECKING'])));
+  assert.equal((await draft.service.state('cr-1')).blocker?.code, 'draft');
+});
+
+test('GitLab Merge: a head GitLab is still checking is tried, and its refusal is explained by the re-read', async () => {
+  const h = harness('gitlab');
+  let done = false;
+  h.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, () => ok(glView({ detailed_merge_status: 'unchecked', ...(done ? { detailed_merge_status: 'conflict' } : {}) })));
+  h.answer(/graphql/, () => ok(done ? glChecks(['CONFLICT', 'FAILED']) : glChecks(['CONFLICT', 'CHECKING'])));
+  h.answer(/^glab mr merge 12/, () => {
+    done = true;
+    return failed(1, 'ERROR', { stderrText: file('conf_merge_refused') });
+  });
+  const error = await rejectsWith(h.service.merge('cr-1', { method: 'merge', expectedHead: GL_HEAD, deleteBranch: false }, PERSON), 'merge-failed');
+  assert.equal(h.writes().length, 1, 'the attempt is what makes GitLab run the conflict check');
+  assert.equal(error.blocker?.code, 'conflicts');
+  assert.deepEqual(h.sleeps, []);
 });
 
 test('GitLab state: a fast-forward project offers Rebase on GitLab for need_rebase, the other the update from the base', async () => {
   const ff = harness('gitlab');
   ff.answer(/^glab repo view/, ok(glRepoJson({ merge_method: 'ff' })));
-  ff.answer(/^glab mr view 12/, ok(glView({ detailed_merge_status: 'need_rebase' })));
+  ff.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ detailed_merge_status: 'need_rebase' })));
   const state = await ff.service.state('cr-1');
   assert.deepEqual([state.blocker?.code, state.blocker?.action, state.canRebaseOnHost, state.methods], ['behind', 'rebase-on-host', true, ['rebase', 'squash']]);
 
   const plain = harness('gitlab');
-  plain.answer(/^glab mr view 12/, ok(glView({ detailed_merge_status: 'need_rebase' })));
+  plain.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ detailed_merge_status: 'need_rebase' })));
   const other = await plain.service.state('cr-1');
   assert.deepEqual([other.blocker?.action, other.canRebaseOnHost], ['update-from-base', false]);
 });
@@ -462,7 +499,7 @@ test('Merge: a timeout that merged nothing is write-unconfirmed, and a second cl
 test('GitLab Merge: --sha with the full id and --auto-merge=false, and the 409 box is a head that moved', async () => {
   const h = harness('gitlab');
   let done = false;
-  h.answer(/^glab mr view 12/, () => ok(done ? glView({ state: 'merged' }) : glView()));
+  h.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, () => ok(done ? glView({ state: 'merged' }) : glView()));
   h.answer(/^glab mr merge 12/, () => {
     done = true;
     return ok('✓ Merged');
@@ -475,20 +512,24 @@ test('GitLab Merge: --sha with the full id and --auto-merge=false, and the 409 b
   golden('merge-gitlab-merge', h.calls);
 
   const moved = harness('gitlab');
-  moved.answer(/^glab mr merge 12/, failed(1, 'All attempts fail: 409 {message: SHA does not match HEAD of source branch}'));
-  await rejectsWith(moved.service.merge('cr-1', { method: 'merge', expectedHead: GL_HEAD, deleteBranch: false }, PERSON), 'head-moved');
+  // The recorded box: its first line is ERROR, the whole text carries the 409
+  moved.answer(/^glab mr merge 12/, failed(1, 'ERROR', { stderrText: file('ff_merge_stale_sha') }));
+  const movedError = await rejectsWith(moved.service.merge('cr-1', { method: 'merge', expectedHead: GL_HEAD, deleteBranch: false }, PERSON), 'head-moved');
+  assert.match(movedError.detail ?? '', /^409 SHA does not match HEAD of source branch/);
+  assert.match(moved.detail() ?? '', /^409 SHA does not match HEAD/);
 
-  // A boxed refusal with no status (draft, conflicts, a pipeline required) is explained by the re-read
+  // A boxed 405 says nothing about why: the re-read explains it, and the audit keeps the parsed message, not ERROR
   const boxed = harness('gitlab');
-  boxed.answer(/^glab mr merge 12/, failed(1, 'ERROR'));
+  boxed.answer(/^glab mr merge 12/, failed(1, 'ERROR', { stderrText: file('disc_merge_refused') }));
   const error = await rejectsWith(boxed.service.merge('cr-1', { method: 'merge', expectedHead: GL_HEAD, deleteBranch: false }, PERSON), 'merge-failed');
-  assert.equal(error.detail, 'ERROR');
+  assert.equal(error.detail, '405 Method Not Allowed');
+  assert.equal(boxed.detail(), '405 Method Not Allowed');
 
   // A short head is never sent, and the guard keeps a merge ahead of the pipeline from happening
   const short = harness('gitlab');
   await rejectsWith(short.service.merge('cr-1', { method: 'merge', expectedHead: GL_HEAD.slice(0, 8), deleteBranch: false }, PERSON), 'head-moved');
   const early = harness('gitlab', { fileAt: async () => true });
-  early.answer(/^glab mr view 12/, ok(glView({ head_pipeline: null })));
+  early.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ head_pipeline: null })));
   await rejectsWith(early.service.merge('cr-1', { method: 'merge', expectedHead: GL_HEAD, deleteBranch: false }, PERSON), 'waiting-for-pipeline');
   assert.deepEqual(early.writes(), []);
 });
@@ -535,9 +576,9 @@ test('GitHub auto-merge: the mutation refused is read from its own errors, and t
 
 test('GitLab auto-merge: only while the head pipeline runs, with --sha and no squash flag unless asked', async () => {
   const h = harness('gitlab');
-  h.answer(/^glab mr view 12/, ok(glView({ detailed_merge_status: 'ci_still_running', head_pipeline: { id: 7, status: 'running', sha: GL_HEAD, source: 'merge_request_event' } })));
+  h.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ detailed_merge_status: 'ci_still_running', head_pipeline: { id: 7, status: 'running', sha: GL_HEAD, source: 'merge_request_event' } })));
   let armed = false;
-  h.answer(/^glab mr view 12/, () => ok(glView({ detailed_merge_status: 'ci_still_running', merge_when_pipeline_succeeds: armed, merge_user: { username: PERSON }, head_pipeline: { id: 7, status: 'running', sha: GL_HEAD, source: 'merge_request_event' } })));
+  h.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, () => ok(glView({ detailed_merge_status: 'ci_still_running', merge_when_pipeline_succeeds: armed, merge_user: { username: PERSON }, head_pipeline: { id: 7, status: 'running', sha: GL_HEAD, source: 'merge_request_event' } })));
   h.answer(/^glab mr merge 12/, () => {
     armed = true;
     return ok();
@@ -549,7 +590,7 @@ test('GitLab auto-merge: only while the head pipeline runs, with --sha and no sq
   golden('merge-gitlab-arm', h.calls);
 
   const none = harness('gitlab', { fileAt: async () => true });
-  none.answer(/^glab mr view 12/, ok(glView({ head_pipeline: null })));
+  none.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ head_pipeline: null })));
   await rejectsWith(none.service.arm('cr-1', { method: 'merge', expectedHead: GL_HEAD }, PERSON), 'waiting-for-pipeline');
   assert.deepEqual(none.writes(), []);
 });
@@ -558,7 +599,7 @@ test('disarm: the cancel that says "error" with exit 0 is not believed, and the 
   const h = harness('gitlab');
   const running = { id: 7, status: 'running', sha: GL_HEAD, source: 'merge_request_event' };
   let armed = true;
-  h.answer(/^glab mr view 12/, () => ok(glView({ detailed_merge_status: 'ci_still_running', merge_when_pipeline_succeeds: armed, head_pipeline: running })));
+  h.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, () => ok(glView({ detailed_merge_status: 'ci_still_running', merge_when_pipeline_succeeds: armed, head_pipeline: running })));
   h.answer(/cancel_merge_when_pipeline_succeeds/, ok('{"status":"error"}'));
   await rejectsWith(h.service.disarm('cr-1', PERSON), 'write-unconfirmed');
   h.answer(/cancel_merge_when_pipeline_succeeds/, () => {
@@ -607,7 +648,7 @@ test('disarmBeforePush fails closed: a host that still shows it armed, or cannot
 
 test('a push resets the guard: the pipeline that follows it is the one GitLab Merge now waits for', async () => {
   const h = harness('gitlab', { fileAt: async () => false });
-  h.answer(/^glab mr view 12/, ok(glView({ head_pipeline: null })));
+  h.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ head_pipeline: null })));
   await h.service.state('cr-1');
   h.clock.now += NO_PIPELINE_GRACE;
   assert.equal((await h.service.state('cr-1')).canMerge, true);
@@ -641,7 +682,7 @@ test('Update from base on a GitLab fast-forward project is the host\'s rebase, w
   let synced = 0;
   const h = harness('gitlab', { syncAfterRebase: async () => void (synced += 1) });
   h.answer(/^glab repo view/, ok(glRepoJson({ merge_method: 'ff' })));
-  h.answer(/^glab mr view 12/, ok(glView({ detailed_merge_status: 'need_rebase' })));
+  h.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ detailed_merge_status: 'need_rebase' })));
   h.answer(/^glab mr rebase 12/, ok());
   let status = 0;
   h.answer(/include_rebase_in_progress=true/, () => ok(JSON.stringify({ rebase_in_progress: status++ < 1, merge_error: null })));
@@ -654,7 +695,7 @@ test('Update from base on a GitLab fast-forward project is the host\'s rebase, w
 
   const broken = harness('gitlab');
   broken.answer(/^glab repo view/, ok(glRepoJson({ merge_method: 'ff' })));
-  broken.answer(/^glab mr view 12/, ok(glView({ detailed_merge_status: 'need_rebase' })));
+  broken.answer(/^glab api .*merge_requests\/12\?with_merge_status_recheck=true$/, ok(glView({ detailed_merge_status: 'need_rebase' })));
   broken.answer(/^glab mr rebase 12/, ok());
   broken.answer(/include_rebase_in_progress=true/, ok(JSON.stringify({ rebase_in_progress: false, merge_error: 'Rebase failed. Please rebase locally' })));
   const error = await rejectsWith(broken.service.updateBranch('cr-1'), 'merge-failed');

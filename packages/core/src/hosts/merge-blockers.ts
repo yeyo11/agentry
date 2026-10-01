@@ -7,11 +7,14 @@ import type { ChangeRequestState, MergeRules, MergeSettings } from './code-host.
 // from the fields and never relies on the refusal text. A value no row knows is `blocked-by-policy`,
 // never "no blocker": a merge the host would refuse must not look possible.
 
-/** The table's order: the first that applies is shown, the rest are listed under it. */
+/**
+ * The table's order: the first that applies is shown, the rest are listed under it. `computing`
+ * comes after every real blocker: a draft or a failed pipeline is never "still working out" (m0).
+ */
 const ORDER: readonly MergeBlockerCode[] = [
-  'not-open', 'computing', 'draft', 'conflicts', 'nothing-to-merge', 'behind', 'checks-running', 'checks-failing',
+  'not-open', 'draft', 'conflicts', 'nothing-to-merge', 'behind', 'checks-running', 'checks-failing',
   'checks-missing', 'external-checks', 'review-required', 'changes-requested', 'threads-unresolved', 'tracker-key-missing',
-  'title-rejected', 'blocked-by-dependency', 'not-yet', 'locked-files', 'merge-queue', 'blocked-by-policy',
+  'title-rejected', 'blocked-by-dependency', 'not-yet', 'locked-files', 'merge-queue', 'blocked-by-policy', 'computing',
 ];
 
 /** The one action of each row: an Agentry action or a link, never a command to copy. */
@@ -150,9 +153,15 @@ export interface GitlabBlockerInput {
   detailedMergeStatus: string | null;
   /**
    * GraphQL `mergeabilityChecks`, read when REST says `unchecked` or `checking`; null when it was not
-   * read. REST stays `unchecked` for minutes while GraphQL has every check (recorded).
+   * read or could not be. REST stays `unchecked` for minutes while GraphQL has every check (recorded).
    */
   checks: readonly MergeabilityCheck[] | null;
+  /**
+   * The head was first seen a moment ago. A check still `CHECKING` is shown as `computing` only then,
+   * and only when nothing else blocks: `CONFLICT: CHECKING` lasts minutes to tens of minutes (m0 §1, §6)
+   * and the merge attempt is what makes GitLab run it (m0 §8), so it must never keep Merge off.
+   */
+  settling?: boolean;
   /** The merge request has a head pipeline: `ci_must_pass` with none is a pipeline that never ran */
   hasHeadPipeline: boolean;
   /** `merge_method: ff`: `need_rebase` is answered with a host-side rebase */
@@ -212,9 +221,10 @@ function gitlabBlocker(value: string, input: GitlabBlockerInput): MergeBlocker |
 
 /** A computed REST status is read as it is; `unchecked` and `checking` are read from the GraphQL checks. */
 function gitlabFromChecks(checks: readonly MergeabilityCheck[] | null, input: GitlabBlockerInput): MergeBlocker[] {
-  // The checks were not read, so nothing is known
-  if (checks === null) return [blocker('computing')];
+  // Unreadable is not a blocker: GitLab checks again on merge and refuses then, with a reason the re-read names
+  if (checks === null) return [];
   const found: MergeBlocker[] = [];
+  let checking = false;
   for (const { identifier, status } of checks) {
     const id = identifier.toLowerCase();
     if (status === 'FAILED') {
@@ -222,10 +232,12 @@ function gitlabFromChecks(checks: readonly MergeabilityCheck[] | null, input: Gi
       if (mapped) found.push(mapped);
     } else if (status === 'CHECKING') {
       // A pipeline that is still going is not "working it out": it is the wait that auto-merge answers
-      found.push(id === 'ci_must_pass' ? blocker('checks-running') : blocker('computing'));
+      if (id === 'ci_must_pass') found.push(blocker('checks-running'));
+      else checking = true;
     }
   }
-  // Every check settled and none failed: GitLab checks again on merge and refuses then, so Merge stays on
+  // Every other check settled, or one still running: only a real blocker, or a fresh head, says anything
+  if (found.length === 0 && checking && input.settling === true) found.push(blocker('computing'));
   return found;
 }
 

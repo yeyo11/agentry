@@ -41,6 +41,8 @@ export interface HostResult {
   stdout: string;
   /** Redacted, 500 characters, for the person to read; never parsed */
   stderrFirstLine: string;
+  /** Redacted and cut: only for an adapter that must read a boxed refusal (glab's merge), never shown as it is */
+  stderrText?: string;
   /** From `api -i` only */
   http: { status: number; headers: Record<string, string> } | null;
   truncated: boolean;
@@ -490,6 +492,8 @@ export interface MergeAdapter {
   parseDisarm(result: HostResult): boolean;
   /** The reason only the answer itself can say; null leaves it to the re-read and the generic one */
   mergeReason(op: MergeOperation, result: HostResult): HostReason | null;
+  /** What the refusal said in the host's own words, when the first line of stderr says nothing (glab's box); null keeps the first line */
+  mergeDetail?(op: MergeOperation, result: HostResult): string | null;
 
   /** Mark ready or back to draft (B9); the service re-reads `isDraft` */
   ready(repo: HostRepo, number: number, ready: boolean): HostCall;

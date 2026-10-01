@@ -547,9 +547,15 @@ The repository's settings, rules and required checks change rarely and are cache
 **`computing`.** GitHub's `UNKNOWN` settles in 2–5 s, so the service re-reads after 5 s, three
 times, before showing it. GitLab's `unchecked` does not: it stayed for minutes through every
 `with_merge_status_recheck` read, and `has_conflicts: false` came back for a conflicting merge
-request while it lasted. So on GitLab only `checking` is waited on; for `unchecked` the service
-reads `mergeabilityChecks` through GraphQL, maps the `FAILED` identifiers with the same table, and
-does not disable Merge on `unchecked` alone: GitLab checks again on merge and refuses.
+request while it lasted. So on GitLab nothing is slept through: the read carries
+`with_merge_status_recheck=true`, and for `unchecked` or `checking` the service reads
+`mergeabilityChecks` through GraphQL and maps the `FAILED` identifiers with the same table.
+`CONFLICT: CHECKING` lasts minutes to tens of minutes, so `computing` shows for 15 s after a head is
+first seen and only when nothing else blocks; it is always listed after a real blocker. `unchecked`
+or an unreadable GraphQL never disables Merge, and a click on a head GitLab is still checking is
+tried: the attempt is what makes GitLab run the conflict check, and its refusal is explained by a
+re-read. `glab mr merge` refuses in a box whose first line is `ERROR`: the adapter unwraps the whole
+stderr, maps a `409` to `head-moved`, and stores the parsed message (never `ERROR`) in the audit row.
 
 ### What blocks a merge
 
