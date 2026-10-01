@@ -126,24 +126,28 @@ test.beforeEach(async () => {
 // ---------- the strip's state ----------
 
 test("a card's strip says where its pull request stands, each phase only in the column it leaves the card in", () => {
-  assert.deepEqual(workItemStrip(item('in_review', { pullRequest: pr({ phase: 'preparing', number: null, url: null, ci: null }) })), { kind: 'pr-preparing' });
+  assert.deepEqual(workItemStrip(item('in_review', { pullRequest: pr({ phase: 'preparing', number: null, url: null, ci: null }) })), { kind: 'pr-preparing', host: null });
   assert.deepEqual(workItemStrip(item('in_progress', { pullRequest: pr({ phase: 'conflict', number: null, url: null, conflicts: ['a.ts', 'b.ts'] }) })), {
     kind: 'pr-conflict',
     base: 'main',
     count: 2,
+    host: null,
   });
-  assert.deepEqual(workItemStrip(item('in_review', { pullRequest: pr({ phase: 'awaiting-verify', number: null, url: null }) })), { kind: 'pr-awaiting', base: 'main' });
+  assert.deepEqual(workItemStrip(item('in_review', { pullRequest: pr({ phase: 'awaiting-verify', number: null, url: null }) })), { kind: 'pr-awaiting', base: 'main', host: null });
   assert.deepEqual(workItemStrip(item('in_review', { waiting: 'merge', pullRequest: pr({ ci: 'pending' }) })), {
     kind: 'pr-open',
     number: 123,
+    ref: null,
+    host: null,
     url: 'https://github.com/acme/shop/pull/123',
     ci: 'pending',
   });
-  assert.deepEqual(workItemStrip(item('in_review', { waiting: 'approval', pullRequest: pr({ phase: 'closed' }) })), { kind: 'pr-closed', number: 123 });
+  assert.deepEqual(workItemStrip(item('in_review', { waiting: 'approval', pullRequest: pr({ phase: 'closed' }) })), { kind: 'pr-closed', number: 123, ref: null, host: null });
   assert.deepEqual(workItemStrip(item('in_review', { waiting: 'approval', pullRequest: pr({ phase: 'failed', number: null, url: null, error: { code: 'push', detail: 'rejected' } }) })), {
     kind: 'pr-failed',
     code: 'push',
     detail: 'rejected',
+    host: null,
   });
   // A conflict the person resolved by hand and moved back to review is approved again, not shown again
   assert.equal(workItemStrip(item('in_review', { waiting: 'approval', pullRequest: pr({ phase: 'conflict', conflicts: ['a.ts'] }) }))?.kind, 'approval');
@@ -290,7 +294,7 @@ test('in a ready project the approval opens the PR; anywhere else it moves the c
 
   const notReady = strip(waiting, NO_AUTH);
   assert.match(notReady, /class="btn btn-small workitem-approve"/);
-  assert.match(text(notReady), /No PR: the host(?:'|&#x27;)s CLI is not signed in .*Approve and move to Done/);
+  assert.match(text(notReady), /No PR: gh is not signed in .*Approve and move to Done/);
   assert.match(notReady, /class="pr-not-ready workitem-strip-note" title="You are not logged into any GitHub hosts/);
 
   const unknown = strip(waiting, null);
@@ -299,7 +303,7 @@ test('in a ready project the approval opens the PR; anywhere else it moves the c
 
   await inSpanish();
   assert.match(text(strip(waiting, READY)), /Aprobar y abrir PR/);
-  assert.match(text(strip(waiting, NO_AUTH)), /Sin PR: el CLI del host no ha iniciado sesión .*Aprobar y pasar a Hecho/);
+  assert.match(text(strip(waiting, NO_AUTH)), /Sin PR: gh no ha iniciado sesión en github\.com .*Aprobar y pasar a Hecho/);
   assert.match(text(strip(waiting, { status: 'no-remote', detail: null, defaultBranch: null, host: null, hostname: null, remedy: null })), /Sin PR: el proyecto no tiene remoto/);
 });
 
@@ -343,8 +347,8 @@ test("the board says how far its checkout is behind the default branch and why, 
 test("a pull request's history entries and causes are told in sentences, with its number or its files in bold", async () => {
   const entry = (to: WorkItemHistoryEntry['to'], change: WorkItemHistoryEntry['change'] = 'pull_request') => ({ change, from: null, to });
   const snapshot = (phase: WorkItemPullRequest['phase'], conflicts: string[] = []) => ({ phase, number: phase === 'conflict' ? null : 42, url: null, conflicts });
-  assert.deepEqual(historyLine(entry(snapshot('open'))), { key: 'history.prOpened', values: { number: '#42' }, strong: 'number', icon: 'pr' });
-  assert.deepEqual(historyLine(entry(snapshot('merged'))), { key: 'history.prMerged', values: { number: '#42' }, strong: 'number', icon: 'done' });
+  assert.deepEqual(historyLine(entry(snapshot('open'))), { key: 'history.prOpened', values: { noun: 'PR', number: '#42' }, strong: 'number', icon: 'pr' });
+  assert.deepEqual(historyLine(entry(snapshot('merged'))), { key: 'history.prMerged', values: { noun: 'PR', number: '#42' }, strong: 'number', icon: 'done' });
   assert.equal(historyLine(entry(snapshot('closed'))).key, 'history.prClosed');
   assert.deepEqual(historyLine(entry(snapshot('conflict', ['a.ts', 'b.ts']))), { key: 'history.prConflict', values: { files: 'a.ts, b.ts' }, strong: 'files', icon: 'pr' });
   assert.equal(historyLine(entry(snapshot('failed'))).key, 'history.prFailed');
@@ -358,12 +362,16 @@ test("a pull request's history entries and causes are told in sentences, with it
   assert.equal(causeLine({ ...cause, event: 'pr.closed' })?.key, 'cause.prClosed');
 
   const t = () => i18n.getFixedT(null, 'workItem');
-  assert.equal(t()('cause.prMerged'), 'its PR was merged on GitHub');
-  assert.equal(t()('history.waitingMerge'), 'Waiting for you to merge its PR');
+  assert.equal(t()('cause.prMerged', { noun: 'PR', host: 'GitHub' }), 'its PR was merged on GitHub');
+  assert.equal(t()('cause.prMerged', { noun: 'MR', host: 'GitLab' }), 'its MR was merged on GitLab');
+  assert.equal(t()('history.waitingMerge'), 'Waiting for you to merge it');
+  // A merge request's entries are numbered the way GitLab writes it
+  assert.deepEqual(historyLine(entry({ ...snapshot('merged'), host: 'gitlab', number: 7 })), { key: 'history.prMerged', values: { noun: 'MR', number: '!7' }, strong: 'number', icon: 'done' });
+  assert.equal(causeLine({ ...cause, event: 'pr.merged' }, 'gitlab')?.values['host'], 'GitLab');
   await inSpanish();
-  assert.equal(t()('cause.prMerged'), 'se fusionó su PR en GitHub');
+  assert.equal(t()('cause.prMerged', { noun: 'MR', host: 'GitLab' }), 'se fusionó su MR en GitLab');
   assert.equal(t()('history.prConflict'), 'Al actualizar su rama quedaron conflictos en');
-  assert.equal(t()('history.waitingMerge'), 'Espera que fusiones su PR');
+  assert.equal(t()('history.waitingMerge'), 'Espera que la fusiones');
 });
 
 test('a work run that left the merge conflicted is worded wherever a failed run is', async () => {
@@ -459,7 +467,7 @@ test('the waiting panel explains a PR waiting for the merge, a conflict with its
   assert.match(notReady, /class="item-wait is-quiet item-pr-wait is-not-ready"/);
   assert.doesNotMatch(notReady, /class="badge/, 'no status badge beside the head\'s own');
   assert.match(notReady, /class="pr-not-ready" title="You are not logged into any GitHub hosts/);
-  assert.match(text(notReady), /No PR: the host(?:'|&#x27;)s CLI is not signed in/);
+  assert.match(text(notReady), /No PR: gh is not signed in/);
   assert.doesNotMatch(notReady, /workitem-open-pr/, 'no PR button where it cannot open one: Move to Done stays in the head');
 
   const offer = wrap(<PullRequestState item={detail('in_review', { pullRequestReadiness: READY })} />);
@@ -470,7 +478,7 @@ test('the waiting panel explains a PR waiting for the merge, a conflict with its
   assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'merge', pullRequest: pr({ number: 12 }), pullRequestReadiness: READY })} />)), /La PR #12 espera que la fusiones en GitHub/);
   assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'approval', pullRequestReadiness: READY })} />)), /Aprobar y abrir PR/);
   assert.match(text(wrap(<PullRequestState item={detail('in_review', { pullRequestReadiness: READY })} />)), /Abrir PR/);
-  assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'approval', pullRequestReadiness: NO_AUTH })} />)), /Sin PR: el CLI del host no ha iniciado sesión/);
+  assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'approval', pullRequestReadiness: NO_AUTH })} />)), /Sin PR: gh no ha iniciado sesión en github\.com/);
 });
 
 test("the item's PR row under Changes links to GitHub with its number in mono, its branch into the default one and its state in words", async () => {
@@ -488,4 +496,27 @@ test("the item's PR row under Changes links to GitHub with its number in mono, i
   await inSpanish();
   assert.match(text(wrap(<PullRequestRow pr={pr({ phase: 'merged' })} />)), /PR #123 task\/agn-7 → main fusionada/);
   assert.match(text(wrap(<PullRequestRow pr={pr({ phase: 'closed' })} />)), /cerrada sin fusionar/);
+});
+
+test('a GitLab project says merge request, MR and !7 wherever a GitHub one says PR and #7, and a note carries its remedy link', async () => {
+  const mr = pr({ host: 'gitlab', number: 7, ref: '!7', url: 'https://gitlab.example/acme/shop/-/merge_requests/7' });
+  const gitlab: PullRequestReadiness = { ...READY, host: 'gitlab', hostname: 'gitlab.example' };
+  const merge = text(wrap(<PullRequestState item={detail('in_review', { waiting: 'merge', pullRequest: mr, pullRequestReadiness: gitlab })} />));
+  assert.match(merge, /MR !7 waits for you to merge it on GitLab/);
+  assert.match(merge, /Open MR !7 on GitLab/);
+  assert.match(text(wrap(<PullRequestRow pr={mr} />)), /MR !7 task\/agn-7 → main/);
+  assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'approval', pullRequestReadiness: gitlab })} />)), /Approve and open MR/);
+
+  const signedOut: PullRequestReadiness = {
+    ...NO_AUTH,
+    host: 'gitlab',
+    hostname: 'gitlab.example',
+    remedy: { kind: 'sign-in', url: 'https://gitlab.com/gitlab-org/cli#authentication' },
+  };
+  const note = wrap(<PullRequestState item={detail('in_review', { waiting: 'approval', pullRequestReadiness: signedOut })} />);
+  assert.match(text(note), /No MR: glab is not signed in to gitlab\.example Sign-in help/);
+  assert.match(note, /class="pr-not-ready-remedy" href="https:\/\/gitlab\.com\/gitlab-org\/cli#authentication" target="_blank"/);
+  await inSpanish();
+  assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'merge', pullRequest: mr, pullRequestReadiness: gitlab })} />)), /La MR !7 espera que la fusiones en GitLab/);
+  assert.match(text(wrap(<PullRequestState item={detail('in_review', { waiting: 'approval', pullRequestReadiness: signedOut })} />)), /Sin MR: glab no ha iniciado sesión en gitlab\.example Ayuda para iniciar sesión/);
 });

@@ -9,6 +9,7 @@ import type {
   AcceptanceCriterion,
   PullRequestReadiness,
   ChangedFile,
+  CodeHostId,
   FlowRun,
   WorkItem,
   WorkItemAssignee,
@@ -24,6 +25,7 @@ import type {
   WorkItemStatus,
 } from '@agentry/shared';
 import { WORK_ITEM_PR_CAUSE } from '@agentry/shared';
+import { changeRequestRef, changeRequestWords } from '../../../lib/code-hosts';
 import type en from '../../../i18n/locales/en/workItem.json';
 
 // ---------- the person ----------
@@ -55,6 +57,14 @@ const isAssignee = (value: WorkItemHistoryValue): value is WorkItemAssignee => t
 
 const isPullRequest = (value: WorkItemHistoryValue): value is WorkItemHistoryPullRequest =>
   typeof value === 'object' && value !== null && !Array.isArray(value) && 'phase' in value && 'conflicts' in value;
+
+/** The host's change request noun as the history writes it: "PR" or "MR", the same in every language. */
+const hostNoun = (host: CodeHostId | undefined): string => (changeRequestWords(host).nounKey === 'pr.noun.mr' ? 'MR' : 'PR');
+
+/** The host of a pull request entry, for the words of its cause; absent on any other change. */
+export function historyPullRequestHost(entry: Pick<WorkItemHistoryEntry, 'to'>): CodeHostId | undefined {
+  return isPullRequest(entry.to) ? entry.to.host : undefined;
+}
 
 const text = (value: WorkItemHistoryValue): string => (typeof value === 'string' ? value : '');
 
@@ -142,10 +152,11 @@ export function historyLine(entry: Pick<WorkItemHistoryEntry, 'change' | 'from' 
 
 /** A pull request's entry: its number (bold) where it has one, the conflicting files when it conflicted. */
 function pullRequestLine(to: WorkItemHistoryValue): HistoryLine {
-  if (!isPullRequest(to)) return { key: 'history.prChanged', values: {}, icon: 'pr' };
-  const number = to.number === null ? undefined : `#${to.number}`;
+  if (!isPullRequest(to)) return { key: 'history.prChanged', values: { noun: hostNoun(undefined) }, icon: 'pr' };
+  const noun = hostNoun(to.host);
+  const number = changeRequestRef(to.host, to.number, to.ref) ?? undefined;
   const withNumber = (key: HistoryKey, icon: HistoryLine['icon'] = 'pr'): HistoryLine =>
-    number ? { key, values: { number }, strong: 'number', icon } : { key, values: {}, icon };
+    number ? { key, values: { noun, number }, strong: 'number', icon } : { key, values: { noun }, icon };
   switch (to.phase) {
     case 'open':
       return withNumber('history.prOpened');
@@ -156,13 +167,13 @@ function pullRequestLine(to: WorkItemHistoryValue): HistoryLine {
     case 'conflict':
       return to.conflicts.length
         ? { key: 'history.prConflict', values: { files: to.conflicts.join(', ') }, strong: 'files', icon: 'pr' }
-        : { key: 'history.prChanged', values: {}, icon: 'pr' };
+        : { key: 'history.prChanged', values: { noun }, icon: 'pr' };
     case 'failed':
-      return { key: 'history.prFailed', values: {}, icon: 'pr' };
+      return { key: 'history.prFailed', values: { noun }, icon: 'pr' };
     case 'preparing':
-      return { key: 'history.prPreparing', values: {}, icon: 'pr' };
+      return { key: 'history.prPreparing', values: { noun }, icon: 'pr' };
     case 'awaiting-verify':
-      return { key: 'history.prAwaiting', values: {}, icon: 'pr' };
+      return { key: 'history.prAwaiting', values: { noun }, icon: 'pr' };
   }
 }
 
@@ -187,10 +198,10 @@ const CAUSE_KEY: Record<string, CauseKey> = {
   [WORK_ITEM_PR_CAUSE.closed]: 'cause.prClosed',
 };
 
-export function causeLine(cause: Pick<WorkItemCause, 'event' | 'chatId'> | null): ActorLine | null {
+export function causeLine(cause: Pick<WorkItemCause, 'event' | 'chatId'> | null, host?: CodeHostId): ActorLine | null {
   if (!cause) return null;
   const key = CAUSE_KEY[cause.event];
-  return key ? { key, values: { chat: shortId(cause.chatId) } } : { key: 'cause.other', values: {} };
+  return key ? { key, values: { chat: shortId(cause.chatId), noun: hostNoun(host), host: changeRequestWords(host).label } } : { key: 'cause.other', values: {} };
 }
 
 // ---------- activity: comments and history interleaved ----------

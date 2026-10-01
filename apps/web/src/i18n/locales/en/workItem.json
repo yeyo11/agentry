@@ -142,15 +142,15 @@
     "waitingBounces": "Waiting for you: sent back too many times",
     "waitingEnded": "No longer waiting",
     "comment": "Comment",
-    "waitingMerge": "Waiting for you to merge its PR",
-    "prOpened": "Pull request opened",
+    "waitingMerge": "Waiting for you to merge it",
+    "prOpened": "{{noun}} opened",
     "prConflict": "Updating its branch left conflicts in",
-    "prMerged": "Pull request merged",
-    "prClosed": "Pull request closed without merging",
-    "prFailed": "The pull request could not be opened",
-    "prPreparing": "Pull request approved: preparing it",
-    "prAwaiting": "Approved: its PR opens when the verification passes",
-    "prChanged": "Pull request updated"
+    "prMerged": "{{noun}} merged",
+    "prClosed": "{{noun}} closed without merging",
+    "prFailed": "The {{noun}} could not be opened",
+    "prPreparing": "{{noun}} approved: preparing it",
+    "prAwaiting": "Approved: its {{noun}} opens when the verification passes",
+    "prChanged": "{{noun}} updated"
   },
   "cause": {
     "chatStarted": "chat {{chat}} started",
@@ -159,10 +159,10 @@
     "taskStarted": "the graph's node started",
     "taskCompleted": "the graph's node completed",
     "other": "a chat or an orchestration did it",
-    "prOpened": "its PR was opened",
+    "prOpened": "its {{noun}} was opened",
     "prConflict": "updating its branch conflicted",
-    "prMerged": "its PR was merged on GitHub",
-    "prClosed": "its PR was closed on GitHub"
+    "prMerged": "its {{noun}} was merged on {{host}}",
+    "prClosed": "its {{noun}} was closed on {{host}}"
   },
   "sections": {
     "label": "Sections",
@@ -311,7 +311,7 @@
     "retryFailed": "Could not retry the run"
   },
   "pr": {
-    "title": "Pull request",
+    "title": "{{noun}}",
     "branches": "{{branch}} → {{base}}",
     "state": {
       "merged": "merged",
@@ -319,28 +319,28 @@
       "preparing": "preparing",
       "failed": "failed"
     },
-    "label": "Its pull request",
+    "label": "Its {{noun}}",
     "mergeBadge": "waits for your merge",
-    "mergeWhy": "PR #{{number}} waits for you to merge it on GitHub",
-    "mergeWhyUnnumbered": "Its PR waits for you to merge it on GitHub",
+    "mergeWhy": "{{noun}} {{ref}} waits for you to merge it on {{host}}",
+    "mergeWhyUnnumbered": "Its {{noun}} waits for you to merge it on {{host}}",
     "mergeHint": "Once it is merged, the task moves to Done on its own.",
     "preparingBadge": "preparing",
-    "preparingWhy": "Agentry is updating its branch with {{base}}, pushing it and opening the PR.",
+    "preparingWhy": "Agentry is updating its branch with {{base}}, pushing it and opening the {{noun}}.",
     "conflictBadge": "conflicted",
     "conflictWhy_one": "Updating its branch with {{base}} left a conflict in {{count}} file",
     "conflictWhy_other": "Updating its branch with {{base}} left conflicts in {{count}} files",
     "conflictHint": "The merge stays open in its worktree, with the conflict markers, to be resolved there. Once it is resolved and verified, approve it again.",
     "awaitingBadge": "approved",
-    "awaitingWhy": "Its PR opens without a second approval when the verification passes.",
+    "awaitingWhy": "Its {{noun}} opens without a second approval when the verification passes.",
     "closedBadge": "waits for you",
-    "closedWhy": "PR #{{number}} was closed without merging",
-    "closedHint": "Approving it again opens a new PR; the closed one stays in its history.",
+    "closedWhy": "{{noun}} {{ref}} was closed without merging",
+    "closedHint": "Approving it again opens a new {{noun}}; the closed one stays in its history.",
     "failedBadge": "failed",
-    "failedWhy": "Could not open the PR: {{reason}}",
+    "failedWhy": "Could not open the {{noun}}: {{reason}}",
     "keptBadge": "worktree kept",
     "keptWhy": "Its worktree was kept: it had uncommitted changes.",
     "readyBadge": "waits for you",
-    "approveWhy": "Approving it opens its PR against {{base}}.",
-    "offerWhy": "Opening its PR pushes its branch and proposes it to {{base}}."
+    "approveWhy": "Approving it opens its {{noun}} against {{base}}.",
+    "offerWhy": "Opening its {{noun}} pushes its branch and proposes it to {{base}}."
   }
 }

@@ -932,19 +932,19 @@
   },
   "detail": {
     "result": "Result",
-    "prOpened": "Pull request opened",
+    "prOpened": "{{noun}} opened",
     "pushed": "Pushed {{branch}}",
     "worktreesKept_one": "{{count}} worktree(s) kept",
     "worktreesKept_other": "{{count}} worktree(s) kept",
     "worktreesRemoved": "Worktrees removed",
     "branchesKept": "Every branch is kept.",
     "integration": "Integration",
-    "pullRequest": "Pull request",
+    "pullRequest": "Open {{noun}} {{ref}} on {{host}}",
     "pushTitle": "Push {{branch}}?",
-    "pushBody": "The branch is pushed to origin and a pull request is opened for it with gh.",
+    "pushBody": "The branch is pushed to origin and a {{noun}} is opened for it on {{host}}.",
     "pushConfirm": "Push and open",
     "pushing": "Pushing…",
-    "push": "Push & open PR",
+    "push": "Push & open {{noun}}",
     "integrateAgain": "Integrate again",
     "integrate": "Integrate branches",
     "pruneTitle": "Remove the worktrees?",
@@ -994,7 +994,17 @@
     "synthesis": "Synthesis",
     "synthesisHint": "Final agent that reports on everything the tasks did.",
     "finalResult": "Final result",
-    "continue": "Continue the conversation"
+    "continue": "Continue the conversation",
+    "pullRequestUnnumbered": "Open the {{noun}} on {{host}}",
+    "prPhase": {
+      "preparing": "preparing",
+      "open": "waiting for merge",
+      "merged": "merged",
+      "closed": "closed without merging",
+      "failed": "failed"
+    },
+    "prBranches": "{{branch}} → {{base}}",
+    "prFollows": "Agentry follows the {{noun}} on {{host}}. Once it is merged, it says so here."
   },
   "install": {
     "title": "Install on this device",
