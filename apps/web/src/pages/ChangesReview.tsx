@@ -422,7 +422,9 @@ function ReviewScreen({ source }: { source: ReviewSource }) {
             steps={steps ? stepsFor(steps, currentFile.path) : null}
             stepHref={stepHref}
             phone={phone}
-            review={source.changeRequestId ? { changeRequestId: source.changeRequestId } : undefined}
+            // Only the item's own page holds the review block that sends notes: an orchestration's diff reads the
+            // threads and offers no note, since nothing there could send it
+            review={source.changeRequestId ? { changeRequestId: source.changeRequestId, notes: source.kind === 'workItem' } : undefined}
             nav={{
               prev,
               next,

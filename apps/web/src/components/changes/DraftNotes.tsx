@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
 import type { ParsedDiff } from '../../lib/diff';
 import { draftsByLine, draftsInFile, newLineText, type LineAnchor } from '../../lib/review-lines';
-import { lineKey, lineLabel } from '../../lib/reviews';
+import { lineKey, lineLabel, pinNoteHead } from '../../lib/reviews';
 import { ReviewComposer } from './ReviewComposer';
 
 // The person's draft review on the diff (design system §5, DesktopRevisionHilosNota and
@@ -83,9 +83,9 @@ type Composing = { at: LineAnchor; draft?: ReviewDraft };
 /**
  * What a file adds to its diff for the draft review: the notes under their lines, the composer
  * where the person is writing, and the gutter's "+" that opens one. `diff` is what a suggestion is
- * started from. Without a change request there is nothing to add a note to, and nothing is offered.
+ * started from, and `head` the commit the change request was at, which each note written here is pinned to. Without a change request there is nothing to add a note to, and nothing is offered.
  */
-export function useDraftNotes({ changeRequestId, path, diff }: { changeRequestId: string | undefined; path: string; diff: ParsedDiff | null }) {
+export function useDraftNotes({ changeRequestId, path, diff, head }: { changeRequestId: string | undefined; path: string; diff: ParsedDiff | null; head?: string | null }) {
   const { t } = useTranslation('changes');
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -99,7 +99,10 @@ export function useDraftNotes({ changeRequestId, path, diff }: { changeRequestId
   const save = useMutation({
     mutationFn: async ({ inputs, draft }: { inputs: ReviewDraftInput[]; draft?: ReviewDraft }) => {
       const id = changeRequestId ?? '';
-      for (const input of inputs) await (draft ? api.updateReviewDraft(id, draft.id, input) : api.addReviewDraft(id, input));
+      for (const input of inputs) {
+        if (draft) await api.updateReviewDraft(id, draft.id, input);
+        else pinNoteHead((await api.addReviewDraft(id, input)).id, head);
+      }
     },
     onSuccess: () => {
       setComposing(null);

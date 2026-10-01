@@ -4,7 +4,7 @@ import type { AgentryEvent, ReviewDraft, ReviewThread } from '@agentry/shared';
 import { keys } from '../src/api';
 import { targetMatches, targetsFor } from '../src/lib/events';
 import {
-  approvalsProgress, canSubmit, countThreads, decisionMark, draftsOnLine, followUpThreads, groupThreads, lineLabel, parseLogins, preselected,
+  approvalsProgress, canSubmit, countThreads, decisionMark, followUpThreads, groupThreads, lineLabel, parseLogins, preselected,
   reviewerMark, sortDrafts, submitOffer, summarizeDrafts, threadPlace, triageMark, workOnItNeutral,
 } from '../src/lib/reviews';
 
@@ -64,7 +64,6 @@ test('drafts are counted, with a suggestion apart from a comment, and ordered as
   assert.deepEqual(summarizeDrafts([draft({}), draft({ suggestion: true }), draft({})]), { total: 3, comments: 2, suggestions: 1 });
   const sorted = sortDrafts([draft({ id: 'g', path: null, line: null }), draft({ id: 'b', path: 'b.ts' }), draft({ id: 'a2', line: 20 }), draft({ id: 'a1' })]);
   assert.deepEqual(sorted.map((d) => d.id), ['a1', 'a2', 'b', 'g']);
-  assert.deepEqual(draftsOnLine([draft({}), draft({ id: 'l', side: 'left' })], 'a.ts', 'right', 10).map((d) => d.id), ['d1']);
 });
 
 test('the submit sheet offers Approve on GitLab only when the viewer can, and links it on GitHub', () => {

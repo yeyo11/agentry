@@ -13882,6 +13882,32 @@
           "null"
         ],
         "description": "The head commit the failures were seen on"
+      },
+      "addressed": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "head": {
+                "type": "string"
+              },
+              "threadIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "head",
+              "threadIds"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The push the last address of review comments made: the head it left and the threads it was handed. Null when it made none (a card taken over drops the fix without one), or after another fix started."
       }
     },
     "required": [

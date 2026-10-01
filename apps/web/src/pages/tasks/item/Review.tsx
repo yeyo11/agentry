@@ -18,8 +18,10 @@ import {
   countThreads,
   decisionMark,
   lineLabel,
+  noteHeadOf,
   parseLogins,
   partlyPost,
+  reviewedHead,
   reviewerMark,
   sortDrafts,
   submitOffer,
@@ -189,37 +191,54 @@ function SubmitSheet({
   own,
   onDone,
   onRefused,
+  onMoved,
   onClose,
 }: {
   id: string;
   pr: WorkItemPullRequest;
   drafts: ReviewDraft[];
   approval: ApprovalState | undefined;
-  /** The head the person looked at while reading and noting: the review is posted on it, or refused if the head moved */
+  /** The head the notes were written on (the page's own for notes it does not know): the review is posted on it, or refused if the head moved */
   headSha: string | null;
   own: boolean;
   onDone: () => void;
   onRefused: (outcome: Outcome) => void;
+  /** The head moved after the notes were written: the head read now */
+  onMoved: (head: string | null) => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation('reviews');
   const words = useChangeRequestWords(pr.host);
   const narrow = useMediaQuery(NARROW);
   const toast = useToast();
+  const qc = useQueryClient();
   const reasonText = useReasonText(words.host, words.noun);
   const host = pr.host ?? 'github';
   const offer = submitOffer(host, approval, own);
   const [event, setEvent] = useState<ReviewEvent>('comment');
   const [summary, setSummary] = useState('');
-  const sha = shortSha(headSha ?? approval?.headSha);
+  // After a refusal for a moved head the person has been told what moved; the next send is on the head read then
+  const [moved, setMoved] = useState<{ from: string | null; to: string | null } | null>(null);
+  const posting = moved ? moved.to : headSha;
+  const sha = shortSha(posting ?? approval?.headSha);
   const send = useMutation({
-    mutationFn: () => api.submitReview(id, { event, body: summary.trim(), ...(headSha ? { headSha } : {}) }),
+    mutationFn: () => api.submitReview(id, { event, body: summary.trim(), ...(posting ? { headSha: posting } : {}) }),
     onSuccess: () => {
       toast.success(t('submit.sent'));
       onDone();
     },
-    onError: (error) => {
+    onError: async (error) => {
       const code = error instanceof ApiRequestError ? error.code : undefined;
+      if (code === 'head-moved') {
+        // The sheet stays open and usable: read the head now, say what moved, and the next send is on it
+        const from = posting;
+        const fresh = await api.changeRequestThreads(id, true).catch(() => null);
+        if (fresh) qc.setQueryData(keys.changeRequestThreads(id), fresh);
+        void qc.invalidateQueries({ queryKey: keys.changeRequestApproval(id) });
+        setMoved({ from, to: fresh?.headSha ?? null });
+        onMoved(fresh?.headSha ?? null);
+        return;
+      }
       if (code === 'review-partly-posted') onRefused(null);
       else if (code === 'pending-review-exists') onRefused({ kind: 'pending' });
       else if (code === 'own-change-request') onRefused({ kind: 'own' });
@@ -243,6 +262,16 @@ function SubmitSheet({
 
   const body = (
     <div className="rv-submit">
+      {moved && (
+        <div className="rv-callout warn" role="alert">
+          <CircleAlert {...ICON_SM} />
+          <span>
+            {moved.to
+              ? t('submit.moved.text', { from: shortSha(moved.from) || '—', to: shortSha(moved.to), noun: words.noun })
+              : t('submit.moved.unknown', { noun: words.noun })}
+          </span>
+        </div>
+      )}
       {offer.events.length > 1 ? (
         <Segmented<ReviewEvent>
           label={t('submit.how')}
@@ -358,7 +387,7 @@ export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | 
     enabled: !!id,
     retry: false,
   });
-  // The head the person first saw this review on: what a submit is posted on, so a push in between is refused
+  // The head this page last looked at, for notes written before this tab knew their head
   const looked = useRef<string | null>(null);
   const headNow = approval.data?.headSha ?? threads.data?.headSha ?? null;
   if (looked.current === null && headNow) looked.current = headNow;
@@ -518,7 +547,7 @@ export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | 
                   {t('threads.view')}
                 </Link>
               )}
-              {pr && unresolved > 0 && <AddressButton pr={pr} className="btn btn-small rv-address" />}
+              {pr && !pr.fixState && unresolved > 0 && <AddressButton pr={pr} className="btn btn-small rv-address" />}
             </span>
           </div>
 
@@ -641,8 +670,12 @@ export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | 
           pr={pr}
           drafts={drafts}
           approval={approval.data}
-          headSha={looked.current}
+          headSha={reviewedHead(drafts, noteHeadOf, looked.current, headNow)}
           own={own}
+          onMoved={(head) => {
+            // The page reads from the head the person was told about, not from the one it loaded on
+            looked.current = head;
+          }}
           onClose={() => setSubmitting(false)}
           onDone={() => {
             setSubmitting(false);

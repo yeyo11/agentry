@@ -1908,6 +1908,28 @@ and shared-type ones are fixed:
   `work_item` window the decision marks read.
 - **Approve on GitLab is not hidden for the author**: the recordings show the host allowing it, so
   the rule is `!viewerHasApproved` and the sentence above changed, not the code.
+
+The second audit's item-page and diff fixes:
+
+- **"Addressed in <sha>" is the core's word, not the browser's.** The push of an address of review
+  comments records the head it left and the thread ids it was handed (`address_pushed`, served as
+  `addressed` on a work item's change request); a fix that is dropped, or another one starting,
+  clears it. The page offers the reply only from that record. The browser's own memory of the head,
+  which a card taken over and then pushed by someone else could fake, is gone. A dismissal of the
+  follow-up lasts for the tab only.
+- **A submit is posted on the head the notes were written on.** The draft row and the submit request
+  carry no head per note, so the tab pins each note it writes to the commit the diff showed, and the
+  submit sends the first of those that is not the current head: notes written at A with the head at B
+  are refused with `head-moved`, never posted on B. The refusal no longer needs a reload: the sheet
+  stays open, reads the head again, says in words which commit it moved from and to, and the next
+  Send posts on the new one. A note the tab does not know (after a reload) is read on the head the
+  page last looked at.
+- **A note is offered only where the page can send it.** The draft review is submitted from the
+  item's own page, so the diff of an orchestration's integration branch reads its threads and offers
+  no note. The review block is not mounted on the orchestration page: its address has no screen in
+  the validated prototypes.
+- **The Address button hides while a fix is under way**, under the same condition as the strip.
+
 - Not part of that slice and still open: nothing in `index.ts` hands `PullRequestService` an
   `onChecksFailing` hook, so `checks.fix` (phase 2) is never asked either.
 

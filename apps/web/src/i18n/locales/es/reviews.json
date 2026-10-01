@@ -119,6 +119,10 @@
       "review-partly-posted": "El envío se ha detenido a medias.",
       "write-unconfirmed": "{{host}} no ha confirmado la revisión. Mira la {{noun}} antes de volver a enviarla.",
       "head-moved": "Han llegado commits nuevos. Recarga la página y revísalos primero."
+    },
+    "moved": {
+      "text": "La {{noun}} ha pasado de {{from}} a {{to}} después de que escribieras estas notas. Si envías ahora, se publican sobre {{to}}: antes, lee lo que ha cambiado si no lo has hecho.",
+      "unknown": "La {{noun}} tiene commits nuevos desde que escribiste estas notas y no se ha podido leer su estado actual. Recarga la página y revísalos primero."
     }
   },
   "composer": {

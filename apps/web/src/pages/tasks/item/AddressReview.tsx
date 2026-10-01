@@ -1,7 +1,7 @@
 import type { ChangeRequestThreads, DecisionRecord, ReviewThread, WorkItemPullRequest } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, MessageSquareReply, Send, Sparkles } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../../../api';
@@ -16,15 +16,13 @@ import {
   ADDRESS_THREADS_MAX,
   addressable,
   countThreads,
-  followUpDue,
+  followUp,
   followUpThreads,
   isReviewFix,
   lineLabel,
   preselected,
-  settleAddress,
   threadLine,
   triageMark,
-  type AddressMemory,
   type TriageMark,
 } from '../../../lib/reviews';
 import { useChangeRequestWords } from '../board/PullRequest';
@@ -44,38 +42,6 @@ export function triageMarksOf(record: Pick<DecisionRecord, 'answers'> | null | u
     if (mark) marks[threadId] = mark;
   }
   return marks;
-}
-
-/** Tells the page, which may hold the button elsewhere, that threads were handed over */
-const ADDRESSED_EVENT = 'agentry:addressed';
-
-const storageKey = (crId: string) => `agentry.address.${crId}`;
-
-function readAddressed(crId: string): AddressMemory | null {
-  try {
-    const raw: unknown = JSON.parse(localStorage.getItem(storageKey(crId)) ?? 'null');
-    if (!raw || typeof raw !== 'object') return null;
-    const { ids, head, stage, pushedHead } = raw as { ids?: unknown; head?: unknown; stage?: unknown; pushedHead?: unknown };
-    if (!Array.isArray(ids)) return null;
-    // A memory from before the stages existed carries no proof that its fix ended in a push: it only waits
-    return {
-      ids: ids.filter((id): id is string => typeof id === 'string'),
-      head: typeof head === 'string' ? head : null,
-      stage: stage === 'running' || stage === 'pushed' ? stage : 'handed',
-      pushedHead: typeof pushedHead === 'string' ? pushedHead : null,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function writeAddressed(crId: string, value: AddressMemory | null): void {
-  try {
-    if (value) localStorage.setItem(storageKey(crId), JSON.stringify(value));
-    else localStorage.removeItem(storageKey(crId));
-  } catch {
-    // storage is full or blocked: the offer to reply is just not remembered
-  }
 }
 
 const shortSha = (sha: string | null | undefined) => (sha ?? '').slice(0, 7);
@@ -121,7 +87,7 @@ function ThreadRow({ thread, mark, on, narrow, where, onToggle }: { thread: Revi
 }
 
 /** Which threads go to the agent, with `review.triage`'s marks choosing the first selection: a click changes any of them. */
-function AddressDialog({ pr, list, onClose, onStarted }: { pr: WorkItemPullRequest; list: ChangeRequestThreads; onClose: () => void; onStarted: (ids: string[]) => void }) {
+function AddressDialog({ pr, list, onClose }: { pr: WorkItemPullRequest; list: ChangeRequestThreads; onClose: () => void }) {
   const { t } = useTranslation('workItem');
   const words = useChangeRequestWords(pr.host);
   const narrow = useMediaQuery(NARROW);
@@ -150,8 +116,7 @@ function AddressDialog({ pr, list, onClose, onStarted }: { pr: WorkItemPullReque
 
   const start = useMutation({
     mutationFn: (ids: string[]) => api.addressReview(crId, { threadIds: ids }),
-    onSuccess: (result, ids) => {
-      onStarted(ids);
+    onSuccess: (result) => {
       void qc.invalidateQueries({ queryKey: keys.changeRequest(crId) });
       onClose();
       // A project whose flow is off gets the prompt as a chat of its own, in the item's worktree
@@ -357,7 +322,6 @@ function FollowUp({ pr, threads, sha, onDone }: { pr: WorkItemPullRequest; threa
 export function AddressButton({ pr, className = 'btn btn-small', label = 'start' }: { pr: WorkItemPullRequest; className?: string; label?: 'start' | 'choose' }) {
   const { t } = useTranslation('workItem');
   const [open, setOpen] = useState(false);
-  const crId = pr.id ?? '';
   const list = useChangeRequestThreads(pr);
   if (!list.data) return null;
   return (
@@ -367,15 +331,7 @@ export function AddressButton({ pr, className = 'btn btn-small', label = 'start'
         {t(`address.strip.${label}`)}
       </button>
       {open && (
-        <AddressDialog
-          pr={pr}
-          list={list.data}
-          onClose={() => setOpen(false)}
-          onStarted={(ids) => {
-            writeAddressed(crId, { ids, head: list.data.headSha, stage: 'handed', pushedHead: null });
-            window.dispatchEvent(new Event(ADDRESSED_EVENT));
-          }}
-        />
+        <AddressDialog pr={pr} list={list.data} onClose={() => setOpen(false)} />
       )}
     </>
   );
@@ -401,72 +357,18 @@ function useChangeRequestThreads(pr: Pick<WorkItemPullRequest, 'id' | 'phase'> |
  */
 export function AddressReview({ pr }: { pr: WorkItemPullRequest | null | undefined }) {
   const { t } = useTranslation('workItem');
-  const qc = useQueryClient();
   const list = useChangeRequestThreads(pr);
-  const [addressed, setAddressed] = useState<AddressMemory | null>(() => (pr?.id ? readAddressed(pr.id) : null));
-  const watched = pr?.id;
-  const fixRunning = isReviewFix(pr);
-  const headNow = list.data?.headSha ?? null;
-  const commit = (next: AddressMemory | null) => {
-    if (!watched) return;
-    writeAddressed(watched, next);
-    setAddressed(next);
-  };
-  useEffect(() => {
-    if (!watched) return;
-    const read = () => setAddressed(readAddressed(watched));
-    window.addEventListener(ADDRESSED_EVENT, read);
-    return () => window.removeEventListener(ADDRESSED_EVENT, read);
-  }, [watched]);
-  // What happened to the address is read from the change request itself: a fix seen under way, then
-  // ended with the head moved at that moment, is a push; the same end with the head where it was is a
-  // card taken over, and nothing is offered for it
-  const stage = addressed?.stage;
-  useEffect(() => {
-    if (!watched || !addressed) return;
-    if (fixRunning) {
-      if (stage === 'handed') commit(settleAddress(addressed, { fixRunning: true, headNow: null }));
-      return;
-    }
-    if (stage === 'running') {
-      let stale = false;
-      api
-        .changeRequestThreads(watched, true)
-        .then((fresh) => {
-          if (stale) return;
-          qc.setQueryData(keys.changeRequestThreads(watched), fresh);
-          commit(settleAddress(addressed, { fixRunning: false, headNow: fresh.headSha }));
-        })
-        .catch(() => undefined);
-      return () => {
-        stale = true;
-      };
-    }
-    if (stage === 'pushed' && headNow) {
-      const next = settleAddress(addressed, { fixRunning: false, headNow });
-      if (next !== addressed) commit(next);
-    }
-  }, [watched, fixRunning, stage, headNow]);
+  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
   if (!pr?.id || pr.phase !== 'open') return null;
 
   if (isReviewFix(pr)) return <ReviewRun pr={pr} />;
   if (!list.data) return null;
 
-  const follow = followUpDue(addressed, headNow) ? followUpThreads(list.data.threads, addressed.ids) : [];
-  if (follow.length > 0 && addressed)
-    return (
-      <FollowUp
-        pr={pr}
-        threads={follow}
-        sha={shortSha(addressed.pushedHead)}
-        onDone={(done) => {
-          // Read back what the last call wrote: a loop over the threads calls this once per thread
-          const current = readAddressed(pr.id ?? '') ?? addressed;
-          const rest = current.ids.filter((id) => !done.includes(id));
-          commit(rest.length > 0 ? { ...current, ids: rest } : null);
-        }}
-      />
-    );
+  // The core's record of the push the address made decides, never a head the browser saw change
+  const done = followUp(pr);
+  const follow = done ? followUpThreads(list.data.threads, done.threadIds).filter((thread) => !dismissed.has(thread.id)) : [];
+  if (follow.length > 0 && done)
+    return <FollowUp pr={pr} threads={follow} sha={shortSha(done.sha)} onDone={(ids) => setDismissed((current) => new Set([...current, ...ids]))} />;
 
   const open = addressable(list.data.threads).length;
   if (open === 0 || pr.fixState) return null;

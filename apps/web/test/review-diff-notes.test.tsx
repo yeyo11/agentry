@@ -58,7 +58,7 @@ function client(): QueryClient {
   return qc;
 }
 
-const page = (review: { changeRequestId: string } | undefined) =>
+const page = (review: { changeRequestId: string; notes: boolean } | undefined) =>
   renderToStaticMarkup(
     <QueryClientProvider client={client()}>
       <ToastProvider>
@@ -85,7 +85,7 @@ const page = (review: { changeRequestId: string } | undefined) =>
   );
 
 test('a file with a change request draws its thread and its draft note under their line, and offers a note', () => {
-  const html = page({ changeRequestId: 'cr-1' });
+  const html = page({ changeRequestId: 'cr-1', notes: true });
   assert.match(html, /class="rt open"/);
   assert.match(html, /Rename this/);
   assert.match(html, /class="rt draft"/);
@@ -103,6 +103,14 @@ test('a file with no change request draws nothing of the review and offers no no
   assert.doesNotMatch(html, /class="rt /);
   assert.doesNotMatch(html, /diff-add-note/);
   assert.doesNotMatch(html, /draft comment/);
+});
+
+test("where the page cannot send the review (an orchestration's diff) threads stay readable and no note is offered", () => {
+  const html = page({ changeRequestId: 'cr-1', notes: false });
+  assert.match(html, /class="rt open"/);
+  assert.match(html, /Rename this/);
+  assert.doesNotMatch(html, /diff-add-note/);
+  assert.doesNotMatch(html, /class="rt draft"/);
 });
 
 test('the notes hook offers a note only where there is a change request to hold it', () => {

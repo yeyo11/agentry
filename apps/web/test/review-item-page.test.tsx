@@ -128,22 +128,24 @@ test('a review fix shows one live surface and one push: the address run, worded 
   assert.doesNotMatch(waiting, /workitem-push-fix/);
 });
 
-test('Addressed in is offered for the push the address made, and not after a card taken over', () => {
+test('Addressed in is offered for the push the core recorded, and not after a card taken over', () => {
   const list = threadsOf([thread({ id: 'a' })], 'h2abcdef');
   const seed = (qc: QueryClient) => qc.setQueryData(keys.changeRequestThreads('cr1'), list);
-  stored.set('agentry.address.cr1', JSON.stringify({ ids: ['a'], head: 'h1', stage: 'pushed', pushedHead: 'h2abcdef' }));
-  const pushed = page(pr(), seed, 'address');
+  const pushed = page(pr({ addressed: { head: 'h2abcdef', threadIds: ['a'] } }), seed, 'address');
   assert.match(pushed, /Addressed in h2abcde/);
   assert.match(pushed, /workitem-reply-resolve/);
 
-  // an unrelated push: the head moved on from the one the address pushed
-  stored.set('agentry.address.cr1', JSON.stringify({ ids: ['a'], head: 'h1', stage: 'pushed', pushedHead: 'h9' }));
+  // the head moved with no push by the address: the core recorded none, so nothing is offered
   assert.doesNotMatch(page(pr(), seed, 'address'), /Addressed in/);
+  assert.doesNotMatch(page(pr({ addressed: null }), seed, 'address'), /Addressed in/);
+});
 
-  // handed over and then taken over by the person: the head moved later, but no fix ever ended in a push
-  stored.set('agentry.address.cr1', JSON.stringify({ ids: ['a'], head: 'h1', stage: 'handed', pushedHead: null }));
-  assert.doesNotMatch(page(pr(), seed, 'address'), /Addressed in/);
-  // a memory from before the stages existed proves nothing either
-  stored.set('agentry.address.cr1', JSON.stringify({ ids: ['a'], head: 'h1' }));
-  assert.doesNotMatch(page(pr(), seed, 'address'), /Addressed in/);
+test("the review block's Address button hides while a fix is under way, as the strip does", () => {
+  const list = threadsOf([thread({ id: 'a' })]);
+  const seed = (qc: QueryClient) => {
+    qc.setQueryData(keys.changeRequestReviewers('cr1'), reviewers);
+    qc.setQueryData(keys.changeRequestThreads('cr1'), list);
+  };
+  assert.match(page(pr(), seed, 'review'), /rv-address/);
+  assert.doesNotMatch(page(pr({ fixState: 'fixing', fixKind: 'review', fixOrigin: 'person' }), seed, 'review'), /rv-address/);
 });

@@ -149,8 +149,10 @@ test('with no thread named every unresolved one goes, and a decision-origin addr
     await f.service.settled();
     assert.equal(row(f)?.fixState, 'awaiting-push');
     assert.equal(f.remoteHead(), before);
+    assert.equal(row(f)?.addressed ?? null, null, 'nothing is said of a push before it happens');
     await f.service.pushFix(f.item.id);
     assert.equal(f.remoteHead(), sh(f.item.worktree ?? '', 'rev-parse', 'HEAD'));
+    assert.deepEqual(row(f)?.addressed, { head: f.remoteHead(), threadIds: ['T1', 'T2'] });
   } finally {
     cleanup(f.s);
   }
@@ -167,6 +169,7 @@ test("a person's move of the card drops the remembered approval of an address", 
     f.service.verified(f.item.id);
     await f.service.settled();
     assert.equal(f.remoteHead(), before);
+    assert.equal(row(f)?.addressed ?? null, null, 'a fix dropped with no push says nothing was addressed');
   } finally {
     cleanup(f.s);
   }

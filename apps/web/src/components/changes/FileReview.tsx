@@ -95,9 +95,10 @@ export function FileReview({
   /**
    * The change request this diff belongs to: its threads are drawn on their lines and its file-level
    * ones above the diff, and a line offers a note for the draft review. Absent where the source has no
-   * change request (a chat, a task), and then nothing of the review is drawn or offered.
+   * change request (a chat, a task), and then nothing of the review is drawn or offered. `notes` is whether
+   * the page can send the draft review: where it cannot, threads are read and no note is offered.
    */
-  review?: { changeRequestId: string };
+  review?: { changeRequestId: string; notes: boolean };
 }) {
   const { t, i18n } = useTranslation('changes');
   const live = source.live;
@@ -142,7 +143,7 @@ export function FileReview({
   // ---- the review's threads on this file ----
   const threadsQ = useReviewThreads(review?.changeRequestId);
   const mine = useFileThreads(threadsQ.data, file.path);
-  const notes = useDraftNotes({ changeRequestId: review?.changeRequestId, path: file.path, diff: shown });
+  const notes = useDraftNotes({ changeRequestId: review?.notes ? review.changeRequestId : undefined, path: file.path, diff: shown, head: threadsQ.data?.headSha });
   // The layer follows the notes' state (the composer, the drafts), so it is built on every render
   const layer = review ? threadLayer({ changeRequestId: review.changeRequestId, file: mine.file, phone, extra: notes.extra, onAddNote: notes.onAddNote }) : undefined;
 

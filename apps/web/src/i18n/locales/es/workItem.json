@@ -96,7 +96,7 @@
     "from": "desde {{base}}",
     "counts": "{{additions}} líneas añadidas, {{deletions}} quitadas",
     "viewDiff": "Revisar los cambios",
-    "note": "Lo que cambió en el worktree de la tarea. Nada se fusiona ni abre una pull request solo:"
+    "note": "Lo que ha cambiado en el worktree de la tarea. Nada se fusiona ni abre una pull request solo:"
   },
   "activity": {
     "title": "Actividad",
@@ -390,7 +390,7 @@
       },
       "hint": {
         "person": "Lo has pedido tú: se sube cuando QA lo dé por bueno.",
-        "decision": "Lo pidió un punto de decisión: espera tu subida.",
+        "decision": "Lo ha pedido un punto de decisión: espera tu subida.",
         "push": "Nada llega a la {{noun}} hasta que lo subas."
       },
       "waiting": "te espera",

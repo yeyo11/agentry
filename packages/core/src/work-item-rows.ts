@@ -314,6 +314,8 @@ export interface PullRequestRow {
   fix_kind?: string | null;
   /** JSON array of the thread ids an address was started for */
   fix_threads?: string | null;
+  /** JSON `{head, threadIds}` of the push the last address made; null when it made none */
+  address_pushed?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -471,5 +473,18 @@ export function pullRequestOf(row: PullRequestRow): WorkItemPullRequest {
     closedAt: row.closed_at,
     checkedAt: row.checked_at,
     ...fixOf(row),
+    addressed: addressedOf(row.address_pushed),
   };
+}
+
+/** The push an address made: the head it left and the threads it was handed; anything unreadable reads as none */
+export function addressedOf(stored: string | null | undefined): { head: string; threadIds: string[] } | null {
+  if (!stored) return null;
+  try {
+    const parsed = JSON.parse(stored) as { head?: unknown; threadIds?: unknown } | null;
+    if (!parsed || typeof parsed.head !== 'string' || !parsed.head || !Array.isArray(parsed.threadIds)) return null;
+    return { head: parsed.head, threadIds: parsed.threadIds.filter((id): id is string => typeof id === 'string') };
+  } catch {
+    return null;
+  }
 }
