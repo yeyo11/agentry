@@ -39,6 +39,7 @@ const CI: readonly WorkItemPullRequestCi[] = ['none', 'pending', 'passing', 'fai
 export function orchestrationPullRequestOf(row: OrchestrationPullRequestRow): OrchestrationPullRequest {
   const host = hostOf(row.host);
   return {
+    id: row.id,
     phase: PHASES.find((p) => p === row.phase) ?? 'failed',
     host,
     ref: refOf(host, row.number),

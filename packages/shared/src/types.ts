@@ -1488,6 +1488,8 @@ export type ChangeRequestFixOrigin = 'person' | 'decision';
 
 /** An item's pull request, the newest of its rows: an item keeps every PR it had, closed ones too. */
 export interface WorkItemPullRequest {
+  /** The row id the `/change-requests/:id/…` routes take; the server always sends it */
+  id?: string;
   phase: WorkItemPullRequestPhase;
   /** The host that holds it; absent reads as `github` (rows opened before hosts existed) */
   host?: CodeHostId;
@@ -4832,6 +4834,8 @@ export type OrchestrationPullRequestPhase = 'preparing' | 'open' | 'merged' | 'c
 
 /** The change request opened for an orchestration's integration branch. */
 export interface OrchestrationPullRequest {
+  /** The row id the `/change-requests/:id/…` routes take; the server always sends it */
+  id?: string;
   phase: OrchestrationPullRequestPhase;
   host: CodeHostId;
   /** How the host writes the number: `#12` or `!12`; null without a number */

@@ -363,6 +363,7 @@ export function pullRequestOf(row: PullRequestRow): WorkItemPullRequest {
   }
   const host = hostOf(row.host);
   return {
+    id: row.id,
     phase: PR_PHASES.find((p) => p === row.phase) ?? 'failed',
     host,
     number: row.number,

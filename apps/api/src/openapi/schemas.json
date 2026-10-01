@@ -3088,6 +3088,10 @@
   "OrchestrationPullRequest": {
     "type": "object",
     "properties": {
+      "id": {
+        "type": "string",
+        "description": "The row id the `/change-requests/:id/…` routes take; the server always sends it"
+      },
       "phase": {
         "$ref": "#/components/schemas/OrchestrationPullRequestPhase"
       },
@@ -13191,6 +13195,10 @@
   "WorkItemPullRequest": {
     "type": "object",
     "properties": {
+      "id": {
+        "type": "string",
+        "description": "The row id the `/change-requests/:id/…` routes take; the server always sends it"
+      },
       "phase": {
         "$ref": "#/components/schemas/WorkItemPullRequestPhase"
       },
