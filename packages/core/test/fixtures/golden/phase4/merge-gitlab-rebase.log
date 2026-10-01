@@ -1,8 +1,8 @@
 # merge-gitlab-rebase
 glab repo view -R https://gitlab.com/yeyo11/agentry -F json
-glab mr view 12 -R https://gitlab.com/yeyo11/agentry -F json
-glab mr view 12 -R https://gitlab.com/yeyo11/agentry -F json
+glab api --hostname gitlab.com projects/87089091/merge_requests/12?with_merge_status_recheck=true
+glab api --hostname gitlab.com projects/87089091/merge_requests/12?with_merge_status_recheck=true
 glab mr rebase 12 -R https://gitlab.com/yeyo11/agentry
 glab api --hostname gitlab.com projects/87089091/merge_requests/12?include_rebase_in_progress=true
 glab api --hostname gitlab.com projects/87089091/merge_requests/12?include_rebase_in_progress=true
-glab mr view 12 -R https://gitlab.com/yeyo11/agentry -F json
+glab api --hostname gitlab.com projects/87089091/merge_requests/12?with_merge_status_recheck=true

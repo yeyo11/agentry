@@ -12,6 +12,7 @@ import {
   type MergeSettings,
 } from '../code-host.ts';
 import { parseJson, tryParseJson } from '../json.ts';
+import { firstLine } from '../redact.ts';
 import { projectPath, projectUrl } from './checks.ts';
 
 // Arguments and fields are what glab 1.120.0 was recorded to take and print for merging
@@ -19,7 +20,8 @@ import { projectPath, projectUrl } from './checks.ts';
 // glab's default (arm when a pipeline runs) can never turn a merge into an arming or the other way
 // round (recorded: it merges at once, and is refused with 405 when the project requires a pipeline).
 // `glab mr merge` refuses in a boxed stderr, not in `glab api`'s `glab: … (HTTP n)` line, and a 405
-// never says why: every blocker comes from the re-read, not from the refusal.
+// never says why: every blocker comes from the re-read, not from the refusal. Only a 409 (the head
+// moved) is read from the box.
 
 const STATES: Readonly<Record<string, ChangeRequestState>> = { opened: 'open', locked: 'open', merged: 'merged', closed: 'closed' };
 
@@ -41,6 +43,11 @@ const PROJECT_PATH = /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/;
 const objectOf = (value: unknown): Record<string, unknown> | null =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 const text = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
+/** GitLab's `merge_error` is free text from the host and ends up in an error message: redacted, one line */
+const redactedLine = (value: unknown): string | null => {
+  const raw = text(value);
+  return raw === null ? null : firstLine(raw) || null;
+};
 
 function parseObject(stdout: string, what: string): Record<string, unknown> {
   let value: unknown;
@@ -62,6 +69,44 @@ const messageOf = (subject: string | undefined, body: string | undefined): strin
   const text = [subject, body].filter((part): part is string => typeof part === 'string' && part.trim() !== '').join('\n\n');
   return text === '' ? null : text;
 };
+
+/** What glab 1.120.0 prints, unwrapped, when it refuses a merge on its own (recorded, m0 §2, §5, §8) */
+const CLIENT_REFUSALS: ReadonlyArray<[RegExp, string]> = [
+  [/^This merge request requires a passing pipeline before merging\.?$/, 'a passing pipeline is required before merging'],
+  [/^Merge conflicts exist;/, 'the merge request has conflicts'],
+  // glab hands out a command here: Agentry words its own
+  [/^This merge request is still a draft;/, 'the merge request is a draft'],
+];
+
+export interface BoxedRefusal {
+  /** The HTTP status of the request that failed; null for a refusal glab made before sending one */
+  status: number | null;
+  /** The parsed reason, never the box's `ERROR` heading, and never a line that hands out a command */
+  detail: string;
+}
+
+/**
+ * `glab mr merge` refuses in a box whose first line is always `ERROR`, wrapped at ~118 columns, so it
+ * is unwrapped before it is read: `All attempts fail: #1: PUT <url>: 409 {message: …}.` for a refusal
+ * from GitLab, one plain sentence for a refusal glab made itself. Null when the text is neither.
+ */
+export function boxedRefusal(result: Pick<HostResult, 'stderrFirstLine' | 'stderrText'>): BoxedRefusal | null {
+  const unwrapped = (result.stderrText ?? result.stderrFirstLine)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && line !== 'ERROR')
+    .join(' ')
+    .replace(/\s+/g, ' ');
+  if (unwrapped === '') return null;
+  const http = /\b(\d{3}) \{message: (.*?)\}\.?(?: |$)/.exec(unwrapped);
+  if (http) {
+    // GitLab's 405 repeats its own status in the message
+    const message = http[2] ?? '';
+    return { status: Number(http[1]), detail: firstLine(message.startsWith(`${http[1] ?? ''} `) ? message : `${http[1] ?? ''} ${message}`) };
+  }
+  for (const [pattern, detail] of CLIENT_REFUSALS) if (pattern.test(unwrapped)) return { status: null, detail };
+  return null;
+}
 
 const NO_ARM: MergeArmed = { armed: false, method: null, by: null, at: null };
 
@@ -91,7 +136,10 @@ export const gitlabMerge: MergeAdapter = {
   rules: () => [],
   parseRules: (): MergeRules => ({ methods: null, linearHistory: false, threadResolution: false, mergeQueue: false }),
 
-  readForMerge: (repo, number) => read(repo, ['mr', 'view', numberOf(number), '-R', projectUrl(repo), '-F', 'json']),
+  // The REST object, as `mr view -F json` prints it, with `with_merge_status_recheck`: a request that
+  // GitLab honoured right after a push (recorded, m0 §1) and never harms
+  readForMerge: (repo, number) =>
+    read(repo, ['api', '--hostname', repo.host, `${projectPath(repo)}/merge_requests/${numberOf(number)}?with_merge_status_recheck=true`]),
   parseMergeRead(result) {
     const mr = parseObject(result.stdout, 'mr view');
     const state = typeof mr.state === 'string' ? STATES[mr.state] : undefined;
@@ -123,7 +171,7 @@ export const gitlabMerge: MergeAdapter = {
       // `false` is not "no conflict" while the status is `unchecked` (recorded)
       hasConflicts: typeof mr.has_conflicts === 'boolean' ? mr.has_conflicts : null,
       headPipeline,
-      mergeError: text(mr.merge_error),
+      mergeError: redactedLine(mr.merge_error),
     };
   },
 
@@ -180,10 +228,12 @@ export const gitlabMerge: MergeAdapter = {
 
   mergeReason(op, result): HostReason | null {
     if (op !== 'merge') return null;
-    // "All attempts fail: … 409 {message: SHA does not match HEAD of source branch …}" when the box
-    // is whole; every other refusal (405 says nothing) is the re-read's to explain
-    return /\b409\b/.test(result.stderrFirstLine) || /SHA does not match/.test(result.stderrFirstLine) ? 'head-moved' : null;
+    const refusal = boxedRefusal(result);
+    if (refusal?.status === 409) return 'head-moved';
+    // The client-side boxes and the 405 say what blocks, not why it is wrong: the re-read names the blocker
+    return refusal ? 'merge-failed' : null;
   },
+  mergeDetail: (op, result) => (op === 'merge' ? (boxedRefusal(result)?.detail ?? null) : null),
 
   ready: (repo, number, ready) => write(repo, ['mr', 'update', numberOf(number), '-R', projectUrl(repo), ready ? '--ready' : '--draft']),
 
@@ -202,6 +252,6 @@ export const gitlabMerge: MergeAdapter = {
     const mr = parseObject(result.stdout, 'mr');
     // Absent without the parameter (recorded): a body without it is not a rebase status
     if (typeof mr.rebase_in_progress !== 'boolean') throw new HostParseError('mr has no rebase_in_progress');
-    return { inProgress: mr.rebase_in_progress, error: text(mr.merge_error) };
+    return { inProgress: mr.rebase_in_progress, error: redactedLine(mr.merge_error) };
   },
 };

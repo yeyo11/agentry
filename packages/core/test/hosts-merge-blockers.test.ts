@@ -109,7 +109,7 @@ test('github blockers: facts that do not apply are not reported', () => {
   assert.deepEqual(codes(githubBlockers(gh({ mergeStateStatus: 'BLOCKED', reviewDecision: '' })).blockers), ['blocked-by-policy']);
   assert.deepEqual(codes(githubBlockers(gh({ mergeStateStatus: 'BLOCKED', unresolvedThreads: 3 })).blockers), ['blocked-by-policy']);
   // A draft that is still being computed keeps its draft flag
-  assert.deepEqual(codes(githubBlockers(gh({ isDraft: true, mergeable: 'UNKNOWN', mergeStateStatus: 'UNKNOWN' })).blockers), ['computing', 'draft']);
+  assert.deepEqual(codes(githubBlockers(gh({ isDraft: true, mergeable: 'UNKNOWN', mergeStateStatus: 'UNKNOWN' })).blockers), ['draft', 'computing']);
 });
 
 test('github blockers: a status nobody listed is blocked-by-policy, with the word as detail', () => {
@@ -163,8 +163,9 @@ test('required checks: pending, failed and missing, matrix names together', () =
 const DOCUMENTED: Array<[string, MergeBlockerCode | null, string | null]> = [
   ['mergeable', null, null],
   ['not_open', 'not-open', null],
-  ['checking', 'computing', 'refresh'],
-  ['unchecked', 'computing', 'refresh'],
+  // Read from the GraphQL checks: with none read GitLab re-checks on merge, so nothing blocks (recorded)
+  ['checking', null, null],
+  ['unchecked', null, null],
   ['preparing', 'computing', 'refresh'],
   ['approvals_syncing', 'computing', 'refresh'],
   ['draft_status', 'draft', 'mark-ready'],
@@ -225,12 +226,17 @@ test('gitlab blockers: on unchecked the GraphQL checks decide, and Merge stays o
   const checks = (...pairs: Array<[string, string]>) => pairs.map(([identifier, status]) => ({ identifier, status }));
   const unchecked = (list: ReturnType<typeof checks> | null, over: Partial<GitlabBlockerInput> = {}) =>
     gitlabBlockers(gl({ detailedMergeStatus: 'unchecked', checks: list, ...over }));
-  assert.deepEqual(codes(unchecked(null).blockers), ['computing']);
+  // Unreadable GraphQL never disables Merge: GitLab re-checks on merge and refuses with the 405 or the conflict box
+  assert.deepEqual(unchecked(null).blockers, []);
+  assert.deepEqual(unchecked(null, { settling: true }).blockers, []);
   // Every check settled and none failed (recorded: `unchecked` for minutes): GitLab refuses on merge if it must
   assert.deepEqual(unchecked(checks(['NOT_OPEN', 'SUCCESS'], ['CONFLICT', 'SUCCESS'], ['MERGE_TIME', 'INACTIVE'])).blockers, []);
-  assert.deepEqual(codes(unchecked(checks(['CONFLICT', 'CHECKING'])).blockers), ['computing']);
+  // CONFLICT: CHECKING lasts minutes to tens of minutes (m0 §1, §6, §8): shown only for a fresh head, never as a lasting block
+  assert.deepEqual(unchecked(checks(['CONFLICT', 'CHECKING'])).blockers, []);
+  assert.deepEqual(codes(unchecked(checks(['CONFLICT', 'CHECKING']), { settling: true }).blockers), ['computing']);
   assert.deepEqual(codes(unchecked(checks(['CI_MUST_PASS', 'CHECKING'])).blockers), ['checks-running']);
-  assert.deepEqual(codes(unchecked(checks(['CI_MUST_PASS', 'FAILED'], ['CONFLICT', 'CHECKING'])).blockers), ['computing', 'checks-failing']);
+  // A real blocker is never hidden behind computing, even for a fresh head
+  assert.deepEqual(codes(unchecked(checks(['CI_MUST_PASS', 'FAILED'], ['CONFLICT', 'CHECKING']), { settling: true }).blockers), ['checks-failing']);
   assert.deepEqual(codes(unchecked(checks(['DRAFT_STATUS', 'FAILED'], ['CONFLICT', 'FAILED'])).blockers), ['draft', 'conflicts']);
   assert.deepEqual(codes(unchecked(checks(['NEED_REBASE', 'FAILED']), { fastForward: true }).blockers), ['behind']);
   // WARNING and INACTIVE say nothing; an identifier GitLab adds later that failed is a policy
@@ -238,6 +244,8 @@ test('gitlab blockers: on unchecked the GraphQL checks decide, and Merge stays o
   assert.deepEqual(unchecked(checks(['BRAND_NEW_CHECK', 'FAILED'])).blockers, [{ code: 'blocked-by-policy', detail: 'brand_new_check', action: 'open-on-host' }]);
   // `checking` is read the same way; a computed REST status ignores the checks
   assert.deepEqual(codes(gitlabBlockers(gl({ detailedMergeStatus: 'checking', checks: checks(['CI_MUST_PASS', 'CHECKING']) })).blockers), ['checks-running']);
+  // The statuses GitLab itself reports as short-lived stay computing, after any real blocker
+  assert.deepEqual(codes(gitlabBlockers(gl({ detailedMergeStatus: 'preparing', mergeTrains: true })).blockers), ['merge-queue', 'computing']);
   assert.deepEqual(gitlabBlockers(gl({ detailedMergeStatus: 'mergeable', checks: checks(['CONFLICT', 'FAILED']) })).blockers, []);
 });
 
@@ -247,12 +255,14 @@ test('gitlab blockers: the recorded GraphQL answers, and every recorded REST sta
     codes(gitlabBlockers(gl({ detailedMergeStatus: 'unchecked', checks: read(file), ...over })).blockers);
   assert.deepEqual(unchecked('disc_gql_checks_blocked'), ['threads-unresolved']);
   assert.deepEqual(unchecked('conf_gql_checks'), ['conflicts']);
-  assert.deepEqual(unchecked('draft_gql_checks'), ['computing', 'draft', 'checks-running']);
-  assert.deepEqual(unchecked('mt_gql_checks'), ['computing', 'not-yet']);
+  // The recorded reads that have CONFLICT: CHECKING for minutes: the real reason shows, Merge is never held for the check
+  assert.deepEqual(unchecked('draft_gql_checks'), ['draft', 'checks-running']);
+  assert.deepEqual(unchecked('mt_gql_checks'), ['not-yet']);
   assert.deepEqual(unchecked('nopipe_gql_checks', { hasHeadPipeline: false }), ['checks-missing']);
   assert.deepEqual(unchecked('ff_gql_checks', { fastForward: true }), ['behind']);
-  assert.deepEqual(unchecked('ci_gql_checks'), ['computing', 'checks-running']);
-  assert.deepEqual(unchecked('cifail_gql_checks'), ['computing', 'checks-failing']);
+  assert.deepEqual(unchecked('ci_gql_checks'), ['checks-running']);
+  assert.deepEqual(unchecked('cifail_gql_checks'), ['checks-failing']);
+  assert.deepEqual(unchecked('ci2_gql_checks'), ['checks-running']);
 
   // Every `detailed_merge_status` in the recordings maps to a row of DOCUMENTED, none to the fallback
   const documented = new Map(DOCUMENTED.map(([status, code]) => [status, code]));

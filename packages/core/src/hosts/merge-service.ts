@@ -36,9 +36,11 @@ import { firstLine } from './redact.ts';
 // what came back; this runs them (docs/plans/code-hosts.md, phase 4). Merging is the person's click:
 // the routes that reach this refuse a chat token, and nothing here is started by a run.
 
-/** A re-read while the host is still working out whether the request can merge, and how many */
+/** GitHub: a re-read while the host is still working out whether the request can merge, and how many (GitLab's is not that wait) */
 export const COMPUTING_WAIT = 5_000;
 export const COMPUTING_ROUNDS = 3;
+/** GitLab: how long a head that was just seen may read as `computing`; past it Merge is on and the host's refusal is the check */
+export const COMPUTING_SHOWN = 15_000;
 /** GitLab: how long after a push with no pipeline a project with no CI file is believed to have none */
 export const NO_PIPELINE_GRACE = 90_000;
 /** The repository's settings and rules change rarely: one read serves every state for this long */
@@ -317,6 +319,7 @@ export class MergeService {
         state: read.state,
         detailedMergeStatus: read.detailedMergeStatus,
         checks: await this.gitlabChecks(target, read),
+        settling: this.now() - (this.pushes.get(target.id)?.at ?? this.now()) < COMPUTING_SHOWN,
         hasHeadPipeline: pipeline !== null,
         fastForward: settings.fastForward,
         mergeTrains: settings.mergeTrains,
@@ -399,7 +402,7 @@ export class MergeService {
   }
 
   /**
-   * What the person may do about merging. While the host is still working it out (`computing`) it is
+   * What the person may do about merging. While GitHub is still working it out (`computing`) it is
    * read again after 5 s, up to three times; GitLab's `unchecked` is not that wait (it lasts minutes,
    * recorded), so it is read from the checks GraphQL names and not waited on.
    */
@@ -411,7 +414,8 @@ export class MergeService {
     const id = target.id;
     try {
       let computed = await this.compute(target);
-      for (let round = 0; round < COMPUTING_ROUNDS && computed.state.blocker?.code === 'computing'; round += 1) {
+      // GitHub's `UNKNOWN` settles in seconds; GitLab's wait is minutes and is never slept through
+      for (let round = 0; target.host === 'github' && round < COMPUTING_ROUNDS && computed.state.blocker?.code === 'computing'; round += 1) {
         await this.sleep(COMPUTING_WAIT);
         computed = await this.compute(target);
       }
@@ -505,7 +509,10 @@ export class MergeService {
     const state = computed.state;
     if (state.headSha !== body.expectedHead) throw new MergeError('new commits reached the branch after you looked', 'head-moved', state.headSha);
     if (!state.methods.includes(body.method)) throw new MergeError(`this repository does not allow ${body.method} merges`, 'method-not-allowed', body.method);
-    if (!state.canMerge) throw this.blockedReason(state);
+    // GitLab only runs its conflict check when a merge is attempted (recorded, m0 §8): a head it is still
+    // "working out" is tried, and its refusal is explained by the re-read
+    const trying = target.host === 'gitlab' && state.blocker?.code === 'computing' && state.others.length === 0 && !state.waitingForPipeline;
+    if (!state.canMerge && !trying) throw this.blockedReason(state);
 
     const call = target.adapter.merge(target.repo, {
       number: target.number,
@@ -534,10 +541,11 @@ export class MergeService {
 
   /** The reason a merge that did not land failed, in the order the evidence is trusted */
   private async refusal(target: MergeTarget, call: HostCall, body: MergeRequestBody, result: HostResult, after: MergeRead | null): Promise<MergeError> {
-    const detail = result.stderrFirstLine || null;
+    // glab's refusal is a box whose first line is `ERROR`: the adapter says what it was
+    const detail = target.adapter.mergeDetail?.('merge', result) ?? (result.stderrFirstLine || null);
     const own = target.adapter.mergeReason('merge', result);
     if (own === 'head-moved') return new MergeError('new commits reached the branch after you looked', 'head-moved', detail);
-    // glab's refusal is a box nobody can parse (recorded): a head that is not the one seen is the proof
+    // A refusal the adapter could not read: a head that is not the one seen is the proof
     if (after?.headSha && after.headSha !== body.expectedHead) return new MergeError('new commits reached the branch after you looked', 'head-moved', after.headSha);
     if (!failed(result)) return new MergeError('the host did not confirm the merge', 'write-unconfirmed', detail);
     const reason = reasonOf(result, call.cli);
@@ -546,7 +554,7 @@ export class MergeService {
     if (after) {
       try {
         const recomputed = await this.compute(target);
-        if (!recomputed.state.canMerge) return this.blockedReason(recomputed.state);
+        if (!recomputed.state.canMerge && recomputed.state.blocker?.code !== 'computing') return this.blockedReason(recomputed.state);
       } catch {
         // the re-read is the best explanation there is; without it the host's line stands
       }

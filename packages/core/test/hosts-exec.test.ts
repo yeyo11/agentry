@@ -118,6 +118,8 @@ test('a log read past its cut stops and says output-too-large', async () => {
 test('stderr keeps its first bytes, redacted, and its first line only', async () => {
   const result = await spawnHostCall(run('plain-fail', [counterFile()]), options());
   assert.equal(result.stderrFirstLine, 'boom');
+  // The whole text rides along for an adapter that reads a box (glab's merge refusal)
+  assert.ok(result.stderrText?.startsWith('boom'));
   assert.equal(firstLine('token ghp_abcdefghijklmnopqrstuvwxyz0123456789 was rejected\nmore'), 'token <redacted:token> was rejected');
 });
 

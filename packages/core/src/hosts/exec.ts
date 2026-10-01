@@ -4,7 +4,7 @@ import { classifyCall, reasonOf } from './classify.ts';
 import { buildHostEnv } from './env.ts';
 import { HostBusyError, hostLimiter, type HostLimiter } from './limits.ts';
 import type { HostRateLimiter } from './rate-limit.ts';
-import { firstLine } from './redact.ts';
+import { firstLine, redactHostText } from './redact.ts';
 import { retryRead, type RetryOptions } from './retry.ts';
 
 // The one place that starts `gh`, `glab`, `acli`, `youtrack-app`. An adapter never runs anything: it
@@ -35,6 +35,8 @@ export interface HostResult {
   stdout: string;
   /** redacted, 500 chars, for the person to read; never parsed */
   stderrFirstLine: string;
+  /** redacted and cut at 2000 chars: only for an adapter that must read a boxed refusal (glab's merge), never shown as it is */
+  stderrText?: string;
   /** from `api -i` only */
   http: { status: number; headers: Record<string, string> } | null;
   truncated: boolean;
@@ -192,6 +194,7 @@ export function spawnHostCall(call: HostCall, options: SpawnOptions): Promise<Ho
         exitCode: killed ? null : (exit?.code ?? null),
         stdout: split.body,
         stderrFirstLine: firstLine(stderr),
+        stderrText: redactHostText(stderr).slice(0, 2000),
         http: split.http,
         truncated: cut || overflow,
         durationMs: Date.now() - started,
