@@ -20,7 +20,8 @@ export const copilotManifest: ProviderManifest = {
   versions: {
     // Source: `copilot --help` lists `-v, --version`.
     args: ['--version'],
-    range: null,
+    // Recorded on 1.0.65 and 1.0.90; the capability set changed between them, so `initialize` confirms it.
+    range: '>=1.0.65 <1.1.0',
   },
   install: { url: 'https://docs.github.com/copilot/how-tos/copilot-cli' },
   auth: {
@@ -33,5 +34,9 @@ export const copilotManifest: ProviderManifest = {
   },
   // Source: `copilot --help` lists `--acp` ("Start as Agent Client Protocol server").
   transport: 'acp',
-  capabilities: [],
+  // `--no-auto-update` and COPILOT_AUTO_UPDATE=false: a recording session saw Copilot replace the
+  // binary in place. `--no-remote` keeps the session from being controlled from elsewhere.
+  launch: { args: ['--acp', '--no-auto-update', '--no-remote'], env: { COPILOT_AUTO_UPDATE: 'false' }, unsetEnv: [] },
+  // `setModel` is not declared: `session/new` offers no model option (the model is a launch flag).
+  capabilities: ['interactivePermissions', 'resume', 'interrupt', 'mcp'],
 };

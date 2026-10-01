@@ -1,5 +1,6 @@
 import type { PolicyTranslation, ProviderCapability, ProviderId, ProvidersSettings, ToolPolicy } from '@agentry/shared';
 import { claudeCodeManifest } from './claude-code/manifest.ts';
+import { AcpDriver } from './acp/driver.ts';
 import { codexManifest } from './codex/manifest.ts';
 import { copilotManifest } from './copilot/manifest.ts';
 import { geminiManifest } from './gemini/manifest.ts';
@@ -36,7 +37,9 @@ export function translationFor(id: ProviderId): ((policy: ToolPolicy) => PolicyT
  * The driver class each `transport` is run by. Empty until the Codex and ACP drivers exist; each
  * adds its own line here, and a manifest whose transport is listed gets a driver built from it.
  */
-export const DRIVER_TRANSPORTS: Readonly<Partial<Record<ProviderManifest['transport'], (manifest: ProviderManifest) => ProviderDriver>>> = {};
+export const DRIVER_TRANSPORTS: Readonly<Partial<Record<ProviderManifest['transport'], (manifest: ProviderManifest) => ProviderDriver>>> = {
+  acp: (manifest) => new AcpDriver(manifest),
+};
 
 /** What a session's first event confirmed about a provider's installed version, and when */
 export interface ProviderConfirmation extends CapabilityConfirmation {
