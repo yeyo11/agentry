@@ -159,6 +159,9 @@ const CHAT_FORBIDDEN = new Set([
   // It names a binary Agentry will run, so a prompt injection must not be able to point it at one
   `PUT ${API_PREFIX}/providers/settings`,
   `POST ${API_PREFIX}/providers/refresh`,
+  // Same for the code hosts: the settings name the gh or glab binary Agentry will run
+  `PUT ${API_PREFIX}/hosts/settings`,
+  `POST ${API_PREFIX}/hosts/refresh`,
 ]);
 
 /**
