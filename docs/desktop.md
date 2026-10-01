@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-19T07:37:05Z
-updated_at: 2026-09-29T12:00:00Z
+updated_at: 2026-10-01T20:00:00Z
 tags:
     - desktop
     - electron
@@ -123,7 +123,10 @@ dragging any empty part of it moves the window. The window controls sit on the r
 system over a 54 px strip that matches the top bar, and follow the light or dark theme as you
 change it (or as the system does, when the theme follows it). On macOS the traffic lights sit at the
 top left instead, and the sidebar and top bar leave room for them. The splash and error pages can be
-dragged too.
+dragged too, and so can the first-run step and the sign-in: they have no top bar, so each carries a
+fixed strip of the same height as its drag region. Without it the window had no drag region at all
+there, and on Wayland (GNOME, Ubuntu) the mouse reached nothing in the first-run step until the
+person got into the app by keyboard (0.30.0).
 
 **Tray.** A tray icon says what is live. Its tooltip reads like "Agentry — 2 working · 1 waiting ·
 1 orchestration"; Linux trays never show a tooltip, so the same line is also the first entry of its
