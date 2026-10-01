@@ -12,7 +12,7 @@ tags:
 ---
 # Spec: Agentry's own MCP server, with read tools (CW-6)
 
-Status: **refined, not built**. Story CW-6 of the epic CW-12, "The Agentry assistant". It builds the
+Status: **built** (see Outcome). Story CW-6 of the epic CW-12, "The Agentry assistant". It builds the
 "The MCP server" bullet of [agentry-assistant.md](agentry-assistant.md), and only its read tools.
 The plan's decisions of 2026-09-28 are not reopened here:
 
@@ -281,6 +281,31 @@ The card's five criteria stay. The criteria added by this refinement make each o
 The last card criterion, the owner's A/B/C, is **the owner's to record**. It does not block building
 the read tools, but it must be written in [agentry-assistant.md](agentry-assistant.md), "Confirming
 writes", before the item is closed. The answer takes the form "Decided on <date>: option <X>".
+
+## Outcome
+
+Built on 2026-10-01 in three tasks (m1 the server, m2 the helper, m3 the docs). The feature doc is
+[../agentry-mcp-server.md](../agentry-mcp-server.md). Each criterion, and how it was checked:
+
+| Criterion | How it was checked |
+|---|---|
+| The server `agentry` exists with the 15 read tools, strict schemas, a 50 000-character cap, a 15 s timeout, and errors that carry the route's text | `packages/mcp/test/tools.test.ts`: the catalogue equals the names, every tool is called once against the real API through `app.inject`, 404, schema failure, truncation and the 401 sentence. Ran green (12 tests with the stdio file) |
+| It is read-only by construction | `tools.test.ts`: the client refuses any method but GET before a request. Every tool maps to an existing GET, and no route was added or changed |
+| It speaks MCP over stdio, exits on a missing `AGENTRY_API_URL`, and has no default URL | `packages/mcp/test/stdio.test.ts`: a child process against an API on port 0 (`initialize`, `tools/list`, a call, `-32700` on a bad line, exit on stdin close; exit 1 with the stderr line for unset, empty and `not-a-url`); a test greps `src` for URL and port literals |
+| The token and the chat id are forwarded when present | `tools.test.ts`: `Authorization` and `X-Agentry-Chat` are sent when set and absent otherwise |
+| The helper hands it to a chat with the confinement, a 0600 file and an error when it cannot start | `packages/core/test/agentry-mcp.test.ts`: only `agentry` in the file, `--strict-mcp-config`, empty `--tools=` and `--setting-sources=`, exact `--allowedTools`, `dontAsk`, no `--add-dir`, mode 0600, throws on a null `apiUrl` or no entry. 18 core tests green with `chat-tools.test.ts` |
+| A confined chat answers "how is AGN-12 going?" and cannot use anything else | `apps/api/test/agentry-mcp-chat.test.ts`, through the fake CLI's `FAKE-MCP-CALL`: the transcript holds `mcp__agentry__get_work_item` and a result with AGN-12's title and status, the chat ends `done`, and `Bash` is denied |
+| It works from source, the API bundle and the desktop app | Source: the stdio and chat tests run it with tsx. Bundle and package: `apps/api/test/packaging.test.ts` builds `dist/mcp.mjs`, checks it imports only `node:` built-ins and that `electron-builder.yml` ships it beside `server.mjs` (14 API tests green with the chat test). The desktop app itself was not launched: it shares the rule of the bundle, `AGENTRY_MCP_ENTRY` beside `server.mjs` |
+| The real CLI starts it | Checked by hand with CLI 2.1.286, as the Environment section asked: the CLI passes its whole environment, expands `${NAME}` in the file's `env`, and does not hide MCP tools with `--tools=` |
+| The owner records A, B or C in [agentry-assistant.md](agentry-assistant.md) | **Open.** It does not block these read tools, and CW-17 waits for it |
+
+Decisions taken, besides the ones written above: the file is the same for every chat, with the chat id and
+the token as `${…}` references, which refines "written into the file's `env`" so the token never reaches
+the disk.
+
+Left for others: `docker/Dockerfile` needs `COPY packages/mcp/package.json packages/mcp/`, because the
+core now depends on `@agentry/mcp`; and the chat-level plumbing (a route, `chats.create` accepting the
+helper's output) is CW-18's.
 
 ## Out of scope
 
