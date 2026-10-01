@@ -27,6 +27,9 @@
     "handshake-failed": "Ha arrancado, pero no responde como Agentry espera.",
     "capability-missing": "Le falta algo que Agentry necesita en esta versión.",
     "no-probe": "Agentry todavía no puede comprobar este proveedor.",
+    "auth-required": "Necesita que inicies sesión desde la herramienta del proveedor.",
+    "schema-untested": "Su salida estructurada no se ha probado en esta versión, así que Agentry no la usa para eso.",
+    "busy": "Está ocupado con otra sesión y no se ha podido comprobar ahora.",
     "disabled": "No se busca ni se comprueba mientras esté desactivado."
   },
   "row": {

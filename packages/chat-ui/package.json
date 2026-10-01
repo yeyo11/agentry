@@ -1,6 +1,6 @@
 {
   "name": "@agentry/chat-ui",
-  "version": "0.27.0",
+  "version": "0.30.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -13,6 +13,7 @@
     "./components/SlashMenu": "./src/components/SlashMenu.tsx",
     "./components/Transcript": "./src/components/Transcript.tsx",
     "./components/TranscriptSearch": "./src/components/TranscriptSearch.tsx",
+    "./lib/agent": "./src/lib/agent.tsx",
     "./lib/chat-live": "./src/lib/chat-live.ts",
     "./lib/chat-model": "./src/lib/chat-model.ts",
     "./lib/chat-notice": "./src/lib/chat-notice.ts",
@@ -23,6 +24,7 @@
     "./lib/context": "./src/lib/context.tsx",
     "./lib/edit-chips": "./src/lib/edit-chips.ts",
     "./lib/permission-param": "./src/lib/permission-param.ts",
+    "./lib/wire-words": "./src/lib/wire-words.ts",
     "./lib/slash-commands": "./src/lib/slash-commands.ts",
     "./composer/Composer": "./src/composer/Composer.tsx",
     "./composer/queued": "./src/composer/queued.ts",

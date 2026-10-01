@@ -346,6 +346,7 @@ pnpm typecheck
 pnpm test         # unit tests (core, web, desktop) + API integration tests (node:test)
 pnpm build && pnpm e2e   # browser suite: isolated wrapper + headless Chrome, never touches ~/.claude
                          # E2E_SPEC_TIMEOUT (180000 ms) and E2E_TIMEOUT (1500000 ms) bound a spec and the run
+                         # E2E_SERVER_START_TIMEOUT (120000 ms) bounds the wait for the API's /api/health
                          # E2E_SHARDS=N runs N isolated shards side by side (default: cores/2, at most 4);
                          # E2E_SHARD=k/N runs only shard k, as each CI job does (split: e2e/timings.json)
 E2E_LIVE=1 pnpm e2e chat # specs that talk to Claude (logged-in CLI, costs a few tokens)
@@ -834,9 +835,9 @@ The agents Agentry can drive, as detection finds them on this machine: one cache
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/providers` | Every provider's status (state, reason, version, binary, config home, capabilities), from the cache |
+| GET | `/providers` | Every provider's status (state, reason, version, binary, config home, account, capabilities, the permission modes its driver honours, and what its handshake or first session confirmed), from the cache |
 | GET | `/providers/:id` | One status; `404` for an unknown id |
-| GET | `/providers/:id/models` | The provider's model catalog, with tiers; `404` for a provider with no driver |
+| GET | `/providers/:id/models` | The provider's model catalog, with tiers, as its last handshake listed it (kept in `provider-catalogs.json`); `404` for a provider with no driver |
 | POST | `/providers/refresh` | Detect again now. Not open to a chat's token |
 | GET | `/providers/settings` | The document from `providers.json`: enabled and binary override per provider, order, default |
 | PUT | `/providers/settings` | Replace it, validated; providers are detected again in the background. Not open to a chat's token |
@@ -1045,7 +1046,7 @@ every 3 s and only while a client listens.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/orchestrations` | List |
+| GET | `/orchestrations` | List, each graph as a summary: task prompts and results, the synthesis and check output are left to `GET /orchestrations/:id` |
 | POST | `/orchestrations` | Launch. Body: `OrchestrationSpec`; a task naming a `workItemId` is linked to that item, which follows its status |
 | POST | `/orchestrations/plan/start` | `{ objective, cwd?, model?, maxTasks? }` → the planner chat (housekeeping), returned at once so it can be streamed at `/chats/:id/stream` |
 | GET | `/orchestrations/plans` | Plans generated but not launched; each is kept when its planner finishes |

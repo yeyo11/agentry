@@ -1,6 +1,6 @@
 {
   "name": "@agentry/ui",
-  "version": "0.27.0",
+  "version": "0.30.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -11,6 +11,7 @@
     "./components/ListToolbar": "./src/components/ListToolbar.tsx",
     "./components/Markdown": "./src/components/Markdown.tsx",
     "./components/ProgressBar": "./src/components/ProgressBar.tsx",
+    "./components/ProviderMark": "./src/components/ProviderMark.tsx",
     "./components/ScrollJump": "./src/components/ScrollJump.tsx",
     "./components/Spinner": "./src/components/Spinner.tsx",
     "./components/SplitButton": "./src/components/SplitButton.tsx",

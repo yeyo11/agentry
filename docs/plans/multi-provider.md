@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T12:43:36.708551256Z
-updated_at: 2026-10-01T11:30:00Z
+updated_at: 2026-10-01T17:55:00Z
 tags:
     - plan
     - providers
@@ -1703,6 +1703,11 @@ When G is merged into the branch, D starts.
 
 #### W · `providers3-web`, dependsOn P0 (validated), D
 
+P0 was validated on 2026-10-01 (by delegation) with one correction for W: the prototypes show raw
+protocol names, a Codex tool chip reading `COMMANDEXECUTION` and the permission mode `ACCEPTEDITS`.
+The UI names tool kinds and modes in the person's words, through i18n (a command, a file change;
+"Accept edits"), never the wire's identifiers.
+
 - `u1` (chat-ui), dependsOn none within W.
   - `agentNameFor`, the `{{agent}}` keys of `chat.json` and `primitives.json`, `ProviderBadge` in
     `ChatBadges.tsx`, the boundaries test kept green.
@@ -1798,6 +1803,47 @@ is complete"); each was settled on its recommendation. The options are kept for 
    - `ready` without credentials, using the free models by default.
    - Free models never used: Agentry always passes a model from a signed-in provider, and OpenCode
      without credentials is `signed-out` with no opt-in.
+
+## Outcome of phase 3
+
+Built on `feat/multi-provider-3` on 2026-10-01, in four orchestrations launched on the owner's
+desktop app, every code-writing worker on `claude-sonnet-5-5`:
+
+| Orchestration | Tasks | Cost | Result |
+|---|---|---|---|
+| P0 `providers3-prototypes` | p1, p2 | 4.15 USD | Validated; its check passed |
+| G `providers3-groundwork` | g1–g6 | 4.70 USD | Passed after the fixer ran |
+| D `providers3-drivers` | c1, c2, a1, a2, o1, t1, x1 | 18.43 USD | Passed after the fixer ran |
+| W `providers3-web` | u1–u3 | 10.80 USD | Every check passed; its e2e spec had never run |
+
+Running the chat spec (`providers-chat`) and the providers spec, which no worker ran, found real
+bugs, all fixed on the branch:
+
+1. **A Codex chat on the fakes never started.** The fake app-server wrote its thread file into a
+   `CODEX_HOME` the sandbox only named. A real Codex makes its home as it needs it, so the fake now
+   does too.
+2. **Core ignored the binary override.** Drivers were built with the manifest's command, so a path
+   set in Settings → Providers applied to detection but not to a chat. Core now hands each driver a
+   binary read as a process starts, and the Codex transcript reader gets the same one.
+3. **The composer's status line showed a wire identifier** (`acceptEdits`) on a Codex chat. It now
+   goes through `modeLabel`, as the permission prompts already did.
+4. **Copilot was never offered in New chat.** It has no probe that costs nothing, so detection says
+   `unknown` with `no-probe` and never `ready`, and the picker only listed `ready` and `degraded`.
+   A provider that reads `no-probe` is now offered; its first session says whether it is signed in.
+5. **The Stop button of a phone's chat header had no name** (axe `button-name`): compact mode drew
+   the icon alone. It has an `aria-label` now, and the `is-icon` class its CSS already expected.
+6. **A migration was placed before released ones.** After merging `main`, `chat_entries` sat before
+   the code hosts' and the checks' migrations, which 0.30.0 had already shipped: a database that had
+   run them counts them as applied, so it would have skipped this one and run the last again. It is
+   appended last, and a comment above it says why.
+
+The providers spec still named Codex `0.50.0`, below the manifest's `>=0.159.3 <0.160.0`, so it now
+uses the recorded `0.159.3`. Three API tests assumed Codex had no session driver; they use an id
+that has none.
+
+**Recordings that need an account** (`r1`: Codex, Gemini and OpenCode signed in) are the owner's to
+make. The drivers are written from the recordings that needed none and from each CLI's own
+documentation, and their conformance runs against the fakes.
 
 ## Decisions (owner, 2026-09-30)
 

@@ -17,7 +17,7 @@ import { useProviders } from '../src/lib/providers';
 const STATES: ProviderReadinessState[] = ['ready', 'degraded', 'signed-out', 'incompatible', 'used-before', 'not-installed', 'unknown'];
 const REASONS: ProviderReasonCode[] = [
   'missing-credentials', 'stale-token', 'version-below-range', 'version-above-range', 'version-unreadable', 'probe-timeout', 'spawn-denied',
-  'spawn-failed', 'binary-not-found', 'config-home-only', 'missing-required-command', 'unsupported-platform', 'handshake-failed', 'no-probe', 'disabled',
+  'spawn-failed', 'binary-not-found', 'config-home-only', 'missing-required-command', 'unsupported-platform', 'handshake-failed', 'no-probe', 'auth-required', 'schema-untested', 'busy', 'disabled',
 ];
 
 const status = (over: Partial<ProviderStatus> = {}): ProviderStatus => ({

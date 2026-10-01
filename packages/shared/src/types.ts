@@ -761,6 +761,8 @@ export interface Chat {
   title: string;
   /** The provider that runs the chat; a chat read from Claude's transcripts is `claude-code` */
   provider: ProviderId;
+  /** The id the provider chose for its own session; null on Claude, where the chat id is the session id */
+  providerSessionId: string | null;
   firstPrompt: string | null;
   messageCount: number;
   startedAt: string | null;
@@ -875,9 +877,24 @@ export interface ToolPolicy {
   exclusive?: boolean;
 }
 
+/** The parts of a {@link ToolPolicy} a provider enforces in its own way. */
+export type PolicyPart =
+  | 'read'
+  | 'edit'
+  | 'commands'
+  | 'network'
+  | 'delegate'
+  | 'workflow'
+  | 'gitPush'
+  | 'exclusive';
+
 /** A policy in a provider's own terms, and the parts it cannot enforce. */
 export interface PolicyTranslation {
   rules: { allowedTools: string[]; disallowedTools: string[]; tools?: string[] };
+  /** Native settings the launch applies (a sandbox mode, inline config, a policy file), each with the part it enforces */
+  settings?: Array<{ part: PolicyPart; key: string; value: unknown }>;
+  /** Parts Agentry enforces by answering the agent's permission requests itself, through the policy judge */
+  host?: PolicyPart[];
   /** The policy parts the provider cannot enforce, by field (`gitPush`, `commands`…) */
   unsupported: string[];
 }
@@ -915,6 +932,8 @@ export interface ChatToolConfig {
   disallowedTools: string[];
   /** Null when the chat takes whatever the CLI loads on its own */
   mcp: McpSelection | null;
+  /** The policy the chat was started with, so a resume enforces the same one */
+  policy?: ToolPolicy;
 }
 
 /** What can be chosen when a process starts on a chat, whether it is new, resumed or a fork. */
@@ -3167,6 +3186,28 @@ export interface Orchestration {
   plannerRunId?: string | null;
 }
 
+/** A task as a list shows it: its prompt and its result are left out, and the graph's own page has them. */
+export type OrchestrationTaskSummary = Omit<OrchestrationTaskState, 'prompt' | 'result'>;
+
+/** A check as a list shows it: what it printed is left out. */
+export type VerificationCommandSummary = Omit<VerificationCommand, 'output'>;
+
+export interface VerificationSummary extends Omit<VerificationState, 'commands'> {
+  commands: VerificationCommandSummary[];
+}
+
+/**
+ * An orchestration as `GET /orchestrations` serves it. The long texts (each task's prompt and
+ * result, the synthesis, what the checks printed) were over nine tenths of the list, and every
+ * screen that shows it wants statuses, counts and costs; `GET /orchestrations/:id` has them whole.
+ */
+export interface OrchestrationSummary extends Omit<Orchestration, 'tasks' | 'finalResult' | 'verification'> {
+  tasks: OrchestrationTaskSummary[];
+  /** Whether the graph has a synthesis, which its own page shows */
+  hasFinalResult: boolean;
+  verification?: VerificationSummary | null;
+}
+
 // ---------- Verification ----------
 //
 // Workers run typecheck and unit tests; the whole suite runs once, here, on the integration branch.
@@ -4707,6 +4748,9 @@ export type ProviderReasonCode =
   | 'handshake-failed'
   | 'capability-missing'
   | 'no-probe'
+  | 'auth-required'
+  | 'schema-untested'
+  | 'busy'
   | 'disabled';
 
 /** The code hosts Agentry reaches through their own CLI. Closed: adding one is a code change. */
@@ -5007,6 +5051,8 @@ export interface ProviderStatus {
   account: string | null;
   /** The capabilities the handshake confirmed for the installed version (the declared ones until then) */
   capabilities: ProviderCapability[];
+  /** The permission modes the provider offers, in the order to list them; absent on a provider that has none */
+  permissionModes?: PermissionMode[];
   /** What the first event of a real session confirmed for the installed version; null until one has */
   confirmed?: { at: string; version: string; capabilities: ProviderCapability[] } | null;
   /** ISO timestamp of the detection this status came from */

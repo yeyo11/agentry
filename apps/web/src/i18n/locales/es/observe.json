@@ -22,7 +22,7 @@
     "fileCount_other": "{{count}} archivos",
     "more_one": "{{count}} archivo más en la revisión",
     "more_other": "{{count}} archivos más en la revisión",
-    "editingNow": "Claude lo está editando ahora",
+    "editingNow": "{{agent}} lo está editando ahora",
     "latestStep": "Último paso",
     "now": "ahora",
     "review": "Revisar los cambios",

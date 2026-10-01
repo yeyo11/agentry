@@ -696,6 +696,22 @@ input.is-invalid {
   letter-spacing: 0.02em;
 }
 
+/* The agent a chat runs on: its monogram tinted from --hue like .monogram, never a status hue */
+.prov-mark {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  background: var(--hue-fill);
+  color: var(--hue-ink);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
 @media (max-width: 1100px) {
 .split {
     grid-template-columns: minmax(0, 1fr);
@@ -1258,6 +1274,11 @@ button.step:hover {
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
   color: var(--text-faint);
+}
+
+/* The faint grey is 4.45:1 on the active segment's raised background, under the 4.5:1 text needs */
+.segment-on .segment-count {
+  color: var(--text-muted);
 }
 
 /* A finger needs a target it can hit; a pointer does not need the room. */

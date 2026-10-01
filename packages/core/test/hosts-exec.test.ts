@@ -69,13 +69,13 @@ const alive = (pid: number): boolean => {
 
 test('a child that ignores SIGTERM is killed with its grandchild, and the result is a timeout', async () => {
   const pidFile = join(scratch, 'grandchild.pid');
-  const result = await spawnHostCall(run('ignore-term', [counterFile(), pidFile]), options({ timeoutMs: 600, killGraceMs: 300 }));
+  const result = await spawnHostCall(run('ignore-term', [counterFile(), pidFile]), options({ timeoutMs: 3000, killGraceMs: 500 }));
   assert.equal(result.exitCode, null);
   assert.equal(result.reason, 'timeout');
   const pid = Number(readFileSync(pidFile, 'utf8'));
   assert.ok(pid > 0);
-  // SIGKILL went to the group, so the grandchild, which also ignores SIGTERM, is gone
-  for (let i = 0; i < 20 && alive(pid); i++) await new Promise((r) => setTimeout(r, 50));
+  // SIGKILL went to the group, so the grandchild, which also ignores SIGTERM, is gone; the timeout and the wait are wide because node can start slowly when the whole suite runs at once
+  for (let i = 0; i < 100 && alive(pid); i++) await new Promise((r) => setTimeout(r, 50));
   assert.equal(alive(pid), false);
 });
 

@@ -2,8 +2,9 @@
 // to answer): what has to hold either way is that the page says which of the two it is instead of
 // showing a blank, says what a person must do to authorise one, and says plainly what is out of reach.
 export default async ({ page, api, check }) => {
-  await page.goto('/', 1200);
-  const nav = await page.eval(`return [...document.querySelectorAll('#sidebar nav a')].map((a) => a.getAttribute('href'))`);
+  // The shell draws every navigation group at once: once it has links, it has all of them
+  await page.goto('/', 0);
+  const nav = await page.waitFor(`const links = [...document.querySelectorAll('#sidebar nav a')]; return links.length > 0 && links.map((a) => a.getAttribute('href'))`, { label: 'the navigation', timeout: 60_000 });
   check(nav.includes('/connectors'), 'Connectors is in the navigation');
 
   await page.goto('/connectors', 1500);

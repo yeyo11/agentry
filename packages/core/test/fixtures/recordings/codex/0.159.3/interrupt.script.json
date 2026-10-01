@@ -1,0 +1,18 @@
+[
+ {"send":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"agentry_recorder","title":"Agentry recorder","version":"0.0.0"},"capabilities":{"experimentalApi":false,"requestAttestation":false}}}},
+ {"await":1,"ms":15000},
+ {"send":{"jsonrpc":"2.0","method":"initialized"}},
+ {"send":{"jsonrpc":"2.0","id":2,"method":"thread/start","params":{"cwd":"<home>/work","approvalPolicy":"on-request","sandbox":"read-only"}}},
+ {"await":2},
+ {"send":{"jsonrpc":"2.0","id":3,"method":"turn/start","params":{"threadId":{"$fromResult":2,"path":"thread.id"},"input":[{"type":"text","text":"Say hi","text_elements":[]}]}}},
+ {"await":3},
+ {"sleep":1500},
+ {"send":{"jsonrpc":"2.0","id":4,"method":"turn/interrupt","params":{"threadId":{"$fromResult":2,"path":"thread.id"},"turnId":{"$fromResult":3,"path":"turn.id"}}}},
+ {"await":4},
+ {"sleep":2000},
+ {"send":{"jsonrpc":"2.0","id":5,"method":"turn/start","params":{"threadId":{"$fromResult":2,"path":"thread.id"},"input":[{"type":"text","text":"Say hi again","text_elements":[]}],"model":"gpt-5.5","effort":"low"}}},
+ {"await":5},
+ {"sleep":45000},
+ {"send":{"jsonrpc":"2.0","id":6,"method":"thread/read","params":{"threadId":{"$fromResult":2,"path":"thread.id"},"includeTurns":true}}},
+ {"await":6}
+]

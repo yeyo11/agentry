@@ -51,6 +51,7 @@ const chat = (over: Partial<ChatSummary> = {}): ChatSummary => ({
   id: 'c1',
   title: 'Fix the login bug',
   provider: 'claude-code',
+  providerSessionId: null,
   firstPrompt: null,
   messageCount: 2,
   startedAt: '2026-01-01T10:00:00Z',

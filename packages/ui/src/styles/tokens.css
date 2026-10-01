@@ -342,6 +342,7 @@
    (--hue-mark), so a board of one epic does not turn the brand's colour. Rules read these, never
    hsl() themselves; `.monogram` gets them too for a project's tile. */
 .monogram,
+.prov-mark,
 .workitem-epic,
 .role-avatar {
   --hue-base: hsl(var(--hue, 20) 70% 55%);

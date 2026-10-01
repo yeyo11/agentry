@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import type { ProvidersSettings } from '@agentry/shared';
 import type { AgentryEventInput } from '../src/events.ts';
@@ -11,6 +12,7 @@ import { ProviderDetector, satisfiesRange } from '../src/providers/detector.ts';
 import { confirmClaudeInit } from '../src/providers/claude-code/handshake.ts';
 import type { SessionInit } from '../src/providers/driver.ts';
 
+const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
 let root: string;
 let bin: string;
 let home: string;
@@ -35,8 +37,8 @@ async function fake(name: string, body: string): Promise<string> {
   return file;
 }
 
-function detector(options: { settings?: ProvidersSettings | null; events?: AgentryEventInput[]; probeTimeoutMs?: number } = {}) {
-  const env = { PATH: bin, HOME: home, CLAUDE_CONFIG_DIR: join(home, '.claude') };
+function detector(options: { settings?: ProvidersSettings | null; events?: AgentryEventInput[]; probeTimeoutMs?: number; env?: NodeJS.ProcessEnv } = {}) {
+  const env = { PATH: bin, HOME: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), AGENTRY_DATA_DIR: join(home, 'data'), ...options.env };
   return new ProviderDetector({
     config: loadConfig(env),
     env,
@@ -54,7 +56,7 @@ function detector(options: { settings?: ProvidersSettings | null; events?: Agent
 const CLAUDE = (version: string, loggedIn: boolean) =>
   `case "$1" in --version) echo "${version} (Claude Code)";; auth) echo '{"loggedIn": ${String(loggedIn)}, "email": "me@example.com"}';; esac`;
 const CODEX = (loginExit: number) =>
-  `case "$1" in --version) echo "codex-cli 0.5.0";; login) exit ${String(loginExit)};; esac`;
+  `case "$1" in --version) echo "codex-cli 0.159.3";; login) exit ${String(loginExit)};; esac`;
 
 async function statusOf(d: ProviderDetector, id: string) {
   const status = (await d.refresh()).find((s) => s.id === id);
@@ -111,7 +113,7 @@ describe('ProviderDetector', () => {
     const all = await detector().refresh();
     assert.equal(all.find((s) => s.id === 'claude-code')?.state, 'signed-out');
     const codex = all.find((s) => s.id === 'codex');
-    assert.deepEqual([codex?.state, codex?.reason, codex?.version], ['signed-out', 'missing-credentials', '0.5.0']);
+    assert.deepEqual([codex?.state, codex?.reason, codex?.version], ['signed-out', 'missing-credentials', '0.159.3']);
   });
 
   it('reads an exit-code login probe as ready', async () => {
@@ -130,15 +132,15 @@ describe('ProviderDetector', () => {
   });
 
   it('says unknown with no-probe when the vendor documents no login check', async () => {
-    await fake('gemini', 'echo "0.9.1"');
+    await fake('gemini', 'echo "0.62.0"');
     const gemini = await statusOf(detector(), 'gemini');
-    assert.deepEqual([gemini.state, gemini.reason, gemini.version], ['unknown', 'no-probe', '0.9.1']);
+    assert.deepEqual([gemini.state, gemini.reason, gemini.version], ['unknown', 'no-probe', '0.62.0']);
   });
 
   it('reads OpenCode sign-in from the credentials file its login writes', async () => {
-    await fake('opencode', 'echo "1.4.2"');
+    await fake('opencode', 'echo "1.18.34"');
     const signedOut = await statusOf(detector(), 'opencode');
-    assert.deepEqual([signedOut.state, signedOut.reason, signedOut.version], ['signed-out', 'missing-credentials', '1.4.2']);
+    assert.deepEqual([signedOut.state, signedOut.reason, signedOut.version], ['signed-out', 'missing-credentials', '1.18.34']);
     const data = join(home, '.local', 'share', 'opencode');
     await mkdir(data, { recursive: true });
     await writeFile(join(data, 'auth.json'), '{}');
@@ -186,7 +188,7 @@ describe('ProviderDetector', () => {
   });
 
   it('does not probe a disabled provider, and follows the order in settings', async () => {
-    await fake('codex', 'echo probed >> "$0.log"; echo "codex-cli 0.5.0"');
+    await fake('codex', 'echo probed >> "$0.log"; echo "codex-cli 0.159.3"');
     const settings: ProvidersSettings = {
       providers: { codex: { enabled: false, binaryPath: null } },
       order: ['copilot', 'codex'],
@@ -215,13 +217,14 @@ describe('ProviderDetector', () => {
 
   it('serves the cache inside the TTL and reads once for concurrent refreshes', async () => {
     const counter = join(root, `count${n}`);
-    await fake('codex', `echo x >> "${counter}"; case "$1" in --version) echo "codex-cli 0.5.0";; login) exit 0;; esac`);
+    await fake('codex', `echo x >> "${counter}"; case "$1" in --version) echo "codex-cli 0.159.3";; login) exit 0;; esac`);
     const d = detector();
     await Promise.all([d.refresh(), d.refresh()]);
     const lines = () => readFileSync(counter, 'utf8').trim().split('\n').length;
-    assert.equal(lines(), 2, 'one version and one login probe');
+    // This codex does not speak app-server: its handshake fails, once, and is not repeated inside the TTL
+    assert.equal(lines(), 3, 'one version probe, one login probe and one handshake');
     await d.statuses();
-    assert.equal(lines(), 2);
+    assert.equal(lines(), 3);
   });
 
   it('answers a refresh asked while another runs with a detection that starts after it', async () => {
@@ -229,7 +232,7 @@ describe('ProviderDetector', () => {
     const release = join(root, `release${n}`);
     // Each login probe reads the state as it starts, then the first one waits for the test to let it
     // go, so the first detection is still running when the state changes
-    await fake('codex', `case "$1" in --version) echo "codex-cli 0.5.0";; login) s=$(/bin/cat "${state}"); while [ ! -e "${release}" ]; do /bin/sleep 0.05; done; exit "$s";; esac`);
+    await fake('codex', `case "$1" in --version) echo "codex-cli 0.159.3";; login) s=$(/bin/cat "${state}"); while [ ! -e "${release}" ]; do /bin/sleep 0.05; done; exit "$s";; esac`);
     await writeFile(state, '1');
     const d = detector();
     const first = d.refresh();
@@ -275,7 +278,7 @@ describe('ProviderDetector', () => {
   it('lands a full detection that ends after a newer reading of Claude Code alone', async () => {
     const release = join(root, `release${n}`);
     await fake('claude', CLAUDE('2.1.285', false));
-    await fake('codex', `case "$1" in --version) echo "codex-cli 0.5.0";; login) while [ ! -e "${release}" ]; do /bin/sleep 0.05; done; exit 0;; esac`);
+    await fake('codex', `case "$1" in --version) echo "codex-cli 0.159.3";; login) while [ ! -e "${release}" ]; do /bin/sleep 0.05; done; exit 0;; esac`);
     const d = detector();
     const full = d.refresh();
     await new Promise((resolve) => setTimeout(resolve, 150));
@@ -369,5 +372,72 @@ describe('capabilities confirmed by a session', () => {
 
   it('answers with the declared set before any session', () => {
     assert.equal(detector().capabilities('claude-code').length, 16);
+  });
+});
+
+describe('driver handshakes', () => {
+  const codex = (): Promise<string> =>
+    fake('codex', `case "$1" in --version) echo "codex-cli 0.159.3";; login) exit 0;; *) exec "${process.execPath}" "${FIXTURES}fake-codex-app-server.mjs" "$@";; esac`);
+  const copilot = (): Promise<string> => fake('copilot', `exec "${process.execPath}" "${FIXTURES}fake-acp-agent.mjs" --profile copilot "$@"`);
+  const spawns = (file: string): number => (existsSync(file) ? readFileSync(file, 'utf8').trim().split('\n').length : 0);
+
+  it('fills the account, the modes, the confirmation and the catalog from the Codex handshake', async () => {
+    await codex();
+    const catalogs = join(home, 'data', 'provider-catalogs.json');
+    const d = detector({ env: { FAKE_CODEX_PLAN: 'pro' } });
+    const status = await statusOf(d, 'codex');
+    assert.deepEqual([status.state, status.account], ['ready', 'ChatGPT pro']);
+    assert.ok(status.permissionModes && status.permissionModes.length > 0);
+    assert.equal(status.confirmed?.version, '0.159.3');
+    assert.ok(status.confirmed.capabilities.every((c) => status.capabilities.includes(c)));
+    await until(() => existsSync(catalogs));
+    const saved = JSON.parse(readFileSync(catalogs, 'utf8')) as Record<string, { version: string; models: unknown[] }>;
+    assert.equal(saved.codex?.version, '0.159.3');
+    assert.ok((saved.codex?.models.length ?? 0) > 1);
+  });
+
+  it('runs a handshake once per binary and version, not once per detection', async () => {
+    await codex();
+    const log = join(root, `spawns${n}`);
+    const d = detector({ env: { FAKE_CODEX_SPAWNS: log } });
+    await d.refresh();
+    await d.refresh();
+    assert.equal(spawns(log), 1);
+    await fake('codex', `case "$1" in --version) echo "codex-cli 0.159.4";; login) exit 0;; *) exec "${process.execPath}" "${FIXTURES}fake-codex-app-server.mjs" "$@";; esac`);
+    await d.refresh();
+    assert.equal(spawns(log), 2, 'a new version is read again');
+  });
+
+  it('keeps the probes\' answer when the handshake fails', async () => {
+    await fake('codex', 'case "$1" in --version) echo "codex-cli 0.159.3";; login) exit 0;; *) exit 3;; esac');
+    const d = detector();
+    const status = await statusOf(d, 'codex');
+    assert.deepEqual([status.state, status.account, status.confirmed ?? null], ['ready', null, null]);
+    assert.ok(status.permissionModes && status.permissionModes.length > 0, 'the modes come from the driver, not the handshake');
+  });
+
+  it('asks an ACP agent only to initialize, with Copilot\'s updates off, and confirms what it offers', async () => {
+    await copilot();
+    const log = join(root, `acp${n}.jsonl`);
+    const status = await statusOf(detector({ env: { FAKE_ACP_LOG: log, FAKE_ACP_VERSION: '1.0.90' } }), 'copilot');
+    // An agent answers initialize signed in or not, so this says nothing about the account
+    assert.deepEqual([status.state, status.reason, status.account], ['unknown', 'no-probe', null]);
+    assert.equal(status.version, '1.0.90');
+    assert.equal(status.confirmed?.version, '1.0.90');
+    assert.ok(status.confirmed.capabilities.includes('resume'));
+    assert.ok(status.permissionModes && status.permissionModes.length > 0);
+    const rows = readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { dir: string; argv?: string[]; env?: Record<string, string | null>; line?: { method?: string } });
+    const start = rows.find((r) => r.dir === 'start');
+    assert.ok(start?.argv?.includes('--no-auto-update'));
+    assert.equal(start?.env?.COPILOT_AUTO_UPDATE, 'false');
+    const asked = rows.filter((r) => r.dir === 'in').map((r) => r.line?.method);
+    assert.deepEqual(asked.filter((m) => m !== 'initialize' && m !== undefined && !m.startsWith('notifications')), [], 'no session is started');
+  });
+
+  it('does not run a handshake for a signed-out provider', async () => {
+    await fake('codex', CODEX(1));
+    const status = await statusOf(detector(), 'codex');
+    assert.equal(status.state, 'signed-out');
+    assert.equal(status.permissionModes, undefined);
   });
 });
