@@ -182,6 +182,14 @@ test('say: lines are the assistant\'s own prose, in their place among the calls'
   await c.done();
 });
 
+test('a review.triage question is answered without a script: the first thread to the agent, the rest to a person', async () => {
+  const c = chat();
+  c.say('Answer the questions below.\n\nQuestions:\n\nPRRT_a: Who should take this review comment on src/cart.ts?\n  - agent: An agent\n\nPRRT_b: Who should take this review comment?\n  - agent: An agent');
+  const result = await c.next((e) => e.type === 'result');
+  assert.deepEqual(result.structured_output, { PRRT_a: 'agent', PRRT_b: 'person' });
+  await c.done();
+});
+
 test('read: holds a Read call open, and json: is the structured output of the result', async () => {
   const c = chat({ AGENTRY_FAKE_CLI_READ_MS: '50' }, { setup: (dir) => writeFileSync(join(dir, 'README.md'), '# hello\n') });
   c.say('read: README.md\nread: missing.md\njson: {"summary":"ok","workItems":[]}');
