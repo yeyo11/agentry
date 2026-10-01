@@ -127,7 +127,18 @@ export default async ({ page, api, check, dirs }) => {
     check(grid.label.length > 0 && grid.heads === 7, `the grid is named by its month and its columns by weekday (${grid.label}, ${grid.heads})`);
     check(grid.today && grid.tabbable === 1 && grid.named, 'today is marked, one day is in the tab order, every day is named in full');
     // The start of the range is the earliest day the end can take
-    check(await page.eval(`return document.querySelector('.date-picker-panel button[data-day="${daysAgo(5)}"]')?.getAttribute('aria-disabled') === 'true'`), 'a day before the start cannot be picked as the end');
+    // Early in a month that day sits in the previous month's grid: look there, then reopen on the chosen day
+    const beforeStart = `return document.querySelector('.date-picker-panel button[data-day="${daysAgo(5)}"]')?.getAttribute('aria-disabled') ?? null`;
+    if ((await page.eval(beforeStart)) === null) {
+      await page.click('.date-picker-panel .date-picker-head .icon-btn', undefined, 300);
+      check((await page.eval(beforeStart)) === 'true', 'a day before the start cannot be picked as the end');
+      await page.key('Escape');
+      await page.waitFor(`return !document.querySelector('.date-picker-panel')`, { label: 'the calendar closed' });
+      await page.click('main .filter-bar .field:nth-child(2) .date-picker-button', undefined, 500);
+      await page.waitFor(`return document.activeElement?.dataset.day === '${day(today)}'`, { label: 'the calendar back on the chosen day' });
+    } else {
+      check((await page.eval(beforeStart)) === 'true', 'a day before the start cannot be picked as the end');
+    }
     // The panel is portalled outside the landmarks, like every popover: `region` does not apply to it
     const calendarIssues = (await page.axe({ include: '.date-picker-panel', rules: { region: { enabled: false } } })).flatMap((v) => v.nodes.map((n) => `${v.id}: ${n.target} ${n.why}`));
     check(calendarIssues.length === 0, `the open calendar has accessibility violations:\n${calendarIssues.join('\n')}`);
