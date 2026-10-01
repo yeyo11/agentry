@@ -11,6 +11,8 @@ import {
   type HostCall,
   type HostRepo,
   type HostResult,
+  type MergeAdapter,
+  type MergeRead,
   type ReviewsAdapter,
 } from '../../src/hosts/code-host.ts';
 import type { CodeHostManifest } from '../../src/hosts/manifest.ts';
@@ -78,6 +80,8 @@ export interface RecordedOutputs {
   }>;
   /** Outputs `parseThreads` must refuse */
   malformedThreads?: Array<{ name: string; stdout: string }>;
+  /** What `parseMergeRead` must make of a merge read: the fields named are compared */
+  mergeReads?: Array<{ name: string; stdout: string; expect: Partial<MergeRead> }>;
   auth?: Array<{
     name: string;
     hostname: string;
@@ -88,7 +92,7 @@ export interface RecordedOutputs {
 
 export interface ConformanceOptions {
   /** The checks and the reviews half are held to their rules only when the adapter has them */
-  adapter: CodeHostAdapter & Partial<ChecksAdapter> & Partial<ReviewsAdapter>;
+  adapter: CodeHostAdapter & Partial<ChecksAdapter> & Partial<ReviewsAdapter> & Partial<MergeAdapter>;
   manifest: CodeHostManifest;
   /** A repository on `host`; GitLab's carries `projectId`, which its API calls are pinned on */
   repo: HostRepo;
@@ -116,7 +120,7 @@ interface NamedCall {
 }
 
 function calls(options: ConformanceOptions): NamedCall[] {
-  return [...baseCalls(options), ...checksCalls(options), ...reviewsCalls(options)];
+  return [...baseCalls(options), ...checksCalls(options), ...reviewsCalls(options), ...mergeCalls(options)];
 }
 
 function baseCalls(options: ConformanceOptions): NamedCall[] {
@@ -213,6 +217,39 @@ function reviewsCalls(options: ConformanceOptions): NamedCall[] {
   return named;
 }
 
+/** A full head commit, as a merge carries it. */
+export const MERGE_HEAD = '38ff2ab8b0e31ee069cb9f9556605ae9c90cc21e';
+const PR_NODE_ID = 'PR_kwDOU1zIIM8AAAABGIG01w';
+
+/** The merge calls that read; every other `merge:` call is a write. */
+const MERGE_READS = /^merge:(rules|readForMerge|mergeabilityChecks|branchExists|rebaseStatus)/;
+
+function mergeCalls(options: ConformanceOptions): NamedCall[] {
+  const { adapter, repo } = options;
+  if (!adapter.merge || !adapter.arm || !adapter.disarm || !adapter.readForMerge || !adapter.rules || !adapter.ready || !adapter.branchExists) return [];
+  const named: NamedCall[] = [];
+  const one = (name: string, call: HostCall | null): void => {
+    if (call) named.push({ name: `merge:${name}`, call, scoped: true });
+  };
+  adapter.rules(repo, BASE).forEach((call, at) => one(`rules[${String(at)}]`, call));
+  one('readForMerge', adapter.readForMerge(repo, 4242));
+  one('mergeabilityChecks', adapter.mergeabilityChecks?.(repo, 4242) ?? null);
+  for (const method of ['squash', 'merge', 'rebase'] as const) {
+    for (const deleteBranch of [false, true]) {
+      one(`merge(${method}, delete ${String(deleteBranch)})`, adapter.merge(repo, { number: 4242, method, expectedHead: MERGE_HEAD, deleteBranch }));
+    }
+    one(`merge(${method}, with a message)`, adapter.merge(repo, { number: 4242, method, expectedHead: MERGE_HEAD, deleteBranch: false, subject: TITLE, body: BODY }));
+    one(`arm(${method})`, adapter.arm(repo, { number: 4242, method, expectedHead: MERGE_HEAD, nodeId: PR_NODE_ID }));
+  }
+  one('disarm', adapter.disarm(repo, 4242));
+  one('ready(true)', adapter.ready(repo, 4242, true));
+  one('ready(false)', adapter.ready(repo, 4242, false));
+  one('branchExists', adapter.branchExists(repo, HEAD));
+  one('rebase', adapter.rebase?.(repo, 4242) ?? null);
+  one('rebaseStatus', adapter.rebaseStatus?.(repo, 4242) ?? null);
+  return named;
+}
+
 const isAbsoluteUrl = (word: string): boolean => /^[a-z][a-z0-9+.-]*:\/\//i.test(word);
 
 function valueAfter(args: string[], flag: string): string | undefined {
@@ -257,7 +294,9 @@ function pinning({ adapter, manifest, repo }: ConformanceOptions, { name, call, 
     const fields = call.args.filter((word) => word.startsWith('owner=') || word.startsWith('repo='));
     // A node id (a review thread's) is global: such a call names no repository and is pinned by its host only
     const byNodeId = call.args.some((word) => word.startsWith('id=')) && fields.length === 0;
-    if (!byNodeId && (!fields.includes(`owner=${repo.owner}`) || !fields.includes(`repo=${repo.name}`))) {
+    // GitLab names the project in the document itself, by its full path
+    const byProjectPath = adapter.id === 'gitlab' && call.args.some((word) => word.startsWith('query=') && word.includes(`fullPath:"${repo.path}"`));
+    if (!byNodeId && !byProjectPath && (!fields.includes(`owner=${repo.owner}`) || !fields.includes(`repo=${repo.name}`))) {
       problems.push(`${name}() is a graphql call that does not carry owner=${repo.owner} and repo=${repo.name}`);
     }
   } else if (call.args[0] === 'api') {
@@ -428,7 +467,7 @@ export function checkConformance(options: ConformanceOptions): ConformanceReport
 
     report['only the calls that change a check are writes, and they are class write'] = (() => {
       const problems: string[] = [];
-      for (const { name, call } of all.filter((n) => !/^(version|authStatus|defaultBranch|create|find|view)$/.test(n.name) && !n.name.startsWith('reviews:'))) {
+      for (const { name, call } of all.filter((n) => !/^(version|authStatus|defaultBranch|create|find|view)$/.test(n.name) && !n.name.startsWith('reviews:') && !n.name.startsWith('merge:'))) {
         const writes = /^(rerun|cancel|playManual)/.test(name);
         if ((call.kind === 'write') !== writes) problems.push(`${name}() is declared ${call.kind}`);
         if (writes && call.class !== 'write' && call.class !== 'long-write') problems.push(`${name}() is a write of class ${call.class}`);
@@ -612,6 +651,111 @@ export function checkConformance(options: ConformanceOptions): ConformanceReport
       problems.push(...refuses('parseThreads(exit 1)', () => reviews.parseThreads(wrap('{}', 1), { headSha: null }), HostParseError));
       return problems;
     })();
+  }
+
+  if (adapter.merge && adapter.arm && adapter.disarm && adapter.readForMerge && adapter.rules && adapter.parseMergeRead && adapter.ready) {
+    const merging = adapter as CodeHostAdapter & MergeAdapter;
+    const mine = all.filter((n) => n.name.startsWith('merge:'));
+    const wrap = (stdout: string, exitCode = 0): HostResult => ({ exitCode, stdout, stderrFirstLine: '', http: null, truncated: false, durationMs: 0 });
+    const refuses = (what: string, run: () => unknown): string[] => {
+      try {
+        run();
+        return [`${what} was accepted`];
+      } catch (thrown) {
+        return thrown instanceof HostParseError ? [] : [`${what} threw ${String(thrown)}`];
+      }
+    };
+    const mergeNow = mine.filter((n) => /^merge:merge\(/.test(n.name));
+    const arming = mine.filter((n) => /^merge:arm\(/.test(n.name));
+
+    report['merge: a read is a read, every other merge call is a write, and a merge waits on the host'] = mine.flatMap(({ name, call }) => {
+      const reads = MERGE_READS.test(name);
+      const problems: string[] = [];
+      if ((call.kind === 'read') !== reads) problems.push(`${name}() is declared ${call.kind}`);
+      if (!reads && call.class !== 'write' && call.class !== 'long-write') problems.push(`${name}() is a write of class ${call.class}`);
+      if (/^merge:merge\(/.test(name) && call.class !== 'long-write') problems.push(`${name}() must be class long-write: the host waits`);
+      return problems;
+    });
+
+    report['merge: --admin and --auto are never built, nor the raw mergePullRequest mutation'] = mine.flatMap(({ name, call }) =>
+      call.args.flatMap((word) => {
+        if (word === '--admin' || word === '--auto') return [`${name}() builds ${word}`];
+        if (/mergePullRequest\b/.test(word)) return [`${name}() builds the raw mergePullRequest mutation`];
+        return [];
+      }),
+    );
+
+    report['merge: pr merge always carries -R, so gh never switches the person’s checkout'] = mine.flatMap(({ name, call }) => {
+      const problems: string[] = [];
+      if (call.args[0] === 'pr' && call.args[1] === 'merge' && valueAfter(call.args, '-R') !== `${options.repo.host}/${options.repo.owner}/${options.repo.name}`) {
+        problems.push(`${name}() is a pr merge without -R host/owner/repo`);
+      }
+      return problems;
+    });
+
+    report['merge: every merge and arming carries the head the person saw'] = [...mergeNow, ...arming].flatMap(({ name, call }) => {
+      const guarded = call.args.includes(MERGE_HEAD) && (call.args.includes('--match-head-commit') || call.args.includes('--sha'));
+      const mutation = call.args.includes(`oid=${MERGE_HEAD}`);
+      return guarded || mutation ? [] : [`${name}() does not pass the expected head`];
+    });
+
+    report['merge: the arming never merges at once, and Merge now never arms'] = (() => {
+      const problems: string[] = [];
+      for (const { name, call } of mergeNow) {
+        if (adapter.id === 'gitlab' && !call.args.includes('--auto-merge=false')) problems.push(`${name}() lacks --auto-merge=false`);
+        if (call.args.includes('--auto-merge') || call.args.includes('--disable-auto')) problems.push(`${name}() arms or disarms`);
+      }
+      for (const { name, call } of arming) {
+        if (adapter.id === 'gitlab' && !call.args.includes('--auto-merge')) problems.push(`${name}() lacks --auto-merge`);
+        if (call.args.includes('--auto-merge=false')) problems.push(`${name}() is a merge now`);
+        if (adapter.id === 'github' && !call.args.some((word) => word.startsWith('query=mutation') && word.includes('enablePullRequestAutoMerge') && word.includes('expectedHeadOid'))) {
+          problems.push(`${name}() must be the enablePullRequestAutoMerge mutation with expectedHeadOid`);
+        }
+      }
+      return problems;
+    })();
+
+    report['merge: a commit message is only for squash and merge, a rebase keeps its commits'] = (() => {
+      const problems: string[] = [];
+      for (const { name, call } of mergeNow.filter((n) => n.name.includes('with a message'))) {
+        const carries = call.args.some((word) => word.includes('ends here')) || (call.input ?? '').includes('ends here');
+        const rebase = name.includes('(rebase');
+        if (rebase && carries) problems.push(`${name}() carries a message on a rebase`);
+        if (!rebase && !carries) problems.push(`${name}() lost the message`);
+        if (adapter.id === 'github' && !rebase && call.input !== BODY) problems.push(`${name}() must pass the body as input, unchanged`);
+      }
+      return problems;
+    })();
+
+    report['merge: a head that is not a full commit id, and an id that is not a node id, are refused before any call'] = (() => {
+      const problems: string[] = [];
+      for (const head of ['38ff2ab', '--help', '', `${MERGE_HEAD}; rm -rf`]) {
+        problems.push(...refuses(`merge(${head})`, () => merging.merge(options.repo, { number: 1, method: 'squash', expectedHead: head, deleteBranch: false })));
+        problems.push(...refuses(`arm(${head})`, () => merging.arm(options.repo, { number: 1, method: 'squash', expectedHead: head, nodeId: PR_NODE_ID })));
+      }
+      if (adapter.id === 'github') {
+        for (const nodeId of [null, '--help', 'x'.repeat(300), 'PR_x; rm']) {
+          problems.push(...refuses(`arm(${String(nodeId)})`, () => merging.arm(options.repo, { number: 1, method: 'squash', expectedHead: MERGE_HEAD, nodeId })));
+        }
+      }
+      for (const number of [0, -1, 1.5, Number.NaN]) {
+        problems.push(...refuses(`merge(#${String(number)})`, () => merging.merge(options.repo, { number, method: 'squash', expectedHead: MERGE_HEAD, deleteBranch: false })));
+      }
+      return problems;
+    })();
+
+    report['merge: parseMergeRead maps every recorded output'] = (recorded?.mergeReads ?? []).flatMap((item) => {
+      try {
+        assert.deepEqual(pickFields(merging.parseMergeRead(wrap(item.stdout)), item.expect), item.expect);
+        return [];
+      } catch (error) {
+        return [`parseMergeRead ${item.name}: ${error instanceof Error ? error.message : String(error)}`];
+      }
+    });
+
+    report['merge: parseMergeRead throws HostParseError on output it cannot read'] = GENERIC_MALFORMED.flatMap((stdout) =>
+      refuses(`parseMergeRead(${JSON.stringify(stdout)})`, () => merging.parseMergeRead(wrap(stdout))),
+    );
   }
 
   return report;
