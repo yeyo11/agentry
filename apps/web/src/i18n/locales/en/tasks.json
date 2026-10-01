@@ -399,6 +399,10 @@
       "pr": "PR",
       "mr": "MR"
     },
+    "long": {
+      "pr": "pull request",
+      "mr": "merge request"
+    },
     "refused": {
       "not-in-review": "Only a task in In review opens its {{noun}}",
       "busy": "A chat or a flow run is working on it",

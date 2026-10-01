@@ -399,6 +399,10 @@
       "pr": "PR",
       "mr": "MR"
     },
+    "long": {
+      "pr": "pull request",
+      "mr": "merge request"
+    },
     "refused": {
       "not-in-review": "Solo una tarea en En revisión abre su {{noun}}",
       "busy": "Un chat o una ejecución del flujo está trabajando en ella",

@@ -123,7 +123,7 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
                   onClick={() =>
                     void confirm({
                       title: t('config:detail.pushTitle', { branch: integration.branch }),
-                      body: t('config:detail.pushBody', { noun: words.noun, host: words.host }),
+                      body: t('config:detail.pushBody', { noun: words.long, host: words.host }),
                       confirmLabel: t('config:detail.pushConfirm'),
                     }).then((ok) => {
                       if (ok) publish.mutate();

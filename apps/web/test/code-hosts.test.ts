@@ -5,8 +5,8 @@ import { changeRequestRef, changeRequestWords } from '../src/lib/code-hosts';
 import { targetsFor } from '../src/lib/events';
 
 test('GitHub says PR with a hash and GitLab says MR with a bang', () => {
-  assert.deepEqual(changeRequestWords('github'), { nounKey: 'pr.noun.pr', prefix: '#', label: 'GitHub' });
-  assert.deepEqual(changeRequestWords('gitlab'), { nounKey: 'pr.noun.mr', prefix: '!', label: 'GitLab' });
+  assert.deepEqual(changeRequestWords('github'), { nounKey: 'pr.noun.pr', longKey: 'pr.long.pr', prefix: '#', label: 'GitHub' });
+  assert.deepEqual(changeRequestWords('gitlab'), { nounKey: 'pr.noun.mr', longKey: 'pr.long.mr', prefix: '!', label: 'GitLab' });
 });
 
 test('a host that is not known reads as GitHub, as every project did before hosts', () => {

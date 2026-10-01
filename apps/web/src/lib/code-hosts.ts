@@ -9,6 +9,8 @@ import type { CodeHostId } from '@agentry/shared';
 export interface ChangeRequestWords {
   /** `tasks` namespace: the short noun, "PR" or "MR" */
   nounKey: 'pr.noun.pr' | 'pr.noun.mr';
+  /** `tasks` namespace: the noun spelled out, "pull request" or "merge request", for a sentence */
+  longKey: 'pr.long.pr' | 'pr.long.mr';
   /** How the host writes a number: `#` or `!` */
   prefix: '#' | '!';
   /** The host's own name, a proper noun that is never translated */
@@ -16,8 +18,8 @@ export interface ChangeRequestWords {
 }
 
 const WORDS: Readonly<Record<CodeHostId, ChangeRequestWords>> = {
-  github: { nounKey: 'pr.noun.pr', prefix: '#', label: 'GitHub' },
-  gitlab: { nounKey: 'pr.noun.mr', prefix: '!', label: 'GitLab' },
+  github: { nounKey: 'pr.noun.pr', longKey: 'pr.long.pr', prefix: '#', label: 'GitHub' },
+  gitlab: { nounKey: 'pr.noun.mr', longKey: 'pr.long.mr', prefix: '!', label: 'GitLab' },
 };
 
 /** A host this version does not know reads as GitHub's words, the only ones that existed before hosts. */

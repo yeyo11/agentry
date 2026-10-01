@@ -32,6 +32,8 @@ export function useChangeRequestWords(host: CodeHostId | string | null | undefin
   const words = changeRequestWords(host);
   return {
     noun: t(words.nounKey),
+    /** The noun spelled out, for a sentence: "a merge request", never "a MR" */
+    long: t(words.longKey),
     host: words.label,
     /** The number as its host writes it; the server's own `ref` wins; empty without a number */
     ref: (number: number | null, ref?: string | null): string => changeRequestRef(host, number, ref) ?? '',
