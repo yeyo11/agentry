@@ -43,7 +43,7 @@
       "hint_other": "{{count}} messages wait for the current turn",
       "sendNow": "Send now",
       "sending": "Ending the turn…",
-      "sendNowHint": "Ends the turn Claude is on, so it reads what is waiting next",
+      "sendNowHint": "Ends the turn {{agent}} is on, so it reads what is waiting next",
       "undelivered": "Not delivered — the turn ended before the chat read it",
       "restore": "Put it back in the box"
     },
@@ -139,7 +139,7 @@
     },
     "originHint": {
       "agentry": "Started from Agentry",
-      "external": "Started in a terminal with Claude Code",
+      "external": "Started in a terminal with {{agent}}",
       "orchestration": "Works for an orchestration",
       "internal": "Housekeeping of Agentry itself"
     },
@@ -164,7 +164,7 @@
     "notAvailable": "not available",
     "usage": {
       "title": "Context and cost",
-      "costNotReported": "Claude Code reports a cost only for what Agentry launched.",
+      "costNotReported": "{{agent}} reports a cost only for what Agentry launched.",
       "tokensCaption": "Tokens spent, per model",
       "input": "In",
       "output": "Out",
@@ -208,7 +208,7 @@
       "worktree": "Worktree",
       "forkedFrom": "Forked from",
       "updated": "Updated",
-      "environmentEmpty": "Nothing has reported what Claude loaded for this chat yet.",
+      "environmentEmpty": "Nothing has reported what {{agent}} loaded for this chat yet.",
       "messages": "Messages"
     },
     "workItem": {
@@ -277,7 +277,7 @@
     "defaultMode": "default mode ({{mode}})",
     "hero": "What are we <grad>building</grad> today?",
     "heroShort": "What are we <grad>building</grad>?",
-    "lead": "Claude Code runs it in your project and answers here.",
+    "lead": "{{agent}} runs it in your project and answers here.",
     "kind": "Kind",
     "kindChat": "Chat",
     "kindOrchestration": "Orchestration",
@@ -340,6 +340,30 @@
       "interrupt": "Interrupted"
     }
   },
+  "agent": {
+    "generic": "the agent"
+  },
+  "toolKinds": {
+    "commandExecution": "Command",
+    "fileChange": "File change",
+    "execute": "Command",
+    "edit": "Edit",
+    "read": "Read",
+    "delete": "Delete",
+    "move": "Move",
+    "search": "Search",
+    "fetch": "Web fetch",
+    "think": "Thinking",
+    "other": "Other tool"
+  },
+  "permissionModes": {
+    "acceptEdits": "Accept edits",
+    "auto": "Automatic",
+    "bypassPermissions": "Skip permission checks",
+    "manual": "Ask",
+    "dontAsk": "Do not ask",
+    "plan": "Plan"
+  },
   "permissions": {
     "waitingForYou": "Waiting for you",
     "wantsToRun": "wants to run",
@@ -350,7 +374,7 @@
     "switchTo": "switch to {{mode}}",
     "alwaysAllow": "always allow {{rules}}",
     "allowDirectories": "allow {{directories}}",
-    "agentIsAsking": "Claude is asking",
+    "agentIsAsking": "{{agent}} is asking",
     "answeredCount": "{{answered}} of {{total}} answered",
     "questions": "Questions",
     "answered": "answered",
@@ -396,7 +420,7 @@
     "document": "Document",
     "pasted": "pasted",
     "attachFiles": "Attach files",
-    "attachHint": "Attach files, or drop or paste them here. Images and PDFs are shown to Claude; anything else it reads from disk.",
+    "attachHint": "Attach files, or drop or paste them here. Images and PDFs are shown to {{agent}}; anything else it reads from disk.",
     "attach": "Attach",
     "uploading": "Uploading",
     "remove": "Remove {{name}}"
@@ -436,7 +460,7 @@
     "streamConnected": "Stream connected",
     "streamReconnecting": "Stream reconnecting…",
     "interrupt": "Interrupt",
-    "working": "Claude is working…",
+    "working": "{{agent}} is working…",
     "jumpToLatest": "Jump to latest",
     "permissions": "Permissions",
     "prompts": "Prompts",
@@ -449,7 +473,7 @@
     "backgroundTasks": "Background tasks ({{n}})",
     "subagents": "Subagents ({{n}})",
     "workflows": "Workflows ({{n}})",
-    "loadedByClaude": "Loaded by Claude",
+    "loadedByAgent": "Loaded by {{agent}}",
     "loadedHint": "tools, MCP servers, agents, skills…"
   },
   "model": {

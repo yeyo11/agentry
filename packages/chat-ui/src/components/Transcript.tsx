@@ -4,6 +4,8 @@ import { lazy, memo, Suspense, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useChatUi } from '../lib/context';
+import { upperFirst, useAgentName } from '../lib/agent';
+import { toolKindLabel } from '../lib/wire-words';
 import { editChips } from '../lib/edit-chips';
 import { readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
 import { justStreamed } from '../lib/chat-stream';
@@ -258,7 +260,7 @@ export const EntryView = memo(function EntryView({
   actions?: MessageActions;
 }) {
   const { t } = useTranslation('chat');
-  const { agentName } = useChatUi();
+  const agentName = useAgentName();
   const { blocks, notices } = useMemo(() => readEntry(entry), [entry]);
   const onlyToolResults = entry.role === 'user' && entry.blocks.every((b) => b.type === 'tool_result');
   const role = onlyToolResults ? 'tool' : entry.role;
@@ -339,7 +341,7 @@ function CallRow({ call, settled, subagents }: { call: StepCall; settled: boolea
         title={
           <>
             {running ? <Spinner className="fold-icon" /> : <Icon {...ICON_SM} className="fold-icon" />}
-            <span className="tool-name">{call.name ?? (call.result?.isError ? t('transcript.toolError') : t('transcript.toolResult'))}</span>
+            <span className="tool-name">{call.name !== null ? toolKindLabel(call.name) : (call.result?.isError ? t('transcript.toolError') : t('transcript.toolResult'))}</span>
             <span className="tool-hint">{hint}</span>
             {/* The rail's colour is not the only thing that says it failed */}
             {outcome === 'error' && <span className="call-outcome">{t('transcript.callFailed')}</span>}
@@ -549,10 +551,23 @@ function LaunchCard({ workflow, onOpen }: { workflow: ChatWorkflow; onOpen?: () 
   );
 }
 
-/** The block Claude is generating right now, fed by ephemeral `partial` stream events. */
+/** The line at the end of a chat that is working: the agent's name, with the tool it is on after it in mono. */
+export function WorkingLine({ detail }: { detail?: string }) {
+  const { t } = useTranslation('chat');
+  const agent = useAgentName();
+  return (
+    <div className="working-line" role="status">
+      <Spinner />
+      <span className="shimmer">{t('runView.working', { agent: upperFirst(agent) })}</span>
+      {detail && <span className="mono muted small">{detail}</span>}
+    </div>
+  );
+}
+
+/** The block the agent is generating right now, fed by ephemeral `partial` stream events. */
 export function StreamingEntry({ block, text, continued = false }: { block: 'text' | 'thinking'; text: string; continued?: boolean }) {
   const { t } = useTranslation('chat');
-  const { agentName } = useChatUi();
+  const agentName = useAgentName();
   return (
     <article className={`msg msg-assistant msg-streaming ${continued ? 'is-continued' : ''}`} aria-live="off" data-find-ignore>
       {continued ? <span className="avatar-gap" aria-hidden /> : <Avatar role="assistant" />}
