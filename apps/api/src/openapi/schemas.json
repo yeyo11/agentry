@@ -2491,6 +2491,17 @@
         ],
         "description": "The one branch a worktree graph delivers, built once its tasks finish"
       },
+      "pullRequest": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/OrchestrationPullRequest"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The newest change request opened for the integration branch; null or absent before one"
+      },
       "synthesisRunId": {
         "type": [
           "string",
@@ -3073,6 +3084,137 @@
       "failed"
     ],
     "description": "- `merging`: task branches are being merged into the integration branch\n- `resolving`: a merge conflicted and an integrator agent is resolving it\n- `merged`: every completed task's work is on the branch\n- `conflicted`: the integrator could not finish; the branch is left for a person\n- `failed`: integration could not run at all"
+  },
+  "OrchestrationPullRequest": {
+    "type": "object",
+    "properties": {
+      "phase": {
+        "$ref": "#/components/schemas/OrchestrationPullRequestPhase"
+      },
+      "host": {
+        "$ref": "#/components/schemas/CodeHostId"
+      },
+      "ref": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "How the host writes the number: `#12` or `!12`; null without a number"
+      },
+      "number": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "branch": {
+        "type": "string"
+      },
+      "base": {
+        "type": "string"
+      },
+      "ci": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemPullRequestCi"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "error": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "detail": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "detail"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why the last attempt failed: a step or reason code, and the first line of the host's error"
+      },
+      "openedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "closedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "checkedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "phase",
+      "host",
+      "ref",
+      "number",
+      "url",
+      "branch",
+      "base",
+      "ci",
+      "error",
+      "openedAt",
+      "closedAt",
+      "checkedAt"
+    ],
+    "description": "The change request opened for an orchestration's integration branch."
+  },
+  "OrchestrationPullRequestPhase": {
+    "type": "string",
+    "enum": [
+      "preparing",
+      "open",
+      "merged",
+      "closed",
+      "failed"
+    ],
+    "description": "Where an orchestration's change request stands; the flow's `conflict` and `awaiting-verify` do not apply."
+  },
+  "CodeHostId": {
+    "type": "string",
+    "enum": [
+      "github",
+      "gitlab"
+    ],
+    "description": "The code hosts Agentry reaches through their own CLI. Closed: adding one is a code change."
+  },
+  "WorkItemPullRequestCi": {
+    "type": "string",
+    "enum": [
+      "none",
+      "pending",
+      "passing",
+      "failing"
+    ],
+    "description": "A PR's checks, from `gh pr view --json statusCheckRollup`: none, any still running, any failed, or all green."
   },
   "OrchestrationEngine": {
     "type": "string",
@@ -4646,6 +4788,12 @@
       },
       {
         "$ref": "#/components/schemas/ProvidersChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/HostsChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/OrchestrationPullRequestEvent"
       },
       {
         "$ref": "#/components/schemas/ScheduleChangedEvent"
@@ -6655,6 +6803,205 @@
       "workflowTool"
     ],
     "description": "What a provider's driver can do. Declared by its manifest and confirmed by the handshake for the installed version, so a feature asks for a capability and the UI hides or explains what is missing instead of failing."
+  },
+  "HostsChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "hosts.changed"
+      },
+      "hosts": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/CodeHostStatus"
+        }
+      }
+    },
+    "required": [
+      "at",
+      "hosts",
+      "id",
+      "title",
+      "type"
+    ],
+    "description": "A code host's detected status changed: its CLI was installed, signed in, updated or removed, or the settings turned it on or off. Sent only when a status actually differs."
+  },
+  "CodeHostStatus": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "$ref": "#/components/schemas/CodeHostId"
+      },
+      "label": {
+        "type": "string"
+      },
+      "cli": {
+        "type": "string"
+      },
+      "binaryPath": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The binary that was resolved: the override, or the first match on the PATH or an install directory"
+      },
+      "version": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "minimum": {
+        "type": "string",
+        "description": "The oldest release Agentry works with"
+      },
+      "recorded": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The releases the CLI facts were recorded on"
+      },
+      "state": {
+        "$ref": "#/components/schemas/CodeHostState"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CodeHostReason"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why the state is not `ready`; null when it is"
+      },
+      "hosts": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/CodeHostHostEntry"
+        }
+      },
+      "checkedAt": {
+        "type": "string",
+        "description": "ISO timestamp of the detection this status came from"
+      }
+    },
+    "required": [
+      "id",
+      "label",
+      "cli",
+      "binaryPath",
+      "version",
+      "minimum",
+      "recorded",
+      "state",
+      "reason",
+      "hosts",
+      "checkedAt"
+    ],
+    "description": "One code host's CLI as detected on this machine, served from the detector's cache."
+  },
+  "CodeHostState": {
+    "type": "string",
+    "enum": [
+      "ready",
+      "degraded",
+      "signed-out",
+      "incompatible",
+      "not-installed",
+      "unknown"
+    ],
+    "description": "`degraded`: installed and signed in, but on a release the facts were not recorded on."
+  },
+  "CodeHostReason": {
+    "type": "string",
+    "enum": [
+      "version-untested",
+      "below-minimum",
+      "no-hosts",
+      "probe-failed",
+      "timeout"
+    ]
+  },
+  "CodeHostHostEntry": {
+    "type": "object",
+    "properties": {
+      "hostname": {
+        "type": "string"
+      },
+      "default": {
+        "type": "boolean",
+        "description": "The CLI's own default host (`github.com`, `gitlab.com`)"
+      },
+      "signedIn": {
+        "type": [
+          "boolean",
+          "null"
+        ],
+        "description": "Null while the host has not been probed"
+      },
+      "user": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "hostname",
+      "default",
+      "signedIn",
+      "user"
+    ],
+    "description": "One host name a CLI knows, and who is signed in to it."
+  },
+  "OrchestrationPullRequestEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "orchestration.pull-request"
+      },
+      "orchestrationId": {
+        "type": "string"
+      },
+      "pullRequest": {
+        "$ref": "#/components/schemas/OrchestrationPullRequest"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "orchestrationId",
+      "pullRequest",
+      "title",
+      "type"
+    ],
+    "description": "An orchestration's change request was opened, or moved to another phase or CI state."
   },
   "ScheduleChangedEvent": {
     "type": "object",
@@ -12737,12 +13084,23 @@
       "phase": {
         "$ref": "#/components/schemas/WorkItemPullRequestPhase"
       },
+      "host": {
+        "$ref": "#/components/schemas/CodeHostId",
+        "description": "The host that holds it; absent reads as `github` (rows opened before hosts existed)"
+      },
       "number": {
         "type": [
           "number",
           "null"
         ],
-        "description": "Null until `gh pr create` answered"
+        "description": "Null until the host's CLI answered the create"
+      },
+      "ref": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "How the host writes the number: `#12` or `!12`; null without a number"
       },
       "url": {
         "type": [
@@ -12846,16 +13204,6 @@
       "failed"
     ],
     "description": "Where an item's pull request stands (docs/plans/work-item-pull-requests.md):\n\n- `preparing`: approved, and Agentry is committing, updating, pushing and opening it;\n- `conflict`: updating the branch with the default branch conflicted, and the merge waits in the   item's worktree for the Developer (or the person) to resolve it;\n- `awaiting-verify`: the conflict was handed to the Developer, and QA's next pass opens the PR   without a second approval;\n- `open`: on GitHub, waiting for the person to merge it;\n- `merged` and `closed`: GitHub's own outcome;\n- `failed`: a step failed, and  {@link  WorkItemPullRequest.error }  says which and why."
-  },
-  "WorkItemPullRequestCi": {
-    "type": "string",
-    "enum": [
-      "none",
-      "pending",
-      "passing",
-      "failing"
-    ],
-    "description": "A PR's checks, from `gh pr view --json statusCheckRollup`: none, any still running, any failed, or all green."
   },
   "WorkItemDetail": {
     "type": "object",
@@ -13215,11 +13563,22 @@
       "phase": {
         "$ref": "#/components/schemas/WorkItemPullRequestPhase"
       },
+      "host": {
+        "$ref": "#/components/schemas/CodeHostId",
+        "description": "The host that holds it; absent reads as `github` (entries written before hosts existed)"
+      },
       "number": {
         "type": [
           "number",
           "null"
         ]
+      },
+      "ref": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "How the host writes the number: `#12` or `!12`; null without a number"
       },
       "url": {
         "type": [
@@ -13301,7 +13660,7 @@
           "string",
           "null"
         ],
-        "description": "The raw line git or gh answered with, shown in mono beside the worded reason; null when ready"
+        "description": "The raw line git or the CLI answered with, shown in mono beside the worded reason; null when ready"
       },
       "defaultBranch": {
         "type": [
@@ -13309,26 +13668,84 @@
           "null"
         ],
         "description": "The default branch, when it could be found"
+      },
+      "host": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CodeHostId"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The code host the remote belongs to; null when none could be told"
+      },
+      "hostname": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The remote's host name, without user, secret or port; null when there is none"
+      },
+      "remedy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/PullRequestRemedy"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The one thing to do about a not-ready status; null when ready or when nothing can be done"
       }
     },
     "required": [
       "status",
       "detail",
-      "defaultBranch"
+      "defaultBranch",
+      "host",
+      "hostname",
+      "remedy"
     ],
-    "description": "Whether approving an item of this project opens its pull request. Computed from git and gh and cached for 60 s, so a board read never waits on `gh auth status`."
+    "description": "Whether approving an item of this project opens its pull request. Computed from git and the host's CLI and cached for 60 s, so a board read never waits on an auth probe."
   },
   "PullRequestNotReadyReason": {
     "type": "string",
     "enum": [
       "not-git",
       "no-remote",
-      "not-github",
-      "no-gh",
-      "gh-unauthenticated",
-      "no-default-branch"
+      "unsupported-host",
+      "no-default-branch",
+      "cli-missing",
+      "cli-incompatible",
+      "cli-signed-out"
     ],
-    "description": "Why a project cannot open pull requests; `ready` when it can."
+    "description": "Why a project cannot open pull requests (or merge requests); `ready` when it can. \"Pull request\" in these types means a PR or an MR: the host decides the word."
+  },
+  "PullRequestRemedy": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "install",
+          "sign-in",
+          "docs",
+          "settings"
+        ]
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "kind",
+      "url"
+    ],
+    "description": "What a person can do about a not-ready project: a link to follow, never a command to copy."
   },
   "WorkItemFilter": {
     "type": "object",
