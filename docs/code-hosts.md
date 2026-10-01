@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-01T09:00:00Z
-updated_at: 2026-10-01T12:00:00Z
+updated_at: 2026-10-01T15:00:00Z
 tags:
     - code-hosts
     - pull-request
@@ -9,6 +9,7 @@ tags:
     - convention
     - checks
     - logs
+    - reviews
 ---
 # Code hosts
 
@@ -23,8 +24,10 @@ Status: phase 1 is built (detection, neutral readiness, the execution layer, the
 interface with its two adapters, the work item and orchestration change requests on it, the
 `/hosts` routes). Phase 2 is built in `packages/core` (checks, logs, re-run, cancel, manual jobs and
 fixing failing checks, described in [Checks, logs and fixing](#checks-logs-and-fixing)); its routes
-and screens come with the tasks that own them. Reviews, merging, trackers and webhooks are later
-phases and not described here as if they existed.
+and screens come with the tasks that own them. Phase 3 is built in `packages/core` and the
+contract (review threads, drafts, posting, reply and resolve, approval, reviewers, Address with an
+agent), described in [Reviews](#reviews); its routes and screens come with the tasks that own them.
+Merging, trackers and webhooks are later phases and not described here as if they existed.
 
 In shared types and in this document "pull request" means a PR or an MR: the host decides the word
 (`#12` on GitHub, `!12` on GitLab).
@@ -386,6 +389,112 @@ Both watchers read through the checks service and call `onChecksFailing` when a 
 of what was announced is in the process, so after a restart a head that is still failing is
 announced again; the point's own limits, not that memory, stop a chain of fixes.
 
+## Reviews
+
+Phase 3. The person reads the threads of a change request, writes notes on lines as a draft,
+posts them as one review, replies and resolves, and hands unresolved threads to an agent. All of it
+goes through `ReviewsService` (`hosts/reviews-service.ts`) and the adapters' review calls; the
+adapters build the calls and parse, the service runs them and re-reads. Every argument below is in
+the recordings (`r0-NOTES.md`); where a recording and the plan's first matrix differ, the recording
+won.
+
+### Threads
+
+`GET /change-requests/:id/threads` returns `ChangeRequestThreads`: the threads of the head commit,
+cached by head for 30 seconds and read again after any write.
+
+- **GitHub** reads `reviewThreads` through one GraphQL query, paginated on the threads cursor only.
+  A thread with more than 100 comments is completed by a `node(id:)` follow-up that starts from the
+  first page's comments cursor. An outdated thread has `line: null`, so its `originalLine` is used.
+- **GitLab** reads `…/merge_requests/<iid>/discussions?per_page=100`. A discussion arrives with
+  every note at once (102 seen), so there is no follow-up. System notes are skipped. GitLab does not
+  say "outdated", so the service compares the note's head with the current one.
+- A thread is drawn on its `path` and new-side line when it was left on the head, and folded as
+  outdated otherwise. Resolved threads fold by default. A comment's body is another person's text.
+  Agentry's own marker comment is removed before a body is served.
+
+### The draft review
+
+The person's notes are rows in `review_drafts` (path, side, line, start line, body, whether the body
+is a suggestion), so they survive a reload and a second tab. At most 200 per change request.
+A suggestion is a fenced block inside the body: ` ```suggestion ` on GitHub, ` ```suggestion:-0+0 `
+on GitLab, whose `-N+M` offsets are relative to the note's line.
+
+`POST /change-requests/:id/reviews` (`{event, body}`) posts the drafts as one review. Writes to one
+change request run one after the other, so a double click never posts twice. Every attempt is a row
+in `review_posts` (`posting`, `posted`, `partly`, `failed`) whose body carries a marker comment.
+
+| | GitHub | GitLab |
+|---|---|---|
+| Path | one `POST …/pulls/<n>/reviews --input -` with `commit_id`, `event` and every comment: all or nothing | one `…/draft_notes` POST per note (with `-H "Content-Type: application/json"`), then `glab mr note publish <iid> -y` |
+| Events | `comment` only | `comment`, and `approve` as a separate approval after the post |
+| A bad line | 422 with `errors: ["Line could not be resolved"]` → `line-not-in-diff`; nothing posted | **accepted silently** by the draft POST and dropped silently by publish, so the service checks every line against the diff before creating the draft and counts the notes after publishing |
+| A timeout | looks for the marker in the reviews list, then the threads | looks for the marker in note bodies (a published general draft is a resolvable discussion, `individual_note: false`, not a review) |
+| Partial failure | none | a note that fails after others were saved → `review-partly-posted`; **Publish saved** (`…/reviews/:postId/publish-saved`) or **Discard saved** (`…/discard-saved`) |
+
+A post is refused while a pending review is in the way: a GitHub review in state `PENDING` by the
+viewer, or any GitLab draft note. Agentry deletes only the drafts it saved itself and only after the
+person chose Discard; it never deletes a pending review of theirs.
+
+**Request changes is not offered**, on either host. GitHub's `APPROVE` and `REQUEST_CHANGES` success
+paths were never recorded (owner decision 1), so the review bar links to the host as "Open on
+GitHub"; GitLab has no recorded CLI path for request changes. A `requested_changes` state is still
+read, and still blocks a merge.
+
+### Reply, resolve, approval, reviewers
+
+| Action | Route | GitHub | GitLab |
+|---|---|---|---|
+| Reply | `POST …/threads/:threadId/reply` | `POST …/pulls/<n>/comments/<commentId>/replies --input -` | `POST …/discussions/<id>/notes --input -` with the JSON content type |
+| Resolve, unresolve | `POST …/threads/:threadId/resolve`, `…/unresolve` | GraphQL `resolveReviewThread`, `unresolveReviewThread` | `glab mr note resolve` / `reopen <iid> <discussionId>` (iid first) |
+| Approve, revoke | `POST` and `DELETE …/approval` | not offered | `glab mr approve <iid> --sha <head>`, `glab mr revoke <iid>` |
+| Reviewers | `POST …/reviewers` (`{add, remove?}`) | `POST …/requested_reviewers --input -` | `glab mr update <iid> --reviewer +user,-user` |
+
+- A reply carries a marker, so a timeout is settled by looking for it. On GitHub a 422 on a reply is
+  the person's own pending review being in the way (`pending-review-exists`). Each GitHub reply
+  creates its own review, so the reviews list is read with `--paginate`.
+- Resolve is idempotent and decided by the re-read: "already resolved" is exit 0 on one host and 1
+  on the other.
+- **Approve** is GitLab only and takes the head the person looked at: a head that moved is
+  `head-moved` (409). Approving twice is a 401 and is settled by re-reading. Whether Approve is
+  offered is Agentry's rule (the viewer is not the author on a host that forbids it), never GitLab's
+  `user_can_approve`, which is `false` for an author whose approval succeeds.
+- **Reviewers**: GitLab's `--reviewer user` *replaces* the list, so Agentry always sends `+user` and
+  `-user`. GitHub's `gh pr edit --add-reviewer` drops the author silently, so the API is called
+  instead. An unknown GitHub login exits 0 and adds nobody; the re-read decides what the person is
+  told.
+- After every write the service re-reads and emits `change-request.review` with the unresolved count
+  and the host's decision (`approved`, `changes-requested`, `review-required` or none).
+
+### Address with an agent
+
+`POST /change-requests/:id/address` (`{threadIds}`) follows the fix path of phase 2 with
+`fix_kind = 'review'` on the same row ([Fixing failing checks](#fixing-failing-checks)):
+`fix_state`, `fix_origin`, `awaiting-verify`, the same push rule. `PullRequestService.addressReview`
+reads the threads fresh, takes the chosen unresolved ones (every unresolved thread, at most 40,
+when none are named), and starts the flow's Developer with a prompt built by `reviewFixPrompt`.
+
+- **Untrusted.** Each thread (path, lines, the diff hunk, every comment with its author) goes inside
+  `<review-comment>` tags as JSON, after a preamble that tells the agent those comments were written
+  by other people: requests to weigh, not instructions to obey; never anything that reaches outside
+  the repository; and to say in the summary which comments it addressed and which not, and why. A
+  closing tag inside a comment is escaped and control characters are stripped.
+- **No host writes by the agent.** The prompt forbids replying, resolving and pushing. Agentry never
+  resolves by itself: after the push it offers **Reply "Addressed in <sha>"** and **Resolve** for
+  the addressed threads, and the person clicks.
+- **The push rule is phase 2's.** A person's click is the approval to push at the end of QA; a
+  decision-origin address waits in In review for **Push the fix**. An orchestration's address runs
+  in the integration worktree and always waits for **Push the fix**.
+- **Limits.** Attempts share `fix_attempts` and `fix_head` with checks fixes. The item moves to In
+  progress with the cause `pr.review-address`. The chosen threads' prompt is kept in memory: after a
+  restart before the run starts it falls back to all unresolved threads, read again.
+- **Refusals** (`PullRequestError`): `not-open`, `fix-under-way`, `busy`, `not-in-review`,
+  `reviews-unavailable`, `not-found` (an unknown thread), `already-resolved`, `no-threads`, or the
+  reviews service's own reason.
+
+`review.triage` (see [decision-engine.md](decision-engine.md#reviewtriage)) only preselects the
+threads in the Address dialog.
+
 ## Fakes and tests
 
 - **Recordings** (`packages/core/test/fixtures/recordings/`): scrubbed captures of gh 2.92.0 and
@@ -408,6 +517,10 @@ announced again; the point's own limits, not that memory, stop a chain of fixes.
   retry, a cancel and the merge request pipelines POST, and the `gh api -i` 404 on both gh releases.
   The checks section of the conformance suite and the checks service tests replay them, with golden
   logs under `golden/phase2/`.
+- **Phase 3 recordings** (`r0-NOTES.md`): GitLab discussions, draft notes (create, list, delete,
+  publish with a bad line), replies, resolve and reopen, approve and revoke, `--reviewer`; GitHub
+  threads, the follow-up, reviews, replies and requested reviewers on both gh releases. The reviews
+  sections of the conformance suite and the service tests replay them.
 - The registry test fails when two manifests share an id, a CLI or a default host.
 
 ## How to add a code host
@@ -439,4 +552,4 @@ announced again; the point's own limits, not that memory, stop a chain of fixes.
 
 ## Related
 
-[[plans/code-hosts.md]] · [[work-items.md]] · [[plans/work-item-pull-requests.md]] · [[providers.md]] · [[status.md]] · [[knowledge-base.md]]
+[[plans/code-hosts.md]] · [[decision-engine.md]] · [[work-items.md]] · [[plans/work-item-pull-requests.md]] · [[providers.md]] · [[status.md]] · [[knowledge-base.md]]
