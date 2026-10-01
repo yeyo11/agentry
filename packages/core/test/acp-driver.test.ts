@@ -224,7 +224,8 @@ describe('a session', () => {
     const s = start('gemini', {}, { FAKE_ACP_SIGNED_OUT: '1' });
     await s.until(() => s.events.some((e) => e.kind === 'failed'), 'the failure');
     const failed = s.events.find((e) => e.kind === 'failed');
-    assert.match(failed?.kind === 'failed' ? failed.reason : '', /^auth-required: /);
+    assert.equal(failed?.kind === 'failed' ? failed.reason : '', 'auth-required');
+    assert.ok(failed?.kind === 'failed' && failed.message.length > 0);
   });
 
   test('the client offers no file system or terminal, and a text turn is a text block', async () => {

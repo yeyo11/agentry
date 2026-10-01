@@ -54,6 +54,8 @@ import type { Orchestrator } from './orchestrator.ts';
 import type { CoreConfig } from './paths.ts';
 import { drivesSession, forgetStreamJsonProcesses, recentStreamJsonProcesses, streamJsonProcesses, type CliProcess } from './processes.ts';
 import type { SessionStore } from './sessions.ts';
+import { OpencodeTranscripts } from './providers/opencode/transcripts.ts';
+import { SessionStoreTranscripts, TranscriptUnavailable, type TranscriptStore } from './providers/transcripts.ts';
 import { emptyTokenUsage, localDay } from './usage.ts';
 import { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 import { usageBreakdown, usageSeries } from './usage-series.ts';
@@ -135,6 +137,8 @@ export interface ChatServiceDeps {
   /** Turns the tool preset and MCP servers a request picks into what the CLI is given */
   tools: ChatTools;
   sessions: SessionStore;
+  /** What a non-Claude chat streamed, read as its transcript when its provider keeps none Agentry can read */
+  entries?: TranscriptStore;
   orchestrator: Orchestrator;
   place: (dir: string, recorded: TranscriptSummary['worktree']) => Placement;
   /** What Claude loaded in a directory, from the init event of the last chat started there */
@@ -391,6 +395,16 @@ export class ChatService {
         if (split.length) for (const [model, usd] of split) modelCosts.push({ day, model, usd });
         else modelCosts.push({ day, model: e.model, usd: e.costUsd });
       }
+      if (costs.length === 0 && runtime?.nativeSessionId) {
+        // ACP reports no cost, so OpenCode's own record of the session is what the usage page reads
+        const own = this.deps.runtime.providers.driverFor(runtime.provider ?? LEGACY_PROVIDER)?.transcripts;
+        const spent = own instanceof OpencodeTranscripts ? await own.cost(runtime.nativeSessionId).catch(() => null) : null;
+        const day = localDay(runtime.executions.at(-1)?.endedAt ?? runtime.updatedAt);
+        if (spent && spent.cost > 0 && day) {
+          costs.push({ day, usd: spent.cost });
+          modelCosts.push({ day, model: runtime.model ?? null, usd: spent.cost });
+        }
+      }
       spend.push({
         chatId: id,
         project: this.deps.place(dir, summary?.worktree ?? null).project,
@@ -435,13 +449,49 @@ export class ChatService {
   }
 
   /**
+   * Where a chat's transcript is read from, best first, each with the id it knows the chat by. A
+   * Claude chat reads Claude's JSONL by its id; any other reads its provider's own store by the
+   * native id when the provider has one, then what Agentry recorded of the stream.
+   */
+  private storesOf(id: string): Array<{ store: TranscriptStore; key: string }> {
+    const runtime = this.deps.runtime.get(id);
+    const provider = runtime?.provider ?? LEGACY_PROVIDER;
+    if (provider === LEGACY_PROVIDER) return [{ store: new SessionStoreTranscripts(this.deps.sessions), key: id }];
+    const own = this.deps.runtime.providers.driverFor(provider)?.transcripts;
+    const stores: Array<{ store: TranscriptStore; key: string }> = [];
+    if (own && runtime?.nativeSessionId) stores.push({ store: own, key: runtime.nativeSessionId });
+    if (this.deps.entries) stores.push({ store: this.deps.entries, key: id });
+    return stores;
+  }
+
+  /**
+   * The first of a chat's stores that holds an answer. A store that cannot read right now is
+   * passed over for the next; when none answers and one said so, that is what the caller hears,
+   * never an empty chat.
+   */
+  private async fromStores<T>(id: string, read: (store: TranscriptStore, key: string) => Promise<T | null>): Promise<T | null> {
+    let unavailable: TranscriptUnavailable | null = null;
+    for (const { store, key } of this.storesOf(id)) {
+      try {
+        const found = await read(store, key);
+        if (found) return found;
+      } catch (err) {
+        if (!(err instanceof TranscriptUnavailable)) throw err;
+        unavailable = err;
+      }
+    }
+    if (unavailable) throw unavailable;
+    return null;
+  }
+
+  /**
    * A page of a chat's transcript with the chat. A chat that has no transcript (a housekeeping one,
    * or one that has not written its first line yet) reads from what its process streamed.
    */
   async detail(id: string, opts: { includeSidechains?: boolean; limit?: number; before?: number } = {}): Promise<ChatDetail> {
     const chat = await this.get(id);
     if (!chat) throw new Error('chat not found');
-    const page = await this.deps.sessions.getSession(id, opts);
+    const page = await this.fromStores(id, (store, key) => store.page(key, opts));
     if (page) return { chat, entries: page.entries, from: page.from, total: page.total };
     const messages = this.deps.runtime.messages(id) ?? [];
     const visible = opts.includeSidechains ? messages : messages.filter((m) => !m.isSidechain);
@@ -462,7 +512,7 @@ export class ChatService {
     const pages: TranscriptEntry[][] = [];
     let before: number | undefined;
     for (;;) {
-      const page = await this.deps.sessions.getSession(id, { includeSidechains: true, limit: TRANSCRIPT_PAGE_MAX, ...(before !== undefined ? { before } : {}) });
+      const page = await this.fromStores(id, (store, key) => store.page(key, { includeSidechains: true, limit: TRANSCRIPT_PAGE_MAX, ...(before !== undefined ? { before } : {}) }));
       if (!page) break;
       pages.unshift(page.entries);
       if (page.from === 0 || page.entries.length === 0) return { exportedAt: new Date().toISOString(), chat, entries: pages.flat() };
@@ -473,7 +523,7 @@ export class ChatService {
 
   /** The whole transcript searched, in the index space `detail` pages in; a chat with none, over what its process streamed. */
   async search(id: string, query: string, opts: { includeSidechains?: boolean } = {}): Promise<TranscriptSearchResult> {
-    const found = await this.deps.sessions.searchSession(id, query, opts);
+    const found = await this.fromStores(id, (store, key) => store.search(key, query, opts));
     if (found) return found;
     const messages = this.deps.runtime.messages(id);
     if (!messages) throw new Error('chat not found');
@@ -699,10 +749,14 @@ export class ChatService {
   async remove(id: string): Promise<void> {
     if (!(await this.summaryOf(id, true))) throw new Error('chat not found');
     if (await this.liveIn(id)) throw new ChatConflictError('Something is running on this chat: stop it before deleting.', null);
-    await this.deps.sessions.deleteSession(id).catch((err: unknown) => {
-      // A chat that never wrote a transcript has only Agentry's record to delete
-      if (!(err instanceof Error && /not found/.test(err.message))) throw err;
-    });
+    // Only Claude's transcript is Agentry's to delete: another vendor's history stays where its
+    // CLI keeps it, and Agentry's own rows go with the chat's record
+    if ((this.deps.runtime.get(id)?.provider ?? LEGACY_PROVIDER) === LEGACY_PROVIDER) {
+      await this.deps.sessions.deleteSession(id).catch((err: unknown) => {
+        // A chat that never wrote a transcript has only Agentry's record to delete
+        if (!(err instanceof Error && /not found/.test(err.message))) throw err;
+      });
+    }
     this.deps.runtime.remove(id);
   }
 

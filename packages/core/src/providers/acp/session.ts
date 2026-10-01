@@ -341,7 +341,7 @@ export class AcpSession implements DriverSession {
     if (this.isFailed || this.disposed) return;
     this.isFailed = true;
     this.settle.reject(new Error(message));
-    this.sink({ kind: 'failed', reason: `${reason}: ${message}` });
+    this.sink({ kind: 'failed', reason, message });
   }
 
   private failed(error: unknown): void {
