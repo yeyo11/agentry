@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-10-01T20:40:00Z
+updated_at: 2026-10-02T09:00:00Z
 tags:
     - plan
     - git
@@ -2096,6 +2096,44 @@ person has a draft review), and the header's **Work on it** and the phone's bott
 - `mu0` model; `mu1` `pages/tasks/item/Merge.tsx` and `i18n/locales/{en,es}/merge.json`; `mu2`
   `pages/OrchestrationDetail.tsx` merge block; `mu3` board badge in `WorkItemCard.tsx`; `mu4` e2e
   (`e2e/specs/merge.spec.mjs`), written, not run.
+
+## Outcome of phase 4 (2026-10-02)
+
+Phase 4 is built on `feat/code-hosts-merge`, in five steps:
+
+- **`m0`, by the owner's assistant**: 149 `glab` and 25 `gh` merge calls, in the recordings, with
+  [Recorded by `m0`](#recorded-by-m0-2026-10-01) where they correct the design.
+- **P0 `merge-prototypes`** (3 tasks, 19.96 USD): validated after one correction (three gradient
+  surfaces on the item page).
+- **P1 `merge-core`** (6 tasks, 27.72 USD): the merge state and the blocked table, Merge, Auto-merge,
+  Update from base, the GitLab pipeline guard, `disarmBeforePush`, the audit rows and the routes.
+- **P2 `merge-web`** (5 tasks, 35.65 USD): the model, the merge block on the item page and on the
+  orchestration, the board badge, and an e2e spec with fake scenarios.
+- **`merge-fix`** (2 tasks, 5.23 USD), after an independent audit of the core.
+
+What the audit and the e2e spec nobody had run found, all fixed:
+
+- **GitLab `unchecked` blocked Merge for minutes** (m0 #1): the code read any `CHECKING` as
+  `computing`, so Agentry never attempted the merge that makes GitLab run its own check. `computing`
+  is now shown only when nothing else blocks, never disables Merge on its own, and the sleeps are gone.
+- **glab's boxed refusal was parsed from its first line**, which is always `ERROR`, so `head-moved`
+  was dead code on GitLab and every refusal was stored as "ERROR".
+- **The person was never told Agentry had turned auto-merge off** before a push: the merge state
+  carries it now, and the block says so in words until the person arms it again.
+- **Rebase on GitLab** is offered only when it would drop nothing from the checkout (clean, nothing
+  unpushed); otherwise the way out of "behind" is Agentry's own update, and the notice says why.
+  Update from base refuses while an agent works in that worktree, and the audit names the real actor.
+- **Reading a merge state made a worktree and a branch.** The merge target asked `itemWorktree`,
+  which makes the checkout when it is missing, so every look at the block left a `task/…` branch in
+  the person's repository. It finds only a worktree that exists now. The reviews spec caught it.
+- **A refresh the person asks for** reads the repository's rules and the checks again; before it
+  computed the state from a minute-old snapshot.
+- The orchestration's Merge was a gradient button while blocked (neutral and off now), and the phone's
+  subject field was 36 px.
+
+**Open, and the owner's:** with authentication off (`none`, the default) a chat has no token to refuse,
+so an agent in a chat that reads the API URL can call a merge route. The 403 for chat tokens holds
+under token or OIDC authentication, and the same is true of the checks and reviews routes.
 
 ## Phase 5: trackers
 
