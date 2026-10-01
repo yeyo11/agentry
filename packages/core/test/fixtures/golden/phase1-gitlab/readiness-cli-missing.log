@@ -1,0 +1,5 @@
+git -C <root>/project rev-parse --git-dir
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+git -C <root>/project remote get-url origin

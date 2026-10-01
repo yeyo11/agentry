@@ -4,34 +4,26 @@ git -C <root>/project rev-parse --path-format=absolute --git-common-dir
 git -C <root>/project rev-parse --absolute-git-dir
 git -C <root>/project rev-parse --show-toplevel
 git -C <root>/project remote get-url origin
-gh --version
+glab version
   cwd: <root>/project
   env: GIT_TERMINAL_PROMPT=0
-  env: GH_PROMPT_DISABLED=1
-  env: GH_NO_UPDATE_NOTIFIER=1
-  env: GH_HOST=<unset>
-  env: GH_REPO=<unset>
+  env: GLAB_NO_PROMPT=1
+  env: GLAB_CHECK_UPDATE=false
+  env: GLAB_SEND_TELEMETRY=false
   env: NO_PROMPT=<unset>
-  env: GH_NO_EXTENSION_UPDATE_NOTIFIER=1
-  env: GH_SPINNER_DISABLED=1
-  env: GH_PAGER=cat
-  env: GH_TELEMETRY=0
-  env: DO_NOT_TRACK=1
+  env: GITLAB_HOST=<unset>
+  env: GL_HOST=<unset>
   env: NO_COLOR=1
   env: LC_ALL=C
-gh auth status --json hosts
+glab auth status --hostname gitlab.com
   cwd: <root>/project
   env: GIT_TERMINAL_PROMPT=0
-  env: GH_PROMPT_DISABLED=1
-  env: GH_NO_UPDATE_NOTIFIER=1
-  env: GH_HOST=<unset>
-  env: GH_REPO=<unset>
+  env: GLAB_NO_PROMPT=1
+  env: GLAB_CHECK_UPDATE=false
+  env: GLAB_SEND_TELEMETRY=false
   env: NO_PROMPT=<unset>
-  env: GH_NO_EXTENSION_UPDATE_NOTIFIER=1
-  env: GH_SPINNER_DISABLED=1
-  env: GH_PAGER=cat
-  env: GH_TELEMETRY=0
-  env: DO_NOT_TRACK=1
+  env: GITLAB_HOST=<unset>
+  env: GL_HOST=<unset>
   env: NO_COLOR=1
   env: LC_ALL=C
 git -C <root>/project symbolic-ref --short refs/remotes/origin/HEAD
@@ -72,44 +64,25 @@ git -C <root>/project rev-parse --path-format=absolute --git-common-dir
 git -C <root>/project rev-parse --absolute-git-dir
 git -C <root>/project rev-parse --show-toplevel
 git -C <root>/project remote get-url origin
-gh pr create -R github.com/acme/shop --head task/cw-1 --base main --title feat: Fix the cart total (CW-1) --body-file -
+glab mr create -R https://gitlab.com/acme/shop --source-branch task/cw-1 --target-branch main --title feat: Fix the cart total (CW-1) --description-file - --yes
   cwd: <root>/project/.claude/worktrees/task-cw-1
   env: GIT_TERMINAL_PROMPT=0
-  env: GH_PROMPT_DISABLED=1
-  env: GH_NO_UPDATE_NOTIFIER=1
-  env: GH_HOST=<unset>
-  env: GH_REPO=<unset>
+  env: GLAB_NO_PROMPT=1
+  env: GLAB_CHECK_UPDATE=false
+  env: GLAB_SEND_TELEMETRY=false
   env: NO_PROMPT=<unset>
-  env: GH_NO_EXTENSION_UPDATE_NOTIFIER=1
-  env: GH_SPINNER_DISABLED=1
-  env: GH_PAGER=cat
-  env: GH_TELEMETRY=0
-  env: DO_NOT_TRACK=1
+  env: GITLAB_HOST=<unset>
+  env: GL_HOST=<unset>
   env: NO_COLOR=1
   env: LC_ALL=C
-  stdin:
-    | The total was off by one.
-    | 
-    | ## Acceptance criteria
-    | 
-    | - [ ] The total adds up
-    | - [ ] A test covers it
-    | 
-    | ## Work item
-    | 
-    | [CW-1](http://localhost:8787/tasks/CW-1)
-gh pr list -R github.com/acme/shop --head task/cw-1 --base main --state all --limit 2 --json number,url,state,headRefName,baseRefName,isCrossRepository
+glab mr list -R https://gitlab.com/acme/shop -s task/cw-1 -t main -A -P 2 -F json
   cwd: <root>/project/.claude/worktrees/task-cw-1
   env: GIT_TERMINAL_PROMPT=0
-  env: GH_PROMPT_DISABLED=1
-  env: GH_NO_UPDATE_NOTIFIER=1
-  env: GH_HOST=<unset>
-  env: GH_REPO=<unset>
+  env: GLAB_NO_PROMPT=1
+  env: GLAB_CHECK_UPDATE=false
+  env: GLAB_SEND_TELEMETRY=false
   env: NO_PROMPT=<unset>
-  env: GH_NO_EXTENSION_UPDATE_NOTIFIER=1
-  env: GH_SPINNER_DISABLED=1
-  env: GH_PAGER=cat
-  env: GH_TELEMETRY=0
-  env: DO_NOT_TRACK=1
+  env: GITLAB_HOST=<unset>
+  env: GL_HOST=<unset>
   env: NO_COLOR=1
   env: LC_ALL=C

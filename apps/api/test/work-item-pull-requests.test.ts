@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
@@ -14,6 +14,7 @@ import { buildApp } from '../src/app.ts';
 // origin, and core's fake gh first on the PATH. Nothing here reaches GitHub or spawns Claude.
 
 const FAKE_GH = fileURLToPath(new URL('../../../packages/core/test/fixtures/fake-gh.sh', import.meta.url));
+const GIT_SHIM = fileURLToPath(new URL('../../../packages/core/test/fixtures/git-shim.sh', import.meta.url));
 
 let app: FastifyInstance;
 let core: Core;
@@ -75,6 +76,10 @@ before(async () => {
   mkdirSync(bin);
   copyFileSync(FAKE_GH, join(bin, 'gh'));
   chmodSync(join(bin, 'gh'), 0o755);
+  // The bare origin has no host, and a project with none is not ready: the shim has `origin` say github.com
+  symlinkSync(GIT_SHIM, join(bin, 'git'));
+  process.env.AGENTRY_REAL_GIT = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  process.env.AGENTRY_ORIGIN_URL = 'https://github.com/acme/shop.git';
   // Read by core whenever it runs gh: this test file runs in its own process
   process.env.PATH = `${bin}:${process.env.PATH ?? ''}`;
   process.env.FAKE_GH_STATE = state;
@@ -109,7 +114,7 @@ test('approving an item in review answers 202, opens one PR, and a second call a
   assert.equal(detail.pullRequest?.phase, 'open');
   assert.equal(detail.pullRequest?.number, 7);
   assert.equal(detail.pullRequest?.url, 'https://github.com/acme/shop/pull/7');
-  assert.deepEqual(detail.pullRequestReadiness, { status: 'ready', detail: null, defaultBranch: 'main' });
+  assert.deepEqual(detail.pullRequestReadiness, { status: 'ready', detail: null, defaultBranch: 'main', host: 'github', hostname: 'github.com', remedy: null });
   assert.equal(git(remote, 'rev-parse', `task/${item.key.toLowerCase()}`).length, 40, 'the branch was pushed');
 
   const second = await approve(item.id);
