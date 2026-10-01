@@ -93,7 +93,7 @@
     "filter": "Filtrar archivos"
   },
   "why": {
-    "label": "Por qué cambió este archivo",
+    "label": "Por qué ha cambiado este archivo",
     "latest_one": "el único paso",
     "latest_other": "último de {{count}} pasos",
     "seeSteps": "Ver los pasos"
@@ -152,7 +152,7 @@
     "resolved": "resuelto",
     "outdated": "desactualizado",
     "resolvedBy": "por {{name}}",
-    "outdatedWhy": "el código cambió después del comentario",
+    "outdatedWhy": "el código ha cambiado después del comentario",
     "originalLine": "línea original {{line}}",
     "unknownAuthor": "desconocido",
     "comments_one": "{{count}} comentario",

@@ -6,7 +6,7 @@
  *
  * Label keys are in the `reviews` namespace: `t(label)` with `useTranslation('reviews')`.
  */
-import type { ApprovalState, ChangeRequest, ChangeRequestReviewers, CodeHostId, ReviewDraft, ReviewEvent, ReviewPost, ReviewSide, ReviewThread, ReviewerState } from '@agentry/shared';
+import type { ApprovalState, ChangeRequest, ChangeRequestReviewers, CodeHostId, ReviewDraft, ReviewEvent, ReviewPost, ReviewSide, ReviewThread, ReviewerState, WorkItemPullRequest } from '@agentry/shared';
 
 /** The status colour of a mark: ok, warn, bad or idle. Reviews have nothing running, so never `live`. */
 export type ReviewTone = 'ok' | 'warn' | 'bad' | 'idle';
@@ -177,13 +177,6 @@ export function sortDrafts(drafts: readonly ReviewDraft[]): ReviewDraft[] {
   });
 }
 
-/** The drafts left on one line of a file (either side), for the composer that sits under it. */
-export const draftsOnLine = (drafts: readonly ReviewDraft[], path: string, side: ReviewSide, line: number): ReviewDraft[] =>
-  drafts.filter((d) => d.path === path && d.line === line && (d.side ?? 'right') === side);
-
-/** A suggestion block, as the host reads it: the replacement lines between the fences. */
-export const suggestionBlock = (replacement: string): string => `\`\`\`suggestion\n${replacement.replace(/\n$/, '')}\n\`\`\``;
-
 // ---------- submitting ----------
 
 export interface SubmitOffer {
@@ -204,6 +197,30 @@ export function submitOffer(host: CodeHostId, approval: Pick<ApprovalState, 'can
   const events: ReviewEvent[] = ['comment'];
   if (host === 'gitlab' && approval?.canApprove) events.push('approve');
   return { events, openOnHost: host === 'github' && !own, own: own && host === 'github' };
+}
+
+/**
+ * The head each draft note was written on, kept for the tab: a note belongs to the commit the person
+ * had in front of them, and neither the draft row nor the diff page's load says which. A reload
+ * forgets it, and the page's own head stands in for the notes it no longer knows.
+ */
+const noteHeads = new Map<string, string>();
+
+export const pinNoteHead = (draftId: string, head: string | null | undefined): void => {
+  if (head) noteHeads.set(draftId, head);
+};
+
+export const noteHeadOf = (draftId: string): string | null => noteHeads.get(draftId) ?? null;
+
+/**
+ * The head a submit is posted on, which the server compares with the host's: the first note written
+ * on a commit other than the current one, so a head that moved after any note was written is refused
+ * and never posted over. Notes the tab does not know (`pinned` has no head for them) are read on
+ * `fallback`, the head the page last looked at.
+ */
+export function reviewedHead(drafts: readonly Pick<ReviewDraft, 'id'>[], pinned: (draftId: string) => string | null, fallback: string | null, headNow: string | null): string | null {
+  const heads = drafts.map((d) => pinned(d.id) ?? fallback);
+  return heads.find((h) => h !== null && h !== headNow) ?? heads.find((h) => h !== null) ?? fallback;
 }
 
 /** Whether submitting can do anything: a drafted note or a text of its own, or an approval, which needs neither. */
@@ -268,39 +285,12 @@ export function followUpThreads(threads: readonly ReviewThread[], addressedIds: 
 }
 
 /**
- * What the page remembers of an address it handed over, so "Addressed in <sha>" is offered only for
- * the push that address made:
- * - `handed`: threads were handed over, no fix seen yet;
- * - `running`: the fix was seen under way (or waiting for its push);
- * - `pushed`: the fix ended and the head moved right then, to `pushedHead`.
- * The API says neither which threads the agent addressed nor how a fix ended (a push and a card taken
- * over both clear it), so the head at the moment the fix ended is what tells them apart.
+ * What "Addressed in <sha>" may say: the push the address itself made, as the core recorded it. A
+ * head the browser saw move proves nothing (a card taken over and then pushed by someone else moves it
+ * too), so a change request with no record of such a push offers nothing.
  */
-export interface AddressMemory {
-  ids: string[];
-  /** The head the threads were handed over on */
-  head: string | null;
-  stage: 'handed' | 'running' | 'pushed';
-  pushedHead: string | null;
+export function followUp(pr: Pick<WorkItemPullRequest, 'addressed' | 'fixState'> | null | undefined): { sha: string; threadIds: string[] } | null {
+  const done = pr?.addressed;
+  if (!done || pr.fixState || !done.head || done.threadIds.length === 0) return null;
+  return { sha: done.head, threadIds: done.threadIds };
 }
-
-/**
- * The memory after one look at the change request: `fixRunning` is a review fix under way, `headNow`
- * the head read fresh. A fix that ended with the head where it was, or one nobody watched end, was
- * dropped: nothing is offered. A head that moves again after the push is somebody else's.
- */
-export function settleAddress(memory: AddressMemory, look: { fixRunning: boolean; headNow: string | null }): AddressMemory | null {
-  if (look.fixRunning) return memory.stage === 'pushed' ? memory : { ...memory, stage: 'running' };
-  switch (memory.stage) {
-    case 'handed':
-      return memory;
-    case 'running':
-      return look.headNow && look.headNow !== memory.head ? { ...memory, stage: 'pushed', pushedHead: look.headNow } : null;
-    case 'pushed':
-      return look.headNow === memory.pushedHead ? memory : null;
-  }
-}
-
-/** Whether the remembered address ended in a push that is still the head: the only time "Addressed in" may be said. */
-export const followUpDue = (memory: AddressMemory | null, headNow: string | null): memory is AddressMemory & { pushedHead: string } =>
-  !!memory && memory.stage === 'pushed' && !!memory.pushedHead && memory.pushedHead === headNow;

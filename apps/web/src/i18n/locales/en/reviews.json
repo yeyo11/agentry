@@ -119,6 +119,10 @@
       "review-partly-posted": "The sending stopped half way.",
       "write-unconfirmed": "{{host}} did not confirm the review. Look at the {{noun}} before sending it again.",
       "head-moved": "New commits arrived. Reload the page and check them first."
+    },
+    "moved": {
+      "text": "The {{noun}} moved from {{from}} to {{to}} after you wrote these notes. Sending now posts them on {{to}}: read what changed first if you have not.",
+      "unknown": "The {{noun}} has new commits after you wrote these notes, and its head could not be read now. Reload the page and check them first."
     }
   },
   "composer": {
