@@ -114,6 +114,7 @@
       "healthTestWeakening": "Warn about weakened tests",
       "changesUnexplainedHunk": "Flag unexplained changes in a review",
       "checksFix": "Decide whether to fix the failing checks of a branch",
+      "reviewTriage": "Suggest who should take each review comment",
       "notificationUrgency": "Pick the urgency of each notification",
       "paletteIntent": "Interpret what you type in the palette"
     },
@@ -304,6 +305,7 @@
       "healthTestWeakening": "Flagged a weakened test",
       "changesUnexplainedHunk": "Flagged an unexplained change",
       "checksFix": "Decided on fixing the checks",
+      "reviewTriage": "Suggested who takes each review comment",
       "notificationUrgency": "Set the urgency",
       "paletteIntent": "Picked the command"
     }

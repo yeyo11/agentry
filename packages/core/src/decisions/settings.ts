@@ -41,6 +41,7 @@ export const DECISION_POINT_IDS: readonly DecisionPointId[] = [
   'palette.intent',
   'notification.urgency',
   'checks.fix',
+  'review.triage',
 ];
 
 /**

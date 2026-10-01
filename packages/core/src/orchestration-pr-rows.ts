@@ -28,6 +28,7 @@ export interface OrchestrationPullRequestRow {
   fix_origin?: string | null;
   fix_attempts?: number;
   fix_head?: string | null;
+  fix_kind?: string | null;
   created_at: string;
   updated_at: string;
 }

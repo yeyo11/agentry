@@ -23,9 +23,9 @@ const MAX_CHILDREN = 20;
 /** The most failed jobs one "re-run failed" retries, a call each */
 const MAX_RETRIES = 100;
 
-const projectUrl =(repo: HostRepo): string => `https://${repo.host}/${repo.path}`;
+export const projectUrl = (repo: HostRepo): string => `https://${repo.host}/${repo.path}`;
 
-function projectPath(repo: HostRepo): string {
+export function projectPath(repo: HostRepo): string {
   if (repo.projectId === undefined) throw new HostParseError('GitLab calls need the numeric project id');
   return `projects/${String(repo.projectId)}`;
 }
