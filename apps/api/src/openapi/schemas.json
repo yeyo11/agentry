@@ -490,6 +490,13 @@
         "$ref": "#/components/schemas/ProviderId",
         "description": "The provider that runs the chat; a chat read from Claude's transcripts is `claude-code`"
       },
+      "providerSessionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The id the provider chose for its own session; null on Claude, where the chat id is the session id"
+      },
       "firstPrompt": {
         "type": [
           "string",
@@ -637,6 +644,7 @@
       "id",
       "title",
       "provider",
+      "providerSessionId",
       "firstPrompt",
       "messageCount",
       "startedAt",
@@ -1112,6 +1120,10 @@
           }
         ],
         "description": "Null when the chat takes whatever the CLI loads on its own"
+      },
+      "policy": {
+        "$ref": "#/components/schemas/ToolPolicy",
+        "description": "The policy the chat was started with, so a resume enforces the same one"
       }
     },
     "required": [
@@ -6697,6 +6709,13 @@
         },
         "description": "The capabilities the handshake confirmed for the installed version (the declared ones until then)"
       },
+      "permissionModes": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/PermissionMode"
+        },
+        "description": "The permission modes the provider offers, in the order to list them; absent on a provider that has none"
+      },
       "confirmed": {
         "anyOf": [
           {
@@ -6778,6 +6797,9 @@
       "handshake-failed",
       "capability-missing",
       "no-probe",
+      "auth-required",
+      "schema-untested",
+      "busy",
       "disabled"
     ],
     "description": "Why a provider is not `ready`, in one taxonomy for every provider. The UI words each code itself, so a state never shows the text of an exception."
@@ -8742,6 +8764,13 @@
         "$ref": "#/components/schemas/ProviderId",
         "description": "The provider that runs the chat; a chat read from Claude's transcripts is `claude-code`"
       },
+      "providerSessionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The id the provider chose for its own session; null on Claude, where the chat id is the session id"
+      },
       "firstPrompt": {
         "type": [
           "string",
@@ -8906,6 +8935,7 @@
       "id",
       "title",
       "provider",
+      "providerSessionId",
       "firstPrompt",
       "messageCount",
       "startedAt",
