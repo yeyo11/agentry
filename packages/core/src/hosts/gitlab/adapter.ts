@@ -4,7 +4,7 @@ import {
   type ChangeRequestState,
   type ChangeRequestView,
   type ChangeRequestRead,
-  type ChecksCodeHostAdapter,
+  type ReviewsCodeHostAdapter,
   type HeadPipeline,
   type HostCall,
   type HostRepo,
@@ -12,6 +12,7 @@ import {
 } from '../code-host.ts';
 import { envOf } from '../env.ts';
 import { gitlabChecks } from './checks.ts';
+import { gitlabReviews } from './reviews.ts';
 import { parseJson } from '../json.ts';
 
 // Every argument and every field below is what glab 1.120.0 was recorded to take and print
@@ -61,8 +62,9 @@ export function parseProjectId(stdout: string): number | null {
   }
 }
 
-export const gitlabAdapter: ChecksCodeHostAdapter = {
+export const gitlabAdapter: ReviewsCodeHostAdapter = {
   ...gitlabChecks,
+  ...gitlabReviews,
   id: 'gitlab',
   refPrefix: '!',
 
