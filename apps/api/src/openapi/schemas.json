@@ -3567,6 +3567,17 @@
         ],
         "description": "The one branch a worktree graph delivers, built once its tasks finish"
       },
+      "pullRequest": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/OrchestrationPullRequest"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The newest change request opened for the integration branch; null or absent before one"
+      },
       "synthesisRunId": {
         "type": [
           "string",
