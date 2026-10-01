@@ -46,8 +46,9 @@ import {
 } from './git.ts';
 import { checksFixPrompt, reviewFixPrompt } from './flow.ts';
 import { ChecksError, type ChecksService, type ChecksTarget } from './hosts/checks-service.ts';
-import { ReviewsError, type ReviewsService } from './hosts/reviews-service.ts';
-import type { ChangeRequestRead, ChangeRequestView, ChecksCodeHostAdapter, HostCall, HostRepo } from './hosts/code-host.ts';
+import { reviewDiff } from './hosts/review-diff.ts';
+import { ReviewsError, type ReviewsService, type ReviewsTarget } from './hosts/reviews-service.ts';
+import type { ChangeRequestRead, ChangeRequestView, ChecksCodeHostAdapter, HostCall, HostRepo, ReviewsCodeHostAdapter } from './hosts/code-host.ts';
 import { defaultHostRun, hostSearchPath, resolveHostBinary, type HostRun } from './hosts/detector.ts';
 import { runHostCall, type HostResult } from './hosts/exec.ts';
 import { githubAdapter } from './hosts/github/adapter.ts';
@@ -133,10 +134,10 @@ const messageOf = (err: unknown): string => firstLine(err instanceof Error ? err
 /** The line a person reads beside a failed host call: what the CLI said, else Agentry's own reason. */
 const failureOf = (result: HostResult): string => result.stderrFirstLine || result.reason || `exit ${result.exitCode ?? 'none'}`;
 
-const ADAPTERS: Readonly<Record<CodeHostId, ChecksCodeHostAdapter>> = { github: githubAdapter, gitlab: gitlabAdapter };
+const ADAPTERS: Readonly<Record<CodeHostId, ReviewsCodeHostAdapter>> = { github: githubAdapter, gitlab: gitlabAdapter };
 
 /** The adapter of a code host: the one place that maps an id to its translator. */
-export const codeHostAdapter = (id: CodeHostId): ChecksCodeHostAdapter | undefined => ADAPTERS[id];
+export const codeHostAdapter = (id: CodeHostId): ReviewsCodeHostAdapter | undefined => ADAPTERS[id];
 
 /** The cause a fix of failing checks writes on the item's move to In progress; a client words it by its code. */
 export const CHECKS_FIX_CAUSE = 'pr.checks-fix';
@@ -332,7 +333,7 @@ export interface ApproveResult {
 
 /** What a host call needs about a project: the adapter, the CLI's binary and the repository that pins every call. */
 interface HostTarget {
-  adapter: ChecksCodeHostAdapter;
+  adapter: ReviewsCodeHostAdapter;
   binaryPath: string;
   repo: HostRepo;
 }
@@ -479,6 +480,16 @@ export class PullRequestService {
     const run = (call: HostCall): Promise<HostResult> => this.call(target, call, cwd);
     const facts = await this.hostFacts.of(target.adapter, target.repo, target.binaryPath, run);
     return { id: row.id, kind: 'work-item', adapter: target.adapter, repo: facts.repo, number: row.number, branch: row.branch, base: row.base, cliVersion: facts.cliVersion, run };
+  }
+
+  /** What `ReviewsService` needs for one row: the checks target and the local diff the person reviews. */
+  async reviewsTarget(row: PullRequestRow): Promise<ReviewsTarget | null> {
+    const project = this.deps.project(row.project_id);
+    const base = await this.checksTarget(row);
+    const adapter = codeHostAdapter(hostOf(row.host));
+    if (!base || !project || !adapter) return null;
+    const home = mainCheckout(project.path);
+    return { id: base.id, kind: base.kind, adapter, repo: base.repo, number: base.number, run: base.run, diff: async () => reviewDiff(home, row.base, row.branch) };
   }
 
   // ---------- the checkout ----------

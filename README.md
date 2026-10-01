@@ -859,6 +859,23 @@ The hosts Agentry opens pull and merge requests on, GitHub through `gh` and GitL
 | POST | `/change-requests/:id/checks/:checkId/run` | Play a GitLab manual job, then read the list again. Not open to a chat's token |
 | POST | `/change-requests/:id/checks/fix` | Fix the failing checks: the item's Developer (or a chat in an orchestration's integration worktree) gets each failure's log tail → `{ started, prompt, worktree, pullRequest }`; `409` with a `code` when nothing can be fixed now. Not open to a chat's token |
 | POST | `/change-requests/:id/push-fix` | Push a finished fix that waits for the person (a plain push, never forced); a failure keeps it waiting for a retry. Not open to a chat's token |
+| GET | `/change-requests/:id/threads` | Review threads of the head commit with their comments, cached 30 s (`?refresh=1` reads the host now); outdated and resolved ones are marked |
+| GET | `/change-requests/:id/review-drafts` | The person's draft review: notes on lines or general, kept as rows |
+| POST | `/change-requests/:id/review-drafts` | Add a note (`path`, `side`, `line`, `startLine`, `body`, `suggestion`) → `201`. Not open to a chat's token |
+| PUT | `/change-requests/:id/review-drafts/:draftId` | Change a note. Not open to a chat's token |
+| DELETE | `/change-requests/:id/review-drafts/:draftId` | Delete a note. Not open to a chat's token |
+| POST | `/change-requests/:id/reviews` | Post the drafts as one review (`{ event: 'comment' \| 'approve', body }`; approve is GitLab only); `409` with a `code`, and a `postId` for `review-partly-posted`. Not open to a chat's token |
+| POST | `/change-requests/:id/reviews/:postId/publish-saved` | GitLab: publish the notes a partly posted review saved. Not open to a chat's token |
+| POST | `/change-requests/:id/reviews/:postId/discard-saved` | GitLab: discard them. Not open to a chat's token |
+| POST | `/change-requests/:id/threads/:threadId/reply` | Reply to a thread (`{ body }`) → the thread as the host has it. Not open to a chat's token |
+| POST | `/change-requests/:id/threads/:threadId/resolve` | Resolve a thread (idempotent). Not open to a chat's token |
+| POST | `/change-requests/:id/threads/:threadId/unresolve` | Reopen a thread (idempotent). Not open to a chat's token |
+| GET | `/change-requests/:id/approval` | Whether the viewer approved, approvals left, who approved; `canApprove` and `canRevoke` are GitLab only |
+| POST | `/change-requests/:id/approval` | GitLab: approve on the head you looked at (`{ sha }`); `409 head-moved` if it moved. Not open to a chat's token |
+| DELETE | `/change-requests/:id/approval` | GitLab: revoke the approval. Not open to a chat's token |
+| GET | `/change-requests/:id/reviewers` | The requested reviewers, the review decision and the unresolved count |
+| POST | `/change-requests/:id/reviewers` | Request reviewers (`{ add, remove? }`), then read back what the host says. Not open to a chat's token |
+| POST | `/change-requests/:id/address` | Address review threads with an agent (`{ threadIds }`, all unresolved when empty) on the fix path of the checks; nothing is replied or resolved by Agentry → `{ started, prompt, worktree, pullRequest }`. Not open to a chat's token |
 | GET | `/projects/:id/code-host` | Whether the project can open pull and merge requests (the readiness, with its reason and remedy) and its parsed `origin`; `404` for an unknown project |
 
 ### Decisions
