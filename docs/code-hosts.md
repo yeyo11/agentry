@@ -1,12 +1,14 @@
 ---
 created_at: 2026-10-01T09:00:00Z
-updated_at: 2026-10-01T09:00:00Z
+updated_at: 2026-10-01T12:00:00Z
 tags:
     - code-hosts
     - pull-request
     - detection
     - architecture
     - convention
+    - checks
+    - logs
 ---
 # Code hosts
 
@@ -19,8 +21,10 @@ differs from this page, the code wins and this page is stale.
 
 Status: phase 1 is built (detection, neutral readiness, the execution layer, the `CodeHost`
 interface with its two adapters, the work item and orchestration change requests on it, the
-`/hosts` routes). Checks, reviews, merging, trackers and webhooks are later phases and not described
-here as if they existed.
+`/hosts` routes). Phase 2 is built in `packages/core` (checks, logs, re-run, cancel, manual jobs and
+fixing failing checks, described in [Checks, logs and fixing](#checks-logs-and-fixing)); its routes
+and screens come with the tasks that own them. Reviews, merging, trackers and webhooks are later
+phases and not described here as if they existed.
 
 In shared types and in this document "pull request" means a PR or an MR: the host decides the word
 (`#12` on GitHub, `!12` on GitLab).
@@ -258,6 +262,128 @@ What the service guarantees for GitHub and GitLab alike:
 - **Copy follows the host.** The web words the noun, the number prefix and the host's label from
   the row, never "GitHub" or "gh" in a project's copy.
 
+## Checks, logs and fixing
+
+Phase 2 adds what a change request's CI says and what Agentry does about a failure. Every argument
+below is one the recordings show (`k0-NOTES.md`, `gh/NOTES.md`, `glab/NOTES.md`); where a recording
+disagreed with the plan's matrix, the recording won.
+
+### The model
+
+A `Check` (`packages/shared/src/types.ts`) is one row of a change request's CI, whatever the host
+calls it: `id`, `name`, `group` (a GitHub workflow, a GitLab stage, or the bridge a child job hangs
+from), `state` (`queued`, `running`, `passed`, `failed`, `cancelled`, `skipped`, `manual`,
+`neutral`), `allowedToFail`, `required`, `startedAt`, `finishedAt`, `url`, `rerunnable`, `hasLog`
+and `source` (`actions`, `app`, `status`, `job`, `bridge`). `ChangeRequestChecks` carries the head
+commit, the `rollup` (`none`, `pending`, `passing`, `failing`), the checks, `truncated` (at most
+1 000 checks) and `checkedAt`, plus `limitedUntil` when the host's rate limit was hit and the last
+list is what is shown.
+
+- **A failure the pipeline lets pass is not a failure.** A GitLab job with `allow_failure` that
+  failed is `failed` with `allowedToFail`; a fix is made of the failures without it.
+- **`required`** is marked from the base branch's rules on GitHub (`rules/branches/<base>` and
+  `branches/<base>`, whichever the viewer can read; when neither can be read nothing is marked) and
+  never on GitLab, where the whole pipeline is the requirement.
+
+### What each host is asked
+
+| Question | GitHub (`gh`) | GitLab (`glab`) |
+| --- | --- | --- |
+| The change request, for the watcher | `gh api -i graphql`, one query for state, head, mergeability, review decision and the rollup's contexts | `glab mr view -F json` |
+| The list | `api --paginate --slurp repos/{o}/{r}/commits/<sha>/check-runs?per_page=100` and `…/status?per_page=100` | `api projects/<id>/pipelines/<pipeline>/jobs?per_page=100`, `…/bridges?per_page=100`, then the jobs of each bridge's child pipeline |
+| A log | `api repos/{o}/{r}/actions/jobs/<id>/logs`, with `--allow-escape-sequences` from gh 2.97.0 (2.102 refuses a log with ANSI codes without it; 2.92 does not know the flag) | `api projects/<id>/jobs/<id>/trace` (never `glab ci trace`, which follows a running job) |
+| Annotations | `api repos/{o}/{r}/check-runs/<id>/annotations?per_page=100` | none: the person reads `failure_reason` and the log |
+| Re-run failed | `run rerun <run> --failed` per run (at most 20) | `ci retry <job>` per failed job, or `api -X POST jobs/<bridge>/retry` for a bridge (at most 100) |
+| Re-run one | `run rerun --job <id>` | the same single retry |
+| Run everything again | `run rerun <run>` per run | `api -X POST merge_requests/<iid>/pipelines` when the head pipeline came from a merge request event, else `ci run -b <branch>` |
+| Cancel | `run cancel <run>` per live run | `api -X POST pipelines/<id>/cancel` |
+| A manual job | none: the check links to its run page | `ci trigger <job>` |
+
+- **GitLab walks bridges itself**, at depth 2 and for at most 20 child pipelines.
+  `glab ci get --merge-request` has neither bridges nor child jobs, and the jobs endpoint lists
+  neither. A bridge is a check with `source: 'bridge'` and no log; `downstream_pipeline` can be
+  `null` when the child could not be created, and then the bridge is a failed check of its own.
+- **"Re-run failed" on GitLab retries each failed job**, not the pipeline: a pipeline retry does not
+  re-run a failed bridge, and a child's jobs are not in the parent pipeline.
+- **A cancel is re-read, not waited for**: GitLab answers `running`, then `canceling`, never
+  `canceled` at once. Cancelling a parent cancels its bridge and child.
+- **Playing a manual job keeps its id**; only a retry creates a new one.
+- **The watcher's GitHub read is `gh api -i`**, so a failed poll has a status line and the
+  rate-limit headers on stdout (only the message is on stderr, exit 1). A GraphQL not-found is
+  `HTTP/2.0 200` with `errors[]` and exit 1, so the status line never decides alone. GitLab's
+  failures classify as `unreachable` unless the `{"error"}` body says more.
+
+### The checks service
+
+`hosts/checks-service.ts` runs the adapters' calls and owns the state around them.
+
+- **The list is a snapshot of the head commit**, cached 30 s in `change_request_snapshots`, so the
+  board and two tabs share one read, and two reads of one id in flight are one. A new head is a new
+  list. A read that hits the host's rate limit serves the last list with `limitedUntil`.
+- **Every write is one at a time per change request, never retried, and followed by a re-read.** What
+  the CLI printed is never the new state. Re-run, cancel and play are writes; an exit 1 on a run
+  still going or on an older attempt is `rerun-refused`; a cancel of a run that finished meanwhile is
+  a success when the re-read says nothing is live.
+- **The event** `change-request.checks` (`changeRequestId`, `rollup`, `headSha`) is sent when the
+  rollup or the head changed, and after every write.
+- **Reasons** this phase added to `HostReason`: `log-unavailable`, `rerun-refused`,
+  `check-not-rerunnable`, `nothing-to-fix`, `fix-in-progress` and `fix-attempts-spent`. The fix's
+  own refusals carry the codes listed below.
+
+### Logs
+
+`hosts/log-tail.ts` turns a job's log into what a person, and a fixing chat, reads. The execution
+layer already bounds the log to its last 512 KiB; the tail keeps the last 200 lines (16 KiB), plus
+20 lines either side of the first three error markers (GitHub `##[error]`, GitLab `ERROR:` and a
+non-zero `exit code`), each line cut at 500 characters and then redacted.
+
+- It strips the BOM, escape sequences (raw ESC and the `^[` rendering gh prints), other control
+  characters, carriage-return overwrites (a progress bar leaves its last frame) and GitLab's
+  `section_start` and `section_end` markers. It never depends on GitHub's step labels, which read
+  `UNKNOWN STEP` a few hours after a run.
+- **"No output yet" is not "log unavailable".** A running job's trace lags up to about a minute
+  (only the runner's preamble first), and a manual job's trace is empty with exit 0. Both come back
+  as `noOutputYet`. `log-unavailable` is a 404, or a check without a log (a bridge, or another
+  app's check).
+
+### Fixing failing checks
+
+A work item's fix mirrors the conflict path. `PullRequestService.fixChecks(itemId, origin)` starts
+it from an open change request:
+
+1. It reads the failures through the service and builds the prompt with a log tail for each, at
+   most 10. No failure is `no-failing-checks`.
+2. The row stays `open` and gains `fix_state = 'fixing'`, `fix_origin` (`person` or `decision`),
+   `fix_attempts` (counted per head) and `fix_head`. The item moves to In progress with the cause
+   `pr.checks-fix`, as the person for a click and as the system for the decision. With the flow off
+   nothing moves: the person gets the prompt for a chat of their own, in the item's worktree.
+3. The Developer's run ending well makes it `awaiting-verify`; QA verifies as usual.
+4. QA passing: a **person's** fix pushes at once, with no second click, unless a person moved the
+   card since it started (that clears the fix state; the attempts stay counted). A **decision's**
+   fix becomes `awaiting-push`, the item waits in In review, and the button reads **Push the fix**.
+5. `pushFix` commits what the Developer left uncommitted and runs a plain `git push`, never forced.
+   A failure leaves `awaiting-push` with `error_code: 'push'`, so the button retries. A success
+   clears the fix state, drops the snapshot (the head moved) and sets `waiting: 'merge'`.
+
+Refusals are a `PullRequestError` with a reason: `not-open`, `fix-under-way`, `busy`,
+`no-failing-checks`, `not-in-review`, `checks-unavailable`, or the checks service's own reason.
+
+An orchestration's fix runs a chat in the integration worktree with the orchestration's fixer model
+and cost limit, commits on the integration branch and then waits: **Push the fix** is always the
+person's click, since an orchestration has no QA stage. With no integration worktree it fails with
+`no-worktree` and never touches the project's own checkout.
+
+**No agent pushes**, here as everywhere: the fix prompt says so and the flow's rules deny it.
+Disarming auto-merge before the push belongs to the merging phase and is not done yet.
+
+### What the watcher tells the decision engine
+
+Both watchers read through the checks service and call `onChecksFailing` when a rollup reads
+`failing` for a head they have not announced: once per head, never while a fix is under way. The
+`checks.fix` point (see [decision-engine.md](decision-engine.md#the-points)) answers it. The memory
+of what was announced is in the process, so after a restart a head that is still failing is
+announced again; the point's own limits, not that memory, stop a chain of fixes.
+
 ## Fakes and tests
 
 - **Recordings** (`packages/core/test/fixtures/recordings/`): scrubbed captures of gh 2.92.0 and
@@ -276,6 +402,10 @@ What the service guarantees for GitHub and GitLab alike:
   stdin, that no view asks for `number` alone (gh 2.92 answers `{"number":N}` for a pull request
   that does not exist), that `find` asks for head and base, that `refPrefix` matches the manifest,
   and that `parseView` maps every recorded state and CI status and throws on malformed JSON.
+- **Phase 2 recordings** (`k0-NOTES.md`): the GitLab jobs, bridges and the trace of a running job, a
+  retry, a cancel and the merge request pipelines POST, and the `gh api -i` 404 on both gh releases.
+  The checks section of the conformance suite and the checks service tests replay them, with golden
+  logs under `golden/phase2/`.
 - The registry test fails when two manifests share an id, a CLI or a default host.
 
 ## How to add a code host
