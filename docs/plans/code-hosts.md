@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-10-01T10:00:00Z
+updated_at: 2026-10-01T16:00:00Z
 tags:
     - plan
     - git
@@ -1673,6 +1673,39 @@ Ownership: `types.ts` is `k1`'s, `db.ts` `k4`'s, `pull-requests.ts` `k6`'s, `flo
 - `ku4` e2e: `e2e/fake-hosts/*` scenarios (failing, running, fixed), `e2e/specs/checks.spec.mjs`.
   Written, not run.
 - Controls from `components/controls`; tokens only; `--live` only on running rows; en/es parity.
+
+## Outcome of phase 2 (2026-10-01)
+
+Phase 2 is built on `feat/code-hosts-checks`, in four steps:
+
+- **`k0`, by the owner's assistant.** 71 `glab` 1.120.0 calls (pipelines, bridges, child
+  pipelines, running traces, retry, cancel, manual jobs, MR pipelines) and `gh api -i` 404s on
+  2.92.0 and 2.102.0. They are in the recordings, and the nine places where they disagree with the
+  matrix are in [Recorded by `k0`](#recorded-by-k0-2026-10-01).
+- **P0 `checks-prototypes`** (3 tasks): the item page's checks, the orchestration's checks and Push
+  the fix, and the fix states with `checks.fix`. Validated with one correction: a screen keeps at
+  most two gradient surfaces, so "Work on it" turns neutral while "Fix failing checks" shows.
+- **P1 `checks-core`** (9 tasks, verification passed first time): the `Check` model, both adapters'
+  checks, logs, rerun, cancel and manual jobs, the log tails, the snapshot store, the checks
+  service, the fix flow (owner decision 4), the `checks.fix` point, the `/change-requests` routes
+  and the docs.
+- **P2 `checks-web`** (5 tasks, verification passed first time): the item page's checks and log
+  tail, the orchestration's checks and Push the fix, the board's fixing states, the decision in
+  Settings, and an e2e spec with fake scenarios.
+
+The machine's load (around 60) made the full local e2e run unusable: one spec passed 300 s and
+stopped its shard. The full suite runs in CI on the pull request instead. Run alone, `checks`,
+`integrations` and `merge-requests` pass. Running `checks` for the first time found five things,
+all fixed:
+
+- GitHub's `##[group]` markers reached the log tail.
+- An open log kept showing old annotations after its check moved.
+- The phone sheet's close button had no name of its own.
+- The running row's ring did not spin.
+- The spec counted the split "New chat" button twice.
+
+`integrations` exposed a race: "Not saved" showed before the restored binary was read back. It
+is fixed too.
 
 ## Phase 3: reviews
 
