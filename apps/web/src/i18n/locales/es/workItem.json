@@ -347,7 +347,8 @@
     "strip": {
       "why_one": "{{count}} hilo de la revisión espera respuesta",
       "why_other": "{{count}} hilos de la revisión esperan respuesta",
-      "start": "Atender con un agente"
+      "start": "Atender con un agente",
+      "choose": "Elegir qué atender"
     },
     "dialog": {
       "title": "Atender con un agente los comentarios de la {{noun}} {{ref}}",
@@ -388,12 +389,12 @@
         "push": "El cambio espera tu subida"
       },
       "hint": {
-        "person": "Lo pediste tú: se sube cuando QA lo dé por bueno.",
+        "person": "Lo has pedido tú: se sube cuando QA lo dé por bueno.",
         "decision": "Lo pidió un punto de decisión: espera tu subida.",
         "push": "Nada llega a la {{noun}} hasta que lo subas."
       },
       "waiting": "te espera",
-      "push": "Subir la corrección"
+      "push": "Subir el arreglo"
     },
     "followUp": {
       "label": "Comentarios atendidos",
@@ -410,10 +411,10 @@
       "dismiss": "Descartar"
     },
     "errors": {
-      "address": "No se ha podido pasar los comentarios a un agente",
+      "address": "No se han podido pasar los comentarios a un agente",
       "reply": "No se ha podido publicar la respuesta",
       "resolve": "No se ha podido resolver el hilo",
-      "push": "No se ha podido subir la corrección"
+      "push": "No se ha podido subir el arreglo"
     }
   }
 }

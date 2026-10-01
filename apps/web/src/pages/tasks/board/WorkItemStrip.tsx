@@ -243,13 +243,17 @@ export function WorkItemStrip({
       );
       break;
     case 'pr-fix': {
-      const detail = [strip.attempt > 0 && t('pr.fix.attempt', { count: strip.attempt }), strip.origin && t(`pr.fix.origin.${strip.origin}`), t(`pr.fix.note.${strip.stage}.${strip.origin ?? 'person'}`)].filter(Boolean).join(' · ');
+      // Comments being addressed read as such: the same fix state, but not the checks
+      const review = strip.fix === 'review';
+      const verb = review ? t(`address.run.stage.${strip.stage}`, { ns: 'workItem' }) : t(`pr.fix.${strip.stage}`);
+      const note = review ? t(`address.run.hint.${strip.stage === 'push' ? 'push' : strip.origin === 'decision' ? 'decision' : 'person'}`, { ns: 'workItem', noun: words.noun }) : t(`pr.fix.note.${strip.stage}.${strip.origin ?? 'person'}`);
+      const detail = [strip.attempt > 0 && t('pr.fix.attempt', { count: strip.attempt }), strip.origin && t(`pr.fix.origin.${strip.origin}`), note].filter(Boolean).join(' · ');
       body = (
         <>
           {strip.stage === 'push' && <span className="badge badge-idle">{t('strip.waitsForYou')}</span>}
           <GitPullRequest {...MARK} />
           <PrNumber number={strip.number} refText={strip.ref} host={strip.host} />
-          <span className={`workitem-strip-verb ${strip.stage === 'push' ? '' : 'is-quiet'}`.trim()}>{t(`pr.fix.${strip.stage}`)}</span>
+          <span className={`workitem-strip-verb ${strip.stage === 'push' ? '' : 'is-quiet'}`.trim()}>{verb}</span>
           {!inline && <span className="workitem-strip-detail">{detail}</span>}
         </>
       );

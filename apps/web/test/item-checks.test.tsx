@@ -120,6 +120,16 @@ test('a fix under way replaces the action: fixing is live, waiting for the push 
   assert.ok(!waiting.includes('live-rail'));
 });
 
+test('a fix of review comments is not drawn as a checks fix: the review block has its own rail and push', () => {
+  for (const fixState of ['fixing', 'awaiting-verify', 'awaiting-push'] as const) {
+    const html = render(list(FAILING), pr({ fixState, fixKind: 'review', fixOrigin: 'person' }));
+    assert.ok(!html.includes('check-fix'), fixState);
+    assert.ok(!html.includes('workitem-push-fix'), fixState);
+    assert.ok(!html.includes('The Developer is fixing the checks'), fixState);
+  }
+  assert.match(render(list(FAILING), pr({ fixState: 'fixing', fixKind: 'checks' })), /The Developer is fixing the checks/);
+});
+
 test('nothing is drawn before the host numbered the PR or once it is closed', () => {
   assert.ok(!render(null, pr({ id: undefined })).includes('class="checks"'));
   assert.ok(!render(list(FAILING), pr({ phase: 'merged' })).includes('class="checks"'));

@@ -12,7 +12,21 @@ import { Spinner } from '@agentry/ui/components/Spinner';
 import { useToast } from '@agentry/ui/components/Toast';
 import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { fixStage } from '../../../lib/change-requests';
-import { ADDRESS_THREADS_MAX, addressable, countThreads, followUpThreads, lineLabel, preselected, threadLine, triageMark, type TriageMark } from '../../../lib/reviews';
+import {
+  ADDRESS_THREADS_MAX,
+  addressable,
+  countThreads,
+  followUpDue,
+  followUpThreads,
+  isReviewFix,
+  lineLabel,
+  preselected,
+  settleAddress,
+  threadLine,
+  triageMark,
+  type AddressMemory,
+  type TriageMark,
+} from '../../../lib/reviews';
 import { useChangeRequestWords } from '../board/PullRequest';
 
 const BADGE = { size: 11, strokeWidth: 2, 'aria-hidden': true } as const;
@@ -32,31 +46,30 @@ export function triageMarksOf(record: Pick<DecisionRecord, 'answers'> | null | u
   return marks;
 }
 
-/** The threads an address handed over, kept for the offer to answer them once the fix is pushed (the API does not say which they were). */
-interface Addressed {
-  ids: string[];
-  /** The head the threads were read on: a different one means the fix was pushed */
-  head: string | null;
-}
-
 /** Tells the page, which may hold the button elsewhere, that threads were handed over */
 const ADDRESSED_EVENT = 'agentry:addressed';
 
 const storageKey = (crId: string) => `agentry.address.${crId}`;
 
-function readAddressed(crId: string): Addressed | null {
+function readAddressed(crId: string): AddressMemory | null {
   try {
     const raw: unknown = JSON.parse(localStorage.getItem(storageKey(crId)) ?? 'null');
     if (!raw || typeof raw !== 'object') return null;
-    const { ids, head } = raw as { ids?: unknown; head?: unknown };
+    const { ids, head, stage, pushedHead } = raw as { ids?: unknown; head?: unknown; stage?: unknown; pushedHead?: unknown };
     if (!Array.isArray(ids)) return null;
-    return { ids: ids.filter((id): id is string => typeof id === 'string'), head: typeof head === 'string' ? head : null };
+    // A memory from before the stages existed carries no proof that its fix ended in a push: it only waits
+    return {
+      ids: ids.filter((id): id is string => typeof id === 'string'),
+      head: typeof head === 'string' ? head : null,
+      stage: stage === 'running' || stage === 'pushed' ? stage : 'handed',
+      pushedHead: typeof pushedHead === 'string' ? pushedHead : null,
+    };
   } catch {
     return null;
   }
 }
 
-function writeAddressed(crId: string, value: Addressed | null): void {
+function writeAddressed(crId: string, value: AddressMemory | null): void {
   try {
     if (value) localStorage.setItem(storageKey(crId), JSON.stringify(value));
     else localStorage.removeItem(storageKey(crId));
@@ -244,7 +257,7 @@ function ReviewRun({ pr }: { pr: WorkItemPullRequest }) {
  * After the fix reached the branch: the threads that were addressed and are still open, each with
  * "Reply “Addressed in <sha>”" and Resolve. Nothing is posted or resolved but by a click.
  */
-function FollowUp({ pr, threads, sha, onDone }: { pr: WorkItemPullRequest; threads: ReviewThread[]; sha: string; onDone: (id: string) => void }) {
+function FollowUp({ pr, threads, sha, onDone }: { pr: WorkItemPullRequest; threads: ReviewThread[]; sha: string; onDone: (ids: string[]) => void }) {
   const { t } = useTranslation('workItem');
   const words = useChangeRequestWords(pr.host);
   const qc = useQueryClient();
@@ -262,7 +275,7 @@ function FollowUp({ pr, threads, sha, onDone }: { pr: WorkItemPullRequest; threa
   };
   const resolve = async (thread: ReviewThread) => {
     await api.resolveThread(crId, thread.id, true);
-    onDone(thread.id);
+    onDone([thread.id]);
   };
   const run = async (title: string, work: () => Promise<void>) => {
     setBusy(true);
@@ -332,7 +345,7 @@ function FollowUp({ pr, threads, sha, onDone }: { pr: WorkItemPullRequest; threa
           <Check {...ICON_SM} />
           {t('address.followUp.replyAndResolve', { count: threads.length })}
         </button>
-        <button type="button" className="btn btn-small btn-ghost" disabled={busy} onClick={() => threads.forEach((thread) => onDone(thread.id))}>
+        <button type="button" className="btn btn-small btn-ghost" disabled={busy} onClick={() => onDone(threads.map((thread) => thread.id))}>
           {t('address.followUp.dismiss')}
         </button>
       </div>
@@ -341,7 +354,7 @@ function FollowUp({ pr, threads, sha, onDone }: { pr: WorkItemPullRequest; threa
 }
 
 /** The button that opens the dialog, for the review card's thread row as well as this page's own strip. */
-export function AddressButton({ pr, className = 'btn btn-small' }: { pr: WorkItemPullRequest; className?: string }) {
+export function AddressButton({ pr, className = 'btn btn-small', label = 'start' }: { pr: WorkItemPullRequest; className?: string; label?: 'start' | 'choose' }) {
   const { t } = useTranslation('workItem');
   const [open, setOpen] = useState(false);
   const crId = pr.id ?? '';
@@ -351,7 +364,7 @@ export function AddressButton({ pr, className = 'btn btn-small' }: { pr: WorkIte
     <>
       <button type="button" className={`${className} workitem-address`} onClick={() => setOpen(true)}>
         <Sparkles {...ICON_SM} />
-        {t('address.strip.start')}
+        {t(`address.strip.${label}`)}
       </button>
       {open && (
         <AddressDialog
@@ -359,7 +372,7 @@ export function AddressButton({ pr, className = 'btn btn-small' }: { pr: WorkIte
           list={list.data}
           onClose={() => setOpen(false)}
           onStarted={(ids) => {
-            writeAddressed(crId, { ids, head: list.data.headSha });
+            writeAddressed(crId, { ids, head: list.data.headSha, stage: 'handed', pushedHead: null });
             window.dispatchEvent(new Event(ADDRESSED_EVENT));
           }}
         />
@@ -388,35 +401,69 @@ function useChangeRequestThreads(pr: Pick<WorkItemPullRequest, 'id' | 'phase'> |
  */
 export function AddressReview({ pr }: { pr: WorkItemPullRequest | null | undefined }) {
   const { t } = useTranslation('workItem');
+  const qc = useQueryClient();
   const list = useChangeRequestThreads(pr);
-  const [addressed, setAddressed] = useState<Addressed | null>(() => (pr?.id ? readAddressed(pr.id) : null));
+  const [addressed, setAddressed] = useState<AddressMemory | null>(() => (pr?.id ? readAddressed(pr.id) : null));
   const watched = pr?.id;
+  const fixRunning = isReviewFix(pr);
+  const headNow = list.data?.headSha ?? null;
+  const commit = (next: AddressMemory | null) => {
+    if (!watched) return;
+    writeAddressed(watched, next);
+    setAddressed(next);
+  };
   useEffect(() => {
     if (!watched) return;
     const read = () => setAddressed(readAddressed(watched));
     window.addEventListener(ADDRESSED_EVENT, read);
     return () => window.removeEventListener(ADDRESSED_EVENT, read);
   }, [watched]);
+  // What happened to the address is read from the change request itself: a fix seen under way, then
+  // ended with the head moved at that moment, is a push; the same end with the head where it was is a
+  // card taken over, and nothing is offered for it
+  const stage = addressed?.stage;
+  useEffect(() => {
+    if (!watched || !addressed) return;
+    if (fixRunning) {
+      if (stage === 'handed') commit(settleAddress(addressed, { fixRunning: true, headNow: null }));
+      return;
+    }
+    if (stage === 'running') {
+      let stale = false;
+      api
+        .changeRequestThreads(watched, true)
+        .then((fresh) => {
+          if (stale) return;
+          qc.setQueryData(keys.changeRequestThreads(watched), fresh);
+          commit(settleAddress(addressed, { fixRunning: false, headNow: fresh.headSha }));
+        })
+        .catch(() => undefined);
+      return () => {
+        stale = true;
+      };
+    }
+    if (stage === 'pushed' && headNow) {
+      const next = settleAddress(addressed, { fixRunning: false, headNow });
+      if (next !== addressed) commit(next);
+    }
+  }, [watched, fixRunning, stage, headNow]);
   if (!pr?.id || pr.phase !== 'open') return null;
-  const crId = pr.id;
-  const sha = shortSha(list.data?.headSha);
 
-  if (pr.fixKind === 'review' && pr.fixState) return <ReviewRun pr={pr} />;
+  if (isReviewFix(pr)) return <ReviewRun pr={pr} />;
   if (!list.data) return null;
 
-  // The fix is pushed once the head moved on from the one the threads were handed over on
-  const pushed = !!addressed && !pr.fixState && !!list.data.headSha && addressed.head !== list.data.headSha;
-  const follow = pushed && addressed ? followUpThreads(list.data.threads, addressed.ids) : [];
-  if (follow.length > 0)
+  const follow = followUpDue(addressed, headNow) ? followUpThreads(list.data.threads, addressed.ids) : [];
+  if (follow.length > 0 && addressed)
     return (
       <FollowUp
         pr={pr}
         threads={follow}
-        sha={sha}
-        onDone={(id) => {
-          const next = addressed ? { ...addressed, ids: addressed.ids.filter((x) => x !== id) } : null;
-          writeAddressed(crId, next && next.ids.length > 0 ? next : null);
-          setAddressed(next && next.ids.length > 0 ? next : null);
+        sha={shortSha(addressed.pushedHead)}
+        onDone={(done) => {
+          // Read back what the last call wrote: a loop over the threads calls this once per thread
+          const current = readAddressed(pr.id ?? '') ?? addressed;
+          const rest = current.ids.filter((id) => !done.includes(id));
+          commit(rest.length > 0 ? { ...current, ids: rest } : null);
         }}
       />
     );
@@ -426,7 +473,7 @@ export function AddressReview({ pr }: { pr: WorkItemPullRequest | null | undefin
   return (
     <div className="item-wait is-quiet item-pr-wait is-address">
       <span className="item-wait-why">{t('address.strip.why', { count: open })}</span>
-      <AddressButton pr={pr} />
+      <AddressButton pr={pr} label="choose" />
     </div>
   );
 }

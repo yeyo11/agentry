@@ -73,9 +73,15 @@ export interface ThreadCounts {
   resolved: number;
 }
 
+/**
+ * Counted as the core counts them: an outdated thread waits for no answer (the code it was left on
+ * moved), so it is not unresolved, and the number does not change when the threads load after the
+ * reviewers' count.
+ */
+export const isUnresolved = (thread: Pick<ReviewThread, 'isResolved' | 'isOutdated'>): boolean => !thread.isResolved && !thread.isOutdated;
+
 export function countThreads(threads: readonly ReviewThread[]): ThreadCounts {
-  const unresolved = threads.filter((t) => !t.isResolved).length;
-  return { unresolved, resolved: threads.length - unresolved };
+  return { unresolved: threads.filter(isUnresolved).length, resolved: threads.filter((t) => t.isResolved).length };
 }
 
 /** A thread starts folded when it is resolved; the person's own click overrides it. */
@@ -204,26 +210,18 @@ export function submitOffer(host: CodeHostId, approval: Pick<ApprovalState, 'can
 export const canSubmit = (drafts: readonly unknown[], event: ReviewEvent, body: string): boolean =>
   event === 'approve' || drafts.length > 0 || body.trim().length > 0;
 
-export interface PostMark {
-  tone: ReviewTone;
-  label: `post.${ReviewPost['state']}`;
-}
-
-export function postMark(post: Pick<ReviewPost, 'state'>): PostMark {
-  switch (post.state) {
-    case 'posted':
-      return { tone: 'ok', label: 'post.posted' };
-    case 'partly':
-      return { tone: 'warn', label: 'post.partly' };
-    case 'failed':
-      return { tone: 'bad', label: 'post.failed' };
-    case 'posting':
-      return { tone: 'idle', label: 'post.posting' };
-  }
-}
-
 /** A GitLab review that stopped half way: the person chooses Publish saved or Discard saved. */
 export const needsPartialChoice = (post: Pick<ReviewPost, 'state'> | null | undefined): boolean => post?.state === 'partly';
+
+/**
+ * The post the draft block still has to settle: the newest attempt, when it stopped half way. A
+ * later attempt that went out (or none) leaves nothing to choose, so a reload shows what the last
+ * tab did.
+ */
+export function partlyPost<P extends Pick<ReviewPost, 'state'>>(posts: readonly P[] | undefined): P | null {
+  const newest = posts?.[0];
+  return newest && needsPartialChoice(newest) ? newest : null;
+}
 
 // ---------- the item page's primary action ----------
 
@@ -234,9 +232,6 @@ export const needsPartialChoice = (post: Pick<ReviewPost, 'state'> | null | unde
  */
 export const workOnItNeutral = (opts: { drafts: number; checksFixShowing: boolean }): boolean => opts.drafts > 0 || opts.checksFixShowing;
 
-/** Submit review is the zone's gradient action while there is a draft to send. */
-export const submitIsPrimary = (drafts: number): boolean => drafts > 0;
-
 // ---------- addressing with an agent ----------
 
 /** What `review.triage` suggests for a thread; it only preselects, nothing is sent or done by a mark. */
@@ -244,16 +239,16 @@ export type TriageMark = 'agent' | 'person' | 'no-action';
 
 export interface TriageTone {
   tone: ReviewTone;
-  label: `triage.${TriageMark}`;
 }
 
-export const triageMark = (mark: TriageMark): TriageTone => ({ tone: mark === 'agent' ? 'ok' : 'idle', label: `triage.${mark}` });
+/** The mark's words are `address.triage.*` in the `workItem` namespace; only its colour is decided here. */
+export const triageMark = (mark: TriageMark): TriageTone => ({ tone: mark === 'agent' ? 'ok' : 'idle' });
 
 /** The most threads an address hands over (`review.triage` reads as many). */
 export const ADDRESS_THREADS_MAX = 40;
 
-/** The unresolved threads the dialog lists, at most the ceiling. */
-export const addressable = (threads: readonly ReviewThread[]): ReviewThread[] => threads.filter((t) => !t.isResolved).slice(0, ADDRESS_THREADS_MAX);
+/** The unresolved threads the dialog lists, at most the ceiling: the ones the strip and the review block count. */
+export const addressable = (threads: readonly ReviewThread[]): ReviewThread[] => threads.filter(isUnresolved).slice(0, ADDRESS_THREADS_MAX);
 
 /** The ids chosen beforehand: the ones marked `agent`. With no marks, none: the person chooses. */
 export function preselected(threads: readonly ReviewThread[], marks: Readonly<Record<string, TriageMark>> | undefined): Set<string> {
@@ -264,10 +259,48 @@ export function preselected(threads: readonly ReviewThread[], marks: Readonly<Re
 }
 
 /** An address of review threads is under way or waiting for its push. */
-export const isReviewFix = (cr: Pick<ChangeRequest, 'fixKind' | 'fixState'> | undefined): boolean => cr?.fixKind === 'review' && !!cr.fixState;
+export const isReviewFix = (cr: { fixKind?: ChangeRequest['fixKind']; fixState?: ChangeRequest['fixState'] } | null | undefined): boolean => cr?.fixKind === 'review' && !!cr.fixState;
 
 /** The threads a finished address offers "Addressed in" and Resolve for: its own, still open. */
 export function followUpThreads(threads: readonly ReviewThread[], addressedIds: readonly string[]): ReviewThread[] {
   const ids = new Set(addressedIds);
   return threads.filter((t) => ids.has(t.id) && !t.isResolved);
 }
+
+/**
+ * What the page remembers of an address it handed over, so "Addressed in <sha>" is offered only for
+ * the push that address made:
+ * - `handed`: threads were handed over, no fix seen yet;
+ * - `running`: the fix was seen under way (or waiting for its push);
+ * - `pushed`: the fix ended and the head moved right then, to `pushedHead`.
+ * The API says neither which threads the agent addressed nor how a fix ended (a push and a card taken
+ * over both clear it), so the head at the moment the fix ended is what tells them apart.
+ */
+export interface AddressMemory {
+  ids: string[];
+  /** The head the threads were handed over on */
+  head: string | null;
+  stage: 'handed' | 'running' | 'pushed';
+  pushedHead: string | null;
+}
+
+/**
+ * The memory after one look at the change request: `fixRunning` is a review fix under way, `headNow`
+ * the head read fresh. A fix that ended with the head where it was, or one nobody watched end, was
+ * dropped: nothing is offered. A head that moves again after the push is somebody else's.
+ */
+export function settleAddress(memory: AddressMemory, look: { fixRunning: boolean; headNow: string | null }): AddressMemory | null {
+  if (look.fixRunning) return memory.stage === 'pushed' ? memory : { ...memory, stage: 'running' };
+  switch (memory.stage) {
+    case 'handed':
+      return memory;
+    case 'running':
+      return look.headNow && look.headNow !== memory.head ? { ...memory, stage: 'pushed', pushedHead: look.headNow } : null;
+    case 'pushed':
+      return look.headNow === memory.pushedHead ? memory : null;
+  }
+}
+
+/** Whether the remembered address ended in a push that is still the head: the only time "Addressed in" may be said. */
+export const followUpDue = (memory: AddressMemory | null, headNow: string | null): memory is AddressMemory & { pushedHead: string } =>
+  !!memory && memory.stage === 'pushed' && !!memory.pushedHead && memory.pushedHead === headNow;

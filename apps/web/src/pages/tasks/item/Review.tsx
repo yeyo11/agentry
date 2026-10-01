@@ -1,7 +1,7 @@
 import type { ApprovalState, ChangeRequestReviewers, ReviewDraft, ReviewEvent, WorkItemPullRequest } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleAlert, ExternalLink, Info, Pencil, Plus, Trash2, X } from 'lucide-react';
-import { useEffect, useId, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { ApiRequestError, api, keys } from '../../../api';
@@ -19,9 +19,9 @@ import {
   decisionMark,
   lineLabel,
   parseLogins,
+  partlyPost,
   reviewerMark,
   sortDrafts,
-  submitIsPrimary,
   submitOffer,
   summarizeDrafts,
   type ReviewTone,
@@ -46,16 +46,6 @@ export function useReviewDrafts(pr: Pick<WorkItemPullRequest, 'id' | 'phase'> | 
     enabled: !!id,
     retry: false,
   });
-}
-
-/**
- * Whether the person has notes in a draft review. While they do, **Submit review** is the item
- * page's gradient action and the header's "Work on it" renders neutral: a desktop screen has two
- * gradient surfaces at most.
- */
-export function useHasDraftReview(pr: Pick<WorkItemPullRequest, 'id' | 'phase'> | null | undefined): boolean {
-  const drafts = useReviewDrafts(pr);
-  return submitIsPrimary(drafts.data?.length ?? 0);
 }
 
 /** The refusals `submit.reason` words; any other code is the server's own sentence. */
@@ -179,8 +169,11 @@ function DraftNote({ draft, noun, onRemove, removing = false }: { draft: ReviewD
   );
 }
 
-/** Where a submit stopped, kept for the draft block: the host's own refusals the person has to act on. */
-type Outcome = { kind: 'partly'; postId: string } | { kind: 'pending' } | { kind: 'own' } | null;
+/**
+ * Where a submit stopped, kept for the draft block: the host's own refusals the person has to act on.
+ * A review that stopped half way is not kept here: the server's review posts say so, and survive a reload.
+ */
+type Outcome = { kind: 'pending' } | { kind: 'own' } | null;
 
 /**
  * How the review goes out: comment, plus comment-and-approve on GitLab; on GitHub, approving and
@@ -192,6 +185,7 @@ function SubmitSheet({
   pr,
   drafts,
   approval,
+  headSha,
   own,
   onDone,
   onRefused,
@@ -201,6 +195,8 @@ function SubmitSheet({
   pr: WorkItemPullRequest;
   drafts: ReviewDraft[];
   approval: ApprovalState | undefined;
+  /** The head the person looked at while reading and noting: the review is posted on it, or refused if the head moved */
+  headSha: string | null;
   own: boolean;
   onDone: () => void;
   onRefused: (outcome: Outcome) => void;
@@ -215,16 +211,16 @@ function SubmitSheet({
   const offer = submitOffer(host, approval, own);
   const [event, setEvent] = useState<ReviewEvent>('comment');
   const [summary, setSummary] = useState('');
-  const sha = shortSha(approval?.headSha);
+  const sha = shortSha(headSha ?? approval?.headSha);
   const send = useMutation({
-    mutationFn: () => api.submitReview(id, { event, body: summary.trim() }),
+    mutationFn: () => api.submitReview(id, { event, body: summary.trim(), ...(headSha ? { headSha } : {}) }),
     onSuccess: () => {
       toast.success(t('submit.sent'));
       onDone();
     },
     onError: (error) => {
       const code = error instanceof ApiRequestError ? error.code : undefined;
-      if (code === 'review-partly-posted' && error instanceof ApiRequestError && error.postId) onRefused({ kind: 'partly', postId: error.postId });
+      if (code === 'review-partly-posted') onRefused(null);
       else if (code === 'pending-review-exists') onRefused({ kind: 'pending' });
       else if (code === 'own-change-request') onRefused({ kind: 'own' });
       else {
@@ -356,6 +352,16 @@ export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | 
     enabled: !!id && host === 'gitlab',
     retry: false,
   });
+  const posts = useQuery({
+    queryKey: keys.reviewPosts(id ?? ''),
+    queryFn: ({ signal }) => api.reviewPosts(id ?? '', { signal }),
+    enabled: !!id,
+    retry: false,
+  });
+  // The head the person first saw this review on: what a submit is posted on, so a push in between is refused
+  const looked = useRef<string | null>(null);
+  const headNow = approval.data?.headSha ?? threads.data?.headSha ?? null;
+  if (looked.current === null && headNow) looked.current = headNow;
   const draftsQuery = useReviewDrafts(pr);
   const drafts = draftsQuery.data ?? [];
   const reasonText = useReasonText(words.host, words.noun);
@@ -363,6 +369,7 @@ export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | 
   const settle = () => {
     if (!id) return;
     void qc.invalidateQueries({ queryKey: keys.reviewDrafts(id) });
+    void qc.invalidateQueries({ queryKey: keys.reviewPosts(id) });
     void qc.invalidateQueries({ queryKey: ['change-request', id] });
     void qc.invalidateQueries({ queryKey: keys.workItem(itemId) });
   };
@@ -382,7 +389,6 @@ export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | 
     mutationFn: (postId: string) => api.publishSavedReview(id ?? '', postId),
     onSuccess: () => {
       toast.success(t('partly.published'));
-      setOutcome(null);
     },
     onError: (error) => toast.error(t('partly.failedPublish'), reasonText(error)),
     onSettled: settle,
@@ -391,7 +397,6 @@ export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | 
     mutationFn: (postId: string) => api.discardSavedReview(id ?? '', postId),
     onSuccess: () => {
       toast.info(t('partly.discarded'));
-      setOutcome(null);
     },
     onError: (error) => toast.error(t('partly.failedDiscard'), reasonText(error)),
     onSettled: settle,
@@ -420,7 +425,8 @@ export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | 
   const offer = submitOffer(host, approval.data, own);
   const ref = words.ref(pr.number, pr.ref);
   const summary = summarizeDrafts(drafts);
-  const partly = outcome?.kind === 'partly' ? outcome : null;
+  const partlyAttempt = partlyPost(posts.data?.posts);
+  const partly = partlyAttempt ? { postId: partlyAttempt.id, onHost: posts.data?.savedOnHost?.[partlyAttempt.id] ?? null } : null;
   const pending = outcome?.kind === 'pending';
   const mine = approval.data?.viewerHasApproved ? approval.data : null;
   const working = remove.isPending || discard.isPending || publish.isPending || dropSaved.isPending;
@@ -554,11 +560,11 @@ export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | 
             <CircleAlert {...ICON_SM} />
             <div className="rv-col">
               <span>
-                <b>{t('host.pending')}</b>
+                <b>{t('host.pending', { host: words.host })}</b>
               </span>
               {pr.url && (
                 <a href={pr.url} target="_blank" rel="noreferrer" className="rv-link">
-                  {t('host.pendingOpen')}
+                  {t('host.pendingOpen', { host: words.host })}
                   <ExternalLink {...ICON_SM} />
                 </a>
               )}
@@ -568,11 +574,14 @@ export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | 
         {partly && (
           <div className="rv-callout warn" role="note">
             <CircleAlert {...ICON_SM} />
-            <span>{t('partly.text')}</span>
+            <div className="rv-col">
+              <span>{t('partly.text', { host: words.host, noun: words.noun })}</span>
+              {partly.onHost !== null && <span>{partly.onHost > 0 ? t('partly.onHost', { count: partly.onHost, host: words.host }) : t('partly.gone', { host: words.host })}</span>}
+            </div>
           </div>
         )}
 
-        {drafts.length === 0 ? (
+        {drafts.length === 0 && !partly ? (
           <div className="rv-empty">
             <p>{t('draft.empty')}</p>
             {changesPath && (
@@ -581,22 +590,22 @@ export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | 
               </Link>
             )}
           </div>
-        ) : (
+        ) : drafts.length > 0 ? (
           <ul className="rv-notes">
             {sortDrafts(drafts).map((draft) => (
               <DraftNote key={draft.id} draft={draft} noun={words.noun} removing={working} onRemove={() => remove.mutate(draft.id)} />
             ))}
           </ul>
-        )}
+        ) : null}
 
-        {drafts.length > 0 && (
+        {(drafts.length > 0 || partly) && (
           <div className="rv-foot">
             {partly ? (
               <>
                 <button type="button" className="btn btn-ghost" disabled={working} onClick={() => dropSaved.mutate(partly.postId)}>
                   {t('partly.discard')}
                 </button>
-                <button type="button" className="btn btn-primary" disabled={working} onClick={() => publish.mutate(partly.postId)}>
+                <button type="button" className="btn btn-primary" disabled={working || partly.onHost === 0} onClick={() => publish.mutate(partly.postId)}>
                   {t('partly.publish')}
                 </button>
               </>
@@ -632,11 +641,14 @@ export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | 
           pr={pr}
           drafts={drafts}
           approval={approval.data}
+          headSha={looked.current}
           own={own}
           onClose={() => setSubmitting(false)}
           onDone={() => {
             setSubmitting(false);
             setOutcome(null);
+            // The next review is read on the head of that moment
+            looked.current = null;
             settle();
           }}
           onRefused={(next) => {
