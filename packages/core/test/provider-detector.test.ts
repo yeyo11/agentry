@@ -130,15 +130,15 @@ describe('ProviderDetector', () => {
   });
 
   it('says unknown with no-probe when the vendor documents no login check', async () => {
-    await fake('gemini', 'echo "0.9.1"');
+    await fake('gemini', 'echo "0.62.0"');
     const gemini = await statusOf(detector(), 'gemini');
-    assert.deepEqual([gemini.state, gemini.reason, gemini.version], ['unknown', 'no-probe', '0.9.1']);
+    assert.deepEqual([gemini.state, gemini.reason, gemini.version], ['unknown', 'no-probe', '0.62.0']);
   });
 
   it('reads OpenCode sign-in from the credentials file its login writes', async () => {
-    await fake('opencode', 'echo "1.4.2"');
+    await fake('opencode', 'echo "1.18.34"');
     const signedOut = await statusOf(detector(), 'opencode');
-    assert.deepEqual([signedOut.state, signedOut.reason, signedOut.version], ['signed-out', 'missing-credentials', '1.4.2']);
+    assert.deepEqual([signedOut.state, signedOut.reason, signedOut.version], ['signed-out', 'missing-credentials', '1.18.34']);
     const data = join(home, '.local', 'share', 'opencode');
     await mkdir(data, { recursive: true });
     await writeFile(join(data, 'auth.json'), '{}');
