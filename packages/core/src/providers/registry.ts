@@ -1,5 +1,6 @@
 import type { PolicyTranslation, ProviderCapability, ProviderId, ProvidersSettings, ToolPolicy } from '@agentry/shared';
 import { claudeCodeManifest } from './claude-code/manifest.ts';
+import { AcpDriver } from './acp/driver.ts';
 import { CodexDriver } from './codex/driver.ts';
 import { codexManifest } from './codex/manifest.ts';
 import { copilotManifest } from './copilot/manifest.ts';
@@ -39,6 +40,7 @@ export function translationFor(id: ProviderId): ((policy: ToolPolicy) => PolicyT
  */
 export const DRIVER_TRANSPORTS: Readonly<Partial<Record<ProviderManifest['transport'], (manifest: ProviderManifest) => ProviderDriver>>> = {
   'json-rpc': () => new CodexDriver(),
+  acp: (manifest) => new AcpDriver(manifest),
 };
 
 /** What a session's first event confirmed about a provider's installed version, and when */

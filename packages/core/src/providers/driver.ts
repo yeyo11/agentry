@@ -255,6 +255,8 @@ export type DriverEvent =
   | { kind: 'command-started'; toolUseId: string; command: string }
   | { kind: 'command-ended'; toolUseId: string; isError: boolean }
   | { kind: 'task'; run: RunDraft }
+  /** The session cannot go on: the execution fails with `reason` (`auth-required: …`, `protocol: …`) and the process is stopped */
+  | { kind: 'failed'; reason: string }
   | { kind: 'rate-limit'; info: RateLimitInfo }
   /** The agent's wording says the account's window is spent: what a rotation is asked for on */
   | { kind: 'rate-limited' }
