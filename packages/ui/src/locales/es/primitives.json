@@ -59,7 +59,8 @@
     "copyCode": "Copiar el código",
     "requestFailed": "La petición ha fallado",
     "unsavedChangesLabel": "cambios sin guardar",
-    "claudeIsWorking": "Claude está trabajando"
+    "agentIsWorking": "{{agent}} está trabajando",
+    "agentGeneric": "El agente"
   },
   "controls": {
     "decrease": "Reducir",

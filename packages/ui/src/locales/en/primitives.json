@@ -59,7 +59,8 @@
     "copyCode": "Copy code",
     "requestFailed": "Request failed",
     "unsavedChangesLabel": "unsaved changes",
-    "claudeIsWorking": "Claude is working"
+    "agentIsWorking": "{{agent}} is working",
+    "agentGeneric": "The agent"
   },
   "controls": {
     "decrease": "Decrease",

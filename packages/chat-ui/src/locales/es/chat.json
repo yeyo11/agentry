@@ -43,7 +43,7 @@
       "hint_other": "{{count}} mensajes esperan al turno en curso",
       "sendNow": "Enviar ahora",
       "sending": "Acabando el turno…",
-      "sendNowHint": "Acaba el turno en el que está Claude, para que lea lo que espera",
+      "sendNowHint": "Acaba el turno en el que está {{agent}}, para que lea lo que espera",
       "undelivered": "No se ha entregado: el turno ha acabado antes de que el chat lo leyera",
       "restore": "Devolverlo al cuadro"
     },
@@ -139,7 +139,7 @@
     },
     "originHint": {
       "agentry": "Iniciado desde Agentry",
-      "external": "Iniciado en una terminal con Claude Code",
+      "external": "Iniciado en una terminal con {{agent}}",
       "orchestration": "Trabaja para una orquestación",
       "internal": "Tareas internas del propio Agentry"
     },
@@ -164,7 +164,7 @@
     "notAvailable": "no disponible",
     "usage": {
       "title": "Contexto y coste",
-      "costNotReported": "Claude Code solo informa del coste de lo que lanzó Agentry.",
+      "costNotReported": "{{agent}} solo informa del coste de lo que lanzó Agentry.",
       "tokensCaption": "Tokens gastados, por modelo",
       "input": "Entrada",
       "output": "Salida",
@@ -208,7 +208,7 @@
       "worktree": "Worktree",
       "forkedFrom": "Fork de",
       "updated": "Actualizado",
-      "environmentEmpty": "Todavía nada ha informado de lo que Claude cargó para este chat.",
+      "environmentEmpty": "Todavía nada ha informado de lo que cargó {{agent}} para este chat.",
       "messages": "Mensajes"
     },
     "workItem": {
@@ -277,7 +277,7 @@
     "defaultMode": "modo predeterminado ({{mode}})",
     "hero": "¿Qué <grad>construimos</grad> hoy?",
     "heroShort": "¿Qué <grad>construimos</grad>?",
-    "lead": "Claude Code lo ejecuta en tu proyecto y responde aquí.",
+    "lead": "{{agent}} lo ejecuta en tu proyecto y responde aquí.",
     "kind": "Tipo",
     "kindChat": "Chat",
     "kindOrchestration": "Orquestación",
@@ -340,6 +340,30 @@
       "interrupt": "Interrumpido"
     }
   },
+  "agent": {
+    "generic": "el agente"
+  },
+  "toolKinds": {
+    "commandExecution": "Comando",
+    "fileChange": "Cambio de archivos",
+    "execute": "Comando",
+    "edit": "Edición",
+    "read": "Lectura",
+    "delete": "Borrado",
+    "move": "Movimiento",
+    "search": "Búsqueda",
+    "fetch": "Consulta web",
+    "think": "Razonamiento",
+    "other": "Otra herramienta"
+  },
+  "permissionModes": {
+    "acceptEdits": "Aceptar ediciones",
+    "auto": "Automático",
+    "bypassPermissions": "Sin comprobar permisos",
+    "manual": "Preguntar",
+    "dontAsk": "No preguntar",
+    "plan": "Plan"
+  },
   "permissions": {
     "waitingForYou": "Te está esperando",
     "wantsToRun": "quiere ejecutarse",
@@ -350,7 +374,7 @@
     "switchTo": "cambiar a {{mode}}",
     "alwaysAllow": "permitir siempre {{rules}}",
     "allowDirectories": "permitir {{directories}}",
-    "agentIsAsking": "Claude te pregunta",
+    "agentIsAsking": "{{agent}} te pregunta",
     "answeredCount": "{{answered}} de {{total}} respondidas",
     "questions": "Preguntas",
     "answered": "respondida",
@@ -396,7 +420,7 @@
     "document": "Documento",
     "pasted": "pegado",
     "attachFiles": "Adjuntar archivos",
-    "attachHint": "Adjunta archivos, o suéltalos o pégalos aquí. Claude ve las imágenes y los PDF; el resto lo lee del disco.",
+    "attachHint": "Adjunta archivos, o suéltalos o pégalos aquí. Las imágenes y los PDF los ve {{agent}}; el resto lo lee del disco.",
     "attach": "Adjuntar",
     "uploading": "Subiendo",
     "remove": "Quitar {{name}}"
@@ -436,7 +460,7 @@
     "streamConnected": "Stream conectado",
     "streamReconnecting": "Reconectando el stream…",
     "interrupt": "Interrumpir",
-    "working": "Claude está trabajando…",
+    "working": "{{agent}} está trabajando…",
     "jumpToLatest": "Saltar a lo último",
     "permissions": "Permisos",
     "prompts": "Peticiones de permiso",
@@ -449,7 +473,7 @@
     "backgroundTasks": "Tareas en segundo plano ({{n}})",
     "subagents": "Subagentes ({{n}})",
     "workflows": "Workflows ({{n}})",
-    "loadedByClaude": "Cargado por Claude",
+    "loadedByAgent": "Cargado por {{agent}}",
     "loadedHint": "herramientas, servidores MCP, agentes, skills…"
   },
   "model": {
