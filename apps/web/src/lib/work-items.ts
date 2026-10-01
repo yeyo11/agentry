@@ -418,7 +418,7 @@ export type WorkItemStripState =
   | { kind: 'pr-conflict'; base: string; count: number; host: CodeHostId | null }
   | { kind: 'pr-awaiting'; base: string; host: CodeHostId | null }
   | { kind: 'pr-fix'; fix: 'checks' | 'review'; stage: FixStage; origin: ChangeRequestFixOrigin | null; attempt: number; number: number | null; ref: string | null; host: CodeHostId | null }
-  | { kind: 'pr-open'; number: number | null; ref: string | null; host: CodeHostId | null; url: string | null; ci: WorkItemPullRequestCi | null }
+  | { kind: 'pr-open'; id: string | null; number: number | null; ref: string | null; host: CodeHostId | null; url: string | null; ci: WorkItemPullRequestCi | null }
   | { kind: 'pr-closed'; number: number | null; ref: string | null; host: CodeHostId | null }
   | { kind: 'pr-failed'; code: string; detail: string | null; host: CodeHostId | null };
 
@@ -452,7 +452,7 @@ function pullRequestStrip(item: StripItem): WorkItemStripState | null {
     if (stage) return { kind: 'pr-fix', fix: pr.fixKind === 'review' ? 'review' : 'checks', stage, origin: pr.fixOrigin ?? null, attempt: pr.fixAttempts ?? 0, number: pr.number, ref: pr.ref ?? null, host };
   }
   if (item.waiting === 'merge' || pr?.phase === 'open')
-    return { kind: 'pr-open', number: pr?.number ?? null, ref: pr?.ref ?? null, host, url: pr?.url ?? null, ci: pr?.ci ?? null };
+    return { kind: 'pr-open', id: pr?.id ?? null, number: pr?.number ?? null, ref: pr?.ref ?? null, host, url: pr?.url ?? null, ci: pr?.ci ?? null };
   if (!pr) return null;
   switch (pr.phase) {
     case 'preparing':

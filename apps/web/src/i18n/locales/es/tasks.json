@@ -364,6 +364,16 @@
     "conflict_other": "Conflicto con {{base}} · {{count}} archivos",
     "awaiting": "Aprobada · su {{noun}} se abrirá cuando pase la verificación",
     "waitingMerge": "esperando fusión",
+    "auto": {
+      "badge": "fusión automática",
+      "note": "se fusiona sola al pasar la CI · {{method}}",
+      "noteBare": "se fusiona sola al pasar la CI",
+      "method": {
+        "squash": "squash",
+        "merge": "commit de fusión",
+        "rebase": "rebase"
+      }
+    },
     "closed": "cerrada sin fusionar",
     "failed": "No se ha podido abrir la {{noun}}",
     "link": "Abrir {{noun}} {{ref}} en {{host}}",
