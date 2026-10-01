@@ -1831,6 +1831,11 @@ Generator `reviews.py`.
 
 ### P2 · `reviews-web`, dependsOn P0 (validated) and P1
 
+P0 was validated on 2026-10-01 (by delegation) with the correction phase 2 also needed: a screen
+keeps at most two gradient surfaces (the top bar's split "New chat" counts once). On the item page,
+while the person has a draft review, **Submit review** is that zone's gradient action and the
+header's **Work on it** renders neutral, as it does while **Fix failing checks** shows.
+
 - `ru0` model (`lib/reviews.ts`, `api.ts`, events).
 - `ru1` threads in the diff: `components/changes/ReviewThreads.tsx`, `FileReview.tsx`,
   `changes.css` (tokens only), `i18n/locales/{en,es}/changes.json`.
