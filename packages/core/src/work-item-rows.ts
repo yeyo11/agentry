@@ -1,4 +1,5 @@
 import type {
+  CodeHostId,
   DocumentKind,
   Milestone,
   MilestoneProgress,
@@ -273,6 +274,10 @@ export interface PullRequestRow {
   id: string;
   item_id: string;
   project_id: string;
+  /** A `CodeHostId`; rows opened before hosts existed read `github` */
+  host: string;
+  /** Null until read from origin */
+  hostname: string | null;
   phase: string;
   number: number | null;
   url: string | null;
@@ -295,6 +300,19 @@ export interface PullRequestRow {
 const PR_PHASES: readonly WorkItemPullRequestPhase[] = ['preparing', 'conflict', 'awaiting-verify', 'open', 'merged', 'closed', 'failed'];
 const PR_CI: readonly WorkItemPullRequestCi[] = ['none', 'pending', 'passing', 'failing'];
 
+/** How each host writes a change request's number: GitHub's `#12`, GitLab's `!12` */
+const REF_PREFIX: Record<CodeHostId, string> = { github: '#', gitlab: '!' };
+
+/** A host this version does not know reads as github, which every row before hosts was */
+export function hostOf(value: string): CodeHostId {
+  return value === 'gitlab' ? 'gitlab' : 'github';
+}
+
+/** `#12` or `!12`; null without a number */
+export function refOf(host: CodeHostId, number: number | null): string | null {
+  return number === null ? null : `${REF_PREFIX[host]}${String(number)}`;
+}
+
 /** A stored PR as the contract carries it; a phase this version does not know reads as failed. */
 export function pullRequestOf(row: PullRequestRow): WorkItemPullRequest {
   let conflicts: string[] = [];
@@ -304,9 +322,12 @@ export function pullRequestOf(row: PullRequestRow): WorkItemPullRequest {
   } catch {
     // an unreadable list reads as none
   }
+  const host = hostOf(row.host);
   return {
     phase: PR_PHASES.find((p) => p === row.phase) ?? 'failed',
+    host,
     number: row.number,
+    ref: refOf(host, row.number),
     url: row.url,
     branch: row.branch,
     base: row.base,
