@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Chat (móvil)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:var(--bg)}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)})}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
+<div class="app m-screen " data-theme="dark" style="font-size: 15px">
+<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 2px; border-bottom: 1px solid var(--line); background: var(--bg-1)">
+<a href="MobileChats.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver a chats"><svg class="ico ico-lg" viewBox="0 0 24 24" style="stroke-width: 2"><path d="m15 6-6 6 6 6"></path></svg></a>
+<span class="col grow" style="gap: 2px"><span class="ellipsis" style="font-weight: 600; font-size: 15px">Explica cómo se calcula la próxima ejecución</span><span class="row t-xs mono" style="gap: 8px"><span class="prov-badge"><span class="prov-mark" style="--hue: 262" aria-hidden="true">GH</span>GitHub Copilot</span><span class="spin-braille"></span><span class="c-live">trabajando</span></span></span>
+<button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Detalles del chat"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-17 0 8.5 8.5 0 0 1 17 0zM12 11v5M12 8h.01"></path></svg></button>
+</header>
+
+<div class="col" style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 16px 18px; gap: 14px; line-height: 1.6">
+<div class="row t-xs mono fg-3" style="gap: 6px"><svg class="ico ico-sm c-ok" viewBox="0 0 24 24" style="stroke-width: 2.4"><path d="m5 12 5 5 9-10"></path></svg>4 herramientas · 3 s</div>
+<div class="row" style="gap: 6px"><span class="badge">read ×3</span><span class="badge">execute</span></div>
+<p style="margin: 0">Hay un caso que falla: al cambiar la hora de verano, una programación de las 02:30 se salta un día.</p>
+<ul class="col" style="margin: 0; padding-left: 20px; gap: 6px"><li><strong>Normalizar a UTC:</strong> el cálculo no depende de la zona.</li><li><strong>Un test por cambio de hora:</strong> marzo y octubre.</li></ul>
+<div class="row t-sm" style="gap: 8px"><span class="spin-braille"></span><span class="shimmer" style="font-weight: 500; white-space: nowrap; flex-shrink: 0">GitHub Copilot está trabajando</span><span class="mono t-xs fg-3 ellipsis">read · scheduler.ts · 15s</span></div>
+</div>
+
+<div class="col" style="flex-shrink: 0; padding: 8px 12px 28px; gap: 8px; border-top: 1px solid var(--line); background: var(--bg-1)">
+<div class="row" style="gap: 6px; overflow: hidden"><button type="button" class="chip" style="height: 32px; color: var(--fg-3); cursor: default" disabled aria-disabled="true" title="Copilot elige el modelo cuando empieza el chat"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3"></path></svg>Lo elige Copilot</button><button type="button" class="chip" style="height: 32px">Preguntar</button></div>
+<div class="card energy row" style="border-radius: var(--r-xl); padding: 4px; gap: 4px; align-items: flex-end">
+<button type="button" class="btn btn-ghost btn-icon" aria-label="Adjuntar" style="width: 40px; height: 40px; border-radius: 50%"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></button>
+<label class="grow" style="display: flex; min-height: var(--touch); align-items: center"><textarea rows="1" placeholder="Envía un mensaje" aria-label="Mensaje" style="width: 100%; border: 0; outline: 0; resize: none; background: transparent; font-size: 16px; padding: 0"></textarea></label>
+<button type="button" class="btn btn-danger btn-icon" aria-label="Detener" style="width: 40px; height: 40px; border-radius: 50%"><svg viewBox="0 0 24 24" style="width: 13px; height: 13px; fill: currentColor"><path d="M6 6h12v12H6z"></path></svg></button>
+</div>
+</div>
+</div>
+<script>t()</script>
+</body></html>
