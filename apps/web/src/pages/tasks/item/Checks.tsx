@@ -381,7 +381,7 @@ export function Checks({ pr, itemId }: { pr: WorkItemPullRequest | null | undefi
       </div>
 
       {narrow && open && (
-        <Sheet open onOpenChange={(next) => !next && setOpenId(null)} side="bottom" title={t('log.of', { name: open.name })} description={checkFacts(open, now)}>
+        <Sheet open onOpenChange={(next) => !next && setOpenId(null)} side="bottom" title={t('log.of', { name: open.name })} description={checkFacts(open, now)} closeLabel={t('log.close')}>
           <div className="check-log is-sheet">
             <div className="check-log-head">
               <span className={markBadge(checkMark(open).tone)}>{t(checkMark(open).label)}</span>
