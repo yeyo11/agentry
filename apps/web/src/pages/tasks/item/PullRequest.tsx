@@ -4,20 +4,21 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ICON_SM } from '../../../components/icons';
 import { notReadyReason, pullRequestErrorKey } from '../../../lib/work-items';
-import { CiBadge, NotReadyNote, useOpenPullRequest } from '../board/PullRequest';
+import { CiBadge, NotReadyNote, reasonValues, useChangeRequestWords, useOpenPullRequest } from '../board/PullRequest';
 import { pullRequestAction, pullRequestPanel } from './model';
 
 const BADGE = { size: 11, strokeWidth: 2, 'aria-hidden': true } as const;
 
-/** `PR #123` in mono with tabular figures; `PR` before GitHub numbered it. */
-function PrNumber({ pr }: { pr: Pick<WorkItemPullRequest, 'number'> }) {
+/** `PR #123` or `MR !7` in mono with tabular figures, the way its host writes it; `PR` before the host numbered it. */
+function PrNumber({ pr }: { pr: Pick<WorkItemPullRequest, 'number' | 'host' | 'ref'> }) {
   const { t } = useTranslation('tasks');
-  return <span className="item-pr-num">{pr.number === null ? t('pr.unnumbered') : t('pr.number', { number: String(pr.number) })}</span>;
+  const words = useChangeRequestWords(pr.host);
+  return <span className="item-pr-num">{pr.number === null ? t('pr.unnumbered', { noun: words.noun }) : t('pr.number', { noun: words.noun, ref: words.ref(pr.number, pr.ref) })}</span>;
 }
 
 /**
  * The item's pull request under its Changes (the PR row): its number, its branch into the default
- * one and its state, the whole row a plain link to it on GitHub. Only once GitHub gave it a number
+ * one and its state, the whole row a plain link to it on its host. Only once the host gave it a number
  * and an address; before that, the panel above says what is happening.
  */
 export function PullRequestRow({ pr }: { pr: WorkItemPullRequest | null | undefined }) {
@@ -48,7 +49,7 @@ export function PullRequestRow({ pr }: { pr: WorkItemPullRequest | null | undefi
  * What the item's pull request is doing and what the person can do about it, beside the waiting
  * panel (`.item-wait`): being prepared, conflicted (with the paths in mono), approved until QA
  * passes, waiting for the person's merge with its CI, closed or failed (with the approval again), or
- * the offer to open one; in a project that cannot, why, in warn and in words, with git's or gh's
+ * the offer to open one; in a project that cannot, why, in warn and in words, with git's or the CLI's
  * line as its title. Nothing here moves: Agentry prepares a PR, no agent works on it.
  *
  * Before any PR exists (`offer`, `not-ready`) it is one quiet line, not a panel: the head already
@@ -58,11 +59,15 @@ export function PullRequestRow({ pr }: { pr: WorkItemPullRequest | null | undefi
  */
 export function PullRequestState({ item }: { item: WorkItemDetail }) {
   const { t } = useTranslation(['workItem', 'tasks']);
+  const { t: tt } = useTranslation('tasks');
   const open = useOpenPullRequest();
   const readiness = item.pullRequestReadiness ?? null;
+  const pr = item.pullRequest ?? null;
+  const words = useChangeRequestWords(pr?.host ?? readiness?.host);
   const panel = pullRequestPanel(item, readiness);
   if (!panel) return null;
-  const pr = item.pullRequest ?? null;
+  const ref = words.ref(pr?.number ?? null, pr?.ref);
+  const named = { noun: words.noun, host: words.host };
   const action = pullRequestAction(item, panel, readiness);
   const base = pr?.base ?? readiness?.defaultBranch ?? 'main';
 
@@ -80,7 +85,7 @@ export function PullRequestState({ item }: { item: WorkItemDetail }) {
           {t('pr.mergeBadge')}
         </span>
       );
-      why = pr && pr.number !== null ? t('pr.mergeWhy', { number: String(pr.number) }) : t('pr.mergeWhyUnnumbered');
+      why = pr && pr.number !== null ? t('pr.mergeWhy', { ...named, ref }) : t('pr.mergeWhyUnnumbered', named);
       hint = t('pr.mergeHint');
       extra = <CiBadge ci={pr?.ci} />;
       break;
@@ -91,7 +96,7 @@ export function PullRequestState({ item }: { item: WorkItemDetail }) {
           {t('pr.preparingBadge')}
         </span>
       );
-      why = t('pr.preparingWhy', { base });
+      why = t('pr.preparingWhy', { base, ...named });
       break;
     case 'conflict':
       badge = (
@@ -111,7 +116,7 @@ export function PullRequestState({ item }: { item: WorkItemDetail }) {
           {t('pr.awaitingBadge')}
         </span>
       );
-      why = t('pr.awaitingWhy');
+      why = t('pr.awaitingWhy', named);
       files = pr?.conflicts ?? [];
       break;
     case 'closed':
@@ -121,8 +126,8 @@ export function PullRequestState({ item }: { item: WorkItemDetail }) {
           {t('pr.closedBadge')}
         </span>
       );
-      why = pr && pr.number !== null ? t('pr.closedWhy', { number: String(pr.number) }) : t('tasks:pr.closed');
-      hint = t('pr.closedHint');
+      why = pr && pr.number !== null ? t('pr.closedWhy', { ...named, ref }) : t('tasks:pr.closed');
+      hint = t('pr.closedHint', named);
       break;
     case 'failed':
       badge = (
@@ -131,7 +136,7 @@ export function PullRequestState({ item }: { item: WorkItemDetail }) {
           {t('pr.failedBadge')}
         </span>
       );
-      why = t('pr.failedWhy', { reason: t(`tasks:${pullRequestErrorKey(pr?.error?.code ?? 'unknown')}`) });
+      why = t('pr.failedWhy', { ...named, reason: tt(pullRequestErrorKey(pr?.error?.code ?? 'unknown'), { ...reasonValues(tt, readiness ?? { host: pr?.host ?? null, hostname: null }), host: words.host }) });
       detail = pr?.error?.detail || null;
       break;
     case 'kept':
@@ -152,11 +157,11 @@ export function PullRequestState({ item }: { item: WorkItemDetail }) {
             <NotReadyNote readiness={readiness} />
           ) : (
             <>
-              <span className="item-wait-why">{item.waiting === 'approval' ? t('pr.approveWhy', { base }) : t('pr.offerWhy', { base })}</span>
+              <span className="item-wait-why">{item.waiting === 'approval' ? t('pr.approveWhy', { base, ...named }) : t('pr.offerWhy', { base, ...named })}</span>
               {action && (
                 <button type="button" className="btn btn-small workitem-open-pr" disabled={open.isPending} onClick={() => open.mutate(item)}>
                   <GitPullRequest {...ICON_SM} />
-                  {action === 'approve' ? t('tasks:pr.approve') : t('tasks:pr.open')}
+                  {action === 'approve' ? t('tasks:pr.approve', named) : t('tasks:pr.open', named)}
                 </button>
               )}
             </>
@@ -168,7 +173,7 @@ export function PullRequestState({ item }: { item: WorkItemDetail }) {
   const lost = (panel === 'closed' || panel === 'failed') && notReadyReason(readiness);
 
   return (
-    <section className={`item-wait item-pr-wait is-${panel}`} aria-label={t('pr.label')}>
+    <section className={`item-wait item-pr-wait is-${panel}`} aria-label={t('pr.label', named)}>
       <div className="item-wait-head">
         {badge}
         <span className="item-wait-why">{why}</span>
@@ -189,13 +194,13 @@ export function PullRequestState({ item }: { item: WorkItemDetail }) {
           {panel === 'merge' && pr?.url && (
             <a className="btn btn-small item-pr-link" href={pr.url} target="_blank" rel="noreferrer">
               <ExternalLink {...ICON_SM} />
-              {pr.number === null ? t('tasks:pr.linkUnnumbered') : t('tasks:pr.link', { number: String(pr.number) })}
+              {pr.number === null ? t('tasks:pr.linkUnnumbered', named) : t('tasks:pr.link', { ...named, ref })}
             </a>
           )}
           {action && (
             <button type="button" className="btn btn-small workitem-open-pr" disabled={open.isPending} onClick={() => open.mutate(item)}>
               <GitPullRequest {...ICON_SM} />
-              {action === 'approve' ? t('tasks:pr.approve') : t('tasks:pr.open')}
+              {action === 'approve' ? t('tasks:pr.approve', named) : t('tasks:pr.open', named)}
             </button>
           )}
         </div>

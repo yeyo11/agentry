@@ -17,6 +17,7 @@ import {
   type BoardCheckout,
   type BoardColumn,
   type ChatActivity,
+  type CodeHostId,
   type FlowRun,
   type FlowRunCause,
   type FlowStep,
@@ -411,12 +412,12 @@ export type WorkItemStripState =
   | { kind: 'failed'; role: string; step: FlowStep; cause: FlowRunCause | null; error: string | null }
   | { kind: 'rejected'; role: string; quote: string | null }
   | { kind: 'queued'; role: string; step: FlowStep }
-  | { kind: 'pr-preparing' }
-  | { kind: 'pr-conflict'; base: string; count: number }
-  | { kind: 'pr-awaiting'; base: string }
-  | { kind: 'pr-open'; number: number | null; url: string | null; ci: WorkItemPullRequestCi | null }
-  | { kind: 'pr-closed'; number: number | null }
-  | { kind: 'pr-failed'; code: string; detail: string | null };
+  | { kind: 'pr-preparing'; host: CodeHostId | null }
+  | { kind: 'pr-conflict'; base: string; count: number; host: CodeHostId | null }
+  | { kind: 'pr-awaiting'; base: string; host: CodeHostId | null }
+  | { kind: 'pr-open'; number: number | null; ref: string | null; host: CodeHostId | null; url: string | null; ci: WorkItemPullRequestCi | null }
+  | { kind: 'pr-closed'; number: number | null; ref: string | null; host: CodeHostId | null }
+  | { kind: 'pr-failed'; code: string; detail: string | null; host: CodeHostId | null };
 
 /** The flow runs a board knows, by item id: working now, waiting for a place, and the last one that did not pass. */
 export interface StripRuns {
@@ -442,20 +443,22 @@ function linkStep(role: string | undefined, status: WorkItemStatus): FlowStep {
 function pullRequestStrip(item: StripItem): WorkItemStripState | null {
   const pr = item.pullRequest ?? null;
   if (item.status === 'done') return null;
-  if (item.waiting === 'merge' || pr?.phase === 'open') return { kind: 'pr-open', number: pr?.number ?? null, url: pr?.url ?? null, ci: pr?.ci ?? null };
+  const host = pr?.host ?? null;
+  if (item.waiting === 'merge' || pr?.phase === 'open')
+    return { kind: 'pr-open', number: pr?.number ?? null, ref: pr?.ref ?? null, host, url: pr?.url ?? null, ci: pr?.ci ?? null };
   if (!pr) return null;
   switch (pr.phase) {
     case 'preparing':
-      return { kind: 'pr-preparing' };
+      return { kind: 'pr-preparing', host };
     case 'conflict':
       // Back in In progress for the merge to be resolved; once it is in review again, it is approved again
-      return item.status === 'in_progress' ? { kind: 'pr-conflict', base: pr.base, count: pr.conflicts.length } : null;
+      return item.status === 'in_progress' ? { kind: 'pr-conflict', base: pr.base, count: pr.conflicts.length, host } : null;
     case 'awaiting-verify':
-      return item.status === 'in_progress' || item.status === 'in_review' ? { kind: 'pr-awaiting', base: pr.base } : null;
+      return item.status === 'in_progress' || item.status === 'in_review' ? { kind: 'pr-awaiting', base: pr.base, host } : null;
     case 'closed':
-      return item.status === 'in_review' && item.waiting !== 'bounces' ? { kind: 'pr-closed', number: pr.number } : null;
+      return item.status === 'in_review' && item.waiting !== 'bounces' ? { kind: 'pr-closed', number: pr.number, ref: pr.ref ?? null, host } : null;
     case 'failed':
-      return item.status === 'in_review' && item.waiting !== 'bounces' ? { kind: 'pr-failed', code: pr.error?.code ?? 'unknown', detail: pr.error?.detail || null } : null;
+      return item.status === 'in_review' && item.waiting !== 'bounces' ? { kind: 'pr-failed', code: pr.error?.code ?? 'unknown', detail: pr.error?.detail || null, host } : null;
     default:
       return null;
   }
