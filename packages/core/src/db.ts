@@ -658,6 +658,22 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // itself, cleared when another fix starts. A card taken over leaves none, which is how the page tells
   // a push from a fix that was dropped
   `ALTER TABLE work_item_pull_requests ADD COLUMN address_pushed TEXT;`,
+  // Merging (docs/plans/code-hosts.md, phase 4): an audit of every merge click and arming, one row
+  // each, written as `requested` before the host is called and settled after
+  `CREATE TABLE change_request_merges (
+     id           TEXT PRIMARY KEY,
+     cr_id        TEXT NOT NULL,
+     action       TEXT NOT NULL,
+     method       TEXT,
+     expected_head TEXT,
+     delete_branch INTEGER NOT NULL DEFAULT 0,
+     requested_at TEXT NOT NULL,
+     requested_by TEXT NOT NULL,
+     outcome      TEXT NOT NULL,
+     reason       TEXT,
+     detail       TEXT
+   );
+   CREATE INDEX change_request_merges_cr ON change_request_merges(cr_id, requested_at);`,
 ];
 
 /**
@@ -692,6 +708,9 @@ export const CHECKS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 's
 
 /** The version that added the review drafts and posts and the fix kind, for the test that upgrades a database from the one before */
 export const REVIEWS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE review_drafts')) + 1;
+
+/** The version that added the merge audit, for the test that upgrades a database from the one before */
+export const MERGES_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE change_request_merges')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by
