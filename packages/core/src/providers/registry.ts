@@ -1,9 +1,10 @@
-import type { ProviderCapability, ProviderId, ProvidersSettings } from '@agentry/shared';
+import type { PolicyTranslation, ProviderCapability, ProviderId, ProvidersSettings, ToolPolicy } from '@agentry/shared';
 import { claudeCodeManifest } from './claude-code/manifest.ts';
 import { codexManifest } from './codex/manifest.ts';
 import { copilotManifest } from './copilot/manifest.ts';
 import { geminiManifest } from './gemini/manifest.ts';
 import { opencodeManifest } from './opencode/manifest.ts';
+import { translateClaudePolicy } from './claude-code/policy.ts';
 import type { CapabilityConfirmation, ProviderDriver } from './driver.ts';
 import type { ProviderManifest } from './manifest.ts';
 
@@ -17,6 +18,25 @@ export const PROVIDER_MANIFESTS: readonly ProviderManifest[] = [
   copilotManifest,
   opencodeManifest,
 ];
+
+/**
+ * A provider's policy translation, without a runtime: the flow, the assistant and the presets
+ * build rules before any process exists. Each driver's `translatePolicy` is the same function.
+ */
+const TRANSLATIONS: Readonly<Partial<Record<ProviderId, (policy: ToolPolicy) => PolicyTranslation>>> = {
+  'claude-code': translateClaudePolicy,
+};
+
+/** The pure translation for a provider; null when none is registered, so a caller refuses instead of guessing. */
+export function translationFor(id: ProviderId): ((policy: ToolPolicy) => PolicyTranslation) | null {
+  return TRANSLATIONS[id] ?? null;
+}
+
+/**
+ * The driver class each `transport` is run by. Empty until the Codex and ACP drivers exist; each
+ * adds its own line here, and a manifest whose transport is listed gets a driver built from it.
+ */
+export const DRIVER_TRANSPORTS: Readonly<Partial<Record<ProviderManifest['transport'], (manifest: ProviderManifest) => ProviderDriver>>> = {};
 
 /** What a session's first event confirmed about a provider's installed version, and when */
 export interface ProviderConfirmation extends CapabilityConfirmation {

@@ -171,6 +171,7 @@ export class ChatManager extends EventEmitter {
       learnModelCosts: (execution, modelUsage) => this.learnModelCosts(execution, modelUsage),
       learnWindows: (modelUsage) => this.learnWindows(modelUsage),
       maybeRotate: (chat) => this.maybeRotate(chat),
+      failProtocol: (chat, message) => this.failProtocol(chat, message),
     };
   }
 
@@ -277,6 +278,10 @@ export class ChatManager extends EventEmitter {
    * session transcripts, so a restored chat can be opened and continued like a live one.
    */
   async restore(sessions: SessionStore): Promise<void> {
+    for (const manifest of this.providers.list()) {
+      const driver = this.providers.driverFor(manifest.id);
+      if (driver instanceof ClaudeCodeDriver) driver.useSessions(sessions);
+    }
     this.importLegacy();
     // A chat of a provider that has no driver here cannot be driven, so it is left in the store as it is
     const stored = this.db.loadChats().filter(({ record }) => !this.chats.has(record.id) && this.providers.driverFor(record.provider ?? ''));
@@ -867,6 +872,7 @@ export class ChatManager extends EventEmitter {
     const { opts } = chat;
     return {
       id: chat.id,
+      nativeId: chat.nativeId,
       created: chat.created,
       forkFrom: chat.forkFrom,
       name: chat.name,
@@ -892,6 +898,7 @@ export class ChatManager extends EventEmitter {
       ...(opts.agent ? { agent: opts.agent } : {}),
       ...(opts.agentsFile ? { agentsFile: opts.agentsFile } : {}),
       account: opts.account ?? null,
+      policy: opts.toolConfig?.policy ?? null,
     };
   }
 
@@ -1015,6 +1022,13 @@ export class ChatManager extends EventEmitter {
       },
     });
     chat.setStatus('busy');
+  }
+
+  /** A fault in what the agent said about itself: the execution fails with the reason, and nothing carries on beside it. */
+  private failProtocol(chat: LiveChat, message: string): void {
+    chat.error = message;
+    this.finalize(chat, 'failed');
+    chat.proc?.kill('SIGTERM');
   }
 
   private finalize(chat: LiveChat, status: RunStatus): void {

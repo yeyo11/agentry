@@ -1,8 +1,10 @@
-import { type ModelOption, type PermissionDecision, type PermissionMode, type PolicyTranslation, type ToolPolicy } from '@agentry/shared';
+import { PERMISSION_MODES, type ModelOption, type PermissionDecision, type PermissionMode, type PolicyTranslation, type ToolPolicy } from '@agentry/shared';
 import { authFreeEnv } from '../../accounts.ts';
 import { drivesSession, streamJsonProcesses } from '../../processes.ts';
 import { composeContent } from '../../uploads.ts';
 import { modelOptions } from './models.ts';
+import { SessionStoreTranscripts, type TranscriptStore } from '../transcripts.ts';
+import type { SessionStore } from '../../sessions.ts';
 import type {
   AccountSupport,
   BranchTracker,
@@ -91,6 +93,10 @@ class ClaudeCodeSession implements DriverSession {
  */
 export class ClaudeCodeDriver implements ProviderDriver {
   readonly manifest = claudeCodeManifest;
+  /** Agentry names the session and the CLI takes the name (`--session-id`), so the native id is the chat id */
+  readonly sessionIds = 'imposed';
+  /** Claude's JSONL transcripts, once Core has handed over the store it reads them with */
+  transcripts: TranscriptStore | null = null;
   accounts: AccountSupport | null = null;
 
   /** Where the CLI lists what the account may run, and the names chats learned for the aliases; set by the manager */
@@ -104,6 +110,16 @@ export class ClaudeCodeDriver implements ProviderDriver {
 
   models(): ModelOption[] {
     return modelOptions(this.modelSource?.file ?? '', this.modelSource?.seen() ?? {});
+  }
+
+  /** Where the transcripts are read from; set by the manager, like `modelSource` */
+  useSessions(sessions: SessionStore): void {
+    this.transcripts = new SessionStoreTranscripts(sessions);
+  }
+
+  /** Every mode of today's list is Claude's own, so the native value is the mode itself */
+  permissionModes(): Array<{ mode: PermissionMode; native: string }> {
+    return PERMISSION_MODES.map((mode) => ({ mode, native: mode }));
   }
 
   launch(spec: SessionLaunch): LaunchPlan {
