@@ -3,11 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import type { DatabaseSync } from 'node:sqlite';
-import type { CodeHostsSettings, Orchestration, OrchestrationPullRequest, OrchestrationPullRequestPhase, ProjectCodeHost } from '@agentry/shared';
+import type { Check, CodeHostsSettings, Orchestration, OrchestrationPullRequest, OrchestrationPullRequestPhase, ProjectCodeHost, WorkItemPullRequestCi } from '@agentry/shared';
 import type { Db } from './db.ts';
 import type { AgentryEventInput } from './events.ts';
-import { aheadCount, git, mainCheckout, refExists } from './git.ts';
-import type { ChangeRequestView, CodeHostAdapter, HostRepo } from './hosts/code-host.ts';
+import { aheadCount, commitAll, git, mainCheckout, refExists } from './git.ts';
+import { ChecksError, type ChecksService, type ChecksTarget } from './hosts/checks-service.ts';
+import type { ChangeRequestRead, ChangeRequestView, ChecksCodeHostAdapter, HostCall, HostRepo } from './hosts/code-host.ts';
 import { hostSearchPath, resolveHostBinary, type HostRun } from './hosts/detector.ts';
 import { runHostCall, type HostResult } from './hosts/exec.ts';
 import { HostRateLimiter } from './hosts/rate-limit.ts';
@@ -15,7 +16,7 @@ import { firstLine } from './hosts/redact.ts';
 import { CodeHostRegistry } from './hosts/registry.ts';
 import { parseRemote } from './hosts/remote.ts';
 import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from './orchestration-pr-rows.ts';
-import { codeHostAdapter, WATCH_BACKOFF } from './pull-requests.ts';
+import { codeHostAdapter, failingChecks, fixPromptFor, HostFactsCache, WATCH_BACKOFF, type ChecksFailingNotice } from './pull-requests.ts';
 import { hostOf } from './work-item-rows.ts';
 
 /**
@@ -46,6 +47,21 @@ export interface OrchestrationPullRequestDeps {
   searchPath?: () => Promise<string>;
   /** Runs one host call; the execution layer unless a test brings its own */
   run?: HostRun;
+  /** The checks of a change request. The watcher reads through it, and a fix takes its failures from it; without one neither does */
+  checks?: ChecksService;
+  /**
+   * Starts the fixer's chat in the integration worktree (the orchestration's fixer model and cost
+   * limit) and settles when it ends. It commits on the integration branch and never pushes.
+   */
+  runFix?: (req: { orchestrationId: string; cwd: string; branch: string; prompt: string }) => Promise<{ ok: boolean }>;
+  /** The hook of `checks.fix`: a change request turned `failing` for a head not announced before */
+  onChecksFailing?: (notice: ChecksFailingNotice) => void;
+}
+
+/** What a request to fix an orchestration's checks answers: the prompt the fixer got, and the request as it stands. */
+export interface FixStarted {
+  prompt: string;
+  pullRequest: OrchestrationPullRequest | null;
 }
 
 /** What `POST /orchestrations/:id/pull-request` answers; `url` and `detail` are what it always had. */
@@ -93,9 +109,15 @@ export class OrchestrationPullRequestService {
   private readonly runHost: HostRun;
   /** Directories whose host CLI failed, and until when the watcher leaves them alone */
   private readonly backoff = new Map<string, number>();
+  private readonly hostFacts: HostFactsCache;
+  private readonly pending = new Set<Promise<void>>();
+  private readonly pushing = new Set<string>();
+  /** The head each open request was last announced `failing` for: `checks.fix` is asked once per head */
+  private readonly announced = new Map<string, string | null>();
 
   constructor(private readonly deps: OrchestrationPullRequestDeps) {
     this.sql = deps.db.connection;
+    this.hostFacts = new HostFactsCache(() => this.now());
     const breaker = new HostRateLimiter(this.sql);
     this.runHost = deps.run ?? ((call, where) => runHostCall(call, { binaryPath: where.binaryPath, cwd: where.cwd, baseEnv: where.env, breaker }));
   }
@@ -167,7 +189,7 @@ export class OrchestrationPullRequestService {
 
   // ---------- reaching the host ----------
 
-  private async target(host: ProjectCodeHost, id: string): Promise<{ adapter: CodeHostAdapter; binaryPath: string; repo: HostRepo }> {
+  private async target(host: ProjectCodeHost, id: string): Promise<{ adapter: ChecksCodeHostAdapter; binaryPath: string; repo: HostRepo }> {
     const adapter = codeHostAdapter(hostOf(id));
     const manifest = this.registry.get(hostOf(id));
     if (!adapter || !manifest || !host.remote) throw new Error(`no adapter for ${id}`);
@@ -179,8 +201,21 @@ export class OrchestrationPullRequestService {
     return { adapter, binaryPath, repo };
   }
 
-  private call(binaryPath: string, call: ReturnType<CodeHostAdapter['version']>, cwd: string): Promise<HostResult> {
+  private call(binaryPath: string, call: HostCall, cwd: string): Promise<HostResult> {
     return this.runHost(call, { binaryPath, cwd, env: this.env() });
+  }
+
+  /** What `ChecksService` needs to read a row; the remote comes from git, the row's own hostname wins over it. */
+  async checksTarget(row: OrchestrationPullRequestRow): Promise<ChecksTarget | null> {
+    if (row.number === null) return null;
+    const home = mainCheckout(row.cwd);
+    const parsed = parseRemote(git(home, ['remote', 'get-url', 'origin'], 10_000));
+    if (!parsed) throw new Error('origin does not name a repository on a host');
+    const project: ProjectCodeHost = { readiness: { status: 'ready', detail: null, defaultBranch: row.base, host: hostOf(row.host), hostname: row.hostname, remedy: null }, remote: { hostname: row.hostname ?? parsed.hostname, path: parsed.path, protocol: parsed.protocol } };
+    const target = await this.target(project, row.host);
+    const run = (call: HostCall): Promise<HostResult> => this.call(target.binaryPath, call, home);
+    const facts = await this.hostFacts.of(target.adapter, target.repo, target.binaryPath, run);
+    return { id: row.id, kind: 'orchestration', adapter: target.adapter, repo: facts.repo, number: row.number, branch: row.branch, base: row.base, cliVersion: facts.cliVersion, run };
   }
 
   // ---------- opening ----------
@@ -280,11 +315,118 @@ export class OrchestrationPullRequestService {
     return only;
   }
 
+  // ---------- fixing failing checks ----------
+
+  /** Waits for the fixes started so far; for tests and for shutting down cleanly. */
+  async settled(): Promise<void> {
+    while (this.pending.size) await Promise.all([...this.pending]);
+  }
+
+  /**
+   * `POST /change-requests/:id/checks/fix` for an orchestration: a chat in the integration worktree
+   * with the failures in its prompt, which commits on the integration branch. An orchestration has
+   * no QA stage to verify the fix, so the request then waits for **Push the fix**, always a person's
+   * click.
+   */
+  async fixChecks(orch: Orchestration): Promise<FixStarted> {
+    const row = this.newestRow(orch.id);
+    if (!row || row.phase !== 'open' || row.number === null) throw new OrchestrationPullRequestError('the orchestration has no open change request to fix', 'not-open');
+    if (row.fix_state) throw new OrchestrationPullRequestError('a fix of the checks is already under way', 'fix-under-way');
+    const runFix = this.deps.runFix;
+    if (!runFix) throw new OrchestrationPullRequestError('Agentry cannot start the fixer here', 'fix-unavailable');
+    // The fixer commits on the integration branch, so it needs the worktree that has it checked out: never the project's own checkout
+    const cwd = orch.integration?.worktree;
+    if (!cwd || !existsSync(cwd)) throw new OrchestrationPullRequestError('the integration worktree is gone, so there is nowhere to fix the branch', 'no-worktree');
+    const checks = this.deps.checks;
+    if (!checks) throw new OrchestrationPullRequestError('Agentry cannot read checks here', 'checks-unavailable');
+    let failing: Check[];
+    let headSha: string | null;
+    try {
+      const list = await checks.list(row.id);
+      failing = failingChecks(list.checks);
+      headSha = list.headSha;
+    } catch (err) {
+      if (err instanceof ChecksError) throw new OrchestrationPullRequestError(`the checks could not be read${err.detail ? `: ${err.detail}` : ''}`, err.reason);
+      throw err;
+    }
+    if (!failing.length) throw new OrchestrationPullRequestError('no check failed on the head commit', 'no-failing-checks');
+    const prompt = await fixPromptFor(checks, row.id, failing);
+    const attempts = headSha && row.fix_head === headSha ? (row.fix_attempts ?? 0) + 1 : 1;
+    const started = this.sql
+      .prepare("UPDATE orchestration_pull_requests SET fix_state = 'fixing', fix_origin = 'person', fix_attempts = ?, fix_head = ?, error_code = NULL, error_detail = NULL, updated_at = ? WHERE id = ? AND phase = 'open' AND fix_state IS NULL")
+      .run(attempts, headSha, this.iso(), row.id).changes;
+    if (started !== 1) throw new OrchestrationPullRequestError('a fix of the checks is already under way', 'fix-under-way');
+    this.announce(row, 'Fixing the failing checks');
+    const work = runFix({ orchestrationId: orch.id, cwd, branch: row.branch, prompt }).then(
+      (result) => this.settleFix(orch.id, result.ok),
+      () => this.settleFix(orch.id, false),
+    );
+    const tracked = work.finally(() => this.pending.delete(tracked));
+    this.pending.add(tracked);
+    return { prompt, pullRequest: this.newest(orch.id) };
+  }
+
+  /** The fixer's chat ended: well, and the fix waits for the person's **Push the fix**; badly, and nothing is left under way. */
+  settleFix(orchestrationId: string, ok: boolean): void {
+    const row = this.newestRow(orchestrationId);
+    if (!row || row.phase !== 'open' || row.fix_state !== 'fixing') return;
+    if (this.update(row.id, ok ? { fix_state: 'awaiting-push' } : { fix_state: null, fix_origin: null }, ['open'])) this.announce(row, ok ? 'Fix ready to push' : 'The fix did not finish');
+  }
+
+  /**
+   * `POST /change-requests/:id/push-fix` for an orchestration. Pushed as it is, never forced; a
+   * failure is recorded and the fix keeps waiting, so the button retries it.
+   */
+  async pushFix(orch: Orchestration): Promise<OrchestrationPullRequest | null> {
+    const row = this.newestRow(orch.id);
+    if (!row || row.phase !== 'open' || row.fix_state !== 'awaiting-push') throw new OrchestrationPullRequestError('no fix is waiting to be pushed', 'no-fix-to-push');
+    if (this.pushing.has(row.id)) return this.newest(orch.id);
+    this.pushing.add(row.id);
+    try {
+      const worktree = orch.integration?.worktree;
+      try {
+        // Concludes what the fixer left uncommitted on the integration branch; only in its own worktree, never in the project's checkout
+        if (worktree && existsSync(worktree)) commitAll(worktree, 'chore: fix the failing checks');
+        await pushBranch(worktree && existsSync(worktree) ? worktree : row.cwd, row.branch, this.env());
+      } catch (err) {
+        const detail = messageOf(err);
+        if (this.update(row.id, { error_code: 'push', error_detail: detail }, ['open'])) this.announce(row, 'Pushing the fix failed');
+        throw new OrchestrationPullRequestError(`could not push ${row.branch}: ${detail}`, 'push');
+      }
+      if (this.update(row.id, { fix_state: null, fix_origin: null, error_code: null, error_detail: null }, ['open'])) {
+        // The head moved: what was read for the old one is stale
+        try {
+          this.sql.prepare('DELETE FROM change_request_snapshots WHERE cr_id = ?').run(row.id);
+        } catch {
+          // the snapshot expires by itself
+        }
+        this.announced.delete(row.id);
+        this.announce(row, 'Fix pushed');
+      }
+      return this.newest(orch.id);
+    } finally {
+      this.pushing.delete(row.id);
+    }
+  }
+
   // ---------- watching ----------
 
   /** The open requests to ask the host about, oldest checked first. */
   openRows(): OrchestrationPullRequestRow[] {
     return this.sql.prepare("SELECT * FROM orchestration_pull_requests WHERE phase = 'open' ORDER BY COALESCE(checked_at, ''), created_at").all() as unknown as OrchestrationPullRequestRow[];
+  }
+
+  /** The change request as `view` reads it, for a service without a checks service. */
+  private async viewOf(row: OrchestrationPullRequestRow): Promise<ChangeRequestView> {
+    if (row.number === null) throw new Error('the request has no number');
+    const home = mainCheckout(row.cwd);
+    const parsed = parseRemote(git(home, ['remote', 'get-url', 'origin'], 10_000));
+    if (!parsed) throw new Error('origin does not name a repository on a host');
+    const project: ProjectCodeHost = { readiness: { status: 'ready', detail: null, defaultBranch: row.base, host: hostOf(row.host), hostname: row.hostname, remedy: null }, remote: { hostname: row.hostname ?? parsed.hostname, path: parsed.path, protocol: parsed.protocol } };
+    const target = await this.target(project, row.host);
+    const out = await this.call(target.binaryPath, target.adapter.view(target.repo, row.number), home);
+    if (out.exitCode !== 0) throw new Error(failureOf(out));
+    return target.adapter.parseView(out.stdout);
   }
 
   /** Asks the host about one open request and writes what changed; a merge or a close reaches the feed, and so does a new CI state. */
@@ -308,15 +450,17 @@ export class OrchestrationPullRequestService {
     }
     if (!claimed) return;
     let view: ChangeRequestView;
+    let read: ChangeRequestRead | null = null;
     try {
-      const home = mainCheckout(row.cwd);
-      const parsed = parseRemote(git(home, ['remote', 'get-url', 'origin'], 10_000));
-      if (!parsed) throw new Error('origin does not name a repository on a host');
-      const project: ProjectCodeHost = { readiness: { status: 'ready', detail: null, defaultBranch: row.base, host: hostOf(row.host), hostname: row.hostname, remedy: null }, remote: { hostname: row.hostname ?? parsed.hostname, path: parsed.path, protocol: parsed.protocol } };
-      const target = await this.target(project, row.host);
-      const out = await this.call(target.binaryPath, target.adapter.view(target.repo, row.number), home);
-      if (out.exitCode !== 0) throw new Error(failureOf(out));
-      view = target.adapter.parseView(out.stdout);
+      const checks = this.deps.checks;
+      const checksTarget = checks ? await this.checksTarget(row) : null;
+      if (checks && checksTarget) {
+        // One read through the checks service: the state, the rollup and the head together
+        read = await checks.readChangeRequest(checksTarget);
+        view = read.view;
+      } else {
+        view = await this.viewOf(row);
+      }
       this.backoff.delete(row.cwd);
     } catch {
       this.backoff.set(row.cwd, this.now() + WATCH_BACKOFF);
@@ -335,5 +479,22 @@ export class OrchestrationPullRequestService {
     }
     this.update(row.id, { ci: view.ci, url, checked_at: at, claimed_until: null }, ['open']);
     if (view.ci !== row.ci || url !== row.url) this.announce(row, 'Pull request updated');
+    this.announceFailing(row, view.ci, read?.headSha ?? null);
+  }
+
+  /** As the work items' watcher: `checks.fix` is told once per failing head, and nothing while a fix is under way. */
+  private announceFailing(row: OrchestrationPullRequestRow, ci: WorkItemPullRequestCi, headSha: string | null): void {
+    if (ci !== 'failing') {
+      this.announced.delete(row.id);
+      return;
+    }
+    if (!this.deps.onChecksFailing || row.fix_state) return;
+    if (this.announced.has(row.id) && this.announced.get(row.id) === headSha) return;
+    this.announced.set(row.id, headSha);
+    try {
+      this.deps.onChecksFailing({ kind: 'orchestration', id: row.id, ownerId: row.orchestration_id, headSha, attempts: headSha && row.fix_head === headSha ? (row.fix_attempts ?? 0) : 0 });
+    } catch {
+      // the decision's failure is not the watcher's
+    }
   }
 }
