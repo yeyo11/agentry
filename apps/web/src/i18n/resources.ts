@@ -20,6 +20,7 @@ import enOrchestrationV2 from './locales/en/orchestrationV2.json';
 import enProjects from './locales/en/projects.json';
 import enIntegrations from './locales/en/integrations.json';
 import enProviders from './locales/en/providers.json';
+import enReviews from './locales/en/reviews.json';
 import enSchedules from './locales/en/schedules.json';
 import enServer from './locales/en/server.json';
 import enShell from './locales/en/shell.json';
@@ -47,6 +48,7 @@ import esOrchestrationV2 from './locales/es/orchestrationV2.json';
 import esProjects from './locales/es/projects.json';
 import esIntegrations from './locales/es/integrations.json';
 import esProviders from './locales/es/providers.json';
+import esReviews from './locales/es/reviews.json';
 import esSchedules from './locales/es/schedules.json';
 import esServer from './locales/es/server.json';
 import esShell from './locales/es/shell.json';
@@ -70,6 +72,7 @@ export const en = {
   home: enHome,
   projects: enProjects,
   providers: enProviders,
+  reviews: enReviews,
   integrations: enIntegrations,
   orchestration: enOrchestration,
   orchestrationDetail: enOrchestrationDetail,
@@ -107,6 +110,7 @@ export const es = {
   home: esHome,
   projects: esProjects,
   providers: esProviders,
+  reviews: esReviews,
   integrations: esIntegrations,
   orchestration: esOrchestration,
   orchestrationDetail: esOrchestrationDetail,
