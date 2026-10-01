@@ -938,6 +938,28 @@ Drawn for [code hosts](plans/code-hosts.md), phase 2 (task `k-p2` of P0), by `re
   and a sentence of why. The checks list below stays on the head the failures were seen on
   (`commit a81d3f0`) until the push.
 
+### Merge blockers: why Merge is not offered
+
+Drawn for [code hosts](plans/code-hosts.md), phase 4 (task `m-p2` of P0), by `reference/tools/merge.py`:
+`DSFusion`. New classes `.mb-*`; the badge, the buttons and the ring spinner are the existing ones.
+
+- **One notice (`.mb-note`)** per blocker: the tone's icon, a badge with its word, the Agentry code in
+  mono, the sentence in `--fg`, the host's own field and value in mono (`.mb-detail`) and the remedy
+  (`.mb-acts`). Tones: `bad` for `conflicts` and `checks-failing`; `warn` for a rule or a missing
+  piece; `idle` (`borrador`) for what waits for the person; `live` (`calculando`, `en marcha`) only
+  while the host is working, the one tone that moves; neutral for `not-open`; `ok` for a merge that
+  can go ahead.
+- **The remedy** is a neutral button that acts in Agentry, or an external link to the host. Never the
+  gradient, never a command, and never a way round a rule. A blocker with no remedy (`not-yet`)
+  shows none.
+- **The first blocker that applies is the notice**; the others are `.mb-others`, one line each with
+  their code. **Merge** stays on screen, disabled, and takes the gradient only when nothing blocks.
+- **Corrections from the recordings.** `calculando` is drawn only for a real `CHECKING`; GitLab's
+  `unchecked` is a quiet note with Merge enabled, and an `unchecked` with a `FAILED` check is the
+  ordinary blocker it maps to. `ci_must_pass` with no pipeline keeps Merge disabled. `head-moved`
+  disables Merge until **Actualizar** shows the new head. A conflict in a GitLab `ff` project reads
+  `behind`, with **Rebasar en GitLab**.
+
 ### Address with an agent: the thread list, the triage marks and the "Atendido en" follow-up
 
 Drawn for [code hosts](plans/code-hosts.md), phase 3 (task `r-p3` of P0), by `reference/tools/reviews.py`:

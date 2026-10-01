@@ -1669,6 +1669,36 @@ button.check-group-head { width: 100%; border-left: 0; border-right: 0; border-t
 .m-screen .ochk-result { flex-wrap: wrap; gap: 4px 10px; padding: 8px 0; }
 .m-screen .ochk-result .why { flex-basis: 100%; }
 /* ---------- end of Orchestration checks ---------- */
+
+/* ---------- Merge blockers (docs/plans/code-hosts.md, "What blocks a merge") ----------
+   One notice says why Merge is not offered: .mb-note, with the status tone as a class (warn, bad, idle, live;
+   none is neutral). The icon and the badge in .mb-head carry the tone and always the word; the sentence stays
+   --fg. .mb-detail is the host's own field and value in mono; .mb-acts holds the remedy, a neutral button or an
+   external link, never the gradient and never a command. The blockers that did not win are .mb-others, one
+   line each. Only a .live note moves (its ring spinner, from §11). */
+.mb-note { display: flex; align-items: flex-start; gap: 10px; min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--bg-1); }
+.mb-note > .ico { flex-shrink: 0; margin-top: 2px; color: var(--fg-3); }
+.mb-note > .spin-ring { width: 14px; height: 14px; margin-top: 3px; }
+.mb-note.warn > .ico { color: var(--warn); }
+.mb-note.bad > .ico { color: var(--bad); }
+.mb-note.idle > .ico { color: var(--idle); }
+.mb-note.ok > .ico { color: var(--ok); }
+.mb-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.mb-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-width: 0; }
+.mb-code { font-family: var(--mono); font-size: 12px; color: var(--fg-3); overflow-wrap: anywhere; }
+.mb-text { font-size: 13px; line-height: 1.5; color: var(--fg); }
+.mb-detail { font-family: var(--mono); font-size: 11.5px; line-height: 1.45; color: var(--fg-3); overflow-wrap: anywhere; }
+.mb-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-top: 2px; }
+.mb-others { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.mb-others li { display: flex; align-items: center; gap: 8px; min-height: 32px; font-size: 12.5px; color: var(--fg-2); border-top: 1px solid var(--line); }
+.mb-others li > .ico { flex-shrink: 0; color: var(--fg-3); }
+.mb-others li > .mono { flex-shrink: 0; white-space: nowrap; }
+.mb-others li.warn > .ico { color: var(--warn); }
+.mb-others li.bad > .ico { color: var(--bad); }
+.mb-others li.idle > .ico { color: var(--idle); }
+.m-screen .mb-others li { min-height: var(--touch); }
+.m-screen .mb-note { padding: 14px; }
+/* ---------- end of Merge blockers ---------- */
 /* ---------- Reviews (plans/code-hosts.md, phase 3, P0 r-p2): the review block on the item page. A decision, the reviewers, the unresolved threads and the person's draft review, whose one gradient action sends it. Status is a badge with its word; nothing here is live except the ring of a send in progress. ---------- */
 .rv-card { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--bg-1); overflow: hidden; }
 .rv-row { display: grid; grid-template-columns: 104px minmax(0, 1fr) auto; align-items: center; gap: 8px 14px; min-height: 52px; padding: 10px 14px; border-top: 1px solid var(--line); }
