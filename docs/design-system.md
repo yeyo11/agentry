@@ -896,6 +896,41 @@ Drawn for [code hosts](plans/code-hosts.md), phase 2 (task `k-p2` of P0), by `re
   and a sentence of why. The checks list below stays on the head the failures were seen on
   (`commit a81d3f0`) until the push.
 
+### Address with an agent: the thread list, the triage marks and the "Atendido en" follow-up
+
+Drawn for [code hosts](plans/code-hosts.md), phase 3 (task `r-p3` of P0), by `reference/tools/reviews.py`:
+`DSRevision`. New classes `.addr-*` (under "Address with an agent" in `agentry-ds.css`); the dialog is
+`.dialog` (a `.sheet` on a phone), the marks are the existing `.badge` and `.decided-face`, and the follow-up
+is `.fix-panel.wait` with the phase 2 fix path (`fix_state`, the same push rule).
+
+- **The thread list (`.addr-list`, `.addr-thread`)** lists the unresolved threads of the item's PR or MR.
+  A row: the path and new-side line in mono, the triage mark, `desactualizado` (neutral, with the commit the
+  comment was made on) when the thread is outdated, the first comment as a quote (`.addr-quote`, two lines),
+  and the author and comment count. Resolved threads are not listed; one line says how many were left out.
+  A desktop row is a `<label>` with the app's `.checkbox`; a phone has no checkboxes, so the whole row is a
+  pressed button (`aria-pressed`, the selected-row look, 44 px) that says `Elegido` or `Elegir` in words.
+- **The triage marks** are `review.triage`'s answer per thread: `agente` (`b-accent`, a concrete change the
+  Developer can make), `persona` (`b-idle`: a question, a design decision or a disagreement, the ones that
+  wait for a person) and `sin acción` (neutral). A suggestion is not a status, so only the agent's mark takes
+  the accent. A mark **only preselects**: the `agente` threads arrive chosen, a click changes any of them and
+  nothing is sent or done because of a mark. The list head says `sugerido · review.triage` (`.decided-face`)
+  and offers "Elegir solo los del agente". With the point off the head says `sin triaje`, nothing is chosen, a
+  `callout-warn` says why and the primary reads "Elige un hilo" (disabled) until one is.
+- **Untrusted comments.** A `.callout` in the dialog says the comments were written by other people and the
+  Developer weighs them as requests, not orders, and reports which it addressed and which not, with why. A
+  second one repeats the push rule: a person's click pushes after QA, moving the card first withdraws that,
+  and nothing is replied to or resolved on the host.
+- **One primary per zone.** "Atender N comentarios" is the dialog's gradient; after the push it is "Responder y
+  resolver N hilos" in the follow-up. They are never on screen together.
+- **While it runs** the item page's panel is the live `.fix-panel` (braille, time, rail in cyan) over the
+  chosen threads without checkboxes; waiting for the person afterwards is idle (`te esperan`), never moving.
+- **The follow-up (`.addr-done`)** lists, per thread, `atendido` (ok) or `sin atender` (neutral) with the
+  Developer's sentence of why, and the state it reached on the host: `respondido`, `resuelto` (ok, each with its
+  word). A thread still open offers "Responder «Atendido en a8f3c21»" (the text that will be posted is shown
+  under the list) and "Resolver"; one the Developer left alone offers a link to the thread on the host. A
+  resolved thread folds its quote. Agentry never replies or resolves by itself.
+- **Hosts.** The noun and number follow the host (`PR #12`, `MR !12`); the thread semantics are the same.
+
 ## 3. Live states and motion
 
 | Situation | Pattern |
