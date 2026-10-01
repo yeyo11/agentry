@@ -32,6 +32,18 @@ the scenario (to `running` and `failing`) through `gh.checks`, which wins over t
 removes it. `failing` has one failed check, `running` one running and one queued, `mixed` a failed,
 a running, a skipped and another app's check, and `fixed` has all passed.
 
+The review scenarios answer the review routes of a change request. `reviews` is `none` (the default: no
+threads, no reviewers), `threads` or `changes`; both give three threads, one open with a suggestion on
+`src/cart.ts` line 12, one resolved on `README.md`, one outdated whose text tries HTML, plus a
+reviewer who commented (or asked for changes) and one still asked. On gh they are GraphQL nodes
+(`PRRT_kwDOe2e0001` to `0003`), on glab discussions (`111…1`, `222…2`, `333…3`, the third left on
+another commit). `pendingReview: true` makes gh list a pending review of the person's own, which
+stops a post. What a spec does moves the scenario, kept beside the JSON: `<name>.threadstate` (resolve
+and reopen), `<name>.replies`, `<name>.requested` (reviewers asked for: gh refuses the signed-in user
+with the author's 422, and a login that starts with `ghost` exits 0 and adds nobody), `gh.review-<n>`
+(the body of the n-th review posted, `gh.reviews-posted` counts them) and `glab.approved` (the
+approval, moved by `mr approve` and `mr revoke`). glab's draft notes are not part of the fake.
+
 Beside the JSON, in the same directory: `<name>.calls` (one line per call, the arguments joined by
 spaces), `<name>.body-<n>` (the description a create was given on stdin) and `<name>.created` (the
 number the last create returned, which `list` then finds).
