@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:00:00Z
-updated_at: 2026-09-30T14:49:40Z
+updated_at: 2026-10-01T18:00:00Z
 tags:
     - providers
     - detection
@@ -15,11 +15,20 @@ reference for what a provider is, how Agentry decides whether one is ready, how 
 and how to add one. The reasons and the order of work are in
 [plans/multi-provider.md](plans/multi-provider.md).
 
-Status: phase 1 (detection) is done. Phase 2 puts Claude Code behind the driver interface and adds the
-conformance suite every driver must pass; no provider other than Claude Code starts a chat yet, the
-others are detected and reported, nothing more. The type
-names below are the ones phase 1 defines in `packages/shared/src/types.ts`; if they differ from the
-code, the code wins and this document is stale.
+Status: phase 1 (detection) is done and phase 2 put Claude Code behind the driver interface and
+added the conformance suite every driver must pass. Phase 3 adds the other drivers; this table says
+where each stands, and the code wins when it differs.
+
+| Provider | Driver | Transport | Declared at | Starts a chat |
+|---|---|---|---|---|
+| Claude Code | `providers/claude-code/` | `stream-json` | the manifest | yes |
+| Codex | `providers/codex/` | `json-rpc` (`codex app-server`) | `>=0.159.3 <0.160.0` | driver done, passes its conformance file |
+| Copilot | `providers/acp/` with the Copilot profile | `acp` (`copilot --acp`) | `>=1.0.65 <1.1.0` | driver done, passes its conformance file |
+| Gemini | `providers/acp/` with the Gemini profile | `acp` (`gemini --acp`) | `>=0.62.0 <0.63.0` | driver done, passes its conformance file |
+| OpenCode | `providers/acp/` with the OpenCode profile | `acp` (`opencode acp`) | `>=1.18.34 <1.19.0` | driver done, passes its conformance file |
+
+The type names below are the ones phase 1 defines in `packages/shared/src/types.ts`; if they differ
+from the code, the code wins and this document is stale.
 
 ## The rule a provider lives under
 
@@ -119,6 +128,39 @@ and runs the handshake when the manifest has one that spends nothing. Each probe
 timeout and all providers run in parallel. Without a binary, a config home that exists gives
 `used-before`; otherwise `not-installed`.
 
+### The handshake
+
+A driver with a handshake (`ProviderDriver.handshake`) is asked once its version is in range and the
+provider is not signed out. It runs on a process of its own, built for the binary the detector
+found (an override included), and spends nothing:
+
+- **Codex:** `initialize`, `account/read` and `model/list` on `codex app-server`. It gives the
+  account (an email, else `ChatGPT <plan>`, or `API key`), the account's models and what the models
+  confirm (`setModel`, `effort`). `codex login status` stays the cheap probe between handshakes.
+- **ACP agents (Copilot, Gemini, OpenCode):** `initialize` and nothing else, so no session starts
+  and no MCP server is launched. It says what the agent can do (`loadSession`, `session/fork`,
+  `session/resume`, MCP) and confirms those declared capabilities. It cannot say whether anyone is
+  signed in (`authMethods` are offered either way), so a provider with no login probe stays
+  `unknown` with `no-probe`, and a recording of a signed-in account is what settles it.
+
+What a handshake reads is kept for the binary and version it was read from, and run again only when
+either changes, never once per TTL. A handshake that fails (the process did not start, did not answer
+or exited) changes no status: the probes already said what they could, and it is tried again after
+one TTL. What it confirmed goes on the status as `confirmed`, filed under the version `--version`
+printed, the one a status is compared with; a later session's first event replaces it.
+
+The status also carries `permissionModes`: the modes the provider's driver honours, in the order to
+list them, so a picker offers only those. The models a handshake listed are cached in
+`provider-catalogs.json` in the data directory (per provider and version, rewritten whole) and handed
+to the driver that serves `GET /providers/:id/models`; the next run starts from that file, so the
+picker is not empty before its first handshake. A driver with no catalog yet answers with one
+default option.
+
+**No CLI updates itself under Agentry.** Copilot is started with `--no-auto-update` and
+`COPILOT_AUTO_UPDATE=false` (a recording session saw it update itself), OpenCode with
+`OPENCODE_DISABLE_AUTOUPDATE=1`. A version change that happens anyway is read at the next detection
+and, being a new version, handshaken again.
+
 **Nobody presses Refresh.** One cache with one TTL is invalidated by a refresh, by a settings change
 and by debounced watchers on the PATH directories and the config homes. A re-detect emits the
 `providers.changed` event only when a status actually changed. The Refresh button stays for what the
@@ -134,13 +176,44 @@ Claude Code's probes reuse `detectCli` and `getAuthStatus` in `packages/core/src
 the data directory: enabled, order, default and binary override per provider. The default is the
 first `ready` provider in the person's order.
 
+## Who may do what: the policy judge
+
+A chat or a stage carries a `ToolPolicy` (what it may read, edit, run, fetch, delegate, and whether
+it may push to a remote). Each driver translates it into the provider's own rules (`translatePolicy`),
+and a part the provider cannot enforce is listed as `unsupported`, never dropped: a run that needs it
+is refused on that provider, and a provider that cannot enforce `gitPush: 'deny'` is never offered
+for a flow stage.
+
+A second layer, the **judge** (`packages/core/src/policy-judge.ts`), is pure: it takes the policy
+and a neutral request (`command`, `edit`, `read`, `fetch`, `delegate`, `other`, with the command, the
+paths or the URL) and answers `allow`, `deny` or `ask`. A push in any form is `deny` when the policy
+says so. When a driver's translation lists a part in `host`, the permission request the agent sends
+is judged by Agentry first: `allow` and `deny` are answered at once and recorded as a notice, and
+`ask` goes to the person, or is denied when nobody can be asked. Claude Code's translation has no
+`host` part, so its path is unchanged. Each driver maps its own requests to the neutral one (Codex's
+`commandExecution` and `fileChange`, an ACP tool call's `kind`).
+
+Two independent layers hold a push on every provider: a native setting or rule, and the judge. One
+gap is accepted and written down: under Codex's `workspace-write` sandbox a push to a local path needs
+no network and succeeds, and the judge only sees escalations. Agentry's worktrees push to the real
+`origin`, which the sandbox's network-off setting stops.
+
 ## Where transcripts live
 
-Not every provider writes its transcripts as files. Claude Code writes JSONL under its projects
-directory; OpenCode keeps sessions, messages and parts as tables of one SQLite database in its data
-directory (`opencode.db`, WAL mode). A provider's `TranscriptStore` reads whatever its CLI writes,
-always read-only: it never writes, locks or checkpoints another program's database, and a busy
-read is retried, never taken for an empty session. See the plan's note under OpenCode.
+Not every provider writes its transcripts as files, and each provider's `TranscriptStore` reads what
+its own CLI offers, read-only:
+
+| Provider | Where the history comes from |
+|---|---|
+| Claude Code | JSONL under its projects directory |
+| Codex | Codex's own app-server API (`thread/list`, `thread/read`) |
+| OpenCode | the tables of its SQLite database (`opencode.db`, WAL mode), opened read-only with `query_only`, one short read per call, no pooling and no checkpoint; a busy read is retried, never taken for an empty session; only the tables the reader names may be read, so a credential in that file cannot leak; a schema newer than the one pinned is `schema-untested` |
+| Copilot, Gemini | what Agentry streamed, kept as rows in `chat_entries` (`chat_id`, `seq`, `entry`, `at`); chats started in a terminal are not listed |
+
+A store never writes, locks or checkpoints another program's files. The stores for Codex and OpenCode
+and the routing that picks one by the chat's provider arrive in the same phase as the drivers; until
+a driver's `transcripts` is filled, its conformance case skips with that reason. See the plan's notes
+under OpenCode and "Transcripts for the other providers".
 
 ## How to add a provider
 
@@ -153,8 +226,14 @@ read is retried, never taken for an empty session. See the plan's note under Ope
    Leave out what you cannot confirm. Register it in the registry; nothing else in core names it.
 4. **Test it.** The registry test fails when two manifests share an id or a command. Add detector
    tests with a fake binary on a temporary PATH and a fake config home for each state that applies.
-5. **Ship a fake for e2e**, a small binary the e2e suite puts on PATH. The suite never depends on
-   the real agent.
+5. **Ship a fake for e2e**, a small binary the e2e suite reaches by the override in `providers.json`.
+   The suite never depends on the real agent. `e2e/fake-providers/` has one script behind four names
+   (`codex`, `copilot`, `gemini`, `opencode`): it answers `--version` and `login status`, and when it
+   is started as the manifest's `launch` says (`app-server`, `--acp`, `acp`) it becomes the protocol
+   fake in `packages/core/test/fixtures` (`fake-codex-app-server.mjs`, `fake-acp-agent.mjs`), so the
+   detector's handshake and a chat run against the same replies the recordings show. What it
+   answers is read from `$AGENTRY_DATA_DIR/fake-providers/<name>.json`; its own test is
+   `node --test e2e/fake-providers/fake-providers.test.mjs`.
 6. **Update the docs** in the same PR: the table in this document if a field or state changed, and
    [status.md](status.md).
 7. **Write the driver** (`providers/<id>/driver.ts`) against the `ProviderDriver` interface in
@@ -169,6 +248,30 @@ read is retried, never taken for an empty session. See the plan's note under Ope
    gives the driver, the environment its fake needs, and how to script a turn. A case whose
    capability the manifest does not declare is skipped with that reason, so the manifest's
    capabilities are what the suite holds the driver to.
+
+## How to add an ACP agent
+
+An agent that speaks the Agent Client Protocol over stdio needs no driver of its own: the ACP driver
+in `packages/core/src/providers/acp/` runs the protocol, and what differs per agent is a profile.
+
+1. **Record it first.** Run the agent's `initialize` and `session/new` against a scratch repository
+   and keep the lines under `packages/core/test/fixtures/recordings/<id>/<version>/`, scrubbed (no
+   email, no home path, no token; a test fails on any). A method that answers `-32601` is a fact to
+   write down. The profile and the manifest declare what the recording shows, not what the docs imply.
+2. **Add the manifest** in `providers/<id>/manifest.ts` with `transport: 'acp'`, the tested `range`,
+   the `capabilities` the `initialize` reply confirms and `launch` (`args`, `env`, `unsetEnv`). Pass
+   whatever turns the agent's self-update off (`--no-auto-update`, an environment variable).
+3. **Add a profile** in `acp/profiles.ts`: the modes it honours with the native value of each (the
+   ids `session/set_mode` takes), how a live model switch is made (`config-option`, `set-model` or
+   none), the models to offer before a session names its own, which grants the host makes, the
+   policy translation (`policy-<id>.ts`, with a part it cannot enforce listed as `unsupported`) and
+   the launch extras (arguments, environment, a per-launch file removed when the process exits).
+4. **Teach the fake agent the profile.** `fake-acp-agent.mjs` replays the recording and takes
+   `--profile <id>`; add the profile's recorded files, which methods answer, and nothing it did
+   not record.
+5. **Pass the conformance suite** with a `conformance-<id>.test.ts` that builds the ACP driver
+   with the manifest and the fake, as the three existing ones do.
+6. **Add a fake for e2e** (step 5 above), the row in the table at the top and the README.
 
 ## The first-run step
 

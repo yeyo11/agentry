@@ -39,7 +39,7 @@ export function translationFor(id: ProviderId): ((policy: ToolPolicy) => PolicyT
  * whose transport is listed gets a driver built from it.
  */
 export const DRIVER_TRANSPORTS: Readonly<Partial<Record<ProviderManifest['transport'], (manifest: ProviderManifest) => ProviderDriver>>> = {
-  'json-rpc': () => new CodexDriver(),
+  'json-rpc': (manifest) => new CodexDriver(manifest.commands.names[0]),
   acp: (manifest) => new AcpDriver(manifest),
 };
 

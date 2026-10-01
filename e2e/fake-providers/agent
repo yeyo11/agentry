@@ -1,15 +1,42 @@
 #!/bin/sh
-# One script behind the three names: the name it is called by picks its state file. See README.md.
+# One script behind the four names: the name it is called by picks its state file. See README.md.
 name=$(basename "$0")
 file="${AGENTRY_DATA_DIR:-.}/fake-providers/$name.json"
+here=$(dirname "$(readlink -f "$0")")
+fixtures="$here/../../packages/core/test/fixtures"
 
 read_key() {
   [ -f "$file" ] || return 0
   sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\{0,1\}\([^\",}]*\)\"\{0,1\}.*/\1/p" "$file" | head -n 1
 }
 
+# The version each driver is tested against (the recorded one), so a fake is `ready` unless a spec says otherwise
+case "$name" in
+  codex) default=0.159.3 ;;
+  copilot) default=1.0.90 ;;
+  gemini) default=0.62.0 ;;
+  opencode) default=1.18.34 ;;
+  *) default=0.0.0 ;;
+esac
 version=$(read_key version)
-version=${version:-0.50.0}
+version=${version:-$default}
+signed_in=$(read_key signedIn)
+
+# What each agent is started with to speak its protocol, as the manifests' `launch` has it
+speaks=
+case "$name:$1" in
+  codex:app-server | gemini:--acp | copilot:--acp | opencode:acp) speaks=1 ;;
+esac
+
+if [ -n "$speaks" ]; then
+  if [ "$name" = codex ]; then
+    [ "$signed_in" = false ] && export FAKE_CODEX_SIGNED_OUT=1
+    exec node "$fixtures/fake-codex-app-server.mjs" "$@"
+  fi
+  [ "$signed_in" = false ] && export FAKE_ACP_SIGNED_OUT=1
+  FAKE_ACP_VERSION=$version exec node "$fixtures/fake-acp-agent.mjs" --profile "$name" "$@"
+fi
+
 case "$1" in
   --version|-v)
     code=$(read_key versionExit)
@@ -20,7 +47,7 @@ case "$1" in
     echo "$name $version"
     ;;
   login)
-    if [ "$2" = status ] && [ "$(read_key signedIn)" != false ]; then
+    if [ "$2" = status ] && [ "$signed_in" != false ]; then
       echo "Logged in (fake)"
       exit 0
     fi

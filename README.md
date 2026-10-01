@@ -833,9 +833,9 @@ The agents Agentry can drive, as detection finds them on this machine: one cache
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/providers` | Every provider's status (state, reason, version, binary, config home, capabilities), from the cache |
+| GET | `/providers` | Every provider's status (state, reason, version, binary, config home, account, capabilities, the permission modes its driver honours, and what its handshake or first session confirmed), from the cache |
 | GET | `/providers/:id` | One status; `404` for an unknown id |
-| GET | `/providers/:id/models` | The provider's model catalog, with tiers; `404` for a provider with no driver |
+| GET | `/providers/:id/models` | The provider's model catalog, with tiers, as its last handshake listed it (kept in `provider-catalogs.json`); `404` for a provider with no driver |
 | POST | `/providers/refresh` | Detect again now. Not open to a chat's token |
 | GET | `/providers/settings` | The document from `providers.json`: enabled and binary override per provider, order, default |
 | PUT | `/providers/settings` | Replace it, validated; providers are detected again in the background. Not open to a chat's token |

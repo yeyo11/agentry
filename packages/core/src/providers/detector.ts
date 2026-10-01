@@ -5,6 +5,8 @@ import { basename, delimiter, dirname, join } from 'node:path';
 import type {
   AuthStatus,
   CliInfo,
+  ModelOption,
+  PermissionMode,
   ProviderCapability,
   ProviderId,
   ProviderReasonCode,
@@ -16,10 +18,12 @@ import { detectCli, getAuthStatus } from '../cli.ts';
 import type { AgentryEventInput } from '../events.ts';
 import type { CoreConfig } from '../paths.ts';
 import { compareVersions } from '../version-check.ts';
-import type { CapabilityConfirmation } from './driver.ts';
+import { ProviderCatalogsStore } from './catalogs.ts';
+import { ClaudeCodeDriver } from './claude-code/driver.ts';
+import type { CapabilityConfirmation, HandshakeResult, ProviderDriver } from './driver.ts';
 import type { ProviderConfigHome, ProviderManifest } from './manifest.ts';
 import { installDirs, resolveCommand } from './path.ts';
-import { ProviderRegistry } from './registry.ts';
+import { DRIVER_TRANSPORTS, ProviderRegistry } from './registry.ts';
 
 /** One TTL for every provider: what a detection saw is served until it is this old */
 export const PROVIDERS_TTL_MS = 5 * 60 * 1000;
@@ -49,6 +53,8 @@ export interface ProviderDetectorDeps {
    * Ignored when the person pointed at a binary of their own, which that read knows nothing of.
    */
   readClaude?: () => Promise<ClaudeReading>;
+  /** Where the models a handshake listed are kept between runs; defaults to `provider-catalogs.json` in the data directory */
+  catalogs?: ProviderCatalogsStore;
   /** Extra command names tried before a manifest's own, per provider (Claude Code's `CLAUDE_BIN`) */
   commandAliases?: Record<ProviderId, string[]>;
   /** The PATH to search; defaults to the current one plus the install directories */
@@ -77,6 +83,15 @@ type AuthProbe =
   | { kind: 'denied' }
   | { kind: 'failed' }
   | { kind: 'none' };
+
+/** What one handshake saw, kept for the binary and version it was read from: a handshake is not repeated every TTL */
+type HandshakeEntry = { at: number; result: HandshakeResult } | { at: number; failed: true };
+
+/** What a detection learns from a driver, beyond the probes: modes, and the handshake's reading when the driver has one */
+interface DriverReading {
+  permissionModes: PermissionMode[];
+  handshake: HandshakeResult | null;
+}
 
 interface Exec {
   outcome: 'done' | 'timeout' | 'denied' | 'failed';
@@ -165,6 +180,9 @@ export class ProviderDetector {
    * incompatible version (that state wins over `signed-out`), and `/health` still has to.
    */
   private readonly signedIn = new Map<ProviderId, boolean>();
+  private readonly catalogs: ProviderCatalogsStore;
+  /** Keyed by provider, binary and version: a new version or another binary is read again */
+  private readonly handshakes = new Map<string, HandshakeEntry>();
   private pending: Promise<ProviderStatus[]> | null = null;
   private pendingJoinable = false;
   private followUp: Promise<ProviderStatus[]> | null = null;
@@ -187,6 +205,12 @@ export class ProviderDetector {
     this.probeTimeoutMs = deps.probeTimeoutMs ?? PROBE_TIMEOUT_MS;
     this.debounceMs = deps.debounceMs ?? WATCH_DEBOUNCE_MS;
     this.minWatchGapMs = deps.minWatchGapMs ?? WATCH_MIN_GAP_MS;
+    this.catalogs = deps.catalogs ?? new ProviderCatalogsStore(deps.config);
+    // The models of the last run serve until this run's handshake has read them again
+    for (const manifest of this.registry.list()) {
+      const cached = this.catalogs.get(manifest.id);
+      if (cached) this.giveCatalog(manifest.id, cached.models);
+    }
   }
 
   /** What the last detection saw, whatever its age, without starting one; null before the first */
@@ -438,18 +462,69 @@ export class ProviderDetector {
     }
 
     const known = { binaryPath, version: version.version };
+    // Signed out, nothing the protocol could add changes the answer; any other reading may carry a
+    // handshake, which spends nothing and adds the account, the models and what the version can do
+    const reading = auth.kind === 'signed-out' ? null : await this.readDriver(manifest, binaryPath, version.version, env);
+    const modes = reading ? { permissionModes: reading.permissionModes } : {};
     switch (auth.kind) {
       case 'ok':
-        return make('ready', null, { ...known, account: auth.account });
+        return make('ready', null, { ...known, ...modes, account: reading?.handshake?.account ?? auth.account });
       case 'signed-out':
         return make('signed-out', 'missing-credentials', known);
       case 'none':
         // The vendor documents no probe that costs nothing. A variable holding credentials cannot
-        // prove they are valid, so it does not change the answer
-        return make('unknown', 'no-probe', known);
+        // prove they are valid, so it does not change the answer, and neither does a handshake: an
+        // agent answers `initialize` signed in or not
+        return make('unknown', 'no-probe', { ...known, ...modes });
       default:
         return make('unknown', failure(auth.kind), known);
     }
+  }
+
+  /**
+   * The driver's half of a reading. It is built here for the binary that was found (an override
+   * included), so the modes and the handshake describe the program that will run. The handshake
+   * is kept for that binary and version; a failed one is retried after the TTL, and never changes
+   * the status: the probes already said what could be said.
+   */
+  private async readDriver(manifest: ProviderManifest, binaryPath: string, version: string, env: NodeJS.ProcessEnv): Promise<DriverReading | null> {
+    const driver = this.probeDriver(manifest, binaryPath);
+    if (!driver) return null;
+    const permissionModes = (this.registry.driverFor(manifest.id) ?? driver).permissionModes().map((m) => m.mode);
+    if (!driver.handshake) return { permissionModes, handshake: null };
+
+    const key = `${manifest.id}\0${binaryPath}\0${version}`;
+    const kept = this.handshakes.get(key);
+    if (kept && ('result' in kept || this.now() - kept.at < this.ttlMs)) return { permissionModes, handshake: 'result' in kept ? kept.result : null };
+
+    const abort = new AbortController();
+    const outcome = await this.timed(driver.handshake(env, abort.signal).catch(() => null), this.probeTimeoutMs * 2);
+    if (outcome === 'timeout') abort.abort();
+    const result = outcome === 'timeout' ? null : outcome;
+    this.handshakes.set(key, result ? { at: this.now(), result } : { at: this.now(), failed: true });
+    if (!result) return { permissionModes, handshake: null };
+
+    // The handshake's version is the agent's own and may read differently from `--version`, so what
+    // it confirmed is filed under the version the probe read, the one a status is compared with
+    this.registry.confirm(manifest.id, { version, confirmed: result.confirmed, missing: [] }, new Date(this.now()).toISOString());
+    if (result.models.length > 0) {
+      this.giveCatalog(manifest.id, result.models);
+      void this.catalogs.set(manifest.id, { version, models: result.models }).catch(() => undefined);
+    }
+    return { permissionModes, handshake: result };
+  }
+
+  /** A driver for this binary, to ask what it offers and to run its handshake; null for a provider with no driver yet */
+  private probeDriver(manifest: ProviderManifest, binaryPath: string): ProviderDriver | null {
+    if (manifest.id === 'claude-code') return new ClaudeCodeDriver(binaryPath);
+    const build = DRIVER_TRANSPORTS[manifest.transport];
+    return build ? build({ ...manifest, commands: { ...manifest.commands, names: [binaryPath] } }) : null;
+  }
+
+  /** Hands a catalog to the driver that serves the model picker, when it takes one */
+  private giveCatalog(id: ProviderId, models: ModelOption[]): void {
+    const driver: (ProviderDriver & { setCatalog?: (models: ModelOption[]) => void }) | null = this.registry.driverFor(id);
+    driver?.setCatalog?.(models);
   }
 
   /** Claude Code reads through `detectCli` and `getAuthStatus`, the same two calls the rest of core makes */
