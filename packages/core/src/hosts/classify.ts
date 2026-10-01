@@ -10,7 +10,7 @@ import { tryParseJson } from './json.ts';
 /** Porcelain verbs that change something. `run` and `note` only count after the command group, so `gh run view` is a read. */
 const WRITE_VERBS: ReadonlySet<string> = new Set([
   'create', 'edit', 'update', 'delete', 'close', 'reopen', 'merge', 'comment', 'note', 'review', 'ready', 'approve', 'revoke',
-  'rerun', 'retry', 'cancel', 'run', 'trigger', 'develop', 'lock', 'unlock', 'transfer', 'publish', 'resolve', 'transition',
+  'rerun', 'retry', 'cancel', 'run', 'rebase', 'trigger', 'develop', 'lock', 'unlock', 'transfer', 'publish', 'resolve', 'transition',
   'assign', 'link', 'archive',
 ]);
 
