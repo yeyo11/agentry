@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { DecisionRecord, Execution } from '@agentry/shared';
 import type { LegacyRun, StoredChat } from '../src/chat-records.ts';
-import { CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, migrate, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
+import { CHAT_ENTRIES_SCHEMA_VERSION, CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, migrate, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
 import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from '../src/orchestration-pr-rows.ts';
 import { pullRequestOf, type PullRequestRow } from '../src/work-item-rows.ts';
@@ -607,6 +607,48 @@ test('pull requests stored before the code hosts read as github, with a ref, and
   raw.prepare("INSERT INTO host_rate_limits (host, bucket, updated_at) VALUES ('github.com', 'core', ?)").run(at(1));
   assert.equal((raw.prepare('SELECT strikes FROM host_rate_limits').get() as { strikes: number }).strikes, 0);
   raw.close();
+});
+
+test('chats stored before the native session id keep their rows, with a null id and no entries', () => {
+  const raw = new DatabaseSync(':memory:');
+  migrate(raw, CHAT_ENTRIES_SCHEMA_VERSION - 1);
+  const old = chat('old', '2026-09-18T10:00:00Z');
+  raw.prepare('INSERT INTO chats (id, created_at, json) VALUES (?, ?, ?)').run('old', old.record.createdAt, JSON.stringify(old.record));
+  migrate(raw);
+  const row = raw.prepare('SELECT provider, native_session_id FROM chats WHERE id = ?').get('old') as { provider: string; native_session_id: string | null };
+  assert.deepEqual({ ...row }, { provider: 'claude-code', native_session_id: null });
+  assert.equal((raw.prepare('SELECT COUNT(*) AS n FROM chat_entries').get() as { n: number }).n, 0);
+  // A process still on the old schema inserts without the column
+  raw.prepare('INSERT INTO chats (id, created_at, json) VALUES (?, ?, ?)').run('older-writer', old.record.createdAt, JSON.stringify(old.record));
+  assert.equal((raw.prepare('SELECT native_session_id FROM chats WHERE id = ?').get('older-writer') as { native_session_id: string | null }).native_session_id, null);
+  raw.close();
+});
+
+test('the native session id survives a re-save of the chat', () => {
+  const db = new Db(tempConfig());
+  const c = chat('a', '2026-09-18T10:00:00Z');
+  db.saveChats([c], null);
+  assert.equal(db.nativeSessionId('a'), null);
+  db.setNativeSessionId('a', 'native-1');
+  db.saveChats([c], null);
+  assert.equal(db.nativeSessionId('a'), 'native-1');
+  assert.equal(db.nativeSessionId('missing'), null);
+  db.close();
+});
+
+test('chat entries append once per seq, read in order, and go with their chat', () => {
+  const db = new Db(tempConfig());
+  db.saveChats([chat('a', '2026-09-18T10:00:00Z')], null);
+  const first = [{ seq: 0, at: '2026-09-18T10:00:01Z', entry: { kind: 'user', text: 'hi' } }, { seq: 1, at: '2026-09-18T10:00:02Z', entry: { kind: 'assistant', text: 'yo' } }];
+  assert.equal(db.appendChatEntries('a', first), 2);
+  // A second process replaying the same entries, plus one new
+  assert.equal(db.appendChatEntries('a', [...first, { seq: 2, at: '2026-09-18T10:00:03Z', entry: { kind: 'user', text: 'again' } }]), 1);
+  assert.deepEqual(db.chatEntries('a').map((e) => e.seq), [0, 1, 2]);
+  assert.deepEqual(db.chatEntries('a', 1).map((e) => e.seq), [2]);
+  assert.deepEqual(db.chatEntries('a')[0]?.entry, { kind: 'user', text: 'hi' });
+  db.deleteChat('a');
+  assert.deepEqual(db.chatEntries('a'), []);
+  db.close();
 });
 
 test('pull requests stored before the checks have no fix, and the snapshot table exists', () => {

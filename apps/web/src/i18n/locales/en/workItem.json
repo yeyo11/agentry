@@ -279,7 +279,7 @@
       "not-started": "Its chat did not start.",
       "not-continued": "Its chat could not be picked up again after a restart.",
       "chat-ended": "Its chat ended, or was deleted, without leaving a result.",
-      "chat-failed": "Its chat ended with an error from Claude Code.",
+      "chat-failed": "Its chat ended with an error from the agent.",
       "unknown": "It gave no reason.",
       "conflict-unresolved": "It ended with the merge of the default branch still conflicted."
     },

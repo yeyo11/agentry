@@ -8,6 +8,8 @@ import { api, keys, useChats, useProjects } from '../api';
 import { ActivityTicker } from '@agentry/ui/components/ActivityTicker';
 import { FabStandIn } from '../components/shell/Fab';
 import { ContextBar } from '@agentry/chat-ui/components/ChatBadges';
+import { ProviderMark } from '@agentry/ui/components/ProviderMark';
+import { useProviderLabel } from '../lib/provider-status';
 import { Checkbox, hasOpenLayer } from '@agentry/ui/components/controls';
 import { useConfirm } from '@agentry/ui/components/Dialog';
 import { ICON_SM } from '@agentry/ui/components/icons';
@@ -156,6 +158,7 @@ const ChatRow = memo(function ChatRow({
   onFocus: (id: string) => void;
 }) {
   const { t } = useTranslation(['chats', 'chat', 'common']);
+  const agent = useProviderLabel()(chat.provider);
   const place = chat.origin === 'orchestration' && chat.orchestration ? originLabel(chat) : (chat.project?.name ?? t('list.noProject'));
   const tags = rowTags(chat);
   const working = chat.state === 'working';
@@ -223,7 +226,10 @@ const ChatRow = memo(function ChatRow({
           <StateMark chat={chat} />
         </span>
         <span className="crow-main">
-          <span className="crow-title-text">{displayTitle(chat)}</span>
+          <span className="crow-title-row">
+            <ProviderMark provider={chat.provider} label={agent} />
+            <span className="crow-title-text">{displayTitle(chat)}</span>
+          </span>
           <span className="crow-sub">
             <StateWord chat={chat} />
             {/* The table's line: the id, how the chat can be driven, and on demand its model */}

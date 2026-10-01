@@ -61,6 +61,11 @@ export interface ProviderManifest {
     signInUrl: string;
   };
   transport: ProviderTransport;
+  /**
+   * How a protocol driver starts the CLI: arguments and environment, as data. Absent for a provider
+   * whose driver builds its own command line (Claude Code's `buildArgs`).
+   */
+  launch?: { args: string[]; env: Record<string, string>; unsetEnv: string[] };
   /** Declared capabilities; empty until the provider has a driver */
   capabilities: ProviderCapability[];
 }

@@ -22,7 +22,7 @@
     "fileCount_other": "{{count}} files",
     "more_one": "{{count}} more file in the review",
     "more_other": "{{count}} more files in the review",
-    "editingNow": "Claude is editing it now",
+    "editingNow": "{{agent}} is editing it now",
     "latestStep": "Latest step",
     "now": "now",
     "review": "Review the changes",

@@ -2,6 +2,7 @@ import type { AgentTranscript, ChatBackgroundTask } from '@agentry/shared';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { AgentScope } from '@agentry/chat-ui/lib/agent';
 import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
 import { useAgentDetail, useChatTasks, useChatTranscript, useTaskOutput, type AgentRef } from '@agentry/chat-ui/lib/chats';
 import { useDetailPanel, type DetailRef } from '../lib/detail';
@@ -344,7 +345,9 @@ function ChatBody({ chatId }: { chatId: string }) {
                 {t('detail.earlierInChat', { count: query.data.total - entries.length })}
               </Link>
             )}
-            <Transcript entries={entries} />
+            <AgentScope chat={chat}>
+              <Transcript entries={entries} />
+            </AgentScope>
           </div>
         )}
       </section>

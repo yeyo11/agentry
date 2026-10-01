@@ -1,0 +1,87 @@
+Permissions:
+
+  The GitHub Copilot CLI provides granular control over tool, URL, and path permissions to ensure safe
+  operation. By default, the CLI restricts certain actions and prompts for user confirmation when necessary.
+  You can customize these permissions using the available command line options.
+
+  Tool Permissions:
+
+  Tool availability is controlled via the --available-tools and --excluded-tools options. The --available-tools option
+  disables all other tools; the --excluded-tools option disables only the specified tools. These filters decide which
+  tools the model can see.
+
+  Tool permissions are managed via --allow-tool, --deny-tool, and --allow-all-tools. Denial rules always take
+  precedence over allow rules, even --allow-all-tools. These flags control approval prompts and do not expose tools
+  that were filtered out by --available-tools/--excluded-tools.
+
+  The --allow-tool and --deny-tool parameters take a permission pattern of form kind(argument) where the argument
+  is optional and dependent on the kind. The following kinds are supported:
+
+    shell(command:*?)
+        Exactly matches a specific shell command to be run. If the command is omitted, all shell commands are allowed.
+        In most cases, this will be an exact match against the command name. To match prefixes, use the :* suffix.
+        This is particularly useful for git and gh commands, where approval is performed on a first-level subcommand
+        basis, e.g. "git push" or "gh pr create". To match all git commands, use "shell(git:*)". Wildcard matching is
+        performed on the stem of the command, so "shell(git:*)" will match "git push" but not "gitea".
+
+    write
+        Matches tools that create and modify files, except shell tool invocations. To allow all shell redirections,
+        set --allow-all-tools.
+
+    <mcp-server-name>(tool-name?)
+        Exactly matches a specific tool from a specific MCP server, or all tools from that server if omitted.
+        The server name is the name of the MCP server as configured in your environment (e.g. "MyMCP").
+        The tool name is the name of the tool as registered with the MCP server (e.g. "my_tool").
+
+    url(domain-or-url?)
+        Matches URL access requests. Applies to the shell and web-fetch tools. If omitted, matches all URLs.
+        Supports exact URLs: "url(https://github.com)"
+        Supports protocol + domain patterns: "url(https://github.com)" or "url(https://*.github.com)"
+        Note: All patterns are protocol-aware. Domains without a protocol default to https://.
+
+  URL Permissions:
+
+  The --allow-url and --deny-url parameters accept URLs or protocol + domain patterns.
+  All URL permissions are protocol-aware - approving https://example.com does NOT allow http://example.com.
+  Patterns without an explicit protocol default to https://.
+
+    # Allow GitHub API access via HTTPS (default)
+    $ copilot --allow-url=github.com
+
+    # Allow HTTP access explicitly
+    $ copilot --allow-url=http://example.com
+
+    # Deny access to specific domain over HTTPS
+    $ copilot --deny-url=https://malicious-site.com
+
+    # Allow all URLs
+    $ copilot --allow-all-urls
+
+  Path Permissions:
+
+  By default, file access is restricted to paths within the current working directory and its subdirectories,
+  plus the system temporary directory. The --allow-all-paths flag disables this verification and allows access
+  to any path on the filesystem. The --disallow-temp-dir flag prevents automatic access to the system temporary
+  directory.
+
+    # Allow access to any path on the filesystem
+    $ copilot --allow-all-paths
+
+    # Prevent automatic access to the system temporary directory
+    $ copilot --disallow-temp-dir
+
+  Enabling All Permissions:
+
+  The --allow-all and --yolo flags are equivalent shortcuts that enable all permissions at once. They are
+  equivalent to specifying --allow-all-tools --allow-all-paths --allow-all-urls together. These flags are
+  useful for non-interactive scripts or when you want to run without any confirmation prompts.
+
+    # Enable all permissions with a single flag
+    $ copilot --allow-all
+    $ copilot --yolo
+
+    # Equivalent to:
+    $ copilot --allow-all-tools --allow-all-paths --allow-all-urls
+
+  It is expected that these permissions will be extended in the very near future to support wildcard matching and other richer functionality.
+exit 0

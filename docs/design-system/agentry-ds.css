@@ -100,7 +100,7 @@
 /* Colours worked out per element from its --hue (a project, an epic, a role), as the app's tokens.css
    does for .monogram. Custom properties resolve where they are declared, so these sit on the elements
    that carry --hue, not on the theme. Every other rule reads the result, never hsl() itself. */
-.proj.monogram, .wi-epic, .role-av {
+.proj.monogram, .wi-epic, .role-av, .prov-mark {
   --hue-base: hsl(var(--hue, 20) 70% 55%);
   --hue-fill: hsl(var(--hue, 20) 70% 55% / 0.14);
   --hue-ink: color-mix(in oklab, var(--hue-base), var(--fg) 50%);
@@ -1470,6 +1470,15 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
 .prov-first { width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
 .prov-step-note { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--fg-3); }
 /* ---------- end of Providers ---------- */
+
+/* ---------- ProviderBadge: the agent a chat runs on (plans/multi-provider.md, phase 3, P0 p1). The mark is
+   the provider's monogram, tinted from its --hue like .proj.monogram (never a status hue); the badge is
+   the mark plus the label, in the chat header and its details panel. A list row carries the mark alone,
+   with the label as its name. Neither moves nor takes the gradient: the agent being live is the row's. ---------- */
+.prov-mark { display: inline-grid; place-items: center; flex-shrink: 0; width: 20px; height: 20px; border-radius: var(--r-sm); background: var(--hue-fill); color: var(--hue-ink); font-family: var(--mono); font-size: 11px; font-weight: 600; line-height: 1; }
+.prov-badge { display: inline-flex; align-items: center; gap: 7px; font-family: var(--sans); letter-spacing: 0; text-transform: none; height: 26px; padding: 0 10px 0 3px; border-radius: var(--r-full); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg-2); font-size: 12.5px; white-space: nowrap; }
+.prov-badge .prov-mark { border-radius: var(--r-full); }
+/* ---------- end of ProviderBadge ---------- */
 
 /* ---------- Code hosts (plans/code-hosts.md): the hosts a CLI knows, under its state. The rows, cells
    and binary panel are the providers' (.prov-*). ---------- */

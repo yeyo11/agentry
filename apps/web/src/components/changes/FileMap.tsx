@@ -2,6 +2,7 @@ import type { ChangedFile } from '@agentry/shared';
 import { Check, ChevronDown, PanelLeft, Search } from 'lucide-react';
 import type { RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAgentCopy } from '../../lib/agent-name';
 import { Link } from 'react-router-dom';
 import { Tooltip } from '@agentry/ui/components/controls';
 import { spinnerGlyph } from '@agentry/ui/lib/live';
@@ -48,6 +49,7 @@ export function StatusLetter({ file }: { file: ChangedFile }) {
 /** What a row says in words, for its title and a screen reader: status, not committed, seen, live */
 export function useRowWords() {
   const { t } = useTranslation('changes');
+  const { Agent } = useAgentCopy();
   return (m: MapFile) =>
     [
       m.file.path,
@@ -55,7 +57,7 @@ export function useRowWords() {
       m.file.previousPath ? t('row.renamedFrom', { path: m.file.previousPath }) : null,
       m.uncommitted ? t('row.uncommitted') : null,
       m.seen ? t('row.seen') : null,
-      m.live ? t('row.live') : null,
+      m.live ? t('row.live', { agent: Agent }) : null,
     ]
       .filter(Boolean)
       .join(' · ');
@@ -182,6 +184,7 @@ function FileRow({ m, current, to, words }: { m: MapFile; current: boolean; to: 
 
 export function MapLegend({ keys = true }: { keys?: boolean }) {
   const { t } = useTranslation('changes');
+  const { Agent } = useAgentCopy();
   return (
     <div className="changes-map-foot">
       <span className="changes-legend">
@@ -192,7 +195,7 @@ export function MapLegend({ keys = true }: { keys?: boolean }) {
         <span className="spinner-glyph" aria-hidden>
           {spinnerGlyph(0, false)}
         </span>
-        {t('map.legendLive')}
+        {t('map.legendLive', { agent: Agent })}
       </span>
       {keys && (
         <span className="changes-legend" aria-hidden>

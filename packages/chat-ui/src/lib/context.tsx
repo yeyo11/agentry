@@ -49,8 +49,8 @@ export interface ChatClient {
 
 export interface ChatUiConfig {
   client: ChatClient;
-  /** The agent's name as the transcript shows it: 'Claude' today, the chat's provider in phase 3. */
-  agentName: string;
+  /** The name of the agent a chat runs on, as the person reads it: the app derives it from the provider's label. */
+  agentNameFor(chat: ChatSummary): string;
   /** The app's polling fallback while its event feed is down (useFallbackInterval), as a value. */
   fallbackInterval: number | false;
   paths: {

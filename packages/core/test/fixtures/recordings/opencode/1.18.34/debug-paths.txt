@@ -1,0 +1,10 @@
+home       <home>
+data       <home>/.local/share/opencode
+bin        <home>/.cache/opencode/bin
+log        <home>/.local/share/opencode/log
+repos      <home>/.local/share/opencode/repos
+cache      <home>/.cache/opencode
+config     <home>/.config/opencode
+state      <home>/.local/state/opencode
+tmp        /tmp/opencode
+exit 0

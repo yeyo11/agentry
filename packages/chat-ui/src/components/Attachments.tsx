@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent,
 import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
 import { useChatUi } from '../lib/context';
+import { useAgentName } from '../lib/agent';
 import { errorMessage, formatBytes } from '@agentry/ui/lib/format';
 import { ICON_SM } from '@agentry/ui/components/icons';
 import { isViewable, MediaViewer, type MediaItem } from './MediaViewer';
@@ -211,6 +212,7 @@ export type AttachmentsState = ReturnType<typeof useAttachments>;
 
 export function AttachButton({ state, disabled, compact }: { state: AttachmentsState; disabled?: boolean; compact?: boolean }) {
   const { t } = useTranslation('chat');
+  const agent = useAgentName();
   const input = useRef<HTMLInputElement>(null);
   return (
     <>
@@ -220,7 +222,7 @@ export function AttachButton({ state, disabled, compact }: { state: AttachmentsS
         onClick={() => input.current?.click()}
         disabled={disabled}
         aria-label={t('attachments.attachFiles')}
-        title={t('attachments.attachHint')}
+        title={t('attachments.attachHint', { agent })}
       >
         <Paperclip {...ICON_SM} />
         {!compact && ` ${t('attachments.attach')}`}

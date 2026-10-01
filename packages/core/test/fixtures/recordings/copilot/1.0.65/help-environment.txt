@@ -1,0 +1,90 @@
+Environment Variables:
+
+  `COLORFGBG`: fallback to detect dark / light backgrounds; uses form of "fg;bg" where each field is a number from 0-15 corresponding to ANSI colors.
+
+  `COPILOT_ALLOW_ALL`: allow all tools to run automatically without confirmation when set to "true".
+
+  `COPILOT_AUTO_UPDATE`: set to "false" to disable downloading updated CLI versions automatically. Can also be disabled with the --no-auto-update flag. Auto-update is enabled by default, except in CI environments (detected via `CI`, `BUILD_NUMBER`, `RUN_ID`, or `SYSTEM_COLLECTIONURI` environment variables), where it is disabled by default.
+
+  `COPILOT_CUSTOM_INSTRUCTIONS_DIRS`: comma-separated list of additional directories to search for custom instructions files (in addition to git root and current working directory).
+
+  `COPILOT_EDITOR`, `VISUAL`, `EDITOR` (in order of precedence): command used to interactively edit a file (e.g., the plan).
+
+  `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN` (in order of precedence): an authentication token that takes precedence over previously stored credentials.
+
+  `COPILOT_HOME`: override the directory where configuration and state files are stored; defaults to `$HOME/.copilot`.
+
+  `COPILOT_MODEL`: optionally set the agent model. Can be overridden by the --model command line option or the /model command.
+
+  `COPILOT_OFFLINE`: set to "true" to enable offline mode. When active, the CLI skips all network access: GitHub authentication, telemetry, web tools, GitHub MCP server, and auto-update are disabled. Requires a local model provider (COPILOT_PROVIDER_BASE_URL).
+
+  `COPILOT_PROVIDER_BASE_URL`: API endpoint URL for a custom model provider (BYOK). When set, the CLI uses this provider instead of GitHub Copilot's model routing. GitHub authentication is not required.
+
+  `COPILOT_PROVIDER_TYPE`: provider type when using BYOK. One of "openai" (default), "azure", or "anthropic". Use "openai" for OpenAI-compatible endpoints including Ollama, vLLM, and Foundry Local.
+
+  `COPILOT_PROVIDER_API_KEY`: API key for the custom provider. Optional for local providers like Ollama.
+
+  `COPILOT_PROVIDER_BEARER_TOKEN`: bearer token for custom provider authentication. Takes precedence over COPILOT_PROVIDER_API_KEY.
+
+  `COPILOT_PROVIDER_WIRE_API`: API format for the custom provider. One of "completions" (default) or "responses". Use "responses" for GPT-5 series models.
+
+  `COPILOT_PROVIDER_TRANSPORT`: transport for the custom provider. One of "http" (default) or "websockets". Use with `COPILOT_PROVIDER_WIRE_API=responses` to use OpenAI Responses over WebSocket.
+
+  `COPILOT_PROVIDER_AZURE_API_VERSION`: Azure API version when using type "azure". When omitted, uses the GA versionless v1 route. Set explicitly (e.g. "2024-10-21") to use the legacy versioned deployment route.
+
+  `COPILOT_PROVIDER_MODEL_ID`: well-known model ID used for agent configuration and token limits. Defaults to COPILOT_MODEL.
+
+  `COPILOT_PROVIDER_WIRE_MODEL`: model name sent to the provider API for inference. Defaults to COPILOT_MODEL.
+
+  `COPILOT_PROVIDER_MAX_PROMPT_TOKENS`: maximum prompt tokens for the BYOK model. Overrides both catalog and default values.
+
+  `COPILOT_PROVIDER_MAX_OUTPUT_TOKENS`: maximum output tokens for the BYOK model. Overrides both catalog and default values.
+
+  `GH_HOST`: GitHub hostname for authentication and API requests; defaults to "github.com". Set this to your GitHub Enterprise Cloud with data residency hostname (e.g., "mycompany.ghe.com"). Use when both GitHub CLI and Copilot CLI should target the same host.
+
+  `COPILOT_GH_HOST`: GitHub hostname used only by Copilot CLI for authentication and API requests, overriding GH_HOST when set. Useful when GH_HOST points to a GitHub Enterprise Server instance but Copilot CLI needs to authenticate against github.com or a GitHub Enterprise Cloud with data residency hostname instead.
+
+  `HTTP_PROXY`, `HTTPS_PROXY` (case-insensitive): proxy server URL for outgoing HTTP and HTTPS connections respectively (e.g., "http://proxy.example.com:8080").
+
+  `NO_COLOR`: when set (to any value), disables color output. See https://no-color.org/ for details.
+
+  `NO_PROXY` (case-insensitive): comma-separated list of hostnames or patterns that should bypass the proxy (e.g., "localhost,127.0.0.1,.example.com").
+
+  `PLAIN_DIFF`: when set to "true", disables rich diff rendering (syntax highlighting via diff tool specified by git config). Can also be set with the --plain-diff flag.
+
+  `USE_BUILTIN_RIPGREP`: when set to "false", uses the ripgrep binary from PATH instead of the bundled version.
+
+  `USE_TGREP`: overrides the TGREP feature flag. When set to "true", always enables tgrep indexed search regardless of repository size. When set to "false", disables tgrep and uses ripgrep.
+
+  `USE_TGREP_WARM_START`: when set to "true", blocks Copilot CLI startup until the tgrep index is ready when tgrep starts. Useful for evaluating tgrep search against a warm index.
+
+  OpenTelemetry / Monitoring:
+
+  `COPILOT_OTEL_ENABLED`: set to "true" to explicitly enable OpenTelemetry instrumentation.
+
+  `OTEL_EXPORTER_OTLP_ENDPOINT`: OTLP endpoint URL. Setting this automatically enables OTel.
+
+  `COPILOT_OTEL_EXPORTER_TYPE`: Copilot exporter backend; "otlp-http" (default) or "file" for local JSON-lines output.
+
+  `OTEL_EXPORTER_OTLP_PROTOCOL`: OTLP HTTP protocol for the "otlp-http" exporter; "http/json" (default) or "http/protobuf". Use `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL` or `OTEL_EXPORTER_OTLP_METRICS_PROTOCOL` to override per signal.
+
+  `COPILOT_OTEL_FILE_EXPORTER_PATH`: file path for JSON-lines output. Setting this automatically enables OTel.
+
+  `COPILOT_OTEL_SOURCE_NAME`: instrumentation scope name for tracer and meter; defaults to "github.copilot".
+
+  `OTEL_SERVICE_NAME`: service name in resource attributes; defaults to "github-copilot".
+
+  `OTEL_RESOURCE_ATTRIBUTES`: extra resource attributes as comma-separated key=value pairs.
+
+  `OTEL_EXPORTER_OTLP_HEADERS`: authentication headers for the OTLP exporter (e.g., "Authorization=<redacted:example>").
+
+  `OTEL_EXPORTER_OTLP_CERTIFICATE`: path to a PEM file with extra CA certificate(s) to trust for the OTLP endpoint (e.g., a private/corporate CA). Merged with the OS trust store. Per-signal: `OTEL_EXPORTER_OTLP_TRACES_CERTIFICATE`, `OTEL_EXPORTER_OTLP_METRICS_CERTIFICATE`.
+
+  `OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE` / `OTEL_EXPORTER_OTLP_CLIENT_KEY`: paths to the client certificate and (unencrypted) private key PEM files for mutual TLS (mTLS). Both must be set together. Per-signal variants are supported.
+
+  `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`: set to "true" to capture full prompt/response content.
+
+  `OTEL_LOG_LEVEL`: OTel diagnostic log level (not the CLI --log-level). One of: NONE, ERROR, WARN, INFO, DEBUG, VERBOSE, ALL.
+
+  See `copilot help monitoring` for detailed configuration and examples.
+exit 0

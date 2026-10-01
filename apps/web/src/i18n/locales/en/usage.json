@@ -44,7 +44,7 @@
     "bucket": "Group by",
     "emptyTitle": "Nothing in this range",
     "emptyBody": "No chat spent anything between these days. Pick a wider range.",
-    "note": "Cost is what Claude Code reported for each execution, counted on the day it ended, in the server’s time zone. Chats started from a terminal report tokens only, so they add to the tokens and never to the cost. Weeks start on Monday."
+    "note": "Cost is what the agent reported for each execution, counted on the day it ended, in the server’s time zone. Chats started from a terminal report tokens only, so they add to the tokens and never to the cost. Weeks start on Monday."
   },
   "chart": {
     "label": "{{metric}} over time",
@@ -85,8 +85,8 @@
   "decisions": {
     "label": "Decisions",
     "jev": "Jev {{cost}}",
-    "saved_one": "{{count}} Claude run saved",
-    "saved_other": "{{count}} Claude runs saved",
+    "saved_one": "{{count}} agent run saved",
+    "saved_other": "{{count}} agent runs saved",
     "history": "See the history"
   }
 }

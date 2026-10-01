@@ -44,7 +44,7 @@
     "bucket": "Agrupar por",
     "emptyTitle": "Nada en este rango",
     "emptyBody": "Ningún chat gastó nada entre estos días. Elige un rango más amplio.",
-    "note": "El coste es lo que Claude Code informó de cada ejecución, contado el día en que terminó, en la zona horaria del servidor. Los chats iniciados desde una terminal solo informan de tokens, así que suman a los tokens y nunca al coste. Las semanas empiezan en lunes."
+    "note": "El coste es lo que informó el agente de cada ejecución, contado el día en que terminó, en la zona horaria del servidor. Los chats iniciados desde una terminal solo informan de tokens, así que suman a los tokens y nunca al coste. Las semanas empiezan en lunes."
   },
   "chart": {
     "label": "{{metric}} a lo largo del tiempo",
@@ -85,8 +85,8 @@
   "decisions": {
     "label": "Decisiones",
     "jev": "Jev {{cost}}",
-    "saved_one": "{{count}} ejecución de Claude ahorrada",
-    "saved_other": "{{count}} ejecuciones de Claude ahorradas",
+    "saved_one": "{{count}} ejecución del agente ahorrada",
+    "saved_other": "{{count}} ejecuciones del agente ahorradas",
     "history": "Ver el historial"
   }
 }

@@ -4,6 +4,7 @@ import { withToken } from './auth';
 import { ChatUiProvider, type ChatClient, type ChatUiConfig } from '@agentry/chat-ui/lib/context';
 import { reviewLink, reviewPath } from './changes-summary';
 import { useFallbackInterval } from './feed';
+import { useProviderLabel } from './provider-status';
 
 /** `api`'s chat methods, plus the two URLs the chat package cannot build without knowing the base. */
 export const chatClient: ChatClient = {
@@ -37,6 +38,10 @@ const paths: ChatUiConfig['paths'] = {
 /** Mounted around `<App />`: the detail panel, orchestrations, work items and Home use chat hooks too. */
 export function AppChatUi({ children }: { children: ReactNode }) {
   const fallbackInterval = useFallbackInterval();
-  const value = useMemo<ChatUiConfig>(() => ({ client: chatClient, agentName: 'Claude', fallbackInterval, paths, slots }), [fallbackInterval]);
+  const labelOf = useProviderLabel();
+  const value = useMemo<ChatUiConfig>(
+    () => ({ client: chatClient, agentNameFor: (chat) => labelOf(chat.provider), fallbackInterval, paths, slots }),
+    [fallbackInterval, labelOf],
+  );
   return <ChatUiProvider value={value}>{children}</ChatUiProvider>;
 }

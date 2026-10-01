@@ -1,12 +1,16 @@
 // The models a person may pick. Agentry keeps no list of its own: it reads the options the CLI
 // caches in its own state file, which the CLI has already filtered by what the account's
 // subscription allows, so a model added to a plan shows up without a release here.
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+
+// The fake Claude is ready and first in the order, so a New chat starts on Claude and its models; with only the sandbox's fake Codex ready it would start on Codex
+export const fakeCli = true;
 
 const ALIASES = ['fable', 'opus', 'sonnet', 'haiku'];
 
 export default async ({ page, api, check, dirs }) => {
+  mkdirSync(dirs.configDir, { recursive: true });
   writeFileSync(
     join(dirs.configDir, '.claude.json'),
     JSON.stringify({

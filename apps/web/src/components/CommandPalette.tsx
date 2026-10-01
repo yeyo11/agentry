@@ -40,6 +40,7 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAgentName } from '@agentry/chat-ui/lib/agent';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
 import { LANGUAGES, setLanguage } from '../i18n';
@@ -83,6 +84,7 @@ export function CommandPaletteTrigger({ className = '' }: { className?: string }
 export function CommandPalette() {
   const navigate = useNavigate();
   const { t } = useTranslation(['components', 'connectors', 'shell', 'decisions']);
+  const agent = useAgentName();
   const { project: selected } = useProjectScope();
   const reduced = useReducedMotion();
   const [open, setOpen] = useState(false);
@@ -144,7 +146,7 @@ export function CommandPalette() {
     const go = (to: string) => () => navigate(to);
     const newChat = selected?.exists ? `/chats/new?cwd=${encodeURIComponent(selected.path)}` : '/chats/new';
     const list: Command[] = [
-      { id: 'act:new-chat', group: 'actions', title: t('palette.newChat'), hint: selected?.exists ? t('palette.newChatIn', { name: selected.name }) : t('palette.newChatHint'), keywords: 'run prompt start', icon: Play, run: go(newChat) },
+      { id: 'act:new-chat', group: 'actions', title: t('palette.newChat'), hint: selected?.exists ? t('palette.newChatIn', { name: selected.name }) : t('palette.newChatHint', { agent }), keywords: 'run prompt start', icon: Play, run: go(newChat) },
       { id: 'act:run-workflow', group: 'actions', title: t('palette.runWorkflow'), hint: t('palette.runWorkflowHint'), keywords: 'workflow script', icon: Waypoints, run: () => window.dispatchEvent(new Event(RUN_WORKFLOW_EVENT)) },
       { id: 'act:new-orchestration', group: 'actions', title: t('palette.newOrchestration'), hint: t('palette.newOrchestrationHint'), keywords: 'agents dag plan', icon: Network, run: go(NEW_ORCHESTRATION_PATH) },
       { id: 'act:new-task', group: 'actions', title: t('shell:tasks.newTask'), hint: selected ? t('shell:tasks.newTaskIn', { name: selected.name }) : t('shell:tasks.newTaskHint'), keywords: 'work item board backlog issue ticket bug story epic', icon: SquarePlus, run: go(NEW_TASK_PATH) },
