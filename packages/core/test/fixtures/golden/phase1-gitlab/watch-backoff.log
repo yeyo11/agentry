@@ -1,0 +1,53 @@
+# tick, glab fails
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+glab mr view 4 -R https://gitlab.com/acme/shop -F json
+  cwd: <root>/project
+  env: GIT_TERMINAL_PROMPT=0
+  env: GLAB_NO_PROMPT=1
+  env: GLAB_CHECK_UPDATE=false
+  env: GLAB_SEND_TELEMETRY=false
+  env: NO_PROMPT=<unset>
+  env: GITLAB_HOST=<unset>
+  env: GL_HOST=<unset>
+  env: NO_COLOR=1
+  env: LC_ALL=C
+glab mr view 4 -R https://gitlab.com/acme/shop -F json
+  cwd: <root>/project
+  env: GIT_TERMINAL_PROMPT=0
+  env: GLAB_NO_PROMPT=1
+  env: GLAB_CHECK_UPDATE=false
+  env: GLAB_SEND_TELEMETRY=false
+  env: NO_PROMPT=<unset>
+  env: GITLAB_HOST=<unset>
+  env: GL_HOST=<unset>
+  env: NO_COLOR=1
+  env: LC_ALL=C
+glab mr view 4 -R https://gitlab.com/acme/shop -F json
+  cwd: <root>/project
+  env: GIT_TERMINAL_PROMPT=0
+  env: GLAB_NO_PROMPT=1
+  env: GLAB_CHECK_UPDATE=false
+  env: GLAB_SEND_TELEMETRY=false
+  env: NO_PROMPT=<unset>
+  env: GITLAB_HOST=<unset>
+  env: GL_HOST=<unset>
+  env: NO_COLOR=1
+  env: LC_ALL=C
+# tick, backed off: no call
+# refresh
+git -C <root>/project rev-parse --path-format=absolute --git-common-dir
+git -C <root>/project rev-parse --absolute-git-dir
+git -C <root>/project rev-parse --show-toplevel
+glab mr view 4 -R https://gitlab.com/acme/shop -F json
+  cwd: <root>/project
+  env: GIT_TERMINAL_PROMPT=0
+  env: GLAB_NO_PROMPT=1
+  env: GLAB_CHECK_UPDATE=false
+  env: GLAB_SEND_TELEMETRY=false
+  env: NO_PROMPT=<unset>
+  env: GITLAB_HOST=<unset>
+  env: GL_HOST=<unset>
+  env: NO_COLOR=1
+  env: LC_ALL=C

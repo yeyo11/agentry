@@ -11,7 +11,14 @@ gh --version
   env: GH_HOST=<unset>
   env: GH_REPO=<unset>
   env: NO_PROMPT=<unset>
-gh auth status
+  env: GH_NO_EXTENSION_UPDATE_NOTIFIER=1
+  env: GH_SPINNER_DISABLED=1
+  env: GH_PAGER=cat
+  env: GH_TELEMETRY=0
+  env: DO_NOT_TRACK=1
+  env: NO_COLOR=1
+  env: LC_ALL=C
+gh auth status --json hosts
   cwd: <root>/project
   env: GIT_TERMINAL_PROMPT=0
   env: GH_PROMPT_DISABLED=1
@@ -19,3 +26,10 @@ gh auth status
   env: GH_HOST=<unset>
   env: GH_REPO=<unset>
   env: NO_PROMPT=<unset>
+  env: GH_NO_EXTENSION_UPDATE_NOTIFIER=1
+  env: GH_SPINNER_DISABLED=1
+  env: GH_PAGER=cat
+  env: GH_TELEMETRY=0
+  env: DO_NOT_TRACK=1
+  env: NO_COLOR=1
+  env: LC_ALL=C

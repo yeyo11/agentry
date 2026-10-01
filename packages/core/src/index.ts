@@ -63,7 +63,7 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@agentry/shared';
-import { AGENTRY_LANGUAGES, agentryLanguage, type DecisionRecord, type ProviderId } from '@agentry/shared';
+import { AGENTRY_LANGUAGES, agentryLanguage, type DecisionRecord, type ProjectCodeHost, type ProviderId } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
 import { AppSettingsStore } from './app-settings.ts';
@@ -90,6 +90,8 @@ import { HealthMonitor, HealthService } from './health-service.ts';
 import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
 import { EventBus } from './events.ts';
 import type { SessionInit } from './providers/driver.ts';
+import { CodeHostDetector } from './hosts/detector.ts';
+import { CodeHostsSettingsStore } from './hosts/settings.ts';
 import { ProviderDetector } from './providers/detector.ts';
 import { ProvidersSettingsStore } from './providers/settings.ts';
 import { Locator } from './locations.ts';
@@ -115,7 +117,7 @@ import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
 import { FlowError, FlowService, type FlowLaunch } from './flow.ts';
-import { PullRequestService, PullRequestWatcher, type ApproveResult } from './pull-requests.ts';
+import { codeHostAdapter, PullRequestService, PullRequestWatcher, type ApproveResult } from './pull-requests.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
 import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo } from './git.ts';
@@ -220,12 +222,13 @@ export {
 } from './flow.ts';
 export {
   ciOf,
+  codeHostAdapter,
   PullRequestError,
   PullRequestService,
   PullRequestWatcher,
   pullRequestBody,
   pullRequestTitle,
-  remoteHost,
+  type WatchSource,
   type ApproveResult,
   type PullRequestDeps,
 } from './pull-requests.ts';
@@ -300,6 +303,13 @@ export class Core {
   readonly providers: ProviderDetector;
   /** Which providers are on, their order, the default and binary overrides (`providers.json`) */
   readonly providersSettings: ProvidersSettingsStore;
+  /**
+   * Which code host CLIs (`gh`, `glab`) are on this machine, who is signed in to which host, and
+   * `hosts.changed` when a status changes. A project's readiness runs its own probes instead.
+   */
+  readonly hosts: CodeHostDetector;
+  /** Which code hosts are on and a binary of the person's own (`hosts.json`) */
+  readonly hostsSettings: CodeHostsSettingsStore;
   readonly permissions: PermissionBroker;
   /** Processes and live streams of the chats Agentry drives */
   readonly runtime: ChatManager;
@@ -397,6 +407,16 @@ export class Core {
       readClaude: async () => {
         const { cli, auth } = await this.system();
         return { cli, auth };
+      },
+    });
+    this.hostsSettings = new CodeHostsSettingsStore(config);
+    this.hosts = new CodeHostDetector({
+      adapter: codeHostAdapter,
+      settings: () => this.hostsSettings.get(),
+      emit: (event) => {
+        // A CLI that was installed or signed in changes what every project's readiness says
+        this.pullRequests.forgetReadiness();
+        return this.events.emit(event);
       },
     });
     this.db = new Db(config);
@@ -639,6 +659,7 @@ export class Core {
     });
     this.pullRequests = new PullRequestService({
       db: this.db,
+      settings: () => this.hostsSettings.get(),
       items: this.workItems,
       project: (id) => {
         const record = this.projectStore.get(id);
@@ -655,7 +676,7 @@ export class Core {
         return tunnel.state === 'active' && tunnel.url ? tunnel.url : (this.runtime.apiUrl?.replace(/\/api$/, '') ?? null);
       },
     });
-    this.pullRequestWatcher = new PullRequestWatcher(this.pullRequests);
+    this.pullRequestWatcher = new PullRequestWatcher([this.pullRequests]);
     this.events.observe((event) => this.pullRequests.observe(event));
     this.flow = new FlowService({
       db: this.db,
@@ -1903,13 +1924,19 @@ export class Core {
     return { ...board, pullRequestReadiness: readiness, checkout };
   }
 
+  /** `GET /projects/:id/code-host`: whether the project can open change requests, and where `origin` points. Null for a project that is not imported. */
+  async projectCodeHost(projectId: string): Promise<ProjectCodeHost | null> {
+    const record = this.projectStore.get(projectId);
+    return record ? this.pullRequests.codeHost(record.path) : null;
+  }
+
   /** `POST /work-items/:itemId/pull-request`: the person's approval opens the item's pull request. */
   async approveWorkItem(itemId: string): Promise<ApproveResult> {
     await this.workItemAccess(itemId, 'write');
     return this.pullRequests.approve(itemId);
   }
 
-  /** `POST /work-items/:itemId/pull-request/refresh`: asks gh about the item's open PR now. */
+  /** `POST /work-items/:itemId/pull-request/refresh`: asks the host about the item's open PR now. */
   async refreshWorkItemPullRequest(itemId: string): Promise<WorkItem> {
     await this.workItemAccess(itemId, 'read');
     return this.pullRequests.refresh(itemId);
@@ -2158,6 +2185,7 @@ export class Core {
     this.release.stop();
     this.healthMonitor.stop();
     this.providers.close();
+    this.hosts.close();
     this.decisionResolvers.stop();
     this.decisions.stop();
     this.orchestrator.close();

@@ -6,16 +6,18 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AgentryEvent, FlowCriterionResult, WorkItem } from '@agentry/shared';
 import { Db } from '../../src/db.ts';
+import { runHostCall } from '../../src/hosts/exec.ts';
 import { PullRequestService } from '../../src/pull-requests.ts';
 import { itemWorktree } from '../../src/work-links.ts';
 import { WorkItemService } from '../../src/work-items.ts';
 import { tempConfig } from '../helpers.ts';
 
 // What the golden tests of the pull request service stand on: a project with a bare repository
-// beside it as `origin`, a fake `gh` and a logging `git` first on the PATH, and the service built
+// beside it as `origin`, a fake `gh` or `glab` and a logging `git` first on the PATH, and the service built
 // on them. Later tasks change how the service is built here, never the committed logs.
 
 const FAKE_GH = fileURLToPath(new URL('./fake-gh.sh', import.meta.url));
+const FAKE_GLAB = fileURLToPath(new URL('./fake-glab.sh', import.meta.url));
 const GIT_SHIM = fileURLToPath(new URL('./git-shim.sh', import.meta.url));
 export const GOLDEN_DIR = join(dirname(fileURLToPath(import.meta.url)), 'golden');
 
@@ -24,6 +26,11 @@ const BASE_PATH = process.env.PATH ?? '';
 process.env.AGENTRY_REAL_GIT = REAL_GIT;
 // A developer's own settings would change what the service sets or removes, and so the logs
 for (const name of ['GH_HOST', 'GH_REPO', 'NO_PROMPT', 'GIT_TERMINAL_PROMPT', 'GH_PROMPT_DISABLED', 'GH_NO_UPDATE_NOTIFIER']) delete process.env[name];
+
+export type HostKind = 'github' | 'gitlab';
+
+/** Where the project's `origin` claims to be: the bare repository has no host, and a host-less project is not ready. */
+const ORIGIN_URL: Record<HostKind, string> = { github: 'https://github.com/acme/shop.git', gitlab: 'https://gitlab.com/acme/shop.git' };
 
 /** The setup's own git: real, so that only the service's calls reach a log. */
 export function sh(cwd: string, ...args: string[]): string {
@@ -41,6 +48,8 @@ export interface Repo {
   /** Another clone, for what "GitHub" does to main meanwhile */
   other: string;
   state: string;
+  /** What fake-glab answers from and writes to */
+  glabState: string;
   bin: string;
   /** A PATH directory with the logging git and no gh */
   binNoGh: string;
@@ -54,13 +63,18 @@ export function repo(): Repo {
   const project = join(root, 'project');
   const other = join(root, 'other');
   const state = join(root, 'gh-state');
+  const glabState = join(root, 'glab-state');
   const bin = join(root, 'bin');
   const binNoGh = join(root, 'bin-no-gh');
   mkdirSync(state);
+  mkdirSync(glabState);
   mkdirSync(bin);
   mkdirSync(binNoGh);
   copyFileSync(FAKE_GH, join(bin, 'gh'));
   chmodSync(join(bin, 'gh'), 0o755);
+  // fake-glab reads its recordings beside itself, so it is run where it is
+  writeFileSync(join(bin, 'glab'), `#!/bin/sh\nexec '${FAKE_GLAB}' "$@"\n`);
+  chmodSync(join(bin, 'glab'), 0o755);
   symlinkSync(GIT_SHIM, join(bin, 'git'));
   symlinkSync(GIT_SHIM, join(binNoGh, 'git'));
   execFileSync(REAL_GIT, ['init', '-q', '--bare', '-b', 'main', remote]);
@@ -75,7 +89,7 @@ export function repo(): Repo {
   sh(project, 'push', '-q', '-u', 'origin', 'main');
   sh(project, 'remote', 'set-head', 'origin', 'main');
   execFileSync(REAL_GIT, ['clone', '-q', remote, other]);
-  return { root, project, remote, other, state, bin, binNoGh, log: join(root, 'calls.log') };
+  return { root, project, remote, other, state, glabState, bin, binNoGh, log: join(root, 'calls.log') };
 }
 
 /** A commit on the remote's main, as a PR merged on GitHub leaves it. */
@@ -87,7 +101,7 @@ export function landOnMain(r: Repo, file: string, content: string): void {
   sh(r.other, 'push', '-q', 'origin', 'main');
 }
 
-export function setup(opts: { r?: Repo; db?: Db; busy?: Set<string>; noGh?: boolean; verdicts?: FlowCriterionResult[] } = {}) {
+export function setup(opts: { r?: Repo; db?: Db; busy?: Set<string>; noGh?: boolean; host?: HostKind; verdicts?: FlowCriterionResult[] } = {}) {
   const r = opts.r ?? repo();
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
@@ -106,6 +120,7 @@ export function setup(opts: { r?: Repo; db?: Db; busy?: Set<string>; noGh?: bool
   const busy = opts.busy ?? new Set<string>();
   // The service's synchronous git calls read the process's PATH, its asynchronous calls the one it is given
   process.env.PATH = `${r.bin}:${BASE_PATH}`;
+  process.env.AGENTRY_ORIGIN_URL = ORIGIN_URL[opts.host ?? 'github'];
   const service = new PullRequestService({
     db,
     items,
@@ -113,7 +128,12 @@ export function setup(opts: { r?: Repo; db?: Db; busy?: Set<string>; noGh?: bool
     busy: (id) => busy.has(id),
     verdicts: () => opts.verdicts ?? [],
     webOrigin: () => 'http://localhost:8787',
-    env: { PATH: opts.noGh ? r.binNoGh : `${r.bin}:${BASE_PATH}`, FAKE_GH_STATE: r.state },
+    env: { PATH: opts.noGh ? r.binNoGh : `${r.bin}:${BASE_PATH}`, FAKE_GH_STATE: r.state, FAKE_GLAB_STATE: r.glabState },
+    searchPath: async () => (opts.noGh ? r.binNoGh : `${r.bin}:${BASE_PATH}`),
+    // The fakes fail at once and the same way every time, so a read's retries must not wait
+    // (a probe is never retried, as in the service's own runner)
+    run: (call, where) =>
+      runHostCall(call, { binaryPath: where.binaryPath, cwd: where.cwd, baseEnv: where.env, retry: { sleep: async () => undefined, ...(call.class === 'probe' ? { delaysMs: [] } : {}) } }),
   });
   services.push(service);
   return { r, db, items, service, events, busy };
@@ -147,6 +167,20 @@ export function view(r: Repo, state: 'OPEN' | 'MERGED' | 'CLOSED', rollup: unkno
   );
 }
 
+/** What `glab mr view` answers from now on. */
+export function viewMr(r: Repo, state: 'opened' | 'merged' | 'closed', pipeline: string | null = null, n = 4): void {
+  writeFileSync(
+    join(r.glabState, 'view.json'),
+    JSON.stringify({
+      iid: n,
+      web_url: `https://gitlab.com/acme/shop/-/merge_requests/${n}`,
+      state,
+      merged_at: state === 'merged' ? '2026-09-29T10:00:00.000Z' : null,
+      head_pipeline: pipeline ? { id: 1, status: pipeline } : null,
+    }),
+  );
+}
+
 export async function opened(s: Setup, item: WorkItem): Promise<void> {
   const result = await s.service.approve(item.id);
   assert.equal(result.status, 202);
@@ -156,6 +190,7 @@ export async function opened(s: Setup, item: WorkItem): Promise<void> {
 
 export const cleanup = (s: Setup): void => {
   delete process.env.AGENTRY_CALL_LOG;
+  delete process.env.AGENTRY_ORIGIN_URL;
   process.env.PATH = BASE_PATH;
   rmSync(s.r.root, { recursive: true, force: true });
 };

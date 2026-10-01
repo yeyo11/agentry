@@ -2,7 +2,7 @@
 git -C <root>/project rev-parse --path-format=absolute --git-common-dir
 git -C <root>/project rev-parse --absolute-git-dir
 git -C <root>/project rev-parse --show-toplevel
-gh pr view 7 --json state,mergedAt,statusCheckRollup,url
+gh pr view 7 -R github.com/acme/shop --json state,mergedAt,statusCheckRollup,url
   cwd: <root>/project
   env: GIT_TERMINAL_PROMPT=0
   env: GH_PROMPT_DISABLED=1
@@ -10,3 +10,10 @@ gh pr view 7 --json state,mergedAt,statusCheckRollup,url
   env: GH_HOST=<unset>
   env: GH_REPO=<unset>
   env: NO_PROMPT=<unset>
+  env: GH_NO_EXTENSION_UPDATE_NOTIFIER=1
+  env: GH_SPINNER_DISABLED=1
+  env: GH_PAGER=cat
+  env: GH_TELEMETRY=0
+  env: DO_NOT_TRACK=1
+  env: NO_COLOR=1
+  env: LC_ALL=C

@@ -9,7 +9,7 @@ if [ -n "$AGENTRY_CALL_LOG" ]; then
   {
     echo "gh $*"
     echo "  cwd: $PWD"
-    for v in GIT_TERMINAL_PROMPT GH_PROMPT_DISABLED GH_NO_UPDATE_NOTIFIER GH_HOST GH_REPO NO_PROMPT; do
+    for v in GIT_TERMINAL_PROMPT GH_PROMPT_DISABLED GH_NO_UPDATE_NOTIFIER GH_HOST GH_REPO NO_PROMPT GH_NO_EXTENSION_UPDATE_NOTIFIER GH_SPINNER_DISABLED GH_PAGER GH_TELEMETRY DO_NOT_TRACK NO_COLOR LC_ALL; do
       eval "set_=\${$v+set}"
       if [ -n "$set_" ]; then eval "echo \"  env: $v=\$$v\""; else echo "  env: $v=<unset>"; fi
     done

@@ -10,7 +10,7 @@
 // parses and replays byte for byte against itself.
 import { createHash } from 'node:crypto';
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const PLACEHOLDER = Object.freeze({
@@ -166,7 +166,8 @@ export function redactTree(source, destination) {
   return changed;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Bundled into the API, this file is the entry point of the bundle: only its own name makes it a command
+if (process.argv[1] && basename(process.argv[1]) === 'redact-recordings.mjs' && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [source, destination] = process.argv.slice(2);
   if (!source || !destination) {
     process.stderr.write('usage: redact-recordings.mjs <source> <destination>\n');

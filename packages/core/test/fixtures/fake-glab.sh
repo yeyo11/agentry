@@ -17,6 +17,18 @@
 state="$FAKE_GLAB_STATE"
 rec="$(dirname "$0")/recordings/glab/1.120.0"
 echo "$*" >> "$state/calls"
+# The golden tests also keep the order of every call, with what the execution layer set around it
+# and the body it was given on stdin (only `mr create` reads one), as fake-gh does.
+if [ -n "$AGENTRY_CALL_LOG" ]; then
+  {
+    echo "glab $*"
+    echo "  cwd: $PWD"
+    for v in GIT_TERMINAL_PROMPT GLAB_NO_PROMPT GLAB_CHECK_UPDATE GLAB_SEND_TELEMETRY NO_PROMPT GITLAB_HOST GL_HOST NO_COLOR LC_ALL; do
+      eval "set_=\${$v+set}"
+      if [ -n "$set_" ]; then eval "echo \"  env: $v=\$$v\""; else echo "  env: $v=<unset>"; fi
+    done
+  } >> "$AGENTRY_CALL_LOG"
+fi
 
 # What a recorded run printed, on each stream, and its exit code
 replay() { cat "$rec/$1.out"; cat "$rec/$1.err" >&2; exit "$(cat "$rec/$1.rc")"; }
@@ -41,6 +53,7 @@ case "$1 $2" in
     if [ -f "$state/dup" ]; then replay mr_dup; fi
     iid=$(cat "$state/next" 2>/dev/null || echo 4)
     cat > "$state/body-$iid"
+    if [ -n "$AGENTRY_CALL_LOG" ]; then { echo "  stdin:"; sed 's/^/    | /' "$state/body-$iid"; echo; } >> "$AGENTRY_CALL_LOG"; fi
     url=$(flag -R "$@")
     head=$(flag --source-branch "$@")
     printf '\nCreating merge request for %s into %s in %s\n\n' "$head" "$(flag --target-branch "$@")" "${url#https://*/}" >&2

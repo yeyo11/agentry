@@ -27,21 +27,21 @@ async function scenario(name: string, run: (s: Setup) => Promise<void>, opts: Pa
 test('golden: readiness is ready on github.com', () =>
   scenario('readiness-ready', async (s) => {
     record(s.r);
-    assert.deepEqual(await s.service.readiness(s.r.project), { status: 'ready', detail: null, defaultBranch: 'main' });
+    assert.deepEqual(await s.service.readiness(s.r.project), { status: 'ready', detail: null, defaultBranch: 'main', host: 'github', hostname: 'github.com', remedy: null });
   }));
 
 test('golden: readiness asks gh for the default branch when origin/HEAD is not set', () =>
   scenario('readiness-no-origin-head', async (s) => {
     record(s.r);
     sh(s.r.project, 'symbolic-ref', '--delete', 'refs/remotes/origin/HEAD');
-    assert.deepEqual(await s.service.readiness(s.r.project), { status: 'ready', detail: null, defaultBranch: 'main' });
+    assert.deepEqual(await s.service.readiness(s.r.project), { status: 'ready', detail: null, defaultBranch: 'main', host: 'github', hostname: 'github.com', remedy: null });
   }));
 
 test('golden: readiness when gh is signed out', () =>
   scenario('readiness-signed-out', async (s) => {
     record(s.r);
     writeFileSync(join(s.r.state, 'unauth'), '');
-    assert.equal((await s.service.readiness(s.r.project)).status, 'gh-unauthenticated');
+    assert.equal((await s.service.readiness(s.r.project)).status, 'cli-signed-out');
   }));
 
 test('golden: readiness when gh is missing', () =>
@@ -49,7 +49,7 @@ test('golden: readiness when gh is missing', () =>
     'readiness-gh-missing',
     async (s) => {
       record(s.r);
-      assert.equal((await s.service.readiness(s.r.project)).status, 'no-gh');
+      assert.equal((await s.service.readiness(s.r.project)).status, 'cli-missing');
     },
     { noGh: true },
   ));
@@ -58,15 +58,15 @@ test('golden: readiness on an enterprise host gh knows', () =>
   scenario('readiness-enterprise-known', async (s) => {
     record(s.r);
     sh(s.r.project, 'remote', 'set-url', 'origin', 'https://github.example.com/acme/shop.git');
-    assert.deepEqual(await s.service.readiness(s.r.project), { status: 'ready', detail: null, defaultBranch: 'main' });
+    writeFileSync(join(s.r.state, 'hosts'), 'github.com github.example.com');
+    assert.deepEqual(await s.service.readiness(s.r.project), { status: 'ready', detail: null, defaultBranch: 'main', host: 'github', hostname: 'github.example.com', remedy: null });
   }));
 
 test('golden: readiness on an enterprise host gh does not know', () =>
   scenario('readiness-enterprise-unknown', async (s) => {
     record(s.r);
     sh(s.r.project, 'remote', 'set-url', 'origin', 'https://github.example.com/acme/shop.git');
-    writeFileSync(join(s.r.state, 'unknown-host'), 'github.example.com');
-    assert.equal((await s.service.readiness(s.r.project)).status, 'not-github');
+    assert.equal((await s.service.readiness(s.r.project)).status, 'unsupported-host');
   }));
 
 // ---------- approving ----------
