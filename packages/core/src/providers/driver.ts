@@ -42,6 +42,11 @@ export interface ProviderDriver {
   translatePolicy(policy: ToolPolicy): PolicyTranslation;
   /** What the picker offers for this provider */
   models(): ModelOption[];
+  /**
+   * Every name the provider's catalog and the model map may use for one model: an alias and the id
+   * it resolved to. A run records the id the CLI reports, while the picker and the map hold the alias.
+   */
+  modelNames?(model: string): string[];
   /** Who names the session: Agentry (`imposed`, Claude) or the agent (`assigned`, Codex and ACP) */
   readonly sessionIds: 'imposed' | 'assigned';
   /** The permission modes this provider can honour, each with its native value; the picker offers only these */

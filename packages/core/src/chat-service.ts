@@ -838,7 +838,7 @@ export class ChatService {
       needs: {
         kind: work?.kind ?? 'chat',
         from: { provider, model: runtime.model },
-        model: runtime.model ? { provider, id: runtime.model } : null,
+        model: runtime.model ? { provider, id: runtime.model, names: this.deps.runtime.providers.driverFor(provider)?.modelNames?.(runtime.model) ?? [runtime.model] } : null,
         needs: [...new Set(capabilities)],
         policy,
         nativeRules: policy === null && ((tools?.allowedTools.length ?? 0) > 0 || (tools?.disallowedTools.length ?? 0) > 0),

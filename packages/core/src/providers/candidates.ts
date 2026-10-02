@@ -18,7 +18,7 @@ export interface RunNeeds {
   /** The provider and model the work is on now; null when it has not started */
   from: { provider: ProviderId; model: string | null } | null;
   /** The model the work asks for, and the provider whose catalog it comes from */
-  model: { provider: ProviderId; id: string } | null;
+  model: { provider: ProviderId; id: string; names?: string[] } | null;
   /** `structuredOutput` for a schema, `budgetLimit` for a budget, `workflowTool` for the workflow engine… */
   needs: ProviderCapability[];
   /** null only for a person's chat with custom native rules */
