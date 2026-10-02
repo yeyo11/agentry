@@ -18213,6 +18213,374 @@
     ],
     "description": "What a person chose for one code host."
   },
+  "TrackerStatus": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "$ref": "#/components/schemas/TrackerId"
+      },
+      "label": {
+        "type": "string"
+      },
+      "cli": {
+        "type": "string"
+      },
+      "host": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CodeHostId"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The code host a tracker reuses the CLI and the sign-in of; null for `jira` and `youtrack`"
+      },
+      "binaryPath": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "version": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "minimum": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The oldest release Agentry works with; null while the CLI is not recorded"
+      },
+      "recorded": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The releases the CLI facts were recorded on; empty while not recorded"
+      },
+      "state": {
+        "$ref": "#/components/schemas/TrackerState"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/TrackerReason"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why the state is not `ready`; null when it is"
+      },
+      "checkedAt": {
+        "type": "string",
+        "description": "ISO timestamp of the detection this status came from"
+      }
+    },
+    "required": [
+      "id",
+      "label",
+      "cli",
+      "host",
+      "binaryPath",
+      "version",
+      "minimum",
+      "recorded",
+      "state",
+      "reason",
+      "checkedAt"
+    ],
+    "description": "One tracker as detected on this machine, served from the detector's cache."
+  },
+  "TrackerState": {
+    "type": "string",
+    "enum": [
+      "ready",
+      "signed-out",
+      "incompatible",
+      "not-installed",
+      "unknown"
+    ],
+    "description": "Readiness of a tracker; `unknown` is a tracker nobody recorded the CLI of, or one not probed yet."
+  },
+  "TrackerReason": {
+    "anyOf": [
+      {
+        "$ref": "#/components/schemas/CodeHostReason"
+      },
+      {
+        "type": "string",
+        "const": "not-recorded"
+      }
+    ],
+    "description": "Why a tracker is not `ready`: the code hosts' reasons, and `not-recorded` for a CLI with no recording."
+  },
+  "TrackersSettings": {
+    "type": "object",
+    "properties": {
+      "trackers": {
+        "type": "object",
+        "properties": {
+          "github-issues": {
+            "$ref": "#/components/schemas/TrackerSettingsEntry"
+          },
+          "gitlab-issues": {
+            "$ref": "#/components/schemas/TrackerSettingsEntry"
+          },
+          "jira": {
+            "$ref": "#/components/schemas/TrackerSettingsEntry"
+          },
+          "youtrack": {
+            "$ref": "#/components/schemas/TrackerSettingsEntry"
+          }
+        },
+        "required": [
+          "github-issues",
+          "gitlab-issues",
+          "jira",
+          "youtrack"
+        ]
+      }
+    },
+    "required": [
+      "trackers"
+    ],
+    "description": "`trackers.json` in the data directory."
+  },
+  "TrackerSettingsEntry": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "binaryPath": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Absolute path of the binary to use instead of searching for one; null searches"
+      }
+    },
+    "required": [
+      "enabled",
+      "binaryPath"
+    ],
+    "description": "What a person chose for one tracker."
+  },
+  "TrackerIssuesPage": {
+    "type": "object",
+    "properties": {
+      "issues": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TrackerIssue"
+        }
+      },
+      "page": {
+        "type": "number"
+      },
+      "hasMore": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "issues",
+      "page",
+      "hasMore"
+    ],
+    "description": "`GET /projects/:id/tracker/issues`: one page of the tracker's own query."
+  },
+  "TrackerIssue": {
+    "type": "object",
+    "properties": {
+      "tracker": {
+        "$ref": "#/components/schemas/TrackerId"
+      },
+      "key": {
+        "type": "string"
+      },
+      "externalId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "title": {
+        "type": "string"
+      },
+      "body": {
+        "type": "string"
+      },
+      "state": {
+        "type": "string"
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "type": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemType"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The work item type the labels or the issue type map to, when they do"
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "updatedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "importedItemId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The work item it was already imported as in this project; null when not imported"
+      },
+      "triage": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/IssueTriageMark"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "`issue.triage`'s mark; null when the point is off or has not answered"
+      }
+    },
+    "required": [
+      "tracker",
+      "key",
+      "externalId",
+      "title",
+      "body",
+      "state",
+      "labels",
+      "type",
+      "url",
+      "updatedAt",
+      "importedItemId",
+      "triage"
+    ],
+    "description": "One issue as a tracker lists it, before it is imported. The body is untrusted text."
+  },
+  "IssueTriageMark": {
+    "type": "string",
+    "enum": [
+      "ready",
+      "needs-refining",
+      "not-for-agents"
+    ],
+    "description": "What `issue.triage` says about an issue: whether an agent can start on it as written."
+  },
+  "TrackerImportRequest": {
+    "type": "object",
+    "properties": {
+      "keys": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "keys"
+    ],
+    "description": "`POST /projects/:id/tracker/import`"
+  },
+  "TrackerImportResult": {
+    "type": "object",
+    "properties": {
+      "imported": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TrackerImportedIssue"
+        }
+      },
+      "skipped": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TrackerImportSkipped"
+        }
+      }
+    },
+    "required": [
+      "imported",
+      "skipped"
+    ]
+  },
+  "TrackerImportedIssue": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "itemKey": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "key",
+      "itemId",
+      "itemKey"
+    ]
+  },
+  "TrackerImportSkipped": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "type": "string",
+            "const": "already-imported"
+          },
+          {
+            "$ref": "#/components/schemas/HostReason"
+          }
+        ]
+      }
+    },
+    "required": [
+      "key",
+      "reason"
+    ]
+  },
+  "LinkWorkItemIssueRequest": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "key"
+    ],
+    "description": "`POST /work-items/:itemId/issues`: links an issue of the project's tracker to an item, by its key."
+  },
   "ProjectCodeHost": {
     "type": "object",
     "properties": {

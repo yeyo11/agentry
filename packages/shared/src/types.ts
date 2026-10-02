@@ -5004,6 +5004,11 @@ export interface TrackerImportRequest {
   keys: string[];
 }
 
+/** `POST /work-items/:itemId/issues`: links an issue of the project's tracker to an item, by its key. */
+export interface LinkWorkItemIssueRequest {
+  key: string;
+}
+
 export interface TrackerImportedIssue {
   key: string;
   itemId: string;

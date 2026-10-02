@@ -463,8 +463,7 @@ export class Core {
         return this.events.emit(event);
       },
     });
-    // The trackers' settings store is the store task's; until it lands every tracker is on
-    this.trackers = new TrackerDetector({ hosts: this.hosts, adapter: codeHostAdapter });
+    this.trackers = new TrackerDetector({ hosts: this.hosts, adapter: codeHostAdapter, settings: () => this.trackersSettings.get() });
     this.db = new Db(config);
     this.permissions = new PermissionBroker();
     // Must run before anything spawns the CLI: it injects stored credentials into process.env

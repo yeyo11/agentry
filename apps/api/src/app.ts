@@ -32,6 +32,7 @@ import { decisionRoutes } from './routes/decisions.ts';
 import { providerRoutes } from './routes/providers.ts';
 import { changeRequestRoutes } from './routes/change-requests.ts';
 import { hostRoutes } from './routes/hosts.ts';
+import { trackerRoutes } from './routes/trackers.ts';
 import { systemRoutes } from './routes/system.ts';
 import { teamRoutes } from './routes/team.ts';
 import { toolPresetRoutes } from './routes/tool-presets.ts';
@@ -194,6 +195,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(decisionRoutes, { core });
       await api.register(providerRoutes, { core });
       await api.register(hostRoutes, { core });
+      await api.register(trackerRoutes, { core });
       await api.register(changeRequestRoutes, { core });
       await api.register(pushRoutes, { core });
     },
