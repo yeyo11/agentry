@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T12:43:36.708551256Z
-updated_at: 2026-10-01T21:30:00Z
+updated_at: 2026-10-02T17:00:00Z
 tags:
     - plan
     - providers
@@ -2696,39 +2696,20 @@ side and regenerate.
 | A waiting run holds a `maxParallel` slot for hours | `d4` | Accepted: it bounds paid work in flight; the wait cap; "Move now" and "Stop waiting" |
 | The default-provider gap (automated work on Claude's rules) is hit before phase 4 lands | today | `d4` fixes it; until then `docs/providers.md` says automated work expects Claude Code first in the order |
 
-### Decisions for phase 4 (open, for the owner)
+### Decisions for phase 4 (owner, 2026-10-02)
 
-1. **P4-1. What a move is.**
-   - **Recommended:** a new chat on the next provider, linked both ways (`continuedFrom` /
-     `continuedIn`). The run, task or item points to the newest, and every chat page shows the chain.
-     Each chat keeps one provider, one session and one transcript store, as phases 2 and 3 built
-     them.
-   - One chat whose executions run on several providers: `provider` moves to the execution, and the
-     transcript is stitched from several stores on read.
-   - A cross-provider fork: reuse `derivedFrom` and the fork UI, with no link back from the old chat
-     and no chain on tasks.
-2. **P4-2. A person's own chat at a limit.**
-   - **Recommended:** ask. A banner offers the feasible actions with the setting's first, and nothing
-     spends on another vendor without a click. Automated work follows the setting and the point.
-   - Apply the setting as for automated work: the chat moves on its own, and the banner explains
-     afterwards.
-   - A person's chat only ever waits. Moving it means starting a new chat by hand, with no handoff.
-3. **P4-3. The model mapping a fresh install has.**
-   - **Recommended:** empty. The first limit with no mapping waits, and its notice opens the editor on
-     the missing pair. Suggestions come from `provider.model-map` when it is on, and from tiers where
-     both providers rank their models. A person accepts every entry.
-   - A table Agentry ships and maintains per recorded catalog version (Claude's aliases to Codex's
-     models), in force by default and editable.
-   - A tier rule in force by default: the same tier on the next provider. A person assigns a tier to
-     models their provider does not rank, which is every Codex model today.
-4. **P4-4. Existing claude-swap users at the upgrade.**
-   - **Recommended:** keep the account claude-swap left active. A one-time notice names it, says how
-     to change it, lists the projects whose rotation policy is gone, and offers to remove Agentry's
-     copy of claude-swap. claude-swap's own data is never touched.
-   - A one-time "Choose the account to keep" dialog that runs `cswap switch` once. claude-swap's
-     list and switch stay in core for this release only.
-   - Keep claude-swap read-only for one release: manual switching in Settings → Providers, no
-     rotation. Remove it in the next release. This departs from "retired in the same pull request".
+The owner took the recommended option of each, and said to follow the recommendations:
+
+1. **P4-1.** A move is a new chat on the next provider, linked both ways (`continuedFrom` /
+   `continuedIn`); the run, task or item points to the newest. Each chat keeps one provider, one
+   session and one transcript store.
+2. **P4-2.** A person's own chat at a limit asks: a banner offers the feasible actions, the
+   setting's first, and nothing spends on another vendor without a click.
+3. **P4-3.** A fresh install's model mapping is empty; the first limit with no mapping waits and
+   opens the editor on the missing pair, and a person accepts every suggestion.
+4. **P4-4.** claude-swap users keep the account it left active; a one-time notice names it, lists
+   the rotation policies that are gone and offers to remove Agentry's copy. Its own data is never
+   touched.
 
 ## Decisions (owner, 2026-09-30)
 
