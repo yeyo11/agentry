@@ -70,6 +70,7 @@ export const POINT_KEY: Record<DecisionPointId, string> = {
   'changes.unexplained-hunk': 'changesUnexplainedHunk',
   'checks.fix': 'checksFix',
   'review.triage': 'reviewTriage',
+  'issue.triage': 'issueTriage',
   'notification.urgency': 'notificationUrgency',
   'palette.intent': 'paletteIntent',
 };
@@ -85,7 +86,7 @@ export const AREAS: ReadonlyArray<{ id: AreaId; points: readonly DecisionPointId
   { id: 'orchestrations', points: ['orchestration.retry', 'orchestration.model', 'orchestration.fixer', 'run.continuation'] },
   { id: 'health', points: ['supervisor.intervene', 'health.semantic-loop', 'health.test-weakening'] },
   { id: 'review', points: ['changes.unexplained-hunk'] },
-  { id: 'hosts', points: ['checks.fix', 'review.triage'] },
+  { id: 'hosts', points: ['checks.fix', 'review.triage', 'issue.triage'] },
   { id: 'notifications', points: ['notification.urgency'] },
   { id: 'palette', points: ['palette.intent'] },
 ];
