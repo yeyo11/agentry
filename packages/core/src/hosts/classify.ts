@@ -20,6 +20,8 @@ const VALUE_FLAGS: ReadonlySet<string> = new Set([
   '--template', '--cache', '-L', '--limit', '--json', '--head', '--base', '-B', '--title', '-t', '--body', '-b', '--body-file',
   '-s', '--state', '-P', '--per-page', '-p', '--page', '--source-branch', '--target-branch', '--description-file', '--output', '--path',
   '--jql', '--fields',
+  // an issue search that reads like a verb (`--search close`) must stay a value, not become the verb
+  '--search',
 ]);
 
 const READ_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD']);
