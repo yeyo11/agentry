@@ -307,6 +307,7 @@ check_runs_json() {
   case "$checks" in
     failing) list="$(check_run 1001 lint completed success github-actions),$(check_run 1002 unit completed failure github-actions),$(check_run 1003 build completed success github-actions)"; total=3 ;;
     running) list="$(check_run 1001 lint completed success github-actions),$(check_run 1003 e2e in_progress '' github-actions),$(check_run 1004 build queued '' github-actions)"; total=3 ;;
+    both) list="$(check_run 1001 lint completed failure github-actions),$(check_run 1002 unit completed failure github-actions),$(check_run 1003 build completed success github-actions)"; total=3 ;;
     mixed) list="$(check_run 1001 lint completed success github-actions),$(check_run 1002 unit completed failure github-actions),$(check_run 1003 e2e in_progress '' github-actions),$(check_run 1004 docs completed skipped github-actions),$(check_run 1005 coverage completed success codecov)"; total=5 ;;
     fixed) list="$(check_run 1001 lint completed success github-actions),$(check_run 1002 unit completed success github-actions),$(check_run 1003 build completed success github-actions)"; total=3 ;;
     *) list=""; total=0 ;;
@@ -317,7 +318,7 @@ check_runs_json() {
 # What the GraphQL read says of the head commit's rollup, in the shape the CI badge reads
 rollup_nodes() {
   case "$checks" in
-    failing|mixed) echo '{"__typename":"CheckRun","name":"unit","status":"COMPLETED","conclusion":"FAILURE"}' ;;
+    failing|mixed|both) echo '{"__typename":"CheckRun","name":"unit","status":"COMPLETED","conclusion":"FAILURE"}' ;;
     running) echo '{"__typename":"CheckRun","name":"e2e","status":"IN_PROGRESS","conclusion":null}' ;;
     fixed) echo '{"__typename":"CheckRun","name":"unit","status":"COMPLETED","conclusion":"SUCCESS"}' ;;
   esac
@@ -346,7 +347,7 @@ job_log() {
 # Only the failed run carries annotations: once it passes (same id, as the fixed scenario keeps it)
 # a real host has none for it
 annotations_json() {
-  case "$checks" in failing|mixed) ;; *) echo '[]'; return ;; esac
+  case "$checks" in failing|mixed|both) ;; *) echo '[]'; return ;; esac
   echo '[{"path":".github","start_line":1,"end_line":1,"annotation_level":"failure","title":null,"message":"Process completed with exit code 1."},{"path":"src/cart.ts","start_line":12,"end_line":12,"annotation_level":"failure","title":"cart rounds half up","message":"expected 10.01 to equal 10.02"}]'
 }
 
