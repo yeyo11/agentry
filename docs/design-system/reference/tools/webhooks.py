@@ -25,6 +25,7 @@ STATE = {
   'stale': ('Dirección antigua', 'b-warn', 'dot-warn'),
   'off': ('Apagado', '', ''),
   'unavailable': ('Aún no disponible', '', ''),
+  'registering': ('Registrando', '', ''),
 }
 
 # Events a GitHub hook asks for (action matrix G1), each with what it means in words.
@@ -70,6 +71,8 @@ ROWS = {
   'repointed': dict(p='cw', state='active', reason='GitHub entrega los avisos y Agentry vuelve a leer la PR al momento.',
                     facts=[('apuntado de nuevo', 'por Agentry · hace 4 min'), ('último aviso', 'pull_request · hace 1 min'), ('lectura de respaldo', 'cada 15 min')],
                     acts=['test', 'remove']),
+  'registering': dict(p='gdm', state='registering', reason='Agentry está registrando el webhook en GitHub con gh. Tarda unos segundos.',
+                      facts=[('lectura', 'cada 2 min')], acts=[]),
   'closed': dict(p='cw', state='stale', reason='El túnel está cerrado, así que GitHub ya no llega a Agentry. Cuando haya una dirección nueva, Agentry apuntará el webhook a ella.',
                  facts=[('apunta a', OLD_ORIGIN), ('lectura', 'cada 2 min')], acts=['remove']),
   'off-closed': dict(p='gdm', state='off', reason='Registrar un webhook necesita una dirección pública. Mientras tanto Agentry lee las PR cada 2 min.',
@@ -80,6 +83,9 @@ ROWS = {
 # ---------------------------------------------------------------- w-p1 · pieces
 def hbadge(state):
   word, cls, dot = STATE[state]
+  if state == 'registering':
+    # The one live state: a call to the host is in flight, so the braille spinner sits next to its verb
+    return f'<span class="badge"><span class="spin-braille"></span>{word}</span>'
   d = f'<span class="dot {dot}" style="width: 6px; height: 6px"></span>' if dot else ''
   return f'<span class="badge {cls}">{d}{word}</span>'.replace('badge "', 'badge"')
 
@@ -282,7 +288,8 @@ def desktop_all():
                    overlay=remove_dialog('cw'), grad=False)
   scenes = [('Los avisos no llegan: GitHub recibió un error', ROWS['failing']),
             ('La dirección cambió y Agentry no pudo apuntar el webhook', ROWS['stale']),
-            ('Agentry apuntó el webhook a la dirección nueva', ROWS['repointed'])]
+            ('Agentry apuntó el webhook a la dirección nueva', ROWS['repointed']),
+            ('Registrando el webhook', ROWS['registering'])]
   cards = ''.join(f'<div class="col" style="gap: 6px">{scenario_label(t)}{webhooks_card([r], grad=False, id_=f"sec-webhooks-{i}", heading=False)}</div>'
                   for i, (t, r) in enumerate(scenes))
   main = f'<main class="col grow" style="padding: 26px 32px; gap: 14px; min-width: 0">{head()}{cards}</main>'
@@ -314,7 +321,8 @@ def mobile_all():
                 [('Los avisos no llegan: GitHub recibió un error', ROWS['failing']),
                  ('La dirección cambió y Agentry no pudo apuntar el webhook', ROWS['stale'])])
   mobile_states('MobileIntegracionesWebhooksReapuntado.html', 'Ajustes, webhook apuntado de nuevo',
-                [('Agentry apuntó el webhook a la dirección nueva', ROWS['repointed'])])
+                [('Agentry apuntó el webhook a la dirección nueva', ROWS['repointed']),
+                 ('Registrando el webhook', ROWS['registering'])])
   mobile_webhooks('MobileIntegracionesWebhooksSinDireccion.html', 'Ajustes, webhooks sin dirección pública',
                   [ROWS['closed'], ROWS['off-closed'], ROWS['unavailable']], url=None)
 

@@ -803,6 +803,7 @@ new, in `agentry-ds.css`: `.hook-origin` (the strip under the card's head), `.ho
   | stale (it points to an old address) | `b-warn` | Dirección antigua | Apuntar a la dirección actual · Quitar |
   | off | plain `.badge` | Apagado | Registrar… |
   | not available yet (GitLab) | plain `.badge` | Aún no disponible | none |
+  | registering (a call to the host is in flight) | plain `.badge` with the braille spinner | Registrando | none |
 
   An active hook Agentry re-pointed by itself says so in its facts ("apuntado de nuevo · por Agentry ·
   hace 4 min"). With no public address a hook that had one is stale and offers only Quitar, and an off
