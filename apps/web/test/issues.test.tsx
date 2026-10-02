@@ -22,7 +22,7 @@ import { IssueChips, Issues } from '../src/pages/tasks/item/Issues';
 beforeEach(() => setLanguage('en'));
 
 const issue = (over: Partial<IssueRef> = {}): IssueRef => ({
-  tracker: 'github-issues', key: '14', externalId: null, title: 'Project templates <b>on create</b>', state: 'open', url: 'https://github.com/acme/shop/issues/14',
+  tracker: 'github-issues', key: '14', scope: 'acme/shop', externalId: null, title: 'Project templates <b>on create</b>', state: 'open', url: 'https://github.com/acme/shop/issues/14',
   importedAt: '2026-10-01T09:00:00Z', syncedAt: null, syncState: 'none', syncReason: null, ...over,
 });
 
