@@ -30,6 +30,7 @@ import enSuggestion from './locales/en/suggestion.json';
 import enTasks from './locales/en/tasks.json';
 import enTeam from './locales/en/team.json';
 import enUsage from './locales/en/usage.json';
+import enWebhooks from './locales/en/webhooks.json';
 import enWork from './locales/en/work.json';
 import enWorkItem from './locales/en/workItem.json';
 import esAccountsConfig from './locales/es/accountsConfig.json';
@@ -60,6 +61,7 @@ import esSuggestion from './locales/es/suggestion.json';
 import esTasks from './locales/es/tasks.json';
 import esTeam from './locales/es/team.json';
 import esUsage from './locales/es/usage.json';
+import esWebhooks from './locales/es/webhooks.json';
 import esWork from './locales/es/work.json';
 import esWorkItem from './locales/es/workItem.json';
 
@@ -98,6 +100,7 @@ export const en = {
   decisions: enDecisions,
   documents: enDocuments,
   suggestion: enSuggestion,
+  webhooks: enWebhooks,
 };
 
 export type Namespace = keyof typeof en;
@@ -138,6 +141,7 @@ export const es = {
   decisions: esDecisions,
   documents: esDocuments,
   suggestion: esSuggestion,
+  webhooks: esWebhooks,
 } satisfies Shape<typeof en>;
 
 // `satisfies` only catches keys Spanish lacks; a key only Spanish has is caught here instead, so a
