@@ -1072,6 +1072,7 @@ function toProviderMove(row: ProviderMoveRow): ProviderMove {
 export class Db {
   private readonly db: DatabaseSync;
   private auditWrites = 0;
+  private readonly movesPruneTimer: NodeJS.Timeout;
 
   constructor(config: CoreConfig) {
     this.db = new DatabaseSync(join(config.dataDir, 'wrapper.db'));
@@ -1087,6 +1088,9 @@ export class Db {
     this.pruneAudit();
     pruneWebhookDeliveries(this.db);
     this.pruneProviderMoves();
+    // A server that stays up for weeks prunes the history daily too; unref'd so it never keeps a process alive
+    this.movesPruneTimer = setInterval(() => this.pruneProviderMoves(), 24 * 60 * 60 * 1000);
+    this.movesPruneTimer.unref();
   }
 
   /**
@@ -1940,6 +1944,7 @@ export class Db {
   }
 
   close(): void {
+    clearInterval(this.movesPruneTimer);
     this.db.close();
   }
 }
