@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><title>Agentry · Inicio (móvil)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Inicio (móvil)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:var(--bg)}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)})}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
 
 <div class="app m-screen glow-top" data-theme="dark" style="background-size: 100% 360px">
 <header class="m-head">
-<span style="width: 28px; height: 28px; border-radius: 8px; background: var(--grad); display: grid; place-items: center; color: #fff; margin-right: 6px"><svg class="ico ico-sm" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span>
+<span style="width: 28px; height: 28px; border-radius: var(--r); background: var(--grad); display: grid; place-items: center; color: #fff; margin-right: 6px"><svg class="ico ico-sm" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span>
 <button type="button" class="btn btn-ghost btn-sm grow" style="justify-content: flex-start; padding: 0 6px; font-size: 15px; font-weight: 600; color: var(--fg)">Todos los proyectos<svg class="ico ico-sm fg-3" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Buscar"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg></button>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Notificaciones" style="position: relative"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"></path></svg><span class="dot" style="position: absolute; top: 11px; right: 12px; width: 7px; height: 7px; background: var(--accent)"></span></button>
@@ -18,6 +18,15 @@
 <div class="card grad-border col" style="padding: 12px; gap: 6px"><span class="t-label" style="font-size: 10px">hoy</span><span class="t-num grad-text" style="font-size: 20px; font-weight: 600">3,41 $</span><span class="t-xs fg-3">gastado</span></div>
 </div>
 
+<!--rot-home--><section class="col" style="gap: 8px">
+<div class="row"><span class="t-label grow">Proveedores</span><a href="MobileProveedoresRetirada.html" class="t-xs fg-2" style="min-height: 44px; display: inline-flex; align-items: center">Ver todos</a></div>
+<div class="card col" style="padding: 14px; gap: 12px">
+<div class="row" style="gap: 10px"><span class="proj" style="background: var(--idle-soft); color: var(--idle)"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5M12 8h.01"></path></svg></span><span class="col grow" style="gap: 1px"><span style="font-weight: 600">Agentry ya no cambia de cuenta de Claude</span><span class="mono t-xs fg-3">sigue con yeyo@inmoseo.net</span></span></div>
+<div class="row"><button type="button" class="btn grow" style="justify-content: center">Entendido</button><a href="MobileProveedoresRetirada.html" class="btn grow" style="justify-content: center">Ver qué cambia</a></div>
+</div>
+</section>
+
+<!--/rot-home-->
 <section class="col" style="gap: 8px">
 <div class="row"><span class="t-label grow">En marcha</span><a href="MobileOrquestaciones.html" class="t-xs fg-2" style="min-height: 44px; display: inline-flex; align-items: center">Ver todo</a></div>
 <a href="MobileOrquestacion.html" class="card energy col" style="padding: 14px; gap: 10px">

@@ -1199,6 +1199,41 @@ is `.fix-panel.wait` with the phase 2 fix path (`fix_state`, the same push rule)
   resolved thread folds its quote. Agentry never replies or resolves by itself.
 - **Hosts.** The noun and number follow the host (`PR #12`, `MR !12`); the thread semantics are the same.
 
+### Rotation between providers: the chain chip, a wait, the limit in the status bar and the retirement notice
+
+Drawn for phase 4 of [multiple agent providers](plans/multi-provider.md) (task `p3` of
+`providers4-prototypes`), by `reference/tools/rotation_work.py` (with `rotation_flow.py` and
+`rotation_decisions.py`), and waiting for the owner's validation before W starts. New classes `.chain*`,
+`.wait-line`, `.statusbar .lim` and `.retire*`; the rest is existing (`.prov-mark`, `.decided`, `.callout`,
+`.badge`). Nothing here is live except what already ran: waiting does not move.
+
+- **The chain (`.chain`, `.chain-chip`).** One chip per chat of a task or run, oldest first, each the provider's
+  mark and name, with the arrow between. The last is the chat that runs now (`.now`, `--fg`); the rest are history.
+  On a desktop a chip opens its chat; on a phone chips are read and the card's button opens the newest. `.chain-how`
+  says how it moved, in mono: "traspaso", "de nuevo". A chip shows only when the work moved or waits.
+- **A wait (`.wait-line`).** A warn-tinted strip with the clock where a running task shows its command: "Esperando a
+  Claude Code · vuelve a las 14:05", and why in one line (a limit, no reset time with its cap, no equivalent model,
+  the other provider also out, the moves cap). No spinner, no rail, no energy border; the badge says "esperando". The
+  task keeps its parallel slot. "Mover ahora" opens the handoff sheet and is disabled, with its reason, when no
+  provider can take the work; "Dejar de esperar" is quiet.
+- **Status bar (`.lim`).** One dot per provider as in phase 1, with its limit: a neutral bar below 60 %, warn with
+  "límite" and the percentage from 60 %, bad with "límite agotado" and when it returns. A provider that reports no
+  limit has no bar: an unknown reading is never drawn as good. The title gives the window, the reset and the reading's
+  age. claude-swap's account is gone from the bar.
+- **Retirement notice (`.retire`).** Neutral, with the idle mark and "Entendido": which account is in force, what
+  changed, which projects lost a rotation policy (links to their provider order) and what was left alone. Its one
+  destructive action, removing Agentry's own copy, is `btn-danger` and offered only when that copy exists. It sits in
+  Home's provider card and at the top of Settings → Providers; no gradient.
+- **Decisions.** A Providers group with `provider.on-limit` and `provider.pick` (act, per project) and
+  `provider.model-map` (suggest, global): 25 points in 10 groups. Each note says what bounds it.
+- **Gradients.** The orchestration page's Coste card loses `.grad-border` so the energy border and the shell's
+  primary stay within the budget of two.
+
+Reference screens: `DesktopOrquestacion` and `MobileOrquestacion` (a moved task and two waiting ones),
+`DesktopChatFlujoMovido`, `MobileChatFlujoMovido`, `StatusBar`, `Main` and `MobileInicio` (the notice),
+`DesktopProveedoresRetirada`, `MobileProveedoresRetirada`, `DesktopAjustesDecisionesProveedores`,
+`MobileAjustesDecisionesProveedores` and `DSRotacion` (rules, every wait and cause, the status bar states).
+
 ### Merging an orchestration, and the board card's auto-merge line
 
 Drawn for [code hosts](plans/code-hosts.md), phase 4 (task `m-p3` of P0), by `reference/tools/merge.py`:

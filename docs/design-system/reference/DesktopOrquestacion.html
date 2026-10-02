@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><title>Agentry · Orquestación spanish-copy (desktop)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Orquestación spanish-copy (desktop)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:var(--bg)}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)})}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
 
 <div class="app shell" data-theme="dark" style="width: 1440px; height: 1024px">
 <div class="side">
@@ -8,7 +8,7 @@
 
 <div class="row" style="padding: 0 4px; height: 32px; gap: 10px">
 <a href="Main.html" class="row" style="gap: 10px; flex: 1 1 auto">
-<span style="width: 26px; height: 26px; border-radius: 8px; background: var(--grad); display: grid; place-items: center; color: #fff; box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset, 0 4px 14px -4px rgba(176,74,94,0.7)"><svg class="ico ico-sm" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span>
+<span style="width: 26px; height: 26px; border-radius: var(--r); background: var(--grad); display: grid; place-items: center; color: #fff; box-shadow: 0 4px 14px -4px color-mix(in srgb, var(--accent-2) 70%, transparent)"><svg class="ico ico-sm" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span>
 <span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Agentry</span>
 </a>
 <button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Plegar barra lateral"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 4v16"></path></svg></button>
@@ -76,8 +76,8 @@
 <a href="DesktopOrquestaciones.html" class="chip" style="gap: 8px; border-color: transparent; background: var(--live-soft); color: var(--live); font-family: var(--mono); font-size: 11.5px"><span class="dot dot-live dot-ping" style="width: 6px; height: 6px"></span>3 agentes trabajando</a>
 <button type="button" class="btn btn-ghost btn-icon" aria-label="Notificaciones" style="position: relative"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"></path></svg><span class="dot" style="position: absolute; top: 8px; right: 9px; width: 6px; height: 6px; background: var(--accent)"></span></button>
 <div class="row" style="gap: 0">
-<a href="DesktopNuevoChat.html" class="btn btn-primary" style="border-radius: 8px 0 0 8px"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Nuevo chat</a>
-<button type="button" class="btn btn-primary btn-icon" aria-label="Más formas de empezar" style="border-radius: 0 8px 8px 0; width: 30px; margin-left: 1px"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button>
+<a href="DesktopNuevoChat.html" class="btn btn-primary" style="border-radius: var(--r) 0 0 var(--r)"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Nuevo chat</a>
+<button type="button" class="btn btn-primary btn-icon" aria-label="Más formas de empezar" style="border-radius: 0 var(--r) var(--r) 0; width: 30px; margin-left: 1px"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button>
 </div>
 </header>
 
@@ -101,7 +101,7 @@
 <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px">
 <div class="card kpi"><span class="t-label">Tareas</span><span class="v">2<span class="fg-3" style="font-size: 18px">/6</span></span></div>
 <div class="card kpi"><span class="t-label">Tiempo</span><span class="v mono" style="font-size: 24px">20:32</span></div>
-<div class="card kpi grad-border"><span class="t-label">Coste</span><span class="v grad-text">5,61</span><span class="t-xs fg-3">US$</span></div>
+<div class="card kpi"><span class="t-label">Coste</span><span class="v">5,61</span><span class="t-xs fg-3">US$ · 1 tarea sin cifra en Codex</span></div>
 <div class="card kpi"><span class="t-label">Paralelo</span><span class="v">3<span class="fg-3" style="font-size: 18px">/4</span></span></div>
 </div>
 </div>
@@ -116,45 +116,44 @@
 <li class="col" style="gap: 8px"><div class="bar"><i style="width: 0"></i></div><span class="t-sm fg-2">Pull request</span><span class="mono t-xs fg-3">pendiente</span></li>
 </ol>
 
-<div class="row"><h2 class="t-h2 grow">Etapa 2 · 4 tareas en paralelo</h2><div class="seg" role="tablist"><button type="button" role="tab" aria-selected="true" class="on">Tareas</button><button type="button" role="tab" aria-selected="false">Grafo</button></div></div>
+<!--rot-->
+<div class="row" style="gap: 10px"><h2 class="t-h2 grow">Etapa 2 · 4 tareas en paralelo</h2><span class="badge b-warn"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"></path></svg>2 esperando</span><div class="seg" role="tablist"><button type="button" role="tab" aria-selected="true" class="on">Tareas</button><button type="button" role="tab" aria-selected="false">Grafo</button></div></div>
 
 <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
-
 <article class="card energy col" style="padding: 16px; gap: 12px">
-<div class="row"><span class="spin-ring"></span><span class="grow" style="font-weight: 600">Spanish copy: config</span><span class="mono t-xs fg-3">10:59</span></div>
-<div class="row mono t-xs" style="gap: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px"><span class="c-live">$</span><span class="ellipsis grow fg-2">timeout 300 pnpm --filter @agentry/web test 2&gt;&amp;1 | tail -150</span><span class="fg-3">1:08</span></div>
+<div class="row"><span class="spin-ring"></span><span class="grow" style="font-weight: 600">Spanish copy: config</span><button type="button" class="decided" aria-label="Pasó a Codex por un punto de decisión, con un traspaso. Ver la respuesta"><span class="decided-face">decidido · 0,91</span></button><span class="mono t-xs fg-3">10:59</span></div>
+<div class="chain-row"><span class="chain" role="group" aria-label="Proveedores, del primero al actual"><a href="DesktopChat.html" class="chain-chip" aria-label="Abrir el chat de Claude Code"><span class="prov-mark" style="--hue: 24" role="img" aria-label="Claude Code" title="Claude Code">CC</span>Claude Code</a><svg class="ico chain-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg><a href="DesktopChat.html" class="chain-chip now" aria-label="Abrir el chat de Codex"><span class="prov-mark" style="--hue: 215" role="img" aria-label="Codex" title="Codex">CX</span>Codex</a></span><span class="chain-how">movida · traspaso · 13:48 · gpt-6.1-sol</span></div>
+<div class="row mono t-xs" style="gap: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); padding: 9px 10px"><span class="c-live">$</span><span class="ellipsis grow fg-2">timeout 300 pnpm --filter @agentry/web test 2&gt;&amp;1 | tail -150</span><span class="fg-3">1:08</span></div>
 <div class="row t-xs" style="gap: 8px"><span class="badge">copy-config</span><span class="fg-3">tras glossary</span><span class="grow"></span><button type="button" class="btn btn-sm btn-ghost">Enviar pista</button><a href="DesktopChat.html" class="btn btn-sm">Abrir chat</a></div>
 </article>
-
 <article class="card col" style="padding: 16px; gap: 12px">
 <div class="row"><span style="width: 16px; height: 16px; border-radius: 50%; background: var(--ok-soft); display: grid; place-items: center"><svg class="ico c-ok" viewBox="0 0 24 24" style="width: 11px; height: 11px; stroke-width: 3"><path d="m5 12 5 5 9-10"></path></svg></span><span class="grow" style="font-weight: 600">Spanish copy: shell and components</span><span class="mono t-xs fg-3">10:28 · 3,51 US$</span></div>
-<div class="row t-xs" style="gap: 8px; color: var(--ok); background: var(--ok-soft); border-radius: 8px; padding: 9px 10px"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4"></path></svg>Completada en el segundo intento</div>
+<div class="row t-xs" style="gap: 8px; color: var(--ok); background: var(--ok-soft); border-radius: var(--r); padding: 9px 10px"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4"></path></svg>Completada en el segundo intento</div>
 <div class="row t-xs" style="gap: 8px"><span class="badge">copy-shell</span><span class="fg-3">tras glossary</span><span class="grow"></span><button type="button" class="btn btn-sm btn-ghost">Hacer fork</button><a href="#" class="btn btn-sm">Ver resultado</a></div>
 </article>
-
-<article class="card col rail-live" style="padding: 16px 16px 16px 18px; gap: 12px">
-<div class="row"><span class="spin-ring"></span><span class="grow" style="font-weight: 600">Spanish copy: chats and home</span><span class="mono t-xs fg-3">10:59</span></div>
-<div class="row t-xs" style="gap: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px"><span class="spin-braille"></span><span class="c-live">Ejecutando</span><span class="fg-2 grow">Run web unit tests</span><span class="mono fg-3">0:15</span></div>
-<div class="row t-xs" style="gap: 8px"><span class="badge">copy-chats</span><span class="fg-3">tras glossary</span><span class="grow"></span><button type="button" class="btn btn-sm btn-ghost">Enviar pista</button><a href="DesktopChat.html" class="btn btn-sm">Abrir chat</a></div>
+<article class="card col" style="padding: 16px; gap: 12px">
+<div class="row"><svg class="ico ico-sm c-warn" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"></path></svg><span class="grow" style="font-weight: 600">Spanish copy: chats and home</span><button type="button" class="decided" aria-label="Espera al reinicio de Claude Code por un punto de decisión. Ver la respuesta"><span class="decided-face">decidido · 0,88</span></button><span class="badge b-warn">esperando</span></div>
+<div class="chain-row"><span class="chain" role="group" aria-label="Proveedores, del primero al actual"><a href="DesktopChat.html" class="chain-chip now" aria-label="Abrir el chat de Claude Code"><span class="prov-mark" style="--hue: 24" role="img" aria-label="Claude Code" title="Claude Code">CC</span>Claude Code</a></span><span class="chain-how">ocupa su sitio · 3 de 4 en paralelo</span></div>
+<div class="wait-line" role="status"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"></path></svg><span><b>Esperando a Claude Code</b> · vuelve a las <span class="mono">14:05</span> (en 2 h 10 min)<span class="why">Llegó a su límite de 5 h. La tarea conserva su sitio y retomará el turno sola.</span></span></div>
+<div class="row t-xs" style="gap: 8px"><span class="badge">copy-chats</span><span class="fg-3">tras glossary</span><span class="grow"></span><button type="button" class="btn btn-sm btn-ghost">Dejar de esperar</button><button type="button" class="btn btn-sm"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>Mover ahora</button></div>
 </article>
-
-<article class="card col rail-live" style="padding: 16px 16px 16px 18px; gap: 12px">
-<div class="row"><span class="spin-ring"></span><span class="grow" style="font-weight: 600">Spanish copy: orchestration, schedules, usage</span><span class="mono t-xs fg-3">10:59</span></div>
-<div class="row t-xs" style="gap: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px"><span class="spin-dots c-live"><i></i><i></i><i></i></span><span class="shimmer">Pensando</span></div>
-<div class="row t-xs" style="gap: 8px"><span class="badge">copy-orchestration</span><span class="fg-3">tras glossary</span><span class="grow"></span><button type="button" class="btn btn-sm btn-ghost">Enviar pista</button><a href="DesktopChat.html" class="btn btn-sm">Abrir chat</a></div>
+<article class="card col" style="padding: 16px; gap: 12px">
+<div class="row"><svg class="ico ico-sm c-warn" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"></path></svg><span class="grow" style="font-weight: 600">Spanish copy: orchestration, schedules, usage</span><span class="badge b-warn">esperando</span></div>
+<div class="chain-row"><span class="chain" role="group" aria-label="Proveedores, del primero al actual"><a href="DesktopChat.html" class="chain-chip now" aria-label="Abrir el chat de Claude Code"><span class="prov-mark" style="--hue: 24" role="img" aria-label="Claude Code" title="Claude Code">CC</span>Claude Code</a></span><span class="chain-how">sin equivalente · opus-5.5</span></div>
+<div class="wait-line" role="status"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"></path></svg><span><b>Esperando a Claude Code</b> · vuelve a las <span class="mono">14:05</span> (en 2 h 10 min)<span class="why">Opus 5.5 no tiene equivalente en Codex, y el trabajo no puede pasar allí sin uno. <a href="DesktopProveedoresRotacion.html" class="c-accent">Elegir el equivalente</a></span></span></div>
+<div class="row t-xs" style="gap: 8px"><span class="badge">copy-orchestration</span><span class="fg-3">tras glossary</span><span class="grow"></span><button type="button" class="btn btn-sm btn-ghost">Dejar de esperar</button><button type="button" class="btn btn-sm" disabled title="No hay un modelo equivalente en Codex"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>Mover ahora</button></div>
 </article>
 </div>
+<!--/rot-->
 </main>
 
 
 <footer class="app statusbar" data-theme="dark" style="width: 1184px">
-<a href="DesktopCuentas.html" class="row" style="gap: 7px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>yeyo@inmoseo.net</a>
-<span class="row" style="gap: 6px">5h<span class="bar bar-thin grad"><i style="width: 45%"></i></span>45%</span>
-<span class="row" style="gap: 6px">7d<span class="bar bar-thin grad"><i style="width: 5%"></i></span>5%</span>
 <span class="grow"></span>
 <span class="row" style="gap: 6px"><span class="spin-braille"></span>3 en marcha</span>
 <span>hoy 3,41 US$</span>
-<span>Claude Code 2.1.282</span>
+<a href="DesktopProveedores.html" class="lim out" title="Ventana de 5 h · vuelve a las 14:05"><span class="dot dot-bad" style="width: 6px; height: 6px"></span>Claude Code · límite agotado<span class="age">vuelve 14:05</span></a>
+<a href="DesktopProveedores.html" class="lim" title="Ventana de 5 h · vuelve a las 15:40 · lectura de hace 1 min"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>Codex 0.159.3<span class="bar bar-thin"><i style="width: 31%"></i></span>31 %</a>
 </footer>
 
 </div>

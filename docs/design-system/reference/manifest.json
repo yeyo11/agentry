@@ -1090,5 +1090,47 @@
     "title": "Móvil · Tarea, frescura de la PR",
     "w": 390,
     "h": 844
+  },
+  {
+    "file": "DSRotacion.html",
+    "title": "Design system · Rotación entre proveedores",
+    "w": 1440,
+    "h": 5600
+  },
+  {
+    "file": "DesktopChatFlujoMovido.html",
+    "title": "Desktop · Chat de una ejecución que cambió de proveedor",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileChatFlujoMovido.html",
+    "title": "Móvil · Chat de una ejecución que cambió de proveedor",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopProveedoresRetirada.html",
+    "title": "Desktop · Proveedores con el aviso de claude-swap",
+    "w": 1440,
+    "h": 1500
+  },
+  {
+    "file": "MobileProveedoresRetirada.html",
+    "title": "Móvil · Proveedores con el aviso de claude-swap",
+    "w": 390,
+    "h": 1500
+  },
+  {
+    "file": "DesktopAjustesDecisionesProveedores.html",
+    "title": "Desktop · Decisiones, área de proveedores",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileAjustesDecisionesProveedores.html",
+    "title": "Móvil · Decisiones, área de proveedores",
+    "w": 390,
+    "h": 844
   }
 ]
