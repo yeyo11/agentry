@@ -1090,5 +1090,71 @@
     "title": "Móvil · Tarea, frescura de la PR",
     "w": 390,
     "h": 844
+  },
+  {
+    "file": "DesktopChatLimite.html",
+    "title": "Desktop · Chat en el límite",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopChatLimiteTraspaso.html",
+    "title": "Desktop · Chat en el límite, hoja del traspaso",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopChatEspera.html",
+    "title": "Desktop · Chat esperando el reinicio",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopChatContinuado.html",
+    "title": "Desktop · Chat continuado en otro proveedor",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopChatContinuadoOrigen.html",
+    "title": "Desktop · Chat que continuó en otro",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileChatLimite.html",
+    "title": "Móvil · Chat en el límite",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileChatLimiteTraspaso.html",
+    "title": "Móvil · Chat en el límite, hoja del traspaso",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileChatEspera.html",
+    "title": "Móvil · Chat esperando el reinicio",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileChatContinuado.html",
+    "title": "Móvil · Chat continuado en otro proveedor",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileChatContinuadoOrigen.html",
+    "title": "Móvil · Chat que continuó en otro",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DSRotacion.html",
+    "title": "Design system · Rotación, el chat",
+    "w": 1440,
+    "h": 2480
   }
 ]

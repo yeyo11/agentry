@@ -727,6 +727,57 @@ both ids), `DesktopChats` and `MobileChats` (a Claude, a Codex and a Copilot cha
 written by `reference/tools/chatproviders.py`; the first run lifted the four older screens into the
 shared shell and swapped their pixel radii for tokens.
 
+### Rotation between providers: the chat at a limit and after a move
+
+Drawn for phase 4 of [multiple agent providers](plans/multi-provider.md) (task `p2` of
+`providers4-prototypes`) by `reference/tools/chatrotation.py`, and waiting for the owner's validation
+before the web work starts. New classes `.lim-*`, `.mv-*`, `.hand-*` and `.cont-*` in
+[agentry-ds.css](design-system/agentry-ds.css); the badge, the buttons, `.seg`, `.dialog`, `.sheet` and
+`.bar` are the existing ones.
+
+- **The banner (`.lim`)** sits above the composer of a chat whose provider reached its limit. A warn
+  panel: the warn icon, the title ("Claude Code ha llegado a su límite de 5 horas"; the window is
+  named in words, "semanal" for the weekly one), the reset in mono ("Se restablece a las 14:05 · en
+  2 h 10 min", or "No se sabe cuándo se restablece · última lectura hace 12 min"), the feasible
+  actions and, under a hairline, the options that are not offered, each with its reason in the
+  person's words (`.lim-out`). The one primary of the zone is the setting's action, the gradient;
+  **Continuar en Codex** (handoff), **Empezar de nuevo en Codex** (restart) and **Esperar al
+  reinicio** (wait) are neutral, and **Ver el traspaso** is ghost. A person's chat never moves on its
+  own (P4-2): nothing here spends on another vendor without a click, and the composer is disabled
+  until the person chooses.
+- **When nothing can take the work**, wait is the floor and becomes the primary; the banner says why
+  ("No hay otro programa…", "Opus 5.5 no tiene equivalente en Codex"), and a missing mapping offers
+  **Elegir equivalencia**, which opens the mapping editor on that pair.
+- **Waiting.** The same panel titled "Esperando a Claude Code", the reset, and one sentence of what
+  happens then. **Mover ahora** (opens the move sheet) and **Dejar de esperar**, both neutral: no
+  gradient, since there is no primary, and nothing animates, since a wait is not live work. The
+  header badge reads "esperando · 14:05" and the details panel gains a "Límite" row with a warn badge.
+- **The move sheet (`.mv-*`)** is a dialog on a desktop and a `Sheet` on a phone. A `.seg` picks
+  "Continuar con traspaso" or "Empezar de nuevo"; the candidates are radio rows with the model mapping
+  ("Opus 5.5 → gpt-6.1-sol") and a thin neutral usage bar; a candidate that cannot take the work is a
+  dashed row with a plain badge and its reason; the facts that carry over (model, permissions,
+  folder) each say where they come from; then **Texto que recibirá**, the handoff exactly as it would
+  be sent (`.hand-text`, mono, English because it is a prompt, with the pasted block marked and the
+  note after it), its size against the 12 KiB cap, and a notice that the session does not move and
+  nothing has been sent yet. The one primary is **Continuar en Codex**.
+- **The old chat** ends with a divider (`.cont-div`): "Continuado en Codex en «title»", the new
+  chat's id, how it began (con un traspaso, de cero) and a link to it. Its header badge reads
+  "continuado en Codex", its composer is disabled with the same sentence, and the details panel
+  gains a "Continuado" link row.
+- **The new chat** keeps one provider (P4-1). Its header carries the `ProviderBadge` and
+  "Continuado desde Claude Code" as a link; its first message is the collapsed card (`.hand-card`,
+  "Traspaso de Claude Code", or "Petición original" after a restart) with "Ver el chat anterior" and
+  Mostrar / Ocultar. Opened, it shows the text the agent received. The chat is live, so it has the
+  energy border, and the status bar's limit reading is back to normal.
+- **The status bar** of a chat at a limit shows the 5 h bar full, `bad`, with the word "límite".
+- **Gradients.** One per screen besides the shell: the setting's action in the banner, or the
+  primary of the sheet over the dimmed page. The waiting banner has none. `--live` appears only on
+  the new chat, which is working.
+
+Reference screens: `DesktopChatLimite`, `DesktopChatLimiteTraspaso`, `DesktopChatEspera`,
+`DesktopChatContinuado`, `DesktopChatContinuadoOrigen`, the five `MobileChat…` twins, and
+`DSRotacion` (every state of the banner, the card and the divider).
+
 ### Integrations: the code hosts' CLIs
 
 Drawn for [code hosts](plans/code-hosts.md) (task `p1` of P0) and waiting for the owner's validation

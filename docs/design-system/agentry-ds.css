@@ -1867,3 +1867,81 @@ button.check-group-head { width: 100%; border-left: 0; border-right: 0; border-t
 .iss-fact .more { color: var(--fg-3); }
 .m-screen .iss-chip { min-height: var(--touch); padding: 0 12px; font-size: 13px; }
 /* ---------- end of Tracker issues ---------- */
+
+/* ---------- Rotation between providers: the chat at a limit and after a move (plans/multi-provider.md, phase 4, P0 p2) ----------
+   .lim is the banner above the composer of a chat whose provider reached its limit, and of one that waits for the reset: a
+   warn-soft panel with the warn icon, a title, the reset in mono, the actions and, under them, the options that are not
+   offered with their reason (.lim-out). Its one primary is the setting's action, the gradient; a waiting banner has none.
+   .mv-* is the move sheet (a dialog on a desktop, a Sheet on a phone): the candidate rows (.mv-cand, .out for the one that
+   cannot take the work), the facts that carry over (.mv-fact) and the handoff text exactly as it would be sent
+   (.hand-text, mono, clipped by a fade). .hand-card is the new chat's first message, collapsed by default, and .cont-div is
+   the divider that ends the old chat. Nothing here moves: a limit and a wait are not live work (--live stays for the
+   chat that is working). */
+.lim { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border-radius: var(--r-lg); background: var(--warn-soft); font-size: 13px; line-height: 1.5; color: var(--fg-2); }
+.lim-head { display: flex; align-items: flex-start; gap: 12px; }
+.lim-head > .ico { flex-shrink: 0; margin-top: 1px; color: var(--warn); }
+.lim-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.lim-title { font-size: 14px; font-weight: 600; color: var(--fg); }
+.lim-reset { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--fg); }
+.lim-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lim-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--fg-2); }
+.lim-out { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 10px 0 0; list-style: none; border-top: 1px solid var(--line-2); font-size: 12.5px; }
+.lim-out li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; color: var(--fg-2); }
+.lim-out b { font-weight: 600; color: var(--fg); }
+.lim-stop { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--fg-2); }
+.lim-stop .ico { color: var(--warn); }
+.mv-list { display: flex; flex-direction: column; gap: 8px; }
+.mv-cand { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 14px; border-radius: var(--r-lg); border: 1px solid var(--line-2); background: var(--bg-1); color: var(--fg); font: inherit; text-align: left; }
+button.mv-cand { cursor: pointer; }
+.mv-cand.on { border-color: var(--line-3); background: var(--bg-3); }
+.mv-cand.out { border-style: dashed; background: transparent; }
+.mv-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.mv-name { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; }
+.mv-model { font-family: var(--mono); font-size: 12px; color: var(--fg-2); overflow-wrap: anywhere; }
+.mv-why { font-size: 12.5px; line-height: 1.45; color: var(--fg-2); }
+.mv-use { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; width: 120px; font-family: var(--mono); font-size: 11.5px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.mv-use .bar { width: 100%; }
+.mv-fact { display: flex; align-items: baseline; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.mv-fact > .k { flex: 0 0 96px; color: var(--fg-3); }
+.mv-fact > .v { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; color: var(--fg); }
+.mv-fact > .v small { font-size: 12px; color: var(--fg-2); }
+.hand-text { position: relative; max-height: 188px; overflow: hidden; margin: 0; padding: 12px 14px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-1); font-family: var(--mono); font-size: 12px; line-height: 1.6; color: var(--fg-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.hand-text::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 40px; background: linear-gradient(to bottom, transparent, var(--bg-1)); }
+.dialog .hand-text { max-height: 232px; }
+.dialog .mv-fact > .v { flex-direction: row; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.hand-text.full { max-height: none; }
+.hand-text.full::after { display: none; }
+.hand-text .tag { color: var(--fg-3); }
+.hand-text h4 { display: inline; margin: 0; font: inherit; font-weight: 600; color: var(--fg); }
+.hand-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; font-family: var(--mono); font-size: 11.5px; color: var(--fg-2); }
+.hand-card { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: var(--r-lg); border: 1px solid var(--line-2); background: var(--bg-1); }
+.hand-head { display: flex; align-items: center; gap: 12px; }
+.hand-head > .ico { flex-shrink: 0; color: var(--fg-3); }
+.hand-title { font-size: 14px; font-weight: 600; color: var(--fg); }
+.hand-sub { font-size: 12.5px; line-height: 1.45; color: var(--fg-2); }
+.hand-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.cont-div { display: flex; align-items: center; gap: 14px; width: 100%; color: var(--fg-2); font-size: 13px; }
+.cont-div > .ico { flex-shrink: 0; color: var(--fg-3); }
+.cont-div:hover .cont-body { border-color: var(--line-3); color: var(--fg); }
+.cont-line { flex: 1 1 0; height: 1px; background: var(--line-2); }
+.cont-body { display: flex; flex-direction: column; gap: 2px; max-width: 78%; padding: 8px 16px; border-radius: var(--r-lg); border: 1px solid var(--line-2); background: var(--bg-1); line-height: 1.4; }
+.cont-t { display: flex; align-items: flex-start; gap: 8px; }
+.cont-t .ico { flex-shrink: 0; margin-top: 2px; }
+.cont-m { padding-left: 24px; }
+.cont-body b { font-weight: 600; color: var(--fg); }
+.cont-from { display: inline-flex; align-items: center; gap: 5px; color: var(--fg-2); font-family: var(--sans); font-size: 12px; }
+a.cont-from:hover { color: var(--fg); }
+.m-screen .lim { padding: 14px; }
+.m-screen .lim-acts { flex-direction: column; align-items: stretch; }
+.m-screen .lim-acts .btn { justify-content: center; }
+.m-screen .lim-note, .m-screen .lim-out { font-size: 13px; }
+.m-screen .mv-cand { min-height: var(--touch); }
+.m-screen .mv-use { width: 96px; }
+.m-screen .mv-fact > .k { flex-basis: 84px; }
+.m-screen .hand-text { max-height: 132px; }
+.m-screen .hand-acts { flex-direction: column; }
+.m-screen .hand-acts .btn { justify-content: center; }
+.m-screen .cont-div { min-height: var(--touch); }
+.m-screen .cont-body { max-width: none; flex: 1 1 auto; }
+.m-screen .cont-line { display: none; }
+/* ---------- end of Rotation, the chat ---------- */
