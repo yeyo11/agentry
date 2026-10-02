@@ -777,7 +777,9 @@ registered on a host is `<public origin>/api/webhooks/<host>/<registrationId>`.
   these two paths for `POST`. The host allowlist still applies, so the public name must be on it
   (the tunnel puts its own there).
 - **Raw body.** A content-type parser scoped to these routes keeps every body as bytes, up to 5 MiB.
-  Larger is `413`, and polling covers it.
+  Larger is `413`, and polling covers it. The route looks the registration up from the path in an
+  `onRequest` hook, before the body is read: an unknown, removed or other-host registration, or one
+  with no stored secret, gets the empty `401` without the upload (`WebhookReceiver.knows`).
 - **Verified before parsing, in constant time** (`hosts/webhook-receiver.ts`):
   - GitHub: `X-Hub-Signature-256` is `sha256=` plus the HMAC-SHA256 of the raw body with the secret.
     Recorded on a real signed ping (7 045 bytes).
@@ -788,9 +790,15 @@ registered on a host is `<public origin>/api/webhooks/<host>/<registrationId>`.
 - **Answers:** `204` with no body, `401`, `429` with `Retry-After: 60`, `413`.
 - **Rate limit:** 60 verified deliveries a minute per registration, counted after verification, so a
   stranger who knows the id cannot spend the real host's budget.
-- **Dedupe:** `X-GitHub-Delivery` for GitHub, `Idempotency-Key` or `webhook-id` for GitLab, in
-  `webhook_deliveries` (pruned after 7 days). A replay is `204` and does nothing. A delivery with no
-  id is processed without a replay check.
+- **Dedupe:** two checks, both in `webhook_deliveries` (pruned after 7 days), and a replay is `204`
+  and does nothing.
+  - The id: `X-GitHub-Delivery` for GitHub, `Idempotency-Key` or `webhook-id` for GitLab.
+  - The signed raw body: its SHA-256, per registration, for one hour. GitHub does not sign the id and
+    the tunnel ends TLS, so it can see a signed body and send it again under a new id or none; the same
+    bytes inside the window are a duplicate whatever id they carry. After the window they count again.
+  - **A delivery with no id is not enough to mark a hook healthy.** It may still move the next read
+    of the rows it names, but it does not stamp `lastDeliveryAt` or `lastPingAt`, clear `failing` or
+    announce a change. The 60 a minute limit counts it like any verified delivery.
 - **What a delivery names.** Rows carry no repository column, so they are matched by the host name
   and path of their own pull request URL (`/pull/N`, `/-/merge_requests/N`), by number, or by branch
   (GitHub's check suite deliveries arrive with an empty `pull_requests`, recorded). Closed rows are
@@ -816,9 +824,18 @@ The events are `pull_request`, `pull_request_review`, `pull_request_review_comme
 `issues`. The host masks the secret in every answer (`********`, recorded), so it is never read back.
 
 The **secret** is 32 random bytes as hex, one per registration, in `webhook-secrets.json` in the
-data directory with mode 0600 (`hosts/webhook-secrets.ts`, decision 3: kept like the other
-secrets). The database and the API never hold it. The receiver and the service read it through
-`core.webhookSecrets`; a registration without a secret is refused with `401`.
+data directory with mode 0600 (`hosts/webhook-secrets.ts`). The database and the API never hold it.
+The receiver and the service read it through `core.webhookSecrets`; a registration without a secret
+is refused with `401`.
+
+How it is kept is decision 3, in `secret-box.ts`: in the desktop app each value is encrypted
+(AES-256-GCM) with a key the app keeps under Electron's `safeStorage` (`secret-key.bin` in its
+user data, made by `apps/desktop/src/secret-key.ts`) and hands the server at launch in
+`AGENTRY_SECRET_KEY`, which the server removes from `process.env` once read so no chat inherits it.
+On a server there is no key and the values are plain, at 0600. A plain file found while a key is set
+is encrypted when the server starts; a value sealed under another key, or opened with no key, reads
+as absent and its hook is registered again. The decision engine's key and the account credentials
+are still plain files: they can move to the same box.
 
 **A new tunnel address** (decision 2): the service listens for `tunnel.changed` and re-points the
 registered hooks by id. A hook that cannot be moved becomes `stale` and is tried again on the next

@@ -120,12 +120,6 @@ export class WebhooksService {
 
   // ---------- what the receiver and the pacer ask ----------
 
-  /** The secret a delivery for this registration is verified with; null when there is no such registration. */
-  secretOf(registrationId: string): string | null {
-    const registration = this.deps.store.get(registrationId);
-    return registration && registration.state !== 'removed' ? this.deps.secrets.get(registrationId) : null;
-  }
-
   /**
    * Whether a healthy hook covers the repository a change request's URL names: the pacer reads such a
    * row every 15 minutes instead of every two, because a delivery will say when it changes.

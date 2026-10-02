@@ -61,6 +61,12 @@ export interface CoreConfig {
    */
   authEnv: AuthEnv;
   /**
+   * The key the desktop app hands the server to encrypt its secret files with (`AGENTRY_SECRET_KEY`,
+   * see `secret-box.ts`); absent on a server, where they stay plain at 0600. The server drops it
+   * from `process.env` once read so no chat inherits it.
+   */
+  secretKey?: string;
+  /**
    * Host names this wrapper answers to besides loopback, from `AGENTRY_ALLOWED_HOSTS`, each either
    * a name or a `*.domain` pattern standing for its subdomains. Read here for the same reason as
    * `authEnv`: the guard takes its allowlist from a value, so a test can build a wrapper that
@@ -185,5 +191,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     allowedHosts: parseAllowedHosts(env.AGENTRY_ALLOWED_HOSTS),
     settingsFromEnv: new Set((Object.keys(APP_SETTING_ENV) as (keyof AppSettingValues)[]).filter((key) => isSet(env[APP_SETTING_ENV[key]]))),
     authEnv: Object.fromEntries(AUTH_ENV_KEYS.flatMap((key) => (env[key] === undefined ? [] : [[key, env[key]]]))) as AuthEnv,
+    ...(isSet(env.AGENTRY_SECRET_KEY) ? { secretKey: env.AGENTRY_SECRET_KEY.trim() } : {}),
   };
 }

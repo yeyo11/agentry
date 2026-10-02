@@ -431,7 +431,7 @@ export class Core {
   readonly webhookSecrets: WebhookSecrets;
   /** What `POST /webhooks/:host/:registrationId` calls: verify, dedupe, then move the named rows' next read to now */
   readonly webhookReceiver: WebhookReceiver;
-  /** Registers, tests, removes and re-points the hooks Agentry keeps on a repository; the receivers read their secrets through it */
+  /** Registers, tests, removes and re-points the hooks Agentry keeps on a repository; the receiver reads their secrets from `webhookSecrets` itself */
   readonly webhookService: WebhooksService;
   /** Merge, auto-merge and update from the base of a change request: the person's click, never a run */
   readonly merge: MergeService;

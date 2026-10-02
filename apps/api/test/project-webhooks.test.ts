@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHmac } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -111,9 +112,31 @@ test("a chat's token reads the webhooks but gets 403 on every write, and the rec
     assert.equal(core.webhooks.get(id)?.state, 'active', 'nothing changed');
     assert.equal(core.webhookSecrets.get(id), 'kept-secret');
     assert.equal((await app.inject(as(chat, 'GET', base))).statusCode, 200);
-    // The receiver is the one door that takes no bearer: it needs the signature instead
-    assert.equal((await app.inject(as(null, 'POST', `/api/webhooks/github/${id}`, {}))).statusCode, 401);
-    assert.notEqual((await app.inject(as(null, 'POST', `/api/webhooks/github/${id}`, {}))).statusCode, 403);
+    // The receiver is the one door that takes no bearer: only it can answer a signed delivery with
+    // 204 while the guard is on, and only it answers a wrong signature with an empty 401 (the
+    // guard's 401 carries a body)
+    const guarded = await app.inject(as(null, 'POST', base, {}));
+    assert.equal(guarded.statusCode, 401);
+    assert.notEqual(guarded.body, '', "the guard's refusal says something");
+    const payload = JSON.stringify({ zen: 'x' });
+    const deliver = (secret: string, delivery: string) =>
+      app.inject({
+        method: 'POST',
+        url: `/api/webhooks/github/${id}`,
+        remoteAddress: '127.0.0.1',
+        payload,
+        headers: {
+          host: '127.0.0.1:34331',
+          'content-type': 'application/json',
+          'x-github-event': 'ping',
+          'x-github-delivery': delivery,
+          'x-hub-signature-256': `sha256=${createHmac('sha256', secret).update(payload).digest('hex')}`,
+        },
+      });
+    const forged = await deliver('not-the-secret', 'd-forged');
+    assert.equal(forged.statusCode, 401);
+    assert.equal(forged.body, '', "the receiver's refusal has no detail");
+    assert.equal((await deliver('kept-secret', 'd-genuine')).statusCode, 204);
   } finally {
     await app.inject({ method: 'PUT', url: '/api/security/auth', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, payload: JSON.stringify({ mode: 'none' }) });
   }

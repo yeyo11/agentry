@@ -154,8 +154,24 @@ export class WebhookStore {
     return Number(result.changes) > 0;
   }
 
+  /**
+   * Remembers the digest of a verified body for a window. GitHub does not sign `X-GitHub-Delivery`
+   * and a tunnel that ends TLS sees signed bodies, so an id alone does not stop a replay: the same
+   * bytes inside the window are a duplicate whatever id they carry. Outside it they count again.
+   */
+  recordBody(registrationId: string, digest: string, event: string, windowMs: number, now = Date.now()): boolean {
+    const key = `body:${registrationId}:${digest}`;
+    const seen = this.sql.prepare('SELECT received_at FROM webhook_deliveries WHERE delivery_id = ?').get(key) as { received_at: string } | undefined;
+    if (seen && Date.parse(seen.received_at) > now - windowMs) return false;
+    this.sql
+      .prepare('INSERT OR REPLACE INTO webhook_deliveries (delivery_id, registration_id, event, received_at) VALUES (?, ?, ?, ?)')
+      .run(key, registrationId, event, new Date(now).toISOString());
+    return true;
+  }
+
   deliveries(registrationId: string): WebhookDeliveryRow[] {
-    return this.sql.prepare('SELECT * FROM webhook_deliveries WHERE registration_id = ? ORDER BY received_at, delivery_id').all(registrationId) as unknown as WebhookDeliveryRow[];
+    // The body digests share the table but are not deliveries
+    return this.sql.prepare("SELECT * FROM webhook_deliveries WHERE registration_id = ? AND delivery_id NOT LIKE 'body:%' ORDER BY received_at, delivery_id").all(registrationId) as unknown as WebhookDeliveryRow[];
   }
 
   pruneDeliveries(now = Date.now()): number {

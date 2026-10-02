@@ -905,7 +905,7 @@ Where GitHub and GitLab deliver for a hook Agentry registered (tag `Webhooks`). 
 
 | Method | Route | Description |
 | --- | --- | --- |
-| POST | `/webhooks/github/:registrationId` | A GitHub delivery. `204` at once (a replayed delivery id too); `401` with no detail for an unknown registration or a bad signature; `429` past 60 verified deliveries a minute; `413` over 5 MiB |
+| POST | `/webhooks/github/:registrationId` | A GitHub delivery. `204` at once (a replayed delivery id or signed body too); `401` with no detail for an unknown registration or a bad signature; `429` past 60 verified deliveries a minute; `413` over 5 MiB |
 | POST | `/webhooks/gitlab/:registrationId` | A GitLab delivery, checked by `X-Gitlab-Token`; answers as above |
 | GET | `/projects/:id/webhooks` | A project's registrations plus `available`, the `reason` when not (`host-not-recorded` for GitLab, which offers no action yet; `no-public-url`; `no-remote`), the `publicUrl`, the `events` and `canRedeliver` (always `false`). The secret is never returned |
 | POST | `/projects/:id/webhooks` | Register the repository's GitHub hook (adopts an Agentry hook already there, never touches another) → `201` with the registration; `409` `no-public-url`, `no-remote`, `host-not-recorded`, `already-registered`; `403 hook-no-permission`; `502 hook-unreachable`. Not open to a chat's token |
