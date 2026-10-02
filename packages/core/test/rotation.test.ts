@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import type { ToolPolicy } from '@agentry/shared';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { ChatSummary, LimitAction, ProviderMove, ProviderStatus, ProvidersSettings } from '@agentry/shared';
@@ -44,6 +45,9 @@ function settingsOf(o: Options): ProvidersSettings {
   return settings;
 }
 
+/** A flow stage's policy: reads and edits, commands allowed, pushes denied */
+const WORK_POLICY: ToolPolicy = { read: { allow: true }, edit: { allow: 'any' }, commands: { allow: 'any' }, network: 'omit', gitPush: 'deny' };
+
 function rig(o: Options = {}) {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const db = new Db(config);
@@ -81,7 +85,9 @@ function rig(o: Options = {}) {
   });
   rotation.start();
   const limited = async (provider: 'claude-code' | 'codex' = 'claude-code', extra: Partial<Parameters<ChatManager['start']>[0]> = {}) => {
-    const chat = chats.start({ prompt: provider === 'codex' ? 'RATE' : 'FAKE-LIMIT-ONCE', name: 'limited', keepAlive: false, provider, ...extra });
+    // Automated work carries a policy, as the flow's stages do: without one it stays on Claude Code
+    const tools = o.work ? { toolConfig: { preset: null, allowedTools: [], disallowedTools: [], mcp: null, policy: WORK_POLICY } } : {};
+    const chat = chats.start({ prompt: provider === 'codex' ? 'RATE' : 'FAKE-LIMIT-ONCE', name: 'limited', keepAlive: false, provider, ...tools, ...extra });
     await chats.exited(chat.id);
     // The announcement is handled in the next turn of the loop
     await new Promise((r) => setTimeout(r, 30));

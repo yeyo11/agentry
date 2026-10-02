@@ -104,8 +104,16 @@ function readyFor(provider: CandidateProvider, automated: boolean): boolean {
   return state === 'unknown' && reason === 'no-probe' && !automated;
 }
 
+/** The provider whose own rules a run without a portable policy was written for. */
+export const NATIVE_RULES_PROVIDER: ProviderId = 'claude-code';
+
 function policyExclusion(run: RunNeeds, id: ProviderId, provider: CandidateProvider): Exclusion | null {
-  if (run.policy === null) return run.nativeRules ? 'policy-not-portable' : null;
+  if (run.policy === null) {
+    if (!run.nativeRules && !run.automated) return null;
+    // Nothing to translate means nothing proves `git push` is denied on another provider: automated
+    // work without a policy, and rules typed for Claude Code, stay where those rules were written
+    return id === NATIVE_RULES_PROVIDER ? null : 'policy-not-portable';
+  }
   if (!provider.translate) return 'policy';
   const translation = provider.translate(run.policy);
   if (translation.unsupported.length > 0) return 'policy';

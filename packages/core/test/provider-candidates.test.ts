@@ -171,6 +171,15 @@ test('a policy part the target cannot enforce excludes it, and a flow stage stay
   assert.equal(why(flow, 'copilot'), 'policy');
 });
 
+test('automated work with no policy stays on Claude Code: nothing proves pushes are denied elsewhere', () => {
+  const start = candidatesFor(run({ policy: null, automated: true, from: null }), context());
+  assert.deepEqual(start.candidates.map((c) => c.provider), ['claude-code']);
+  assert.equal(why(start, 'codex'), 'policy-not-portable');
+  // A person's own chat with no policy is free to go where they choose
+  const person = candidatesFor(run({ policy: null, automated: false }), context());
+  assert.notEqual(why(person, 'codex'), 'policy-not-portable');
+});
+
 test('custom native rules without a policy cannot be translated', () => {
   const r = candidatesFor(run({ kind: 'chat', automated: false, policy: null, nativeRules: true }), context());
   assert.equal(why(r, 'codex'), 'policy-not-portable');
