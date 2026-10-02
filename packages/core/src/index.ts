@@ -11,6 +11,7 @@ import type {
   ProviderLimit,
   ChatProject,
   ChatSummary,
+  MoveChatRequest,
   ChatWorktree,
   ConfigFileRoot,
   ModelOption,
@@ -1062,6 +1063,20 @@ export class Core {
   /** The run, task or item a chat works for: what lets the rotation move it, and what a move carries over. Null for a person's chat. */
   private workOf(chatId: string): ChatWork | null {
     return this.flow.workOf(chatId) ?? this.orchestrator.workOf(chatId) ?? this.assistant.workOf(chatId);
+  }
+
+  /**
+   * A person's click on "Move now": the chat goes on in a new one on another provider. A wait it was
+   * in closes into the move, and the run, task or assistant run it worked for follows it, as it does
+   * when the rotation moves it.
+   */
+  async moveChat(chatId: string, request: MoveChatRequest): Promise<{ chat: ChatSummary; move: ProviderMove }> {
+    const waitId = this.rotation.waitOf(chatId);
+    const result = await this.chats.continueOn(chatId, request);
+    const { move } = result;
+    if (waitId) this.rotation.supersede(waitId, { toChat: move.toChat, toProvider: move.toProvider, toModel: move.toModel });
+    if (move.subjectKind !== 'chat') this.repoint(move);
+    return result;
   }
 
   /** A move gave automated work a new chat: whoever owned the old one points at the new one. */

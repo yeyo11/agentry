@@ -455,6 +455,18 @@ export class ProviderRotation {
     return true;
   }
 
+  /**
+   * A person moved a waiting chat to another provider: the wait closes into the move, quietly. The
+   * work goes on in the new chat, so nothing is told it ended. False when the wait was not open.
+   */
+  supersede(moveId: string, by: Pick<ProviderMove, 'toChat' | 'toProvider' | 'toModel'>): boolean {
+    const row = this.deps.db.providerMove(moveId);
+    if (!row || (row.state !== 'waiting' && row.state !== 'resuming')) return false;
+    const closed = this.deps.db.closeProviderMove(moveId, 'cancelled', new Date(this.now()).toISOString(), { ...by, reason: 'moved' });
+    this.drop(row);
+    return closed;
+  }
+
   /** A person stops waiting; the run or task it belonged to then ends stopped. False when the wait was not open. */
   cancel(moveId: string): boolean {
     const row = this.deps.db.providerMove(moveId);
