@@ -33,6 +33,13 @@ export const webhookRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     }
   };
 
-  app.post('/webhooks/github/:registrationId', receiver('github'));
-  app.post('/webhooks/gitlab/:registrationId', receiver('gitlab'));
+  // Before the body is read: an unknown, removed or other-host registration is refused with the
+  // receiver's own empty 401 without taking up to 5 MiB from whoever asked
+  const known = (host: CodeHostId) => async (req: { params: unknown }, reply: FastifyReply) => {
+    const { registrationId } = req.params as { registrationId: string };
+    if (!core.webhookReceiver.knows(host, registrationId)) return reply.status(401).send();
+  };
+
+  app.post('/webhooks/github/:registrationId', { onRequest: known('github') }, receiver('github'));
+  app.post('/webhooks/gitlab/:registrationId', { onRequest: known('gitlab') }, receiver('gitlab'));
 };

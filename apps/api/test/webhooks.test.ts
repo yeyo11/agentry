@@ -155,6 +155,23 @@ test('they answer without a bearer token, in token mode and in read-only mode, a
   assert.equal(Array.isArray(audit) ? audit.length : (audit.entries ?? []).length, 0);
 });
 
+test('an unknown, removed or other-host registration is refused before the body is read', async (t) => {
+  const { app, core } = await wrapper(t);
+  await register(core, 'r1');
+  await register(core, 'gone');
+  core.webhooks.update('gone', { state: 'removed' });
+  // Over the limit: were the body parser reached, each of these would be a 413 and not the receiver's 401
+  const big = Buffer.alloc(WEBHOOK_BODY_LIMIT + 1, 0x20);
+  for (const url of ['/api/webhooks/github/nobody', '/api/webhooks/github/gone', '/api/webhooks/gitlab/r1']) {
+    const res = await app.inject({ method: 'POST', url, payload: big, headers: { 'content-type': 'application/json' } });
+    assert.equal(res.statusCode, 401, url);
+    assert.equal(res.payload, '', url);
+  }
+  // A registration that exists still reaches the parser, which is what the 413 shows
+  const known = await app.inject({ method: 'POST', url: '/api/webhooks/github/r1', payload: big, headers: { 'content-type': 'application/json' } });
+  assert.equal(known.statusCode, 413);
+});
+
 test('the receivers are documented, in the tag the plan names', async (t) => {
   const { app } = await wrapper(t);
   const doc = (await app.inject('/openapi.json')).json() as { paths: Record<string, { post?: { tags?: string[]; summary?: string } }> };

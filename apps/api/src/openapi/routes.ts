@@ -618,7 +618,7 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
     ok: ref('WebhookRegistration'),
   }),
   'POST /webhooks/github/:registrationId': d('Webhooks', 'Receive a GitHub delivery', {
-    description: "Unauthenticated, signature-checked: `X-Hub-Signature-256` is `sha256=` and the HMAC-SHA256 of the raw body under the registration's secret, compared in constant time before the body is parsed. `204` with no body once it is accepted (a replayed `X-GitHub-Delivery` too); `401` with no detail for an unknown or removed registration or a wrong signature; `429` beyond 60 verified deliveries a minute for one registration; `413` over 5 MiB, which polling covers. Moves the next read of the change requests it names to now and changes nothing else.",
+    description: "Unauthenticated, signature-checked: `X-Hub-Signature-256` is `sha256=` and the HMAC-SHA256 of the raw body under the registration's secret, compared in constant time before the body is parsed. `204` with no body once it is accepted (a replayed `X-GitHub-Delivery` or signed body too); `401` with no detail for an unknown or removed registration or a wrong signature; `429` beyond 60 verified deliveries a minute for one registration; `413` over 5 MiB, which polling covers. Moves the next read of the change requests it names to now and changes nothing else.",
   }),
   'POST /webhooks/gitlab/:registrationId': d('Webhooks', 'Receive a GitLab delivery', {
     description: "Unauthenticated, token-checked: `X-Gitlab-Token` must equal the registration's secret, compared in constant time. Answers and limits as the GitHub receiver, with the replay check on `Idempotency-Key`.",

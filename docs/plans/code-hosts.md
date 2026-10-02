@@ -2482,6 +2482,20 @@ GitHub hook registration, test, removal and re-pointing. The reference is
 - **Left for the next steps:** the project routes and README rows (`w6`), the web screens (P2), and
   the GitLab half of `w0`.
 
+### Outcome of the phase 6 core audit, receivers and secrets (2026-10-02)
+
+- **Secrets as decision 3 says.** `secret-box.ts` seals each value with the key the desktop app keeps
+  under `safeStorage` and passes in `AGENTRY_SECRET_KEY`; a server has no key and stays plain at
+  0600. The safeStorage API lives only in Electron's main process and the server runs beside it, so
+  the app hands over a key rather than a keyring. A plain file is encrypted at start. Only the
+  webhook secrets use the box so far.
+- **Replays.** A verified body is remembered for an hour by its SHA-256, so a replay under a new id
+  or none is a duplicate; a delivery without an id nudges but never marks a hook healthy.
+- **Refused before the body.** The route checks the registration in `onRequest`.
+- **`secretOf` removed.** Nothing called it; the receiver reads `core.webhookSecrets`.
+- **Checked, no gap:** the README has a row for each of the six webhook routes, the OpenAPI schemas
+  do not drift, and the webhook service holds no timer for shutdown to stop.
+
 ## Jira and YouTrack: documented facts
 
 Nothing here has been run. Every cell is **doc-only** until `t0` records it; the adapters are not

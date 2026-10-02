@@ -12,6 +12,8 @@ import type { WebhookSecrets } from './webhook-secrets.ts';
 /** More than this many verified deliveries a minute for one registration are answered 429. */
 export const DELIVERIES_PER_MINUTE = 60;
 const WINDOW_MS = 60_000;
+/** The same signed bytes inside this window are one delivery, whatever id they come with. */
+export const BODY_REPLAY_WINDOW_MS = 60 * 60_000;
 
 /** Both sides are hashed first, so the comparison is constant time whatever the lengths are. */
 function sameSecret(expected: string, given: string): boolean {
@@ -168,6 +170,15 @@ export class WebhookReceiver {
     this.now = deps.now ?? Date.now;
   }
 
+  /**
+   * Whether a delivery for this address has anyone to verify it. The route asks before it reads
+   * the body, so a stranger's upload is refused at the first byte; `handle` asks again.
+   */
+  knows(host: CodeHostId, registrationId: string): boolean {
+    const registration = this.deps.store.get(registrationId);
+    return registration !== null && registration.state !== 'removed' && registration.host === host && this.deps.secrets.get(registrationId) !== null;
+  }
+
   handle(host: CodeHostId, registrationId: string, headers: Record<string, string | string[] | undefined>, raw: Buffer): DeliveryOutcome {
     const registration = this.deps.store.get(registrationId);
     // Unknown, removed, or a hook of the other host: the same answer, so a probe learns nothing
@@ -190,13 +201,21 @@ export class WebhookReceiver {
     }
     const target = host === 'github' ? githubTarget(headers, payload) : gitlabTarget(headers, payload);
     if (target.deliveryId !== null && !this.deps.store.recordDelivery(target.deliveryId, registrationId, target.event)) return 'duplicate';
+    // The host does not sign its delivery id, so a captured body replayed under a new one (or none)
+    // would pass the check above
+    const digest = createHash('sha256').update(raw).digest('hex');
+    if (!this.deps.store.recordBody(registrationId, digest, target.event, BODY_REPLAY_WINDOW_MS, this.now())) return 'duplicate';
 
-    const at = new Date(this.now()).toISOString();
-    const ping = target.event === 'ping';
-    // A delivery reaching this address is proof the hook works, which clears a failure the host reported
-    const state = registration.state === 'failing' ? 'active' : registration.state;
-    const updated = this.deps.store.update(registrationId, { lastDeliveryAt: at, ...(ping ? { lastPingAt: at } : {}), state }, at);
-    if (updated && (ping || state !== registration.state)) this.deps.emit({ type: 'webhook.changed', title: 'Webhook changed', projectId: updated.projectId, registration: updated });
+    // A delivery with no id is not enough to call a hook healthy: nothing marks it as the host's own
+    // doing, so it may move the next read below but it cannot clear a failure or stamp the hook
+    if (target.deliveryId !== null) {
+      const at = new Date(this.now()).toISOString();
+      const ping = target.event === 'ping';
+      // A delivery reaching this address is proof the hook works, which clears a failure the host reported
+      const state = registration.state === 'failing' ? 'active' : registration.state;
+      const updated = this.deps.store.update(registrationId, { lastDeliveryAt: at, ...(ping ? { lastPingAt: at } : {}), state }, at);
+      if (updated && (ping || state !== registration.state)) this.deps.emit({ type: 'webhook.changed', title: 'Webhook changed', projectId: updated.projectId, registration: updated });
+    }
 
     if (target.repoPath !== null && target.repoPath.toLowerCase() === registration.repoPath.toLowerCase()) {
       this.deps.nudge(changeRequestsOf(this.deps.sql, registration, target));

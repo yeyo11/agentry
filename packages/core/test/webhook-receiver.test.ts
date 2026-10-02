@@ -7,6 +7,7 @@ import test from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { migrate } from '../src/db.ts';
 import {
+  BODY_REPLAY_WINDOW_MS,
   DELIVERIES_PER_MINUTE,
   WebhookReceiver,
   changeRequestsOf,
@@ -195,6 +196,48 @@ test('a replayed delivery id is acknowledged and does the work once', async () =
     assert.equal(h.receiver.handle('github', 'r1', d.headers, d.raw), 'duplicate');
     assert.equal(h.nudged.length, 1);
     assert.equal(h.store.deliveries('r1').length, 1);
+  } finally {
+    done(h);
+  }
+});
+
+test('a captured body replayed under a new id, or none, is a duplicate and cannot make a failing hook look healthy', async () => {
+  const h = await harness();
+  try {
+    const d = delivery('pull_request.opened');
+    assert.equal(h.receiver.handle('github', 'r1', d.headers, d.raw), 'accepted');
+    h.store.update('r1', { state: 'failing', lastDeliveryAt: null });
+
+    const fresh = { ...d.headers, 'x-github-delivery': 'a-brand-new-id' };
+    assert.equal(h.receiver.handle('github', 'r1', fresh, d.raw), 'duplicate');
+    const noId: Record<string, string> = Object.fromEntries(Object.entries(d.headers as Record<string, string>).filter(([name]) => name !== 'x-github-delivery'));
+    assert.equal(h.receiver.handle('github', 'r1', noId, d.raw), 'duplicate');
+    assert.equal(h.nudged.length, 1);
+    assert.equal(h.store.get('r1')?.state, 'failing');
+    assert.equal(h.store.get('r1')?.lastDeliveryAt, null);
+
+    // The window ends: the same bytes count again, with an id
+    h.clock.now += BODY_REPLAY_WINDOW_MS + 1;
+    assert.equal(h.receiver.handle('github', 'r1', { ...d.headers, 'x-github-delivery': 'after-the-window' }, d.raw), 'accepted');
+    assert.equal(h.store.get('r1')?.state, 'active');
+  } finally {
+    done(h);
+  }
+});
+
+test('a signed delivery with no id nudges but cannot clear a failure, stamp the hook or count as a ping', async () => {
+  const h = await harness();
+  try {
+    h.store.update('r1', { state: 'failing' });
+    const d = delivery('ping.None');
+    const noId: Record<string, string> = Object.fromEntries(Object.entries(d.headers as Record<string, string>).filter(([name]) => name !== 'x-github-delivery'));
+    assert.equal(h.receiver.handle('github', 'r1', noId, d.raw), 'accepted');
+    const after = h.store.get('r1');
+    assert.equal(after?.state, 'failing');
+    assert.equal(after?.lastDeliveryAt, null);
+    assert.equal(after?.lastPingAt, null);
+    assert.deepEqual(h.emitted, []);
+    assert.deepEqual(h.nudged, [[]]);
   } finally {
     done(h);
   }

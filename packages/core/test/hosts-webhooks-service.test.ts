@@ -145,7 +145,7 @@ test('registering creates the hook with a fresh address and secret, keeps the se
   assert.match(registration.url, /^https:\/\/abc123\.lhr\.life\/api\/webhooks\/github\/[0-9a-f-]{36}$/);
   assert.deepEqual(registration.events, [...GITHUB_HOOK_EVENTS]);
 
-  const secret = f.service.secretOf(registration.id);
+  const secret = f.secrets.get(registration.id);
   assert.match(secret ?? '', /^[0-9a-f]{64}$/);
   const create = f.calls.find(isCreate);
   assert.equal((JSON.parse(create?.input ?? '') as { config: { secret: string; url: string } }).config.secret, secret);
@@ -163,7 +163,7 @@ test('registering twice is refused, and registering after a removal replaces the
   const first = await f.service.register('p1');
   await assert.rejects(f.service.register('p1'), (e: unknown) => e instanceof WebhooksError && e.code === 'already-registered' && e.status === 409);
   await f.service.remove('p1', first.id);
-  assert.equal(f.service.secretOf(first.id), null);
+  assert.equal(f.secrets.get(first.id), null);
   const second = await f.service.register('p1');
   assert.notEqual(second.id, first.id);
   assert.deepEqual(f.store.list('p1').map((r) => r.id), [second.id]);
@@ -179,7 +179,7 @@ test('a hook that already carries an Agentry address is adopted: kept, and given
   assert.ok(!f.calls.some(isCreate), 'nothing is created next to it');
   const patch = JSON.parse(f.calls.find((c) => isRepoint(c))?.input ?? '') as { url: string; secret: string };
   assert.equal(patch.url, registration.url);
-  assert.equal(patch.secret, f.service.secretOf(registration.id));
+  assert.equal(patch.secret, f.secrets.get(registration.id));
 });
 
 test("someone else's hook is never touched", async () => {
@@ -329,7 +329,7 @@ test('removing deletes the hook and the secret; a hook already gone on the host 
   const registration = await f.service.register('p1');
   const removed = await f.service.remove('p1', registration.id);
   assert.equal(removed.state, 'removed');
-  assert.equal(f.service.secretOf(registration.id), null, 'a removed registration verifies nothing');
+  assert.equal(f.secrets.get(registration.id), null, 'a removed registration verifies nothing');
   assert.equal(f.events.at(-1)?.type, 'webhook.changed');
 });
 
@@ -340,7 +340,7 @@ test('a refused removal keeps the registration and its secret', async () => {
   await f.secrets.set(reg.id, 'keep');
   await assert.rejects(f.service.remove('p1', 'r1'), (e: unknown) => e instanceof WebhooksError && e.code === 'hook-no-permission');
   assert.equal(f.store.get('r1')?.state, 'active');
-  assert.equal(f.service.secretOf('r1'), 'keep');
+  assert.equal(f.secrets.get('r1'), 'keep');
 });
 
 // ---------- a new public address ----------
@@ -413,7 +413,7 @@ test('the core hands the tunnel\'s events to the service, and its secret to the 
   t.after(() => core.shutdown());
   assert.ok(core.webhookService instanceof WebhooksService);
   const reg = core.webhooks.create({ id: 'r1', projectId: 'no-such-project', host: 'github', hostname: 'github.com', repoPath: 'a/b', remoteHookId: '1', url: receiverUrl(ORIGIN, 'github', 'r1'), events: [] });
-  assert.equal(core.webhookService.secretOf(reg.id), null, 'no secret was ever stored for it');
+  assert.equal(core.webhookSecrets.get(reg.id), null, 'no secret was ever stored for it');
   const seen: AgentryEvent[] = [];
   core.events.subscribe((event) => seen.push(event));
 
