@@ -899,6 +899,15 @@ The hosts Agentry opens pull and merge requests on, GitHub through `gh` and GitL
 | POST | `/change-requests/:id/ready` | Mark ready for review or back to a draft (`{ ready }`) → the merge state. Not open to a chat's token |
 | GET | `/projects/:id/code-host` | Whether the project can open pull and merge requests (the readiness, with its reason and remedy) and its parsed `origin`; `404` for an unknown project |
 
+### Webhooks
+
+Where GitHub and GitLab deliver for a hook Agentry registered (tag `Webhooks`). Unauthenticated by design and signature-checked: GitHub's `X-Hub-Signature-256` or GitLab's `X-Gitlab-Token` is verified over the raw body, in constant time, before anything is parsed. A delivery never changes a change request; it only moves the next read of the ones it names to now.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| POST | `/webhooks/github/:registrationId` | A GitHub delivery. `204` at once (a replayed delivery id too); `401` with no detail for an unknown registration or a bad signature; `429` past 60 verified deliveries a minute; `413` over 5 MiB |
+| POST | `/webhooks/gitlab/:registrationId` | A GitLab delivery, checked by `X-Gitlab-Token`; answers as above |
+
 ### Decisions
 
 The decision engine: a decision point puts typed questions to a provider (the Claude CLI, or TypeSafe's Jev with its own key) and runs today's behaviour whenever the answer is missing or below its threshold. Every point is off by default. A point sends nothing until the owner consents to it after previewing its state, and consent names the providers it covers. A chat's token gets `403` on the settings, credentials and consent routes.

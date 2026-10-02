@@ -137,6 +137,8 @@ import { MergeService, type MergeTarget } from './hosts/merge-service.ts';
 import { mergeTargetOf } from './hosts/merge-target.ts';
 import { ReviewsService } from './hosts/reviews-service.ts';
 import { WebhookStore } from './webhook-store.ts';
+import { WebhookSecrets } from './webhook-secrets.ts';
+import { WebhookReceiver } from './hosts/webhook-receiver.ts';
 import { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
 import { codeHostAdapter, PullRequestService, PullRequestWatcher, type ApproveResult } from './pull-requests.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
@@ -423,6 +425,10 @@ export class Core {
   readonly checks: ChecksService;
   readonly reviews: ReviewsService;
   readonly webhooks: WebhookStore;
+  /** The 0600 files that hold each registration's signing secret; never returned by the API */
+  readonly webhookSecrets: WebhookSecrets;
+  /** What `POST /webhooks/:host/:registrationId` calls: verify, dedupe, then move the named rows' next read to now */
+  readonly webhookReceiver: WebhookReceiver;
   /** Merge, auto-merge and update from the base of a change request: the person's click, never a run */
   readonly merge: MergeService;
   /** `/change-requests/:id/…`: a row id of either table, resolved to the service that owns it */
@@ -710,6 +716,14 @@ export class Core {
     });
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.webhooks = new WebhookStore(this.db.connection);
+    this.webhookSecrets = new WebhookSecrets(config);
+    this.webhookReceiver = new WebhookReceiver({
+      store: this.webhooks,
+      secrets: this.webhookSecrets,
+      sql: this.db.connection,
+      nudge: (ids) => this.nudgeChangeRequests(ids),
+      emit: (event) => this.events.emit(event),
+    });
     this.reviews = new ReviewsService({ db: this.db.connection, resolve: (id) => this.changeRequests.reviewsTarget(id), emit: (event) => this.events.emit(event) });
     this.merge = new MergeService({
       db: this.db.connection,
