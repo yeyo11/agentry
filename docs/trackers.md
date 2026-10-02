@@ -71,8 +71,19 @@ never be read as a flag. A body is cut at 60 000 characters (`MAX_ISSUE_BODY`).
   not synced. GitHub and GitLab have a single status, so only `done` does anything (it closes the
   issue as completed); the other two are accepted and write nothing.
 - **`work_item_issues`** (SQLite, appended last in `packages/core/src/db.ts`): one row per link of
-  an issue to an item, unique on `(project_id, tracker, key)`, with the state last read, `synced_at`,
-  `sync_state` (`none`, `synced`, `failed`) and `sync_reason`. Removing an item deletes its rows.
+  an issue to an item, unique on `(project_id, tracker, scope, key)`, with the state last read,
+  `synced_at`, `sync_state` (`none`, `synced`, `failed`) and `sync_reason`. Removing an item deletes
+  its rows.
+- **A link remembers its repository.** `scope` is the tracker scope the issue was imported from
+  (`IssueRef.scope`), and it is what the sync, the closing word and the "already imported" mark use,
+  whatever the project's scope is now: `acme/a#12` and `acme/b#12` are two issues. When the person
+  changes a project's tracker scope, the links made under the old one stay readable and keep
+  pointing at their own repository: they sync there and are never written to under the new scope,
+  and the same number can be imported again from the new one. Links made before the column existed
+  read their project's tracker scope once, at the first start after the upgrade
+  (`WorkItemService.backfillIssueScopes`); one whose project had no such tracker has no scope
+  (`null`), is never written to, and shows `issue-scope-unknown`. Where a key is linked twice on an
+  item, the unlink and sync routes take `?scope=` (and `?tracker=`) to say which.
 
 ## Import
 
@@ -112,7 +123,9 @@ left out of the body or has its closing words defanged.
 - **Title.** Unchanged for GitHub and GitLab, because they link from the body. A Jira or YouTrack
   issue's key would be added after the item's key (`feat: … (CW-22, PROJ-12)`); that is in
   `pullRequestTitle` and only runs once those trackers can be linked.
-- **Body.** A `## Linked issue` section with a line per issue of the project's tracker.
+- **Body.** A `## Linked issue` section with a line per issue of the project's tracker, written once
+  when the request is opened (so it does not follow a later link or unlink: see the merge below).
+  The repository named is the link's own.
   `Closes #12` is written only when the tracker is the request's own host **and** the base is the
   project's default branch; otherwise the bare reference (`#12`, or `group/project#12` when the
   issue is in another repository). Into any other base a closing word does not work (recorded for
@@ -130,14 +143,21 @@ left out of the body or has its closing words defanged.
   the merge) for `done`. Only the columns the project mapped are synced.
 - **One write per event, never retried.** One pass is: read the issue, write if the column asks for
   a write and nothing else did it, read again. For `done`: an issue already closed is `synced` with
-  no write; if the closing word could have worked (default base, the tracker's own host) nothing is
-  written and the state stays `none`, and Agentry closes the issue only when a person asks, because
-  the closing word may still be on its way; otherwise it closes the issue as `completed`, and the
-  re-read must show it closed or the sync is `failed` with `write-unconfirmed`.
+  no write. The body is not evidence of what the host did (an issue linked after the request opened
+  is not in it, one unlinked since still is), so at the merge the pull request service **reads what
+  the host says the request closed** (matrix F10: `closingIssuesReferences` on GitHub,
+  `closes_issues` on GitLab) and the sync decides from that: an issue the host closed is not
+  written, and if it still reads open the state stays `none` (the host may be a moment behind; a
+  click closes it); an issue the host did not close is closed as `completed`, and the re-read must
+  show it closed or the sync is `failed` with `write-unconfirmed`. When the read itself failed
+  nothing is written and an open issue shows `closing-unchecked`; the click that follows is the
+  decision. An issue the host closed that the item does not link is shown on the change request's
+  row as `issue-closed-unlinked`, with its address (`group/project#12`). GitLab's non-empty answer
+  is the API's issue objects, read by `iid` and `web_url`; only the empty answer was recorded.
 - **A failure shows on the item**, on the issue's chip: `sync_state` `failed` with a reason
   (`tracker-signed-out`, `cli-missing`, `cli-incompatible`, `unsupported-host`, `not-found`,
   `issue-is-pull-request`, `write-unconfirmed`, `unreachable`, …), and a **Sync again** action.
-  That is the only second attempt, and it is the person's; it does not wait for a closing word.
+  That is the only second attempt, and it is the person's; it does not wait for the host.
   Two syncs of the same issue never run at once (409).
 - Nothing in the sync moves an item or merges. The merge click is the person's.
 
@@ -163,7 +183,7 @@ first line as `detail`. The README's REST tables list them; the schemas are in `
 
 The tracker reasons live in the host reasons' list (`HostReason`), so the remedy text and the
 screens have one vocabulary: `tracker-signed-out`, `transition-unknown`, `issue-is-pull-request`,
-`not-recorded`, and the host's own (`cli-missing`, `not-found`, `write-unconfirmed`, …). See
+`issue-scope-unknown`, `closing-unchecked`, `issue-closed-unlinked`, `not-recorded`, and the host's own (`cli-missing`, `not-found`, `write-unconfirmed`, …). See
 [Reason codes](plans/code-hosts.md#reason-codes-and-remedy-text).
 
 ## How it is tested

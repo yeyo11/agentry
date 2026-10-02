@@ -863,7 +863,7 @@ The hosts Agentry opens pull and merge requests on, GitHub through `gh` and GitL
 | GET | `/projects/:id/tracker/issues` | `?query=&page=` — a page of the tracker's own query, each issue marked with the item it was imported as |
 | POST | `/projects/:id/tracker/import` | `{ keys }` — one work item per issue, its body a quoted source block; `{ imported, skipped }`. Needs the Board module. Not open to a chat's token |
 | POST | `/work-items/:itemId/issues` | `{ key }` — link an issue of the project's tracker to the item. Not open to a chat's token |
-| DELETE | `/work-items/:itemId/issues/:key` | Unlink it (`?tracker=` when a key is under two trackers). Not open to a chat's token |
+| DELETE | `/work-items/:itemId/issues/:key` | Unlink it (`?tracker=` and `?scope=` when a key is linked under two trackers or two repositories). Not open to a chat's token |
 | POST | `/work-items/:itemId/issues/:key/sync` | One more write to the tracker for the item's column, never retried; the result is on the issue's `syncState`. Not open to a chat's token |
 | GET | `/change-requests/:id` | One change request by the row id of a work item's or an orchestration's: kind, owner, host, `ref`, phase, CI rollup and the fix state |
 | GET | `/change-requests/:id/checks` | The checks of the head commit (state, allowed failure, required, rerunnable, has a log), cached 30 s; `?refresh=1` reads the host now; `limitedUntil` while rate-limited |

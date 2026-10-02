@@ -66,8 +66,8 @@ test("a PR's body carries the description, each criterion with QA's note and a l
 
 test('the issues of an item go into the title (Jira, YouTrack) and a Linked issue section of the body', () => {
   const issues = [
-    { tracker: 'jira' as const, key: 'PROJ-12', externalId: null, title: 't', state: 'open', url: null, importedAt: '', syncedAt: null, syncState: 'none' as const, syncReason: null },
-    { tracker: 'youtrack' as const, key: 'AB-3', externalId: null, title: 't', state: 'open', url: null, importedAt: '', syncedAt: null, syncState: 'none' as const, syncReason: null },
+    { tracker: 'jira' as const, scope: 'PROJ', key: 'PROJ-12', externalId: null, title: 't', state: 'open', url: null, importedAt: '', syncedAt: null, syncState: 'none' as const, syncReason: null },
+    { tracker: 'youtrack' as const, scope: 'AB', key: 'AB-3', externalId: null, title: 't', state: 'open', url: null, importedAt: '', syncedAt: null, syncState: 'none' as const, syncReason: null },
   ];
   assert.equal(pullRequestTitle({ key: 'CW-3', title: 'Fix the cart', type: 'bug', labels: [], issues }), 'fix: Fix the cart (CW-3, PROJ-12, AB-3)');
   const body = pullRequestBody({ key: 'CW-9', description: 'd', acceptanceCriteria: [] }, [], null, ['Closes #12']);
@@ -208,7 +208,7 @@ test('an item with a linked issue opens its PR with Closes in the body, into the
   const s = setup({ tracker: { id: 'github-issues', scope: 'acme/shop', query: '', statusMap: {} } });
   try {
     const item = reviewed(s);
-    s.items.linkIssue(item.id, { tracker: 'github-issues', key: '12', externalId: null, title: 'The total is wrong', state: 'open', url: null });
+    s.items.linkIssue(item.id, { tracker: 'github-issues', scope: 'acme/shop', key: '12', externalId: null, title: 'The total is wrong', state: 'open', url: null });
     await s.service.approve(item.id);
     await s.service.settled();
     const body = readFileSync(join(s.r.state, 'body-7'), 'utf8');
@@ -465,12 +465,13 @@ test('a merged PR moves the item to Done as the person, removes its clean worktr
   }
 });
 
-test('a merged PR tells the tracker sync once, after the item is Done, and whether a closing word could work into its base', async () => {
-  const told: Array<{ itemId: string; closingWord: boolean; host: string; status: string | undefined }> = [];
+test('a merged PR tells the tracker sync once, after the item is Done, and what the host says it closed', async () => {
+  const told: Array<{ itemId: string; closed: unknown; host: string; status: string | undefined }> = [];
   const holder: { s?: Setup } = {};
   const s = setup({
     onMerged: async (notice) => {
       told.push({ ...notice, status: holder.s?.items.find(notice.itemId)?.status });
+      return { closedUnlinked: [] };
     },
   });
   holder.s = s;
@@ -480,7 +481,8 @@ test('a merged PR tells the tracker sync once, after the item is Done, and wheth
     view(s.r, 'MERGED', [{ status: 'COMPLETED', conclusion: 'SUCCESS' }]);
     await new PullRequestWatcher(s.service).tick();
     await new PullRequestWatcher(s.service).tick();
-    assert.deepEqual(told, [{ itemId: item.id, closingWord: true, host: 'github', status: 'done' }]);
+    // no tracker on the project: nothing a host closes is its, and nothing is read
+    assert.deepEqual(told, [{ itemId: item.id, closed: [], host: 'github', status: 'done' }]);
   } finally {
     cleanup(s);
   }

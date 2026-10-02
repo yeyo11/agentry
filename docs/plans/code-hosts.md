@@ -451,6 +451,9 @@ and one action. A remedy is a link or an Agentry action, never a command to copy
 | `tracker-signed-out` | tracker auth probe fails | {tracker} is not signed in. | Sign-in docs / token field |
 | `transition-unknown` | the mapped status is not reachable | {tracker} has no way to move {key} from “{from}” to “{to}”. | Project settings → Tracker |
 | `issue-is-pull-request` | `gh issue view N` resolved a PR (recorded trap) | #{n} is a pull request, not an issue. | — |
+| `issue-scope-unknown` | a link made before links recorded their repository, whose project had no such tracker | Agentry does not know which repository {key} came from, so it does not write to it. | — |
+| `closing-unchecked` | at the merge, what the host closed could not be read, and the issue still reads open | Agentry could not check whether {host} closed {key} when it merged, so it did not close it. | Sync again |
+| `issue-closed-unlinked` | the host closed an issue (from the body written at open) that the item no longer links | {host} closed {issue} when this merged, but the item does not link it. | — |
 | `hook-no-permission` | 404/403 on hooks (GitHub adds a misleading scope hint, recorded) | Registering a webhook needs admin rights on {repo}. | — |
 | `hook-unreachable` | the host's test delivery failed | {host} could not reach Agentry at {url}. | — |
 

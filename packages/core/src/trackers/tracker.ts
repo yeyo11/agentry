@@ -41,6 +41,13 @@ export interface IssueRead {
   closedByChangeRequests: number[];
 }
 
+/** An issue a change request closes when it merges, as the host says it does: where it lives, and its key. */
+export interface ClosedIssue {
+  /** The repository (`owner/repo`, `group/project`) the issue is in */
+  scope: string;
+  key: string;
+}
+
 export interface IssuePage {
   issues: IssueRead[];
   page: number;
@@ -139,6 +146,15 @@ export interface TrackerAdapter {
   close(scope: TrackerScope, key: string, reason: IssueCloseReason): HostCall;
   reopen(scope: TrackerScope, key: string): HostCall;
 
+  /**
+   * The issues the host says a change request closes (matrix F10: `closingIssuesReferences` on
+   * GitHub, `closes_issues` on GitLab). `repo` is the change request's repository. Read after the
+   * merge: what the body asked for is not what the host did, as the body is written once.
+   */
+  closedByChangeRequest(repo: TrackerScope, number: number): HostCall;
+  /** Throws `HostParseError` on a shape it cannot read */
+  parseClosedByChangeRequest(stdout: string): ClosedIssue[];
+
   labels(scope: TrackerScope): HostCall;
   parseLabels(stdout: string): TrackerLabel[];
 }
@@ -148,6 +164,12 @@ export function issueNumber(key: string): number {
   const match = /^#?([1-9]\d{0,9})$/.exec(key);
   if (!match?.[1]) throw new TrackerInputError(`"${key}" is not an issue number`);
   return Number(match[1]);
+}
+
+/** A change request number a call can be given: digits only, never read as a flag. */
+export function requestNumber(number: number): number {
+  if (!Number.isSafeInteger(number) || number < 1) throw new TrackerInputError(`${String(number)} is not a change request number`);
+  return number;
 }
 
 export function checkBody(body: string): string {

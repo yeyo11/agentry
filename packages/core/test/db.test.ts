@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { DecisionRecord, Execution } from '@agentry/shared';
 import type { LegacyRun, StoredChat } from '../src/chat-records.ts';
-import { CHAT_ENTRIES_SCHEMA_VERSION, CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, ISSUES_SCHEMA_VERSION, MERGES_SCHEMA_VERSION, migrate, REVIEWS_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
+import { CHAT_ENTRIES_SCHEMA_VERSION, CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, ISSUE_SCOPE_SCHEMA_VERSION, ISSUES_SCHEMA_VERSION, MERGES_SCHEMA_VERSION, migrate, REVIEWS_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
 import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from '../src/orchestration-pr-rows.ts';
 import { changeRequestMergeOf, pullRequestOf, reviewDraftOf, reviewPostOf, type ChangeRequestMergeRow, type PullRequestRow, type ReviewDraftRow, type ReviewPostRow } from '../src/work-item-rows.ts';
@@ -751,5 +751,26 @@ test('migrate adds the issues linked to items, and one issue is never linked twi
   insert('c', 'p2', '12');
   const row = raw.prepare("SELECT sync_state, sync_reason, synced_at FROM work_item_issues WHERE id = 'a'").get();
   assert.deepEqual({ ...row }, { sync_state: 'none', sync_reason: null, synced_at: null });
+  raw.close();
+});
+
+test('migrate gives issue links their scope: old rows keep everything and read no scope yet, and the same number of another repository is another issue', () => {
+  const raw = new DatabaseSync(':memory:');
+  assert.ok(ISSUE_SCOPE_SCHEMA_VERSION > ISSUES_SCHEMA_VERSION);
+  migrate(raw, ISSUE_SCOPE_SCHEMA_VERSION - 1);
+  raw
+    .prepare("INSERT INTO work_item_issues (id, project_id, item_id, tracker, key, title, state, imported_at, sync_state, sync_reason) VALUES ('old', 'p1', 'i1', 'github-issues', '12', 't', 'open', ?, 'failed', 'unreachable')")
+    .run(at(1));
+  migrate(raw);
+  const old = raw.prepare("SELECT scope, key, item_id, sync_state, sync_reason FROM work_item_issues WHERE id = 'old'").get();
+  assert.deepEqual({ ...old }, { scope: '', key: '12', item_id: 'i1', sync_state: 'failed', sync_reason: 'unreachable' });
+  const insert = (id: string, scope: string) =>
+    raw
+      .prepare("INSERT INTO work_item_issues (id, project_id, item_id, tracker, scope, key, title, state, imported_at) VALUES (?, 'p1', 'i', 'github-issues', ?, '12', 't', 'open', ?)")
+      .run(id, scope, at(2));
+  insert('a', 'acme/a');
+  insert('b', 'acme/b');
+  assert.throws(() => insert('c', 'ACME/A'), /UNIQUE/, 'a repository path is case-insensitive');
+  assert.ok(raw.prepare("SELECT 1 FROM pragma_index_list('work_item_issues') WHERE name = 'work_item_issues_item'").get(), 'the item index is back');
   raw.close();
 });
