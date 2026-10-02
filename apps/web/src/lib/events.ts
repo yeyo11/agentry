@@ -258,6 +258,8 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'run.limitWaiting':
       return [[keys.providers, NOW], [keys.overview, NOW], [keys.chats, LISTS]];
     case 'run.rateLimited':
+      // The provider's reading and the chat's banner follow the limit that was just hit
+      return [[keys.providers, NOW], [keys.accounts, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.chats, LISTS]];
     case 'run.accountRotated':
     case 'account.switched':
       return [[keys.accounts, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.chats, LISTS]];

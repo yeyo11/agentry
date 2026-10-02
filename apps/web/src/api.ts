@@ -89,7 +89,9 @@ import type {
   ForkChatRequest,
   HintRequest,
   ImportProjectRequest,
+  HandoffPreview,
   ModelMapSuggestion,
+  MoveChatRequest,
   ModelOption,
   NewChatRequest,
   EffectiveEnvironment,
@@ -126,6 +128,7 @@ import type {
   Project,
   ProjectCandidate,
   ProjectCodeHost,
+  ProviderCandidates,
   ProviderMove,
   ProviderStatus,
   ProvidersSettings,
@@ -972,6 +975,16 @@ export const api = {
   /** Open waits for a reset, and the history of moves; `state` narrows them */
   providerMoves: (query: { chatId?: string; projectId?: string; state?: ProviderMove['state']; limit?: number } = {}, o: ReadOptions = {}) =>
     request<ProviderMove[]>(`/providers/moves${qs({ chatId: query.chatId, projectId: query.projectId, state: query.state, limit: query.limit === undefined ? undefined : String(query.limit) })}`, o),
+  /** Who could take a chat at a limit, and why each of the others cannot; sends nothing */
+  providerCandidates: (chatId: string, o: ReadOptions = {}) => request<ProviderCandidates>(`/providers/candidates${qs({ chatId })}`, o),
+  /** The text a handoff move would send, built here and sent nowhere */
+  chatHandoff: (id: string, provider: string, model?: string, o: ReadOptions = {}) =>
+    request<HandoffPreview>(`/chats/${enc(id)}/handoff${qs({ provider, model })}`, o),
+  /** A person's click: the work goes on in a new chat on `provider`; the answer is that chat */
+  moveChat: (id: string, body: MoveChatRequest) => request<ChatSummary>(`/chats/${enc(id)}/move`, { method: 'POST', body }),
+  /** A person's click: the turn that hit the limit is sent again when the provider's limit resets */
+  waitForLimit: (id: string) => request<ProviderMove>(`/chats/${enc(id)}/wait`, { method: 'POST' }),
+  stopWaiting: (moveId: string) => request<ProviderMove>(`/providers/moves/${enc(moveId)}/cancel`, { method: 'POST' }),
   /** Counterparts the model-map point proposed, which nothing uses until a person accepts them */
   modelMapSuggestions: (o: ReadOptions = {}) => request<ModelMapSuggestion[]>('/providers/model-map/suggestions', o),
   answerModelMapSuggestion: (id: string, accept: boolean) =>
@@ -1036,6 +1049,9 @@ export const keys = {
   providerSettings: ['providers', 'settings'] as const,
   providerModels: (id: string) => ['providers', id, 'models'] as const,
   providerMoves: (state: string) => ['providers', 'moves', state] as const,
+  chatMoves: (chatId: string) => ['providers', 'moves', 'chat', chatId] as const,
+  providerCandidates: (chatId: string) => ['providers', 'candidates', chatId] as const,
+  chatHandoff: (chatId: string, provider: string, model: string) => ['providers', 'handoff', chatId, provider, model] as const,
   modelMapSuggestions: ['providers', 'model-map', 'suggestions'] as const,
   cswapRetirement: ['providers', 'cswap-retirement'] as const,
   hosts: ['hosts'] as const,

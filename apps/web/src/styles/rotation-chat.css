@@ -1,0 +1,561 @@
+/*
+ * The chat at a limit and after a move (plans/multi-provider.md, phase 4). `.lim` is the banner
+ * above the composer: warn-soft, the warn icon, a title, the reset in mono, the actions and, under
+ * them, the options that are not offered with their reason. `.mv-*` is the move sheet, `.hand-*`
+ * the handoff text and the new chat's first message, `.cont-*` the divider that ends the old chat.
+ * Nothing here moves: a limit and a wait are not live work.
+ */
+.lim {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--warn-soft);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+
+.lim-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.lim-head > .lim-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--warn);
+}
+
+.lim-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.lim-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.lim-reset {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+
+.lim-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.lim-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+
+.lim-note b {
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.lim-out {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 0 0;
+  list-style: none;
+  border-top: 1px solid var(--line-2);
+  font-size: 12.5px;
+}
+
+.lim-out li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  color: var(--fg-2);
+}
+
+.lim-out b {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.lim-stop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.lim-stop .lim-icon {
+  color: var(--warn);
+}
+
+.lim-stop .when {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+
+/* The box under the banner while the chat cannot take a message: the banner is where to act */
+.lim-composer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  min-height: 56px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.lim-composer textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 14.5px;
+}
+
+.lim-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 12px 32px 18px;
+}
+
+.mv-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mv-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mv-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mv-intro {
+  margin: 0 0 12px;
+}
+
+.hand-h {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.mv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mv-cand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-2);
+  background: var(--bg-1);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+}
+
+button.mv-cand {
+  cursor: pointer;
+}
+
+.mv-cand.on {
+  border-color: var(--line-3);
+  background: var(--bg-3);
+}
+
+.mv-cand.out {
+  border-style: dashed;
+  background: transparent;
+}
+
+.mv-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.mv-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.mv-model {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-2);
+  overflow-wrap: anywhere;
+}
+
+.mv-why {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--fg-2);
+}
+
+.mv-use {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  flex-shrink: 0;
+  width: 120px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.mv-use .bar {
+  width: 100%;
+}
+
+.mv-fact {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.mv-fact > .k {
+  flex: 0 0 96px;
+  color: var(--fg-3);
+}
+
+.mv-fact > .v {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+  color: var(--fg);
+}
+
+.mv-fact > .v small {
+  font-size: 12px;
+  color: var(--fg-2);
+}
+
+.mv-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.mv-note > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--fg-3);
+}
+
+.mv-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.mv-foot .grow {
+  flex: 1 1 auto;
+}
+
+.hand-text {
+  position: relative;
+  max-height: 232px;
+  overflow: hidden;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: var(--bg-1);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fg-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.hand-text::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 40px;
+  background: linear-gradient(to bottom, transparent, var(--bg-1));
+  pointer-events: none;
+}
+
+.hand-text.full {
+  max-height: none;
+}
+
+.hand-text.full::after {
+  display: none;
+}
+
+.hand-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-2);
+}
+
+.hand-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-2);
+  background: var(--bg-1);
+}
+
+.hand-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.hand-head > .hand-icon {
+  flex-shrink: 0;
+  color: var(--fg-3);
+}
+
+.hand-who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.hand-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.hand-sub {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--fg-2);
+}
+
+.hand-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cont-div {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  color: var(--fg-2);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.cont-div > svg {
+  flex-shrink: 0;
+  color: var(--fg-3);
+}
+
+.cont-div:hover .cont-body {
+  border-color: var(--line-3);
+  color: var(--fg);
+}
+
+.cont-line {
+  flex: 1 1 0;
+  height: 1px;
+  background: var(--line-2);
+}
+
+.cont-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 78%;
+  padding: 8px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-2);
+  background: var(--bg-1);
+  line-height: 1.4;
+}
+
+.cont-t {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.cont-t svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.cont-m {
+  padding-left: 24px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.cont-body b {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.cont-from {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--fg-2);
+  font-family: var(--sans);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+a.cont-from:hover {
+  color: var(--fg);
+}
+
+.chat-continued {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px 8px;
+}
+
+@media (max-width: 900px) {
+  .lim-zone {
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .lim {
+    padding: 14px;
+  }
+
+  .lim-acts {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .lim-acts .btn {
+    justify-content: center;
+    min-height: var(--touch);
+  }
+
+  .lim-note,
+  .lim-out {
+    font-size: 13px;
+  }
+
+  .lim-composer textarea {
+    font-size: 16px;
+  }
+
+  .mv-cand {
+    min-height: var(--touch);
+  }
+
+  .mv-use {
+    width: 96px;
+  }
+
+  .mv-fact > .k {
+    flex-basis: 84px;
+  }
+
+  .hand-text {
+    max-height: 132px;
+  }
+
+  .hand-acts {
+    flex-direction: column;
+  }
+
+  .hand-acts .btn {
+    justify-content: center;
+    min-height: var(--touch);
+  }
+
+  .cont-div {
+    min-height: var(--touch);
+  }
+
+  .cont-body {
+    max-width: none;
+    flex: 1 1 auto;
+  }
+
+  .cont-line {
+    display: none;
+  }
+
+  .mv-foot .btn {
+    flex: 1 1 100%;
+    justify-content: center;
+    min-height: var(--touch);
+  }
+}
