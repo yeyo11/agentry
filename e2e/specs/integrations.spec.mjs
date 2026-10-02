@@ -41,8 +41,14 @@ export default async ({ page, api, check, dirs }) => {
     writeFileSync(join(stateDir, `${name}.json`), JSON.stringify(value));
   };
   const statusOf = async (id) => (await api.get(`/hosts/${id}`)).body;
+  const toolbarIdle = `return !!document.querySelector('.prov-toolbar .btn') && !document.querySelector('.prov-toolbar .btn:disabled')`;
   const checkAgain = async () => {
+    // A click on the button while an earlier check still runs does nothing, so it is idle before and after
+    await page.waitFor(toolbarIdle, { timeout: 40_000, label: 'the toolbar is idle' });
     await page.click('.prov-toolbar .btn', 'Check again', 300);
+    // Check again reads the programs and the trackers, and a row offers its actions only once both are in
+    await page.sleep(300);
+    await page.waitFor(toolbarIdle, { timeout: 40_000, label: 'Check again finished' });
   };
   const savedSettings = (await api.get('/hosts/settings')).body;
 
