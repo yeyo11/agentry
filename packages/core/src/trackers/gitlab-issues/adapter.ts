@@ -123,6 +123,7 @@ export const gitlabIssuesAdapter: TrackerAdapter = {
   comment: (repo, key, body) => write(repo, ['issue', 'note', String(issueNumber(key)), '-R', projectUrl(repo), '-m', checkBody(body)]),
   parseCommented: parseCommentUrl,
 
+  writes: (column) => column === 'done',
   setStatus: (repo, key, { column }) => (column === 'done' ? gitlabIssuesAdapter.close(repo, key, 'completed') : null),
   // Idempotent: closing a closed issue exits 0 (recorded)
   close: (repo, key) => write(repo, ['issue', 'close', String(issueNumber(key)), '-R', projectUrl(repo)]),

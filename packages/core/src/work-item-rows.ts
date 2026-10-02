@@ -9,6 +9,9 @@ import type {
   CodeHostId,
   HostReason,
   DocumentKind,
+  IssueRef,
+  IssueSyncState,
+  TrackerId,
   Milestone,
   MilestoneProgress,
   WorkItemActor,
@@ -88,6 +91,22 @@ export interface LinkRow {
   document_kind: string | null;
   team_role: string | null;
   created_at: string;
+}
+
+export interface IssueRow {
+  id: string;
+  project_id: string;
+  item_id: string;
+  tracker: string;
+  key: string;
+  external_id: string | null;
+  title: string;
+  state: string;
+  url: string | null;
+  imported_at: string;
+  synced_at: string | null;
+  sync_state: string;
+  sync_reason: string | null;
 }
 
 export interface MilestoneRow {
@@ -526,5 +545,27 @@ export function changeRequestMergeOf(row: ChangeRequestMergeRow): ChangeRequestM
     outcome: MERGE_OUTCOMES.find((o) => o === row.outcome) ?? 'failed',
     reason: row.reason as HostReason | null,
     detail: row.detail,
+  };
+}
+
+const SYNC_STATES: readonly IssueSyncState[] = ['none', 'synced', 'failed'];
+
+/**
+ * A stored issue link as the contract carries it. A tracker or a sync state this version does not
+ * know (a database a newer one wrote) reads as the least it can claim: the tracker as stored, no sync.
+ */
+export function issueRefOf(row: IssueRow): IssueRef {
+  const syncState = SYNC_STATES.find((s) => s === row.sync_state) ?? 'none';
+  return {
+    tracker: row.tracker as TrackerId,
+    key: row.key,
+    externalId: row.external_id,
+    title: row.title,
+    state: row.state,
+    url: row.url,
+    importedAt: row.imported_at,
+    syncedAt: row.synced_at,
+    syncState,
+    syncReason: syncState === 'failed' ? (row.sync_reason as HostReason | null) : null,
   };
 }

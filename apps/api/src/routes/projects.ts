@@ -1,8 +1,8 @@
 import { Readable } from 'node:stream';
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@agentry/core';
-import { projectExportFilename, projectToJson, projectToMarkdown } from '@agentry/core';
-import type { CreateProjectRequest, ImportProjectRequest, UpdateProjectRequest } from '@agentry/shared';
+import { projectExportFilename, projectToJson, projectToMarkdown, WorkItemError } from '@agentry/core';
+import type { CreateProjectRequest, ImportProjectRequest, ProjectTrackerSettings, TrackerImportRequest, TrackerImportResult, TrackerIssuesPage, UpdateProjectRequest } from '@agentry/shared';
 
 /** The directories the person imported. Nothing here discovers a project: it is added by hand. */
 export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
@@ -37,6 +37,33 @@ export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
 
   // Validated in core, whole: a document is replaced, never merged
   app.put<{ Params: { id: string }; Body: unknown }>('/projects/:id/settings', (req) => core.saveProjectSettings(req.params.id, req.body));
+
+  // A project's tracker lives in its settings document; null when it has none
+  app.get<{ Params: { id: string } }>('/projects/:id/tracker', async (req): Promise<ProjectTrackerSettings | null> => (await core.projectSettings(req.params.id)).tracker ?? null);
+
+  // Validated with the whole document, where the tracker is checked; a null body clears it. Only the
+  // tracker changes: the rest is written back as it was read
+  app.put<{ Params: { id: string }; Body: ProjectTrackerSettings | null }>('/projects/:id/tracker', async (req): Promise<ProjectTrackerSettings | null> => {
+    const { tracker: _before, ...rest } = await core.projectSettings(req.params.id);
+    const body = req.body ?? null;
+    const saved = await core.saveProjectSettings(req.params.id, body === null ? rest : { ...rest, tracker: body });
+    return saved.tracker ?? null;
+  });
+
+  // The tracker's own query, one page; readable with the Board module off, as the board is
+  app.get<{ Params: { id: string }; Querystring: { query?: string; page?: string } }>('/projects/:id/tracker/issues', async (req): Promise<TrackerIssuesPage> => {
+    await core.workItemProject(req.params.id, 'read');
+    const page = req.query.page === undefined ? 1 : Number(req.query.page);
+    if (!Number.isInteger(page) || page < 1) throw new WorkItemError('page must be a whole number from 1', 400);
+    return core.trackerImport.list(req.params.id, req.query.query === undefined || req.query.query === '' ? null : req.query.query, page);
+  });
+
+  app.post<{ Params: { id: string }; Body: TrackerImportRequest }>('/projects/:id/tracker/import', async (req): Promise<TrackerImportResult> => {
+    await core.workItemProject(req.params.id, 'write');
+    const keys = req.body?.keys;
+    if (!Array.isArray(keys) || !keys.every((k) => typeof k === 'string')) throw new WorkItemError('keys must be a list of issue keys', 400);
+    return core.trackerImport.importIssues(req.params.id, keys);
+  });
 
   // Streamed a chat at a time: a project can hold hundreds of chats, and a transcript alone can run
   // to tens of megabytes
