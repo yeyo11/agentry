@@ -3,6 +3,37 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.31.0](https://github.com/yeyo11/agentry/compare/v0.30.0...v0.31.0) (2026-10-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* **api:** lean orchestration list, compression and ETags; plan the format for model-facing tools ([#157](https://github.com/yeyo11/agentry/issues/157))
+
+### Features
+
+* **assistant:** Agentry's own MCP server with read tools, handed to chats (CW-6) ([#171](https://github.com/yeyo11/agentry/issues/171)) ([3414b9a](https://github.com/yeyo11/agentry/commit/3414b9a98d33c946410d901f6d647c22f419206f))
+* **hosts:** GitHub and GitLab issues as trackers, code hosts phase 5 (step 1) ([#176](https://github.com/yeyo11/agentry/issues/176)) ([716d821](https://github.com/yeyo11/agentry/commit/716d8216cfd04ae0859c22a348768adaef365a67))
+* **hosts:** merging with a head guard, auto-merge and blocked states, code hosts phase 4 ([#175](https://github.com/yeyo11/agentry/issues/175)) ([aafcce1](https://github.com/yeyo11/agentry/commit/aafcce1ccc151b76faa07c6962fd8b1c9803c225))
+* **hosts:** reviews, threads and Address with an agent, code hosts phase 3 ([#174](https://github.com/yeyo11/agentry/issues/174)) ([199b625](https://github.com/yeyo11/agentry/commit/199b625539ab41df358d4afc02b12bf240b76218))
+* **providers:** Codex, Copilot, Gemini and OpenCode drivers, multiple providers phase 3 ([#167](https://github.com/yeyo11/agentry/issues/167)) ([7c7b6e0](https://github.com/yeyo11/agentry/commit/7c7b6e03b6a43e235be004e4b273e5575d00b0df))
+
+
+### Bug fixes
+
+* **core:** finalize a chat once its output is read, so a failure keeps its reason ([#173](https://github.com/yeyo11/agentry/issues/173)) ([63b9fad](https://github.com/yeyo11/agentry/commit/63b9fad5b31c319d5d6052d72902ddceff6d6812))
+* **desktop:** give the first-run step and the sign-in a drag region so the mouse works on Wayland ([#170](https://github.com/yeyo11/agentry/issues/170)) ([0ef1e5c](https://github.com/yeyo11/agentry/commit/0ef1e5ccff120518386ed1c488daf873570d1993))
+
+
+### Performance
+
+* **api:** lean orchestration list, compression and ETags; plan the format for model-facing tools ([#157](https://github.com/yeyo11/agentry/issues/157)) ([10feb0f](https://github.com/yeyo11/agentry/commit/10feb0fcd4cf1d3b1dd41aa42f67e96f1248dffb))
+
+
+### Documentation
+
+* **plans:** plan multiple providers phase 4 ([#172](https://github.com/yeyo11/agentry/issues/172)) ([6c6398e](https://github.com/yeyo11/agentry/commit/6c6398e84902f7c8262785d543f90d6cb482e2df))
+
 ## [0.30.0](https://github.com/yeyo11/agentry/compare/v0.29.1...v0.30.0) (2026-10-01)
 
 
