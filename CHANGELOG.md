@@ -3,6 +3,19 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.32.0](https://github.com/yeyo11/agentry/compare/v0.31.0...v0.32.0) (2026-10-02)
+
+
+### Features
+
+* **hosts:** the pacer, webhook receivers and GitHub hook registration, code hosts phase 6 (step 1) ([#177](https://github.com/yeyo11/agentry/issues/177)) ([1d47e75](https://github.com/yeyo11/agentry/commit/1d47e75a098c20a2c0bac3b5c30d589f25b821f4))
+* **web:** the official logo of every program Agentry names ([#179](https://github.com/yeyo11/agentry/issues/179)) ([37320c6](https://github.com/yeyo11/agentry/commit/37320c64163b1e333d03d70e2fc802a97c2ce369))
+
+
+### Documentation
+
+* **plans:** record the decisions on providers phase 4 and assistant writes ([#180](https://github.com/yeyo11/agentry/issues/180)) ([ce74531](https://github.com/yeyo11/agentry/commit/ce745319fd13aec6dd1f4a091fedfac648ab0efd))
+
 ## [0.31.0](https://github.com/yeyo11/agentry/compare/v0.30.0...v0.31.0) (2026-10-02)
 
 
