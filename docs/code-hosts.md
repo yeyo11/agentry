@@ -806,7 +806,7 @@ click; a chat's token is refused on the writes.
 | Step | Call |
 | --- | --- |
 | Register (G1) | `gh api -X POST repos/{O}/{N}/hooks --input -`, the secret in the stdin JSON, never in argv |
-| Adopt | an existing hook whose URL is one of Agentry's receivers is adopted; any other hook is left alone |
+| Adopt | only a hook whose URL carries the id of a registration this install made on the repository (`gh api --paginate --slurp repos/{O}/{N}/hooks?per_page=100`); another install's Agentry hook is left alone and the answer says so. Two clicks at once share one registration. Re-pointing and removing read the hook first and leave one that no longer carries the registration's id |
 | Test (G2) | `gh api -X POST repos/{O}/{N}/hooks/<id>/pings`, then the hook's `last_response` is read |
 | Remove (G3) | `gh api -X DELETE repos/{O}/{N}/hooks/<id>`; a removed registration stays listed until the repository is registered again |
 | Re-point (G7) | `gh api -X PATCH repos/{O}/{N}/hooks/<id>/config --input -`, by id |

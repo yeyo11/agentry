@@ -5974,6 +5974,11 @@ export interface WebhookRegistration {
   lastPingAt: string | null;
   /** The host's own report of the last delivery; null until it said */
   lastResponse: WebhookLastResponse | null;
+  /**
+   * Only in the answer that registered it, in words for the person: another Agentry install's hook
+   * is on the repository and was left alone. Never stored.
+   */
+  notice?: string;
   createdAt: string;
   updatedAt: string;
 }
