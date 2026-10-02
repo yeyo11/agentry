@@ -109,6 +109,15 @@ export class ClaudeCodeDriver implements ProviderDriver {
     return modelOptions(this.modelSource?.file ?? '', this.modelSource?.seen() ?? {});
   }
 
+  modelNames(model: string): string[] {
+    const seen = this.modelSource?.seen() ?? {};
+    const names = new Set([model]);
+    const resolved = seen[model];
+    if (resolved) names.add(resolved);
+    for (const [alias, id] of Object.entries(seen)) if (id === model) names.add(alias);
+    return [...names];
+  }
+
   /** Where the transcripts are read from; set by the manager, like `modelSource` */
   useSessions(sessions: SessionStore): void {
     this.transcripts = new SessionStoreTranscripts(sessions);

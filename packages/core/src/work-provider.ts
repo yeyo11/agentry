@@ -3,7 +3,7 @@ import type { ChatManager } from './chats.ts';
 import type { ProviderPoints, WorkKind, WorkSubjectKind } from './decisions/provider-points.ts';
 import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
 import { candidateContext } from './rotation.ts';
-import { candidatesFor, type CandidateResult } from './providers/candidates.ts';
+import { candidatesFor, NATIVE_RULES_PROVIDER, type CandidateResult } from './providers/candidates.ts';
 
 /*
  * Where automated work starts (docs/plans/multi-provider.md, phase 4, "Starting automated work").
@@ -14,7 +14,6 @@ import { candidatesFor, type CandidateResult } from './providers/candidates.ts';
  */
 
 /** The provider a graph's own `allowedTools` are written for */
-const NATIVE_RULES_PROVIDER: ProviderId = 'claude-code';
 
 /**
  * The wait for a limit to reset that a chat is in, read from the move rows: what the work shows while

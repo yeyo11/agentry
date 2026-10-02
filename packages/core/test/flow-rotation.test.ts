@@ -157,6 +157,32 @@ test('a flow run under a budget waits for the reset: no other provider reports a
   }
 });
 
+test("a person's move of a waiting flow run carries the run to the new chat, and the wait closes into the move", async () => {
+  const core = new Core(configWith({ action: 'wait', allowed: ['handoff', 'restart', 'wait'] }));
+  try {
+    const project = await flowProject(core, repo());
+    core.workItems.create(project.id, limited('Fix the cart'));
+    const run = await until(() => workRun(core, project.id, 'Fix the cart'), (r) => !!r?.chatId, 'the run to start');
+    const wait = await until(() => core.db.providerMoves({ subjectKind: 'flow_run', subjectId: run!.id })[0], (m) => m?.state === 'waiting', 'the wait');
+
+    // "Move now" on the run's chat, as the route calls it
+    const { move } = await core.moveChat(run!.chatId!, { provider: 'codex', action: 'restart' });
+    assert.equal(move.subjectKind, 'flow_run');
+    const closed = core.db.providerMove(wait!.id);
+    assert.equal(closed?.state, 'cancelled');
+    assert.equal(closed?.reason, 'moved');
+    assert.equal(closed?.toChat, move.toChat);
+    assert.equal(core.rotation.waitOf(run!.chatId!), null);
+
+    // The run follows the new chat on Codex and goes on: it is not ended as stopped
+    const moved = await until(() => core.flow.runs(project.id).find((r) => r.id === run!.id), (r) => r?.chatId === move.toChat, 'the run to follow the new chat');
+    assert.equal(moved?.provider, 'codex');
+    assert.notEqual(moved?.cause, 'stopped');
+  } finally {
+    core.shutdown();
+  }
+});
+
 test('a default provider set to Codex runs a stage on Codex with its own rules, never with the rule strings of Claude', async () => {
   const core = new Core(configWith({ order: ['codex', 'claude-code'], defaultProvider: 'codex' }));
   try {

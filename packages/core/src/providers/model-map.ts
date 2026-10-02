@@ -14,13 +14,15 @@ import type { ModelMapEntry, ModelOption, ProviderId } from '@agentry/shared';
  */
 export function mapModel(
   map: readonly ModelMapEntry[],
-  from: { provider: ProviderId; id: string },
+  from: { provider: ProviderId; id: string; names?: readonly string[] },
   target: ProviderId,
   catalog: readonly ModelOption[],
 ): string | undefined {
   if (from.provider === target) return from.id;
+  // A run knows its model by the id the CLI reported; the map may hold the alias the person picked
+  const names = new Set([from.id, ...(from.names ?? [])]);
   if (catalog.some((m) => m.value === from.id && !m.disabled)) return from.id;
-  const entry = map.find((e) => e.from.provider === from.provider && e.from.model === from.id && e.to.provider === target);
+  const entry = map.find((e) => e.from.provider === from.provider && names.has(e.from.model) && e.to.provider === target);
   return entry && !entryIsStale(entry, catalog) ? entry.to.model : undefined;
 }
 

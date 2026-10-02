@@ -18,7 +18,7 @@ export interface RunNeeds {
   /** The provider and model the work is on now; null when it has not started */
   from: { provider: ProviderId; model: string | null } | null;
   /** The model the work asks for, and the provider whose catalog it comes from */
-  model: { provider: ProviderId; id: string } | null;
+  model: { provider: ProviderId; id: string; names?: string[] } | null;
   /** `structuredOutput` for a schema, `budgetLimit` for a budget, `workflowTool` for the workflow engine… */
   needs: ProviderCapability[];
   /** null only for a person's chat with custom native rules */
@@ -99,13 +99,23 @@ function atLimit(provider: CandidateProvider, now: number): boolean {
 function readyFor(provider: CandidateProvider, automated: boolean): boolean {
   const { state, reason } = provider.status;
   if (state === 'ready') return true;
-  if (state === 'degraded') return reason !== 'limit-reached';
+  // At its limit, the reading decides: `exhausted` below says so with the reset, and a reset that has
+  // passed makes it a candidate again. With no reading behind it, it is simply not ready.
+  if (state === 'degraded') return reason !== 'limit-reached' || provider.status.limit?.state === 'exhausted';
   // Copilot has no probe that spends nothing: a person's chat may try it, automated work needs proof
   return state === 'unknown' && reason === 'no-probe' && !automated;
 }
 
+/** The provider whose own rules a run without a portable policy was written for. */
+export const NATIVE_RULES_PROVIDER: ProviderId = 'claude-code';
+
 function policyExclusion(run: RunNeeds, id: ProviderId, provider: CandidateProvider): Exclusion | null {
-  if (run.policy === null) return run.nativeRules ? 'policy-not-portable' : null;
+  if (run.policy === null) {
+    if (!run.nativeRules && !run.automated) return null;
+    // Nothing to translate means nothing proves `git push` is denied on another provider: automated
+    // work without a policy, and rules typed for Claude Code, stay where those rules were written
+    return id === NATIVE_RULES_PROVIDER ? null : 'policy-not-portable';
+  }
   if (!provider.translate) return 'policy';
   const translation = provider.translate(run.policy);
   if (translation.unsupported.length > 0) return 'policy';

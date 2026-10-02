@@ -47,8 +47,10 @@ test('every provider is listed with a status, and one by id', async () => {
 test('settings read as the defaults until the first save, then persist in providers.json', async () => {
   const defaults = (await app.inject('/api/providers/settings')).json<ProvidersSettings>();
   assert.equal(defaults.defaultProvider, null);
-  assert.deepEqual(defaults.order, ['claude-code', 'codex', 'gemini', 'copilot', 'opencode']);
-  assert.ok(Object.values(defaults.providers).every((p) => p.enabled && p.binaryPath === null));
+  // Every API test reads only Claude Code until it saves (test/isolate-providers.ts): the machine's
+  // own agents stay out. The shipped defaults, every provider on, are core's tests to check.
+  assert.equal(defaults.order[0], 'claude-code');
+  assert.ok(Object.values(defaults.providers).every((p) => p.binaryPath === null));
   assert.equal(existsSync(join(root, 'data', 'providers.json')), false);
 
   const saved = await app.inject({

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import type { ToolPolicy } from '@agentry/shared';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { ChatSummary, LimitAction, ProviderMove, ProviderStatus, ProvidersSettings } from '@agentry/shared';
@@ -44,6 +45,9 @@ function settingsOf(o: Options): ProvidersSettings {
   return settings;
 }
 
+/** A flow stage's policy: reads and edits, commands allowed, pushes denied */
+const WORK_POLICY: ToolPolicy = { read: { allow: true }, edit: { allow: 'any' }, commands: { allow: 'any' }, network: 'omit', gitPush: 'deny' };
+
 function rig(o: Options = {}) {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const db = new Db(config);
@@ -81,7 +85,9 @@ function rig(o: Options = {}) {
   });
   rotation.start();
   const limited = async (provider: 'claude-code' | 'codex' = 'claude-code', extra: Partial<Parameters<ChatManager['start']>[0]> = {}) => {
-    const chat = chats.start({ prompt: provider === 'codex' ? 'RATE' : 'FAKE-LIMIT-ONCE', name: 'limited', keepAlive: false, provider, ...extra });
+    // Automated work carries a policy, as the flow's stages do: without one it stays on Claude Code
+    const tools = o.work ? { toolConfig: { preset: null, allowedTools: [], disallowedTools: [], mcp: null, policy: WORK_POLICY } } : {};
+    const chat = chats.start({ prompt: provider === 'codex' ? 'RATE' : 'FAKE-LIMIT-ONCE', name: 'limited', keepAlive: false, provider, ...tools, ...extra });
     await chats.exited(chat.id);
     // The announcement is handled in the next turn of the loop
     await new Promise((r) => setTimeout(r, 30));
@@ -424,6 +430,65 @@ test('provider.on-limit chooses among the feasible, allowed actions and its id g
     assert.equal(repointed[0]?.action, 'restart');
     assert.equal(repointed[0]?.decidedBy, 'decision');
     assert.equal(repointed[0]?.decisionId, 'decision-1');
+  } finally {
+    close();
+  }
+});
+
+test('a provider.on-limit that cannot answer leaves the setting in charge', async () => {
+  const points = {
+    onLimit: async () => {
+      throw new Error('the decision engine is down');
+    },
+    suggestMapping: async () => null,
+  };
+  const { limited, repointed, close } = rig({ action: 'restart', allowed: ['wait', 'handoff', 'restart'], work, repoint: true, points });
+  try {
+    await limited();
+    await waitFor(() => repointed.length === 1);
+    assert.equal(repointed[0]?.action, 'restart');
+    assert.equal(repointed[0]?.decidedBy, 'setting');
+  } finally {
+    close();
+  }
+});
+
+test('automated work whose limit handling fails waits for the reset instead of being left open', async () => {
+  const points = {
+    // Thrown before any promise exists, so it escapes the decision and the whole handling fails
+    onLimit: () => {
+      throw new Error('broken point');
+    },
+    suggestMapping: async () => null,
+  };
+  const { limited, rotation, repointed, close } = rig({ action: 'restart', allowed: ['wait', 'handoff', 'restart'], work, repoint: true, points });
+  try {
+    const id = await limited();
+    await waitFor(() => rotation.waitOf(id) !== null);
+    assert.equal(repointed.length, 0);
+    assert.equal(rotation.holds(id), true);
+  } finally {
+    close();
+  }
+});
+
+test('a move whose re-pointing fails does not also wait on the old chat', async () => {
+  const { limited, rotation, service, close } = rig({ action: 'restart', allowed: ['wait', 'handoff', 'restart'], work, points: null, repoint: true });
+  const continued: string[] = [];
+  const original = service.continueOn.bind(service);
+  service.continueOn = async (...args: Parameters<typeof original>) => {
+    const out = await original(...args);
+    continued.push(out.move.id);
+    return out;
+  };
+  (rotation as unknown as { deps: { repoint: () => void } }).deps.repoint = () => {
+    throw new Error('the flow run is gone');
+  };
+  try {
+    const id = await limited();
+    await waitFor(() => continued.length === 1);
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(rotation.waitOf(id), null);
   } finally {
     close();
   }

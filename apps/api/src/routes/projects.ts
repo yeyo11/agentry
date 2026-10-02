@@ -36,14 +36,15 @@ export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   });
 
   // Validated in core, whole: a document is replaced, never merged
-  // The tracker is not part of what a chat may save: its scope, query and status map decide what is
-  // imported and written to the tracker, so a chat's copy of the document keeps the stored one
+  // Two parts are not a chat's to save, so its copy of the document keeps the stored ones:
+  // - the tracker: its scope, query and status map decide what is imported and written to it;
+  // - the providers: their order and what happens at a limit decide which vendor the work spends on.
   app.put<{ Params: { id: string }; Body: unknown }>('/projects/:id/settings', async (req) => {
     const body = req.body;
     if (req.actor?.startsWith('chat:') && typeof body === 'object' && body !== null && !Array.isArray(body)) {
-      const { tracker: _ignored, ...rest } = body as Record<string, unknown>;
-      const { tracker } = await core.projectSettings(req.params.id);
-      return core.saveProjectSettings(req.params.id, tracker ? { ...rest, tracker } : rest);
+      const { tracker: _tracker, providers: _providers, ...rest } = body as Record<string, unknown>;
+      const { tracker, providers } = await core.projectSettings(req.params.id);
+      return core.saveProjectSettings(req.params.id, { ...rest, ...(tracker ? { tracker } : {}), ...(providers ? { providers } : {}) });
     }
     return core.saveProjectSettings(req.params.id, body);
   });

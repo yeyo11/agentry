@@ -6,6 +6,7 @@ import { mapModel } from '../src/providers/model-map.ts';
 import { defaultProvidersSettings } from '../src/providers/settings.ts';
 import { PROVIDER_MANIFESTS, translationFor } from '../src/providers/registry.ts';
 import { translateCodexPolicy } from '../src/providers/codex/policy.ts';
+import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
 
 const NOW = Date.parse('2026-10-02T12:00:00Z');
 const POLICY: ToolPolicy = {
@@ -124,7 +125,11 @@ test('readiness: not ready is excluded, degraded passes unless limit-reached', (
   const degraded = candidatesFor(run(), context({}, { ...base, codex: provider('codex', {}, { state: 'degraded', reason: 'limit-near' }) }));
   assert.equal(degraded.candidates[0]?.provider, 'codex');
   const reached = candidatesFor(run(), context({}, { ...base, codex: provider('codex', {}, { state: 'degraded', reason: 'limit-reached' }) }));
-  assert.equal(why(reached, 'codex'), 'not-ready');
+  assert.equal(why(reached, 'codex'), 'not-ready', 'a limit with no reading behind it');
+  // What the detector reports at a limit: the reading says exhausted, so the reason is the limit itself
+  const exhausted = (resetsAt: string) => ({ ...base, codex: provider('codex', {}, { state: 'degraded', reason: 'limit-reached', limit: { state: 'exhausted', resetsAt } as ProviderLimit }) });
+  assert.equal(why(candidatesFor(run(), context({}, exhausted(new Date(NOW + 3_600_000).toISOString()))), 'codex'), 'exhausted');
+  assert.equal(candidatesFor(run(), context({}, exhausted(new Date(NOW - 1000).toISOString()))).candidates[0]?.provider, 'codex', 'its reset has passed');
 });
 
 test('no-probe (Copilot) is a candidate for a person only', () => {
@@ -170,6 +175,15 @@ test('a policy part the target cannot enforce excludes it, and a flow stage stay
   assert.equal(why(flow, 'copilot'), 'policy');
 });
 
+test('automated work with no policy stays on Claude Code: nothing proves pushes are denied elsewhere', () => {
+  const start = candidatesFor(run({ policy: null, automated: true, from: null }), context());
+  assert.deepEqual(start.candidates.map((c) => c.provider), ['claude-code']);
+  assert.equal(why(start, 'codex'), 'policy-not-portable');
+  // A person's own chat with no policy is free to go where they choose
+  const person = candidatesFor(run({ policy: null, automated: false }), context());
+  assert.notEqual(why(person, 'codex'), 'policy-not-portable');
+});
+
 test('custom native rules without a policy cannot be translated', () => {
   const r = candidatesFor(run({ kind: 'chat', automated: false, policy: null, nativeRules: true }), context());
   assert.equal(why(r, 'codex'), 'policy-not-portable');
@@ -193,6 +207,25 @@ test('model: own catalog, a mapping, and none (no-mapping)', () => {
 
   const own = context({}, { 'claude-code': provider('claude-code'), codex: provider('codex', { models: [{ value: 'opus' }] }) });
   assert.equal(candidatesFor(run({ model: from }), own).candidates[0]?.model, 'opus');
+});
+
+test('a mapping made on the alias the person picked applies to the id the run reports', () => {
+  const entry: ModelMapEntry = { from: { provider: 'claude-code', model: 'sonnet' }, to: { provider: 'codex', model: 'gpt-x' }, origin: 'person', at: '' };
+  const mapped = context();
+  mapped.settings.rotation = { onLimit: { action: 'wait', allowed: ['wait'], maxWaitHours: 6, maxMoves: 2 }, modelMap: [entry] };
+  // The CLI reports the model it resolved, not the alias: without its other names the map misses it
+  const bare = { provider: 'claude-code', id: 'claude-sonnet-5-5' };
+  assert.equal(why(candidatesFor(run({ model: bare }), mapped), 'codex'), 'no-mapping');
+  const named = { ...bare, names: ['claude-sonnet-5-5', 'sonnet'] };
+  assert.equal(candidatesFor(run({ model: named }), mapped).candidates[0]?.model, 'gpt-x');
+});
+
+test('the Claude driver names a model by its alias and by the id it resolved to', () => {
+  const driver = new ClaudeCodeDriver('claude');
+  driver.modelSource = { file: '', seen: () => ({ sonnet: 'claude-sonnet-5-5', opus: 'claude-opus-5-5' }) };
+  assert.deepEqual(driver.modelNames('claude-sonnet-5-5').sort(), ['claude-sonnet-5-5', 'sonnet']);
+  assert.deepEqual(driver.modelNames('opus').sort(), ['claude-opus-5-5', 'opus']);
+  assert.deepEqual(driver.modelNames('claude-haiku-4-5'), ['claude-haiku-4-5']);
 });
 
 test('mapModel: a stale entry is missing, the same provider keeps its model', () => {

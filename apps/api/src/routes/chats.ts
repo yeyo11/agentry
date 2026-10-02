@@ -159,11 +159,8 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     if (typeof provider !== 'string' || provider === '') throw new Error('provider is required');
     if (action !== 'handoff' && action !== 'restart') throw new Error("action must be 'handoff' or 'restart'");
     if (model !== undefined && typeof model !== 'string') throw new Error('model must be a string');
-    const waitId = core.rotation.waitOf(req.params.id);
-    const { chat, move } = await chats.continueOn(req.params.id, { provider, action, ...(model ? { model } : {}) });
-    // The wait is over: the work goes on in the new chat. It is closed quietly, since stopping a wait
-    // would end the run or task that the move has just carried on
-    if (waitId) core.db.closeProviderMove(waitId, 'cancelled', new Date().toISOString(), { toChat: move.toChat, toProvider: move.toProvider, toModel: move.toModel, reason: 'moved' });
+    // Core closes a wait into the move and points the run or task it worked for at the new chat
+    const { chat } = await core.moveChat(req.params.id, { provider, action, ...(model ? { model } : {}) });
     return reply.status(201).send(chat);
   });
 

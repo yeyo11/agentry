@@ -285,6 +285,17 @@ test("the accounts routes are gone, and a chat's token cannot move, wait, cancel
       assert.equal((await app.inject(fromChat(method, url, body))).statusCode, 403, `${method} ${url}`);
     }
     assert.equal(core.db.providerMoves().length, before, 'nothing moved or waited');
+    // Nor can it decide through its project what a limit does: its copy of the settings keeps the stored providers
+    const owner = { 'content-type': 'application/json', authorization: `Bearer ${token}` };
+    const imported = await app.inject({ method: 'POST', url: '/api/projects/import', headers: owner, payload: JSON.stringify({ path: repo, name: 'rotation' }) });
+    assert.ok(imported.statusCode < 300, imported.body);
+    const project = imported.json<{ id: string }>().id;
+    const kept = { order: ['claude-code'], onLimit: { action: 'wait', allowed: ['wait'] } };
+    const current = (await app.inject({ url: `/api/projects/${project}/settings`, headers: owner })).json<Record<string, unknown>>();
+    assert.equal((await app.inject({ method: 'PUT', url: `/api/projects/${project}/settings`, headers: owner, payload: JSON.stringify({ ...current, providers: kept }) })).statusCode, 200);
+    const widened = { order: ['codex', 'claude-code'], onLimit: { action: 'handoff', allowed: ['handoff', 'restart', 'wait'], maxMoves: 5 } };
+    assert.equal((await app.inject(fromChat('PUT', `/api/projects/${project}/settings`, { ...current, providers: widened }))).statusCode, 200);
+    assert.deepEqual((await app.inject({ url: `/api/projects/${project}/settings`, headers: { authorization: `Bearer ${token}` } })).json<{ providers?: unknown }>().providers, kept);
     // What it may read: the candidates, the preview's refusal and the history
     assert.equal((await app.inject(fromChat('GET', '/api/providers/moves'))).statusCode, 200);
     assert.equal((await app.inject(fromChat('GET', '/api/providers/model-map/suggestions'))).statusCode, 200);
