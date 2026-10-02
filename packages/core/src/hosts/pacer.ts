@@ -43,8 +43,12 @@ export interface PaceInput {
   webhookHealthy?: boolean;
 }
 
-/** How a read ended: it read; it failed; or it was held back (the host's floor) and did not go out */
-export type PaceOutcome = 'read' | 'failed' | 'skipped';
+/**
+ * How a read ended: it read; it failed; it was held back by the host's floor (`paused`, the only
+ * outcome that pauses the row); or it did not go out for another reason (`skipped`: another process
+ * holds the claim, the project's path is gone), which leaves the row's state as it was.
+ */
+export type PaceOutcome = 'read' | 'failed' | 'skipped' | 'paused';
 
 interface PaceState {
   /** Set by the first `state()` call that has the row's input; a nudge or a view can come first */
@@ -115,8 +119,9 @@ export class Pacer {
     const state = this.state(key, input);
     const last = Math.max(input.checkedAt ?? 0, state.lastAttempt ?? 0);
     if (input.checkedAt === null && state.lastAttempt === null) return 0;
-    if (state.nudgedAt !== null && (state.lastAttempt === null || state.nudgedAt > state.lastAttempt)) return state.nudgedAt;
+    // A failing host keeps its back-off whatever the deliveries say: a nudge brings a healthy row forward only
     if (state.failures > 0) return (state.lastAttempt ?? last) + (FAILURE_STEPS_MS[Math.min(state.failures, FAILURE_STEPS_MS.length) - 1] ?? 0);
+    if (state.nudgedAt !== null && (state.lastAttempt === null || state.nudgedAt > state.lastAttempt)) return state.nudgedAt;
     if (state.paused && state.lastAttempt !== null) return state.lastAttempt + PAUSED_RECHECK_MS;
     return last + this.intervalOf(this.tier(key, input));
   }
@@ -140,12 +145,17 @@ export class Pacer {
     this.state(key, input).lastAttempt = this.now();
   }
 
-  /** How the read ended. A failure steps the interval up; a read or a held-back one resets it. */
+  /**
+   * How the read ended. A failure steps the interval up and a read resets it. Only the floor pauses
+   * the row; a read that did not go out for another reason changes nothing, so losing a claim to
+   * another process does not reset a back-off.
+   */
   settle(key: string, outcome: PaceOutcome): void {
     const state = this.states.get(key);
-    if (!state) return;
-    state.paused = outcome === 'skipped';
-    state.failures = outcome === 'failed' ? state.failures + 1 : 0;
+    if (!state || outcome === 'skipped') return;
+    state.paused = outcome === 'paused';
+    if (outcome === 'failed') state.failures += 1;
+    else if (outcome === 'read') state.failures = 0;
   }
 
   /** The row is not open any more */

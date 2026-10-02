@@ -104,8 +104,55 @@ test('a read by someone else ends a failure streak', () => {
 test('a row held back by the host’s floor looks again in a minute', () => {
   const { t, pacer } = clock();
   pacer.begin('r', input(t, { checkedAt: null }));
-  pacer.settle('r', 'skipped');
+  pacer.settle('r', 'paused');
   assert.equal(pacer.nextAt('r', input(t, { checkedAt: null })) - t.now, PAUSED_RECHECK_MS);
+});
+
+test('a storm of deliveries against a failing host keeps the back-off; a healthy row still comes forward', () => {
+  const { t, pacer } = clock();
+  const read = (): PaceInput => input(t, { checkedAt: null });
+  pacer.begin('r', read());
+  pacer.settle('r', 'failed');
+  const due = pacer.nextAt('r', read());
+  for (let i = 0; i < 20; i++) {
+    t.now += 1_000;
+    pacer.nudge('r');
+    assert.equal(pacer.isDue('r', read()), false);
+    assert.equal(pacer.nextAt('r', read()), due);
+  }
+  // the back-off ends, the row is read, and it reads well: a nudge now moves it to now
+  t.now = due;
+  pacer.begin('r', read());
+  pacer.settle('r', 'read');
+  t.now += 1_000;
+  pacer.nudge('r');
+  assert.equal(pacer.isDue('r', read()), true);
+});
+
+test('only the floor pauses a row, and no skip resets a failure streak', () => {
+  const { t, pacer } = clock();
+  const read = (): PaceInput => input(t, { checkedAt: null });
+  pacer.begin('r', read());
+  pacer.settle('r', 'failed');
+  pacer.begin('r', read());
+  pacer.settle('r', 'failed');
+  t.now += 2 * MIN;
+  // the claim was lost to another process, or the project's path is gone: nothing about the row changes
+  pacer.begin('r', read());
+  pacer.settle('r', 'skipped');
+  assert.equal(pacer.nextAt('r', read()) - t.now, 2 * MIN, 'still on the second step of the back-off');
+  // held back by the floor: paused, and the streak is still there
+  pacer.begin('r', read());
+  pacer.settle('r', 'paused');
+  pacer.begin('r', read());
+  pacer.settle('r', 'failed');
+  assert.equal(pacer.nextAt('r', read()) - t.now, 4 * MIN, 'the streak went on after the pause');
+  // a skip of another kind never pauses a healthy row
+  const other = clock();
+  const healthy = (): PaceInput => input(other.t, { checkedAt: null });
+  other.pacer.begin('h', healthy());
+  other.pacer.settle('h', 'skipped');
+  assert.equal(other.pacer.nextAt('h', healthy()) - other.t.now, TIER_WAITING_MS);
 });
 
 test('a delivery or a refresh sets the next read to now', () => {
@@ -251,7 +298,7 @@ test('the per-row claim holds: a row being read is not read twice, and a floor h
     // below the floor (50 left in core), background polling stays away and a person's refresh goes through
     new HostRateLimiter(s.db.connection).observe('github.com', 'core', { limit: 5000, remaining: 10, resetAt: new Date(Date.now() + 10 * MIN) });
     const held = readsOf(s);
-    assert.equal(await s.service.check(id), 'skipped');
+    assert.equal(await s.service.check(id), 'paused');
     assert.equal(readsOf(s), held);
     assert.equal(await s.service.check(id, true), 'read');
     assert.equal(readsOf(s), held + 1);

@@ -1217,12 +1217,12 @@ export class PullRequestService {
   /**
    * Asks the host about one open PR and writes what changed. `force` is a person's refresh, which does not
    * wait out the host's floor (background polling pauses under it). Only a change reaches the feed. The
-   * answer tells the pacer how it went: a read, a failure, or held back and not sent.
+   * answer tells the pacer how it went: a read, a failure, held back by the floor, or not sent for another reason.
    */
   async check(rowId: string, force = false): Promise<PaceOutcome> {
     const row = this.rowById(rowId);
     if (!row || row.phase !== 'open' || row.number === null) return 'skipped';
-    if (!force && this.belowFloor(row)) return 'skipped';
+    if (!force && this.belowFloor(row)) return 'paused';
     const project = this.deps.project(row.project_id);
     if (!project || !existsSync(project.path)) return 'skipped';
     const now = this.now();
