@@ -309,8 +309,9 @@ export function targetsFor(event: AgentryEvent): Target[] {
       // The statuses and the settings share the ['providers'] prefix; a status change is what the event carries
       return [[keys.providers, NOW]];
     case 'hosts.changed':
-      // A host turning on or off changes every project's readiness, which the boards carry too
-      return [[keys.hosts, NOW], [['project-code-host'], NOW], [keys.workItemBoards(null), NOW]];
+      // A host turning on or off changes every project's readiness, which the boards carry too; the GitHub and GitLab
+      // trackers are derived from their host, so their readiness and every project's issue search move with it
+      return [[keys.hosts, NOW], [['project-code-host'], NOW], [keys.trackers, NOW], [['project-tracker'], NOW], [keys.workItemBoards(null), NOW]];
     case 'orchestration.pull-request':
       // The merge block under the request reads the same row's phase and CI state
       return [[keys.orchestrations, NOW], [keys.orchestration(event.orchestrationId), NOW], ...(event.pullRequest.id ? ([[keys.changeRequest(event.pullRequest.id), NOW]] as Target[]) : [])];
@@ -327,6 +328,8 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'project.updated':
       return [
         [keys.projects, NOW], [keys.overview, OVERVIEW], [keys.projectSettings(event.projectId), NOW],
+        // The tracker is a key of the settings document, and the search it feeds follows the scope and the query
+        [keys.projectTracker(event.projectId), NOW],
         // Keys are composed with the prefix when read, so every one of the project's is renamed
         ...(event.changes.includes('key') ? [...workItemViews(event.projectId), [keys.workItemDetails, NOW], [keys.workItemKeys, NOW]] as Target[] : []),
         // Column limits, the team's metadata and the flow live in the settings; a module switched on
@@ -337,7 +340,8 @@ export function targetsFor(event: AgentryEvent): Target[] {
       ];
     case 'workitem.created':
       // An epic's page lists its children, so an item created in one is news to it
-      return [...workItemViews(event.projectId), [keys.workItemDetails, NOW]];
+      // An import creates items, and the issues it came from read as already imported
+      return [...workItemViews(event.projectId), [keys.workItemDetails, NOW], [keys.projectTracker(event.projectId), NOW]];
     case 'workitem.updated':
       return [
         ...workItemViews(event.projectId),
