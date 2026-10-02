@@ -137,6 +137,8 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       error: status >= 500 && !exposed ? 'internal error' : err.message,
       ...(typeof reason === 'string' ? { code: reason } : {}),
       ...(typeof postId === 'string' ? { postId } : {}),
+      // The first line the tracker's CLI answered with (redacted in core), shown under Agentry's sentence
+      ...(refusal && status < 500 && typeof (err as { detail?: unknown }).detail === 'string' ? { detail: String((err as { detail?: unknown }).detail) } : {}),
     });
   });
 
