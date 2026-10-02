@@ -29,7 +29,8 @@ export interface TrackerSyncDeps {
   items: WorkItemService;
   /** The project's directory and tracker; null for an id that names no project */
   project: (projectId: string) => { path: string; tracker: ProjectTrackerSettings | null } | null;
-  access: (projectPath: string) => Promise<TrackerAccess>;
+  /** Where every write passes: refuses a tracker that is turned off before the host is touched */
+  access: (projectPath: string, tracker: TrackerId) => Promise<TrackerAccess>;
 }
 
 /** The readiness a project's host answered with when it could not be reached, in the reasons a screen words. */
@@ -38,6 +39,7 @@ const READINESS_REASON: Record<string, HostReason> = {
   'not-installed': 'cli-missing',
   incompatible: 'cli-incompatible',
   'unsupported-host': 'unsupported-host',
+  'tracker-disabled': 'tracker-disabled',
 };
 
 interface Outcome {
@@ -153,7 +155,7 @@ export class TrackerSyncService {
     if (!adapter.writes(column)) return null;
     let access: TrackerAccess;
     try {
-      access = await this.deps.access(projectPath);
+      access = await this.deps.access(projectPath, tracker.id);
     } catch (err) {
       const code = err instanceof WorkItemError && 'reason' in err && typeof err.reason === 'string' ? err.reason : null;
       return { syncState: 'failed', reason: (code && READINESS_REASON[code]) || 'unreachable' };

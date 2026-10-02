@@ -163,8 +163,14 @@ first line as `detail`. The README's REST tables list them; the schemas are in `
 
 The tracker reasons live in the host reasons' list (`HostReason`), so the remedy text and the
 screens have one vocabulary: `tracker-signed-out`, `transition-unknown`, `issue-is-pull-request`,
-`not-recorded`, and the host's own (`cli-missing`, `not-found`, `write-unconfirmed`, …). See
+`not-recorded`, `tracker-disabled`, and the host's own (`cli-missing`, `not-found`, `write-unconfirmed`, …). See
 [Reason codes](plans/code-hosts.md#reason-codes-and-remedy-text).
+
+A tracker turned off in `trackers.json` reads and writes nothing: listing, import and every sync
+(a merge's closing write included) pass one door in core that refuses it with `tracker-disabled`
+before the host is touched, and the change request body gets no closing word for it. A chat's token
+cannot change a project's tracker: the general `PUT /projects/:id/settings` keeps the stored
+`tracker` whatever a chat sends.
 
 ## How it is tested
 

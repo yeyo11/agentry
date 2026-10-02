@@ -4873,6 +4873,7 @@ export type HostReason =
   | 'auto-merge-not-needed'
   | 'waiting-for-pipeline'
   | 'tracker-signed-out'
+  | 'tracker-disabled'
   | 'transition-unknown'
   | 'issue-is-pull-request'
   | 'hook-no-permission'

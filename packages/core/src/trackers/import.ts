@@ -53,7 +53,8 @@ export interface TrackerImportDeps {
   items: WorkItemService;
   /** The project's directory and tracker; null for an id that names no project */
   project: (projectId: string) => { path: string; tracker: ProjectTrackerSettings | null } | null;
-  access: (projectPath: string) => Promise<TrackerAccess>;
+  /** Where every import and read passes: refuses a tracker that is turned off before the host is touched */
+  access: (projectPath: string, tracker: TrackerId) => Promise<TrackerAccess>;
   /** `issue.triage`: asked with every page and read back as marks; absent where nothing marks */
   triage?: IssueTriage;
 }
@@ -181,7 +182,7 @@ export class TrackerImportService {
     const adapter = trackerAdapter(tracker.id);
     // Jira and YouTrack: their CLIs are not recorded, so nothing is built on them
     if (!adapter) throw new TrackerError(`${TRACKER_LABEL[tracker.id]} is not available yet: its CLI has not been recorded`, 409, 'not-recorded');
-    const access = await this.deps.access(project.path);
+    const access = await this.deps.access(project.path, tracker.id);
     if (access.host !== trackerHost(tracker.id)) {
       throw new TrackerError(`${TRACKER_LABEL[tracker.id]} needs a project on ${adapter.host}, and this one is on ${access.host}`, 409, 'unsupported-host');
     }

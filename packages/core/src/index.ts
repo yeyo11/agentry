@@ -7,6 +7,7 @@ import type {
   AgentryLanguage,
   AuthVerification,
   AgentryReleaseInfo,
+  TrackerId,
   CliVersionInfo,
   ChatProject,
   ChatSummary,
@@ -94,7 +95,7 @@ import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
 import { CodeHostDetector } from './hosts/detector.ts';
 import { CodeHostsSettingsStore } from './hosts/settings.ts';
 import { TrackersSettingsStore } from './trackers/settings.ts';
-import { TrackerImportService } from './trackers/import.ts';
+import { TrackerError, TrackerImportService, type TrackerAccess } from './trackers/import.ts';
 import { TrackerSyncService } from './trackers/sync.ts';
 import { TrackerDetector } from './trackers/detector.ts';
 import { ProviderDetector } from './providers/detector.ts';
@@ -735,7 +736,11 @@ export class Core {
       busy: (itemId) => this.itemBusy(itemId),
       onMerged: (notice) => this.trackerSync.merged(notice),
       verdicts: (itemId) => this.flow.verdicts(itemId),
-      projectTracker: (id) => this.projectSettingsStore.stored(id, this.projectStore.get(id)?.name)?.tracker ?? null,
+      // A tracker that is off gets no closing word in a change request's body either
+      projectTracker: (id) => {
+        const tracker = this.projectSettingsStore.stored(id, this.projectStore.get(id)?.name)?.tracker ?? null;
+        return tracker && this.trackerEnabled(tracker.id) ? tracker : null;
+      },
       // The card's link is the address the person reaches the panel on: the tunnel when it is up
       webOrigin: () => {
         const tunnel = this.tunnel.status();
@@ -748,7 +753,7 @@ export class Core {
         const record = this.projectStore.get(id);
         return record ? { path: record.path, tracker: this.projectSettingsStore.stored(id, record.name)?.tracker ?? null } : null;
       },
-      access: (path) => this.pullRequests.hostAccess(path),
+      access: (path, tracker) => this.trackerAccess(path, tracker),
       triage: new IssueTriage({ decisions: this.decisions, db: this.db }),
     });
     this.trackerSync = new TrackerSyncService({
@@ -757,7 +762,7 @@ export class Core {
         const record = this.projectStore.get(id);
         return record ? { path: record.path, tracker: this.projectSettingsStore.stored(id, record.name)?.tracker ?? null } : null;
       },
-      access: (path) => this.pullRequests.hostAccess(path),
+      access: (path, tracker) => this.trackerAccess(path, tracker),
     });
     this.events.observe((event) => this.trackerSync.observe(event));
     this.orchestrationPullRequests = new OrchestrationPullRequestService({
@@ -1492,6 +1497,21 @@ export class Core {
     }
     this.projectUpdated(current, changes, after.modules);
     return this.projectView(id);
+  }
+
+  /** Off only when the person turned it off in `trackers.json`: a tracker with no entry is on. */
+  private trackerEnabled(id: TrackerId): boolean {
+    return this.trackersSettings.get().trackers[id]?.enabled !== false;
+  }
+
+  /**
+   * The one door import, listing and sync go through to a tracker's CLI: a tracker the person turned
+   * off reads and writes nothing, whatever the project's settings still say. The host's own
+   * readiness is checked behind it, by `hostAccess`.
+   */
+  private async trackerAccess(projectPath: string, tracker: TrackerId): Promise<TrackerAccess> {
+    if (!this.trackerEnabled(tracker)) throw new TrackerError('this tracker is turned off in the trackers settings', 409, 'tracker-disabled');
+    return this.pullRequests.hostAccess(projectPath);
   }
 
   /** The project's settings document, created on first read with every module off. */
