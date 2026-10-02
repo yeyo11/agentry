@@ -214,6 +214,10 @@ function scriptFor(text) {
   // first thread is the agent's and the rest are a person's, so a spec sees marks without a script
   const asked = [...text.matchAll(/^(\S+): Who should take this review comment/gm)].map((m) => m[1]);
   if (asked.length > 0) return `json: ${JSON.stringify(Object.fromEntries(asked.map((id, i) => [id, i === 0 ? 'agent' : 'person'])))}`;
+  // `issue.triage` asks one question per issue ("<key>: Can an agent start on issue …"): the marks go round
+  // ready, needs-refining, not-for-agents in the order asked, so a spec sees all three without a script
+  const issues = [...text.matchAll(/^(\S+): Can an agent start on issue/gm)].map((m) => m[1]);
+  if (issues.length > 0) return `json: ${JSON.stringify(Object.fromEntries(issues.map((id, i) => [id, ['ready', 'needs-refining', 'not-for-agents'][i % 3]])))}`;
   if (!env.AGENTRY_FAKE_CLI_SCRIPTS) return text;
   let scripts;
   try {

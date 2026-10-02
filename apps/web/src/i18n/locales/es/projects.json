@@ -285,5 +285,60 @@
     "summaryInherited": "heredado",
     "summaryDiffering_one": "{{n}} distinto",
     "summaryDiffering_other": "{{n}} distintos"
+  },
+  "tracker": {
+    "title": "Incidencias",
+    "optional": "opcional",
+    "intro": "Enlaza las tareas del proyecto con las incidencias de un tracker: se importan, y la PR las cita y las cierra.",
+    "label": "Tracker",
+    "chooseHint": "Solo se pueden elegir los que están listos. Los de GitHub y GitLab usan la misma sesión que el alojamiento del código.",
+    "none": "Ninguno",
+    "noneWhy": "Las tareas de este proyecto no se enlazan con incidencias.",
+    "summaryNone": "sin tracker",
+    "saved": "Tracker guardado",
+    "saveFailed": "No se ha podido guardar el tracker",
+    "loadFailed": "No se ha podido leer el tracker del proyecto",
+    "thisHost": "este host",
+    "state": {
+      "ready": "Listo",
+      "unavailable": "No disponible",
+      "signed-out": "Sin sesión",
+      "incompatible": "Requiere actualizar",
+      "not-installed": "No instalado",
+      "unknown": "Sin comprobar"
+    },
+    "reason": {
+      "ready": "{{cli}} tiene sesión y responde.",
+      "wrong-host": "El host de este proyecto es {{hostname}}, que {{tracker}} no usa.",
+      "signed-out": "{{cli}} está instalado, pero no tiene sesión en el alojamiento del código.",
+      "incompatible": "{{cli}} es anterior a la versión más antigua con la que funciona Agentry.",
+      "not-installed": "{{cli}} no está instalado, o Agentry no lo encuentra.",
+      "unknown": "Agentry todavía no ha comprobado {{cli}}.",
+      "not-built": "Agentry todavía no puede ofrecer {{tracker}}: su programa ({{cli}}) no está soportado en esta versión.",
+      "disabled": "{{tracker}} está desactivado en Integraciones."
+    },
+    "scope": {
+      "repository": "Alcance",
+      "project": "Clave del proyecto"
+    },
+    "scopeHint": "Las incidencias de este repositorio. Si no lo cambias, es el del remoto <mono>origin</mono>.",
+    "query": "Consulta",
+    "queryPlaceholder": {
+      "github-issues": "is:open label:bug",
+      "gitlab-issues": "error de acceso"
+    },
+    "queryHint": {
+      "github-issues": "La búsqueda de GitHub tal cual, la que escribirías en su pestaña de incidencias. Al importar sale ya escrita.",
+      "gitlab-issues": "El texto con el que GitLab busca las incidencias. Al importar sale ya escrito."
+    },
+    "queryHintDefault": "La consulta propia de {{tracker}}. Al importar sale ya escrita. Vacía son las incidencias abiertas.",
+    "map": "Al mover una tarea",
+    "statusOf": "Estado de {{column}}",
+    "unchanged": "Sin cambios",
+    "choice": {
+      "closed": "Cerrar como completada"
+    },
+    "onlyOpenClosed": "{{tracker}} solo tiene abierta y cerrada.",
+    "mapHint": "Al fusionarse la PR la incidencia se cierra sola con <mono>Closes {{ref}}</mono> en su descripción. Si no pudo, porque la rama de destino no es la principal, Agentry la cierra después y comprueba que ha quedado cerrada."
   }
 }

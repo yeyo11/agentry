@@ -11,6 +11,7 @@ import { McpTab } from '../config/McpTab';
 import { SettingsTab } from '../config/SettingsTab';
 import { ProjectDecisions } from './ProjectDecisions';
 import { ProjectGeneral } from './ProjectGeneral';
+import { ProjectTracker } from './ProjectTracker';
 
 // The ids double as the dirty keys the tabs register, which is what marks a section as unsaved
 const SECTIONS = ['instructions', 'settings', 'mcp', 'files'] as const;
@@ -48,6 +49,7 @@ export function ProjectSettings({ project }: { project: Project }) {
   return (
     <>
       <ProjectGeneral project={project} />
+      <ProjectTracker project={project} />
       <ProjectDecisions project={project} />
 
       <div className="project-cli-head">
