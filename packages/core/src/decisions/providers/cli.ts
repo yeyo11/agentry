@@ -1,13 +1,16 @@
-import type { DecisionAnswer, DecisionQuestion, DecisionSettings, DecisionUnavailableReason } from '@agentry/shared';
+import type { DecisionAnswer, DecisionQuestion, DecisionSettings, DecisionUnavailableReason, ProviderId } from '@agentry/shared';
 import type { ChatRuntime, NewChat, RunResult } from '../../chats.ts';
 import { stoppedOnMaxTokens } from '../../open-items.ts';
 import { PASTED_NOTE, pasted, thinkThrough } from '../../prompt-rules.ts';
+import { candidatesFor, type CandidateContext } from '../../providers/candidates.ts';
 import type { DecisionProvider, DecisionRequest, ProviderResult } from '../engine.ts';
 
 /*
- * The `cli` provider: Claude Code through its CLI and nothing else. One housekeeping chat answers one
- * batch of questions in one turn. It has no tool and no callback: the state is in the prompt and the
- * answers come back as `structured_output`, so the chat gets no API url or token either.
+ * The `cli` provider: an agent's CLI and nothing else. One housekeeping chat answers one batch of
+ * questions in one turn. It has no tool and no callback: the state is in the prompt and the answers
+ * come back as `structured_output`, so the chat gets no API url or token either. It runs on the first
+ * ready provider that declares `structuredOutput` and has a model for the configured one (decision 9);
+ * with nothing handed to `route` it is Claude Code, as before.
  */
 
 /** The part of the chat runtime this provider drives; the tests hand it the real one over a fake CLI */
@@ -19,9 +22,49 @@ export interface CliRuntime {
   remove(id: string): boolean;
 }
 
+/** Where the chat runs: a provider, and the model of its own that stands for the configured one */
+export interface CliRoute {
+  provider: ProviderId;
+  model: string;
+  effort: string | null;
+}
+
 export interface CliProviderDeps {
   runtime: CliRuntime;
   settings: { get(): Pick<DecisionSettings, 'cli'> };
+  /**
+   * Chooses the provider for one question. A reason means none can take it, and the answer is that
+   * reason now; the decision never waits for a provider's reset. Without it the chat runs on the
+   * default provider, as it did before rotation.
+   */
+  route?: (cli: DecisionSettings['cli']) => CliRoute | { unavailable: DecisionUnavailableReason };
+}
+
+/**
+ * The first provider of the person's order that can answer a decision: ready, with a session driver,
+ * `structuredOutput`, not at its limit and with a model for the configured one. A decision chat never
+ * moves and never waits, so a provider at its limit is simply passed over. With none, the answer is
+ * `rate-limited` when a limit is what ruled one out, and `server-error` when nothing was there to try.
+ */
+export function chooseCliRoute(cli: DecisionSettings['cli'], context: CandidateContext): CliRoute | { unavailable: DecisionUnavailableReason } {
+  const result = candidatesFor(
+    {
+      kind: 'decision',
+      from: null,
+      // The configured model is Claude's (`haiku`): another provider needs the person's mapping for it
+      model: { provider: 'claude-code', id: cli.model },
+      needs: ['structuredOutput'],
+      policy: null,
+      nativeRules: false,
+      automated: false,
+      exclude: [],
+      effort: cli.effort,
+    },
+    context,
+  );
+  const first = result.candidates[0];
+  if (first?.model) return { provider: first.provider, model: first.model, effort: first.effort };
+  return { unavailable: result.excluded.some((e) => e.excluded === 'exhausted') ? 'rate-limited' : 'server-error' };
 }
 
 /** How long a stopped chat gets to end before it is removed regardless */
@@ -100,7 +143,21 @@ export class CliDecisionProvider implements DecisionProvider {
   async ask(request: DecisionRequest, opts: { deadlineMs: number; signal: AbortSignal }): Promise<ProviderResult> {
     const startedAt = Date.now();
     const unavailable = (reason: DecisionUnavailableReason): ProviderResult => ({ status: 'unavailable', reason, latencyMs: Date.now() - startedAt });
-    const { model, effort, maxCostUsd } = this.deps.settings.get().cli;
+    const cli = this.deps.settings.get().cli;
+    const { maxCostUsd } = cli;
+    let model = cli.model;
+    let effort: string | null = cli.effort;
+    let provider: ProviderId | undefined;
+    if (this.deps.route) {
+      let route: ReturnType<NonNullable<CliProviderDeps['route']>>;
+      try {
+        route = this.deps.route(cli);
+      } catch {
+        return unavailable('server-error');
+      }
+      if ('unavailable' in route) return unavailable(route.unavailable);
+      ({ model, effort, provider } = route);
+    }
     if (opts.signal.aborted) return unavailable('timeout');
 
     let chat: ChatRuntime;
@@ -108,8 +165,10 @@ export class CliDecisionProvider implements DecisionProvider {
       chat = this.deps.runtime.start({
         prompt: decisionPrompt(request, model),
         name: `decision ${request.point}`,
+        ...(provider ? { provider } : {}),
         model,
-        effort,
+        // The configured effort when the route kept it; the target's own default when it has no such level
+        ...(effort ? { effort } : {}),
         maxBudgetUsd: maxCostUsd,
         jsonSchema: decisionSchema(request.questions),
         internal: true,

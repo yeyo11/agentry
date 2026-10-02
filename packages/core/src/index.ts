@@ -1,14 +1,14 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type {
-  AccountsOverview,
   AgentryLanguage,
   AuthVerification,
   AgentryReleaseInfo,
   TrackerId,
   CliVersionInfo,
+  ProviderLimit,
   ChatProject,
   ChatSummary,
   ChatWorktree,
@@ -35,7 +35,6 @@ import type {
   ProjectTemplate,
   ProjectWorktree,
   RunWorkflowRequest,
-  SwitchResult,
   SystemInfo,
   UpdateProjectRequest,
   Board,
@@ -64,9 +63,15 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@agentry/shared';
-import { AGENTRY_LANGUAGES, agentryLanguage, type DecisionRecord, type ProjectCodeHost, type ProviderId } from '@agentry/shared';
+import { AGENTRY_LANGUAGES, agentryLanguage, type DecisionRecord, type LimitWait, type PermissionMode, type ProjectCodeHost, type ProviderId, type ProviderMove, type ToolPolicy } from '@agentry/shared';
+import { LEGACY_PROVIDER } from './chat-records.ts';
+import { rulesOnDriver } from './tool-policy.ts';
 import pkg from '../package.json' with { type: 'json' };
-import { AccountManager } from './accounts.ts';
+import { CswapRetirementNotice } from './cswap-retirement.ts';
+import { ProviderRotation, candidateContext } from './rotation.ts';
+import { ProviderPoints } from './decisions/provider-points.ts';
+import { WorkProviders, openWaitOf, type StartInput } from './work-provider.ts';
+import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
 import { stateFromRun } from './chat-model.ts';
 import { chatLinkName, WorkItemError, WorkItemService, type WorkItemLinkState } from './work-items.ts';
@@ -105,7 +110,7 @@ import { CodexDriver } from './providers/codex/driver.ts';
 import { CodexTranscripts } from './providers/codex/transcripts.ts';
 import { OpencodeTranscripts } from './providers/opencode/transcripts.ts';
 import type { ProviderManifest } from './providers/manifest.ts';
-import { DRIVER_TRANSPORTS, PROVIDER_MANIFESTS } from './providers/registry.ts';
+import { DRIVER_TRANSPORTS, PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import { ProvidersSettingsStore } from './providers/settings.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
@@ -150,7 +155,7 @@ import { DecisionEngine } from './decisions/engine.ts';
 import { IssueTriage } from './decisions/issue-triage.ts';
 import { ReviewTriage } from './decisions/review-triage.ts';
 import { DecisionResolvers } from './decisions/resolve.ts';
-import { CliDecisionProvider } from './decisions/providers/cli.ts';
+import { CliDecisionProvider, chooseCliRoute } from './decisions/providers/cli.ts';
 import { JevProvider } from './decisions/providers/jev.ts';
 import { DecisionCredentialStore, DecisionSettingsStore } from './decisions/settings.ts';
 import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
@@ -192,8 +197,11 @@ export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type 
 export { summarizeOrchestration } from './orchestrator.ts';
 export { compareVersions } from './version-check.ts';
 export { ReleaseWatch, type ReleaseWatchOptions } from './release-watch.ts';
-export { DEFAULT_AUTO_SWITCH } from './accounts.ts';
-export { CSWAP_VERSION, UV_VERSION } from './cswap-pin.ts';
+export { ProviderRotation, candidateContext, effectiveOnLimit } from './rotation.ts';
+
+/** How long a measurement of every provider serves the work that starts after it */
+const WORK_PROBE_MS = 60_000;
+export { CswapRetirementNotice, type CswapRetirement } from './cswap-retirement.ts';
 export {
   chatControl,
   chatState,
@@ -390,7 +398,15 @@ export class Core {
   /** The tunnel through localhost.run: lends its verified host to `appSettings.runtimeHosts` */
   readonly tunnel: TunnelManager;
   readonly uploads: UploadStore;
-  readonly accounts: AccountManager;
+  /** What happens when a provider reaches its limit: waits, moves and the timers behind them */
+  readonly rotation: ProviderRotation;
+  /** The three provider decision points: what to do at a limit, which provider to start on, a model's counterpart */
+  readonly providerPoints: ProviderPoints;
+  /** Where automated work starts: the same candidates a move reads, `provider.pick` included */
+  readonly workProviders: WorkProviders;
+  private workProbedAt = 0;
+  /** What claude-swap left behind: the one-time notice and Agentry's own copy of the binary */
+  readonly cswapRetirement: CswapRetirementNotice;
   readonly cliVersion: CliVersionWatch;
   /** Whether a newer Agentry has been released: `release.json`, checked once a day */
   readonly release: ReleaseWatch;
@@ -445,8 +461,6 @@ export class Core {
    * starts on its own, with no request of the person's behind them, are titled in.
    */
   private language: AgentryLanguage = 'en';
-  /** Chats whose account rotation after a rate limit is under way: a flow run on one waits for it */
-  private readonly rotations = new Set<string>();
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
   private systemCache: { at: number; gen: number; value: Omit<SystemInfo, 'uptimeSec' | 'models'> } | null = null;
@@ -456,8 +470,12 @@ export class Core {
   constructor(config: CoreConfig = loadConfig()) {
     this.config = config;
     this.providersSettings = new ProvidersSettingsStore(config);
+    // The detector and the runtime share the drivers, so the models a handshake lists reach the
+    // driver a mapping is checked against (a move needs the target's catalog to know its model)
+    const drivers = this.sessionDrivers(config);
     this.providers = new ProviderDetector({
       config,
+      registry: new ProviderRegistry(PROVIDER_MANIFESTS, drivers),
       settings: () => this.providersSettings.get(),
       emit: (event) => this.events.emit(event),
       commandAliases: { 'claude-code': [config.claudeBin] },
@@ -530,7 +548,7 @@ export class Core {
       emit: (event) => this.events.emit(event),
     });
     this.uploads = new UploadStore(config.dataDir);
-    this.runtime = new ChatManager(config, this.db, this.sessionDrivers(config));
+    this.runtime = new ChatManager(config, this.db, drivers);
     // One store, so the token a chat's process is handed is the one the guard accepts
     this.runtime.chatTokens = this.security.chatTokens;
     this.runtime.defaults = this.appSettings;
@@ -600,7 +618,14 @@ export class Core {
       db: this.db,
       projectDecisions: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.decisions ?? null,
     });
-    this.decisions.register(new CliDecisionProvider({ runtime: this.runtime, settings: this.decisionSettings }));
+    this.decisions.register(
+      new CliDecisionProvider({
+        runtime: this.runtime,
+        settings: this.decisionSettings,
+        // A decision chat never moves: it starts on the first provider that can answer, or says why none can
+        route: (cli) => chooseCliRoute(cli, candidateContext(this.runtime, { settings: this.providersSettings.get(), project: null, statuses: this.providers.known() ?? [] })),
+      }),
+    );
     // c6 left this wiring to the routes' worker: without it `jev` is never registered
     this.decisions.register(new JevProvider({ getKey: () => this.decisionCredentials.getKey() }));
     this.decisions.startPruning();
@@ -609,7 +634,33 @@ export class Core {
       db: this.db,
       engine: this.decisions,
       historyDays: () => this.decisionSettings.get().historyDays,
+      modelMap: () => this.providersSettings.get().rotation?.modelMap ?? [],
     });
+    this.providerPoints = new ProviderPoints({ decisions: this.decisions, sql: this.db.connection });
+    this.workProviders = new WorkProviders({
+      runtime: this.runtime,
+      settings: () => this.providersSettings.get(),
+      projectProviders: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.providers ?? null,
+      // A reading taken by something that only asked about Claude leaves the others unprobed: work
+      // that may start on any of them measures them all, at most once a minute
+      statuses: () => {
+        const known = this.providers.known();
+        // The first reading is the one on its way, or the one that starts now
+        if (!known) return this.providers.statuses();
+        // Measured again when a provider was only looked for and never run
+        const unprobed = known.some((s) => s.state === 'used-before' || (s.state === 'unknown' && s.reason !== 'no-probe' && s.reason !== 'disabled'));
+        if (!unprobed || Date.now() - this.workProbedAt < WORK_PROBE_MS) return Promise.resolve(known);
+        this.workProbedAt = Date.now();
+        return this.providers.refresh();
+      },
+      known: () => this.providers.known(),
+      decisions: this.decisions,
+      points: this.providerPoints,
+    });
+    this.orchestrator.providers = this.workProviders;
+    this.orchestrator.limitHeld = (chatId) => this.rotation.holds(chatId);
+    this.orchestrator.waitOf = (chatId) => this.openWait(chatId);
+    this.orchestrator.releaseWait = (chatId) => this.cancelWait(chatId);
     this.events.observe((event) => this.decisionResolvers.observe(event));
     this.decisionResolvers.start();
     this.orchestrator.decisions = this.decisions;
@@ -637,6 +688,13 @@ export class Core {
       environmentOf: (dir) => this.runtime.environments.get(dir),
       windowOf: (model) => this.db.modelWindow(model),
       memberChat: (chatId) => this.memberChat(chatId),
+      move: {
+        settings: () => this.providersSettings.get(),
+        statuses: () => this.providers.known() ?? [],
+        projectProviders: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.providers ?? null,
+        moves: this.db,
+        work: (chatId) => this.workOf(chatId),
+      },
     });
     this.changes = new Changes({
       orchestrator: this.orchestrator,
@@ -870,11 +928,15 @@ export class Core {
         const chat = this.runtime.get(chatId);
         return !!chat && stateFromRun({ status: chat.status, pendingPrompts: chat.pendingPrompts }) !== 'idle';
       },
-      stop: (chatId) => void this.runtime.stop(chatId),
+      stop: (chatId) => {
+        this.cancelWait(chatId);
+        void this.runtime.stop(chatId);
+      },
       activity: (chatId) => this.runtime.get(chatId)?.activity ?? null,
       language: () => this.language,
-      rotating: (chatId) =>
-        this.rotations.has(chatId) || (this.accounts.autoSwitch.rotateOnLimit && this.accounts.managed && this.runtime.rotationComing(chatId)),
+      limitHeld: (chatId) => this.rotation.holds(chatId),
+      cost: (chatId) => this.runtime.get(chatId)?.costUsd ?? null,
+      agentPrompt: (projectId, agent) => this.agentInstructions(projectId, agent),
       emit: (event) => this.events.emit(event),
     });
     this.team.runs = (projectId) => this.flow.runs(projectId);
@@ -889,7 +951,11 @@ export class Core {
         const chat = this.runtime.get(chatId);
         return !!chat && stateFromRun({ status: chat.status, pendingPrompts: chat.pendingPrompts }) !== 'idle';
       },
-      stop: (chatId) => void this.runtime.stop(chatId),
+      stop: (chatId) => {
+        this.cancelWait(chatId);
+        void this.runtime.stop(chatId);
+      },
+      limitHeld: (chatId) => this.rotation.holds(chatId),
       activity: (chatId) => this.runtime.get(chatId)?.activity ?? null,
       cost: (chatId) => this.runtime.get(chatId)?.costUsd ?? null,
       addMember: (project, member, content) => this.addAssistantMember(project, member, content),
@@ -950,6 +1016,8 @@ export class Core {
       this.orchestrator.recover();
       try {
         this.flow.recover();
+        // The waits this process owns: its chats are back, so their timers can be armed
+        this.rotation.recover();
         // After the chats are back, so a merge moves an item nothing is about to resume on
         this.pullRequestWatcher.start();
       } catch {
@@ -969,102 +1037,61 @@ export class Core {
       const path = change.scope.projectPath;
       for (const project of this.projectStore.list().filter((p) => p.path === path)) void this.team.agentFileChanged(project.id, change.name, change.action);
     });
-    this.accounts = new AccountManager(config, this.db);
-    this.runtime.accounts = this.accounts;
-    this.accounts.projectOf = (cwd) => this.attach(cwd)?.project.id ?? null;
-    this.accounts.on('switched', (result: SwitchResult) => {
-      this.forgetSystem(); // the active account (and its email) changed
-      this.events.emit({
-        type: 'account.switched',
-        title: `Switched account${result.to ? ` to ${result.to}` : ''}`,
-        from: result.from,
-        to: result.to,
-        reason: result.reason,
-      });
+    this.cswapRetirement = new CswapRetirementNotice(config);
+    this.rotation = new ProviderRotation({
+      db: this.db,
+      runtime: this.runtime,
+      chats: this.chats,
+      settings: () => this.providersSettings.get(),
+      projectProviders: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.providers ?? null,
+      projectOf: (dir) => this.projectOf(resolve(dir)).project?.id ?? null,
+      decisions: this.decisions,
+      points: this.providerPoints,
+      emit: (event) => this.events.emit(event),
+      work: (chatId) => this.workOf(chatId),
+      repoint: (move) => this.repoint(move),
+      ended: (move, end, reason) => {
+        if (move.subjectKind === 'flow_run') this.flow.waitEnded(move, end, reason);
+        else if (move.subjectKind === 'task') this.orchestrator.waitEnded(move, end, reason);
+        else if (move.subjectKind === 'assistant_run') this.assistant.waitEnded(move, end, reason);
+      },
     });
-    // A managed install (or its removal) can change who owns the credential
-    this.accounts.on('cswap', () => {
-      this.syncCredentialOwner();
-      this.forgetSystem();
-    });
-    this.runtime.on('rate-limited', (run: ChatRuntime) => {
-      this.events.emit({ type: 'run.rateLimited', title: `${run.name} hit its rate limit`, ...runRef(run) });
-      void this.rotateAndResume(run);
-    });
-    void this.accounts.init().then(() => this.syncCredentialOwner());
+    this.rotation.start();
   }
 
-  /**
-   * While claude-swap manages the accounts it owns `.credentials.json`, and Claude Code only
-   * reads that file when no token is in the environment — so the wrapper stops injecting one.
-   */
-  private syncCredentialOwner(): void {
-    const managed = this.accounts.managed;
-    if (managed === this.credentials.isSuspended) return;
-    this.credentials.suspend(managed);
-    this.forgetSystem();
+  /** The run, task or item a chat works for: what lets the rotation move it, and what a move carries over. Null for a person's chat. */
+  private workOf(chatId: string): ChatWork | null {
+    return this.flow.workOf(chatId) ?? this.orchestrator.workOf(chatId) ?? this.assistant.workOf(chatId);
   }
 
-  /**
-   * A run died against its account's rate limit: rotate to the account with the most headroom
-   * left and replay the turn, which resumes the same session on the new credential.
-   */
-  private async rotateAndResume(run: ChatRuntime): Promise<void> {
-    if (!this.accounts.autoSwitch.rotateOnLimit || !this.accounts.managed) return;
-    // Held until the rotation says how it went: a flow run waits on it rather than fail
-    this.rotations.add(run.id);
-    const outcome: { resumed: boolean; reason: string | null } = { resumed: false, reason: null };
+  /** A move gave automated work a new chat: whoever owned the old one points at the new one. */
+  private repoint(move: ProviderMove): void {
+    if (move.subjectKind === 'flow_run') this.flow.moved(move);
+    else if (move.subjectKind === 'task') this.orchestrator.moved(move);
+    else if (move.subjectKind === 'assistant_run') this.assistant.moved(move);
+  }
+
+  /** The wait for a limit to reset that a chat is in, as the work it belongs to shows it. */
+  private openWait(chatId: string): LimitWait | null {
+    return openWaitOf(this.db, chatId);
+  }
+
+  /** A chat that is stopped on purpose is not waited for any more: its wait ends, and the work it belonged to with it. */
+  private cancelWait(chatId: string): void {
+    const id = this.rotation.waitOf(chatId);
+    if (id) this.rotation.cancel(id);
+  }
+
+  /** What a team member's agent file tells the agent, without its front matter; null when there is no file. */
+  private agentInstructions(projectId: string, agent: string): string | null {
+    const record = this.projectStore.get(projectId);
+    if (!record || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(agent)) return null;
     try {
-      // A pinned chat leaves its account; a project with a rotation policy moves within it; everything
-      // else uses the global rotation
-      const reason = `run ${run.name} hit its rate limit`;
-      const pinned = run.account;
-      const result = pinned
-        ? await this.accounts.rotatePinned({ account: pinned, cwd: run.cwd }, reason)
-        : ((await this.accounts.rotateWithinPolicy({ account: null, cwd: run.cwd }, reason)) ?? (await this.accounts.rotate(reason)));
-      if (!result.switched) {
-        this.runtime.notice(run.id, `Rate limit reached and no account with quota left${result.reason ? ` (${result.reason})` : ''}.`);
-        outcome.reason = result.reason ? `no account with quota left: ${result.reason}` : 'no account with quota left';
-        return;
-      }
-      // Kept, the pin would respawn the replay on the account that just ran out
-      if (pinned) this.runtime.unpin(run.id);
-      this.forgetSystem();
-      const target = result.to ?? 'another account';
-      // An orchestration worker already handed its result to the orchestrator, and a turn held to a
-      // schema (the assistant) to the run that started it, which has ended on it: rotating helps what
-      // comes after, but replaying the turn would spend again for nobody. A flow run that waits for
-      // the rotation has not ended: it goes on in its chat, as a person's chat does.
-      if (run.orchestrationId || (this.runtime.heldToSchema(run.id) && !this.flow.awaitsRotation(run.id))) {
-        this.runtime.notice(run.id, `Rate limit reached — switched to ${target}; the next tasks use it.`);
-        this.announceRotation(run, result, false);
-        return;
-      }
-      this.runtime.notice(run.id, `Rate limit reached — switched to ${target} and resuming.`);
-      const replayed = await this.runtime.replayLastTurn(run.id);
-      if (!replayed) this.runtime.notice(run.id, 'The turn could not be resumed automatically; send it again.');
-      outcome.resumed = replayed;
-      if (!replayed) outcome.reason = 'its turn could not be replayed';
-      this.announceRotation(run, result, replayed);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.runtime.notice(run.id, `Account rotation failed: ${message}`);
-      outcome.reason = `the rotation failed: ${message}`;
-    } finally {
-      this.rotations.delete(run.id);
-      this.flow.rotated(run.id, outcome);
+      const content = readFileSync(join(record.path, '.claude', 'agents', `${agent}.md`), 'utf8');
+      return content.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').trim() || null;
+    } catch {
+      return null;
     }
-  }
-
-  private announceRotation(run: ChatRuntime, result: SwitchResult, resumed: boolean): void {
-    this.events.emit({
-      type: 'run.accountRotated',
-      title: `${run.name} moved to ${result.to ?? 'another account'} after hitting its rate limit`,
-      ...runRef(run),
-      from: result.from,
-      to: result.to,
-      resumed,
-    });
   }
 
   /**
@@ -1133,9 +1160,7 @@ export class Core {
       const auth = cli.installed
         ? await getAuthStatus(this.config)
         : { loggedIn: false, tokenSource: 'none' as const, error: 'Claude Code CLI not installed' };
-      if (this.credentials.isSuspended) {
-        auth.tokenSource = 'cswap';
-      } else if (this.credentials.active && auth.tokenSource.startsWith('env-')) {
+      if (this.credentials.active && auth.tokenSource.startsWith('env-')) {
         auth.tokenSource = auth.tokenSource === 'env-oauth-token' ? 'wrapper-oauth-token' : 'wrapper-api-key';
       }
       const value = {
@@ -1789,27 +1814,60 @@ export class Core {
    * uploads directory, the journal and CLAUDE.md appended but never recorded, the result held to the
    * run's schema, and one turn. A run a restart cut off continues in its own chat, confined again.
    */
-  private async launchAssistantRun(launch: AssistantLaunch, onStart: (chatId: string) => void): Promise<void> {
+  private async launchAssistantRun(launch: AssistantLaunch, onStart: (chatId: string, provider?: ProviderId) => void): Promise<void> {
+    // A run cut off by a restart goes on in its own chat, on the provider that chat has
+    const resumed = launch.resumeChatId ? this.runtime.get(launch.resumeChatId) : null;
+    const claude = (resumed ? (resumed.provider ?? LEGACY_PROVIDER) : null) === LEGACY_PROVIDER;
+    // A run with no shell cannot push, and says so: automated work moves only with pushes denied
+    const policy: ToolPolicy = { ...launch.policy, gitPush: 'deny' };
+    const choice = resumed ? null : await this.workProviders.choose(this.assistantStartInput(launch, policy));
+    const provider = resumed ? (resumed.provider ?? LEGACY_PROVIDER) : (choice?.provider ?? LEGACY_PROVIDER);
+    const rules = rulesOnDriver(this.runtime.driverFor(provider), provider, policy);
+    const capabilities = this.runtime.providers.capabilities(provider);
     const options = {
-      model: launch.model,
+      model: resumed ? launch.model : (choice?.model ?? undefined),
+      ...(choice?.effort ? { effort: choice.effort } : {}),
       appendSystemPrompt: launch.appendSystemPrompt || undefined,
-      permissionMode: launch.permissionMode,
-      allowedTools: launch.allowedTools,
-      disallowedTools: launch.disallowedTools,
+      permissionMode: this.permissionModeFor(provider, launch.permissionMode),
+      allowedTools: provider === LEGACY_PROVIDER ? launch.allowedTools : rules.allowedTools,
+      disallowedTools: provider === LEGACY_PROVIDER ? launch.disallowedTools : rules.disallowedTools,
       toolPreset: null,
-      mcp: { servers: [] },
+      ...(capabilities.includes('mcp') ? { mcp: { servers: [] } } : {}),
       permissionPrompts: 'none' as const,
     };
-    const confine: ChatConfinement = { tools: launch.tools, settingSources: [] };
+    // `--tools` is Claude Code's flag: another provider is held to the policy by its own translation
+    const confine: ChatConfinement = { tools: provider === LEGACY_PROVIDER ? launch.tools : [], settingSources: [] };
     // Not recorded, as for a member's run: the CLI would otherwise send the run's prompt, rendered
     // for a confined session, to a person who continues the chat after the run
-    const extras = { jsonSchema: launch.jsonSchema, keepAlive: false, confine, systemPromptSnapshot: 'off' as const };
+    const extras = { jsonSchema: launch.jsonSchema, keepAlive: false, ...(provider === LEGACY_PROVIDER ? { confine } : {}), systemPromptSnapshot: 'off' as const };
     if (launch.resumeChatId) {
-      onStart(launch.resumeChatId);
-      await this.chats.resume(launch.resumeChatId, { ...options, prompt: launch.prompt }, extras);
+      onStart(launch.resumeChatId, provider);
+      // A chat on another provider keeps the policy it was started with: Claude's rules would replace it
+      const resume = claude ? options : { model: options.model, appendSystemPrompt: options.appendSystemPrompt, permissionMode: options.permissionMode, permissionPrompts: options.permissionPrompts };
+      await this.chats.resume(launch.resumeChatId, { ...resume, prompt: launch.prompt }, extras);
       return;
     }
-    await this.chats.create({ ...options, ...extras, prompt: launch.prompt, cwd: launch.cwd }, (started) => onStart(started.id));
+    await this.chats.create({ ...options, ...extras, provider, policy, prompt: launch.prompt, cwd: launch.cwd }, (started) => onStart(started.id, provider));
+  }
+
+  private assistantStartInput(launch: AssistantLaunch, policy: ToolPolicy): StartInput {
+    return {
+      kind: 'assistant',
+      subjectKind: 'assistant_run',
+      subjectId: launch.run.id,
+      projectId: launch.run.projectId,
+      title: launch.run.kind,
+      model: launch.model,
+      needs: ['structuredOutput'],
+      policy,
+    };
+  }
+
+  /** A mode the provider does not offer becomes `manual`: never a more permissive one than was asked for. */
+  private permissionModeFor(provider: ProviderId, mode: PermissionMode): PermissionMode {
+    if (provider === LEGACY_PROVIDER) return mode;
+    const offered = this.runtime.driverFor(provider).permissionModes();
+    return offered.some((m) => m.mode === mode) ? mode : 'manual';
   }
 
   /**
@@ -1858,11 +1916,18 @@ export class Core {
    * Developer's run continues its own chat from an earlier round, or starts one if that chat cannot
    * be continued; a run a restart cut off continues in its chat or fails.
    */
-  private async launchFlowRun(launch: FlowLaunch, onStart: (chatId: string) => void): Promise<void> {
+  private async launchFlowRun(launch: FlowLaunch, onStart: (chatId: string, provider?: ProviderId) => void): Promise<void> {
     const { item, member, run } = launch;
     const record = this.requireProject(item.projectId);
     if (!existsSync(record.path)) throw new Error(`the project's directory ${record.path} is missing`);
-    const agentsFile = await this.flowAgentsFile(record.path, member);
+    const resumed = launch.resumeChatId ? this.runtime.get(launch.resumeChatId) : null;
+    // A run that goes on in its chat stays on the provider that chat has; a new chat starts on the
+    // first provider that can enforce the stage's policy and take its model, `provider.pick` included.
+    // Chosen before anything is touched, so a run no provider can take fails with nothing half done
+    const needs: StartInput['needs'] = ['structuredOutput', ...(launch.maxBudgetUsd !== null ? (['budgetLimit'] as const) : [])];
+    const choice = resumed ? null : await this.workProviders.choose({ kind: 'flow-run', subjectKind: 'flow_run', subjectId: run.id, projectId: item.projectId, title: item.title, model: member.model, needs, policy: launch.policy });
+    const resumedOn = resumed ? (resumed.provider ?? LEGACY_PROVIDER) : null;
+    const agentsFile = (resumedOn ?? choice?.provider ?? LEGACY_PROVIDER) === LEGACY_PROVIDER ? await this.flowAgentsFile(record.path, member) : null;
     const place = launch.inWorktree ? itemWorktree(record.path, item) : null;
     if (place && (place.worktree !== item.worktree || place.branch !== item.branch)) {
       this.workItems.setWorktree(item.id, { worktree: place.worktree, branch: place.branch });
@@ -1885,17 +1950,29 @@ export class Core {
       // The short "carry on" prompt of a restart keeps to itself: the chat was already told
       if (line && !launch.continuing) prompt = withDocumentsLine(prompt, line);
     }
+    // The stage's policy in the words of the provider that runs it, never Claude's rule strings on another provider
+    const startedOn = (provider: ProviderId): { allowedTools: string[]; disallowedTools: string[] } => {
+      if (provider === LEGACY_PROVIDER) return { allowedTools: launch.allowedTools, disallowedTools: launch.disallowedTools };
+      const rules = rulesOnDriver(this.runtime.driverFor(provider), provider, launch.policy);
+      return { allowedTools: rules.allowedTools, disallowedTools: rules.disallowedTools };
+    };
+    const newProvider = choice?.provider ?? LEGACY_PROVIDER;
     const options = {
-      model: member.model,
+      model: choice?.model ?? member.model,
+      ...(choice?.effort ? { effort: choice.effort } : {}),
       appendSystemPrompt: launch.appendSystemPrompt || undefined,
-      permissionMode: launch.permissionMode,
-      allowedTools: launch.allowedTools,
-      disallowedTools: launch.disallowedTools,
+      permissionMode: this.permissionModeFor(newProvider, launch.permissionMode),
+      ...startedOn(newProvider),
       ...(launch.maxBudgetUsd !== null ? { maxBudgetUsd: launch.maxBudgetUsd } : {}),
       toolPreset: null,
       permissionPrompts: 'none' as const,
     };
-    const extras = { agent: member.agent, agentsFile, jsonSchema: launch.jsonSchema, systemPromptSnapshot: 'off' as const, uploads: false as const, keepAlive: false };
+    // A provider that cannot take the agent file as a subagent gets its instructions at the head of the prompt
+    if (newProvider !== LEGACY_PROVIDER && !this.runtime.providers.capabilities(newProvider).includes('subagents') && !launch.continuing) {
+      const instructions = this.agentInstructions(item.projectId, member.agent);
+      if (instructions) prompt = `${instructions}\n\n${prompt}`;
+    }
+    const extras = { ...(agentsFile ? { agent: member.agent, agentsFile } : {}), jsonSchema: launch.jsonSchema, systemPromptSnapshot: 'off' as const, uploads: false as const, keepAlive: false };
     const link = (chatId: string): void => {
       try {
         this.workItems.link(item.id, { kind: 'chat', role: run.stage, chatId, teamRole: member.role }, { actor: { kind: 'agent', role: member.role } });
@@ -1906,9 +1983,11 @@ export class Core {
     if (launch.resumeChatId) {
       const chatId = launch.resumeChatId;
       // Told first: the result is matched to the run by its chat, and may not wait for the resume to return
-      onStart(chatId);
+      onStart(chatId, resumedOn ?? undefined);
       try {
-        await this.chats.resume(chatId, { ...options, prompt }, extras);
+        // A chat on another provider keeps the policy it was started with: Claude's rules would replace it
+        const resume = resumedOn === LEGACY_PROVIDER ? options : { model: options.model, appendSystemPrompt: options.appendSystemPrompt, permissionMode: options.permissionMode, permissionPrompts: options.permissionPrompts };
+        await this.chats.resume(chatId, { ...resume, prompt }, extras);
         link(chatId);
         return;
       } catch (err) {
@@ -1917,8 +1996,15 @@ export class Core {
         // otherwise falls through to a chat of its own
       }
     }
-    await this.chats.create({ ...options, ...extras, prompt, cwd: place?.cwd ?? record.path }, (started) => {
-      onStart(started.id);
+    // Chosen when none was yet: a Developer's chat that could not be continued falls through to here
+    const created = choice ?? (await this.workProviders.choose({ kind: 'flow-run', subjectKind: 'flow_run', subjectId: run.id, projectId: item.projectId, title: item.title, model: member.model, needs, policy: launch.policy }));
+    const createdOptions =
+      created === choice
+        ? options
+        : { ...options, model: created.model ?? member.model, ...(created.effort ? { effort: created.effort } : {}), permissionMode: this.permissionModeFor(created.provider, launch.permissionMode), ...startedOn(created.provider) };
+    const createdExtras = created.provider === LEGACY_PROVIDER ? { ...extras, agent: member.agent, agentsFile: agentsFile ?? (await this.flowAgentsFile(record.path, member)) } : extras;
+    await this.chats.create({ ...createdOptions, ...createdExtras, provider: created.provider, policy: launch.policy, prompt, cwd: place?.cwd ?? record.path }, (started) => {
+      onStart(started.id, created.provider);
       link(started.id);
     });
   }
@@ -2408,8 +2494,9 @@ export class Core {
     ]);
     return {
       system,
-      rateLimit: this.runtime.lastRateLimit,
-      accounts: this.accounts.snapshot(),
+      rateLimit: null,
+      limits: this.limitReadings(),
+      accounts: null,
       counts: {
         projects: this.projectStore.list().length,
         chats: chats.length,
@@ -2424,11 +2511,12 @@ export class Core {
     };
   }
 
-  /** Reads through to claude-swap and keeps the credential ownership in sync. */
-  async accountsOverview(refresh = false): Promise<AccountsOverview> {
-    const overview = await this.accounts.overview(refresh);
-    this.syncCredentialOwner();
-    return overview;
+  /** One reading per provider that has one, for the overview and the status bar. */
+  private limitReadings(): ProviderLimit[] {
+    return this.runtime.providers.list().flatMap((m) => {
+      const limit = this.runtime.limits.get(m.id);
+      return limit ? [limit] : [];
+    });
   }
 
   shutdown(): void {
@@ -2448,7 +2536,7 @@ export class Core {
     this.changeWatcher.close();
     this.permissions.close();
     this.push.close();
-    this.accounts.shutdown();
+    this.rotation.close();
     this.runtime.stopAll();
     this.db.close();
   }

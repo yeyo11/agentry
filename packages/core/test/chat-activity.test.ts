@@ -118,7 +118,6 @@ function runtime(activity: ChatActivity | null): ChatRuntime {
     error: null,
     orchestrationId: 'graph-1',
     orchestrationTaskId: 'task-a',
-    account: null,
     permissionPrompts: 'none',
     pendingPrompts: 0,
     activity,

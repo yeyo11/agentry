@@ -1,5 +1,4 @@
-import type { Launch } from '../../accounts.ts';
-import type { AccountSupport, SessionLaunch } from '../driver.ts';
+import type { SessionLaunch } from '../driver.ts';
 
 /** The flags `claude -p` is started with for a chat, in the order the CLI has always been given them */
 export function buildArgs(spec: SessionLaunch): string[] {
@@ -59,19 +58,4 @@ export function buildArgs(spec: SessionLaunch): string[] {
   if (spec.systemPromptSnapshot === 'off') args.push('--system-prompt-snapshot', 'off');
   if (spec.internal) args.push('--no-session-persistence');
   return args;
-}
-
-/**
- * `cswap run <account> --share-history -- <claude args>` execs Claude Code against that
- * account's session profile; `--share-history` symlinks `projects/` back to the real config
- * dir, so the transcript still lands where the session store reads it. Pinning to the account
- * that is already active would create a second credential copy that can drift, so it is
- * spawned as a plain `claude` instead.
- */
-export function command(claudeBin: string, accounts: AccountSupport | null, launch: Launch, args: string[]): [string, string[]] {
-  const { account } = launch;
-  // An account with a config directory of its own runs `claude` against it: `cswap run` would
-  // replace CLAUDE_CONFIG_DIR with its session profile, and the directory would be ignored
-  if (!account || launch.configDir || !accounts?.managed || accounts.isActive(account)) return [claudeBin, args];
-  return [accounts.bin, ['run', account, '--share-history', '--', ...args]];
 }

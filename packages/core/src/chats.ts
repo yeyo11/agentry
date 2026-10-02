@@ -7,12 +7,15 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import {
   type Attachment,
+  type ChatContinuation,
+  type ChatToolConfig,
   type ChatSettingsUpdate,
   type ChatStartOptions,
   type EffectiveEnvironment,
   type Execution,
-  type RateLimitInfo,
   type ProviderId,
+  type PermissionMode,
+  type ProviderLimit,
   type ProvidersSettings,
   type ResumeChatRequest,
   type RunEvent,
@@ -31,7 +34,6 @@ import {
   LiveChat,
   now,
   processUp,
-  type AccountResolver,
   type AdoptedChat,
   type ChatHost,
   type ChatPulse,
@@ -49,12 +51,31 @@ import { ModelAliasIds } from './models.ts';
 import { cliProcessOf, commandRoots, processTable, terminateTree } from './processes.ts';
 import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
 import type { ModelUsage, ProviderDriver, SessionLaunch } from './providers/driver.ts';
+import { ProviderLimits } from './providers/limits.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import type { SessionStore } from './sessions.ts';
 import type { UploadStore } from './uploads.ts';
 
 // Every name `chats.ts` has ever exported stays importable from here
-export type { AccountResolver, AdoptedChat, ChatConfinement, ChatPulse, ChatRuntime, ExecutionExtras, NewChat, ResolvedTools, RunMeta, RunningCommand, RunResult } from './live-chat.ts';
+export type { AdoptedChat, ChatConfinement, ChatPulse, ChatRuntime, ExecutionExtras, NewChat, ResolvedTools, RunMeta, RunningCommand, RunResult } from './live-chat.ts';
+/** What a move to another provider starts the new chat with; the caller has already chosen all of it. */
+export interface ChatContinuationSpec {
+  provider: ProviderId;
+  /** A model of the target provider; null takes the target's own default */
+  model: string | null;
+  effort: string | null;
+  permissionMode: PermissionMode;
+  /** The handoff, or the original prompt */
+  prompt: string;
+  attachments?: string[];
+  action: ChatContinuation['action'];
+  moveId: string;
+  appendSystemPrompt?: string;
+  /** The policy and its rules in the target's words, and the MCP servers when it takes them */
+  toolConfig?: ChatToolConfig | null;
+  maxBudgetUsd?: number;
+}
+
 export { STRUCTURED_OUTPUT_TOOL } from './providers/claude-code/stream.ts';
 
 const MAX_PERSISTED_CHATS = 200;
@@ -72,8 +93,11 @@ export class ChatRefusal extends Error {
   }
 }
 
-/** One rotate-and-resume per execution: a second failure is a real one, not a quota one */
-const MAX_ROTATION_RETRIES = 1;
+/** One replay of a turn lost to a limit per execution: a second failure is a real one, not a quota one */
+const MAX_LIMIT_REPLAYS = 1;
+
+/** What a request that still sends `account` is told: pinning an account went away with claude-swap */
+const ACCOUNTS_RETIRED = 'accounts were retired; see Settings → Providers';
 const MAX_ATTACHMENTS = 20;
 
 /** A chat as it was last written: its record and each execution, as JSON. */
@@ -91,8 +115,8 @@ export class ChatManager extends EventEmitter {
   private readonly chats = new Map<string, LiveChat>();
   /** What was last written of each chat, so that a save writes only what changed since */
   private readonly saved = new Map<string, SavedChat>();
-  lastRateLimit: RateLimitInfo | null = null;
-  private accountSupport: AccountResolver | null = null;
+  /** One reading per provider, shared through the database with every process on the data directory */
+  readonly limits: ProviderLimits;
   /** The code half of each provider that can run chats */
   readonly providers: ProviderRegistry;
   /**
@@ -146,6 +170,7 @@ export class ChatManager extends EventEmitter {
   ) {
     super();
     this.providers = new ProviderRegistry(PROVIDER_MANIFESTS, drivers);
+    this.limits = new ProviderLimits(db);
     this.defaults = config;
     this.file = join(config.dataDir, 'runs.json');
     this.modelIds = new ModelAliasIds(config.dataDir);
@@ -165,31 +190,18 @@ export class ChatManager extends EventEmitter {
       emit: (event, ...args) => this.emit(event, ...args),
       persist: () => this.persist(),
       noteActivity: (chat) => this.noteActivity(chat),
-      noteRateLimit: (info) => {
-        this.lastRateLimit = info;
+      observeLimit: (chat, event) => {
+        try {
+          this.limits.observe(chat.provider, event);
+        } catch {
+          // Output still draining after the database closed (shutdown): losing a limit reading must not become an uncaught error
+        }
       },
       learnModelCosts: (execution, modelUsage) => this.learnModelCosts(execution, modelUsage),
       learnWindows: (modelUsage) => this.learnWindows(modelUsage),
-      maybeRotate: (chat) => this.maybeRotate(chat),
+      maybeLimit: (chat) => this.maybeLimit(chat),
       failProtocol: (chat, message) => this.failProtocol(chat, message),
     };
-  }
-
-  /**
-   * Set when claude-swap manages the accounts; null leaves chats on the active credential. It is
-   * the accounts of every driver that declares them: the accounts are the provider's, the manager
-   * only forwards what Core hands it.
-   */
-  get accounts(): AccountResolver | null {
-    return this.accountSupport;
-  }
-
-  set accounts(value: AccountResolver | null) {
-    this.accountSupport = value;
-    for (const manifest of this.providers.list()) {
-      const driver = this.providers.driverFor(manifest.id);
-      if (driver && manifest.capabilities.includes('multiAccount')) driver.accounts = value;
-    }
   }
 
   /** The driver a request asks for, or the person's default; refused when that provider cannot run chats. */
@@ -524,9 +536,9 @@ export class ChatManager extends EventEmitter {
       chat.workingDir = adopt.cwd;
     }
     this.applyStartOptions(chat, request);
-    // A new execution is a new turn to see through: the rotation it may need is its own, not one an
+    // A new execution is a new turn to see through: the replay it may need is its own, not one an
     // earlier execution of the chat already spent (a flow run continues its member's chat this way)
-    chat.rotationRetries = 0;
+    chat.limitReplays = 0;
     const known = this.chats.has(id);
     if (!known) this.chats.set(id, chat);
     try {
@@ -570,9 +582,7 @@ export class ChatManager extends EventEmitter {
 
   /** Refuses what cannot start, before anything is created. */
   private admit(opts: ChatStartOptions, driver: ProviderDriver): void {
-    if (opts.account && !driver.accounts?.managed) {
-      throw new ChatRefusal('no claude-swap account is registered: a chat cannot be pinned to one');
-    }
+    if (opts.account !== undefined) throw new ChatRefusal(ACCOUNTS_RETIRED);
     const limit = this.defaults.maxConcurrentRuns;
     if (this.activeCount() >= limit) {
       throw new ChatRefusal(`Concurrent run limit reached (${limit})`);
@@ -622,9 +632,6 @@ export class ChatManager extends EventEmitter {
     for (const key of ['model', 'effort', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'disallowedTools', 'maxBudgetUsd', 'permissionPrompts'] as const) {
       if (options[key] !== undefined) Object.assign(opts, { [key]: options[key] });
     }
-    // `null` unpins it: the chat follows the active credential, or its project's policy
-    if (options.account === null) delete opts.account;
-    else if (options.account !== undefined) opts.account = options.account;
     // `null` takes the chat back to the servers the CLI loads on its own
     if (options.mcp === null) delete opts.mcp;
     else if (options.mcp) opts.mcp = options.mcp;
@@ -898,7 +905,6 @@ export class ChatManager extends EventEmitter {
       ...(opts.internal ? { internal: true } : {}),
       ...(opts.agent ? { agent: opts.agent } : {}),
       ...(opts.agentsFile ? { agentsFile: opts.agentsFile } : {}),
-      account: opts.account ?? null,
       policy: opts.toolConfig?.policy ?? null,
     };
   }
@@ -921,6 +927,7 @@ export class ChatManager extends EventEmitter {
     chat.endedAt = null;
     chat.error = null;
     chat.rateLimited = false;
+    chat.limitRequested = false;
     chat.stopReason = null;
     // Whatever the last process left open went with it
     chat.heartbeats.clear();
@@ -1052,31 +1059,23 @@ export class ChatManager extends EventEmitter {
     chat.setStatus(status);
     this.noteActivity(chat);
     this.persist();
-    this.maybeRotate(chat);
+    this.maybeLimit(chat);
   }
 
   /**
-   * Asks for one account rotation per attempt. The turn can die against the limit while the
+   * Announces that the chat's provider is at its limit, once per attempt. The turn can die against the limit while the
    * process stays alive (keepAlive) or by taking it down, so both paths end up here.
    */
-  private maybeRotate(chat: LiveChat): void {
-    if (!chat.rateLimited || chat.rotationRequested || !chat.lastUserTurn) return;
-    if (chat.rotationRetries >= MAX_ROTATION_RETRIES) return;
-    chat.rotationRequested = true;
-    this.emit('rate-limited', chat.summary());
+  private maybeLimit(chat: LiveChat): void {
+    if (!chat.rateLimited || chat.limitRequested || !chat.lastUserTurn) return;
+    if (chat.limitReplays >= MAX_LIMIT_REPLAYS) return;
+    chat.limitRequested = true;
+    this.emit('limit-hit', chat.summary(), this.limits.get(chat.provider));
   }
 
   /** A wrapper-generated line in the transcript (account rotations, retries). */
   notice(id: string, text: string, data?: Record<string, unknown>): void {
     this.chats.get(id)?.push({ kind: 'notice', text, ...(data ? { data } : {}) });
-  }
-
-  /** Lets a chat pinned to an account follow the active credential (or its policy) from its next spawn. */
-  unpin(id: string): void {
-    const chat = this.chats.get(id);
-    if (!chat?.opts.account) return;
-    delete chat.opts.account;
-    this.persist();
   }
 
   /**
@@ -1088,26 +1087,36 @@ export class ChatManager extends EventEmitter {
   }
 
   /**
-   * The chat's turn died against the rate limit and a rotation will be asked for it: what a run
-   * held to a schema waits on rather than fail. True from the limit until the rotation is asked,
-   * so together with the rotation's own bookkeeping it covers the whole wait.
+   * The chat's turn died against its provider's limit and `limit-hit` will be announced for it: what
+   * a run held to a schema waits on rather than fail. True from the limit until the announcement.
    */
-  rotationComing(id: string): boolean {
+  limitComing(id: string): boolean {
     const chat = this.chats.get(id);
-    return !!chat && chat.rateLimited && !chat.rotationRequested && !!chat.lastUserTurn && chat.rotationRetries < MAX_ROTATION_RETRIES;
+    return !!chat && chat.rateLimited && !chat.limitRequested && !!chat.lastUserTurn && chat.limitReplays < MAX_LIMIT_REPLAYS;
+  }
+
+  /** The chat's last turn died on its provider's limit and nothing has started on it since. */
+  atLimit(id: string): boolean {
+    return this.chats.get(id)?.rateLimited === true;
+  }
+
+  /** The provider's reading as it stands for the chat's provider; null for a chat Agentry does not drive. */
+  limitOf(id: string): ProviderLimit | null {
+    const chat = this.chats.get(id);
+    return chat ? this.limits.get(chat.provider) : null;
   }
 
   /**
-   * Re-sends the turn that died against the rate limit. The process is gone by now, so `send`
-   * respawns it with `--resume` — on whichever account is active at that point.
+   * Re-sends the turn that died against the limit, on the same chat and provider: what `wait` does
+   * once the reset has passed. The process is gone by now, so `send` respawns it with `--resume`.
    */
   async replayLastTurn(id: string): Promise<boolean> {
     const chat = this.chats.get(id);
-    if (!chat || !chat.lastUserTurn || chat.rotationRetries >= MAX_ROTATION_RETRIES) return false;
-    chat.rotationRetries++;
+    if (!chat || !chat.lastUserTurn || chat.limitReplays >= MAX_LIMIT_REPLAYS) return false;
+    chat.limitReplays++;
     chat.rateLimited = false;
-    chat.rotationRequested = false;
-    // A live process holds the old account's token in memory: only a respawn picks up the new one
+    chat.limitRequested = false;
+    // A live process may hold state from before the reset: a respawn starts clean
     if (chat.alive) {
       const proc = chat.proc;
       this.stop(id);
@@ -1117,4 +1126,54 @@ export class ChatManager extends EventEmitter {
     return true;
   }
 
+  /**
+   * Moves the work to a new chat on another provider (decision P4-1): the old chat's process is
+   * stopped if it is still up, and the new chat starts in the same directory and worktree with the
+   * handoff or the original prompt as its first turn. The two chats link to each other; each keeps
+   * its own provider, session and transcript. Nothing of the old session travels: a session belongs to
+   * its provider.
+   */
+  async continueOn(fromId: string, spec: ChatContinuationSpec): Promise<ChatRuntime> {
+    const from = this.chats.get(fromId);
+    if (!from) throw new ChatRefusal('chat not found', 404);
+    if (from.continuedIn) throw new ChatRefusal('this chat was already continued on another provider', 409);
+    const driver = this.driverFor(spec.provider);
+    const proc = from.alive ? from.proc : null;
+    if (from.alive) this.stop(fromId);
+    if (proc) await once(proc, 'close');
+    this.admit({}, driver);
+    const attachments = this.resolveAttachments(spec.attachments);
+    const { opts } = from;
+    const toolConfig = spec.toolConfig ?? null;
+    const next: NewChat = {
+      prompt: spec.prompt,
+      cwd: from.cwd,
+      name: from.name,
+      provider: spec.provider,
+      ...(spec.model ? { model: spec.model } : {}),
+      ...(spec.effort ? { effort: spec.effort } : {}),
+      permissionMode: spec.permissionMode,
+      ...(spec.appendSystemPrompt ? { appendSystemPrompt: spec.appendSystemPrompt } : {}),
+      ...(toolConfig ? { toolConfig, allowedTools: toolConfig.allowedTools, disallowedTools: toolConfig.disallowedTools } : {}),
+      ...(toolConfig?.mcp?.config ? { mcp: toolConfig.mcp } : {}),
+      ...(opts.worktree ? { worktree: opts.worktree } : {}),
+      ...(opts.jsonSchema !== undefined ? { jsonSchema: opts.jsonSchema } : {}),
+      ...(typeof spec.maxBudgetUsd === 'number' ? { maxBudgetUsd: spec.maxBudgetUsd } : {}),
+      ...(opts.permissionPrompts ? { permissionPrompts: opts.permissionPrompts } : {}),
+      ...(opts.internal ? { internal: true } : {}),
+      ...(opts.uploads !== undefined ? { uploads: opts.uploads } : {}),
+      ...(opts.keepAlive !== undefined ? { keepAlive: opts.keepAlive } : {}),
+    };
+    const chat = new LiveChat(randomUUID(), next, from.meta, from.origin, null, this.chatDefaults(), driver);
+    chat.workingDir = from.workingDir;
+    const at = now();
+    chat.continuedFrom = { chatId: from.id, provider: from.provider, action: spec.action, at, moveId: spec.moveId };
+    from.continuedIn = { chatId: chat.id, provider: chat.provider, action: spec.action, at, moveId: spec.moveId };
+    try {
+      return this.begin(chat, spec.prompt, attachments);
+    } catch (err) {
+      from.continuedIn = null;
+      throw err;
+    }
+  }
 }

@@ -13,7 +13,7 @@ export const claudeCodeManifest: ProviderManifest = {
     unsupportedPlatforms: [],
   },
   configHomes: [
-    // CLAUDE_CONFIG_DIR is what packages/core/src/account-config.ts already sets per account.
+    // CLAUDE_CONFIG_DIR moves the whole configuration home; unset, the CLI uses ~/.claude.
     { default: '~/.claude', env: 'CLAUDE_CONFIG_DIR' },
   ],
   versions: {
@@ -32,7 +32,7 @@ export const claudeCodeManifest: ProviderManifest = {
   },
   // chats.ts runs `claude -p --input-format stream-json --output-format stream-json`.
   transport: 'stream-json',
-  // Every one of these is exercised by chats.ts, flow.ts or accounts today (plan, section 3).
+  // Every one of these is exercised by chats.ts or flow.ts today (plan, section 3).
   capabilities: [
     'interactivePermissions',
     'structuredOutput',
@@ -47,7 +47,6 @@ export const claudeCodeManifest: ProviderManifest = {
     'effort',
     'costReport',
     'rateLimitWindows',
-    'multiAccount',
     'transcriptFiles',
     'workflowTool',
   ],

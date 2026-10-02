@@ -32,7 +32,6 @@ start, and that becomes the port it remembers. `PORT` in the environment overrid
 | Sandbox | The container | **None** |
 | Default permission mode | `bypassPermissions` | `acceptEdits` |
 | Claude Code CLI | Baked into the image | Yours, from your `PATH` |
-| claude-swap (multiple accounts) | Baked into the image | Yours if it is compatible, or installed by the app on request |
 | Login | `CLAUDE_CODE_OAUTH_TOKEN` | Your existing `~/.claude` login |
 | Listens on | `0.0.0.0:8787` | `127.0.0.1`, the port it used last |
 | Web Push | Over HTTPS, to any installed browser or phone | Not registered — see below |
@@ -224,12 +223,10 @@ does is logged to `desktop.log`.
 
 | What | Path |
 | --- | --- |
-| Wrapper state (runs, orchestrations, accounts, `wrapper.db`) | `~/.config/Agentry/data` |
+| Wrapper state (runs, orchestrations, `wrapper.db`) | `~/.config/Agentry/data` |
 | Logs | `~/.config/Agentry/logs/desktop.log` and `server.log` |
 | Default working directory for runs | `~/Agentry/workspace` |
 | Claude Code config and transcripts | `~/.claude` (the CLI's own, unchanged) |
-| claude-swap installed by the app (uv, Python, cache) | `~/.config/Agentry/data/tools` |
-| Registered accounts | `~/.local/share/claude-swap` (claude-swap's own) |
 | The tunnel's pinned host key and ssh PID | `~/.config/Agentry/data/tunnel` |
 | "Open the tunnel when Agentry starts" | `~/.config/Agentry/data/tunnel-settings.json` |
 
@@ -241,21 +238,14 @@ hidden). Each log is rotated when the app starts once it passes 5 MB, keeping th
 
 Only one instance runs at a time: opening the app again focuses the existing window.
 
-## Multiple accounts
+## Accounts
 
-Several Claude accounts, and rotating between them, go through
-[claude-swap](https://github.com/realiti4/claude-swap). You do not have to install it: on the
-Accounts page, **Activate multiple accounts** downloads a pinned uv, checks its digest, and has it
-install the claude-swap version Agentry is tested with — and a Python 3.12 if your system has none —
-into `~/.config/Agentry/data/tools`. It takes about 20 seconds and 50–80 MB the first time, and
-touches nothing outside that folder. Then the Add account dialog opens.
-
-If you already have a `cswap` on your `PATH` in a version Agentry understands, the app uses yours and
-downloads nothing. One outside that range is still used, with a warning and an offer to install
-Agentry's version, which then takes over. An update of Agentry that moves the pinned version
-upgrades its copy in the background. **Remove claude-swap** in the page's menu deletes that folder;
-the accounts stay in `~/.local/share/claude-swap` for any other `cswap`. Setting `CSWAP_BIN` or
-`AGENTRY_CSWAP_MANAGED=0` turns the managed install off.
+Agentry does not switch Claude accounts. It runs the CLI with whatever account `~/.claude` is signed
+in to, and at a limit it can move work to another provider (see [[providers.md]]). If an earlier
+version installed claude-swap for you, the account it left active is still the one in use, and
+Settings → Providers shows a one-time notice that names it. The notice offers to remove the copy the
+app had installed in `~/.config/Agentry/data/tools`; the accounts in `~/.local/share/claude-swap`
+are never touched, so any `cswap` of your own keeps working.
 
 ## Reaching it from a phone
 
@@ -301,11 +291,8 @@ service, the standalone bundle), so it finds what your terminal finds. Directori
    `ELECTRON_RUN_AS_NODE=1`, and it removes that from its environment as it starts, so the chats
    and commands it runs — an Electron app among them — start as themselves rather than as Node.
 
-The same applies to a [claude-swap](https://github.com/realiti4/claude-swap) of your own
-(`CSWAP_BIN`), when you would rather not use the copy the app installs (see
-[Multiple accounts](#multiple-accounts)). Any variable from the
-[environment table](../README.md#environment-variables), such as `AGENTRY_DEFAULT_PERMISSION_MODE`,
-can be set this way.
+Any variable from the [environment table](../README.md#environment-variables), such as
+`AGENTRY_DEFAULT_PERMISSION_MODE`, can be set this way.
 
 ## Building from source
 
@@ -362,4 +349,4 @@ release.
 
 ## Related
 
-[[deploy.md]] · [[status.md]] · [[decisions/requests-without-credential.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]] · [[plans/managed-claude-swap.md]] · [[tunnel.md]]
+[[deploy.md]] · [[status.md]] · [[decisions/requests-without-credential.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]] · [[tunnel.md]]

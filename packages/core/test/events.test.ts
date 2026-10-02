@@ -176,7 +176,6 @@ function summary(over: Partial<ChatRuntime> = {}): ChatRuntime {
     error: null,
     orchestrationId: null,
     orchestrationTaskId: null,
-    account: null,
     permissionPrompts: 'none',
     pendingPrompts: 0,
     activity: null,

@@ -91,7 +91,7 @@ interface Rig {
   structured: string[];
   inits: SessionInit[];
   /** The chats a rotation was asked for: what `rateLimited` leads to */
-  rotations: string[];
+  limitHits: string[];
   close(): void;
 }
 
@@ -105,8 +105,8 @@ function rig(harness: DriverHarness): Rig {
   const results: Rig['results'] = [];
   const structured: string[] = [];
   const inits: SessionInit[] = [];
-  const rotations: string[] = [];
-  chats.on('rate-limited', (chat: { id: string }) => rotations.push(chat.id));
+  const limitHits: string[] = [];
+  chats.on('limit-hit', (chat: { id: string }) => limitHits.push(chat.id));
   chats.on('chat-result', (chatId: string, result: Omit<Rig['results'][number], 'chatId'>) => results.push({ chatId, ...result }));
   chats.on('chat-structured', (_id: string, json: string) => structured.push(json));
   chats.on('chat-init', (_provider: string, init: SessionInit) => inits.push(init));
@@ -117,7 +117,7 @@ function rig(harness: DriverHarness): Rig {
     results,
     structured,
     inits,
-    rotations,
+    limitHits,
     close: () => {
       chats.stopAll();
       broker.close();
@@ -387,13 +387,14 @@ export function driverConformance(name: string, harness: DriverHarness): void {
     scenario(
       harness,
       'a rate limit ends with cause rate-limit and sets rateLimited',
-      async ({ chats, results, rotations }) => {
+      async ({ chats, results, limitHits }) => {
         const chat = chats.start({ prompt: harness.script.rateLimit, name: 'conformance', keepAlive: false });
         await chats.exited(chat.id);
         assert.equal(results[0]?.cause, 'rate-limit');
         assert.equal(resultOf(chats.events(chat.id))[0]?.outcome?.cause, 'rate-limit');
-        // What `rateLimited` is for: a rotation is asked for on it
-        assert.deepEqual(rotations, [chat.id]);
+        // What `rateLimited` is for: the chat announces the limit once, and its provider's reading says so
+        assert.deepEqual(limitHits, [chat.id]);
+        assert.equal(chats.limitOf(chat.id)?.state, 'exhausted');
       },
       'rateLimitWindows',
     );

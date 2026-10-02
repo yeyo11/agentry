@@ -12,6 +12,7 @@ import { buildApp } from '../src/app.ts';
 
 // What a worker did on disk, over HTTP: real git worktrees made by real orchestrations, driven by
 // the fake CLI the core tests use, which writes the files a prompt asks for.
+process.env.FAKE_CLAUDE_LOGGED_IN = '1';
 const FAKE_CLAUDE = fileURLToPath(new URL('../../../packages/core/test/fixtures/fake-claude.mjs', import.meta.url));
 
 let app: FastifyInstance;

@@ -180,7 +180,7 @@ const env = {
   // open a real one: the suite runs with authentication off, and the tunnel refuses to start then
   AGENTRY_TUNNEL: 'on',
   // Live specs need the real login; everything else runs against an empty config dir
-  ...(live ? {} : { CLAUDE_CONFIG_DIR: join(sandbox, 'claude'), CSWAP_BIN: join(sandbox, 'no-cswap') }),
+  ...(live ? {} : { CLAUDE_CONFIG_DIR: join(sandbox, 'claude') }),
 };
 // The fake CLI's sandbox: the same directories, with the fake first on PATH. The config directory is
 // always the sandbox's, live or not, since the fake has no login to need the real one. Health is
@@ -193,7 +193,6 @@ const fakeEnv = {
   ...env,
   PATH: [join(here, 'fake-cli'), process.env.PATH].filter(Boolean).join(delimiter),
   CLAUDE_CONFIG_DIR: join(sandbox, 'claude'),
-  CSWAP_BIN: join(sandbox, 'no-cswap'),
   AGENTRY_HEALTH_INTERVAL_MS: '500',
   AGENTRY_FAKE_CLI_LOG: fakeCli.log,
   AGENTRY_FAKE_CLI_SCRIPTS: fakeCli.scripts,

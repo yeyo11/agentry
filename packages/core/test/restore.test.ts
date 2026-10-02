@@ -73,7 +73,6 @@ function previousWrapper(sessionId: string, updatedAt = new Date().toISOString()
           lastText: null,
           model: null,
           permissionMode: 'bypassPermissions',
-          account: null,
           permissionPrompts: 'none',
           createdAt: startedAt,
           updatedAt,

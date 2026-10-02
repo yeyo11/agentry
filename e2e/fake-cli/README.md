@@ -73,6 +73,9 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
   `--json-schema` result over: a `StructuredOutput` tool call whose input arrives as
   `stream_event` / `input_json_delta` events. The first half goes out at once, the rest before the
   next step (so a `hold:` right after it keeps the file half-written).
+- `FAKE-LIMIT` (a line of its own) — the account's usage limit: a `rate_limit_event` with status
+  `rejected` and `resetsAt` an hour ahead, then a failed `result` with `api_error_status: 429`. It
+  fails every time it is sent.
 - `hold: <path>` — waits until `<path>` (against the working directory) exists before the next step.
 - `elapsed: <seconds>` — sets the heartbeat offset for this process from now on: a command then
   reports it has run that long, which is how a spec makes `hung-command` fire at once.

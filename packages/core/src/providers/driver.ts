@@ -12,7 +12,6 @@ import type {
   ToolPolicy,
   TranscriptEntry,
 } from '@agentry/shared';
-import type { Launch } from '../accounts.ts';
 import type { BackgroundTask, SubagentInfo, WorkflowRun } from '../cli-facts.ts';
 import type { ChatConfinement, NewChat } from '../live-chat.ts';
 import type { NeutralRequest } from '../policy-judge.ts';
@@ -32,9 +31,9 @@ export function binaryOf(source: BinarySource): string {
 
 /**
  * The code half of a provider; the manifest is the data half. Everything that is the agent's own
- * (its flags, its environment, its stream, its control protocol, the account wrapper in front of
- * it) sits behind this; everything that is Agentry's (chats, executions, queueing, tokens,
- * persistence, rotation requests) stays in `ChatManager`.
+ * (its flags, its environment, its stream, its control protocol) sits behind this; everything that is
+ * Agentry's (chats, executions, queueing, tokens, persistence, limits and moves) stays in
+ * `ChatManager`.
  */
 export interface ProviderDriver {
   readonly manifest: ProviderManifest;
@@ -52,7 +51,7 @@ export interface ProviderDriver {
   /** A handshake that spends nothing, for detection: version, account, models, confirmed capabilities */
   handshake?(env: NodeJS.ProcessEnv, signal: AbortSignal): Promise<HandshakeResult>;
 
-  /** How one process of a session starts: binary, argv and environment (claude-swap included) */
+  /** How one process of a session starts: binary, argv and environment */
   launch(spec: SessionLaunch): LaunchPlan;
   /** Speaks the protocol to one process; events come out already neutral */
   attach(io: SessionIO, sink: (event: DriverEvent) => void, branches: BranchTracker): DriverSession;
@@ -64,12 +63,6 @@ export interface ProviderDriver {
 
   /** What a session's first event confirms for the installed version */
   confirm(init: SessionInit): CapabilityConfirmation;
-
-  /**
-   * Optional parts, present only when the manifest declares the capability. `multiAccount` is
-   * claude-swap for Claude, phase 2 only, and Core supplies it after the driver exists.
-   */
-  accounts?: AccountSupport | null;
 }
 
 /** What a handshake that spends nothing learns about the installed provider. */
@@ -79,17 +72,6 @@ export interface HandshakeResult {
   account: string | null;
   models: ModelOption[];
   confirmed: ProviderCapability[];
-}
-
-/** What the runner needs to know about claude-swap, injected by Core to avoid a cycle. */
-export interface AccountSupport {
-  /** claude-swap is installed and has at least one account registered */
-  readonly managed: boolean;
-  /** The `cswap` a pinned chat runs through: `CSWAP_BIN`, the one on the `PATH`, or Agentry's own copy */
-  readonly bin: string;
-  isActive(identifier: string): boolean;
-  /** Which account, and which config directory, a chat starts with */
-  launchFor(chat: { account: string | null; cwd: string }): Launch;
 }
 
 /** Everything a process of a session is started from, minus what belongs to Agentry alone. */
@@ -124,8 +106,6 @@ export interface SessionLaunch {
   internal?: boolean;
   agent?: string;
   agentsFile?: string;
-  /** The account the chat is pinned to */
-  account: string | null;
   /** Agentry's policy for this run; the driver applies the settings part, the judge the host part */
   policy: ToolPolicy | null;
 }

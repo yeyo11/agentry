@@ -129,7 +129,8 @@ test("a chat's token can read the providers but not change the settings or force
 test('every provider route is documented with a summary and the Providers tag', async () => {
   const spec = (await app.inject('/openapi.json')).json<{ paths: Record<string, Record<string, { summary?: string; tags?: string[] }>> }>();
   const routes = Object.entries(spec.paths).filter(([path]) => path === '/api/providers' || path.startsWith('/api/providers/'));
-  assert.equal(routes.reduce((n, [, methods]) => n + Object.keys(methods).length, 0), 6);
+  // The six of detection and settings, and the eight of what a limit does
+  assert.equal(routes.reduce((n, [, methods]) => n + Object.keys(methods).length, 0), 14);
   for (const [path, methods] of routes) {
     for (const [method, op] of Object.entries(methods)) {
       assert.ok(op.summary, `${method} ${path} has no summary`);

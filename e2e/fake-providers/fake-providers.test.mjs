@@ -95,3 +95,33 @@ for (const [name, args] of [
     assert.ok(reply.result.agentCapabilities);
   });
 }
+
+test('codex RATE is the usage limit: the rate limits at 100 %, then a usageLimitExceeded error', async () => {
+  rmSync(stateFile('codex'), { force: true });
+  const child = spawn(join(here, 'codex'), ['app-server'], { env: env(), stdio: ['pipe', 'pipe', 'ignore'] });
+  const seen = [];
+  const send = (message) => child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', ...message })}\n`);
+  try {
+    const found = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`no limit; saw ${JSON.stringify(seen)}`)), 8000);
+      createInterface({ input: child.stdout }).on('line', (line) => {
+        const message = JSON.parse(line);
+        seen.push(message.method ?? message.id);
+        if (message.id === 1) {
+          send({ method: 'initialized' });
+          send({ id: 2, method: 'thread/start', params: {} });
+        }
+        if (message.id === 2) send({ id: 3, method: 'turn/start', params: { threadId: message.result.thread.id, input: [{ type: 'text', text: 'RATE', text_elements: [] }] } });
+        if (message.method === 'error') {
+          clearTimeout(timer);
+          resolve({ rateLimits: seen.includes('account/rateLimits/updated'), error: message.params.error });
+        }
+      });
+      send({ id: 1, method: 'initialize', params: { clientInfo: { name: 'test', version: '0' }, capabilities: null } });
+    });
+    assert.equal(found.rateLimits, true);
+    assert.equal(found.error.codexErrorInfo, 'usageLimitExceeded');
+  } finally {
+    child.kill('SIGTERM');
+  }
+});

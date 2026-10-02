@@ -118,7 +118,6 @@ const chat = (id: string, createdAt: string, executions: Execution[] = [executio
     lastText: 'ok',
     model: null,
     permissionMode: 'plan',
-    account: null,
     permissionPrompts: 'none',
     createdAt,
     updatedAt: createdAt,
