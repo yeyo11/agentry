@@ -11,7 +11,6 @@ import type { Core } from '@agentry/core';
 import { allowedOrigin } from './origins.ts';
 import { registerOpenApi } from './openapi/plugin.ts';
 import { registerSecurity } from './security.ts';
-import { accountRoutes } from './routes/accounts.ts';
 import { chatRoutes } from './routes/chats.ts';
 import { configRoutes } from './routes/config.ts';
 import { connectorRoutes } from './routes/connectors.ts';
@@ -174,7 +173,6 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       });
       await api.register(systemRoutes, { core });
       await api.register(securityRoutes, { core });
-      await api.register(accountRoutes, { core });
       await api.register(projectRoutes, { core });
       await api.register(workItemRoutes, { core });
       await api.register(teamRoutes, { core });

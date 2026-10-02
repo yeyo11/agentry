@@ -118,30 +118,6 @@ test('resources, memory and the file explorer validate their input', async () =>
   assert.equal((await app.inject({ method: 'DELETE', url: '/api/config/files/content?root=user&path=hooks' })).statusCode, 200);
 });
 
-test('accounts degrade and validate without claude-swap', async () => {
-  const overview = (await app.inject('/api/accounts')).json();
-  assert.equal(overview.cswap.installed, false);
-  assert.deepEqual(overview.accounts, []);
-  assert.equal(overview.activeNumber, null);
-  assert.equal(overview.autoSwitchRunning, false);
-  // CSWAP_BIN is the operator's choice: Agentry installs and removes nothing over it
-  assert.equal(overview.cswap.source, null);
-  assert.equal(overview.cswap.managed.available, false);
-  assert.equal((await app.inject({ method: 'POST', url: '/api/accounts/cswap/install' })).statusCode, 409);
-  assert.equal((await app.inject({ method: 'DELETE', url: '/api/accounts/cswap' })).statusCode, 409);
-
-  // Identifiers and settings are rejected before anything is spawned
-  assert.equal((await app.inject({ method: 'POST', url: '/api/accounts/switch', ...json({ target: '--help' }) })).statusCode, 400);
-  assert.equal((await app.inject({ method: 'DELETE', url: '/api/accounts/-x' })).statusCode, 400);
-  assert.equal((await app.inject({ method: 'PUT', url: '/api/accounts/1/alias', ...json({ alias: '--unset' }) })).statusCode, 400);
-  assert.equal((await app.inject({ method: 'POST', url: '/api/accounts/token', ...json({ token: '' }) })).statusCode, 400);
-  assert.equal((await app.inject({ method: 'PUT', url: '/api/accounts/autoswitch', ...json({ threshold: 1 }) })).statusCode, 400);
-
-  const saved = (await app.inject({ method: 'PUT', url: '/api/accounts/autoswitch', ...json({ threshold: 80, intervalSec: 30 }) })).json();
-  assert.equal(saved.threshold, 80);
-  assert.equal((await app.inject('/api/accounts/autoswitch')).json().intervalSec, 30);
-});
-
 test('resuming an orchestration that does not exist is a 404, not a hang', async () => {
   assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/nope/resume' })).statusCode, 404);
 });

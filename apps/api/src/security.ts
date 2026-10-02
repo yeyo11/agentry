@@ -177,6 +177,21 @@ const CHAT_FORBIDDEN = new Set([
 ]);
 
 /**
+ * What a limit does with the person's work is theirs to choose: moving a chat spends on another
+ * vendor, so a prompt injection in a transcript must not be able to start one, to stop a wait or to
+ * write a model into the mapping. The handoff preview, the candidates and the moves stay readable.
+ * The claude-swap notice is the person's own housekeeping.
+ */
+const CHAT_FORBIDDEN_ROTATION = new Set([
+  `POST ${API_PREFIX}/chats/:id/move`,
+  `POST ${API_PREFIX}/chats/:id/wait`,
+  `POST ${API_PREFIX}/providers/moves/:id/cancel`,
+  `POST ${API_PREFIX}/providers/model-map/suggestions/:id`,
+  `POST ${API_PREFIX}/providers/cswap-retirement/dismiss`,
+  `DELETE ${API_PREFIX}/providers/cswap-retirement/managed-copy`,
+]);
+
+/**
  * Registering a webhook puts a URL and a secret on the person's repository, and removing one stops
  * Agentry hearing from it: the person's click, never a chat's. Reading them stays open.
  */
@@ -471,6 +486,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       }
       if (chat !== null && CHAT_FORBIDDEN_DECISIONS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot change what the decision engine sends" });
+        return reply;
+      }
+      if (chat !== null && CHAT_FORBIDDEN_ROTATION.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot move or stop waiting for work, or answer a model-mapping suggestion: what a limit does is the person's choice" });
         return reply;
       }
       if (chat !== null && CHAT_FORBIDDEN_CHECKS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {

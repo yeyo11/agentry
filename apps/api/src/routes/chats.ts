@@ -9,7 +9,9 @@ import type {
   ChatState,
   ExportFormat,
   ForkChatRequest,
+  HandoffPreview,
   HintRequest,
+  MoveChatRequest,
   NewChatRequest,
   PermissionDecision,
   PermissionMode,
@@ -143,6 +145,36 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
   app.post<{ Params: { id: string }; Body: ForkChatRequest }>('/chats/:id/fork', async (req, reply) =>
     reply.status(201).send(await chats.fork(req.params.id, req.body ?? ({} as ForkChatRequest))),
   );
+
+  // The handoff exactly as a move would send it, built here and sent nowhere
+  app.get<{ Params: { id: string }; Querystring: { provider?: string; model?: string } }>('/chats/:id/handoff', (req): Promise<HandoffPreview> => {
+    const { provider, model } = req.query;
+    if (!provider) throw new Error('provider is required');
+    return chats.handoff(req.params.id, provider, model || undefined);
+  });
+
+  // A person moves a chat that reached a limit to a new chat on another provider
+  app.post<{ Params: { id: string }; Body: MoveChatRequest | undefined }>('/chats/:id/move', async (req, reply) => {
+    const { provider, action, model } = req.body ?? ({} as Partial<MoveChatRequest>);
+    if (typeof provider !== 'string' || provider === '') throw new Error('provider is required');
+    if (action !== 'handoff' && action !== 'restart') throw new Error("action must be 'handoff' or 'restart'");
+    if (model !== undefined && typeof model !== 'string') throw new Error('model must be a string');
+    const waitId = core.rotation.waitOf(req.params.id);
+    const { chat, move } = await chats.continueOn(req.params.id, { provider, action, ...(model ? { model } : {}) });
+    // The wait is over: the work goes on in the new chat. It is closed quietly, since stopping a wait
+    // would end the run or task that the move has just carried on
+    if (waitId) core.db.closeProviderMove(waitId, 'cancelled', new Date().toISOString(), { toChat: move.toChat, toProvider: move.toProvider, toModel: move.toModel, reason: 'moved' });
+    return reply.status(201).send(chat);
+  });
+
+  // A person chooses to wait for the reset instead of moving
+  app.post<{ Params: { id: string } }>('/chats/:id/wait', (req, reply) => {
+    if (!core.runtime.get(req.params.id)) throw new Error('chat not found');
+    if (!core.runtime.atLimit(req.params.id)) throw Object.assign(new Error('this chat has not reached a limit'), { statusCode: 409 });
+    const move = core.rotation.waitFor(req.params.id);
+    if (!move) throw Object.assign(new Error('this chat is already waiting'), { statusCode: 409 });
+    return reply.status(201).send(move);
+  });
 
   app.post<{ Params: { id: string }; Body: ChatMessageRequest }>('/chats/:id/messages', (req) =>
     chats.send(req.params.id, {
