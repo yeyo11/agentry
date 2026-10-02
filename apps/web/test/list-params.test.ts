@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseStored, pickValues, reconcile, sameValues, storageKey, withValues } from '../src/lib/list-params.ts';
+import { parseStored, pickValues, reconcile, sameValues, stillCurrent, storageKey, withValues } from '../src/lib/list-params.ts';
 
 const OWNED = ['q', 'state', 'sort'] as const;
 
@@ -51,4 +51,14 @@ test('list params: switching project brings that project’s values, unless the 
 test('list params: values compare by content', () => {
   assert.equal(sameValues({ a: '1', b: '2' }, { b: '2', a: '1' }), true);
   assert.equal(sameValues({ a: '1' }, { a: '1', b: '2' }), false);
+});
+
+test('list params: a reset made before the stored values reach the address is not undone', () => {
+  // The render read `q` from storage; "Show them all" cleared storage before the effect ran
+  const broughtBack = reconcile({ url: {}, stored: { q: 'no-such-graph' }, scopeChanged: false, urlChanged: false });
+  assert.equal(stillCurrent(broughtBack, {}), false);
+  assert.equal(stillCurrent(broughtBack, { q: 'no-such-graph' }), true);
+  // A value the address itself chose is written, whatever storage held a moment ago
+  const linked = reconcile({ url: { q: 'linked' }, stored: {}, scopeChanged: false, urlChanged: true });
+  assert.equal(stillCurrent(linked, {}), true);
 });

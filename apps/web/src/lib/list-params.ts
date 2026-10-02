@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 /*
@@ -82,6 +82,17 @@ export function reconcile({
   return { values: url, save: !sameValues(url, stored) };
 }
 
+/**
+ * Whether a decision taken at render time may still be applied to the address. One that writes the
+ * values it chose always may. One that only brings stored values back was taken on what storage held
+ * then; if storage holds something else by the time the effect runs, a reset or a change on the page
+ * came in between (a slow main thread delays the effect past a click), and putting the older values
+ * back would silently undo it.
+ */
+export function stillCurrent(decision: { values: ListValues; save: boolean }, storedNow: ListValues): boolean {
+  return decision.save || sameValues(decision.values, storedNow);
+}
+
 function read(key: string, owned: readonly string[]): ListValues {
   try {
     return parseStored(localStorage.getItem(key), owned);
@@ -123,6 +134,9 @@ export function useListParams(page: string, owned: readonly string[], scope: str
   const urlText = JSON.stringify(url);
   // What the last decision was taken on, to tell a project switch from a new address
   const seen = useRef<{ key: string; url: string } | null>(null);
+  // Bumped by a reset or a patch: when the address already agreed with it, only this makes the
+  // decision read storage again instead of keeping the values it brought back before
+  const [revision, setRevision] = useState(0);
 
   const decision = useMemo(() => {
     if (key === null) return null;
@@ -133,10 +147,11 @@ export function useListParams(page: string, owned: readonly string[], scope: str
       scopeChanged: previous !== null && previous.key !== key,
       urlChanged: previous !== null && previous.url !== urlText,
     });
-  }, [key, urlText, owned]);
+  }, [key, urlText, owned, revision]);
 
   useEffect(() => {
     if (key === null || decision === null) return;
+    if (!decision.save && !stillCurrent(decision, read(key, owned))) return;
     seen.current = { key, url: JSON.stringify(decision.values) };
     if (decision.save) write(key, decision.values);
     if (!sameValues(decision.values, url)) setParams((previous) => withValues(previous, owned, decision.values), { replace: true });
@@ -157,6 +172,7 @@ export function useListParams(page: string, owned: readonly string[], scope: str
       // Stored before the address changes, so the render that follows finds them already agreeing
       if (key !== null) write(key, values);
       setParams((previous) => withValues(previous, owned, values), { replace: true });
+      setRevision((r) => r + 1);
     },
     [effective, key, setParams, owned],
   );
@@ -164,6 +180,7 @@ export function useListParams(page: string, owned: readonly string[], scope: str
   const reset = useCallback(() => {
     if (key !== null) write(key, {});
     setParams((previous) => withValues(previous, owned, {}), { replace: true });
+    setRevision((r) => r + 1);
   }, [key, setParams, owned]);
 
   return { params: effective, patch, reset };
