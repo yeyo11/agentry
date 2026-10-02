@@ -140,7 +140,7 @@ test('golden: after a gh failure the watcher backs off, and a refresh still asks
     note(s.r, 'tick, gh fails');
     await watcher.tick();
     note(s.r, 'tick, backed off: no call');
-    await watcher.tick();
+    await watcher.pass();
     rmSync(join(s.r.state, 'fail'));
     view(s.r, 'OPEN', [{ state: 'SUCCESS' }]);
     note(s.r, 'refresh');
