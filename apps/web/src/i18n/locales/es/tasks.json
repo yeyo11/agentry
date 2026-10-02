@@ -329,7 +329,9 @@
     "cause": {
       "budget": "llegó al límite de coste por ejecución",
       "no-account": "ninguna cuenta tenía cupo",
-      "rate-limit": "la cuenta llegó a su límite de uso",
+      "rate-limit": "su proveedor llegó a su límite de uso",
+      "no-provider": "ningún proveedor pudo hacerse cargo",
+      "limit-wait-expired": "el límite no se restableció a tiempo",
       "stopped": "se detuvo su chat",
       "restarts": "Agentry se reinició demasiadas veces",
       "unreadable": "no dejó un resultado legible",

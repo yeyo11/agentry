@@ -54,16 +54,27 @@
   },
   "statusbar": {
     "label": "Status bar",
-    "fiveHour": "5h",
-    "sevenDay": "7d",
-    "window": "{{window}} limit: {{percent}}% used",
     "running": "{{count}} running",
     "today": "today {{cost}}",
-    "todayNone": "today, no cost"
+    "todayNone": "today, no cost",
+    "limit": {
+      "near": "limit",
+      "exhausted": "limit reached",
+      "resumes": "resets {{when}}",
+      "used": "{{provider}}: {{percent}}% of the {{window}} window used",
+      "tipWindow": "{{window}} window · {{percent}}% used",
+      "tipReset": "resets {{when}}",
+      "tipAge": "read {{age}}",
+      "unknown": "Its last reading is out of date, so its limit is not known",
+      "none": "{{provider}} does not report its limit"
+    }
   },
   "account": {
-    "card": "Account and limits",
-    "cli": "CLI {{version}}"
+    "card": "Agents and limits",
+    "version": "version {{version}}",
+    "none": "No agent detected",
+    "limitUnknown": "Limit not known",
+    "limitNone": "Does not report its limit"
   },
   "notFound": {
     "body": "The address may be mistyped, or the page is no longer there.",

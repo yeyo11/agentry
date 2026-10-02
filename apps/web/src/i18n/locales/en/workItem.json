@@ -269,7 +269,9 @@
     "cause": {
       "budget": "It reached the spending limit of a flow run.",
       "no-account": "No account had quota left: each one reached its limit and there was none to switch to.",
-      "rate-limit": "The account reached its limit, and account rotation is off.",
+      "rate-limit": "Its provider reached its usage limit and the work could not move or wait.",
+      "no-provider": "No provider could take this run: none is ready, or none can enforce what the stage allows.",
+      "limit-wait-expired": "It waited for its provider's limit to reset, and the reset did not come within the longest wait the settings allow.",
       "stopped": "Its chat was stopped before it finished.",
       "restarts_one": "It was cut off: Agentry restarted while it {{doing}}.",
       "restarts_other": "It was cut off {{count}} times: Agentry restarted while it {{doing}}.",
@@ -302,6 +304,15 @@
       "verify": "Verification started"
     },
     "retriedChat": "{{role}} started chat {{chat}}",
+    "moved": "{{role}}'s run moved from {{from}} to {{to}}",
+    "movedHow": {
+      "handoff": "handoff",
+      "restart": "started over"
+    },
+    "movedBy": {
+      "setting": "the settings",
+      "decision": "a decision point"
+    },
     "retriedQueued": "queued for {{role}}",
     "retriedLead": "Retried:",
     "retriedWhen": "{{when}}, in chat {{chat}}.",

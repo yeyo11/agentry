@@ -269,7 +269,9 @@
     "cause": {
       "budget": "Llegó al límite de gasto de una ejecución del flujo.",
       "no-account": "Ninguna cuenta tenía cupo: todas llegaron a su límite y no quedaba otra a la que pasar.",
-      "rate-limit": "La cuenta llegó a su límite y la rotación de cuentas está desactivada.",
+      "rate-limit": "Su proveedor llegó a su límite de uso y el trabajo no pudo pasar a otro ni esperar.",
+      "no-provider": "Ningún proveedor pudo hacerse cargo de esta ejecución: ninguno está listo, o ninguno puede hacer cumplir lo que permite la etapa.",
+      "limit-wait-expired": "Esperó a que se restableciera el límite de su proveedor y no ocurrió dentro de la espera máxima que permiten los ajustes.",
       "stopped": "Se detuvo su chat antes de que terminara.",
       "restarts_one": "Se cortó: Agentry se reinició mientras {{doing}}.",
       "restarts_other": "Se cortó {{count}} veces: Agentry se reinició mientras {{doing}}.",
@@ -302,6 +304,15 @@
       "verify": "Verificación puesta en marcha"
     },
     "retriedChat": "{{role}} empezó el chat {{chat}}",
+    "moved": "La ejecución de {{role}} pasó de {{from}} a {{to}}",
+    "movedHow": {
+      "handoff": "traspaso",
+      "restart": "empezada de nuevo"
+    },
+    "movedBy": {
+      "setting": "los ajustes",
+      "decision": "un punto de decisión"
+    },
     "retriedQueued": "en cola para {{role}}",
     "retriedLead": "Reintentada:",
     "retriedWhen": "{{when}}, en el chat {{chat}}.",

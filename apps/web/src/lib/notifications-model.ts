@@ -17,6 +17,7 @@ import {
 import i18n from '../i18n';
 import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
 import { serverText } from './server-strings';
+import { resetWhen } from './reset-when';
 
 /*
  * The browser's own bookkeeping around notifications: the stored list, what is a repeat of what,
@@ -77,6 +78,8 @@ const text: NotificationText = {
   nextAccount: () => i18n.t('components:notificationText.nextAccount'),
   rotatedBody: (from, to) => i18n.t('components:notificationText.rotatedBody', { from, to }),
   rotatedBodyReplayed: (from, to) => i18n.t('components:notificationText.rotatedBodyReplayed', { from, to }),
+  movedBody: (action) => i18n.t(`components:notificationText.movedBody.${action}`),
+  limitWaitingBody: (resetsAt) => (resetsAt ? i18n.t('components:notificationText.limitWaitingBody.at', { when: resetWhen(resetsAt) }) : i18n.t('components:notificationText.limitWaitingBody.unknown')),
   orchestrationFinished: (name) => i18n.t('components:notificationText.orchestrationFinished', { name }),
   orchestrationFailed: (name) => i18n.t('components:notificationText.orchestrationFailed', { name }),
   orchestrationDoneBody: () => i18n.t('components:notificationText.orchestrationDoneBody'),
