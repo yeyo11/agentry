@@ -110,7 +110,7 @@ import { CodexDriver } from './providers/codex/driver.ts';
 import { CodexTranscripts } from './providers/codex/transcripts.ts';
 import { OpencodeTranscripts } from './providers/opencode/transcripts.ts';
 import type { ProviderManifest } from './providers/manifest.ts';
-import { DRIVER_TRANSPORTS, PROVIDER_MANIFESTS } from './providers/registry.ts';
+import { DRIVER_TRANSPORTS, PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import { ProvidersSettingsStore } from './providers/settings.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
@@ -198,6 +198,9 @@ export { summarizeOrchestration } from './orchestrator.ts';
 export { compareVersions } from './version-check.ts';
 export { ReleaseWatch, type ReleaseWatchOptions } from './release-watch.ts';
 export { ProviderRotation, candidateContext, effectiveOnLimit } from './rotation.ts';
+
+/** How long a measurement of every provider serves the work that starts after it */
+const WORK_PROBE_MS = 60_000;
 export { CswapRetirementNotice, type CswapRetirement } from './cswap-retirement.ts';
 export {
   chatControl,
@@ -401,6 +404,7 @@ export class Core {
   readonly providerPoints: ProviderPoints;
   /** Where automated work starts: the same candidates a move reads, `provider.pick` included */
   readonly workProviders: WorkProviders;
+  private workProbedAt = 0;
   /** What claude-swap left behind: the one-time notice and Agentry's own copy of the binary */
   readonly cswapRetirement: CswapRetirementNotice;
   readonly cliVersion: CliVersionWatch;
@@ -466,8 +470,12 @@ export class Core {
   constructor(config: CoreConfig = loadConfig()) {
     this.config = config;
     this.providersSettings = new ProvidersSettingsStore(config);
+    // The detector and the runtime share the drivers, so the models a handshake lists reach the
+    // driver a mapping is checked against (a move needs the target's catalog to know its model)
+    const drivers = this.sessionDrivers(config);
     this.providers = new ProviderDetector({
       config,
+      registry: new ProviderRegistry(PROVIDER_MANIFESTS, drivers),
       settings: () => this.providersSettings.get(),
       emit: (event) => this.events.emit(event),
       commandAliases: { 'claude-code': [config.claudeBin] },
@@ -540,7 +548,7 @@ export class Core {
       emit: (event) => this.events.emit(event),
     });
     this.uploads = new UploadStore(config.dataDir);
-    this.runtime = new ChatManager(config, this.db, this.sessionDrivers(config));
+    this.runtime = new ChatManager(config, this.db, drivers);
     // One store, so the token a chat's process is handed is the one the guard accepts
     this.runtime.chatTokens = this.security.chatTokens;
     this.runtime.defaults = this.appSettings;
@@ -633,7 +641,13 @@ export class Core {
       runtime: this.runtime,
       settings: () => this.providersSettings.get(),
       projectProviders: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.providers ?? null,
-      statuses: () => this.providers.statuses(),
+      // A reading taken by something that only asked about Claude leaves the others unprobed: work
+      // that may start on any of them measures them all, at most once a minute
+      statuses: () => {
+        if (Date.now() - this.workProbedAt < WORK_PROBE_MS) return Promise.resolve(this.providers.known() ?? []);
+        this.workProbedAt = Date.now();
+        return this.providers.refresh();
+      },
       known: () => this.providers.known(),
       decisions: this.decisions,
       points: this.providerPoints,
