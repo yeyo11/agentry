@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import type { AgentryEvent, ProjectSettings } from '@agentry/shared';
 import { MAX_FLOW_PARALLEL, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN } from '@agentry/shared';
 import { Core } from '../src/index.ts';
-import { deriveKeyPrefix, parseProjectSettings, parseProjectSetup, ProjectSettingsStore, settingsChanges } from '../src/project-settings.ts';
+import { defaultProjectSettings, deriveKeyPrefix, parseProjectSettings, parseProjectSetup, ProjectSettingsStore, settingsChanges } from '../src/project-settings.ts';
 import { PROJECT_TEMPLATES, projectTemplate } from '../src/project-templates.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -141,6 +141,16 @@ test("a member's shell commands survive the settings document, and a pattern tha
 
   for (const commands of ['pnpm *', ['npm test)'], ['npm test\nnpm publish'], ['npm test, rm -rf /'], ['*'], [12], Array.from({ length: 51 }, (_, i) => `make t${i}`)]) {
     assert.throws(() => parseProjectSettings(withCommands(commands)), /commands/, JSON.stringify(commands));
+  }
+});
+
+test("a project's provider order and on-limit override are validated, and what is not set inherits", () => {
+  const base = defaultProjectSettings('ABC');
+  const parsed = parseProjectSettings({ ...base, providers: { order: ['codex', 'claude-code'], onLimit: { action: 'handoff', maxMoves: 1 } } });
+  assert.deepEqual(parsed.providers, { order: ['codex', 'claude-code'], onLimit: { action: 'handoff', maxMoves: 1 } });
+  assert.equal(parseProjectSettings({ ...base, providers: {} }).providers, undefined, 'an empty override is no override');
+  for (const bad of [[], { order: ['nope'] }, { order: ['codex', 'codex'] }, { onLimit: { maxMoves: 9 } }, { onLimit: { action: 'fly' } }]) {
+    assert.throws(() => parseProjectSettings({ ...base, providers: bad }), JSON.stringify(bad));
   }
 });
 
