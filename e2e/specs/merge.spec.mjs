@@ -102,7 +102,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
   const scenario = (host, fields = {}) => {
     const name = host === 'gh' ? 'gh' : 'glab';
     writeFileSync(join(stateDir, `${name}.json`), JSON.stringify({ headSha: HEAD, ...BASE[host], ...fields }));
-    for (const file of [`${name}.merged`, `${name}.armed`, `${name}.checks`, `${name}.rebased`]) rmSync(join(stateDir, file), { force: true });
+    for (const file of [`${name}.merged`, `${name}.merged-of`, `${name}.armed`, `${name}.checks`, `${name}.rebased`]) rmSync(join(stateDir, file), { force: true });
   };
   const calls = (host) => {
     try {
