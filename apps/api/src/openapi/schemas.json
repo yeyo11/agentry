@@ -5376,6 +5376,9 @@
       },
       {
         "$ref": "#/components/schemas/TunnelChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/WebhookChangedEvent"
       }
     ],
     "description": "Everything the buffered feed carries, discriminated by `type`."
@@ -9339,6 +9342,162 @@
       "startWithAgentry"
     ],
     "description": "What the tunnel may be told to do beside starting and stopping it."
+  },
+  "WebhookChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "webhook.changed"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "registration": {
+        "$ref": "#/components/schemas/WebhookRegistration"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "projectId",
+      "registration",
+      "title",
+      "type"
+    ],
+    "description": "A registration was created, adopted, tested, re-pointed, changed state or was removed. Carries the whole registration."
+  },
+  "WebhookRegistration": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Agentry's id for it; the receiver's address ends with it"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "host": {
+        "$ref": "#/components/schemas/CodeHostId"
+      },
+      "hostname": {
+        "type": "string"
+      },
+      "repoPath": {
+        "type": "string",
+        "description": "`owner/name` (GitHub) or the namespaced path (GitLab)"
+      },
+      "remoteHookId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The host's id for the hook, as text so a 64-bit id never loses precision"
+      },
+      "url": {
+        "type": "string",
+        "description": "Where the host delivers: the public address plus the receiver's path"
+      },
+      "events": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The event names the hook subscribes to, in the host's words"
+      },
+      "state": {
+        "$ref": "#/components/schemas/WebhookState"
+      },
+      "lastDeliveryAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "lastPingAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "lastResponse": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WebhookLastResponse"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The host's own report of the last delivery; null until it said"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "projectId",
+      "host",
+      "hostname",
+      "repoPath",
+      "remoteHookId",
+      "url",
+      "events",
+      "state",
+      "lastDeliveryAt",
+      "lastPingAt",
+      "lastResponse",
+      "createdAt",
+      "updatedAt"
+    ],
+    "description": "A hook Agentry registered on a project's repository. The secret that signs its deliveries is kept on the server and is never part of this document."
+  },
+  "WebhookState": {
+    "type": "string",
+    "enum": [
+      "active",
+      "failing",
+      "stale",
+      "removed"
+    ],
+    "description": "Where a registered hook stands. `active`: it delivers, or has not failed yet. `failing`: the host reports its last delivery as refused or unanswered. `stale`: its URL is no longer Agentry's public address and Agentry could not re-point it. `removed`: the person removed it."
+  },
+  "WebhookLastResponse": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "status": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "code",
+      "status"
+    ],
+    "description": "What the host last answered when it delivered to the hook, as it reports it."
   },
   "StreamHelloEvent": {
     "type": "object",
@@ -18735,6 +18894,17 @@
           "null"
         ]
       },
+      "freshness": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeRequestFreshness"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "When it was read and when it is read next; absent where the server has no schedule for it"
+      },
       "fixState": {
         "anyOf": [
           {
@@ -18806,6 +18976,38 @@
       "orchestration"
     ],
     "description": "Whose change request it is: a work item's or an orchestration's."
+  },
+  "ChangeRequestFreshness": {
+    "type": "object",
+    "properties": {
+      "checkedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the host was last read for it; null before the first read"
+      },
+      "nextCheckAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the pacer reads it next; null while it is closed or reads are paused"
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "webhook",
+          "poll"
+        ]
+      }
+    },
+    "required": [
+      "checkedAt",
+      "nextCheckAt",
+      "source"
+    ],
+    "description": "How fresh a change request's data is. `source` is what caused the last read: `webhook` a delivery moved it to now, `poll` the pacer's schedule or a person's refresh."
   },
   "ChangeRequestChecks": {
     "type": "object",
@@ -19736,6 +19938,67 @@
       "threadIds"
     ],
     "description": "`POST /change-requests/:id/address`: the threads handed to an agent."
+  },
+  "ProjectWebhooks": {
+    "type": "object",
+    "properties": {
+      "available": {
+        "type": "boolean",
+        "description": "False while the project cannot have a hook; `reason` says why"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WebhookUnavailableReason"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "publicUrl": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The public origin a hook would deliver to; null without a tunnel or a configured origin"
+      },
+      "events": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The events a registration subscribes to"
+      },
+      "canRedeliver": {
+        "type": "boolean",
+        "description": "Redelivery needs a scope the CLI may not have; the UI offers it only when true"
+      },
+      "registrations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WebhookRegistration"
+        }
+      }
+    },
+    "required": [
+      "available",
+      "reason",
+      "publicUrl",
+      "events",
+      "canRedeliver",
+      "registrations"
+    ],
+    "description": "`GET /projects/:id/webhooks`: the registrations, and what the person needs to register one."
+  },
+  "WebhookUnavailableReason": {
+    "type": "string",
+    "enum": [
+      "host-not-recorded",
+      "no-public-url",
+      "no-remote"
+    ],
+    "description": "Why a project's repository has no webhooks to manage: `host-not-recorded` is GitLab, whose hook calls are not recorded yet; `no-public-url` has neither a running tunnel nor a configured public origin; `no-remote` is a project without a code host remote."
   },
   "MergeState": {
     "type": "object",

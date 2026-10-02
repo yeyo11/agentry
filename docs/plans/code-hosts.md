@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-10-02T13:00:00Z
+updated_at: 2026-10-02T19:00:00Z
 tags:
     - plan
     - git
@@ -2462,6 +2462,25 @@ repositories use example names.
 
 - `wu0` model; `wu1` Integrations webhooks section; `wu2` the freshness line on the item page; `wu3`
   e2e (`e2e/specs/webhooks.spec.mjs`, the receiver with a signed fake delivery), written, not run.
+
+## Outcome of phase 6, step 1 (2026-10-02)
+
+Built on `feat/code-hosts-webhooks`: the pacer for both hosts, the GitHub and GitLab receivers, and
+GitHub hook registration, test, removal and re-pointing. The reference is
+[code-hosts.md](code-hosts.md#events-and-paced-polling).
+
+- **One secret store.** The receiver and the registration service were built apart with two stores;
+  the merge kept one, `hosts/webhook-secrets.ts` (`webhook-secrets.json`, mode 0600), read through
+  `core.webhookSecrets`.
+- **The public origin is only the tunnel's address.** No configured public origin exists, so
+  registering without an active tunnel fails with `no-public-url`.
+- **GitLab:** the receiver (`X-Gitlab-Token`) and the pacer use are built. Registering, testing,
+  removing and re-pointing a GitLab hook, the signing token and resend are not, because the GitLab
+  half of `w0` is not recorded; the service reports `host-not-recorded`.
+- **GitHub redelivery** is not offered (`admin:repo_hook`, recorded); `canRedeliver` is false.
+- **Not wired yet:** the pacer's `mergeWaiting` signal and `ChangeRequest.freshness`.
+- **Left for the next steps:** the project routes and README rows (`w6`), the web screens (P2), and
+  the GitLab half of `w0`.
 
 ## Jira and YouTrack: documented facts
 

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T10:34:29.651906091Z
-updated_at: 2026-09-27T18:00:00Z
+updated_at: 2026-10-02T18:00:00Z
 tags:
     - plan
     - tunnel
@@ -646,6 +646,31 @@ Left for later, as the plan already said: moving the event streams to `fetch`, s
 the URL, and a fixed domain. Also left: suggesting, from Settings → Notifications, removal of a
 device registered on an old tunnel address.
 
+## Follow-up: webhooks over the tunnel (2026-10-02)
+
+Phase 6 of [code-hosts.md](code-hosts.md) uses the tunnel as the public address for code host
+webhooks. What it changed here, and why:
+
+- **The tunnel is the only public origin.** The code hosts plan also named "the configured public
+  origin"; no such setting exists, so the registration service reads the active tunnel's address
+  (`tunnel.status()`), and registering without one fails with `no-public-url`. A setting for a
+  deployment with its own domain is left for later.
+- **A new address re-points the hooks** (owner decision 2, 2026-09-30, option a): the service
+  observes `tunnel.changed` and patches each registered hook by id. This is the one place the tunnel
+  causes a call to a code host, and it is the person's earlier click, not a new action.
+- **The receivers are exempt from the bearer token** in `security.ts`, only for `POST
+  /api/webhooks/{github,gitlab}/<id>`. The allowlist still applies, and the tunnel's host is already
+  on it while it is `active`. Rejected: a separate port for receivers, which would need a second
+  tunnel for one feature.
+- **The risk it adds:** a stranger who learns a registration id can send requests to a path with
+  no token. They get `401` with no detail without the secret, the secret check is constant-time over
+  the raw body, a rate limit applies only after verification, and a verified delivery can only
+  bring a read forward.
+
+[code-hosts.md](../code-hosts.md#events-and-paced-polling) has the receivers, the pacer and the
+registration calls; [deploy.md](../deploy.md#webhooks-and-the-public-address) has what a deployment
+must expose.
+
 ## Related
 
-[[deploy.md]] · [[desktop.md]] · [[plans/mobile.md]] · [[tunnel.md]] · [[layered-settings.md]] · [[security-model]]
+[[deploy.md]] · [[desktop.md]] · [[plans/mobile.md]] · [[tunnel.md]] · [[code-hosts.md]] · [[layered-settings.md]] · [[security-model]]

@@ -5107,6 +5107,8 @@ export interface ChangeRequest {
   openedAt: string | null;
   closedAt: string | null;
   checkedAt: string | null;
+  /** When it was read and when it is read next; absent where the server has no schedule for it */
+  freshness?: ChangeRequestFreshness | null;
   fixState: ChangeRequestFixState | null;
   fixOrigin: ChangeRequestFixOrigin | null;
   /** Absent or null reads as `checks` */
@@ -5927,6 +5929,88 @@ export interface TunnelChangedEvent extends AgentryEventBase {
   tunnel: TunnelStatus;
 }
 
+// ---------- Webhooks (code hosts, phase 6) ----------
+
+/**
+ * Where a registered hook stands. `active`: it delivers, or has not failed yet. `failing`: the host
+ * reports its last delivery as refused or unanswered. `stale`: its URL is no longer Agentry's
+ * public address and Agentry could not re-point it. `removed`: the person removed it.
+ */
+export type WebhookState = 'active' | 'failing' | 'stale' | 'removed';
+
+/**
+ * Why a project's repository has no webhooks to manage: `host-not-recorded` is GitLab, whose hook
+ * calls are not recorded yet; `no-public-url` has neither a running tunnel nor a configured public
+ * origin; `no-remote` is a project without a code host remote.
+ */
+export type WebhookUnavailableReason = 'host-not-recorded' | 'no-public-url' | 'no-remote';
+
+/** What the host last answered when it delivered to the hook, as it reports it. */
+export interface WebhookLastResponse {
+  code: number | null;
+  status: string | null;
+}
+
+/**
+ * A hook Agentry registered on a project's repository. The secret that signs its deliveries is kept
+ * on the server and is never part of this document.
+ */
+export interface WebhookRegistration {
+  /** Agentry's id for it; the receiver's address ends with it */
+  id: string;
+  projectId: string;
+  host: CodeHostId;
+  hostname: string;
+  /** `owner/name` (GitHub) or the namespaced path (GitLab) */
+  repoPath: string;
+  /** The host's id for the hook, as text so a 64-bit id never loses precision */
+  remoteHookId: string | null;
+  /** Where the host delivers: the public address plus the receiver's path */
+  url: string;
+  /** The event names the hook subscribes to, in the host's words */
+  events: string[];
+  state: WebhookState;
+  lastDeliveryAt: string | null;
+  lastPingAt: string | null;
+  /** The host's own report of the last delivery; null until it said */
+  lastResponse: WebhookLastResponse | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** `GET /projects/:id/webhooks`: the registrations, and what the person needs to register one. */
+export interface ProjectWebhooks {
+  /** False while the project cannot have a hook; `reason` says why */
+  available: boolean;
+  reason: WebhookUnavailableReason | null;
+  /** The public origin a hook would deliver to; null without a tunnel or a configured origin */
+  publicUrl: string | null;
+  /** The events a registration subscribes to */
+  events: string[];
+  /** Redelivery needs a scope the CLI may not have; the UI offers it only when true */
+  canRedeliver: boolean;
+  registrations: WebhookRegistration[];
+}
+
+/**
+ * How fresh a change request's data is. `source` is what caused the last read: `webhook` a delivery
+ * moved it to now, `poll` the pacer's schedule or a person's refresh.
+ */
+export interface ChangeRequestFreshness {
+  /** When the host was last read for it; null before the first read */
+  checkedAt: string | null;
+  /** When the pacer reads it next; null while it is closed or reads are paused */
+  nextCheckAt: string | null;
+  source: 'webhook' | 'poll';
+}
+
+/** A registration was created, adopted, tested, re-pointed, changed state or was removed. Carries the whole registration. */
+export interface WebhookChangedEvent extends AgentryEventBase {
+  type: 'webhook.changed';
+  projectId: string;
+  registration: WebhookRegistration;
+}
+
 /** Everything the buffered feed carries, discriminated by `type`. */
 export type AgentryEvent =
   | RunCreatedEvent
@@ -5980,7 +6064,8 @@ export type AgentryEvent =
   | AssistantRunEvent
   | AssistantProposalEvent
   | SettingsChangedEvent
-  | TunnelChangedEvent;
+  | TunnelChangedEvent
+  | WebhookChangedEvent;
 
 export type AgentryEventType = AgentryEvent['type'];
 

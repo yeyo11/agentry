@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-09-27T18:00:00Z
+updated_at: 2026-10-02T18:00:00Z
 tags:
     - deploy
     - docker
@@ -153,6 +153,27 @@ It needs **outbound TCP 22** to `localhost.run`. An egress NetworkPolicy or a fi
 makes every attempt fail, however the switch is set. `openssh-client` is already in the image.
 The full evidence is in [the plan](plans/tunnel.md#answer-the-tunnel-in-docker).
 
+## Webhooks and the public address
+
+GitHub can tell Agentry that a pull request, a check or a review changed
+([code-hosts.md](code-hosts.md#events-and-paced-polling)). A host delivers only to an address it can
+reach, so a hook needs a public one:
+
+- **Today the only public address Agentry knows is the tunnel's** ([tunnel.md](tunnel.md#webhooks)).
+  Without it, registering is refused with `no-public-url`, and polling carries on alone, which is
+  correct, only slower. There is no "configured public origin" setting yet. A deployment behind its
+  own domain (the `tls` profile, an Ingress) has no way to register a hook until one exists.
+- **Expose one path.** A delivery is `POST /api/webhooks/github/<registration id>` (and `gitlab`).
+  It carries no bearer token: the signature is the credential. If a proxy or an Ingress filters by
+  path, let `/api/webhooks/` through to Agentry and keep the rest as it is. The public name must be
+  on `AGENTRY_ALLOWED_HOSTS` like any other (the tunnel adds its own).
+- **Keep the body as it comes.** The signature is over the raw bytes, so a proxy must not rewrite,
+  recompress or re-encode a body. Bodies over 5 MiB are answered `413`, and at most 60 deliveries a
+  minute per registration are accepted (`429`).
+- **The secrets are in the data directory**, in `webhook-secrets.json` (mode 0600), so the volume
+  that holds the accounts holds them too. Back it up and protect it the same way.
+- **Read-only mode** (`auth.readOnly`) still takes deliveries: they change no state of their own.
+
 ## What the image contains
 
 The image is built in two stages. The stage that runs holds one compiled JavaScript file
@@ -300,4 +321,4 @@ Both orchestrators allow 30 s between `SIGTERM` and `SIGKILL` (`stop_grace_perio
 
 ## Related
 
-[[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]] · [[tunnel.md]] · [[plans/tunnel.md]]
+[[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]] · [[tunnel.md]] · [[plans/tunnel.md]] · [[code-hosts.md]]

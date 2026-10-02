@@ -35,6 +35,7 @@ import type {
 } from '@agentry/shared';
 import { chatsFromRuns, LEGACY_PROVIDER, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { CoreConfig } from './paths.ts';
+import { pruneWebhookDeliveries } from './webhook-store.ts';
 
 /**
  * Embedded store for everything that is a stream rather than a document: rotation events today,
@@ -722,6 +723,33 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      ALTER TABLE work_item_issues_scoped RENAME TO work_item_issues;
      CREATE INDEX work_item_issues_item ON work_item_issues (item_id, imported_at);`);
   },
+  // Webhooks (docs/plans/code-hosts.md, phase 6): the hooks Agentry registered, and the delivery ids it
+  // has seen, so a redelivery is a no-op. The signing secret is not a column: it is kept in a 0600 file
+  // like the other secrets (decision 3), never in the database. events and last_response are JSON
+  `CREATE TABLE webhook_registrations (
+     id               TEXT PRIMARY KEY,
+     project_id       TEXT NOT NULL,
+     host             TEXT NOT NULL,
+     hostname         TEXT NOT NULL,
+     repo_path        TEXT NOT NULL COLLATE NOCASE,
+     remote_hook_id   TEXT,
+     url              TEXT NOT NULL,
+     events           TEXT NOT NULL,
+     state            TEXT NOT NULL DEFAULT 'active',
+     last_delivery_at TEXT,
+     last_ping_at     TEXT,
+     last_response    TEXT,
+     created_at       TEXT NOT NULL,
+     updated_at       TEXT NOT NULL
+   );
+   CREATE INDEX webhook_registrations_project ON webhook_registrations (project_id, created_at);
+   CREATE TABLE webhook_deliveries (
+     delivery_id     TEXT PRIMARY KEY,
+     registration_id TEXT NOT NULL,
+     event           TEXT NOT NULL,
+     received_at     TEXT NOT NULL
+   );
+   CREATE INDEX webhook_deliveries_received ON webhook_deliveries (received_at);`,
 ];
 
 /**
@@ -765,6 +793,9 @@ export const ISSUES_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 's
 
 /** The version that gave issue links their scope, for the test that upgrades a database from the one before */
 export const ISSUE_SCOPE_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'function' && m.toString().includes('work_item_issues_scoped')) + 1;
+
+/** The version that added the webhook registrations and deliveries, for the test that upgrades a database from the one before */
+export const WEBHOOKS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE webhook_registrations')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by
@@ -931,6 +962,7 @@ export class Db {
     migrate(this.db);
     this.pruneRotationEvents();
     this.pruneAudit();
+    pruneWebhookDeliveries(this.db);
   }
 
   /**
