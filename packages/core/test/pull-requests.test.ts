@@ -465,6 +465,27 @@ test('a merged PR moves the item to Done as the person, removes its clean worktr
   }
 });
 
+test('a merged PR tells the tracker sync once, after the item is Done, and whether a closing word could work into its base', async () => {
+  const told: Array<{ itemId: string; closingWord: boolean; host: string; status: string | undefined }> = [];
+  const holder: { s?: Setup } = {};
+  const s = setup({
+    onMerged: async (notice) => {
+      told.push({ ...notice, status: holder.s?.items.find(notice.itemId)?.status });
+    },
+  });
+  holder.s = s;
+  try {
+    const item = reviewed(s);
+    await opened(s, item);
+    view(s.r, 'MERGED', [{ status: 'COMPLETED', conclusion: 'SUCCESS' }]);
+    await new PullRequestWatcher(s.service).tick();
+    await new PullRequestWatcher(s.service).tick();
+    assert.deepEqual(told, [{ itemId: item.id, closingWord: true, host: 'github', status: 'done' }]);
+  } finally {
+    cleanup(s);
+  }
+});
+
 test('a merged PR reaches Done from any column the item was moved to meanwhile', async () => {
   const s = setup();
   try {

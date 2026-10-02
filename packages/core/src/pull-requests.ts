@@ -339,6 +339,8 @@ export interface PullRequestDeps {
   flowOn?: (projectId: string) => boolean;
   /** The hook of `checks.fix`: a change request turned `failing` for a head not announced before */
   onChecksFailing?: (notice: ChecksFailingNotice) => void;
+  /** The host merged an item's change request, after the item moved to Done: the tracker's issues are told (`trackers/sync.ts`) */
+  onMerged?: (notice: { itemId: string; closingWord: boolean; host: string }) => Promise<void>;
 }
 
 /** What a request to fix a work item's checks answers: whether a run started, and the prompt either way. */
@@ -1301,8 +1303,20 @@ export class PullRequestService {
     } catch {
       // removed meanwhile
     }
+    await this.tellTracker(row, projectPath);
     this.removeWorktree(row, item, projectPath);
     await this.forward(projectPath, row.base);
+  }
+
+  /** A closing word in the body only works into the default branch; the tracker's sync decides what else is left to close. */
+  private async tellTracker(row: PullRequestRow, projectPath: string): Promise<void> {
+    if (!this.deps.onMerged) return;
+    try {
+      const defaultBranch = (await this.readiness(projectPath)).defaultBranch;
+      await this.deps.onMerged({ itemId: row.item_id, closingWord: defaultBranch !== null && defaultBranch === row.base, host: row.host });
+    } catch {
+      // the merge is done; the tracker's state is on its own row
+    }
   }
 
   private removeWorktree(row: PullRequestRow, item: WorkItem, projectPath: string): void {
