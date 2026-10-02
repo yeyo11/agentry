@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { HostParseError, type HostCall, type HostRepo } from '../../src/hosts/code-host.ts';
 import type { CodeHostManifest } from '../../src/hosts/manifest.ts';
-import { MAX_ISSUE_BODY, TrackerInputError, type IssueCloseReason, type TrackerAdapter } from '../../src/trackers/tracker.ts';
+import { TrackerInputError, type TrackerAdapter } from '../../src/trackers/tracker.ts';
 
 /**
  * The conformance suite every tracker adapter passes (docs/plans/code-hosts.md, "Fakes and tests,
@@ -17,18 +17,10 @@ export interface TrackerConformanceOptions {
   repo: HostRepo;
   /** The classifier of `hosts/classify.ts`: what the execution layer treats a call as */
   classify: (call: HostCall) => 'read' | 'write';
-  /**
-   * Where a body travels. GitHub takes it on stdin (`--body-file -`); the recorded GitLab issue
-   * commands take it as one argv word (`-d`, `-m`), which is fine for issue text: it is not secret
-   * and is cut at 60 000 characters.
-   */
-  bodyIn: 'stdin' | 'argv';
   /** Output every parser must refuse, besides the generic malformed ones: it is a different CLI's shape */
   malformedIssues?: Array<{ name: string; stdout: string }>;
 }
 
-const BODY = 'Objective: ship it\n\n- "quoted" and `ticks` and $(subshell)\n- ends here\n';
-const TITLE = 'Fix the login & wait';
 const KEY = '4242';
 
 /** Text a hostile issue or query could hold: it must stay one argv word, never a flag or a verb. */
@@ -56,17 +48,8 @@ function calls({ adapter, repo }: TrackerConformanceOptions): NamedCall[] {
   for (const query of HOSTILE_QUERIES) add(`list(${query})`, adapter.list(repo, { query, page: 1 }));
   add('get', adapter.get(repo, KEY));
   add('get(#key)', adapter.get(repo, `#${KEY}`));
-  add('create', adapter.create(repo, { title: TITLE, body: BODY }));
-  add('create(labels)', adapter.create(repo, { title: TITLE, body: BODY, labels: ['bug', 'help wanted'] }));
-  add('update(title)', adapter.update(repo, KEY, { title: TITLE }));
-  add('update(body)', adapter.update(repo, KEY, { body: BODY }));
-  add('update(labels)', adapter.update(repo, KEY, { addLabels: ['bug'], removeLabels: ['wontfix', 'help wanted'] }));
-  add('update(all)', adapter.update(repo, KEY, { title: TITLE, body: BODY, addLabels: ['bug'], removeLabels: ['wontfix'] }));
-  add('comment', adapter.comment(repo, KEY, BODY));
-  for (const reason of ['completed', 'not-planned'] as IssueCloseReason[]) add(`close(${reason})`, adapter.close(repo, KEY, reason));
-  add('reopen', adapter.reopen(repo, KEY));
+  add('close', adapter.close(repo, KEY));
   for (const column of ['in_progress', 'in_review', 'done'] as const) add(`setStatus(${column})`, adapter.setStatus(repo, KEY, { column, name: null }));
-  add('labels', adapter.labels(repo));
   add('what a change request closes', adapter.closedByChangeRequest(repo, 7));
   return named;
 }
@@ -91,7 +74,7 @@ function refuses(run: () => unknown): boolean {
 export type TrackerConformanceReport = Record<string, string[]>;
 
 export function checkTrackerConformance(options: TrackerConformanceOptions): TrackerConformanceReport {
-  const { adapter, hostManifest, repo, classify, bodyIn } = options;
+  const { adapter, hostManifest, repo, classify } = options;
   const all = calls(options);
   const report: TrackerConformanceReport = {};
 
@@ -105,7 +88,7 @@ export function checkTrackerConformance(options: TrackerConformanceOptions): Tra
     }
     // "--state open" as one word is a shell string pasted into an array; a hostile query is not one of ours
     for (const word of call.args) {
-      if (/^-{1,2}[\w-]+\s/.test(word) && !HOSTILE_QUERIES.includes(word) && word !== TITLE && word !== BODY) problems.push(`${name}() has a shell-style word: ${word}`);
+      if (/^-{1,2}[\w-]+\s/.test(word) && !HOSTILE_QUERIES.includes(word)) problems.push(`${name}() has a shell-style word: ${word}`);
     }
     if (call.args.some((word) => word === 'sh' || word === '-c')) problems.push(`${name}() runs through a shell`);
     if (!CALL_CLASSES.includes(call.class)) problems.push(`${name}() has an unknown class ${String(call.class)}`);
@@ -143,38 +126,13 @@ export function checkTrackerConformance(options: TrackerConformanceOptions): Tra
   );
 
   report['only the mutating actions are writes, and a read never carries a body'] = all.flatMap(({ name, call }) => {
-    const mutating = /^(create|update|comment|close|reopen|setStatus)/.test(name);
+    const mutating = /^(close|setStatus)/.test(name);
     const problems: string[] = [];
     if (mutating && call.kind !== 'write') problems.push(`${name}() changes the issue and must be a write`);
     if (!mutating && call.kind !== 'read') problems.push(`${name}() only reads and must be a read`);
     if (call.kind === 'read' && call.input !== undefined) problems.push(`${name}() is a read with a body`);
     return problems;
   });
-
-  report['bodies travel where the adapter says and never inside the other place'] = (() => {
-    const problems: string[] = [];
-    for (const [name, call] of [
-      ['create', adapter.create(repo, { title: TITLE, body: BODY })],
-      ['comment', adapter.comment(repo, KEY, BODY)],
-      ['update(body)', adapter.update(repo, KEY, { body: BODY })],
-    ] as const) {
-      const inArgv = call.args.includes(BODY);
-      if (bodyIn === 'stdin') {
-        if (call.input !== BODY) problems.push(`${name}() must pass the body as stdin, unchanged`);
-        if (call.args.some((word) => word.includes('ends here') || word.includes('subshell'))) problems.push(`${name}() puts the body in argv`);
-        if (valueAfter(call.args, '--body-file') !== '-') problems.push(`${name}() must read the body with --body-file -`);
-      } else {
-        if (!inArgv) problems.push(`${name}() must pass the body as one argv word`);
-        if (call.input !== undefined) problems.push(`${name}() also sends the body on stdin`);
-      }
-    }
-    return problems;
-  })();
-
-  report['a title is one argv word that follows its flag'] = (() => {
-    const call = adapter.create(repo, { title: TITLE, body: BODY });
-    return valueAfter(call.args, adapter.cli === 'gh' ? '--title' : '-t') === TITLE ? [] : ['create() does not pass the title as the value of its flag'];
-  })();
 
   report['a query stays one argv word after --search, whatever it says'] = HOSTILE_QUERIES.flatMap((query) => {
     const call = adapter.list(repo, { query, page: 1 });
@@ -187,10 +145,7 @@ export function checkTrackerConformance(options: TrackerConformanceOptions): Tra
     const problems: string[] = [];
     const attempts: Array<[string, () => unknown]> = [
       ['get', () => adapter.get(repo, key)],
-      ['update', () => adapter.update(repo, key, { title: TITLE })],
-      ['comment', () => adapter.comment(repo, key, BODY)],
-      ['close', () => adapter.close(repo, key, 'completed')],
-      ['reopen', () => adapter.reopen(repo, key)],
+      ['close', () => adapter.close(repo, key)],
       ['setStatus', () => adapter.setStatus(repo, key, { column: 'done', name: null })],
     ];
     for (const [name, run] of attempts) if (!refuses(run)) problems.push(`${name}("${key}") was not refused`);
@@ -202,14 +157,8 @@ export function checkTrackerConformance(options: TrackerConformanceOptions): Tra
     const check = (what: string, run: () => unknown): void => {
       if (!refuses(run)) problems.push(`${what} was not refused`);
     };
-    check('a body over the limit on create', () => adapter.create(repo, { title: TITLE, body: 'x'.repeat(MAX_ISSUE_BODY + 1) }));
-    check('a body over the limit on comment', () => adapter.comment(repo, KEY, 'x'.repeat(MAX_ISSUE_BODY + 1)));
-    check('a label with a comma', () => adapter.create(repo, { title: TITLE, body: BODY, labels: ['a,b'] }));
-    check('an empty label', () => adapter.update(repo, KEY, { addLabels: [' '] }));
-    check('an update that changes nothing', () => adapter.update(repo, KEY, {}));
     check('page 0', () => adapter.list(repo, { query: '', page: 0 }));
     check('a fractional page', () => adapter.list(repo, { query: '', page: 1.5 }));
-    if (refuses(() => adapter.create(repo, { title: TITLE, body: 'x'.repeat(MAX_ISSUE_BODY) }))) problems.push('a body at the limit was refused');
     return problems;
   })();
 
@@ -219,17 +168,8 @@ export function checkTrackerConformance(options: TrackerConformanceOptions): Tra
     if (adapter.setStatus(repo, KEY, { column: 'in_review', name: 'In Review' }) !== null) problems.push('in_review writes');
     const done = adapter.setStatus(repo, KEY, { column: 'done', name: 'Done' });
     if (!done) problems.push('done does not write');
-    else if (done.args.join(' ') !== adapter.close(repo, KEY, 'completed').args.join(' ')) problems.push('done is not a close as completed');
+    else if (done.args.join(' ') !== adapter.close(repo, KEY).args.join(' ')) problems.push('done is not a close as completed');
     return problems;
-  })();
-
-  report['create labels pass one flag per label (gh) or one comma list (glab)'] = (() => {
-    const call = adapter.create(repo, { title: TITLE, body: BODY, labels: ['bug', 'help wanted'] });
-    if (adapter.cli === 'gh') {
-      const labels = call.args.flatMap((word, at) => (word === '--label' ? [call.args[at + 1]] : []));
-      return labels.join('|') === 'bug|help wanted' ? [] : [`gh create passes labels ${JSON.stringify(labels)}`];
-    }
-    return valueAfter(call.args, '-l') === 'bug,help wanted' ? [] : ['glab create does not pass labels as one comma list'];
   })();
 
   report['parsers refuse output that is not an issue'] = (() => {
@@ -245,27 +185,6 @@ export function checkTrackerConformance(options: TrackerConformanceOptions): Tra
         } catch (error) {
           if (!(error instanceof HostParseError)) problems.push(`${name} threw ${String(error)} for ${JSON.stringify(stdout.slice(0, 60))}`);
         }
-      }
-    }
-    for (const stdout of ['', 'not a url', 'https://example.com/other', '- Creating issue in o/r']) {
-      for (const [name, run] of [
-        ['parseCreated', () => adapter.parseCreated(stdout)],
-        ['parseCommented', () => adapter.parseCommented(stdout)],
-      ] as const) {
-        try {
-          run();
-          problems.push(`${name} accepted ${JSON.stringify(stdout)}`);
-        } catch (error) {
-          if (!(error instanceof HostParseError)) problems.push(`${name} threw ${String(error)} for ${JSON.stringify(stdout)}`);
-        }
-      }
-    }
-    for (const stdout of ['not json', '{}', '[{"color":"x"}]']) {
-      try {
-        adapter.parseLabels(stdout);
-        problems.push(`parseLabels accepted ${JSON.stringify(stdout)}`);
-      } catch (error) {
-        if (!(error instanceof HostParseError)) problems.push(`parseLabels threw ${String(error)} for ${JSON.stringify(stdout)}`);
       }
     }
     // Output that is not what the host prints for what a change request closes: never an empty list by accident

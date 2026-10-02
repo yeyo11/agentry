@@ -23,8 +23,17 @@ const failed = (stdout: string, stderrFirstLine = ''): HostResult => ({ exitCode
 
 const SCOPE = 'yeyo11/agentry';
 
-function setup(opts: { tracker?: ProjectTrackerSettings | null; host?: 'github' | 'gitlab'; answer?: (call: HostCall) => HostResult } = {}) {
-  const config = tempConfig();
+function setup(
+  opts: {
+    tracker?: ProjectTrackerSettings | null;
+    host?: 'github' | 'gitlab';
+    answer?: (call: HostCall) => HostResult;
+    /** A database file to share with another service, and what each read waits for before it answers */
+    config?: ReturnType<typeof tempConfig>;
+    beforeRead?: () => Promise<void>;
+  } = {},
+) {
+  const config = opts.config ?? tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
   const db = new Db(config);
   const items = new WorkItemService({ db, project: (id) => (id === 'p1' ? { keyPrefix: 'AGN', columnLimits: {} } : null) });
@@ -43,6 +52,7 @@ function setup(opts: { tracker?: ProjectTrackerSettings | null; host?: 'github' 
     repo: { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'agentry' },
     run: async (call) => {
       calls.push(call);
+      if (call.args[1] === 'view') await opts.beforeRead?.();
       return answer(call);
     },
   };
@@ -51,7 +61,7 @@ function setup(opts: { tracker?: ProjectTrackerSettings | null; host?: 'github' 
   const rescope = (scope: string): void => {
     if (tracker) tracker = { ...tracker, scope };
   };
-  return { items, service, calls, rescope };
+  return { db, items, service, calls, rescope };
 }
 
 test('the list marks what the project already imported and runs the tracker query as the person typed it', async () => {
@@ -182,12 +192,44 @@ test('removing an item frees its issue to be imported again', async () => {
   assert.equal(again.imported.length, 1);
 });
 
-test('two imports of one issue at once leave one item: the second write is refused with its item', () => {
-  const s = setup();
-  const link = { tracker: 'gitlab-issues' as const, scope: SCOPE, key: '5', externalId: null, title: 'five', state: 'open', url: null };
-  s.items.create('p1', { title: 'first' }, undefined, link);
-  assert.throws(() => s.items.create('p1', { title: 'second' }, undefined, link), (err: unknown) => err instanceof WorkItemError && err.statusCode === 409);
-  assert.equal(s.items.list({ projectId: 'p1' }).length, 1);
+test('two imports of one issue at once, from two services on one database file, leave one item', async () => {
+  const config = tempConfig();
+  // Both imports pass the existence check, and neither writes until both have read the issue
+  let reading = 0;
+  let release: () => void = () => undefined;
+  const bothRead = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const beforeRead = async (): Promise<void> => {
+    reading += 1;
+    if (reading === 2) release();
+    await bothRead;
+  };
+  const a = setup({ config, beforeRead });
+  const b = setup({ config, beforeRead });
+
+  const [first, second] = await Promise.all([a.service.importIssues('p1', ['1']), b.service.importIssues('p1', ['1'])]);
+
+  assert.equal(reading, 2, 'neither import was stopped by the existence check: both reached the tracker');
+  // The loser is refused with a 409 by the write and answered as already imported, not thrown
+  const results = [first, second];
+  assert.equal(results.filter((r) => r.imported.length === 1).length, 1);
+  assert.deepEqual(
+    results.flatMap((r) => r.skipped),
+    [{ key: '1', reason: 'already-imported' }],
+  );
+  assert.equal(a.items.list({ projectId: 'p1' }).length, 1);
+  assert.equal(b.items.list({ projectId: 'p1' }).length, 1);
+
+  // Under the check, the unique index is what holds when a write skips it
+  const row = a.db.connection.prepare('SELECT * FROM work_item_issues').get() as Record<string, string>;
+  assert.throws(
+    () =>
+      b.db.connection
+        .prepare('INSERT INTO work_item_issues (id, project_id, item_id, tracker, scope, key, title, state, imported_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run('dup', row.project_id ?? '', row.item_id ?? '', row.tracker ?? '', row.scope ?? '', row.key ?? '', 'dup', 'open', row.imported_at ?? ''),
+    /UNIQUE/,
+  );
 });
 
 test('the body is a quoted block under its origin, and bug labels give the type', () => {

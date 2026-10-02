@@ -14190,6 +14190,7 @@
       "auto-merge-not-needed",
       "waiting-for-pipeline",
       "tracker-signed-out",
+      "tracker-disabled",
       "transition-unknown",
       "issue-is-pull-request",
       "issue-scope-unknown",

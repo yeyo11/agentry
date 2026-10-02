@@ -2233,6 +2233,28 @@ up (the project's labels and issues are as they were). In
 5. **`issue create -l <label>` with a label that was deleted in between attaches nothing and does
    not fail**, so the labels Agentry passes are the ones it just read (F3's rule).
 
+### Outcome of the phase 5 core audit (2026-10-02)
+
+An independent audit of the phase 5 core found pieces built and tested that nothing called. Decided
+for each, in this order: wire it where the plan uses it, or remove it.
+
+- **Removed**, with their tests and the matching conformance rules: the adapters' `create`,
+  `update`, `comment`, `reopen`, `labels`, `parseLabels`, `parseCreated`, `parseCommented`, and
+  `close` with *not planned* (`close` is always as completed). Phase 5 has no route, event or
+  decision point that creates, edits, comments on, reopens or labels an issue: the routes are
+  list, import, link by key, unlink and sync, and `setStatus` closes on `done`. A reopen when an
+  item leaves Done was considered and left out: Agentry does not close an issue when a person moves
+  an item to Done by hand, so reopening on the way back could undo a person's own act. The matrix
+  rows F3 to F5, F7, F8 and the facts recorded in `t0a` stay in this plan; a feature that needs
+  one builds it with its caller and its tests then.
+- **Recorded behaviours** that only the removed code enforced are now enforced by the removal: the
+  re-read after `glab issue update -u`, passing only labels that exist on create, and `gh issue
+  create --body-file -` on stdin. They are recorded facts for the next builder, not code.
+- **Kept**: `titleIssueKeys`, called by the change request's title for Jira and YouTrack keys. It
+  has no effect until those trackers have an adapter (`t0b`), which is the seam the plan asks for.
+- **The "two imports at once" test** is concurrent now: two services on one database file, reads
+  held until both have passed the existence check, then the 409 handling and the unique index.
+
 ### P0 · `trackers-prototypes`
 
 Generator `trackers.py`.

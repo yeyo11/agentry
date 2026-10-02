@@ -1,20 +1,15 @@
 import { HostParseError, type HostCall, type HostRepo } from '../../hosts/code-host.ts';
 import { parseJson } from '../../hosts/json.ts';
 import {
-  checkBody,
-  checkLabels,
   IssueIsPullRequest,
   ISSUES_CEILING,
   ISSUES_PAGE_SIZE,
   issueNumber,
-  parseCommentUrl,
-  parseCreatedUrl,
   requestNumber,
   TrackerInputError,
   type ClosedIssue,
   type IssueRead,
   type TrackerAdapter,
-  type TrackerLabel,
 } from '../tracker.ts';
 
 // GitHub Issues is gh's own `issue` and `label` commands, pinned to the host and repository on every
@@ -26,15 +21,7 @@ import {
 const pin = (repo: HostRepo): string => `${repo.host}/${repo.owner}/${repo.name}`;
 
 const read = (repo: HostRepo, args: string[]): HostCall => ({ cli: 'gh', args, kind: 'read', class: 'read', host: repo.host, bucket: 'graphql' });
-const write = (repo: HostRepo, args: string[], input?: string): HostCall => ({
-  cli: 'gh',
-  args,
-  ...(input === undefined ? {} : { input }),
-  kind: 'write',
-  class: 'write',
-  host: repo.host,
-  bucket: 'graphql',
-});
+const write = (repo: HostRepo, args: string[]): HostCall => ({ cli: 'gh', args, kind: 'write', class: 'write', host: repo.host, bucket: 'graphql' });
 
 /** The fields every issue read asks for: all are in the recorded field list of `gh issue view/list --json`. */
 const ISSUE_FIELDS = 'number,title,body,state,stateReason,labels,url,updatedAt,closedByPullRequestsReferences';
@@ -128,34 +115,9 @@ export const githubIssuesAdapter: TrackerAdapter = {
     return issueOf(issue, 'issue view');
   },
 
-  // The body travels on stdin only: it is up to 60 000 characters and may hold anything
-  create(repo, { title, body, labels }) {
-    const args = ['issue', 'create', '-R', pin(repo), '--title', title, '--body-file', '-'];
-    for (const label of checkLabels(labels)) args.push('--label', label);
-    return write(repo, args, checkBody(body));
-  },
-  parseCreated: parseCreatedUrl,
-
-  update(repo, key, { title, body, addLabels, removeLabels }) {
-    const args = ['issue', 'edit', String(issueNumber(key)), '-R', pin(repo)];
-    const bare = args.length;
-    if (title !== undefined) args.push('--title', title);
-    if (body !== undefined) args.push('--body-file', '-');
-    for (const label of checkLabels(addLabels)) args.push('--add-label', label);
-    for (const label of checkLabels(removeLabels)) args.push('--remove-label', label);
-    if (args.length === bare) throw new TrackerInputError('nothing to change');
-    return write(repo, args, body === undefined ? undefined : checkBody(body));
-  },
-
-  comment: (repo, key, body) => write(repo, ['issue', 'comment', String(issueNumber(key)), '-R', pin(repo), '--body-file', '-'], checkBody(body)),
-  parseCommented: parseCommentUrl,
-
   writes: (column) => column === 'done',
-  setStatus: (repo, key, { column }) => (column === 'done' ? githubIssuesAdapter.close(repo, key, 'completed') : null),
-  // `--reason` is one word: gh takes "not planned" with the space
-  close: (repo, key, reason) =>
-    write(repo, ['issue', 'close', String(issueNumber(key)), '-R', pin(repo), '--reason', reason === 'not-planned' ? 'not planned' : 'completed']),
-  reopen: (repo, key) => write(repo, ['issue', 'reopen', String(issueNumber(key)), '-R', pin(repo)]),
+  setStatus: (repo, key, { column }) => (column === 'done' ? githubIssuesAdapter.close(repo, key) : null),
+  close: (repo, key) => write(repo, ['issue', 'close', String(issueNumber(key)), '-R', pin(repo), '--reason', 'completed']),
 
   closedByChangeRequest: (repo, number) => read(repo, ['pr', 'view', String(requestNumber(number)), '-R', pin(repo), '--json', 'closingIssuesReferences']),
   // Recorded (gh 2.92.0 and 2.102.0, `closing-refs`): `{closingIssuesReferences: [{number, repository: {name, owner: {login}}, url}]}`
@@ -172,14 +134,4 @@ export const githubIssuesAdapter: TrackerAdapter = {
     });
   },
 
-  labels: (repo) => read(repo, ['label', 'list', '-R', pin(repo), '--limit', '200', '--json', 'name,color,description']),
-  parseLabels(stdout): TrackerLabel[] {
-    const labels = parseValue(stdout, 'label list');
-    if (!Array.isArray(labels)) throw new HostParseError('label list is not an array');
-    return labels.map((entry) => {
-      const label = asObject(entry, 'label list entry');
-      if (typeof label.name !== 'string') throw new HostParseError('label list entry has no name');
-      return { name: label.name, color: typeof label.color === 'string' ? label.color : '', description: typeof label.description === 'string' ? label.description : '' };
-    });
-  },
 };

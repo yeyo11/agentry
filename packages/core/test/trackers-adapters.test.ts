@@ -50,15 +50,15 @@ const GH_VERSION = { FAKE_CLI_VERSION: '2.102.0' };
 
 // ---------- conformance ----------
 
-runTrackerConformance({ adapter: githubIssuesAdapter, hostManifest: githubManifest, repo: ghRepo, classify: classifyCall, bodyIn: 'stdin' });
-runTrackerConformance({ adapter: gitlabIssuesAdapter, hostManifest: gitlabManifest, repo: glRepo, classify: classifyCall, bodyIn: 'argv', malformedIssues: [{ name: 'a pull request', stdout: out('gh/2.92.0', 'issue-view-pr') }] });
+runTrackerConformance({ adapter: githubIssuesAdapter, hostManifest: githubManifest, repo: ghRepo, classify: classifyCall });
+runTrackerConformance({ adapter: gitlabIssuesAdapter, hostManifest: gitlabManifest, repo: glRepo, classify: classifyCall, malformedIssues: [{ name: 'a pull request', stdout: out('gh/2.92.0', 'issue-view-pr') }] });
 
 test('the conformance suite fails on purpose for an adapter that breaks a rule', () => {
   const leaky = { ...githubIssuesAdapter, list: (repo: HostRepo, req: Parameters<typeof githubIssuesAdapter.list>[1]): HostCall => ({ ...githubIssuesAdapter.list(repo, req), args: ['issue', 'list', '--search', req.query], host: null }) };
-  const report = checkTrackerConformance({ adapter: leaky, hostManifest: githubManifest, repo: ghRepo, classify: classifyCall, bodyIn: 'stdin' });
+  const report = checkTrackerConformance({ adapter: leaky, hostManifest: githubManifest, repo: ghRepo, classify: classifyCall });
   assert.ok((report['every call is pinned to its host and repository'] ?? []).length > 0);
   const lax = { ...githubIssuesAdapter, get: (repo: HostRepo, key: string): HostCall => ({ ...githubIssuesAdapter.get(repo, '1'), args: ['issue', 'view', key] }) };
-  assert.ok((checkTrackerConformance({ adapter: lax, hostManifest: githubManifest, repo: ghRepo, classify: classifyCall, bodyIn: 'stdin' })['a key that is not an issue number never reaches argv'] ?? []).length > 0);
+  assert.ok((checkTrackerConformance({ adapter: lax, hostManifest: githubManifest, repo: ghRepo, classify: classifyCall })['a key that is not an issue number never reaches argv'] ?? []).length > 0);
 });
 
 test('an issue search that reads like a verb is a read, not a write', () => {
@@ -100,50 +100,12 @@ test('glab: an issue that is gone exits 1 and its {"error"} body is never read a
   assert.throws(() => gitlabIssuesAdapter.parseGet(result.stdout), HostParseError);
 });
 
-test('glab: create prints the work_items url and the key is the iid', () => {
-  const call = gitlabIssuesAdapter.create(glRepo, { title: 't0a probe issue', body: 'scratch issue for recording; deleted afterwards', labels: ['t0a-scratch'] });
-  const result = replay(call, glRepo, { FAKE_CLI_LABELS: 'issue_create' });
-  assert.equal(result.exitCode, 0);
-  assert.deepEqual(gitlabIssuesAdapter.parseCreated(result.stdout), { key: '4', url: 'https://gitlab.com/yeyo11/agentry/-/work_items/4' });
-});
-
-test('glab: update adds and removes labels with the recorded flags', () => {
-  const add = replay(gitlabIssuesAdapter.update(glRepo, '4', { addLabels: ['t0a-two'] }), glRepo);
-  assert.equal(add.exitCode, 0);
-  assert.match(add.stdout, /added labels t0a-two/);
-  const remove = replay(gitlabIssuesAdapter.update(glRepo, '4', { removeLabels: ['t0a-scratch'] }), glRepo);
-  assert.equal(remove.exitCode, 0);
-  assert.match(remove.stdout, /removed labels t0a-scratch/);
-  // title, label and description together, in the recorded order
-  const all = gitlabIssuesAdapter.update(glRepo, '2', { title: 'probe issue two (renamed)', addLabels: ['probe-extra'], body: 'probe new body' });
-  assert.equal(replay(all, glRepo).exitCode, 0);
-});
-
-test('glab: a note prints the note url and the id is read from its fragment', () => {
-  const result = replay(gitlabIssuesAdapter.comment(glRepo, '4', 't0a note'), glRepo);
-  assert.deepEqual(gitlabIssuesAdapter.parseCommented(result.stdout), { id: '3942895762', url: 'https://gitlab.com/yeyo11/agentry/-/work_items/4#note_3942895762' });
-});
-
-test('glab: close and reopen are idempotent writes with no output to parse', () => {
-  for (const call of [gitlabIssuesAdapter.close(glRepo, '4', 'completed'), gitlabIssuesAdapter.setStatus(glRepo, '4', { column: 'done', name: null }), gitlabIssuesAdapter.reopen(glRepo, '4')]) {
+test('glab: close is an idempotent write with no output to parse', () => {
+  for (const call of [gitlabIssuesAdapter.close(glRepo, '4'), gitlabIssuesAdapter.setStatus(glRepo, '4', { column: 'done', name: null })]) {
     assert.ok(call);
     assert.equal(call.kind, 'write');
     assert.equal(replay(call, glRepo).exitCode, 0);
   }
-  // a reason GitLab does not have is ignored, not passed
-  assert.deepEqual(gitlabIssuesAdapter.close(glRepo, '4', 'not-planned').args, gitlabIssuesAdapter.close(glRepo, '4', 'completed').args);
-});
-
-test('glab: the labels are read through api on the numeric project id; none is empty', () => {
-  const none = replay(gitlabIssuesAdapter.labels(glRepo), glRepo, { FAKE_CLI_LABELS: 'labels_list' });
-  assert.equal(none.exitCode, 0);
-  assert.deepEqual(gitlabIssuesAdapter.parseLabels(none.stdout), []);
-  const one = replay(gitlabIssuesAdapter.labels(glRepo), glRepo, { FAKE_CLI_LABELS: 'labels_during' });
-  assert.deepEqual(gitlabIssuesAdapter.parseLabels(one.stdout), [{ name: 't0a-two', color: '#ad4363', description: '' }]);
-});
-
-test('glab: the labels need the numeric project id', () => {
-  assert.throws(() => gitlabIssuesAdapter.labels({ ...glRepo, projectId: undefined }));
 });
 
 test('gh: the issues a pull request closes are read from closingIssuesReferences, each with its repository', () => {
@@ -199,20 +161,10 @@ test('glab: an unknown state or a missing iid is refused, not guessed', () => {
 
 // ---------- GitHub, replayed from gh 2.92.0 / 2.102.0 ----------
 
-test('gh: create sends the body on stdin and prints the issue url', () => {
-  const result = replay(githubIssuesAdapter.create(ghRepo, { title: 'Probe issue B', body: 'body' }), ghRepo, GH_VERSION);
-  assert.equal(result.exitCode, 0);
-  assert.deepEqual(githubIssuesAdapter.parseCreated(result.stdout), { key: '21', url: 'https://github.com/yeyo11/agentry-probe/issues/21' });
-  const labelled = replay(githubIssuesAdapter.create(ghRepo, { title: 'Probe issue A', body: 'body', labels: ['probe-label'] }), ghRepo, { FAKE_CLI_VERSION: '2.92.0' });
-  assert.equal(githubIssuesAdapter.parseCreated(labelled.stdout).key, '20');
-});
-
-test('gh: close with a reason, and close again, exit 0; reopen too', () => {
-  const completed = replay(githubIssuesAdapter.close(ghRepo, '21', 'completed'), ghRepo, GH_VERSION);
+test('gh: close is always as completed, and closing again exits 0', () => {
+  const completed = replay(githubIssuesAdapter.close(ghRepo, '21'), ghRepo, GH_VERSION);
   assert.equal(completed.exitCode, 0);
-  assert.equal(replay(githubIssuesAdapter.reopen(ghRepo, '21'), ghRepo).exitCode, 0);
-  // "not planned" is one argv word, the form gh takes
-  assert.ok(githubIssuesAdapter.close(ghRepo, '21', 'not-planned').args.includes('not planned'));
+  assert.ok(githubIssuesAdapter.close(ghRepo, '21').args.includes('completed'));
 });
 
 test('gh: gh issue view on a pull request number is refused as a pull request', () => {
@@ -266,18 +218,4 @@ test('gh: a page asks for one more than it shows, and never past the ceiling', (
   // at the ceiling the last page has no next one, even when gh printed a full list
   const full = JSON.stringify(Array.from({ length: ISSUES_CEILING }, (_, i) => ({ number: i + 1, title: 't', state: 'OPEN', url: 'https://github.com/o/r/issues/1' })));
   assert.equal(githubIssuesAdapter.parseList(full, { query: '', page: ISSUES_CEILING / ISSUES_PAGE_SIZE }).hasMore, false);
-});
-
-test('gh: the labels are read with their name, colour and description', () => {
-  assert.deepEqual(githubIssuesAdapter.parseLabels('[{"name":"bug","color":"d73a4a","description":"Something isn’t working"},{"name":"x","color":"fff","description":null}]'), [
-    { name: 'bug', color: 'd73a4a', description: 'Something isn’t working' },
-    { name: 'x', color: 'fff', description: '' },
-  ]);
-});
-
-test('gh: update passes only what changes and the body on stdin', () => {
-  const call = githubIssuesAdapter.update(ghRepo, '20', { title: 'T', body: 'B', addLabels: ['a'], removeLabels: ['b'] });
-  assert.deepEqual(call.args, ['issue', 'edit', '20', '-R', 'github.com/yeyo11/agentry-probe', '--title', 'T', '--body-file', '-', '--add-label', 'a', '--remove-label', 'b']);
-  assert.equal(call.input, 'B');
-  assert.equal(githubIssuesAdapter.update(ghRepo, '20', { title: 'T' }).input, undefined);
 });

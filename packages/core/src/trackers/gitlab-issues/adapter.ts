@@ -1,18 +1,13 @@
 import { HostParseError, type HostCall, type HostRepo } from '../../hosts/code-host.ts';
 import { parseJson } from '../../hosts/json.ts';
 import {
-  checkBody,
-  checkLabels,
   issueNumber,
   ISSUES_PAGE_SIZE,
-  parseCommentUrl,
-  parseCreatedUrl,
   requestNumber,
   TrackerInputError,
   type ClosedIssue,
   type IssueRead,
   type TrackerAdapter,
-  type TrackerLabel,
 } from '../tracker.ts';
 
 // GitLab Issues is glab's own `issue` command, pinned to the project's URL on every call (`-R
@@ -69,9 +64,6 @@ function issueOf(raw: unknown, what: string): IssueRead {
   };
 }
 
-/** `-l a,b` and `-u a,b`: GitLab takes a comma list, so a name with a comma is refused by `checkLabels` */
-const joined = (labels: string[]): string => labels.join(',');
-
 /** The project path of an issue's `web_url`: `https://host/group/sub/project/-/work_items/12` */
 const ISSUE_PATH = /^https?:\/\/[^/]+\/(.+?)\/-\/(?:issues|work_items)\/\d+$/;
 
@@ -101,38 +93,10 @@ export const gitlabIssuesAdapter: TrackerAdapter = {
   get: (repo, key) => read(repo, ['issue', 'view', String(issueNumber(key)), '-R', projectUrl(repo), '-F', 'json']),
   parseGet: (stdout) => issueOf(parseValue(stdout, 'issue view'), 'issue view'),
 
-  // Labels passed are created on the fly, so the caller passes only ones it has just read
-  create(repo, { title, body, labels }) {
-    const args = ['issue', 'create', '-R', projectUrl(repo), '-t', title, '-d', checkBody(body)];
-    const names = checkLabels(labels);
-    if (names.length > 0) args.push('-l', joined(names));
-    args.push('-y');
-    return write(repo, args);
-  },
-  parseCreated: parseCreatedUrl,
-
-  // `-u` removes a label and says "removed" also when it was not on the issue, so the caller re-reads
-  update(repo, key, { title, body, addLabels, removeLabels }) {
-    const args = ['issue', 'update', String(issueNumber(key)), '-R', projectUrl(repo)];
-    const bare = args.length;
-    if (title !== undefined) args.push('-t', title);
-    const add = checkLabels(addLabels);
-    if (add.length > 0) args.push('-l', joined(add));
-    const remove = checkLabels(removeLabels);
-    if (remove.length > 0) args.push('-u', joined(remove));
-    if (body !== undefined) args.push('-d', checkBody(body));
-    if (args.length === bare) throw new TrackerInputError('nothing to change');
-    return write(repo, args);
-  },
-
-  comment: (repo, key, body) => write(repo, ['issue', 'note', String(issueNumber(key)), '-R', projectUrl(repo), '-m', checkBody(body)]),
-  parseCommented: parseCommentUrl,
-
   writes: (column) => column === 'done',
-  setStatus: (repo, key, { column }) => (column === 'done' ? gitlabIssuesAdapter.close(repo, key, 'completed') : null),
+  setStatus: (repo, key, { column }) => (column === 'done' ? gitlabIssuesAdapter.close(repo, key) : null),
   // Idempotent: closing a closed issue exits 0 (recorded)
   close: (repo, key) => write(repo, ['issue', 'close', String(issueNumber(key)), '-R', projectUrl(repo)]),
-  reopen: (repo, key) => write(repo, ['issue', 'reopen', String(issueNumber(key)), '-R', projectUrl(repo)]),
 
   // `closes_issues` is empty for a merge request into a non-default branch (recorded, NOTES §6). Recorded
   // empty only: a non-empty answer is the API's issue objects, whose `iid` and `web_url` are the ones
@@ -149,22 +113,4 @@ export const gitlabIssuesAdapter: TrackerAdapter = {
     });
   },
 
-  labels: (repo) => ({
-    cli: 'glab',
-    args: ['api', '--hostname', repo.host, '--paginate', '--output', 'ndjson', `projects/${String(projectId(repo))}/labels?per_page=100`],
-    kind: 'read',
-    class: 'read',
-    host: repo.host,
-  }),
-  // One object per line; a project without labels prints nothing and exits 0 (recorded)
-  parseLabels(stdout): TrackerLabel[] {
-    return stdout
-      .split('\n')
-      .filter((line) => line.trim() !== '')
-      .map((line) => {
-        const label = asObject(parseValue(line, 'label'), 'label');
-        if (typeof label.name !== 'string') throw new HostParseError('label has no name');
-        return { name: label.name, color: typeof label.color === 'string' ? label.color : '', description: typeof label.description === 'string' ? label.description : '' };
-      });
-  },
 };
