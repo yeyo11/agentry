@@ -1089,23 +1089,6 @@ export class ChatManager extends EventEmitter {
     return !!chat && chat.rateLimited && !chat.limitRequested && !!chat.lastUserTurn && chat.limitReplays < MAX_LIMIT_REPLAYS;
   }
 
-  // Kept so that Core's wiring, which `d3` rewrites, still compiles; nothing here does anything.
-  /** @deprecated claude-swap is retired: removed with `rotateAndResume` in `index.ts` */
-  set accounts(_resolver: unknown) {}
-
-  /** @deprecated removed with `rotateAndResume` in `index.ts` */
-  unpin(_id: string): void {}
-
-  /** @deprecated use {@link limitComing} */
-  rotationComing(id: string): boolean {
-    return this.limitComing(id);
-  }
-
-  /** @deprecated replaced by {@link limits}; `Overview.limits` takes its place */
-  get lastRateLimit(): null {
-    return null;
-  }
-
   /** The chat's last turn died on its provider's limit and nothing has started on it since. */
   atLimit(id: string): boolean {
     return this.chats.get(id)?.rateLimited === true;

@@ -19,7 +19,6 @@ export class CredentialStore {
   private readonly file: string;
   private readonly bootEnv: Record<string, string | undefined>;
   private stored: StoredCredentials = {};
-  private suspended = false;
 
   constructor(config: CoreConfig) {
     this.file = join(config.dataDir, 'credentials.json');
@@ -39,27 +38,7 @@ export class CredentialStore {
     return Boolean(this.stored.oauthToken || this.stored.apiKey);
   }
 
-  /** True while claude-swap owns the credential and the wrapper injects nothing. */
-  get isSuspended(): boolean {
-    return this.suspended;
-  }
-
-  /**
-   * claude-swap swaps `.credentials.json`, which Claude Code only reads when no token is in the
-   * environment. While it manages the accounts, the wrapper must keep that environment clean —
-   * including a token that came from the container environment.
-   */
-  suspend(value: boolean): void {
-    if (this.suspended === value) return;
-    this.suspended = value;
-    this.apply();
-  }
-
   private apply(): void {
-    if (this.suspended) {
-      for (const key of Object.values(ENV_KEYS)) delete process.env[key];
-      return;
-    }
     if (!this.active) {
       for (const [key, value] of Object.entries(this.bootEnv)) {
         if (value === undefined) delete process.env[key];
