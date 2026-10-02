@@ -177,6 +177,16 @@ const CHAT_FORBIDDEN = new Set([
 ]);
 
 /**
+ * Registering a webhook puts a URL and a secret on the person's repository, and removing one stops
+ * Agentry hearing from it: the person's click, never a chat's. Reading them stays open.
+ */
+const CHAT_FORBIDDEN_WEBHOOKS = new Set([
+  `POST ${API_PREFIX}/projects/:id/webhooks`,
+  `POST ${API_PREFIX}/projects/:id/webhooks/:registrationId/test`,
+  `DELETE ${API_PREFIX}/projects/:id/webhooks/:registrationId`,
+]);
+
+/**
  * Importing, linking and syncing issues writes the person's work items and their tracker, and an
  * issue's text is untrusted: an injection in one must not be able to import more issues, link or
  * unlink them, change which tracker a project uses or write to the tracker through a chat's token.
@@ -473,6 +483,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       }
       if (chat !== null && CHAT_FORBIDDEN_REVIEWS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot post, approve, resolve or hand out a change request's review" });
+        return reply;
+      }
+      if (chat !== null && CHAT_FORBIDDEN_WEBHOOKS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot register, test or remove a repository's webhook: that is the person's click" });
         return reply;
       }
       if (chat !== null && CHAT_FORBIDDEN_TRACKERS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {

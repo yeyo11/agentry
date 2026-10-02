@@ -76,6 +76,8 @@ const ROOT_TYPES = [
   'CodeHostStatus', 'CodeHostsSettings', 'TrackerStatus', 'TrackersSettings', 'ProjectTrackerSettings', 'TrackerIssuesPage', 'TrackerImportRequest', 'TrackerImportResult', 'LinkWorkItemIssueRequest', 'ProjectCodeHost', 'ChangeRequest', 'ChangeRequestChecks', 'CheckLog', 'ChecksRerunRequest', 'OrchestrationPullRequest', 'OrchestrationPullRequestAnswer',
   // Reviews
   'ChangeRequestThreads', 'ReviewThread', 'ReviewDraft', 'ReviewDraftInput', 'ReviewSubmitRequest', 'ReviewPost', 'ChangeRequestReviewPosts', 'ChangeRequestReviewers', 'ReviewersRequest', 'ApprovalState', 'ApprovalRequest', 'ReviewReplyRequest', 'AddressReviewRequest',
+  // Webhooks
+  'ProjectWebhooks', 'WebhookRegistration',
   // Merging
   'MergeState', 'MergeRequestBody', 'AutoMergeRequestBody', 'MergeResult', 'UpdateBranchResult', 'MergeReadyRequest', 'ChangeRequestMerge',
   // The decision engine
