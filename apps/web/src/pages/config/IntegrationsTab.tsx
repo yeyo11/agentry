@@ -16,6 +16,7 @@ import type { TrackerActionKind } from '../../lib/trackers';
 import { timeAgo } from '@agentry/ui/lib/format';
 import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { STATE_TONE } from '../../lib/provider-state';
+import { WebhooksSection } from './WebhooksSection';
 
 /**
  * The vendors' own pages: where each CLI is installed and where its sign-in is explained. A remedy
@@ -86,6 +87,7 @@ export function IntegrationsTab() {
   const settings = useQuery({ queryKey: keys.hostSettings, queryFn: () => api.hostSettings() });
   const trackers = useQuery({ queryKey: keys.trackers, queryFn: () => api.trackers() });
   const trackerSettings = useQuery({ queryKey: keys.trackerSettings, queryFn: () => api.trackerSettings() });
+  const projects = useQuery({ queryKey: keys.projects, queryFn: () => api.projects() });
   const refresh = useMutation({
     mutationFn: () => api.refreshHosts(),
     onSuccess: (fresh) => queryClient.setQueryData(keys.hosts, fresh),
@@ -347,6 +349,7 @@ export function IntegrationsTab() {
       )}
       <p className="prov-step-note host-missing">{t('tracker.note')}</p>
       {trackersCard}
+      {projects.data && <WebhooksSection projects={projects.data} />}
       {missing}
       {narrow && openTracker && (
         <Sheet open onOpenChange={(next) => !next && setTrackerBinaryOf(null)} title={t('tracker.bin.title', { cli: openTracker.cli, tracker: trackerWords(openTracker.id).label })} className="prov-sheet">

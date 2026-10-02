@@ -98,3 +98,180 @@
     padding-left: 14px;
   }
 }
+
+/* Settings → Integrations → Webhooks (plans/code-hosts.md, phase 6): the address line, the notice, the
+   facts under a row's state and the register dialog. Nothing here moves and nothing takes a gradient:
+   the dialog's one primary button is the only brand surface. */
+.wh-bar,
+.wh-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.wh-bar {
+  color: var(--fg-2);
+}
+
+.wh-url {
+  font-size: 12.5px;
+  color: var(--fg);
+  min-width: 0;
+}
+
+.wh-id {
+  color: var(--fg-3);
+}
+
+.wh-notice {
+  background: var(--warn-soft);
+  color: var(--fg-2);
+}
+
+.wh-notice > svg {
+  flex: none;
+  color: var(--warn);
+}
+
+.wh-notice p {
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+.wh-notice strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.wh-none {
+  margin: 0;
+  padding: 18px;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.wh-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+
+.wh-facts div {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.wh-facts dt {
+  font-weight: 600;
+  flex: none;
+}
+
+.wh-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.wh-actions {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.wh-dlg {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.wh-dlg section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wh-dlg-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wh-dlg-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--fg-3);
+}
+
+.wh-dlg-session {
+  font-size: 12.5px;
+  color: var(--fg-3);
+}
+
+.wh-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-1);
+  min-width: 0;
+}
+
+.wh-events {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 22px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.wh-events li {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.wh-events .mono {
+  overflow-wrap: anywhere;
+}
+
+.wh-event-note {
+  color: var(--fg-2);
+}
+
+.wh-secret {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+
+@media (max-width: 900px) {
+  .wh-bar,
+  .wh-notice {
+    flex-wrap: wrap;
+  }
+
+  .wh-events {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wh-actions .btn,
+  .wh-notice .btn {
+    min-height: var(--touch);
+  }
+}
