@@ -121,6 +121,8 @@ export function flowStepOf(stage: FlowStage, column: WorkItemStatus): FlowStep {
 export const FLOW_RUN_CAUSES = valuesOf<FlowRunCause>()([
   'budget',
   'no-account',
+  'no-provider',
+  'limit-wait-expired',
   'rate-limit',
   'stopped',
   'restarts',
