@@ -428,8 +428,8 @@ header.
 
 An item can carry **issues** from the project's tracker (`WorkItem.issues`, an `IssueRef` each, rows
 of `work_item_issues`). They arrive by [import](trackers.md#import) (the item is created in backlog,
-its description is the issue's body as a quoted source block under "From GitHub Issues #12", never
-instructions) or are linked by hand with `POST /work-items/:itemId/issues` and removed with
+its description is the issue's body as a quoted source block under "From GitHub Issues #12", marked as untrusted text, never
+instructions; see [Issue text is untrusted](trackers.md#issue-text-is-untrusted)) or are linked by hand with `POST /work-items/:itemId/issues` and removed with
 `DELETE /work-items/:itemId/issues/:key`. An issue is imported once per project (unique on project,
 tracker and key); removing the item deletes its rows. A link or unlink emits `workitem.updated`
 with no changes, and is not a history entry.

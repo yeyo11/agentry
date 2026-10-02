@@ -241,9 +241,10 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
     ),
   ),
   // An issue is a stranger's text: it is data for the question and nothing else. The caller hands one page of the import list; at most 40 are asked, each body already cut to 2 KiB
-  point({ id: 'issue.triage', kind: 'suggest', scope: 'project', primitives: ['choice'], maxStateBytes: 96 * 1024, fields: ['tracker', 'issues'] }, (subject) =>
+  point({ id: 'issue.triage', kind: 'suggest', scope: 'project', primitives: ['choice'], maxStateBytes: 96 * 1024, fields: ['tracker', 'issues', 'notTriaged'] }, (subject) =>
     items(subject, 'issues').map((issue) =>
-      choice(issue.id, `Can an agent start on issue ${text(issue.id)}${text(issue.title) ? ` ("${text(issue.title)}")` : ''} as written?`, [
+      // The title stays in the state: a question's text is sent and stored as it is, without the masking and the byte cut the state gets
+      choice(issue.id, `Can an agent start on issue ${text(issue.id)} as written?`, [
         ['ready', 'Ready: the goal and the acceptance are clear and the work is inside the repository'],
         ['needs-refining', 'Needs refining: the goal or the acceptance is unclear'],
         ['not-for-agents', 'Not for agents: it needs a person, for access, a decision or work outside the repository'],

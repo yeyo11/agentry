@@ -47,15 +47,18 @@ export class IssueTriage {
    * already imported are not asked about: they are on the board and the person started from them.
    */
   onIssues(projectId: string, tracker: TrackerId, issues: readonly TrackerIssue[]): void {
-    const open = issues.filter((i) => i.importedItemId === null).slice(0, TRIAGE_ISSUES_MAX);
+    const unimported = issues.filter((i) => i.importedItemId === null);
+    const open = unimported.slice(0, TRIAGE_ISSUES_MAX);
     if (!open.length) return;
+    // A page holds more than one question takes: the dialog's data says which issues were left out
+    const notTriaged = unimported.slice(TRIAGE_ISSUES_MAX).map((i) => i.key);
     if (stanceOf(this.deps.decisions, 'issue.triage', projectId) === 'off') return;
     const subject = issueSubjectId(projectId, tracker);
     const key = `${subject}:${open.map((i) => i.key).join(',')}`;
     if (this.asked.has(key)) return;
     this.asked.add(key);
     const run = this.deps.decisions
-      .ask('issue.triage', { kind: 'tracker_issue', id: subject, data: { tracker, issues: open.map(issueState) } }, { projectId })
+      .ask('issue.triage', { kind: 'tracker_issue', id: subject, data: { tracker, issues: open.map(issueState), notTriaged } }, { projectId })
       .catch(() => undefined);
     this.pending.add(run);
     void run.finally(() => this.pending.delete(run));

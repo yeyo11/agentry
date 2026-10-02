@@ -7,7 +7,7 @@ import { TITLE_MAX, WorkItemError } from '../work-item-validation.ts';
 import type { IssueLinkInput, WorkItemService } from '../work-items.ts';
 import type { IssueTriage } from '../decisions/issue-triage.ts';
 import { trackerAdapter } from './adapters.ts';
-import { trackerHost } from './links.ts';
+import { ISSUE_TEXT_MARK, trackerHost } from './links.ts';
 import { ISSUES_PAGE_SIZE, IssueIsPullRequest, issueNumber, MAX_ISSUE_BODY, TrackerInputError, type IssueRead, type TrackerAdapter } from './tracker.ts';
 
 // Importing issues into work items (docs/plans/code-hosts.md, phase 5). The person runs the
@@ -76,7 +76,7 @@ export function issueType(labels: readonly string[]): WorkItemType | null {
  * at the longest body Agentry handles.
  */
 export function quotedSource(tracker: TrackerId, key: string, body: string): string {
-  const head = `> **From ${TRACKER_LABEL[tracker]} ${tracker === 'github-issues' || tracker === 'gitlab-issues' ? `#${key}` : key}**`;
+  const head = `> **From ${TRACKER_LABEL[tracker]} ${tracker === 'github-issues' || tracker === 'gitlab-issues' ? `#${key}` : key}** — ${ISSUE_TEXT_MARK}`;
   const text = body.replace(/\r\n?/g, '\n').trim();
   if (!text) return head;
   const cut = text.length > MAX_ISSUE_BODY ? `${text.slice(0, MAX_ISSUE_BODY)}\n… cut at ${String(MAX_ISSUE_BODY)} characters` : text;

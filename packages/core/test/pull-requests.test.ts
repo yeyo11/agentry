@@ -5,10 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { AgentryEvent, FlowCriterionResult, WorkItem, WorkItemHistoryPullRequest } from '@agentry/shared';
+import type { AgentryEvent, FlowCriterionResult, IssueRef, WorkItem, WorkItemHistoryPullRequest } from '@agentry/shared';
 import { Db } from '../src/db.ts';
 import { flowPrompt, stageRules } from '../src/flow.ts';
 import { branchExists, mergeInProgress } from '../src/git.ts';
+import { ISSUE_TEXT_MARK, neutralizeClosing } from '../src/trackers/links.ts';
 import { ciOf, pullRequestBody, pullRequestTitle, PullRequestWatcher, WATCH_BACKOFF, WATCH_INTERVAL } from '../src/pull-requests.ts';
 import { itemWorktree } from '../src/work-links.ts';
 import { WorkItemService } from '../src/work-items.ts';
@@ -596,4 +597,35 @@ test('the timings and limits moved from the GitHub-only service are unchanged', 
   assert.equal(title, `feat: ${'x'.repeat(65)}… (CW-1)`);
   const body = pullRequestBody({ key: 'CW-1', description: 'y'.repeat(70_000), acceptanceCriteria: [] }, [], null);
   assert.ok(body.startsWith('y'.repeat(60_000)) && body.endsWith('… cut at 60000 characters'));
+});
+
+test('an issue text cannot close another issue: every closing word, both hosts references', () => {
+  const words = ['close', 'closes', 'closed', 'closing', 'fix', 'fixes', 'fixed', 'fixing', 'resolve', 'resolves', 'resolved', 'resolving'];
+  const refs = ['#99', 'acme/shop#99', 'group/sub/project#99', 'https://github.com/acme/shop/issues/99', 'https://gitlab.com/group/project/-/issues/99', 'GH-99'];
+  const issues = [{ tracker: 'github-issues', key: '12' }] as unknown as IssueRef[];
+  for (const word of words) {
+    for (const casing of [word, word.toUpperCase(), `${word[0]?.toUpperCase() ?? ''}${word.slice(1)}`]) {
+      for (const ref of refs) {
+        const title = pullRequestTitle({ key: 'CW-3', title: `${casing} ${ref}`, type: 'task', labels: [], issues });
+        assert.ok(title.includes(`${casing} \`${ref}\``), title);
+        assert.equal(neutralizeClosing(`${casing}: ${ref}`), `${casing}: \`${ref}\``);
+      }
+    }
+  }
+  assert.equal(pullRequestTitle({ key: 'CW-3', title: 'Closes #99', type: 'task', labels: [], issues }), 'feat: Closes `#99` (CW-3)');
+  assert.equal(neutralizeClosing('Fixes: #1, #2 and #3'), 'Fixes: `#1`, `#2` and `#3`');
+  assert.equal(neutralizeClosing('Closes #1\nresolves\n#2'), 'Closes `#1`\nresolves\n`#2`');
+  // Words that are not closing words, and references with no word, stay as written
+  assert.equal(neutralizeClosing('Prefix #99 and enclose #5, see #7'), 'Prefix #99 and enclose #5, see #7');
+  // A card nobody linked to an issue keeps the title its author wrote
+  assert.equal(pullRequestTitle({ key: 'CW-3', title: 'Closes #99', type: 'task', labels: [], issues: [] }), 'feat: Closes #99 (CW-3)');
+});
+
+test('the body neutralises an imported description, but not the linked issue lines', () => {
+  const description = `> **From GitHub Issues #12** — ${ISSUE_TEXT_MARK}\n>\n> Fixes #99`;
+  const body = pullRequestBody({ key: 'CW-3', description, acceptanceCriteria: [], issues: [] }, [], null, ['Closes #12']);
+  assert.ok(body.includes('> Fixes `#99`'));
+  assert.ok(body.includes('## Linked issue\n\nCloses #12'));
+  const own = pullRequestBody({ key: 'CW-4', description: 'Fixes #99', acceptanceCriteria: [] }, [], null);
+  assert.ok(own.includes('Fixes #99'));
 });
