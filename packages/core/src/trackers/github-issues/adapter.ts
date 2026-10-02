@@ -148,6 +148,7 @@ export const githubIssuesAdapter: TrackerAdapter = {
   comment: (repo, key, body) => write(repo, ['issue', 'comment', String(issueNumber(key)), '-R', pin(repo), '--body-file', '-'], checkBody(body)),
   parseCommented: parseCommentUrl,
 
+  writes: (column) => column === 'done',
   setStatus: (repo, key, { column }) => (column === 'done' ? githubIssuesAdapter.close(repo, key, 'completed') : null),
   // `--reason` is one word: gh takes "not planned" with the space
   close: (repo, key, reason) =>

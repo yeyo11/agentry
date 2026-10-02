@@ -95,6 +95,7 @@ import { CodeHostDetector } from './hosts/detector.ts';
 import { CodeHostsSettingsStore } from './hosts/settings.ts';
 import { TrackersSettingsStore } from './trackers/settings.ts';
 import { TrackerImportService } from './trackers/import.ts';
+import { TrackerSyncService } from './trackers/sync.ts';
 import { ProviderDetector } from './providers/detector.ts';
 import { AcpDriver } from './providers/acp/driver.ts';
 import { ChatEntriesTranscripts } from './providers/chat-entries.ts';
@@ -408,6 +409,7 @@ export class Core {
   readonly pullRequests: PullRequestService;
   /** Import and link tracker issues: what the project's tracker routes call */
   readonly trackerImport: TrackerImportService;
+  readonly trackerSync: TrackerSyncService;
   private readonly pullRequestWatcher: PullRequestWatcher;
   /** The change requests of orchestrations' integration branches */
   readonly orchestrationPullRequests: OrchestrationPullRequestService;
@@ -726,6 +728,7 @@ export class Core {
         return record ? { path: record.path } : null;
       },
       busy: (itemId) => this.itemBusy(itemId),
+      onMerged: (notice) => this.trackerSync.merged(notice),
       verdicts: (itemId) => this.flow.verdicts(itemId),
       projectTracker: (id) => this.projectSettingsStore.stored(id, this.projectStore.get(id)?.name)?.tracker ?? null,
       // The card's link is the address the person reaches the panel on: the tunnel when it is up
@@ -742,6 +745,15 @@ export class Core {
       },
       access: (path) => this.pullRequests.hostAccess(path),
     });
+    this.trackerSync = new TrackerSyncService({
+      items: this.workItems,
+      project: (id) => {
+        const record = this.projectStore.get(id);
+        return record ? { path: record.path, tracker: this.projectSettingsStore.stored(id, record.name)?.tracker ?? null } : null;
+      },
+      access: (path) => this.pullRequests.hostAccess(path),
+    });
+    this.events.observe((event) => this.trackerSync.observe(event));
     this.orchestrationPullRequests = new OrchestrationPullRequestService({
       db: this.db,
       settings: () => this.hostsSettings.get(),
