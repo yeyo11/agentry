@@ -12,7 +12,6 @@ const PAGES = [
   '/tasks?view=list',
   '/tasks/milestones',
   '/orchestration',
-  '/accounts',
   '/connectors',
   '/settings',
   '/settings?tab=settings',
@@ -50,9 +49,9 @@ export default async ({ page, api, check, dirs }) => {
     check(theme === 'dark' ? r + g + b < 200 : r + g + b > 600, `${theme} theme background is ${bg}`);
     await page.shot(`pages-${theme}`);
   }
-  // Multi-account support is optional: without claude-swap the page must say so instead of breaking
+  // The Accounts page is gone with claude-swap: its address leads to the providers
   await page.goto('/accounts', 0);
-  await page.waitFor(`return /claude-swap is not installed/i.test(document.querySelector('main')?.innerText ?? '')`, { label: 'accounts page degrades without claude-swap' });
+  await page.waitFor(`return location.pathname === '/settings' && new URLSearchParams(location.search).get('tab') === 'providers'`, { label: '/accounts redirects to Settings → Providers' });
 
   await page.viewport(420, 900);
   for (const path of ['/', '/settings?tab=settings', '/settings?tab=plugins', projectPages[0]]) {

@@ -2,7 +2,6 @@
 // `common` and `primitives` belong to @agentry/ui and `chat` to @agentry/chat-ui; all three are spread in from them.
 import { chatUiEn, chatUiEs } from '@agentry/chat-ui/locales';
 import { uiEn, uiEs } from '@agentry/ui/i18n/resources';
-import enAccountsConfig from './locales/en/accountsConfig.json';
 import enAssistant from './locales/en/assistant.json';
 import enChanges from './locales/en/changes.json';
 import enChecks from './locales/en/checks.json';
@@ -33,7 +32,6 @@ import enUsage from './locales/en/usage.json';
 import enWebhooks from './locales/en/webhooks.json';
 import enWork from './locales/en/work.json';
 import enWorkItem from './locales/en/workItem.json';
-import esAccountsConfig from './locales/es/accountsConfig.json';
 import esAssistant from './locales/es/assistant.json';
 import esChanges from './locales/es/changes.json';
 import esChecks from './locales/es/checks.json';
@@ -90,7 +88,6 @@ export const en = {
   schedules: enSchedules,
   usage: enUsage,
   orchestrationV2: enOrchestrationV2,
-  accountsConfig: enAccountsConfig,
   connectors: enConnectors,
   server: enServer,
   shell: enShell,
@@ -131,7 +128,6 @@ export const es = {
   schedules: esSchedules,
   usage: esUsage,
   orchestrationV2: esOrchestrationV2,
-  accountsConfig: esAccountsConfig,
   connectors: esConnectors,
   server: esServer,
   shell: esShell,

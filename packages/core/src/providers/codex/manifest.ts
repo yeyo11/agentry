@@ -35,7 +35,7 @@ export const codexManifest: ProviderManifest = {
   transport: 'json-rpc',
   // `CODEX_HOME` passes through untouched: Agentry never sets it
   launch: { args: ['app-server'], env: {}, unsetEnv: [] },
-  // Not declared: budgetLimit, costReport (no cost field), multiAccount, worktreeFlag, subagents,
+  // Not declared: budgetLimit, costReport (no cost field), worktreeFlag, subagents,
   // workflowTool, transcriptFiles
   capabilities: ['interactivePermissions', 'structuredOutput', 'resume', 'fork', 'interrupt', 'setModel', 'effort', 'mcp', 'rateLimitWindows'],
 };

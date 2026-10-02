@@ -17,77 +17,6 @@ import { tempConfig } from './helpers.ts';
 
 const at = (minute: number) => `2026-09-18T20:${String(minute).padStart(2, '0')}:00.000Z`;
 
-test('events survive a reopen, which the in-memory buffer never did', () => {
-  const config = tempConfig();
-  const first = new Db(config);
-  first.appendRotationEvent({ ts: at(28), event: 'switch', from: 'a@x.es', to: 'b@x.es', reason: 'at-limit' });
-  first.appendRotationEvent({ ts: at(29), event: 'poll', data: { pct: 53 } });
-  first.close();
-
-  const second = new Db(config);
-  const events = second.rotationEvents();
-  assert.equal(events.length, 2);
-  assert.deepEqual(
-    events.map((e) => e.event),
-    ['switch', 'poll'],
-  );
-  assert.equal(events[0]?.from, 'a@x.es');
-  assert.equal(events[0]?.to, 'b@x.es');
-  assert.deepEqual(events[1]?.data, { pct: 53 });
-  // Absent columns stay absent rather than becoming null
-  assert.equal('reason' in (events[1] ?? {}), false);
-  second.close();
-});
-
-test('reads the newest events, oldest last, and filters by timestamp', () => {
-  const db = new Db(tempConfig());
-  for (let i = 0; i < 10; i++) db.appendRotationEvent({ ts: at(i), event: `e${String(i)}` });
-
-  const latest = db.rotationEvents({ limit: 3 });
-  assert.deepEqual(
-    latest.map((e) => e.event),
-    ['e7', 'e8', 'e9'],
-  );
-
-  const since = db.rotationEvents({ since: at(7) });
-  assert.deepEqual(
-    since.map((e) => e.event),
-    ['e8', 'e9'],
-  );
-  db.close();
-});
-
-test('pruning keeps the newest rows and leaves the sequence intact', () => {
-  const db = new Db(tempConfig());
-  for (let i = 0; i < 10; i++) db.appendRotationEvent({ ts: at(i), event: `e${String(i)}` });
-
-  assert.equal(db.pruneRotationEvents(4), 6);
-  const kept = db.rotationEvents();
-  assert.deepEqual(
-    kept.map((e) => e.event),
-    ['e6', 'e7', 'e8', 'e9'],
-  );
-  // A later append must not reuse a pruned seq: the panel pages on it
-  const next = db.appendRotationEvent({ ts: at(10), event: 'e10' });
-  assert.equal(next.seq, 11);
-  assert.equal(db.pruneRotationEvents(100), 0);
-  db.close();
-});
-
-test('two connections on one data dir both write, as two wrapper processes would', () => {
-  const config = tempConfig();
-  const a = new Db(config);
-  const b = new Db(config);
-  a.appendRotationEvent({ ts: at(30), event: 'from-a' });
-  b.appendRotationEvent({ ts: at(31), event: 'from-b' });
-  assert.deepEqual(
-    a.rotationEvents().map((e) => e.event),
-    ['from-a', 'from-b'],
-  );
-  a.close();
-  b.close();
-});
-
 const execution = (id: string, startedAt: string, extra: Partial<Execution> = {}): Execution => ({
   id,
   startedAt,
@@ -96,7 +25,6 @@ const execution = (id: string, startedAt: string, extra: Partial<Execution> = {}
   error: null,
   permissionMode: 'plan',
   model: null,
-  account: null,
   maxBudgetUsd: null,
   costUsd: 0.5,
   tokens: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 },

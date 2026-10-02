@@ -54,7 +54,6 @@ export interface AgentryReleaseInfo {
 
 /**
  * `wrapper-*`: configured through the API; `env-*`: passed through the container environment;
- * `cswap`: claude-swap owns the credential file and the wrapper injects nothing.
  */
 export type TokenSource =
   | 'wrapper-oauth-token'
@@ -62,7 +61,6 @@ export type TokenSource =
   | 'env-oauth-token'
   | 'env-api-key'
   | 'credentials-file'
-  | 'cswap'
   | 'none';
 
 export interface AuthStatus {
@@ -403,8 +401,6 @@ export interface Execution {
   error: string | null;
   permissionMode: PermissionMode;
   model: string | null;
-  /** Pinned claude-swap account, when it did not use the active one */
-  account: string | null;
   /** Ceiling on what it could spend */
   maxBudgetUsd: number | null;
   /** Null when the CLI reported none: cost is only known for what Agentry launched */
@@ -976,11 +972,6 @@ export interface ChatStartOptions {
   maxBudgetUsd?: number;
   /** `host` sends permissions, questions and plans to the panel; `none`, the default, denies them */
   permissionPrompts?: 'host' | 'none';
-  /**
-   * Pin it to a claude-swap account (slot number, email or alias) instead of the active one; `null`
-   * unpins a chat on a resume or a fork. A pinned chat that hits its limit is unpinned by the rotation.
-   */
-  account?: string | null;
 }
 
 /** Starts a new chat. */
@@ -3952,222 +3943,6 @@ export interface ConnectorsOverview {
   error?: string;
 }
 
-// ---------- Accounts (claude-swap) ----------
-
-/**
- * Where the `cswap` in use came from: `CSWAP_BIN`, the `PATH`, or the copy Agentry installed in its
- * own data directory.
- */
-export type CswapSource = 'env' | 'path' | 'managed';
-
-/** Progress of the copy of claude-swap Agentry installs itself. */
-export type CswapInstallState = 'absent' | 'installing' | 'installed' | 'failed';
-
-export interface CswapManagedInfo {
-  /** False in the Docker image (claude-swap is baked in), with `CSWAP_BIN`, or with `AGENTRY_CSWAP_MANAGED=0` */
-  available: boolean;
-  state: CswapInstallState;
-  /** While installing: fetching uv, or uv installing claude-swap (and Python, when the system lacks it) */
-  step?: 'uv' | 'claude-swap';
-  /** Version of the managed copy, when there is one */
-  version: string | null;
-  /** Why the last install failed */
-  error?: string;
-}
-
-/** The `cswap` binary that owns the account credentials, when it is installed. */
-export interface CswapInfo {
-  installed: boolean;
-  version: string | null;
-  path: string | null;
-  error?: string;
-  source: CswapSource | null;
-  /** The version is one whose `--json` output Agentry parses */
-  compatible: boolean;
-  /** The version Agentry installs and is tested against */
-  pinned: string;
-  managed: CswapManagedInfo;
-}
-
-/** One rate-limit window as claude-swap reports it. */
-export interface AccountUsageWindow {
-  /** Share of the window already consumed (0-100) */
-  pct: number;
-  resetsAt: string | null;
-  /** Human countdown to the reset, e.g. `3h 4m` */
-  countdown: string | null;
-  /** Per-model windows carry the model name */
-  name?: string;
-}
-
-export interface AccountUsage {
-  fiveHour: AccountUsageWindow | null;
-  sevenDay: AccountUsageWindow | null;
-  /** Per-model weekly windows (Fable, Opus…) when the account reports them */
-  scoped: AccountUsageWindow[];
-}
-
-export interface AccountSummary {
-  /** Slot number: the identifier every action accepts, alongside the email and the alias */
-  number: number;
-  email: string;
-  organizationName: string | null;
-  alias: string | null;
-  active: boolean;
-  /** Held out of the auto-rotation */
-  disabled: boolean;
-  /** `ok`, `token_expired`, `unavailable`… as reported by claude-swap */
-  usageStatus: string;
-  usage: AccountUsage | null;
-  usageFetchedAt: string | null;
-  /** Quota left in the binding window (0-100); null when the usage is unknown */
-  headroomPct: number | null;
-}
-
-/** Target selection when no explicit account is given */
-export type SwitchStrategy = 'best' | 'next-available';
-
-export interface SwitchResult {
-  switched: boolean;
-  from: string | null;
-  to: string | null;
-  reason: string | null;
-}
-
-/** Settings of the supervised `cswap auto` process. */
-export interface AutoSwitchSettings {
-  /** Run `cswap auto` in the background and rotate before the active account runs out */
-  enabled: boolean;
-  /** Utilization that triggers a proactive switch (50-99.9) */
-  threshold: number;
-  /** `best` stays until the limit; `consume-first` spends the soonest-resetting account first */
-  strategy: 'best' | 'consume-first';
-  /** Per-model weekly windows to watch too, e.g. `['Fable']` or `['all']` */
-  models: string[];
-  /** Poll interval of the supervisor, in seconds (minimum 15) */
-  intervalSec: number;
-  /** Rotate and resume a run that dies against its rate limit */
-  rotateOnLimit: boolean;
-}
-
-/** One `cswap auto --json` line, plus the rotations the wrapper drives itself. */
-export interface AutoSwitchEvent {
-  seq: number;
-  ts: string;
-  /** `poll`, `switch`, `no-switch`, `account-quarantined`, `all-exhausted`, `error`, or `rotate` when the wrapper drove it */
-  event: string;
-  reason?: string;
-  detail?: string;
-  from?: string;
-  to?: string;
-  /** The raw claude-swap payload */
-  data?: Record<string, unknown>;
-}
-
-export interface AccountsOverview {
-  cswap: CswapInfo;
-  accounts: AccountSummary[];
-  activeNumber: number | null;
-  autoSwitch: AutoSwitchSettings;
-  /** The `cswap auto` supervisor is alive */
-  autoSwitchRunning: boolean;
-  /** Most recent rotation events, newest last */
-  events: AutoSwitchEvent[];
-  /** One per account that has a config directory of its own */
-  configs: AccountConfig[];
-  policies: RotationPolicy[];
-}
-
-/** What the dashboard needs about accounts, without the full list. */
-export interface AccountsSnapshot {
-  installed: boolean;
-  total: number;
-  active: AccountSummary | null;
-  autoSwitchRunning: boolean;
-}
-
-export interface SwitchAccountRequest {
-  /** Slot number, email or alias; omitted rotates to the next account */
-  target?: string;
-  strategy?: SwitchStrategy;
-}
-
-export interface AddAccountTokenRequest {
-  /** Token from `claude setup-token`, or an API key */
-  token: string;
-  /** Slot to register it in; the next free one when omitted */
-  slot?: number;
-  /** Label shown until claude-swap resolves the real email */
-  email?: string;
-}
-
-export interface SetAccountAliasRequest {
-  /** Short name for the account; `null` removes it */
-  alias: string | null;
-}
-
-/**
- * Which accounts the chats of some projects may use, in what order, and when to move on. A project
- * with no policy keeps the global auto-switch, which is the default.
- */
-export interface RotationPolicy {
-  id: string;
-  /** Utilization (0-100) of an account's binding window past which the next one in `order` is taken */
-  threshold: number;
-  /** Slot numbers a chat of these projects may use, in order of preference; every account when absent */
-  order?: number[];
-  /** Project ids this policy governs; at most one policy governs a project */
-  projects: string[];
-  /** It also governs the chats that belong to no project; at most one policy does */
-  looseChats?: boolean;
-}
-
-export interface RotationPolicyRequest {
-  threshold: number;
-  order?: number[];
-  projects: string[];
-  looseChats?: boolean;
-}
-
-/** Agentry's own settings for one claude-swap slot: what the binary itself does not keep. */
-export interface AccountConfig {
-  /** Slot number, the same identifier {@link AccountSummary} uses */
-  number: number;
-  /**
-   * `CLAUDE_CONFIG_DIR` for every process started for this account. Null shares the wrapper's,
-   * which is what every account did before and stays the default: moving someone's `~/.claude`
-   * without being asked is not something a wrapper gets to do. A chat on an account that has one
-   * runs `claude` directly against it, so the login is whatever that directory holds.
-   */
-  configDir: string | null;
-  /** Entries Agentry linked into `configDir` from the shared one, relative to it; undone when it is cleared */
-  links: string[];
-}
-
-export interface UpdateAccountConfigRequest {
-  /** Null goes back to sharing the wrapper's config dir, and removes the links Agentry made */
-  configDir: string | null;
-  /**
-   * Also link the shared settings (`settings.json`, `CLAUDE.md`, `keybindings.json`, `agents`,
-   * `commands`, `skills`) into the directory. Symlinks, never copies and never over an existing
-   * entry, so undoing it leaves the shared ones untouched.
-   */
-  shareSettings?: boolean;
-}
-
-/** Which rate-limit window a usage point belongs to. */
-export type UsageWindowKind = '5h' | '7d';
-
-/** One reading of an account's usage, kept as a row so the panel can draw a line. */
-export interface UsageHistoryPoint {
-  at: string;
-  /** Share of the window consumed (0-100), exactly as claude-swap reported it */
-  pct: number;
-  window: UsageWindowKind;
-  /** Slot number */
-  account: number;
-}
-
 // ---------- Scheduling ----------
 
 /** What a schedule starts when it fires. */
@@ -4267,11 +4042,8 @@ export interface UpdateScheduleRequest {
 
 export interface Overview {
   system: SystemInfo;
-  rateLimit: RateLimitInfo | null;
-  /** One reading per provider that has one; `rateLimit` stays until the claude-swap removal */
-  limits?: ProviderLimit[];
-  /** Null when claude-swap is not installed */
-  accounts: AccountsSnapshot | null;
+  /** One reading per provider that has one */
+  limits: ProviderLimit[];
   counts: {
     projects: number;
     chats: number;
@@ -4578,23 +4350,6 @@ export interface RunLimitWaitingEvent extends AgentryEventBase, RunEventRef {
   resetsAt: string | null;
 }
 
-/** Rotation moved the wrapper to another account after a run hit its limit. */
-export interface RunAccountRotatedEvent extends AgentryEventBase, RunEventRef {
-  type: 'run.accountRotated';
-  from: string | null;
-  to: string | null;
-  /** The interrupted turn was replayed on the new account */
-  resumed: boolean;
-}
-
-/** The active account changed, by whatever means (manual switch, `cswap auto`, rotation). */
-export interface AccountSwitchedEvent extends AgentryEventBase {
-  type: 'account.switched';
-  from: string | null;
-  to: string | null;
-  reason: string | null;
-}
-
 export interface TaskStartedEvent extends AgentryEventBase, ActivityEventRef {
   type: 'task.started';
   taskId: string;
@@ -4801,7 +4556,6 @@ export type ProviderCapability =
   | 'effort'
   | 'costReport'
   | 'rateLimitWindows'
-  | 'multiAccount'
   | 'transcriptFiles'
   | 'workflowTool';
 
@@ -6273,8 +6027,6 @@ export type AgentryEvent =
   | RunRateLimitedEvent
   | RunProviderMovedEvent
   | RunLimitWaitingEvent
-  | RunAccountRotatedEvent
-  | AccountSwitchedEvent
   | TaskStartedEvent
   | TaskEndedEvent
   | SubagentStartedEvent

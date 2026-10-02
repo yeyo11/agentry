@@ -1,7 +1,6 @@
 {
   "nav": {
     "projects": "Proyectos",
-    "accounts": "Cuentas",
     "schedules": "Programaciones",
     "usage": "Uso",
     "apiReference": "Referencia de la API",
@@ -293,11 +292,6 @@
     "turns_other": "{{count}} turnos",
     "rateLimited": "{{name}} ha llegado a un límite de uso",
     "rateLimitedBody": "El turno se ha detenido porque la cuenta se ha quedado sin cuota.",
-    "rotated": "{{name}} ha cambiado de cuenta",
-    "previousAccount": "La cuenta anterior",
-    "nextAccount": "la siguiente cuenta",
-    "rotatedBody": "{{from}} → {{to}}.",
-    "rotatedBodyReplayed": "{{from}} → {{to}}, y se ha repetido el turno.",
     "movedBody": {
       "handoff": "Ha seguido a partir de un resumen de lo hecho.",
       "restart": "Ha empezado de nuevo con su prompt original."

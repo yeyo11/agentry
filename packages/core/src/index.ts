@@ -2494,9 +2494,7 @@ export class Core {
     ]);
     return {
       system,
-      rateLimit: null,
       limits: this.limitReadings(),
-      accounts: null,
       counts: {
         projects: this.projectStore.list().length,
         chats: chats.length,

@@ -257,7 +257,6 @@ export function cardProvider<P extends Pick<ProviderStatus, 'id' | 'state'>>(sta
 export type MoreNote =
   | { kind: 'count'; value: number }
   | { kind: 'open'; value: number }
-  | { kind: 'exhausted'; value: number }
   | { kind: 'pending'; value: number }
   | { kind: 'cost'; value: number | null };
 
@@ -265,8 +264,6 @@ export interface MoreNotesInput {
   /** Open work items of the scope; undefined where there is no board to count */
   tasks?: number | undefined;
   projects?: number | undefined;
-  /** Accounts claude-swap knows of; `exhausted` only once their usage has been read */
-  accounts?: { total: number; exhausted?: number | undefined } | undefined;
   schedules?: number | undefined;
   /** Null when nothing cost anything today */
   todayCost?: number | null | undefined;
@@ -279,10 +276,6 @@ export function moreNotes(input: MoreNotesInput): Record<string, MoreNote> {
   // Said with its word, "15 open": a bare figure beside Tasks could be read as the total
   if (input.tasks !== undefined) notes['/tasks'] = { kind: 'open', value: input.tasks };
   if (input.projects !== undefined) notes['/projects'] = { kind: 'count', value: input.projects };
-  if (input.accounts) {
-    const { total, exhausted } = input.accounts;
-    notes['/accounts'] = exhausted ? { kind: 'exhausted', value: exhausted } : { kind: 'count', value: total };
-  }
   if (input.schedules !== undefined) notes['/schedules'] = { kind: 'count', value: input.schedules };
   if (input.todayCost !== undefined) notes['/usage'] = { kind: 'cost', value: input.todayCost };
   if (input.connectors) {

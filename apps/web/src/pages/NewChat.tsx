@@ -4,7 +4,7 @@ import { ArrowRight, ArrowUp, Check, FolderOpen, MessageSquare, Network, Search,
 import { useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { api, keys, useAccounts, useOverview, useProjects } from '../api';
+import { api, keys, useOverview, useProjects } from '../api';
 import { AttachButton, AttachmentTray, useAttachments } from '@agentry/chat-ui/components/Attachments';
 import { ChatToolsPicker, type ToolChoices } from '../components/ChatToolsPicker';
 import { NEW_ORCHESTRATION_PATH } from '../components/CommandPalette';
@@ -59,8 +59,6 @@ export function NewChat() {
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [askHere, setAskHere] = useState(true);
   const [appendSystemPrompt, setAppendSystemPrompt] = useState('');
-  const [account, setAccount] = useState('');
-  const accounts = useAccounts();
   const [tools, setTools] = useState<ToolChoices>({});
   const [options, setOptions] = useState(false);
   usePageTitle(t('new.title'));
@@ -84,7 +82,6 @@ export function NewChat() {
     // A model or a mode of the other agent means nothing to this one
     setModel('');
     setPermissionMode('');
-    setAccount('');
   };
   const known = (projects.data ?? []).find((p) => p.path === cwd.trim());
   // The servers offered are the ones the chat will see from its directory
@@ -99,7 +96,6 @@ export function NewChat() {
       if (model.trim() && !modelLocked) opts.model = model.trim();
       if (permissionMode) opts.permissionMode = permissionMode;
       if (appendSystemPrompt.trim()) opts.appendSystemPrompt = appendSystemPrompt.trim();
-      if (account && claude) opts.account = account;
       if (tools.toolPreset !== undefined) opts.toolPreset = tools.toolPreset;
       if (tools.mcp) opts.mcp = tools.mcp;
       return api.createChat(opts);
@@ -211,22 +207,6 @@ export function NewChat() {
               ]}
             />
           </Field>
-          {claude && (accounts.data?.accounts.length ?? 0) > 1 && (
-            <Field label={t('new.account')} hint={t('new.accountHint')}>
-              <Select
-                aria-label={t('new.account')}
-                value={account}
-                onChange={setAccount}
-                options={[
-                  { value: '', label: t('new.activeAccount') },
-                  ...(accounts.data?.accounts ?? []).map((a) => ({
-                    value: String(a.number),
-                    label: a.headroomPct !== null ? t('new.accountHeadroom', { name: a.alias ?? a.email, pct: a.headroomPct }) : (a.alias ?? a.email),
-                  })),
-                ]}
-              />
-            </Field>
-          )}
         </div>
         <Field label={t('new.appendSystemPrompt')} hint={t('new.optional')}>
           <textarea rows={2} value={appendSystemPrompt} onChange={(e) => setAppendSystemPrompt(e.target.value)} />

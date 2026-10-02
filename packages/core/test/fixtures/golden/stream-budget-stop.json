@@ -36,7 +36,6 @@
         "error": "budget reached",
         "permissionMode": "acceptEdits",
         "model": "claude-opus-5",
-        "account": null,
         "maxBudgetUsd": 1,
         "costUsd": 1.01,
         "tokens": {

@@ -85,8 +85,6 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'run.rateLimited': true,
   'run.providerMoved': true,
   'run.limitWaiting': true,
-  'run.accountRotated': true,
-  'account.switched': true,
   'task.started': true,
   'task.ended': true,
   'subagent.started': true,
@@ -259,10 +257,7 @@ export function targetsFor(event: AgentryEvent): Target[] {
       return [[keys.providers, NOW], [keys.overview, NOW], [keys.chats, LISTS]];
     case 'run.rateLimited':
       // The provider's reading and the chat's banner follow the limit that was just hit
-      return [[keys.providers, NOW], [keys.accounts, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.chats, LISTS]];
-    case 'run.accountRotated':
-    case 'account.switched':
-      return [[keys.accounts, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.chats, LISTS]];
+      return [[keys.providers, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.chats, LISTS]];
     case 'task.started':
     case 'task.ended':
       return [[keys.tasks, NOW], ...detail(NOW), ...chatOf(event), [keys.chats, LISTS], [keys.overview, OVERVIEW]];

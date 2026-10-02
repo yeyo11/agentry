@@ -107,11 +107,13 @@ export function startOptions(request: ChatStartOptions | undefined): ChatStartOp
   // CLI's argument list and come back as a 500
   const r: Record<string, unknown> = request && typeof request === 'object' && !Array.isArray(request) ? { ...request } : {};
   const options: ChatStartOptions = {};
+  // `account` is read though it is gone from the type: a start that still pins one is refused with
+  // its own message further down, and a number where a string goes is refused here
   for (const key of ['model', 'effort', 'appendSystemPrompt', 'account'] as const) {
     const value = r[key];
     if (value === undefined) continue;
     if (typeof value !== 'string') throw new WorkItemError(`${key} must be a string`, 400);
-    options[key] = value;
+    (options as Record<string, string>)[key] = value;
   }
   for (const key of ['allowedTools', 'disallowedTools'] as const) {
     const value = r[key];

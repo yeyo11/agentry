@@ -145,7 +145,7 @@ test('the phone FAB follows the page: the same round button where it starts some
   // A project's tab is a page of its own, whose settings end in a Save the button would cover
   assert.deepEqual(fabFor('/', '?project=p1'), { action: 'chat' });
   for (const search of ['?view=settings', '?project=p1&view=board']) assert.equal(fabFor('/', search), null, search);
-  for (const path of ['/tasks/milestones', '/chats/abc', '/chats/new', '/orchestration/o1', '/tasks/AGN-12', '/projects/new', '/settings', '/accounts', '/usage', '/nowhere']) {
+  for (const path of ['/tasks/milestones', '/chats/abc', '/chats/new', '/orchestration/o1', '/tasks/AGN-12', '/projects/new', '/settings', '/usage', '/nowhere']) {
     assert.equal(fabFor(path), null, path);
   }
 });
@@ -201,21 +201,18 @@ test('the desktop app marks the page with its platform; a browser marks nothing'
 test('the More sheet says a problem before a count, and nothing it does not know yet', () => {
   assert.deepEqual(moreNotes({}), {});
   assert.deepEqual(
-    moreNotes({ projects: 3, accounts: { total: 4, exhausted: 2 }, schedules: 0, todayCost: 1145.86, connectors: { total: 3, pending: 1 } }),
+    moreNotes({ projects: 3, schedules: 0, todayCost: 1145.86, connectors: { total: 3, pending: 1 } }),
     {
       '/projects': { kind: 'count', value: 3 },
-      '/accounts': { kind: 'exhausted', value: 2 },
       '/schedules': { kind: 'count', value: 0 },
       '/usage': { kind: 'cost', value: 1145.86 },
       '/connectors': { kind: 'pending', value: 1 },
     },
   );
-  // No account spent and none waiting for authorisation: the plain count, not a zero badge
-  const calm = moreNotes({ accounts: { total: 4, exhausted: 0 }, connectors: { total: 3, pending: 0 } });
-  assert.deepEqual(calm['/accounts'], { kind: 'count', value: 4 });
+  // Nothing waiting for authorisation: the plain count, not a zero badge
+  const calm = moreNotes({ connectors: { total: 3, pending: 0 } });
   assert.deepEqual(calm['/connectors'], { kind: 'count', value: 3 });
-  // Before the account list is read, the overview's total; a day with no cost is said, not left blank
-  assert.deepEqual(moreNotes({ accounts: { total: 2 } })['/accounts'], { kind: 'count', value: 2 });
+  // A day with no cost is said, not left blank
   assert.deepEqual(moreNotes({ todayCost: null })['/usage'], { kind: 'cost', value: null });
 });
 

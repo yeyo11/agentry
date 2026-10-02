@@ -460,7 +460,6 @@ export class LiveChat {
       error: null,
       permissionMode: this.permissionMode,
       model: this.model,
-      account: null,
       maxBudgetUsd: typeof this.opts.maxBudgetUsd === 'number' && this.opts.maxBudgetUsd > 0 ? this.opts.maxBudgetUsd : null,
       costUsd: null,
       tokens: emptyTokenUsage(),

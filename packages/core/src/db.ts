@@ -6,7 +6,6 @@ import type {
   AuditFilter,
   HealthSignalKind,
   AuditPage,
-  AutoSwitchEvent,
   DecisionAnswer,
   DecisionFeedback,
   DecisionPaletteAction,
@@ -34,8 +33,6 @@ import type {
   RateLimitWindow,
   SupervisorProposal,
   SupervisorProposalStatus,
-  UsageHistoryPoint,
-  UsageWindowKind,
 } from '@agentry/shared';
 import { chatsFromRuns, LEGACY_PROVIDER, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { CoreConfig } from './paths.ts';
@@ -873,8 +870,6 @@ export function migrate(db: DatabaseSync, until = MIGRATIONS.length): void {
   }
 }
 
-/** Rows older than this are dropped on open, so a long-lived install cannot grow without bound. */
-const KEEP_EVENTS = 20_000;
 /** Command runs kept across every kind; the newest few dozen of a kind are all "usual" ever looks at. */
 const KEEP_COMMANDS = 10_000;
 
@@ -958,38 +953,6 @@ function migrateRunsToChats(db: DatabaseSync): void {
     const { runId, ...rest } = doc;
     updateEnvironment.run(JSON.stringify({ ...rest, chatId: chat(runId) ?? '' }), String(row.cwd));
   }
-}
-
-interface EventRow {
-  seq: number;
-  ts: string;
-  event: string;
-  from_acct: string | null;
-  to_acct: string | null;
-  reason: string | null;
-  detail: string | null;
-  raw: string | null;
-}
-
-function toEvent(row: EventRow): AutoSwitchEvent {
-  let data: Record<string, unknown> | undefined;
-  if (row.raw) {
-    try {
-      data = JSON.parse(row.raw) as Record<string, unknown>;
-    } catch {
-      data = undefined; // a row written by a newer schema, or hand-edited: the columns still stand
-    }
-  }
-  return {
-    seq: row.seq,
-    ts: row.ts,
-    event: row.event,
-    ...(row.from_acct ? { from: row.from_acct } : {}),
-    ...(row.to_acct ? { to: row.to_acct } : {}),
-    ...(row.reason ? { reason: row.reason } : {}),
-    ...(row.detail ? { detail: row.detail } : {}),
-    ...(data ? { data } : {}),
-  };
 }
 
 /** How long a closed provider move stays in the history. */
@@ -1084,7 +1047,6 @@ export class Db {
     this.db.exec('PRAGMA journal_mode = WAL');
     this.db.exec('PRAGMA foreign_keys = ON');
     migrate(this.db);
-    this.pruneRotationEvents();
     this.pruneAudit();
     pruneWebhookDeliveries(this.db);
     this.pruneProviderMoves();
@@ -1111,54 +1073,6 @@ export class Db {
       this.db.exec('ROLLBACK');
       throw err;
     }
-  }
-
-  /** Appends one rotation event and returns it with the seq the store assigned. */
-  appendRotationEvent(event: Omit<AutoSwitchEvent, 'seq'>): AutoSwitchEvent {
-    const result = this.db
-      .prepare(
-        `INSERT INTO rotation_events (ts, event, from_acct, to_acct, reason, detail, raw)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        event.ts,
-        event.event,
-        event.from ?? null,
-        event.to ?? null,
-        event.reason ?? null,
-        event.detail ?? null,
-        event.data ? JSON.stringify(event.data) : null,
-      );
-    return { ...event, seq: Number(result.lastInsertRowid) };
-  }
-
-  /**
-   * Most recent events first in the query, returned oldest last so the panel can append them
-   * the way it already renders the in-memory buffer.
-   */
-  rotationEvents(opts: { limit?: number; since?: string } = {}): AutoSwitchEvent[] {
-    const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 200), 1), 5_000);
-    const params: SQLInputValue[] = [];
-    let where = '';
-    if (opts.since) {
-      where = 'WHERE ts > ?';
-      params.push(opts.since);
-    }
-    const rows = this.db
-      .prepare(`SELECT * FROM rotation_events ${where} ORDER BY seq DESC LIMIT ?`)
-      .all(...params, limit) as unknown as EventRow[];
-    return rows.map(toEvent).reverse();
-  }
-
-  /** Drops everything but the newest `keep` rows. Returns how many went. */
-  pruneRotationEvents(keep = KEEP_EVENTS): number {
-    const result = this.db
-      .prepare(
-        `DELETE FROM rotation_events
-         WHERE seq <= COALESCE((SELECT seq FROM rotation_events ORDER BY seq DESC LIMIT 1 OFFSET ?), -1)`,
-      )
-      .run(keep);
-    return Number(result.changes);
   }
 
   // ---------- audit log ----------
@@ -1216,57 +1130,6 @@ export class Db {
       .prepare('DELETE FROM audit WHERE id <= COALESCE((SELECT id FROM audit ORDER BY id DESC LIMIT 1 OFFSET ?), -1)')
       .run(keep);
     return Number(result.changes);
-  }
-
-  // ---------- usage history ----------
-
-  /** Appends readings; one already stored for the same account, window and instant is left as it was. */
-  appendUsagePoints(points: readonly UsageHistoryPoint[]): void {
-    if (!points.length) return;
-    const insert = this.db.prepare('INSERT OR IGNORE INTO usage_history (account, window, at, pct) VALUES (?, ?, ?, ?)');
-    this.tx(() => {
-      for (const p of points) insert.run(p.account, p.window, p.at, p.pct);
-    });
-  }
-
-  /** The newest reading of one account's window, so a sampler can tell whether anything moved. */
-  latestUsagePoint(account: number, window: UsageWindowKind): UsageHistoryPoint | null {
-    const row = this.db
-      .prepare('SELECT account, window, at, pct FROM usage_history WHERE account = ? AND window = ? ORDER BY at DESC LIMIT 1')
-      .get(account, window) as unknown as UsageHistoryPoint | undefined;
-    return row ? { at: row.at, pct: row.pct, window: row.window, account: row.account } : null;
-  }
-
-  /** Oldest first, so a chart can draw it as it comes. `limit` keeps the newest rows of the range. */
-  usageHistory(opts: { account?: number; window?: UsageWindowKind; since?: string; until?: string; limit?: number } = {}): UsageHistoryPoint[] {
-    const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 5_000), 1), 50_000);
-    const where: string[] = [];
-    const params: SQLInputValue[] = [];
-    if (opts.account !== undefined) {
-      where.push('account = ?');
-      params.push(opts.account);
-    }
-    if (opts.window) {
-      where.push('window = ?');
-      params.push(opts.window);
-    }
-    if (opts.since) {
-      where.push('at >= ?');
-      params.push(opts.since);
-    }
-    if (opts.until) {
-      where.push('at <= ?');
-      params.push(opts.until);
-    }
-    const rows = this.db
-      .prepare(`SELECT account, window, at, pct FROM usage_history ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY at DESC LIMIT ?`)
-      .all(...params, limit) as unknown as UsageHistoryPoint[];
-    return rows.map((r) => ({ at: r.at, pct: r.pct, window: r.window, account: r.account })).reverse();
-  }
-
-  /** Drops readings older than `before`. Returns how many went. */
-  pruneUsageHistory(before: string): number {
-    return Number(this.db.prepare('DELETE FROM usage_history WHERE at < ?').run(before).changes);
   }
 
   // ---------- chats, executions and orchestrations ----------

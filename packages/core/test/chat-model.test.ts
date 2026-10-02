@@ -174,7 +174,6 @@ test('a failure that a later live execution has superseded is not the chat\'s ne
     error: null,
     permissionMode: 'acceptEdits',
     model: null,
-    account: null,
     maxBudgetUsd: null,
     costUsd: null,
     tokens: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 },

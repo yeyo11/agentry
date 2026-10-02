@@ -4,7 +4,6 @@
  * how much is live in each project.
  */
 import type {
-  AccountUsageWindow,
   ChatSummary,
   Orchestration,
   OrchestrationTaskState,
@@ -213,18 +212,11 @@ const WEEKLY = /seven|7\s*d|week/i;
 const clampPct = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
 
 /**
- * The 5 h and weekly windows of the account in use. claude-swap's reading of the active account is
- * the precise one when it is installed; otherwise the windows the CLI reported in its last rate
- * limit event, recognised by name.
+ * The 5 h and weekly windows of the first provider that reports any, recognised by name. Claude Code
+ * is first in the overview unless the person ordered otherwise.
  */
-export function limitSummary(overview: Pick<Overview, 'accounts' | 'rateLimit'> | undefined): LimitSummary {
-  const usage = overview?.accounts?.active?.usage;
-  if (usage && (usage.fiveHour || usage.sevenDay)) {
-    const fromSwap = (w: AccountUsageWindow | null): LimitWindow | null =>
-      w ? { pct: clampPct(w.pct), resetsAt: w.resetsAt ? Date.parse(w.resetsAt) || null : null } : null;
-    return { fiveHour: fromSwap(usage.fiveHour), weekly: fromSwap(usage.sevenDay) };
-  }
-  const windows = Object.entries(overview?.rateLimit?.windows ?? {});
+export function limitSummary(overview: Pick<Overview, 'limits'> | undefined): LimitSummary {
+  const windows = Object.entries((overview?.limits ?? []).find((l) => Object.keys(l.windows).length > 0)?.windows ?? {});
   const find = (pattern: RegExp): LimitWindow | null => {
     const found = windows.find(([name]) => pattern.test(name))?.[1];
     return found ? { pct: clampPct(found.utilization * 100), resetsAt: found.resetsAt ? found.resetsAt * 1000 : null } : null;
