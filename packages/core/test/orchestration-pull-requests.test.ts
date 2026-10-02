@@ -6,6 +6,7 @@ import test from 'node:test';
 import type { AgentryEvent, Orchestration } from '@agentry/shared';
 import { runHostCall } from '../src/hosts/exec.ts';
 import { OrchestrationPullRequestService } from '../src/orchestration-pull-requests.ts';
+import { HostRateLimiter } from '../src/hosts/rate-limit.ts';
 import { PullRequestWatcher } from '../src/pull-requests.ts';
 import { cleanup, setup, sh, view, viewMr, write, type HostKind, type Setup } from './fixtures/pr-harness.ts';
 
@@ -52,6 +53,8 @@ function serviceOf(s: Setup, noGh = false): { service: OrchestrationPullRequestS
   return { service, events };
 }
 
+const rowOf = (s: Setup): { id: string; hostname: string | null } => s.db.connection.prepare('SELECT id, hostname FROM orchestration_pull_requests ORDER BY created_at DESC LIMIT 1').get() as { id: string; hostname: string | null };
+const idOf = (s: Setup): string => rowOf(s).id;
 const pushed = (s: Setup): boolean => execFileSync('git', ['-C', s.r.remote, 'branch', '--list', BRANCH], { encoding: 'utf8' }).trim() !== '';
 const rows = (s: Setup): number => Number((s.db.connection.prepare('SELECT COUNT(*) AS n FROM orchestration_pull_requests').get() as { n: number }).n);
 
@@ -137,6 +140,39 @@ for (const host of ['github', 'gitlab'] as const) {
       assert.equal(service.newest('o1')?.phase, 'merged');
       assert.ok(service.newest('o1')?.closedAt);
       assert.equal(events.length, before + 1);
+    }));
+
+  test(tag('says how a read went: held by the floor, lost claim, read'), () =>
+    scenario(host, async (s) => {
+      const orch = orchestration(s, { commits: true });
+      const { service } = serviceOf(s);
+      await service.open(orch);
+      if (host === 'github') view(s.r, 'OPEN', [], number);
+      else viewMr(s.r, 'opened', null, number);
+      const id = idOf(s);
+      const [a, b] = await Promise.all([service.check(id), service.check(id)]);
+      assert.deepEqual([a, b].sort(), ['read', 'skipped']);
+      const hostname = host === 'github' ? 'github.com' : (rowOf(s).hostname ?? '');
+      const limiter = new HostRateLimiter(s.db.connection);
+      limiter.observe(hostname, 'core', { limit: 5000, remaining: 10, resetAt: new Date(Date.now() + 10 * 60_000) });
+      limiter.observe(hostname, 'graphql', { limit: 5000, remaining: 10, resetAt: new Date(Date.now() + 10 * 60_000) });
+      assert.equal(await service.check(id), 'paused');
+      assert.equal(await service.check(id, true), 'read');
+    }));
+
+  test(tag('a failed read is told to the pacer, and a nudge in the back-off is not lost'), () =>
+    scenario(host, async (s) => {
+      const orch = orchestration(s, { commits: true });
+      const { service } = serviceOf(s);
+      await service.open(orch);
+      const id = idOf(s);
+      s.db.connection.prepare('UPDATE orchestration_pull_requests SET number = 9999 WHERE id = ?').run(id);
+      const watcher = new PullRequestWatcher([service]);
+      await watcher.tick();
+      assert.equal(watcher.pacer.nextAt(id, { checkedAt: null, ci: null, signature: '|', since: Date.now() }) > Date.now() + 30_000, true, 'the back-off applies to the orchestration row');
+      watcher.nudge(id);
+      await watcher.pass();
+      assert.ok(watcher.pacer.nextAt(id, { checkedAt: null, ci: null, signature: '|', since: Date.now() }) > Date.now() + 30_000, 'a nudge does not break the back-off');
     }));
 
   test(tag('a close is read back, and a new request may follow'), () =>
