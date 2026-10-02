@@ -190,7 +190,13 @@ export class ChatManager extends EventEmitter {
       emit: (event, ...args) => this.emit(event, ...args),
       persist: () => this.persist(),
       noteActivity: (chat) => this.noteActivity(chat),
-      observeLimit: (chat, event) => this.limits.observe(chat.provider, event),
+      observeLimit: (chat, event) => {
+        try {
+          this.limits.observe(chat.provider, event);
+        } catch {
+          // Output still draining after the database closed (shutdown): losing a limit reading must not become an uncaught error
+        }
+      },
       learnModelCosts: (execution, modelUsage) => this.learnModelCosts(execution, modelUsage),
       learnWindows: (modelUsage) => this.learnWindows(modelUsage),
       maybeLimit: (chat) => this.maybeLimit(chat),
