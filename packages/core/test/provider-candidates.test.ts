@@ -231,3 +231,15 @@ test('the moves cap leaves no candidate, project cap included', () => {
   assert.equal(candidatesFor(run({ moves: 3 }), project).movesCapped, true);
   assert.equal(candidatesFor(run({ from: null, moves: 9 }), context()).movesCapped, false);
 });
+
+test('the effort carries over only where the candidate declares it and lists the level', () => {
+  const providers = {
+    'claude-code': provider('claude-code'),
+    codex: provider('codex', { capabilities: ['effort'], efforts: ['low', 'high'] }),
+    gemini: provider('gemini', { capabilities: [], efforts: ['high'] }),
+  };
+  const r = candidatesFor(run({ effort: 'high', policy: null, automated: false }), context({}, providers));
+  assert.equal(r.candidates.find((c) => c.provider === 'codex')?.effort, 'high');
+  assert.equal(r.candidates.find((c) => c.provider === 'gemini')?.effort, null);
+  assert.equal(candidatesFor(run({ effort: 'max', policy: null, automated: false }), context({}, providers)).candidates[0]?.effort, null);
+});

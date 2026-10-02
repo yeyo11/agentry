@@ -29,6 +29,8 @@ export interface RunNeeds {
   automated: boolean;
   /** Providers this run already left in its chain; free again once their reset has passed */
   exclude: ProviderId[];
+  /** The effort the run asks for; carried over when the candidate declares `effort` and lists the level */
+  effort?: string | null;
   /** Moves the run has made so far, against `rotation.onLimit.maxMoves` */
   moves?: number;
 }
@@ -41,6 +43,8 @@ export interface CandidateProvider {
   /** The driver's pure translation; null when none is registered */
   translate: ((policy: ToolPolicy) => PolicyTranslation) | null;
   models: ModelOption[];
+  /** The effort levels the provider lists; empty when it lists none */
+  efforts?: string[];
 }
 
 export interface CandidateContext {
@@ -54,7 +58,8 @@ export interface CandidateContext {
 
 export interface CandidateResult {
   /** In order, the first being what the setting picks */
-  candidates: Extract<CandidateView, { model: string | null }>[];
+  /** `effort` is the level the move carries over, null for the candidate's own default */
+  candidates: Array<Extract<CandidateView, { model: string | null }> & { effort: string | null }>;
   excluded: Extract<CandidateView, { excluded: Exclusion }>[];
   /** The run has made `maxMoves` moves: it cannot move again, whatever the candidates are */
   movesCapped: boolean;
@@ -178,7 +183,8 @@ export function candidatesFor(run: RunNeeds, context: CandidateContext): Candida
       continue;
     }
     const limit = provider.status.limit;
-    result.candidates.push({ provider: id, model, utilization: limit?.utilization ?? null, resetsAt: limit?.resetsAt ?? null });
+    const effort = run.effort && provider.capabilities.includes('effort') && provider.efforts?.includes(run.effort) ? run.effort : null;
+    result.candidates.push({ provider: id, model, effort, utilization: limit?.utilization ?? null, resetsAt: limit?.resetsAt ?? null });
   }
   if (result.movesCapped) result.candidates = [];
   return result;
