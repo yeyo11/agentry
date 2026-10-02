@@ -29,6 +29,8 @@
  *    - `tasks`: the Tasks board, list and milestones (pages/tasks/Board, List, Milestones), and the
  *      words every work item screen shares: columns, types and priorities (lib/work-items.ts)
  *    - `workItem`: one work item's page and the New task form (pages/tasks/WorkItem, NewTask, item/*)
+ *    - `issues`: tracker issues on the Tasks screens: the import dialog (pages/tasks/ImportIssues),
+ *      the item's issue chips (pages/tasks/item/Issues) and the card's key
  *    - `merge`: the merge block of a change request (pages/tasks/item/Merge): methods, blockers
  *      with their remedies, auto-merge, the head guard
     - `team`: the Team tab of a project (pages/team/*): members, one member, the flow by column,
