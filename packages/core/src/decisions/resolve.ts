@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { AgentryEvent, DecisionAnswer, DecisionPointId, DecisionRecord, DecisionResolution } from '@agentry/shared';
+import type { AgentryEvent, DecisionAnswer, DecisionPointId, DecisionRecord, DecisionResolution, ModelMapEntry } from '@agentry/shared';
 import { TTL_SECONDS } from '../push.ts';
 
 /*
@@ -14,7 +14,11 @@ import { TTL_SECONDS } from '../push.ts';
  */
 
 type Sql = DatabaseSync;
-type Resolver = (row: DecisionRecord, sql: Sql, now: number) => DecisionResolution | null;
+/** What a resolver reads besides the database: settings documents live in JSON files, not in rows */
+interface ResolverContext {
+  modelMap: () => readonly ModelMapEntry[];
+}
+type Resolver = (row: DecisionRecord, sql: Sql, now: number, context: ResolverContext) => DecisionResolution | null;
 
 const PERSON = 'person';
 
@@ -439,13 +443,134 @@ RESOLVERS['checks.fix'] = (row, sql) => {
   const fixable = answer === 'branch-fixable';
   return verdict(fixable, 'A new head turned the checks passing', { rollup: 'passing', pushed: true });
 };
+
+interface MoveRow {
+  id: string;
+  from_chat: string;
+  to_chat: string | null;
+  from_provider: string;
+  to_provider: string | null;
+  action: string;
+  state: string;
+}
+
+const MOVE_COLUMNS = 'id, from_chat, to_chat, from_provider, to_provider, action, state';
+
+/** What each chat of a move chain cost, in order: the links are the chats the moves joined */
+function chainCost(sql: Sql, moves: MoveRow[]): Array<{ chat: string; provider: string; costUsd: number }> {
+  const links: Array<{ chat: string; provider: string }> = [];
+  for (const m of moves) {
+    if (!links.some((l) => l.chat === m.from_chat)) links.push({ chat: m.from_chat, provider: m.from_provider });
+    if (m.to_chat && m.to_provider && !links.some((l) => l.chat === m.to_chat)) links.push({ chat: m.to_chat, provider: m.to_provider });
+  }
+  const sum = sql.prepare("SELECT COALESCE(SUM(json_extract(json, '$.costUsd')), 0) AS cost FROM executions WHERE chat_id = ?");
+  return links.map((l) => ({ ...l, costUsd: Number(((sum.get(l.chat) as { cost: number } | undefined)?.cost ?? 0).toFixed(4)) }));
+}
+
+/** How the work a decision was about stands: still `going`, `passed`, `failed`, or `stopped` by a person; the provider is the one it is on */
+interface Ending {
+  ended: 'passed' | 'failed' | 'going' | 'stopped';
+  provider: string | null;
+}
+
+/** A flow run, a task or an assistant run, whichever the subject is. A move re-points the run's `provider`, so this is where the work finished */
+function endingOf(sql: Sql, kind: string, subjectId: string | null): Ending | null {
+  if (!subjectId) return null;
+  if (kind === 'flow_run') {
+    const run = sql.prepare('SELECT state, outcome, provider FROM flow_runs WHERE id = ?').get(subjectId) as { state: string; outcome: string | null; provider: string | null } | undefined;
+    if (!run) return null;
+    const provider = run.provider ?? 'claude-code';
+    if (run.state !== 'ended') return { ended: 'going', provider };
+    if (run.outcome === 'passed') return { ended: 'passed', provider };
+    return { ended: run.outcome === 'cancelled' ? 'stopped' : 'failed', provider };
+  }
+  if (kind === 'task') {
+    const at = subjectId.indexOf(':');
+    if (at < 0) return null;
+    const found = sql.prepare('SELECT json FROM orchestrations WHERE id = ?').get(subjectId.slice(0, at)) as { json: string } | undefined;
+    const task = (parse(found?.json ?? null)?.tasks as Array<Record<string, unknown>> | undefined)?.find((t) => t.id === subjectId.slice(at + 1));
+    if (!task) return null;
+    const status = String(task.status ?? '');
+    const provider = typeof task.provider === 'string' ? task.provider : 'claude-code';
+    if (STILL_GOING.has(status)) return { ended: 'going', provider };
+    if (status === 'completed') return { ended: 'passed', provider };
+    return { ended: status === 'failed' ? 'failed' : 'stopped', provider };
+  }
+  if (kind === 'assistant_run') {
+    const run = sql.prepare('SELECT status FROM assistant_runs WHERE id = ?').get(subjectId) as { status: string } | undefined;
+    if (!run) return null;
+    // The run row has no provider column: the last move says where it went, and a run never moved ran on Claude
+    const moved = sql.prepare("SELECT to_provider FROM provider_moves WHERE subject_kind = 'assistant_run' AND subject_id = ? AND to_provider IS NOT NULL ORDER BY at DESC, id DESC LIMIT 1").get(subjectId) as { to_provider: string } | undefined;
+    const provider = moved?.to_provider ?? 'claude-code';
+    if (run.status === 'running') return { ended: 'going', provider };
+    if (run.status === 'completed') return { ended: 'passed', provider };
+    return { ended: run.status === 'failed' ? 'failed' : 'stopped', provider };
+  }
+  return null;
+}
+
+/**
+ * `provider.on-limit`: the move row the answer led to (its `decision_id`) says what was done, and the
+ * run, task or assistant run it led to says how it came out. A person stopping it, or work that is
+ * still going, says nothing. The detail keeps what each provider of the chain cost.
+ */
+RESOLVERS['provider.on-limit'] = (row, sql) => {
+  if (!choiceOf(row, 'action')) return null;
+  // No row: the answer never reached a move (a candidate went away, or the setting stood in for it)
+  const move = sql.prepare(`SELECT ${MOVE_COLUMNS} FROM provider_moves WHERE decision_id = ?`).get(row.id) as MoveRow | undefined;
+  if (!move) return null;
+  const ending = endingOf(sql, row.subjectKind, row.subjectId);
+  if (!ending || ending.ended === 'going' || ending.ended === 'stopped') return null;
+  const chain = sql.prepare(`SELECT ${MOVE_COLUMNS} FROM provider_moves WHERE subject_kind = ? AND subject_id = ? ORDER BY at, id`).all(row.subjectKind, row.subjectId ?? '') as unknown as MoveRow[];
+  const passed = ending.ended === 'passed';
+  return verdict(passed, passed ? `The work ended well after the ${move.action}` : `The work failed after the ${move.action}`, { action: move.action, state: move.state, chain: chainCost(sql, chain) });
+};
+
+/**
+ * `provider.pick`: judged by how the work ended on the provider chosen. When it ran elsewhere (a
+ * shadow pick that was not the order's first, or a run that moved) there is no counterfactual, so the
+ * row is not judged.
+ */
+RESOLVERS['provider.pick'] = (row, sql) => {
+  const chosen = choiceOf(row, 'provider');
+  if (!chosen) return null;
+  const ending = endingOf(sql, row.subjectKind, row.subjectId);
+  if (!ending || ending.ended === 'going' || ending.ended === 'stopped' || ending.provider !== chosen) return null;
+  const passed = ending.ended === 'passed';
+  return verdict(passed, passed ? `The work ended well on ${chosen}` : `The work failed on ${chosen}`, { provider: chosen });
+};
+
+/** `<provider>:<model>→<provider>`; a model id may hold a colon, a provider id never does */
+function pairOf(subjectId: string | null): { from: { provider: string; model: string }; to: string } | null {
+  if (!subjectId) return null;
+  const arrow = subjectId.lastIndexOf('→');
+  const colon = subjectId.indexOf(':');
+  if (arrow < 0 || colon < 0 || colon > arrow) return null;
+  return { from: { provider: subjectId.slice(0, colon), model: subjectId.slice(colon + 1, arrow) }, to: subjectId.slice(arrow + 1) };
+}
+
+/**
+ * `provider.model-map`: judged by what the person did with the pair in the mapping. The suggested
+ * model entering agrees; another model for the pair disagrees. A dismissal leaves nothing in the
+ * mapping, so it arrives as the person's feedback, which outranks this inference. Until the pair is
+ * mapped the row waits.
+ */
+RESOLVERS['provider.model-map'] = (row, _sql, _now, context) => {
+  const answer = choiceOf(row, 'counterpart');
+  const pair = pairOf(row.subjectId);
+  if (!answer || !pair) return null;
+  const entry = context.modelMap().find((e) => e.from.provider === pair.from.provider && e.from.model === pair.from.model && e.to.provider === pair.to);
+  if (!entry) return null;
+  const same = entry.to.model === answer;
+  return verdict(same, same ? 'The person accepted the suggested model' : 'The person mapped the pair to another model', { suggested: answer, mapped: entry.to.model });
+};
 RESOLVERS['health.test-weakening'] = viaItemOfChat;
 RESOLVERS['changes.unexplained-hunk'] = viaItemOfChat;
 
 export const RESOLVED_POINTS: readonly DecisionPointId[] = Object.keys(RESOLVERS) as DecisionPointId[];
 
 /** The events after which an outcome may have become known */
-const EVENTS = /^(flow\.|orchestration\.|workitem\.|change-request\.|memory\.|assistant\.|supervisor\.|run\.ended$|health\.)/;
+const EVENTS = /^(flow\.|orchestration\.|workitem\.|change-request\.|memory\.|assistant\.|supervisor\.|run\.ended$|run\.providerMoved$|health\.)/;
 
 const SWEEP_MAX = 500;
 const SWEEP_EVERY_MS = 5 * 60_000;
@@ -456,6 +581,8 @@ export interface DecisionResolversDeps {
   db: { decision(id: string): DecisionRecord | null };
   engine: { resolve(decisionId: string, outcome: DecisionResolution): void };
   historyDays: () => number;
+  /** The model mapping in force; `provider.model-map` is judged against it */
+  modelMap?: () => readonly ModelMapEntry[];
   now?: () => Date;
 }
 
@@ -489,7 +616,7 @@ export class DecisionResolvers {
         const resolver = row ? RESOLVERS[row.point] : undefined;
         if (!row || !resolver) continue;
         try {
-          const outcome = resolver(row, this.deps.sql, now.getTime());
+          const outcome = resolver(row, this.deps.sql, now.getTime(), { modelMap: this.deps.modelMap ?? (() => []) });
           if (outcome) {
             this.deps.engine.resolve(id, outcome);
             resolved += 1;
