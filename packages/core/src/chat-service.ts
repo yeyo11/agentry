@@ -27,6 +27,7 @@ import {
   type Execution,
   type ChatStartOptions,
   type ChatToolConfig,
+  type ToolPolicy,
   type HandoffPreview,
   type MoveChatRequest,
   type ProjectProvidersSettings,
@@ -57,7 +58,7 @@ import { gitRaw } from './git.ts';
 import type { Db } from './db.ts';
 import { candidatesFor, type CandidateProvider, type CandidateResult, type RunNeeds } from './providers/candidates.ts';
 import { runRef } from './event-sources.ts';
-import { rulesFor } from './tool-policy.ts';
+import { rulesOnDriver } from './tool-policy.ts';
 import { pageSize } from './sessions.ts';
 import { toChatEnvironment, toChildren, type BranchFacts } from './chat-branches.ts';
 import { mergeLiveWorkflows } from './workflows.ts';
@@ -642,7 +643,10 @@ export class ChatService {
    * Starts a new chat. `onStart` hears of it in the same tick the process is spawned, before any of
    * its output can arrive: for a caller that has to tie the chat to something before it answers.
    */
-  async create(request: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'systemPromptSnapshot' | 'uploads' | 'keepAlive' | 'confine'>, onStart?: (chat: ChatRuntime) => void): Promise<ChatSummary> {
+  async create(
+    request: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'systemPromptSnapshot' | 'uploads' | 'keepAlive' | 'confine'> & { policy?: ToolPolicy },
+    onStart?: (chat: ChatRuntime) => void,
+  ): Promise<ChatSummary> {
     // Refused before anything is resolved or spawned: no driver is a 400, and so is a gate
     const provider = this.gate(request.provider, request, { schema: request.jsonSchema !== undefined && request.jsonSchema !== null, worktree: request.worktree !== undefined });
     // `--agents` reads the file it is given: only the definitions the flow writes, never a path a
@@ -660,7 +664,11 @@ export class ChatService {
     // is the server's, and answers as one
     let started: ChatRuntime;
     try {
-      started = this.deps.runtime.start({ ...request, ...chosen, provider });
+      // Automated work states its policy beside the rules: a move translates it for the next provider
+      const toolConfig: ChatToolConfig | undefined = request.policy
+        ? { ...(chosen?.toolConfig ?? { preset: null, allowedTools: request.allowedTools ?? [], disallowedTools: request.disallowedTools ?? [], mcp: null }), policy: request.policy }
+        : undefined;
+      started = this.deps.runtime.start({ ...request, ...chosen, ...(toolConfig ? { toolConfig } : {}), provider });
       onStart?.(started);
     } catch (err) {
       throw startFailure(err);
@@ -970,7 +978,7 @@ export class ChatService {
     const prompt = handoff?.text ?? `${agentLead}${work?.prompt ?? runtime.prompt}`;
 
     const { tools } = this.needsOf(id, work);
-    const rules = tools?.policy ? rulesFor(request.provider, tools.policy) : null;
+    const rules = tools?.policy ? rulesOnDriver(driver, request.provider, tools.policy) : null;
     const mcp = capabilities.includes('mcp') ? (tools?.mcp ?? null) : null;
     const toolConfig: ChatToolConfig | null =
       rules || mcp ? { preset: tools?.preset ?? null, allowedTools: rules?.allowedTools ?? [], disallowedTools: rules?.disallowedTools ?? [], mcp, ...(tools?.policy ? { policy: tools.policy } : {}) } : null;

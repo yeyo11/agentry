@@ -5,13 +5,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import type { Orchestration, OrchestrationSpec, OrchestrationTaskState, PermissionMode } from '@agentry/shared';
+import type { LimitWait, Orchestration, OrchestrationSpec, OrchestrationTaskState, PermissionMode, ProviderMove } from '@agentry/shared';
 import { Db } from '../src/db.ts';
 import { Orchestrator, summarizeOrchestration, validateSpecSettings, validateTasks } from '../src/orchestrator.ts';
 import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
 import { effectiveLimits, remainingUsd } from '../src/task-limits.ts';
 import { FRONTEND, PASTED_NOTE, REAL_VERIFICATION, SCOPE_AND_COMPLETION, THINK_THROUGH, UNATTENDED } from '../src/prompt-rules.ts';
+import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
+import { CodexDriver } from '../src/providers/codex/driver.ts';
+import { NoProviderError, openWaitOf, type StartInput, type WorkProviders } from '../src/work-provider.ts';
 import { tempConfig } from './helpers.ts';
 
 const task = (id: string, dependsOn: string[] = []) => ({ id, name: id, prompt: 'do it', dependsOn });
@@ -1343,4 +1346,244 @@ test('an orchestration launched from a planner draft keeps its planner run, and 
   assert.equal(again.plannerRunId, null);
   await settle(orchestrator, plain.id);
   await settle(orchestrator, again.id);
+});
+
+// ---------- providers: where a task starts, and what a limit does to it ----------
+
+const FAKE_CODEX = fileURLToPath(new URL('./fixtures/fake-codex-app-server.mjs', import.meta.url));
+
+/** A graph over the fake Claude and the fake Codex, with the rotation's side of the hooks in the test's hands. */
+function providerGraph(hooks: { held?: boolean } = {}) {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  const runs = new ChatManager(config, db, [new ClaudeCodeDriver(FAKE_CLAUDE), new CodexDriver(FAKE_CODEX)]);
+  const orchestrator = new Orchestrator(config, runs, db);
+  const state = { held: hooks.held ?? false, waiting: null as LimitWait | null, released: [] as string[] };
+  orchestrator.limitHeld = () => state.held;
+  orchestrator.waitOf = () => state.waiting;
+  orchestrator.releaseWait = (chatId) => void state.released.push(chatId);
+  const taskOf = (id: string, task: string) => orchestrator.get(id)?.tasks.find((t) => t.id === task) as OrchestrationTaskState;
+  return { db, repo, runs, orchestrator, state, taskOf, config };
+}
+
+const moveOf = (graphId: string, task: OrchestrationTaskState, fromChat: string, toChat: string, over: Partial<ProviderMove> = {}): ProviderMove => ({
+  id: `move-${toChat}`,
+  at: new Date().toISOString(),
+  subjectKind: 'task',
+  subjectId: `${graphId}:${task.id}`,
+  projectId: null,
+  fromChat,
+  toChat,
+  fromProvider: 'claude-code',
+  toProvider: 'claude-code',
+  fromModel: 'fake',
+  toModel: 'fake',
+  action: 'handoff',
+  state: 'moved',
+  decidedBy: 'setting',
+  decisionId: null,
+  resetsAt: null,
+  reason: null,
+  updatedAt: new Date().toISOString(),
+  ...over,
+});
+
+test('a task starts on the provider the candidates choose and records it, with the first link of its chain', async () => {
+  const { db, repo, runs, orchestrator, taskOf } = providerGraph();
+  let asked: StartInput | null = null;
+  orchestrator.providers = {
+    wantsPick: () => false,
+    chooseNow: (input: StartInput) => {
+      asked = input;
+      return { provider: 'codex', model: '', effort: null, decisionId: null };
+    },
+  } as unknown as WorkProviders;
+  const started = orchestrator.create(graphOf(repo, [{ id: 'a', prompt: 'do it' }], { worktree: false, synthesize: false, limits: { maxCostUsd: 3 } }));
+  const orch = await settle(orchestrator, started.id);
+  const a = taskOf(orch.id, 'a');
+  assert.equal(a.provider, 'codex');
+  assert.equal(runs.get(a.runId as string)?.provider, 'codex');
+  assert.deepEqual(a.chain?.map((e) => [e.chatId, e.provider, e.action]), [[a.runId, 'codex', null]]);
+  // What the task needs of the provider is what its settings say: a cost limit is a budget, and workers carry no policy of ours
+  const input = asked as StartInput | null;
+  assert.equal(input?.kind, 'task');
+  assert.deepEqual(input?.needs, ['budgetLimit']);
+  assert.equal(input?.policy, null);
+  assert.equal(input?.nativeRules, false);
+  db.close();
+});
+
+test('a task whose graph names its own rules is asked for as one, and a start no provider can take fails the task with the reason', async () => {
+  const { db, repo, orchestrator, taskOf } = providerGraph();
+  const inputs: StartInput[] = [];
+  orchestrator.providers = {
+    wantsPick: () => false,
+    chooseNow: (input: StartInput) => {
+      inputs.push(input);
+      throw new NoProviderError('claude-code: policy');
+    },
+  } as unknown as WorkProviders;
+  const started = orchestrator.create(graphOf(repo, [{ id: 'a', prompt: 'do it' }], { worktree: false, synthesize: false, allowedTools: ['Bash(ls:*)'] }));
+  const orch = await until(() => orchestrator.get(started.id) as Orchestration, (o) => o.tasks.every((t) => t.status === 'failed'), 'the task to fail');
+  assert.equal(inputs[0]?.nativeRules, true);
+  assert.match(taskOf(orch.id, 'a').error ?? '', /could not start the worker: no provider can take this work: claude-code: policy/);
+  db.close();
+});
+
+test('provider.pick is asked before the task starts: the task holds its place, then starts once on the answer', async () => {
+  const { db, repo, orchestrator, taskOf } = providerGraph();
+  let chosen = 0;
+  orchestrator.providers = {
+    wantsPick: () => true,
+    choose: async () => {
+      chosen++;
+      await new Promise((r) => setTimeout(r, 120));
+      return { provider: 'claude-code', model: null, effort: null, decisionId: 'd1' };
+    },
+  } as unknown as WorkProviders;
+  const started = orchestrator.create(graphOf(repo, [{ id: 'a', prompt: 'do it' }], { worktree: false, synthesize: false }));
+  assert.equal(taskOf(started.id, 'a').status, 'pending', 'nothing started while the point is asked');
+  const orch = await settle(orchestrator, started.id);
+  assert.equal(taskOf(orch.id, 'a').status, 'completed');
+  assert.equal(taskOf(orch.id, 'a').provider, 'claude-code');
+  assert.equal(chosen, 1, 'asked once for the task');
+  db.close();
+});
+
+test('a limit the rotation holds is not a failure and not an attempt; a move gives the task its new chat, and the graph is charged for both', async () => {
+  const { db, repo, runs, orchestrator, state, taskOf } = providerGraph({ held: true });
+  const started = orchestrator.create(graphOf(repo, [{ id: 'a', prompt: 'FAKE-LIMIT-ONCE' }], { worktree: false, synthesize: false }));
+  const first = (await until(() => taskOf(started.id, 'a').runId, (id) => !!id, 'the task to start')) as string;
+  await until(() => runs.atLimit(first), (limited) => limited, 'the chat to reach its limit');
+  await new Promise((r) => setTimeout(r, 100));
+  const held = taskOf(started.id, 'a');
+  assert.equal(held.status, 'running');
+  assert.equal(held.attempts, 1);
+  assert.equal(held.error, null);
+  assert.equal(orchestrator.get(started.id)?.status, 'running');
+
+  // The rotation moved it: a new chat, which answers, and ends the task as any other would
+  state.held = false;
+  const next = runs.start({ prompt: 'carry on', cwd: repo, name: 'next', keepAlive: false, provider: 'claude-code' }, { orchestrationId: started.id, orchestrationTaskId: 'a' });
+  assert.equal(orchestrator.moved(moveOf(started.id, held, first, next.id)), true);
+  assert.equal(orchestrator.moved(moveOf(started.id, held, first, next.id)), false, 'a second call changes nothing');
+  const orch = await settle(orchestrator, started.id);
+  const a = taskOf(orch.id, 'a');
+  assert.equal(a.status, 'completed');
+  assert.equal(a.runId, next.id);
+  assert.equal(a.attempts, 1, 'a move is not an attempt');
+  assert.deepEqual(
+    a.chain?.map((e) => [e.chatId, e.action]),
+    [
+      [first, null],
+      [next.id, 'handoff'],
+    ],
+  );
+  const spent = (runs.get(first)?.costUsd ?? 0) + (runs.get(next.id)?.costUsd ?? 0);
+  assert.ok(spent > 0);
+  assert.equal(a.costUsd, spent, 'the task counts what every chat of its chain cost');
+  assert.equal(orch.costUsd, spent);
+  db.close();
+});
+
+test('a task that waits for the reset goes on in its chat when the turn is replayed, and the clock did not run meanwhile', async () => {
+  const { db, repo, runs, orchestrator, state, taskOf } = providerGraph({ held: true });
+  const started = orchestrator.create(graphOf(repo, [{ id: 'a', prompt: 'FAKE-LIMIT-ONCE' }], { worktree: false, synthesize: false, limits: { maxMinutes: 30 } }));
+  const chat = (await until(() => taskOf(started.id, 'a').runId, (id) => !!id, 'the task to start')) as string;
+  await until(() => runs.atLimit(chat), (limited) => limited, 'the chat to reach its limit');
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal(taskOf(started.id, 'a').status, 'running');
+
+  // While it waits, its time limit does not stop it, and the graph says it waits
+  const waiting: LimitWait = { provider: 'claude-code', resetsAt: null, moveId: 'wait-1' };
+  state.waiting = waiting;
+  orchestrator.enforceLimits(Date.now() + 10 * 3_600_000);
+  assert.equal(taskOf(started.id, 'a').status, 'running');
+  assert.deepEqual(orchestrator.view(orchestrator.get(started.id) as Orchestration).tasks[0]?.waiting, waiting);
+
+  // The wait ended, and the chat's turn was replayed, as the rotation does
+  const clockBefore = Date.parse(taskOf(started.id, 'a').clockStartedAt as string);
+  state.held = false;
+  state.waiting = null;
+  assert.equal(await runs.replayLastTurn(chat), true);
+  orchestrator.waitEnded({ fromChat: chat, at: new Date(Date.now() - 3_600_000).toISOString() }, 'resumed', null);
+  const orch = await settle(orchestrator, started.id);
+  const a = taskOf(orch.id, 'a');
+  assert.equal(a.status, 'completed');
+  assert.equal(a.runId, chat);
+  assert.equal(a.attempts, 1);
+  assert.ok(Date.parse(a.clockStartedAt as string) >= clockBefore + 3_500_000, 'the hour it waited is given back to its time limit');
+  db.close();
+});
+
+test('a person who stops waiting stops the task, and a wait that ran out fails it for a person to decide', async () => {
+  const { db, repo, runs, orchestrator, taskOf } = providerGraph({ held: true });
+  const started = orchestrator.create(
+    graphOf(
+      repo,
+      [
+        { id: 'a', prompt: 'FAKE-LIMIT-ONCE' },
+        { id: 'b', prompt: 'FAKE-LIMIT-ONCE' },
+      ],
+      { worktree: false, synthesize: false, concurrency: 2 },
+    ),
+  );
+  const chats = await until(() => [taskOf(started.id, 'a').runId, taskOf(started.id, 'b').runId] as Array<string | null>, (ids) => ids.every(Boolean), 'both tasks to start');
+  await until(() => chats.every((id) => runs.atLimit(id as string)), (limited) => limited, 'both chats to reach their limit');
+  await new Promise((r) => setTimeout(r, 100));
+  orchestrator.waitEnded({ fromChat: chats[0] as string, at: new Date().toISOString() }, 'cancelled', 'stopped waiting');
+  orchestrator.waitEnded({ fromChat: chats[1] as string, at: new Date().toISOString() }, 'failed', 'limit-wait-expired');
+  assert.equal(taskOf(started.id, 'a').status, 'stopped');
+  assert.match(taskOf(started.id, 'a').error ?? '', /stopped waiting/);
+  assert.equal(taskOf(started.id, 'b').status, 'failed');
+  assert.match(taskOf(started.id, 'b').error ?? '', /did not reset within the time Agentry waits/);
+  // Heard for a chat no task runs: nothing changes
+  orchestrator.waitEnded({ fromChat: 'nobody', at: new Date().toISOString() }, 'failed', null);
+  db.close();
+});
+
+test("stopping a graph ends the wait its tasks' chats are in, and what a task works for is what a move carries", async () => {
+  const { db, repo, runs, orchestrator, state, taskOf } = providerGraph({ held: true });
+  const started = orchestrator.create(graphOf(repo, [{ id: 'a', prompt: 'FAKE-LIMIT-ONCE' }], { worktree: false, synthesize: false, limits: { maxCostUsd: 2 } }));
+  const chat = (await until(() => taskOf(started.id, 'a').runId, (id) => !!id, 'the task to start')) as string;
+  await until(() => runs.atLimit(chat), (limited) => limited, 'the chat to reach its limit');
+  const work = orchestrator.workOf(chat);
+  assert.equal(work?.kind, 'task');
+  assert.equal(work?.subjectKind, 'task');
+  assert.equal(work?.subjectId, `${started.id}:a`);
+  assert.match(work?.prompt ?? '', /FAKE-LIMIT-ONCE/);
+  assert.ok((work?.remainingBudgetUsd ?? 0) > 1.9 && (work?.remainingBudgetUsd ?? 3) <= 2);
+  assert.equal(orchestrator.workOf('nobody'), null);
+
+  orchestrator.stop(started.id);
+  assert.deepEqual(state.released, [chat]);
+  assert.equal(orchestrator.workOf(chat), null, 'a stopped task is no longer work to move');
+  db.close();
+});
+
+test('a restart leaves a task that waits for a limit to reset running: the rotation replays its turn, and it is not sent round again', async () => {
+  const { db, repo, runs, orchestrator, state, taskOf, config } = providerGraph({ held: true });
+  const started = orchestrator.create(graphOf(repo, [{ id: 'a', prompt: 'FAKE-LIMIT-ONCE' }], { worktree: false, synthesize: false }));
+  const chat = (await until(() => taskOf(started.id, 'a').runId, (id) => !!id, 'the task to start')) as string;
+  await until(() => runs.atLimit(chat), (limited) => limited, 'the chat to reach its limit');
+  await new Promise((r) => setTimeout(r, 100));
+  const at = new Date().toISOString();
+  db.insertProviderMove(moveOf(started.id, taskOf(started.id, 'a'), chat, '', { toChat: null, toProvider: null, toModel: null, action: 'wait', state: 'waiting', at, updatedAt: at }));
+  state.waiting = openWaitOf(db, chat);
+  assert.equal(state.waiting?.provider, 'claude-code');
+  orchestrator.close();
+
+  // After a restart the task is read as cut off; what waits for a reset is put back as it was
+  const again = new Orchestrator(config, runs, db);
+  again.waitOf = (id) => openWaitOf(db, id);
+  assert.equal(again.get(started.id)?.tasks[0]?.status, 'interrupted');
+  again.recover();
+  const task = again.get(started.id)?.tasks[0] as OrchestrationTaskState;
+  assert.equal(task.status, 'running');
+  assert.equal(task.endedAt, null);
+  assert.equal(task.attempts, 1);
+  assert.equal(runs.get(chat)?.executions.length, 1, 'no second execution was started on it');
+  again.close();
+  db.close();
 });

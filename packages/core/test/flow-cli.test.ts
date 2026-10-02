@@ -16,6 +16,8 @@ import { tempConfig } from './helpers.ts';
 // chat keeps of it afterwards, are checked. Nothing here reads the real ~/.claude.
 
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.meta.url));
+// Automated work starts only on a provider that proved it is signed in
+process.env.FAKE_CLAUDE_LOGGED_IN = '1';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function repo(): string {

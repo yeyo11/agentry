@@ -35,3 +35,15 @@ export function rulesFor(
   if (rules.tools) out.tools = rules.tools;
   return out;
 }
+
+/**
+ * A policy as the rules of the driver that runs it: what a run starts with, or moves to, on any provider
+ * that has a driver. `rulesFor` is the pure entry for the providers whose translation is registered
+ * without a runtime (Claude Code); this one asks the driver, which is the translation the candidates
+ * weigh, so what the filter let through is what the launch enforces.
+ */
+export function rulesOnDriver(driver: { translatePolicy(policy: ToolPolicy): PolicyTranslation }, provider: ProviderId, policy: ToolPolicy): ProviderRules {
+  const { rules, unsupported } = driver.translatePolicy(policy);
+  if (unsupported.length > 0) throw new PolicyUnsupportedError(provider, unsupported);
+  return rules;
+}
