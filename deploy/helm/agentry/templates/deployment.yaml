@@ -105,7 +105,6 @@ spec:
           volumeMounts:
             - { name: state, mountPath: /data, subPath: data }
             - { name: state, mountPath: /home/node/.claude, subPath: claude }
-            - { name: state, mountPath: /home/node/.local/share/claude-swap, subPath: claude-swap }
             - { name: state, mountPath: /workspace, subPath: workspace }
       volumes:
         - name: state
