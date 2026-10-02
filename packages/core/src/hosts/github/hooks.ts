@@ -1,5 +1,6 @@
 import type { WebhookLastResponse } from '@agentry/shared';
 import { HostParseError, type HostCall, type HostRepo } from '../code-host.ts';
+import type { HookDriver, RemoteHook } from '../hook-driver.ts';
 import { parseJson } from '../json.ts';
 
 // The repository webhook calls of `gh api`, exactly as recorded for gh 2.92.0 and 2.102.0 (the
@@ -124,3 +125,19 @@ export function lastResponseFailed(last: WebhookLastResponse | null): boolean {
 export function lastResponseOk(last: WebhookLastResponse | null): boolean {
   return last !== null && last.status === 'active' && last.code !== null && last.code >= 200 && last.code < 300;
 }
+
+/** The same calls, in the shape the registration service runs every host through. */
+export const githubHookDriver: HookDriver = {
+  cli: 'gh',
+  events: GITHUB_HOOK_EVENTS,
+  create: githubHooks.create,
+  list: githubHooks.list,
+  read: (repo, hookId) => [githubHooks.get(repo, hookId)],
+  test: githubHooks.ping,
+  remove: githubHooks.remove,
+  repoint: githubHooks.repoint,
+  parseHook: (stdouts) => remoteOf(githubHooks.parseHook(stdouts[0] ?? '')),
+  parseHooks: (stdout) => githubHooks.parseHooks(stdout).map(remoteOf),
+};
+
+const remoteOf = (hook: GithubHook): RemoteHook => ({ id: hook.id, url: hook.url, lastResponse: hook.lastResponse, disabled: false, deliveryKey: null });

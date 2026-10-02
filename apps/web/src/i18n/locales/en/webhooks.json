@@ -1,6 +1,6 @@
 {
   "title": "Webhooks",
-  "intro": "A webhook makes GitHub tell Agentry the moment a pull request changes, instead of waiting for the next read. It only makes Agentry read sooner: Agentry reads the pull request again and changes nothing because of what a notice says. Without a webhook, or if a notice is lost, it keeps reading every few minutes.",
+  "intro": "A webhook makes your code host tell Agentry the moment a pull or merge request changes, instead of waiting for the next read. It only makes Agentry read sooner: Agentry reads the request again and changes nothing because of what a notice says. Without a webhook, or if a notice is lost, it keeps reading every few minutes.",
   "aria": "Webhooks by project",
   "summary_one": "{{count}} project · {{active}} with a webhook",
   "summary_other": "{{count}} projects · {{active}} with a webhook",
@@ -17,8 +17,7 @@
     "active": "Active",
     "off": "Off",
     "failing": "Failing",
-    "stale": "Old address",
-    "unavailable": "Not available yet"
+    "stale": "Old address"
   },
   "text": {
     "active": "{{host}} delivers the notices and Agentry reads the pull request again at once.",
@@ -26,8 +25,7 @@
     "failing": "{{host}} cannot deliver the notices: Agentry's address answered with an error.",
     "stale": "The webhook points to an address that is no longer Agentry's. Agentry points it at the new one by itself when it can; until then, remove it or wait.",
     "noAddress": "Registering a webhook needs a public address. Meanwhile Agentry reads the pull requests every {{count}} min.",
-    "noAddressStale": "The tunnel is closed, so {{host}} no longer reaches Agentry. When there is a new address, Agentry points the webhook at it.",
-    "gitlab": "Agentry has not yet seen how glab registers a webhook, so it cannot register, test or remove one. Merge requests are still read every {{count}} min; a notice that arrives with the X-Gitlab-Token is accepted all the same."
+    "noAddressStale": "The tunnel is closed, so {{host}} no longer reaches Agentry. When there is a new address, Agentry points the webhook at it."
   },
   "fact": {
     "lastNotice": "last notice",
@@ -37,8 +35,7 @@
     "pointsTo": "points to",
     "read": "read",
     "backup": "backup read",
-    "every": "every {{count}} min",
-    "reason": "reason"
+    "every": "every {{count}} min"
   },
   "action": {
     "register": "Register…",
@@ -77,7 +74,6 @@
     "noPermissionBody": "The {{cli}} session has no administration permission on this repository. Ask the owner for it and try again."
   },
   "reason": {
-    "hostNotRecorded": "Agentry has not yet seen how this host registers a webhook.",
     "noPublicUrl": "Agentry has no public address for a host to deliver to.",
     "noRemote": "This project has no code host remote."
   },
@@ -90,6 +86,10 @@
     "check_suite": "A set of checks finishes",
     "workflow_run": "A workflow starts or finishes",
     "issue_comment": "A comment on a pull request or an issue",
-    "issues": "An issue changes"
+    "issues": "An issue changes",
+    "merge_requests_events": "A merge request opens, changes or closes",
+    "pipeline_events": "A pipeline changes",
+    "note_events": "A comment on a merge request or an issue",
+    "issues_events": "An issue changes"
   }
 }

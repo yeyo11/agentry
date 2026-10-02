@@ -4,7 +4,7 @@
  * A webhook only makes Agentry read sooner; nothing here describes it as changing anything, and a
  * secret is never part of the data it reads.
  */
-import type { ChangeRequestFreshness, CodeHostId, ProjectWebhooks, WebhookRegistration, WebhookState, WebhookUnavailableReason } from '@agentry/shared';
+import type { ChangeRequestFreshness, ProjectWebhooks, WebhookRegistration, WebhookState, WebhookUnavailableReason } from '@agentry/shared';
 
 /** The pacer's rhythm, in minutes, for the words a row says about the periodic read. The server decides; these only name it. */
 export const POLL_MINUTES = 2;
@@ -28,9 +28,6 @@ export function webhookTone(state: WebhookState | null): WebhookTone {
 /** The registration the row is about: a removed one is only kept to be seen, so it counts as none. */
 export const liveRegistration = (list: readonly WebhookRegistration[] | undefined): WebhookRegistration | null =>
   list?.find((r) => r.state !== 'removed') ?? null;
-
-/** GitLab's webhook calls are not recorded yet, so its row shows its reason and offers nothing. */
-export const isWebhookBuilt = (host: CodeHostId): boolean => host === 'github';
 
 export type WebhookRowKind = 'off' | 'active' | 'failing' | 'stale' | 'unavailable';
 
@@ -61,8 +58,7 @@ export function isHealthy(reg: Pick<WebhookRegistration, 'state' | 'lastDelivery
 }
 
 /** `webhooks` namespace keys for why a project has nothing to manage. */
-export const UNAVAILABLE_REASON_KEYS: Readonly<Record<WebhookUnavailableReason, 'reason.hostNotRecorded' | 'reason.noPublicUrl' | 'reason.noRemote'>> = {
-  'host-not-recorded': 'reason.hostNotRecorded',
+export const UNAVAILABLE_REASON_KEYS: Readonly<Record<WebhookUnavailableReason, 'reason.noPublicUrl' | 'reason.noRemote'>> = {
   'no-public-url': 'reason.noPublicUrl',
   'no-remote': 'reason.noRemote',
 };

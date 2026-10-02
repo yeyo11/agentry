@@ -513,7 +513,10 @@ export class PullRequestService {
     if (!readiness.host) throw new PullRequestError("this project's remote is not on a code host Agentry knows", 409, 'unsupported-host');
     const target = await this.target(projectPath, { host: readiness.host, hostname: readiness.hostname });
     const cwd = mainCheckout(projectPath);
-    return { host: readiness.host, hostname: target.repo.host, repo: target.repo, run: (call) => this.call(target, call, cwd) };
+    const run = (call: HostCall): Promise<HostResult> => this.call(target, call, cwd);
+    // GitLab's calls name the project by its numeric id, which one read of the project resolves (and caches)
+    const facts = target.repo.projectId === undefined && readiness.host === 'gitlab' ? await this.hostFacts.of(target.adapter, target.repo, target.binaryPath, run) : null;
+    return { host: readiness.host, hostname: target.repo.host, repo: facts?.repo ?? target.repo, run };
   }
 
   private origin(projectPath: string): OriginPath {

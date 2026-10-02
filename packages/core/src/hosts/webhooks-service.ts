@@ -5,16 +5,18 @@ import type { WebhookStore } from '../webhook-store.ts';
 import { reasonOf } from './classify.ts';
 import { HostParseError, type HostCall, type HostRepo } from './code-host.ts';
 import type { HostResult } from './exec.ts';
-import { GITHUB_HOOK_EVENTS, githubHooks, lastResponseFailed, lastResponseOk, type GithubHook } from './github/hooks.ts';
+import { githubHookDriver, lastResponseFailed, lastResponseOk } from './github/hooks.ts';
+import { gitlabHooks } from './gitlab/hooks.ts';
+import type { HookDriver, RemoteHook } from './hook-driver.ts';
 import { webhookHealthy } from './pacer.ts';
 import { newWebhookSecret, type WebhookSecrets } from './webhook-secrets.ts';
 
 // Registering, testing, removing and re-pointing the hooks Agentry keeps on a repository
 // (docs/plans/code-hosts.md, phase 6). It is the person's click that registers (the route is not
 // open to a chat's token); after that, a new public URL from the tunnel re-points the hooks Agentry
-// registered, by id and never anyone else's (decision 2). Only GitHub is recorded: a GitLab project
-// is told so, with no action, and no GitLab call is built here. A hook only tells Agentry to look
-// again (hosts/pacer.ts); polling stays the source of truth.
+// registered, by id and never anyone else's (decision 2). Each host's calls are a `HookDriver`
+// (GitHub's and GitLab's are both recorded); everything else here is the same for both. A hook only
+// tells Agentry to look again (hosts/pacer.ts); polling stays the source of truth.
 
 /** The receivers' path under the public origin (`apps/api` serves everything under `/api`). */
 export const WEBHOOK_PATH = '/api/webhooks';
@@ -47,7 +49,9 @@ function urlCarries(url: string, host: CodeHostId, registrationId: string): bool
   }
 }
 
-const originOf =(url: string): string | null => {
+const driverOf = (host: CodeHostId): HookDriver => (host === 'gitlab' ? gitlabHooks : githubHookDriver);
+
+const originOf = (url: string): string | null => {
   try {
     return new URL(url).origin;
   } catch {
@@ -146,13 +150,15 @@ export class WebhooksService {
     const target = await this.deps.target(projectId);
     const publicUrl = this.deps.publicUrl();
     const reason = unavailable(target, publicUrl);
-    if (target?.host === 'github') await this.readSilent(projectId);
+    if (target) await this.readSilent(projectId);
     return {
       available: reason === null,
       reason,
       publicUrl,
-      events: target?.host === 'github' ? [...GITHUB_HOOK_EVENTS] : [],
-      // Redelivery needs the `admin:repo_hook` scope, which the token may not have (recorded): not offered
+      events: target ? [...driverOf(target.host).events] : [],
+      // GitHub's redelivery needs the `admin:repo_hook` scope, which the token may not have (recorded), and
+      // GitLab's resend is not offered: a test is the one thing a person asks for
+
       canRedeliver: false,
       registrations: this.deps.store.list(projectId),
     };
@@ -164,7 +170,7 @@ export class WebhooksService {
    * and said so. Two calls for one repository at once share one registration.
    */
   async register(projectId: string): Promise<WebhookRegistration> {
-    const target = await this.githubTarget(projectId);
+    const target = await this.remoteTarget(projectId);
     const origin = this.publicOrigin();
     const access = await this.deps.access(projectId);
     const key = `${access.repo.host}/${access.repo.path}`.toLowerCase();
@@ -186,42 +192,47 @@ export class WebhooksService {
 
     const id = randomUUID();
     const secret = newWebhookSecret();
-    const url = receiverUrl(origin, 'github', id);
+    const driver = driverOf(target.host);
+    const url = receiverUrl(origin, target.host, id);
     // The secret is kept before the host knows it, so a delivery that races the answer is already verifiable
     await secrets.set(id, secret);
     let found: { hookId: string; notice: string | null };
     try {
-      found = await this.createOrAdopt(access, { url, secret }, new Set(mine.map((r) => r.id)));
+      found = await this.createOrAdopt(driver, access, { url, secret }, new Set(mine.map((r) => r.id)));
     } catch (error) {
       await secrets.delete(id);
       throw error;
     }
     // A removed registration is only kept to be seen; registering again replaces it
     for (const old of mine) store.delete(old.id);
-    const created = store.create({ id, projectId, host: target.host, hostname: access.repo.host, repoPath: access.repo.path, remoteHookId: found.hookId, url, events: [...GITHUB_HOOK_EVENTS] });
+    const created = store.create({ id, projectId, host: target.host, hostname: access.repo.host, repoPath: access.repo.path, remoteHookId: found.hookId, url, events: [...driver.events] });
     this.changed(created);
     // The notice belongs to this answer only: nothing about it is kept
     return found.notice ? { ...created, notice: found.notice } : created;
   }
 
-  /** Pings the hook, then reads what GitHub says about the delivery: a good one makes the hook healthy. */
+  /** Makes the host deliver once, then reads what it says about the delivery: a good one makes the hook healthy. */
   async test(projectId: string, registrationId: string): Promise<WebhookRegistration> {
     const registration = this.owned(projectId, registrationId);
     const access = await this.deps.access(projectId);
+    const driver = driverOf(registration.host);
     const hookId = this.remoteId(registration);
-    const before = this.parse(await this.run(access, githubHooks.get(access.repo, hookId), 'read the hook'), (s) => githubHooks.parseHook(s));
-    await this.run(access, githubHooks.ping(access.repo, hookId), 'ping the hook');
+    const before = await this.readHook(driver, access, hookId, 'read the hook');
+    await this.run(access, driver.test(access.repo, hookId), 'test the hook');
 
     let hook = before;
+    let fresh = false;
     for (let read = 0; read < PING_READS; read++) {
       await this.sleep(PING_WAIT_MS);
-      hook = this.parse(await this.run(access, githubHooks.get(access.repo, hookId), 'read the hook'), (s) => githubHooks.parseHook(s));
-      if (JSON.stringify(hook.lastResponse) !== JSON.stringify(before.lastResponse) || lastResponseOk(hook.lastResponse) || lastResponseFailed(hook.lastResponse)) break;
+      hook = await this.readHook(driver, access, hookId, 'read the hook');
+      // A host that lists its deliveries is waited on for a new one: an old good one is not this test's answer
+      fresh = before.deliveryKey === null || hook.deliveryKey !== before.deliveryKey;
+      if (fresh && (JSON.stringify(hook.lastResponse) !== JSON.stringify(before.lastResponse) || lastResponseOk(hook.lastResponse) || lastResponseFailed(hook.lastResponse))) break;
     }
-    if (lastResponseOk(hook.lastResponse)) {
+    if (fresh && lastResponseOk(hook.lastResponse)) {
       return this.apply(registration, { state: 'active', lastPingAt: new Date(this.now()).toISOString(), lastResponse: hook.lastResponse });
     }
-    this.apply(registration, { state: lastResponseFailed(hook.lastResponse) ? 'failing' : registration.state, lastResponse: hook.lastResponse });
+    this.apply(registration, { state: fresh && lastResponseFailed(hook.lastResponse) ? 'failing' : registration.state, lastResponse: hook.lastResponse });
     throw new WebhooksError('the host did not report a delivery that was answered', 502, 'hook-unreachable', describe(hook));
   }
 
@@ -233,10 +244,10 @@ export class WebhooksService {
       const access = await this.deps.access(projectId);
       // A hook that no longer carries this registration's address is not ours to delete
       if ((await this.ownership(access, registration)) === 'mine') {
-        const call = githubHooks.remove(access.repo, hookId);
+        const call = driverOf(registration.host).remove(access.repo, hookId);
         const result = await access.run(call);
         // The host says 404 for a hook that is gone, and with it a hint about a scope that is not the cause (recorded)
-        if (result.exitCode !== 0 && reasonOf(result, 'gh') !== 'not-found') throw failure('remove the hook', result, call);
+        if (result.exitCode !== 0 && reasonOf(result, call.cli) !== 'not-found') throw failure('remove the hook', result, call);
       }
     }
     await this.deps.secrets.delete(registration.id);
@@ -248,15 +259,14 @@ export class WebhooksService {
   async check(projectId: string, registrationId: string): Promise<WebhookRegistration> {
     const registration = this.owned(projectId, registrationId);
     const access = await this.deps.access(projectId);
-    const call = githubHooks.get(access.repo, this.remoteId(registration));
-    const result = await access.run(call);
-    if (result.exitCode !== 0) {
+    const read = await this.tryReadHook(driverOf(registration.host), access, this.remoteId(registration));
+    if ('failed' in read) {
       // The person deleted it on the host: Agentry cannot re-point what is not there, and says so
-      if (reasonOf(result, 'gh') === 'not-found') return this.apply(registration, { state: 'stale' });
-      throw failure('read the hook', result, call);
+      if (reasonOf(read.failed, read.call.cli) === 'not-found') return this.apply(registration, { state: 'stale' });
+      throw failure('read the hook', read.failed, read.call);
     }
-    const hook = this.parse(result, (s) => githubHooks.parseHook(s));
-    const state = lastResponseFailed(hook.lastResponse) ? 'failing' : 'active';
+    const { hook } = read;
+    const state = hook.disabled || lastResponseFailed(hook.lastResponse) ? 'failing' : 'active';
     return this.apply(registration, { state, lastResponse: hook.lastResponse });
   }
 
@@ -290,7 +300,7 @@ export class WebhooksService {
 
   private async repointAll(origin: string): Promise<void> {
     for (const registration of this.deps.store.listLive()) {
-      if (registration.host !== 'github' || !registration.remoteHookId) continue;
+      if (!registration.remoteHookId) continue;
       // A hook already on this address needs nothing, unless it was left stale and may be reachable now
       if (originOf(registration.url) === origin && registration.state !== 'stale') continue;
       await this.repoint(registration, origin);
@@ -309,7 +319,7 @@ export class WebhooksService {
         secret = newWebhookSecret();
         await this.deps.secrets.set(registration.id, secret);
       }
-      const call = githubHooks.repoint(access.repo, registration.remoteHookId ?? '', { url, secret });
+      const call = driverOf(registration.host).repoint(access.repo, registration.remoteHookId ?? '', { url, secret });
       const result = await access.run(call);
       if (result.exitCode !== 0) throw failure('re-point the hook', result, call);
       this.apply(registration, { url, state: 'active' });
@@ -327,45 +337,68 @@ export class WebhooksService {
    * create whose answer was lost). Any other Agentry address belongs to another install: it is not
    * touched, and the person is told.
    */
-  private async createOrAdopt(access: WebhookAccess, hook: { url: string; secret: string }, ours: Set<string>): Promise<{ hookId: string; notice: string | null }> {
+  private async createOrAdopt(driver: HookDriver, access: WebhookAccess, hook: { url: string; secret: string }, ours: Set<string>): Promise<{ hookId: string; notice: string | null }> {
+    const host = access.host;
     const taken = new Set(this.deps.store.listLive().map((r) => r.remoteHookId));
-    const adoptable = (hooks: GithubHook[], same: (h: GithubHook) => boolean): GithubHook | undefined => hooks.find((h) => !taken.has(h.id) && same(h));
-    const list = async (): Promise<GithubHook[]> => this.parse(await this.run(access, githubHooks.list(access.repo), 'list the hooks'), (s) => githubHooks.parseHooks(s));
+    const adoptable = (hooks: RemoteHook[], same: (h: RemoteHook) => boolean): RemoteHook | undefined => hooks.find((h) => !taken.has(h.id) && same(h));
+    const list = async (): Promise<RemoteHook[]> => this.parse(await this.run(access, driver.list(access.repo), 'list the hooks'), (s) => driver.parseHooks(s));
 
     const hooks = await list();
-    const left = adoptable(hooks, (h) => ours.has(receiverIdOf(h.url, 'github') ?? ''));
-    if (left) return { hookId: await this.adopt(access, left, hook), notice: null };
-    const foreign = hooks.filter((h) => !taken.has(h.id) && receiverIdOf(h.url, 'github') !== null);
+    const left = adoptable(hooks, (h) => ours.has(receiverIdOf(h.url, host) ?? ''));
+    if (left) return { hookId: await this.adopt(driver, access, left, hook), notice: null };
+    const foreign = hooks.filter((h) => !taken.has(h.id) && receiverIdOf(h.url, host) !== null);
     const notice = foreign.length > 0 ? foreignNotice(foreign) : null;
 
-    const call = githubHooks.create(access.repo, hook);
+    const call = driver.create(access.repo, hook);
     const result = await access.run(call);
-    if (result.exitCode === 0) return { hookId: this.parse(result, (s) => githubHooks.parseHook(s)).id, notice };
+    if (result.exitCode === 0) return { hookId: this.parse(result, (s) => driver.parseHook([s])).id, notice };
     // "Hook already exists on this repository": the one with this very address is the one to adopt
     if (errorStatus(result) === 422) {
       const same = adoptable(await list(), (h) => h.url === hook.url);
-      if (same) return { hookId: await this.adopt(access, same, hook), notice };
+      if (same) return { hookId: await this.adopt(driver, access, same, hook), notice };
     }
     // GitHub answers 404 to a token that may not manage hooks: the repository is there, the right is not
-    if (reasonOf(result, call.cli) === 'not-found') throw new WebhooksError('Agentry could not register the hook: this account cannot manage hooks on the repository', 403, 'hook-no-permission', result.stderrFirstLine || null);
+    if (call.cli === 'gh' && reasonOf(result, call.cli) === 'not-found') throw new WebhooksError('Agentry could not register the hook: this account cannot manage hooks on the repository', 403, 'hook-no-permission', result.stderrFirstLine || null);
     throw failure('register the hook', result, call);
   }
 
-  private async adopt(access: WebhookAccess, existing: GithubHook, hook: { url: string; secret: string }): Promise<string> {
-    await this.run(access, githubHooks.repoint(access.repo, existing.id, hook), 're-point the hook');
+  private async adopt(driver: HookDriver, access: WebhookAccess, existing: RemoteHook, hook: { url: string; secret: string }): Promise<string> {
+    await this.run(access, driver.repoint(access.repo, existing.id, hook), 're-point the hook');
     return existing.id;
   }
 
   /** Reads the hook a registration points at: `mine` while its address still carries the registration's id. */
   private async ownership(access: WebhookAccess, registration: WebhookRegistration): Promise<'mine' | 'gone' | 'foreign'> {
-    const call = githubHooks.get(access.repo, this.remoteId(registration));
-    const result = await access.run(call);
-    if (result.exitCode !== 0) {
-      if (reasonOf(result, 'gh') === 'not-found') return 'gone';
-      throw failure('read the hook', result, call);
+    const read = await this.tryReadHook(driverOf(registration.host), access, this.remoteId(registration));
+    if ('failed' in read) {
+      if (reasonOf(read.failed, read.call.cli) === 'not-found') return 'gone';
+      throw failure('read the hook', read.failed, read.call);
     }
-    const hook = this.parse(result, (s) => githubHooks.parseHook(s));
-    return hook.url !== null && urlCarries(hook.url, registration.host, registration.id) ? 'mine' : 'foreign';
+    return read.hook.url !== null && urlCarries(read.hook.url, registration.host, registration.id) ? 'mine' : 'foreign';
+  }
+
+  /**
+   * Runs a driver's reading calls. The first must succeed; the ones after it (what the hook delivered)
+   * only add to the answer, so a failure of theirs leaves that part unsaid.
+   */
+  private async tryReadHook(driver: HookDriver, access: WebhookAccess, hookId: string): Promise<{ hook: RemoteHook } | { failed: HostResult; call: HostCall }> {
+    const calls = driver.read(access.repo, hookId);
+    const stdouts: string[] = [];
+    for (const [index, call] of calls.entries()) {
+      const result = await access.run(call);
+      if (result.exitCode !== 0) {
+        if (index === 0) return { failed: result, call };
+        break;
+      }
+      stdouts.push(result.stdout);
+    }
+    return { hook: this.guard(() => driver.parseHook(stdouts)) };
+  }
+
+  private async readHook(driver: HookDriver, access: WebhookAccess, hookId: string, what: string): Promise<RemoteHook> {
+    const read = await this.tryReadHook(driver, access, hookId);
+    if ('failed' in read) throw failure(what, read.failed, read.call);
+    return read.hook;
   }
 
   private async readSilent(projectId: string): Promise<void> {
@@ -378,10 +411,9 @@ export class WebhooksService {
     await Promise.allSettled(silent.map((r) => this.check(projectId, r.id)));
   }
 
-  private async githubTarget(projectId: string): Promise<WebhookTarget> {
+  private async remoteTarget(projectId: string): Promise<WebhookTarget> {
     const target = await this.deps.target(projectId);
     if (!target) throw new WebhooksError("this project's remote is not on a code host Agentry knows", 409, 'no-remote');
-    if (target.host !== 'github') throw new WebhooksError('webhooks on this host are not available yet: their calls have not been recorded', 409, 'host-not-recorded');
     return target;
   }
 
@@ -395,7 +427,6 @@ export class WebhooksService {
   private owned(projectId: string, registrationId: string): WebhookRegistration {
     const registration = this.deps.store.get(registrationId);
     if (!registration || registration.projectId !== projectId) throw new WebhooksError('no such webhook on this project', 404, 'registration-not-found');
-    if (registration.host !== 'github') throw new WebhooksError('webhooks on this host are not available yet: their calls have not been recorded', 409, 'host-not-recorded');
     return registration;
   }
 
@@ -411,8 +442,12 @@ export class WebhooksService {
   }
 
   private parse<T>(result: HostResult | string, read: (stdout: string) => T): T {
+    return this.guard(() => read(typeof result === 'string' ? result : result.stdout));
+  }
+
+  private guard<T>(read: () => T): T {
     try {
-      return read(typeof result === 'string' ? result : result.stdout);
+      return read();
     } catch (error) {
       if (error instanceof HostParseError) throw new WebhooksError(`the host's answer was not what Agentry expects: ${error.message}`, 502, 'unexpected-output');
       throw error;
@@ -435,17 +470,16 @@ export class WebhooksService {
 
 function unavailable(target: WebhookTarget | null, publicUrl: string | null): WebhookUnavailableReason | null {
   if (!target) return 'no-remote';
-  if (target.host !== 'github') return 'host-not-recorded';
   return publicUrl ? null : 'no-public-url';
 }
 
 /** What the person is told when the repository already holds an Agentry hook that is not this install's. */
-function foreignNotice(foreign: GithubHook[]): string {
+function foreignNotice(foreign: RemoteHook[]): string {
   const origins = [...new Set(foreign.map((h) => (h.url ? originOf(h.url) : null)).filter((o): o is string => o !== null))];
   return `This repository already has an Agentry webhook made by another Agentry install${origins.length > 0 ? ` (${origins.join(', ')})` : ''}. Agentry left it alone and registered its own.`;
 }
 
-function describe(hook: GithubHook): string | null {
+function describe(hook: RemoteHook): string | null {
   const last = hook.lastResponse;
   if (!last) return null;
   return [last.code, last.status].filter((part) => part !== null).join(' ') || null;

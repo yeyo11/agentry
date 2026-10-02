@@ -16,7 +16,6 @@ import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { changeRequestWords } from '../../lib/code-hosts';
 import {
   BACKUP_POLL_MINUTES,
-  isWebhookBuilt,
   lastHeardAt,
   liveRegistration,
   POLL_MINUTES,
@@ -30,15 +29,11 @@ import type { WebhookRowKind } from '../../lib/webhooks';
 
 const HOST_LABEL: Record<CodeHostId, string> = { github: 'GitHub', gitlab: 'GitLab' };
 
-/** What the row shows: the kinds of the model, plus a registration the tunnel's absence left behind. */
-type ShownKind = WebhookRowKind | 'gitlab';
-
 /**
  * A registration can outlive the address it was made for: the project is then `unavailable` for
  * registering, yet the hook is still there and can be removed, so it reads as an old address.
  */
-function shownKind(host: CodeHostId, overview: ProjectWebhooks): ShownKind {
-  if (!isWebhookBuilt(host)) return 'gitlab';
+function shownKind(overview: ProjectWebhooks): WebhookRowKind {
   if (!overview.available && overview.reason === 'no-public-url' && liveRegistration(overview.registrations)) return 'stale';
   return rowKind(overview);
 }
@@ -65,8 +60,7 @@ export function WebhooksSection({ projects }: { projects: Project[] }) {
   });
   const withHook = entries.filter((e) => liveRegistration(e.overview.registrations) !== null).length;
   const publicUrl = entries.find((e) => e.overview.publicUrl)?.overview.publicUrl ?? null;
-  // Only a GitHub project can use an address; GitLab's rows say their own reason
-  const needsAddress = publicUrl === null && entries.some((e) => isWebhookBuilt(hostOf(e.overview)));
+  const needsAddress = publicUrl === null && entries.length > 0;
 
   const rows = entries.map(({ project, overview }) => <WebhookRow key={project.id} project={project} overview={overview} variant={narrow ? 'cell' : 'row'} />);
   const bar = publicUrl ? (
@@ -102,9 +96,9 @@ export function WebhooksSection({ projects }: { projects: Project[] }) {
   );
 }
 
-/** The host a project's overview is about: its registration's, else GitHub, the only one built. */
+/** The host a project's overview is about, until its remote has been read: its registration's, else GitHub. */
 function hostOf(overview: ProjectWebhooks): CodeHostId {
-  return overview.reason === 'host-not-recorded' ? 'gitlab' : (overview.registrations[0]?.host ?? 'github');
+  return overview.registrations[0]?.host ?? 'github';
 }
 
 function WebhookRow({ project, overview, variant }: { project: Project; overview: ProjectWebhooks; variant: 'row' | 'cell' }) {
@@ -118,8 +112,8 @@ function WebhookRow({ project, overview, variant }: { project: Project; overview
 
   const reg = liveRegistration(overview.registrations);
   const host: CodeHostId = remote.data?.readiness.host ?? reg?.host ?? hostOf(overview);
-  const kind = shownKind(host, overview);
-  const actions = kind === 'gitlab' ? [] : kind === 'stale' && !overview.available ? ['remove' as const] : webhookActions(overview);
+  const kind = shownKind(overview);
+  const actions = kind === 'stale' && !overview.available ? ['remove' as const] : webhookActions(overview);
   const words = changeRequestWords(host);
   const label = HOST_LABEL[host];
   const repo = reg?.repoPath ?? remote.data?.remote?.path ?? '';
@@ -159,7 +153,7 @@ function WebhookRow({ project, overview, variant }: { project: Project; overview
     </div>
   );
   const facts: React.ReactNode[] = [];
-  if (reg && kind !== 'gitlab') {
+  if (reg) {
     const heard = lastHeardAt(reg);
     if (kind === 'failing') {
       const answer = reg.lastResponse ? (reg.lastResponse.code !== null ? `HTTP ${reg.lastResponse.code}` : (reg.lastResponse.status ?? '—')) : '—';
@@ -173,7 +167,6 @@ function WebhookRow({ project, overview, variant }: { project: Project; overview
   }
   const backup = kind === 'active' || kind === 'failing' ? BACKUP_POLL_MINUTES : POLL_MINUTES;
   facts.push(fact(kind === 'active' ? t('fact.backup') : t('fact.read'), t('fact.every', { count: backup }), 'poll'));
-  if (kind === 'gitlab') facts.push(fact(t('fact.reason'), `${overview.reason ?? ''}`, 'reason'));
 
   const text = (): string => {
     switch (kind) {
@@ -183,17 +176,15 @@ function WebhookRow({ project, overview, variant }: { project: Project; overview
         return t('text.failing', { host: label });
       case 'stale':
         return overview.available ? t('text.stale') : t('text.noAddressStale', { host: label });
-      case 'gitlab':
-        return t('text.gitlab', { count: POLL_MINUTES });
       case 'unavailable':
         return overview.reason === 'no-public-url' ? t('text.noAddress', { count: POLL_MINUTES }) : t(UNAVAILABLE_REASON_KEYS[overview.reason ?? 'no-remote']);
       case 'off':
         return t('text.off', { count: POLL_MINUTES });
     }
   };
-  // No address means nothing is registered yet, which reads as off; only GitLab is "not available yet"
-  const tag = kind === 'gitlab' ? t('state.unavailable') : kind === 'unavailable' ? t('state.off') : t(`state.${kind}`);
-  const tone = kind === 'gitlab' || kind === 'unavailable' ? 'muted' : webhookTone(reg?.state ?? null);
+  // No address means nothing is registered yet, which reads as off
+  const tag = kind === 'unavailable' ? t('state.off') : t(`state.${kind}`);
+  const tone = kind === 'unavailable' ? 'muted' : webhookTone(reg?.state ?? null);
   const busy = test.isPending || remove.isPending;
 
   const identity = (
