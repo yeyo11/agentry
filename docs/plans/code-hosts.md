@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-10-02T10:00:00Z
+updated_at: 2026-10-02T12:00:00Z
 tags:
     - plan
     - git
@@ -2313,6 +2313,36 @@ about) beside the top bar's New chat, so no screen has more than two. Jira and Y
   (`pages/tasks/ImportIssues.tsx`) and item chips (`pages/tasks/item/Issues.tsx`); `tu4` e2e
   (`e2e/fake-trackers/acli`, `e2e/fake-trackers/youtrack-app`, `e2e/specs/trackers.spec.mjs`),
   written, not run.
+
+## Outcome of phase 5, step 1 (2026-10-02)
+
+Phase 5 is built for **GitHub Issues and GitLab Issues** on `feat/code-hosts-trackers`; Jira and
+YouTrack wait for `t0b` ("Phase 5 in two steps"):
+
+- **`t0a`**, the two GitLab calls the matrix had as documented only, recorded and cleaned up.
+- **P0 `trackers-prototypes`** (3 tasks, 18.78 USD), **P1 `trackers-core`** (9 tasks, 29.49 USD),
+  **P2 `trackers-web`** (5 tasks, 16.90 USD) and **`trackers-fix`** (4 tasks, 18.66 USD) after an
+  independent audit of the core.
+
+What the audit and the e2e spec nobody had run found, all fixed:
+
+- **A link remembered no repository.** Changing a project's tracker scope made the merge close
+  issue 12 of the *new* repository, which was never linked. A link stores the scope it was imported
+  from, and every call and closing word uses it. Whether the host really closed the issue is read
+  back, and the issue is closed only when it did not.
+- **A tracker turned off still imported and still closed issues**; and **a chat could change the
+  tracker's scope through the project settings route**, which the dedicated route refused. Both are
+  closed.
+- **Issue text was not data.** A title such as "Closes #99" became the change request's title, and
+  a squash merge then closed #99; the block and the prompt carried no untrusted marker; the triage
+  question held the raw title. Closing keywords from an issue's text are neutralised, the block is
+  marked as another person's text, and the question keeps the title out.
+- **The page sent Done as `closed`** where the core says `completed`, so a tracker could not be
+  saved from the screen; the issue chips are a real list (axe refused a link with the listitem role);
+  and "Check again" in Integrations now also reads the trackers, so its actions appear when both are in.
+
+**Open:** `t0b` (the owner: a Jira Cloud site and a YouTrack instance with tokens) and the Jira and
+YouTrack adapters, fakes and screens that follow it.
 
 ## Phase 6: webhooks and paced polling
 
