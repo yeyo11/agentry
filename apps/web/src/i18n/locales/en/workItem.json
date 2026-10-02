@@ -416,5 +416,29 @@
       "resolve": "Could not resolve the thread",
       "push": "Could not push the fix"
     }
+  },
+  "freshness": {
+    "span": {
+      "s": "{{value}} s",
+      "min": "{{value}} min",
+      "h": "{{value}} h"
+    },
+    "instant": "Instant",
+    "byWebhook": "By webhook · last notice <t>{{ago}}</t> ago",
+    "onlySooner": "A webhook only makes Agentry read sooner; it changes nothing.",
+    "backup": "A webhook only makes Agentry read sooner. In case it fails, {{host}} is read every <t>{{every}}</t>: next in <t>{{next}}</t>.",
+    "checked": "Checked <t>{{ago}}</t> ago · next in <t>{{next}}</t>",
+    "unchecked": "Not read from {{host}} yet",
+    "reading": "Reading {{host}}…",
+    "previous": "The previous read was <t>{{ago}}</t> ago.",
+    "pausedBadge": "Paused",
+    "paused": "Reads of {{host}} are paused · data from <t>{{ago}}</t> ago",
+    "pausedWhy": "Refresh still works: it is your action.",
+    "silentBadge": "Webhook silent",
+    "silent": "No notice for <t>{{since}}</t> · checked <t>{{ago}}</t> ago · next in <t>{{next}}</t>",
+    "silentNever": "No notice yet · checked <t>{{ago}}</t> ago · next in <t>{{next}}</t>",
+    "silentWhy": "Meanwhile {{host}} is read at the normal pace.",
+    "seeWebhooks": "See the webhooks",
+    "refresh": "Refresh"
   }
 }
