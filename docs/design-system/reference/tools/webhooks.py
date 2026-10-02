@@ -183,10 +183,46 @@ BEFORE = 'Registrarlo necesita permiso de administración sobre el repositorio.'
 BODY_HINT = 'GitHub firma cada aviso con el secreto; Agentry lo comprueba antes de leer nada.'
 
 
-def register_dialog(project='gdm'):
+def no_permission():
+  """What `hook-no-permission` says: GitHub answered 404 to the registration, which is how it refuses a token
+  without admin rights on the repository. The dialog stays open so the person can retry after fixing it."""
+  return (f'<div class="callout callout-warn" role="alert" style="align-items: flex-start">{ico("warn", "ico", "flex-shrink: 0; color: var(--warn); margin-top: 1px")}'
+          f'<span><b style="color: var(--fg); font-weight: 500">GitHub no ha dejado registrar el webhook.</b> '
+          f'La sesión de gh no tiene permiso de administración sobre este repositorio. Pide ese permiso al propietario y vuelve a intentarlo.</span></div>')
+
+
+def confirm_text(p):
+  return (f'Agentry borrará el webhook de {p["repo"]} en GitHub y dejará de recibir sus avisos. Las PR se seguirán leyendo cada 2 min. '
+          f'Puedes registrarlo de nuevo cuando quieras.')
+
+
+def remove_dialog(project='cw'):
+  p = PROJECTS[project]
+  return (f'<div class="scrim" style="z-index: 30"><div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="hook-rm" style="width: 520px">'
+          f'<div class="dialog-head">{mono_ico(p["host"])}<div class="col grow" style="gap: 2px"><h2 id="hook-rm" class="t-h2">Quitar el webhook de {p["name"]}</h2>'
+          f'<span class="mono t-xs fg-3">{p["repo"]} · gh 2.92.0</span></div>'
+          f'<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">{ico("x")}</button></div>'
+          f'<div class="dialog-body"><p class="t-sm fg-2" style="margin: 0; line-height: 1.5">{confirm_text(p)}</p></div>'
+          f'<div class="dialog-foot"><span class="grow"></span><button type="button" class="btn btn-ghost">Cancelar</button>'
+          f'<button type="button" class="btn btn-danger">Quitar webhook</button></div></div></div>')
+
+
+def remove_sheet(project='cw'):
+  p = PROJECTS[project]
+  return f'''{scrim()}
+<div class="sheet" role="alertdialog" aria-label="Quitar el webhook" style="z-index: 11; padding-bottom: 24px; display: flex; flex-direction: column; gap: 12px">
+<div class="grab" style="margin-bottom: 0"></div>
+<div class="row" style="gap: 10px">{mono_ico(p["host"])}<div class="col grow" style="gap: 2px"><h2 class="t-h2">Quitar el webhook de {p["name"]}</h2><span class="mono t-xs fg-3">{p["repo"]} · gh 2.92.0</span></div></div>
+<p class="t-sm fg-2" style="margin: 0; line-height: 1.5; font-size: 14px">{confirm_text(p)}</p>
+<div class="col" style="gap: 8px"><button type="button" class="btn btn-lg btn-danger" style="justify-content: center">Quitar webhook</button>
+<button type="button" class="btn btn-lg btn-ghost" style="justify-content: center">Cancelar</button></div>
+</div>'''
+
+
+def register_dialog(project='gdm', error=False):
   p = PROJECTS[project]
   url = url_for(project)
-  body = (f'<div class="col" style="gap: 8px"><span class="t-label">Dirección</span>'
+  body = (no_permission() if error else '') + (f'<div class="col" style="gap: 8px"><span class="t-label">Dirección</span>'
           f'<label class="field field-mono">{ico("link", "ico fg-3")}<input class="mono" value="{url}" readonly aria-label="Dirección del webhook">'
           f'<button type="button" class="btn btn-ghost btn-sm" style="margin-right: -8px; font-family: var(--sans)">{ico("copy", "ico ico-sm")}Copiar</button></label>'
           f'<span class="form-hint">Es la dirección pública de Agentry ahora mismo. {BODY_HINT}</span></div>'
@@ -199,22 +235,24 @@ def register_dialog(project='gdm'):
           f'<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">{ico("x")}</button></div>'
           f'<div class="dialog-body">{body}</div>'
           f'<div class="dialog-foot"><span class="t-xs fg-3">Se registra con gh, con tu sesión de yeyochico</span><span class="grow"></span>'
-          f'<button type="button" class="btn btn-ghost">Cancelar</button><button type="button" class="btn btn-primary">Registrar webhook</button></div></div></div>')
+          f'<button type="button" class="btn btn-ghost">Cancelar</button><button type="button" class="btn btn-primary">{"Volver a intentarlo" if error else "Registrar webhook"}</button></div></div></div>')
 
 
-def register_sheet(project='gdm'):
+def register_sheet(project='gdm', error=False):
   p = PROJECTS[project]
   url = url_for(project)
+  err = no_permission() if error else ''
   return f'''{scrim()}
 <div class="sheet" role="dialog" aria-label="Registrar un webhook" style="z-index: 11; padding-bottom: 24px; display: flex; flex-direction: column; gap: 12px; max-height: 93%">
 <div class="grab" style="margin-bottom: 0"></div>
 <div class="row" style="gap: 10px">{mono_ico(p["host"])}<div class="col grow" style="gap: 2px"><h2 class="t-h2">Registrar un webhook en {p["name"]}</h2><span class="mono t-xs fg-3" style="overflow-wrap: anywhere">{p["repo"]} · gh 2.92.0</span></div></div>
+{err}
 <div class="col" style="gap: 8px"><span class="t-label">Dirección</span>
 <div class="row" style="gap: 4px; align-items: center; padding: 4px 4px 4px 12px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--bg-1)" role="group" aria-label="Dirección del webhook"><span class="mono grow" style="font-size: 14px; line-height: 1.45; overflow-wrap: anywhere">{url}</span><button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Copiar la dirección">{ico("copy", "ico")}</button></div>
 <span class="form-hint">La dirección pública de Agentry ahora mismo. {BODY_HINT}</span></div>
 <div class="col" style="gap: 8px"><span class="t-label">Eventos</span>{events_short()}</div>
 <span class="t-xs fg-3" style="line-height: 1.45">{SECRET} {BEFORE}</span>
-<div class="col" style="gap: 8px"><button type="button" class="btn btn-lg btn-primary" style="justify-content: center">Registrar webhook</button>
+<div class="col" style="gap: 8px"><button type="button" class="btn btn-lg btn-primary" style="justify-content: center">{"Volver a intentarlo" if error else "Registrar webhook"}</button>
 <button type="button" class="btn btn-lg btn-ghost" style="justify-content: center">Cancelar</button></div>
 </div>'''
 
@@ -238,6 +276,10 @@ def desktop_all():
   desktop_webhooks('DesktopIntegracionesWebhooks.html', 'Ajustes, integraciones con webhooks', MAIN_ROWS)
   desktop_webhooks('DesktopIntegracionesWebhooksRegistrar.html', 'Ajustes, registrar un webhook', MAIN_ROWS,
                    overlay=register_dialog('gdm'), grad=False)
+  desktop_webhooks('DesktopIntegracionesWebhooksSinPermiso.html', 'Ajustes, registrar un webhook sin permiso', MAIN_ROWS,
+                   overlay=register_dialog('gdm', error=True), grad=False)
+  desktop_webhooks('DesktopIntegracionesWebhooksQuitar.html', 'Ajustes, quitar un webhook', MAIN_ROWS,
+                   overlay=remove_dialog('cw'), grad=False)
   scenes = [('Los avisos no llegan: GitHub recibió un error', ROWS['failing']),
             ('La dirección cambió y Agentry no pudo apuntar el webhook', ROWS['stale']),
             ('Agentry apuntó el webhook a la dirección nueva', ROWS['repointed'])]
@@ -266,6 +308,8 @@ def mobile_states(name, title, scenes):
 def mobile_all():
   mobile_webhooks('MobileIntegracionesWebhooks.html', 'Ajustes, integraciones con webhooks', MAIN_ROWS)
   mobile_webhooks('MobileIntegracionesWebhooksRegistrar.html', 'Ajustes, registrar un webhook', MAIN_ROWS, sheet=register_sheet('gdm'))
+  mobile_webhooks('MobileIntegracionesWebhooksSinPermiso.html', 'Ajustes, registrar un webhook sin permiso', MAIN_ROWS, sheet=register_sheet('gdm', error=True))
+  mobile_webhooks('MobileIntegracionesWebhooksQuitar.html', 'Ajustes, quitar un webhook', MAIN_ROWS, sheet=remove_sheet('cw'))
   mobile_states('MobileIntegracionesWebhooksEstados.html', 'Ajustes, webhooks con fallos y con dirección antigua',
                 [('Los avisos no llegan: GitHub recibió un error', ROWS['failing']),
                  ('La dirección cambió y Agentry no pudo apuntar el webhook', ROWS['stale'])])
