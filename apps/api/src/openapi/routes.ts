@@ -102,6 +102,11 @@ export const TAGS = [
       "The code hosts Agentry opens pull and merge requests on (GitHub through `gh`, GitLab through `glab`): what detection found on this machine, from one cache, the settings that turn each on or off and point at a binary, and whether a project's `origin` can open one. A chat's token cannot change the settings or force a detection.",
   },
   {
+    name: 'Webhooks',
+    description:
+      "Where GitHub and GitLab deliver events for a hook Agentry registered. These routes are unauthenticated by design: the host cannot send a bearer token, so a delivery is believed only when its signature (GitHub's `X-Hub-Signature-256`) or token header (GitLab's `X-Gitlab-Token`) matches the registration's secret, checked over the raw body before anything is parsed. A delivery never changes a change request: it moves the next read of the ones it names to now, and polling stays the source of truth.",
+  },
+  {
     name: 'Remote access',
     description:
       "A tunnel through localhost.run over the system's own `ssh`, so a phone or another network can reach this wrapper. Only opens while the API asks for authentication. localhost.run terminates TLS, so it sees every request, and its free address changes.",
@@ -591,6 +596,13 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /schedules/:id/disable': d('Schedules', 'Switch a schedule off', { ok: ref('Schedule') }),
   'POST /schedules/:id/run': d('Schedules', 'Run a schedule now', { description: 'Starts its target immediately, whatever the timetable says and even while it is disabled. The run is recorded without a slot and does not affect when it fires next; the overlap policy does not apply to it. A target that fails to start is a run with status `failed` and its error, not an HTTP error.', ok: ref('ScheduleRun'), created: true }),
   'GET /schedules/:id/runs': d('Schedules', 'History of a schedule', { description: 'Newest first. `started` carries the chat or orchestration it produced; `failed` the error; `skipped` says that slots passed while Agentry was not running: those are never run late. `overlapped` is a slot that came while the last run was still going and was not started (policy `skip`, or a queued slot replaced by a newer one or dropped when the schedule was switched off); `queued` waits for the last run to end, and becomes `started` with the same `slot` when it does.', querystring: obj({ limit: { type: 'integer', description: 'At most 500, default 50' } }), ok: list('ScheduleRun') }),
+  // ---- Webhooks
+  'POST /webhooks/github/:registrationId': d('Webhooks', 'Receive a GitHub delivery', {
+    description: "Unauthenticated, signature-checked: `X-Hub-Signature-256` is `sha256=` and the HMAC-SHA256 of the raw body under the registration's secret, compared in constant time before the body is parsed. `204` with no body once it is accepted (a replayed `X-GitHub-Delivery` too); `401` with no detail for an unknown or removed registration or a wrong signature; `429` beyond 60 verified deliveries a minute for one registration; `413` over 5 MiB, which polling covers. Moves the next read of the change requests it names to now and changes nothing else.",
+  }),
+  'POST /webhooks/gitlab/:registrationId': d('Webhooks', 'Receive a GitLab delivery', {
+    description: "Unauthenticated, token-checked: `X-Gitlab-Token` must equal the registration's secret, compared in constant time. Answers and limits as the GitHub receiver, with the replay check on `Idempotency-Key`.",
+  }),
 };
 
 /** Builds the Fastify route schema for a documented route; path params are derived from the URL. */
