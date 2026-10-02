@@ -106,7 +106,7 @@ describe('ProviderDetector', () => {
     const claude = await statusOf(detector(), 'claude-code');
     assert.deepEqual([claude.state, claude.reason, claude.version, claude.account], ['ready', null, '2.1.285', 'me@example.com']);
     assert.equal(claude.binaryPath, join(bin, 'claude'));
-    assert.equal(claude.capabilities.length, 16);
+    assert.equal(claude.capabilities.length, 15);
   });
 
   it('is signed-out when the login probe says so', async () => {
@@ -373,7 +373,7 @@ describe('capabilities confirmed by a session', () => {
   });
 
   it('answers with the declared set before any session', () => {
-    assert.equal(detector().capabilities('claude-code').length, 16);
+    assert.equal(detector().capabilities('claude-code').length, 15);
   });
 });
 
