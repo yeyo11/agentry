@@ -94,6 +94,7 @@ import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
 import { CodeHostDetector } from './hosts/detector.ts';
 import { CodeHostsSettingsStore } from './hosts/settings.ts';
 import { TrackersSettingsStore } from './trackers/settings.ts';
+import { TrackerImportService } from './trackers/import.ts';
 import { ProviderDetector } from './providers/detector.ts';
 import { AcpDriver } from './providers/acp/driver.ts';
 import { ChatEntriesTranscripts } from './providers/chat-entries.ts';
@@ -253,6 +254,7 @@ export {
   type PullRequestDeps,
 } from './pull-requests.ts';
 export { ChangeRequestError, type ChangeRequestFix } from './change-requests.ts';
+export { TrackerError, quotedSource } from './trackers/import.ts';
 export { MergeError, type MergeOutcome, type UpdateOutcome } from './hosts/merge-service.ts';
 export { OrchestrationPullRequestError, OrchestrationPullRequestService, type OpenedPullRequest } from './orchestration-pull-requests.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
@@ -404,6 +406,8 @@ export class Core {
   readonly flow: FlowService;
   /** Approved items' pull requests: opened with git and gh on the person's request, and watched until merged */
   readonly pullRequests: PullRequestService;
+  /** Import and link tracker issues: what the project's tracker routes call */
+  readonly trackerImport: TrackerImportService;
   private readonly pullRequestWatcher: PullRequestWatcher;
   /** The change requests of orchestrations' integration branches */
   readonly orchestrationPullRequests: OrchestrationPullRequestService;
@@ -723,11 +727,20 @@ export class Core {
       },
       busy: (itemId) => this.itemBusy(itemId),
       verdicts: (itemId) => this.flow.verdicts(itemId),
+      projectTracker: (id) => this.projectSettingsStore.stored(id, this.projectStore.get(id)?.name)?.tracker ?? null,
       // The card's link is the address the person reaches the panel on: the tunnel when it is up
       webOrigin: () => {
         const tunnel = this.tunnel.status();
         return tunnel.state === 'active' && tunnel.url ? tunnel.url : (this.runtime.apiUrl?.replace(/\/api$/, '') ?? null);
       },
+    });
+    this.trackerImport = new TrackerImportService({
+      items: this.workItems,
+      project: (id) => {
+        const record = this.projectStore.get(id);
+        return record ? { path: record.path, tracker: this.projectSettingsStore.stored(id, record.name)?.tracker ?? null } : null;
+      },
+      access: (path) => this.pullRequests.hostAccess(path),
     });
     this.orchestrationPullRequests = new OrchestrationPullRequestService({
       db: this.db,
