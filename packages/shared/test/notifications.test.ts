@@ -120,20 +120,6 @@ test('a rate limit and the account it moved to are one kind', () => {
   assert.equal(draft.kind, 'limit');
   assert.equal(draft.title, 'fix the build hit a rate limit');
   assert.equal(draft.body, 'The turn stopped because the account ran out of quota.');
-
-  const rotated = (extra: Partial<Extract<AgentryEvent, { type: 'run.accountRotated' }>> = {}): AgentryEvent => ({
-    type: 'run.accountRotated',
-    ...base('rotated'),
-    ...run,
-    from: 'a@x',
-    to: 'b@x',
-    resumed: true,
-    ...extra,
-  });
-  assert.equal(only(notificationsFor(rotated())).body, 'a@x → b@x, and the turn was replayed.');
-  assert.equal(only(notificationsFor(rotated({ resumed: false }))).body, 'a@x → b@x.');
-  // Accounts Agentry cannot name are still an account
-  assert.equal(only(notificationsFor(rotated({ from: null, to: null, resumed: false }))).body, 'The previous account → the next account.');
 });
 
 test('a move to another provider and a wait for a reset are limit news, except a move the person made', () => {

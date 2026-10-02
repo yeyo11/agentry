@@ -169,7 +169,6 @@ function ExecutionRow({ execution }: { execution: Execution }) {
         <span>{t('side.executions.turns', { count: execution.turns })}</span>
         <span>{execution.permissionMode}</span>
         {execution.model && <span className="mono">{execution.model}</span>}
-        {execution.account && <span>{t('side.executions.account', { name: execution.account })}</span>}
         {execution.maxBudgetUsd !== null && <span>{t('side.executions.budget', { amount: money(execution.maxBudgetUsd) })}</span>}
       </div>
       {execution.error && (

@@ -126,10 +126,9 @@
       "env-oauth-token",
       "env-api-key",
       "credentials-file",
-      "cswap",
       "none"
     ],
-    "description": "`wrapper-*`: configured through the API; `env-*`: passed through the container environment; `cswap`: claude-swap owns the credential file and the wrapper injects nothing."
+    "description": "`wrapper-*`: configured through the API; `env-*`: passed through the container environment;"
   },
   "PermissionMode": {
     "type": "string",
@@ -186,33 +185,12 @@
       "system": {
         "$ref": "#/components/schemas/SystemInfo"
       },
-      "rateLimit": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/RateLimitInfo"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
       "limits": {
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/ProviderLimit"
         },
-        "description": "One reading per provider that has one; `rateLimit` stays until the claude-swap removal"
-      },
-      "accounts": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/AccountsSnapshot"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "Null when claude-swap is not installed"
+        "description": "One reading per provider that has one"
       },
       "counts": {
         "type": "object",
@@ -264,53 +242,9 @@
     },
     "required": [
       "system",
-      "rateLimit",
-      "accounts",
+      "limits",
       "counts",
       "recentChats"
-    ]
-  },
-  "RateLimitInfo": {
-    "type": "object",
-    "properties": {
-      "status": {
-        "type": "string"
-      },
-      "rateLimitType": {
-        "type": "string"
-      },
-      "resetsAt": {
-        "type": "number"
-      },
-      "windows": {
-        "type": "object",
-        "additionalProperties": {
-          "$ref": "#/components/schemas/RateLimitWindow"
-        }
-      },
-      "observedAt": {
-        "type": "string"
-      }
-    },
-    "required": [
-      "status",
-      "windows",
-      "observedAt"
-    ]
-  },
-  "RateLimitWindow": {
-    "type": "object",
-    "properties": {
-      "utilization": {
-        "type": "number"
-      },
-      "resetsAt": {
-        "type": "number"
-      }
-    },
-    "required": [
-      "utilization",
-      "resetsAt"
     ]
   },
   "ProviderLimit": {
@@ -389,175 +323,20 @@
     ],
     "description": "`unknown`: nothing was read, or the reset has passed since; never `ok` without a new reading."
   },
-  "AccountsSnapshot": {
+  "RateLimitWindow": {
     "type": "object",
     "properties": {
-      "installed": {
-        "type": "boolean"
-      },
-      "total": {
+      "utilization": {
         "type": "number"
       },
-      "active": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/AccountSummary"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "autoSwitchRunning": {
-        "type": "boolean"
-      }
-    },
-    "required": [
-      "installed",
-      "total",
-      "active",
-      "autoSwitchRunning"
-    ],
-    "description": "What the dashboard needs about accounts, without the full list."
-  },
-  "AccountSummary": {
-    "type": "object",
-    "properties": {
-      "number": {
-        "type": "number",
-        "description": "Slot number: the identifier every action accepts, alongside the email and the alias"
-      },
-      "email": {
-        "type": "string"
-      },
-      "organizationName": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "alias": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "active": {
-        "type": "boolean"
-      },
-      "disabled": {
-        "type": "boolean",
-        "description": "Held out of the auto-rotation"
-      },
-      "usageStatus": {
-        "type": "string",
-        "description": "`ok`, `token_expired`, `unavailable`… as reported by claude-swap"
-      },
-      "usage": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/AccountUsage"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "usageFetchedAt": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "headroomPct": {
-        "type": [
-          "number",
-          "null"
-        ],
-        "description": "Quota left in the binding window (0-100); null when the usage is unknown"
-      }
-    },
-    "required": [
-      "number",
-      "email",
-      "organizationName",
-      "alias",
-      "active",
-      "disabled",
-      "usageStatus",
-      "usage",
-      "usageFetchedAt",
-      "headroomPct"
-    ]
-  },
-  "AccountUsage": {
-    "type": "object",
-    "properties": {
-      "fiveHour": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/AccountUsageWindow"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "sevenDay": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/AccountUsageWindow"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "scoped": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/AccountUsageWindow"
-        },
-        "description": "Per-model weekly windows (Fable, Opus…) when the account reports them"
-      }
-    },
-    "required": [
-      "fiveHour",
-      "sevenDay",
-      "scoped"
-    ]
-  },
-  "AccountUsageWindow": {
-    "type": "object",
-    "properties": {
-      "pct": {
-        "type": "number",
-        "description": "Share of the window already consumed (0-100)"
-      },
       "resetsAt": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "countdown": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Human countdown to the reset, e.g. `3h 4m`"
-      },
-      "name": {
-        "type": "string",
-        "description": "Per-model windows carry the model name"
+        "type": "number"
       }
     },
     "required": [
-      "pct",
-      "resetsAt",
-      "countdown"
-    ],
-    "description": "One rate-limit window as claude-swap reports it."
+      "utilization",
+      "resetsAt"
+    ]
   },
   "ChatSummary": {
     "type": "object",
@@ -1010,13 +789,6 @@
           "null"
         ]
       },
-      "account": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Pinned claude-swap account, when it did not use the active one"
-      },
       "maxBudgetUsd": {
         "type": [
           "number",
@@ -1053,7 +825,6 @@
       "error",
       "permissionMode",
       "model",
-      "account",
       "maxBudgetUsd",
       "costUsd",
       "tokens",
@@ -5065,407 +4836,6 @@
     ],
     "description": "A file uploaded to attach to a message. Images and PDFs reach Claude as content blocks; any other file by its path, which every run can read."
   },
-  "AccountsOverview": {
-    "type": "object",
-    "properties": {
-      "cswap": {
-        "$ref": "#/components/schemas/CswapInfo"
-      },
-      "accounts": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/AccountSummary"
-        }
-      },
-      "activeNumber": {
-        "type": [
-          "number",
-          "null"
-        ]
-      },
-      "autoSwitch": {
-        "$ref": "#/components/schemas/AutoSwitchSettings"
-      },
-      "autoSwitchRunning": {
-        "type": "boolean",
-        "description": "The `cswap auto` supervisor is alive"
-      },
-      "events": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/AutoSwitchEvent"
-        },
-        "description": "Most recent rotation events, newest last"
-      },
-      "configs": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/AccountConfig"
-        },
-        "description": "One per account that has a config directory of its own"
-      },
-      "policies": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/RotationPolicy"
-        }
-      }
-    },
-    "required": [
-      "cswap",
-      "accounts",
-      "activeNumber",
-      "autoSwitch",
-      "autoSwitchRunning",
-      "events",
-      "configs",
-      "policies"
-    ]
-  },
-  "CswapInfo": {
-    "type": "object",
-    "properties": {
-      "installed": {
-        "type": "boolean"
-      },
-      "version": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "path": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "error": {
-        "type": "string"
-      },
-      "source": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/CswapSource"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "compatible": {
-        "type": "boolean",
-        "description": "The version is one whose `--json` output Agentry parses"
-      },
-      "pinned": {
-        "type": "string",
-        "description": "The version Agentry installs and is tested against"
-      },
-      "managed": {
-        "$ref": "#/components/schemas/CswapManagedInfo"
-      }
-    },
-    "required": [
-      "installed",
-      "version",
-      "path",
-      "source",
-      "compatible",
-      "pinned",
-      "managed"
-    ],
-    "description": "The `cswap` binary that owns the account credentials, when it is installed."
-  },
-  "CswapSource": {
-    "type": "string",
-    "enum": [
-      "env",
-      "path",
-      "managed"
-    ],
-    "description": "Where the `cswap` in use came from: `CSWAP_BIN`, the `PATH`, or the copy Agentry installed in its own data directory."
-  },
-  "CswapManagedInfo": {
-    "type": "object",
-    "properties": {
-      "available": {
-        "type": "boolean",
-        "description": "False in the Docker image (claude-swap is baked in), with `CSWAP_BIN`, or with `AGENTRY_CSWAP_MANAGED=0`"
-      },
-      "state": {
-        "$ref": "#/components/schemas/CswapInstallState"
-      },
-      "step": {
-        "type": "string",
-        "enum": [
-          "uv",
-          "claude-swap"
-        ],
-        "description": "While installing: fetching uv, or uv installing claude-swap (and Python, when the system lacks it)"
-      },
-      "version": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Version of the managed copy, when there is one"
-      },
-      "error": {
-        "type": "string",
-        "description": "Why the last install failed"
-      }
-    },
-    "required": [
-      "available",
-      "state",
-      "version"
-    ]
-  },
-  "CswapInstallState": {
-    "type": "string",
-    "enum": [
-      "absent",
-      "installing",
-      "installed",
-      "failed"
-    ],
-    "description": "Progress of the copy of claude-swap Agentry installs itself."
-  },
-  "AutoSwitchSettings": {
-    "type": "object",
-    "properties": {
-      "enabled": {
-        "type": "boolean",
-        "description": "Run `cswap auto` in the background and rotate before the active account runs out"
-      },
-      "threshold": {
-        "type": "number",
-        "description": "Utilization that triggers a proactive switch (50-99.9)"
-      },
-      "strategy": {
-        "type": "string",
-        "enum": [
-          "best",
-          "consume-first"
-        ],
-        "description": "`best` stays until the limit; `consume-first` spends the soonest-resetting account first"
-      },
-      "models": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        },
-        "description": "Per-model weekly windows to watch too, e.g. `['Fable']` or `['all']`"
-      },
-      "intervalSec": {
-        "type": "number",
-        "description": "Poll interval of the supervisor, in seconds (minimum 15)"
-      },
-      "rotateOnLimit": {
-        "type": "boolean",
-        "description": "Rotate and resume a run that dies against its rate limit"
-      }
-    },
-    "required": [
-      "enabled",
-      "threshold",
-      "strategy",
-      "models",
-      "intervalSec",
-      "rotateOnLimit"
-    ],
-    "description": "Settings of the supervised `cswap auto` process."
-  },
-  "AutoSwitchEvent": {
-    "type": "object",
-    "properties": {
-      "seq": {
-        "type": "number"
-      },
-      "ts": {
-        "type": "string"
-      },
-      "event": {
-        "type": "string",
-        "description": "`poll`, `switch`, `no-switch`, `account-quarantined`, `all-exhausted`, `error`, or `rotate` when the wrapper drove it"
-      },
-      "reason": {
-        "type": "string"
-      },
-      "detail": {
-        "type": "string"
-      },
-      "from": {
-        "type": "string"
-      },
-      "to": {
-        "type": "string"
-      },
-      "data": {
-        "type": "object",
-        "additionalProperties": {},
-        "description": "The raw claude-swap payload"
-      }
-    },
-    "required": [
-      "seq",
-      "ts",
-      "event"
-    ],
-    "description": "One `cswap auto --json` line, plus the rotations the wrapper drives itself."
-  },
-  "AccountConfig": {
-    "type": "object",
-    "properties": {
-      "number": {
-        "type": "number",
-        "description": "Slot number, the same identifier  {@link  AccountSummary }  uses"
-      },
-      "configDir": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "`CLAUDE_CONFIG_DIR` for every process started for this account. Null shares the wrapper's, which is what every account did before and stays the default: moving someone's `~/.claude` without being asked is not something a wrapper gets to do. A chat on an account that has one runs `claude` directly against it, so the login is whatever that directory holds."
-      },
-      "links": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        },
-        "description": "Entries Agentry linked into `configDir` from the shared one, relative to it; undone when it is cleared"
-      }
-    },
-    "required": [
-      "number",
-      "configDir",
-      "links"
-    ],
-    "description": "Agentry's own settings for one claude-swap slot: what the binary itself does not keep."
-  },
-  "RotationPolicy": {
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      },
-      "threshold": {
-        "type": "number",
-        "description": "Utilization (0-100) of an account's binding window past which the next one in `order` is taken"
-      },
-      "order": {
-        "type": "array",
-        "items": {
-          "type": "number"
-        },
-        "description": "Slot numbers a chat of these projects may use, in order of preference; every account when absent"
-      },
-      "projects": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        },
-        "description": "Project ids this policy governs; at most one policy governs a project"
-      },
-      "looseChats": {
-        "type": "boolean",
-        "description": "It also governs the chats that belong to no project; at most one policy does"
-      }
-    },
-    "required": [
-      "id",
-      "threshold",
-      "projects"
-    ],
-    "description": "Which accounts the chats of some projects may use, in what order, and when to move on. A project with no policy keeps the global auto-switch, which is the default."
-  },
-  "SwitchAccountRequest": {
-    "type": "object",
-    "properties": {
-      "target": {
-        "type": "string",
-        "description": "Slot number, email or alias; omitted rotates to the next account"
-      },
-      "strategy": {
-        "$ref": "#/components/schemas/SwitchStrategy"
-      }
-    }
-  },
-  "SwitchStrategy": {
-    "type": "string",
-    "enum": [
-      "best",
-      "next-available"
-    ],
-    "description": "Target selection when no explicit account is given"
-  },
-  "SwitchResult": {
-    "type": "object",
-    "properties": {
-      "switched": {
-        "type": "boolean"
-      },
-      "from": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "to": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "reason": {
-        "type": [
-          "string",
-          "null"
-        ]
-      }
-    },
-    "required": [
-      "switched",
-      "from",
-      "to",
-      "reason"
-    ]
-  },
-  "AddAccountTokenRequest": {
-    "type": "object",
-    "properties": {
-      "token": {
-        "type": "string",
-        "description": "Token from `claude setup-token`, or an API key"
-      },
-      "slot": {
-        "type": "number",
-        "description": "Slot to register it in; the next free one when omitted"
-      },
-      "email": {
-        "type": "string",
-        "description": "Label shown until claude-swap resolves the real email"
-      }
-    },
-    "required": [
-      "token"
-    ]
-  },
-  "SetAccountAliasRequest": {
-    "type": "object",
-    "properties": {
-      "alias": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Short name for the account; `null` removes it"
-      }
-    },
-    "required": [
-      "alias"
-    ]
-  },
   "AgentryEvent": {
     "anyOf": [
       {
@@ -5497,12 +4867,6 @@
       },
       {
         "$ref": "#/components/schemas/RunLimitWaitingEvent"
-      },
-      {
-        "$ref": "#/components/schemas/RunAccountRotatedEvent"
-      },
-      {
-        "$ref": "#/components/schemas/AccountSwitchedEvent"
       },
       {
         "$ref": "#/components/schemas/TaskStartedEvent"
@@ -6333,129 +5697,6 @@
       "type"
     ],
     "description": "Work stopped to wait for its provider's limit to reset."
-  },
-  "RunAccountRotatedEvent": {
-    "type": "object",
-    "properties": {
-      "runId": {
-        "type": "string"
-      },
-      "runName": {
-        "type": "string"
-      },
-      "sessionId": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Null until the CLI reports the session id"
-      },
-      "orchestrationId": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Set for a worker of an orchestration"
-      },
-      "internal": {
-        "type": "boolean",
-        "description": "Housekeeping runs (planner, auth check) that consumers usually leave out of notifications"
-      },
-      "id": {
-        "type": "number",
-        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
-      },
-      "at": {
-        "type": "string"
-      },
-      "title": {
-        "type": "string",
-        "description": "One line a notification can show as it is"
-      },
-      "type": {
-        "type": "string",
-        "const": "run.accountRotated"
-      },
-      "from": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "to": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "resumed": {
-        "type": "boolean",
-        "description": "The interrupted turn was replayed on the new account"
-      }
-    },
-    "required": [
-      "at",
-      "from",
-      "id",
-      "internal",
-      "orchestrationId",
-      "resumed",
-      "runId",
-      "runName",
-      "sessionId",
-      "title",
-      "to",
-      "type"
-    ],
-    "description": "Rotation moved the wrapper to another account after a run hit its limit."
-  },
-  "AccountSwitchedEvent": {
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "number",
-        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
-      },
-      "at": {
-        "type": "string"
-      },
-      "title": {
-        "type": "string",
-        "description": "One line a notification can show as it is"
-      },
-      "type": {
-        "type": "string",
-        "const": "account.switched"
-      },
-      "from": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "to": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "reason": {
-        "type": [
-          "string",
-          "null"
-        ]
-      }
-    },
-    "required": [
-      "at",
-      "from",
-      "id",
-      "reason",
-      "title",
-      "to",
-      "type"
-    ],
-    "description": "The active account changed, by whatever means (manual switch, `cswap auto`, rotation)."
   },
   "TaskStartedEvent": {
     "type": "object",
@@ -7762,7 +7003,6 @@
       "effort",
       "costReport",
       "rateLimitWindows",
-      "multiAccount",
       "transcriptFiles",
       "workflowTool"
     ],
@@ -10940,13 +10180,6 @@
         ],
         "description": "`host` sends permissions, questions and plans to the panel; `none`, the default, denies them"
       },
-      "account": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one; `null` unpins a chat on a resume or a fork. A pinned chat that hits its limit is unpinned by the rotation."
-      },
       "prompt": {
         "type": "string"
       },
@@ -11035,13 +10268,6 @@
         ],
         "description": "`host` sends permissions, questions and plans to the panel; `none`, the default, denies them"
       },
-      "account": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one; `null` unpins a chat on a resume or a fork. A pinned chat that hits its limit is unpinned by the rotation."
-      },
       "prompt": {
         "type": "string"
       },
@@ -11117,13 +10343,6 @@
           "none"
         ],
         "description": "`host` sends permissions, questions and plans to the panel; `none`, the default, denies them"
-      },
-      "account": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one; `null` unpins a chat on a resume or a fork. A pinned chat that hits its limit is unpinned by the rotation."
       },
       "prompt": {
         "type": "string"
@@ -12515,86 +11734,6 @@
       "unavailable",
       "checkedAt"
     ]
-  },
-  "RotationPolicyRequest": {
-    "type": "object",
-    "properties": {
-      "threshold": {
-        "type": "number"
-      },
-      "order": {
-        "type": "array",
-        "items": {
-          "type": "number"
-        }
-      },
-      "projects": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        }
-      },
-      "looseChats": {
-        "type": "boolean"
-      }
-    },
-    "required": [
-      "threshold",
-      "projects"
-    ]
-  },
-  "UpdateAccountConfigRequest": {
-    "type": "object",
-    "properties": {
-      "configDir": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Null goes back to sharing the wrapper's config dir, and removes the links Agentry made"
-      },
-      "shareSettings": {
-        "type": "boolean",
-        "description": "Also link the shared settings (`settings.json`, `CLAUDE.md`, `keybindings.json`, `agents`, `commands`, `skills`) into the directory. Symlinks, never copies and never over an existing entry, so undoing it leaves the shared ones untouched."
-      }
-    },
-    "required": [
-      "configDir"
-    ]
-  },
-  "UsageHistoryPoint": {
-    "type": "object",
-    "properties": {
-      "at": {
-        "type": "string"
-      },
-      "pct": {
-        "type": "number",
-        "description": "Share of the window consumed (0-100), exactly as claude-swap reported it"
-      },
-      "window": {
-        "$ref": "#/components/schemas/UsageWindowKind"
-      },
-      "account": {
-        "type": "number",
-        "description": "Slot number"
-      }
-    },
-    "required": [
-      "at",
-      "pct",
-      "window",
-      "account"
-    ],
-    "description": "One reading of an account's usage, kept as a row so the panel can draw a line."
-  },
-  "UsageWindowKind": {
-    "type": "string",
-    "enum": [
-      "5h",
-      "7d"
-    ],
-    "description": "Which rate-limit window a usage point belongs to."
   },
   "Schedule": {
     "type": "object",
@@ -16202,13 +15341,6 @@
           "none"
         ],
         "description": "`host` sends permissions, questions and plans to the panel; `none`, the default, denies them"
-      },
-      "account": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one; `null` unpins a chat on a resume or a fork. A pinned chat that hits its limit is unpinned by the rotation."
       }
     },
     "description": "What can be chosen when a process starts on a chat, whether it is new, resumed or a fork."

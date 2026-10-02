@@ -11,13 +11,12 @@ import {
   Plug,
   Settings2,
   SquareCheck,
-  Users,
   Workflow,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api, chatListQuery, keys, useOpenTaskCount } from './api';
 import { CommandPalette, CommandPaletteTrigger, NEW_ORCHESTRATION_PATH, RUN_WORKFLOW_EVENT } from './components/CommandPalette';
 import type { MenuItem } from '@agentry/ui/components/controls/Menu';
@@ -30,7 +29,7 @@ import { lazyPage, ReloadBanner } from './components/ReloadOffer';
 import { Fab } from './components/shell/Fab';
 import { useOwnPhoneHeader, usePhoneHeaderMark } from './components/shell/PhoneHeader';
 import { LiveSection, useLive } from './components/shell/live';
-import { AccountCard, StatusBar, useConnection } from './components/shell/StatusBar';
+import { ProviderCard, StatusBar, useConnection } from './components/shell/StatusBar';
 import { useRailCollapsed } from './components/shell/rail';
 import { TopBar } from './components/shell/TopBar';
 import { isActive, NavDot, navTarget, TabBar, type NavItem } from './components/shell/TabBar';
@@ -50,7 +49,6 @@ import { NEW_TASK_PATH, TASKS_PATH } from './lib/work-items';
 import { Home } from './pages/Home';
 
 // Only the landing pages ship in the main bundle; everything else loads on first visit
-const Accounts = lazyPage(() => import('./pages/Accounts').then((m) => m.Accounts));
 const ChatView = lazyPage(() => import('./pages/ChatView').then((m) => m.ChatView));
 const loadChangesReview = () => import('./pages/ChangesReview');
 const ChatChangesReview = lazyPage(() => loadChangesReview().then((m) => m.ChatChangesReview));
@@ -189,7 +187,6 @@ function Shell() {
   };
   const schedules: NavItem = { to: '/schedules', label: t('nav.schedules'), icon: CalendarClock };
   const projects: NavItem = { to: '/projects', label: t('nav.projects'), icon: FolderGit2 };
-  const accounts: NavItem = { to: '/accounts', label: t('nav.accounts'), icon: Users };
   const connectors: NavItem = { to: '/connectors', label: t('connectors:nav'), icon: Plug };
   const usage: NavItem = { to: '/usage', label: t('nav.usage'), icon: ChartColumn };
   const settings: NavItem = {
@@ -202,7 +199,7 @@ function Shell() {
   // What a person does, then where it happens: the sidebar's two groups
   const groups = [
     { id: 'work', label: t('shell:nav.work'), items: [home, chats, tasks, orchestrations, schedules] },
-    { id: 'space', label: t('shell:nav.space'), items: [projects, accounts, connectors, usage, settings] },
+    { id: 'space', label: t('shell:nav.space'), items: [projects, connectors, usage, settings] },
   ];
   const items = groups.flatMap((group) => group.items);
 
@@ -348,7 +345,7 @@ function Shell() {
               <Route path="/orchestration/:id" element={<OrchestrationDetail />} />
               <Route path="/orchestration/:id/changes" element={<IntegrationChangesReview />} />
               <Route path="/orchestration/:id/tasks/:taskId/changes" element={<TaskChangesReview />} />
-              <Route path="/accounts" element={<Accounts />} />
+              <Route path="/accounts" element={<Navigate to="/settings?tab=providers" replace />} />
               <Route path="/schedules" element={<Schedules />} />
               <Route path="/schedules/new" element={<ScheduleEditor />} />
               <Route path="/schedules/:id/edit" element={<ScheduleEditor />} />
@@ -387,9 +384,9 @@ function Shell() {
             pathname={pathname}
             projectPage={projectPage}
             tabs={[home, chats, orchestrations]}
-            more={[tasks, projects, accounts, schedules, usage, connectors, settings]}
+            more={[tasks, projects, schedules, usage, connectors, settings]}
             start={startEntries}
-            account={<AccountCard now={now} connection={connection} />}
+            account={<ProviderCard now={now} connection={connection} />}
             connection={connectionLink}
           />
         </>

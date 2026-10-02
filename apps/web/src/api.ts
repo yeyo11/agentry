@@ -1,11 +1,8 @@
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   Attachment,
-  AccountConfig,
-  AccountsOverview,
   AgentTranscript,
   AgentryReleaseInfo,
-  AddAccountTokenRequest,
   DecisionClearResult,
   DecisionConsentRequest,
   DecisionCredentialsResult,
@@ -51,14 +48,11 @@ import type {
   WebhookRegistration,
   UpdateTunnelSettingsRequest,
   AuthVerification,
-  AutoSwitchEvent,
-  AutoSwitchSettings,
   AvailablePlugin,
   BackgroundTaskOutput,
   CancelCommandRequest,
   CancelCommandResult,
   ChangeSummary,
-  CswapInfo,
   CswapRetirementState,
   ChatChanges,
   Checklist,
@@ -116,13 +110,8 @@ import type {
   PlanRequest,
   RelaunchOrchestrationRequest,
   ResumeOrchestrationRequest,
-  RotationPolicy,
-  RotationPolicyRequest,
   SaveOrchestrationTemplateRequest,
-  UpdateAccountConfigRequest,
   UpdateOrchestrationTemplateRequest,
-  UsageHistoryPoint,
-  UsageWindowKind,
   PluginActionRequest,
   PluginsOverview,
   Project,
@@ -148,8 +137,6 @@ import type {
   UsageBucket,
   UsageSeries,
   SetCredentialsRequest,
-  SwitchAccountRequest,
-  SwitchResult,
   SettingsDoc,
   SupervisorConfig,
   SupervisorProposal,
@@ -249,7 +236,6 @@ import type {
 import i18n from './i18n';
 import { authHeaders, setChallenge, withToken } from './lib/auth';
 import { chatKeys, type ChatClient } from '@agentry/chat-ui/lib/context';
-import { accountsRefetchInterval, normalizeCswap } from './lib/cswap';
 import { useFallbackInterval } from './lib/feed';
 import { mergeRefetchMs } from './lib/merge';
 import { filterKey, normalizeKey, openCount } from './lib/work-items';
@@ -711,22 +697,6 @@ export const api = {
     request<ConfigFileContent>('/config/files/content', { method: 'PUT', body: req }),
   deleteFile: (root: string, path: string) =>
     request<{ ok: true }>(`/config/files/content${qs({ root, path })}`, { method: 'DELETE' }),
-  accounts: (refresh = false, o?: ReadOptions) =>
-    request<AccountsOverview>(`/accounts${qs({ refresh: refresh ? '1' : '' })}`, o).then((overview) => ({ ...overview, cswap: normalizeCswap(overview.cswap) })),
-  switchAccount: (body: SwitchAccountRequest) => request<SwitchResult>('/accounts/switch', { method: 'POST', body }),
-  addAccount: (body: AddAccountTokenRequest) => request<AccountsOverview>('/accounts/token', { method: 'POST', body }),
-  removeAccount: (number: number) => request<{ ok: true }>(`/accounts/${number}`, { method: 'DELETE' }),
-  /** Starts Agentry's own install of claude-swap; it goes on in the background and `accounts()` follows it */
-  installCswap: () => request<CswapInfo>('/accounts/cswap/install', { method: 'POST' }).then(normalizeCswap),
-  /** Removes the copy of claude-swap Agentry installed; the accounts are kept */
-  removeCswap: () => request<CswapInfo>('/accounts/cswap', { method: 'DELETE' }).then(normalizeCswap),
-  accountEvents: (limit = 500, o?: ReadOptions) => request<AutoSwitchEvent[]>(`/accounts/events${qs({ limit: String(limit) })}`, o),
-  setAccountEnabled: (number: number, enabled: boolean) =>
-    request<{ ok: true }>(`/accounts/${number}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' }),
-  setAccountAlias: (number: number, alias: string | null) =>
-    request<{ ok: true }>(`/accounts/${number}/alias`, { method: 'PUT', body: { alias } }),
-  setAutoSwitch: (body: Partial<AutoSwitchSettings>) =>
-    request<AutoSwitchSettings>('/accounts/autoswitch', { method: 'PUT', body }),
   securityAuth: (o: ReadOptions = {}) => request<AuthConfig>('/security/auth', o),
   updateSecurityAuth: (body: UpdateAuthConfigRequest) => request<AuthConfig>('/security/auth', { method: 'PUT', body }),
   /** The only answer that ever carries the token; it cannot be read back afterwards. */
@@ -741,17 +711,6 @@ export const api = {
   stopTunnel: () => request<TunnelStatus>('/tunnel/stop', { method: 'POST' }),
   audit: (page: AuditFilter & { limit?: number; from?: number } = {}) =>
     request<AuditPage>(`/audit${qs({ limit: num(page.limit), from: num(page.from), path: page.path, method: page.method, status: page.status })}`),
-  setAccountConfig: (number: number, body: UpdateAccountConfigRequest) =>
-    request<AccountConfig>(`/accounts/${number}/config`, { method: 'PUT', body }),
-  accountPolicies: (o: ReadOptions = {}) => request<RotationPolicy[]>('/accounts/policies', o),
-  createAccountPolicy: (body: RotationPolicyRequest) => request<RotationPolicy>('/accounts/policies', { method: 'POST', body }),
-  updateAccountPolicy: (id: string, body: RotationPolicyRequest) =>
-    request<RotationPolicy>(`/accounts/policies/${enc(id)}`, { method: 'PUT', body }),
-  deleteAccountPolicy: (id: string) => request<{ ok: true }>(`/accounts/policies/${enc(id)}`, { method: 'DELETE' }),
-  accountUsageHistory: (query: { account?: number; window?: UsageWindowKind; since?: string; limit?: number } = {}) =>
-    request<UsageHistoryPoint[]>(
-      `/accounts/usage${qs({ account: num(query.account), window: query.window, since: query.since, limit: num(query.limit) })}`,
-    ),
   /** `refresh` asks the CLI again instead of reading the 60 seconds it keeps the answer for */
   connectors: (refresh = false) => request<ConnectorsOverview>(`/connectors${qs({ refresh: refresh ? 'true' : '' })}`, { timeoutMs: 100_000 }),
   plugins: (o: ReadOptions = {}) => request<PluginsOverview>('/plugins', o),
@@ -985,6 +944,8 @@ export const api = {
   /** A person's click: the turn that hit the limit is sent again when the provider's limit resets */
   waitForLimit: (id: string) => request<ProviderMove>(`/chats/${enc(id)}/wait`, { method: 'POST' }),
   stopWaiting: (moveId: string) => request<ProviderMove>(`/providers/moves/${enc(moveId)}/cancel`, { method: 'POST' }),
+  /** Closes an open wait as cancelled: a flow run or a task that waited ends stopped */
+  cancelProviderMove: (id: string) => request<ProviderMove>(`/providers/moves/${enc(id)}/cancel`, { method: 'POST' }),
   /** Counterparts the model-map point proposed, which nothing uses until a person accepts them */
   modelMapSuggestions: (o: ReadOptions = {}) => request<ModelMapSuggestion[]>('/providers/model-map/suggestions', o),
   answerModelMapSuggestion: (id: string, accept: boolean) =>
@@ -1142,9 +1103,6 @@ export const keys = {
   environments: (cwd: string) => ['environments', cwd] as const,
   memoryProjects: ['memory'] as const,
   memoryFiles: (projectId: string) => ['memory', projectId] as const,
-  accounts: ['accounts'] as const,
-  accountEvents: ['accounts', 'events'] as const,
-  accountUsage: (account: number | 'all', window: UsageWindowKind, since: string) => ['accounts', 'usage', account, window, since] as const,
   orchestrationTemplates: ['orchestrations', 'templates'] as const,
   connectors: ['connectors'] as const,
   plugins: ['plugins'] as const,
@@ -1321,23 +1279,9 @@ export const useScheduleRuns = (id: string, enabled: boolean) => {
   return useQuery({ queryKey: keys.scheduleRuns(id), queryFn: ({ signal }) => api.scheduleRuns(id, undefined, { signal }), enabled, refetchInterval: enabled ? fallback : false });
 };
 
-/** Usage refreshes on claude-swap's own cadence; polling faster would only re-read its cache. */
-export const useAccounts = (enabled = true) =>
-  useQuery({
-    queryKey: keys.accounts,
-    queryFn: ({ signal }) => api.accounts(false, { signal }),
-    // An install of claude-swap reports its progress only through this read
-    refetchInterval: (query) => accountsRefetchInterval(query.state.data?.cswap),
-    enabled,
-  });
-
 /** `claude mcp list` is slow, and the server keeps its answer for a minute: asking sooner gains nothing. */
 export const useConnectors = (enabled = true) =>
   useQuery({ queryKey: keys.connectors, queryFn: () => api.connectors(), staleTime: 60_000, enabled });
-
-/** The rotation history kept beyond the window `GET /accounts` carries; only fetched when asked for. */
-export const useAccountEvents = (enabled: boolean) =>
-  useQuery({ queryKey: keys.accountEvents, queryFn: ({ signal }) => api.accountEvents(undefined, { signal }), refetchInterval: 10_000, enabled });
 
 
 
@@ -1438,6 +1382,19 @@ export const useWorkItemRuns = (itemId: string | null, enabled = true) =>
     queryKey: keys.workItemRuns(itemId ?? ''),
     queryFn: ({ signal }) => api.workItemRuns(itemId ?? '', { signal }),
     enabled: enabled && itemId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+/**
+ * The moves to other providers of a project's work, newest first: what an item's activity reads to
+ * say that a run went on elsewhere. `providers.changed`, `run.providerMoved` and `run.limitWaiting`
+ * read it again (they share the `providers` prefix).
+ */
+export const useProviderMoves = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.providerMoves(`project:${projectId ?? ''}`),
+    queryFn: ({ signal }) => api.providerMoves({ projectId: projectId ?? '', limit: 500 }, { signal }),
+    enabled: projectId !== null,
     refetchInterval: useFallbackInterval(),
   });
 

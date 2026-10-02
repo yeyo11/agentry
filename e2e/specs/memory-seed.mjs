@@ -2,8 +2,8 @@
 // with its documents folder, tasks tied to documents a team role wrote, memory proposals waiting for
 // the person, a journal, the CLI's CLAUDE.md and memory files, and two tasks waiting under the flow.
 // Proposals, a role's document ties and the waiting state are what flow runs write; the fake CLI
-// has no structured results, so they are written straight into the sandbox's database, the way
-// accounts-config.spec.mjs seeds its rows. Everything else goes through the API.
+// has no structured results, so they are written straight into the sandbox's database.
+// Everything else goes through the API.
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';

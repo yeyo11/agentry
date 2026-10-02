@@ -23,7 +23,8 @@ export function decisionsOn(orch: Orchestration, task: OrchestrationTaskState): 
     retry: task.status === 'failed',
     retryClean: task.status === 'failed',
     skip: task.status === 'failed' || task.status === 'blocked',
-    hint: task.status === 'running',
+    // A task waiting for a reset has no worker to nudge: its chat is not running
+    hint: task.status === 'running' && !task.waiting,
   };
 }
 

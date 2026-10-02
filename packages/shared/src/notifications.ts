@@ -65,11 +65,6 @@ export interface NotificationText {
   turns(count: number): string;
   rateLimited(name: string): string;
   rateLimitedBody(): string;
-  rotated(name: string): string;
-  previousAccount(): string;
-  nextAccount(): string;
-  rotatedBody(from: string, to: string): string;
-  rotatedBodyReplayed(from: string, to: string): string;
   /**
    * Work that went on in a new chat on another provider, and work that waits for a reset. Optional
    * so a client with its own translations keeps compiling until it has said them: the English
@@ -115,11 +110,6 @@ export const englishNotificationText: NotificationText = {
   turns: (count) => `${count} ${count === 1 ? 'turn' : 'turns'}`,
   rateLimited: (name) => `${name} hit a rate limit`,
   rateLimitedBody: () => 'The turn stopped because the account ran out of quota.',
-  rotated: (name) => `${name} moved to another account`,
-  previousAccount: () => 'The previous account',
-  nextAccount: () => 'the next account',
-  rotatedBody: (from, to) => `${from} → ${to}.`,
-  rotatedBodyReplayed: (from, to) => `${from} → ${to}, and the turn was replayed.`,
   movedBody: movedBodyEnglish,
   limitWaitingBody: limitWaitingBodyEnglish,
   orchestrationFinished: (name) => `Orchestration ${name} finished`,
@@ -321,25 +311,6 @@ export function notificationsFor(event: AgentryEvent, text: NotificationText = e
           orchestrationId: event.orchestrationId,
         }),
       ];
-
-    case 'run.accountRotated': {
-      if (event.internal) return [];
-      const from = event.from ?? text.previousAccount();
-      const to = event.to ?? text.nextAccount();
-      return [
-        draft(event, {
-          key: `rotated:${event.runId}`,
-          kind: 'limit',
-          priority: 'normal',
-          tone: 'info',
-          title: text.rotated(event.runName),
-          body: event.resumed ? text.rotatedBodyReplayed(from, to) : text.rotatedBody(from, to),
-          href: chatHref(event.runId),
-          runId: event.runId,
-          orchestrationId: event.orchestrationId,
-        }),
-      ];
-    }
 
     case 'run.providerMoved':
       // A person's own click is not news to them; what the settings or a decision moved is

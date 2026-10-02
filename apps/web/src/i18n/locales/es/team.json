@@ -357,9 +357,19 @@
       "short": "ninguna cuenta tenía cupo"
     },
     "rate-limit": {
-      "title": "La cuenta llegó a su límite.",
-      "body": "La rotación de cuentas está desactivada, así que no pasó a otra. La tarea sigue en {{column}}, sin cambios.",
-      "short": "la cuenta llegó a su límite"
+      "title": "Su proveedor llegó a su límite.",
+      "body": "El trabajo no pudo pasar a otro proveedor ni esperar al reinicio. La tarea sigue en {{column}}, sin cambios.",
+      "short": "su proveedor llegó a su límite"
+    },
+    "no-provider": {
+      "title": "Ningún proveedor pudo hacerse cargo.",
+      "body": "Ninguno está listo, o ninguno puede hacer cumplir lo que permite la etapa. La tarea sigue en {{column}}, sin cambios.",
+      "short": "ningún proveedor pudo hacerse cargo"
+    },
+    "limit-wait-expired": {
+      "title": "La espera del límite caducó.",
+      "body": "Esperó a que se restableciera el límite de su proveedor y no ocurrió a tiempo. La tarea sigue en {{column}}, sin cambios.",
+      "short": "el límite no se restableció a tiempo"
     },
     "stopped": {
       "title": "Se detuvo su chat.",

@@ -157,12 +157,10 @@ test('an integration conflict links to the orchestration and counts the files', 
   assert.match(n?.body ?? '', /2 files/);
 });
 
-test('rate limits and account rotation are notified with the run they stopped', () => {
+test('a rate limit is notified with the run it stopped', () => {
   const limited: AgentryEvent = { type: 'run.rateLimited', ...base('limited'), ...run };
-  const rotated: AgentryEvent = { type: 'run.accountRotated', ...base('rotated'), ...run, from: 'a@x', to: 'b@x', resumed: true };
-  const { items } = apply([], [limited, rotated]);
-  assert.deepEqual(items.map((n) => n.kind), ['limit', 'limit']);
-  assert.match(items[0]?.body ?? '', /a@x → b@x.*replayed/);
+  const { items } = apply([], [limited]);
+  assert.deepEqual(items.map((n) => n.kind), ['limit']);
 });
 
 test('finished tasks and subagents stay low priority unless they failed', () => {

@@ -1,4 +1,4 @@
-import type { Orchestration, OrchestrationTaskState, PermissionRequest, Schedule } from '@agentry/shared';
+import type { Orchestration, OrchestrationTaskState, PermissionRequest, ProviderLimit, Schedule } from '@agentry/shared';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { configCount, SIZE_SPANS, validateLayout, WIDGET_SIZES, type WidgetRule } from '../src/pages/dashboard/layout.ts';
@@ -258,30 +258,10 @@ test('task segments: one per task, done first and what is ahead last', () => {
   assert.deepEqual(taskSegments([]), []);
 });
 
-test('limits: the active account from claude-swap first, the CLI windows by name otherwise', () => {
-  const swap = {
-    rateLimit: { status: 'allowed', windows: { five_hour: { utilization: 0.9, resetsAt: 100 } }, observedAt: '' },
-    accounts: {
-      installed: true,
-      total: 1,
-      autoSwitchRunning: false,
-      active: {
-        number: 1,
-        email: 'a@b.c',
-        organizationName: null,
-        alias: null,
-        active: true,
-        disabled: false,
-        usageStatus: 'ok',
-        usageFetchedAt: null,
-        headroomPct: 55,
-        usage: { fiveHour: { pct: 45.4, resetsAt: '2026-09-25T12:00:00Z', countdown: null }, sevenDay: { pct: 5, resetsAt: null, countdown: null }, scoped: [] },
-      },
-    },
-  };
-  assert.deepEqual(limitSummary(swap), { fiveHour: { pct: 45, resetsAt: Date.parse('2026-09-25T12:00:00Z') }, weekly: { pct: 5, resetsAt: null } });
-  const cli = { accounts: null, rateLimit: { status: 'allowed', windows: { seven_day: { utilization: 0.051, resetsAt: 200 }, five_hour: { utilization: 1.2, resetsAt: 100 } }, observedAt: '' } };
-  assert.deepEqual(limitSummary(cli), { fiveHour: { pct: 100, resetsAt: 100_000 }, weekly: { pct: 5, resetsAt: 200_000 } });
+test('limits: the windows of the first provider that reports any, by name', () => {
+  const reading = (windows: ProviderLimit['windows']): ProviderLimit => ({ provider: 'claude-code', state: 'ok', window: null, utilization: null, resetsAt: null, windows, observedAt: '', source: 'stream' });
+  const claude = reading({ seven_day: { utilization: 0.051, resetsAt: 200 }, five_hour: { utilization: 1.2, resetsAt: 100 } });
+  assert.deepEqual(limitSummary({ limits: [reading({}), claude] }), { fiveHour: { pct: 100, resetsAt: 100_000 }, weekly: { pct: 5, resetsAt: 200_000 } });
   assert.deepEqual(limitSummary(undefined), { fiveHour: null, weekly: null });
-  assert.deepEqual(limitSummary({ accounts: null, rateLimit: null }), { fiveHour: null, weekly: null });
+  assert.deepEqual(limitSummary({ limits: [] }), { fiveHour: null, weekly: null });
 });

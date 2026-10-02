@@ -17,9 +17,6 @@ export function CliCard() {
     onSuccess: (fresh) => queryClient.setQueryData(keys.cliVersion, fresh),
   });
   const shown = check.data ?? info;
-  // Shares the accounts page's cache, without its polling: this row only needs the version
-  const { data: accounts } = useQuery({ queryKey: keys.accounts, queryFn: ({ signal }) => api.accounts(false, { signal }) });
-  const cswap = accounts?.cswap;
 
   return (
     <Card title={t('cli.title')}>
@@ -29,21 +26,6 @@ export function CliCard() {
         <dl className="kv">
           <dt>{t('cli.version')}</dt>
           <dd>{shown.current ?? t('cli.notInstalled')}</dd>
-          {cswap && (
-            <>
-              <dt>{t('cli.cswap')}</dt>
-              <dd>
-                {cswap.installed && cswap.version ? (
-                  <>
-                    <span className="mono">{cswap.version}</span>
-                    {cswap.source && <span className="muted"> · {t(`cli.cswapSource.${cswap.source}`)}</span>}
-                  </>
-                ) : (
-                  t('cli.notInstalled')
-                )}
-              </dd>
-            </>
-          )}
           <dt>{t('cli.pinned')}</dt>
           <dd>{shown.pinned ?? t('cli.notPinned')}</dd>
           <dt>{t('cli.latest')}</dt>

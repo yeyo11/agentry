@@ -620,7 +620,7 @@ export class ChatService {
    */
   private gate(
     requested: ProviderId | undefined,
-    options: Pick<ChatStartOptions, 'account' | 'maxBudgetUsd' | 'permissionPrompts'>,
+    options: Pick<ChatStartOptions, 'maxBudgetUsd' | 'permissionPrompts'> & { account?: unknown },
     asks: { schema?: boolean; worktree?: boolean; fork?: boolean; interrupt?: boolean; setModel?: boolean } = {},
   ): ProviderId {
     if (options.account !== undefined) throw new AccountsRetired();

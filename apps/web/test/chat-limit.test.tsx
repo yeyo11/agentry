@@ -28,7 +28,6 @@ const execution = (over: Partial<Execution> = {}): Execution => ({
   error: null,
   permissionMode: 'bypassPermissions',
   model: 'opus',
-  account: null,
   maxBudgetUsd: null,
   costUsd: null,
   tokens: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 },

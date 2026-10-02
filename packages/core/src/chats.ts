@@ -582,7 +582,8 @@ export class ChatManager extends EventEmitter {
 
   /** Refuses what cannot start, before anything is created. */
   private admit(opts: ChatStartOptions, driver: ProviderDriver): void {
-    if (opts.account !== undefined) throw new ChatRefusal(ACCOUNTS_RETIRED);
+    // A body is whatever was sent: the field is gone from the type, the refusal is not
+    if ('account' in opts && (opts as { account?: unknown }).account !== undefined) throw new ChatRefusal(ACCOUNTS_RETIRED);
     const limit = this.defaults.maxConcurrentRuns;
     if (this.activeCount() >= limit) {
       throw new ChatRefusal(`Concurrent run limit reached (${limit})`);

@@ -18,8 +18,7 @@ const ROOT_TYPES = [
   'SettingsDoc', 'InstructionsDoc', 'McpServerEntry', 'McpServerHealth', 'ConfigResource',
   'ConfigFileRoot', 'ConfigFileNode', 'ConfigFileContent', 'WriteConfigFileRequest',
   'MemoryFile', 'MemoryProjectSummary', 'PluginsOverview', 'AvailablePlugin', 'PluginActionRequest', 'CliTextResult',
-  'Attachment', 'AccountsOverview', 'AccountSummary', 'SwitchAccountRequest', 'SwitchResult', 'AddAccountTokenRequest',
-  'SetAccountAliasRequest', 'AutoSwitchSettings', 'AutoSwitchEvent',
+  'Attachment',
   'AgentryEvent', 'StreamHelloEvent', 'StreamResyncEvent',
   // Agentry's own model: chats, executions, projects
   'Chat', 'ChatSummary', 'ChatDetail', 'ChatBackgroundTaskEntry', 'ChatSubagentEntry', 'ChatWorkflowEntry', 'NewChatRequest', 'ResumeChatRequest', 'ForkChatRequest', 'ChatMessageRequest', 'ChatSettingsUpdate',
@@ -40,8 +39,7 @@ const ROOT_TYPES = [
   'McpSelection', 'ToolPreset', 'ChatToolConfig', 'ToolPresetsConfig', 'ToolPresetsOverview',
   // claude.ai connectors
   'Connector', 'ConnectorAction', 'ConnectorGuide', 'ConnectorLimit', 'ConnectorsOverview',
-  // Multi-account: a config dir and a rotation policy per account, usage kept over time
-  'AccountConfig', 'RotationPolicy', 'RotationPolicyRequest', 'UpdateAccountConfigRequest', 'UsageHistoryPoint',
+
   // Scheduling
   'Schedule', 'ScheduleRun', 'SchedulePreview', 'CreateScheduleRequest', 'UpdateScheduleRequest', 'ScheduleOverlap',
   // Usage and cost over time, and transcript export

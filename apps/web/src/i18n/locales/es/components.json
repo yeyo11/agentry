@@ -1,7 +1,6 @@
 {
   "nav": {
     "projects": "Proyectos",
-    "accounts": "Cuentas",
     "schedules": "Programaciones",
     "usage": "Uso",
     "apiReference": "Referencia de la API",
@@ -259,6 +258,26 @@
     "discard": "Descartar los cambios",
     "keepEditing": "Seguir editando"
   },
+  "providerChain": {
+    "label": "Proveedores, del primero al actual",
+    "open": "Abrir el chat de {{name}}",
+    "moved": {
+      "handoff": "movida · traspaso",
+      "restart": "movida · empezada de nuevo"
+    },
+    "keepsPlace": "conserva su sitio"
+  },
+  "limitWait": {
+    "title": "Esperando a {{name}}",
+    "resumesAt": "vuelve a las",
+    "unknown": "no se sabe cuándo se restablece",
+    "why": "Llegó a su límite de uso. Conserva su sitio y sigue sola cuando se restablezca.",
+    "stop": "Dejar de esperar",
+    "stopFailed": "No se ha podido dejar de esperar",
+    "moveNow": "Mover ahora",
+    "moveNowTitle": "Abre su chat para pasarla a otro proveedor",
+    "badge": "esperando"
+  },
   "notificationText": {
     "waitingPermission": "{{name}} necesita tu aprobación para usar {{tool}}",
     "waitingQuestion": "{{name}} te está haciendo una pregunta",
@@ -273,11 +292,14 @@
     "turns_other": "{{count}} turnos",
     "rateLimited": "{{name}} ha llegado a un límite de uso",
     "rateLimitedBody": "El turno se ha detenido porque la cuenta se ha quedado sin cuota.",
-    "rotated": "{{name}} ha cambiado de cuenta",
-    "previousAccount": "La cuenta anterior",
-    "nextAccount": "la siguiente cuenta",
-    "rotatedBody": "{{from}} → {{to}}.",
-    "rotatedBodyReplayed": "{{from}} → {{to}}, y se ha repetido el turno.",
+    "movedBody": {
+      "handoff": "Ha seguido a partir de un resumen de lo hecho.",
+      "restart": "Ha empezado de nuevo con su prompt original."
+    },
+    "limitWaitingBody": {
+      "at": "Sigue cuando se restablezca el límite, a las {{when}}.",
+      "unknown": "Sigue cuando se restablezca el límite; no se sabe a qué hora."
+    },
     "orchestrationFailed": "La orquestación {{name}} ha fallado",
     "orchestrationFinished": "La orquestación {{name}} ha terminado",
     "orchestrationFailedBody": "Una tarea ha fallado y el grafo se ha detenido.",

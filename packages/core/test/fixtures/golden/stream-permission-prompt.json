@@ -36,7 +36,6 @@
         "error": null,
         "permissionMode": "acceptEdits",
         "model": "fake",
-        "account": null,
         "maxBudgetUsd": null,
         "costUsd": 0.01,
         "tokens": {

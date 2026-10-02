@@ -129,7 +129,7 @@ export function LimitsWidget({ project, title, id }: WidgetProps) {
   const { limits } = useHomePulse(project);
   const heading = `${id}-title`;
   const five = limits.fiveHour;
-  const email = overview.data?.accounts?.active?.email ?? overview.data?.system.auth.email ?? null;
+  const email = overview.data?.system.auth.email ?? null;
   const tone = five ? usageTone(five.pct) : 'neutral';
   return (
     <section className="card kpi limits-card" aria-labelledby={heading}>
@@ -144,7 +144,7 @@ export function LimitsWidget({ project, title, id }: WidgetProps) {
           ) : null}
           <span className="limits-text">
             {email && (
-              <Link to="/accounts" className="limits-account strong ellipsis">
+              <Link to="/settings?tab=providers" className="limits-account strong ellipsis">
                 {email}
               </Link>
             )}

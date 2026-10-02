@@ -38,6 +38,8 @@ const FAILURE_CAUSES = new Set<FlowRunCause>([
   'budget',
   'no-account',
   'rate-limit',
+  'no-provider',
+  'limit-wait-expired',
   'stopped',
   'restarts',
   'unreadable',

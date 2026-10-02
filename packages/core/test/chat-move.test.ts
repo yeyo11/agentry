@@ -83,12 +83,14 @@ test('wait: the same chat replays its turn on the same provider, once', async ()
 
 test('a request that sends an account is refused: accounts were retired', async () => {
   const { chats, service, limited, close } = rig();
+  // Built apart from the call: the field is gone from the types, and a body can still carry it
+  const pinned = { prompt: 'hi', account: '1' };
   try {
-    assert.throws(() => chats.start({ prompt: 'hi', account: '1' }), (err: unknown) => err instanceof ChatRefusal && err.statusCode === 400 && /accounts were retired/.test(err.message));
+    assert.throws(() => chats.start(pinned), (err: unknown) => err instanceof ChatRefusal && err.statusCode === 400 && /accounts were retired/.test(err.message));
     const id = await limited('hello');
-    assert.throws(() => chats.resume(id, { prompt: 'again', account: null }), ChatRefusal);
-    await assert.rejects(() => service.create({ prompt: 'hi', account: '1' }), AccountsRetired);
-    await assert.rejects(() => service.fork(id, { prompt: 'hi', account: '1' }), AccountsRetired);
+    assert.throws(() => chats.resume(id, { prompt: 'again', ...{ account: null } }), ChatRefusal);
+    await assert.rejects(() => service.create(pinned), AccountsRetired);
+    await assert.rejects(() => service.fork(id, pinned), AccountsRetired);
   } finally {
     close();
   }

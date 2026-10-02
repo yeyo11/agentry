@@ -618,7 +618,6 @@ export function driverConformance(name: string, harness: DriverHarness): void {
       const cases: Array<[ProviderCapability, string, (s: ChatService) => Promise<unknown>]> = [
         ['structuredOutput', 'a JSON schema', (s) => s.create({ prompt: 'x', jsonSchema: { type: 'object' } })],
         ['worktreeFlag', 'a worktree', (s) => s.create({ prompt: 'x', worktree: 'w' })],
-        ['multiAccount', 'a pinned account', (s) => s.create({ prompt: 'x', account: 'someone' })],
         ['budgetLimit', 'a budget', (s) => s.create({ prompt: 'x', maxBudgetUsd: 1 })],
         ['interactivePermissions', 'host prompts', (s) => s.create({ prompt: 'x', permissionPrompts: 'host' })],
         ['interrupt', 'an interrupt', (s) => s.interrupt('any')],

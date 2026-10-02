@@ -4,7 +4,7 @@ import { Play } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { api, keys, useAccounts, useOverview } from '../../../api';
+import { api, keys, useOverview } from '../../../api';
 import { ChatToolsPicker, type ToolChoices } from '../../../components/ChatToolsPicker';
 import { Select, Switch } from '@agentry/ui/components/controls';
 import { Dialog } from '@agentry/ui/components/Dialog';
@@ -26,10 +26,8 @@ export function WorkOnDialog({ item, onClose }: { item: Pick<WorkItem, 'id' | 'k
   const navigate = useNavigate();
   const qc = useQueryClient();
   const overview = useOverview();
-  const accounts = useAccounts();
   const [model, setModel] = useState('');
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
-  const [account, setAccount] = useState('');
   const [appendSystemPrompt, setAppendSystemPrompt] = useState('');
   const [tools, setTools] = useState<ToolChoices>({});
   const [askHere, setAskHere] = useState(true);
@@ -40,7 +38,6 @@ export function WorkOnDialog({ item, onClose }: { item: Pick<WorkItem, 'id' | 'k
       const req: WorkOnWorkItemRequest = { permissionPrompts: askHere ? 'host' : 'none' };
       if (model.trim()) req.model = model.trim();
       if (permissionMode) req.permissionMode = permissionMode;
-      if (account) req.account = account;
       if (appendSystemPrompt.trim()) req.appendSystemPrompt = appendSystemPrompt.trim();
       if (tools.toolPreset !== undefined) req.toolPreset = tools.toolPreset;
       if (tools.mcp) req.mcp = tools.mcp;
@@ -83,22 +80,6 @@ export function WorkOnDialog({ item, onClose }: { item: Pick<WorkItem, 'id' | 'k
               options={[{ value: '', label: tn('new.permissionModeDefault', { mode: defaultMode }) }, ...PERMISSION_MODES.map((m) => ({ value: m, label: m }))]}
             />
           </Field>
-          {(accounts.data?.accounts.length ?? 0) > 1 && (
-            <Field label={tn('new.account')} hint={tn('new.accountHint')}>
-              <Select
-                aria-label={tn('new.account')}
-                value={account}
-                onChange={setAccount}
-                options={[
-                  { value: '', label: tn('new.activeAccount') },
-                  ...(accounts.data?.accounts ?? []).map((a) => ({
-                    value: String(a.number),
-                    label: a.headroomPct !== null ? tn('new.accountHeadroom', { name: a.alias ?? a.email, pct: a.headroomPct }) : (a.alias ?? a.email),
-                  })),
-                ]}
-              />
-            </Field>
-          )}
         </div>
         <Field label={tn('new.appendSystemPrompt')} hint={tn('new.optional')}>
           <textarea rows={2} value={appendSystemPrompt} onChange={(e) => setAppendSystemPrompt(e.target.value)} />

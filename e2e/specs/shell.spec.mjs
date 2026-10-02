@@ -33,7 +33,7 @@ export default async ({ page, api, check, dirs }) => {
     // The sidebar's two groups, and the status bar at the bottom of the column
     const groups = await page.eval(`return [...document.querySelectorAll('#sidebar .nav-group')].map((g) => [...g.querySelectorAll('a')].map((a) => a.getAttribute('href').split('?')[0]))`);
     check(
-      JSON.stringify(groups) === JSON.stringify([['/', '/chats', '/tasks', '/orchestration', '/schedules'], ['/projects', '/accounts', '/connectors', '/usage', '/settings']]),
+      JSON.stringify(groups) === JSON.stringify([['/', '/chats', '/tasks', '/orchestration', '/schedules'], ['/projects', '/connectors', '/usage', '/settings']]),
       `the sidebar has the Work and Space groups, Tasks between Chats and Orchestrations (${JSON.stringify(groups)})`,
     );
     const status = await page.eval(`const s = document.querySelector('.statusbar'); if (!s) return null; const r = s.getBoundingClientRect(); return { height: r.height, bottom: r.bottom, text: s.innerText }`);

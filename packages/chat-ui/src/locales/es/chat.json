@@ -181,7 +181,6 @@
       "up": "lleva {{duration}} en marcha",
       "turns_one": "{{count}} turno",
       "turns_other": "{{count}} turnos",
-      "account": "cuenta {{name}}",
       "budget": "presupuesto {{amount}}",
       "errorPrefix": "Error:"
     },
