@@ -182,7 +182,17 @@ export class ProviderRotation {
       }
       await this.act(run, work, limit);
     } catch (error) {
-      this.deps.runtime.notice(run.id, `Handling the usage limit failed: ${error instanceof Error ? error.message : String(error)}`);
+      const why = error instanceof Error ? error.message : String(error);
+      this.deps.runtime.notice(run.id, `Handling the usage limit failed: ${why}`);
+      // Flows and tasks keep the run open while the rotation holds it: with neither a move nor a
+      // wait behind it, nothing would ever end it. Waiting is the floor every action falls back to.
+      if (!this.waits.has(run.id)) {
+        try {
+          this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: `handling the limit failed: ${why}`, resetsAt: limit?.resetsAt ?? null, projectId: null });
+        } catch {
+          /* the notice above is all that is left to say */
+        }
+      }
     } finally {
       this.handling.delete(run.id);
     }
@@ -211,7 +221,8 @@ export class ProviderRotation {
 
     const stance = stanceOf(this.deps.decisions, 'provider.on-limit', projectId);
     if (work && candidates && stance !== 'off' && allowed.length >= 2 && this.deps.points && work.subjectKind !== 'chat') {
-      const answer = await this.deps.points.onLimit(stance, this.onLimitSubject(run, work, projectId, limit, candidates, allowed));
+      // A decision that cannot be had leaves the setting in charge, as an unanswered one does
+      const answer = await this.deps.points.onLimit(stance, this.onLimitSubject(run, work, projectId, limit, candidates, allowed)).catch(() => null);
       if (answer) {
         action = answer.action;
         decidedBy = 'decision';
@@ -224,7 +235,12 @@ export class ProviderRotation {
       if (first) {
         try {
           const { move } = await this.deps.chats.continueOn(run.id, { provider: first.provider, action, ...(first.model ? { model: first.model } : {}) }, { decidedBy, decisionId, reason: null, resetsAt: limit?.resetsAt ?? null });
-          this.deps.repoint?.(move);
+          try {
+            this.deps.repoint?.(move);
+          } catch (error) {
+            // The work already lives on in the new chat: waiting on the old one would run it twice
+            this.deps.runtime.notice(run.id, `The work moved to ${first.provider}, but pointing it at the new chat failed: ${error instanceof Error ? error.message : String(error)}`);
+          }
           return;
         } catch (error) {
           // The floor: a move that cannot happen waits instead of failing the run

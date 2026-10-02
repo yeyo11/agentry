@@ -429,6 +429,65 @@ test('provider.on-limit chooses among the feasible, allowed actions and its id g
   }
 });
 
+test('a provider.on-limit that cannot answer leaves the setting in charge', async () => {
+  const points = {
+    onLimit: async () => {
+      throw new Error('the decision engine is down');
+    },
+    suggestMapping: async () => null,
+  };
+  const { limited, repointed, close } = rig({ action: 'restart', allowed: ['wait', 'handoff', 'restart'], work, repoint: true, points });
+  try {
+    await limited();
+    await waitFor(() => repointed.length === 1);
+    assert.equal(repointed[0]?.action, 'restart');
+    assert.equal(repointed[0]?.decidedBy, 'setting');
+  } finally {
+    close();
+  }
+});
+
+test('automated work whose limit handling fails waits for the reset instead of being left open', async () => {
+  const points = {
+    // Thrown before any promise exists, so it escapes the decision and the whole handling fails
+    onLimit: () => {
+      throw new Error('broken point');
+    },
+    suggestMapping: async () => null,
+  };
+  const { limited, rotation, repointed, close } = rig({ action: 'restart', allowed: ['wait', 'handoff', 'restart'], work, repoint: true, points });
+  try {
+    const id = await limited();
+    await waitFor(() => rotation.waitOf(id) !== null);
+    assert.equal(repointed.length, 0);
+    assert.equal(rotation.holds(id), true);
+  } finally {
+    close();
+  }
+});
+
+test('a move whose re-pointing fails does not also wait on the old chat', async () => {
+  const { limited, rotation, service, close } = rig({ action: 'restart', allowed: ['wait', 'handoff', 'restart'], work, points: null, repoint: true });
+  const continued: string[] = [];
+  const original = service.continueOn.bind(service);
+  service.continueOn = async (...args: Parameters<typeof original>) => {
+    const out = await original(...args);
+    continued.push(out.move.id);
+    return out;
+  };
+  (rotation as unknown as { deps: { repoint: () => void } }).deps.repoint = () => {
+    throw new Error('the flow run is gone');
+  };
+  try {
+    const id = await limited();
+    await waitFor(() => continued.length === 1);
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(rotation.waitOf(id), null);
+  } finally {
+    close();
+  }
+});
+
 test("a point is not asked when only one action is feasible, and a person's chat is never put to it", async () => {
   let calls = 0;
   const points = {
