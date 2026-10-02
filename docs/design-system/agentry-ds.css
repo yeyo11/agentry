@@ -1476,6 +1476,10 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
    the mark plus the label, in the chat header and its details panel. A list row carries the mark alone,
    with the label as its name. Neither moves nor takes the gradient: the agent being live is the row's. ---------- */
 .prov-mark { display: inline-grid; place-items: center; flex-shrink: 0; width: 20px; height: 20px; border-radius: var(--r-sm); background: var(--hue-fill); color: var(--hue-ink); font-family: var(--mono); font-size: 11px; font-weight: 600; line-height: 1; }
+/* Brand marks: the official art of a program on a light tile, the same in both themes */
+.brand-mark { display: inline-grid; place-items: center; flex-shrink: 0; border-radius: var(--r-sm); background: var(--brand-tile, #fff); border: 1px solid var(--border); box-sizing: border-box; }
+.brand-mark svg { width: 62%; height: 62%; display: block; }
+.prov-mark.brand-mark { background: var(--brand-tile, #fff); color: inherit; }
 .prov-badge { display: inline-flex; align-items: center; gap: 7px; font-family: var(--sans); letter-spacing: 0; text-transform: none; height: 26px; padding: 0 10px 0 3px; border-radius: var(--r-full); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg-2); font-size: 12.5px; white-space: nowrap; }
 .prov-badge .prov-mark { border-radius: var(--r-full); }
 /* ---------- end of ProviderBadge ---------- */

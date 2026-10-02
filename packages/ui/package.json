@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./components/ActivityTicker": "./src/components/ActivityTicker.tsx",
+    "./components/BrandMark": "./src/components/BrandMark.tsx",
     "./components/AnimatedNumber": "./src/components/AnimatedNumber.tsx",
     "./components/CodeBlock": "./src/components/CodeBlock.tsx",
     "./components/Dialog": "./src/components/Dialog.tsx",

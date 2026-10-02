@@ -697,6 +697,23 @@ input.is-invalid {
 }
 
 /* The agent a chat runs on: its monogram tinted from --hue like .monogram, never a status hue */
+/* The official mark of a program: the brand's own art on a tile that is light in both themes */
+.brand-mark {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--brand-tile);
+  border: 1px solid var(--border);
+  box-sizing: border-box;
+}
+
+.brand-mark svg {
+  width: 62%;
+  height: 62%;
+  display: block;
+}
+
 .prov-mark {
   flex: none;
   display: inline-grid;
@@ -710,6 +727,12 @@ input.is-invalid {
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
+}
+
+/* An agent with an official mark keeps the class its screens select, and the tile of a brand */
+.prov-mark.brand-mark {
+  background: var(--brand-tile);
+  color: inherit;
 }
 
 @media (max-width: 1100px) {

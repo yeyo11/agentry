@@ -6,7 +6,8 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { api, keys } from '../../api';
 import { Sheet } from '@agentry/ui/components/controls';
-import { ICON_SM, Monogram } from '@agentry/ui/components/icons';
+import { ProgramMark } from '@agentry/ui/components/BrandMark';
+import { ICON_SM } from '@agentry/ui/components/icons';
 import { Spinner } from '@agentry/ui/components/Spinner';
 import { useToast } from '@agentry/ui/components/Toast';
 import { Card, Empty, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
@@ -529,7 +530,7 @@ function HostRow({
     return (
       <div className="prov-cell" data-host={status.id} data-state={shown}>
         <div className="prov-cell-head">
-          <Monogram name={status.label} />
+          <ProgramMark id={status.id} label={status.label} />
           {identity}
         </div>
         {state}
@@ -540,7 +541,7 @@ function HostRow({
   return (
     <>
       <div className={`prov-row compact${open ? ' open' : ''}`} data-host={status.id} data-state={shown}>
-        <Monogram name={status.label} />
+        <ProgramMark id={status.id} label={status.label} />
         {identity}
         {state}
         <div className="prov-actions">{buttons}</div>
@@ -796,7 +797,7 @@ function TrackerRow({
     return (
       <div className="prov-cell" data-tracker={status.id} data-state={shown}>
         <div className="prov-cell-head">
-          <Monogram name={words.label} />
+          <ProgramMark id={status.id} label={words.label} />
           {identity}
         </div>
         {state}
@@ -807,7 +808,7 @@ function TrackerRow({
   return (
     <>
       <div className={`prov-row compact${open ? ' open' : ''}`} data-tracker={status.id} data-state={shown}>
-        <Monogram name={words.label} />
+        <ProgramMark id={status.id} label={words.label} />
         {identity}
         {state}
         <div className="prov-actions">{buttons}</div>
