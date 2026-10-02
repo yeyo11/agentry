@@ -674,6 +674,26 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      detail       TEXT
    );
    CREATE INDEX change_request_merges_cr ON change_request_merges(cr_id, requested_at);`,
+  // Issues linked to work items (docs/plans/code-hosts.md, phase 5): one row per issue imported or
+  // linked, unique per project so an issue is never imported twice. sync_state is none until the first
+  // write to the tracker; sync_reason holds the reason of a failed one
+  `CREATE TABLE work_item_issues (
+     id          TEXT PRIMARY KEY,
+     project_id  TEXT NOT NULL,
+     item_id     TEXT NOT NULL,
+     tracker     TEXT NOT NULL,
+     key         TEXT NOT NULL,
+     external_id TEXT,
+     title       TEXT NOT NULL,
+     state       TEXT NOT NULL,
+     url         TEXT,
+     imported_at TEXT NOT NULL,
+     synced_at   TEXT,
+     sync_state  TEXT NOT NULL DEFAULT 'none',
+     sync_reason TEXT,
+     UNIQUE (project_id, tracker, key)
+   );
+   CREATE INDEX work_item_issues_item ON work_item_issues (item_id, imported_at);`,
 ];
 
 /**
@@ -711,6 +731,9 @@ export const REVIEWS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === '
 
 /** The version that added the merge audit, for the test that upgrades a database from the one before */
 export const MERGES_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE change_request_merges')) + 1;
+
+/** The version that added the issues linked to work items, for the test that upgrades a database from the one before */
+export const ISSUES_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE work_item_issues')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by

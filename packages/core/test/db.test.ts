@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { DecisionRecord, Execution } from '@agentry/shared';
 import type { LegacyRun, StoredChat } from '../src/chat-records.ts';
-import { CHAT_ENTRIES_SCHEMA_VERSION, CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, MERGES_SCHEMA_VERSION, migrate, REVIEWS_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
+import { CHAT_ENTRIES_SCHEMA_VERSION, CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, ISSUES_SCHEMA_VERSION, MERGES_SCHEMA_VERSION, migrate, REVIEWS_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
 import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from '../src/orchestration-pr-rows.ts';
 import { changeRequestMergeOf, pullRequestOf, reviewDraftOf, reviewPostOf, type ChangeRequestMergeRow, type PullRequestRow, type ReviewDraftRow, type ReviewPostRow } from '../src/work-item-rows.ts';
@@ -734,5 +734,22 @@ test('migrate adds the merge audit and reads a row it does not know as a failed 
   assert.deepEqual([changeRequestMergeOf(read()).deleteBranch, changeRequestMergeOf(read()).reason], [true, 'head-moved']);
   const odd = changeRequestMergeOf({ ...read(), action: 'later', method: 'later', outcome: 'later' });
   assert.deepEqual([odd.action, odd.method, odd.outcome], ['merge', null, 'failed']);
+  raw.close();
+});
+
+test('migrate adds the issues linked to items, and one issue is never linked twice in a project', () => {
+  const raw = new DatabaseSync(':memory:');
+  assert.equal(ISSUES_SCHEMA_VERSION, MERGES_SCHEMA_VERSION + 1);
+  migrate(raw, ISSUES_SCHEMA_VERSION - 1);
+  migrate(raw);
+  const insert = (id: string, project: string, key: string) =>
+    raw
+      .prepare("INSERT INTO work_item_issues (id, project_id, item_id, tracker, key, title, state, imported_at) VALUES (?, ?, 'i', 'github-issues', ?, 't', 'open', ?)")
+      .run(id, project, key, at(1));
+  insert('a', 'p1', '12');
+  assert.throws(() => insert('b', 'p1', '12'), /UNIQUE/);
+  insert('c', 'p2', '12');
+  const row = raw.prepare("SELECT sync_state, sync_reason, synced_at FROM work_item_issues WHERE id = 'a'").get();
+  assert.deepEqual({ ...row }, { sync_state: 'none', sync_reason: null, synced_at: null });
   raw.close();
 });

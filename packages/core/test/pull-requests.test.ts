@@ -64,6 +64,17 @@ test("a PR's body carries the description, each criterion with QA's note and a l
   assert.match(body, /## Work item\n\n\[CW-9\]\(http:\/\/localhost:8787\/tasks\/CW-9\)/);
 });
 
+test('the issues of an item go into the title (Jira, YouTrack) and a Linked issue section of the body', () => {
+  const issues = [
+    { tracker: 'jira' as const, key: 'PROJ-12', externalId: null, title: 't', state: 'open', url: null, importedAt: '', syncedAt: null, syncState: 'none' as const, syncReason: null },
+    { tracker: 'youtrack' as const, key: 'AB-3', externalId: null, title: 't', state: 'open', url: null, importedAt: '', syncedAt: null, syncState: 'none' as const, syncReason: null },
+  ];
+  assert.equal(pullRequestTitle({ key: 'CW-3', title: 'Fix the cart', type: 'bug', labels: [], issues }), 'fix: Fix the cart (CW-3, PROJ-12, AB-3)');
+  const body = pullRequestBody({ key: 'CW-9', description: 'd', acceptanceCriteria: [] }, [], null, ['Closes #12']);
+  assert.match(body, /^d\n\n## Linked issue\n\nCloses #12\n\n## Work item/);
+  assert.ok(!pullRequestBody({ key: 'CW-9', description: 'd', acceptanceCriteria: [] }, [], null).includes('Linked issue'));
+});
+
 test('statusCheckRollup maps to none, pending, passing and failing', () => {
   assert.equal(ciOf([]), 'none');
   assert.equal(ciOf(null), 'none');
@@ -188,6 +199,21 @@ test('approving commits what is left, merges origin/main into the branch, pushes
     assert.equal(again.pullRequest.number, 7);
     await s.service.settled();
     assert.equal(creates(s.r).length, 1);
+  } finally {
+    cleanup(s);
+  }
+});
+
+test('an item with a linked issue opens its PR with Closes in the body, into the default branch', async () => {
+  const s = setup({ tracker: { id: 'github-issues', scope: 'acme/shop', query: '', statusMap: {} } });
+  try {
+    const item = reviewed(s);
+    s.items.linkIssue(item.id, { tracker: 'github-issues', key: '12', externalId: null, title: 'The total is wrong', state: 'open', url: null });
+    await s.service.approve(item.id);
+    await s.service.settled();
+    const body = readFileSync(join(s.r.state, 'body-7'), 'utf8');
+    assert.match(body, /## Linked issue\n\nCloses #12\n/);
+    assert.match(readFileSync(join(s.r.state, 'create-7'), 'utf8'), /--title feat: Fix the cart total \(CW-1\) --body-file -/);
   } finally {
     cleanup(s);
   }

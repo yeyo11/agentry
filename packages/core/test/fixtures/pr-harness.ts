@@ -4,7 +4,7 @@ import { appendFileSync, chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFi
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AgentryEvent, FlowCriterionResult, WorkItem } from '@agentry/shared';
+import type { AgentryEvent, FlowCriterionResult, ProjectTrackerSettings, WorkItem } from '@agentry/shared';
 import { Db } from '../../src/db.ts';
 import { runHostCall } from '../../src/hosts/exec.ts';
 import type { MergeService } from '../../src/hosts/merge-service.ts';
@@ -102,7 +102,7 @@ export function landOnMain(r: Repo, file: string, content: string): void {
   sh(r.other, 'push', '-q', 'origin', 'main');
 }
 
-export function setup(opts: { r?: Repo; db?: Db; busy?: Set<string>; noGh?: boolean; host?: HostKind; verdicts?: FlowCriterionResult[]; merge?: MergeService } = {}) {
+export function setup(opts: { r?: Repo; db?: Db; busy?: Set<string>; noGh?: boolean; host?: HostKind; verdicts?: FlowCriterionResult[]; merge?: MergeService; tracker?: ProjectTrackerSettings } = {}) {
   const r = opts.r ?? repo();
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
@@ -129,6 +129,7 @@ export function setup(opts: { r?: Repo; db?: Db; busy?: Set<string>; noGh?: bool
     busy: (id) => busy.has(id),
     ...(opts.merge ? { merge: opts.merge } : {}),
     verdicts: () => opts.verdicts ?? [],
+    ...(opts.tracker ? { projectTracker: () => opts.tracker ?? null } : {}),
     webOrigin: () => 'http://localhost:8787',
     env: { PATH: opts.noGh ? r.binNoGh : `${r.bin}:${BASE_PATH}`, FAKE_GH_STATE: r.state, FAKE_GLAB_STATE: r.glabState },
     searchPath: async () => (opts.noGh ? r.binNoGh : `${r.bin}:${BASE_PATH}`),

@@ -10,6 +10,9 @@ import type {
   ProjectTeamMember,
   ProjectTeamSettings,
   ProjectTemplateId,
+  ProjectTrackerSettings,
+  TrackerId,
+  TrackerMappedStatus,
   WorkItemStatus,
   WorkItemType,
 } from '@agentry/shared';
@@ -19,6 +22,7 @@ import { parseProjectDecisions } from './decisions/settings.ts';
 import type { CoreConfig } from './paths.ts';
 import { projectTemplate } from './project-templates.ts';
 import type { ProjectRecord } from './projects.ts';
+import { isTrackerId, TRACKER_IDS } from './trackers/ids.ts';
 
 /*
  * What a project configures, beyond its name and path: a settings document per project, a JSON file
@@ -42,6 +46,14 @@ const DERIVED_MAX = 5;
 const SINGLE_WORD_LENGTH = 3;
 /** What a name with fewer than two letters in it gets, since a prefix cannot be made from it. */
 const FALLBACK_PREFIX = 'PRJ';
+const MAX_TRACKER_QUERY = 1000;
+const TRACKER_MAPPED: readonly TrackerMappedStatus[] = ['in_progress', 'in_review', 'done'];
+/** The one thing GitHub and GitLab do on `done`: close the issue with the reason `completed`. */
+const CLOSE_STATUS = 'completed';
+/** `owner/repo`; GitLab also nests groups. Segments are what both hosts allow in a path. */
+const REPO_SEGMENT = '[A-Za-z0-9_.-]+';
+const GITHUB_REPO = new RegExp(`^${REPO_SEGMENT}/${REPO_SEGMENT}$`);
+const GITLAB_REPO = new RegExp(`^${REPO_SEGMENT}(?:/${REPO_SEGMENT})+$`);
 const AGENT_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 
 const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -257,6 +269,42 @@ function parseDocuments(value: unknown): ProjectDocumentsSettings {
 }
 
 /**
+ * A project's tracker. What the scope looks like is checked only where the tracker's own CLI is
+ * already known: a repository for GitHub and GitLab. Jira and YouTrack scopes are one token, since
+ * nothing here is recorded about them yet. GitHub and GitLab sync only `done`, as a close.
+ */
+function parseTracker(value: unknown): ProjectTrackerSettings {
+  if (!isObject(value)) throw new Error('tracker must be an object');
+  const { id } = value;
+  if (!isTrackerId(id)) throw new Error(`unknown tracker ${String(id)}; expected one of ${TRACKER_IDS.join(', ')}`);
+  const scope = text(value.scope, 'tracker.scope', MAX_SHORT);
+  const repo = id === 'github-issues' ? GITHUB_REPO : id === 'gitlab-issues' ? GITLAB_REPO : null;
+  if (repo ? !repo.test(scope) : /\s/.test(scope)) {
+    throw new Error(repo ? `tracker.scope must be a repository, ${id === 'github-issues' ? 'owner/repo' : 'group/project'}` : 'tracker.scope must not contain spaces');
+  }
+  const query = value.query ?? '';
+  if (typeof query !== 'string') throw new Error('tracker.query must be a string');
+  if (query.length > MAX_TRACKER_QUERY) throw new Error(`tracker.query is longer than ${MAX_TRACKER_QUERY} characters`);
+  const raw = value.statusMap ?? {};
+  if (!isObject(raw)) throw new Error('tracker.statusMap must be an object');
+  const statusMap: ProjectTrackerSettings['statusMap'] = {};
+  for (const [column, status] of Object.entries(raw)) {
+    if (!(TRACKER_MAPPED as readonly string[]).includes(column)) {
+      throw new Error(`tracker.statusMap column must be one of ${TRACKER_MAPPED.join(', ')}`);
+    }
+    // null clears a mapping, the same as leaving the column out
+    if (status === null) continue;
+    const mapped = text(status, `tracker.statusMap.${column}`, MAX_SHORT);
+    const closesOnly = id === 'github-issues' || id === 'gitlab-issues';
+    if (closesOnly && (column !== 'done' || mapped !== CLOSE_STATUS)) {
+      throw new Error(`${id} maps only done, to ${CLOSE_STATUS}`);
+    }
+    statusMap[column as TrackerMappedStatus] = mapped;
+  }
+  return { id: id as TrackerId, scope, query: query.trim(), statusMap };
+}
+
+/**
  * Validates a whole document a person sent (`PUT /projects/:id/settings`). A bad value is refused,
  * not replaced. The optional parts (team, flow, documents) are checked the same way when present,
  * since the team, the flow and the Documents module read them as stored. Unknown fields are dropped.
@@ -272,6 +320,7 @@ export function parseProjectSettings(input: unknown): ProjectSettings {
   if (input.team !== undefined && input.team !== null) settings.team = parseTeam(input.team);
   if (input.flow !== undefined && input.flow !== null) settings.flow = parseFlow(input.flow);
   if (input.documents !== undefined && input.documents !== null) settings.documents = parseDocuments(input.documents);
+  if (input.tracker !== undefined && input.tracker !== null) settings.tracker = parseTracker(input.tracker);
   if (input.decisions !== undefined && input.decisions !== null) {
     const decisions = parseProjectDecisions(input.decisions);
     if (Object.keys(decisions).length > 0) settings.decisions = decisions;
@@ -306,6 +355,8 @@ function sanitizeSettings(value: unknown, fallbackPrefix: string): ProjectSettin
   if (team) settings.team = team;
   if (flow) settings.flow = flow;
   if (documents) settings.documents = documents;
+  const tracker = attempt(() => (raw.tracker == null ? null : parseTracker(raw.tracker)), null);
+  if (tracker) settings.tracker = tracker;
   const decisions = attempt(() => (raw.decisions == null ? null : parseProjectDecisions(raw.decisions)), null);
   if (decisions && Object.keys(decisions).length > 0) settings.decisions = decisions;
   return settings;
