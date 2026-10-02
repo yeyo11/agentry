@@ -29,7 +29,9 @@ export function confirmClaudeInit(init: SessionInit): CapabilityConfirmation {
 
   const hasTools = init.tools.length > 0;
   check('subagents', init.tools.includes('Task') || init.tools.includes('Agent'), hasTools);
-  check('workflowTool', init.tools.includes('Workflow'), hasTools);
+  // 2.1.287 leaves `Workflow` out of the init of sessions that do have every other tool, so its
+  // absence is not evidence the CLI lacks it: like a server, it only confirms
+  check('workflowTool', init.tools.includes('Workflow'), false);
   // No servers configured is the usual case, so only a server confirms; it never contradicts
   check('mcp', init.mcpServers.length > 0, false);
   check('structuredOutput', init.structuredOutput, false);

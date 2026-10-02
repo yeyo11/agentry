@@ -325,8 +325,14 @@ describe('capabilities confirmed by a session', () => {
 
   it('reads Agent as the subagent tool, and contradicts only from a tool list it could read', () => {
     assert.ok(confirmClaudeInit(init({ tools: ['Agent'] })).confirmed.includes('subagents'));
-    assert.deepEqual(confirmClaudeInit(init({ tools: ['Read'] })).missing, ['subagents', 'workflowTool']);
+    assert.deepEqual(confirmClaudeInit(init({ tools: ['Read'] })).missing, ['subagents']);
     assert.deepEqual(confirmClaudeInit(init({ tools: [] })).missing, []);
+  });
+
+  it('never degrades on a missing Workflow tool, which 2.1.287 leaves out of the init', () => {
+    const c = confirmClaudeInit(init({ version: '2.1.287', tools: ['Read', 'Agent'] }));
+    assert.deepEqual(c.missing, []);
+    assert.ok(!c.confirmed.includes('workflowTool'));
   });
 
   it('confirms nothing for a version outside the range', () => {
@@ -358,7 +364,8 @@ describe('capabilities confirmed by a session', () => {
     const degraded = d.knownOne('claude-code');
     assert.deepEqual([degraded?.state, degraded?.reason], ['degraded', 'capability-missing']);
     assert.ok(!degraded?.capabilities.includes('subagents'));
-    assert.ok(!d.capabilities('claude-code').includes('workflowTool'));
+    // A missing Workflow tool never contradicts, so the capability stays declared
+    assert.ok(d.capabilities('claude-code').includes('workflowTool'));
 
     const again = await statusOf(d, 'claude-code');
     assert.deepEqual([again.state, again.reason], ['degraded', 'capability-missing']);
