@@ -1873,6 +1873,45 @@ button.check-group-head { width: 100%; border-left: 0; border-right: 0; border-t
 .m-screen .mg-foot .note { flex: 0 0 auto; }
 /* ---------- end of Merge block ---------- */
 
+/* ---------- Rotation between providers: the chain chip, a wait, the limit in the status bar and the retirement notice (plans/multi-provider.md, phase 4, P0 p3) ----------
+   Waiting is not live work: nothing here moves, and the only status colours are warn (near a limit, or waiting
+   for a reset) and bad (exhausted), each beside its word. The provider's mark is the monogram of ProviderBadge. */
+.chain { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.chain-chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px 0 3px; border-radius: var(--r-full); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg-2); font-size: 12px; white-space: nowrap; }
+a.chain-chip:hover { color: var(--fg); border-color: var(--line-3); }
+.chain-chip .prov-mark { width: 18px; height: 18px; border-radius: var(--r-full); font-size: 9.5px; }
+/* The newest chat of the chain is the one that runs now: the others are history */
+.chain-chip.now { color: var(--fg); border-color: var(--line-3); font-weight: 500; }
+.chain-arrow { width: 14px; height: 14px; flex-shrink: 0; color: var(--fg-3); }
+.chain-how { font-family: var(--mono); font-size: 11px; color: var(--fg-3); white-space: nowrap; }
+.chain-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+/* A wait: the strip that stands where a running task shows its command. Warn tint and the clock, no spinner */
+.wait-line { display: flex; align-items: flex-start; gap: 8px; border-radius: var(--r); background: var(--warn-soft); color: var(--fg-2); padding: 9px 10px; font-size: 12px; line-height: 1.45; }
+.wait-line .ico { flex-shrink: 0; margin-top: 1px; color: var(--warn); }
+.wait-line b { color: var(--fg); font-weight: 500; }
+.wait-line .mono { color: var(--fg); }
+.wait-line .why { display: block; margin-top: 2px; color: var(--fg-2); }
+/* The limit of a provider in the status bar: its dot, its name and, when a reading exists, the bar of the binding window */
+.statusbar .lim { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; padding: 0; border-radius: 0; background: none; font-size: inherit; line-height: inherit; color: inherit; }
+.statusbar .lim .bar { width: 36px; }
+.statusbar .lim.near { color: var(--warn); }
+.statusbar .lim.out { color: var(--bad); }
+.statusbar .lim .age { color: var(--fg-3); }
+/* The retirement notice: what changed, which account is in force, what is gone and what was left alone. Neutral; it waits for "Entendido" */
+.retire { display: flex; flex-direction: column; }
+.retire-head { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.retire-facts { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 0; margin: 0; }
+.retire-facts > dt, .retire-facts > dd { margin: 0; padding: 12px 18px; border-bottom: 1px solid var(--line); font-size: 13px; line-height: 1.5; }
+.retire-facts > dt { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); padding-top: 14px; }
+.retire-facts > dd { color: var(--fg-2); }
+.retire-facts > dd b { color: var(--fg); font-weight: 500; }
+.retire-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding: 14px 18px; }
+.m-screen .retire-facts { grid-template-columns: minmax(0, 1fr); }
+.m-screen .retire-facts > dt { border-bottom: 0; padding-bottom: 0; }
+.m-screen .retire-facts > dd { padding-top: 4px; font-size: 14px; }
+.m-screen .retire-foot > .btn { flex: 1 1 100%; justify-content: center; }
+/* ---------- end of Rotation between providers ---------- */
+
 /* ---------- Merging an orchestration's change request, and the board card's auto-merge line (code hosts, phase 4, m-p3) ----------
    The method is a .seg, the branch box a .checkbox, the subject and body .field. */
 .omrg-opts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }

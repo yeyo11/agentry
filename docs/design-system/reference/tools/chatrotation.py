@@ -1,6 +1,6 @@
 # The chat at a limit and after a move (plans/multi-provider.md, phase 4, P0 task p2): the banner with its actions,
 # the move sheet with the handoff text, the waiting state, the chat that continued on another provider and the one
-# it left, both sizes, plus DSRotacion, the sheet with every state of the banner and the card. Runs on its own;
+# it left, both sizes, plus DSRotacionChat, the sheet with every state of the banner and the card. Runs on its own;
 # imports common.py, chatproviders.py (the badge and the mark), providers.py and decisions.py.
 #   python3 chatrotation.py
 import html
@@ -400,7 +400,7 @@ def phone_all():
   phone('MobileChatContinuadoOrigen.html', 'Chat que continuó en otro', 'old', mold() + '\n' + divider(True), mcomposer('old', 'Este chat ha continuado en Codex'))
 
 
-# ---------------------------------------------------------------- DSRotacion
+# ---------------------------------------------------------------- DSRotacionChat
 def ds_block(title, text, inner, width=620):
   return (f'<section class="col" style="gap: 12px"><div class="col" style="gap: 4px"><h2 class="t-h2">{title}</h2><p class="fg-2 t-sm" style="margin: 0; max-width: 900px; line-height: 1.55">{text}</p></div>'
           f'<div style="width: {width}px">{inner}</div></section>')
@@ -429,7 +429,7 @@ def ds_rotacion():
   )
   body = (f'<div class="app col" data-theme="dark" style="width: 1440px; height: 2480px; padding: 56px 64px; gap: 40px; overflow: hidden">{head}'
           f'<div class="row" style="gap: 48px; align-items: flex-start">{left}{right}</div>{cards}</div>')
-  write('DSRotacion.html', page('Design system · Rotación', body))
+  write('DSRotacionChat.html', page('Design system · Rotación', body))
 
 
 if __name__ == '__main__':
