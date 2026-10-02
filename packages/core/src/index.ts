@@ -96,6 +96,7 @@ import { CodeHostsSettingsStore } from './hosts/settings.ts';
 import { TrackersSettingsStore } from './trackers/settings.ts';
 import { TrackerImportService } from './trackers/import.ts';
 import { TrackerSyncService } from './trackers/sync.ts';
+import { TrackerDetector } from './trackers/detector.ts';
 import { ProviderDetector } from './providers/detector.ts';
 import { AcpDriver } from './providers/acp/driver.ts';
 import { ChatEntriesTranscripts } from './providers/chat-entries.ts';
@@ -338,6 +339,8 @@ export class Core {
   readonly hostsSettings: CodeHostsSettingsStore;
   /** Which issue trackers are on and a binary of the person's own (`trackers.json`) */
   readonly trackersSettings: TrackersSettingsStore;
+  /** Whether each issue tracker is ready: a host's tracker reads its host's CLI and sign-in */
+  readonly trackers: TrackerDetector;
   readonly permissions: PermissionBroker;
   /** Processes and live streams of the chats Agentry drives */
   readonly runtime: ChatManager;
@@ -460,6 +463,8 @@ export class Core {
         return this.events.emit(event);
       },
     });
+    // The trackers' settings store is the store task's; until it lands every tracker is on
+    this.trackers = new TrackerDetector({ hosts: this.hosts, adapter: codeHostAdapter });
     this.db = new Db(config);
     this.permissions = new PermissionBroker();
     // Must run before anything spawns the CLI: it injects stored credentials into process.env
