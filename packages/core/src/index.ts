@@ -137,6 +137,8 @@ import { MergeService, type MergeTarget } from './hosts/merge-service.ts';
 import { mergeTargetOf } from './hosts/merge-target.ts';
 import { ReviewsService } from './hosts/reviews-service.ts';
 import { WebhookStore } from './webhook-store.ts';
+import { WebhookSecrets } from './hosts/webhook-secrets.ts';
+import { WebhooksService } from './hosts/webhooks-service.ts';
 import { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
 import { codeHostAdapter, PullRequestService, PullRequestWatcher, type ApproveResult } from './pull-requests.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
@@ -423,6 +425,8 @@ export class Core {
   readonly checks: ChecksService;
   readonly reviews: ReviewsService;
   readonly webhooks: WebhookStore;
+  /** Registers, tests, removes and re-points the hooks Agentry keeps on a repository; the receivers read their secrets through it */
+  readonly webhookService: WebhooksService;
   /** Merge, auto-merge and update from the base of a change request: the person's click, never a run */
   readonly merge: MergeService;
   /** `/change-requests/:id/…`: a row id of either table, resolved to the service that owns it */
@@ -796,7 +800,30 @@ export class Core {
       viewed: (id) => this.pullRequestWatcher.view(id),
     });
     this.orchestrator.pullRequests = this.orchestrationPullRequests;
-    this.pullRequestWatcher = new PullRequestWatcher([this.pullRequests, this.orchestrationPullRequests]);
+    this.webhookService = new WebhooksService({
+      store: this.webhooks,
+      secrets: new WebhookSecrets(config),
+      target: async (projectId) => {
+        const record = this.projectStore.get(projectId);
+        if (!record) return null;
+        const { readiness, remote } = await this.pullRequests.codeHost(record.path);
+        return readiness.host && remote ? { host: readiness.host, hostname: remote.hostname, repoPath: remote.path } : null;
+      },
+      access: (projectId) => {
+        const record = this.projectStore.get(projectId);
+        if (!record) throw new Error('no such project');
+        return this.pullRequests.hostAccess(record.path);
+      },
+      publicUrl: () => {
+        const tunnel = this.tunnel.status();
+        return tunnel.state === 'active' ? tunnel.url : null;
+      },
+      emit: (event) => this.events.emit(event),
+    });
+    // A tunnel that comes up on a new address takes the registered hooks with it (decision 2)
+    this.events.observe((event) => this.webhookService.observe(event));
+    // A healthy hook for a repository lets the pacer read its rows every 15 minutes instead of every two
+    this.pullRequestWatcher = new PullRequestWatcher([this.pullRequests, this.orchestrationPullRequests], { signals: { webhookHealthy: (row) => this.webhookService.covers(row.url) } });
     this.events.observe((event) => this.pullRequests.observe(event));
     this.flow = new FlowService({
       db: this.db,
