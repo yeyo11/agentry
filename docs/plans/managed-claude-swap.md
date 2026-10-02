@@ -5,10 +5,13 @@ tags:
     - plan
     - accounts
     - claude-swap
+    - superseded
     - desktop
     - packaging
 ---
 # Plan: claude-swap that comes with Agentry
+
+> **Superseded** by phase 4 of [[plans/multi-provider.md]] (2026-10-02): Agentry no longer switches Claude accounts, so the managed claude-swap install no longer exists. Kept as the record of why it was built.
 
 Make multiple accounts work out of the box in the desktop app. Today they need claude-swap to be installed by hand. Agentry will install a pinned claude-swap itself, on demand, into its own data directory, and keep talking to it only through its CLI.
 

@@ -24,8 +24,7 @@ services:
       - "127.0.0.1:${PORT:-8787}:8787"
     volumes:
       - claude-config:/home/node/.claude # account config: settings, MCP servers, CLAUDE.md, sessions
-      - wrapper-data:/data # wrapper state: SQLite store, auto-rotation settings, credential, uploads
-      - claude-swap:/home/node/.local/share/claude-swap # credentials of every registered account
+      - wrapper-data:/data # wrapper state: SQLite store, provider settings, credential, uploads
       - ./workspace:/workspace # projects Claude works on
     # The image's healthcheck ends the server after three failed probes and this policy starts it
     # again: Docker itself never restarts an unhealthy container, only one that exited
@@ -61,6 +60,5 @@ services:
 volumes:
   claude-config:
   wrapper-data:
-  claude-swap:
   proxy-data:
   proxy-config:

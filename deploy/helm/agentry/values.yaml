@@ -29,8 +29,8 @@ resources:
     cpu: "4"
     memory: 4Gi
 
-# One volume, mounted in four places by subPath: the wrapper state (/data), the account setup
-# (~/.claude), the claude-swap credentials and the projects (/workspace). Losing any of them on a
+# One volume, mounted in three places by subPath: the wrapper state (/data), the account setup
+# (~/.claude) and the projects (/workspace). Losing any of them on a
 # restart would mean signing in again or losing work.
 persistence:
   size: 20Gi

@@ -60,26 +60,6 @@ RUN curl -fsSL -o /tmp/claude-install.sh https://claude.ai/install.sh \
 # Read by the update check, which compares it with the newest published version
 ENV AGENTRY_CLAUDE_CODE_PINNED=${CLAUDE_CODE_VERSION}
 
-# claude-swap owns the account credentials when several accounts are registered (multi-account
-# rotation). Its own data dir is a volume, so the accounts survive a rebuild. The default is the
-# version Agentry parses (CSWAP_VERSION in packages/core/src/cswap-pin.ts, checked by a test); an
-# empty build arg takes the latest release instead.
-ARG CLAUDE_SWAP_VERSION=0.26.0
-# astral.sh serves a separate installer per uv release, so this URL is immutable and its digest
-# only moves when UV_VERSION does: bump the two together, taking the new digest from
-# `curl -fsSL https://astral.sh/uv/<version>/install.sh | sha256sum`. Unpinned, the image would
-# take whatever uv shipped that morning, and an unverified script would install it. The desktop's
-# managed install downloads the same release (UV_VERSION in packages/core/src/cswap-pin.ts).
-ARG UV_VERSION=0.12.18
-ARG UV_INSTALLER_SHA256=e62a5ea089de9c6a9b1f767166c9f33194e18d350e9f375c6355fac3ba0fb42b
-RUN curl -fsSL -o /tmp/uv-install.sh https://astral.sh/uv/${UV_VERSION}/install.sh \
- && echo "${UV_INSTALLER_SHA256}  /tmp/uv-install.sh" | sha256sum -c - \
- && sh /tmp/uv-install.sh \
- && rm /tmp/uv-install.sh \
- && uv --version \
- && uv tool install claude-swap${CLAUDE_SWAP_VERSION:+==${CLAUDE_SWAP_VERSION}} \
- && cswap --version
-
 WORKDIR /app
 # The whole of the wrapper: one JavaScript file, the assistant's MCP server beside it, and the built UI
 COPY --from=build --chown=node:node /app/apps/api/dist/api.mjs /app/api.mjs
@@ -103,7 +83,7 @@ ENV NODE_ENV=production \
     AGENTRY_DISTRIBUTION=docker
 
 EXPOSE 8787
-VOLUME ["/home/node/.claude", "/workspace", "/data", "/home/node/.local/share/claude-swap"]
+VOLUME ["/home/node/.claude", "/workspace", "/data"]
 
 # The script also ends the server after a few failed probes, which is what makes a restart policy
 # act on an unhealthy container (see docs/deploy.md)

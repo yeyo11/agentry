@@ -96,7 +96,7 @@ helm install agentry ./deploy/helm/agentry \
 ```
 
 The chart is a Deployment (one replica, `Recreate`), a Service, and one PersistentVolumeClaim that
-holds everything worth keeping through subPaths: `/data`, `~/.claude`, the claude-swap credentials
+holds everything worth keeping through subPaths: `/data`, `~/.claude`
 and `/workspace`. The claim carries `helm.sh/resource-policy: keep`, so `helm uninstall` leaves the
 account setup and the transcripts alone. Values worth knowing: `image.tag` (a release, not `latest`, so
 `IfNotPresent` means something), `port`, `resources`, `securityContext` and
@@ -183,13 +183,17 @@ tree, no `node_modules` and no transpiler: `docker build -f docker/Dockerfile .`
 you, the image is smaller and it starts faster. pnpm is still installed, for the projects Claude
 works on under `/workspace`, not to start anything.
 
-Both installers the build downloads — Claude Code's and uv's — are fetched to a file, checked
-against a SHA-256 and only then run, so a compromised install script fails the build instead of
-running as root. The digests are build args (`CLAUDE_CODE_INSTALLER_SHA256`, `UV_VERSION`,
-`UV_INSTALLER_SHA256`), overridable with `--build-arg`; `docker/Dockerfile` carries the command that
-recomputes them next to each one. Claude Code's installer URL always serves the newest script, so
-rotating that digest is a commit of its own that records what moved; uv's URL is per version, so its
-digest and `UV_VERSION` move together.
+The installer the build downloads, Claude Code's, is fetched to a file, checked against a SHA-256
+and only then run, so a compromised install script fails the build instead of running as root. The
+digest is a build arg (`CLAUDE_CODE_INSTALLER_SHA256`), overridable with `--build-arg`;
+`docker/Dockerfile` carries the command that recomputes it. The URL always serves the newest script,
+so rotating that digest is a commit of its own that records what moved.
+
+The image no longer carries claude-swap or uv: Agentry does not switch Claude accounts any more (it
+moves work between providers at a limit, see [[providers.md]]). A container that ran an earlier
+image keeps its `claude-swap` volume on disk, and the account claude-swap left active stays the one
+`~/.claude` signs in with; Settings → Providers names it. Nothing mounts that volume now, so
+remove it with `docker volume rm` when you no longer need those accounts.
 ## Notifications on a phone
 
 Agentry installs to a home screen and can push a notification to it while the app is closed. Both
