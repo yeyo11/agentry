@@ -1529,6 +1529,34 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
 .host-line.stacked .prov-reason { font-size: 14px; }
 .host-line.stacked .badge { align-self: flex-start; }
 /* ---------- end of Host line ---------- */
+/* ---------- The project's tracker: which tracker, its scope and query, and the status mapping (plans/code-hosts.md, phase 5, P0 t-p2). A choice among radio rows, never a native radio: only a ready tracker can be picked, the rest say why in words. The mapping is one select per board column. Nothing here is live and nothing takes the gradient except the page's one Save. ---------- */
+.trk-opts { display: flex; flex-direction: column; gap: 8px; }
+.trk-opt { display: grid; grid-template-columns: 36px minmax(0, 1fr) 16px; gap: 14px; align-items: center; padding: 12px 14px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-2); text-align: left; color: var(--fg); cursor: pointer; transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
+.trk-opt:hover { border-color: var(--line-3); }
+.trk-opt.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.trk-opt[aria-disabled="true"] { background: var(--bg-1); cursor: not-allowed; }
+.trk-opt .proj { width: 36px; height: 36px; border-radius: var(--r); font-size: 12px; }
+.trk-opt-id { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.trk-opt-name { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-weight: 500; font-size: 14px; }
+.trk-opt-why { font-size: 12.5px; line-height: 1.45; color: var(--fg-2); }
+.m-screen .trk-opt { min-height: 64px; }
+.m-screen .trk-opt-why { font-size: 13px; }
+.trk-map { display: flex; flex-direction: column; gap: 10px; }
+.trk-map-row { display: grid; grid-template-columns: 150px 16px 240px minmax(0, 1fr); gap: 12px; align-items: center; }
+.trk-map-col { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.trk-map-note { font-size: 12px; line-height: 1.45; color: var(--fg-3); }
+.trk-sel { position: relative; display: block; min-width: 0; }
+.trk-sel .select { width: 100%; }
+.trk-sel .select:disabled { background: var(--bg-1); color: var(--fg-3); cursor: not-allowed; }
+.trk-sel > .ico { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--fg-3); pointer-events: none; }
+.m-screen .trk-map { gap: 14px; }
+.m-screen .trk-map-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.m-screen .trk-map-row > .ico { display: none; }
+.m-screen .trk-map-note { font-size: 13px; }
+.m-screen .callout-warn { flex-wrap: wrap; }
+.m-screen .callout-warn > span { flex: 1 1 0; min-width: 0; }
+.m-screen .callout-warn > .btn { flex: 1 1 100%; }
+/* ---------- end of The project's tracker ---------- */
 /* ---------- Review threads in the diff (plans/code-hosts.md, phase 3, P0 r-p1): a thread is a card under its line, never a new diff. Open waits for the person (idle), resolved is ok and folds, outdated is neutral and carries the comment's own hunk; a draft note is dashed until the review is sent. Nothing here is live and nothing takes the gradient except the composer's one action. ---------- */
 .dv { --rt-indent: calc(var(--dv-num) + 21px); }
 .dv-uni { --rt-indent: 103px; }
