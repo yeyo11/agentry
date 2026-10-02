@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-10-02T19:00:00Z
+updated_at: 2026-10-02T15:00:00Z
 tags:
     - plan
     - git
@@ -2495,6 +2495,39 @@ GitHub hook registration, test, removal and re-pointing. The reference is
 - **`secretOf` removed.** Nothing called it; the receiver reads `core.webhookSecrets`.
 - **Checked, no gap:** the README has a row for each of the six webhook routes, the OpenAPI schemas
   do not drift, and the webhook service holds no timer for shutdown to stop.
+
+## Outcome of phase 6, step 1 (2026-10-02)
+
+Phase 6 is built on `feat/code-hosts-webhooks` for the **pacer** (both hosts), the **receivers**
+(GitHub's signature and GitLab's token) and **registration, test and removal for GitHub**. The GitLab
+half of `w0` was not recorded (`glab` was signed out, which is the owner's), so GitLab hooks are shown
+as "not available yet" and no `glab` call was invented for them.
+
+- **`w0`, GitHub half**: a real signed ping through a scratch receiver behind a tunnel; the
+  signature is G5 exactly; `--input -` and G7 work on 2.92.0 and 2.102.0; redelivery needs a scope the
+  CLI does not have (see "Recorded by `w0`").
+- **P0 `webhooks-prototypes`** (2 tasks, 13.77 USD), **P1 `webhooks-core`** (7 tasks, 23.74 USD),
+  **`webhooks-fix`** (3 tasks, 9.88 USD) after an independent audit, **P2 `webhooks-web`**
+  (4 tasks, 20.33 USD).
+
+What the audit and the e2e spec nobody had run found, all fixed:
+
+- **A hook could be taken from another install.** Registering adopted any hook whose path looked
+  like Agentry's, so a desktop app and a dev server on one repository took each other's hook, gave it
+  their own secret and flipped it for ever. A hook is adopted only if it carries this install's own
+  registration id; two clicks at once register once; the hook list is paginated.
+- **A storm of deliveries could override a failing host's back-off**, and orchestration change
+  requests had no back-off and no host floor at all. A failing host keeps its back-off whatever the
+  nudges say, and both paths share the pacer's outcome contract.
+- **A replayed delivery made a broken hook look healthy**: GitHub does not sign the delivery id and a
+  tunnel sees the bodies. Deliveries are also deduplicated on the signed body, and one with no id
+  never marks a hook healthy. An unknown registration is refused before its body is read.
+- **The secret was stored plain in the desktop app** against decision 3: it is sealed there.
+- **The dark theme's destructive button read 2.6:1** (`--on-bad` was white on a light red); it is
+  dark ink now (7.5:1), and the register dialog's scrolling body takes the focus.
+
+**Open:** the GitLab half of `w0` and, after it, GitLab registration, test, removal, re-pointing and
+the signing token (the owner signs `glab` in again).
 
 ## Jira and YouTrack: documented facts
 
