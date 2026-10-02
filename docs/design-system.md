@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-09-30T12:51:28Z
+updated_at: 2026-10-02T16:00:00Z
 tags:
     - design-system
     - web
@@ -604,6 +604,28 @@ item page, the dialog and the decision point, each with its phone counterpart),
   in a group of its own (Alojamiento del código) between Revisión and Avisos: 23 points, 10 groups.
   Two `.dp-note` lines carry the question it asks and what else must hold (attempts per commit,
   room in the flow, the cost limit), with a link to the project's settings, where the attempts live.
+
+### Brand marks: the official logo of a program
+
+Every program Agentry names wears **its own official mark**: the code hosts (GitHub, GitLab), the
+issue trackers (a tracker on a host wears the host's mark; Jira, YouTrack) and the agents (Claude
+Code, Codex, GitHub Copilot, Gemini, OpenCode). A name with no mark keeps its monogram.
+
+- **The art is the brand's own file**, never redrawn: Simple Icons (CC0) for GitHub, GitLab, Jira,
+  Claude, GitHub Copilot, Google Gemini and OpenCode; LobeHub's icon set (MIT) for Codex; JetBrains'
+  brand resources for YouTrack. `packages/ui/src/components/brand-art.ts` holds the paths and says
+  where each came from. A brand's mark is its trademark, used to name the program.
+- **A light tile in both themes** (`--brand-tile`, a hairline border, `--radius-sm`), and the mark
+  in the brand's colour (`--brand-<id>` in `tokens.css`, the one place a brand's hex lives). The
+  tile does not follow the theme: a mark reads as the brand draws it, and Jira's blue or GitHub's
+  black would not hold on a dark surface.
+- **Where**: the code host and tracker rows of Integrations, the project's host line and tracker
+  choice, the import dialog's head, the provider rows and the chat badges (`.prov-mark` keeps its
+  class, and the mark sits at 20 px there). Beside its label the mark is decoration (`aria-hidden`);
+  alone it is an image named by the label.
+- **Component**: `BrandMark` (one mark) and `ProgramMark` (the mark, or the monogram when there is
+  none). The reference prototypes under `docs/design-system/reference/` were drawn with monograms and
+  are not redrawn for this; the app is the reference for the marks.
 
 ### Providers: readiness rows, first run, order and binary
 

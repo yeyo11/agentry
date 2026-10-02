@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { BrandMark, brandOf } from './BrandMark';
 import { monogramLetters } from './icons';
 
 /*
@@ -30,6 +31,8 @@ function markOf(provider: string, label: string): { letters: string; hue: number
  * decoration.
  */
 export function ProviderMark({ provider, label, decorative = false }: { provider: string; label: string; decorative?: boolean }) {
+  // An agent with an official mark wears it, at the size of the badge it sits in; the letters are for the rest
+  if (brandOf(provider)) return <BrandMark id={provider} label={label} size={20} decorative={decorative} className="prov-mark" />;
   const { letters, hue } = markOf(provider, label);
   const a11y = decorative ? { 'aria-hidden': true as const } : { role: 'img', 'aria-label': label, title: label };
   return (

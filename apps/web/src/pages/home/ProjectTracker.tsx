@@ -6,7 +6,8 @@ import { Trans, useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
 import { WorkItemStatusIcon } from '../../components/work-item-icons';
 import { Select, Sheet } from '@agentry/ui/components/controls';
-import { ICON_SM, Monogram } from '@agentry/ui/components/icons';
+import { ProgramMark } from '@agentry/ui/components/BrandMark';
+import { ICON_SM } from '@agentry/ui/components/icons';
 import { useToast } from '@agentry/ui/components/Toast';
 import { ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
@@ -192,7 +193,7 @@ function TrackerChoice({ option, selected, cli, hostname, onPick }: { option: Tr
       className={`trk-opt${selected ? ' on' : ''}`}
       onClick={() => option.choosable && onPick()}
     >
-      <Monogram name={words.label} project size={36} />
+      <ProgramMark id={option.id} label={words.label} project size={36} />
       <span className="trk-opt-id">
         <span className="trk-opt-name">
           {words.label}

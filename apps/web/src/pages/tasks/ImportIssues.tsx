@@ -7,7 +7,7 @@ import { api, keys } from '../../api';
 import { Checkbox, Sheet } from '@agentry/ui/components/controls';
 import { Dialog } from '@agentry/ui/components/Dialog';
 import { ICON_SM } from '@agentry/ui/components/icons';
-import { Monogram } from '@agentry/ui/components/icons';
+import { ProgramMark } from '@agentry/ui/components/BrandMark';
 import { Spinner } from '@agentry/ui/components/Spinner';
 import { useToast } from '@agentry/ui/components/Toast';
 import { ErrorBox } from '@agentry/ui/components/ui';
@@ -305,7 +305,7 @@ export function ImportIssues({ project, tracker, onClose }: { project: Project; 
     <Dialog
       title={
         <span className="iss-dialog-head">
-          <Monogram name={words.label} size={24} project />
+          <ProgramMark id={tracker.id} label={words.label} size={24} project />
           <span className="iss-dialog-title">
             {title}
             <span className="mono small muted">{sub}</span>

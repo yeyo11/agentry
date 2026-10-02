@@ -7,7 +7,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ApiRequestError, api, keys, useDocuments, useJournal, useProjects, useProjectSettings, useTeam, useWorkItemBoard } from '../../api';
 import { Sheet } from '@agentry/ui/components/controls';
 import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON_SM, Monogram } from '@agentry/ui/components/icons';
+import { ProgramMark } from '@agentry/ui/components/BrandMark';
+import { ICON_SM } from '@agentry/ui/components/icons';
 import { WorkItemStatusIcon } from '../../components/work-item-icons';
 import { useToast } from '@agentry/ui/components/Toast';
 import { ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
@@ -93,7 +94,7 @@ function ProjectHostLine({ project, stacked }: { project: Project; stacked: bool
   return (
     <div className={`host-line${stacked ? ' stacked' : ''}`}>
       <div className="host-line-main">
-        <Monogram name={words?.label ?? 'git'} project size={36} />
+        <ProgramMark id={readiness.host ?? ''} label={words?.label ?? 'git'} project size={36} />
         <div className="host-line-id">
           <span className="host-path">
             {remote ? (

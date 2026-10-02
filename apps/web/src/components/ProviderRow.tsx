@@ -12,7 +12,8 @@ import {
   stateLabelKey,
   type ProviderAction,
 } from '../lib/provider-state';
-import { ICON_SM, Monogram } from '@agentry/ui/components/icons';
+import { ProgramMark } from '@agentry/ui/components/BrandMark';
+import { ICON_SM } from '@agentry/ui/components/icons';
 import { Spinner } from '@agentry/ui/components/Spinner';
 import { Tag } from '@agentry/ui/components/ui';
 
@@ -116,7 +117,7 @@ export function ProviderRow({
     return (
       <div className="prov-cell" data-provider={status.id} data-state={shown}>
         <div className="prov-cell-head">
-          <Monogram name={status.label} />
+          <ProgramMark id={status.id} label={status.label} />
           {identity}
           {trailing}
         </div>
@@ -128,7 +129,7 @@ export function ProviderRow({
   return (
     <div className={`prov-row${compact ? ' compact' : ''}`} data-provider={status.id} data-state={shown}>
       {!compact && (leading ?? <span />)}
-      <Monogram name={status.label} />
+      <ProgramMark id={status.id} label={status.label} />
       {identity}
       {state}
       <div className="prov-actions">{buttons}</div>
