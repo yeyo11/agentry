@@ -30,7 +30,9 @@
     "auth-required": "It needs a sign-in the vendor's own tool has to ask for.",
     "schema-untested": "Its structured output was not tested on this version, so Agentry does not use it for that.",
     "busy": "It is busy with another session and could not be checked now.",
-    "disabled": "It is not searched for or checked while it is off."
+    "disabled": "It is not searched for or checked while it is off.",
+    "limit-reached": "It reached its usage limit and has not reset yet.",
+    "limit-near": "It is close to its usage limit."
   },
   "row": {
     "default": "Default",

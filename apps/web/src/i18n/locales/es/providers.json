@@ -30,7 +30,9 @@
     "auth-required": "Necesita que inicies sesión desde la herramienta del proveedor.",
     "schema-untested": "Su salida estructurada no se ha probado en esta versión, así que Agentry no la usa para eso.",
     "busy": "Está ocupado con otra sesión y no se ha podido comprobar ahora.",
-    "disabled": "No se busca ni se comprueba mientras esté desactivado."
+    "disabled": "No se busca ni se comprueba mientras esté desactivado.",
+    "limit-reached": "Ha alcanzado su límite de uso y todavía no se ha restablecido.",
+    "limit-near": "Está cerca de su límite de uso."
   },
   "row": {
     "default": "Predeterminado",

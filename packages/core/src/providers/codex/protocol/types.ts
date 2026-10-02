@@ -93,6 +93,12 @@ export interface RateLimitSnapshot {
   rateLimitReachedType?: string | null;
 }
 
+/** What `account/rateLimits/read` answers; signed out it is an error instead ("codex account authentication required") */
+export interface GetAccountRateLimitsResponse {
+  rateLimits: RateLimitSnapshot;
+  rateLimitsByLimitId?: Record<string, RateLimitSnapshot> | null;
+}
+
 export interface TokenUsageBreakdown {
   totalTokens: number;
   inputTokens: number;

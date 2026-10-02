@@ -43,6 +43,9 @@ export const DECISION_POINT_IDS: readonly DecisionPointId[] = [
   'checks.fix',
   'review.triage',
   'issue.triage',
+  'provider.on-limit',
+  'provider.pick',
+  'provider.model-map',
 ];
 
 /**
@@ -55,6 +58,7 @@ const GLOBAL_ONLY_POINTS: ReadonlySet<DecisionPointId> = new Set([
   'health.test-weakening',
   'palette.intent',
   'notification.urgency',
+  'provider.model-map',
 ]);
 
 export const DECISION_MODES: readonly DecisionMode[] = ['off', 'shadow', 'active'];

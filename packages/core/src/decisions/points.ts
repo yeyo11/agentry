@@ -103,6 +103,12 @@ const CRITERION = [
   ['clearly-unmet', 'The criterion is clearly not met by the work described'],
 ] as Array<[string, string]>;
 
+const LIMIT_ACTIONS: Array<[string, string]> = [
+  ['handoff', 'Continue on the next provider with a handoff: enough useful work is done for a summary to carry it'],
+  ['restart', 'Restart on the next provider from the original prompt: little useful work is done, or a summary would mislead'],
+  ['wait', "Wait for this provider's reset: it is soon, or the work depends on this provider"],
+];
+
 export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
   point({ id: 'flow.refine-needed', kind: 'act', scope: 'project', primitives: ['choice'], savesRun: true, fields: ['title', 'description', 'type', 'criteria', 'labels', 'sizeEstimate'] }, () => [
     choice('refine', 'Can this card be built as written, or must it be refined first?', [
@@ -251,6 +257,38 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
       ]),
     ),
   ),
+  // What each action does is code's arithmetic; the point only chooses among the feasible ones the person allowed, so the options are cut from the subject's `allowed` list, in this order
+  point({ id: 'provider.on-limit', kind: 'act', scope: 'project', primitives: ['choice'], maxStateBytes: 4 * 1024, fields: ['work', 'progress', 'from', 'candidates', 'allowed'] }, (subject) => {
+    const allowed = Array.isArray(subject.data.allowed) ? subject.data.allowed : [];
+    const options = LIMIT_ACTIONS.filter(([id]) => allowed.includes(id));
+    if (options.length < 2) return [];
+    return [choice('action', "This run hit its provider's usage limit. What should happen to it?", options)];
+  }),
+  // The options are the candidates that passed the filter, so an answer can never name a provider outside them
+  point({ id: 'provider.pick', kind: 'act', scope: 'project', primitives: ['choice'], maxStateBytes: 4 * 1024, fields: ['work', 'model', 'candidates'] }, (subject) => {
+    const candidates = items(subject, 'candidates');
+    if (candidates.length < 2) return [];
+    return [
+      choice(
+        'provider',
+        'Which provider should run this work?',
+        candidates.map((c): [string, string] => [c.id, `${text(c.label) || c.id}: ${text(c.model)}, ${typeof c.utilization === 'number' ? Math.round(c.utilization) : '?'} % of its limit used`]),
+      ),
+    ];
+  }),
+  // Nothing it answers is in force until a person accepts it, so it has no threshold to clear and never saves a run
+  point({ id: 'provider.model-map', kind: 'suggest', scope: 'global', primitives: ['choice'], fields: ['model', 'target', 'targets'] }, (subject) => {
+    const targets = items(subject, 'targets');
+    if (targets.length === 0) return [];
+    const model = isMap(subject.data.model) ? text(subject.data.model.name) || text(subject.data.model.id) : '';
+    const target = text(subject.data.target) || 'the other provider';
+    return [
+      choice('counterpart', `Which model of ${target} is the closest counterpart of ${model || 'this model'} for coding work?`, [
+        ...targets.map((m): [string, string] => [m.id, text(m.name) || m.id]),
+        ['none', 'None: no model here can stand in for it'] as [string, string],
+      ]),
+    ];
+  }),
 ];
 
 const BY_ID: ReadonlyMap<DecisionPointId, DecisionPointDefinition> = new Map(DECISION_POINTS.map((p) => [p.id, p]));

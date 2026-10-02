@@ -6,6 +6,7 @@ import type {
   ProjectDocumentsSettings,
   ProjectFlowSettings,
   ProjectModule,
+  ProjectProvidersSettings,
   ProjectSettings,
   ProjectTeamMember,
   ProjectTeamSettings,
@@ -19,6 +20,8 @@ import type {
 import { isTeamCommandPattern, MAX_CHECKS_FIX_ATTEMPTS, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
 import { parseProjectDecisions } from './decisions/settings.ts';
+import { parseOnLimit } from './providers/settings.ts';
+import { PROVIDER_MANIFESTS } from './providers/registry.ts';
 import type { CoreConfig } from './paths.ts';
 import { projectTemplate } from './project-templates.ts';
 import type { ProjectRecord } from './projects.ts';
@@ -305,6 +308,31 @@ function parseTracker(value: unknown): ProjectTrackerSettings {
 }
 
 /**
+ * What a project overrides of the providers: the order its work picks them in and the `onLimit`
+ * fields it sets. An absent field inherits, so nothing is filled in here. Provider ids are checked
+ * against the registry, since the order is a list of them.
+ */
+function parseProviders(value: unknown): ProjectProvidersSettings {
+  if (!isObject(value)) throw new Error('providers must be an object');
+  const result: ProjectProvidersSettings = {};
+  if (value.order !== undefined) {
+    if (!Array.isArray(value.order)) throw new Error('providers.order must be an array');
+    const known = PROVIDER_MANIFESTS.map((m) => m.id);
+    const order = value.order.map((id) => {
+      if (typeof id !== 'string' || !known.includes(id)) throw new Error(`providers.order entry must be one of ${known.join(', ')}`);
+      return id;
+    });
+    if (new Set(order).size !== order.length) throw new Error('providers.order lists a provider twice');
+    if (order.length > 0) result.order = order;
+  }
+  if (value.onLimit !== undefined && value.onLimit !== null) {
+    const onLimit = parseOnLimit(value.onLimit, 'providers.onLimit');
+    if (Object.keys(onLimit).length > 0) result.onLimit = onLimit;
+  }
+  return result;
+}
+
+/**
  * Validates a whole document a person sent (`PUT /projects/:id/settings`). A bad value is refused,
  * not replaced. The optional parts (team, flow, documents) are checked the same way when present,
  * since the team, the flow and the Documents module read them as stored. Unknown fields are dropped.
@@ -324,6 +352,10 @@ export function parseProjectSettings(input: unknown): ProjectSettings {
   if (input.decisions !== undefined && input.decisions !== null) {
     const decisions = parseProjectDecisions(input.decisions);
     if (Object.keys(decisions).length > 0) settings.decisions = decisions;
+  }
+  if (input.providers !== undefined && input.providers !== null) {
+    const providers = parseProviders(input.providers);
+    if (Object.keys(providers).length > 0) settings.providers = providers;
   }
   return settings;
 }
@@ -359,6 +391,8 @@ function sanitizeSettings(value: unknown, fallbackPrefix: string): ProjectSettin
   if (tracker) settings.tracker = tracker;
   const decisions = attempt(() => (raw.decisions == null ? null : parseProjectDecisions(raw.decisions)), null);
   if (decisions && Object.keys(decisions).length > 0) settings.decisions = decisions;
+  const providers = attempt(() => (raw.providers == null ? null : parseProviders(raw.providers)), null);
+  if (providers && Object.keys(providers).length > 0) settings.providers = providers;
   return settings;
 }
 

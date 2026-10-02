@@ -116,6 +116,9 @@
       "checksFix": "Decidir si arreglar los checks fallidos de una rama",
       "reviewTriage": "Sugerir quién atiende cada comentario de revisión",
       "issueTriage": "Sugerir en qué issues importados puede empezar un agente",
+      "providerOnLimit": "Decidir qué hace una ejecución cuando su proveedor llega al límite",
+      "providerPick": "Elegir el proveedor del trabajo automático",
+      "providerModelMap": "Sugerir el modelo equivalente en otro proveedor",
       "notificationUrgency": "Elegir la urgencia de cada aviso",
       "paletteIntent": "Interpretar lo que escribes en la paleta"
     },
@@ -128,6 +131,7 @@
       "health": "Salud y supervisor",
       "review": "Revisión",
       "hosts": "Alojamiento del código",
+      "providers": "Proveedores",
       "notifications": "Avisos",
       "palette": "Paleta",
       "other": "Otros"
@@ -308,6 +312,9 @@
       "checksFix": "Decidió si arreglar los checks",
       "reviewTriage": "Sugirió quién atiende cada comentario",
       "issueTriage": "Sugirió en qué issues puede empezar un agente",
+      "providerOnLimit": "Eligió qué hacer en el límite",
+      "providerPick": "Eligió el proveedor",
+      "providerModelMap": "Sugirió un modelo",
       "notificationUrgency": "Fijó la urgencia",
       "paletteIntent": "Eligió el comando"
     }
