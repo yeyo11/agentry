@@ -752,6 +752,20 @@ export interface ChatEnvironment {
 }
 
 /**
+ * The other end of a provider move, as a chat links to it. A move is always a new chat (a session
+ * belongs to its provider), so the old chat and the new one point at each other.
+ */
+export interface ChatContinuation {
+  chatId: string;
+  /** The provider of the chat at the other end */
+  provider: ProviderId;
+  action: 'handoff' | 'restart';
+  at: string;
+  /** The {@link ProviderMove} that recorded it */
+  moveId: string;
+}
+
+/**
  * One Claude Code conversation: the root entity of the product. Always exactly one session id, which
  * is also the chat's id. Subagents and workflows are branches of a chat, not chats.
  */
@@ -778,6 +792,10 @@ export interface Chat {
   orchestration: ChatOrchestration | null;
   /** Set on a fork: where it started from */
   derivedFrom: ChatFork | null;
+  /** The chat this one continues after a provider move; null when it is not a continuation */
+  continuedFrom?: ChatContinuation | null;
+  /** The chat that continues this one after a provider move; null while none does */
+  continuedIn?: ChatContinuation | null;
   state: ChatState;
   control: ChatControl;
   /** The live execution, when Agentry has a process on the chat; also the last of `executions` */
@@ -1217,6 +1235,17 @@ export interface ProjectSettings {
   decisions?: ProjectDecisionSettings;
   /** The project's issue tracker; absent or null when it has none */
   tracker?: ProjectTrackerSettings | null;
+  /** Per-project overrides of the provider order and of what happens at a limit; a missing field inherits */
+  providers?: ProjectProvidersSettings;
+}
+
+/**
+ * What a project overrides of `providers.json`: the order its work picks providers in, and the
+ * fields of `rotation.onLimit` it sets itself. The model mapping stays global.
+ */
+export interface ProjectProvidersSettings {
+  order?: ProviderId[];
+  onLimit?: Partial<RotationSettings['onLimit']>;
 }
 
 /**
@@ -2125,6 +2154,9 @@ export type FlowRunOutcome = 'passed' | 'rejected' | 'failed' | 'cancelled';
  * - `item-removed` and `item-done`: the item was removed, or moved to `done`;
  * - `replaced`: the item entered a column again before the run started, and the newer run took its place;
  * - `flow-off`: the flow, the Team module or the Board module was switched off;
+ * - `no-provider`: no provider could take the run: none is ready, or none can enforce its policy;
+ * - `limit-wait-expired`: the run waited for a provider's limit to reset and the reset never came
+ *   within the wait cap;
  * - `no-member`: nobody on the team answers for the column any more;
  * - `refined`: a todo check would repeat a refine that passed, on an item unchanged since;
  * - `chat-busy`: a chat of the person's was already working on the item.
@@ -2132,6 +2164,8 @@ export type FlowRunOutcome = 'passed' | 'rejected' | 'failed' | 'cancelled';
 export type FlowRunCause =
   | 'budget'
   | 'no-account'
+  | 'no-provider'
+  | 'limit-wait-expired'
   | 'rate-limit'
   | 'stopped'
   | 'restarts'
@@ -2175,6 +2209,10 @@ export interface FlowRun {
   /** The member's agent file name, as `claude --agent` takes it */
   agent: string;
   model: string;
+  /** The provider the run's chat is on; `claude-code` on a run written before providers were chosen */
+  provider?: ProviderId;
+  /** Set while the run waits for its provider's limit to reset; null otherwise */
+  waiting?: LimitWait | null;
   stage: FlowStage;
   /** The stage as the person reads it, by its column: `check` is a `refine` in `todo` */
   step: FlowStep;
@@ -3103,6 +3141,23 @@ export type OrchestrationTaskStatus = 'pending' | 'running' | 'completed' | 'fai
 /** `waiting`: nothing runs and a task failed for good, so integration and synthesis are held back until a person decides. */
 export type OrchestrationStatus = 'running' | 'waiting' | 'completed' | 'failed' | 'stopped';
 
+/** One chat of a task's chain: the provider and model it ran on, and how it got there. */
+export interface TaskChainEntry {
+  chatId: string;
+  provider: ProviderId;
+  model: string | null;
+  /** How this chat came to be; the first chat of a task has none */
+  action: LimitAction | null;
+}
+
+/** Work that stopped to wait for a provider's limit to reset. */
+export interface LimitWait {
+  provider: ProviderId;
+  /** ISO time the limit resets; null when unknown, and the wait ends at the cap */
+  resetsAt: string | null;
+  moveId: string;
+}
+
 export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   status: OrchestrationTaskStatus;
   /** Git worktree this task works in, when the orchestration isolates its workers */
@@ -3127,6 +3182,12 @@ export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   continuations?: number;
   runId: string | null;
   sessionId: string | null;
+  /** The provider its current chat is on; absent on a task written before providers were chosen */
+  provider?: ProviderId;
+  /** The chats the task went through, oldest first, one entry per provider move */
+  chain?: TaskChainEntry[];
+  /** Set while the task waits for its provider's limit to reset; it stays `running` and keeps its place */
+  waiting?: LimitWait | null;
   result: string | null;
   error: string | null;
   startedAt: string | null;
@@ -4207,6 +4268,8 @@ export interface UpdateScheduleRequest {
 export interface Overview {
   system: SystemInfo;
   rateLimit: RateLimitInfo | null;
+  /** One reading per provider that has one; `rateLimit` stays until the claude-swap removal */
+  limits?: ProviderLimit[];
   /** Null when claude-swap is not installed */
   accounts: AccountsSnapshot | null;
   counts: {
@@ -4493,6 +4556,26 @@ export interface PermissionResolvedEvent extends AgentryEventBase, RunEventRef {
 /** A turn died against the account's rate limit. */
 export interface RunRateLimitedEvent extends AgentryEventBase, RunEventRef {
   type: 'run.rateLimited';
+  /** The provider that hit its limit; absent on an event from before limits were per provider */
+  provider?: ProviderId;
+  /** ISO time the limit resets; null or absent when unknown */
+  resetsAt?: string | null;
+}
+
+/** Work went on in a new chat on another provider after a limit. */
+export interface RunProviderMovedEvent extends AgentryEventBase, RunEventRef {
+  type: 'run.providerMoved';
+  from: ProviderId;
+  to: ProviderId;
+  action: 'handoff' | 'restart';
+  decidedBy: ProviderMoveDecider;
+}
+
+/** Work stopped to wait for its provider's limit to reset. */
+export interface RunLimitWaitingEvent extends AgentryEventBase, RunEventRef {
+  type: 'run.limitWaiting';
+  provider: ProviderId;
+  resetsAt: string | null;
 }
 
 /** Rotation moved the wrapper to another account after a run hit its limit. */
@@ -4765,7 +4848,11 @@ export type ProviderReasonCode =
   | 'auth-required'
   | 'schema-untested'
   | 'busy'
-  | 'disabled';
+  | 'disabled'
+  /** The provider's usage limit is exhausted and has not reset yet */
+  | 'limit-reached'
+  /** The provider's binding window is above 60 % */
+  | 'limit-near';
 
 /** The code hosts Agentry reaches through their own CLI. Closed: adding one is a code change. */
 export type CodeHostId = 'github' | 'gitlab';
@@ -5626,6 +5713,8 @@ export interface ProviderStatus {
   permissionModes?: PermissionMode[];
   /** What the first event of a real session confirmed for the installed version; null until one has */
   confirmed?: { at: string; version: string; capabilities: ProviderCapability[] } | null;
+  /** The provider's usage limit as last read; null when nothing was read yet, absent on an old server */
+  limit?: ProviderLimit | null;
   /** ISO timestamp of the detection this status came from */
   checkedAt: string;
 }
@@ -5647,6 +5736,126 @@ export interface ProvidersSettings {
   order: ProviderId[];
   /** The provider a new chat starts with; null takes the first ready one in `order` */
   defaultProvider: ProviderId | null;
+  /** What happens at a usage limit, and the model mapping; absent on a file written before it, read as the defaults */
+  rotation?: RotationSettings;
+}
+
+/** What work does when its provider reaches a usage limit. */
+export type LimitAction = 'handoff' | 'restart' | 'wait';
+
+export interface RotationSettings {
+  onLimit: {
+    /** What automated work does at a limit; a person's chat offers it first */
+    action: LimitAction;
+    /** What a decision point may choose among; always includes `action` */
+    allowed: LimitAction[];
+    /** How long a wait with no known reset lasts before the run fails, 1..48 */
+    maxWaitHours: number;
+    /** Moves per run before it waits, 0..5 */
+    maxMoves: number;
+  };
+  /** Global only; never filled without a person */
+  modelMap: ModelMapEntry[];
+}
+
+/** One model standing in for another across two providers. */
+export interface ModelMapEntry {
+  from: { provider: ProviderId; model: string };
+  to: { provider: ProviderId; model: string };
+  /** `decision`: a suggestion of the `provider.model-map` point that a person accepted */
+  origin: 'person' | 'decision';
+  at: string;
+}
+
+/** `unknown`: nothing was read, or the reset has passed since; never `ok` without a new reading. */
+export type ProviderLimitState = 'ok' | 'near' | 'exhausted' | 'unknown';
+
+/** One provider's usage limit, folded from what its driver reports. */
+export interface ProviderLimit {
+  provider: ProviderId;
+  state: ProviderLimitState;
+  /** The window that binds (`5h`, `7d`, `primary`), when the provider names windows */
+  window: string | null;
+  /** Use of that window, 0..1; null when the provider reports none */
+  utilization: number | null;
+  /** ISO time the binding window resets; null when unknown */
+  resetsAt: string | null;
+  windows: Record<string, RateLimitWindow>;
+  /** When the reading was taken: the UI says how old it is */
+  observedAt: string;
+  /** `stream`: a live run reported it; `probe`: a read that spends nothing; `failure`: a turn died on it */
+  source: 'stream' | 'probe' | 'failure';
+}
+
+export type ProviderMoveState = 'waiting' | 'resuming' | 'moved' | 'resumed' | 'failed' | 'cancelled';
+
+/** Who chose a move: the person, the settings, or a decision point. */
+export type ProviderMoveDecider = 'person' | 'setting' | 'decision';
+
+export type ProviderMoveSubjectKind = 'chat' | 'flow_run' | 'task' | 'assistant_run';
+
+/**
+ * A row of `provider_moves`: a move to another provider, or a wait for a reset. History and the
+ * wait queue in one.
+ */
+export interface ProviderMove {
+  id: string;
+  at: string;
+  subjectKind: ProviderMoveSubjectKind;
+  subjectId: string;
+  projectId: string | null;
+  fromChat: string;
+  /** The new chat; null for a wait */
+  toChat: string | null;
+  fromProvider: ProviderId;
+  toProvider: ProviderId | null;
+  fromModel: string | null;
+  toModel: string | null;
+  action: LimitAction;
+  state: ProviderMoveState;
+  decidedBy: ProviderMoveDecider;
+  /** The decision point's answer, when `decidedBy` is `decision` */
+  decisionId: string | null;
+  /** ISO time the wait ends; null when unknown or not a wait */
+  resetsAt: string | null;
+  reason: string | null;
+  updatedAt: string;
+}
+
+/** Why a provider cannot take a run, as the candidates say it; the UI words each one. */
+export type Exclusion =
+  | 'disabled'
+  | 'not-ready'
+  | 'no-driver'
+  | 'capability'
+  | 'policy'
+  | 'policy-not-portable'
+  | 'no-mapping'
+  | 'exhausted'
+  | 'left-already'
+  | 'not-in-order';
+
+/** A provider that can take a run, or one that cannot and why. */
+export type CandidateView =
+  | { provider: ProviderId; model: string | null; utilization: number | null; resetsAt: string | null }
+  | { provider: ProviderId; excluded: Exclusion };
+
+/** `POST /chats/:id/move`: a person moves a chat that reached a limit. */
+export interface MoveChatRequest {
+  provider: ProviderId;
+  action: 'handoff' | 'restart';
+  /** A model of the target provider; absent takes the mapped one */
+  model?: string;
+}
+
+/** `GET /chats/:id/handoff`: the text as it would be sent, built locally and not sent. */
+export interface HandoffPreview {
+  text: string;
+  bytes: number;
+  provider: ProviderId;
+  model: string | null;
+  /** The headers of the sections the text contains */
+  sections: string[];
 }
 
 /**
@@ -6026,6 +6235,8 @@ export type AgentryEvent =
   | PermissionRequestedEvent
   | PermissionResolvedEvent
   | RunRateLimitedEvent
+  | RunProviderMovedEvent
+  | RunLimitWaitingEvent
   | RunAccountRotatedEvent
   | AccountSwitchedEvent
   | TaskStartedEvent

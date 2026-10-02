@@ -83,6 +83,8 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'permission.requested': true,
   'permission.resolved': true,
   'run.rateLimited': true,
+  'run.providerMoved': true,
+  'run.limitWaiting': true,
   'run.accountRotated': true,
   'account.switched': true,
   'task.started': true,
@@ -252,6 +254,9 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'permission.requested':
     case 'permission.resolved':
       return [[keys.chatPermissions(event.runId), NOW], [keys.chats, LISTS], [keys.overview, NOW]];
+    case 'run.providerMoved':
+    case 'run.limitWaiting':
+      return [[keys.providers, NOW], [keys.overview, NOW], [keys.chats, LISTS]];
     case 'run.rateLimited':
     case 'run.accountRotated':
     case 'account.switched':
