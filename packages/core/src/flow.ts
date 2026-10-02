@@ -39,6 +39,9 @@ import {
   type FlowVerdict,
   type FlowWaiting,
   type FlowWaitingColumn,
+  type LimitWait,
+  type ProviderId,
+  type ProviderMove,
   type MemoryProposalTargetKind,
   type CommandRule,
   type PermissionMode,
@@ -55,10 +58,12 @@ import {
   type WorkItemStatus,
 } from '@agentry/shared';
 import type { RunResult } from './chats.ts';
+import type { ChatWork } from './chat-service.ts';
 import type { Db } from './db.ts';
 import type { AgentryEventInput } from './events.ts';
 import { roleTitle, roleTitleIn } from './team.ts';
 import { ItemDocumentsError } from './item-documents.ts';
+import { NoProviderError } from './work-provider.ts';
 import { workItemPrompt } from './work-links.ts';
 import { continuationPrompt, MAX_TOKENS_ERROR, OWES_WORK_ITEM, phraseItems, stoppedOnMaxTokens, structuralItems, tailOf } from './open-items.ts';
 import type { DecisionEngine, DecisionOutcome } from './decisions/engine.ts';
@@ -233,15 +238,19 @@ export interface FlowDeps {
    * Starts or continues the run's chat in the item's place. `onStart` hears of the chat in the tick
    * its process is spawned, before any of its output can arrive.
    */
-  launch: (launch: FlowLaunch, onStart: (chatId: string) => void) => Promise<void>;
+  launch: (launch: FlowLaunch, onStart: (chatId: string, provider?: ProviderId) => void) => Promise<void>;
   /** A chat has a live execution now (a person may be working in it) */
   chatBusy: (chatId: string) => boolean;
   /**
-   * The chat's turn hit its account's rate limit and the account rotation is on its way for it: the
-   * run waits to go on in the same chat on the next account (`rotated`) rather than fail. False when
-   * the rotation is off or has nothing left to try.
+   * The chat's turn hit its provider's usage limit and the rotation has it: it is deciding, the chat
+   * waits for the reset, or it is being moved. The run stays running, because a move row (not this
+   * run) says what happens next; false when the limit is nobody's to handle and the run fails.
    */
-  rotating?: (chatId: string) => boolean;
+  limitHeld?: (chatId: string) => boolean;
+  /** What a chat has cost so far; null when unknown. A run's budget counts every chat of its chain */
+  cost?: (chatId: string) => number | null;
+  /** The instructions of a member's agent file, for a provider that cannot take the file as a subagent */
+  agentPrompt?: (projectId: string, agent: string) => string | null;
   stop: (chatId: string) => void;
   activity?: (chatId: string) => ChatActivity | null;
   /**
@@ -285,6 +294,7 @@ interface RunRow {
   role: string;
   agent: string;
   model: string;
+  provider: string | null;
   stage: string;
   column_name: string;
   state: string;
@@ -796,11 +806,8 @@ export class FlowService {
   /** One dispatch at a time: claiming reads the counts, and two at once could both see a free place */
   private dispatching: Promise<void> = Promise.resolve();
   private recovered = false;
-  /**
-   * Chats of running runs whose turn hit the rate limit, waiting for the rotation to say whether they
-   * go on. In memory: a restart meanwhile continues the run in its chat anyway (`recover`).
-   */
-  private readonly awaitingRotation = new Set<string>();
+  /** The prompt a run's chat was last started with, which a restart of the work on another provider sends again */
+  private readonly prompts = new Map<string, string>();
   /**
    * Chats whose run ended its turn with work still owed, and what each is told when its process has
    * exited: the run goes on in the same chat rather than end. In memory: a restart meanwhile
@@ -1452,9 +1459,10 @@ export class FlowService {
     };
     let started = false;
     try {
-      await this.deps.launch(launch, (chatId) => {
+      await this.deps.launch(launch, (chatId, provider) => {
         started = true;
-        this.sql.prepare('UPDATE flow_runs SET chat_id = ? WHERE id = ?').run(chatId, row.id);
+        this.sql.prepare('UPDATE flow_runs SET chat_id = ?, provider = COALESCE(?, provider) WHERE id = ?').run(chatId, provider ?? null, row.id);
+        this.prompts.set(chatId, launch.prompt);
         this.announce(row.id, 'started');
       });
       if (!started) throw new Error('the chat did not start');
@@ -1469,7 +1477,8 @@ export class FlowService {
         return;
       }
       // Failed before any chat was touched: a restart's chat is not what went wrong
-      if (err instanceof ItemDocumentsError) this.end(row.id, 'failed', null, message, 'not-started');
+      if (err instanceof NoProviderError) this.end(row.id, 'failed', null, message, 'no-provider');
+      else if (err instanceof ItemDocumentsError) this.end(row.id, 'failed', null, message, 'not-started');
       else if (continuing) this.end(row.id, 'failed', null, `its chat could not be continued after a restart: ${message}`, 'not-continued');
       else this.end(row.id, 'failed', null, message, 'not-started');
     }
@@ -1503,7 +1512,11 @@ export class FlowService {
   /** A result of a chat. Only a running run's chat counts; a chat continued by hand afterwards is not the flow's. */
   chatResult(chatId: string, result: FlowChatResult): Promise<void> {
     try {
-      const row = this.sql.prepare("SELECT * FROM flow_runs WHERE chat_id = ? AND state = 'running'").get(chatId) as RunRow | undefined;
+      let row = this.sql.prepare("SELECT * FROM flow_runs WHERE chat_id = ? AND state = 'running'").get(chatId) as RunRow | undefined;
+      if (!row) {
+        this.adopt(chatId);
+        row = this.sql.prepare("SELECT * FROM flow_runs WHERE chat_id = ? AND state = 'running'").get(chatId) as RunRow | undefined;
+      }
       if (!row) return Promise.resolve();
       return this.finish(row, result).catch(() => undefined);
     } catch {
@@ -1524,44 +1537,108 @@ export class FlowService {
       void this.continueRun(row, nudge);
       return;
     }
-    // The process the limit took down: the run goes on in this chat once the rotation replays it
-    if (this.awaitingRotation.has(chatId)) return;
-    if (this.deps.rotating?.(chatId)) {
-      this.awaitingRotation.add(chatId);
-      return;
-    }
+    // The process the limit took down: the rotation waits for the reset or moves the run
+    if (this.deps.limitHeld?.(chatId)) return;
     this.end(row.id, 'failed', null, error ?? 'the chat ended without a result', cause);
     this.dispatch();
   }
 
-  /** A run's chat is waiting for the account rotation, which may replay its turn: the core's to do. */
-  awaitsRotation(chatId: string): boolean {
-    return this.awaitingRotation.has(chatId);
+  // ---------- a limit: waiting and moving ----------
+
+  /**
+   * What a chat works for, as a move reads it: the run, the prompt its chat was last sent, what is
+   * still owed and the budget left. Null for a chat that is not a running run's.
+   */
+  workOf(chatId: string): ChatWork | null {
+    const row = this.sql.prepare("SELECT * FROM flow_runs WHERE chat_id = ? AND state = 'running'").get(chatId) as RunRow | undefined;
+    if (!row) return null;
+    const item = this.deps.items.find(row.item_id);
+    const project = this.deps.project(row.project_id);
+    const budget = project ? maxCostUsd(project.settings) : null;
+    const agent = project ? this.deps.agentPrompt?.(row.project_id, row.agent) : null;
+    return {
+      kind: 'flow-run',
+      subjectKind: 'flow_run',
+      subjectId: row.id,
+      prompt: this.prompts.get(chatId) ?? null,
+      openItems: item ? item.acceptanceCriteria.filter((c) => !c.checked).map((c) => c.text) : [],
+      agent: agent ? { name: row.agent, prompt: agent } : null,
+      remainingBudgetUsd: budget === null ? null : Math.max(0, budget - this.spentOn(row)),
+    };
+  }
+
+  /** What every chat of the run's chain has cost: a move does not give the run its budget again. */
+  private spentOn(row: RunRow): number {
+    const chats = new Set<string>(this.deps.db.providerMoves({ subjectKind: 'flow_run', subjectId: row.id }).map((m) => m.fromChat));
+    if (row.chat_id) chats.add(row.chat_id);
+    let spent = 0;
+    for (const chat of chats) spent += this.deps.cost?.(chat) ?? 0;
+    return spent;
   }
 
   /**
-   * What the rotation came to for a chat that hit the rate limit. Resumed, its turn was replayed on
-   * the next account in the same chat, and the run goes on there; otherwise no account was left to
-   * take it over, and the run fails and says so on its item.
+   * A move gave the run a new chat: the run is re-pointed by an update that only holds while it is
+   * still on the old chat, so a second caller (or a result that came first, see `adopt`) changes
+   * nothing. The item links the new chat with the same role.
    */
-  rotated(chatId: string, outcome: { resumed: boolean; reason?: string | null }): void {
+  moved(move: Pick<ProviderMove, 'subjectKind' | 'subjectId' | 'fromChat' | 'toChat' | 'toProvider' | 'toModel'>): boolean {
+    if (move.subjectKind !== 'flow_run' || !move.toChat || !move.toProvider) return false;
+    const changed = this.sql
+      .prepare("UPDATE flow_runs SET chat_id = ?, provider = ?, model = COALESCE(?, model) WHERE id = ? AND chat_id = ? AND state = 'running'")
+      .run(move.toChat, move.toProvider, move.toModel, move.subjectId, move.fromChat).changes;
+    if (changed !== 1) return false;
+    const prompt = this.prompts.get(move.fromChat);
+    if (prompt !== undefined) this.prompts.set(move.toChat, prompt);
+    this.prompts.delete(move.fromChat);
+    const row = this.row(move.subjectId);
+    if (row) {
+      try {
+        this.deps.items.link(row.item_id, { kind: 'chat', role: row.stage as FlowStage, chatId: move.toChat, teamRole: row.role }, { actor: { kind: 'agent', role: row.role } });
+      } catch {
+        // The run knows its chat, and its result still lands; only the item's list of chats misses it
+      }
+    }
+    return true;
+  }
+
+  /**
+   * A wait for the limit to reset ended. Replayed, the run goes on in the same chat. A person who
+   * stopped waiting stops the run, and a wait that ran out fails it, with the cause the person reads.
+   */
+  waitEnded(move: Pick<ProviderMove, 'fromChat'>, end: 'resumed' | 'failed' | 'cancelled', reason: string | null): void {
+    if (end === 'resumed') return;
     try {
-      if (!this.awaitingRotation.delete(chatId) || outcome.resumed) return;
-      const row = this.sql.prepare("SELECT * FROM flow_runs WHERE chat_id = ? AND state = 'running'").get(chatId) as RunRow | undefined;
+      const row = this.sql.prepare("SELECT * FROM flow_runs WHERE chat_id = ? AND state = 'running'").get(move.fromChat) as RunRow | undefined;
       if (!row) return;
-      this.end(row.id, 'failed', null, `the account hit its rate limit and no other account could take the run over${outcome.reason ? ` (${outcome.reason})` : ''}`, 'no-account');
+      if (end === 'cancelled') this.end(row.id, 'failed', null, 'a person stopped waiting for the usage limit to reset', 'stopped');
+      else if (reason === 'limit-wait-expired') this.end(row.id, 'failed', null, 'the usage limit did not reset within the time Agentry waits for it', 'limit-wait-expired');
+      else this.end(row.id, 'failed', null, `the usage limit reset, but the run could not go on${reason ? ` (${reason})` : ''}`, 'rate-limit');
       this.dispatch();
     } catch {
       // heard from the core's rotation: a closed database (shutting down) must not become its error
     }
   }
 
-  private async finish(row: RunRow, result: FlowChatResult): Promise<void> {
-    // A turn the rate limit cut goes on in the same chat on the next account, as a person's chat does
-    if (result.isError && result.cause === 'rate-limit' && row.chat_id && (this.awaitingRotation.has(row.chat_id) || this.deps.rotating?.(row.chat_id))) {
-      this.awaitingRotation.add(row.chat_id);
-      return;
+  /**
+   * A result from a chat no running run points at yet may come from the chat a move just made, whose
+   * run the move has not re-pointed: the move row is written first, so the run is re-pointed now.
+   */
+  private adopt(chatId: string): void {
+    for (const move of this.deps.db.providerMoves({ chatId, state: 'moved', subjectKind: 'flow_run', limit: 5 })) {
+      if (move.toChat === chatId && this.moved(move)) return;
     }
+  }
+
+  /** The limit of a waiting run's provider, as its row shows it; null when the run does not wait. */
+  private waitingOf(row: RunRow): LimitWait | null {
+    if (row.state !== 'running' || !row.chat_id) return null;
+    const open = this.deps.db.providerMoves({ chatId: row.chat_id, state: 'waiting', limit: 1 })[0];
+    return open && open.fromChat === row.chat_id ? { provider: open.fromProvider, resetsAt: open.resetsAt, moveId: open.id } : null;
+  }
+
+  private async finish(row: RunRow, result: FlowChatResult): Promise<void> {
+    // A turn the usage limit cut is the rotation's: it waits for the reset or moves the run to a new chat
+    if (result.isError && result.cause === 'rate-limit' && row.chat_id && this.deps.limitHeld?.(row.chat_id)) return;
     // A turn cut by the token limit can still end with JSON that parses: it is not the run's answer
     const cut = !result.isError && stoppedOnMaxTokens(result);
     const parsed = result.isError || cut ? null : parseResult(result.structuredOutput, row.stage as FlowStage);
@@ -1939,9 +2016,6 @@ export class FlowService {
   private end(runId: string, outcome: FlowRunOutcome, summary: string | null, error: string | null, cause: FlowRunCause | null): boolean {
     const ended = this.endRow(runId, outcome, summary, error, cause, new Date().toISOString());
     if (!ended) return false;
-    // A run stopped while it waited for the rotation is not replayed once the rotation comes back
-    const chatId = this.row(runId)?.chat_id;
-    if (chatId) this.awaitingRotation.delete(chatId);
     this.announce(runId, 'ended');
     if (outcome === 'failed') this.reportFailure(runId);
     return true;
@@ -2001,6 +2075,7 @@ export class FlowService {
     const outcome = (row.outcome as FlowRunOutcome | null) ?? null;
     const failed = state === 'ended' && (outcome ?? 'failed') === 'failed';
     const next = failed ? this.nextRun(row) : null;
+    const waiting = this.waitingOf(row);
     return {
       id: row.id,
       projectId: row.project_id,
@@ -2009,6 +2084,8 @@ export class FlowService {
       role: row.role,
       agent: row.agent,
       model: row.model,
+      ...(row.provider ? { provider: row.provider } : {}),
+      ...(waiting ? { waiting } : {}),
       stage: row.stage as FlowStage,
       step: flowStepOf(row.stage as FlowStage, row.column_name as WorkItemStatus),
       column: row.column_name as WorkItemStatus,
@@ -2107,7 +2184,7 @@ function chatFailure(result: FlowChatResult, settings: ProjectSettings | undefin
     const budget = settings ? maxCostUsd(settings) : null;
     return { error: budget === null ? 'it reached its budget' : `it reached its budget of ${budget} USD (flow.maxCostUsd)`, cause: 'budget' };
   }
-  if (result.cause === 'rate-limit') return { error: 'the account hit its rate limit', cause: 'rate-limit' };
+  if (result.cause === 'rate-limit') return { error: 'the provider hit its usage limit', cause: 'rate-limit' };
   if (result.cause === 'stopped') return { error: 'its chat was stopped', cause: 'stopped' };
   return { error: result.result || 'the chat failed', cause: 'chat-failed' };
 }
@@ -2119,7 +2196,7 @@ function chatFailure(result: FlowChatResult, settings: ProjectSettings | undefin
 const LEGACY_CAUSES: ReadonlyArray<readonly [RegExp, FlowRunCause]> = [
   [/^it reached its budget/, 'budget'],
   [/no other account could take the run over/, 'no-account'],
-  [/^the account hit its rate limit/, 'rate-limit'],
+  [/^the (account|provider) hit (its|their) (rate|usage) limit/, 'rate-limit'],
   [/^its chat was stopped/, 'stopped'],
   [/^Agentry restarted \d+ times/, 'restarts'],
   [/^the run ended without a readable structured result/, 'unreadable'],

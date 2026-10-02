@@ -51,8 +51,10 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; p
   const ties: FlowRunDocument[] = [];
   const stopped: string[] = [];
   const busy = new Set<string>();
-  /** Chats whose account rotation is on its way, as the core would say */
+  /** Chats whose usage limit the rotation has (deciding, waiting or moving), as the core would say */
   const rotating = new Set<string>();
+  /** What each chat has cost, as the runtime would say */
+  const costs = new Map<string, number>();
   /** `resume`: only continuing a chat fails; `started`: the chat to continue is told of, then it fails */
   const failNext: { message: string | null; when?: 'resume' | 'started' } = { message: null };
   let chats = 0;
@@ -77,7 +79,8 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; p
       onStart(`chat-${++chats}`);
     },
     chatBusy: (id) => busy.has(id),
-    rotating: (id) => rotating.has(id),
+    limitHeld: (id) => rotating.has(id),
+    cost: (id) => costs.get(id) ?? null,
     // No worktree is real here: nothing is uncommitted unless a test says so
     uncommitted: opts.uncommitted ?? (() => []),
     language: () => state.language,
@@ -116,7 +119,7 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; p
     state.settings = { ...state.settings, modules };
     bus.emit({ type: 'project.updated', title: '', projectId: 'p1', projectName: 'p', changes: ['modules'], modules });
   };
-  return { db, file: join(config.dataDir, 'wrapper.db'), bus, events, state, items, flow, launches, proposals, ties, stopped, busy, rotating, failNext, answer, answerToEnd, chatOf, setModules };
+  return { db, file: join(config.dataDir, 'wrapper.db'), bus, events, state, items, flow, launches, proposals, ties, stopped, busy, rotating, costs, failNext, answer, answerToEnd, chatOf, setModules };
 }
 
 type Setup = ReturnType<typeof setup>;
@@ -990,7 +993,7 @@ test('the cap holds against another process claiming at the same moment', async 
 
 const RATE_LIMITED: Partial<FlowChatResult> = { cause: 'rate-limit' };
 
-test('a run that hits the rate limit waits for the rotation and goes on in the same chat on the next account', async () => {
+test('a run that hits the usage limit stays running while the rotation holds its chat, and goes on in the same chat after the reset', async () => {
   const s = setup();
   const it = await item(s, 'in_progress');
   const chat = s.chatOf(it.id);
@@ -999,11 +1002,10 @@ test('a run that hits the rate limit waits for the rotation and goes on in the s
   // Neither the limit's result nor the process it took down ends the run
   s.flow.chatEnded(chat, 'exit code 1');
   assert.equal(running(s)[0]?.chatId, chat);
-  assert.equal(s.flow.awaitsRotation(chat), true);
   assert.equal(s.items.comments(it.id).length, 0);
+  // The wait ended and the turn was replayed
+  s.flow.waitEnded({ fromChat: chat }, 'resumed', null);
   s.rotating.delete(chat);
-  s.flow.rotated(chat, { resumed: true });
-  assert.equal(s.flow.awaitsRotation(chat), false);
   // The replayed turn answers in the same chat, and the run ends as any other: no second run, no second chat
   await s.answer(it.id, ok('Implemented'));
   assert.equal(s.items.find(it.id)?.status, 'in_review');
@@ -1016,49 +1018,55 @@ test('a run that hits the rate limit waits for the rotation and goes on in the s
   assert.equal(s.launches.filter((l) => l.run.stage === 'work').length, 1);
 });
 
-test('a rate limit fails the run when no account is left, when the rotation is off, and never waits for another error', async () => {
-  // No account left to take it over: the rotation says so, and the run fails with the reason
+test('a usage limit nobody holds fails the run, a wait that ends badly fails it with its cause, and no other error waits', async () => {
   const s = setup();
+  // A person who stopped waiting stops the run
   const a = await item(s, 'in_progress', 'A');
   const chat = s.chatOf(a.id);
   s.rotating.add(chat);
   await s.answer(a.id, {}, true, RATE_LIMITED);
   s.rotating.delete(chat);
-  s.flow.rotated(chat, { resumed: false, reason: 'no account with quota left' });
+  s.flow.waitEnded({ fromChat: chat }, 'cancelled', 'stopped waiting');
   await s.flow.settled();
-  const failed = flowRuns(s).find((r) => r.itemId === a.id);
-  assert.equal(failed?.outcome, 'failed');
-  assert.match(failed?.error ?? '', /rate limit and no other account could take the run over \(no account with quota left\)/);
-  assert.equal(failed?.cause, 'no-account');
+  const stopped = flowRuns(s).find((r) => r.itemId === a.id);
+  assert.equal(stopped?.outcome, 'failed');
+  assert.equal(stopped?.cause, 'stopped');
   assert.match(s.items.comments(a.id).at(-1)?.body ?? '', /failed and moved nothing/);
   assert.equal(s.items.find(a.id)?.status, 'in_progress');
 
-  // The rotation off (or nothing left to try): it fails at once, as before
+  // A wait that ran out says so
   const b = await item(s, 'in_progress', 'B');
+  const bChat = s.chatOf(b.id);
+  s.rotating.add(bChat);
   await s.answer(b.id, {}, true, RATE_LIMITED);
-  assert.equal(flowRuns(s).find((r) => r.itemId === b.id)?.outcome, 'failed');
-  assert.equal(flowRuns(s).find((r) => r.itemId === b.id)?.cause, 'rate-limit');
+  s.flow.waitEnded({ fromChat: bChat }, 'failed', 'limit-wait-expired');
+  assert.equal(flowRuns(s).find((r) => r.itemId === b.id)?.cause, 'limit-wait-expired');
 
-  // Any other error fails it at once, rotation or not
+  // A limit the rotation does not hold fails at once, as before
   const c = await item(s, 'in_progress', 'C');
-  s.rotating.add(s.chatOf(c.id));
-  await s.answer(c.id, {}, true);
+  await s.answer(c.id, {}, true, RATE_LIMITED);
   assert.equal(flowRuns(s).find((r) => r.itemId === c.id)?.outcome, 'failed');
+  assert.equal(flowRuns(s).find((r) => r.itemId === c.id)?.cause, 'rate-limit');
 
-  // A process the limit took down before any result waits the same way, then fails with the rotation
+  // Any other error fails it at once, held or not
   const d = await item(s, 'in_progress', 'D');
-  const dChat = s.chatOf(d.id);
-  s.rotating.add(dChat);
-  s.flow.chatEnded(dChat, 'rate limit');
-  assert.equal(running(s).find((r) => r.itemId === d.id)?.chatId, dChat);
-  s.rotating.delete(dChat);
-  s.flow.rotated(dChat, { resumed: false });
+  s.rotating.add(s.chatOf(d.id));
+  await s.answer(d.id, {}, true);
   assert.equal(flowRuns(s).find((r) => r.itemId === d.id)?.outcome, 'failed');
-  // A rotation heard for a chat nobody waits on changes nothing
-  s.flow.rotated('chat-unknown', { resumed: false });
+
+  // A process the limit took down before any result waits the same way, then fails with the wait
+  const e = await item(s, 'in_progress', 'E');
+  const eChat = s.chatOf(e.id);
+  s.rotating.add(eChat);
+  s.flow.chatEnded(eChat, 'rate limit');
+  assert.equal(running(s).find((r) => r.itemId === e.id)?.chatId, eChat);
+  s.flow.waitEnded({ fromChat: eChat }, 'failed', 'its turn could not be resumed');
+  assert.equal(flowRuns(s).find((r) => r.itemId === e.id)?.outcome, 'failed');
+  // A wait heard for a chat nobody runs changes nothing
+  s.flow.waitEnded({ fromChat: 'chat-unknown' }, 'failed', null);
 });
 
-test('a run stopped while it waits for the rotation is not replayed afterwards', async () => {
+test('a run stopped while it waits for the limit is not touched by the end of the wait', async () => {
   const s = setup();
   const it = await item(s, 'in_progress');
   const chat = s.chatOf(it.id);
@@ -1067,10 +1075,95 @@ test('a run stopped while it waits for the rotation is not replayed afterwards',
   s.setModules(['board', 'memory']);
   await s.flow.settled();
   assert.equal(flowRuns(s)[0]?.outcome, 'cancelled');
-  // The core asks before it replays the turn: nobody waits on this chat any more
-  assert.equal(s.flow.awaitsRotation(chat), false);
-  s.flow.rotated(chat, { resumed: true });
+  s.flow.waitEnded({ fromChat: chat }, 'failed', 'limit-wait-expired');
   assert.equal(flowRuns(s)[0]?.outcome, 'cancelled');
+});
+
+const movedRow = (s: Setup, run: { id: string }, fromChat: string, toChat: string) => ({
+  id: `move-${toChat}`,
+  at: new Date().toISOString(),
+  subjectKind: 'flow_run' as const,
+  subjectId: run.id,
+  projectId: 'p1',
+  fromChat,
+  toChat,
+  fromProvider: 'claude-code',
+  toProvider: 'codex',
+  fromModel: 'sonnet',
+  toModel: 'gpt-5.5',
+  action: 'handoff' as const,
+  state: 'moved' as const,
+  decidedBy: 'setting' as const,
+  decisionId: null,
+  resetsAt: null,
+  reason: null,
+  updatedAt: new Date().toISOString(),
+});
+
+test('a move re-points the run at the new chat once, links it on the item, and the new chat ends the run', async () => {
+  const s = setup();
+  const it = await item(s, 'in_progress');
+  const chat = s.chatOf(it.id);
+  const run = running(s)[0];
+  assert.ok(run);
+  s.rotating.add(chat);
+  await s.answer(it.id, {}, true, RATE_LIMITED);
+  const move = movedRow(s, run, chat, 'chat-codex');
+  assert.equal(s.flow.moved(move), true);
+  // A second caller (another process, or the result that came first) changes nothing
+  assert.equal(s.flow.moved(move), false);
+  const after = running(s)[0];
+  assert.equal(after?.chatId, 'chat-codex');
+  assert.equal(after?.provider, 'codex');
+  assert.equal(after?.model, 'gpt-5.5');
+  assert.ok(s.items.links(it.id).some((l) => l.kind === 'chat' && l.chatId === 'chat-codex' && l.role === 'work'));
+  // The old chat's process ending is nobody's failure: the run is not on it any more
+  s.flow.chatEnded(chat, 'exit code 1');
+  assert.equal(running(s)[0]?.chatId, 'chat-codex');
+  await s.flow.chatResult('chat-codex', { isError: false, result: '', structuredOutput: ok('Implemented') });
+  await s.flow.settled();
+  assert.equal(s.items.find(it.id)?.status, 'in_review');
+  assert.deepEqual(
+    flowRuns(s)
+      .filter((r) => r.stage === 'work')
+      .map((r) => [r.chatId, r.provider, r.outcome]),
+    [['chat-codex', 'codex', 'passed']],
+  );
+});
+
+test('a result from the new chat that comes before the move re-points the run is not lost', async () => {
+  const s = setup();
+  const it = await item(s, 'in_progress');
+  const chat = s.chatOf(it.id);
+  const run = running(s)[0];
+  assert.ok(run);
+  s.db.insertProviderMove(movedRow(s, run, chat, 'chat-codex'));
+  await s.flow.chatResult('chat-codex', { isError: false, result: '', structuredOutput: ok('Implemented') });
+  await s.flow.settled();
+  assert.equal(s.items.find(it.id)?.status, 'in_review');
+  assert.equal(flowRuns(s).find((r) => r.stage === 'work')?.chatId, 'chat-codex');
+});
+
+test("a run's work is what a move carries: its prompt, what is owed, and the budget that is left across the chain", async () => {
+  const s = setup({ settings: { ...settingsWith(), flow: { ...settingsWith().flow!, maxCostUsd: 5 } } });
+  const it = await item(s, 'in_progress');
+  const chat = s.chatOf(it.id);
+  const run = running(s)[0];
+  assert.ok(run);
+  s.costs.set(chat, 1.5);
+  const work = s.flow.workOf(chat);
+  assert.equal(work?.kind, 'flow-run');
+  assert.equal(work?.subjectKind, 'flow_run');
+  assert.equal(work?.subjectId, run.id);
+  assert.equal(work?.prompt, s.launches.find((l) => l.run.id === run.id)?.prompt);
+  assert.equal(work?.remainingBudgetUsd, 3.5);
+  // After a move the run's budget is what is left of the chain, not the whole of it again
+  s.db.insertProviderMove(movedRow(s, run, chat, 'chat-codex'));
+  assert.equal(s.flow.moved(movedRow(s, run, chat, 'chat-codex')), true);
+  s.costs.set('chat-codex', 1);
+  assert.equal(s.flow.workOf('chat-codex')?.remainingBudgetUsd, 2.5);
+  assert.equal(s.flow.workOf('chat-codex')?.prompt, work?.prompt);
+  assert.equal(s.flow.workOf(chat), null);
 });
 
 test("an item's runs are all served, newest first, so an older failed run still reads as failed", async () => {

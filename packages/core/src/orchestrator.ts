@@ -56,6 +56,9 @@ import {
 } from './git.ts';
 import type { CoreConfig } from './paths.ts';
 import type { ChatManager, ChatRuntime, RunResult } from './chats.ts';
+import type { ChatWork } from './chat-service.ts';
+import { LEGACY_PROVIDER } from './chat-records.ts';
+import type { StartChoice, StartInput, WorkProviders } from './work-provider.ts';
 import { effectiveLimits, elapsedMs, normalizeLimits, pastHardLimit, pastSoftLimit, remainingUsd, spentUsd, startClock, timeWarning } from './task-limits.ts';
 import type { TaskContext } from './health-service.ts';
 import {
@@ -77,7 +80,7 @@ import type { DecisionOutcome } from './decisions/engine.ts';
 import type { DecisionSubject } from './decisions/points.ts';
 import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
 import { designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, scopeAndCompletion, thinkThrough, timeSignal, UNATTENDED, unpasted } from './prompt-rules.ts';
-import { MAX_CONTINUATIONS } from '@agentry/shared';
+import { MAX_CONTINUATIONS, type LimitWait, type ProviderMove } from '@agentry/shared';
 import { rulesFor } from './tool-policy.ts';
 import type { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
 
@@ -404,6 +407,17 @@ export class Orchestrator {
   private readonly deciding = new Set<Promise<unknown>>();
   /** Opens and follows an integration branch's change request; set by Core, which owns the host service */
   pullRequests: OrchestrationPullRequestService | null = null;
+  /** Where a task's chat starts (`provider.pick` included); set by Core. Absent, a task starts on the default provider */
+  providers: WorkProviders | null = null;
+  /** The rotation has the chat's usage limit: it is deciding, waiting for the reset or moving the task; set by Core */
+  limitHeld: ((chatId: string) => boolean) | null = null;
+  /** The open wait for a limit to reset that a task's chat is in; set by Core */
+  waitOf: ((chatId: string) => LimitWait | null) | null = null;
+  /** Ends the wait a chat is in, for a task that is stopped; set by Core */
+  releaseWait: ((chatId: string) => void) | null = null;
+  /** Tasks whose provider `provider.pick` is being asked about, and the answer once it came: `<orchestration>:<task>` */
+  private readonly picking = new Set<string>();
+  private readonly picked = new Map<string, StartChoice | Error>();
 
   constructor(
     private readonly config: CoreConfig,
@@ -530,14 +544,15 @@ export class Orchestrator {
    */
   view(orch: Orchestration): Orchestration {
     const read = this.health;
-    const now = new Map<string, { health: Health | null; activity: ChatActivity | null }>();
+    const now = new Map<string, { health: Health | null; activity: ChatActivity | null; waiting?: LimitWait }>();
     for (const task of orch.tasks) {
       if (task.status !== 'running' || !task.runId) continue;
-      now.set(task.id, { health: read ? read(task) : null, activity: this.runs.get(task.runId)?.activity ?? null });
+      const waiting = this.waitOf?.(task.runId) ?? null;
+      now.set(task.id, { health: read ? read(task) : null, activity: this.runs.get(task.runId)?.activity ?? null, ...(waiting ? { waiting } : {}) });
     }
     // Nothing of this moment to say: the stored graph is already the answer, copies and all
     const pullRequest = this.pullRequests?.newest(orch.id) ?? null;
-    if (!pullRequest && [...now.values()].every((of) => !of.health && !of.activity)) return orch;
+    if (!pullRequest && [...now.values()].every((of) => !of.health && !of.activity && !of.waiting)) return orch;
     return { ...orch, ...(pullRequest ? { pullRequest } : {}), tasks: orch.tasks.map((t) => (now.has(t.id) ? { ...t, ...now.get(t.id) } : t)) };
   }
 
@@ -564,6 +579,8 @@ export class Orchestrator {
         if (task.status !== 'running' || !task.runId) continue;
         const limits = effectiveLimits(orch.limits, task.limits);
         if (limits?.maxMinutes === undefined) continue;
+        // Waiting for a limit to reset is not working: the clock is given back when the wait ends (`waitEnded`)
+        if (this.waitOf?.(task.runId)) continue;
         const elapsed = elapsedMs(task, nowMs);
         if (pastHardLimit(elapsed, limits)) {
           const runId = task.runId;
@@ -688,7 +705,10 @@ export class Orchestrator {
     // One process runs every task of a workflow
     if (orch.workflow?.runId && this.runs.get(orch.workflow.runId)?.pid) this.runs.stop(orch.workflow.runId);
     for (const t of orch.tasks) {
-      if (t.status === 'running' && t.runId && orch.engine !== 'workflow') this.runs.stop(t.runId);
+      if (t.status === 'running' && t.runId && orch.engine !== 'workflow') {
+        this.releaseWait?.(t.runId);
+        this.runs.stop(t.runId);
+      }
       if (t.status === 'pending' || t.status === 'running' || t.status === 'blocked' || t.status === 'interrupted') t.status = 'stopped';
     }
     // The last steps run agents too, and stopping the graph has to stop them
@@ -995,9 +1015,65 @@ export class Orchestrator {
     return prepared;
   }
 
+  /** What a task needs of the provider that starts it: the same question a move asks, with nothing started yet. */
+  private startInput(orch: Orchestration, task: OrchestrationTaskState): StartInput {
+    const limits = effectiveLimits(orch.limits, task.limits);
+    return {
+      kind: 'task',
+      subjectKind: 'task',
+      subjectId: `${orch.id}:${task.id}`,
+      projectId: this.projectIdOf(task.cwd ?? orch.cwd),
+      title: task.name,
+      model: task.model ?? orch.model ?? null,
+      needs: [...(limits?.maxCostUsd !== undefined ? (['budgetLimit'] as const) : []), ...(orch.permissionPrompts === 'host' ? (['interactivePermissions'] as const) : [])],
+      // Workers carry the graph's own rules, typed for Claude Code: with any, the task stays there
+      policy: null,
+      nativeRules: (orch.allowedTools?.length ?? 0) > 0,
+    };
+  }
+
+  /**
+   * The provider a task starts on. `provider.pick` may be asked first, which takes a moment: the task
+   * holds its place meanwhile and the graph is scheduled again when the answer is in. Null keeps the
+   * default provider, which is all anything knows before the providers have been read once.
+   */
+  private startChoice(orch: Orchestration, task: OrchestrationTaskState): StartChoice | Error | null | 'asking' {
+    if (!this.providers) return null;
+    const key = `${orch.id}:${task.id}`;
+    if (this.picking.has(key)) return 'asking';
+    const answered = this.picked.get(key);
+    if (answered) {
+      this.picked.delete(key);
+      return answered;
+    }
+    const input = this.startInput(orch, task);
+    if (this.providers.wantsPick(input)) {
+      this.picking.add(key);
+      void this.providers
+        .choose(input)
+        .then(
+          (choice) => this.picked.set(key, choice),
+          (err: unknown) => this.picked.set(key, err instanceof Error ? err : new Error(String(err))),
+        )
+        .finally(() => {
+          this.picking.delete(key);
+          this.schedule(orch);
+        });
+      return 'asking';
+    }
+    try {
+      return this.providers.chooseNow(input);
+    } catch (err) {
+      return err instanceof Error ? err : new Error(String(err));
+    }
+  }
+
   private launch(orch: Orchestration, task: OrchestrationTaskState): boolean {
     // A task that has a chat goes on in it: a new execution, never a new conversation
     if (task.runId && this.runs.get(task.runId)) return this.continueChat(orch, task, task.runId);
+    const choice = this.startChoice(orch, task);
+    if (choice === 'asking') return true;
+    if (choice instanceof Error) return this.refuse(orch, task, choice, 'start the worker');
     try {
       const isolated = orch.worktree && !task.cwd;
       const limits = effectiveLimits(orch.limits, task.limits);
@@ -1009,7 +1085,8 @@ export class Orchestrator {
           cwd: prepared?.cwd ?? task.cwd ?? orch.cwd,
           // The CLI adopts the worktree prepared above, locks it and works in it
           ...(prepared?.adopt ? { worktree: name } : {}),
-          model: task.model ?? orch.model ?? undefined,
+          ...(choice ? { provider: choice.provider, ...(choice.effort ? { effort: choice.effort } : {}) } : {}),
+          model: (choice ? choice.model : (task.model ?? orch.model)) ?? undefined,
           permissionMode: orch.permissionMode,
           ...(orch.allowedTools?.length ? { allowedTools: orch.allowedTools } : {}),
           ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
@@ -1023,6 +1100,9 @@ export class Orchestrator {
       task.status = 'running';
       task.runId = run.id;
       task.sessionId = run.id;
+      task.provider = run.provider ?? LEGACY_PROVIDER;
+      task.chain = [{ chatId: run.id, provider: task.provider, model: run.model, action: null }];
+      task.waiting = null;
       task.attempts = 1;
       // The cost of a chat that is gone (its record deleted) stays in the graph's total, not here
       task.costUsd = 0;
@@ -1133,6 +1213,12 @@ ${quoted}
    */
   private settle(orch: Orchestration, task: OrchestrationTaskState, result: RunResult): void {
     if (task.status !== 'running') return; // stopped meanwhile
+    // The usage limit is the rotation's: it waits for the reset in this chat (`waitEnded` listens for
+    // the replayed turn) or moves the task to a new chat (`moved`). Not a failure, not an attempt
+    if (result.isError && result.cause === 'rate-limit' && task.runId && this.limitHeld?.(task.runId)) {
+      this.charge(orch, task, result);
+      return this.persist();
+    }
     const deciding = this.decide(orch, task, result);
     if (!deciding) return this.settleNow(orch, task, result, {});
     void deciding.then((verdict) => {
@@ -1245,8 +1331,108 @@ ${quoted}
 
   /** The chat's total, so the graph adds only what this execution cost on top of what it already counted. */
   private charge(orch: Orchestration, task: OrchestrationTaskState, result: RunResult): void {
-    orch.costUsd += result.costUsd - task.costUsd;
-    task.costUsd = result.costUsd;
+    // A moved task's chats each count their own cost from zero: the graph is charged for all of them
+    const total = this.earlierChatsCost(task) + result.costUsd;
+    orch.costUsd += total - task.costUsd;
+    task.costUsd = total;
+  }
+
+  /** What the chats of the task's chain before its current one cost; nothing for a task that never moved. */
+  private earlierChatsCost(task: OrchestrationTaskState): number {
+    let sum = 0;
+    for (const entry of task.chain ?? []) if (entry.chatId !== task.runId) sum += this.runs.get(entry.chatId)?.costUsd ?? 0;
+    return sum;
+  }
+
+  // ---------- a limit: moving and waiting ----------
+
+  private taskOfChat(chatId: string): { orch: Orchestration; task: OrchestrationTaskState } | null {
+    for (const orch of this.items.values()) {
+      if (orch.engine !== 'graph') continue;
+      const task = orch.tasks.find((t) => t.runId === chatId);
+      if (task) return { orch, task };
+    }
+    return null;
+  }
+
+  /**
+   * What a running task's chat works for, as a move reads it: the task's prompt, what is left of its
+   * cost limit across the chain, and how it closes. Null for any other chat, and for a workflow
+   * graph, whose one process runs every task and cannot be replayed task by task.
+   */
+  workOf(chatId: string): ChatWork | null {
+    const found = this.taskOfChat(chatId);
+    if (!found || found.task.status !== 'running') return null;
+    const { orch, task } = found;
+    const limits = effectiveLimits(orch.limits, task.limits);
+    let prompt: string | null = null;
+    try {
+      prompt = this.buildPrompt(orch, task, null);
+    } catch {
+      // the chat's own first prompt stands in
+    }
+    const spent = this.earlierChatsCost(task) + (this.runs.get(chatId)?.costUsd ?? 0) - (task.clockCostUsd ?? 0);
+    return {
+      kind: 'task',
+      subjectKind: 'task',
+      subjectId: `${orch.id}:${task.id}`,
+      prompt,
+      closing: WORKER_CLOSING,
+      remainingBudgetUsd: limits?.maxCostUsd === undefined ? null : Math.max(0, limits.maxCostUsd - spent),
+    };
+  }
+
+  /**
+   * A move gave the task a new chat: it goes on there, on the provider that took it, and the chat
+   * before it stays in the chain. Not an attempt. False when the task is no longer on the old chat.
+   */
+  moved(move: Pick<ProviderMove, 'subjectKind' | 'subjectId' | 'fromChat' | 'toChat' | 'fromProvider' | 'fromModel' | 'toProvider' | 'toModel' | 'action'>): boolean {
+    if (move.subjectKind !== 'task' || !move.toChat || !move.toProvider || move.action === 'wait') return false;
+    const found = this.taskOfChat(move.fromChat);
+    if (!found || found.task.status !== 'running') return false;
+    const { orch, task } = found;
+    const chain = task.chain ?? [{ chatId: move.fromChat, provider: move.fromProvider, model: move.fromModel, action: null }];
+    task.chain = [...chain, { chatId: move.toChat, provider: move.toProvider, model: move.toModel, action: move.action }];
+    // What the old chat spent is the graph's, and counts against the task's cost limit from here on
+    const spent = this.earlierChatsCost({ ...task, runId: move.toChat });
+    orch.costUsd += spent - task.costUsd;
+    task.costUsd = spent;
+    task.runId = move.toChat;
+    task.sessionId = move.toChat;
+    task.provider = move.toProvider;
+    task.waiting = null;
+    void this.runs.waitForResult(move.toChat).then((result) => this.settle(orch, task, result));
+    this.persist();
+    return true;
+  }
+
+  /**
+   * A wait for the limit to reset ended. Replayed, the task goes on in the same chat and its next
+   * result is settled as any other. A person who stopped waiting stops the task; a wait that ran out
+   * fails it, and a person decides.
+   */
+  waitEnded(move: Pick<ProviderMove, 'fromChat' | 'at'>, end: 'resumed' | 'failed' | 'cancelled', reason: string | null): void {
+    const found = this.taskOfChat(move.fromChat);
+    if (!found || found.task.status !== 'running') return;
+    const { orch, task } = found;
+    // The clock did not run while the task waited
+    const from = task.clockStartedAt ?? task.startedAt;
+    if (from) task.clockStartedAt = new Date(Date.parse(from) + Math.max(0, Date.now() - Date.parse(move.at))).toISOString();
+    task.waiting = null;
+    if (end === 'resumed') {
+      // The turn was sent just before this: only a result after it is the task's next
+      void this.runs.nextResult(move.fromChat).then((result) => this.settle(orch, task, result), () => undefined);
+      return this.persist();
+    }
+    task.status = end === 'cancelled' ? 'stopped' : 'failed';
+    task.error =
+      end === 'cancelled'
+        ? 'a person stopped waiting for the usage limit to reset'
+        : reason === 'limit-wait-expired'
+          ? 'the usage limit did not reset within the time Agentry waits for it'
+          : `the usage limit reset, but the task could not go on${reason ? ` (${reason})` : ''}`;
+    task.endedAt = now();
+    this.schedule(orch);
   }
 
   /**
@@ -1425,6 +1611,8 @@ ${quoted}
         cwd: state.worktree ?? orch.cwd,
         model: orch.model ?? undefined,
         permissionMode: orch.permissionMode,
+        // These rules are Claude Code's, so a default provider set to another one never receives them
+        provider: 'claude-code',
         // Merging is git work; without it the integrator could only describe the conflicts
         allowedTools: rulesFor('claude-code', INTEGRATION_POLICY, { allowedTools: orch.allowedTools }).allowedTools,
         ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
@@ -1854,6 +2042,8 @@ ${quoted}
           cwd: dir,
           model: spec.model ?? orch.model ?? undefined,
           permissionMode: orch.permissionMode,
+          // These rules are Claude Code's, so a default provider set to another one never receives them
+          provider: 'claude-code',
           // Building and running tests is the job, so it may run commands; the graph asked for a fixer
           allowedTools: rulesFor('claude-code', VERIFICATION_POLICY, { allowedTools: orch.allowedTools }).allowedTools,
           ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
@@ -1899,6 +2089,8 @@ ${quoted}
         cwd: req.cwd,
         model: spec?.model ?? orch.model ?? undefined,
         permissionMode: orch.permissionMode,
+        // These rules are Claude Code's, so a default provider set to another one never receives them
+        provider: 'claude-code',
         allowedTools: rulesFor('claude-code', VERIFICATION_POLICY, { allowedTools: orch.allowedTools }).allowedTools,
         ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
         name: `${orch.name}:checks-fix`.slice(0, 60),
@@ -1990,6 +2182,8 @@ ${quoted}
       cwd,
       model: req.model,
       permissionMode: 'manual',
+      // These rules are Claude Code's, so a default provider set to another one never receives them
+      provider: 'claude-code',
       allowedTools: rulesFor('claude-code', PLANNER_POLICY).allowedTools,
       name: PLANNER_RUN_NAME,
       keepAlive: false,
@@ -2399,6 +2593,8 @@ ${quoted}
             cwd: orch.cwd,
             model: orch.model ?? undefined,
             permissionMode: orch.permissionMode,
+            // These rules are Claude Code's, so a default provider set to another one never receives them
+            provider: 'claude-code',
             // Asked for by the person who launched the graph: nothing to confirm again
             allowedTools: rulesFor('claude-code', WORKFLOW_POLICY, { allowedTools: orch.allowedTools }).allowedTools,
             ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),

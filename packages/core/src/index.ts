@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
@@ -63,11 +63,15 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@agentry/shared';
-import { AGENTRY_LANGUAGES, agentryLanguage, type DecisionRecord, type ProjectCodeHost, type ProviderId } from '@agentry/shared';
+import { AGENTRY_LANGUAGES, agentryLanguage, type DecisionRecord, type LimitWait, type PermissionMode, type ProjectCodeHost, type ProviderId, type ProviderMove, type ToolPolicy } from '@agentry/shared';
+import { LEGACY_PROVIDER } from './chat-records.ts';
+import { rulesFor } from './tool-policy.ts';
 import pkg from '../package.json' with { type: 'json' };
 import { CswapRetirementNotice } from './cswap-retirement.ts';
 import { ProviderRotation, candidateContext } from './rotation.ts';
 import { ProviderPoints } from './decisions/provider-points.ts';
+import { WorkProviders, type StartInput } from './work-provider.ts';
+import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
 import { stateFromRun } from './chat-model.ts';
 import { chatLinkName, WorkItemError, WorkItemService, type WorkItemLinkState } from './work-items.ts';
@@ -395,6 +399,8 @@ export class Core {
   readonly rotation: ProviderRotation;
   /** The three provider decision points: what to do at a limit, which provider to start on, a model's counterpart */
   readonly providerPoints: ProviderPoints;
+  /** Where automated work starts: the same candidates a move reads, `provider.pick` included */
+  readonly workProviders: WorkProviders;
   /** What claude-swap left behind: the one-time notice and Agentry's own copy of the binary */
   readonly cswapRetirement: CswapRetirementNotice;
   readonly cliVersion: CliVersionWatch;
@@ -623,6 +629,19 @@ export class Core {
       modelMap: () => this.providersSettings.get().rotation?.modelMap ?? [],
     });
     this.providerPoints = new ProviderPoints({ decisions: this.decisions, sql: this.db.connection });
+    this.workProviders = new WorkProviders({
+      runtime: this.runtime,
+      settings: () => this.providersSettings.get(),
+      projectProviders: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.providers ?? null,
+      statuses: () => this.providers.statuses(),
+      known: () => this.providers.known(),
+      decisions: this.decisions,
+      points: this.providerPoints,
+    });
+    this.orchestrator.providers = this.workProviders;
+    this.orchestrator.limitHeld = (chatId) => this.rotation.holds(chatId);
+    this.orchestrator.waitOf = (chatId) => this.openWait(chatId);
+    this.orchestrator.releaseWait = (chatId) => this.cancelWait(chatId);
     this.events.observe((event) => this.decisionResolvers.observe(event));
     this.decisionResolvers.start();
     this.orchestrator.decisions = this.decisions;
@@ -655,6 +674,7 @@ export class Core {
         statuses: () => this.providers.known() ?? [],
         projectProviders: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.providers ?? null,
         moves: this.db,
+        work: (chatId) => this.workOf(chatId),
       },
     });
     this.changes = new Changes({
@@ -889,10 +909,15 @@ export class Core {
         const chat = this.runtime.get(chatId);
         return !!chat && stateFromRun({ status: chat.status, pendingPrompts: chat.pendingPrompts }) !== 'idle';
       },
-      stop: (chatId) => void this.runtime.stop(chatId),
+      stop: (chatId) => {
+        this.cancelWait(chatId);
+        void this.runtime.stop(chatId);
+      },
       activity: (chatId) => this.runtime.get(chatId)?.activity ?? null,
       language: () => this.language,
-      rotating: (chatId) => this.rotation.holds(chatId),
+      limitHeld: (chatId) => this.rotation.holds(chatId),
+      cost: (chatId) => this.runtime.get(chatId)?.costUsd ?? null,
+      agentPrompt: (projectId, agent) => this.agentInstructions(projectId, agent),
       emit: (event) => this.events.emit(event),
     });
     this.team.runs = (projectId) => this.flow.runs(projectId);
@@ -907,7 +932,11 @@ export class Core {
         const chat = this.runtime.get(chatId);
         return !!chat && stateFromRun({ status: chat.status, pendingPrompts: chat.pendingPrompts }) !== 'idle';
       },
-      stop: (chatId) => void this.runtime.stop(chatId),
+      stop: (chatId) => {
+        this.cancelWait(chatId);
+        void this.runtime.stop(chatId);
+      },
+      limitHeld: (chatId) => this.rotation.holds(chatId),
       activity: (chatId) => this.runtime.get(chatId)?.activity ?? null,
       cost: (chatId) => this.runtime.get(chatId)?.costUsd ?? null,
       addMember: (project, member, content) => this.addAssistantMember(project, member, content),
@@ -1000,11 +1029,52 @@ export class Core {
       decisions: this.decisions,
       points: this.providerPoints,
       emit: (event) => this.events.emit(event),
-      // A flow run waits for its chat through the rotation until its own bookkeeping moves to the move rows
-      awaiting: (chatId) => this.flow.awaitsRotation(chatId),
-      ended: (move, end, reason) => this.flow.rotated(move.fromChat, { resumed: end === 'resumed', reason }),
+      work: (chatId) => this.workOf(chatId),
+      repoint: (move) => this.repoint(move),
+      ended: (move, end, reason) => {
+        if (move.subjectKind === 'flow_run') this.flow.waitEnded(move, end, reason);
+        else if (move.subjectKind === 'task') this.orchestrator.waitEnded(move, end, reason);
+        else if (move.subjectKind === 'assistant_run') this.assistant.waitEnded(move, end, reason);
+      },
     });
     this.rotation.start();
+  }
+
+  /** The run, task or item a chat works for: what lets the rotation move it, and what a move carries over. Null for a person's chat. */
+  private workOf(chatId: string): ChatWork | null {
+    return this.flow.workOf(chatId) ?? this.orchestrator.workOf(chatId) ?? this.assistant.workOf(chatId);
+  }
+
+  /** A move gave automated work a new chat: whoever owned the old one points at the new one. */
+  private repoint(move: ProviderMove): void {
+    if (move.subjectKind === 'flow_run') this.flow.moved(move);
+    else if (move.subjectKind === 'task') this.orchestrator.moved(move);
+    else if (move.subjectKind === 'assistant_run') this.assistant.moved(move);
+  }
+
+  /** The wait for a limit to reset that a chat is in, as the work it belongs to shows it. */
+  private openWait(chatId: string): LimitWait | null {
+    const id = this.rotation.waitOf(chatId);
+    const move = id ? this.db.providerMove(id) : null;
+    return move ? { provider: move.fromProvider, resetsAt: move.resetsAt, moveId: move.id } : null;
+  }
+
+  /** A chat that is stopped on purpose is not waited for any more: its wait ends, and the work it belonged to with it. */
+  private cancelWait(chatId: string): void {
+    const id = this.rotation.waitOf(chatId);
+    if (id) this.rotation.cancel(id);
+  }
+
+  /** What a team member's agent file tells the agent, without its front matter; null when there is no file. */
+  private agentInstructions(projectId: string, agent: string): string | null {
+    const record = this.projectStore.get(projectId);
+    if (!record || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(agent)) return null;
+    try {
+      const content = readFileSync(join(record.path, '.claude', 'agents', `${agent}.md`), 'utf8');
+      return content.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').trim() || null;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -1727,27 +1797,60 @@ export class Core {
    * uploads directory, the journal and CLAUDE.md appended but never recorded, the result held to the
    * run's schema, and one turn. A run a restart cut off continues in its own chat, confined again.
    */
-  private async launchAssistantRun(launch: AssistantLaunch, onStart: (chatId: string) => void): Promise<void> {
+  private async launchAssistantRun(launch: AssistantLaunch, onStart: (chatId: string, provider?: ProviderId) => void): Promise<void> {
+    // A run cut off by a restart goes on in its own chat, on the provider that chat has
+    const resumed = launch.resumeChatId ? this.runtime.get(launch.resumeChatId) : null;
+    const claude = (resumed ? (resumed.provider ?? LEGACY_PROVIDER) : null) === LEGACY_PROVIDER;
+    // A run with no shell cannot push, and says so: automated work moves only with pushes denied
+    const policy: ToolPolicy = { ...launch.policy, gitPush: 'deny' };
+    const choice = resumed ? null : await this.workProviders.choose(this.assistantStartInput(launch, policy));
+    const provider = resumed ? (resumed.provider ?? LEGACY_PROVIDER) : (choice?.provider ?? LEGACY_PROVIDER);
+    const rules = rulesFor(provider, policy);
+    const capabilities = this.runtime.providers.capabilities(provider);
     const options = {
-      model: launch.model,
+      model: resumed ? launch.model : (choice?.model ?? undefined),
+      ...(choice?.effort ? { effort: choice.effort } : {}),
       appendSystemPrompt: launch.appendSystemPrompt || undefined,
-      permissionMode: launch.permissionMode,
-      allowedTools: launch.allowedTools,
-      disallowedTools: launch.disallowedTools,
+      permissionMode: this.permissionModeFor(provider, launch.permissionMode),
+      allowedTools: provider === LEGACY_PROVIDER ? launch.allowedTools : rules.allowedTools,
+      disallowedTools: provider === LEGACY_PROVIDER ? launch.disallowedTools : rules.disallowedTools,
       toolPreset: null,
-      mcp: { servers: [] },
+      ...(capabilities.includes('mcp') ? { mcp: { servers: [] } } : {}),
       permissionPrompts: 'none' as const,
     };
-    const confine: ChatConfinement = { tools: launch.tools, settingSources: [] };
+    // `--tools` is Claude Code's flag: another provider is held to the policy by its own translation
+    const confine: ChatConfinement = { tools: provider === LEGACY_PROVIDER ? launch.tools : [], settingSources: [] };
     // Not recorded, as for a member's run: the CLI would otherwise send the run's prompt, rendered
     // for a confined session, to a person who continues the chat after the run
-    const extras = { jsonSchema: launch.jsonSchema, keepAlive: false, confine, systemPromptSnapshot: 'off' as const };
+    const extras = { jsonSchema: launch.jsonSchema, keepAlive: false, ...(provider === LEGACY_PROVIDER ? { confine } : {}), systemPromptSnapshot: 'off' as const };
     if (launch.resumeChatId) {
-      onStart(launch.resumeChatId);
-      await this.chats.resume(launch.resumeChatId, { ...options, prompt: launch.prompt }, extras);
+      onStart(launch.resumeChatId, provider);
+      // A chat on another provider keeps the policy it was started with: Claude's rules would replace it
+      const resume = claude ? options : { model: options.model, appendSystemPrompt: options.appendSystemPrompt, permissionMode: options.permissionMode, permissionPrompts: options.permissionPrompts };
+      await this.chats.resume(launch.resumeChatId, { ...resume, prompt: launch.prompt }, extras);
       return;
     }
-    await this.chats.create({ ...options, ...extras, prompt: launch.prompt, cwd: launch.cwd }, (started) => onStart(started.id));
+    await this.chats.create({ ...options, ...extras, provider, policy, prompt: launch.prompt, cwd: launch.cwd }, (started) => onStart(started.id, provider));
+  }
+
+  private assistantStartInput(launch: AssistantLaunch, policy: ToolPolicy): StartInput {
+    return {
+      kind: 'assistant',
+      subjectKind: 'assistant_run',
+      subjectId: launch.run.id,
+      projectId: launch.run.projectId,
+      title: launch.run.kind,
+      model: launch.model,
+      needs: ['structuredOutput'],
+      policy,
+    };
+  }
+
+  /** A mode the provider does not offer becomes `manual`: never a more permissive one than was asked for. */
+  private permissionModeFor(provider: ProviderId, mode: PermissionMode): PermissionMode {
+    if (provider === LEGACY_PROVIDER) return mode;
+    const offered = this.runtime.driverFor(provider).permissionModes();
+    return offered.some((m) => m.mode === mode) ? mode : 'manual';
   }
 
   /**
@@ -1796,11 +1899,18 @@ export class Core {
    * Developer's run continues its own chat from an earlier round, or starts one if that chat cannot
    * be continued; a run a restart cut off continues in its chat or fails.
    */
-  private async launchFlowRun(launch: FlowLaunch, onStart: (chatId: string) => void): Promise<void> {
+  private async launchFlowRun(launch: FlowLaunch, onStart: (chatId: string, provider?: ProviderId) => void): Promise<void> {
     const { item, member, run } = launch;
     const record = this.requireProject(item.projectId);
     if (!existsSync(record.path)) throw new Error(`the project's directory ${record.path} is missing`);
-    const agentsFile = await this.flowAgentsFile(record.path, member);
+    const resumed = launch.resumeChatId ? this.runtime.get(launch.resumeChatId) : null;
+    // A run that goes on in its chat stays on the provider that chat has; a new chat starts on the
+    // first provider that can enforce the stage's policy and take its model, `provider.pick` included.
+    // Chosen before anything is touched, so a run no provider can take fails with nothing half done
+    const needs: StartInput['needs'] = ['structuredOutput', ...(launch.maxBudgetUsd !== null ? (['budgetLimit'] as const) : [])];
+    const choice = resumed ? null : await this.workProviders.choose({ kind: 'flow-run', subjectKind: 'flow_run', subjectId: run.id, projectId: item.projectId, title: item.title, model: member.model, needs, policy: launch.policy });
+    const resumedOn = resumed ? (resumed.provider ?? LEGACY_PROVIDER) : null;
+    const agentsFile = (resumedOn ?? choice?.provider ?? LEGACY_PROVIDER) === LEGACY_PROVIDER ? await this.flowAgentsFile(record.path, member) : null;
     const place = launch.inWorktree ? itemWorktree(record.path, item) : null;
     if (place && (place.worktree !== item.worktree || place.branch !== item.branch)) {
       this.workItems.setWorktree(item.id, { worktree: place.worktree, branch: place.branch });
@@ -1823,17 +1933,29 @@ export class Core {
       // The short "carry on" prompt of a restart keeps to itself: the chat was already told
       if (line && !launch.continuing) prompt = withDocumentsLine(prompt, line);
     }
+    // The stage's policy in the words of the provider that runs it, never Claude's rule strings on another provider
+    const startedOn = (provider: ProviderId): { allowedTools: string[]; disallowedTools: string[] } => {
+      if (provider === LEGACY_PROVIDER) return { allowedTools: launch.allowedTools, disallowedTools: launch.disallowedTools };
+      const rules = rulesFor(provider, launch.policy);
+      return { allowedTools: rules.allowedTools, disallowedTools: rules.disallowedTools };
+    };
+    const newProvider = choice?.provider ?? LEGACY_PROVIDER;
     const options = {
-      model: member.model,
+      model: choice?.model ?? member.model,
+      ...(choice?.effort ? { effort: choice.effort } : {}),
       appendSystemPrompt: launch.appendSystemPrompt || undefined,
-      permissionMode: launch.permissionMode,
-      allowedTools: launch.allowedTools,
-      disallowedTools: launch.disallowedTools,
+      permissionMode: this.permissionModeFor(newProvider, launch.permissionMode),
+      ...startedOn(newProvider),
       ...(launch.maxBudgetUsd !== null ? { maxBudgetUsd: launch.maxBudgetUsd } : {}),
       toolPreset: null,
       permissionPrompts: 'none' as const,
     };
-    const extras = { agent: member.agent, agentsFile, jsonSchema: launch.jsonSchema, systemPromptSnapshot: 'off' as const, uploads: false as const, keepAlive: false };
+    // A provider that cannot take the agent file as a subagent gets its instructions at the head of the prompt
+    if (newProvider !== LEGACY_PROVIDER && !this.runtime.providers.capabilities(newProvider).includes('subagents') && !launch.continuing) {
+      const instructions = this.agentInstructions(item.projectId, member.agent);
+      if (instructions) prompt = `${instructions}\n\n${prompt}`;
+    }
+    const extras = { ...(agentsFile ? { agent: member.agent, agentsFile } : {}), jsonSchema: launch.jsonSchema, systemPromptSnapshot: 'off' as const, uploads: false as const, keepAlive: false };
     const link = (chatId: string): void => {
       try {
         this.workItems.link(item.id, { kind: 'chat', role: run.stage, chatId, teamRole: member.role }, { actor: { kind: 'agent', role: member.role } });
@@ -1844,9 +1966,11 @@ export class Core {
     if (launch.resumeChatId) {
       const chatId = launch.resumeChatId;
       // Told first: the result is matched to the run by its chat, and may not wait for the resume to return
-      onStart(chatId);
+      onStart(chatId, resumedOn ?? undefined);
       try {
-        await this.chats.resume(chatId, { ...options, prompt }, extras);
+        // A chat on another provider keeps the policy it was started with: Claude's rules would replace it
+        const resume = resumedOn === LEGACY_PROVIDER ? options : { model: options.model, appendSystemPrompt: options.appendSystemPrompt, permissionMode: options.permissionMode, permissionPrompts: options.permissionPrompts };
+        await this.chats.resume(chatId, { ...resume, prompt }, extras);
         link(chatId);
         return;
       } catch (err) {
@@ -1855,8 +1979,15 @@ export class Core {
         // otherwise falls through to a chat of its own
       }
     }
-    await this.chats.create({ ...options, ...extras, prompt, cwd: place?.cwd ?? record.path }, (started) => {
-      onStart(started.id);
+    // Chosen when none was yet: a Developer's chat that could not be continued falls through to here
+    const created = choice ?? (await this.workProviders.choose({ kind: 'flow-run', subjectKind: 'flow_run', subjectId: run.id, projectId: item.projectId, title: item.title, model: member.model, needs, policy: launch.policy }));
+    const createdOptions =
+      created === choice
+        ? options
+        : { ...options, model: created.model ?? member.model, ...(created.effort ? { effort: created.effort } : {}), permissionMode: this.permissionModeFor(created.provider, launch.permissionMode), ...startedOn(created.provider) };
+    const createdExtras = created.provider === LEGACY_PROVIDER ? { ...extras, agent: member.agent, agentsFile: agentsFile ?? (await this.flowAgentsFile(record.path, member)) } : extras;
+    await this.chats.create({ ...createdOptions, ...createdExtras, provider: created.provider, policy: launch.policy, prompt, cwd: place?.cwd ?? record.path }, (started) => {
+      onStart(started.id, created.provider);
       link(started.id);
     });
   }

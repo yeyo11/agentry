@@ -18,6 +18,8 @@ import { tempConfig } from './helpers.ts';
 // board. The fake answers with the structured result a run's description scripts.
 
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.meta.url));
+// Automated work starts only on a provider that proved it is signed in
+process.env.FAKE_CLAUDE_LOGGED_IN = '1';
 
 function repo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'agentry-assistant-cli-'));
@@ -98,7 +100,7 @@ test('a run through the CLI reads only, answers with proposals, and each accept 
 
     const started = await core.assistant.start(project.id, { kind: 'project', description: `FAKE-RESULT-ASSISTANT ${JSON.stringify(ANSWER)}` });
     // The fake answers at once, so the run may have ended by the time starting it returns
-    assert.ok(['running', 'completed'].includes(started.status));
+    assert.ok(['running', 'completed'].includes(started.status), JSON.stringify(started));
     const run = await until(core, started.id);
     assert.equal(run.status, 'completed', JSON.stringify(run.error));
     assert.ok(run.chatId);
