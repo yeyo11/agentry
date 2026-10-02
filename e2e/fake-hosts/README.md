@@ -22,7 +22,7 @@ restarting anything:
 | `next` | `7` | The number the first change request gets |
 | `ci` | `none` | The CI of `view`: `none`, `pending`, `passing` or `failing` |
 | `state` | `open` | The state of `view`: `open`, `merged` or `closed` |
-| `checks` | `none` | gh only: the head commit's checks, `none`, `failing`, `running`, `mixed` or `fixed` |
+| `checks` | `none` | gh only: the head commit's checks, `none`, `failing`, `both` (lint and unit both failed), `running`, `mixed` or `fixed` |
 | `headSha` | a fixed sha | The head commit the change request reports (gh's GraphQL read, glab's `mr view`): a spec moves it between what the person looked at and what is read later |
 | `draftFailAfter` | unset | glab only: the draft note call after the N-th one saved fails (exit 1), so a review stops half way with notes still saved |
 | `publishLimit` | unset | glab only: `mr note publish` makes discussions of the first N drafts and drops the rest, exit 0, as a note the host cannot place is dropped |

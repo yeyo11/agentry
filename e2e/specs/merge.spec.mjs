@@ -26,6 +26,13 @@
 //    merge block, a blocked state, the head guard, and Merge.
 // 7. A phone: the block, 44 px targets, no sideways scroll, no gradient outside the block.
 //
+// Every gradient count here is of every kind of gradient surface (a primary button, a gradient border,
+// gradient text, the FAB), on the item page for a mergeable request, a draft review, a push that waits,
+// a failing check and arming, and on the orchestration page for a push that waits and a mergeable
+// branch. Also covered: two failing required checks, a merged and a closed request, Update from base
+// refused while busy, and the orchestration's notices, blocker buttons and re-read after a refusal.
+// A waiting publish (a review that stopped half way) is covered by reviews.spec.mjs and the item-lead unit test.
+//
 // Axe runs on every screen above, at full contrast. The split "New chat" button is one gradient
 // surface drawn as two buttons: every count here counts it once.
 //
@@ -111,8 +118,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     return d;
   };
 
-  const item = async (projectId, title) => {
-    const made = await api.post(`/projects/${projectId}/work-items`, { title, acceptanceCriteria: [{ text: 'It works' }] });
+  const item = async (projectId, title, description) => {
+    const made = await api.post(`/projects/${projectId}/work-items`, { title, ...(description ? { description } : {}), acceptanceCriteria: [{ text: 'It works' }] });
     await api.post(`/work-items/${made.body.id}/move`, { status: 'in_review' });
     return made.body;
   };
@@ -156,6 +163,23 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
          work: [...document.querySelectorAll('.workitem-work')].map((b) => b.className),
        }`,
     );
+  // Every gradient surface of the screen, whatever draws it: a primary button, a gradient border, gradient text
+  // that is not on a border already counted, the FAB. The split New chat button is one surface drawn as two buttons.
+  const gradients = () =>
+    page.eval(
+      `const seen = new Set();
+       const list = [];
+       const add = (el, kind) => {
+         if (seen.has(el)) return;
+         seen.add(el);
+         list.push({ kind, split: el.classList.contains('split-btn'), text: el.textContent.trim().replace(/\\s+/g, ' ').slice(0, 48) });
+       };
+       for (const b of document.querySelectorAll('.btn-primary')) add(b.closest('.split-btn') ?? b, 'button');
+       for (const el of document.querySelectorAll('.grad-border')) add(el, 'border');
+       for (const el of document.querySelectorAll('.grad-text')) if (!el.closest('.grad-border')) add(el, 'text');
+       for (const el of document.querySelectorAll('.fab')) add(el, 'fab');
+       return { all: list, splits: list.filter((x) => x.split).length, zone: list.filter((x) => !x.split) }`,
+    );
   const text = (selector) => page.eval(`return document.querySelector(${JSON.stringify(selector)})?.textContent ?? ''`);
   const buttons = (scope) => page.eval(`return [...document.querySelectorAll(${JSON.stringify(`${scope} button, ${scope} a.btn`)})].map((b) => ({ text: b.textContent.trim(), primary: b.classList.contains('btn-primary'), disabled: b.disabled === true }))`);
   const press = async (scope, label) => {
@@ -197,7 +221,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       const gradient = await surfaces();
       check(gradient.inBlock.join() === 'Merge', `[${theme}] Merge is the zone's one gradient action (${JSON.stringify(gradient.inBlock)})`);
       check(gradient.outside.length === 0 && gradient.work.length > 0 && gradient.work.every((c) => !c.includes('btn-primary')), `[${theme}] "Work on it" is neutral meanwhile (${JSON.stringify(gradient)})`);
-      check(gradient.splits === 1 && gradient.surfaces.length <= 2, `[${theme}] the split New chat button counts once, and at most two gradient surfaces (${JSON.stringify(gradient.surfaces)})`);
+      const every = await gradients();
+      check(every.splits === 1 && every.all.length <= 2 && every.zone.length === 1 && every.zone[0].text.startsWith('Merge'), `[${theme}] the split New chat button counts once, and Merge is the only other gradient surface of any kind (${JSON.stringify(every.all)})`);
       check(!/gh pr merge|--squash|--match-head/.test(await text('.mg')), `[${theme}] no command to copy in the block`);
       check(lines('gh', /^pr merge/).length === 0, 'nothing merged by looking at it');
       await page.shot(`merge-item-ready-${theme}`);
@@ -212,10 +237,30 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       const gradient = await surfaces();
       check(gradient.inBlock.length === 0 && gradient.surfaces.some((s) => s.includes('Submit review')), `a draft review leads: Submit review has the gradient, Merge is plain (${JSON.stringify(gradient)})`);
       check(gradient.work.every((c) => !c.includes('btn-primary')), 'and "Work on it" is still neutral');
+      const every = await gradients();
+      check(every.splits === 1 && every.all.length <= 2 && every.zone.length === 1 && every.zone[0].text.includes('Submit review'), `a draft review is the one gradient surface besides the split button (${JSON.stringify(every.all)})`);
       check((await buttons('.mg')).some((b) => b.text === 'Merge' && !b.primary), 'Merge is still there, plain');
       await page.shot('merge-item-draft-review');
       await scan(page, check, 'the item with a draft review leading');
       await api.del(`/change-requests/${readyId}/review-drafts/${draft.body.id}`);
+    }
+
+    // A fix waiting to be pushed leads: Push the fix has the gradient, Merge goes plain and "Work on it" stays neutral
+    {
+      const writer = db();
+      writer.prepare("UPDATE work_item_pull_requests SET fix_state = 'awaiting-push', fix_origin = 'person', fix_attempts = 1, fix_head = ? WHERE id = ?").run(HEAD, readyId);
+      writer.close();
+      scenario('gh');
+      await visit(ready, 'a fix waiting to be pushed');
+      const gradient = await surfaces();
+      const every = await gradients();
+      check(every.splits === 1 && every.all.length <= 2 && every.zone.length === 1 && /push/i.test(every.zone[0].text), `a push that waits leads: it is the one gradient surface besides the split button (${JSON.stringify(every.all)})`);
+      check(gradient.inBlock.length === 0 && (await buttons('.mg')).some((b) => b.text === 'Merge' && !b.primary), 'and Merge is plain while it waits');
+      check(gradient.work.every((c) => !c.includes('btn-primary')), 'and "Work on it" is neutral');
+      await scan(page, check, 'the item with a push waiting');
+      const reset = db();
+      reset.prepare('UPDATE work_item_pull_requests SET fix_state = NULL, fix_origin = NULL, fix_attempts = 0, fix_head = NULL WHERE id = ?').run(readyId);
+      reset.close();
     }
 
     // ---- The blocked states: the word, the sentence and one remedy ----
@@ -233,7 +278,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       scenario('gh', c.fields);
       await visit(ready, `the blocked state ${c.name}`, `.mg .mb-note[data-reason="${c.code}"]`);
       const note = await page.eval(
-        `const n = document.querySelector('.mg .mb-note'); return { reason: n.dataset.reason, tone: n.className, word: n.querySelector('.badge')?.textContent.trim() ?? '', text: n.querySelector('.mb-text')?.textContent ?? '', acts: [...n.querySelectorAll('.mb-acts button, .mb-acts a')].map((b) => b.textContent.trim()), code: !!n.querySelector('pre, code'), merge: !![...document.querySelectorAll('.mg .mg-foot button')].find((b) => b.textContent.trim() === 'Merge') }`,
+        `const n = document.querySelector('.mg .mb-note'); return { reason: n.dataset.reason, tone: n.className, word: n.querySelector('.badge')?.textContent.trim() ?? '', text: n.querySelector('.mb-text')?.textContent ?? '', acts: [...n.querySelectorAll('.mb-acts button, .mb-acts a')].map((b) => b.textContent.trim()), code: !!n.querySelector('pre, code, kbd, samp, [data-copy], .copy') || /\\b(gh|glab|git)\\s+(pr|mr|merge|rebase|push|checkout|fetch|pull)\\b/.test(n.textContent), reasonCode: n.querySelector('.mb-code')?.textContent.trim() ?? '', merge: !![...document.querySelectorAll('.mg .mg-foot button')].find((b) => b.textContent.trim() === 'Merge') }`,
       );
       check(note.word === c.word && WORDS.test(note.word), `[${c.name}] the notice carries its word (${note.word})`);
       check(note.text.includes(c.sentence), `[${c.name}] and its sentence (${note.text})`);
@@ -241,12 +286,69 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       const waits = c.code === 'review-required' || c.code === 'checks-running';
       const remedies = waits ? note.acts.filter((a) => !/auto-merge/i.test(a)) : note.acts;
       check(remedies.length === 1 && remedies[0].includes(c.remedy) && note.acts.length <= (waits ? 2 : 1), `[${c.name}] and one remedy, ${c.remedy} (${JSON.stringify(note.acts)})`);
+      // The span.mb-code is the blocker's identifier in mono, not something to copy: it is the code itself and nothing more
+      check(note.reasonCode === c.code, `[${c.name}] the mono code span holds the blocker's own code (${note.reasonCode})`);
       check(/is-(warn|bad|idle|live)/.test(note.tone) && !note.code && !note.merge, `[${c.name}] in a status tone, with no Merge and nothing to copy (${note.tone})`);
+      if (c.name === 'checks-failing') {
+        // Fix failing checks leads, so the block's own remedy is a plain button: exactly one gradient action in the zone
+        const every = await gradients();
+        check(every.zone.length === 1 && every.zone[0].text.includes('Fix failing checks') && every.splits === 1 && every.all.length <= 2, `[${c.name}] Fix failing checks is the zone's one gradient action (${JSON.stringify(every.all)})`);
+        check(note.acts.length === 1 && !(await buttons('.mg .mb-acts')).some((b) => b.primary), `[${c.name}] and the block's own remedy is plain`);
+      }
       await page.shot(`merge-item-blocked-${c.name}`);
       await scan(page, check, `the blocked state ${c.name}`);
     }
-    // Checks failing: Fix failing checks leads, so the block's own remedy is not a second gradient
-    check((await surfaces()).outside.length <= 1, 'with Fix failing checks leading there is still one gradient action in the zone');
+    // Two required checks that both failed: both are named, one in the sentence and the other under it
+    scenario('gh', { mergeStatus: 'BLOCKED', requiredChecks: 'unit lint', checks: 'both' });
+    await visit(ready, 'two failing required checks', '.mg .mb-note[data-reason="checks-failing"]');
+    {
+      const two = await page.eval(
+        `const n = document.querySelector('.mg .mb-note'); return { first: n.querySelector('.mb-text')?.textContent ?? '', others: [...n.querySelectorAll('.mb-others li')].map((l) => l.textContent.replace(/\\s+/g, ' ').trim()) }`,
+      );
+      check(two.first.includes('Required check unit failed') && two.others.length === 1 && two.others[0].includes('Required check lint failed'), `two failing required checks list both names, each in words (${JSON.stringify(two)})`);
+      await scan(page, check, 'two failing required checks');
+    }
+
+    // A request the host has merged or closed does not read as open
+    {
+      const gone = await item(ghProject.id, 'Merged on the host');
+      open(ghProject.id, gone, 12, 'github');
+      for (const [state, word, sentence] of [
+        ['merged', 'merged', 'was merged'],
+        ['closed', 'closed', 'was closed without merging'],
+      ]) {
+        scenario('gh', { state });
+        await visit(gone, `a ${state} request`, '.mg .mb-note[data-reason="not-open"]');
+        const note = await page.eval(
+          `const n = document.querySelector('.mg .mb-note'); return { word: n.querySelector('.badge')?.textContent.trim() ?? '', text: n.querySelector('.mb-text')?.textContent ?? '', merge: [...document.querySelectorAll('.mg button')].some((b) => b.textContent.trim() === 'Merge'), ready: document.querySelector('.mg')?.textContent.includes('ready to merge') }`,
+        );
+        check(note.word === word && note.text.includes(sentence) && !/\bopen\b/i.test(note.text), `a ${state} request says ${state}, not that it is open (${note.word}: ${note.text})`);
+        check(!note.merge && !note.ready, `a ${state} request offers no Merge and is not ready to merge`);
+        await scan(page, check, `a ${state} request`);
+      }
+    }
+
+    // Update from base refused while a chat works in the branch says busy, not conflicts
+    {
+      const busy = await item(ghProject.id, 'Busy while updating', 'run: sleep 120');
+      const started = await api.post(`/work-items/${busy.id}/work`, {});
+      check(started.status === 200 || started.status === 201, `Work on it started a chat (${started.status})`);
+      if (started.body?.chat?.id) chats.push(started.body.chat.id);
+      const busyId = open(ghProject.id, busy, 13, 'github');
+      scenario('gh', { mergeStatus: 'BEHIND' });
+      let refusal = null;
+      for (let tries = 0; tries < 30 && refusal?.body?.code !== 'busy'; tries++) {
+        refusal = await api.post(`/change-requests/${busyId}/update-branch`, {});
+        if (refusal.body?.code !== 'busy') await page.sleep(500);
+      }
+      check(refusal?.status === 409 && refusal.body.code === 'busy', `the API refuses Update from base with busy (${refusal?.status} ${refusal?.body?.code})`);
+      await visit(busy, 'a behind branch with a chat working', '.mg .mb-note[data-reason="behind"]');
+      await press('.mg .mb-note', 'Update from main');
+      const toast = await page.waitFor(`const t = [...document.querySelectorAll('.toast')].find((e) => /Nothing was updated/.test(e.innerText)); return t ? t.innerText : null`, { timeout: 30_000, label: 'the toast of the refused update' });
+      check(/working in this branch/.test(toast) && !/conflict/i.test(toast), `Update from base refused while busy says busy, not conflicts (${toast})`);
+      if (started.body?.chat?.id) await api.del(`/chats/${started.body.chat.id}`).catch(() => {});
+    }
+
     // Not required checks that failed: it can merge, with a warning
     scenario('gh', { mergeStatus: 'UNSTABLE' });
     await visit(ready, 'the warning state', '.mg .mg-foot');
@@ -270,6 +372,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       const pending = await page.eval(`return { acts: [...document.querySelectorAll('.mg .mb-acts button')].map((b) => ({ text: b.textContent.trim(), primary: b.classList.contains('btn-primary') })), merge: !![...document.querySelectorAll('.mg button')].find((b) => b.textContent.trim() === 'Merge'), text: document.querySelector('.mg .mb-note')?.textContent ?? '' }`);
       check(pending.acts.length === 1 && pending.acts[0].text === 'Turn on auto-merge' && pending.acts[0].primary && !pending.merge, `[${theme}] with checks pending, arming replaces Merge as the gradient action (${JSON.stringify(pending.acts)})`);
       check(pending.text.includes('Required checks have not finished'), `[${theme}] and the notice says why (${pending.text})`);
+      const every = await gradients();
+      check(every.splits === 1 && every.all.length <= 2 && every.zone.length === 1 && every.zone[0].text.includes('Turn on auto-merge'), `[${theme}] arming is the one gradient surface besides the split button (${JSON.stringify(every.all)})`);
       await page.shot(`merge-item-checks-pending-${theme}`);
       await scan(page, check, `the pending-checks state, ${theme}`);
       if (theme === 'light') break;
@@ -284,9 +388,10 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       // The board card says so as well
       await page.goto(`/tasks?project=${ghProject.id}`, 1500);
       await page.waitFor(`return !!document.querySelector('${card(armMe.id)} .workitem-strip-auto')`, { timeout: 60_000, label: 'the board badge' });
-      const badge = await page.eval(`const s = document.querySelector('${card(armMe.id)} .workitem-strip-auto'); return { text: s.textContent, anim: getComputedStyle(s.querySelector('.badge')).animationName, live: s.className.includes('live') }`);
+      const badge = await page.eval(`const s = document.querySelector('${card(armMe.id)} .workitem-strip-auto'); return { text: s.textContent, live: s.className.includes('live') || !!s.querySelector('.spinner-glyph, .spinner-ring, .spinner-dots') }`);
       check(badge.text.includes('auto-merge on') && badge.text.includes('merges on its own'), `the board card says auto-merge is on, in words (${badge.text})`);
-      check(badge.anim === 'none' && !badge.live, 'and nothing moves while the host waits');
+      // A plain badge never animates, so its animation would prove nothing: what is checked is that it is not drawn as a live thing
+      check(!badge.live, 'and it is not a live thing: no live class and no spinner while the host waits');
       await page.shot('merge-board-auto-merge-dark');
       await scan(page, check, 'the board with an auto-merge badge');
       await visit(armMe, 'the armed block again', '.mg .badge-idle');
@@ -416,6 +521,13 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
         await page.sleep(250);
       }
       check(still.size === 1, `[${theme}] and holds still under reduced motion (${[...still]})`);
+      // Nothing else in the block moves, and under reduced motion not even the live element carries a running animation
+      const moving = `return [...document.querySelectorAll('.mg, .mg *')].filter((e) => { const s = getComputedStyle(e); return s.animationName !== 'none' && parseFloat(s.animationDuration) >= 0.05; }).map((e) => e.className)`;
+      const reduced = await page.eval(moving);
+      check(reduced.length === 0, `[${theme}] no element of the block animates under reduced motion (${JSON.stringify(reduced)})`);
+      await page.reduceMotion(false);
+      const alone = await page.eval(`return [...document.querySelectorAll('.mg, .mg *')].filter((e) => { const s = getComputedStyle(e); return s.animationName !== 'none' && parseFloat(s.animationDuration) >= 0.05 && !e.closest('.mg-live'); }).map((e) => e.className)`);
+      check(alone.length === 0, `[${theme}] at full motion only the live element moves (${JSON.stringify(alone)})`);
       await page.reduceMotion(false);
       check((await surfaces()).inBlock.length === 0, `[${theme}] nothing here claims the gradient while it waits`);
       await page.shot(`merge-item-pipeline-wait-${theme}`);
@@ -487,6 +599,10 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     check(state?.integration?.status === 'merged', `the branch was integrated (${state?.status} / ${state?.integration?.status})`);
     await page.goto(`/orchestration/${orchestrationId}`, 1500);
     await page.waitFor(`return [...document.querySelectorAll('.card .btn.btn-primary')].some((b) => b.textContent.includes('Push & open PR'))`, { label: 'the push button' });
+    {
+      const every = await gradients();
+      check(every.splits === 1 && every.all.length <= 2 && every.zone.length === 1 && every.zone[0].text.includes('Push & open PR'), `before the push, Push & open PR is the one gradient surface besides the split button: the cost card is plain (${JSON.stringify(every.all)})`);
+    }
     await page.click('.card .btn.btn-primary', 'Push & open PR', 400);
     await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: 'the confirmation' });
     await page.click('[role=dialog] .btn-primary', 'Push and open', 600);
@@ -501,7 +617,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       );
       check(omrg.methods.join('|') === 'Squash|Merge commit' && omrg.box && omrg.subject, `[${theme}] the card offers the allowed methods, the branch box and the message (${omrg.methods})`);
       check(omrg.foot.length === 1 && omrg.foot[0].startsWith('Merge') && omrg.guard.includes(HEAD.slice(0, 8)), `[${theme}] Merge is its one gradient action, on the head shown (${omrg.foot} / ${omrg.guard})`);
-      check((await surfaces()).splits <= 1, `[${theme}] the split New chat button counts once here too`);
+      const every = await gradients();
+      check(every.splits === 1 && every.all.length <= 2 && every.zone.length === 1 && every.zone[0].text.startsWith('Merge'), `[${theme}] the split New chat button counts once, and the Merge button is the only other gradient surface: the cost card and Relaunch are plain (${JSON.stringify(every.all)})`);
       await page.shot(`merge-orchestration-ready-${theme}`);
       await scan(page, check, `the orchestration merge block, ${theme}`);
     }
@@ -514,6 +631,36 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       check(blocked.badge === 'not approved' && blocked.text.includes('approval') && blocked.merge === 0, `a blocked orchestration says its word and sentence, with no Merge (${JSON.stringify({ badge: blocked.badge, merge: blocked.merge })} ${blocked.text})`);
       await scan(page, check, 'the orchestration blocked state');
     }
+    // Every blocker action has a button or a link on the orchestration too, as on the item page
+    const orchCr = (await api.get(`/orchestrations/${orchestrationId}`)).body.pullRequest?.id;
+    for (const c of CASES) {
+      scenario('gh', c.fields);
+      if (orchCr) await api.get(`/change-requests/${orchCr}/merge?refresh=1`);
+      await page.goto(`/orchestration/${orchestrationId}`, 1500);
+      await page.waitFor(`return !!document.querySelector('.omrg .omrg-blocked[data-reason="${c.code}"]')`, { timeout: 60_000, label: `the orchestration's ${c.name} state` });
+      const remedy = await page.eval(
+        `const b = document.querySelector('.omrg .omrg-blocked'); return { word: b.querySelector('.badge')?.textContent.trim() ?? '', acts: [...b.querySelectorAll('button, a.btn')].map((x) => x.textContent.trim()), merge: document.querySelectorAll('.omrg-foot .btn-primary').length }`,
+      );
+      check(remedy.word === c.word && remedy.acts.some((a) => a.includes(c.remedy)) && remedy.merge === 0, `[orchestration ${c.name}] the word, and a button or a link for ${c.remedy} (${JSON.stringify(remedy)})`);
+    }
+    // The notices of the item page are on the orchestration: what Agentry did to auto-merge, and a repository that does not allow it
+    if (orchCr) {
+      const writer = db();
+      writer
+        .prepare("INSERT INTO change_request_merges (id, cr_id, action, delete_branch, requested_at, requested_by, outcome, detail) VALUES (?, ?, 'disarm', 0, ?, 'agentry', 'disarmed', 'turned off before Agentry pushed: arm it again afterwards')")
+        .run(randomUUID(), orchCr, new Date().toISOString());
+      writer.close();
+      scenario('gh');
+      await api.get(`/change-requests/${orchCr}/merge?refresh=1`);
+      await page.goto(`/orchestration/${orchestrationId}`, 1500);
+      await page.waitFor(`return !!document.querySelector('.omrg .omrg-foot .btn-primary')`, { timeout: 60_000, label: 'the orchestration block with a disarm on record' });
+      const notice = await text('.omrg [role=note]');
+      check(notice.includes('turned auto-merge off') && notice.includes('pushed to the branch'), `the orchestration says what Agentry did to auto-merge, as the item page does (${notice})`);
+      const cleaner = db();
+      cleaner.prepare('DELETE FROM change_request_merges WHERE cr_id = ?').run(orchCr);
+      cleaner.close();
+    }
+
     // The head guard here too: the fake host's head moves between the page and the click
     scenario('gh');
     await page.goto(`/orchestration/${orchestrationId}`, 1500);
@@ -523,6 +670,9 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await press('.omrg-foot', 'Merge PR #20');
     await page.waitFor(`return !!document.querySelector('.omrg [role=alert]')`, { timeout: 30_000, label: 'the orchestration refusal' });
     check((await text('.omrg [role=alert]')).includes('Nothing was merged') && lines('gh', /^pr merge/).length === orchBefore, 'a head that moved is refused with its reason and nothing is merged');
+    // The refusal is followed by a read: the guard now names the head the host has, and Merge is offered on it again
+    await page.waitFor(`return (document.querySelector('.omrg .omrg-guard')?.textContent ?? '').includes('${MOVED.slice(0, 8)}')`, { timeout: 30_000, label: 'the orchestration read again after the refusal' });
+    check(lines('gh', /^pr merge/).length === orchBefore, 'the orchestration read the new head again, and still nothing was merged');
     await page.shot('merge-orchestration-head-moved');
     scenario('gh');
     await page.goto(`/orchestration/${orchestrationId}`, 1500);
