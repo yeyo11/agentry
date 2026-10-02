@@ -336,7 +336,7 @@
     "statusOf": "Status for {{column}}",
     "unchanged": "No change",
     "choice": {
-      "closed": "Close as completed"
+      "completed": "Close as completed"
     },
     "onlyOpenClosed": "{{tracker}} only has open and closed.",
     "mapHint": "When the pull request is merged the issue closes by itself with <mono>Closes {{ref}}</mono> in its description. If it could not, because the target branch is not the main one, Agentry closes it afterwards and checks that it is closed."

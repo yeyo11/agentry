@@ -36,7 +36,7 @@ export const canSaveDraft = (draft: TrackerDraft): boolean => draft.id === null 
 export function chooseTracker(draft: TrackerDraft, id: TrackerId | null, remotePath: string | null): TrackerDraft {
   if (id === null) return NO_TRACKER;
   if (draft.id === id) return draft;
-  return { id, scope: remotePath ?? '', query: '', statusMap: isTrackerBuilt(id) ? { done: 'closed' } : {} };
+  return { id, scope: remotePath ?? '', query: '', statusMap: isTrackerBuilt(id) ? { done: 'completed' } : {} };
 }
 
 export const withMapped = (draft: TrackerDraft, column: TrackerMappedStatus, value: string): TrackerDraft => ({ ...draft, statusMap: setMapped(draft.statusMap, column, value) });

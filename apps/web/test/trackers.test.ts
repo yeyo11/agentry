@@ -47,11 +47,11 @@ test('settings entries default to on and are replaced one at a time', () => {
 });
 
 test('only the done column writes to GitHub and GitLab', () => {
-  assert.deepEqual(statusChoices('github-issues', 'done'), ['closed']);
+  assert.deepEqual(statusChoices('github-issues', 'done'), ['completed']);
   assert.equal(columnSyncs('gitlab-issues', 'in_review'), false);
   assert.equal(columnSyncs('jira', 'done'), false);
-  assert.deepEqual(setMapped({ done: 'closed' }, 'done', ''), {});
-  assert.deepEqual(setMapped({}, 'done', 'closed'), { done: 'closed' });
+  assert.deepEqual(setMapped({ done: 'completed' }, 'done', ''), {});
+  assert.deepEqual(setMapped({}, 'done', 'completed'), { done: 'completed' });
 });
 
 test('Sync again is offered only for a failed write', () => {

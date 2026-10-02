@@ -87,7 +87,7 @@ export const MAPPED_COLUMNS: readonly TrackerMappedStatus[] = ['in_progress', 'i
  */
 export function statusChoices(id: TrackerId, column: TrackerMappedStatus): string[] {
   if (!isTrackerBuilt(id)) return [];
-  return column === 'done' ? ['closed'] : [];
+  return column === 'done' ? ['completed'] : [];
 }
 
 /** Whether a column's mapping does something on this tracker, so the form can say so beside the others. */

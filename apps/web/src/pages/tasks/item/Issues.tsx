@@ -37,7 +37,7 @@ export function IssueChips({ item }: { item: Pick<WorkItemDetail, 'issues'> }) {
   const issues = item.issues ?? [];
   if (issues.length === 0) return null;
   return (
-    <div className="iss-chips" role="list" aria-label={t('chip.label')}>
+    <ul className="iss-chips" aria-label={t('chip.label')}>
       {issues.map((issue) => {
         const words = trackerWords(issue.tracker);
         const inner = (
@@ -48,16 +48,18 @@ export function IssueChips({ item }: { item: Pick<WorkItemDetail, 'issues'> }) {
           </>
         );
         return issue.url ? (
-          <a key={`${issue.tracker}-${issue.key}`} role="listitem" className="iss-chip" href={issue.url} target="_blank" rel="noreferrer" aria-label={t('chip.open', { ref: issueRef(issue.tracker, issue.key), tracker: words.label })}>
-            {inner}
-          </a>
+          <li key={`${issue.tracker}-${issue.key}`} className="iss-li">
+            <a className="iss-chip" href={issue.url} target="_blank" rel="noreferrer" aria-label={t('chip.open', { ref: issueRef(issue.tracker, issue.key), tracker: words.label })}>
+              {inner}
+            </a>
+          </li>
         ) : (
-          <span key={`${issue.tracker}-${issue.key}`} role="listitem" className="iss-chip">
-            {inner}
-          </span>
+          <li key={`${issue.tracker}-${issue.key}`} className="iss-li">
+            <span className="iss-chip">{inner}</span>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }
 

@@ -27,7 +27,7 @@ test('no tracker reads as none and saves as null', () => {
 
 test('a chosen tracker starts from the origin repository and Done closing the issue', () => {
   const draft = chooseTracker(NO_TRACKER, 'github-issues', 'me/repo');
-  assert.deepEqual(settingsOf(draft), { id: 'github-issues', scope: 'me/repo', query: '', statusMap: { done: 'closed' } });
+  assert.deepEqual(settingsOf(draft), { id: 'github-issues', scope: 'me/repo', query: '', statusMap: { done: 'completed' } });
 });
 
 test('choosing the same tracker again keeps the draft, and another drops the query', () => {
@@ -38,7 +38,7 @@ test('choosing the same tracker again keeps the draft, and another drops the que
 });
 
 test('what is saved is trimmed, and the draft is compared by it', () => {
-  const base = draftOf({ id: 'github-issues', scope: 'me/repo', query: 'is:open', statusMap: { done: 'closed' } });
+  const base = draftOf({ id: 'github-issues', scope: 'me/repo', query: 'is:open', statusMap: { done: 'completed' } });
   assert.equal(sameDraft({ ...base, scope: ' me/repo ' }, base), true);
   assert.equal(sameDraft(withMapped(base, 'done', ''), base), false);
   assert.deepEqual(withMapped(base, 'done', '').statusMap, {});

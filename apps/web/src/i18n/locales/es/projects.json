@@ -336,7 +336,7 @@
     "statusOf": "Estado de {{column}}",
     "unchanged": "Sin cambios",
     "choice": {
-      "closed": "Cerrar como completada"
+      "completed": "Cerrar como completada"
     },
     "onlyOpenClosed": "{{tracker}} solo tiene abierta y cerrada.",
     "mapHint": "Al fusionarse la PR la incidencia se cierra sola con <mono>Closes {{ref}}</mono> en su descripción. Si no pudo, porque la rama de destino no es la principal, Agentry la cierra después y comprueba que ha quedado cerrada."

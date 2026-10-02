@@ -105,23 +105,32 @@ export default async ({ page, api, check, dirs }) => {
   // Every gradient surface of the screen, whatever draws it. The split New chat button is one surface drawn as two buttons.
   const gradients = () =>
     page.eval(
-      `const seen = new Set();
+      `// With a dialog open, the page behind it is dimmed and inert: what the person sees lit is the dialog's
+       const root = document.querySelector('[role=dialog]') ?? document;
+       const seen = new Set();
        const list = [];
+       // A surface the person cannot see (the phone's FAB on a desktop, hidden by CSS) is not drawn: it does not count
        const add = (el, kind) => {
-         if (seen.has(el)) return;
+         if (seen.has(el) || getComputedStyle(el).display === 'none' || el.getClientRects().length === 0) return;
          seen.add(el);
          list.push({ kind, text: el.textContent.trim().replace(/\\s+/g, ' ').slice(0, 40) });
        };
-       for (const b of document.querySelectorAll('.btn-primary')) add(b.closest('.split-btn') ?? b, 'button');
-       for (const el of document.querySelectorAll('.grad-border')) add(el, 'border');
-       for (const el of document.querySelectorAll('.grad-text')) if (!el.closest('.grad-border')) add(el, 'text');
-       for (const el of document.querySelectorAll('.fab')) add(el, 'fab');
+       for (const b of root.querySelectorAll('.btn-primary')) add(b.closest('.split-btn') ?? b, 'button');
+       for (const el of root.querySelectorAll('.grad-border')) add(el, 'border');
+       for (const el of root.querySelectorAll('.grad-text')) if (!el.closest('.grad-border')) add(el, 'text');
+       for (const el of root.querySelectorAll('.fab')) add(el, 'fab');
        return list`,
     );
   const atMostTwo = async (label) => {
     const every = await gradients();
     check(every.length <= 2, `${label}: at most two gradient surfaces (${JSON.stringify(every)})`);
     return every;
+  };
+  // The project's settings tabs each carry their own Save (General, Decisions and now Tracker), so the page as a whole is
+  // not the tracker's to fix: what the tracker's own card adds is, and it is one
+  const trackerCardGradients = async (label) => {
+    const own = await page.eval(`return [...document.querySelectorAll('.project-tracker-card .btn-primary')].map((b) => b.textContent.trim())`);
+    check(own.length <= 1, `${label}: the tracker card adds at most one gradient surface (${JSON.stringify(own)})`);
   };
   const press = (scope, label) =>
     page.eval(`const b = [...document.querySelectorAll(${JSON.stringify(`${scope} button`)})].find((x) => x.textContent.trim() === ${JSON.stringify(label)} && !x.disabled); if (!b) throw new Error('no ${label} button in ${scope}'); b.click(); return true`);
@@ -192,11 +201,11 @@ export default async ({ page, api, check, dirs }) => {
     check(disabled.github === 'false', `GitHub Issues can be chosen on a GitHub project (${JSON.stringify(disabled)})`);
     check(disabled.gitlab === 'true' && disabled.jira === 'true' && disabled.youtrack === 'true', `GitLab Issues (another host), Jira and YouTrack cannot (${JSON.stringify(disabled)})`);
     check((await page.eval(`return ${option('GitLab Issues')}.textContent`)).includes('github.com'), "GitLab Issues says why: this project's host");
-    check((await page.eval(`return ${option('Jira')}.textContent`)).includes('Not available yet'), 'Jira says it is not available yet');
+    check((await page.eval(`return ${option('Jira')}.textContent`)).includes('cannot offer Jira yet'), 'Jira says Agentry cannot offer it yet');
     await page.eval(`${option('GitHub Issues')}.click(); return true`);
     await page.waitFor(`return document.querySelector('#project-tracker-scope')?.value === 'acme/shop'`, { label: 'choosing GitHub Issues fills in the origin repository' });
     await page.fill('#project-tracker-query', 'is:open');
-    await atMostTwo('[dark] project settings with the tracker form');
+    await trackerCardGradients('[dark] project settings with the tracker form');
     await page.shot('trackers-project-dark');
     await scan(page, check, 'the project tracker form, dark');
     await page.click('.project-tracker-card .btn-primary', undefined, 600);
@@ -206,13 +215,13 @@ export default async ({ page, api, check, dirs }) => {
       if (saved) break;
       await page.sleep(300);
     }
-    check(saved?.id === 'github-issues' && saved.scope === 'acme/shop' && saved.query === 'is:open' && saved.statusMap?.done === 'closed', `Save writes the tracker, with Done mapped to closed (${JSON.stringify(saved)})`);
+    check(saved?.id === 'github-issues' && saved.scope === 'acme/shop' && saved.query === 'is:open' && saved.statusMap?.done === 'completed', `Save writes the tracker, with Done mapped to completed (${JSON.stringify(saved)})`);
     await setTheme('light');
     await page.goto(settingsUrl, 300);
     await page.waitFor(`return !!document.querySelector('.project-tracker-card .trk-opt.on')`, { timeout: 40_000, label: 'the saved tracker is read back' });
     const back = await page.eval(`return { on: document.querySelector('.project-tracker-card .trk-opt.on').textContent, scope: document.querySelector('#project-tracker-scope')?.value, query: document.querySelector('#project-tracker-query')?.value }`);
     check(back.on.includes('GitHub Issues') && back.scope === 'acme/shop' && back.query === 'is:open', `the form reads back what was saved (${JSON.stringify(back)})`);
-    await atMostTwo('[light] project settings with the tracker form');
+    await trackerCardGradients('[light] project settings with the tracker form');
     await page.shot('trackers-project-light');
     await scan(page, check, 'the project tracker form, light');
     await setTheme('dark');
@@ -224,7 +233,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return document.querySelectorAll('[role=dialog] .trk-opt').length === 5`, { label: 'the phone sheet lists the trackers and None' });
     check((await page.eval(`return [...document.querySelectorAll('[role=dialog] .trk-opt')].every((o) => o.getBoundingClientRect().height >= 44)`)) === true, 'each tracker choice is a 44 px target');
     check((await page.eval(overflow)) <= 1, `[390px project tracker] nothing scrolls sideways (${await page.eval(overflow)}px)`);
-    await atMostTwo('[390px] the project tracker sheet');
+    await trackerCardGradients('[390px] the project tracker sheet');
     await page.shot('trackers-project-phone');
     await scan(page, check, 'the project tracker sheet, on a phone');
     await closeDialog();
@@ -406,7 +415,7 @@ export default async ({ page, api, check, dirs }) => {
     const gl = (await api.post('/projects/import', { path: glRoot, name: 'e2e-trackers-gl', template: 'software' })).body;
     check(Boolean(gl?.id), 'the GitLab project was imported');
     projects.push(gl.id);
-    const savedGl = (await api.put(`/projects/${gl.id}/tracker`, { id: 'gitlab-issues', scope: 'acme/shop', query: '', statusMap: { done: 'closed' } })).body;
+    const savedGl = (await api.put(`/projects/${gl.id}/tracker`, { id: 'gitlab-issues', scope: 'acme/shop', query: '', statusMap: { done: 'completed' } })).body;
     check(savedGl?.id === 'gitlab-issues', 'GitLab Issues is saved for a GitLab project');
     const glSettings = `/?project=${encodeURIComponent(gl.id)}&view=settings`;
     await page.goto(glSettings, 300);
@@ -414,7 +423,7 @@ export default async ({ page, api, check, dirs }) => {
     const glOptions = await page.eval(`return { on: document.querySelector('.project-tracker-card .trk-opt.on').textContent, github: ${option('GitHub Issues')}.getAttribute('aria-disabled'), hint: document.querySelector('.project-tracker-card')?.textContent ?? '' }`);
     check(glOptions.on.includes('GitLab Issues') && glOptions.github === 'true', `GitLab Issues is on, and GitHub Issues cannot be chosen here (${glOptions.on.slice(0, 40)}, ${glOptions.github})`);
     check(/text GitLab searches/.test(glOptions.hint), "the query's hint says GitLab searches text");
-    await atMostTwo('[dark] a GitLab project settings');
+    await trackerCardGradients('[dark] a GitLab project settings');
     await scan(page, check, 'the GitLab project tracker form, dark');
 
     const glBoard = `/tasks?project=${encodeURIComponent(gl.id)}`;
