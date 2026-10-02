@@ -35,6 +35,15 @@ if (args[0] === 'agents') {
   process.stdout.write(process.env.FAKE_CLAUDE_AGENTS ? readFileSync(process.env.FAKE_CLAUDE_AGENTS, 'utf8') : '[]\n');
   process.exit(0);
 }
+if (args[0] === '--version') {
+  process.stdout.write('2.1.0 (Claude Code)\n');
+  process.exit(0);
+}
+// Automated work starts only on a provider that proved it is signed in: tests that run it say so
+if (args[0] === 'auth') {
+  process.stdout.write(process.env.FAKE_CLAUDE_LOGGED_IN === '1' ? '{"loggedIn":true,"authMethod":"claude.ai","email":"fake@example.com"}\n' : '{"loggedIn":false}\n');
+  process.exit(0);
+}
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const out = (msg) => process.stdout.write(`${JSON.stringify(msg)}\n`);
 // Like the CLI (2.1.278), `--session-id` names the session, a fork's copy included; a fork given no
