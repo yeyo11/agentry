@@ -5,9 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import type { ProvidersSettings } from '@agentry/shared';
+import type { ProviderLimit, ProvidersSettings } from '@agentry/shared';
 import type { AgentryEventInput } from '../src/events.ts';
 import { loadConfig } from '../src/paths.ts';
+import { ProviderLimits, type ProviderLimitStore } from '../src/providers/limits.ts';
 import { ProviderDetector, satisfiesRange } from '../src/providers/detector.ts';
 import { confirmClaudeInit } from '../src/providers/claude-code/handshake.ts';
 import type { SessionInit } from '../src/providers/driver.ts';
@@ -37,7 +38,7 @@ async function fake(name: string, body: string): Promise<string> {
   return file;
 }
 
-function detector(options: { settings?: ProvidersSettings | null; events?: AgentryEventInput[]; probeTimeoutMs?: number; env?: NodeJS.ProcessEnv } = {}) {
+function detector(options: { limits?: ProviderLimits; settings?: ProvidersSettings | null; events?: AgentryEventInput[]; probeTimeoutMs?: number; env?: NodeJS.ProcessEnv } = {}) {
   const env = { PATH: bin, HOME: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), AGENTRY_DATA_DIR: join(home, 'data'), ...options.env };
   return new ProviderDetector({
     config: loadConfig(env),
@@ -47,6 +48,7 @@ function detector(options: { settings?: ProvidersSettings | null; events?: Agent
     resolvePath: async () => bin,
     settings: () => options.settings ?? null,
     emit: (event) => options.events?.push(event),
+    limits: options.limits,
     probeTimeoutMs: options.probeTimeoutMs ?? 5_000,
     debounceMs: 50,
     minWatchGapMs: 0,
@@ -439,5 +441,49 @@ describe('driver handshakes', () => {
     const status = await statusOf(detector(), 'codex');
     assert.equal(status.state, 'signed-out');
     assert.equal(status.permissionModes, undefined);
+  });
+});
+
+describe('provider limits in the status', () => {
+  const codex = (): Promise<string> =>
+    fake('codex', `case "$1" in --version) echo "codex-cli 0.159.3";; login) exit 0;; *) exec "${process.execPath}" "${FIXTURES}fake-codex-app-server.mjs" "$@";; esac`);
+  const memory = (): ProviderLimitStore => {
+    const rows = new Map<string, ProviderLimit>();
+    return { upsertProviderLimit: (l) => !!rows.set(l.provider, l), providerLimit: (p) => rows.get(p) ?? null, providerLimits: () => [...rows.values()] };
+  };
+
+  it('reads the account limits in the Codex handshake and says ready while there is room', async () => {
+    await codex();
+    const limits = new ProviderLimits(memory());
+    const status = await statusOf(detector({ limits, env: { FAKE_CODEX_USED: '30' } }), 'codex');
+    assert.equal(status.state, 'ready');
+    assert.equal(status.reason, null);
+    assert.deepEqual([status.limit?.state, status.limit?.source], ['ok', 'probe']);
+  });
+
+  it('degrades a provider near its limit and one that reached it, with the reading on the status', async () => {
+    await codex();
+    const near = await statusOf(detector({ limits: new ProviderLimits(memory()), env: { FAKE_CODEX_USED: '70' } }), 'codex');
+    assert.deepEqual([near.state, near.reason, near.limit?.state], ['degraded', 'limit-near', 'near']);
+    const spent = await statusOf(detector({ limits: new ProviderLimits(memory()), env: { FAKE_CODEX_USED: '100' } }), 'codex');
+    assert.deepEqual([spent.state, spent.reason, spent.limit?.state], ['degraded', 'limit-reached', 'exhausted']);
+  });
+
+  it('serves a limit a chat reported without a detection, and announces it', async () => {
+    await codex();
+    const limits = new ProviderLimits(memory());
+    const events: AgentryEventInput[] = [];
+    const d = detector({ limits, events });
+    await d.refresh();
+    events.length = 0;
+    limits.observeFailure('codex');
+    const status = d.knownOne('codex');
+    assert.deepEqual([status?.state, status?.reason], ['degraded', 'limit-reached']);
+    assert.equal(events.filter((e) => e.type === 'providers.changed').length, 1);
+  });
+
+  it('reads a provider whose limit was never reported as having none', async () => {
+    const status = await statusOf(detector({ limits: new ProviderLimits(memory()) }), 'copilot');
+    assert.equal(status.limit, null);
   });
 });

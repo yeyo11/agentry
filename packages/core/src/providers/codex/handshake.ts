@@ -1,11 +1,12 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import type { ProviderCapability } from '@agentry/shared';
+import type { ProviderCapability, RateLimitInfo } from '@agentry/shared';
 import { satisfiesRange } from '../detector.ts';
 import type { CapabilityConfirmation, HandshakeResult, SessionInit } from '../driver.ts';
+import { rateLimitInfo } from './events.ts';
 import { codexManifest } from './manifest.ts';
 import { codexModelOptions } from './models.ts';
-import type { AccountReadResponse, InitializeResponse, ModelEntry } from './protocol/types.ts';
+import type { AccountReadResponse, GetAccountRateLimitsResponse, InitializeResponse, ModelEntry } from './protocol/types.ts';
 import { JsonRpc } from './rpc.ts';
 import { versionOfUserAgent } from './session.ts';
 
@@ -23,13 +24,16 @@ export function confirmCodexInit(init: SessionInit): CapabilityConfirmation {
 /** How long the detection handshake may take before it is given up. */
 const HANDSHAKE_TIMEOUT_MS = 20_000;
 
+/** A handshake and what the account's limits read when it is signed in; `null` when it is not, or the read failed. */
+export type CodexHandshakeResult = HandshakeResult & { rateLimits: RateLimitInfo | null };
+
 /**
- * `initialize`, `account/read` and `model/list` on a process of its own: none of them spends
+ * `initialize`, `account/read`, `model/list` and, signed in, `account/rateLimits/read` on a process of its own: none of them spends
  * anything (recorded), and the process ends when its stdin does. Rejects when the process cannot be
  * started or does not answer, with the reason.
  */
-export function codexHandshake(bin: string, args: string[], env: NodeJS.ProcessEnv, signal: AbortSignal): Promise<HandshakeResult> {
-  return new Promise<HandshakeResult>((resolve, reject) => {
+export function codexHandshake(bin: string, args: string[], env: NodeJS.ProcessEnv, signal: AbortSignal): Promise<CodexHandshakeResult> {
+  return new Promise<CodexHandshakeResult>((resolve, reject) => {
     const proc = spawn(bin, args, { env, stdio: 'pipe' });
     const stop = () => {
       proc.stdin.end();
@@ -68,11 +72,14 @@ export function codexHandshake(bin: string, args: string[], env: NodeJS.ProcessE
         if ((list.data ?? []).length > 0) confirmed.push('setModel');
         if ((list.data ?? []).some((m) => Array.isArray((m as { supportedReasoningEfforts?: unknown }).supportedReasoningEfforts))) confirmed.push('effort');
         const who = account.account;
+        // The read costs nothing; a failure (a plan with no limits, an older server) is no reading, not a failed handshake
+        const limits = who === null ? null : await rpc.request<GetAccountRateLimitsResponse>('account/rateLimits/read', {}).catch(() => null);
         resolve({
           version: versionOfUserAgent(hello.userAgent),
           account: who === null ? null : who.type === 'apiKey' ? 'API key' : (who.email ?? (who.planType ? `ChatGPT ${who.planType}` : 'ChatGPT')),
           models,
           confirmed: confirmed.filter((c) => codexManifest.capabilities.includes(c)),
+          rateLimits: limits?.rateLimits ? rateLimitInfo(limits.rateLimits) : null,
         });
       } catch (error) {
         reject(error instanceof Error ? error : new Error(String(error)));

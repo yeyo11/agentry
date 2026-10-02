@@ -25,7 +25,8 @@
 // Environment:
 //   FAKE_CODEX_SIGNED_OUT=1   account/read answers the recorded signed-out reply, rate limits refuse
 //   FAKE_CODEX_PLAN=<plan>    the chatgpt plan type of the signed-in account (default plus)
-//   FAKE_CODEX_API_KEY=1      the signed-in account is an API key
+//   FAKE_CODEX_USED=<percent> the primary window's use that account/rateLimits/read answers (default 30)
+//   FAKE_CODEX_API_KEY=1     the signed-in account is an API key
 //   FAKE_CODEX_STATE=<file>   keeps the threads there, so thread/resume and thread/fork work across
 //                             processes; defaults to <CODEX_HOME>/fake-threads.json when CODEX_HOME
 //                             is set, and to memory otherwise
@@ -482,7 +483,7 @@ const handlers = {
   'account/read': (id) => reply(id, account()),
   'account/rateLimits/read'(id) {
     if (SIGNED_OUT) return fail(id, recorded.errors.get('account/rateLimits/read').code, recorded.errors.get('account/rateLimits/read').message);
-    const rateLimits = snapshot(30);
+    const rateLimits = snapshot(Number(process.env.FAKE_CODEX_USED ?? 30));
     return reply(id, { rateLimits, rateLimitsByLimitId: { codex: rateLimits } });
   },
   'model/list': (id) => reply(id, clone(recorded.replies.get('model/list'))),
