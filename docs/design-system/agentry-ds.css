@@ -1792,3 +1792,24 @@ button.check-group-head { width: 100%; border-left: 0; border-right: 0; border-t
 .m-screen .omrg-guard { font-size: 13px; }
 .wi-strip .pr-auto { flex-basis: 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; color: var(--fg-2); font-size: 11.5px; }
 /* ---------- end of merging an orchestration ---------- */
+
+/* ---------- Tracker issues: the import list, the issue chip and the board card's key (plans/code-hosts.md, phase 5, P0 t-p3) ----------
+   The import dialog reuses the thread list of "Address with an agent" (.addr-list, .addr-thread, .addr-main, .addr-head,
+   .addr-by, .addr-state, .decided-face): a desktop row is a label with the app's .checkbox, a phone row is a pressed
+   button, and in browse mode a row is .static. The triage marks are the existing .badge. An issue already imported is
+   .addr-thread.static.imported: no checkbox, a gap where it would be, the title in --fg-2 and the item's key beside it.
+   .iss-chip is an issue on an item page: its key in mono, the sync state as a dot and a word, and a link to the tracker.
+   .iss-fact is the same issue on a board card, in the facts line. The item page's panel is .fix-panel over .addr-list
+   rows (.addr-done). Nothing here moves; the only live thing is the braille spinner of a sync in flight, the app's own. */
+.iss-key { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.iss-title { margin: 0; font-size: 14px; font-weight: 500; line-height: 1.4; color: var(--fg); overflow-wrap: anywhere; }
+.addr-thread.imported .iss-title { color: var(--fg-2); font-weight: 400; }
+.iss-gap { flex-shrink: 0; width: 16px; }
+.iss-chip { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 9px; border-radius: var(--r-full); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg-2); font-size: 12px; white-space: nowrap; text-decoration: none; }
+.iss-chip:hover { border-color: var(--line-3); background: var(--bg-3); }
+.iss-chip .iss-sync { display: inline-flex; align-items: center; gap: 5px; }
+.iss-chip .ico { color: var(--fg-3); }
+.iss-fact { color: var(--fg-2); }
+.iss-fact .more { color: var(--fg-3); }
+.m-screen .iss-chip { min-height: var(--touch); padding: 0 12px; font-size: 13px; }
+/* ---------- end of Tracker issues ---------- */
