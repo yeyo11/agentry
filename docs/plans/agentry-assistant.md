@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T20:30:00Z
-updated_at: 2026-09-29T12:00:00Z
+updated_at: 2026-10-02T17:00:00Z
 tags:
     - plan
     - assistant
@@ -66,9 +66,7 @@ and can act on them.
 
 ## Confirming writes (CW-17)
 
-**Owner's choice: pending.** The spec [assistant-write-tools.md](assistant-write-tools.md) is written
-for option A, the recommended one, but CW-17 is not built until the owner picks A, B or C here, with
-the date. Once they have answered, replace this paragraph with: "Decided on <date>: option <X>".
+Decided on 2026-10-02: option A (the owner said to follow the recommendations). Writes are confirmed with the CLI's own permission prompt that Agentry already shows. The spec [assistant-write-tools.md](assistant-write-tools.md) is written for it.
 
 ## Open questions
 
