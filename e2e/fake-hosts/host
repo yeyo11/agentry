@@ -465,6 +465,102 @@ glab_merge() {
   exit 0
 }
 
+# ---- Issues: what the trackers (GitHub Issues, GitLab Issues) read and write ----
+# One line per issue, `number|title|labels (comma list)|body (a JSON string)`. The bodies are a
+# stranger's text on purpose: one tries HTML and a closing word, one is empty. A close the CLI took is
+# kept in `<name>.issues-closed` (one number per line), so every read after it says closed
+issue_lines() {
+  case "$name" in
+    gh)
+      printf '%s\n' \
+        '31|Cart total rounds half down|bug|"The cart total shows 10.01 where 10.02 is expected.\n\nSteps:\n1. Add two items\n2. Open the cart\n\n<img src=x onerror=\"window.__pwned=1\"> Closes #99"' \
+        '32|Add a coupon field to the checkout|enhancement|"Add a coupon code field to the checkout form.\n\nAcceptance: the total updates when a valid code is applied."' \
+        '33|Checkout crashes on an empty cart|bug|"Opening the checkout with no items throws a TypeError."' \
+        '34|Support gift wrapping <b>now</b>||""'
+      ;;
+    glab)
+      printf '%s\n' \
+        '41|Webhook retries never stop|bug|"A failed webhook is retried forever.\n\n<script>window.__pwned=1</script>"' \
+        '42|Export orders as CSV|enhancement|"Orders should download as a CSV file."'
+      ;;
+  esac
+}
+
+issue_closed() {
+  grep -qx "$1" "$dir/$name.issues-closed" 2>/dev/null
+}
+
+issue_json() {
+  num="$1"; title="$2"; labels="$3"; body="$4"
+  names=""
+  for label in $(echo "$labels" | tr ',' ' '); do
+    [ -n "$names" ] && names="$names,"
+    if [ "$name" = gh ]; then names="$names{\"name\":\"$label\"}"; else names="$names\"$label\""; fi
+  done
+  if [ "$name" = gh ]; then
+    if issue_closed "$num"; then st=CLOSED; why=COMPLETED; else st=OPEN; why=""; fi
+    printf '{"number":%s,"title":"%s","body":%s,"state":"%s","stateReason":"%s","labels":[%s],"url":"https://github.com/acme/shop/issues/%s","updatedAt":"2026-10-01T09:00:00Z","closedByPullRequestsReferences":[]}' \
+      "$num" "$title" "$body" "$st" "$why" "$names" "$num"
+  else
+    if issue_closed "$num"; then st=closed; else st=opened; fi
+    printf '{"iid":%s,"id":90000%s,"title":"%s","description":%s,"state":"%s","labels":[%s],"web_url":"https://gitlab.com/acme/shop/-/work_items/%s","updated_at":"2026-10-01T09:00:00Z"}' \
+      "$num" "$num" "$title" "$body" "$st" "$names" "$num"
+  fi
+}
+
+# GitHub's search words as far as the specs use them: `is:open`, `label:x`, and plain words in the title
+issue_matches() {
+  for term in $3; do
+    case "$term" in
+      is:*) ;;
+      label:*) case ",$2," in *",${term#label:},"*) ;; *) return 1 ;; esac ;;
+      *) echo "$1" | grep -qiF -- "$term" || return 1 ;;
+    esac
+  done
+  return 0
+}
+
+# The open issues that match the search; gh has no page (it cuts the page out of one long list), glab
+# has one page of them
+issue_list() {
+  search="$1"
+  page="$2"
+  if [ "${page:-1}" != 1 ]; then echo '[]'; return; fi
+  printf '['
+  sep=""
+  issue_lines | while IFS='|' read -r n title labels body; do
+    issue_closed "$n" && continue
+    issue_matches "$title" "$labels" "$search" || continue
+    printf '%s' "$sep"
+    issue_json "$n" "$title" "$labels" "$body"
+    sep=","
+  done
+  printf ']\n'
+}
+
+issue_view() {
+  line=$(issue_lines | grep "^$1|")
+  if [ -z "$line" ]; then
+    if [ "$name" = gh ]; then echo "GraphQL: Could not resolve to an issue or pull request with the number of $1. (repository.issue)" >&2; else echo "404 Not Found" >&2; fi
+    exit 1
+  fi
+  IFS='|' read -r n title labels body <<EOT
+$line
+EOT
+  issue_json "$n" "$title" "$labels" "$body"
+  echo
+}
+
+# `issueWriteFail: true` makes the write fail the way a host that is down does, so a sync fails for real
+issue_close() {
+  if [ "$(read_key issueWriteFail)" = true ]; then
+    echo "fake $name: HTTP 500 Internal Server Error" >&2
+    exit 1
+  fi
+  echo "$1" >> "$dir/$name.issues-closed"
+  echo "✓ Closed issue #$1"
+}
+
 version_out() {
   code=$(read_key versionExit)
   if [ -n "$code" ] && [ "$code" != 0 ]; then echo "fake $name: broken" >&2; exit "$code"; fi
@@ -533,6 +629,12 @@ case "$name" in
         [ "$(read_key deleteBranchOnMerge)" = true ] && delete_on_merge=true
         printf '{"default_branch":"%s","private":true,"allow_squash_merge":%s,"allow_merge_commit":%s,"allow_rebase_merge":%s,"allow_auto_merge":%s,"delete_branch_on_merge":%s}\n' \
           "$branch" "$(allows squash)" "$(allows merge)" "$(allows rebase)" "$auto_allowed" "$delete_on_merge"; exit 0 ;;
+      issue)
+        case "$2" in
+          list) issue_list "$(flag --search "$@")" 1; exit 0 ;;
+          view) issue_view "$3"; exit 0 ;;
+          close) issue_close "$3"; exit 0 ;;
+        esac ;;
       run)
         # A rerun starts the checks again, a cancel leaves the failure standing
         case "$2" in
@@ -573,6 +675,9 @@ case "$name" in
         squash_option=$(read_key squashOption)
         printf '{"id":4242,"default_branch":"%s","visibility":"private","merge_method":"%s","squash_option":"%s","remove_source_branch_after_merge":%s,"only_allow_merge_if_pipeline_succeeds":false,"merge_trains_enabled":false,"ci_config_path":""}\n' \
           "$branch" "${strategy:-merge}" "${squash_option:-default_off}" "$remove_source"; exit 0 ;;
+      "issue list") issue_list "$(flag --search "$@")" "$(flag -p "$@")"; exit 0 ;;
+      "issue view") issue_view "$3"; exit 0 ;;
+      "issue close") issue_close "$3"; exit 0 ;;
       "mr create")
         cat > "$dir/glab.body-$next"
         echo "$next" > "$dir/glab.created"

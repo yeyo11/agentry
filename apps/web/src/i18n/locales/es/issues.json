@@ -1,0 +1,80 @@
+{
+  "import": {
+    "button": "Importar issues",
+    "title": "Importar issues de {{tracker}}",
+    "search": "Búsqueda en {{tracker}}",
+    "run": "Buscar",
+    "hint": {
+      "github-issues": "Es la búsqueda de GitHub: añade label:bug o author:nombre. Solo salen issues, no pull requests.",
+      "gitlab-issues": "GitLab busca en el texto de los issues. Solo salen issues, no merge requests.",
+      "other": "Solo salen issues."
+    },
+    "open": "Issues · {{count}}",
+    "suggested": "sugerido · issue.triage",
+    "suggestedTitle": "Lo sugiere issue.triage",
+    "all": "Elegir todos",
+    "clear": "Quitar",
+    "onlyReady": "Elegir las listas",
+    "more": "Mostrar más",
+    "loading": "Buscando…",
+    "none": "Ningún issue coincide con esta búsqueda.",
+    "failed": "Agentry no pudo leer los issues de {{tracker}}.",
+    "retry": "Reintentar",
+    "marksNote": "Las marcas las pone issue.triage y solo ayudan a elegir. lista: un agente puede empezar con el issue tal como está escrito. por refinar: falta el objetivo o cómo saber que está hecho. no es para agentes: necesita a una persona.",
+    "untrustedLead": "Estos issues los escriben otras personas.",
+    "untrusted": "Cada tarea lleva el título tal cual y el texto del issue como una cita, «Desde {{tracker}}»; el agente la lee como un dato, no como una orden.",
+    "choose": "Elegir el issue {{ref}}",
+    "chosen": "Elegido",
+    "choosePhone": "Elegir",
+    "imported": "ya importada",
+    "count": "{{n}} de {{total}} elegidos",
+    "select": "Seleccionar issues",
+    "selecting": "Terminar de seleccionar",
+    "importN_one": "Importar {{count}} issue",
+    "importN_other": "Importar {{count}} issues",
+    "pick": "Elige un issue",
+    "cancel": "Cancelar",
+    "done_one": "{{count}} issue importado",
+    "done_other": "{{count}} issues importados",
+    "skipped_one": "{{count}} se omitió",
+    "skipped_other": "{{count}} se omitieron",
+    "error": "No se han podido importar los issues",
+    "bug": "Error"
+  },
+  "mark": {
+    "ready": "lista",
+    "needs-refining": "por refinar",
+    "not-for-agents": "no es para agentes"
+  },
+  "markTitle": {
+    "ready": "Un agente puede empezar con el issue tal como está escrito.",
+    "needs-refining": "Falta el objetivo o cómo saber que está hecho.",
+    "not-for-agents": "Necesita a una persona: un acceso, una decisión o algo fuera del repositorio."
+  },
+  "sync": {
+    "none": "pendiente",
+    "synced": "sincronizada",
+    "failed": "falló"
+  },
+  "chip": {
+    "label": "Issues",
+    "open": "Abrir {{ref}} en {{tracker}}",
+    "more": "+{{count}}"
+  },
+  "panel": {
+    "title": "{{tracker}}",
+    "intro": "Agentry solo escribe en el tracker, una escritura por evento. Una que falla se ve aquí y solo se repite cuando lo pides.",
+    "opened": "{{state}} en {{tracker}}",
+    "none": "Agentry todavía no ha escrito en este issue.",
+    "synced": "Agentry escribió en él {{when}}.",
+    "failedBecause": "Falló la escritura en {{tracker}}.",
+    "again": "Sincronizar de nuevo",
+    "againFailed": "No se ha podido sincronizar el issue",
+    "reason": "{{code}} · {{when}}"
+  },
+  "card": {
+    "issue": "Issue {{ref}}",
+    "failed": "Falló",
+    "failedWhy": "No se escribió en {{ref}}"
+  }
+}

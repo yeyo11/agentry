@@ -1,0 +1,80 @@
+{
+  "import": {
+    "button": "Import issues",
+    "title": "Import issues from {{tracker}}",
+    "search": "Search in {{tracker}}",
+    "run": "Search",
+    "hint": {
+      "github-issues": "This is GitHub's own search: add label:bug or author:name. Only issues come out, not pull requests.",
+      "gitlab-issues": "GitLab searches the text of issues. Only issues come out, not merge requests.",
+      "other": "Only issues come out."
+    },
+    "open": "Issues · {{count}}",
+    "suggested": "suggested · issue.triage",
+    "suggestedTitle": "Suggested by issue.triage",
+    "all": "Choose all",
+    "clear": "Clear",
+    "onlyReady": "Choose the ready ones",
+    "more": "Show more",
+    "loading": "Searching…",
+    "none": "No issue matches this search.",
+    "failed": "Agentry could not read the issues from {{tracker}}.",
+    "retry": "Try again",
+    "marksNote": "The marks come from issue.triage and only help to choose. ready: an agent can start from the issue as written. needs refining: the goal or how to tell it is done is missing. not for agents: it needs a person.",
+    "untrustedLead": "Other people write these issues.",
+    "untrusted": "Each task keeps the issue's title as it is and its text as a quote, “From {{tracker}}”; the agent reads it as data, not as an order.",
+    "choose": "Choose issue {{ref}}",
+    "chosen": "Chosen",
+    "choosePhone": "Choose",
+    "imported": "already imported",
+    "count": "{{n}} of {{total}} chosen",
+    "select": "Select issues",
+    "selecting": "Done selecting",
+    "importN_one": "Import {{count}} issue",
+    "importN_other": "Import {{count}} issues",
+    "pick": "Choose an issue",
+    "cancel": "Cancel",
+    "done_one": "{{count}} issue imported",
+    "done_other": "{{count}} issues imported",
+    "skipped_one": "{{count}} was skipped",
+    "skipped_other": "{{count}} were skipped",
+    "error": "Could not import the issues",
+    "bug": "Bug"
+  },
+  "mark": {
+    "ready": "ready",
+    "needs-refining": "needs refining",
+    "not-for-agents": "not for agents"
+  },
+  "markTitle": {
+    "ready": "An agent can start from the issue as written.",
+    "needs-refining": "The goal or how to tell it is done is missing.",
+    "not-for-agents": "It needs a person: an access, a decision or something outside the repository."
+  },
+  "sync": {
+    "none": "pending",
+    "synced": "synced",
+    "failed": "failed"
+  },
+  "chip": {
+    "label": "Issues",
+    "open": "Open {{ref}} in {{tracker}}",
+    "more": "+{{count}}"
+  },
+  "panel": {
+    "title": "{{tracker}}",
+    "intro": "Agentry only writes to the tracker, one write per event. A write that fails is shown here and repeated only when you ask.",
+    "opened": "{{state}} in {{tracker}}",
+    "none": "Agentry has not written to this issue yet.",
+    "synced": "Agentry wrote to it {{when}}.",
+    "failedBecause": "The write to {{tracker}} failed.",
+    "again": "Sync again",
+    "againFailed": "Could not sync the issue",
+    "reason": "{{code}} · {{when}}"
+  },
+  "card": {
+    "issue": "Issue {{ref}}",
+    "failed": "Failed",
+    "failedWhy": "{{ref}} was not written to"
+  }
+}

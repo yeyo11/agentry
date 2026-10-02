@@ -80,6 +80,14 @@ changes page need a branch: the spec commits `task/<key>` with
 `src/cart.ts` rewritten on lines 12 to 14, where the threads sit. `review.triage` is answered by the
 fake CLI (`e2e/fake-cli`), not by this fake: it marks the first thread `agent`.
 
+The issue scenarios answer the trackers (GitHub Issues, GitLab Issues): `issue list`, `issue view` and `issue close`.
+gh holds four open issues, `#31` to `#34` (a bug whose body tries HTML and a closing word, an enhancement, a bug, and
+one with an empty body and markup in its title), and glab holds `#41` and `#42` (the first with a `<script>` in its body).
+A search understands `is:open`, `label:x` and plain words of the title. `issueWriteFail: true` makes `issue close` exit 1
+with a server error, so a status sync fails for real; a close the CLI took is kept beside the JSON in
+`<name>.issues-closed` (one number per line), after which every read says closed and the list leaves the issue out.
+`gh issue view` of a number that is not there, and glab's, exit 1 as the hosts do.
+
 Beside the JSON, in the same directory: `<name>.calls` (one line per call, the arguments joined by
 spaces), `<name>.body-<n>` (the description a create was given on stdin) and `<name>.created` (the
 number the last create returned, which `list` then finds).

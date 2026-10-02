@@ -26,6 +26,14 @@ import type {
   DecisionTestResult,
   CodeHostStatus,
   CodeHostsSettings,
+  LinkWorkItemIssueRequest,
+  ProjectTrackerSettings,
+  TrackerId,
+  TrackerImportRequest,
+  TrackerImportResult,
+  TrackerIssuesPage,
+  TrackerStatus,
+  TrackersSettings,
   DecisionProviderId,
   ApiError,
   AuditFilter,
@@ -964,6 +972,31 @@ export const api = {
   putHostSettings: (settings: CodeHostsSettings) => request<CodeHostsSettings>('/hosts/settings', { method: 'PUT', body: settings }),
   /** Whether the project's origin can open pull or merge requests, and the remote as parsed */
   projectCodeHost: (id: string, o: ReadOptions = {}) => request<ProjectCodeHost>(`/projects/${enc(id)}/code-host`, o),
+  trackers: (o: ReadOptions = {}) => request<TrackerStatus[]>('/trackers', o),
+  tracker: (id: string, o: ReadOptions = {}) => request<TrackerStatus>(`/trackers/${enc(id)}`, o),
+  /** Skips the detector's cache; the answer is the fresh statuses */
+  refreshTrackers: () => request<TrackerStatus[]>('/trackers/refresh', { method: 'POST' }),
+  trackerSettings: (o: ReadOptions = {}) => request<TrackersSettings>('/trackers/settings', o),
+  putTrackerSettings: (settings: TrackersSettings) => request<TrackersSettings>('/trackers/settings', { method: 'PUT', body: settings }),
+  /** The project's tracker, or null when it has none */
+  projectTracker: (id: string, o: ReadOptions = {}) => request<ProjectTrackerSettings | null>(`/projects/${enc(id)}/tracker`, o),
+  /** A null body clears the project's tracker */
+  putProjectTracker: (id: string, tracker: ProjectTrackerSettings | null) =>
+    request<ProjectTrackerSettings | null>(`/projects/${enc(id)}/tracker`, { method: 'PUT', body: tracker }),
+  /** One page of the tracker's own query; an empty query reads as the project's */
+  trackerIssues: (id: string, query: { query?: string; page?: number } = {}, o: ReadOptions = {}) => {
+    const params = new URLSearchParams();
+    if (query.query) params.set('query', query.query);
+    if (query.page && query.page > 1) params.set('page', String(query.page));
+    const qs = params.toString();
+    return request<TrackerIssuesPage>(`/projects/${enc(id)}/tracker/issues${qs ? `?${qs}` : ''}`, o);
+  },
+  importTrackerIssues: (id: string, body: TrackerImportRequest) => request<TrackerImportResult>(`/projects/${enc(id)}/tracker/import`, { method: 'POST', body }),
+  linkWorkItemIssue: (itemId: string, body: LinkWorkItemIssueRequest) => request<WorkItem>(`/work-items/${enc(itemId)}/issues`, { method: 'POST', body }),
+  unlinkWorkItemIssue: (itemId: string, key: string, tracker?: TrackerId) =>
+    request<WorkItem>(`/work-items/${enc(itemId)}/issues/${enc(key)}${tracker ? `?tracker=${enc(tracker)}` : ''}`, { method: 'DELETE' }),
+  syncWorkItemIssue: (itemId: string, key: string, tracker?: TrackerId) =>
+    request<WorkItem>(`/work-items/${enc(itemId)}/issues/${enc(key)}/sync${tracker ? `?tracker=${enc(tracker)}` : ''}`, { method: 'POST' }),
 };
 
 // A drift between the chat package's client and the real one fails the build here, not at a call
@@ -984,6 +1017,11 @@ export const keys = {
   hosts: ['hosts'] as const,
   hostSettings: ['hosts', 'settings'] as const,
   projectCodeHost: (id: string) => ['project-code-host', id] as const,
+  trackers: ['trackers'] as const,
+  trackerSettings: ['trackers', 'settings'] as const,
+  projectTracker: (id: string) => ['project-tracker', id] as const,
+  /** One page of a project's tracker query, under the project's prefix so an import or a readiness change makes every page stale */
+  trackerIssues: (id: string, query: string, page: number) => ['project-tracker', id, 'issues', query, page] as const,
   projects: ['projects'] as const,
   projectCandidates: ['projects', 'candidates'] as const,
   chatList: (filter: ChatFilter) =>

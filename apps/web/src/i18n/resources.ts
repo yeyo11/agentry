@@ -19,6 +19,7 @@ import enOrchestrationDetail from './locales/en/orchestrationDetail.json';
 import enOrchestrationV2 from './locales/en/orchestrationV2.json';
 import enProjects from './locales/en/projects.json';
 import enIntegrations from './locales/en/integrations.json';
+import enIssues from './locales/en/issues.json';
 import enMerge from './locales/en/merge.json';
 import enProviders from './locales/en/providers.json';
 import enReviews from './locales/en/reviews.json';
@@ -48,6 +49,7 @@ import esOrchestrationDetail from './locales/es/orchestrationDetail.json';
 import esOrchestrationV2 from './locales/es/orchestrationV2.json';
 import esProjects from './locales/es/projects.json';
 import esIntegrations from './locales/es/integrations.json';
+import esIssues from './locales/es/issues.json';
 import esMerge from './locales/es/merge.json';
 import esProviders from './locales/es/providers.json';
 import esReviews from './locales/es/reviews.json';
@@ -76,6 +78,7 @@ export const en = {
   providers: enProviders,
   reviews: enReviews,
   integrations: enIntegrations,
+  issues: enIssues,
   merge: enMerge,
   orchestration: enOrchestration,
   orchestrationDetail: enOrchestrationDetail,
@@ -115,6 +118,7 @@ export const es = {
   providers: esProviders,
   reviews: esReviews,
   integrations: esIntegrations,
+  issues: esIssues,
   merge: esMerge,
   orchestration: esOrchestration,
   orchestrationDetail: esOrchestrationDetail,

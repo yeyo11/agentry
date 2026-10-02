@@ -285,5 +285,60 @@
     "summaryInherited": "inherited",
     "summaryDiffering_one": "{{n}} different",
     "summaryDiffering_other": "{{n}} different"
+  },
+  "tracker": {
+    "title": "Issues",
+    "optional": "optional",
+    "intro": "Link this project's tasks with the issues of a tracker: they are imported, and the pull request cites and closes them.",
+    "label": "Tracker",
+    "chooseHint": "Only trackers that are ready can be chosen. The ones for GitHub and GitLab use the same session as the code host.",
+    "none": "None",
+    "noneWhy": "This project's tasks are not linked with issues.",
+    "summaryNone": "no tracker",
+    "saved": "Tracker saved",
+    "saveFailed": "Could not save the tracker",
+    "loadFailed": "Could not read the project's tracker",
+    "thisHost": "this host",
+    "state": {
+      "ready": "Ready",
+      "unavailable": "Unavailable",
+      "signed-out": "Signed out",
+      "incompatible": "Update needed",
+      "not-installed": "Not installed",
+      "unknown": "Not checked"
+    },
+    "reason": {
+      "ready": "{{cli}} is signed in and answers.",
+      "wrong-host": "This project's code host is {{hostname}}, which {{tracker}} does not use.",
+      "signed-out": "{{cli}} is installed, but not signed in to the code host.",
+      "incompatible": "{{cli}} is older than the oldest release Agentry works with.",
+      "not-installed": "{{cli}} is not installed, or Agentry cannot find it.",
+      "unknown": "Agentry has not checked {{cli}} yet.",
+      "not-built": "Agentry cannot offer {{tracker}} yet: its program ({{cli}}) is not supported in this version.",
+      "disabled": "{{tracker}} is turned off in Integrations."
+    },
+    "scope": {
+      "repository": "Repository",
+      "project": "Project key"
+    },
+    "scopeHint": "The issues of this repository. By default it is the one of the <mono>origin</mono> remote.",
+    "query": "Query",
+    "queryPlaceholder": {
+      "github-issues": "is:open label:bug",
+      "gitlab-issues": "login error"
+    },
+    "queryHint": {
+      "github-issues": "GitHub's search as it is, the one you would type in its issues tab. It comes already written when you import.",
+      "gitlab-issues": "The text GitLab searches the issues for. It comes already written when you import."
+    },
+    "queryHintDefault": "{{tracker}}'s own query. It comes already written when you import. Empty means the open issues.",
+    "map": "When a task moves",
+    "statusOf": "Status for {{column}}",
+    "unchanged": "No change",
+    "choice": {
+      "closed": "Close as completed"
+    },
+    "onlyOpenClosed": "{{tracker}} only has open and closed.",
+    "mapHint": "When the pull request is merged the issue closes by itself with <mono>Closes {{ref}}</mono> in its description. If it could not, because the target branch is not the main one, Agentry closes it afterwards and checks that it is closed."
   }
 }

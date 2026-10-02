@@ -64,5 +64,24 @@
   "missing": {
     "text": "¿Falta un host? Inicia sesión en él con el programa que corresponda y aparecerá aquí solo.",
     "link": "Cómo iniciar sesión en otro host"
+  },
+  "tracker": {
+    "title": "Gestores de incidencias",
+    "total_one": "{{count}} gestor",
+    "total_other": "{{count}} gestores",
+    "note": "Agentry importa incidencias de GitHub Issues (#12) y GitLab Issues (#12) con los mismos programas que ya usa para las PR y las MR: no pide otra sesión ni guarda otra clave. Jira y YouTrack llegarán cuando se haya comprobado cómo responden sus programas.",
+    "notAvailable": "Aún no disponible",
+    "reason": {
+      "ready": "Lee y escribe incidencias con {{cli}}, con la sesión que ya tiene. Sirve en los proyectos cuyo código está en {{host}}.",
+      "disabled": "Agentry no usa {{tracker}} mientras esté desactivado.",
+      "not-recorded": "{{tracker}} todavía no está disponible: Agentry aún no ha visto cómo responde {{cli}} y no construye nada sobre algo que no ha visto."
+    },
+    "bin": {
+      "title": "Binario de {{cli}} para {{tracker}}",
+      "placeholder": "El mismo que usa {{host}}",
+      "hint": "Vacío, {{tracker}} usa el mismo programa que {{host}}. Si eliges otro, Agentry lee su versión antes de guardarlo y comprueba que no es anterior a la {{minimum}}.",
+      "usePath": "Usar el del host",
+      "cleared": "{{tracker}} vuelve a usar el programa de {{host}}"
+    }
   }
 }

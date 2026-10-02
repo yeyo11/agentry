@@ -85,6 +85,10 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
 is answered with no script: the structured output marks the first thread `agent` and the others
 `person`, so a spec turns the point on and sees the marks in the address dialog.
 
+**An `issue.triage` question** (lines `<key>: Can an agent start on issue <key> …`) is answered the same way: the
+structured output marks the issues `ready`, `needs-refining` and `not-for-agents` in the order asked, then
+round again, so a spec turns the point on and sees all three marks in the import dialog.
+
 **A message that arrives during a turn** is logged at once, and answered at the turn's next step
 (300 ms after a command ends) with one assistant text `Heard: <first line>` per message, before
 the next `run:` command starts. What is still waiting when the turn ends starts a turn of its own.

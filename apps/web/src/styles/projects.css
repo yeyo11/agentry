@@ -1129,3 +1129,33 @@
 .host-line.stacked .prov-reason { font-size: 14px; }
 .host-line.stacked .badge { align-self: flex-start; }
 .project-host-card { padding: 14px; }
+
+/* ---- Project tracker: the chooser, the scope and query, and the status map. Reference: `.trk-*` of agentry-ds.css, on ProyectoTracker ---- */
+.project-tracker-card { display: flex; flex-direction: column; gap: 16px; padding: 18px; }
+.project-tracker-card > .card-head h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.project-tracker-body { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.trk-opts { display: flex; flex-direction: column; gap: 8px; }
+.trk-opt { display: grid; grid-template-columns: 36px minmax(0, 1fr) 16px; gap: 14px; align-items: center; padding: 12px 14px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--bg-elev); text-align: left; color: var(--text); cursor: pointer; transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
+.trk-opt:hover { border-color: var(--line-3); }
+.trk-opt.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.trk-opt[aria-disabled='true'] { background: var(--bg-sunken); cursor: not-allowed; }
+.trk-opt .monogram, .trk-opt .trk-none { width: 36px; height: 36px; border-radius: var(--radius); font-size: 12px; }
+.trk-none { display: grid; place-items: center; background: var(--bg-hover); color: var(--text-muted); }
+.trk-opt-id { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.trk-opt-name { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-weight: 500; font-size: 14px; }
+.trk-opt-why { font-size: 12.5px; line-height: 1.45; color: var(--text-muted); }
+.trk-map { display: flex; flex-direction: column; gap: 10px; }
+.trk-map-row { display: grid; grid-template-columns: 150px 16px 240px minmax(0, 1fr); gap: 12px; align-items: center; }
+.trk-map-col { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.trk-map-row > .ico { color: var(--text-faint); }
+.trk-map-note { font-size: 12px; line-height: 1.45; color: var(--text-faint); }
+.trk-sel { display: block; min-width: 0; }
+.trk-sel .select-trigger { width: 100%; }
+@media (max-width: 900px) {
+  .trk-opt { min-height: 64px; }
+  .trk-opt-why { font-size: 13px; }
+  .trk-map { gap: 14px; }
+  .trk-map-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .trk-map-row > .ico { display: none; }
+  .trk-map-note { font-size: 13px; }
+}
