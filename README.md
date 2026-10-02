@@ -853,6 +853,18 @@ The hosts Agentry opens pull and merge requests on, GitHub through `gh` and GitL
 | POST | `/hosts/refresh` | Detect again now. Not open to a chat's token |
 | GET | `/hosts/settings` | The document from `hosts.json`: enabled and binary override per host |
 | PUT | `/hosts/settings` | Replace it, validated; hosts are detected again in the background and every project's readiness is read again. Not open to a chat's token |
+| GET | `/trackers` | Every issue tracker's status: GitHub and GitLab Issues follow their code host; Jira and YouTrack are `unknown` with `not-recorded` until their CLIs are recorded |
+| GET | `/trackers/:id` | One status; `404` for another id |
+| POST | `/trackers/refresh` | Detect again now. Not open to a chat's token |
+| GET | `/trackers/settings` | The document from `trackers.json`: enabled and binary override per tracker |
+| PUT | `/trackers/settings` | Replace it, validated; trackers are detected again in the background. Not open to a chat's token |
+| GET | `/projects/:id/tracker` | The project's tracker (`id`, `scope`, `query`, `statusMap`), or null |
+| PUT | `/projects/:id/tracker` | Replace the tracker, validated, leaving the rest of the settings; a null body clears it. Not open to a chat's token |
+| GET | `/projects/:id/tracker/issues` | `?query=&page=` — a page of the tracker's own query, each issue marked with the item it was imported as |
+| POST | `/projects/:id/tracker/import` | `{ keys }` — one work item per issue, its body a quoted source block; `{ imported, skipped }`. Needs the Board module. Not open to a chat's token |
+| POST | `/work-items/:itemId/issues` | `{ key }` — link an issue of the project's tracker to the item. Not open to a chat's token |
+| DELETE | `/work-items/:itemId/issues/:key` | Unlink it (`?tracker=` and `?scope=` when a key is linked under two trackers or two repositories). Not open to a chat's token |
+| POST | `/work-items/:itemId/issues/:key/sync` | One more write to the tracker for the item's column, never retried; the result is on the issue's `syncState`. Not open to a chat's token |
 | GET | `/change-requests/:id` | One change request by the row id of a work item's or an orchestration's: kind, owner, host, `ref`, phase, CI rollup and the fix state |
 | GET | `/change-requests/:id/checks` | The checks of the head commit (state, allowed failure, required, rerunnable, has a log), cached 30 s; `?refresh=1` reads the host now; `limitedUntil` while rate-limited |
 | GET | `/change-requests/:id/checks/:checkId/log` | The tail of one check's log, cleaned and redacted, with its annotations; `noOutputYet` for a job that has printed nothing; `409 log-unavailable` for a check with no log |

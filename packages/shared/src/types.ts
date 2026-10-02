@@ -1215,6 +1215,8 @@ export interface ProjectSettings {
   documents?: ProjectDocumentsSettings;
   /** Per-project overrides of the decision engine; consent is never here, it stays global */
   decisions?: ProjectDecisionSettings;
+  /** The project's issue tracker; absent or null when it has none */
+  tracker?: ProjectTrackerSettings | null;
 }
 
 /**
@@ -1663,6 +1665,8 @@ export interface WorkItem {
   waiting?: WorkItemWaitReason | null;
   /** Its newest pull request; absent or null when it never had one */
   pullRequest?: WorkItemPullRequest | null;
+  /** The tracker issues it was imported from or linked to; absent reads as none */
+  issues?: IssueRef[];
   createdAt: string;
   updatedAt: string;
   /** When it last entered `done`; null while it is anywhere else */
@@ -4869,10 +4873,15 @@ export type HostReason =
   | 'auto-merge-not-needed'
   | 'waiting-for-pipeline'
   | 'tracker-signed-out'
+  | 'tracker-disabled'
   | 'transition-unknown'
   | 'issue-is-pull-request'
+  | 'issue-scope-unknown'
+  | 'closing-unchecked'
+  | 'issue-closed-unlinked'
   | 'hook-no-permission'
-  | 'hook-unreachable';
+  | 'hook-unreachable'
+  | 'not-recorded';
 
 /**
  * A code host's detected status changed: its CLI was installed, signed in, updated or removed, or
@@ -4881,6 +4890,149 @@ export type HostReason =
 export interface HostsChangedEvent extends AgentryEventBase {
   type: 'hosts.changed';
   hosts: CodeHostStatus[];
+}
+
+// ---------- Issue trackers (code hosts, phase 5) ----------
+
+/**
+ * The issue trackers Agentry knows. Closed: adding one is a code change. Only `github-issues` and
+ * `gitlab-issues` have an adapter; `jira` and `youtrack` are in the registry with the readiness
+ * `unknown` and the reason `not-recorded` until their CLIs are recorded.
+ */
+export type TrackerId = 'github-issues' | 'gitlab-issues' | 'jira' | 'youtrack';
+
+/** Readiness of a tracker; `unknown` is a tracker nobody recorded the CLI of, or one not probed yet. */
+export type TrackerState = 'ready' | 'signed-out' | 'incompatible' | 'not-installed' | 'unknown';
+
+/** Why a tracker is not `ready`: the code hosts' reasons, and `not-recorded` for a CLI with no recording. */
+export type TrackerReason = CodeHostReason | 'not-recorded';
+
+/** One tracker as detected on this machine, served from the detector's cache. */
+export interface TrackerStatus {
+  id: TrackerId;
+  label: string;
+  cli: string;
+  /** The code host a tracker reuses the CLI and the sign-in of; null for `jira` and `youtrack` */
+  host: CodeHostId | null;
+  binaryPath: string | null;
+  version: string | null;
+  /** The oldest release Agentry works with; null while the CLI is not recorded */
+  minimum: string | null;
+  /** The releases the CLI facts were recorded on; empty while not recorded */
+  recorded: string[];
+  state: TrackerState;
+  /** Why the state is not `ready`; null when it is */
+  reason: TrackerReason | null;
+  /** ISO timestamp of the detection this status came from */
+  checkedAt: string;
+}
+
+/** What a person chose for one tracker. */
+export interface TrackerSettingsEntry {
+  enabled: boolean;
+  /** Absolute path of the binary to use instead of searching for one; null searches */
+  binaryPath: string | null;
+}
+
+/** `trackers.json` in the data directory. */
+export interface TrackersSettings {
+  trackers: Record<TrackerId, TrackerSettingsEntry>;
+}
+
+/** The columns a project can map to a tracker status; GitHub and GitLab only act on `done` (close, reason completed). */
+export type TrackerMappedStatus = Extract<WorkItemStatus, 'in_progress' | 'in_review' | 'done'>;
+
+/** A project's tracker, in its settings document (`ProjectSettings.tracker`). */
+export interface ProjectTrackerSettings {
+  id: TrackerId;
+  /** The repository for GitHub and GitLab, a Jira project key, a YouTrack project short name */
+  scope: string;
+  /** The tracker's own query the import starts from; empty reads as the open issues of the scope */
+  query: string;
+  /** Which tracker status each mapped column moves an issue to; a missing column is not synced */
+  statusMap: Partial<Record<TrackerMappedStatus, string>>;
+}
+
+/** What `issue.triage` says about an issue: whether an agent can start on it as written. */
+export type IssueTriageMark = 'ready' | 'needs-refining' | 'not-for-agents';
+
+/** Where the last write to the tracker for an issue stands: `none` is nothing synced yet. */
+export type IssueSyncState = 'none' | 'synced' | 'failed';
+
+/** An issue linked to a work item (a `work_item_issues` row). */
+export interface IssueRef {
+  tracker: TrackerId;
+  /** What the person reads: `12` on GitHub and GitLab, `PROJ-12` on Jira and YouTrack */
+  key: string;
+  /**
+   * The tracker scope (the repository, for GitHub and GitLab) the issue was imported from. Every
+   * call and every closing word about this issue uses it, whatever the project's scope is now; null
+   * when it was never recorded, and Agentry then writes nothing to the issue.
+   */
+  scope: string | null;
+  /** The tracker's own id, when it differs from the key */
+  externalId: string | null;
+  title: string;
+  /** The state the tracker last reported, in the tracker's words */
+  state: string;
+  url: string | null;
+  importedAt: string;
+  syncedAt: string | null;
+  syncState: IssueSyncState;
+  /** Why the last sync failed; null unless `syncState` is `failed` */
+  syncReason: HostReason | null;
+}
+
+/** One issue as a tracker lists it, before it is imported. The body is untrusted text. */
+export interface TrackerIssue {
+  tracker: TrackerId;
+  key: string;
+  externalId: string | null;
+  title: string;
+  body: string;
+  state: string;
+  labels: string[];
+  /** The work item type the labels or the issue type map to, when they do */
+  type: WorkItemType | null;
+  url: string | null;
+  updatedAt: string | null;
+  /** The work item it was already imported as in this project; null when not imported */
+  importedItemId: string | null;
+  /** `issue.triage`'s mark; null when the point is off or has not answered */
+  triage: IssueTriageMark | null;
+}
+
+/** `GET /projects/:id/tracker/issues`: one page of the tracker's own query. */
+export interface TrackerIssuesPage {
+  issues: TrackerIssue[];
+  page: number;
+  hasMore: boolean;
+}
+
+/** `POST /projects/:id/tracker/import` */
+export interface TrackerImportRequest {
+  keys: string[];
+}
+
+/** `POST /work-items/:itemId/issues`: links an issue of the project's tracker to an item, by its key. */
+export interface LinkWorkItemIssueRequest {
+  key: string;
+}
+
+export interface TrackerImportedIssue {
+  key: string;
+  itemId: string;
+  itemKey: string;
+}
+
+export interface TrackerImportSkipped {
+  key: string;
+  reason: 'already-imported' | HostReason;
+}
+
+export interface TrackerImportResult {
+  imported: TrackerImportedIssue[];
+  skipped: TrackerImportSkipped[];
 }
 
 /** Where an orchestration's change request stands; the flow's `conflict` and `awaiting-verify` do not apply. */
@@ -5894,7 +6046,8 @@ export type DecisionPointId =
   | 'palette.intent'
   | 'notification.urgency'
   | 'checks.fix'
-  | 'review.triage';
+  | 'review.triage'
+  | 'issue.triage';
 
 /** What a decision was about; the `subject_kind` column of the history */
 export type DecisionSubjectKind =
@@ -5906,7 +6059,8 @@ export type DecisionSubjectKind =
   | 'memory_proposal'
   | 'assistant_run'
   | 'notification'
-  | 'palette';
+  | 'palette'
+  | 'tracker_issue';
 
 /** Questions and rubrics are English (D4): providers read `label` and `description`, never a translation */
 export interface DecisionChoiceQuestion {

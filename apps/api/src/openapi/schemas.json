@@ -12751,6 +12751,17 @@
       "decisions": {
         "$ref": "#/components/schemas/ProjectDecisionSettings",
         "description": "Per-project overrides of the decision engine; consent is never here, it stays global"
+      },
+      "tracker": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProjectTrackerSettings"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The project's issue tracker; absent or null when it has none"
       }
     },
     "required": [
@@ -13247,6 +13258,19 @@
                 "description": "Act points only, 0.5..0.99; absent reads as the point's default"
               }
             }
+          },
+          "issue.triage": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
           }
         }
       }
@@ -13268,6 +13292,54 @@
       "active"
     ],
     "description": "`off` asks nothing, `shadow` asks and records, `active` may change what happens (or, for a suggestion, what is shown)"
+  },
+  "ProjectTrackerSettings": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "$ref": "#/components/schemas/TrackerId"
+      },
+      "scope": {
+        "type": "string",
+        "description": "The repository for GitHub and GitLab, a Jira project key, a YouTrack project short name"
+      },
+      "query": {
+        "type": "string",
+        "description": "The tracker's own query the import starts from; empty reads as the open issues of the scope"
+      },
+      "statusMap": {
+        "type": "object",
+        "properties": {
+          "in_progress": {
+            "type": "string"
+          },
+          "in_review": {
+            "type": "string"
+          },
+          "done": {
+            "type": "string"
+          }
+        },
+        "description": "Which tracker status each mapped column moves an issue to; a missing column is not synced"
+      }
+    },
+    "required": [
+      "id",
+      "scope",
+      "query",
+      "statusMap"
+    ],
+    "description": "A project's tracker, in its settings document (`ProjectSettings.tracker`)."
+  },
+  "TrackerId": {
+    "type": "string",
+    "enum": [
+      "github-issues",
+      "gitlab-issues",
+      "jira",
+      "youtrack"
+    ],
+    "description": "The issue trackers Agentry knows. Closed: adding one is a code change. Only `github-issues` and `gitlab-issues` have an adapter; `jira` and `youtrack` are in the registry with the readiness `unknown` and the reason `not-recorded` until their CLIs are recorded."
   },
   "ProjectTemplate": {
     "type": "object",
@@ -13474,6 +13546,13 @@
           }
         ],
         "description": "Its newest pull request; absent or null when it never had one"
+      },
+      "issues": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/IssueRef"
+        },
+        "description": "The tracker issues it was imported from or linked to; absent reads as none"
       },
       "createdAt": {
         "type": "string"
@@ -13985,6 +14064,144 @@
     ],
     "description": "Where an item's pull request stands (docs/plans/work-item-pull-requests.md):\n\n- `preparing`: approved, and Agentry is committing, updating, pushing and opening it;\n- `conflict`: updating the branch with the default branch conflicted, and the merge waits in the   item's worktree for the Developer (or the person) to resolve it;\n- `awaiting-verify`: the conflict was handed to the Developer, and QA's next pass opens the PR   without a second approval;\n- `open`: on GitHub, waiting for the person to merge it;\n- `merged` and `closed`: GitHub's own outcome;\n- `failed`: a step failed, and  {@link  WorkItemPullRequest.error }  says which and why."
   },
+  "IssueRef": {
+    "type": "object",
+    "properties": {
+      "tracker": {
+        "$ref": "#/components/schemas/TrackerId"
+      },
+      "key": {
+        "type": "string",
+        "description": "What the person reads: `12` on GitHub and GitLab, `PROJ-12` on Jira and YouTrack"
+      },
+      "scope": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The tracker scope (the repository, for GitHub and GitLab) the issue was imported from. Every call and every closing word about this issue uses it, whatever the project's scope is now; null when it was never recorded, and Agentry then writes nothing to the issue."
+      },
+      "externalId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The tracker's own id, when it differs from the key"
+      },
+      "title": {
+        "type": "string"
+      },
+      "state": {
+        "type": "string",
+        "description": "The state the tracker last reported, in the tracker's words"
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "importedAt": {
+        "type": "string"
+      },
+      "syncedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "syncState": {
+        "$ref": "#/components/schemas/IssueSyncState"
+      },
+      "syncReason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/HostReason"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why the last sync failed; null unless `syncState` is `failed`"
+      }
+    },
+    "required": [
+      "tracker",
+      "key",
+      "scope",
+      "externalId",
+      "title",
+      "state",
+      "url",
+      "importedAt",
+      "syncedAt",
+      "syncState",
+      "syncReason"
+    ],
+    "description": "An issue linked to a work item (a `work_item_issues` row)."
+  },
+  "IssueSyncState": {
+    "type": "string",
+    "enum": [
+      "none",
+      "synced",
+      "failed"
+    ],
+    "description": "Where the last write to the tracker for an issue stands: `none` is nothing synced yet."
+  },
+  "HostReason": {
+    "type": "string",
+    "enum": [
+      "cli-missing",
+      "cli-incompatible",
+      "cli-signed-out",
+      "unsupported-host",
+      "no-default-branch",
+      "timeout",
+      "output-too-large",
+      "unexpected-output",
+      "auth-failed",
+      "forbidden",
+      "not-found",
+      "rate-limited",
+      "slowed-down",
+      "server-error",
+      "unreachable",
+      "busy",
+      "write-unconfirmed",
+      "already-open",
+      "create-failed",
+      "nothing-to-propose",
+      "log-unavailable",
+      "rerun-refused",
+      "check-not-rerunnable",
+      "nothing-to-fix",
+      "fix-in-progress",
+      "fix-attempts-spent",
+      "own-change-request",
+      "pending-review-exists",
+      "line-not-in-diff",
+      "not-resolvable",
+      "review-partly-posted",
+      "head-moved",
+      "method-not-allowed",
+      "merge-failed",
+      "auto-merge-not-allowed",
+      "auto-merge-not-needed",
+      "waiting-for-pipeline",
+      "tracker-signed-out",
+      "tracker-disabled",
+      "transition-unknown",
+      "issue-is-pull-request",
+      "issue-scope-unknown",
+      "closing-unchecked",
+      "issue-closed-unlinked",
+      "hook-no-permission",
+      "hook-unreachable",
+      "not-recorded"
+    ],
+    "description": "Why a call to a code host did not do what was asked: one taxonomy for every phase. The web words each code; the host's first line travels beside it as the detail."
+  },
   "WorkItemDetail": {
     "type": "object",
     "properties": {
@@ -14129,6 +14346,13 @@
           }
         ],
         "description": "Its newest pull request; absent or null when it never had one"
+      },
+      "issues": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/IssueRef"
+        },
+        "description": "The tracker issues it was imported from or linked to; absent reads as none"
       },
       "createdAt": {
         "type": "string"
@@ -18001,6 +18225,374 @@
     ],
     "description": "What a person chose for one code host."
   },
+  "TrackerStatus": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "$ref": "#/components/schemas/TrackerId"
+      },
+      "label": {
+        "type": "string"
+      },
+      "cli": {
+        "type": "string"
+      },
+      "host": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CodeHostId"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The code host a tracker reuses the CLI and the sign-in of; null for `jira` and `youtrack`"
+      },
+      "binaryPath": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "version": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "minimum": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The oldest release Agentry works with; null while the CLI is not recorded"
+      },
+      "recorded": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The releases the CLI facts were recorded on; empty while not recorded"
+      },
+      "state": {
+        "$ref": "#/components/schemas/TrackerState"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/TrackerReason"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why the state is not `ready`; null when it is"
+      },
+      "checkedAt": {
+        "type": "string",
+        "description": "ISO timestamp of the detection this status came from"
+      }
+    },
+    "required": [
+      "id",
+      "label",
+      "cli",
+      "host",
+      "binaryPath",
+      "version",
+      "minimum",
+      "recorded",
+      "state",
+      "reason",
+      "checkedAt"
+    ],
+    "description": "One tracker as detected on this machine, served from the detector's cache."
+  },
+  "TrackerState": {
+    "type": "string",
+    "enum": [
+      "ready",
+      "signed-out",
+      "incompatible",
+      "not-installed",
+      "unknown"
+    ],
+    "description": "Readiness of a tracker; `unknown` is a tracker nobody recorded the CLI of, or one not probed yet."
+  },
+  "TrackerReason": {
+    "anyOf": [
+      {
+        "$ref": "#/components/schemas/CodeHostReason"
+      },
+      {
+        "type": "string",
+        "const": "not-recorded"
+      }
+    ],
+    "description": "Why a tracker is not `ready`: the code hosts' reasons, and `not-recorded` for a CLI with no recording."
+  },
+  "TrackersSettings": {
+    "type": "object",
+    "properties": {
+      "trackers": {
+        "type": "object",
+        "properties": {
+          "github-issues": {
+            "$ref": "#/components/schemas/TrackerSettingsEntry"
+          },
+          "gitlab-issues": {
+            "$ref": "#/components/schemas/TrackerSettingsEntry"
+          },
+          "jira": {
+            "$ref": "#/components/schemas/TrackerSettingsEntry"
+          },
+          "youtrack": {
+            "$ref": "#/components/schemas/TrackerSettingsEntry"
+          }
+        },
+        "required": [
+          "github-issues",
+          "gitlab-issues",
+          "jira",
+          "youtrack"
+        ]
+      }
+    },
+    "required": [
+      "trackers"
+    ],
+    "description": "`trackers.json` in the data directory."
+  },
+  "TrackerSettingsEntry": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "binaryPath": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Absolute path of the binary to use instead of searching for one; null searches"
+      }
+    },
+    "required": [
+      "enabled",
+      "binaryPath"
+    ],
+    "description": "What a person chose for one tracker."
+  },
+  "TrackerIssuesPage": {
+    "type": "object",
+    "properties": {
+      "issues": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TrackerIssue"
+        }
+      },
+      "page": {
+        "type": "number"
+      },
+      "hasMore": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "issues",
+      "page",
+      "hasMore"
+    ],
+    "description": "`GET /projects/:id/tracker/issues`: one page of the tracker's own query."
+  },
+  "TrackerIssue": {
+    "type": "object",
+    "properties": {
+      "tracker": {
+        "$ref": "#/components/schemas/TrackerId"
+      },
+      "key": {
+        "type": "string"
+      },
+      "externalId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "title": {
+        "type": "string"
+      },
+      "body": {
+        "type": "string"
+      },
+      "state": {
+        "type": "string"
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "type": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemType"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The work item type the labels or the issue type map to, when they do"
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "updatedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "importedItemId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The work item it was already imported as in this project; null when not imported"
+      },
+      "triage": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/IssueTriageMark"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "`issue.triage`'s mark; null when the point is off or has not answered"
+      }
+    },
+    "required": [
+      "tracker",
+      "key",
+      "externalId",
+      "title",
+      "body",
+      "state",
+      "labels",
+      "type",
+      "url",
+      "updatedAt",
+      "importedItemId",
+      "triage"
+    ],
+    "description": "One issue as a tracker lists it, before it is imported. The body is untrusted text."
+  },
+  "IssueTriageMark": {
+    "type": "string",
+    "enum": [
+      "ready",
+      "needs-refining",
+      "not-for-agents"
+    ],
+    "description": "What `issue.triage` says about an issue: whether an agent can start on it as written."
+  },
+  "TrackerImportRequest": {
+    "type": "object",
+    "properties": {
+      "keys": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "keys"
+    ],
+    "description": "`POST /projects/:id/tracker/import`"
+  },
+  "TrackerImportResult": {
+    "type": "object",
+    "properties": {
+      "imported": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TrackerImportedIssue"
+        }
+      },
+      "skipped": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TrackerImportSkipped"
+        }
+      }
+    },
+    "required": [
+      "imported",
+      "skipped"
+    ]
+  },
+  "TrackerImportedIssue": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "itemKey": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "key",
+      "itemId",
+      "itemKey"
+    ]
+  },
+  "TrackerImportSkipped": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "type": "string",
+            "const": "already-imported"
+          },
+          {
+            "$ref": "#/components/schemas/HostReason"
+          }
+        ]
+      }
+    },
+    "required": [
+      "key",
+      "reason"
+    ]
+  },
+  "LinkWorkItemIssueRequest": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "key"
+    ],
+    "description": "`POST /work-items/:itemId/issues`: links an issue of the project's tracker to an item, by its key."
+  },
   "ProjectCodeHost": {
     "type": "object",
     "properties": {
@@ -18944,54 +19536,6 @@
     ],
     "description": "`posting`: the write is under way; `posted`: confirmed; `partly`: a GitLab note failed after others were saved as drafts; `failed`: nothing reached the host."
   },
-  "HostReason": {
-    "type": "string",
-    "enum": [
-      "cli-missing",
-      "cli-incompatible",
-      "cli-signed-out",
-      "unsupported-host",
-      "no-default-branch",
-      "timeout",
-      "output-too-large",
-      "unexpected-output",
-      "auth-failed",
-      "forbidden",
-      "not-found",
-      "rate-limited",
-      "slowed-down",
-      "server-error",
-      "unreachable",
-      "busy",
-      "write-unconfirmed",
-      "already-open",
-      "create-failed",
-      "nothing-to-propose",
-      "log-unavailable",
-      "rerun-refused",
-      "check-not-rerunnable",
-      "nothing-to-fix",
-      "fix-in-progress",
-      "fix-attempts-spent",
-      "own-change-request",
-      "pending-review-exists",
-      "line-not-in-diff",
-      "not-resolvable",
-      "review-partly-posted",
-      "head-moved",
-      "method-not-allowed",
-      "merge-failed",
-      "auto-merge-not-allowed",
-      "auto-merge-not-needed",
-      "waiting-for-pipeline",
-      "tracker-signed-out",
-      "transition-unknown",
-      "issue-is-pull-request",
-      "hook-no-permission",
-      "hook-unreachable"
-    ],
-    "description": "Why a call to a code host did not do what was asked: one taxonomy for every phase. The web words each code; the host's first line travels beside it as the detail."
-  },
   "ChangeRequestReviewPosts": {
     "type": "object",
     "properties": {
@@ -19824,6 +20368,9 @@
           },
           "review.triage": {
             "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "issue.triage": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
       },
@@ -19986,6 +20533,9 @@
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "review.triage": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "issue.triage": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
@@ -20229,7 +20779,8 @@
       "palette.intent",
       "notification.urgency",
       "checks.fix",
-      "review.triage"
+      "review.triage",
+      "issue.triage"
     ]
   },
   "DecisionPointKind": {
@@ -20547,7 +21098,8 @@
       "memory_proposal",
       "assistant_run",
       "notification",
-      "palette"
+      "palette",
+      "tracker_issue"
     ],
     "description": "What a decision was about; the `subject_kind` column of the history"
   },

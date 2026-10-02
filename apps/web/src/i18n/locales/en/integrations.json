@@ -64,5 +64,24 @@
   "missing": {
     "text": "Missing a host? Sign in to it with the program that fits and it will show up here by itself.",
     "link": "How to sign in to another host"
+  },
+  "tracker": {
+    "title": "Issue trackers",
+    "total_one": "{{count}} tracker",
+    "total_other": "{{count}} trackers",
+    "note": "Agentry imports issues from GitHub Issues (#12) and GitLab Issues (#12) with the same programs it already uses for pull requests and merge requests: it asks for no other session and stores no other key. Jira and YouTrack will come once it has checked how their programs answer.",
+    "notAvailable": "Not available yet",
+    "reason": {
+      "ready": "Reads and writes issues with {{cli}}, with the session it already has. It works in projects whose code is on {{host}}.",
+      "disabled": "Agentry does not use {{tracker}} while it is off.",
+      "not-recorded": "{{tracker}} is not available yet: Agentry has not seen how {{cli}} answers, and builds nothing on something it has not seen."
+    },
+    "bin": {
+      "title": "{{cli}} binary for {{tracker}}",
+      "placeholder": "The same one {{host}} uses",
+      "hint": "Left empty, {{tracker}} uses the same program as {{host}}. If you choose another, Agentry reads its version before saving it and checks it is not older than {{minimum}}.",
+      "usePath": "Use the one of the host",
+      "cleared": "{{tracker}} now uses the program of {{host}}"
+    }
   }
 }

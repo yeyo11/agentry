@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { get } from 'node:http';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -699,6 +699,34 @@ test("a chat's token cannot administer the guard or open the tunnel, but can clo
   }
   assert.equal(core.security.mode, 'token', 'the guard is still on');
   assert.notEqual((await app.inject({ method: 'POST', url: '/api/tunnel/stop', ...fromChat(token) })).statusCode, 403);
+});
+
+test("a chat's token cannot change a project's tracker through the general settings route", async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  const owner = await withToken(app);
+  const root = mkdtempSync(join(tmpdir(), 'agentry-security-project-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const imported = await app.inject({ method: 'POST', url: '/api/projects/import', ...authed(owner, { path: root, name: 'Tracked', modules: ['board'] }) });
+  assert.equal(imported.statusCode, 201, imported.body);
+  const { id } = imported.json() as { id: string };
+  const url = `/api/projects/${id}/settings`;
+  const tracker = { id: 'github-issues', scope: 'acme/widgets', query: 'is:open', statusMap: { done: 'completed' } };
+  const settings = (await app.inject({ url, ...bearer(owner) })).json() as Record<string, unknown>;
+  assert.equal((await app.inject({ method: 'PUT', url, ...authed(owner, { ...settings, tracker }) })).statusCode, 200);
+
+  // A chat saves the document with another tracker: the rest is saved, the tracker is not
+  const chat = core.security.chatTokens.mint('chat-42');
+  const hijacked = { ...settings, tracker: { ...tracker, scope: 'evil/repo', query: '', statusMap: { done: 'closed' } } };
+  const answer = await app.inject({ method: 'PUT', url, ...fromChatWith(chat, hijacked) });
+  assert.equal(answer.statusCode, 200, answer.body);
+  assert.deepEqual((answer.json() as { tracker?: unknown }).tracker, tracker);
+  assert.deepEqual(((await app.inject({ url, ...bearer(owner) })).json() as { tracker?: unknown }).tracker, tracker);
+
+  // And a chat's document without one cannot clear it
+  const { tracker: _gone, ...without } = settings as Record<string, unknown>;
+  assert.equal((await app.inject({ method: 'PUT', url, ...fromChatWith(chat, without) })).statusCode, 200);
+  assert.deepEqual(((await app.inject({ url, ...bearer(owner) })).json() as { tracker?: unknown }).tracker, tracker);
 });
 
 test("read-only and the host allowlist apply to a chat's token as to the owner's", async (t) => {

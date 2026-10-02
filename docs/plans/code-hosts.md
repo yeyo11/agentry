@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-10-02T09:00:00Z
+updated_at: 2026-10-02T12:00:00Z
 tags:
     - plan
     - git
@@ -451,6 +451,9 @@ and one action. A remedy is a link or an Agentry action, never a command to copy
 | `tracker-signed-out` | tracker auth probe fails | {tracker} is not signed in. | Sign-in docs / token field |
 | `transition-unknown` | the mapped status is not reachable | {tracker} has no way to move {key} from “{from}” to “{to}”. | Project settings → Tracker |
 | `issue-is-pull-request` | `gh issue view N` resolved a PR (recorded trap) | #{n} is a pull request, not an issue. | — |
+| `issue-scope-unknown` | a link made before links recorded their repository, whose project had no such tracker | Agentry does not know which repository {key} came from, so it does not write to it. | — |
+| `closing-unchecked` | at the merge, what the host closed could not be read, and the issue still reads open | Agentry could not check whether {host} closed {key} when it merged, so it did not close it. | Sync again |
+| `issue-closed-unlinked` | the host closed an issue (from the body written at open) that the item no longer links | {host} closed {issue} when this merged, but the item does not link it. | — |
 | `hook-no-permission` | 404/403 on hooks (GitHub adds a misleading scope hint, recorded) | Registering a webhook needs admin rights on {repo}. | — |
 | `hook-unreachable` | the host's test delivery failed | {host} could not reach Agentry at {url}. | — |
 
@@ -2194,6 +2197,64 @@ state, url, imported_at, synced_at, sync_state, sync_reason, UNIQUE (project_id,
 `DELETE /work-items/:itemId/issues/:key`, `POST /work-items/:itemId/issues/:key/sync`. Chat tokens:
 403 on every write and on the credentials.
 
+### Phase 5 in two steps (2026-10-02)
+
+`t0` is split in two so that the GitHub and GitLab trackers do not wait for accounts that are not
+there yet.
+
+- **`t0a`, done**: the two GitLab issue calls the matrix still marked D (F4 `-u`, F8 the labels
+  list), recorded on the private probe project: [Recorded by `t0a`](#recorded-by-t0a-2026-10-02).
+  The GitHub rows were already recorded (R).
+- **`t0b`, the owner's**: Jira (`acli`, a Jira Cloud site and a scratch project) and YouTrack
+  (`youtrack-app`, an instance and a token), as in "Recording before phase 5". Until it is done,
+  `jira` and `youtrack` are in the registry as trackers whose readiness is `unknown` with the reason
+  `not-recorded`, have no adapter and offer no action, so nothing is built on a CLI fact nobody has
+  seen. Phase 5 therefore ships **GitHub Issues and GitLab Issues** first, with the manifests, the
+  settings, the import, the links, the sync and `issue.triage` complete for them; the Jira and
+  YouTrack adapters, fakes and screens follow `t0b` in a smaller step.
+
+### Recorded by `t0a` (2026-10-02)
+
+76 `glab` 1.120.0 captures on the probe project (an issue created, read, listed with `--search`,
+labelled and unlabelled, noted, closed twice, reopened and deleted; the labels list), all cleaned
+up (the project's labels and issues are as they were). In
+`packages/core/test/fixtures/recordings/glab/1.120.0/`.
+
+1. **F4 `glab issue update -u <label>` works**: it prints `✓ removed labels <name>` and the issue's
+   `labels` no longer has it. It says so also when the label was not on the issue, so Agentry
+   re-reads and does not trust the line.
+2. **F8 `projects/<id>/labels?per_page=100` answers** `id`, `name`, `description`, `text_color`,
+   `color`, `archived`, `subscribed`, `priority`, `is_project_label`; empty is `[]`, and the issue
+   list of a project with none is `[]` with exit 0.
+3. **An issue is addressed as `work_items/<iid>`** in every URL glab prints, for `create`, `note`,
+   `close` and `reopen` (notes end in `#note_<id>`); the key stays the `iid`.
+4. **`issue close` on a closed issue exits 0** (idempotent, as F6 says), and an issue that is gone
+   answers `{"error":{"message":"404 Not Found"}}` with exit 1.
+5. **`issue create -l <label>` with a label that was deleted in between attaches nothing and does
+   not fail**, so the labels Agentry passes are the ones it just read (F3's rule).
+
+### Outcome of the phase 5 core audit (2026-10-02)
+
+An independent audit of the phase 5 core found pieces built and tested that nothing called. Decided
+for each, in this order: wire it where the plan uses it, or remove it.
+
+- **Removed**, with their tests and the matching conformance rules: the adapters' `create`,
+  `update`, `comment`, `reopen`, `labels`, `parseLabels`, `parseCreated`, `parseCommented`, and
+  `close` with *not planned* (`close` is always as completed). Phase 5 has no route, event or
+  decision point that creates, edits, comments on, reopens or labels an issue: the routes are
+  list, import, link by key, unlink and sync, and `setStatus` closes on `done`. A reopen when an
+  item leaves Done was considered and left out: Agentry does not close an issue when a person moves
+  an item to Done by hand, so reopening on the way back could undo a person's own act. The matrix
+  rows F3 to F5, F7, F8 and the facts recorded in `t0a` stay in this plan; a feature that needs
+  one builds it with its caller and its tests then.
+- **Recorded behaviours** that only the removed code enforced are now enforced by the removal: the
+  re-read after `glab issue update -u`, passing only labels that exist on create, and `gh issue
+  create --body-file -` on stdin. They are recorded facts for the next builder, not code.
+- **Kept**: `titleIssueKeys`, called by the change request's title for Jira and YouTrack keys. It
+  has no effect until those trackers have an adapter (`t0b`), which is the seam the plan asks for.
+- **The "two imports at once" test** is concurrent now: two services on one database file, reads
+  held until both have passed the existence check, then the 409 handling and the unique index.
+
 ### P0 · `trackers-prototypes`
 
 Generator `trackers.py`.
@@ -2208,6 +2269,12 @@ Generator `trackers.py`.
   phone: selection mode), the import action; the item page's issue chips and sync state; the board
   card's issue key chip.
 - Check: `lint.py`, `check.mjs`; the owner validates.
+
+P0 was built by `trackers-prototypes` (3 tasks, 18.78 USD; `lint.py` and `check.mjs` clean) and
+validated on 2026-10-02 by delegation, from the screenshots: the import dialog has one gradient
+action (Import), and Integrations has the gradient border of the trackers section (what the screen is
+about) beside the top bar's New chat, so no screen has more than two. Jira and YouTrack are drawn as
+"not available yet" with their reason and no action, as "Phase 5 in two steps" says.
 
 ### P1 · `trackers-core`
 
@@ -2246,6 +2313,36 @@ Generator `trackers.py`.
   (`pages/tasks/ImportIssues.tsx`) and item chips (`pages/tasks/item/Issues.tsx`); `tu4` e2e
   (`e2e/fake-trackers/acli`, `e2e/fake-trackers/youtrack-app`, `e2e/specs/trackers.spec.mjs`),
   written, not run.
+
+## Outcome of phase 5, step 1 (2026-10-02)
+
+Phase 5 is built for **GitHub Issues and GitLab Issues** on `feat/code-hosts-trackers`; Jira and
+YouTrack wait for `t0b` ("Phase 5 in two steps"):
+
+- **`t0a`**, the two GitLab calls the matrix had as documented only, recorded and cleaned up.
+- **P0 `trackers-prototypes`** (3 tasks, 18.78 USD), **P1 `trackers-core`** (9 tasks, 29.49 USD),
+  **P2 `trackers-web`** (5 tasks, 16.90 USD) and **`trackers-fix`** (4 tasks, 18.66 USD) after an
+  independent audit of the core.
+
+What the audit and the e2e spec nobody had run found, all fixed:
+
+- **A link remembered no repository.** Changing a project's tracker scope made the merge close
+  issue 12 of the *new* repository, which was never linked. A link stores the scope it was imported
+  from, and every call and closing word uses it. Whether the host really closed the issue is read
+  back, and the issue is closed only when it did not.
+- **A tracker turned off still imported and still closed issues**; and **a chat could change the
+  tracker's scope through the project settings route**, which the dedicated route refused. Both are
+  closed.
+- **Issue text was not data.** A title such as "Closes #99" became the change request's title, and
+  a squash merge then closed #99; the block and the prompt carried no untrusted marker; the triage
+  question held the raw title. Closing keywords from an issue's text are neutralised, the block is
+  marked as another person's text, and the question keeps the title out.
+- **The page sent Done as `closed`** where the core says `completed`, so a tracker could not be
+  saved from the screen; the issue chips are a real list (axe refused a link with the listitem role);
+  and "Check again" in Integrations now also reads the trackers, so its actions appear when both are in.
+
+**Open:** `t0b` (the owner: a Jira Cloud site and a YouTrack instance with tokens) and the Jira and
+YouTrack adapters, fakes and screens that follow it.
 
 ## Phase 6: webhooks and paced polling
 

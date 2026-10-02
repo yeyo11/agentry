@@ -1,10 +1,11 @@
 import type { WorkItem } from '@agentry/shared';
-import { Ban, Check, Folder } from 'lucide-react';
+import { Ban, Check, CircleDot, Folder, X } from 'lucide-react';
 import type { CSSProperties, DragEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { DecisionMarkOf, useVisibleDecisions } from '../../../components/DecisionMark';
 import { Monogram, nameHue } from '@agentry/ui/components/icons';
+import { issueChipText } from '../../../lib/trackers';
 import { PriorityMark, WorkItemKey, WorkItemTypeIcon } from '../../../components/work-item-icons';
 import { stripNamesAssignee, taskPath, workItemLiveState, workItemStrip, type WorkItemStripState } from '../../../lib/work-items';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
@@ -51,8 +52,42 @@ export function CriteriaFact({ item }: { item: Pick<WorkItem, 'acceptanceCriteri
   );
 }
 
-/** The facts under a card or a row: bounces, what it waits for, and the checklist. */
-export function CardFacts({ item, short = false }: { item: Pick<WorkItem, 'acceptanceCriteria' | 'relations' | 'bounces'>; short?: boolean }) {
+/** The tracker issue an item came from, as the tracker writes it: `#31`, and `+1` when it has more. */
+export function IssueFact({ item }: { item: Pick<WorkItem, 'issues'> }) {
+  const { t } = useTranslation('issues');
+  const [first, ...rest] = item.issues ?? [];
+  if (!first) return null;
+  const ref = issueChipText(first);
+  const said = t('card.issue', { ref });
+  return (
+    <span className="workitem-fact iss-fact" title={said}>
+      <CircleDot {...FACT} />
+      <span aria-hidden>{ref}</span>
+      {rest.length > 0 && <span className="more" aria-hidden>{t('chip.more', { count: rest.length })}</span>}
+      <span className="sr-only">{rest.length > 0 ? `${said} ${t('chip.more', { count: rest.length })}` : said}</span>
+    </span>
+  );
+}
+
+/** A done card whose last write to its tracker failed says so, with the issue it could not write to. */
+export function IssueFailure({ item }: { item: Pick<WorkItem, 'issues'> }) {
+  const { t } = useTranslation('issues');
+  const failed = (item.issues ?? []).find((issue) => issue.syncState === 'failed');
+  if (!failed) return null;
+  return (
+    <div className="iss-failure" role="status">
+      <X {...FACT} />
+      <b>{t('card.failed')}</b>
+      <span>{t('card.failedWhy', { ref: issueChipText(failed) })}</span>
+      {failed.syncReason && <span className="mono">{failed.syncReason}</span>}
+    </div>
+  );
+}
+
+type FactsItem = Pick<WorkItem, 'acceptanceCriteria' | 'relations' | 'bounces' | 'issues'>;
+
+/** The facts under a card or a row: bounces, what it waits for, the issue it came from, and the checklist. */
+export function CardFacts({ item, short = false }: { item: FactsItem; short?: boolean }) {
   const { t } = useTranslation('tasks');
   const blockers = openBlockers(item);
   const keys = blockers.map((blocker) => blocker.key).join(', ');
@@ -66,14 +101,15 @@ export function CardFacts({ item, short = false }: { item: Pick<WorkItem, 'accep
           {!short && <span className="sr-only">{t('card.blockedBy', { keys })}</span>}
         </span>
       )}
+      <IssueFact item={item} />
       <CriteriaFact item={item} />
     </>
   );
 }
 
 /** Whether a card has anything to say in its facts row. */
-export const hasFacts = (item: Pick<WorkItem, 'acceptanceCriteria' | 'relations' | 'bounces'>): boolean =>
-  openBlockers(item).length > 0 || item.acceptanceCriteria.length > 0 || (item.bounces ?? 0) > 0;
+export const hasFacts = (item: FactsItem): boolean =>
+  openBlockers(item).length > 0 || item.acceptanceCriteria.length > 0 || (item.bounces ?? 0) > 0 || (item.issues?.length ?? 0) > 0;
 
 /** An epic's card counts the items it groups, instead of carrying an epic label of its own. */
 export function EpicProgress({ progress }: { progress: { done: number; total: number } | undefined }) {
@@ -272,6 +308,14 @@ export function WorkItemCard({
           </Link>
         )}
       </p>
+      {done && (item.issues?.length ?? 0) > 0 && (
+        <>
+          <div className="workitem-card-foot">
+            <IssueFact item={item} />
+          </div>
+          <IssueFailure item={item} />
+        </>
+      )}
       {!done && (
         <>
           <CardContext item={item} project={project} trailing={!facts && item.type !== 'epic' ? assignee : null} />

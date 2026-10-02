@@ -9,6 +9,8 @@ import type {
   CreateWorkItemLinkRequest,
   CreateWorkItemRelationRequest,
   CreateWorkItemRequest,
+  IssueRef,
+  LinkWorkItemIssueRequest,
   MoveWorkItemRequest,
   OrchestrateWorkItemsRequest,
   TriageWorkItemRequest,
@@ -114,6 +116,19 @@ function boardOf(query: BoardQueryString): { doneLimit?: number } {
 
 // A missing body reaches core as an empty object, so its own validation names the field that is missing
 const bodyOf = <T>(body: T | undefined): T => (body ?? {}) as T;
+
+/**
+ * The link a key names on an item. A key is a number on GitHub and on GitLab, so the same one can sit
+ * under two trackers, or under two repositories of one: `?tracker=` and `?scope=` name which, and are
+ * only needed then.
+ */
+function issueLink(core: Core, itemId: string, key: string, tracker: string | undefined, scope: string | undefined): IssueRef {
+  const held = core.workItems.issuesOf(itemId).filter((i) => i.key === key && (tracker === undefined || i.tracker === tracker) && (scope === undefined || i.scope?.toLowerCase() === scope.toLowerCase()));
+  const [first, ...more] = held;
+  if (!first) throw new WorkItemError('the item is not linked to that issue', 404);
+  if (more.length) throw new WorkItemError('that key is linked more than once: add ?tracker= and ?scope= to say which', 400);
+  return first;
+}
 
 /**
  * A project's board, its work items and its milestones. Every change is checked against the
@@ -252,6 +267,29 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     if (!core.workItems.links(req.params.itemId).some((l) => l.id === req.params.linkId)) throw new Error('link not found');
     core.workItems.unlink(req.params.linkId);
     return { ok: true };
+  });
+
+  // ---- tracker issues
+
+  // The issue is read from the project's tracker first: a key that is not there links nothing
+  app.post<{ Params: { itemId: string }; Body: LinkWorkItemIssueRequest }>('/work-items/:itemId/issues', async (req, reply) => {
+    await core.workItemAccess(req.params.itemId, 'write');
+    const key = bodyOf(req.body).key;
+    if (typeof key !== 'string' || key.trim() === '') throw new WorkItemError('key must name an issue', 400);
+    return reply.status(201).send(await core.trackerImport.link(req.params.itemId, key.trim()));
+  });
+
+  app.delete<{ Params: { itemId: string; key: string }; Querystring: { tracker?: string; scope?: string } }>('/work-items/:itemId/issues/:key', async (req) => {
+    await core.workItemAccess(req.params.itemId, 'write');
+    const link = issueLink(core, req.params.itemId, req.params.key, req.query.tracker, req.query.scope);
+    return core.workItems.unlinkIssue(req.params.itemId, link.tracker, link.scope, link.key);
+  });
+
+  // One more write to the tracker, for what the item's column asks; the person's click, never retried by Agentry
+  app.post<{ Params: { itemId: string; key: string }; Querystring: { tracker?: string; scope?: string } }>('/work-items/:itemId/issues/:key/sync', async (req) => {
+    await core.workItemAccess(req.params.itemId, 'write');
+    const link = issueLink(core, req.params.itemId, req.params.key, req.query.tracker, req.query.scope);
+    return core.trackerSync.syncAgain(req.params.itemId, link.tracker, link.scope, link.key);
   });
 
   // A chat is named by its title when the history is read, not when the link was written

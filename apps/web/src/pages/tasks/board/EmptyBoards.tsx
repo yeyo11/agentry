@@ -56,7 +56,8 @@ export function NoBoards({ phone }: { phone: boolean }) {
   );
 }
 
-export function EmptyBoard({ project, phone, onNew }: { project: Project | null; phone: boolean; onNew: () => void }) {
+/** `importLeads`: Import issues holds the page's gradient, so New task is neutral here. */
+export function EmptyBoard({ project, phone, onNew, importLeads = false }: { project: Project | null; phone: boolean; onNew: () => void; importLeads?: boolean }) {
   const { t } = useTranslation('tasks');
   return (
     <section className={frame(phone)}>
@@ -68,7 +69,7 @@ export function EmptyBoard({ project, phone, onNew }: { project: Project | null;
         size={phone ? 'md' : 'lg'}
         title={t('empty.title')}
         action={
-          <button type="button" className="btn btn-primary workitem-empty-new" onClick={onNew}>
+          <button type="button" className={`btn ${importLeads ? '' : 'btn-primary'} workitem-empty-new`.replace(/\s+/g, ' ')} onClick={onNew}>
             <Plus {...ICON_SM} />
             {t('empty.action')}
           </button>

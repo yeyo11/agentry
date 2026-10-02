@@ -190,6 +190,14 @@ test('a review.triage question is answered without a script: the first thread to
   await c.done();
 });
 
+test('an issue.triage question is answered without a script: the marks go round in the order asked', async () => {
+  const c = chat();
+  c.say('Answer the questions below.\n\nQuestions:\n\n32: Can an agent start on issue 32 ("Coupon") as written?\n  - ready: Ready\n\n33: Can an agent start on issue 33 as written?\n  - ready: Ready\n\n34: Can an agent start on issue 34 as written?\n  - ready: Ready\n\n35: Can an agent start on issue 35 as written?\n  - ready: Ready');
+  const result = await c.next((e) => e.type === 'result');
+  assert.deepEqual(result.structured_output, { 32: 'ready', 33: 'needs-refining', 34: 'not-for-agents', 35: 'ready' });
+  await c.done();
+});
+
 test('read: holds a Read call open, and json: is the structured output of the result', async () => {
   const c = chat({ AGENTRY_FAKE_CLI_READ_MS: '50' }, { setup: (dir) => writeFileSync(join(dir, 'README.md'), '# hello\n') });
   c.say('read: README.md\nread: missing.md\njson: {"summary":"ok","workItems":[]}');

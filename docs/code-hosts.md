@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-01T09:00:00Z
-updated_at: 2026-10-01T18:00:00Z
+updated_at: 2026-10-02T12:00:00Z
 tags:
     - code-hosts
     - pull-request
@@ -31,7 +31,7 @@ agent), described in [Reviews](#reviews); its routes and screens come with the t
 Phase 4 is built in `packages/core` and the contract (the merge state and its blockers, Merge,
 Auto-merge, Update from base, the GitLab pipeline guard, auto-merge turned off before Agentry
 pushes, the audit), described in [Merging](#merging); its routes and screens come with the tasks
-that own them. Trackers and webhooks are later phases and not described here as if they existed.
+that own them. Trackers (GitHub and GitLab Issues) are described in [trackers.md](trackers.md); webhooks are a later phase and not described here as if they existed.
 
 In shared types and in this document "pull request" means a PR or an MR: the host decides the word
 (`#12` on GitHub, `!12` on GitLab).
@@ -763,4 +763,4 @@ for the disarm before a push), `outcome` (`requested`, `merged`, `armed`, `disar
 
 ## Related
 
-[[plans/code-hosts.md]] · [[decision-engine.md]] · [[work-items.md]] · [[plans/work-item-pull-requests.md]] · [[providers.md]] · [[status.md]] · [[knowledge-base.md]]
+[[plans/code-hosts.md]] · [[decision-engine.md]] · [[work-items.md]] · [[trackers.md]] · [[plans/work-item-pull-requests.md]] · [[providers.md]] · [[status.md]] · [[knowledge-base.md]]

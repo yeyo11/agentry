@@ -1,0 +1,203 @@
+/* Tracker issues: the import list, the issue chip and the board card's key.
+   Reference: docs/design-system/reference/DesktopImportarIssues.html, DesktopTareaIssues.html, DesktopTableroIssues.html.
+   The import list reuses the thread list of "Address with an agent" (address.css). Tokens only; nothing here moves. */
+
+.iss-key {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The issue's title is another person's text: it wraps anywhere and gets no markup */
+.iss-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.addr-thread.static {
+  cursor: default;
+}
+
+.addr-thread.static:hover {
+  background: none;
+}
+
+/* Imported already: no box where the checkbox would be, the title in the quieter colour */
+.addr-thread.imported .iss-title {
+  color: var(--fg-2);
+  font-weight: 400;
+}
+
+.iss-gap {
+  flex-shrink: 0;
+  width: 16px;
+}
+
+.iss-by {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.iss-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.iss-scope {
+  white-space: nowrap;
+  padding-right: 8px;
+  border-right: 1px solid var(--line-2);
+}
+
+.iss-more {
+  width: 100%;
+  justify-content: center;
+  color: var(--fg-2);
+}
+
+.iss-untrusted {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--fg-2);
+}
+
+.iss-untrusted p {
+  margin: 0;
+}
+
+.iss-dialog-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.iss-dialog-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* The chips under the item's title */
+.iss-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.iss-li {
+  display: contents;
+}
+
+.iss-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-2);
+  background: var(--bg-2);
+  color: var(--fg-2);
+  font-size: 12px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+a.iss-chip:hover {
+  border-color: var(--line-3);
+  background: var(--bg-3);
+}
+
+.iss-chip svg {
+  color: var(--fg-3);
+}
+
+/* A sync state is a dot and its word: the word says it, the colour agrees */
+.iss-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--fg-2);
+}
+
+.iss-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+
+.iss-sync.is-ok {
+  color: var(--ok);
+}
+
+.iss-sync.is-bad {
+  color: var(--bad);
+}
+
+.iss-sync.is-idle {
+  color: var(--idle);
+}
+
+.iss-reason {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The card's key, in its facts line */
+.iss-fact {
+  color: var(--fg-2);
+}
+
+.iss-fact .more {
+  color: var(--fg-3);
+}
+
+/* A done card whose write to the tracker failed */
+.iss-failure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bad-soft);
+  color: var(--fg-2);
+  font-size: 12px;
+}
+
+.iss-failure b {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .iss-chip {
+    min-height: var(--touch);
+    padding: 0 12px;
+    font-size: 13px;
+  }
+
+  .iss-search .field,
+  .iss-search input {
+    font-size: 16px;
+  }
+}

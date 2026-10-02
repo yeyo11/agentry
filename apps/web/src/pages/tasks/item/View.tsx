@@ -30,6 +30,7 @@ import {
   useTypeOptions,
 } from './fields';
 import { useItemActions, useMoveItem, usePersonName, type ItemActions } from './hooks';
+import { IssueChips, Issues } from './Issues';
 import { Links } from './Links';
 import { Picker } from './Picker';
 import { PullRequestState } from './PullRequest';
@@ -75,8 +76,10 @@ function Wide({ item, actions, person, variant }: { item: WorkItemDetail; action
       {buttons.refusal}
       <WaitingState item={item} actions={actions} />
       <PullRequestState item={item} />
+      <Issues item={item} />
       <div className="workitem-heading">
         <Title item={item} actions={actions} />
+        <IssueChips item={item} />
         <Description item={item} actions={actions} />
       </div>
       <Criteria item={item} actions={actions} person={person} />
@@ -169,6 +172,7 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
       </header>
       <div className="workitem-mbody">
         <Title item={item} actions={actions} />
+        <IssueChips item={item} />
         <div className="workitem-chips">
           <Picker
             label={t('fields.status')}
@@ -263,6 +267,7 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
             {buttons.refusal}
             <WaitingState item={item} actions={actions} />
             <PullRequestState item={item} />
+            <Issues item={item} />
             <Description item={item} actions={actions} />
             <Criteria item={item} actions={actions} person={person} compact />
             <Relations
