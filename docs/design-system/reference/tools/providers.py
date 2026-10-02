@@ -37,7 +37,8 @@ STATE = {
 
 # The machine of the plan: Claude Code ready, Copilot signed out, Codex and Gemini used before, one not installed
 MACHINE_A = [
-  dict(id='claude-code', state='ready', version='2.1.282', path='~/.local/bin/claude', account='yeyo@inmoseo.net', reason='Instalado, con sesión iniciada y respondiendo.', default=True),
+  dict(id='claude-code', state='ready', version='2.1.282', path='~/.local/bin/claude', account='yeyo@inmoseo.net', reason='Instalado, con sesión iniciada y respondiendo.', default=True,
+       limit=dict(state='ok', age='hace 3 min', how='durante la última ejecución', windows=[('5 h', 34, 'renueva 14:05'), ('7 d', 21, 'renueva vie 09:00')])),
   dict(id='copilot', state='signed-out', version='1.0.4', path='/usr/local/bin/copilot', account='Sin cuenta', reason='Instalado, pero sin sesión iniciada.'),
   dict(id='codex', state='used-before', version='', path='~/.codex', account='Sin cuenta', reason='Hay configuración en ~/.codex, pero no se encuentra el programa.'),
   dict(id='gemini', state='used-before', version='', path='~/.gemini', account='Sin cuenta', reason='Hay configuración en ~/.gemini, pero no se encuentra el programa.'),
@@ -52,6 +53,39 @@ MACHINE_B = [
   dict(id='opencode', state='ready', version='1.4.2', path='~/.local/bin/opencode', account='yeyo@inmoseo.net', reason='Instalado, con sesión iniciada y respondiendo.', lifted=True),
   dict(id='gemini', state='disabled', version='0.9.1', path='~/.nvm/…/bin/gemini', account='yeyo@inmoseo.net', reason='No se busca ni se comprueba mientras esté desactivado.', off=True),
 ]
+
+
+# ---------------------------------------------------------------- the limit of a provider (phase 4)
+# state -> word, badge class. `ok` has no badge: bars in the neutral colour say it. A reading is a
+# reading with an age, never a promise: Claude Code is only known while it runs.
+LIMIT_WORD = {'near': ('Cerca del límite', 'b-warn'), 'exhausted': ('Límite alcanzado', 'b-bad'), 'unknown': ('Sin lectura', 'b-idle')}
+
+
+def bar_cls(pct, exhausted=False):
+  return ' bad' if exhausted or pct >= 75 else (' warn' if pct >= 60 else '')
+
+
+def limit_block(p, mobile=False):
+  lim = p.get('limit')
+  if not lim:
+    return ''
+  label = PROV[p['id']][0]
+  word = LIMIT_WORD.get(lim['state'])
+  badge_ = f'<span class="badge {word[1]}">{word[0]}</span>' if word else ''
+  asof = f'<span class="asof">Lectura de {lim["age"]}' + (f' · {lim["how"]}' if lim.get('how') else '') + '</span>'
+  head = f'<div class="prov-limit-head"><span class="t-label">Límite</span>{badge_}{asof}</div>'
+  if lim['state'] == 'unknown':
+    body = f'<p class="prov-limit-note">{lim["note"]}</p>'
+  else:
+    rows = ''
+    for w, pct, reset in lim['windows']:
+      cls = bar_cls(pct, lim['state'] == 'exhausted' and w == lim.get('binding'))
+      rows += (f'<div class="lim-row"><span class="win">{w}</span><div class="bar{cls}" role="img" aria-label="{w}: {pct} % usado"><i style="width: {pct}%"></i></div>'
+               f'<span class="pct">{pct} %</span><span class="reset">{reset}</span></div>')
+    body = f'<div class="prov-limit-bars">{rows}</div>'
+    if lim.get('note'):
+      body += f'<p class="prov-limit-note">{lim["note"]}</p>'
+  return f'<div class="prov-limit" role="group" aria-label="Límite de {label}">{head}{body}</div>'
 
 
 # ---------------------------------------------------------------- pieces
@@ -106,8 +140,8 @@ def identity(p):
           f'<span class="prov-meta ellipsis">{meta}</span></div>')
 
 
-def state_col(p):
-  return f'<div class="prov-state">{badge(p["state"])}<p class="prov-reason">{p["reason"]}</p></div>'
+def state_col(p, compact=False):
+  return f'<div class="prov-state">{badge(p["state"])}<p class="prov-reason">{p["reason"]}</p>{'' if compact else limit_block(p)}</div>'
 
 
 def row(p, compact=False, open_=False):
@@ -115,7 +149,7 @@ def row(p, compact=False, open_=False):
   grip = f'<span class="prov-grip" aria-hidden="true">{ico("grip", "ico ico-lg")}</span>' if not compact else ''
   sw = '' if compact else switch(p)
   acts = ''.join(actions(p, open_))
-  return (f'<div class="{cls}" data-provider="{p["id"]}">{grip}{mono_ico(p["id"])}{identity(p)}{state_col(p)}'
+  return (f'<div class="{cls}" data-provider="{p["id"]}">{grip}{mono_ico(p["id"])}{identity(p)}{state_col(p, compact)}'
           f'<div class="prov-actions">{acts}</div>{sw}</div>')
 
 
@@ -193,7 +227,17 @@ def pcell(p, compact=False):
   head = (f'<div class="prov-cell-head">{mono_ico(p["id"])}<div class="grow"><span class="row" style="gap: 8px; flex-wrap: wrap"><span style="font-weight: 500">{label}</span>{dflt}</span>'
           f'<span class="prov-meta">{meta}</span></div>{badge(p["state"])}{chev}</div>')
   tag = 'div' if compact else 'div'
-  return f'<{tag} class="prov-cell" data-provider="{p["id"]}">{head}<p class="prov-reason">{p["reason"]}</p>{acts_html}</{tag}>'
+  return f'<{tag} class="prov-cell" data-provider="{p["id"]}">{head}<p class="prov-reason">{p["reason"]}</p>{'' if compact else limit_block(p, True)}{acts_html}</{tag}>'
+
+
+def rotation_cells():
+  """Where the phone reaches the two rotation screens: the on-limit settings and the model mapping."""
+  def cell(icon, name, note, href):
+    return (f'<a href="{href}" class="cell" style="min-height: 56px">{ico(icon, "ico fg-3")}<span class="grow col" style="gap: 1px; min-width: 0">'
+            f'<span style="font-weight: 500">{name}</span><span class="mono t-xs fg-3">{note}</span></span>{ico("right", "ico fg-3")}</a>')
+  return ('<div class="card" style="overflow: hidden">'
+          + cell('wait', 'Al llegar a un límite', 'esperar al reinicio', 'MobileProveedoresRotacion.html')
+          + cell('move', 'Equivalencias de modelos', '1 sugerida · 1 sin equivalente', 'MobileProveedoresEquivalencias.html') + '</div>')
 
 
 def mbody(machine):
@@ -205,6 +249,7 @@ def mbody(machine):
 <p class="t-sm fg-2" style="margin: 0 4px; line-height: 1.5">Los agentes de programación que Agentry encuentra en este equipo. Si instalas uno o inicias sesión en una terminal, la lista se actualiza sola.</p>
 <div class="row" style="gap: 10px"><button type="button" class="btn grow" style="justify-content: center">{ico("retry", "ico")}Volver a comprobar</button><span class="mono t-xs fg-3" style="white-space: nowrap">hace 2 min</span></div>
 {order_cell}
+{rotation_cells()}
 <section class="card grad-border" style="overflow: hidden" aria-label="Proveedores">{"".join(pcell(p) for p in machine)}</section>
 </div>'''
 

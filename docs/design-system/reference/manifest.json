@@ -303,7 +303,7 @@
     "file": "DesktopProyectoAjustes.html",
     "title": "Desktop · Ajustes del proyecto",
     "w": 1440,
-    "h": 2100
+    "h": 2700
   },
   {
     "file": "DesktopProyecto.html",
@@ -1088,6 +1088,42 @@
   {
     "file": "MobileTareaFrescura.html",
     "title": "Móvil · Tarea, frescura de la PR",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DSLimites.html",
+    "title": "Design system · Límites de los proveedores",
+    "w": 1440,
+    "h": 1300
+  },
+  {
+    "file": "DesktopProveedoresRotacion.html",
+    "title": "Desktop · Ajustes, proveedores: al llegar a un límite y equivalencias",
+    "w": 1440,
+    "h": 1700
+  },
+  {
+    "file": "MobileProveedoresRotacion.html",
+    "title": "Móvil · Ajustes, al llegar a un límite",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileProveedoresEquivalencias.html",
+    "title": "Móvil · Ajustes, equivalencias de modelos",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileProveedoresEquivalenciasPar.html",
+    "title": "Móvil · Ajustes, equivalencia de un modelo",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileProyectoAjustesProveedores.html",
+    "title": "Móvil · Ajustes del proyecto, proveedores",
     "w": 390,
     "h": 844
   }

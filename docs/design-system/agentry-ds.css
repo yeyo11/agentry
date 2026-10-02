@@ -1495,6 +1495,44 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
 .prov-badge .prov-mark { border-radius: var(--r-full); }
 /* ---------- end of ProviderBadge ---------- */
 
+/* ---------- Rotation between providers (plans/multi-provider.md, phase 4, P0 p1): the limit inside a
+   provider's row, the "at a limit" card, the model mapping and the project's override. Nothing here is live:
+   no gradient, no loop. The limit's bars are the usage bars (.bar: neutral, warn from 60 %, bad from 75 %). ---------- */
+.prov-limit { align-self: stretch; display: flex; flex-direction: column; gap: 6px; padding-top: 4px; min-width: 0; }
+.prov-limit-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.prov-limit-head .asof { font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+.prov-limit-bars { display: flex; flex-direction: column; gap: 5px; }
+.lim-row { display: grid; grid-template-columns: 26px 150px 40px minmax(0, 1fr); align-items: center; gap: 10px; font-family: var(--mono); font-size: 11.5px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.lim-row .bar { height: 4px; }
+.lim-row .pct { text-align: right; color: var(--fg); }
+.lim-row .reset { color: var(--fg-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prov-limit-note { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--fg-2); }
+.prov-cell .prov-limit { padding: 2px 0 0; }
+.m-screen .lim-row { grid-template-columns: 30px minmax(0, 1fr) 42px; row-gap: 2px; }
+.m-screen .lim-row .reset { grid-column: 2 / 4; white-space: normal; font-size: 11.5px; }
+.m-screen .prov-limit-note { font-size: 13.5px; }
+.rot-row { display: grid; grid-template-columns: minmax(0, 1fr) 480px; gap: 28px; align-items: center; padding: 16px 18px; border-top: 1px solid var(--line); }
+.rot-ctl { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
+.rot-check { display: flex; align-items: flex-start; gap: 10px; font-size: 13.5px; cursor: pointer; }
+.rot-check .checkbox { margin-top: 2px; }
+.rot-check.is-disabled { cursor: not-allowed; color: var(--fg-2); }
+.rot-radio { display: flex; align-items: center; gap: 12px; width: 100%; min-height: var(--touch); padding: 10px 14px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--fg); font-family: var(--sans); font-size: 15px; cursor: pointer; }
+.rot-radio:last-child { border-bottom: 0; }
+.map-row { display: grid; grid-template-columns: 220px repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; padding: 14px 18px; border-top: 1px solid var(--line); }
+.map-head { align-items: center; padding-top: 8px; padding-bottom: 8px; background: var(--bg-1); }
+.map-row.is-target { background: var(--bg-3); }
+.map-model { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding-top: 6px; }
+.map-cell { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.map-suggest { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: var(--r); border: 1px dashed var(--line-3); background: var(--bg-1); }
+.ov-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); border-top: 1px solid var(--line); padding-top: 14px; }
+.ov-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 12px 18px; border-top: 1px solid var(--line); }
+.ov-field:first-of-type { border-top: 0; }
+.seg.is-inherited > .on { background: var(--bg-3); color: var(--fg-2); box-shadow: none; font-weight: 400; }
+.prov-order-line { display: flex; align-items: center; gap: 10px; min-height: 44px; border-bottom: 1px solid var(--line); }
+.prov-order-line:last-child { border-bottom: 0; }
+.prov-order-line .proj.prov-mini { width: 28px; height: 28px; border-radius: var(--r-sm); font-size: 10.5px; }
+/* ---------- end of Rotation between providers ---------- */
+
 /* ---------- Code hosts (plans/code-hosts.md): the hosts a CLI knows, under its state. The rows, cells
    and binary panel are the providers' (.prov-*). ---------- */
 .host-known { display: flex; flex-direction: column; gap: 6px; align-self: stretch; margin-top: 4px; }
