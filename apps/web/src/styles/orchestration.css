@@ -1598,7 +1598,7 @@
   min-width: 0;
   overflow: hidden;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1625,7 +1625,7 @@
   min-height: 32px;
   padding: 0 10px;
   color: var(--text-muted);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .ochk-fold .ochk-open {
@@ -1682,7 +1682,7 @@
 .ochk-note dt {
   color: var(--text-faint);
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .ochk-note dd {
@@ -1699,7 +1699,7 @@
   padding: 10px 0 12px;
   color: var(--text-faint);
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.65;
 }
 
@@ -1730,6 +1730,7 @@
   flex-direction: column;
   gap: 14px;
   padding: 18px;
+  border: 1px solid var(--line);
   border-radius: var(--radius-lg);
 }
 

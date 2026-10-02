@@ -289,10 +289,10 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.goto(`/orchestration/${orchestrationId}`, 1500);
     await page.waitFor(`return !!document.querySelector('.ochk-fix')`, { timeout: 30_000, label: 'the Push the fix panel' });
     const panel = await page.eval(
-      `const p = document.querySelector('.ochk-fix'); return { text: p.textContent, border: p.className.includes('grad-border'), button: [...p.querySelectorAll('button')].map((b) => b.textContent.trim()), fixAction: !!document.querySelector('.ochk-actions .btn-primary') }`,
+      `const p = document.querySelector('.ochk-fix'); return { text: p.textContent, lit: !!p.querySelector('.btn-primary'), border: p.className.includes('grad-border'), button: [...p.querySelectorAll('button')].map((b) => b.textContent.trim()), fixAction: !!document.querySelector('.ochk-actions .btn-primary') }`,
     );
     check(panel.text.includes('waits for you') && panel.button.some((b) => b.includes('Push the fix')), `the panel waits for the person (${JSON.stringify(panel)})`);
-    check(panel.border && !panel.fixAction, 'the panel is the screen’s gradient surface, and Fix failing checks is gone');
+    check(panel.lit && !panel.border && !panel.fixAction, 'Push the fix is the zone’s one gradient surface, and Fix failing checks is gone');
     await page.click('.ochk-fix .btn', 'Push the fix', 500);
     await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: 'the push confirmation' });
     check((await page.text('[role=dialog]')).includes('Push the fix'), 'pressing it asks first');

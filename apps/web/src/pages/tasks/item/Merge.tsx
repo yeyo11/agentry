@@ -14,7 +14,6 @@ import { timeAgo } from '@agentry/ui/lib/format';
 import {
   actionLabelKey,
   armBody,
-  autoMergeOffKey,
   blockerActionKind,
   blockerSentence,
   blockersOf,
@@ -29,6 +28,7 @@ import {
   updateFailure,
   type MergeTone,
 } from '../../../lib/merge';
+import { MergeNotices } from '../../../components/MergeNotices';
 import { addressable } from '../../../lib/reviews';
 import { useChangeRequestWords } from '../board/PullRequest';
 import type { LeadingAction } from './model';
@@ -242,31 +242,11 @@ export function Merge({ pr, itemId, itemKey, lead: leading }: { pr: WorkItemPull
       {badge}
     </div>
   );
-  const limited = state.limitedUntil ? (
-    <p className="small muted" role="status">
-      {t('limited', { host, time: new Date(state.limitedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}
-    </p>
-  ) : null;
-  // Agentry turned auto-merge off before it pushed to the branch: said until the person arms it again, and while the push
-  // goes on arming waits. A rebase the host could do but that would drop what is only in the checkout says why it is not offered
-  const off = state.autoMergeOff;
-  const offNote =
-    off || state.rebaseOnHostWhy ? (
-      <span className="callout callout-warn" role="note">
-        <CircleAlert {...ICON_SM} aria-hidden />
-        <span>
-          {off && <>{off.pushing ? t('autoMergeOff.pushing') : t(autoMergeOffKey(off.why, off.by), { when: timeAgo(off.at), who: off.by })}</>}
-          {off && state.rebaseOnHostWhy && ' '}
-          {state.rebaseOnHostWhy && t(`rebaseOnHostWhy.${state.rebaseOnHostWhy}`, { host })}
-        </span>
-      </span>
-    ) : null;
 
   const frame = (badge: ReactNode, content: ReactNode) => (
     <section className="mg" aria-label={t('title')}>
       {header(badge)}
-      {limited}
-      {offNote}
+      <MergeNotices state={state} host={host} />
       {content}
     </section>
   );
