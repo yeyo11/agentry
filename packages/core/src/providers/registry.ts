@@ -7,10 +7,6 @@ import { copilotManifest } from './copilot/manifest.ts';
 import { geminiManifest } from './gemini/manifest.ts';
 import { opencodeManifest } from './opencode/manifest.ts';
 import { translateClaudePolicy } from './claude-code/policy.ts';
-import { translateCodexPolicy } from './codex/policy.ts';
-import { translateCopilotPolicy } from './acp/policy-copilot.ts';
-import { translateGeminiPolicy } from './acp/policy-gemini.ts';
-import { translateOpenCodePolicy } from './acp/policy-opencode.ts';
 import type { BinarySource, CapabilityConfirmation, ProviderDriver } from './driver.ts';
 import type { ProviderManifest } from './manifest.ts';
 
@@ -31,10 +27,6 @@ export const PROVIDER_MANIFESTS: readonly ProviderManifest[] = [
  */
 const TRANSLATIONS: Readonly<Partial<Record<ProviderId, (policy: ToolPolicy) => PolicyTranslation>>> = {
   'claude-code': translateClaudePolicy,
-  codex: translateCodexPolicy,
-  copilot: translateCopilotPolicy,
-  gemini: translateGeminiPolicy,
-  opencode: translateOpenCodePolicy,
 };
 
 /** The pure translation for a provider; null when none is registered, so a caller refuses instead of guessing. */

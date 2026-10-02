@@ -58,7 +58,7 @@ import { gitRaw } from './git.ts';
 import type { Db } from './db.ts';
 import { candidatesFor, type CandidateProvider, type CandidateResult, type RunNeeds } from './providers/candidates.ts';
 import { runRef } from './event-sources.ts';
-import { rulesFor } from './tool-policy.ts';
+import { rulesOnDriver } from './tool-policy.ts';
 import { pageSize } from './sessions.ts';
 import { toChatEnvironment, toChildren, type BranchFacts } from './chat-branches.ts';
 import { mergeLiveWorkflows } from './workflows.ts';
@@ -978,7 +978,7 @@ export class ChatService {
     const prompt = handoff?.text ?? `${agentLead}${work?.prompt ?? runtime.prompt}`;
 
     const { tools } = this.needsOf(id, work);
-    const rules = tools?.policy ? rulesFor(request.provider, tools.policy) : null;
+    const rules = tools?.policy ? rulesOnDriver(driver, request.provider, tools.policy) : null;
     const mcp = capabilities.includes('mcp') ? (tools?.mcp ?? null) : null;
     const toolConfig: ChatToolConfig | null =
       rules || mcp ? { preset: tools?.preset ?? null, allowedTools: rules?.allowedTools ?? [], disallowedTools: rules?.disallowedTools ?? [], mcp, ...(tools?.policy ? { policy: tools.policy } : {}) } : null;

@@ -1,4 +1,4 @@
-import type { ProjectProvidersSettings, ProviderCapability, ProviderId, ProvidersSettings, ProviderStatus, ToolPolicy } from '@agentry/shared';
+import type { LimitWait, ProjectProvidersSettings, ProviderCapability, ProviderId, ProviderMove, ProvidersSettings, ProviderStatus, ToolPolicy } from '@agentry/shared';
 import type { ChatManager } from './chats.ts';
 import type { ProviderPoints, WorkKind, WorkSubjectKind } from './decisions/provider-points.ts';
 import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
@@ -15,6 +15,16 @@ import { candidatesFor, type CandidateResult } from './providers/candidates.ts';
 
 /** The provider a graph's own `allowedTools` are written for */
 const NATIVE_RULES_PROVIDER: ProviderId = 'claude-code';
+
+/**
+ * The wait for a limit to reset that a chat is in, read from the move rows: what the work shows while
+ * it waits, and what a restart must leave alone, since the rotation re-arms the wait and replays the turn.
+ */
+export function openWaitOf(db: { providerMoves(filter: { chatId?: string; limit?: number }): ProviderMove[] }, chatId: string | null): LimitWait | null {
+  if (!chatId) return null;
+  const open = db.providerMoves({ chatId, limit: 10 }).find((m) => m.fromChat === chatId && (m.state === 'waiting' || m.state === 'resuming'));
+  return open ? { provider: open.fromProvider, resetsAt: open.resetsAt, moveId: open.id } : null;
+}
 
 /** No provider can take the work: none is ready, or none can enforce its policy. The work fails with `no-provider`. */
 export class NoProviderError extends Error {

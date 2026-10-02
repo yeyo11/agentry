@@ -497,7 +497,17 @@ export class Orchestrator {
    * a new conversation instead of continuing its own.
    */
   recover(): void {
-    for (const orch of this.items.values()) if (orch.status === 'running' && orch.engine === 'graph') this.schedule(orch);
+    for (const orch of this.items.values()) {
+      if (orch.status !== 'running' || orch.engine !== 'graph') continue;
+      // A task that waits for a limit to reset was not cut off: the rotation re-arms the wait and replays
+      // its turn, so it stays running rather than go on in a second execution
+      for (const t of orch.tasks) {
+        if (t.status !== 'interrupted' || !t.runId || !this.waitOf?.(t.runId)) continue;
+        t.status = 'running';
+        t.endedAt = null;
+      }
+      this.schedule(orch);
+    }
   }
 
   /** Carries a pre-SQLite `orchestrations.json` into the store once, then renames it away. */

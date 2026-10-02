@@ -1233,3 +1233,14 @@ test('a move re-points the run at its new chat once, and the new chat ends the r
   s.assistant.chatResult('chat-early', { isError: false, result: '', structuredOutput: RESULT, costUsd: 0.07 });
   assert.equal(s.assistant.run(early.id).status, 'completed');
 });
+
+test('a restart leaves a run that waits for a limit to reset alone, and continues one that does not', async () => {
+  const first = setup();
+  const waiting = await projectRun(first);
+  first.db.insertProviderMove({ ...assistantMove(waiting.id, waiting.chatId as string, ''), toChat: null, toProvider: null, toModel: null, action: 'wait', state: 'waiting' });
+  const second = setup({ db: first.db, dir: first.dir });
+  await second.assistant.recover();
+  await second.assistant.settled();
+  assert.equal(second.launches.length, 0, 'nothing is started on a chat that waits');
+  assert.equal(second.assistant.run(waiting.id).status, 'running');
+});

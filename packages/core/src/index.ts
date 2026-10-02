@@ -65,12 +65,12 @@ import type {
 } from '@agentry/shared';
 import { AGENTRY_LANGUAGES, agentryLanguage, type DecisionRecord, type LimitWait, type PermissionMode, type ProjectCodeHost, type ProviderId, type ProviderMove, type ToolPolicy } from '@agentry/shared';
 import { LEGACY_PROVIDER } from './chat-records.ts';
-import { rulesFor } from './tool-policy.ts';
+import { rulesOnDriver } from './tool-policy.ts';
 import pkg from '../package.json' with { type: 'json' };
 import { CswapRetirementNotice } from './cswap-retirement.ts';
 import { ProviderRotation, candidateContext } from './rotation.ts';
 import { ProviderPoints } from './decisions/provider-points.ts';
-import { WorkProviders, type StartInput } from './work-provider.ts';
+import { WorkProviders, openWaitOf, type StartInput } from './work-provider.ts';
 import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
 import { stateFromRun } from './chat-model.ts';
@@ -644,7 +644,12 @@ export class Core {
       // A reading taken by something that only asked about Claude leaves the others unprobed: work
       // that may start on any of them measures them all, at most once a minute
       statuses: () => {
-        if (Date.now() - this.workProbedAt < WORK_PROBE_MS) return Promise.resolve(this.providers.known() ?? []);
+        const known = this.providers.known();
+        // The first reading is the one on its way, or the one that starts now
+        if (!known) return this.providers.statuses();
+        // Measured again when a provider was only looked for and never run
+        const unprobed = known.some((s) => s.state === 'used-before' || (s.state === 'unknown' && s.reason !== 'no-probe' && s.reason !== 'disabled'));
+        if (!unprobed || Date.now() - this.workProbedAt < WORK_PROBE_MS) return Promise.resolve(known);
         this.workProbedAt = Date.now();
         return this.providers.refresh();
       },
@@ -1068,9 +1073,7 @@ export class Core {
 
   /** The wait for a limit to reset that a chat is in, as the work it belongs to shows it. */
   private openWait(chatId: string): LimitWait | null {
-    const id = this.rotation.waitOf(chatId);
-    const move = id ? this.db.providerMove(id) : null;
-    return move ? { provider: move.fromProvider, resetsAt: move.resetsAt, moveId: move.id } : null;
+    return openWaitOf(this.db, chatId);
   }
 
   /** A chat that is stopped on purpose is not waited for any more: its wait ends, and the work it belonged to with it. */
@@ -1819,7 +1822,7 @@ export class Core {
     const policy: ToolPolicy = { ...launch.policy, gitPush: 'deny' };
     const choice = resumed ? null : await this.workProviders.choose(this.assistantStartInput(launch, policy));
     const provider = resumed ? (resumed.provider ?? LEGACY_PROVIDER) : (choice?.provider ?? LEGACY_PROVIDER);
-    const rules = rulesFor(provider, policy);
+    const rules = rulesOnDriver(this.runtime.driverFor(provider), provider, policy);
     const capabilities = this.runtime.providers.capabilities(provider);
     const options = {
       model: resumed ? launch.model : (choice?.model ?? undefined),
@@ -1950,7 +1953,7 @@ export class Core {
     // The stage's policy in the words of the provider that runs it, never Claude's rule strings on another provider
     const startedOn = (provider: ProviderId): { allowedTools: string[]; disallowedTools: string[] } => {
       if (provider === LEGACY_PROVIDER) return { allowedTools: launch.allowedTools, disallowedTools: launch.disallowedTools };
-      const rules = rulesFor(provider, launch.policy);
+      const rules = rulesOnDriver(this.runtime.driverFor(provider), provider, launch.policy);
       return { allowedTools: rules.allowedTools, disallowedTools: rules.disallowedTools };
     };
     const newProvider = choice?.provider ?? LEGACY_PROVIDER;

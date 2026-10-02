@@ -2256,3 +2256,22 @@ test('run.continuation: an unavailable provider, no quota included, leaves the p
   assert.equal(s.flow.itemRuns(it.id)[0]?.continuations, 1);
   assert.equal(d.rows()[0]?.unavailable, 'no-quota');
 });
+
+test('a restart leaves a run that waits for a limit to reset where it is: the rotation replays its turn, a second execution would double it', async () => {
+  const first = setup({ settings: { ...settingsWith(), flow: { ...settingsWith().flow!, maxParallel: 1 } } });
+  const a = await item(first, 'in_progress', 'A');
+  const chat = first.chatOf(a.id);
+  const run = running(first)[0];
+  assert.ok(run);
+  first.db.insertProviderMove({ ...movedRow(first, run, chat, ''), toChat: null, toProvider: null, toModel: null, action: 'wait', state: 'waiting', resetsAt: new Date(Date.now() + 3_600_000).toISOString() });
+
+  const second = setup({ db: first.db, settings: first.state.settings, recover: false });
+  second.flow.recover();
+  await second.flow.settled();
+  assert.equal(second.launches.length, 0, 'nothing is started on a chat that waits');
+  const kept = running(second)[0];
+  assert.equal(kept?.state, 'running');
+  assert.equal(kept?.chatId, chat);
+  assert.equal(kept?.restarts, 0);
+  assert.equal(kept?.waiting?.provider, 'claude-code');
+});

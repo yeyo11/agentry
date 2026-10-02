@@ -63,7 +63,7 @@ import type { Db } from './db.ts';
 import type { AgentryEventInput } from './events.ts';
 import { roleTitle, roleTitleIn } from './team.ts';
 import { ItemDocumentsError } from './item-documents.ts';
-import { NoProviderError } from './work-provider.ts';
+import { NoProviderError, openWaitOf } from './work-provider.ts';
 import { workItemPrompt } from './work-links.ts';
 import { continuationPrompt, MAX_TOKENS_ERROR, OWES_WORK_ITEM, phraseItems, stoppedOnMaxTokens, structuralItems, tailOf } from './open-items.ts';
 import type { DecisionEngine, DecisionOutcome } from './decisions/engine.ts';
@@ -1631,9 +1631,7 @@ export class FlowService {
 
   /** The limit of a waiting run's provider, as its row shows it; null when the run does not wait. */
   private waitingOf(row: RunRow): LimitWait | null {
-    if (row.state !== 'running' || !row.chat_id) return null;
-    const open = this.deps.db.providerMoves({ chatId: row.chat_id, state: 'waiting', limit: 1 })[0];
-    return open && open.fromChat === row.chat_id ? { provider: open.fromProvider, resetsAt: open.resetsAt, moveId: open.id } : null;
+    return row.state === 'running' ? openWaitOf(this.deps.db, row.chat_id) : null;
   }
 
   private async finish(row: RunRow, result: FlowChatResult): Promise<void> {
@@ -1961,6 +1959,8 @@ export class FlowService {
     const running = this.sql.prepare("SELECT * FROM flow_runs WHERE state = 'running' ORDER BY seq").all() as unknown as RunRow[];
     for (const row of running) {
       if (row.chat_id && this.deps.chatBusy(row.chat_id)) continue;
+      // Waiting for a limit to reset: the rotation re-arms the wait and replays the turn, so the run is not restarted too
+      if (this.waitingOf(row)) continue;
       if (row.restarts >= MAX_FLOW_RESTARTS) {
         this.end(row.id, 'failed', null, `Agentry restarted ${row.restarts + 1} times while this run worked; move the item again to start it over`, 'restarts');
         continue;

@@ -42,6 +42,7 @@ import {
   type ProviderMove,
 } from '@agentry/shared';
 import type { ChatWork } from './chat-service.ts';
+import { openWaitOf } from './work-provider.ts';
 import {
   assistantLanguage,
   assistantPrompt,
@@ -977,6 +978,8 @@ export class AssistantService {
     const running = this.sql.prepare("SELECT * FROM assistant_runs WHERE status = 'running' ORDER BY seq").all() as unknown as RunRow[];
     for (const row of running) {
       if (row.chat_id && this.deps.chatBusy(row.chat_id)) continue;
+      // Waiting for a limit to reset: the rotation re-arms the wait and replays the turn
+      if (openWaitOf(this.deps.db, row.chat_id)) continue;
       if (row.restarts > 0) {
         this.end(row.id, 'failed', localized(ASSISTANT_ERRORS.restart, 'Agentry restarted twice while the assistant worked; start it again.'));
         continue;

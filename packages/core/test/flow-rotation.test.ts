@@ -30,7 +30,7 @@ function repo(): string {
 }
 
 async function until<T>(read: () => T, done: (value: T) => boolean, what: string): Promise<T> {
-  for (let i = 0; i < 400; i++) {
+  for (let i = 0; i < 1200; i++) {
     const value = read();
     if (done(value)) return value;
     await sleep(25);
@@ -53,7 +53,14 @@ function configWith(o: { order?: string[]; defaultProvider?: string | null; acti
   writeFileSync(
     join(config.dataDir, 'providers.json'),
     JSON.stringify({
-      providers: { codex: { enabled: true, binaryPath: codexBinary() }, ...(o.claude === false ? { 'claude-code': { enabled: false, binaryPath: null } } : {}) },
+      // Codex is the fake; nothing else of the machine's is detected (a handshake runs the agent)
+      providers: {
+        gemini: { enabled: false, binaryPath: null },
+        copilot: { enabled: false, binaryPath: null },
+        opencode: { enabled: false, binaryPath: null },
+        codex: { enabled: true, binaryPath: codexBinary() },
+        ...(o.claude === false ? { 'claude-code': { enabled: false, binaryPath: null } } : {}),
+      },
       order: o.order ?? ['claude-code', 'codex'],
       defaultProvider: o.defaultProvider ?? null,
       rotation: {

@@ -96,7 +96,7 @@ test('with no provider ready the work cannot start and the reasons are named; on
   none.close();
 
   // The only provider that could take it is exhausted: the rotation waits for its reset rather than the run never starting
-  const limit: ProviderLimit = { provider: 'claude-code', state: 'exhausted', window: '5h', utilization: 1, resetsAt: new Date(Date.now() + 3_600_000).toISOString(), windows: {}, observedAt: new Date().toISOString(), source: 'event' } as ProviderLimit;
+  const limit: ProviderLimit = { provider: 'claude-code', state: 'exhausted', window: '5h', utilization: 1, resetsAt: new Date(Date.now() + 3_600_000).toISOString(), windows: {}, observedAt: new Date().toISOString(), source: 'stream' } as ProviderLimit;
   const exhausted = rig({ statuses: [status('claude-code', { limit }), status('codex', { state: 'not-installed', reason: 'binary-not-found' })] });
   const choice = await exhausted.work.choose(input());
   assert.equal(choice.provider, 'claude-code');
@@ -132,4 +132,16 @@ test('provider.pick chooses among the candidates and nothing outside them', asyn
   assert.equal(single.picks.length, 0);
   single.close();
   assert.equal(rig().work.wantsPick(input()), false);
+});
+
+test('a provider that cannot prove its sign-in is never a candidate for automated work, however the order puts it', async () => {
+  // Gemini and Copilot have no probe that spends nothing: a person's chat may try them, automated work may not
+  const unproven = (id: string) => status(id, { state: 'unknown', reason: 'no-probe' });
+  const claude = rig({ order: ['gemini', 'claude-code'], statuses: [status('claude-code'), status('codex', { state: 'not-installed', reason: 'binary-not-found' }), unproven('gemini')] });
+  assert.equal((await claude.work.choose(input())).provider, 'claude-code');
+  claude.close();
+
+  const only = rig({ order: ['gemini', 'copilot'], statuses: [status('claude-code', { state: 'signed-out', reason: 'missing-credentials' }), unproven('gemini'), unproven('copilot')] });
+  await assert.rejects(only.work.choose(input()), (err: unknown) => err instanceof NoProviderError && /gemini: (not-ready|not-in-order|disabled|no-driver)/.test(err.message));
+  only.close();
 });

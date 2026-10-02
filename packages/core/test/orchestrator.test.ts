@@ -14,7 +14,7 @@ import { effectiveLimits, remainingUsd } from '../src/task-limits.ts';
 import { FRONTEND, PASTED_NOTE, REAL_VERIFICATION, SCOPE_AND_COMPLETION, THINK_THROUGH, UNATTENDED } from '../src/prompt-rules.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
 import { CodexDriver } from '../src/providers/codex/driver.ts';
-import { NoProviderError, type StartInput, type WorkProviders } from '../src/work-provider.ts';
+import { NoProviderError, openWaitOf, type StartInput, type WorkProviders } from '../src/work-provider.ts';
 import { tempConfig } from './helpers.ts';
 
 const task = (id: string, dependsOn: string[] = []) => ({ id, name: id, prompt: 'do it', dependsOn });
@@ -1364,7 +1364,7 @@ function providerGraph(hooks: { held?: boolean } = {}) {
   orchestrator.waitOf = () => state.waiting;
   orchestrator.releaseWait = (chatId) => void state.released.push(chatId);
   const taskOf = (id: string, task: string) => orchestrator.get(id)?.tasks.find((t) => t.id === task) as OrchestrationTaskState;
-  return { db, repo, runs, orchestrator, state, taskOf };
+  return { db, repo, runs, orchestrator, state, taskOf, config };
 }
 
 const moveOf = (graphId: string, task: OrchestrationTaskState, fromChat: string, toChat: string, over: Partial<ProviderMove> = {}): ProviderMove => ({
@@ -1559,5 +1559,31 @@ test("stopping a graph ends the wait its tasks' chats are in, and what a task wo
   orchestrator.stop(started.id);
   assert.deepEqual(state.released, [chat]);
   assert.equal(orchestrator.workOf(chat), null, 'a stopped task is no longer work to move');
+  db.close();
+});
+
+test('a restart leaves a task that waits for a limit to reset running: the rotation replays its turn, and it is not sent round again', async () => {
+  const { db, repo, runs, orchestrator, state, taskOf, config } = providerGraph({ held: true });
+  const started = orchestrator.create(graphOf(repo, [{ id: 'a', prompt: 'FAKE-LIMIT-ONCE' }], { worktree: false, synthesize: false }));
+  const chat = (await until(() => taskOf(started.id, 'a').runId, (id) => !!id, 'the task to start')) as string;
+  await until(() => runs.atLimit(chat), (limited) => limited, 'the chat to reach its limit');
+  await new Promise((r) => setTimeout(r, 100));
+  const at = new Date().toISOString();
+  db.insertProviderMove(moveOf(started.id, taskOf(started.id, 'a'), chat, '', { toChat: null, toProvider: null, toModel: null, action: 'wait', state: 'waiting', at, updatedAt: at }));
+  state.waiting = openWaitOf(db, chat);
+  assert.equal(state.waiting?.provider, 'claude-code');
+  orchestrator.close();
+
+  // After a restart the task is read as cut off; what waits for a reset is put back as it was
+  const again = new Orchestrator(config, runs, db);
+  again.waitOf = (id) => openWaitOf(db, id);
+  assert.equal(again.get(started.id)?.tasks[0]?.status, 'interrupted');
+  again.recover();
+  const task = again.get(started.id)?.tasks[0] as OrchestrationTaskState;
+  assert.equal(task.status, 'running');
+  assert.equal(task.endedAt, null);
+  assert.equal(task.attempts, 1);
+  assert.equal(runs.get(chat)?.executions.length, 1, 'no second execution was started on it');
+  again.close();
   db.close();
 });
