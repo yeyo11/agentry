@@ -5,6 +5,7 @@ import { tryParseJson } from '../hosts/json.ts';
 import type { HostResult } from '../hosts/exec.ts';
 import { TITLE_MAX, WorkItemError } from '../work-item-validation.ts';
 import type { IssueLinkInput, WorkItemService } from '../work-items.ts';
+import type { IssueTriage } from '../decisions/issue-triage.ts';
 import { trackerAdapter } from './adapters.ts';
 import { trackerHost } from './links.ts';
 import { ISSUES_PAGE_SIZE, IssueIsPullRequest, issueNumber, MAX_ISSUE_BODY, TrackerInputError, type IssueRead, type TrackerAdapter } from './tracker.ts';
@@ -53,6 +54,8 @@ export interface TrackerImportDeps {
   /** The project's directory and tracker; null for an id that names no project */
   project: (projectId: string) => { path: string; tracker: ProjectTrackerSettings | null } | null;
   access: (projectPath: string) => Promise<TrackerAccess>;
+  /** `issue.triage`: asked with every page and read back as marks; absent where nothing marks */
+  triage?: IssueTriage;
 }
 
 interface Resolved {
@@ -96,8 +99,12 @@ export class TrackerImportService {
     const result = await r.access.run(call);
     const issues = this.parse(() => r.adapter.parseList(this.stdout('the issue list', call, result), req));
     const imported = this.deps.items.importedKeys(projectId, r.tracker.id, issues.issues.map((i) => i.key));
+    const listed = issues.issues.map((i) => ({ ...tracked(r.tracker.id, i), importedItemId: imported.get(i.key) ?? null }));
+    // The question goes in the background and the page does not wait: its marks show on the next read
+    this.deps.triage?.onIssues(projectId, r.tracker.id, listed);
+    const marks = this.deps.triage?.marksOf(projectId, r.tracker.id, listed.map((i) => i.key));
     return {
-      issues: issues.issues.map((i) => ({ ...tracked(r.tracker.id, i), importedItemId: imported.get(i.key) ?? null })),
+      issues: listed.map((i) => ({ ...i, triage: marks?.get(i.key) ?? null })),
       page: issues.page,
       hasMore: issues.hasMore,
     };

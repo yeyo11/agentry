@@ -6044,7 +6044,8 @@ export type DecisionSubjectKind =
   | 'memory_proposal'
   | 'assistant_run'
   | 'notification'
-  | 'palette';
+  | 'palette'
+  | 'tracker_issue';
 
 /** Questions and rubrics are English (D4): providers read `label` and `description`, never a translation */
 export interface DecisionChoiceQuestion {
