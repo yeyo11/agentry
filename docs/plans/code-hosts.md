@@ -2397,8 +2397,8 @@ tokens: 403 on the three writes. Event `webhook.changed`.
 `localhost.run` tunnel (a real delivery, signed by GitHub, reaching a process of ours); both were
 stopped and the hook deleted. 26 captures per `gh` version are in
 `packages/core/test/fixtures/recordings/gh/` (`hook_*`, with the tunnel's name replaced by a
-placeholder). The GitLab half is **not recorded**: `glab`'s token had stopped working (HTTP 401 on
-every call, a signed-out CLI), and signing in to the owner's account is the owner's.
+placeholder). The GitLab half was not recorded then (`glab` was signed out); it is recorded
+below.
 
 1. **G1 on GitHub works with `--input -`**, the secret on stdin: the answer carries the hook's `id`
    and `"secret":"********"`, so the secret is never read back.
@@ -2416,10 +2416,36 @@ every call, a signed-out CLI), and signing in to the owner's account is the owne
 5. **G3** is as planned: the first delete is empty with exit 0, the second is `Not Found (HTTP 404)`,
    and the repository's hook list is `[]`.
 
-**Still to record, and the owner's:** the GitLab half of `w0` (G1 with `--input` and a token, the
-signing token and a `webhook-signature` delivery, G7 by `PUT`, resend), which needs `glab` signed in
-again; until then GitLab hooks are registered with the legacy token only and a URL change marks the
-hook stale, as "What is still not recorded" says.
+### Recorded by `w0` (2026-10-02), GitLab half
+
+Run after the owner signed `glab` in again, on their private GitLab mirror, through the same scratch
+receiver and tunnel; the hook was deleted and both stopped. 25 captures (`w0_hook_*`) are in
+`packages/core/test/fixtures/recordings/glab/1.120.0/`, and two deliveries (headers and payload,
+secrets replaced) in `recordings/glab/deliveries/`.
+
+1. **G1 works with `--input -`**: the answer carries the hook's `id`, `token_present: true` and a
+   `signing_token_present` field; the token is never read back.
+2. **The legacy token is exactly G5**: `X-Gitlab-Token` equals the secret (compared against a real
+   `Push Hook` delivery). GitLab also sends `X-Gitlab-Event`, `X-Gitlab-Webhook-UUID`,
+   `X-Gitlab-Event-UUID`, `X-Gitlab-Instance`, `Idempotency-Key`, and `webhook-id` (the same value as
+   the idempotency key) and `webhook-timestamp` even with no signing token.
+3. **The signing token can be set through the API**: `PUT projects/<id>/hooks/<id>` with
+   `{"signing_token": "whsec_" + base64(32 bytes)}`. A string that is not in that form answers 422
+   `signing_token is invalid`. From then on each delivery carries `webhook-signature: v1,<base64>`,
+   verified as HMAC-SHA256 over `<webhook-id>.<webhook-timestamp>.<body>` keyed with the base64-decoded
+   part after `whsec_` (Standard Webhooks). The legacy `X-Gitlab-Token` header stays.
+4. **G7 works**: `PUT projects/<id>/hooks/<id>` with `{url, token, push_events}` changes the URL
+   in place (the answer echoes it with `token_present`), and the next test goes there.
+5. **G4 lists and resends**: `GET .../hooks/<id>/events` lists `{id, url, trigger, request_headers,
+   request_data, response_status, execution_duration}` (the token header is shown as `[REDACTED]`);
+   `POST .../events/<id>/resend` answers `{"response_status":204}` and the receiver gets the delivery
+   again. Event ids are 64-bit: read them as strings.
+6. **The test endpoint needs content**: `test/push_events` delivers (`201 Created`); `test/merge_requests_events`,
+   `issues_events`, `note_events` and `pipeline_events` answer 422 "Ensure the project has …" when
+   the project has none. Agentry's "send a test" therefore uses `push_events`, and says why when the
+   event kind it needs is missing.
+7. **G3 is as planned**: the first delete is empty with exit 0, the second is `404 Not found`, and
+   the project's hook list is `[]`.
 
 ### P0 · `webhooks-prototypes`
 
@@ -2526,8 +2552,8 @@ What the audit and the e2e spec nobody had run found, all fixed:
 - **The dark theme's destructive button read 2.6:1** (`--on-bad` was white on a light red); it is
   dark ink now (7.5:1), and the register dialog's scrolling body takes the focus.
 
-**Open:** the GitLab half of `w0` and, after it, GitLab registration, test, removal, re-pointing and
-the signing token (the owner signs `glab` in again).
+**Open:** GitLab registration, test, removal, re-pointing, the signing token and resend. The
+recording they wait for is done (see "Recorded by `w0`, GitLab half").
 
 ## Jira and YouTrack: documented facts
 

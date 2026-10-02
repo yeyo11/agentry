@@ -848,8 +848,8 @@ cannot manage hooks), `404 registration-not-found`, `409` for `host-not-recorded
 ### What is not built yet
 
 - **GitLab hooks.** Only the receiver and the pacer use exist. Registering, testing, removing and
-  re-pointing a GitLab hook, the signing token and resend are not built, because the GitLab half of
-  the recording (`w0`) was made with a signed-out `glab`. The service reports GitLab as *not
+  re-pointing a GitLab hook, the signing token and resend are not built yet; the GitLab half of the
+  recording (`w0`) is done and the build follows. The service reports GitLab as *not
   available yet* (`host-not-recorded`) with no action and runs no `glab` call.
 - **GitHub redelivery.** It needs the `admin:repo_hook` scope (recorded: exit 1), so it is not
   offered; `canRedeliver` is always false.

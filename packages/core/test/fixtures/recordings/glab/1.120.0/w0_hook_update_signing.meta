@@ -1,0 +1,5 @@
+glab: 1.120.0
+argv: glab api --hostname gitlab.com -X PUT projects/87089091/hooks/90544096 -H Content-Type: application/json --input -
+exit: 1
+env: 
+stdin-sha256: 48b46ea03ba12071cff696051a339efdf472b81cb2f7b2db9ed4a8da4461aa11
