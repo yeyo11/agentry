@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { CodeHostStatus, CodeHostsSettings } from '@agentry/shared';
+import type { CodeHostStatus, CodeHostsSettings, TrackerId, TrackerStatus, TrackersSettings } from '@agentry/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
@@ -36,11 +36,48 @@ const settings: CodeHostsSettings = {
   hosts: { github: { enabled: true, binaryPath: null }, gitlab: { enabled: true, binaryPath: null } },
 };
 
-async function render(list: CodeHostStatus[]): Promise<string> {
+const tracker = (id: TrackerId, over: Partial<TrackerStatus> = {}): TrackerStatus => {
+  const gitlabHost = id === 'gitlab-issues';
+  const built = id === 'github-issues' || gitlabHost;
+  return {
+    id,
+    label: id,
+    cli: built ? (gitlabHost ? 'glab' : 'gh') : id === 'jira' ? 'acli' : 'youtrack-app',
+    host: built ? (gitlabHost ? 'gitlab' : 'github') : null,
+    binaryPath: built ? '/usr/bin/gh' : null,
+    version: built ? '2.92.0' : null,
+    minimum: built ? '2.92.0' : null,
+    recorded: built ? ['2.92.0'] : [],
+    state: built ? 'ready' : 'unknown',
+    reason: built ? null : 'not-recorded',
+    checkedAt: '2026-10-01T10:00:00Z',
+    ...over,
+  };
+};
+
+const defaultTrackers = (): TrackerStatus[] => [
+  tracker('github-issues'),
+  tracker('gitlab-issues', { cli: 'glab', binaryPath: '/usr/bin/glab', version: '1.120.0', minimum: '1.120.0', recorded: ['1.120.0'] }),
+  tracker('jira'),
+  tracker('youtrack'),
+];
+
+const trackerSettings: TrackersSettings = {
+  trackers: {
+    'github-issues': { enabled: true, binaryPath: null },
+    'gitlab-issues': { enabled: true, binaryPath: null },
+    jira: { enabled: true, binaryPath: null },
+    youtrack: { enabled: true, binaryPath: null },
+  },
+};
+
+async function render(list: CodeHostStatus[], trackers: TrackerStatus[] = defaultTrackers()): Promise<string> {
   await i18n.changeLanguage('en');
   const client = new QueryClient();
   client.setQueryData(keys.hosts, list);
   client.setQueryData(keys.hostSettings, settings);
+  client.setQueryData(keys.trackers, trackers);
+  client.setQueryData(keys.trackerSettings, trackerSettings);
   return renderToStaticMarkup(
     <QueryClientProvider client={client}>
       <TooltipProvider>
@@ -117,4 +154,30 @@ test('with neither program found the page is the one empty state', async () => {
   ]);
   assert.match(words(html), /Agentry cannot find gh or glab/);
   assert.equal((html.match(/data-illustration=/g) ?? []).length, 1);
+});
+
+test('the trackers section lists the four trackers; Jira and YouTrack are not available yet, with their reason and no action', async () => {
+  const html = await render([host({}), gitlab({})]);
+  const text = words(html);
+  assert.match(text, /4 trackers · 2 ready/);
+  for (const id of ['github-issues', 'gitlab-issues', 'jira', 'youtrack']) assert.match(html, new RegExp(`data-tracker="${id}"`));
+  assert.match(text, /Reads and writes issues with gh, with the session it already has\. It works in projects whose code is on GitHub\./);
+  const row = (id: string) => html.split(`data-tracker="${id}"`)[1]?.split('data-tracker=')[0] ?? '';
+  for (const id of ['jira', 'youtrack']) {
+    assert.match(words(row(id)), /Not available yet/);
+    assert.match(words(row(id)), /Agentry has not seen how .* answers/);
+    assert.doesNotMatch(row(id), /data-action=/);
+  }
+  assert.match(row('github-issues'), /data-action="choose-binary"/);
+  assert.equal((html.match(/grad-border/g) ?? []).length, 1, 'the trackers are the one gradient surface');
+});
+
+test('a tracker asks for the one remedy its state needs', async () => {
+  const html = await render(
+    [host({ state: 'signed-out' }), gitlab({ state: 'not-installed', binaryPath: null, version: null, hosts: [] })],
+    [tracker('github-issues', { state: 'signed-out', reason: null }), tracker('gitlab-issues', { state: 'not-installed', cli: 'glab', reason: null, binaryPath: null, version: null }), tracker('jira'), tracker('youtrack')],
+  );
+  const row = (id: string) => html.split(`data-tracker="${id}"`)[1]?.split('data-tracker=')[0] ?? '';
+  assert.match(row('github-issues'), /data-action="sign-in"/);
+  assert.match(row('gitlab-issues'), /data-action="install"/);
 });
