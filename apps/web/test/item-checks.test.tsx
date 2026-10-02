@@ -13,6 +13,7 @@ import { setLanguage } from '../src/i18n';
 import enChecks from '../src/i18n/locales/en/checks.json' with { type: 'json' };
 import esChecks from '../src/i18n/locales/es/checks.json' with { type: 'json' };
 import { Checks, useFixOffered } from '../src/pages/tasks/item/Checks';
+import type { LeadingAction } from '../src/pages/tasks/item/model';
 
 // The checks of an item's open change request (docs/plans/code-hosts.md, phase 2): the list with its
 // groups, words and colours, the one gradient action, and the fix states.
@@ -40,7 +41,7 @@ const FAILING = [
   check({ id: '4', name: 'build', state: 'passed' }),
 ];
 
-function render(data: ChangeRequestChecks | null, request: WorkItemPullRequest = pr()) {
+function render(data: ChangeRequestChecks | null, request: WorkItemPullRequest = pr(), lead: LeadingAction | null = 'fix') {
   const qc = new QueryClient();
   if (data) qc.setQueryData(keys.changeRequestChecks('cr1'), data);
   return renderToStaticMarkup(
@@ -48,7 +49,7 @@ function render(data: ChangeRequestChecks | null, request: WorkItemPullRequest =
       <MemoryRouter>
         <TooltipProvider>
           <ToastProvider>
-            <Checks pr={request} itemId="item1" />
+            <Checks pr={request} itemId="item1" lead={lead} />
           </ToastProvider>
         </TooltipProvider>
       </MemoryRouter>
@@ -103,7 +104,7 @@ test('a used-up rate limit is a warning with the time, and the fix waits', () =>
   const html = render(list(FAILING, { limitedUntil: '2026-10-01T11:20:00Z' }));
   assert.match(html, /check-limit/);
   assert.match(html, /API limit/);
-  assert.match(html, /workitem-fix-checks"[^>]*disabled/);
+  assert.match(html, /workitem-fix-checks[^"]*"[^>]*disabled/);
 });
 
 test('a fix under way replaces the action: fixing is live, waiting for the push is a button', () => {

@@ -90,7 +90,47 @@ export interface BlockerParams extends Record<string, string> {
  */
 export function blockerParams(blocker: Pick<MergeBlocker, 'detail'>, cr: Pick<ChangeRequest, 'host' | 'branch' | 'base' | 'phase'>, noun: string): BlockerParams {
   const words = changeRequestWords(cr.host);
-  return { noun, host: words.label, head: cr.branch, base: cr.base, name: blocker.detail ?? '', state: cr.phase };
+  // `state` is what the host says of the request (a not-open blocker's detail), never Agentry's own phase, which is still open while the block shows
+  return { noun, host: words.label, head: cr.branch, base: cr.base, name: blocker.detail ?? '', state: blocker.detail ?? '' };
+}
+
+/** What a blocker is drawn with on the item page: its colour, word and sentence keys, and the values the sentence takes. */
+export interface BlockerSentence {
+  tone: MergeTone;
+  word: BlockerMark['word'] | 'blocker.not-open.merged.word';
+  text: BlockerMark['text'] | 'blocker.not-open.merged.text' | 'blocker.not-open.closed.text' | 'blocker.checks-failing.named' | 'blocker.checks-missing.named' | 'blocker.threads-unresolved.counted';
+  params: Record<string, string | number>;
+}
+
+/**
+ * The words of one blocker, from what the host said of it: a request that is no longer open says
+ * merged or closed by the host's own state; a failing or missing required check names itself when the
+ * host named it, and says so in the plural when it did not; unresolved conversations are counted.
+ * The detail only ever fills a placeholder, as text.
+ */
+export function blockerSentence(blocker: Pick<MergeBlocker, 'code' | 'detail'>, cr: Pick<ChangeRequest, 'host' | 'branch' | 'base' | 'phase'>, noun: string): BlockerSentence {
+  const mark = blockerMark(blocker.code);
+  const params: Record<string, string | number> = blockerParams(blocker, cr, noun);
+  const detail = blocker.detail?.trim() ?? '';
+  let { tone, word, text }: Pick<BlockerSentence, 'tone' | 'word' | 'text'> = mark;
+  if (blocker.code === 'not-open') {
+    const host = detail.toLowerCase();
+    if (host === 'merged') ({ tone, word, text } = { tone: 'ok', word: 'blocker.not-open.merged.word', text: 'blocker.not-open.merged.text' });
+    else if (host === 'closed') text = 'blocker.not-open.closed.text';
+  } else if ((blocker.code === 'checks-failing' || blocker.code === 'checks-missing') && detail) {
+    text = `blocker.${blocker.code}.named`;
+  } else if (blocker.code === 'threads-unresolved' && /^\d+$/.test(detail)) {
+    text = 'blocker.threads-unresolved.counted';
+    params.count = Number(detail);
+  }
+  return { tone, word, text, params };
+}
+
+/** Who turned auto-merge off for an update: a person by name, Agentry, or the one person there is when authentication is off (`local`). */
+export function autoMergeOffKey(why: 'push' | 'update', by: string): `autoMergeOff.${'push' | 'update' | 'updateYou' | 'updateAgentry'}` {
+  if (why === 'update' && by === 'local') return 'autoMergeOff.updateYou';
+  if (why === 'update' && by === 'agentry') return 'autoMergeOff.updateAgentry';
+  return `autoMergeOff.${why}`;
 }
 
 /** The blockers shown: the first, with the rest under it in a line of codes. */
@@ -120,19 +160,19 @@ export interface MergeChoice {
 /**
  * The body of the Merge click, carrying the head the person is looking at. Null when there is
  * nothing to send: no head read yet, no method allowed, or Merge now is not possible. A blank
- * subject or body is left out so the host writes its own.
+ * subject or body is left out, and a written one is sent as typed so the host writes its own.
  */
 export function mergeBody(state: Pick<MergeState, 'headSha' | 'canMerge' | 'methods' | 'defaultMethod'>, choice: MergeChoice): MergeRequestBody | null {
   const method = chosenMethod(state, choice.method);
   if (!state.canMerge || !state.headSha || !method) return null;
-  const subject = choice.subject.trim();
-  const body = choice.body.trim();
+  // Exactly as typed: only a blank field is left out, so the host writes its own
+  const { subject, body } = choice;
   return {
     method,
     expectedHead: state.headSha,
     deleteBranch: choice.deleteBranch,
-    ...(methodHasMessage(method) && subject ? { subject } : {}),
-    ...(methodHasMessage(method) && body ? { body } : {}),
+    ...(methodHasMessage(method) && subject.trim() ? { subject } : {}),
+    ...(methodHasMessage(method) && body.trim() ? { body } : {}),
   };
 }
 
@@ -144,6 +184,19 @@ export function armBody(
   const method = chosenMethod(state, chosen);
   if (!state.autoMerge.available || state.autoMerge.armed || !state.headSha || !method) return null;
   return { method, expectedHead: state.headSha };
+}
+
+/**
+ * The one thing the merge block offers as its gradient action: Merge when it can merge, or Turn on
+ * auto-merge while the required checks still run. Other blockers offer arming as a plain button, and
+ * an armed block, a pipeline that has not attached and a block with nothing on offer have none.
+ */
+export function mergePrimary(
+  state: Pick<MergeState, 'headSha' | 'canMerge' | 'blocker' | 'autoMerge' | 'methods' | 'defaultMethod' | 'waitingForPipeline'> | undefined,
+): 'merge' | 'arm' | null {
+  if (!state || isArmed(state) || isWaitingForPipeline(state)) return null;
+  if (state.canMerge) return 'merge';
+  return state.blocker?.code === 'checks-running' && armBody(state, null) !== null ? 'arm' : null;
 }
 
 /** Auto-merge is armed: the block shows who armed it, with which method, and Turn off. */
@@ -170,6 +223,7 @@ const FAILURES = [
   'auto-merge-not-needed',
   'waiting-for-pipeline',
   'rate-limited',
+  'busy',
   'forbidden',
   'merge-failed',
 ] as const;
@@ -178,6 +232,20 @@ export type MergeFailure = (typeof FAILURES)[number];
 /** The reason code of a failed call, or `merge-failed` for any other (the host's own text stays the detail). */
 export function mergeFailure(code: string | undefined): MergeFailure {
   return (FAILURES as readonly string[]).includes(code ?? '') ? (code as MergeFailure) : 'merge-failed';
+}
+
+/** The refusals of Update from base, each worded in the `merge` namespace under `update.`: only `conflicts` is the merge's own. */
+const UPDATE_FAILURES = ['conflicts', 'busy', 'not-offered', 'not-open', 'merge-failed'] as const;
+export type UpdateFailure = (typeof UPDATE_FAILURES)[number];
+
+/**
+ * What a failed Update from base was. The core answers 409 for all of these, so the code decides: a
+ * request that is not open arrives as `merge-failed` with `not-open` as the host's reason.
+ */
+export function updateFailure(error: { code?: string; message?: string } | null | undefined): UpdateFailure {
+  const code = error?.code ?? '';
+  if ((UPDATE_FAILURES as readonly string[]).includes(code) && code !== 'merge-failed') return code as UpdateFailure;
+  return /(^|: )not-open$/.test(error?.message ?? '') ? 'not-open' : 'merge-failed';
 }
 
 /** A moved head or a changed rule merges nothing: the state is read again before another click. */

@@ -54,7 +54,7 @@
     "armedBy": "Fusionará con {{method}} cuando el host dé el visto bueno; la activó {{who}}",
     "methodUnknown": "el método predeterminado",
     "turnOff": "Desactivar",
-    "waitingForPipeline": "{{host}} aún no ha asociado el pipeline a este commit. Agentry lo vuelve a leer cada 10 segundos.",
+    "waitingForPipeline": "{{host}} aún no ha asociado la pipeline a este commit. Agentry lo vuelve a leer cada 10 segundos.",
     "others": "Además: {{words}}",
     "optionalChecksFailing": "Ha fallado una comprobación que no es obligatoria. Puedes fusionar igualmente.",
     "method": {
