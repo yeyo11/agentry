@@ -53,8 +53,12 @@ export const githubHooks = {
       JSON.stringify({ name: 'web', active: true, events: GITHUB_HOOK_EVENTS, config: { url: hook.url, content_type: 'json', secret: hook.secret, insecure_ssl: '0' } }),
     ),
 
-  /** The hooks of a repository, to adopt one that already carries Agentry's address. */
-  list: (repo: HostRepo): HostCall => api(repo, [hooksPath(repo)], 'read'),
+  /**
+   * Every hook of a repository, to find the one a registration made and to tell when another
+   * install's is there. A repository may have more than 30 hooks, so every page is read:
+   * `--paginate --slurp` prints an array of pages (recorded).
+   */
+  list: (repo: HostRepo): HostCall => api(repo, ['--paginate', '--slurp', `${hooksPath(repo)}?per_page=100`], 'read'),
 
   /** A hook, for `last_response`: what the host says about the last delivery. */
   get: (repo: HostRepo, hookId: string): HostCall => api(repo, [`${hooksPath(repo)}/${hookId}`], 'read'),
@@ -76,7 +80,8 @@ export const githubHooks = {
   parseHooks(stdout: string): GithubHook[] {
     const value = parseValue(stdout, 'hook list');
     if (!Array.isArray(value)) throw new HostParseError('hook list is not an array');
-    return value.map(hookOf);
+    // An array of pages; a flat array of hooks is read the same way
+    return value.flatMap((page) => (Array.isArray(page) ? page : [page])).map(hookOf);
   },
 };
 

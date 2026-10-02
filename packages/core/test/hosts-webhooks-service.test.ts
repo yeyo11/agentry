@@ -89,11 +89,21 @@ function fixture(): Fixture {
 
 const argv = (call: HostCall): string => call.args.join(' ');
 const isCreate = (call: HostCall): boolean => argv(call) === `api --hostname github.com -X POST ${HOOKS} --input -`;
-const isList = (call: HostCall): boolean => argv(call) === `api --hostname github.com ${HOOKS}`;
+const isList = (call: HostCall): boolean => argv(call) === `api --hostname github.com --paginate --slurp ${HOOKS}?per_page=100`;
+/** The listing as `--paginate --slurp` prints it: an array of pages */
+const pages = (...hooks: string[][]): HostResult => ok(`[${hooks.map((page) => `[${page.join(',')}]`).join(',')}]`);
 const isRepoint = (call: HostCall, id = HOOK): boolean => argv(call) === `api --hostname github.com -X PATCH ${HOOKS}/${id}/config --input -`;
 const isGet = (call: HostCall): boolean => argv(call) === `api --hostname github.com ${HOOKS}/${HOOK}`;
 const isPing = (call: HostCall): boolean => argv(call) === `api --hostname github.com -X POST ${HOOKS}/${HOOK}/pings`;
 const isDelete = (call: HostCall): boolean => argv(call) === `api --hostname github.com -X DELETE ${HOOKS}/${HOOK}`;
+
+/** A read of any hook answers with the address of the registration that owns it: the hook is this install's */
+const mineGet = (call: HostCall): HostResult | undefined => {
+  const match = /hooks\/(\d+)$/.exec(argv(call));
+  if (!match) return undefined;
+  const id = match[1] === HOOK ? 'r1' : match[1] === '7' ? 'r2' : 'r3';
+  return ok(hookJson(receiverUrl(ORIGIN, 'github', id), { code: 204, status: 'active' }, match[1]));
+};
 
 const hookJson = (url: string, last: { code: number | null; status: string; message?: string | null }, id = HOOK): string =>
   JSON.stringify({ type: 'Repository', id: Number(id), name: 'web', active: true, events: [...GITHUB_HOOK_EVENTS], config: { url, content_type: 'json', insecure_ssl: '0', secret: '********' }, last_response: { message: null, ...last } });
@@ -136,7 +146,7 @@ test('the recorded hook answers parse, and a failing last response is told from 
 
 test('registering creates the hook with a fresh address and secret, keeps the secret in a 0600 file and says so on the feed', async () => {
   const f = fixture();
-  f.answer((call) => (isList(call) ? ok('[]') : isCreate(call) ? result(recorded('hook_create')) : undefined));
+  f.answer((call) => (isList(call) ? pages([]) : isCreate(call) ? result(recorded('hook_create')) : undefined));
 
   const registration = await f.service.register('p1');
   assert.equal(registration.remoteHookId, HOOK);
@@ -159,7 +169,7 @@ test('registering creates the hook with a fresh address and secret, keeps the se
 
 test('registering twice is refused, and registering after a removal replaces the removed row', async () => {
   const f = fixture();
-  f.answer((call) => (isList(call) ? ok('[]') : isCreate(call) ? result(recorded('hook_create')) : isDelete(call) ? ok() : undefined));
+  f.answer((call) => (isList(call) ? pages([]) : isCreate(call) ? result(recorded('hook_create')) : isGet(call) ? ok(hookJson(f.store.list('p1')[0]?.url ?? '', { code: 204, status: 'active' })) : isDelete(call) ? ok() : undefined));
   const first = await f.service.register('p1');
   await assert.rejects(f.service.register('p1'), (e: unknown) => e instanceof WebhooksError && e.code === 'already-registered' && e.status === 409);
   await f.service.remove('p1', first.id);
@@ -169,17 +179,77 @@ test('registering twice is refused, and registering after a removal replaces the
   assert.deepEqual(f.store.list('p1').map((r) => r.id), [second.id]);
 });
 
-test('a hook that already carries an Agentry address is adopted: kept, and given the new address and secret', async () => {
+const OTHER = 'https://other777.lhr.life/api/webhooks/github/11111111-2222-3333-4444-555555555555';
+
+test("another install's Agentry hook is not adopted: it is left alone, its own is created, and the person is told", async () => {
   const f = fixture();
-  const old = 'https://old999.lhr.life/api/webhooks/github/11111111-2222-3333-4444-555555555555';
-  f.answer((call) => (isList(call) ? ok(`[${hookJson(old, { code: 502, status: 'connection_error' })}]`) : isRepoint(call) ? ok(hookJson('x', { code: 204, status: 'active' })) : undefined));
+  f.answer((call) => (isList(call) ? pages([hookJson(OTHER, { code: 204, status: 'active' }, '42')]) : isCreate(call) ? result(recorded('hook_create')) : undefined));
+
+  const registration = await f.service.register('p1');
+  assert.equal(registration.remoteHookId, HOOK, 'its own hook, not the one found');
+  assert.ok(f.calls.some(isCreate));
+  assert.ok(!f.calls.some((c) => argv(c).includes('/42')), 'the other hook is never read, patched or deleted');
+  assert.match(registration.notice ?? '', /another Agentry install .*other777\.lhr\.life.*left it alone/);
+  assert.equal(f.store.get(registration.id) && 'notice' in (f.store.get(registration.id) ?? {}), false, 'the notice is not kept');
+});
+
+test("a hook this install's own removed registration left behind is adopted, with the new address and secret", async () => {
+  const f = fixture();
+  f.store.create({ id: '11111111-2222-3333-4444-555555555555', projectId: 'p1', host: 'github', hostname: 'github.com', repoPath: REPO.path, remoteHookId: HOOK, url: OTHER, events: [] });
+  f.store.update('11111111-2222-3333-4444-555555555555', { state: 'removed' });
+  f.answer((call) => (isList(call) ? pages([hookJson(OTHER, { code: 502, status: 'connection_error' })]) : isRepoint(call) ? ok(hookJson('x', { code: 204, status: 'active' })) : undefined));
 
   const registration = await f.service.register('p1');
   assert.equal(registration.remoteHookId, HOOK);
+  assert.equal(registration.notice, undefined);
   assert.ok(!f.calls.some(isCreate), 'nothing is created next to it');
   const patch = JSON.parse(f.calls.find((c) => isRepoint(c))?.input ?? '') as { url: string; secret: string };
   assert.equal(patch.url, registration.url);
   assert.equal(patch.secret, f.service.secretOf(registration.id));
+  assert.deepEqual(f.store.list('p1').map((r) => r.id), [registration.id], 'the removed row is replaced');
+});
+
+test('a hook another install pointed at itself is neither re-pointed nor removed by this one', async () => {
+  const f = fixture();
+  f.store.create({ id: 'r1', projectId: 'p1', host: 'github', hostname: 'github.com', repoPath: REPO.path, remoteHookId: HOOK, url: receiverUrl(ORIGIN, 'github', 'r1'), events: [] });
+  await f.secrets.set('r1', 'mine');
+  // The hook on the host carries another install's address
+  f.answer((call) => (isGet(call) ? ok(hookJson(OTHER, { code: 204, status: 'active' })) : undefined));
+
+  await f.service.follow('https://new456.lhr.life');
+  assert.ok(!f.calls.some((c) => c.args.includes('PATCH')), 'not re-pointed');
+  assert.equal(f.store.get('r1')?.state, 'stale');
+
+  const removed = await f.service.remove('p1', 'r1');
+  assert.equal(removed.state, 'removed');
+  assert.ok(!f.calls.some((c) => c.args.includes('DELETE')), 'the shared hook is not deleted');
+  assert.equal(f.service.secretOf('r1'), null);
+});
+
+test('two registrations of one repository at once share one hook and one answer', async () => {
+  const f = fixture();
+  f.answer((call) => (isList(call) ? pages([]) : isCreate(call) ? result(recorded('hook_create')) : undefined));
+  const [a, b] = await Promise.all([f.service.register('p1'), f.service.register('p1')]);
+  assert.equal(a.id, b.id);
+  assert.equal(f.calls.filter(isCreate).length, 1);
+  assert.equal(f.store.list('p1').length, 1);
+  // Once settled, the next click is the ordinary refusal
+  await assert.rejects(f.service.register('p1'), (e: unknown) => e instanceof WebhooksError && e.code === 'already-registered');
+});
+
+test('the listing reads every page, so a hook after the first thirty is found', async () => {
+  const call = githubHooks.list(REPO);
+  assert.deepEqual(call.args, ['api', '--hostname', 'github.com', '--paginate', '--slurp', `${HOOKS}?per_page=100`]);
+  assert.equal(classifyCall(call), 'read');
+  const page = (from: number, n: number): string[] => Array.from({ length: n }, (_, i) => hookJson('https://ci.example.com/h', { code: 200, status: 'active' }, String(from + i)));
+  const hooks = githubHooks.parseHooks(pages(page(1, 30), page(31, 5)).stdout);
+  assert.equal(hooks.length, 35);
+  assert.equal(hooks.at(-1)?.id, '35');
+
+  const f = fixture();
+  f.answer((c) => (isList(c) ? pages(page(1, 30), [hookJson(OTHER, { code: 204, status: 'active' }, '77')]) : isCreate(c) ? result(recorded('hook_create')) : undefined));
+  const registration = await f.service.register('p1');
+  assert.match(registration.notice ?? '', /another Agentry install/, 'the hook on the second page was seen');
 });
 
 test("someone else's hook is never touched", async () => {
@@ -198,7 +268,7 @@ test('GitHub saying the hook exists adopts the one with this very address', asyn
   f.answer((call) => {
     if (isList(call)) {
       lists += 1;
-      if (lists === 1) return ok('[]');
+      if (lists === 1) return pages([]);
       const create = f.calls.find(isCreate);
       const url = (JSON.parse(create?.input ?? '') as { config: { url: string } }).config.url;
       return ok(`[${hookJson(url, { code: null, status: 'unused' })}]`);
@@ -228,7 +298,7 @@ test('registering is refused, with nothing run, for GitLab and for a missing pub
 
 test('a refused or unseen repository becomes "no permission", and the secret kept for it goes', async () => {
   const f = fixture();
-  f.answer((call) => (isList(call) ? ok('[]') : isCreate(call) ? { ...result(recorded('hook_delete_again')) } : undefined));
+  f.answer((call) => (isList(call) ? pages([]) : isCreate(call) ? { ...result(recorded('hook_delete_again')) } : undefined));
   await assert.rejects(f.service.register('p1'), (e: unknown) => e instanceof WebhooksError && e.code === 'hook-no-permission' && e.status === 403);
   assert.equal(f.store.list('p1').length, 0);
   assert.equal(readFileSync(join(f.dataDir, 'webhook-secrets.json'), 'utf8'), '{}');
@@ -325,7 +395,7 @@ test("testing another project's or an unknown registration is a 404", async () =
 
 test('removing deletes the hook and the secret; a hook already gone on the host is not an error', async () => {
   const f = fixture();
-  f.answer((call) => (isList(call) ? ok('[]') : isCreate(call) ? result(recorded('hook_create')) : isDelete(call) ? result(recorded('hook_delete_again')) : undefined));
+  f.answer((call) => (isList(call) ? pages([]) : isCreate(call) ? result(recorded('hook_create')) : isGet(call) ? ok(hookJson(f.store.list('p1')[0]?.url ?? '', { code: 204, status: 'active' })) : isDelete(call) ? result(recorded('hook_delete_again')) : undefined));
   const registration = await f.service.register('p1');
   const removed = await f.service.remove('p1', registration.id);
   assert.equal(removed.state, 'removed');
@@ -335,7 +405,7 @@ test('removing deletes the hook and the secret; a hook already gone on the host 
 
 test('a refused removal keeps the registration and its secret', async () => {
   const f = fixture();
-  f.answer((call) => (isDelete(call) ? { ...ok(), exitCode: 1, stdout: '{"message":"Forbidden","status":"403"}', stderrFirstLine: 'gh: Forbidden (HTTP 403)' } : undefined));
+  f.answer((call) => (isGet(call) ? ok(hookJson(receiverUrl(ORIGIN, 'github', 'r1'), { code: 204, status: 'active' })) : isDelete(call) ? { ...ok(), exitCode: 1, stdout: '{"message":"Forbidden","status":"403"}', stderrFirstLine: 'gh: Forbidden (HTTP 403)' } : undefined));
   const reg = f.store.create({ id: 'r1', projectId: 'p1', host: 'github', hostname: 'github.com', repoPath: REPO.path, remoteHookId: HOOK, url: 'https://x/', events: [] });
   await f.secrets.set(reg.id, 'keep');
   await assert.rejects(f.service.remove('p1', 'r1'), (e: unknown) => e instanceof WebhooksError && e.code === 'hook-no-permission');
@@ -352,7 +422,7 @@ test("a new public address re-points the hooks Agentry registered, by id, with t
   f.store.create({ id: 'r3', projectId: 'p1', host: 'github', hostname: 'github.com', repoPath: 'yeyo11/old', remoteHookId: '8', url: receiverUrl(ORIGIN, 'github', 'r3'), events: [] });
   f.store.update('r3', { state: 'removed' });
   await f.secrets.set('r1', 'secret-one');
-  f.answer((call) => (call.args.includes('PATCH') ? result(recorded('hook_repoint')) : undefined));
+  f.answer((call) => (call.args.includes('PATCH') ? result(recorded('hook_repoint')) : mineGet(call)));
 
   await f.service.follow('https://new456.lhr.life/');
   const patches = f.calls.filter((c) => c.args.includes('PATCH'));
@@ -375,7 +445,7 @@ test('a hook that cannot be moved is marked stale, and is tried again when the a
   const f = fixture();
   f.store.create({ id: 'r1', projectId: 'p1', host: 'github', hostname: 'github.com', repoPath: REPO.path, remoteHookId: HOOK, url: receiverUrl(ORIGIN, 'github', 'r1'), events: [] });
   let refuse = true;
-  f.answer((call) => (call.args.includes('PATCH') ? (refuse ? { ...ok(), exitCode: 1, stdout: '{"message":"Not Found","status":"404"}' } : result(recorded('hook_repoint'))) : undefined));
+  f.answer((call) => (!call.args.includes('PATCH') ? mineGet(call) : (refuse ? { ...ok(), exitCode: 1, stdout: '{"message":"Not Found","status":"404"}' } : result(recorded('hook_repoint')))));
   await f.service.follow('https://new456.lhr.life');
   assert.equal(f.store.get('r1')?.state, 'stale');
   assert.equal(f.store.get('r1')?.url, receiverUrl(ORIGIN, 'github', 'r1'), 'the old address is kept');
@@ -387,7 +457,7 @@ test('a hook that cannot be moved is marked stale, and is tried again when the a
 test('addresses that arrive while hooks are being moved collapse into one more batch for the latest', async () => {
   const f = fixture();
   f.store.create({ id: 'r1', projectId: 'p1', host: 'github', hostname: 'github.com', repoPath: REPO.path, remoteHookId: HOOK, url: receiverUrl(ORIGIN, 'github', 'r1'), events: [] });
-  f.answer((call) => (call.args.includes('PATCH') ? result(recorded('hook_repoint')) : undefined));
+  f.answer((call) => (call.args.includes('PATCH') ? result(recorded('hook_repoint')) : mineGet(call)));
   await Promise.all([f.service.follow('https://one.lhr.life'), f.service.follow('https://two.lhr.life'), f.service.follow('https://three.lhr.life')]);
   assert.equal(f.store.get('r1')?.url, receiverUrl('https://three.lhr.life', 'github', 'r1'));
   assert.ok(f.calls.filter((c) => c.args.includes('PATCH')).length <= 2);
@@ -422,4 +492,24 @@ test('the core hands the tunnel\'s events to the service, and its secret to the 
   await core.webhookService.follow('https://new789.lhr.life');
   assert.equal(core.webhooks.get('r1')?.state, 'stale');
   assert.ok(seen.some((e) => e.type === 'webhook.changed'));
+});
+
+// ---------- golden: the order of the calls ----------
+
+test('golden: the calls of registering, re-pointing and removing, in order', async () => {
+  const f = fixture();
+  f.answer((call) => (isList(call) ? pages([]) : isCreate(call) ? result(recorded('hook_create')) : undefined));
+  const registration = await f.service.register('p1');
+  // The hook on the host answers with the registration's own address
+  f.answer((call) => (call.args.includes('PATCH') ? result(recorded('hook_repoint')) : isDelete(call) ? ok() : isGet(call) ? ok(hookJson(registration.url, { code: 204, status: 'active' })) : undefined));
+  await f.service.follow('https://new456.lhr.life');
+  await f.service.remove('p1', registration.id);
+  assert.deepEqual(f.calls.map(argv), [
+    `api --hostname github.com --paginate --slurp ${HOOKS}?per_page=100`,
+    `api --hostname github.com -X POST ${HOOKS} --input -`,
+    `api --hostname github.com ${HOOKS}/${HOOK}`,
+    `api --hostname github.com -X PATCH ${HOOKS}/${HOOK}/config --input -`,
+    `api --hostname github.com ${HOOKS}/${HOOK}`,
+    `api --hostname github.com -X DELETE ${HOOKS}/${HOOK}`,
+  ]);
 });

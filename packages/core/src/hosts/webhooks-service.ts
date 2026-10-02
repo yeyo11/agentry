@@ -24,17 +24,30 @@ export function receiverUrl(origin: string, host: CodeHostId, registrationId: st
   return `${origin.replace(/\/+$/, '')}${WEBHOOK_PATH}/${host}/${registrationId}`;
 }
 
-/** Whether a URL is one of Agentry's own receivers, on any origin: what makes a hook adoptable. */
-function isReceiverUrl(url: string | null, host: CodeHostId): boolean {
-  if (!url) return false;
+/**
+ * The registration id a receiver URL carries, on any origin; null for any other address. The id is
+ * the one marker only the install that generated it can know, so it is what tells a hook of this
+ * install from another install's, which has the same shape.
+ */
+function receiverIdOf(url: string | null, host: CodeHostId): string | null {
+  if (!url) return null;
   try {
-    return new RegExp(`^${WEBHOOK_PATH}/${host}/[0-9a-f-]{36}$`).test(new URL(url).pathname);
+    return new RegExp(`^${WEBHOOK_PATH}/${host}/([0-9a-f-]{36})$`).exec(new URL(url).pathname)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Whether a receiver URL, on any origin, ends with exactly this registration's id. */
+function urlCarries(url: string, host: CodeHostId, registrationId: string): boolean {
+  try {
+    return new URL(url).pathname === `${WEBHOOK_PATH}/${host}/${registrationId}`;
   } catch {
     return false;
   }
 }
 
-const originOf = (url: string): string | null => {
+const originOf =(url: string): string | null => {
   try {
     return new URL(url).origin;
   } catch {
@@ -97,6 +110,8 @@ export class WebhooksService {
   /** Re-pointing runs one batch at a time, so two tunnel events cannot patch one hook against each other */
   private repointing: Promise<void> | null = null;
   private repointPending: string | null = null;
+  /** Registrations in flight, by repository: a second click gets the first one's answer, not a second hook */
+  private readonly registering = new Map<string, Promise<WebhookRegistration>>();
 
   constructor(private readonly deps: WebhooksServiceDeps) {
     this.now = deps.now ?? Date.now;
@@ -149,32 +164,50 @@ export class WebhooksService {
     };
   }
 
-  /** Registers a hook on the project's repository, or adopts the one that already carries an Agentry address. */
+  /**
+   * Registers a hook on the project's repository. Only a hook this install made is ever adopted (the
+   * one a removed registration of its own left behind); another install's Agentry hook is left alone
+   * and said so. Two calls for one repository at once share one registration.
+   */
   async register(projectId: string): Promise<WebhookRegistration> {
     const target = await this.githubTarget(projectId);
     const origin = this.publicOrigin();
     const access = await this.deps.access(projectId);
+    const key = `${access.repo.host}/${access.repo.path}`.toLowerCase();
+    const running = this.registering.get(key);
+    if (running) return running;
+    const job = this.registerOne(projectId, target, origin, access);
+    this.registering.set(key, job);
+    try {
+      return await job;
+    } finally {
+      this.registering.delete(key);
+    }
+  }
+
+  private async registerOne(projectId: string, target: WebhookTarget, origin: string, access: WebhookAccess): Promise<WebhookRegistration> {
     const { store, secrets } = this.deps;
     const mine = store.list(projectId).filter((r) => r.hostname === access.repo.host && r.repoPath === access.repo.path);
     if (mine.some((r) => r.state !== 'removed')) throw new WebhooksError('this repository already has a webhook registered by Agentry', 409, 'already-registered');
-    // A removed registration is only kept to be seen; registering again replaces it
-    for (const old of mine) store.delete(old.id);
 
     const id = randomUUID();
     const secret = newWebhookSecret();
     const url = receiverUrl(origin, 'github', id);
     // The secret is kept before the host knows it, so a delivery that races the answer is already verifiable
     await secrets.set(id, secret);
-    let hookId: string;
+    let found: { hookId: string; notice: string | null };
     try {
-      hookId = await this.createOrAdopt(access, { url, secret });
+      found = await this.createOrAdopt(access, { url, secret }, new Set(mine.map((r) => r.id)));
     } catch (error) {
       await secrets.delete(id);
       throw error;
     }
-    const created = store.create({ id, projectId, host: target.host, hostname: access.repo.host, repoPath: access.repo.path, remoteHookId: hookId, url, events: [...GITHUB_HOOK_EVENTS] });
+    // A removed registration is only kept to be seen; registering again replaces it
+    for (const old of mine) store.delete(old.id);
+    const created = store.create({ id, projectId, host: target.host, hostname: access.repo.host, repoPath: access.repo.path, remoteHookId: found.hookId, url, events: [...GITHUB_HOOK_EVENTS] });
     this.changed(created);
-    return created;
+    // The notice belongs to this answer only: nothing about it is kept
+    return found.notice ? { ...created, notice: found.notice } : created;
   }
 
   /** Pings the hook, then reads what GitHub says about the delivery: a good one makes the hook healthy. */
@@ -204,10 +237,13 @@ export class WebhooksService {
     const hookId = registration.remoteHookId;
     if (hookId) {
       const access = await this.deps.access(projectId);
-      const call = githubHooks.remove(access.repo, hookId);
-      const result = await access.run(call);
-      // The host says 404 for a hook that is gone, and with it a hint about a scope that is not the cause (recorded)
-      if (result.exitCode !== 0 && reasonOf(result, 'gh') !== 'not-found') throw failure('remove the hook', result, call);
+      // A hook that no longer carries this registration's address is not ours to delete
+      if ((await this.ownership(access, registration)) === 'mine') {
+        const call = githubHooks.remove(access.repo, hookId);
+        const result = await access.run(call);
+        // The host says 404 for a hook that is gone, and with it a hint about a scope that is not the cause (recorded)
+        if (result.exitCode !== 0 && reasonOf(result, 'gh') !== 'not-found') throw failure('remove the hook', result, call);
+      }
     }
     await this.deps.secrets.delete(registration.id);
     this.readAt.delete(registration.id);
@@ -271,6 +307,8 @@ export class WebhooksService {
     const url = receiverUrl(origin, registration.host, registration.id);
     try {
       const access = await this.deps.access(registration.projectId);
+      // A hook that no longer carries this registration's address was not made by this install: it stays as it is
+      if ((await this.ownership(access, registration)) !== 'mine') throw new Error("the hook is not this install's");
       // A secret that went missing is replaced in the same call: the hook gets the new one with its new address
       let secret = this.deps.secrets.get(registration.id);
       if (!secret) {
@@ -289,22 +327,30 @@ export class WebhooksService {
 
   // ---------- the pieces ----------
 
-  private async createOrAdopt(access: WebhookAccess, hook: { url: string; secret: string }): Promise<string> {
+  /**
+   * Finds the hook a new registration is for. A hook is adopted only when its address carries the id
+   * of a registration this install made on the repository (`ours`), or the id being registered now (a
+   * create whose answer was lost). Any other Agentry address belongs to another install: it is not
+   * touched, and the person is told.
+   */
+  private async createOrAdopt(access: WebhookAccess, hook: { url: string; secret: string }, ours: Set<string>): Promise<{ hookId: string; notice: string | null }> {
     const taken = new Set(this.deps.store.listLive().map((r) => r.remoteHookId));
     const adoptable = (hooks: GithubHook[], same: (h: GithubHook) => boolean): GithubHook | undefined => hooks.find((h) => !taken.has(h.id) && same(h));
     const list = async (): Promise<GithubHook[]> => this.parse(await this.run(access, githubHooks.list(access.repo), 'list the hooks'), (s) => githubHooks.parseHooks(s));
 
-    // A hook that already carries an Agentry address, from a registration this install lost: it is kept, and given the new address and secret
-    const existing = adoptable(await list(), (h) => isReceiverUrl(h.url, 'github'));
-    if (existing) return this.adopt(access, existing, hook);
+    const hooks = await list();
+    const left = adoptable(hooks, (h) => ours.has(receiverIdOf(h.url, 'github') ?? ''));
+    if (left) return { hookId: await this.adopt(access, left, hook), notice: null };
+    const foreign = hooks.filter((h) => !taken.has(h.id) && receiverIdOf(h.url, 'github') !== null);
+    const notice = foreign.length > 0 ? foreignNotice(foreign) : null;
 
     const call = githubHooks.create(access.repo, hook);
     const result = await access.run(call);
-    if (result.exitCode === 0) return this.parse(result, (s) => githubHooks.parseHook(s)).id;
+    if (result.exitCode === 0) return { hookId: this.parse(result, (s) => githubHooks.parseHook(s)).id, notice };
     // "Hook already exists on this repository": the one with this very address is the one to adopt
     if (errorStatus(result) === 422) {
       const same = adoptable(await list(), (h) => h.url === hook.url);
-      if (same) return this.adopt(access, same, hook);
+      if (same) return { hookId: await this.adopt(access, same, hook), notice };
     }
     // GitHub answers 404 to a token that may not manage hooks: the repository is there, the right is not
     if (reasonOf(result, call.cli) === 'not-found') throw new WebhooksError('Agentry could not register the hook: this account cannot manage hooks on the repository', 403, 'hook-no-permission', result.stderrFirstLine || null);
@@ -314,6 +360,18 @@ export class WebhooksService {
   private async adopt(access: WebhookAccess, existing: GithubHook, hook: { url: string; secret: string }): Promise<string> {
     await this.run(access, githubHooks.repoint(access.repo, existing.id, hook), 're-point the hook');
     return existing.id;
+  }
+
+  /** Reads the hook a registration points at: `mine` while its address still carries the registration's id. */
+  private async ownership(access: WebhookAccess, registration: WebhookRegistration): Promise<'mine' | 'gone' | 'foreign'> {
+    const call = githubHooks.get(access.repo, this.remoteId(registration));
+    const result = await access.run(call);
+    if (result.exitCode !== 0) {
+      if (reasonOf(result, 'gh') === 'not-found') return 'gone';
+      throw failure('read the hook', result, call);
+    }
+    const hook = this.parse(result, (s) => githubHooks.parseHook(s));
+    return hook.url !== null && urlCarries(hook.url, registration.host, registration.id) ? 'mine' : 'foreign';
   }
 
   private async readSilent(projectId: string): Promise<void> {
@@ -385,6 +443,12 @@ function unavailable(target: WebhookTarget | null, publicUrl: string | null): We
   if (!target) return 'no-remote';
   if (target.host !== 'github') return 'host-not-recorded';
   return publicUrl ? null : 'no-public-url';
+}
+
+/** What the person is told when the repository already holds an Agentry hook that is not this install's. */
+function foreignNotice(foreign: GithubHook[]): string {
+  const origins = [...new Set(foreign.map((h) => (h.url ? originOf(h.url) : null)).filter((o): o is string => o !== null))];
+  return `This repository already has an Agentry webhook made by another Agentry install${origins.length > 0 ? ` (${origins.join(', ')})` : ''}. Agentry left it alone and registered its own.`;
 }
 
 function describe(hook: GithubHook): string | null {

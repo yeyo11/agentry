@@ -9442,6 +9442,10 @@
         ],
         "description": "The host's own report of the last delivery; null until it said"
       },
+      "notice": {
+        "type": "string",
+        "description": "Only in the answer that registered it, in words for the person: another Agentry install's hook is on the repository and was left alone. Never stored."
+      },
       "createdAt": {
         "type": "string"
       },
