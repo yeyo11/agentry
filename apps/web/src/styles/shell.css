@@ -1590,6 +1590,19 @@ a.statusbar-item:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
+/* A state under the title is the mono line itself, in its tone with its icon, not a boxed badge
+   (MobileOrquestacion: "⠋ en curso") */
+.phone-head-sub .badge {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 12px;
+  letter-spacing: 0;
+  line-height: inherit;
+  text-transform: none;
+}
+
 .phone-head-actions {
   display: flex;
   align-items: center;

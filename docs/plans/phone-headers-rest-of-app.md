@@ -138,9 +138,10 @@ inputs at 16 px, "⋯" as a `Sheet`, and no new header class when an existing on
   - The schedule editor: a modal flow, "Cancelar" through the same `back` its form's own Cancel
     uses. It has no dirty-state guard today, so there is none to go through; adding one is its own
     change.
-- **The orchestration** draws `PhoneHeader` itself: its name, its state badge as the line under it,
-  and the menu the page builds behind "⋯"; relaunching joins that sheet on a phone, since the head
-  has no room for a second button.
+- **The orchestration** draws `PhoneHeader` itself: its name at 16 px (`.orch-phone-head`), its state
+  under it as the mono line in its tone (`.phone-head-sub .badge` drops the badge's box), and the
+  menu the page builds behind "⋯"; relaunching joins that sheet on a phone, since the head has no
+  room for a second button.
 - **Settings** draws `PhoneHeader` on the list (history back, fallback `/`) and on a tab (title the
   tab's name, back through `onBack`, the leave guard). `PhoneHeader`'s `back` gained `onBack`, passed
   to `BackButton`, for that. Where the page does not head itself (the desktop app at a phone width),
@@ -154,7 +155,10 @@ inputs at 16 px, "⋯" as a `Sheet`, and no new header class when an existing on
 - **Checks.** `e2e/specs/shell.spec.mjs` visits every new route at 390 px (no top bar, a 44 × 44 back
   at the top, `data-phone-header="page"`, PhoneHeader's h1), the modal flows, the Settings tab's
   back, the chat's sheet, the desktop app's class, and the same routes at 1440 px. `/projects` left
-  the "top bar stays" loop, which gained `/orchestration?new=1` and the 404 page.
+  the "top bar stays" loop, which gained `/orchestration?new=1` and the 404 page. It also visits a
+  task's changes and a schedule's editor, and reads each page once it has settled (`until`) rather
+  than right after a fixed wait, which a loaded machine outran. `a11y-shell` scans these screens at
+  phone width in the light theme as well as the dark (`scanNarrow` takes the theme).
 
 ## Related
 

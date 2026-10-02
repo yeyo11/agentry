@@ -1798,6 +1798,9 @@ Where §2 planned an app name and the app settled on another:
 - `.sheet-action-reason`: under a `MoreActions` sheet, a disabled entry's reason written out (a
   finger has no hover to read a title by); `.sheet-action-gap` keeps an unchecked toggle's label in
   line with a checked one's. A download entry stays a real link in the sheet.
+- `.phone-head-sub .badge`: a state under a phone head's title (the orchestration's) is the mono line
+  itself, in its tone and with its icon, not a boxed badge. `.orch-phone-head` names the
+  orchestration at 16 px, as MobileOrquestacion does.
 - Time follows decision 10 with the owner's rule for past moments: a relative time everywhere, and
   the bare hour ("17:44") only inside a list grouped by day, such as Team activity.
 
