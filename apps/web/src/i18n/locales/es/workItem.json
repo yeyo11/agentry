@@ -416,5 +416,29 @@
       "resolve": "No se ha podido resolver el hilo",
       "push": "No se ha podido subir el arreglo"
     }
+  },
+  "freshness": {
+    "span": {
+      "s": "{{value}} s",
+      "min": "{{value}} min",
+      "h": "{{value}} h"
+    },
+    "instant": "Al instante",
+    "byWebhook": "Por webhook · último aviso hace <t>{{ago}}</t>",
+    "onlySooner": "Un webhook solo hace que Agentry lea antes; no cambia nada.",
+    "backup": "Un webhook solo hace que Agentry lea antes. Por si falla, {{host}} se lee cada <t>{{every}}</t>: la próxima, en <t>{{next}}</t>.",
+    "checked": "Comprobada hace <t>{{ago}}</t> · la próxima, en <t>{{next}}</t>",
+    "unchecked": "Aún no se ha leído de {{host}}",
+    "reading": "Leyendo {{host}}…",
+    "previous": "La anterior fue hace <t>{{ago}}</t>.",
+    "pausedBadge": "En pausa",
+    "paused": "Las lecturas de {{host}} están en pausa · datos de hace <t>{{ago}}</t>",
+    "pausedWhy": "Actualizar sigue funcionando: es una acción tuya.",
+    "silentBadge": "Webhook sin avisos",
+    "silent": "Sin avisos desde hace <t>{{since}}</t> · comprobada hace <t>{{ago}}</t> · la próxima, en <t>{{next}}</t>",
+    "silentNever": "Aún sin avisos · comprobada hace <t>{{ago}}</t> · la próxima, en <t>{{next}}</t>",
+    "silentWhy": "Mientras tanto se lee {{host}} a ritmo normal.",
+    "seeWebhooks": "Ver los webhooks",
+    "refresh": "Actualizar"
   }
 }

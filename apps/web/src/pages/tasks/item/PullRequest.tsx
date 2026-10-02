@@ -1,8 +1,11 @@
 import type { WorkItemDetail, WorkItemPullRequest } from '@agentry/shared';
+import { useQueryClient } from '@tanstack/react-query';
 import { Check, CircleAlert, ExternalLink, GitPullRequest, Hourglass, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ICON_SM } from '@agentry/ui/components/icons';
+import { api, keys } from '../../../api';
+import { ChangeRequestFreshness } from '../../../components/ChangeRequestFreshness';
 import { notReadyReason, pullRequestErrorKey } from '../../../lib/work-items';
 import { CiBadge, NotReadyNote, reasonValues, useChangeRequestWords, useOpenPullRequest } from '../board/PullRequest';
 import { AddressReview } from './AddressReview';
@@ -66,6 +69,7 @@ function PullRequestPanel({ item }: { item: WorkItemDetail }) {
   const { t } = useTranslation(['workItem', 'tasks']);
   const { t: tt } = useTranslation('tasks');
   const open = useOpenPullRequest();
+  const queryClient = useQueryClient();
   const readiness = item.pullRequestReadiness ?? null;
   const pr = item.pullRequest ?? null;
   const words = useChangeRequestWords(pr?.host ?? readiness?.host);
@@ -194,6 +198,15 @@ function PullRequestPanel({ item }: { item: WorkItemDetail }) {
       {detail && <p className="item-wait-detail">{detail}</p>}
       {lost && <NotReadyNote readiness={readiness} />}
       {hint && <p className="small muted item-wait-hint">{hint}</p>}
+      {panel === 'merge' && pr?.phase === 'open' && pr.id && (
+        <ChangeRequestFreshness
+          changeRequestId={pr.id}
+          projectId={item.projectId}
+          host={pr.host ?? ''}
+          hostLabel={words.host}
+          onRefresh={() => api.refreshPullRequest(item.id).then((fresh) => queryClient.setQueryData<WorkItemDetail>(keys.workItem(fresh.id), (old) => (old ? { ...old, ...fresh } : old)))}
+        />
+      )}
       {(action || (panel === 'merge' && pr?.url)) && (
         <div className="item-wait-actions">
           {panel === 'merge' && pr?.url && (

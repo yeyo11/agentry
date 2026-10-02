@@ -1066,6 +1066,54 @@
   gap: 8px;
 }
 
+/* How fresh a change request is (DSWebhooks): a state badge or the spinner of a read in flight, the sentence with its numbers in mono, then Refresh. Only the spinner moves. */
+.fresh {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  width: 100%;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.fresh-state {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.fresh-text {
+  flex: 1 1 14em;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--fg-2);
+  line-height: 1.45;
+}
+
+.fresh-why {
+  color: var(--fg-3);
+}
+
+.fresh-t {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  .fresh {
+    font-size: 13px;
+    min-height: var(--touch);
+    flex-wrap: nowrap;
+  }
+
+  .fresh .btn {
+    min-height: var(--touch);
+  }
+}
+
 /* A pull request's conflicting paths and git's or gh's own line: ids and output, in mono */
 .item-wait-files {
   display: flex;

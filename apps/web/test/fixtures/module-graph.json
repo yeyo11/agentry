@@ -25,6 +25,7 @@
   "BoardColumns [BoardColumns, BoardSelection, DonePageSkeleton, MoreButton]",
   "BulkConsentDialog [BulkConsentBody, BulkConsentDialog, BulkConsentItem]",
   "BulkMode [BulkMode]",
+  "ChangeRequestFreshness [ChangeRequestFreshness]",
   "Changes [ChangesSummary, ChangesSummaryProps, ChatChangesSummary, IntegrationChangesSummary, TaskChangesSummary]",
   "Changes [Changes]",
   "ChangesReview [ChatChangesReview, IntegrationChangesReview, TaskChangesReview, WorkItemChangesReview]",
