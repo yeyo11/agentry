@@ -146,7 +146,7 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
   const summary = changes.data?.summary;
   const changed = summary ? new Set([...summary.files, ...summary.uncommitted].map((f) => f.path)).size : 0;
   const assigneeName = useAssigneeName(person)(item.assignee);
-  const { retries } = useItemRuns(item);
+  const { retries, moved } = useItemRuns(item);
 
   return (
     <div className="workitem-layout is-phone">
@@ -248,7 +248,7 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
               value: 'activity',
               label: (
                 <>
-                  {t('sections.activity')} <span className="segment-count">{item.history.length + retries.length + item.comments.length}</span>
+                  {t('sections.activity')} <span className="segment-count">{item.history.length + retries.length + moved.length + item.comments.length}</span>
                 </>
               ),
             },

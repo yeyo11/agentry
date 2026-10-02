@@ -30,7 +30,7 @@ import { lazyPage, ReloadBanner } from './components/ReloadOffer';
 import { Fab } from './components/shell/Fab';
 import { useOwnPhoneHeader, usePhoneHeaderMark } from './components/shell/PhoneHeader';
 import { LiveSection, useLive } from './components/shell/live';
-import { AccountCard, StatusBar, useConnection } from './components/shell/StatusBar';
+import { ProviderCard, StatusBar, useConnection } from './components/shell/StatusBar';
 import { useRailCollapsed } from './components/shell/rail';
 import { TopBar } from './components/shell/TopBar';
 import { isActive, NavDot, navTarget, TabBar, type NavItem } from './components/shell/TabBar';
@@ -389,7 +389,7 @@ function Shell() {
             tabs={[home, chats, orchestrations]}
             more={[tasks, projects, accounts, schedules, usage, connectors, settings]}
             start={startEntries}
-            account={<AccountCard now={now} connection={connection} />}
+            account={<ProviderCard now={now} connection={connection} />}
             connection={connectionLink}
           />
         </>

@@ -972,6 +972,8 @@ export const api = {
   /** Open waits for a reset, and the history of moves; `state` narrows them */
   providerMoves: (query: { chatId?: string; projectId?: string; state?: ProviderMove['state']; limit?: number } = {}, o: ReadOptions = {}) =>
     request<ProviderMove[]>(`/providers/moves${qs({ chatId: query.chatId, projectId: query.projectId, state: query.state, limit: query.limit === undefined ? undefined : String(query.limit) })}`, o),
+  /** Closes an open wait as cancelled: a flow run or a task that waited ends stopped */
+  cancelProviderMove: (id: string) => request<ProviderMove>(`/providers/moves/${enc(id)}/cancel`, { method: 'POST' }),
   /** Counterparts the model-map point proposed, which nothing uses until a person accepts them */
   modelMapSuggestions: (o: ReadOptions = {}) => request<ModelMapSuggestion[]>('/providers/model-map/suggestions', o),
   answerModelMapSuggestion: (id: string, accept: boolean) =>
@@ -1422,6 +1424,19 @@ export const useWorkItemRuns = (itemId: string | null, enabled = true) =>
     queryKey: keys.workItemRuns(itemId ?? ''),
     queryFn: ({ signal }) => api.workItemRuns(itemId ?? '', { signal }),
     enabled: enabled && itemId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+/**
+ * The moves to other providers of a project's work, newest first: what an item's activity reads to
+ * say that a run went on elsewhere. `providers.changed`, `run.providerMoved` and `run.limitWaiting`
+ * read it again (they share the `providers` prefix).
+ */
+export const useProviderMoves = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.providerMoves(`project:${projectId ?? ''}`),
+    queryFn: ({ signal }) => api.providerMoves({ projectId: projectId ?? '', limit: 500 }, { signal }),
+    enabled: projectId !== null,
     refetchInterval: useFallbackInterval(),
   });
 

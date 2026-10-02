@@ -4,7 +4,7 @@
  * (what counts as live, in what order, how an orchestration's progress is counted) are tested
  * without a browser.
  */
-import type { AccountUsage, ChatState, OrchestrationStatus, OrchestrationTaskStatus } from '@agentry/shared';
+import type { ChatState, OrchestrationStatus, OrchestrationTaskStatus, ProviderLimit, ProviderStatus } from '@agentry/shared';
 import { phoneHeaderOf } from '../components/shell/phone-header';
 import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
 import type { TickerActivity } from '@agentry/ui/lib/live';
@@ -219,47 +219,34 @@ export function fabFor(pathname: string, search = ''): FabPlan | null {
   return null;
 }
 
-/** A usage window as a whole percentage, for a bar and its label. */
-export interface UsageWindowReading {
-  /** The window's own name, as the CLI reports it (`five_hour`) */
-  name: string;
-  percent: number;
-  /** Epoch seconds, as the CLI reports it */
-  resetsAt: number;
+/** A provider's limit as the status bar and the phone's More card say it. */
+export interface LimitReading {
+  state: 'ok' | 'near' | 'exhausted';
+  /** Use of the binding window as a whole percentage; null when the provider reports no figure */
+  percent: number | null;
+  /** ISO time the binding window resets; null when unknown */
+  resetsAt: string | null;
+  /** The window that binds (`5h`, `7d`, `primary`) */
+  window: string | null;
 }
 
 /**
- * The 5 h and 7 d windows out of whatever the CLI reported. Per-model weekly windows
- * (`seven_day_opus`) share the prefix of the general one, so the shortest name that matches wins:
- * the bar speaks for the account, not for one model.
+ * What a provider's last limit reading says, or null when there is nothing to say: no reading, or
+ * one that is `unknown` (its reset has passed). A stale figure is silence, never "fine".
  */
-export function pickUsageWindows(windows: Record<string, { utilization: number; resetsAt: number }> | undefined): {
-  fiveHour: UsageWindowReading | null;
-  sevenDay: UsageWindowReading | null;
-} {
-  const entries = Object.entries(windows ?? {}).filter(([, w]) => Number.isFinite(w.utilization));
-  const pick = (pattern: RegExp): UsageWindowReading | null => {
-    const found = entries.filter(([name]) => pattern.test(name)).sort(([a], [b]) => a.length - b.length)[0];
-    if (!found) return null;
-    const [name, win] = found;
-    return { name, percent: Math.max(0, Math.min(100, Math.round(win.utilization * 100))), resetsAt: win.resetsAt };
-  };
-  return { fiveHour: pick(/^(five|5)[_-]?h/i), sevenDay: pick(/^(seven|7)[_-]?d/i) };
+export function limitReading(limit: ProviderLimit | null | undefined): LimitReading | null {
+  if (!limit || limit.state === 'unknown') return null;
+  const used = limit.utilization ?? (limit.window ? limit.windows[limit.window]?.utilization : undefined) ?? null;
+  const percent = used !== null && Number.isFinite(used) ? Math.max(0, Math.min(100, Math.round(used * 100))) : null;
+  return { state: limit.state, percent, resetsAt: limit.resetsAt, window: limit.window };
 }
 
 /**
- * The active account's windows as claude-swap read them, when it is installed: the more precise
- * reading, and the one Home's limits tile shows, so the status bar never disagrees with it.
+ * The provider the phone's More card speaks for: the default one when it is enabled, else the first
+ * that is ready, else the first enabled one.
  */
-export function swapUsageWindows(usage: Pick<AccountUsage, 'fiveHour' | 'sevenDay'> | null | undefined): {
-  fiveHour: UsageWindowReading | null;
-  sevenDay: UsageWindowReading | null;
-} {
-  const read = (name: string, win: AccountUsage['fiveHour']): UsageWindowReading | null =>
-    win && Number.isFinite(win.pct)
-      ? { name, percent: Math.max(0, Math.min(100, Math.round(win.pct))), resetsAt: win.resetsAt ? Math.round((Date.parse(win.resetsAt) || 0) / 1000) : 0 }
-      : null;
-  return { fiveHour: read('five_hour', usage?.fiveHour ?? null), sevenDay: read('seven_day', usage?.sevenDay ?? null) };
+export function cardProvider<P extends Pick<ProviderStatus, 'id' | 'state'>>(statuses: readonly P[], defaultProvider: string | null | undefined): P | null {
+  return statuses.find((s) => s.id === defaultProvider) ?? statuses.find((s) => s.state === 'ready') ?? statuses[0] ?? null;
 }
 
 /**

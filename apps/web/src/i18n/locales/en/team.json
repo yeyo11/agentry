@@ -357,9 +357,19 @@
       "short": "no account had quota left"
     },
     "rate-limit": {
-      "title": "The account reached its limit.",
-      "body": "Account rotation is off, so it did not switch to another. The item stays in {{column}}, unchanged.",
-      "short": "the account reached its limit"
+      "title": "Its provider reached its limit.",
+      "body": "The work could not move to another provider or wait for the reset. The item stays in {{column}}, unchanged.",
+      "short": "its provider reached its limit"
+    },
+    "no-provider": {
+      "title": "No provider could take this run.",
+      "body": "None is ready, or none can enforce what the stage allows. The item stays in {{column}}, unchanged.",
+      "short": "no provider could take it"
+    },
+    "limit-wait-expired": {
+      "title": "The wait for the limit expired.",
+      "body": "It waited for its provider's limit to reset and the reset did not come in time. The item stays in {{column}}, unchanged.",
+      "short": "the limit did not reset in time"
     },
     "stopped": {
       "title": "Its chat was stopped.",

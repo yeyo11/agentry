@@ -329,7 +329,9 @@
     "cause": {
       "budget": "it reached the cost limit per run",
       "no-account": "no account had quota left",
-      "rate-limit": "the account reached its usage limit",
+      "rate-limit": "its provider reached its usage limit",
+      "no-provider": "no provider could take it",
+      "limit-wait-expired": "the limit did not reset in time",
       "stopped": "its chat was stopped",
       "restarts": "Agentry restarted too many times",
       "unreadable": "it left no readable result",
