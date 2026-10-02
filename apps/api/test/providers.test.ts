@@ -85,6 +85,19 @@ test('settings that name an unknown provider, or a relative binary, are refused 
   assert.deepEqual((await app.inject('/api/providers/settings')).json(), before);
 });
 
+test('the rotation block is saved whole, read back and refused when out of range', async () => {
+  const rotation = { onLimit: { action: 'handoff', allowed: ['handoff', 'wait'], maxWaitHours: 12, maxMoves: 1 }, modelMap: [] };
+  const saved = await app.inject({ method: 'PUT', url: '/api/providers/settings', ...json({ rotation }) });
+  assert.equal(saved.statusCode, 200);
+  assert.deepEqual(saved.json<ProvidersSettings>().rotation, rotation);
+  assert.deepEqual(JSON.parse(readFileSync(join(root, 'data', 'providers.json'), 'utf8')).rotation, rotation);
+  assert.deepEqual((await app.inject('/api/providers/settings')).json<ProvidersSettings>().rotation, rotation);
+  const bad = await app.inject({ method: 'PUT', url: '/api/providers/settings', ...json({ rotation: { onLimit: { maxMoves: 99 } } }) });
+  assert.equal(bad.statusCode, 400);
+  assert.deepEqual((await app.inject('/api/providers/settings')).json<ProvidersSettings>().rotation, rotation);
+  await app.inject({ method: 'PUT', url: '/api/providers/settings', ...json({}) });
+});
+
 test("a chat's token can read the providers but not change the settings or force a detection", async () => {
   const created = await app.inject({ method: 'POST', url: '/api/security/token', ...json({}) });
   const { token } = created.json<{ token: string }>();
