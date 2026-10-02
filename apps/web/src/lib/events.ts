@@ -403,8 +403,8 @@ export function targetsFor(event: AgentryEvent): Target[] {
       // The event carries the whole status, which `patchSettings` writes
       return [];
     case 'webhook.changed':
-      // No screen reads webhooks yet (webhooks-web)
-      return [];
+      // The project's registrations; a delivery also moves its change requests' freshness, which their own events refresh
+      return [[keys.projectWebhooks(event.projectId), NOW]];
   }
 }
 
