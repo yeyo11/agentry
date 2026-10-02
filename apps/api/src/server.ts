@@ -52,6 +52,7 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   // Read into the guard by now. Every chat, command and check the server starts inherits
   // `process.env`, and the desktop app's secret is not theirs to hold, nor to write to a transcript
   delete process.env.AGENTRY_DESKTOP_TOKEN;
+  delete process.env.AGENTRY_SECRET_KEY;
   const app = await buildApp(core, { webDist: opts.webDist });
   for (const stray of core.runtime.strays()) {
     app.log.warn(

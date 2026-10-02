@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
 import { AppImageUpdater, DebUpdater } from 'electron-updater';
 import { IPC, isAppPath } from './ipc.ts';
 import { EMPTY_SNAPSHOT, liveWords, progressOf, sameSnapshot, type LiveSnapshot, type TrayAction } from './live.ts';
@@ -11,6 +11,7 @@ import { LogFile } from './log.ts';
 import { buildMenu } from './menu.ts';
 import { ACTION_SCHEME, errorUrl, splashUrl } from './pages.ts';
 import { missingResources, resolveResources } from './resources.ts';
+import { secretKeyFor } from './secret-key.ts';
 import { rememberedPort, rememberPort } from './server-port.ts';
 import { newDesktopSecret, ServerProcess, serverEnv } from './server-process.ts';
 import { resolveUserPath } from '@agentry/core/providers/path';
@@ -120,6 +121,7 @@ async function startServer(): Promise<void> {
           version: app.getVersion(),
           distribution,
           desktopSecret,
+          secretKey: secretKeyFor(join(userData, 'secret-key.bin'), safeStorage),
         }),
       },
       serverLog,

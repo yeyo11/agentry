@@ -17,6 +17,15 @@ const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const OPEN = new Set([`${API_PREFIX}/health`]);
 
 /**
+ * The receivers a code host delivers to. The host cannot send a bearer token; a delivery is
+ * believed by its signature (or token header), checked over the raw body inside the route. They
+ * answer to no actor, write no audit line (a delivery is not the person's change, and a host may
+ * send many) and stay open in read-only mode, since a delivery only moves a next read to now. The
+ * host allowlist still applies.
+ */
+const WEBHOOK_RECEIVER = /^\/api\/webhooks\/(?:github|gitlab)\/[^/]+$/;
+
+/**
  * `EventSource` and the browser's own GETs (an `<img src>`, a link) cannot carry an
  * `Authorization` header, so these five accept the credential as `?token=`. They are the only
  * ones: a token in a query string ends up in access logs, and a route that can be called with
@@ -165,6 +174,16 @@ const CHAT_FORBIDDEN = new Set([
   // And the trackers: the same binaries
   `PUT ${API_PREFIX}/trackers/settings`,
   `POST ${API_PREFIX}/trackers/refresh`,
+]);
+
+/**
+ * Registering a webhook puts a URL and a secret on the person's repository, and removing one stops
+ * Agentry hearing from it: the person's click, never a chat's. Reading them stays open.
+ */
+const CHAT_FORBIDDEN_WEBHOOKS = new Set([
+  `POST ${API_PREFIX}/projects/:id/webhooks`,
+  `POST ${API_PREFIX}/projects/:id/webhooks/:registrationId/test`,
+  `DELETE ${API_PREFIX}/projects/:id/webhooks/:registrationId`,
 ]);
 
 /**
@@ -388,6 +407,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
     // A CORS preflight carries no credential by definition, and answering it reveals nothing
     if (req.method === 'OPTIONS') return;
     const path = pathOf(req.url);
+    const receiver = req.method === 'POST' && WEBHOOK_RECEIVER.test(path);
     const guarded = isGuarded(path) && !OPEN.has(path);
     const mode = core.security.mode;
     // Before the credential, because an authority this wrapper does not serve is refused whether
@@ -398,6 +418,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
         error: 'this wrapper does not answer to that host. Reach it on localhost, or name the host in AGENTRY_ALLOWED_HOSTS.',
       });
       return reply;
+    }
+    if (receiver) {
+      req.actor = 'webhook';
+      return;
     }
     if (guarded && mode !== 'none') {
       // Still audited when it is a write, and as what it was: nobody we could name
@@ -461,6 +485,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
         void reply.status(403).send({ error: "a chat's token cannot post, approve, resolve or hand out a change request's review" });
         return reply;
       }
+      if (chat !== null && CHAT_FORBIDDEN_WEBHOOKS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot register, test or remove a repository's webhook: that is the person's click" });
+        return reply;
+      }
       if (chat !== null && CHAT_FORBIDDEN_TRACKERS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot import, link, unlink or sync issues, or change a project's tracker" });
         return reply;
@@ -484,6 +512,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
     if (!MUTATING.has(req.method)) return;
     const path = pathOf(req.url);
     if (!path.startsWith(`${API_PREFIX}/`)) return;
+    if (req.actor === 'webhook') return;
     core.db.appendAudit({
       at: new Date().toISOString(),
       actor: req.actor ?? 'local',

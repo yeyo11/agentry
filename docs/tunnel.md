@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T18:00:00Z
-updated_at: 2026-09-27T18:00:00Z
+updated_at: 2026-10-02T18:00:00Z
 tags:
     - tunnel
     - remote-access
@@ -149,6 +149,24 @@ once it answers, and `tunnel.changed` tells every open page.
   worker reports it to the old origin, which no longer answers. Open the current address to
   subscribe again.
 
+## Webhooks
+
+The tunnel's address is what Agentry hands a code host as the place to deliver webhooks
+([code-hosts.md](code-hosts.md#events-and-paced-polling)). Registering a GitHub hook is refused
+(`no-public-url`) until the tunnel is `active`; the hook's URL is
+`<tunnel address>/api/webhooks/github/<registration id>`.
+
+- **The address changes, the hook follows.** On every `tunnel.changed` to a new address Agentry
+  re-points the hooks it registered, by id, with no click (owner decision 2). A hook that cannot be
+  moved is marked `stale` and retried on the next address; until then polling covers the repository.
+  Closing the tunnel does not remove a hook: its deliveries fail at the host until the next
+  address, and the pacer's normal reads continue.
+- **No bearer token on the receiver.** A browser cannot sign in for a host, so the two receiver paths
+  are exempt from the token and checked by signature instead. They are the only paths where
+  the tunnel carries a request without a credential of the person's, and they cannot change state.
+- **The provider sees the deliveries**, the same as every other request through it. They carry
+  repository names and pull request titles, never the secret.
+
 ## Where it is available
 
 | Install | Default | Turn it on or off |
@@ -196,4 +214,4 @@ README's [Remote access](../README.md#remote-access) table.
 
 ## Related
 
-[[plans/tunnel.md]] · [[layered-settings.md]] · [[deploy.md]] · [[desktop.md]] · [[notifications.md]] · [[plans/mobile.md]] · [[security-model]]
+[[plans/tunnel.md]] · [[code-hosts.md]] · [[layered-settings.md]] · [[deploy.md]] · [[desktop.md]] · [[notifications.md]] · [[plans/mobile.md]] · [[security-model]]

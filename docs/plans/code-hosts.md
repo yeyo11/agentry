@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-10-02T12:00:00Z
+updated_at: 2026-10-02T15:00:00Z
 tags:
     - plan
     - git
@@ -2391,6 +2391,36 @@ updated_at)`; `webhook_deliveries (delivery_id TEXT PRIMARY KEY, registration_id
 and the two receivers (tag `Webhooks`, documented as unauthenticated and signature-checked). Chat
 tokens: 403 on the three writes. Event `webhook.changed`.
 
+### Recorded by `w0` (2026-10-02), GitHub half
+
+`w0` was run for GitHub on a new private scratch repository, through a scratch receiver behind a
+`localhost.run` tunnel (a real delivery, signed by GitHub, reaching a process of ours); both were
+stopped and the hook deleted. 26 captures per `gh` version are in
+`packages/core/test/fixtures/recordings/gh/` (`hook_*`, with the tunnel's name replaced by a
+placeholder). The GitLab half is **not recorded**: `glab`'s token had stopped working (HTTP 401 on
+every call, a signed-out CLI), and signing in to the owner's account is the owner's.
+
+1. **G1 on GitHub works with `--input -`**, the secret on stdin: the answer carries the hook's `id`
+   and `"secret":"********"`, so the secret is never read back.
+2. **A delivery's signature is exactly G5**: `x-hub-signature-256` = `sha256=` + HMAC-SHA256 of the
+   raw body bytes with the secret (verified against a real `ping`, 7 045 bytes); GitHub also sends
+   `x-hub-signature` (SHA-1), `x-github-delivery`, `x-github-event`, `x-github-hook-id` and
+   `x-github-hook-installation-target-type`. A delivery arrives within a second of the `ping` call.
+3. **G7 works on 2.92.0 and 2.102.0**: `PATCH repos/<repo>/hooks/<id>/config --input -` with
+   `{url, content_type, secret, insecure_ssl}` answers the config with the secret masked, a re-read
+   shows the new URL, and the next ping goes there; `last_response` reads `{"code":204,"status":"active"}`.
+4. **G4 listing works with the `repo` scope; redelivery does not.** `POST .../deliveries/<id>/attempts`
+   exits 1 with "This API operation needs the `admin:repo_hook` scope". Agentry therefore offers no
+   redelivery on GitHub unless the scope is there, and says why. The delivery `id` is a 64-bit
+   integer: read it as a string.
+5. **G3** is as planned: the first delete is empty with exit 0, the second is `Not Found (HTTP 404)`,
+   and the repository's hook list is `[]`.
+
+**Still to record, and the owner's:** the GitLab half of `w0` (G1 with `--input` and a token, the
+signing token and a `webhook-signature` delivery, G7 by `PUT`, resend), which needs `glab` signed in
+again; until then GitLab hooks are registered with the legacy token only and a URL change marks the
+hook stale, as "What is still not recorded" says.
+
 ### P0 · `webhooks-prototypes`
 
 Generator `webhooks.py`.
@@ -2401,6 +2431,12 @@ Generator `webhooks.py`.
 - `w-p2` **how fresh a change request is** on the item page: "live" (webhook) or "checked 40 s ago
   · next in 2 min" (`DSWebhooks.html`).
 - Check: `lint.py`, `check.mjs`; the owner validates.
+
+P0 was built by `webhooks-prototypes` (2 tasks, 13.77 USD; 14 screens, `lint.py` and `check.mjs`
+clean) and validated on 2026-10-02 by delegation, from the screenshots: Integrations → Webhooks has
+one gradient surface (the section's border) beside the top bar's New chat, GitLab rows say "not
+available yet" with their reason and no action, and there is no redelivery on GitHub. The sample
+repositories use example names.
 
 ### P1 · `webhooks-core`
 
@@ -2426,6 +2462,72 @@ Generator `webhooks.py`.
 
 - `wu0` model; `wu1` Integrations webhooks section; `wu2` the freshness line on the item page; `wu3`
   e2e (`e2e/specs/webhooks.spec.mjs`, the receiver with a signed fake delivery), written, not run.
+
+## Outcome of phase 6, step 1 (2026-10-02)
+
+Built on `feat/code-hosts-webhooks`: the pacer for both hosts, the GitHub and GitLab receivers, and
+GitHub hook registration, test, removal and re-pointing. The reference is
+[code-hosts.md](code-hosts.md#events-and-paced-polling).
+
+- **One secret store.** The receiver and the registration service were built apart with two stores;
+  the merge kept one, `hosts/webhook-secrets.ts` (`webhook-secrets.json`, mode 0600), read through
+  `core.webhookSecrets`.
+- **The public origin is only the tunnel's address.** No configured public origin exists, so
+  registering without an active tunnel fails with `no-public-url`.
+- **GitLab:** the receiver (`X-Gitlab-Token`) and the pacer use are built. Registering, testing,
+  removing and re-pointing a GitLab hook, the signing token and resend are not, because the GitLab
+  half of `w0` is not recorded; the service reports `host-not-recorded`.
+- **GitHub redelivery** is not offered (`admin:repo_hook`, recorded); `canRedeliver` is false.
+- **Not wired yet:** the pacer's `mergeWaiting` signal and `ChangeRequest.freshness`.
+- **Left for the next steps:** the project routes and README rows (`w6`), the web screens (P2), and
+  the GitLab half of `w0`.
+
+### Outcome of the phase 6 core audit, receivers and secrets (2026-10-02)
+
+- **Secrets as decision 3 says.** `secret-box.ts` seals each value with the key the desktop app keeps
+  under `safeStorage` and passes in `AGENTRY_SECRET_KEY`; a server has no key and stays plain at
+  0600. The safeStorage API lives only in Electron's main process and the server runs beside it, so
+  the app hands over a key rather than a keyring. A plain file is encrypted at start. Only the
+  webhook secrets use the box so far.
+- **Replays.** A verified body is remembered for an hour by its SHA-256, so a replay under a new id
+  or none is a duplicate; a delivery without an id nudges but never marks a hook healthy.
+- **Refused before the body.** The route checks the registration in `onRequest`.
+- **`secretOf` removed.** Nothing called it; the receiver reads `core.webhookSecrets`.
+- **Checked, no gap:** the README has a row for each of the six webhook routes, the OpenAPI schemas
+  do not drift, and the webhook service holds no timer for shutdown to stop.
+
+## Outcome of phase 6, step 1 (2026-10-02)
+
+Phase 6 is built on `feat/code-hosts-webhooks` for the **pacer** (both hosts), the **receivers**
+(GitHub's signature and GitLab's token) and **registration, test and removal for GitHub**. The GitLab
+half of `w0` was not recorded (`glab` was signed out, which is the owner's), so GitLab hooks are shown
+as "not available yet" and no `glab` call was invented for them.
+
+- **`w0`, GitHub half**: a real signed ping through a scratch receiver behind a tunnel; the
+  signature is G5 exactly; `--input -` and G7 work on 2.92.0 and 2.102.0; redelivery needs a scope the
+  CLI does not have (see "Recorded by `w0`").
+- **P0 `webhooks-prototypes`** (2 tasks, 13.77 USD), **P1 `webhooks-core`** (7 tasks, 23.74 USD),
+  **`webhooks-fix`** (3 tasks, 9.88 USD) after an independent audit, **P2 `webhooks-web`**
+  (4 tasks, 20.33 USD).
+
+What the audit and the e2e spec nobody had run found, all fixed:
+
+- **A hook could be taken from another install.** Registering adopted any hook whose path looked
+  like Agentry's, so a desktop app and a dev server on one repository took each other's hook, gave it
+  their own secret and flipped it for ever. A hook is adopted only if it carries this install's own
+  registration id; two clicks at once register once; the hook list is paginated.
+- **A storm of deliveries could override a failing host's back-off**, and orchestration change
+  requests had no back-off and no host floor at all. A failing host keeps its back-off whatever the
+  nudges say, and both paths share the pacer's outcome contract.
+- **A replayed delivery made a broken hook look healthy**: GitHub does not sign the delivery id and a
+  tunnel sees the bodies. Deliveries are also deduplicated on the signed body, and one with no id
+  never marks a hook healthy. An unknown registration is refused before its body is read.
+- **The secret was stored plain in the desktop app** against decision 3: it is sealed there.
+- **The dark theme's destructive button read 2.6:1** (`--on-bad` was white on a light red); it is
+  dark ink now (7.5:1), and the register dialog's scrolling body takes the focus.
+
+**Open:** the GitLab half of `w0` and, after it, GitLab registration, test, removal, re-pointing and
+the signing token (the owner signs `glab` in again).
 
 ## Jira and YouTrack: documented facts
 

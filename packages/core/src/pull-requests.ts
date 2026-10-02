@@ -62,6 +62,7 @@ import { githubAdapter } from './hosts/github/adapter.ts';
 import { gitlabAdapter } from './hosts/gitlab/adapter.ts';
 import { HostRateLimiter } from './hosts/rate-limit.ts';
 import { projectReadiness } from './hosts/readiness.ts';
+import { Pacer, type PaceInput, type PaceOutcome } from './hosts/pacer.ts';
 import { firstLine } from './hosts/redact.ts';
 import { CodeHostRegistry } from './hosts/registry.ts';
 import { parseRemote } from './hosts/remote.ts';
@@ -81,9 +82,10 @@ import type { WorkItemService } from './work-items.ts';
  * request, as `Orchestrator.pullRequest()` does. No flow run ever pushes; `stageRules` denies it to
  * every stage, the run that resolves a conflict included.
  *
- * GitHub cannot push events to a local CLI, so the watcher is the one deliberate poll in the work
- * item automation: every 60 s, one PR at a time, backing off to 5 min for a project whose host CLI
- * failed. Several wrapper processes share the database, so a PR's check is claimed and its outcome
+ * A host cannot reach a local CLI by itself, so the watcher is the one deliberate poll in the work
+ * item automation: one PR at a time, each on the schedule the pacer (`hosts/pacer.ts`) gives it
+ * (30 s while checks run, 2 min waiting, 15 min under a healthy webhook, stepping up after a
+ * failure). Several wrapper processes share the database, so a PR's check is claimed and its outcome
  * written with guarded updates, and a merge is handled once.
  */
 
@@ -100,7 +102,8 @@ export class PullRequestError extends WorkItemError {
 
 /** How long a project's readiness is trusted: the host's auth probe must not run on every board read */
 const READINESS_TTL = 60_000;
-export const WATCH_INTERVAL = 60_000;
+/** How often the watcher asks the pacer which rows are due; the pacer's tiers decide the rest */
+export const WATCH_PASS_MS = 5_000;
 export const WATCH_BACKOFF = 5 * 60_000;
 /** A check claimed longer ago than this was dropped by a process that died: another may take it */
 const CLAIM_TTL = 2 * 60_000;
@@ -394,8 +397,6 @@ export class PullRequestService {
   private readonly runHost: HostRun;
   private readonly readinessCache = new Map<string, { until: number; value: Promise<PullRequestReadiness> }>();
   private readonly originCache = new Map<string, OriginPath>();
-  /** Projects whose host CLI failed, and until when the watcher leaves them alone */
-  private readonly backoff = new Map<string, number>();
   private readonly pending = new Set<Promise<void>>();
   private readonly hostFacts: HostFactsCache;
   /** Fixes being pushed now, so that a double click pushes once */
@@ -1215,14 +1216,15 @@ export class PullRequestService {
 
   /**
    * Asks the host about one open PR and writes what changed. `force` is a person's refresh, which does not
-   * wait out a project's back-off. Only a change reaches the feed.
+   * wait out the host's floor (background polling pauses under it). Only a change reaches the feed. The
+   * answer tells the pacer how it went: a read, a failure, held back by the floor, or not sent for another reason.
    */
-  async check(rowId: string, force = false): Promise<void> {
+  async check(rowId: string, force = false): Promise<PaceOutcome> {
     const row = this.rowById(rowId);
-    if (!row || row.phase !== 'open' || row.number === null) return;
-    if (!force && (this.backoff.get(row.project_id) ?? 0) > this.now()) return;
+    if (!row || row.phase !== 'open' || row.number === null) return 'skipped';
+    if (!force && this.belowFloor(row)) return 'paused';
     const project = this.deps.project(row.project_id);
-    if (!project || !existsSync(project.path)) return;
+    if (!project || !existsSync(project.path)) return 'skipped';
     const now = this.now();
     let claimed = false;
     this.write(() => {
@@ -1231,7 +1233,7 @@ export class PullRequestService {
           .prepare("UPDATE work_item_pull_requests SET claimed_until = ? WHERE id = ? AND phase = 'open' AND (claimed_until IS NULL OR claimed_until < ?)")
           .run(new Date(now + CLAIM_TTL).toISOString(), row.id, new Date(now).toISOString()).changes === 1;
     });
-    if (!claimed) return;
+    if (!claimed) return 'skipped';
     let view: ChangeRequestView;
     let read: ChangeRequestRead | null = null;
     try {
@@ -1248,11 +1250,9 @@ export class PullRequestService {
         if (out.exitCode !== 0) throw new Error(failureOf(out));
         view = target.adapter.parseView(out.stdout);
       }
-      this.backoff.delete(row.project_id);
     } catch {
-      this.backoff.set(row.project_id, this.now() + WATCH_BACKOFF);
       this.update(row.id, { claimed_until: null });
-      return;
+      return 'failed';
     }
     const at = new Date(this.now()).toISOString();
     const ci = view.ci;
@@ -1261,15 +1261,23 @@ export class PullRequestService {
       const mergedAt = view.mergedAt || at;
       // Guarded on the phase: of two processes, only the one whose update lands handles the merge
       if (this.update(row.id, { phase: 'merged', ci, url, closed_at: mergedAt, checked_at: at, claimed_until: null }, ['open'])) await this.merged({ ...row, url }, project.path);
-      return;
+      return 'read';
     }
     if (view.state === 'closed') {
       if (this.update(row.id, { phase: 'closed', ci, url, closed_at: at, checked_at: at, claimed_until: null }, ['open'])) this.closed({ ...row, url });
-      return;
+      return 'read';
     }
     this.update(row.id, { ci, url, checked_at: at, claimed_until: null }, ['open']);
     if (ci !== row.ci || url !== row.url) this.changed(row.item_id, null, SYSTEM, null);
     this.announceFailing(row, ci, read?.headSha ?? null);
+    return 'read';
+  }
+
+  /** The host's floor: under it, background polling stays away and only a person's own action goes through. */
+  private belowFloor(row: PullRequestRow): boolean {
+    if (!row.hostname) return false;
+    const gitlab = row.host === 'gitlab';
+    return (gitlab ? (['core'] as const) : (['core', 'graphql'] as const)).some((bucket) => this.breaker.backgroundPaused(row.hostname ?? '', bucket, gitlab ? 'glab' : 'gh'));
   }
 
   /**
@@ -1442,33 +1450,63 @@ function emptyRow(id: string, itemId: string, projectId: string, branch: string,
   };
 }
 
+/** What the pacer needs of a row; the services' own rows have all of it. */
+export interface WatchRow {
+  id: string;
+  ci?: string | null;
+  checked_at?: string | null;
+  opened_at?: string | null;
+  created_at?: string;
+  url?: string | null;
+}
+
 /** What the watcher polls: rows to check, and the check that claims one and writes its outcome. */
 export interface WatchSource {
-  openRows(): ReadonlyArray<{ id: string }>;
-  check(rowId: string, force?: boolean): Promise<void>;
+  openRows(): ReadonlyArray<WatchRow>;
+  /** A source that cannot tell how the read went answers nothing, which counts as a read */
+  check(rowId: string, force?: boolean): Promise<PaceOutcome | void>;
+}
+
+/** What the pacer cannot read off a row: set by whoever knows (the webhook store, the merge service). */
+export interface WatchSignals {
+  /** A healthy webhook covers this row's repository */
+  webhookHealthy?: (row: WatchRow) => boolean;
+  /** A merge on this row waits on its pipeline */
+  mergeWaiting?: (row: WatchRow) => boolean;
+}
+
+export interface WatcherOptions {
+  /** How often the pacer is asked what is due */
+  interval?: number;
+  pacer?: Pacer;
+  signals?: WatchSignals;
 }
 
 /**
- * Asks the host about every open change request of its sources, one at a time: every 60 s, once on
- * start, and on a person's refresh. The one deliberate poll of the work item automation, since a
- * host cannot reach a local CLI. A source is the work items' PRs now; the orchestrations' join them.
+ * Asks the host about the open change requests of its sources, one at a time, each when the pacer
+ * says it is due: on start, then every pass for the rows whose time has come, and at once for a
+ * row a webhook delivery named (`nudge`) or whose page is open (`view`). A source is the work
+ * items' PRs now; the orchestrations' join them.
  */
 export class PullRequestWatcher {
   private timer: NodeJS.Timeout | null = null;
   private running: Promise<void> | null = null;
   private readonly sources: readonly WatchSource[];
+  private readonly interval: number;
+  readonly pacer: Pacer;
+  private readonly signals: WatchSignals;
 
-  constructor(
-    sources: WatchSource | readonly WatchSource[],
-    private readonly interval = WATCH_INTERVAL,
-  ) {
+  constructor(sources: WatchSource | readonly WatchSource[], options: WatcherOptions = {}) {
     this.sources = 'openRows' in sources ? [sources] : sources;
+    this.interval = options.interval ?? WATCH_PASS_MS;
+    this.pacer = options.pacer ?? new Pacer();
+    this.signals = options.signals ?? {};
   }
 
   start(): void {
     if (this.timer) return;
     void this.tick();
-    this.timer = setInterval(() => void this.tick(), this.interval);
+    this.timer = setInterval(() => void this.pass(), this.interval);
     this.timer.unref();
   }
 
@@ -1477,20 +1515,65 @@ export class PullRequestWatcher {
     this.timer = null;
   }
 
-  /** One pass over the open rows of every source; a pass still going is not started twice. */
+  /** A webhook delivery named this change request: it is read on the next pass. The delivery changes nothing else. */
+  nudge(rowId: string): void {
+    this.pacer.nudge(rowId);
+  }
+
+  /** The change request's page is open in a browser */
+  view(rowId: string): void {
+    this.pacer.view(rowId);
+  }
+
+  private inputOf(row: WatchRow): PaceInput {
+    const at = (value: string | null | undefined): number | null => {
+      const parsed = value ? Date.parse(value) : NaN;
+      return Number.isNaN(parsed) ? null : parsed;
+    };
+    return {
+      checkedAt: at(row.checked_at),
+      ci: row.ci ?? null,
+      signature: `${row.ci ?? ''}|${row.url ?? ''}`,
+      since: at(row.opened_at) ?? at(row.created_at) ?? Date.now(),
+      webhookHealthy: this.signals.webhookHealthy?.(row) ?? false,
+      mergeWaiting: this.signals.mergeWaiting?.(row) ?? false,
+    };
+  }
+
+  /** One pass over every open row of every source, due or not; a pass still going is not started twice. */
   tick(): Promise<void> {
+    return this.run(false);
+  }
+
+  /** One pass over the rows the pacer says are due. */
+  pass(): Promise<void> {
+    return this.run(true);
+  }
+
+  private run(dueOnly: boolean): Promise<void> {
     if (this.running) return this.running;
-    this.running = (async () => {
+    const pass = (async () => {
       try {
+        const open = new Set<string>();
         for (const source of this.sources) {
-          for (const row of source.openRows()) await source.check(row.id).catch(() => undefined);
+          for (const row of source.openRows()) {
+            open.add(row.id);
+            const input = this.inputOf(row);
+            if (dueOnly && !this.pacer.isDue(row.id, input)) continue;
+            this.pacer.begin(row.id, input);
+            const outcome = await source.check(row.id).catch((): PaceOutcome => 'failed');
+            this.pacer.settle(row.id, outcome ?? 'read');
+          }
         }
+        this.pacer.retain(open);
       } catch {
         // a closed database (shutting down)
-      } finally {
-        this.running = null;
       }
     })();
+    // Cleared after the assignment: a pass with nothing due finishes before it, and would leave this set for good
+    this.running = pass.finally(() => {
+      this.running = null;
+    });
     return this.running;
   }
 }

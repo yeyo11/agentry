@@ -755,6 +755,17 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 .pr-row .pr-num { font-family: var(--mono); font-weight: 500; color: var(--fg); font-variant-numeric: tabular-nums; }
 .pr-row .pr-branch { flex: 1 1 auto; min-width: 0; font-family: var(--mono); color: var(--fg-2); overflow-wrap: anywhere; }
 .m-screen .pr-row { min-height: var(--touch); font-size: 13px; }
+/* Freshness of a change request (code hosts, phase 6): the last row of the panel of a PR or MR. A state badge
+   (ok "Al instante", warn for a silent webhook, a failing read or a pause) or the braille spinner while a
+   read is in flight, then the sentence with its numbers in mono, then Actualizar. A plain read has no badge.
+   Nothing animates but the spinner, which belongs to a live read. */
+.fresh { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; width: 100%; font-size: 12px; color: var(--fg-3); }
+.fresh-state { display: inline-flex; align-items: center; flex-shrink: 0; }
+.fresh-text { flex: 1 1 14em; min-width: 0; display: flex; flex-direction: column; gap: 2px; color: var(--fg-2); line-height: 1.45; }
+.fresh-why { color: var(--fg-3); }
+.fresh-t { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.m-screen .fresh { font-size: 13px; min-height: var(--touch); flex-wrap: nowrap; }
+.m-screen .fresh-state { align-self: flex-start; padding-top: 12px; }
 /* Diffstat without status colours: added lines in --fg-2, removed ones in --line-3. */
 .diffstat { display: inline-flex; gap: 1.5px; }
 .diffstat > i { display: block; width: 6px; height: 6px; border-radius: var(--r-xs); background: var(--bg-4); }
@@ -1561,6 +1572,17 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
 .m-screen .callout-warn > span { flex: 1 1 0; min-width: 0; }
 .m-screen .callout-warn > .btn { flex: 1 1 100%; }
 /* ---------- end of The project's tracker ---------- */
+/* ---------- Integrations → Webhooks (plans/code-hosts.md, phase 6, P0 w-p1): the rows are the providers' (.prov-row.compact, .prov-cell). New: the public origin strip, the facts under a reason and the list of events the register dialog shows. ---------- */
+.hook-origin { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 12px 18px; border-bottom: 1px solid var(--line); background: var(--bg-1); font-size: 13px; color: var(--fg-2); }
+.hook-origin .url { font-family: var(--mono); font-size: 12.5px; color: var(--fg); overflow-wrap: anywhere; }
+.hook-origin.none { background: var(--warn-soft); border-bottom-color: transparent; }
+.hook-facts { display: flex; flex-direction: column; gap: 2px; font-family: var(--mono); font-size: 11.5px; line-height: 1.5; color: var(--fg-3); overflow-wrap: anywhere; }
+.hook-facts b { font-weight: 500; color: var(--fg-2); }
+.hook-events { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 20px; }
+.hook-events li { display: flex; flex-direction: column; gap: 1px; min-width: 0; font-size: 12.5px; line-height: 1.4; color: var(--fg-2); }
+.hook-events .mono { font-size: 12px; color: var(--fg); }
+.m-screen .hook-events { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.m-screen .hook-origin { padding: 12px 14px; }
 /* ---------- Review threads in the diff (plans/code-hosts.md, phase 3, P0 r-p1): a thread is a card under its line, never a new diff. Open waits for the person (idle), resolved is ok and folds, outdated is neutral and carries the comment's own hunk; a draft note is dashed until the review is sent. Nothing here is live and nothing takes the gradient except the composer's one action. ---------- */
 .dv { --rt-indent: calc(var(--dv-num) + 21px); }
 .dv-uni { --rt-indent: 103px; }

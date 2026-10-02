@@ -136,6 +136,10 @@ import { ChecksService } from './hosts/checks-service.ts';
 import { MergeService, type MergeTarget } from './hosts/merge-service.ts';
 import { mergeTargetOf } from './hosts/merge-target.ts';
 import { ReviewsService } from './hosts/reviews-service.ts';
+import { WebhookStore } from './webhook-store.ts';
+import { WebhookSecrets } from './hosts/webhook-secrets.ts';
+import { WebhookReceiver } from './hosts/webhook-receiver.ts';
+import { WebhooksService } from './hosts/webhooks-service.ts';
 import { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
 import { codeHostAdapter, PullRequestService, PullRequestWatcher, type ApproveResult } from './pull-requests.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
@@ -259,6 +263,7 @@ export {
 } from './pull-requests.ts';
 export { ChangeRequestError, type ChangeRequestFix } from './change-requests.ts';
 export { TrackerError, quotedSource } from './trackers/import.ts';
+export { WebhooksError } from './hosts/webhooks-service.ts';
 export { MergeError, type MergeOutcome, type UpdateOutcome } from './hosts/merge-service.ts';
 export { OrchestrationPullRequestError, OrchestrationPullRequestService, type OpenedPullRequest } from './orchestration-pull-requests.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
@@ -421,6 +426,13 @@ export class Core {
   /** The checks of a change request: the head commit's list, log tails, re-runs and cancels */
   readonly checks: ChecksService;
   readonly reviews: ReviewsService;
+  readonly webhooks: WebhookStore;
+  /** The 0600 files that hold each registration's signing secret; never returned by the API */
+  readonly webhookSecrets: WebhookSecrets;
+  /** What `POST /webhooks/:host/:registrationId` calls: verify, dedupe, then move the named rows' next read to now */
+  readonly webhookReceiver: WebhookReceiver;
+  /** Registers, tests, removes and re-points the hooks Agentry keeps on a repository; the receiver reads their secrets from `webhookSecrets` itself */
+  readonly webhookService: WebhooksService;
   /** Merge, auto-merge and update from the base of a change request: the person's click, never a run */
   readonly merge: MergeService;
   /** `/change-requests/:id/…`: a row id of either table, resolved to the service that owns it */
@@ -707,6 +719,15 @@ export class Core {
       decisions: this.decisions,
     });
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
+    this.webhooks = new WebhookStore(this.db.connection);
+    this.webhookSecrets = new WebhookSecrets(config);
+    this.webhookReceiver = new WebhookReceiver({
+      store: this.webhooks,
+      secrets: this.webhookSecrets,
+      sql: this.db.connection,
+      nudge: (ids) => this.nudgeChangeRequests(ids),
+      emit: (event) => this.events.emit(event),
+    });
     this.reviews = new ReviewsService({ db: this.db.connection, resolve: (id) => this.changeRequests.reviewsTarget(id), emit: (event) => this.events.emit(event) });
     this.merge = new MergeService({
       db: this.db.connection,
@@ -790,9 +811,33 @@ export class Core {
       orchestration: (id) => this.orchestrator.get(id),
       itemAccess: (itemId, access) => this.workItemAccess(itemId, access),
       triage: new ReviewTriage({ decisions: this.decisions }),
+      viewed: (id) => this.pullRequestWatcher.view(id),
     });
     this.orchestrator.pullRequests = this.orchestrationPullRequests;
-    this.pullRequestWatcher = new PullRequestWatcher([this.pullRequests, this.orchestrationPullRequests]);
+    this.webhookService = new WebhooksService({
+      store: this.webhooks,
+      secrets: this.webhookSecrets,
+      target: async (projectId) => {
+        const record = this.projectStore.get(projectId);
+        if (!record) return null;
+        const { readiness, remote } = await this.pullRequests.codeHost(record.path);
+        return readiness.host && remote ? { host: readiness.host, hostname: remote.hostname, repoPath: remote.path } : null;
+      },
+      access: (projectId) => {
+        const record = this.projectStore.get(projectId);
+        if (!record) throw new Error('no such project');
+        return this.pullRequests.hostAccess(record.path);
+      },
+      publicUrl: () => {
+        const tunnel = this.tunnel.status();
+        return tunnel.state === 'active' ? tunnel.url : null;
+      },
+      emit: (event) => this.events.emit(event),
+    });
+    // A tunnel that comes up on a new address takes the registered hooks with it (decision 2)
+    this.events.observe((event) => this.webhookService.observe(event));
+    // A healthy hook for a repository lets the pacer read its rows every 15 minutes instead of every two
+    this.pullRequestWatcher = new PullRequestWatcher([this.pullRequests, this.orchestrationPullRequests], { signals: { webhookHealthy: (row) => this.webhookService.covers(row.url) } });
     this.events.observe((event) => this.pullRequests.observe(event));
     this.flow = new FlowService({
       db: this.db,
@@ -2138,6 +2183,11 @@ export class Core {
   async approveWorkItem(itemId: string): Promise<ApproveResult> {
     await this.workItemAccess(itemId, 'write');
     return this.pullRequests.approve(itemId);
+  }
+
+  /** A webhook delivery named these change requests: each is read on the pacer's next pass. Nothing else changes. */
+  nudgeChangeRequests(ids: readonly string[]): void {
+    for (const id of ids) this.pullRequestWatcher.nudge(id);
   }
 
   /** `POST /work-items/:itemId/pull-request/refresh`: asks the host about the item's open PR now. */

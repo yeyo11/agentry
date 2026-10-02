@@ -29,6 +29,7 @@ import { followedStep, layerTasks, orchestrationSteps, type OrchestrationStep } 
 import { pullRequestErrorKey } from '../lib/work-items';
 import { CiBadge, reasonValues, useChangeRequestWords } from './tasks/board/PullRequest';
 import { canRelaunch, checksShown, pullRequestHeld, rerunBlockedByPullRequest } from '../lib/orchestration-v2';
+import { ChangeRequestFreshness } from '../components/ChangeRequestFreshness';
 import { OrchestrationChecks } from '../components/OrchestrationChecks';
 import { OrchestrationMerge, headGradients, useOrchestrationLead } from '../components/OrchestrationMerge';
 import type { StepState } from '@agentry/ui/lib/progress';
@@ -182,6 +183,7 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
             </div>
           )}
           {pr?.phase === 'open' && <p className="muted small">{t('config:detail.prFollows', { noun: words.noun, host: words.host })}</p>}
+          {pr?.phase === 'open' && pr.id && <ChangeRequestFreshness changeRequestId={pr.id} projectId={project?.id} host={pr.host} hostLabel={words.host} />}
           {checksShown(pr) && <OrchestrationChecks orch={orch} pr={pr} words={words} />}
           {pr?.phase === 'open' && pr.id && <OrchestrationMerge orch={orch} pr={pr} words={words} />}
           {pr?.phase === 'failed' && pr.error && (

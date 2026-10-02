@@ -35,6 +35,8 @@ export interface ServerEnvOptions {
   version: string;
   distribution: string | undefined;
   desktopSecret: string;
+  /** The key for the server's secret files, from `secretKeyFor`; null when the keyring is not there */
+  secretKey?: string | null;
 }
 
 export function serverEnv(opts: ServerEnvOptions): NodeJS.ProcessEnv {
@@ -52,6 +54,8 @@ export function serverEnv(opts: ServerEnvOptions): NodeJS.ProcessEnv {
     // The UI offers the install that fits: this app's own updater, or instructions
     ...(opts.distribution ? { AGENTRY_DISTRIBUTION: opts.distribution } : {}),
     AGENTRY_DESKTOP_TOKEN: opts.desktopSecret,
+    // Never inherited from the person's environment: only the keyring's key, or none at all
+    AGENTRY_SECRET_KEY: opts.secretKey ?? undefined,
     // The desktop is not a sandbox: AGENTRY_DEFAULT_PERMISSION_MODE stays unset (core default: acceptEdits)
   };
 }

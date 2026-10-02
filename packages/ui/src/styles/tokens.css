@@ -54,7 +54,8 @@
   --brand-opencode: #000000;
   --brand-codex: #000000;
   --on-warn: #1a1204;
-  --on-bad: #ffffff;
+  /* The dark theme's red is a light one: white on it reads 2.6:1, the dark ink reads above 8:1 */
+  --on-bad: #1a0708;
 
   /* Status: reserved, one meaning each */
   --ok: #4ade9a;
@@ -244,6 +245,7 @@
   --warn: #854d0e;
   --warn-soft: rgba(161, 98, 7, 0.11);
   --bad: #b91c1c;
+  --on-bad: #ffffff;
   --bad-soft: rgba(185, 28, 28, 0.09);
   --info: #1d4ed8;
   --info-soft: rgba(29, 78, 216, 0.09);
@@ -304,6 +306,7 @@
     --warn: #854d0e;
     --warn-soft: rgba(161, 98, 7, 0.11);
     --bad: #b91c1c;
+    --on-bad: #ffffff;
     --bad-soft: rgba(185, 28, 28, 0.09);
     --info: #1d4ed8;
     --info-soft: rgba(29, 78, 216, 0.09);

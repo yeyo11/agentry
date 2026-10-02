@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-01T09:00:00Z
-updated_at: 2026-10-02T12:00:00Z
+updated_at: 2026-10-02T18:00:00Z
 tags:
     - code-hosts
     - pull-request
@@ -11,6 +11,8 @@ tags:
     - logs
     - reviews
     - merge
+    - webhooks
+    - pacer
 ---
 # Code hosts
 
@@ -31,7 +33,7 @@ agent), described in [Reviews](#reviews); its routes and screens come with the t
 Phase 4 is built in `packages/core` and the contract (the merge state and its blockers, Merge,
 Auto-merge, Update from base, the GitLab pipeline guard, auto-merge turned off before Agentry
 pushes, the audit), described in [Merging](#merging); its routes and screens come with the tasks
-that own them. Trackers (GitHub and GitLab Issues) are described in [trackers.md](trackers.md); webhooks are a later phase and not described here as if they existed.
+that own them. Trackers (GitHub and GitLab Issues) are described in [trackers.md](trackers.md); phase 6, the pacer and webhooks, is described in [Events and paced polling](#events-and-paced-polling).
 
 In shared types and in this document "pull request" means a PR or an MR: the host decides the word
 (`#12` on GitHub, `!12` on GitLab).
@@ -734,6 +736,125 @@ for the disarm before a push), `outcome` (`requested`, `merged`, `armed`, `disar
   `hosts-merge-service.test.ts` replays both hosts, with golden logs under `golden/phase4/`.
 - The registry test fails when two manifests share an id, a CLI or a default host.
 
+## Events and paced polling
+
+Phase 6 (step 1) replaces the fixed 60 s watch with a pacer and lets GitHub and GitLab tell Agentry
+that something changed. The reasons are in [plans/code-hosts.md](plans/code-hosts.md#phase-6-webhooks-and-paced-polling);
+the public address a hook delivers to is the tunnel's ([tunnel.md](tunnel.md#webhooks)), and
+[deploy.md](deploy.md#webhooks-and-the-public-address) says what a deployment must expose.
+
+**A delivery never changes state by itself.** It only moves the next read of the change requests it
+names to now; the read through the CLI is what updates a row. A forged or replayed delivery can
+therefore cost one read, never a wrong state.
+
+### The pacer
+
+`hosts/pacer.ts` gives every open change request its next read, for both hosts. The constants are
+exported and a test asserts them.
+
+| Tier | Interval | When |
+| --- | --- | --- |
+| viewing | 20 s | its page is open in a browser (the claim lasts 60 s after the last view) |
+| active | 30 s | checks running, or a merge waiting on a pipeline |
+| waiting | 2 min | open, waiting for review or merge |
+| quiet | 10 min | unchanged for an hour |
+| webhook | 15 min | a healthy hook covers its repository, as a safety net |
+| failure | 1, 2, 4, 8, then 15 min | each failure in a row |
+
+A hook is *healthy* when a delivery or a successful ping arrived in the last 30 minutes
+(`WEBHOOK_HEALTHY_MS`). The signal is `core.webhookService.covers(url)`, passed to
+`PullRequestWatcher` as `signals.webhookHealthy`; a merge waiting on a pipeline is not signalled
+yet, so that tier is not applied. While a host's breaker is open, background reads are paused and
+the row is looked at again after a minute. The four-per-CLI cap and the per-row claim still hold.
+
+### Receivers
+
+`POST /api/webhooks/github/:registrationId` and `POST /api/webhooks/gitlab/:registrationId`, in
+`apps/api/src/routes/webhooks.ts`, tag `Webhooks`. They are mounted under `/api`, so the address
+registered on a host is `<public origin>/api/webhooks/<host>/<registrationId>`.
+
+- **No bearer token, no audit row, and they work in read-only mode:** `security.ts` exempts exactly
+  these two paths for `POST`. The host allowlist still applies, so the public name must be on it
+  (the tunnel puts its own there).
+- **Raw body.** A content-type parser scoped to these routes keeps every body as bytes, up to 5 MiB.
+  Larger is `413`, and polling covers it. The route looks the registration up from the path in an
+  `onRequest` hook, before the body is read: an unknown, removed or other-host registration, or one
+  with no stored secret, gets the empty `401` without the upload (`WebhookReceiver.knows`).
+- **Verified before parsing, in constant time** (`hosts/webhook-receiver.ts`):
+  - GitHub: `X-Hub-Signature-256` is `sha256=` plus the HMAC-SHA256 of the raw body with the secret.
+    Recorded on a real signed ping (7 045 bytes).
+  - GitLab: `X-Gitlab-Token` equals the secret. The signing token (`webhook-signature`) is not built:
+    it is not recorded.
+  - An unknown or removed registration, a registration of the other host, no stored secret and a bad
+    signature all answer the same empty `401`.
+- **Answers:** `204` with no body, `401`, `429` with `Retry-After: 60`, `413`.
+- **Rate limit:** 60 verified deliveries a minute per registration, counted after verification, so a
+  stranger who knows the id cannot spend the real host's budget.
+- **Dedupe:** two checks, both in `webhook_deliveries` (pruned after 7 days), and a replay is `204`
+  and does nothing.
+  - The id: `X-GitHub-Delivery` for GitHub, `Idempotency-Key` or `webhook-id` for GitLab.
+  - The signed raw body: its SHA-256, per registration, for one hour. GitHub does not sign the id and
+    the tunnel ends TLS, so it can see a signed body and send it again under a new id or none; the same
+    bytes inside the window are a duplicate whatever id they carry. After the window they count again.
+  - **A delivery with no id is not enough to mark a hook healthy.** It may still move the next read
+    of the rows it names, but it does not stamp `lastDeliveryAt` or `lastPingAt`, clear `failing` or
+    announce a change. The 60 a minute limit counts it like any verified delivery.
+- **What a delivery names.** Rows carry no repository column, so they are matched by the host name
+  and path of their own pull request URL (`/pull/N`, `/-/merge_requests/N`), by number, or by branch
+  (GitHub's check suite deliveries arrive with an empty `pull_requests`, recorded). Closed rows are
+  skipped. The matched ids go to `core.nudgeChangeRequests`.
+- **Bookkeeping, not state:** a delivery sets the registration's `lastDeliveryAt` (a ping also
+  `lastPingAt`), takes a `failing` registration back to `active`, and emits `webhook.changed`.
+
+### Registration (GitHub only)
+
+`hosts/webhooks-service.ts`, with the hook calls in `hosts/github/hooks.ts`. It is the person's
+click; a chat's token is refused on the writes.
+
+| Step | Call |
+| --- | --- |
+| Register (G1) | `gh api -X POST repos/{O}/{N}/hooks --input -`, the secret in the stdin JSON, never in argv |
+| Adopt | only a hook whose URL carries the id of a registration this install made on the repository (`gh api --paginate --slurp repos/{O}/{N}/hooks?per_page=100`); another install's Agentry hook is left alone and the answer says so. Two clicks at once share one registration. Re-pointing and removing read the hook first and leave one that no longer carries the registration's id |
+| Test (G2) | `gh api -X POST repos/{O}/{N}/hooks/<id>/pings`, then the hook's `last_response` is read |
+| Remove (G3) | `gh api -X DELETE repos/{O}/{N}/hooks/<id>`; a removed registration stays listed until the repository is registered again |
+| Re-point (G7) | `gh api -X PATCH repos/{O}/{N}/hooks/<id>/config --input -`, by id |
+
+The events are `pull_request`, `pull_request_review`, `pull_request_review_comment`,
+`pull_request_review_thread`, `check_run`, `check_suite`, `workflow_run`, `issue_comment` and
+`issues`. The host masks the secret in every answer (`********`, recorded), so it is never read back.
+
+The **secret** is 32 random bytes as hex, one per registration, in `webhook-secrets.json` in the
+data directory with mode 0600 (`hosts/webhook-secrets.ts`). The database and the API never hold it.
+The receiver and the service read it through `core.webhookSecrets`; a registration without a secret
+is refused with `401`.
+
+How it is kept is decision 3, in `secret-box.ts`: in the desktop app each value is encrypted
+(AES-256-GCM) with a key the app keeps under Electron's `safeStorage` (`secret-key.bin` in its
+user data, made by `apps/desktop/src/secret-key.ts`) and hands the server at launch in
+`AGENTRY_SECRET_KEY`, which the server removes from `process.env` once read so no chat inherits it.
+On a server there is no key and the values are plain, at 0600. A plain file found while a key is set
+is encrypted when the server starts; a value sealed under another key, or opened with no key, reads
+as absent and its hook is registered again. The decision engine's key and the account credentials
+are still plain files: they can move to the same box.
+
+**A new tunnel address** (decision 2): the service listens for `tunnel.changed` and re-points the
+registered hooks by id. A hook that cannot be moved becomes `stale` and is tried again on the next
+address. The service emits `webhook.changed` for each change.
+
+Failures are a `WebhooksError` with a status and a code: `403 hook-no-permission` (the account
+cannot manage hooks), `404 registration-not-found`, `409` for `host-not-recorded`, `no-public-url`,
+`no-remote` and `already-registered`, `502 hook-unreachable` or a host reason.
+
+### What is not built yet
+
+- **GitLab hooks.** Only the receiver and the pacer use exist. Registering, testing, removing and
+  re-pointing a GitLab hook, the signing token and resend are not built, because the GitLab half of
+  the recording (`w0`) was made with a signed-out `glab`. The service reports GitLab as *not
+  available yet* (`host-not-recorded`) with no action and runs no `glab` call.
+- **GitHub redelivery.** It needs the `admin:repo_hook` scope (recorded: exit 1), so it is not
+  offered; `canRedeliver` is always false.
+- **Freshness.** `ChangeRequest.freshness` has no producer yet.
+
 ## How to add a code host
 
 1. **Check the interface.** The vendor must ship a CLI (or its own `api` subcommand) for programs.
@@ -763,4 +884,4 @@ for the disarm before a push), `outcome` (`requested`, `merged`, `armed`, `disar
 
 ## Related
 
-[[plans/code-hosts.md]] · [[decision-engine.md]] · [[work-items.md]] · [[trackers.md]] · [[plans/work-item-pull-requests.md]] · [[providers.md]] · [[status.md]] · [[knowledge-base.md]]
+[[plans/code-hosts.md]] · [[decision-engine.md]] · [[work-items.md]] · [[trackers.md]] · [[tunnel.md]] · [[deploy.md]] · [[plans/work-item-pull-requests.md]] · [[providers.md]] · [[status.md]] · [[knowledge-base.md]]

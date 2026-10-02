@@ -1,0 +1,95 @@
+{
+  "title": "Webhooks",
+  "intro": "Un webhook hace que GitHub avise a Agentry en cuanto una PR cambia, en lugar de esperar a la siguiente lectura. Solo sirve de aviso: Agentry vuelve a leer la PR y no cambia nada por lo que diga el aviso. Sin webhook, o si un aviso se pierde, la sigue leyendo cada pocos minutos.",
+  "aria": "Webhooks por proyecto",
+  "summary_one": "{{count}} proyecto · {{active}} con webhook",
+  "summary_other": "{{count}} proyectos · {{active}} con webhook",
+  "loadFailed": "No se han podido cargar los webhooks",
+  "none": "Ningún proyecto tiene todavía un remoto de un host de código, así que no hay dónde registrar un webhook.",
+  "arrive": "Los avisos llegan a",
+  "open": "Abierta",
+  "noAddress": {
+    "title": "Agentry no tiene una dirección pública.",
+    "body": "Los hosts no pueden llegar hasta aquí: abre el túnel en Ajustes → Acceso remoto.",
+    "link": "Abrir Acceso remoto"
+  },
+  "state": {
+    "active": "Activo",
+    "off": "Apagado",
+    "failing": "Con fallos",
+    "stale": "Dirección antigua",
+    "unavailable": "Aún no disponible"
+  },
+  "text": {
+    "active": "{{host}} entrega los avisos y Agentry vuelve a leer la PR al momento.",
+    "off": "Sin webhook, Agentry lee las PR cada {{count}} min. Con uno se entera al momento.",
+    "failing": "{{host}} no consigue entregar los avisos: la dirección de Agentry respondió con un error.",
+    "stale": "El webhook apunta a una dirección que ya no es la de Agentry. Agentry lo apunta solo a la nueva cuando puede; hasta entonces, quítalo o espera.",
+    "noAddress": "Registrar un webhook necesita una dirección pública. Mientras tanto Agentry lee las PR cada {{count}} min.",
+    "noAddressStale": "El túnel está cerrado, así que {{host}} ya no llega a Agentry. Cuando haya una dirección nueva, Agentry apuntará el webhook a ella.",
+    "gitlab": "Agentry todavía no ha visto cómo registra glab un webhook, así que no puede registrarlo, probarlo ni quitarlo. Las MR se siguen leyendo cada {{count}} min; un aviso que llegue con el token X-Gitlab-Token se acepta igual."
+  },
+  "fact": {
+    "lastNotice": "último aviso",
+    "lastTest": "última prueba",
+    "lastResponse": "última respuesta",
+    "noNotice": "aún sin avisos",
+    "pointsTo": "apunta a",
+    "read": "lectura",
+    "backup": "lectura de respaldo",
+    "every": "cada {{count}} min",
+    "reason": "motivo"
+  },
+  "action": {
+    "register": "Registrar…",
+    "test": "Probar",
+    "testing": "Probando…",
+    "remove": "Quitar"
+  },
+  "test": {
+    "ok": "{{host}} ha respondido a la prueba con {{answer}}",
+    "failed": "{{host}} no ha podido entregar la prueba ({{answer}})",
+    "error": "No se ha podido probar el webhook"
+  },
+  "remove": {
+    "title": "Quitar el webhook de {{project}}",
+    "body": "Agentry borrará el webhook de {{repo}} en {{host}} y dejará de recibir sus avisos. Las PR se seguirán leyendo cada {{count}} min. Puedes registrarlo de nuevo cuando quieras.",
+    "confirm": "Quitar webhook",
+    "done": "Webhook quitado",
+    "error": "No se ha podido quitar el webhook"
+  },
+  "register": {
+    "title": "Registrar un webhook en {{project}}",
+    "addressId": "su id",
+    "address": "Dirección",
+    "addressNote": "Es la dirección pública de Agentry ahora mismo. {{host}} firma cada aviso con el secreto; Agentry lo comprueba antes de leer nada.",
+    "events": "Eventos",
+    "eventsNote": "Los elige Agentry y son los que hacen falta para seguir una PR; solo sirven para que la lea antes. No se pueden cambiar aquí.",
+    "secret": "Agentry genera un secreto de 32 bytes, lo guarda y se lo entrega a {{host}} al registrar el webhook. No se vuelve a mostrar. Si el repositorio ya tiene un webhook con esta dirección, Agentry lo adopta en lugar de crear otro. Registrarlo necesita permiso de administración sobre el repositorio.",
+    "session": "Se registra con {{cli}}, con tu sesión de {{user}}",
+    "sessionPlain": "Se registra con {{cli}}, con su propia sesión",
+    "submit": "Registrar webhook",
+    "submitting": "Registrando…",
+    "retry": "Volver a intentarlo",
+    "done": "Webhook registrado",
+    "failed": "Agentry no ha podido registrar el webhook.",
+    "noPermission": "{{host}} no ha dejado registrar el webhook.",
+    "noPermissionBody": "La sesión de {{cli}} no tiene permiso de administración sobre este repositorio. Pide ese permiso al propietario y vuelve a intentarlo."
+  },
+  "reason": {
+    "hostNotRecorded": "Agentry todavía no ha visto cómo registra este host un webhook.",
+    "noPublicUrl": "Agentry no tiene una dirección pública a la que un host pueda entregar.",
+    "noRemote": "Este proyecto no tiene un remoto de un host de código."
+  },
+  "event": {
+    "pull_request": "Una PR se abre, cambia o se cierra",
+    "pull_request_review": "Alguien envía una revisión",
+    "pull_request_review_comment": "Un comentario en el diff",
+    "pull_request_review_thread": "Un hilo se resuelve o se reabre",
+    "check_run": "Una comprobación cambia",
+    "check_suite": "Un conjunto de comprobaciones termina",
+    "workflow_run": "Un workflow empieza o termina",
+    "issue_comment": "Un comentario en una PR o una incidencia",
+    "issues": "Una incidencia cambia"
+  }
+}
