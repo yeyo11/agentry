@@ -266,3 +266,20 @@ export function terminateTree(root: ProcessEntry, table: readonly ProcessEntry[]
   }, graceMs).unref();
   return ended;
 }
+
+/**
+ * Signals the process group a child spawned with `detached: true` leads, so that what it started
+ * ends with it; the child alone when there is no group to signal.
+ */
+export function killGroup(child: { pid?: number | undefined; kill(signal: NodeJS.Signals): boolean }, signal: NodeJS.Signals): void {
+  if (child.pid === undefined) return;
+  try {
+    process.kill(-child.pid, signal);
+  } catch {
+    try {
+      child.kill(signal);
+    } catch {
+      /* already gone */
+    }
+  }
+}

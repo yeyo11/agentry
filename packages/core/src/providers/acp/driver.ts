@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import type { ModelOption, PermissionMode, PolicyTranslation, ProviderCapability, ToolPolicy } from '@agentry/shared';
-import { agentryChildren } from '../../processes.ts';
+import { agentryChildren, killGroup } from '../../processes.ts';
 import { satisfiesRange } from '../detector.ts';
 import {
   binaryOf,
@@ -186,12 +186,14 @@ export class AcpDriver implements ProviderDriver {
   async handshake(env: NodeJS.ProcessEnv, signal: AbortSignal): Promise<HandshakeResult> {
     const { launch } = this.manifest;
     if (!launch) throw new Error(`The "${this.manifest.id}" manifest has no launch arguments`);
-    const child = spawn(binaryOf(this.bin), launch.args, { env: { ...env, ...launch.env }, stdio: 'pipe' });
+    // A process group of its own: an agent shipped as a launcher (Gemini's `node` re-spawns itself
+    // with a larger heap) leaves its real process behind when only the launcher is signalled
+    const child = spawn(binaryOf(this.bin), launch.args, { env: { ...env, ...launch.env }, stdio: 'pipe', detached: true });
     child.stdin.on('error', () => {});
     child.stderr.resume();
     const stop = (): void => {
       child.stdin.end();
-      child.kill('SIGTERM');
+      killGroup(child, 'SIGTERM');
     };
     try {
       return await new Promise<HandshakeResult>((resolve, reject) => {

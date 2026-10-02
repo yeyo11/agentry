@@ -195,6 +195,30 @@ describe('a session', () => {
     assert.deepEqual(result.confirmed.sort(), ['fork', 'mcp', 'resume']);
   });
 
+  test('the handshake ends what the agent started, as a launcher that re-spawns itself does', async () => {
+    // Gemini's `gemini` re-starts itself under a second node with a larger heap; signalling only the
+    // process Agentry spawned left that one running. The shim leaves a stand-in behind the same way.
+    const dir = mkdtempSync(join(tmpdir(), 'agentry-acp-launcher-'));
+    after(() => rmSync(dir, { recursive: true, force: true }));
+    const pidFile = join(dir, 'left-behind.pid');
+    const fake = new URL('./fixtures/fake-acp-agent.mjs', import.meta.url).pathname;
+    writeFileSync(join(dir, 'opencode'), `#!/bin/sh\nsleep 300 &\necho $! > "${pidFile}"\nexec "${process.execPath}" "${fake}" --profile opencode "$@"\n`, { mode: 0o755 });
+    const driver = new AcpDriver(manifest('opencode'));
+    await driver.handshake({ ...process.env, PATH: `${dir}:${process.env.PATH ?? ''}` }, new AbortController().signal);
+    const pid = Number(readFileSync(pidFile, 'utf8').trim());
+    const alive = (): boolean => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    for (let i = 0; i < 30 && alive(); i++) await new Promise((r) => setTimeout(r, 100));
+    if (alive()) process.kill(pid, 'SIGKILL');
+    assert.equal(alive(), false, 'the process the agent started outlived the handshake');
+  });
+
   test('a resume uses session/resume where it is offered and session/load where it is not, and drops the replay', async () => {
     const open = start('opencode', { created: true, nativeId: 'ses_earlier' });
     await open.until(() => open.events.some((e) => e.kind === 'init'), 'the init');

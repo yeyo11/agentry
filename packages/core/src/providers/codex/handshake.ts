@@ -3,6 +3,7 @@ import { createInterface } from 'node:readline';
 import type { ProviderCapability, RateLimitInfo } from '@agentry/shared';
 import { satisfiesRange } from '../detector.ts';
 import type { CapabilityConfirmation, HandshakeResult, SessionInit } from '../driver.ts';
+import { killGroup } from '../../processes.ts';
 import { rateLimitInfo } from './events.ts';
 import { codexManifest } from './manifest.ts';
 import { codexModelOptions } from './models.ts';
@@ -34,10 +35,11 @@ export type CodexHandshakeResult = HandshakeResult & { rateLimits: RateLimitInfo
  */
 export function codexHandshake(bin: string, args: string[], env: NodeJS.ProcessEnv, signal: AbortSignal): Promise<CodexHandshakeResult> {
   return new Promise<CodexHandshakeResult>((resolve, reject) => {
-    const proc = spawn(bin, args, { env, stdio: 'pipe' });
+    // A process group of its own, so that whatever the CLI starts ends with it
+    const proc = spawn(bin, args, { env, stdio: 'pipe', detached: true });
     const stop = () => {
       proc.stdin.end();
-      proc.kill('SIGTERM');
+      killGroup(proc, 'SIGTERM');
     };
     const timer = setTimeout(() => {
       stop();
