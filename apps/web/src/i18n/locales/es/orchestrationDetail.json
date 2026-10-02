@@ -52,6 +52,7 @@
     "reading": "Leyendo lo que permite {{host}}…",
     "armed": "Fusión automática activada",
     "armedBy": "Fusionará con {{method}} cuando el host dé el visto bueno; la activó {{who}}",
+    "armedByUnknown": "Fusionará con {{method}} cuando el host dé el visto bueno. {{host}} no dice quién la activó.",
     "methodUnknown": "el método predeterminado",
     "turnOff": "Desactivar",
     "waitingForPipeline": "{{host}} aún no ha asociado la pipeline a este commit. Agentry lo vuelve a leer cada 10 segundos.",

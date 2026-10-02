@@ -52,6 +52,7 @@
     "reading": "Reading what {{host}} allows…",
     "armed": "Auto-merge on",
     "armedBy": "Merges with {{method}} once the host is satisfied, armed by {{who}}",
+    "armedByUnknown": "Merges with {{method}} once the host is satisfied. {{host}} does not say who armed it.",
     "methodUnknown": "the default method",
     "turnOff": "Turn off",
     "waitingForPipeline": "{{host}} has not attached the pipeline to this commit yet. Agentry reads it again every 10 seconds.",

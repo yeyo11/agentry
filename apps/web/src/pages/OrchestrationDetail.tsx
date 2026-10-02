@@ -30,7 +30,7 @@ import { pullRequestErrorKey } from '../lib/work-items';
 import { CiBadge, reasonValues, useChangeRequestWords } from './tasks/board/PullRequest';
 import { canRelaunch, checksShown, pullRequestHeld, rerunBlockedByPullRequest } from '../lib/orchestration-v2';
 import { OrchestrationChecks } from '../components/OrchestrationChecks';
-import { OrchestrationMerge } from '../components/OrchestrationMerge';
+import { OrchestrationMerge, headGradients, useOrchestrationLead } from '../components/OrchestrationMerge';
 import type { StepState } from '@agentry/ui/lib/progress';
 
 /** The badge tone of each phase of an orchestration's change request: waiting for the person idle, merged ok, failed bad. */
@@ -751,6 +751,7 @@ export function OrchestrationDetail() {
     },
   });
   const running = orch?.status === 'running';
+  const lead = useOrchestrationLead(orch?.pullRequest);
   // The clock only has to move while the graph does
   useClockTick(orch && !orch.endedAt ? 1000 : 3_600_000);
   const workflow = useWorkflowRun(orch);
@@ -789,6 +790,7 @@ export function OrchestrationDetail() {
   const live = running || orch.status === 'waiting';
   const done = orch.tasks.filter((t) => t.status === 'completed').length;
   const working = orch.tasks.filter((t) => t.status === 'running').length;
+  const { relaunchLit, costLit } = headGradients({ live, relaunch: canRelaunch(orch), lead });
 
   const steps = orchestrationSteps(orch, workflow);
   const followed = followedStep(steps);
@@ -871,7 +873,7 @@ export function OrchestrationDetail() {
             )
           ) : (
             canRelaunch(orch) && (
-              <button className="btn btn-primary" disabled={relaunching} onClick={() => setRelaunching(true)}>
+              <button className={`btn ${relaunchLit ? 'btn-primary' : ''}`.trim()} disabled={relaunching} onClick={() => setRelaunching(true)}>
                 <Rocket {...ICON_SM} /> {tv('relaunch.button')}
               </button>
             )
@@ -915,10 +917,10 @@ export function OrchestrationDetail() {
             <dt className="section-label">{t('kpi.time')}</dt>
             <dd className="orch-kpi-value mono orch-clock">{formatElapsed(elapsedSince(orch.createdAt, orch.endedAt ? Date.parse(orch.endedAt) : Date.now()))}</dd>
           </div>
-          <div className="card orch-kpi grad-border" title={other > 0 ? t('costOnNoTask', { cost: formatCost(other) }) : undefined}>
+          <div className={`card orch-kpi ${costLit ? 'grad-border' : ''}`.trim()} title={other > 0 ? t('costOnNoTask', { cost: formatCost(other) }) : undefined}>
             <dt className="section-label">{t('costLabel')}</dt>
             <dd className="orch-kpi-value">
-              <AnimatedNumber value={orch.costUsd} format={costFigure} className="grad-text" />
+              <AnimatedNumber value={orch.costUsd} format={costFigure} className={costLit ? 'grad-text' : undefined} />
               <span className="orch-kpi-unit">{costCurrency(orch.costUsd)}</span>
             </dd>
           </div>
