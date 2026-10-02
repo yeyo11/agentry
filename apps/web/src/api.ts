@@ -47,6 +47,8 @@ import type {
   UpdateAuthConfigRequest,
   UpdateAppSettingsRequest,
   TunnelStatus,
+  ProjectWebhooks,
+  WebhookRegistration,
   UpdateTunnelSettingsRequest,
   AuthVerification,
   AutoSwitchEvent,
@@ -983,6 +985,11 @@ export const api = {
   /** A null body clears the project's tracker */
   putProjectTracker: (id: string, tracker: ProjectTrackerSettings | null) =>
     request<ProjectTrackerSettings | null>(`/projects/${enc(id)}/tracker`, { method: 'PUT', body: tracker }),
+  /** The project's webhook registrations, and what is needed to register one */
+  projectWebhooks: (id: string, o: ReadOptions = {}) => request<ProjectWebhooks>(`/projects/${enc(id)}/webhooks`, o),
+  registerWebhook: (id: string) => request<WebhookRegistration>(`/projects/${enc(id)}/webhooks`, { method: 'POST' }),
+  testWebhook: (id: string, registrationId: string) => request<WebhookRegistration>(`/projects/${enc(id)}/webhooks/${enc(registrationId)}/test`, { method: 'POST' }),
+  removeWebhook: (id: string, registrationId: string) => request<WebhookRegistration>(`/projects/${enc(id)}/webhooks/${enc(registrationId)}`, { method: 'DELETE' }),
   /** One page of the tracker's own query; an empty query reads as the project's */
   trackerIssues: (id: string, query: { query?: string; page?: number } = {}, o: ReadOptions = {}) => {
     const params = new URLSearchParams();
@@ -1022,6 +1029,7 @@ export const keys = {
   projectTracker: (id: string) => ['project-tracker', id] as const,
   /** One page of a project's tracker query, under the project's prefix so an import or a readiness change makes every page stale */
   trackerIssues: (id: string, query: string, page: number) => ['project-tracker', id, 'issues', query, page] as const,
+  projectWebhooks: (id: string) => ['project-webhooks', id] as const,
   projects: ['projects'] as const,
   projectCandidates: ['projects', 'candidates'] as const,
   chatList: (filter: ChatFilter) =>
