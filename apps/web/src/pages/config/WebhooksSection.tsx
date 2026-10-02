@@ -6,7 +6,8 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, ApiRequestError, keys } from '../../api';
 import { Dialog, useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON_SM, Monogram } from '@agentry/ui/components/icons';
+import { ICON_SM } from '@agentry/ui/components/icons';
+import { ProgramMark } from '@agentry/ui/components/BrandMark';
 import { Spinner } from '@agentry/ui/components/Spinner';
 import { useToast } from '@agentry/ui/components/Toast';
 import { Card, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
@@ -246,7 +247,7 @@ function WebhookRow({ project, overview, variant }: { project: Project; overview
     return (
       <div className="prov-cell" role="listitem" data-project={project.id} data-kind={kind}>
         <div className="prov-cell-head">
-          <Monogram name={label} />
+          <ProgramMark id={host} label={label} />
           {identity}
         </div>
         {state}
@@ -257,7 +258,7 @@ function WebhookRow({ project, overview, variant }: { project: Project; overview
   }
   return (
     <div className="prov-row compact wh-row" role="listitem" data-project={project.id} data-kind={kind}>
-      <Monogram name={label} />
+      <ProgramMark id={host} label={label} />
       {identity}
       {state}
       <div className="prov-actions wh-actions">{buttons}</div>
@@ -302,7 +303,7 @@ function RegisterDialog({ project, overview, host, repo, hostname, onClose }: { 
       onClose={onClose}
       title={
         <span className="wh-dlg-title">
-          <Monogram name={label} />
+          <ProgramMark id={host} label={label} />
           <span>
             {t('register.title', { project: project.name })}
             <span className="wh-dlg-sub mono">{subtitle}</span>
