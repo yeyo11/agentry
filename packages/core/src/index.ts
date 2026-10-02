@@ -2141,6 +2141,11 @@ export class Core {
     return this.pullRequests.approve(itemId);
   }
 
+  /** A webhook delivery named these change requests: each is read on the pacer's next pass. Nothing else changes. */
+  nudgeChangeRequests(ids: readonly string[]): void {
+    for (const id of ids) this.pullRequestWatcher.nudge(id);
+  }
+
   /** `POST /work-items/:itemId/pull-request/refresh`: asks the host about the item's open PR now. */
   async refreshWorkItemPullRequest(itemId: string): Promise<WorkItem> {
     await this.workItemAccess(itemId, 'read');
