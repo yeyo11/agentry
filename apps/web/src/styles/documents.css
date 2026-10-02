@@ -1097,6 +1097,12 @@
   color: var(--fg-3);
 }
 
+/* A link inside a sentence is told from it by more than its colour */
+.fresh-why a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .fresh-t {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;

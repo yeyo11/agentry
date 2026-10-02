@@ -404,7 +404,9 @@ export default async ({ page, api, check, dirs }) => {
     const otherHost = await deliver(`/gitlab/${registrationId}`, { 'x-gitlab-token': 'wrong', 'x-gitlab-event': 'Merge Request Hook' });
     check(otherHost.status === 401 && otherHost.body === '', `GitLab's token is checked the same way, and a GitHub registration is not GitLab's (${JSON.stringify(otherHost)})`);
     const huge = await deliver(`/github/${registrationId}`, { 'x-hub-signature-256': signed('anything') }, 'x'.repeat(5 * 1024 * 1024 + 1024));
-    check(huge.status === 413, `a body over 5 MiB is 413, and polling covers it (${huge.status})`);
+    // A registration the server holds no secret for is refused before its body is read, so an oversize body costs nothing;
+    // the 413 for a registration with a secret is in apps/api/test/webhooks.test.ts
+    check(huge.status === 401 && huge.body === '', `an oversize body for a registration with no secret is refused before it is read (${huge.status})`);
     check(!(await fetch(`${base}/github/${registrationId}`)).ok, 'a GET is not a receiver');
     const afterReceiver = (await api.get(`/projects/${ghId}/webhooks`)).body.registrations[0];
     check(afterReceiver.state === 'active' && afterReceiver.lastDeliveryAt === null, `a refused delivery changes nothing (${JSON.stringify({ state: afterReceiver.state, lastDeliveryAt: afterReceiver.lastDeliveryAt })})`);

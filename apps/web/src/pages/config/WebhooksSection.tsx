@@ -323,7 +323,8 @@ function RegisterDialog({ project, overview, host, repo, hostname, onClose }: { 
         </>
       }
     >
-      <div className="wh-dlg">
+      {/* The body scrolls on a phone and holds nothing to focus: it takes the focus itself, so the keyboard can read it */}
+      <div className="wh-dlg" tabIndex={0} role="region" aria-label={t('register.title', { project: project.name })}>
         {error !== null && !register.isPending && (
           <div className="wh-notice" role="alert">
             <TriangleAlert {...ICON_SM} aria-hidden />
