@@ -7,7 +7,7 @@ import { HostParseError, type HostCall, type HostRepo } from './code-host.ts';
 import type { HostResult } from './exec.ts';
 import { GITHUB_HOOK_EVENTS, githubHooks, lastResponseFailed, lastResponseOk, type GithubHook } from './github/hooks.ts';
 import { webhookHealthy } from './pacer.ts';
-import { WebhookSecrets } from '../webhook-secrets.ts';
+import { newWebhookSecret, type WebhookSecrets } from './webhook-secrets.ts';
 
 // Registering, testing, removing and re-pointing the hooks Agentry keeps on a repository
 // (docs/plans/code-hosts.md, phase 6). It is the person's click that registers (the route is not
@@ -161,7 +161,7 @@ export class WebhooksService {
     for (const old of mine) store.delete(old.id);
 
     const id = randomUUID();
-    const secret = WebhookSecrets.generate();
+    const secret = newWebhookSecret();
     const url = receiverUrl(origin, 'github', id);
     // The secret is kept before the host knows it, so a delivery that races the answer is already verifiable
     await secrets.set(id, secret);
@@ -274,7 +274,7 @@ export class WebhooksService {
       // A secret that went missing is replaced in the same call: the hook gets the new one with its new address
       let secret = this.deps.secrets.get(registration.id);
       if (!secret) {
-        secret = WebhookSecrets.generate();
+        secret = newWebhookSecret();
         await this.deps.secrets.set(registration.id, secret);
       }
       const call = githubHooks.repoint(access.repo, registration.remoteHookId ?? '', { url, secret });

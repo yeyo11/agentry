@@ -3,7 +3,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { CodeHostId, WebhookRegistration } from '@agentry/shared';
 import type { AgentryEventInput } from '../events.ts';
 import type { WebhookStore } from '../webhook-store.ts';
-import type { WebhookSecrets } from '../webhook-secrets.ts';
+import type { WebhookSecrets } from './webhook-secrets.ts';
 
 // What a webhook delivery is allowed to do: be believed or not, and then move the next read of the
 // change requests it names to now. It never writes a change request, never reads a payload field

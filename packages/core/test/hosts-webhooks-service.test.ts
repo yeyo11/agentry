@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { readFileSync, rmSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -11,7 +11,7 @@ import type { HostCall } from '../src/hosts/code-host.ts';
 import type { HostResult } from '../src/hosts/exec.ts';
 import { classifyCall } from '../src/hosts/classify.ts';
 import { GITHUB_HOOK_EVENTS, githubHooks, lastResponseFailed } from '../src/hosts/github/hooks.ts';
-import { WebhookSecrets } from '../src/webhook-secrets.ts';
+import { WebhookSecrets } from '../src/hosts/webhook-secrets.ts';
 import { receiverUrl, WebhooksError, WebhooksService, type WebhookAccess, type WebhookTarget } from '../src/hosts/webhooks-service.ts';
 import { WebhookStore } from '../src/webhook-store.ts';
 import { tempConfig } from './helpers.ts';
@@ -151,7 +151,7 @@ test('registering creates the hook with a fresh address and secret, keeps the se
   assert.equal((JSON.parse(create?.input ?? '') as { config: { secret: string; url: string } }).config.secret, secret);
   assert.equal((JSON.parse(create?.input ?? '') as { config: { url: string } }).config.url, registration.url);
   assert.ok(f.calls.every((c) => !argv(c).includes(secret ?? 'x')));
-  assert.equal(statSync(join(f.dataDir, 'webhook-secrets', `${registration.id}.secret`)).mode & 0o777, 0o600);
+  assert.equal(statSync(join(f.dataDir, 'webhook-secrets.json')).mode & 0o777, 0o600);
   assert.ok(!JSON.stringify(registration).includes(secret ?? 'x'), 'the API document never holds the secret');
   assert.ok(!JSON.stringify(f.store.list('p1')).includes(secret ?? 'x'));
   assert.equal(f.events.at(-1)?.type, 'webhook.changed');
@@ -231,7 +231,7 @@ test('a refused or unseen repository becomes "no permission", and the secret kep
   f.answer((call) => (isList(call) ? ok('[]') : isCreate(call) ? { ...result(recorded('hook_delete_again')) } : undefined));
   await assert.rejects(f.service.register('p1'), (e: unknown) => e instanceof WebhooksError && e.code === 'hook-no-permission' && e.status === 403);
   assert.equal(f.store.list('p1').length, 0);
-  assert.deepEqual(existsSync(join(f.dataDir, 'webhook-secrets')) ? readdirSync(join(f.dataDir, 'webhook-secrets')) : [], []);
+  assert.equal(readFileSync(join(f.dataDir, 'webhook-secrets.json'), 'utf8'), '{}');
 });
 
 // ---------- the overview ----------

@@ -137,7 +137,7 @@ import { MergeService, type MergeTarget } from './hosts/merge-service.ts';
 import { mergeTargetOf } from './hosts/merge-target.ts';
 import { ReviewsService } from './hosts/reviews-service.ts';
 import { WebhookStore } from './webhook-store.ts';
-import { WebhookSecrets } from './webhook-secrets.ts';
+import { WebhookSecrets } from './hosts/webhook-secrets.ts';
 import { WebhookReceiver } from './hosts/webhook-receiver.ts';
 import { WebhooksService } from './hosts/webhooks-service.ts';
 import { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
