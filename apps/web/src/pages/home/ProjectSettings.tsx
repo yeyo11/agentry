@@ -6,6 +6,7 @@ import { EnvironmentPanel } from '../../components/EnvironmentPanel';
 import { TabPanel, Tabs, useTabGroup } from '@agentry/ui/components/ui';
 import { useDirtyKeys, useLeaveGuard } from '../../lib/dirty';
 import { FilesTab } from '../config/FilesTab';
+import { ProjectProviders } from '../config/providers/ProjectProviders';
 import { InstructionsTab } from '../config/InstructionsTab';
 import { McpTab } from '../config/McpTab';
 import { SettingsTab } from '../config/SettingsTab';
@@ -51,6 +52,7 @@ export function ProjectSettings({ project }: { project: Project }) {
       <ProjectGeneral project={project} />
       <ProjectTracker project={project} />
       <ProjectDecisions project={project} />
+      <ProjectProviders project={project} />
 
       <div className="project-cli-head">
         <h2>{t('settings.cliTitle')}</h2>

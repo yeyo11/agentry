@@ -59,6 +59,7 @@ import type {
   CancelCommandResult,
   ChangeSummary,
   CswapInfo,
+  CswapRetirementState,
   ChatChanges,
   Checklist,
   ChatBackgroundTask,
@@ -88,6 +89,7 @@ import type {
   ForkChatRequest,
   HintRequest,
   ImportProjectRequest,
+  ModelMapSuggestion,
   ModelOption,
   NewChatRequest,
   EffectiveEnvironment,
@@ -124,6 +126,7 @@ import type {
   Project,
   ProjectCandidate,
   ProjectCodeHost,
+  ProviderMove,
   ProviderStatus,
   ProvidersSettings,
   PushKeyInfo,
@@ -966,6 +969,17 @@ export const api = {
   refreshProviders: () => request<ProviderStatus[]>('/providers/refresh', { method: 'POST' }),
   providerSettings: (o: ReadOptions = {}) => request<ProvidersSettings>('/providers/settings', o),
   putProviderSettings: (settings: ProvidersSettings) => request<ProvidersSettings>('/providers/settings', { method: 'PUT', body: settings }),
+  /** Open waits for a reset, and the history of moves; `state` narrows them */
+  providerMoves: (query: { chatId?: string; projectId?: string; state?: ProviderMove['state']; limit?: number } = {}, o: ReadOptions = {}) =>
+    request<ProviderMove[]>(`/providers/moves${qs({ chatId: query.chatId, projectId: query.projectId, state: query.state, limit: query.limit === undefined ? undefined : String(query.limit) })}`, o),
+  /** Counterparts the model-map point proposed, which nothing uses until a person accepts them */
+  modelMapSuggestions: (o: ReadOptions = {}) => request<ModelMapSuggestion[]>('/providers/model-map/suggestions', o),
+  answerModelMapSuggestion: (id: string, accept: boolean) =>
+    request<{ ok: true }>(`/providers/model-map/suggestions/${enc(id)}`, { method: 'POST', body: { accept } }),
+  /** What claude-swap left behind; `notice` is null when there is nothing to say or it was dismissed */
+  cswapRetirement: (o: ReadOptions = {}) => request<CswapRetirementState>('/providers/cswap-retirement', o),
+  dismissCswapRetirement: () => request<{ ok: true }>('/providers/cswap-retirement/dismiss', { method: 'POST' }),
+  removeCswapManagedCopy: () => request<{ removed: boolean }>('/providers/cswap-retirement/managed-copy', { method: 'DELETE' }),
   hosts: (o: ReadOptions = {}) => request<CodeHostStatus[]>('/hosts', o),
   host: (id: string, o: ReadOptions = {}) => request<CodeHostStatus>(`/hosts/${enc(id)}`, o),
   /** Skips the detector's cache; the answer is the fresh statuses */
@@ -1021,6 +1035,9 @@ export const keys = {
   providers: ['providers'] as const,
   providerSettings: ['providers', 'settings'] as const,
   providerModels: (id: string) => ['providers', id, 'models'] as const,
+  providerMoves: (state: string) => ['providers', 'moves', state] as const,
+  modelMapSuggestions: ['providers', 'model-map', 'suggestions'] as const,
+  cswapRetirement: ['providers', 'cswap-retirement'] as const,
   hosts: ['hosts'] as const,
   hostSettings: ['hosts', 'settings'] as const,
   projectCodeHost: (id: string) => ['project-code-host', id] as const,

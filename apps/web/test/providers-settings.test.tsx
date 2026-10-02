@@ -5,12 +5,14 @@ import test from 'node:test';
 import type { ProviderStatus, ProvidersSettings } from '@agentry/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { MemoryRouter } from 'react-router-dom';
+import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { keys } from '../src/api';
 import { TooltipProvider } from '@agentry/ui/components/controls';
+import { ConfirmProvider } from '@agentry/ui/components/Dialog';
 import { ToastProvider } from '@agentry/ui/components/Toast';
 import i18n from '../src/i18n';
 import { en, es } from '../src/i18n/resources';
+import { DirtyProvider } from '../src/lib/dirty';
 import { effectiveDefault, entryOf, latestCheck, moveBy, moveTo, orderedIds, withEntry, withOrder } from '../src/lib/provider-settings';
 import { ProvidersTab } from '../src/pages/config/ProvidersTab';
 import { GROUPS, isTab, TAB_LABELS } from '../src/pages/config/settingsTabs';
@@ -107,13 +109,24 @@ test('the page lists every provider with its state, the default select, the coun
   client.setQueryData(keys.providerSettings, settings());
   const html = renderToStaticMarkup(
     <QueryClientProvider client={client}>
-      <TooltipProvider>
-        <ToastProvider>
-          <MemoryRouter>
-            <ProvidersTab />
-          </MemoryRouter>
-        </ToastProvider>
-      </TooltipProvider>
+      <RouterProvider
+        router={createMemoryRouter([
+          {
+            path: '*',
+            element: (
+              <TooltipProvider>
+                <ToastProvider>
+                  <ConfirmProvider>
+                    <DirtyProvider>
+                      <ProvidersTab />
+                    </DirtyProvider>
+                  </ConfirmProvider>
+                </ToastProvider>
+              </TooltipProvider>
+            ),
+          },
+        ])}
+      />
     </QueryClientProvider>,
   );
   const words = text(html);
