@@ -751,7 +751,18 @@ export function OrchestrationDetail() {
     },
   });
   const running = orch?.status === 'running';
-  const lead = useOrchestrationLead(orch?.pullRequest);
+  const requestLead = useOrchestrationLead(orch?.pullRequest);
+  // Before there is a request, Push & open PR is the integration card's one gradient action, and the head's
+  // Edit and relaunch gives way to it as it does to a merge
+  const pushToOpen =
+    !!orch &&
+    !(orch.status === 'running' || orch.status === 'waiting') &&
+    orch.integration?.status === 'merged' &&
+    !orch.integration.pullRequestUrl &&
+    !pullRequestHeld(orch) &&
+    orch.verification?.status !== 'running' &&
+    orch.verification?.status !== 'pending';
+  const lead = requestLead ?? (pushToOpen ? ('push' as const) : null);
   // The clock only has to move while the graph does
   useClockTick(orch && !orch.endedAt ? 1000 : 3_600_000);
   const workflow = useWorkflowRun(orch);

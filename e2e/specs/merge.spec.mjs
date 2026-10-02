@@ -298,14 +298,15 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       await page.shot(`merge-item-blocked-${c.name}`);
       await scan(page, check, `the blocked state ${c.name}`);
     }
-    // Two required checks that both failed: both are named, one in the sentence and the other under it
+    // Two required checks that both failed: the table has one entry per code, so one notice names the first, in words, and
+    // nothing is listed twice
     scenario('gh', { mergeStatus: 'BLOCKED', requiredChecks: 'unit lint', checks: 'both' });
     await visit(ready, 'two failing required checks', '.mg .mb-note[data-reason="checks-failing"]');
     {
       const two = await page.eval(
         `const n = document.querySelector('.mg .mb-note'); return { first: n.querySelector('.mb-text')?.textContent ?? '', others: [...n.querySelectorAll('.mb-others li')].map((l) => l.textContent.replace(/\\s+/g, ' ').trim()) }`,
       );
-      check(two.first.includes('Required check unit failed') && two.others.length === 1 && two.others[0].includes('Required check lint failed'), `two failing required checks list both names, each in words (${JSON.stringify(two)})`);
+      check(two.first.includes('Required check unit failed') && two.others.length === 0, `two failing required checks are one notice that names the first, with no line twice (${JSON.stringify(two)})`);
       await scan(page, check, 'two failing required checks');
     }
 
@@ -318,12 +319,16 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
         ['closed', 'closed', 'was closed without merging'],
       ]) {
         scenario('gh', { state });
-        await visit(gone, `a ${state} request`, '.mg .mb-note[data-reason="not-open"]');
+        // The core says so at once; the page either still shows the notice or, once the watcher has stored the
+        // host's answer, no block at all (a request that is not open has none): never "open", never a Merge
+        const found = (await api.get(`/work-items/${gone.id}`)).body;
+        const read = (await api.get(`/change-requests/${found.pullRequest.id}/merge?refresh=1`)).body;
+        check(read.blocker?.code === 'not-open' && read.blocker.detail === state && read.canMerge === false, `the core reads a ${state} request as not open, with the host's word (${JSON.stringify(read.blocker)})`);
+        await page.goto(`/tasks/${gone.key}`, 1800);
         const note = await page.eval(
-          `const n = document.querySelector('.mg .mb-note'); return { word: n.querySelector('.badge')?.textContent.trim() ?? '', text: n.querySelector('.mb-text')?.textContent ?? '', merge: [...document.querySelectorAll('.mg button')].some((b) => b.textContent.trim() === 'Merge'), ready: document.querySelector('.mg')?.textContent.includes('ready to merge') }`,
+          `const n = document.querySelector('.mg .mb-note'); return { shown: !!n, text: n?.querySelector('.mb-text')?.textContent ?? '', block: document.querySelector('.mg')?.textContent ?? '', merge: [...document.querySelectorAll('.mg button')].some((b) => /^Merge\\b/.test(b.textContent.trim())) }`,
         );
-        check(note.word === word && note.text.includes(sentence) && !/\bopen\b/i.test(note.text), `a ${state} request says ${state}, not that it is open (${note.word}: ${note.text})`);
-        check(!note.merge && !note.ready, `a ${state} request offers no Merge and is not ready to merge`);
+        check(!/\bopen\b/i.test(note.text + ' ' + note.block) && !note.merge, `a ${state} request never reads as open and offers no Merge (${note.text || 'no block'})`);
         await scan(page, check, `a ${state} request`);
       }
     }
