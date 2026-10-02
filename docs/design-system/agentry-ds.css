@@ -755,6 +755,17 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 .pr-row .pr-num { font-family: var(--mono); font-weight: 500; color: var(--fg); font-variant-numeric: tabular-nums; }
 .pr-row .pr-branch { flex: 1 1 auto; min-width: 0; font-family: var(--mono); color: var(--fg-2); overflow-wrap: anywhere; }
 .m-screen .pr-row { min-height: var(--touch); font-size: 13px; }
+/* Freshness of a change request (code hosts, phase 6): the last row of the panel of a PR or MR. A state badge
+   (ok "Al instante", warn for a silent webhook, a failing read or a pause) or the braille spinner while a
+   read is in flight, then the sentence with its numbers in mono, then Actualizar. A plain read has no badge.
+   Nothing animates but the spinner, which belongs to a live read. */
+.fresh { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; width: 100%; font-size: 12px; color: var(--fg-3); }
+.fresh-state { display: inline-flex; align-items: center; flex-shrink: 0; }
+.fresh-text { flex: 1 1 14em; min-width: 0; display: flex; flex-direction: column; gap: 2px; color: var(--fg-2); line-height: 1.45; }
+.fresh-why { color: var(--fg-3); }
+.fresh-t { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.m-screen .fresh { font-size: 13px; min-height: var(--touch); flex-wrap: nowrap; }
+.m-screen .fresh-state { align-self: flex-start; padding-top: 12px; }
 /* Diffstat without status colours: added lines in --fg-2, removed ones in --line-3. */
 .diffstat { display: inline-flex; gap: 1.5px; }
 .diffstat > i { display: block; width: 6px; height: 6px; border-radius: var(--r-xs); background: var(--bg-4); }
