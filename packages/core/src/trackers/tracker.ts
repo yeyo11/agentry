@@ -128,6 +128,8 @@ export interface TrackerAdapter {
   comment(scope: TrackerScope, key: string, body: string): HostCall;
   parseCommented(stdout: string): { id: string; url: string };
 
+  /** Whether moving an item to this column is a write to the tracker at all: GitHub and GitLab only close, on `done` */
+  writes(column: TrackerMappedStatus): boolean;
   /**
    * The write that moves an issue to a mapped status. GitHub and GitLab have one status, so only
    * `done` writes (it closes as completed); every other column is null: nothing to do, not a failure.

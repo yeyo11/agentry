@@ -23,7 +23,9 @@ import {
   type CreateWorkItemRequest,
   type DocumentKind,
   type DocumentTie,
+  type HostReason,
   type IssueRef,
+  type IssueSyncState,
   type Milestone,
   type MilestoneChangeAction,
   type MilestoneProgress,
@@ -799,6 +801,36 @@ export class WorkItemService {
     });
     const item = this.mustHydrate(row);
     this.emitUpdated(item, [], actor, cause);
+    return item;
+  }
+
+  /**
+   * Writes where the last sync of an issue stands: the state the tracker reported (kept when none
+   * is given), `synced` or `failed` and, for a failure, its reason. A sync is a system act, so it
+   * writes no history. Returns null when the link is gone, which a sync running while the person
+   * unlinked or removed the item may find.
+   */
+  recordIssueSync(
+    itemId: string,
+    tracker: TrackerId,
+    key: string,
+    sync: { state?: string; syncState: IssueSyncState; reason: HostReason | null },
+  ): WorkItem | null {
+    const row = this.write(() => {
+      const now = new Date().toISOString();
+      const written = this.sql
+        .prepare(
+          `UPDATE work_item_issues SET state = COALESCE(?, state), synced_at = CASE WHEN ? = 'none' THEN NULL ELSE ? END, sync_state = ?, sync_reason = ?
+           WHERE item_id = ? AND tracker = ? AND key = ?`,
+        )
+        .run(sync.state ?? null, sync.syncState, now, sync.syncState, sync.syncState === 'failed' ? sync.reason : null, itemId, tracker, key);
+      if (!written.changes) return null;
+      this.sql.prepare('UPDATE work_items SET updated_at = ? WHERE id = ?').run(now, itemId);
+      return this.row(itemId);
+    });
+    if (!row) return null;
+    const item = this.mustHydrate(row);
+    this.emitUpdated(item, [], SYSTEM, null);
     return item;
   }
 
