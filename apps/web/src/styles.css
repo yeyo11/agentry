@@ -36,6 +36,7 @@
 @import './styles/editors.css';
 @import './styles/decisions.css';
 @import './styles/providers.css';
+@import './styles/rotation-chat.css';
 @import './styles/integrations.css';
 @import './styles/suggest.css';
 @import './styles/diff.css';
