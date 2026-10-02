@@ -93,6 +93,7 @@ import type { ProviderDriver, SessionInit } from './providers/driver.ts';
 import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
 import { CodeHostDetector } from './hosts/detector.ts';
 import { CodeHostsSettingsStore } from './hosts/settings.ts';
+import { TrackersSettingsStore } from './trackers/settings.ts';
 import { ProviderDetector } from './providers/detector.ts';
 import { AcpDriver } from './providers/acp/driver.ts';
 import { ChatEntriesTranscripts } from './providers/chat-entries.ts';
@@ -332,6 +333,8 @@ export class Core {
   readonly hosts: CodeHostDetector;
   /** Which code hosts are on and a binary of the person's own (`hosts.json`) */
   readonly hostsSettings: CodeHostsSettingsStore;
+  /** Which issue trackers are on and a binary of the person's own (`trackers.json`) */
+  readonly trackersSettings: TrackersSettingsStore;
   readonly permissions: PermissionBroker;
   /** Processes and live streams of the chats Agentry drives */
   readonly runtime: ChatManager;
@@ -441,6 +444,7 @@ export class Core {
       },
     });
     this.hostsSettings = new CodeHostsSettingsStore(config);
+    this.trackersSettings = new TrackersSettingsStore(config);
     this.hosts = new CodeHostDetector({
       adapter: codeHostAdapter,
       settings: () => this.hostsSettings.get(),
