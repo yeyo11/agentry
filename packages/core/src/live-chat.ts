@@ -170,8 +170,6 @@ export interface ChatRuntime {
   error: string | null;
   orchestrationId: string | null;
   orchestrationTaskId: string | null;
-  /** @deprecated accounts were retired; always absent. Removed with `rotateAndResume` in `index.ts` */
-  account?: null;
   permissionPrompts: 'host' | 'none';
   /** Prompts waiting for someone right now: the chat is stuck until they are answered */
   pendingPrompts: number;

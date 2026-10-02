@@ -3,12 +3,12 @@ import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type {
-  AccountsOverview,
   AgentryLanguage,
   AuthVerification,
   AgentryReleaseInfo,
   TrackerId,
   CliVersionInfo,
+  ProviderLimit,
   ChatProject,
   ChatSummary,
   ChatWorktree,
@@ -35,7 +35,6 @@ import type {
   ProjectTemplate,
   ProjectWorktree,
   RunWorkflowRequest,
-  SwitchResult,
   SystemInfo,
   UpdateProjectRequest,
   Board,
@@ -66,7 +65,9 @@ import type {
 } from '@agentry/shared';
 import { AGENTRY_LANGUAGES, agentryLanguage, type DecisionRecord, type ProjectCodeHost, type ProviderId } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
-import { AccountManager } from './accounts.ts';
+import { CswapRetirementNotice } from './cswap-retirement.ts';
+import { ProviderRotation, candidateContext } from './rotation.ts';
+import { ProviderPoints } from './decisions/provider-points.ts';
 import { AppSettingsStore } from './app-settings.ts';
 import { stateFromRun } from './chat-model.ts';
 import { chatLinkName, WorkItemError, WorkItemService, type WorkItemLinkState } from './work-items.ts';
@@ -150,7 +151,7 @@ import { DecisionEngine } from './decisions/engine.ts';
 import { IssueTriage } from './decisions/issue-triage.ts';
 import { ReviewTriage } from './decisions/review-triage.ts';
 import { DecisionResolvers } from './decisions/resolve.ts';
-import { CliDecisionProvider } from './decisions/providers/cli.ts';
+import { CliDecisionProvider, chooseCliRoute } from './decisions/providers/cli.ts';
 import { JevProvider } from './decisions/providers/jev.ts';
 import { DecisionCredentialStore, DecisionSettingsStore } from './decisions/settings.ts';
 import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
@@ -192,8 +193,8 @@ export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type 
 export { summarizeOrchestration } from './orchestrator.ts';
 export { compareVersions } from './version-check.ts';
 export { ReleaseWatch, type ReleaseWatchOptions } from './release-watch.ts';
-export { DEFAULT_AUTO_SWITCH } from './accounts.ts';
-export { CSWAP_VERSION, UV_VERSION } from './cswap-pin.ts';
+export { ProviderRotation, candidateContext, effectiveOnLimit } from './rotation.ts';
+export { CswapRetirementNotice, type CswapRetirement } from './cswap-retirement.ts';
 export {
   chatControl,
   chatState,
@@ -390,7 +391,12 @@ export class Core {
   /** The tunnel through localhost.run: lends its verified host to `appSettings.runtimeHosts` */
   readonly tunnel: TunnelManager;
   readonly uploads: UploadStore;
-  readonly accounts: AccountManager;
+  /** What happens when a provider reaches its limit: waits, moves and the timers behind them */
+  readonly rotation: ProviderRotation;
+  /** The three provider decision points: what to do at a limit, which provider to start on, a model's counterpart */
+  readonly providerPoints: ProviderPoints;
+  /** What claude-swap left behind: the one-time notice and Agentry's own copy of the binary */
+  readonly cswapRetirement: CswapRetirementNotice;
   readonly cliVersion: CliVersionWatch;
   /** Whether a newer Agentry has been released: `release.json`, checked once a day */
   readonly release: ReleaseWatch;
@@ -445,8 +451,6 @@ export class Core {
    * starts on its own, with no request of the person's behind them, are titled in.
    */
   private language: AgentryLanguage = 'en';
-  /** Chats whose account rotation after a rate limit is under way: a flow run on one waits for it */
-  private readonly rotations = new Set<string>();
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
   private systemCache: { at: number; gen: number; value: Omit<SystemInfo, 'uptimeSec' | 'models'> } | null = null;
@@ -600,7 +604,14 @@ export class Core {
       db: this.db,
       projectDecisions: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.decisions ?? null,
     });
-    this.decisions.register(new CliDecisionProvider({ runtime: this.runtime, settings: this.decisionSettings }));
+    this.decisions.register(
+      new CliDecisionProvider({
+        runtime: this.runtime,
+        settings: this.decisionSettings,
+        // A decision chat never moves: it starts on the first provider that can answer, or says why none can
+        route: (cli) => chooseCliRoute(cli, candidateContext(this.runtime, { settings: this.providersSettings.get(), project: null, statuses: this.providers.known() ?? [] })),
+      }),
+    );
     // c6 left this wiring to the routes' worker: without it `jev` is never registered
     this.decisions.register(new JevProvider({ getKey: () => this.decisionCredentials.getKey() }));
     this.decisions.startPruning();
@@ -609,7 +620,9 @@ export class Core {
       db: this.db,
       engine: this.decisions,
       historyDays: () => this.decisionSettings.get().historyDays,
+      modelMap: () => this.providersSettings.get().rotation?.modelMap ?? [],
     });
+    this.providerPoints = new ProviderPoints({ decisions: this.decisions, sql: this.db.connection });
     this.events.observe((event) => this.decisionResolvers.observe(event));
     this.decisionResolvers.start();
     this.orchestrator.decisions = this.decisions;
@@ -637,6 +650,12 @@ export class Core {
       environmentOf: (dir) => this.runtime.environments.get(dir),
       windowOf: (model) => this.db.modelWindow(model),
       memberChat: (chatId) => this.memberChat(chatId),
+      move: {
+        settings: () => this.providersSettings.get(),
+        statuses: () => this.providers.known() ?? [],
+        projectProviders: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.providers ?? null,
+        moves: this.db,
+      },
     });
     this.changes = new Changes({
       orchestrator: this.orchestrator,
@@ -873,8 +892,7 @@ export class Core {
       stop: (chatId) => void this.runtime.stop(chatId),
       activity: (chatId) => this.runtime.get(chatId)?.activity ?? null,
       language: () => this.language,
-      rotating: (chatId) =>
-        this.rotations.has(chatId) || (this.accounts.autoSwitch.rotateOnLimit && this.accounts.managed && this.runtime.rotationComing(chatId)),
+      rotating: (chatId) => this.rotation.holds(chatId),
       emit: (event) => this.events.emit(event),
     });
     this.team.runs = (projectId) => this.flow.runs(projectId);
@@ -950,6 +968,8 @@ export class Core {
       this.orchestrator.recover();
       try {
         this.flow.recover();
+        // The waits this process owns: its chats are back, so their timers can be armed
+        this.rotation.recover();
         // After the chats are back, so a merge moves an item nothing is about to resume on
         this.pullRequestWatcher.start();
       } catch {
@@ -969,102 +989,22 @@ export class Core {
       const path = change.scope.projectPath;
       for (const project of this.projectStore.list().filter((p) => p.path === path)) void this.team.agentFileChanged(project.id, change.name, change.action);
     });
-    this.accounts = new AccountManager(config, this.db);
-    this.runtime.accounts = this.accounts;
-    this.accounts.projectOf = (cwd) => this.attach(cwd)?.project.id ?? null;
-    this.accounts.on('switched', (result: SwitchResult) => {
-      this.forgetSystem(); // the active account (and its email) changed
-      this.events.emit({
-        type: 'account.switched',
-        title: `Switched account${result.to ? ` to ${result.to}` : ''}`,
-        from: result.from,
-        to: result.to,
-        reason: result.reason,
-      });
+    this.cswapRetirement = new CswapRetirementNotice(config);
+    this.rotation = new ProviderRotation({
+      db: this.db,
+      runtime: this.runtime,
+      chats: this.chats,
+      settings: () => this.providersSettings.get(),
+      projectProviders: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.providers ?? null,
+      projectOf: (dir) => this.projectOf(resolve(dir)).project?.id ?? null,
+      decisions: this.decisions,
+      points: this.providerPoints,
+      emit: (event) => this.events.emit(event),
+      // A flow run waits for its chat through the rotation until its own bookkeeping moves to the move rows
+      awaiting: (chatId) => this.flow.awaitsRotation(chatId),
+      ended: (move, end, reason) => this.flow.rotated(move.fromChat, { resumed: end === 'resumed', reason }),
     });
-    // A managed install (or its removal) can change who owns the credential
-    this.accounts.on('cswap', () => {
-      this.syncCredentialOwner();
-      this.forgetSystem();
-    });
-    this.runtime.on('rate-limited', (run: ChatRuntime) => {
-      this.events.emit({ type: 'run.rateLimited', title: `${run.name} hit its rate limit`, ...runRef(run) });
-      void this.rotateAndResume(run);
-    });
-    void this.accounts.init().then(() => this.syncCredentialOwner());
-  }
-
-  /**
-   * While claude-swap manages the accounts it owns `.credentials.json`, and Claude Code only
-   * reads that file when no token is in the environment — so the wrapper stops injecting one.
-   */
-  private syncCredentialOwner(): void {
-    const managed = this.accounts.managed;
-    if (managed === this.credentials.isSuspended) return;
-    this.credentials.suspend(managed);
-    this.forgetSystem();
-  }
-
-  /**
-   * A run died against its account's rate limit: rotate to the account with the most headroom
-   * left and replay the turn, which resumes the same session on the new credential.
-   */
-  private async rotateAndResume(run: ChatRuntime): Promise<void> {
-    if (!this.accounts.autoSwitch.rotateOnLimit || !this.accounts.managed) return;
-    // Held until the rotation says how it went: a flow run waits on it rather than fail
-    this.rotations.add(run.id);
-    const outcome: { resumed: boolean; reason: string | null } = { resumed: false, reason: null };
-    try {
-      // A pinned chat leaves its account; a project with a rotation policy moves within it; everything
-      // else uses the global rotation
-      const reason = `run ${run.name} hit its rate limit`;
-      const pinned = run.account;
-      const result = pinned
-        ? await this.accounts.rotatePinned({ account: pinned, cwd: run.cwd }, reason)
-        : ((await this.accounts.rotateWithinPolicy({ account: null, cwd: run.cwd }, reason)) ?? (await this.accounts.rotate(reason)));
-      if (!result.switched) {
-        this.runtime.notice(run.id, `Rate limit reached and no account with quota left${result.reason ? ` (${result.reason})` : ''}.`);
-        outcome.reason = result.reason ? `no account with quota left: ${result.reason}` : 'no account with quota left';
-        return;
-      }
-      // Kept, the pin would respawn the replay on the account that just ran out
-      if (pinned) this.runtime.unpin(run.id);
-      this.forgetSystem();
-      const target = result.to ?? 'another account';
-      // An orchestration worker already handed its result to the orchestrator, and a turn held to a
-      // schema (the assistant) to the run that started it, which has ended on it: rotating helps what
-      // comes after, but replaying the turn would spend again for nobody. A flow run that waits for
-      // the rotation has not ended: it goes on in its chat, as a person's chat does.
-      if (run.orchestrationId || (this.runtime.heldToSchema(run.id) && !this.flow.awaitsRotation(run.id))) {
-        this.runtime.notice(run.id, `Rate limit reached — switched to ${target}; the next tasks use it.`);
-        this.announceRotation(run, result, false);
-        return;
-      }
-      this.runtime.notice(run.id, `Rate limit reached — switched to ${target} and resuming.`);
-      const replayed = await this.runtime.replayLastTurn(run.id);
-      if (!replayed) this.runtime.notice(run.id, 'The turn could not be resumed automatically; send it again.');
-      outcome.resumed = replayed;
-      if (!replayed) outcome.reason = 'its turn could not be replayed';
-      this.announceRotation(run, result, replayed);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.runtime.notice(run.id, `Account rotation failed: ${message}`);
-      outcome.reason = `the rotation failed: ${message}`;
-    } finally {
-      this.rotations.delete(run.id);
-      this.flow.rotated(run.id, outcome);
-    }
-  }
-
-  private announceRotation(run: ChatRuntime, result: SwitchResult, resumed: boolean): void {
-    this.events.emit({
-      type: 'run.accountRotated',
-      title: `${run.name} moved to ${result.to ?? 'another account'} after hitting its rate limit`,
-      ...runRef(run),
-      from: result.from,
-      to: result.to,
-      resumed,
-    });
+    this.rotation.start();
   }
 
   /**
@@ -1133,9 +1073,7 @@ export class Core {
       const auth = cli.installed
         ? await getAuthStatus(this.config)
         : { loggedIn: false, tokenSource: 'none' as const, error: 'Claude Code CLI not installed' };
-      if (this.credentials.isSuspended) {
-        auth.tokenSource = 'cswap';
-      } else if (this.credentials.active && auth.tokenSource.startsWith('env-')) {
+      if (this.credentials.active && auth.tokenSource.startsWith('env-')) {
         auth.tokenSource = auth.tokenSource === 'env-oauth-token' ? 'wrapper-oauth-token' : 'wrapper-api-key';
       }
       const value = {
@@ -2408,8 +2346,9 @@ export class Core {
     ]);
     return {
       system,
-      rateLimit: this.runtime.lastRateLimit,
-      accounts: this.accounts.snapshot(),
+      rateLimit: null,
+      limits: this.limitReadings(),
+      accounts: null,
       counts: {
         projects: this.projectStore.list().length,
         chats: chats.length,
@@ -2424,11 +2363,12 @@ export class Core {
     };
   }
 
-  /** Reads through to claude-swap and keeps the credential ownership in sync. */
-  async accountsOverview(refresh = false): Promise<AccountsOverview> {
-    const overview = await this.accounts.overview(refresh);
-    this.syncCredentialOwner();
-    return overview;
+  /** One reading per provider that has one, for the overview and the status bar. */
+  private limitReadings(): ProviderLimit[] {
+    return this.runtime.providers.list().flatMap((m) => {
+      const limit = this.runtime.limits.get(m.id);
+      return limit ? [limit] : [];
+    });
   }
 
   shutdown(): void {
@@ -2448,7 +2388,7 @@ export class Core {
     this.changeWatcher.close();
     this.permissions.close();
     this.push.close();
-    this.accounts.shutdown();
+    this.rotation.close();
     this.runtime.stopAll();
     this.db.close();
   }
