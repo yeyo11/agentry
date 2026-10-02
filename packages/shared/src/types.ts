@@ -4875,6 +4875,9 @@ export type HostReason =
   | 'tracker-signed-out'
   | 'transition-unknown'
   | 'issue-is-pull-request'
+  | 'issue-scope-unknown'
+  | 'closing-unchecked'
+  | 'issue-closed-unlinked'
   | 'hook-no-permission'
   | 'hook-unreachable'
   | 'not-recorded';
@@ -4960,6 +4963,12 @@ export interface IssueRef {
   tracker: TrackerId;
   /** What the person reads: `12` on GitHub and GitLab, `PROJ-12` on Jira and YouTrack */
   key: string;
+  /**
+   * The tracker scope (the repository, for GitHub and GitLab) the issue was imported from. Every
+   * call and every closing word about this issue uses it, whatever the project's scope is now; null
+   * when it was never recorded, and Agentry then writes nothing to the issue.
+   */
+  scope: string | null;
   /** The tracker's own id, when it differs from the key */
   externalId: string | null;
   title: string;

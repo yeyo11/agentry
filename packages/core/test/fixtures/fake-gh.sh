@@ -79,6 +79,12 @@ case "$1 $2" in
     exit 0 ;;
   "pr view")
     if [ -f "$state/fail" ]; then echo "HTTP 502: Bad Gateway (https://api.github.com/graphql)" >&2; exit 1; fi
+    case "$*" in
+      *"--json closingIssuesReferences") # what the host says the merged request closes; $state/closing.json holds the answer
+        if [ -f "$state/closing-fail" ]; then echo "HTTP 502: Bad Gateway (https://api.github.com/graphql)" >&2; exit 1; fi
+        if [ -f "$state/closing.json" ]; then cat "$state/closing.json"; else echo '{"closingIssuesReferences":[]}'; fi
+        exit 0 ;;
+    esac
     case "$3" in
       task/*)
         n=$(cat "$state/next" 2>/dev/null || echo 7)

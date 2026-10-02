@@ -14074,6 +14074,13 @@
         "type": "string",
         "description": "What the person reads: `12` on GitHub and GitLab, `PROJ-12` on Jira and YouTrack"
       },
+      "scope": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The tracker scope (the repository, for GitHub and GitLab) the issue was imported from. Every call and every closing word about this issue uses it, whatever the project's scope is now; null when it was never recorded, and Agentry then writes nothing to the issue."
+      },
       "externalId": {
         "type": [
           "string",
@@ -14121,6 +14128,7 @@
     "required": [
       "tracker",
       "key",
+      "scope",
       "externalId",
       "title",
       "state",
@@ -14184,6 +14192,9 @@
       "tracker-signed-out",
       "transition-unknown",
       "issue-is-pull-request",
+      "issue-scope-unknown",
+      "closing-unchecked",
+      "issue-closed-unlinked",
       "hook-no-permission",
       "hook-unreachable",
       "not-recorded"

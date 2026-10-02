@@ -155,7 +155,7 @@ test('linking, unlinking and syncing an issue are checked against the item and i
   assert.equal((await app.inject({ method: 'DELETE', url: `${url}/12` })).statusCode, 404);
   assert.equal((await app.inject({ method: 'POST', url: `${url}/12/sync` })).statusCode, 404);
 
-  core.workItems.linkIssue(item.id, { tracker: 'github-issues', key: '12', externalId: null, title: 'Crash', state: 'open', url: null });
+  core.workItems.linkIssue(item.id, { tracker: 'github-issues', scope: 'acme/shop', key: '12', externalId: null, title: 'Crash', state: 'open', url: null });
   assert.equal((await app.inject(`/api/work-items/${item.id}`)).json<WorkItem>().issues?.length, 1);
 
   // The item is in Backlog and the project maps nothing: there is nothing to write, and it says so
@@ -169,10 +169,25 @@ test('linking, unlinking and syncing an issue are checked against the item and i
   assert.deepEqual(removed.json<WorkItem>().issues ?? [], []);
 });
 
+test('the same issue number from two repositories is two links: a key alone is ambiguous, ?scope= names which', async () => {
+  const project = await importProject('TwoScopes');
+  const item = (await app.inject({ method: 'POST', url: `/api/projects/${project.id}/work-items`, ...json({ title: 'Both' }) })).json<WorkItem>();
+  const link = (scope: string) => core.workItems.linkIssue(item.id, { tracker: 'github-issues', scope, key: '12', externalId: null, title: 'Crash', state: 'open', url: null });
+  link('acme/a');
+  link('acme/b');
+  const url = `/api/work-items/${item.id}/issues/12`;
+  assert.equal((await app.inject({ method: 'DELETE', url })).statusCode, 400);
+  assert.equal((await app.inject({ method: 'POST', url: `${url}/sync` })).statusCode, 400);
+  assert.equal((await app.inject({ method: 'DELETE', url: `${url}?scope=acme/c` })).statusCode, 404);
+  const removed = await app.inject({ method: 'DELETE', url: `${url}?scope=ACME/B` });
+  assert.equal(removed.statusCode, 200, removed.body);
+  assert.deepEqual(removed.json<WorkItem>().issues?.map((i) => i.scope), ['acme/a']);
+});
+
 test("a chat's token can read trackers and their issues but not import, link, sync or change anything", async () => {
   const project = await importProject('Guarded');
   const item = (await app.inject({ method: 'POST', url: `/api/projects/${project.id}/work-items`, ...json({ title: 'Guard' }) })).json<WorkItem>();
-  core.workItems.linkIssue(item.id, { tracker: 'github-issues', key: '7', externalId: null, title: 'Seven', state: 'open', url: null });
+  core.workItems.linkIssue(item.id, { tracker: 'github-issues', scope: 'acme/shop', key: '7', externalId: null, title: 'Seven', state: 'open', url: null });
   const created = await app.inject({ method: 'POST', url: '/api/security/token', ...json({}) });
   const { token } = created.json<{ token: string }>();
   assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...json({ mode: 'token' }) })).statusCode, 200);

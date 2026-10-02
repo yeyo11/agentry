@@ -47,7 +47,10 @@ import {
   uncommittedFiles,
 } from './git.ts';
 import { checksFixPrompt, reviewFixPrompt } from './flow.ts';
+import { trackerAdapter } from './trackers/adapters.ts';
 import { linkedIssueLines, titleIssueKeys } from './trackers/links.ts';
+import type { ClosedIssue } from './trackers/tracker.ts';
+import type { MergedNotice, MergedOutcome } from './trackers/sync.ts';
 import { ChecksError, type ChecksService, type ChecksTarget } from './hosts/checks-service.ts';
 import { reviewDiff } from './hosts/review-diff.ts';
 import type { MergeService, PushHold } from './hosts/merge-service.ts';
@@ -340,7 +343,8 @@ export interface PullRequestDeps {
   /** The hook of `checks.fix`: a change request turned `failing` for a head not announced before */
   onChecksFailing?: (notice: ChecksFailingNotice) => void;
   /** The host merged an item's change request, after the item moved to Done: the tracker's issues are told (`trackers/sync.ts`) */
-  onMerged?: (notice: { itemId: string; closingWord: boolean; host: string }) => Promise<void>;
+  /** Tells the issue tracker the request merged, with what the host closed; answers what the request's row should show */
+  onMerged?: (notice: MergedNotice) => Promise<MergedOutcome>;
 }
 
 /** What a request to fix a work item's checks answers: whether a run started, and the prompt either way. */
@@ -1303,20 +1307,50 @@ export class PullRequestService {
     } catch {
       // removed meanwhile
     }
-    await this.tellTracker(row, projectPath);
+    const told = await this.tellTracker(row, projectPath);
     this.removeWorktree(row, item, projectPath);
+    this.showClosedUnlinked(row, told);
     await this.forward(projectPath, row.base);
   }
 
-  /** A closing word in the body only works into the default branch; the tracker's sync decides what else is left to close. */
-  private async tellTracker(row: PullRequestRow, projectPath: string): Promise<void> {
-    if (!this.deps.onMerged) return;
+  /**
+   * Tells the tracker's sync that the request merged, with what the host says it closed: the body was
+   * written when the request opened, so only the host knows which issues it closed.
+   */
+  private async tellTracker(row: PullRequestRow, projectPath: string): Promise<MergedOutcome | null> {
+    if (!this.deps.onMerged) return null;
     try {
-      const defaultBranch = (await this.readiness(projectPath)).defaultBranch;
-      await this.deps.onMerged({ itemId: row.item_id, closingWord: defaultBranch !== null && defaultBranch === row.base, host: row.host });
+      return await this.deps.onMerged({ itemId: row.item_id, host: row.host, closed: await this.closedByMerge(row) });
     } catch {
       // the merge is done; the tracker's state is on its own row
+      return null;
     }
+  }
+
+  /**
+   * The issues the host closed with this request, read from it (matrix F10); null when it could not
+   * be read, which the sync shows rather than guesses. A project whose tracker is not on this host
+   * has none a host closes: nothing is read.
+   */
+  private async closedByMerge(row: PullRequestRow): Promise<ClosedIssue[] | null> {
+    const tracker = this.deps.projectTracker?.(row.project_id) ?? null;
+    const adapter = tracker ? trackerAdapter(tracker.id) : null;
+    if (!adapter || adapter.host !== row.host) return [];
+    try {
+      const target = await this.checksTarget(row);
+      if (!target || row.number === null) return null;
+      const out = await target.run(adapter.closedByChangeRequest(target.repo, row.number));
+      return out.exitCode === 0 ? adapter.parseClosedByChangeRequest(out.stdout) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** An issue the host closed that the item no longer links is on the request's row, with its address. */
+  private showClosedUnlinked(row: PullRequestRow, told: MergedOutcome | null): void {
+    if (!told?.closedUnlinked.length) return;
+    this.update(row.id, { error_code: 'issue-closed-unlinked', error_detail: told.closedUnlinked.join(', ') });
+    this.changed(row.item_id, null, SYSTEM, null);
   }
 
   private removeWorktree(row: PullRequestRow, item: WorkItem, projectPath: string): void {

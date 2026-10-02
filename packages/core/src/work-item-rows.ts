@@ -98,6 +98,8 @@ export interface IssueRow {
   project_id: string;
   item_id: string;
   tracker: string;
+  /** '' before the backfill read it, '?' when no scope could be told */
+  scope: string;
   key: string;
   external_id: string | null;
   title: string;
@@ -548,6 +550,9 @@ export function changeRequestMergeOf(row: ChangeRequestMergeRow): ChangeRequestM
   };
 }
 
+/** What a link's scope reads when the backfill could not tell it: never equal to a repository path */
+export const UNKNOWN_ISSUE_SCOPE = '?';
+
 const SYNC_STATES: readonly IssueSyncState[] = ['none', 'synced', 'failed'];
 
 /**
@@ -558,6 +563,7 @@ export function issueRefOf(row: IssueRow): IssueRef {
   const syncState = SYNC_STATES.find((s) => s === row.sync_state) ?? 'none';
   return {
     tracker: row.tracker as TrackerId,
+    scope: row.scope === '' || row.scope === UNKNOWN_ISSUE_SCOPE ? null : row.scope,
     key: row.key,
     externalId: row.external_id,
     title: row.title,
