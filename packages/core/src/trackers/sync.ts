@@ -192,7 +192,7 @@ export class TrackerSyncService {
     if (!adapter.writes(column)) return null;
     let access: TrackerAccess;
     try {
-      access = await this.deps.access(projectPath, tracker.id);
+      access = await this.deps.access(projectPath, adapter.id);
     } catch (err) {
       const code = err instanceof WorkItemError && 'reason' in err && typeof err.reason === 'string' ? err.reason : null;
       return { syncState: 'failed', reason: (code && READINESS_REASON[code]) || 'unreachable' };

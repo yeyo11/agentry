@@ -52,12 +52,18 @@ while its key stays the `iid`.
 |---|---|---|
 | List, search | `issue list --search … --json …` | `issue list -O json -P 100 -p <n> [--search]` |
 | Get | `issue view <n> --json …` (a `/pull/` url is `issue-is-pull-request`) | `issue view <iid> -F json` |
-| Create | `issue create --body-file -` (never `--type`) | `issue create -t -d -y` |
 | Close | `issue close --reason completed` | `issue close` (idempotent) |
-| Reopen, comment, update, labels | as matrix F | as matrix F |
+
+An adapter holds only what a caller in Agentry uses: list, get, close (through `setStatus`, `done`
+only) and what a change request closed. Create, update, comment, reopen, labels and closing as
+*not planned* are not built: phase 5 has no route, event or decision that calls them, and a piece
+nothing calls is a bug. The matrix rows F3 to F5, F7 and F8 and the recorded facts stay in the plan
+(a GitLab `issue update -u` says "removed" also when the label was not there, so the caller must
+re-read; `issue create -l` with a deleted label attaches nothing; GitHub takes a body with
+`--body-file -` on stdin), for the feature that needs them to build and test again.
 
 A key is an issue number: `issueNumber` accepts digits (and `#12`) and nothing else, so a key can
-never be read as a flag. A body is cut at 60 000 characters (`MAX_ISSUE_BODY`).
+never be read as a flag. An issue body copied into a work item is cut at 60 000 characters (`MAX_ISSUE_BODY`).
 
 ## Settings
 
@@ -202,7 +208,10 @@ cannot change a project's tracker: the general `PUT /projects/:id/settings` keep
 
 A conformance suite for trackers (`packages/core/test/trackers/conformance.ts`) runs every adapter
 against the recordings; the import, the links and the sync have their own tests with the CLI faked
-on a temporary PATH. Jira and YouTrack have no fakes until they have recordings.
+on a temporary PATH. Jira and YouTrack have no fakes until they have recordings. Two imports of one
+issue at once are tested with two services on one database file whose reads are held until both have
+passed the existence check: one wins, the other is refused with a 409 by the write and is answered
+as `already-imported`, and the unique index holds when a write skips the check.
 
 ## Related
 

@@ -226,7 +226,7 @@ test('a tracker turned off imports, lists and syncs nothing, and says why', asyn
   const project = await importProject('Off');
   assert.equal((await app.inject({ method: 'PUT', url: `/api/projects/${project.id}/tracker`, ...json(githubTracker) })).statusCode, 200);
   const item = (await app.inject({ method: 'POST', url: `/api/projects/${project.id}/work-items`, ...json({ title: 'Off' }) })).json<WorkItem>();
-  core.workItems.linkIssue(item.id, { tracker: 'github-issues', key: '9', externalId: null, title: 'Nine', state: 'open', url: null });
+  core.workItems.linkIssue(item.id, { tracker: 'github-issues', scope: 'acme/widgets', key: '9', externalId: null, title: 'Nine', state: 'open', url: null });
   const off = await app.inject({ method: 'PUT', url: '/api/trackers/settings', ...json({ trackers: { 'github-issues': { enabled: false } } }) });
   assert.equal(off.statusCode, 200, off.body);
   try {
@@ -238,7 +238,7 @@ test('a tracker turned off imports, lists and syncs nothing, and says why', asyn
     assert.equal(imported.json<{ code: string }>().code, 'tracker-disabled');
 
     // The merge path: the closing write is refused at the same door, and the item shows the reason
-    await core.trackerSync.merged({ itemId: item.id, closingWord: false, host: 'github' });
+    await core.trackerSync.merged({ itemId: item.id, host: 'github', closed: [] });
     const issue = core.workItems.issuesOf(item.id)[0];
     assert.equal(issue?.syncState, 'failed');
     assert.equal(issue?.syncReason, 'tracker-disabled');
