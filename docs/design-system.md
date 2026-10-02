@@ -727,6 +727,51 @@ both ids), `DesktopChats` and `MobileChats` (a Claude, a Codex and a Copilot cha
 written by `reference/tools/chatproviders.py`; the first run lifted the four older screens into the
 shared shell and swapped their pixel radii for tokens.
 
+### Rotation between providers: the limit, the on-limit card, the mapping and the project override
+
+Drawn for phase 4 of [multiple agent providers](plans/multi-provider.md) (task `p1` of
+`providers4-prototypes`) and waiting for the owner's validation before W builds it. Nothing here is
+live: no `--live`, no loop, no energy border. The only gradient is each screen's one primary
+("Guardar los cambios"). The rules are under "Rotation between providers" in
+[agentry-ds.css](design-system/agentry-ds.css).
+
+- **The limit block (`.prov-limit`).** Inside a provider's row (`.prov-state`) or cell, under the
+  reason: the label "Límite", a state badge, and the age of the reading with where it came from
+  ("Lectura de hace 3 min · durante la última ejecución"). Then a row per window (`.lim-row`): the
+  window in mono (`5 h`, `7 d`), a usage `.bar`, the percentage and the reset time. Bars follow the
+  usage rule: neutral below 60 %, `warn` from 60 %, `bad` from 75 % or on the exhausted window.
+  - States, each a word with its colour: **Cerca del límite** (`b-warn`), **Límite alcanzado**
+    (`b-bad`), **Sin lectura** (`b-idle`, with a sentence instead of bars). With headroom there is no
+    badge. A provider that does not report quota, or whose limit just reset, is "Sin lectura": it is
+    never shown as free without a new reading.
+  - It is not drawn in the first-run rows (`.compact`). On a phone the reset drops under its bar.
+- **Al llegar a un límite (`.rot-row`).** A card in Settings → Providers: a callout saying the
+  default is to wait, then rows of title and hint on the left and the control on the right: the action
+  (`Segmented`: Continuar con un resumen / Empezar de nuevo / Esperar al reinicio), what a decision may
+  choose (`.rot-check`, the action above always on and disabled), the wait cap and the moves cap
+  (`.stepper`). On a phone it is its own screen, reached from a cell: radios at 44 px
+  (`.rot-radio`), switches and steppers at 44 px.
+- **Equivalencias de modelos (`.map-row`).** A card with a source `Segmented` (the provider the models
+  come from) and a row per model, a column per target. A cell is a mono select, or one of three
+  marks, always with a word: **Sin equivalente** (`b-warn`, with "Sugerir" and the sentence that the
+  work waits), **Ya no se ofrece** (`b-warn`) and **Sugerido** (`b-accent`, in a dashed `.map-suggest`
+  with Aceptar and Descartar: "No vale hasta que lo aceptes"). A row a waiting job needs is
+  `.is-target`, with a `warn` callout above. On a phone each model is a card of cells; a cell opens a
+  `Sheet` with radios, "Ninguno" and "Sugerir una equivalencia".
+- **Project override.** In the project's Ajustes, a card above Decisiones: the order (`Segmented`
+  "Usar el global" / "Orden propio", rows with a handle, up/down on a phone, "Quitar del orden", and
+  "Fuera del orden" below with "Añadir") and the on-limit fields (`.ov-field`). A field that
+  inherits says "Heredado" and its segment is dimmed (`.seg.is-inherited`); a changed one says
+  "global: …" and a ghost "Usar la global", as Decisiones does. On a phone it is its own screen.
+- **Copy.** Modes are named in words, never ids: "Continuar con un resumen" (handoff), "Empezar de
+  nuevo" (restart), "Esperar al reinicio" (wait).
+
+Reference screens: `DesktopProveedores` and `MobileProveedores` (the limit block),
+`DesktopProveedoresRotacion`, `MobileProveedoresRotacion`, `MobileProveedoresEquivalencias`,
+`MobileProveedoresEquivalenciasPar`, `DesktopProyectoAjustes` and `MobileProyectoAjustes` (the
+override, with `MobileProyectoAjustesProveedores`) and `DSLimites` (every state). They are written by
+`reference/tools/providers_rotation.py`, which `providers.py` and `projects.py` import.
+
 ### Integrations: the code hosts' CLIs
 
 Drawn for [code hosts](plans/code-hosts.md) (task `p1` of P0) and waiting for the owner's validation
