@@ -13,6 +13,7 @@ import type {
   ProjectModule,
   ProjectSettings,
   ProjectTeamMember,
+  ProviderMove,
 } from '@agentry/shared';
 import { assistantLanguage, parseAnswer, assistantSchema, assistantPrompt, MODEL_CHOICE, type AssistantBrief, type AssistantGit } from '../src/assistant-answer.ts';
 import { partialJson, resourceDraft } from '../src/assistant-draft.ts';
@@ -87,6 +88,8 @@ function setup(opts: { dir?: string; settings?: ProjectSettings; db?: Db; commit
   const launches: AssistantLaunch[] = [];
   const stopped: string[] = [];
   const busy = new Set<string>();
+  /** Chats whose usage limit the rotation has, as the core would say */
+  const held = new Set<string>();
   const failNext: { message: string | null } = { message: null };
   const added: Array<{ member: ProjectTeamMember; content: string | null }> = [];
   const saved: Array<{ scope: ConfigScopeKind; kind: AssistantResourceKind; name: string; content: string }> = [];
@@ -128,6 +131,7 @@ function setup(opts: { dir?: string; settings?: ProjectSettings; db?: Db; commit
     },
     chatBusy: (id) => busy.has(id),
     stop: (id) => void stopped.push(id),
+    limitHeld: (id) => held.has(id),
     cost: () => null,
     addMember: async (_project, member, content) => {
       if (failMember.message) throw Object.assign(new Error(failMember.message), { statusCode: 409 });
@@ -141,7 +145,7 @@ function setup(opts: { dir?: string; settings?: ProjectSettings; db?: Db; commit
   });
   bus.observe((e) => assistant.observe(e));
   /** Answers the run's chat with a structured result. */
-  const answer = (run: AssistantRunDetail, output: unknown, extra: { isError?: boolean; result?: string; costUsd?: number; cause?: 'stopped'; stopReason?: string } = {}) => {
+  const answer = (run: AssistantRunDetail, output: unknown, extra: { isError?: boolean; result?: string; costUsd?: number; cause?: 'stopped' | 'rate-limit'; stopReason?: string } = {}) => {
     assert.ok(run.chatId, 'the run has a chat');
     assistant.chatResult(run.chatId, {
       isError: extra.isError ?? false,
@@ -153,7 +157,7 @@ function setup(opts: { dir?: string; settings?: ProjectSettings; db?: Db; commit
     });
     return assistant.run(run.id);
   };
-  return { db, bus, events, state, dir, items, assistant, launches, stopped, busy, failNext, added, saved, failMember, answer };
+  return { db, bus, events, state, dir, items, assistant, launches, stopped, busy, held, failNext, added, saved, failMember, answer };
 }
 
 type Setup = ReturnType<typeof setup>;
@@ -1146,4 +1150,86 @@ test("assistant.rerank unavailable, no quota included: the model's order stands,
   const rows = await rig.rowsAfter('assistant.rerank', 1);
   assert.equal(rows[0]?.unavailable, 'no-quota');
   assert.deepEqual(workItemTitles(s.assistant.run(run.id)), ['Add CI', 'Retry webhooks']);
+});
+
+// ---------- a limit: waiting and moving ----------
+
+const assistantMove = (runId: string, fromChat: string, toChat: string): ProviderMove => ({
+  id: `move-${toChat}`,
+  at: new Date().toISOString(),
+  subjectKind: 'assistant_run',
+  subjectId: runId,
+  projectId: 'p1',
+  fromChat,
+  toChat,
+  fromProvider: 'claude-code',
+  toProvider: 'codex',
+  fromModel: 'sonnet',
+  toModel: 'gpt-5.5',
+  action: 'handoff',
+  state: 'moved',
+  decidedBy: 'setting',
+  decisionId: null,
+  resetsAt: null,
+  reason: null,
+  updatedAt: new Date().toISOString(),
+});
+
+test('a run whose chat hit the usage limit stays running while the rotation holds the chat, and ends on the replayed turn', async () => {
+  const s = setup();
+  const run = await projectRun(s);
+  s.held.add(run.chatId as string);
+  // Neither the limit's result nor the process it took down ends the run
+  s.assistant.chatResult(run.chatId as string, { isError: true, result: 'limit', structuredOutput: null, cause: 'rate-limit' });
+  s.bus.emit({ type: 'run.ended', title: '', runId: run.chatId ?? '', runName: 'x', sessionId: null, orchestrationId: null, internal: false, status: 'failed', error: 'exit 1', costUsd: 0, durationMs: 1 } as unknown as AgentryEvent);
+  assert.equal(s.assistant.run(run.id).status, 'running');
+  // The replayed turn answers in the same chat
+  s.held.delete(run.chatId as string);
+  s.assistant.waitEnded({ fromChat: run.chatId as string }, 'resumed', null);
+  assert.equal(s.answer(run, RESULT).status, 'completed');
+
+  // A limit nobody holds fails the run, as it always did
+  const other = await projectRun(s);
+  assert.equal(s.answer(other, null, { isError: true, result: 'limit', cause: 'rate-limit' }).status, 'failed');
+});
+
+test('a person who stops waiting stops the run, and a wait that ran out fails it with the code a client words', async () => {
+  const s = setup();
+  const stopped = await projectRun(s);
+  s.assistant.waitEnded({ fromChat: stopped.chatId as string }, 'cancelled', 'stopped waiting');
+  assert.equal(s.assistant.run(stopped.id).status, 'stopped');
+  const expired = await projectRun(s);
+  s.assistant.waitEnded({ fromChat: expired.chatId as string }, 'failed', 'limit-wait-expired');
+  const read = s.assistant.run(expired.id);
+  assert.equal(read.status, 'failed');
+  assert.equal(read.error?.code, ASSISTANT_ERRORS.chat);
+  assert.match(read.error?.text ?? '', /did not reset/);
+  // Heard for a chat no run has: nothing changes
+  s.assistant.waitEnded({ fromChat: 'nobody' }, 'failed', null);
+});
+
+test('a move re-points the run at its new chat once, and the new chat ends the run; its answer may come before the move does', async () => {
+  const s = setup();
+  const run = await projectRun(s);
+  const from = run.chatId as string;
+  const work = s.assistant.workOf(from);
+  assert.equal(work?.kind, 'assistant');
+  assert.equal(work?.subjectKind, 'assistant_run');
+  assert.equal(work?.subjectId, run.id);
+  assert.equal(work?.prompt, s.launches.at(-1)?.prompt);
+  assert.equal(s.assistant.workOf('nobody'), null);
+
+  assert.equal(s.assistant.moved(assistantMove(run.id, from, 'chat-codex')), true);
+  assert.equal(s.assistant.moved(assistantMove(run.id, from, 'chat-codex')), false, 'a second call changes nothing');
+  assert.equal(s.assistant.run(run.id).chatId, 'chat-codex');
+  assert.equal(s.assistant.workOf(from), null);
+  assert.equal(s.assistant.workOf('chat-codex')?.prompt, work?.prompt);
+  s.assistant.chatResult('chat-codex', { isError: false, result: '', structuredOutput: RESULT, costUsd: 0.07 });
+  assert.equal(s.assistant.run(run.id).status, 'completed');
+
+  // The new chat answers before anything re-pointed the run: the move row is there first
+  const early = await projectRun(s);
+  s.db.insertProviderMove(assistantMove(early.id, early.chatId as string, 'chat-early'));
+  s.assistant.chatResult('chat-early', { isError: false, result: '', structuredOutput: RESULT, costUsd: 0.07 });
+  assert.equal(s.assistant.run(early.id).status, 'completed');
 });

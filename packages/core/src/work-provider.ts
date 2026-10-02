@@ -13,6 +13,9 @@ import { candidatesFor, type CandidateResult } from './providers/candidates.ts';
  * included) and has a counterpart for its model. `provider.pick` may choose another one among those.
  */
 
+/** The provider a graph's own `allowedTools` are written for */
+const NATIVE_RULES_PROVIDER: ProviderId = 'claude-code';
+
 /** No provider can take the work: none is ready, or none can enforce its policy. The work fails with `no-provider`. */
 export class NoProviderError extends Error {
   constructor(readonly why: string) {
@@ -73,13 +76,21 @@ export class WorkProviders {
         model: input.model ? { provider: 'claude-code', id: input.model } : null,
         needs: input.needs,
         policy: input.policy,
-        nativeRules: input.nativeRules ?? input.policy === null,
+        // Rules typed for Claude Code cannot be translated, so they are not what the filter weighs: the
+        // work stays on the provider they are written for (below)
+        nativeRules: false,
         automated: true,
         exclude: [],
         effort: input.effort ?? null,
       },
       context,
     );
+    if (input.nativeRules) {
+      const stays = result.candidates.filter((c) => c.provider === NATIVE_RULES_PROVIDER);
+      const left = result.candidates.filter((c) => c.provider !== NATIVE_RULES_PROVIDER);
+      result.candidates = stays;
+      result.excluded.push(...left.map((c) => ({ provider: c.provider, excluded: 'policy-not-portable' as const })));
+    }
     return { result, project };
   }
 
