@@ -1,4 +1,4 @@
-import type { ChatFork, ChatOrigin, ChatToolConfig, Execution, PermissionMode } from '@agentry/shared';
+import type { ChatContinuation, ChatFork, ChatOrigin, ChatToolConfig, Execution, PermissionMode } from '@agentry/shared';
 import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import { emptyTokenUsage } from './usage.ts';
 
@@ -22,6 +22,10 @@ export interface ChatRecord {
   orchestrationId: string | null;
   orchestrationTaskId: string | null;
   derivedFrom: ChatFork | null;
+  /** The chat this one continues after a move to another provider */
+  continuedFrom?: ChatContinuation | null;
+  /** The chat that continues this one; set when a move leaves it */
+  continuedIn?: ChatContinuation | null;
   /** The first message Agentry sent, for a chat whose transcript has no readable one */
   prompt: string;
   lastText: string | null;
@@ -31,8 +35,6 @@ export interface ChatRecord {
   provider?: string;
   /** The id the agent gave the session, for a provider that names it itself; null for Claude, whose native id is `id` */
   nativeSessionId?: string | null;
-  /** Pinned claude-swap account, when it did not use the active one */
-  account: string | null;
   /** Where permissions, questions and plans go, kept so a resumed execution asks the same way */
   permissionPrompts: 'host' | 'none';
   /** The tool preset and MCP servers it was started with; a process that resumes it is given them again */
@@ -71,7 +73,8 @@ export interface LegacyRun {
   orchestrationId: string | null;
   orchestrationTaskId: string | null;
   internal: boolean;
-  account: string | null;
+  /** Read from an old file and ignored: accounts were retired */
+  account?: string | null;
   workingDir?: string | null;
   permissionPrompts?: 'host' | 'none';
 }
@@ -114,7 +117,7 @@ export function chatsFromRuns(runs: readonly LegacyRun[]): ConvertedRuns {
         error: run.error ?? (outcome === 'interrupted' ? INTERRUPTED_BY_RESTART : null),
         permissionMode: run.permissionMode,
         model: run.model,
-        account: run.account,
+        account: null,
         maxBudgetUsd: null,
         // A run that answered nothing has no figure; one that did has the CLI's own
         costUsd: run.turns > 0 ? run.costUsd : null,
@@ -136,7 +139,6 @@ export function chatsFromRuns(runs: readonly LegacyRun[]): ConvertedRuns {
         lastText: last.lastText,
         model: last.model,
         permissionMode: last.permissionMode,
-        account: last.account,
         permissionPrompts: last.permissionPrompts === 'host' ? 'host' : 'none',
         createdAt: first.createdAt,
         updatedAt: last.updatedAt,

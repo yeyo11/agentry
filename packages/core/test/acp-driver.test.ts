@@ -44,7 +44,6 @@ function spec(over: Partial<SessionLaunch> = {}): SessionLaunch {
     cwd: root,
     permissionMode: 'manual',
     permissionPrompts: 'host',
-    account: null,
     policy: null,
     ...over,
   };

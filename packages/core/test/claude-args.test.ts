@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { ChatManager, type AccountResolver, type NewChat } from '../src/chats.ts';
+import { ChatManager, type NewChat } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import type { PermissionBroker } from '../src/permissions.ts';
 import type { UploadStore } from '../src/uploads.ts';
@@ -22,7 +22,6 @@ interface Case {
   chat?: Partial<NewChat>;
   /** What to do after the first turn: continue the chat in place, or in a copy */
   then?: 'resume' | 'fork';
-  account?: { managed: boolean; active?: string; configDir?: string | null };
   host?: boolean;
 }
 
@@ -47,10 +46,6 @@ const CASES: Case[] = [
   { name: 'no uploads', chat: { uploads: false } },
   { name: 'internal', chat: { internal: true } },
   { name: 'bypass mode', chat: { permissionMode: 'bypassPermissions' } },
-  { name: 'account, not the active one', account: { managed: true, active: 'other' }, chat: { account: 'work' } },
-  { name: 'account, the active one', account: { managed: true, active: 'work' }, chat: { account: 'work' } },
-  { name: 'account with its own config dir', account: { managed: true, active: 'other', configDir: '/tmp/acct-config' }, chat: { account: 'work' } },
-  { name: 'claude-swap not managing', account: { managed: false } },
 ];
 
 async function argvOf(c: Case, dir: string): Promise<string[][]> {
@@ -61,16 +56,6 @@ async function argvOf(c: Case, dir: string): Promise<string[][]> {
   const chats = new ChatManager(config, db);
   chats.uploads = { dir: '/uploads' } as unknown as UploadStore;
   if (c.host) chats.permissions = { denyAllFor: () => undefined } as unknown as PermissionBroker;
-  if (c.account) {
-    const { managed, active, configDir = null } = c.account;
-    const resolver: AccountResolver = {
-      managed,
-      bin: FAKE_CLAUDE,
-      isActive: (id) => id === active,
-      launchFor: ({ account }) => ({ account, configDir }),
-    };
-    chats.accounts = resolver;
-  }
   try {
     const first = chats.start({ prompt: 'hello', name: 'golden', keepAlive: false, ...c.chat });
     await chats.exited(first.id);

@@ -27,7 +27,6 @@ const launch = (over: Partial<SessionLaunch> = {}): SessionLaunch => ({
   cwd: dir,
   permissionMode: 'manual',
   permissionPrompts: 'host',
-  account: null,
   policy: null,
   ...over,
 });
