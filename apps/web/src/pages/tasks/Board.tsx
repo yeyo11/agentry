@@ -27,6 +27,7 @@ import { boardItems, boardTotal, DONE_SHOWN, doneLimitFor, holdsPart, NO_MILESTO
 import { useEpicProgress } from './board/useEpicProgress';
 import { PhoneBoard } from './board/PhoneBoard';
 import { PhoneSelectionFoot, SelectionBar, SelectionNote } from './board/SelectionBar';
+import { ImportIssues, ImportIssuesButton, canImportFrom, useProjectTracker } from './ImportIssues';
 import { List } from './List';
 import { itemPanelSearch, WorkItemPanelHost } from './item/Panel';
 import { NewTask } from './NewTask';
@@ -225,6 +226,12 @@ function TasksBoard() {
     </>
   );
   const pickProjects = scope.allProjects ? scope.boardProjects.map((p) => ({ id: p.id, name: p.name })) : undefined;
+  // ---- Import issues: offered where the project has a tracker that is built ----
+  const tracker = useProjectTracker(scope.allProjects || scope.boardOff ? null : scope.projectId).data;
+  const importable = scope.project && canImportFrom(tracker) ? tracker : null;
+  const [importing, setImporting] = useState(false);
+  // Only an empty board on a desktop lets Import lead: it is how the project fills; New task is neutral then
+  const importLeads = !phone && empty && importable !== null;
   const newTask = <NewTaskButton primary={!selecting && !empty && !scope.allProjects} projects={pickProjects} onNew={(projectId) => openNew(projectId)} />;
   const canSelect = !empty && !scope.boardOff && total > 0;
 
@@ -243,7 +250,7 @@ function TasksBoard() {
       </Card>
     );
   } else if (empty) {
-    body = <EmptyBoard project={scope.project} phone={phone} onNew={() => openNew(null)} />;
+    body = <EmptyBoard project={scope.project} phone={phone} onNew={() => openNew(null)} importLeads={importLeads} />;
   } else if (filters.active && shownTotal === 0) {
     body = <NothingFiltered phone={phone} onReset={filters.clear} />;
   } else if (view === 'list') {
@@ -311,7 +318,12 @@ function TasksBoard() {
         <>
           <PhoneTasksHeader
             view={view}
-            action={canSelect && view === 'board' ? <SelectButton icon on={selecting} onChange={(on) => (on ? setSelecting(true) : stopSelecting())} /> : undefined}
+            action={
+              <>
+                {importable && !selecting && <ImportIssuesButton icon leads={false} onClick={() => setImporting(true)} />}
+                {canSelect && view === 'board' && <SelectButton icon on={selecting} onChange={(on) => (on ? setSelecting(true) : stopSelecting())} />}
+              </>
+            }
             selecting={selecting ? { count: picked.length, project: scope.project?.name ?? t('header.allProjects'), onClose: stopSelecting } : undefined}
           />
           {!selecting && !scope.boardOff && !empty && (
@@ -344,6 +356,7 @@ function TasksBoard() {
               <>
                 {canSelect && <SelectButton on={selecting} onChange={(on) => (on ? setSelecting(true) : stopSelecting())} />}
                 {/* Beside the flow's button the row is full (DesktopTableroEquipo): Suggest keeps its sparkle and its name as a tooltip */}
+                {importable && <ImportIssuesButton leads={importLeads} onClick={() => setImporting(true)} />}
                 {scope.project && !scope.boardOff && <SuggestButton icon={Boolean(team)} onClick={() => setSuggesting(true)} />}
                 {!scope.boardOff && newTask}
               </>
@@ -368,6 +381,8 @@ function TasksBoard() {
       {selecting && (phone ? <PhoneSelectionFoot projectId={selectionProject} selected={selectedItems} /> : <SelectionBar projectId={selectionProject} selected={selectedItems} onCancel={stopSelecting} />)}
 
       <WorkItemPanelHost />
+
+      {importing && scope.project && importable && <ImportIssues project={scope.project} tracker={importable} onClose={() => setImporting(false)} />}
 
       {suggesting && scope.project && <SuggestTasks project={scope.project} onClose={() => setSuggesting(false)} />}
 
