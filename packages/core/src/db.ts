@@ -28,6 +28,10 @@ import type {
   Orchestration,
   OrchestrationSpec,
   PlanDraftSummary,
+  ProviderLimit,
+  ProviderMove,
+  ProviderMoveState,
+  RateLimitWindow,
   SupervisorProposal,
   SupervisorProposalStatus,
   UsageHistoryPoint,
@@ -750,6 +754,45 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      received_at     TEXT NOT NULL
    );
    CREATE INDEX webhook_deliveries_received ON webhook_deliveries (received_at);`,
+  // Rotation between providers (docs/plans/multi-provider.md, phase 4). provider_limits is the current
+  // reading per provider, shared by every process on the data directory; provider_moves is the history
+  // and the wait queue in one: the unique partial index lets one chat have a single open wait, so two
+  // processes cannot both arm one. flow_runs.provider is null on old rows, read as claude-code
+  `CREATE TABLE provider_limits (
+     provider       TEXT PRIMARY KEY,
+     state          TEXT NOT NULL,
+     binding_window TEXT,
+     utilization    REAL,
+     resets_at      TEXT,
+     windows        TEXT NOT NULL,
+     observed_at    TEXT NOT NULL,
+     source         TEXT NOT NULL
+   );
+   CREATE TABLE provider_moves (
+     id            TEXT PRIMARY KEY,
+     at            TEXT NOT NULL,
+     subject_kind  TEXT NOT NULL,
+     subject_id    TEXT NOT NULL,
+     project_id    TEXT,
+     from_chat     TEXT NOT NULL,
+     to_chat       TEXT,
+     from_provider TEXT NOT NULL,
+     to_provider   TEXT,
+     from_model    TEXT,
+     to_model      TEXT,
+     action        TEXT NOT NULL,
+     state         TEXT NOT NULL,
+     decided_by    TEXT NOT NULL,
+     decision_id   TEXT,
+     resets_at     TEXT,
+     claimed_until TEXT,
+     reason        TEXT,
+     updated_at    TEXT NOT NULL
+   );
+   CREATE INDEX provider_moves_subject ON provider_moves (subject_kind, subject_id, at);
+   CREATE INDEX provider_moves_from_chat ON provider_moves (from_chat);
+   CREATE UNIQUE INDEX provider_moves_open ON provider_moves (from_chat) WHERE state IN ('waiting', 'resuming');
+   ALTER TABLE flow_runs ADD COLUMN provider TEXT;`,
 ];
 
 /**
@@ -796,6 +839,9 @@ export const ISSUE_SCOPE_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m =
 
 /** The version that added the webhook registrations and deliveries, for the test that upgrades a database from the one before */
 export const WEBHOOKS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE webhook_registrations')) + 1;
+
+/** The version that added the provider limits and moves, for the test that upgrades a database from the one before */
+export const PROVIDER_ROTATION_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE provider_moves')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by
@@ -946,6 +992,83 @@ function toEvent(row: EventRow): AutoSwitchEvent {
   };
 }
 
+/** How long a closed provider move stays in the history. */
+const KEEP_PROVIDER_MOVES_MS = 90 * 24 * 60 * 60 * 1000;
+
+interface ProviderLimitRow {
+  provider: string;
+  state: string;
+  binding_window: string | null;
+  utilization: number | null;
+  resets_at: string | null;
+  windows: string;
+  observed_at: string;
+  source: string;
+}
+
+function toProviderLimit(row: ProviderLimitRow): ProviderLimit {
+  let windows: Record<string, RateLimitWindow> = {};
+  try {
+    windows = JSON.parse(row.windows) as Record<string, RateLimitWindow>;
+  } catch {
+    // an unreadable windows column leaves the summary fields, which is what the banner reads
+  }
+  return {
+    provider: row.provider,
+    state: row.state as ProviderLimit['state'],
+    window: row.binding_window,
+    utilization: row.utilization,
+    resetsAt: row.resets_at,
+    windows,
+    observedAt: row.observed_at,
+    source: row.source as ProviderLimit['source'],
+  };
+}
+
+interface ProviderMoveRow {
+  id: string;
+  at: string;
+  subject_kind: string;
+  subject_id: string;
+  project_id: string | null;
+  from_chat: string;
+  to_chat: string | null;
+  from_provider: string;
+  to_provider: string | null;
+  from_model: string | null;
+  to_model: string | null;
+  action: string;
+  state: string;
+  decided_by: string;
+  decision_id: string | null;
+  resets_at: string | null;
+  reason: string | null;
+  updated_at: string;
+}
+
+function toProviderMove(row: ProviderMoveRow): ProviderMove {
+  return {
+    id: row.id,
+    at: row.at,
+    subjectKind: row.subject_kind as ProviderMove['subjectKind'],
+    subjectId: row.subject_id,
+    projectId: row.project_id,
+    fromChat: row.from_chat,
+    toChat: row.to_chat,
+    fromProvider: row.from_provider,
+    toProvider: row.to_provider,
+    fromModel: row.from_model,
+    toModel: row.to_model,
+    action: row.action as ProviderMove['action'],
+    state: row.state as ProviderMove['state'],
+    decidedBy: row.decided_by as ProviderMove['decidedBy'],
+    decisionId: row.decision_id,
+    resetsAt: row.resets_at,
+    reason: row.reason,
+    updatedAt: row.updated_at,
+  };
+}
+
 export class Db {
   private readonly db: DatabaseSync;
   private auditWrites = 0;
@@ -963,6 +1086,7 @@ export class Db {
     this.pruneRotationEvents();
     this.pruneAudit();
     pruneWebhookDeliveries(this.db);
+    this.pruneProviderMoves();
   }
 
   /**
@@ -1237,6 +1361,132 @@ export class Db {
       }
     }
     return out;
+  }
+
+  // ---------- provider limits and moves ----------
+
+  /**
+   * Records a provider's limit reading. An older reading never overwrites a newer one, whichever
+   * process writes last. Returns whether the row changed.
+   */
+  upsertProviderLimit(limit: ProviderLimit): boolean {
+    const result = this.db
+      .prepare(
+        `INSERT INTO provider_limits (provider, state, binding_window, utilization, resets_at, windows, observed_at, source)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (provider) DO UPDATE SET
+           state = excluded.state, binding_window = excluded.binding_window, utilization = excluded.utilization,
+           resets_at = excluded.resets_at, windows = excluded.windows, observed_at = excluded.observed_at, source = excluded.source
+         WHERE excluded.observed_at >= provider_limits.observed_at`,
+      )
+      .run(limit.provider, limit.state, limit.window, limit.utilization, limit.resetsAt, JSON.stringify(limit.windows), limit.observedAt, limit.source);
+    return Number(result.changes) > 0;
+  }
+
+  /** Every stored limit reading, by provider id. */
+  providerLimits(): ProviderLimit[] {
+    const rows = this.db.prepare('SELECT * FROM provider_limits ORDER BY provider').all() as unknown as ProviderLimitRow[];
+    return rows.map(toProviderLimit);
+  }
+
+  providerLimit(provider: string): ProviderLimit | null {
+    const row = this.db.prepare('SELECT * FROM provider_limits WHERE provider = ?').get(provider) as unknown as ProviderLimitRow | undefined;
+    return row ? toProviderLimit(row) : null;
+  }
+
+  /**
+   * Records a move. Returns false, and writes nothing, when the chat already has an open wait and
+   * this one is open too: two processes cannot both arm a wait for one chat.
+   */
+  insertProviderMove(move: ProviderMove): boolean {
+    const result = this.db
+      .prepare(
+        `INSERT INTO provider_moves (id, at, subject_kind, subject_id, project_id, from_chat, to_chat, from_provider, to_provider,
+           from_model, to_model, action, state, decided_by, decision_id, resets_at, reason, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT DO NOTHING`,
+      )
+      .run(
+        move.id, move.at, move.subjectKind, move.subjectId, move.projectId, move.fromChat, move.toChat, move.fromProvider, move.toProvider,
+        move.fromModel, move.toModel, move.action, move.state, move.decidedBy, move.decisionId, move.resetsAt, move.reason, move.updatedAt,
+      );
+    return Number(result.changes) > 0;
+  }
+
+  providerMove(id: string): ProviderMove | null {
+    const row = this.db.prepare('SELECT * FROM provider_moves WHERE id = ?').get(id) as unknown as ProviderMoveRow | undefined;
+    return row ? toProviderMove(row) : null;
+  }
+
+  /** Newest first. `chatId` matches either end of a move. */
+  providerMoves(filter: { chatId?: string; projectId?: string; subjectKind?: string; subjectId?: string; state?: ProviderMoveState; limit?: number } = {}): ProviderMove[] {
+    const where: string[] = [];
+    const params: SQLInputValue[] = [];
+    if (filter.chatId) {
+      where.push('(from_chat = ? OR to_chat = ?)');
+      params.push(filter.chatId, filter.chatId);
+    }
+    if (filter.projectId) {
+      where.push('project_id = ?');
+      params.push(filter.projectId);
+    }
+    if (filter.subjectKind) {
+      where.push('subject_kind = ?');
+      params.push(filter.subjectKind);
+    }
+    if (filter.subjectId) {
+      where.push('subject_id = ?');
+      params.push(filter.subjectId);
+    }
+    if (filter.state) {
+      where.push('state = ?');
+      params.push(filter.state);
+    }
+    const limit = Math.max(1, Math.min(filter.limit ?? 100, 500));
+    const rows = this.db
+      .prepare(`SELECT * FROM provider_moves ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY at DESC, id DESC LIMIT ?`)
+      .all(...params, limit) as unknown as ProviderMoveRow[];
+    return rows.map(toProviderMove);
+  }
+
+  /** Waits not yet resumed, and resumes whose claim ran out: what a start-up replays. Oldest first. */
+  openProviderMoves(now: string): ProviderMove[] {
+    const rows = this.db
+      .prepare("SELECT * FROM provider_moves WHERE state = 'waiting' OR (state = 'resuming' AND (claimed_until IS NULL OR claimed_until < ?)) ORDER BY at, id")
+      .all(now) as unknown as ProviderMoveRow[];
+    return rows.map(toProviderMove);
+  }
+
+  /**
+   * Takes a wait for replay. One UPDATE decides, so of two processes racing for one wait only the
+   * one that changed the row gets true. A claim that ran out can be taken again.
+   */
+  claimProviderMove(id: string, now: string, claimedUntil: string): boolean {
+    const result = this.db
+      .prepare("UPDATE provider_moves SET state = 'resuming', claimed_until = ?, updated_at = ? WHERE id = ? AND (state = 'waiting' OR (state = 'resuming' AND claimed_until < ?))")
+      .run(claimedUntil, now, id, now);
+    return Number(result.changes) > 0;
+  }
+
+  /**
+   * Closes an open move (`waiting` or `resuming`) as `moved`, `resumed`, `failed` or `cancelled`.
+   * Returns false when it was not open any more, so a cancel racing a resume has one winner.
+   */
+  closeProviderMove(id: string, state: Exclude<ProviderMoveState, 'waiting' | 'resuming'>, now: string, patch: { toChat?: string | null; toProvider?: string | null; toModel?: string | null; reason?: string | null } = {}): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE provider_moves SET state = ?, claimed_until = NULL, updated_at = ?,
+           to_chat = COALESCE(?, to_chat), to_provider = COALESCE(?, to_provider), to_model = COALESCE(?, to_model), reason = COALESCE(?, reason)
+         WHERE id = ? AND state IN ('waiting', 'resuming')`,
+      )
+      .run(state, now, patch.toChat ?? null, patch.toProvider ?? null, patch.toModel ?? null, patch.reason ?? null, id);
+    return Number(result.changes) > 0;
+  }
+
+  /** Drops closed moves last touched before `before` (90 days ago by default); an open wait is never dropped. */
+  pruneProviderMoves(before = new Date(Date.now() - KEEP_PROVIDER_MOVES_MS).toISOString()): number {
+    const result = this.db.prepare("DELETE FROM provider_moves WHERE updated_at < ? AND state NOT IN ('waiting', 'resuming')").run(before);
+    return Number(result.changes);
   }
 
   /** Which of `ids` are stored now: a trim, ours or another process's, may have taken one since it was saved. */
