@@ -99,7 +99,9 @@ function atLimit(provider: CandidateProvider, now: number): boolean {
 function readyFor(provider: CandidateProvider, automated: boolean): boolean {
   const { state, reason } = provider.status;
   if (state === 'ready') return true;
-  if (state === 'degraded') return reason !== 'limit-reached';
+  // At its limit, the reading decides: `exhausted` below says so with the reset, and a reset that has
+  // passed makes it a candidate again. With no reading behind it, it is simply not ready.
+  if (state === 'degraded') return reason !== 'limit-reached' || provider.status.limit?.state === 'exhausted';
   // Copilot has no probe that spends nothing: a person's chat may try it, automated work needs proof
   return state === 'unknown' && reason === 'no-probe' && !automated;
 }

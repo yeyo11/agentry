@@ -125,7 +125,11 @@ test('readiness: not ready is excluded, degraded passes unless limit-reached', (
   const degraded = candidatesFor(run(), context({}, { ...base, codex: provider('codex', {}, { state: 'degraded', reason: 'limit-near' }) }));
   assert.equal(degraded.candidates[0]?.provider, 'codex');
   const reached = candidatesFor(run(), context({}, { ...base, codex: provider('codex', {}, { state: 'degraded', reason: 'limit-reached' }) }));
-  assert.equal(why(reached, 'codex'), 'not-ready');
+  assert.equal(why(reached, 'codex'), 'not-ready', 'a limit with no reading behind it');
+  // What the detector reports at a limit: the reading says exhausted, so the reason is the limit itself
+  const exhausted = (resetsAt: string) => ({ ...base, codex: provider('codex', {}, { state: 'degraded', reason: 'limit-reached', limit: { state: 'exhausted', resetsAt } as ProviderLimit }) });
+  assert.equal(why(candidatesFor(run(), context({}, exhausted(new Date(NOW + 3_600_000).toISOString()))), 'codex'), 'exhausted');
+  assert.equal(candidatesFor(run(), context({}, exhausted(new Date(NOW - 1000).toISOString()))).candidates[0]?.provider, 'codex', 'its reset has passed');
 });
 
 test('no-probe (Copilot) is a candidate for a person only', () => {
