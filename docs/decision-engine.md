@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T18:00:00Z
-updated_at: 2026-10-01T12:00:00Z
+updated_at: 2026-10-02T12:00:00Z
 tags:
     - decisions
     - decision-engine
@@ -113,6 +113,7 @@ Twenty-four points. **Suggest** points never change what happens by themselves.
 | Palette | `palette.intent` | suggest | G | Route a free query to a command; needs Jev (low latency) |
 | Code hosts | `checks.fix` | act | P | Whether failing checks on a new head are the branch's fault and a Developer can fix them |
 | | `review.triage` | suggest | P | Who should take each unresolved review comment: an agent, a person, or nobody |
+| | `issue.triage` | suggest | P | Whether an agent can start on each imported tracker issue as written |
 
 ### `checks.fix`
 
@@ -158,6 +159,20 @@ acts on nothing and only preselects threads in the **Address with an agent** dia
   with an agent** dialog reads the latest and preselects the threads marked `agent`, and marks the
   others. The person can change every selection.
 - **What it never does.** It never replies, resolves or starts a run; a person picks the threads.
+
+### `issue.triage`
+
+Added with code hosts phase 5 ([trackers.md](trackers.md#issuetriage)). A suggest point at project
+scope, `off` by default: it acts on nothing and only marks issues in the import dialog and on
+imported cards.
+
+- **What it is told.** The issues of the page being shown, at most 40: id, title, body cut to
+  2 KiB and labels. An issue body is a stranger's text and goes through the engine's redaction; it
+  is data, never an instruction.
+- **The question** is a choice per issue: "Can an agent start on this issue as written?" — `ready`,
+  `needs-refining` (the goal or the acceptance is unclear) or `not-for-agents` (needs a person:
+  access, a decision, something outside the repository).
+- **What it never does.** It never imports, moves, comments or starts a run; a person picks.
 
 Not decided by the engine, by design: anything that grants (tool permissions, the move to `done`,
 QA's final verdict, `verifyAuth`, a security mode) and plain arithmetic (account rotation, usage
@@ -315,6 +330,7 @@ All under tag `decisions`; the full table is in the README's [REST API](../READM
 - [[plans/decision-engine.md]]: the plan, its task graph and its Outcome.
 - [[decisions/decision-engine.md]]: the owner's eighteen decisions.
 - [[code-hosts.md]]: the checks and the fix that `checks.fix` starts, and the review threads that `review.triage` sorts.
+- [[trackers.md]]: the issues that `issue.triage` marks before they are imported.
 - [[decisions/english-technical-language.md]]: English questions and rubrics.
 - [[prompts.md]]: the `cli` provider's prompt and the twelve-point check.
 - [[team-and-flow.md]] · [[assistant.md]] · [[work-items.md]]: where most points act.
