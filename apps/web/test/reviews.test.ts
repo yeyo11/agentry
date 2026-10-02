@@ -5,7 +5,7 @@ import { keys } from '../src/api';
 import { targetMatches, targetsFor } from '../src/lib/events';
 import {
   approvalsProgress, canSubmit, countThreads, decisionMark, followUpThreads, groupThreads, lineLabel, parseLogins, preselected,
-  reviewerMark, sortDrafts, submitOffer, summarizeDrafts, threadPlace, triageMark, workOnItNeutral,
+  reviewerMark, sortDrafts, submitOffer, summarizeDrafts, threadPlace, triageMark,
 } from '../src/lib/reviews';
 
 const thread = (over: Partial<ReviewThread>): ReviewThread => ({
@@ -74,12 +74,6 @@ test('the submit sheet offers Approve on GitLab only when the viewer can, and li
   assert.ok(canSubmit([draft({})], 'comment', ''));
   assert.ok(!canSubmit([], 'comment', '  '));
   assert.ok(canSubmit([], 'approve', ''));
-});
-
-test('Submit review takes the zone from Work on it while there is a draft, and Fix failing checks does too', () => {
-  assert.equal(workOnItNeutral({ drafts: 0, checksFixShowing: false }), false);
-  assert.equal(workOnItNeutral({ drafts: 2, checksFixShowing: false }), true);
-  assert.equal(workOnItNeutral({ drafts: 0, checksFixShowing: true }), true);
 });
 
 test('a triage mark only preselects the threads marked agent', () => {

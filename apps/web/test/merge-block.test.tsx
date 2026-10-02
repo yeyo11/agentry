@@ -1,6 +1,7 @@
 // tsx compiles test files with the classic runtime; this one renders JSX like the app does
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test, { beforeEach } from 'node:test';
 import type { MergeBlockerAction, MergeBlockerCode, MergeState, WorkItemDetail, WorkItemPullRequest } from '@agentry/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -13,8 +14,9 @@ import { keys } from '../src/api';
 import { setLanguage } from '../src/i18n';
 import enMerge from '../src/i18n/locales/en/merge.json' with { type: 'json' };
 import esMerge from '../src/i18n/locales/es/merge.json' with { type: 'json' };
-import { workOnItNeutral } from '../src/lib/reviews';
-import { Merge, mergePrimary } from '../src/pages/tasks/item/Merge';
+import { mergePrimary } from '../src/lib/merge';
+import { Merge } from '../src/pages/tasks/item/Merge';
+import type { LeadingAction } from '../src/pages/tasks/item/model';
 import { PullRequestState } from '../src/pages/tasks/item/PullRequest';
 
 // The merge block of the item page (docs/plans/code-hosts.md, phase 4, P2): the form that merges,
@@ -54,7 +56,7 @@ function wrap(node: React.ReactNode, data: MergeState | null) {
   );
 }
 
-const render = (data: MergeState | null, request: WorkItemPullRequest = pr()) => wrap(<Merge pr={request} itemId="item1" itemKey="AGN-26" />, data);
+const render = (data: MergeState | null, request: WorkItemPullRequest = pr(), lead: LeadingAction | null = 'merge') => wrap(<Merge pr={request} itemId="item1" itemKey="AGN-26" lead={lead} />, data);
 const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const count = (html: string, needle: string) => html.split(needle).length - 1;
 
@@ -72,34 +74,26 @@ test('a ready block offers the methods, the message, the branch box and one grad
   assert.match(html, /<button[^>]*btn-primary[^>]*>.*?Merge<\/button>/);
 });
 
-test('with a draft review or Fix failing checks leading, Merge is a plain button', () => {
-  const html = wrap(<Merge pr={pr()} itemId="item1" itemKey="AGN-26" />, state());
-  assert.equal(count(html, 'btn-primary'), 1);
-  const qc = new QueryClient();
-  qc.setQueryData(keys.changeRequestMerge('cr1'), state());
-  qc.setQueryData(keys.reviewDrafts('cr1'), [{ id: 'd1' }]);
-  const withDraft = renderToStaticMarkup(
-    <QueryClientProvider client={qc}>
-      <MemoryRouter>
-        <TooltipProvider>
-          <ToastProvider>
-            <Merge pr={pr()} itemId="item1" itemKey="AGN-26" />
-          </ToastProvider>
-        </TooltipProvider>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
-  assert.equal(count(withDraft, 'btn-primary'), 0);
-  assert.match(text(withDraft), /Merge/);
+test('with another action leading the zone, Merge is a plain button', () => {
+  assert.equal(count(render(state()), 'btn-primary'), 1);
+  for (const lead of ['push', 'publish', 'reply', 'submit', 'fix', null] as const) {
+    const html = render(state(), pr(), lead);
+    assert.equal(count(html, 'btn-primary'), 0, String(lead));
+    assert.match(text(html), /Merge/);
+  }
 });
 
-test('the header\'s Work on it gives its gradient up while Merge leads', () => {
-  assert.equal(workOnItNeutral({ drafts: 0, checksFixShowing: false, mergeLeading: false }), false);
-  assert.equal(workOnItNeutral({ drafts: 0, checksFixShowing: false, mergeLeading: true }), true);
+test('arming is the gradient action only while the required checks run: the block and the lead agree', () => {
+  const available = { available: true, reason: null, armed: false, method: null, armedBy: null, armedAt: null } as const;
   assert.equal(mergePrimary(state()), 'merge');
-  assert.equal(mergePrimary(blocked('checks-running', null, 'auto-merge', { autoMerge: { available: true, reason: null, armed: false, method: null, armedBy: null, armedAt: null } })), 'arm');
+  assert.equal(mergePrimary(blocked('checks-running', null, 'auto-merge', { autoMerge: available })), 'arm');
+  // Review required with auto-merge on offer: arming is a plain button, so nothing here leads
+  const review = blocked('review-required', null, 'request-reviewers', { autoMerge: available });
+  assert.equal(mergePrimary(review), null);
+  assert.equal(count(render(review, pr(), 'merge'), 'btn-primary'), 0);
   assert.equal(mergePrimary(blocked('conflicts', null, 'update-from-base')), null);
-  assert.equal(mergePrimary(state({ autoMerge: { available: true, reason: null, armed: true, method: 'squash', armedBy: 'yeyo', armedAt: '2026-10-01T10:00:00Z' } })), null);
+  assert.equal(mergePrimary(state({ autoMerge: { ...available, armed: true, method: 'squash', armedBy: 'yeyo', armedAt: '2026-10-01T10:00:00Z' } })), null);
+  assert.equal(mergePrimary(state({ waitingForPipeline: true, canMerge: false })), null);
   assert.equal(mergePrimary(undefined), null);
 });
 
@@ -228,10 +222,95 @@ test('every blocker, action and failure the model can name has its words in Engl
   const tree = (value: unknown, path: string[]): unknown => path.reduce<unknown>((node, key) => (node as Record<string, unknown> | undefined)?.[key], value);
   const codes = ['not-open', 'computing', 'draft', 'conflicts', 'nothing-to-merge', 'behind', 'checks-running', 'checks-failing', 'checks-missing', 'external-checks', 'review-required', 'changes-requested', 'threads-unresolved', 'tracker-key-missing', 'title-rejected', 'blocked-by-dependency', 'not-yet', 'locked-files', 'merge-queue', 'blocked-by-policy'];
   const actions = ['mark-ready', 'update-from-base', 'rebase-on-host', 'close', 'auto-merge', 'fix-checks', 'rerun-checks', 'request-reviewers', 'address-review', 'show-threads', 'edit-title', 'open-on-host', 'refresh'];
-  const failures = ['head-moved', 'method-not-allowed', 'auto-merge-not-allowed', 'auto-merge-not-needed', 'waiting-for-pipeline', 'rate-limited', 'forbidden', 'merge-failed'];
+  const failures = ['head-moved', 'method-not-allowed', 'auto-merge-not-allowed', 'auto-merge-not-needed', 'waiting-for-pipeline', 'rate-limited', 'busy', 'forbidden', 'merge-failed'];
   for (const resource of [enMerge, esMerge]) {
     for (const code of codes) for (const part of ['word', 'text']) assert.equal(typeof tree(resource, ['blocker', code, part]), 'string', `${code}.${part}`);
     for (const action of actions) assert.equal(typeof tree(resource, ['action', action]), 'string', action);
     for (const failure of failures) assert.equal(typeof tree(resource, ['failure', failure]), 'string', failure);
+    for (const refusal of ['busy', 'not-offered', 'not-open', 'merge-failed']) assert.equal(typeof tree(resource, ['update', refusal]), 'string', refusal);
+    for (const key of ['merged.word', 'merged.text', 'closed.text']) assert.equal(typeof tree(resource, ['blocker', 'not-open', ...key.split('.')]), 'string', key);
+    for (const code of ['checks-failing', 'checks-missing']) assert.equal(typeof tree(resource, ['blocker', code, 'named']), 'string', code);
+    for (const key of ['counted_one', 'counted_other']) assert.equal(typeof tree(resource, ['blocker', 'threads-unresolved', key]), 'string', key);
+  }
+});
+
+test('two failing required checks are two lines, each with its name, and no key is repeated', () => {
+  const errors: unknown[] = [];
+  const log = console.error;
+  console.error = (...args: unknown[]) => void errors.push(args);
+  try {
+    const html = render(
+      blocked('checks-failing', 'unit-tests', 'fix-checks', {
+        others: [
+          { code: 'checks-failing', detail: 'e2e-chrome', action: 'fix-checks' },
+          { code: 'checks-failing', detail: 'e2e-firefox', action: 'fix-checks' },
+          { code: 'threads-unresolved', detail: '3', action: 'show-threads' },
+        ],
+      }),
+    );
+    const others = html.slice(html.indexOf('mb-others'));
+    assert.equal(count(others, '<li'), 3);
+    assert.match(text(others), /checks-failing failing Required check e2e-chrome failed\./);
+    assert.match(text(others), /checks-failing failing Required check e2e-firefox failed\./);
+    assert.match(text(others), /threads-unresolved unresolved 3 conversations are still unresolved\./);
+    assert.deepEqual(errors, []);
+  } finally {
+    console.error = log;
+  }
+});
+
+test('a GitLab check without a name reads in the plural, never with an empty name', () => {
+  const plain = text(render(blocked('checks-failing', null, 'fix-checks')));
+  assert.match(plain, /Required checks failed\./);
+  assert.doesNotMatch(plain, /Required check\s+failed/);
+  assert.match(text(render(blocked('checks-missing', null, 'rerun-checks'))), /Required checks have not reported for the latest commit\./);
+  assert.match(text(render(blocked('threads-unresolved', '1', 'show-threads'))), /1 conversation is still unresolved\./);
+});
+
+test('a request the host merged or closed says so in words, with no raw host word and no remedy to copy', () => {
+  // Right after a merge the state is read again while the row is still open: the block says merged, in the one colour of done
+  const merged = render(blocked('not-open', 'merged', null));
+  assert.match(text(merged), /This PR was merged\./);
+  assert.match(merged, /badge-ok[^>]*>merged</);
+  assert.match(merged, /mb-note is-ok/);
+  assert.doesNotMatch(text(merged), /MERGED|This PR is open/);
+  const closed = text(render(blocked('not-open', 'closed', null)));
+  assert.match(closed, /This PR was closed without merging\./);
+  setLanguage('es');
+  assert.match(text(render(blocked('not-open', 'merged', null))), /Esta PR ya se ha fusionado\./);
+  assert.doesNotMatch(text(render(blocked('not-open', 'closed', null))), /está open/);
+  assert.match(text(render(blocked('not-open', null, null))), /Esta PR ya no está abierta\./);
+});
+
+test('who turned auto-merge off for an update reads as you or Agentry, never as local', () => {
+  const off = (by: string) => text(render(state({ autoMergeOff: { by, at: '2026-10-01T09:30:00Z', why: 'update', pushing: false } })));
+  assert.match(off('local'), /You turned auto-merge off .* for Update from base/);
+  assert.match(off('agentry'), /Agentry turned auto-merge off .* for Update from base/);
+  assert.doesNotMatch(off('local'), /local turned|by local/);
+});
+
+test('Update from base and arming have their own words for every refusal, and only conflicts go to the Developer', () => {
+  for (const language of ['en', 'es'] as const) {
+    const resource = language === 'en' ? enMerge : esMerge;
+    assert.match(resource.toast.conflicts, /Developer|desarrollador/);
+    for (const refusal of ['busy', 'not-offered', 'not-open', 'merge-failed'] as const) {
+      assert.doesNotMatch(resource.update[refusal], /Developer|desarrollador/, refusal);
+      assert.doesNotMatch(resource.update[refusal], /conflict/i, refusal);
+    }
+    // Arming while Agentry is still pushing is not the host rejecting the merge
+    assert.doesNotMatch(resource.failure.busy, /refused|rechazado/);
+    assert.notEqual(resource.failure.busy, resource.failure['merge-failed']);
+  }
+});
+
+test('the merge styles keep to the type scale', () => {
+  const css = readFileSync(new URL('../src/styles/merge.css', import.meta.url), 'utf8');
+  assert.deepEqual([...css.matchAll(/font-size:\s*([\d.]+)px/g)].map((m) => m[1]).filter((size) => !['34', '24', '16', '15', '14', '13', '12', '11'].includes(size ?? '')), []);
+});
+
+test('the Spanish pipeline is feminine everywhere', () => {
+  for (const file of ['merge.json', 'orchestrationDetail.json']) {
+    const body = readFileSync(new URL(`../src/i18n/locales/es/${file}`, import.meta.url), 'utf8');
+    assert.doesNotMatch(body, /\b(el|un|del|al) pipeline\b/i, file);
   }
 });

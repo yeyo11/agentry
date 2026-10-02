@@ -31,6 +31,7 @@ import {
 } from '../../../lib/reviews';
 import { useChangeRequestWords } from '../board/PullRequest';
 import { AddressButton } from './AddressReview';
+import type { LeadingAction } from './model';
 
 const shortSha = (sha: string | null | undefined): string => (sha ?? '').slice(0, 7);
 
@@ -353,7 +354,7 @@ function SubmitSheet({
  * The threads row offers Address with an agent when there is something to address. `changesPath` is the item's changes page, where
  * the threads and the draft's notes are left on their lines.
  */
-export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | null | undefined; itemId: string; changesPath?: string }) {
+export function Review({ pr, itemId, changesPath, lead }: { pr: WorkItemPullRequest | null | undefined; itemId: string; changesPath?: string; lead: LeadingAction | null }) {
   const { t } = useTranslation('reviews');
   const words = useChangeRequestWords(pr?.host);
   const qc = useQueryClient();
@@ -450,6 +451,9 @@ export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | 
   }, [drafts.length, outcome]);
 
   if (!pr || !id) return null;
+
+  const publishLeads = lead === 'publish' ? 'btn-primary' : '';
+  const submitLeads = lead === 'submit' ? 'btn-primary' : '';
 
   const decision = decisionMark(reviewers.data?.decision);
   const progress = approvalsProgress(approval.data);
@@ -638,7 +642,7 @@ export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | 
                 <button type="button" className="btn btn-ghost" disabled={working} onClick={() => dropSaved.mutate(partly.postId)}>
                   {t('partly.discard')}
                 </button>
-                <button type="button" className="btn btn-primary" disabled={working || partly.onHost === 0} onClick={() => publish.mutate(partly.postId)}>
+                <button type="button" className={`btn ${publishLeads}`.trim()} disabled={working || partly.onHost === 0} onClick={() => publish.mutate(partly.postId)}>
                   {t('partly.publish')}
                 </button>
               </>
@@ -648,7 +652,7 @@ export function Review({ pr, itemId, changesPath }: { pr: WorkItemPullRequest | 
                   <Trash2 {...ICON_SM} />
                   {t('draft.discard')}
                 </button>
-                <button type="button" className="btn btn-primary rv-submit-btn" disabled={pending || working} onClick={() => setSubmitting(true)}>
+                <button type="button" className={`btn rv-submit-btn ${submitLeads}`.trim()} disabled={pending || working} onClick={() => setSubmitting(true)}>
                   {t('draft.submit')}
                 </button>
               </>

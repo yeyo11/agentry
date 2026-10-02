@@ -14,9 +14,9 @@ import { timeAgo } from '@agentry/ui/lib/format';
 import {
   actionLabelKey,
   armBody,
+  autoMergeOffKey,
   blockerActionKind,
-  blockerMark,
-  blockerParams,
+  blockerSentence,
   blockersOf,
   chosenMethod,
   hasMergeWarning,
@@ -26,12 +26,12 @@ import {
   mergeFailure,
   methodHasMessage,
   needsReread,
+  updateFailure,
   type MergeTone,
 } from '../../../lib/merge';
 import { addressable } from '../../../lib/reviews';
 import { useChangeRequestWords } from '../board/PullRequest';
-import { useFixOffered } from './Checks';
-import { useReviewDrafts } from './Review';
+import type { LeadingAction } from './model';
 
 const shortSha = (sha: string | null | undefined): string => (sha ?? '').slice(0, 7);
 
@@ -39,25 +39,6 @@ const shortSha = (sha: string | null | undefined): string => (sha ?? '').slice(0
 const openId = (pr: WorkItemPullRequest | null | undefined): string | undefined => (pr?.phase === 'open' && pr.number !== null ? pr.id : undefined);
 
 const toneBadge = (tone: MergeTone): string => (tone === 'live' ? 'badge badge-active' : tone === 'ok' ? 'badge badge-ok' : `badge badge-${tone}`);
-
-/** The one thing the block offers as its action, when there is one: a merge, or arming auto-merge. */
-export function mergePrimary(state: MergeState | undefined): 'merge' | 'arm' | null {
-  if (!state || isArmed(state)) return null;
-  if (state.canMerge) return 'merge';
-  return state.autoMerge.available ? 'arm' : null;
-}
-
-/**
- * Whether the merge block carries the zone's gradient: it does unless the person has a draft review
- * (Submit review leads) or Fix failing checks is on the page. The header's "Work on it" gives its
- * gradient up while it does, because a screen has two gradient surfaces at most.
- */
-export function useMergeLeads(pr: WorkItemPullRequest | null | undefined): boolean {
-  const state = useMergeState(openId(pr)).data;
-  const fix = useFixOffered(pr);
-  const drafts = useReviewDrafts(pr).data?.length ?? 0;
-  return mergePrimary(state) !== null && !fix && drafts === 0;
-}
 
 /** Scrolls to the review block, where the person asks for reviewers. */
 const showReview = () => document.querySelector('.rv')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
@@ -69,17 +50,14 @@ const showReview = () => document.querySelector('.rv')?.scrollIntoView({ block: 
  * head that moved. Merging is the person's click, carrying the head they saw. Host text is drawn as
  * text. Reference: DesktopTareaFusion, DesktopTareaFusionEstados and DSFusion.
  */
-export function Merge({ pr, itemId, itemKey }: { pr: WorkItemPullRequest | null | undefined; itemId: string; itemKey: string }) {
+export function Merge({ pr, itemId, itemKey, lead: leading }: { pr: WorkItemPullRequest | null | undefined; itemId: string; itemKey: string; lead: LeadingAction | null }) {
   const { t } = useTranslation('merge');
-  const { t: tw } = useTranslation('workItem');
   const words = useChangeRequestWords(pr?.host);
   const toast = useToast();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const id = openId(pr);
   const query = useMergeState(id);
-  const fixOffered = useFixOffered(pr);
-  const draftNotes = useReviewDrafts(pr).data?.length ?? 0;
   const [method, setMethod] = useState<MergeMethod | null>(null);
   const [deleteBranch, setDeleteBranch] = useState<boolean | null>(null);
   const [subject, setSubject] = useState('');
@@ -169,8 +147,10 @@ export function Merge({ pr, itemId, itemKey }: { pr: WorkItemPullRequest | null 
         navigate(result.fix.worktree ? `/chats/new?cwd=${encodeURIComponent(result.fix.worktree)}` : '/chats/new', { state: { prompt: result.fix.prompt } });
     },
     onError: (error, action) => {
-      if ((action === 'update-from-base' || action === 'rebase-on-host') && error instanceof ApiRequestError && error.status === 409) {
-        toast.error(t('toast.conflicts', { head: pr?.branch ?? '', base: pr?.base ?? '' }), error);
+      // The core answers 409 for more than conflicts: only that one goes to the Developer
+      if (action === 'update-from-base' || action === 'rebase-on-host') {
+        const reason = updateFailure(error instanceof ApiRequestError ? error : null);
+        toast.error(reason === 'conflicts' ? t('toast.conflicts', { head: pr?.branch ?? '', base: pr?.base ?? '' }) : t(`update.${reason}`, { noun: words.noun, host: words.host, base: pr?.base ?? '' }), error);
         settle();
         return;
       }
@@ -209,16 +189,12 @@ export function Merge({ pr, itemId, itemKey }: { pr: WorkItemPullRequest | null 
   }
 
   const chosen = chosenMethod(state, method);
-  const params = (blocker: MergeBlocker) => {
-    const { noun, host: hostName, head, base, name, state: phase } = blockerParams(blocker, { host: pr.host ?? 'github', branch: pr.branch, base: pr.base, phase: pr.phase }, words.noun);
-    const stateWord = phase === 'merged' ? tw('pr.state.merged') : phase === 'closed' ? tw('pr.state.closed') : phase;
-    return { noun, host: hostName, head, base, name, state: stateWord };
-  };
+  const sentence = (blocker: MergeBlocker) => blockerSentence(blocker, { host: pr.host ?? 'github', branch: pr.branch, base: pr.base, phase: pr.phase }, words.noun);
   const armedState = isArmed(state);
   const waiting = isWaitingForPipeline(state);
   const stateMoved = moved !== null;
   const primaryClass = (lead: boolean) => `btn btn-small ${lead ? 'btn-primary' : ''}`.trim();
-  const lead = !fixOffered && draftNotes === 0;
+  const lead = leading === 'merge';
 
   /** A remedy: an Agentry call, a link to the host, or a move inside the page. */
   const remedyButton = (blocker: MergeBlocker): ReactNode => {
@@ -279,7 +255,7 @@ export function Merge({ pr, itemId, itemKey }: { pr: WorkItemPullRequest | null 
       <span className="callout callout-warn" role="note">
         <CircleAlert {...ICON_SM} aria-hidden />
         <span>
-          {off && <>{off.pushing ? t('autoMergeOff.pushing') : t(`autoMergeOff.${off.why}`, { when: timeAgo(off.at), who: off.by })}</>}
+          {off && <>{off.pushing ? t('autoMergeOff.pushing') : t(autoMergeOffKey(off.why, off.by), { when: timeAgo(off.at), who: off.by })}</>}
           {off && state.rebaseOnHostWhy && ' '}
           {state.rebaseOnHostWhy && t(`rebaseOnHostWhy.${state.rebaseOnHostWhy}`, { host })}
         </span>
@@ -380,8 +356,8 @@ export function Merge({ pr, itemId, itemKey }: { pr: WorkItemPullRequest | null 
           <span className="rv-v">
             {first ? (
               <>
-                <span className={toneBadge(blockerMark(first.code).tone)}>{t(blockerMark(first.code).word)}</span>
-                <span className="mg-hint">{t(blockerMark(first.code).text, params(first))}</span>
+                <span className={toneBadge(sentence(first).tone)}>{t(sentence(first).word)}</span>
+                <span className="mg-hint">{t(sentence(first).text, sentence(first).params)}</span>
               </>
             ) : (
               <span className="mg-hint">{t('autoMerge.waitsFor', { noun: words.noun })}</span>
@@ -524,7 +500,7 @@ export function Merge({ pr, itemId, itemKey }: { pr: WorkItemPullRequest | null 
   // Not possible yet: the first blocker with its word and its remedy, the others under it
   const first = state.blocker;
   if (!first) return frame(<span className="badge">{t('badge.checksPending')}</span>, null);
-  const mark = blockerMark(first.code);
+  const mark = sentence(first);
   const others = blockersOf(state).slice(1);
   const offer = armBody(state, method);
   const armed = state.autoMerge.available && first.action !== 'auto-merge';
@@ -533,14 +509,14 @@ export function Merge({ pr, itemId, itemKey }: { pr: WorkItemPullRequest | null 
     <span className={toneBadge(mark.tone)}>{t(mark.word)}</span>,
     <>
       <div className={`mb-note is-${mark.tone}`} role="status" data-reason={first.code}>
-        {mark.tone === 'live' ? <Spinner variant="ring" /> : mark.tone === 'idle' ? <Clock {...ICON_SM} aria-hidden /> : <CircleAlert {...ICON_SM} aria-hidden />}
+        {mark.tone === 'live' ? <Spinner variant="ring" /> : mark.tone === 'idle' ? <Clock {...ICON_SM} aria-hidden /> : mark.tone === 'ok' ? <Check {...ICON_SM} aria-hidden /> : <CircleAlert {...ICON_SM} aria-hidden />}
         <div className="mb-body">
           <div className="mb-head">
             <span className={toneBadge(mark.tone)}>{t(mark.word)}</span>
             <span className="mb-code">{first.code}</span>
           </div>
-          <span className="mb-text">{t(mark.text, params(first))}</span>
-          {first.detail && first.code !== 'checks-failing' && first.code !== 'checks-missing' && <span className="mb-detail">{first.detail}</span>}
+          <span className="mb-text">{t(mark.text, mark.params)}</span>
+          {first.detail && !SAID_IN_WORDS.has(first.code) && <span className="mb-detail">{first.detail}</span>}
           {pending && state.autoMerge.reason === 'auto-merge-not-allowed' && <span className="mg-hint">{t('failure.auto-merge-not-allowed')}</span>}
           <div className="mb-acts">
             {pending && offer ? (
@@ -559,12 +535,14 @@ export function Merge({ pr, itemId, itemKey }: { pr: WorkItemPullRequest | null 
           </div>
           {others.length > 0 && (
             <ul className="mb-others" aria-label={t('row.others')}>
-              {others.map((other) => {
-                const m = blockerMark(other.code);
+              {others.map((other, index) => {
+                const m = sentence(other);
+                // Two failing required checks share a code: the name, or the place in the list, tells them apart
                 return (
-                  <li key={other.code}>
+                  <li key={`${other.code}:${other.detail ?? ''}:${index}`}>
                     <span className="mono">{other.code}</span>
                     <span className={toneBadge(m.tone)}>{t(m.word)}</span>
+                    {SAID_IN_WORDS.has(other.code) && <span className="mb-other-text">{t(m.text, m.params)}</span>}
                   </li>
                 );
               })}
@@ -576,6 +554,9 @@ export function Merge({ pr, itemId, itemKey }: { pr: WorkItemPullRequest | null 
     </>,
   );
 }
+
+/** Blockers whose sentence carries their detail (a name, a count, the host's state), so it is not drawn again under it */
+const SAID_IN_WORDS: ReadonlySet<string> = new Set(['checks-failing', 'checks-missing', 'threads-unresolved', 'not-open']);
 
 /** What arming reads from while no state has come: nothing to offer. */
 const EMPTY: Pick<MergeState, 'headSha' | 'autoMerge' | 'methods' | 'defaultMethod'> = {
