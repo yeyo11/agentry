@@ -24,8 +24,8 @@ Claude Code lives in your terminal. One machine, one session at a time, and noth
 once you close the tab.
 
 Agentry puts it behind a REST API and a web UI: start and watch conversations from anywhere, run a
-graph of agents in parallel, browse every transcript the CLI has ever written, and rotate between
-accounts when one runs out of quota — without giving up a single thing the CLI can do, because
+graph of agents in parallel, browse every transcript the CLI has ever written, and go on in another
+agent when one runs out of quota — without giving up a single thing the CLI can do, because
 Agentry drives it through the CLI and nothing else.
 
 ```bash
@@ -122,8 +122,9 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
   reports, over any range you pick from a calendar; any transcript, or a whole project's chats,
   exported as Markdown or JSON.
 - **Spending limits** — cap any run with a budget the CLI enforces from inside.
-- **Several accounts, more control** — a config directory of its own per account, rotation policies
-  per project (and one for the chats that belong to no project), and a usage history per account.
+- **A limit does not stop the work** — each provider shows how much of its usage limit is spent; at
+  a limit a chat offers to continue on another provider with a handoff, to restart there, or to wait
+  for the reset, and automated work does what the settings allow (by default, it waits).
 - **claude.ai connectors** — the Docs, Gmail and Calendar connectors the CLI can see, their status
   and prepared prompts that start a chat.
 - **The whole configuration surface** — settings, instructions, MCP servers, agents, skills,
@@ -175,10 +176,6 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
 
 <img src="docs/media/changes.png" alt="The review screen of the same chat: a header with the branch, its base, the counts and a change fingerprint, the file map with each file's status letter and +/− beside the diff of src/server.js in Reading mode, the file as it is now with a green rail on its new lines and the removed line folded into a −1 pill" width="100%">
 
-### Several accounts, rotated before they run out
-
-<img src="docs/media/accounts.png" alt="The accounts page: the account in use first with a highlighted border, then the others, each with the share of every usage window it has spent, bars that turn amber and red as they near the limit, and when each window resets" width="100%">
-
 ### Work that comes back every night
 
 <img src="docs/media/schedules.png" alt="The schedules page: a nightly chat with its run history open, where a slot that overlapped a running one is marked, and a weekly orchestration, each with its cron expression in words and its next run" width="100%">
@@ -198,7 +195,8 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | MCP servers | `claude mcp add-json` / `claude mcp remove` (user scope) |
 | Orchestration planner | `--json-schema` structured output |
 | Decision engine, `cli` provider | one housekeeping chat per batch of typed questions: `--json-schema` for the answers, `--effort`, `--max-budget-usd`, and no tools, settings or API token in it ([docs/decision-engine.md](docs/decision-engine.md)) |
-| Multiple accounts | [claude-swap](https://github.com/realiti4/claude-swap): `cswap list / switch / auto --json`, and `cswap run` for a run pinned to one account; an account with its own config directory runs `claude` with that `CLAUDE_CONFIG_DIR` |
+| Usage limit | `rate_limit_event` messages in the stream (the window, its use and when it resets), and a 429 result when a turn dies on it |
+| Codex usage limit | `account/rateLimits/read` and the `account/rateLimits/updated` notification of `codex app-server`: reading costs nothing |
 | Tool presets and per-chat MCP servers | `--allowedTools` / `--disallowedTools`, and `--mcp-config` with `--strict-mcp-config` over a file holding only the chosen servers |
 | Spending and time limits | `--max-budget-usd` for a cost limit; the time limit is Agentry's own clock |
 | claude.ai connectors | `claude mcp list`: the servers it names `claude.ai …` |
@@ -225,7 +223,6 @@ docker run -d --init -p 127.0.0.1:8787:8787 \
   -e CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat-... \
   -v agentry-config:/home/node/.claude \
   -v agentry-data:/data \
-  -v agentry-accounts:/home/node/.local/share/claude-swap \
   -v "$PWD/workspace:/workspace" \
   ghcr.io/yeyo11/agentry
 ```
@@ -269,8 +266,7 @@ Volumes:
 | --- | --- | --- |
 | `agentry-config` / `claude-config` | `/home/node/.claude` | The whole account setup: `settings.json`, `.claude.json` (MCP servers), `CLAUDE.md`, agents, skills, commands and session transcripts |
 | `./workspace` | `/workspace` | Projects Claude works on (default `cwd` for runs) |
-| `agentry-data` / `wrapper-data` | `/data` | Wrapper state. Rows in the SQLite store (`wrapper.db`): chats and their executions, orchestrations, plans, the rotation log, account usage history, command durations, schedule runs, the supervisor's proposals, the installs registered for Web Push and the audit log. Settings-shaped files: `accounts.json` (auto-rotation), `account-config.json` (config directories and rotation policies), `auth.json` (the auth mode and the hash of the token, mode 600), `credentials.json` (the runtime credential, mode 600), `tool-presets.json` (the presets and the default), `orchestration-templates.json`, `schedules.json`, `supervisor.json`, `cli-version.json`, `release.json` (what the last Agentry release check learned) and `push.json` (the VAPID keypair, mode 600). `uploads/` holds attachments and `mcp/` the per-chat MCP config files (mode 600: they can hold a server's secrets) |
-| `agentry-accounts` / `claude-swap` | `/home/node/.local/share/claude-swap` | Credentials of every registered account |
+| `agentry-data` / `wrapper-data` | `/data` | Wrapper state. Rows in the SQLite store (`wrapper.db`): chats and their executions, orchestrations, plans, each provider's usage limit, the moves and waits between providers, command durations, schedule runs, the supervisor's proposals, the installs registered for Web Push and the audit log. Settings-shaped files: `providers.json` (the order, the limit settings and the model mapping), `auth.json` (the auth mode and the hash of the token, mode 600), `credentials.json` (the runtime credential, mode 600), `tool-presets.json` (the presets and the default), `orchestration-templates.json`, `schedules.json`, `supervisor.json`, `cli-version.json`, `release.json` (what the last Agentry release check learned) and `push.json` (the VAPID keypair, mode 600). `uploads/` holds attachments and `mcp/` the per-chat MCP config files (mode 600: they can hold a server's secrets) |
 
 The compose file keeps its original volume names so an existing setup keeps its data; `docker compose`
 prefixes them with the project name (`agentry_wrapper-data`…).
@@ -380,7 +376,7 @@ of it yet: they were captured the same way, with a one-off script against the sa
 ```
 packages/shared   Types and the message normalizer shared by every package (the API contract)
 packages/core     CLI communication: detection, auth, chat manager, transcript store,
-                  orchestrator, accounts (claude-swap), config managers
+                  orchestrator, rotation between providers, config managers
 apps/api          Fastify REST API + SSE; serves the built UI in production
 apps/web          React + Vite UI
 apps/desktop      Electron shell: runs the API as a child process, packaged as AppImage and .deb
@@ -404,8 +400,6 @@ transpiler.
 | `ANTHROPIC_API_KEY` | – | Alternative: API key billing |
 | `PORT` / `HOST` | `8787` / `127.0.0.1` (`0.0.0.0` in the image) | API listen address. Loopback by default because the API runs commands on the machine and starts with no credential; the image opens it because Compose publishes the container on `127.0.0.1` anyway. Binding every interface while the mode is `none` logs a warning |
 | `CLAUDE_BIN` | `claude` | CLI binary to use |
-| `CSWAP_BIN` | – | claude-swap binary. Unset, Agentry uses a compatible `cswap` on the `PATH`, else the copy it installed itself. With accounts registered claude-swap owns the credential, and the token above is ignored |
-| `AGENTRY_CSWAP_MANAGED` | on (off in the image) | `0` stops Agentry from installing claude-swap itself (see [Accounts](#accounts-multi-account)) |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude config dir (`/home/node/.claude` in the image) |
 | `AGENTRY_WORKSPACE_DIR` | `./workspace` | Default working directory for runs |
 | `AGENTRY_DATA_DIR` | `./data` | Wrapper state |
@@ -626,77 +620,45 @@ next start, audited with actor `env` (see [Securing it](#securing-it)).
 | POST | `/tunnel/start` | Opens the tunnel through localhost.run; `409` while the auth mode is `none` or where `enabled` is false. The address shows, and its exact host joins the allowlist, once `/api/health` answers through it |
 | POST | `/tunnel/stop` | Takes the host off the allowlist and ends `ssh`; turning the auth mode to `none` does it first |
 
-### Accounts (multi-account)
+### Usage limits and rotation between providers
 
-Several Claude accounts through [claude-swap](https://github.com/realiti4/claude-swap) (`cswap`),
-which owns the credential file, polls each account's 5h/7d/per-model usage and swaps accounts
-under Claude Code's own locks. Without it installed every route answers
-`{"cswap": {"installed": false}, "accounts": []}` and the wrapper stays single-account.
+Each provider is used with the account its own CLI is signed in to, and Agentry never swaps
+accounts. What it does when one reaches its usage limit is the person's choice, in Settings →
+Providers (global, with an override per project): **continue** on the next ready provider with a
+handoff (what was asked, what was done, what is left, built from the transcript and the worktree's
+git state), **restart** there from the original prompt, or **wait** for the reset. The default is
+to wait, and nothing goes to another vendor until the settings say so.
 
-**Where `cswap` comes from.** The Docker image bakes in the version Agentry parses. Anywhere else,
-the first match wins: `CSWAP_BIN`; a `cswap` on the `PATH` whose version Agentry understands; the
-copy Agentry installed itself; and last an incompatible one on the `PATH`, used with a warning.
-The Accounts page installs that copy with one button: a pinned uv, checked against its digest,
-installs the pinned claude-swap (and a Python 3.12 when the system has none) entirely inside the
-data directory, and nothing else on the system is touched. An Agentry update that moves the pin
-upgrades the copy in the background. Removing it keeps the accounts, which live in claude-swap's own
-data directory. `cswap.source`, `cswap.compatible` and `cswap.managed` in `GET /accounts` say which
-binary is in use and how the install is going.
-
-Register each account with a token from `claude setup-token` (there is no interactive login in a
-container). **From the first registered account on, claude-swap owns authentication:** the wrapper
-stops injecting `CLAUDE_CODE_OAUTH_TOKEN` / `ANTHROPIC_API_KEY`, because the CLI reads the
-environment before the credential file.
+- **A person's chat** at a limit is never moved on its own: `limit-hit` raises a banner offering the
+  feasible actions, the setting's first, and a click calls `POST /chats/:id/move` or
+  `POST /chats/:id/wait`.
+- **Automated work** (flow runs, orchestration tasks, the assistant) does what the setting allows,
+  and `wait` is the floor when a move cannot happen: no ready provider, none that carries the
+  work's tool rules over, no model mapped for it, or every move already made.
+- **A move is a new chat** on the next provider in the same worktree, linked both ways
+  (`continuedFrom` / `continuedIn`); the run, task or item points to the newest.
+- **The model mapping** says which model of one provider stands in for a model of another. It starts
+  empty: the first limit with no mapping waits and says why, and `provider.model-map` may suggest a
+  counterpart, which only a person's accept writes.
+- **A wait** is a row, so two processes on one data directory replay a turn once and a restart picks
+  it up again; with no reset time known it ends at `maxWaitHours`.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/accounts?refresh=1` | Accounts with usage per window, the active one, auto-rotation settings and the rotation log |
-| POST | `/accounts/cswap/install` | Install (or retry, or upgrade) Agentry's own copy of the pinned claude-swap; answers at once with `managed.state: installing`. `409` in the Docker image or with `CSWAP_BIN` |
-| DELETE | `/accounts/cswap` | Remove Agentry's copy of claude-swap; the accounts are kept |
-| POST | `/accounts/switch` | `{ target?, strategy? }` — a slot number, email or alias; without a target it rotates (`best` \| `next-available`) |
-| POST | `/accounts/token` | `{ token, slot?, email? }` — register an account. The token goes to `cswap add-token` over stdin and is never returned |
-| DELETE | `/accounts/:number` | Remove an account |
-| POST | `/accounts/:number/enable` · `/disable` | Return to / hold out of the rotation |
-| PUT | `/accounts/:number/alias` | `{ alias }` (`null` unsets) |
-| GET / PUT | `/accounts/autoswitch` | `{ enabled, threshold, strategy, models, intervalSec, rotateOnLimit }` |
-| GET | `/accounts/events?limit=&since=` | Rotation history — every poll, switch and failure — persisted across restarts |
-| PUT | `/accounts/:number/config` | `{ configDir, shareSettings? }` — give the account its own `CLAUDE_CONFIG_DIR` (`null` goes back to the shared one). Nothing is moved or copied; only symlinks are made, and clearing it removes only those |
-| GET / POST | `/accounts/policies` | Rotation policies: `{ threshold, order?, projects, looseChats? }` — which accounts the chats of some projects may use, in which order, and the usage past which the next is taken. With `looseChats` the policy governs the chats that belong to no project, and `projects` may be empty; at most one policy does. A project with none keeps the global auto-switch |
-| PUT / DELETE | `/accounts/policies/:id` | Replace / delete a policy |
-| GET | `/accounts/usage?account=&window=&since=&until=&limit=` | Usage history: the 5h / 7d readings claude-swap reported, one series per account and window, oldest first |
+| GET | `/providers/candidates?chatId=` | Who could take the chat's work, each with its model and use of the binding window, and the others with the reason they cannot (`excluded`); `movesCapped` when the work has made every move it may |
+| GET | `/providers/moves?chatId=&projectId=&state=&limit=` | Moves and waits, newest first; `waiting` and `resuming` rows are the open waits |
+| POST | `/providers/moves/:id/cancel` | Stop waiting: a flow run or task then ends `stopped`. `409` when the wait is over. Not open to a chat's token |
+| GET | `/providers/model-map/suggestions` | Open `provider.model-map` suggestions: a counterpart nobody has answered yet |
+| POST | `/providers/model-map/suggestions/:id` | `{ accept }` — accepting writes the entry (`origin: decision`), dismissing only closes it; either reaches the decision as feedback. `409` when the model already has a counterpart. Not open to a chat's token |
+| GET | `/providers/cswap-retirement` | `{ notice }`: what claude-swap left behind (null when there is nothing or it was dismissed) |
+| POST | `/providers/cswap-retirement/dismiss` | Do not show the notice again. Not open to a chat's token |
+| DELETE | `/providers/cswap-retirement/managed-copy` | Remove Agentry's own copy of claude-swap and nothing else. Not open to a chat's token |
 
-Rotation happens two ways:
-
-- **Proactive** — with `enabled`, the wrapper supervises a `cswap auto --json` process that
-  switches when the active account's binding window reaches `threshold` (default 90 %), reusing
-  claude-swap's cooldown, hysteresis and quarantine of dead refresh tokens.
-- **Reactive** — with `rotateOnLimit` (default on), a chat that dies against its rate limit
-  (`rate_limit_event` rejection, a 429 result or a matching stderr line) triggers a rotation to
-  the account with the most headroom, and the turn is replayed on the same session with
-  `--resume`. Once per chat: a second failure is reported as a real one.
-
-A chat can also be pinned to one account with `account` (on `NewChatRequest`, `ResumeChatRequest` or
-`ForkChatRequest`), which spawns `cswap run <account> --share-history -- …` instead of `claude`.
-Pinned chats keep writing their transcript to the shared config dir, so history behaves as usual.
-
-**A config directory per account.** By default every account shares `~/.claude`, and an existing
-install changes in no way. Giving an account its own `CLAUDE_CONFIG_DIR` creates that directory
-empty and symlinks the shared `projects/` into it, so Agentry still reads every transcript; asked to,
-it links the shared settings too. Nothing is ever moved or copied out of `~/.claude`, and clearing
-it removes exactly the symlinks Agentry made. Agentry never copies credentials: the account needs its
-own login (`CLAUDE_CONFIG_DIR=<dir> claude`). A chat on such an account runs `claude` directly against
-its directory, because `cswap run` replaces `CLAUDE_CONFIG_DIR` with its own profile.
-
-**Rotation policies per project.** A policy names the accounts a project's chats may use, in which
-order, and the usage past which the next one is taken. The account is chosen when the chat spawns
-and the chat is pinned to it, so the credential every other chat shares is not swapped; a project
-with no policy keeps the global auto-switch, and a chat pinned by hand keeps its account. One
-policy can take `looseChats` instead of (or beside) projects and govern the chats under no project
-the same way; a project without a policy of its own does not borrow it.
-
-**Usage history.** Each reading claude-swap returns is a row per account and window, sampled every
-five minutes while `cswap` is installed and kept for 90 days, and drawn as a series per account with
-the auto-switch threshold as a reference line.
+**Coming from claude-swap.** Earlier versions rotated between several Claude accounts through
+[claude-swap](https://github.com/realiti4/claude-swap), and that is gone, with the `/accounts`
+routes. The account claude-swap left active stays the one Claude Code uses; the notice names it,
+lists the projects that had a rotation policy (their provider order is what applies now) and offers
+to remove Agentry's copy of the tool. claude-swap's own data is never touched.
 
 ### Projects
 
@@ -841,6 +803,8 @@ The agents Agentry can drive, as detection finds them on this machine: one cache
 | POST | `/providers/refresh` | Detect again now. Not open to a chat's token |
 | GET | `/providers/settings` | The document from `providers.json`: enabled and binary override per provider, order, default |
 | PUT | `/providers/settings` | Replace it, validated; providers are detected again in the background. Not open to a chat's token |
+
+The routes for what a provider does at its usage limit are under [Usage limits and rotation between providers](#usage-limits-and-rotation-between-providers). Each status carries its `limit` (state, binding window, use, reset and how old the reading is), and `GET /overview` all of them as `limits`.
 
 ### Code hosts
 
@@ -992,6 +956,9 @@ dismiss.
 | GET | `/chats/:id/stream?since=SEQ` | Server-Sent Events, one `RunEvent` per message (honours `Last-Event-ID`). Includes ephemeral `partial` events with the text generated so far (token streaming); they are never replayed |
 | POST | `/chats/:id/resume` | Body: `ResumeChatRequest` (`prompt`, same options as a new chat). Adds an execution to the same chat, which keeps its id. Decided on the server at this moment from the CLI's own session list and the process table: a chat born in a terminal that nothing holds is adopted and stays `external`; one a terminal holds, or that belongs to an orchestration, is refused with `409` and the reason. A resume that names no `mcp` writes the `--mcp-config` file again from the current definition of the same servers, so an edited URL or a rotated token is picked up |
 | POST | `/chats/:id/fork` | Body: `ForkChatRequest`. Continues in a copy: a new chat with the same history that records `derivedFrom` and leaves the original untouched. Allowed on any chat. The copy inherits the source's preset, tools and MCP servers unless the request picks others, so it cannot quietly gain what the source was denied |
+| GET | `/chats/:id/handoff?provider=&model=` | The handoff text exactly as a move would send it, built here from the transcript and the git state and sent nowhere; `409` when that provider cannot take the chat |
+| POST | `/chats/:id/move` | Body: `MoveChatRequest` (`provider`, `action`: `handoff` \| `restart`, `model?`). A person's click: starts a new chat on that provider in the same worktree, linked both ways, and closes an open wait. `409` when the chat is working and has not reached a limit, was moved already, or the provider cannot take it. Not open to a chat's token |
+| POST | `/chats/:id/wait` | A person chooses to wait for the reset: opens a wait (`ProviderMove`), `409` when the chat is not at a limit or is waiting already. Not open to a chat's token |
 | POST | `/chats/:id/messages` | `{ text, attachments? }` — another turn for a chat with a live execution (`409` otherwise: resume it). `attachments` are upload ids from `POST /uploads` |
 | POST | `/chats/:id/stop` | Stop what is working on it: the execution Agentry runs, or a background session the CLI holds (`claude stop`). The conversation is kept |
 | POST | `/chats/:id/interrupt` | End the turn in progress and keep the process, which waits for the next message |
@@ -1300,7 +1267,6 @@ The claude.ai connectors of the signed-in account, as the CLI reports them. Agen
 | Assistant | `/projects/:id/assistant`, reached from the wizard and from the empty Team's **Ask for a proposal**: while the run reads, what it has read with a spinner and **Stop**; then the proposed team, resources and first tasks in three sections, each proposal with its reason, accepted or discarded on its own (**Review** opens a resource in the project's Resources tab). A project with nothing to read starts no chat, offers the template's team and asks what the project is for, which proposes the first tasks. The run's model, time, cost and chat, and **Suggest again**. On a phone, without the tab bar |
 | Orchestration | Auto-planned or manual task DAG. The list has status tabs with counts (All, Live, Completed, Failed, Stopped), search, sort and a **Templates** tab (`?tab=templates`); each row carries a segmented progress bar and, while it runs, the stage and what its task is doing. A graph's page pins a summary (status, live clock, cost, progress of its tasks, and Stop or **Edit and relaunch** with the rest in a ⋯ menu), folds the objective to three lines, and follows it as **steps**: its stages, then integration, verification, synthesis and the pull request, each with its state. The page follows the step that is happening; picking another pins it (`?step=`) and offers "Back to live". A stage's tasks show their live rail, what they are doing, duration, cost and attempts; a task's name opens its chat beside the page (`?detail=chat:<id>`). `?view=graph` is the board by stage, scrolling inside its own box, with connectors that flow into the running stage. On a phone the steps are a vertical timeline. Each task has a **Work** panel (`?task=<id>`: what it runs now, its health, checklist and changes) and, on a finished graph on the graph engine, **Re-run**. **Edit and relaunch** a graph, **templates** (save, launch on a new objective and directory, edit, delete), per-task and per-graph time and cost limits, and a **verification** card with each command's output, the install step, what the fixer spent against its limit and its commits, before the pull request; a graph its checks failed says so at the top and is offered no pull request. The integration card has the merged branch's changes. A draft handed over by the Tasks board opens in the editor with each node showing its task's key and the blockers left outside the selection as a warning; on a graph's page, a node linked to a task links to it by its key |
 | Changes | The review screen of a chat (`/chats/:id/changes`), a task (`/orchestration/:id/tasks/:taskId/changes`), the integration branch (`/orchestration/:id/changes`) or a work item's own branch (`/tasks/:key/changes`, by its result alone: several chats may have worked on it), opened from the compact summary. **Result** is the net change file by file: a header with the branch, base, counts, the scope (all the work, one commit, not committed yet) and a change fingerprint; a file map by directory with seen, not committed and the file being edited now; and the file's diff in **Reading** (the default: the file as it is now, removed lines folded into a pill on the rail), **Unified** or **Side by side** (from 1100 px), with the intent of the latest step that touched it and a block rail. **Step by step** lists every edit of the transcript with its patch and the sentence Claude wrote before it, and links to that place in the conversation (`/chats/:id?at=`). Keys: `j`/`k` blocks, `n`/`p` files, `v` seen, `m` mode, `o` open the removed lines, `[` the map, `/` filter, `←`/`→` steps. Deep links: `?file=`, `?mode=`, `?scope=`, `?lens=steps`, `?step=`. The mode and what was seen stay in the browser. On a phone the files are cells and each file is a screen of its own |
-| Accounts | Registered accounts with 5h/7d (and per-model) usage, manual switch, add/remove, enable/disable, auto-rotation settings and the rotation log. Per account, an optional **config directory**; **rotation policies** per project (or for the chats without one); and a **usage history** chart per account and window with the auto-switch threshold |
 | Schedules | Recurring chats and orchestrations, with search and All/On/Off tabs: each schedule with its cron expression in words, when it fires next and when it last ran, on/off, **Run now**, edit, delete, and a run history behind it (when, result, what it started or the error; a slot the overlap policy skipped or queued is tagged as such). The cron builder offers every few minutes to monthly or a custom expression, previews the next five fires as you type, and says that a window missed while Agentry was down is skipped, not replayed. A schedule is created and edited on a page of its own (`/schedules/new`, `/schedules/:id/edit`). The form sets what happens when a slot arrives while the last run is still going, and can be filled from an orchestration that already ran |
 | Usage | Cost, tokens or chats over time, per day or week, for 7, 30 or 90 days, all time or a range picked from a calendar of Agentry's own (typed dates still work); by project and by model, with the selected project's chats offered as a download. An SVG chart with the same figures as a table, a text readout and a screen-reader description. A cost the CLI never reported reads "Not reported", never `$0.00` |
 | Connectors | The claude.ai connectors (Docs, Gmail, Calendar) the CLI can see, with their status and prepared prompts that start a chat, what to do to authorise one, and a sentence on what has no CLI surface (web artifacts, claude.ai memory) |
@@ -1486,8 +1452,9 @@ interactive `claude` session (`/mcp`) or in claude.ai's connector settings: Agen
   tunnel shares one failed-login wait, and can make your phone wait with them.
 - A subscription token is meant for your own individual use; use an API key for anything
   shared or multi-user.
-- Switching accounts rewrites the shared credential file: runs already in flight keep the account
-  they started with, and only a run that failed against its limit is replayed on the new one.
+- A handoff carries the transcript's text to the next agent, which may be another vendor's. The
+  preview (`GET /chats/:id/handoff`) shows exactly what is sent, long tool output is left out and
+  secrets are masked, but nothing is sent until the settings or a click say so.
 
 ## Contributing
 

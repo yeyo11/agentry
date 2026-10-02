@@ -5848,6 +5848,42 @@ export interface MoveChatRequest {
   model?: string;
 }
 
+/** `GET /providers/candidates`: who could take a chat at a limit, and why each of the others cannot. */
+export interface ProviderCandidates {
+  candidates: Array<Extract<CandidateView, { model: string | null }>>;
+  excluded: Array<Extract<CandidateView, { excluded: Exclusion }>>;
+  /** The work made every move it may: nothing is offered however many are ready */
+  movesCapped: boolean;
+}
+
+/** An open `provider.model-map` suggestion: a counterpart the engine proposed that no person has answered yet. */
+export interface ModelMapSuggestion {
+  /** The decision's id: what `POST /providers/model-map/suggestions/:id` answers */
+  id: string;
+  from: { provider: ProviderId; model: string };
+  to: { provider: ProviderId; model: string };
+  at: string;
+}
+
+/** `POST /providers/model-map/suggestions/:id`: accepting writes the entry; dismissing only closes the suggestion. */
+export interface AnswerModelMapSuggestionRequest {
+  accept: boolean;
+}
+
+/** What claude-swap left behind, for the one-time notice. */
+export interface CswapRetirement {
+  found: Array<'accounts' | 'account-config' | 'managed-copy' | 'cswap-bin'>;
+  /** Agentry's own copy of claude-swap is on disk: the one thing the notice offers to remove */
+  managedCopy: boolean;
+  /** Projects that had a rotation policy; their provider order is what applies now */
+  policyProjects: string[];
+}
+
+/** `GET /providers/cswap-retirement`: `notice` is null when there is nothing to say or the person dismissed it. */
+export interface CswapRetirementState {
+  notice: CswapRetirement | null;
+}
+
 /** `GET /chats/:id/handoff`: the text as it would be sent, built locally and not sent. */
 export interface HandoffPreview {
   text: string;
