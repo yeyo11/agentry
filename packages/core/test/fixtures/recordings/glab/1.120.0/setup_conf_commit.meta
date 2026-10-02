@@ -1,0 +1,5 @@
+glab: 1.120.0
+argv: glab api -X POST projects/87089091/repository/commits -H Content-Type: application/json --input -
+exit: 0
+env: 
+stdin-sha256: c8761b248d9b7b910d6fe9c72742c3deef5025101c840e24234c63d6100c6872

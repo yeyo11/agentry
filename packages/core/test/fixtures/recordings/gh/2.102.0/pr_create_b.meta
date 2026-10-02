@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr create -R yeyo11/agentry-probe --head probe/m0-b --base probe/m0-base --title probe m0 merge b --body probe m0: merging into a probe base branch
+exit: 0
+secs: 3.127141160
+env: 

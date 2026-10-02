@@ -1,6 +1,7 @@
 import type {
   AddressReviewRequest,
   ApprovalState,
+  AutoMergeRequestBody,
   ChangeRequest,
   ChangeRequestChecks,
   ChangeRequestKind,
@@ -9,6 +10,9 @@ import type {
   ChangeRequestThreads,
   CheckLog,
   ChecksRerunRequest,
+  MergeRequestBody,
+  MergeResult,
+  MergeState,
   Orchestration,
   OrchestrationPullRequest,
   ReviewDraft,
@@ -17,12 +21,14 @@ import type {
   ReviewSubmitRequest,
   ReviewThread,
   ReviewersRequest,
+  UpdateBranchResult,
   WorkItem,
   WorkItemPullRequest,
 } from '@agentry/shared';
 import type { Db } from './db.ts';
 import type { ReviewTriage } from './decisions/review-triage.ts';
 import { HostActionNotOffered } from './hosts/code-host.ts';
+import { MergeError, type MergeService } from './hosts/merge-service.ts';
 import { ChecksError, type ChecksService, type ChecksTarget } from './hosts/checks-service.ts';
 import { ReviewInputError, ReviewsError, type ReviewsService, type ReviewsTarget } from './hosts/reviews-service.ts';
 import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from './orchestration-pr-rows.ts';
@@ -58,6 +64,7 @@ function statusOf(reason: string): ChangeRequestError['statusCode'] {
 function translated(err: unknown): unknown {
   if (err instanceof ChecksError) return new ChangeRequestError(err.detail ? `${err.message}: ${err.detail}` : err.message, statusOf(err.reason), err.reason);
   if (err instanceof ReviewsError) return new ChangeRequestError(err.detail ? `${err.message}: ${err.detail}` : err.message, statusOf(err.reason), err.reason, err.postId);
+  if (err instanceof MergeError) return new ChangeRequestError(err.detail ? `${err.message}: ${err.detail}` : err.message, statusOf(err.reason), err.reason);
   if (err instanceof ReviewInputError) return new ChangeRequestError(err.message, 400);
   if (err instanceof HostActionNotOffered) return new ChangeRequestError(err.message, 409, 'not-offered');
   if (err instanceof PullRequestError) return new ChangeRequestError(err.message, err.statusCode === 404 ? 404 : 409, err.reason);
@@ -79,6 +86,7 @@ export interface ChangeRequestServiceDeps {
   db: Db;
   checks: ChecksService;
   reviews: ReviewsService;
+  merge: MergeService;
   pullRequests: PullRequestService;
   orchestrationPullRequests: OrchestrationPullRequestService;
   orchestration: (id: string) => Orchestration | null;
@@ -323,5 +331,43 @@ export class ChangeRequestService {
     if (!orch) throw new ChangeRequestError('orchestration not found', 404, 'not-found');
     const result = await guarded(this.deps.orchestrationPullRequests.addressReview(orch, req.threadIds));
     return { started: true, prompt: result.prompt, worktree: orch.integration?.worktree ?? null, pullRequest: result.pullRequest };
+  }
+
+  // ---------- merging ----------
+
+  async mergeState(id: string, refresh: boolean): Promise<MergeState> {
+    await this.reading(id);
+    // The person's own Refresh reads the rules again as well; the reads after a write do not need to
+    return guarded(this.deps.merge.state(id, { refresh, rules: refresh }));
+  }
+
+  /** `by` is the person who clicked: a merge is never a run's, a decision's or a chat token's. */
+  async merge(id: string, body: MergeRequestBody, by: string): Promise<MergeResult> {
+    await this.writing(id);
+    const done = await guarded(this.deps.merge.merge(id, body, by));
+    return { state: done.state, merged: true, branchDeleted: done.branchDeleted };
+  }
+
+  async arm(id: string, body: AutoMergeRequestBody, by: string): Promise<MergeState> {
+    await this.writing(id);
+    return guarded(this.deps.merge.arm(id, body, by));
+  }
+
+  async disarm(id: string, by: string): Promise<MergeState> {
+    await this.writing(id);
+    return guarded(this.deps.merge.disarm(id, by));
+  }
+
+  /** A conflict pushes nothing and is a 409 that names the paths. */
+  async updateBranch(id: string, by: string): Promise<UpdateBranchResult> {
+    await this.writing(id);
+    const done = await guarded(this.deps.merge.updateBranch(id, by));
+    if (done.conflicts.length > 0) throw new ChangeRequestError(`the base conflicts with the branch in ${done.conflicts.join(', ')}`, 409, 'conflicts');
+    return done;
+  }
+
+  async ready(id: string, ready: boolean): Promise<MergeState> {
+    await this.writing(id);
+    return guarded(this.deps.merge.markReady(id, ready));
   }
 }

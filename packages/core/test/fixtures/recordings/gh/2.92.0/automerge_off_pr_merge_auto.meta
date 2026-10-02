@@ -1,0 +1,5 @@
+gh: 92
+argv: gh pr merge 32 -R yeyo11/agentry-probe --auto --squash --match-head-commit ee4c2b9707a2d898bcde196bb64171055bf4e3ba
+exit: 1
+secs: 1.456688681
+env: 

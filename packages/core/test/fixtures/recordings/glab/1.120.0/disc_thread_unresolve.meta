@@ -1,0 +1,5 @@
+glab: 1.120.0
+argv: glab api -X PUT projects/87089091/merge_requests/14/discussions/7f4aba3765a1fce43b962f5b789dd0959a78bafc -f resolved=false
+exit: 0
+env: 
+stdin-sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855

@@ -252,6 +252,12 @@
     "h": 7900
   },
   {
+    "file": "DSFusion.html",
+    "title": "Design system · Por qué no se puede fusionar",
+    "w": 1440,
+    "h": 5500
+  },
+  {
     "file": "DSRevision.html",
     "title": "Design system · Atender con un agente",
     "w": 1440,
@@ -984,6 +990,42 @@
     "h": 4600
   },
   {
+    "file": "DesktopTareaFusion.html",
+    "title": "Desktop · Tarea con fusión",
+    "w": 1440,
+    "h": 1240
+  },
+  {
+    "file": "DesktopTareaFusionBorrador.html",
+    "title": "Desktop · Tarea con fusión y borrador",
+    "w": 1440,
+    "h": 1360
+  },
+  {
+    "file": "MobileTareaFusion.html",
+    "title": "Móvil · Tarea con fusión",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTareaFusionBorrador.html",
+    "title": "Móvil · Tarea con fusión y borrador",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopTareaFusionEstados.html",
+    "title": "Desktop · Tarea, estados de la fusión",
+    "w": 1440,
+    "h": 2420
+  },
+  {
+    "file": "MobileTareaFusionEstados.html",
+    "title": "Móvil · Tarea, estados de la fusión",
+    "w": 390,
+    "h": 5520
+  },
+  {
     "file": "DesktopOrquestacionChecks.html",
     "title": "Desktop · Orquestación, checks y log",
     "w": 1440,
@@ -1004,6 +1046,30 @@
   {
     "file": "MobileOrquestacionChecksSubir.html",
     "title": "Móvil · Orquestación, subir el arreglo",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopOrquestacionFusion.html",
+    "title": "Desktop · Orquestación, fusionar",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopTableroFusion.html",
+    "title": "Desktop · Tablero con fusión automática",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileOrquestacionFusion.html",
+    "title": "Móvil · Orquestación, fusionar",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTableroFusion.html",
+    "title": "Móvil · Tablero con fusión automática",
     "w": 390,
     "h": 844
   }

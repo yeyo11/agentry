@@ -45,5 +45,36 @@
     "parallel": "Paralelo"
   },
   "stageTasks_one": "{{count}} tarea",
-  "stageTasks_other": "{{count}} tareas en paralelo"
+  "stageTasks_other": "{{count}} tareas en paralelo",
+  "merge": {
+    "title": "Fusionar",
+    "ready": "lista para fusionar",
+    "reading": "Leyendo lo que permite {{host}}…",
+    "armed": "Fusión automática activada",
+    "armedBy": "Fusionará con {{method}} cuando el host dé el visto bueno; la activó {{who}}",
+    "armedByUnknown": "Fusionará con {{method}} cuando el host dé el visto bueno. {{host}} no dice quién la activó.",
+    "methodUnknown": "el método predeterminado",
+    "turnOff": "Desactivar",
+    "waitingForPipeline": "{{host}} aún no ha asociado la pipeline a este commit. Agentry lo vuelve a leer cada 10 segundos.",
+    "others": "Además: {{words}}",
+    "optionalChecksFailing": "Ha fallado una comprobación que no es obligatoria. Puedes fusionar igualmente.",
+    "method": {
+      "label": "Método",
+      "group": "Método de fusión",
+      "squash": "Squash",
+      "merge": "Merge commit",
+      "rebase": "Rebase"
+    },
+    "methodHint": "{{base}} permite {{methods}}.",
+    "deleteBranch": "Borrar <mono>{{branch}}</mono> en {{host}} al fusionar",
+    "message": "Mensaje del commit",
+    "subject": "Asunto del commit",
+    "subjectPlaceholder": "Asunto, o el del host",
+    "body": "Cuerpo del commit",
+    "bodyPlaceholder": "Cuerpo, opcional",
+    "guard": "Se fusiona el commit {{head}}, el que ves aquí. Si la rama cambia antes, no se fusiona nada.",
+    "action": "Fusionar {{label}}",
+    "merging": "Fusionando…",
+    "merged": "{{noun}} fusionada"
+  }
 }

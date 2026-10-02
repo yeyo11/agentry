@@ -178,6 +178,20 @@ const CHAT_FORBIDDEN_CHECKS = new Set([
 ]);
 
 /**
+ * Merging is the person's click, never a run's, a decision's or a chat's: it changes the base
+ * branch for everyone, and a review comment or a log line is untrusted text that could ask for it.
+ * Arming, turning off, updating the branch and marking ready are refused with it. Reading the
+ * merge state stays open.
+ */
+const CHAT_FORBIDDEN_MERGE = new Set([
+  `POST ${API_PREFIX}/change-requests/:id/merge`,
+  `POST ${API_PREFIX}/change-requests/:id/auto-merge`,
+  `DELETE ${API_PREFIX}/change-requests/:id/auto-merge`,
+  `POST ${API_PREFIX}/change-requests/:id/update-branch`,
+  `POST ${API_PREFIX}/change-requests/:id/ready`,
+]);
+
+/**
  * A review is posted under the person's name, and thread text is untrusted: an injection in a
  * comment must not be able to post, approve, resolve or hand threads to an agent through a chat's
  * token. Reading the threads, the drafts, the approval and the reviewers stays open.
@@ -420,6 +434,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       }
       if (chat !== null && CHAT_FORBIDDEN_CHECKS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot re-run, cancel or fix a change request's checks" });
+        return reply;
+      }
+      if (chat !== null && CHAT_FORBIDDEN_MERGE.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot merge, arm auto-merge, update the branch or mark ready a change request: that is the person's click" });
         return reply;
       }
       if (chat !== null && CHAT_FORBIDDEN_REVIEWS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {

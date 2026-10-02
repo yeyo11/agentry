@@ -1,0 +1,9 @@
+# merge-gitlab-disarm
+glab api --hostname gitlab.com projects/87089091/merge_requests/12?with_merge_status_recheck=true
+glab api --hostname gitlab.com -X POST projects/87089091/merge_requests/12/cancel_merge_when_pipeline_succeeds
+glab api --hostname gitlab.com projects/87089091/merge_requests/12?with_merge_status_recheck=true
+glab api --hostname gitlab.com projects/87089091/merge_requests/12?with_merge_status_recheck=true
+glab api --hostname gitlab.com -X POST projects/87089091/merge_requests/12/cancel_merge_when_pipeline_succeeds
+glab api --hostname gitlab.com projects/87089091/merge_requests/12?with_merge_status_recheck=true
+glab repo view -R https://gitlab.com/yeyo11/agentry -F json
+glab api --hostname gitlab.com projects/87089091/merge_requests/12?with_merge_status_recheck=true

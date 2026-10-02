@@ -48,8 +48,9 @@ import {
 import { checksFixPrompt, reviewFixPrompt } from './flow.ts';
 import { ChecksError, type ChecksService, type ChecksTarget } from './hosts/checks-service.ts';
 import { reviewDiff } from './hosts/review-diff.ts';
+import type { MergeService, PushHold } from './hosts/merge-service.ts';
 import { ReviewsError, type ReviewsService, type ReviewsTarget } from './hosts/reviews-service.ts';
-import type { ChangeRequestRead, ChangeRequestView, ChecksCodeHostAdapter, HostCall, HostRepo, ReviewsCodeHostAdapter } from './hosts/code-host.ts';
+import type { ChangeRequestRead, ChangeRequestView, ChecksCodeHostAdapter, HostCall, HostRepo, MergeCodeHostAdapter, ReviewsCodeHostAdapter } from './hosts/code-host.ts';
 import { defaultHostRun, hostSearchPath, resolveHostBinary, type HostRun } from './hosts/detector.ts';
 import { runHostCall, type HostResult } from './hosts/exec.ts';
 import { githubAdapter } from './hosts/github/adapter.ts';
@@ -136,10 +137,10 @@ const messageOf = (err: unknown): string => firstLine(err instanceof Error ? err
 /** The line a person reads beside a failed host call: what the CLI said, else Agentry's own reason. */
 const failureOf = (result: HostResult): string => result.stderrFirstLine || result.reason || `exit ${result.exitCode ?? 'none'}`;
 
-const ADAPTERS: Readonly<Record<CodeHostId, ReviewsCodeHostAdapter>> = { github: githubAdapter, gitlab: gitlabAdapter };
+const ADAPTERS: Readonly<Record<CodeHostId, MergeCodeHostAdapter>> = { github: githubAdapter, gitlab: gitlabAdapter };
 
 /** The adapter of a code host: the one place that maps an id to its translator. */
-export const codeHostAdapter = (id: CodeHostId): ReviewsCodeHostAdapter | undefined => ADAPTERS[id];
+export const codeHostAdapter = (id: CodeHostId): MergeCodeHostAdapter | undefined => ADAPTERS[id];
 
 /** The cause a fix of failing checks writes on the item's move to In progress; a client words it by its code. */
 export const CHECKS_FIX_CAUSE = 'pr.checks-fix';
@@ -321,6 +322,8 @@ export interface PullRequestDeps {
   checks?: ChecksService;
   /** The review threads of a change request; without it nothing is addressed */
   reviews?: ReviewsService;
+  /** Turns auto-merge off before a push to the branch of an open change request */
+  merge?: MergeService;
   /** The project's flow is on, so a fix can be a run of its Developer; off, the person gets the prompt for a chat */
   flowOn?: (projectId: string) => boolean;
   /** The hook of `checks.fix`: a change request turned `failing` for a head not announced before */
@@ -685,10 +688,14 @@ export class PullRequestService {
         this.conflicted(row, item, conflicts);
         return;
       }
+      let hold: PushHold | null = null;
       try {
+        hold = await this.holdExisting(row, project.path, wt);
         await this.gitAsync(wt, ['push', '-u', 'origin', row.branch], 180_000);
       } catch (err) {
         throw new StepError('push', messageOf(err));
+      } finally {
+        hold?.release();
       }
       const body = pullRequestBody(this.deps.items.find(item.id) ?? item, this.deps.verdicts(item.id), this.deps.webOrigin());
       const { number, url } = await this.create(row, project.path, wt, { title: pullRequestTitle(item), body });
@@ -697,6 +704,31 @@ export class PullRequestService {
       const step = err instanceof StepError ? err : new StepError('create', messageOf(err));
       this.failed(row, step.code, step.detail);
     }
+  }
+
+  /**
+   * The push that opens a request can land on a branch that already has one (opened by hand, or by an
+   * earlier try) with auto-merge armed. The open request is found by head and base, and the push is held
+   * the way a fix's is: auto-merge off first, the request guarded until the push ends. Nothing found, or a
+   * host that cannot be asked, holds nothing: the create that follows meets the same host.
+   */
+  private async holdExisting(row: PullRequestRow, projectPath: string, cwd: string): Promise<PushHold | null> {
+    if (!this.deps.merge) return null;
+    let number: number | null = null;
+    try {
+      const target = await this.target(projectPath, row);
+      const found = await this.call(target, target.adapter.find(target.repo, { head: row.branch, base: row.base }), cwd);
+      if (found.exitCode === 0) {
+        const open = target.adapter.parseFind(found.stdout).filter((c) => c.state === 'open');
+        if (open.length === 1) number = open[0]?.number ?? null;
+      }
+    } catch {
+      return null;
+    }
+    if (number === null) return null;
+    // The row now names the request, which is how the merge service resolves it
+    this.update(row.id, { number }, ['preparing']);
+    return this.deps.merge.holdForPush(row.id);
   }
 
   /**
@@ -1066,10 +1098,15 @@ export class PullRequestService {
         } catch (err) {
           throw new StepError('commit', messageOf(err));
         }
+        let hold: PushHold | undefined;
         try {
+          hold = await this.deps.merge?.holdForPush(row.id);
           await this.gitAsync(place.worktree, ['push', 'origin', row.branch], 180_000);
         } catch (err) {
           throw new StepError('push', messageOf(err));
+        } finally {
+          // The push is over, well or not: the person may arm again
+          hold?.release();
         }
       } catch (err) {
         const step = err instanceof StepError ? err : new StepError('push', messageOf(err));

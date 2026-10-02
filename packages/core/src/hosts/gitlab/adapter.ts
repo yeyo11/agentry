@@ -4,7 +4,7 @@ import {
   type ChangeRequestState,
   type ChangeRequestView,
   type ChangeRequestRead,
-  type ReviewsCodeHostAdapter,
+  type MergeCodeHostAdapter,
   type HeadPipeline,
   type HostCall,
   type HostRepo,
@@ -12,6 +12,7 @@ import {
 } from '../code-host.ts';
 import { envOf } from '../env.ts';
 import { gitlabChecks } from './checks.ts';
+import { gitlabMerge } from './merge.ts';
 import { gitlabReviews } from './reviews.ts';
 import { parseJson } from '../json.ts';
 
@@ -62,9 +63,10 @@ export function parseProjectId(stdout: string): number | null {
   }
 }
 
-export const gitlabAdapter: ReviewsCodeHostAdapter = {
+export const gitlabAdapter: MergeCodeHostAdapter = {
   ...gitlabChecks,
   ...gitlabReviews,
+  ...gitlabMerge,
   id: 'gitlab',
   refPrefix: '!',
 

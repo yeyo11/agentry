@@ -28,6 +28,7 @@ import {
 import { isReviewFix } from '../../../lib/reviews';
 import { CiBadge, useChangeRequestWords } from '../board/PullRequest';
 import { CheckLogBody, CheckLogPanel, CheckMarkIcon, checkFacts, markBadge } from './CheckLog';
+import type { LeadingAction } from './model';
 
 /** Failed and running groups open, the quiet ones folded away while there is something to look at. */
 const quietFolded = (groups: CheckGroup[]) => groups.some((g) => g.id === 'failed' || g.id === 'running');
@@ -186,7 +187,7 @@ function FixDialog({ list, pr, busy, onStart, onClose }: { list: ChangeRequestCh
 }
 
 /** The fix under way or waiting for its push: live only while an agent works on it. */
-function FixState({ pr, onPush, pushing }: { pr: WorkItemPullRequest; onPush: () => void; pushing: boolean }) {
+function FixState({ pr, onPush, pushing, lead }: { pr: WorkItemPullRequest; onPush: () => void; pushing: boolean; lead: boolean }) {
   const { t } = useTranslation('checks');
   const stage = fixStage(pr);
   // An address of review comments has its own rail and push in the review block (AddressReview): two surfaces for one fix would say the checks are being fixed
@@ -201,7 +202,7 @@ function FixState({ pr, onPush, pushing }: { pr: WorkItemPullRequest; onPush: ()
         <span>{t(`fix.hint.${stage === 'push' ? 'push' : pr.fixOrigin === 'decision' ? 'decision' : 'person'}`)}</span>
       </span>
       {stage === 'push' && (
-        <button type="button" className="btn btn-primary btn-small workitem-push-fix" disabled={pushing} onClick={onPush}>
+        <button type="button" className={`btn btn-small workitem-push-fix ${lead ? 'btn-primary' : ''}`.trim()} disabled={pushing} onClick={onPush}>
           <Send {...ICON_SM} />
           {t('fix.push')}
         </button>
@@ -217,7 +218,7 @@ function FixState({ pr, onPush, pushing }: { pr: WorkItemPullRequest; onPush: ()
  * do something, and "Fix failing checks" is its one gradient action. Reference: DesktopTareaChecks,
  * MobileTareaChecks and their states.
  */
-export function Checks({ pr, itemId }: { pr: WorkItemPullRequest | null | undefined; itemId: string }) {
+export function Checks({ pr, itemId, lead }: { pr: WorkItemPullRequest | null | undefined; itemId: string; lead: LeadingAction | null }) {
   const { t } = useTranslation('checks');
   const words = useChangeRequestWords(pr?.host);
   const narrow = useMediaQuery(NARROW);
@@ -269,6 +270,7 @@ export function Checks({ pr, itemId }: { pr: WorkItemPullRequest | null | undefi
   const groups = groupChecks(checks);
   const counts = countChecks(checks);
   const actions = checksActions(list.data, pr);
+  const fixLeads = lead === 'fix' ? 'btn-primary' : '';
   const open = checks.find((c) => c.id === openId) ?? null;
   const busy = rerun.isPending || cancel.isPending || play.isPending || refresh.isPending;
   const host = words.host;
@@ -325,7 +327,7 @@ export function Checks({ pr, itemId }: { pr: WorkItemPullRequest | null | undefi
             </button>
           )}
           {actions.fix && (
-            <button type="button" className="btn btn-primary btn-small workitem-fix-checks" disabled={fix.isPending || !!limitedUntil} onClick={() => setFixing(true)}>
+            <button type="button" className={`btn btn-small workitem-fix-checks ${fixLeads}`.trim()} disabled={fix.isPending || !!limitedUntil} onClick={() => setFixing(true)}>
               <Sparkles {...ICON_SM} />
               {t('actions.fix')}
             </button>
@@ -334,7 +336,7 @@ export function Checks({ pr, itemId }: { pr: WorkItemPullRequest | null | undefi
         <MoreActions label={t('actions.more')} entries={headEntries} />
       </div>
 
-      <FixState pr={pr} pushing={push.isPending} onPush={() => push.mutate()} />
+      <FixState pr={pr} lead={lead === 'push'} pushing={push.isPending} onPush={() => push.mutate()} />
 
       {limitedUntil && (
         <div className="check-limit" role="note">

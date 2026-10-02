@@ -1,0 +1,5 @@
+gh: 102
+argv: gh pr view 32 -R yeyo11/agentry-probe --json state,isDraft,mergeable,mergeStateStatus,reviewDecision,headRefOid,id,autoMergeRequest
+exit: 0
+secs: 1.026624490
+env: 

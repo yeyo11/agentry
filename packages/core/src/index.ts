@@ -71,7 +71,7 @@ import { stateFromRun } from './chat-model.ts';
 import { chatLinkName, WorkItemError, WorkItemService, type WorkItemLinkState } from './work-items.ts';
 import { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentsPlace } from './documents.ts';
 import { documentsLine, ItemDocumentsError, syncItemDocuments, withDocumentsLine } from './item-documents.ts';
-import { canBranch, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
+import { canBranch, existingItemWorktree, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
 import { TunnelManager } from './tunnel.ts';
 import { ChatService, ChatStartError, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatConfinement, type ChatRuntime, type RunResult } from './chats.ts';
@@ -128,12 +128,15 @@ import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
 import { FlowError, FlowService, type FlowLaunch } from './flow.ts';
 import { ChangeRequestService } from './change-requests.ts';
 import { ChecksService } from './hosts/checks-service.ts';
+import { MergeService, type MergeTarget } from './hosts/merge-service.ts';
+import { mergeTargetOf } from './hosts/merge-target.ts';
 import { ReviewsService } from './hosts/reviews-service.ts';
 import { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
 import { codeHostAdapter, PullRequestService, PullRequestWatcher, type ApproveResult } from './pull-requests.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
 import { assistantGit } from './assistant-sources.ts';
-import { git, isGitRepo } from './git.ts';
+import { git, isGitRepo, mainCheckout } from './git.ts';
+import { hostOf } from './work-item-rows.ts';
 import { DecisionEngine } from './decisions/engine.ts';
 import { ReviewTriage } from './decisions/review-triage.ts';
 import { DecisionResolvers } from './decisions/resolve.ts';
@@ -249,6 +252,7 @@ export {
   type PullRequestDeps,
 } from './pull-requests.ts';
 export { ChangeRequestError, type ChangeRequestFix } from './change-requests.ts';
+export { MergeError, type MergeOutcome, type UpdateOutcome } from './hosts/merge-service.ts';
 export { OrchestrationPullRequestError, OrchestrationPullRequestService, type OpenedPullRequest } from './orchestration-pull-requests.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
@@ -403,6 +407,8 @@ export class Core {
   /** The checks of a change request: the head commit's list, log tails, re-runs and cancels */
   readonly checks: ChecksService;
   readonly reviews: ReviewsService;
+  /** Merge, auto-merge and update from the base of a change request: the person's click, never a run */
+  readonly merge: MergeService;
   /** `/change-requests/:id/…`: a row id of either table, resolved to the service that owns it */
   readonly changeRequests: ChangeRequestService;
   /** The project assistant: read-only runs that propose a team, resources and work items, each accepted on its own */
@@ -686,10 +692,24 @@ export class Core {
     });
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.reviews = new ReviewsService({ db: this.db.connection, resolve: (id) => this.changeRequests.reviewsTarget(id), emit: (event) => this.events.emit(event) });
+    this.merge = new MergeService({
+      db: this.db.connection,
+      resolve: (id) => this.mergeTarget(id),
+      checks: async (id, refresh) => (await this.checks.list(id, refresh ? { refresh: true } : {})).checks,
+      unresolvedThreads: async (id) => (await this.reviews.threads(id)).threads.filter((t) => !t.isResolved).length,
+      emit: (event) => this.events.emit(event),
+      // The row's own watcher reads the host and moves the item to Done as the person (`merged()`)
+      merged: async (id) => {
+        const kind = this.changeRequests.kindOf(id);
+        if (kind === 'work-item') await this.pullRequests.check(id, true);
+        else if (kind === 'orchestration') await this.orchestrationPullRequests.check(id, true);
+      },
+    });
     this.pullRequests = new PullRequestService({
       db: this.db,
       checks: this.checks,
       reviews: this.reviews,
+      merge: this.merge,
       flowOn: (projectId) => this.flow.projectFlow(projectId).enabled,
       settings: () => this.hostsSettings.get(),
       items: this.workItems,
@@ -697,10 +717,7 @@ export class Core {
         const record = this.projectStore.get(id);
         return record ? { path: record.path } : null;
       },
-      busy: (itemId) => {
-        if (this.flow.itemRunning(itemId)) return true;
-        return this.workItems.links(itemId).some((l) => l.role === 'work' && (l.chatState === 'working' || l.chatState === 'waiting' || l.taskStatus === 'running'));
-      },
+      busy: (itemId) => this.itemBusy(itemId),
       verdicts: (itemId) => this.flow.verdicts(itemId),
       // The card's link is the address the person reaches the panel on: the tunnel when it is up
       webOrigin: () => {
@@ -715,12 +732,14 @@ export class Core {
       emit: (event) => this.events.emit(event),
       checks: this.checks,
       reviews: this.reviews,
+      merge: this.merge,
       runFix: (req) => this.orchestrator.runChecksFix(req),
     });
     this.changeRequests = new ChangeRequestService({
       db: this.db,
       checks: this.checks,
       reviews: this.reviews,
+      merge: this.merge,
       pullRequests: this.pullRequests,
       orchestrationPullRequests: this.orchestrationPullRequests,
       orchestration: (id) => this.orchestrator.get(id),
@@ -1866,6 +1885,40 @@ export class Core {
       throw new DocumentError("the Documents module is off in this project: switch it on in the project's settings to change its documents", 409);
     }
     return { projectPath: record.path, root: settings.documents?.path ?? DEFAULT_DOCUMENTS_PATH };
+  }
+
+  /** What `MergeService` needs for one row of either table: the host's calls, and the checkouts the branch lives in */
+  private async mergeTarget(id: string): Promise<MergeTarget | null> {
+    const base = await this.changeRequests.target(id);
+    if (!base) return null;
+    const sql = this.db.connection;
+    const item = sql.prepare('SELECT host, item_id, project_id FROM work_item_pull_requests WHERE id = ?').get(id) as { host: string; item_id: string; project_id: string } | undefined;
+    if (item) {
+      const adapter = codeHostAdapter(hostOf(item.host));
+      if (!adapter) return null;
+      const record = this.projectStore.get(item.project_id);
+      const work = this.workItems.find(item.item_id);
+      // Only a worktree the item already has: reading a merge state makes no branch and no checkout
+      const worktree = record && work ? existingItemWorktree(record.path, work) : null;
+      const target = mergeTargetOf(base, hostOf(item.host), adapter, record ? { home: mainCheckout(record.path), worktree } : null);
+      target.busy = () => this.itemBusy(item.item_id);
+      return target;
+    }
+    const orch = sql.prepare('SELECT host, orchestration_id, cwd FROM orchestration_pull_requests WHERE id = ?').get(id) as { host: string; orchestration_id: string; cwd: string } | undefined;
+    if (!orch) return null;
+    const adapter = codeHostAdapter(hostOf(orch.host));
+    if (!adapter) return null;
+    const worktree = this.orchestrator.get(orch.orchestration_id)?.integration?.worktree ?? null;
+    const target = mergeTargetOf(base, hostOf(orch.host), adapter, { home: mainCheckout(orch.cwd), worktree: worktree && existsSync(worktree) ? worktree : null });
+    // The integration worktree is in use while the fixer Agentry started for this request works in it
+    target.busy = () => Boolean(sql.prepare("SELECT 1 FROM orchestration_pull_requests WHERE id = ? AND fix_state = 'fixing'").get(id));
+    return target;
+  }
+
+  /** A chat or a run is working on the item: what a push or a rewrite of its branch must not meet */
+  private itemBusy(itemId: string): boolean {
+    if (this.flow.itemRunning(itemId)) return true;
+    return this.workItems.links(itemId).some((l) => l.role === 'work' && (l.chatState === 'working' || l.chatState === 'waiting' || l.taskStatus === 'running'));
   }
 
   /** The item, after the same check on the project it belongs to. Reads of a removed project's items still work. */

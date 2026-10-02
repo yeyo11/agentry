@@ -6,7 +6,9 @@ import { ICON_SM } from '@agentry/ui/components/icons';
 import { notReadyReason, pullRequestErrorKey } from '../../../lib/work-items';
 import { CiBadge, NotReadyNote, reasonValues, useChangeRequestWords, useOpenPullRequest } from '../board/PullRequest';
 import { AddressReview } from './AddressReview';
+import { useLeadingAction } from './lead';
 import { Checks } from './Checks';
+import { Merge } from './Merge';
 import { Review } from './Review';
 import { pullRequestAction, pullRequestPanel } from './model';
 
@@ -212,14 +214,16 @@ function PullRequestPanel({ item }: { item: WorkItemDetail }) {
   );
 }
 
-/** The panel of what the item's PR is doing, under it its review and the review comments waiting for an agent, and the checks of the PR while it is open. */
+/** The panel of what the item's PR is doing, under it its review, the review comments waiting for an agent, the merge block and the checks of the PR while it is open. */
 export function PullRequestState({ item }: { item: WorkItemDetail }) {
+  const lead = useLeadingAction(item.pullRequest);
   return (
     <>
       <PullRequestPanel item={item} />
-      <Review pr={item.pullRequest} itemId={item.id} changesPath={`/tasks/${item.key}/changes`} />
-      <AddressReview pr={item.pullRequest} />
-      <Checks pr={item.pullRequest} itemId={item.id} />
+      <Review pr={item.pullRequest} itemId={item.id} changesPath={`/tasks/${item.key}/changes`} lead={lead} />
+      <AddressReview pr={item.pullRequest} lead={lead} />
+      <Merge pr={item.pullRequest} itemId={item.id} itemKey={item.key} lead={lead} />
+      <Checks pr={item.pullRequest} itemId={item.id} lead={lead} />
     </>
   );
 }

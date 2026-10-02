@@ -1598,7 +1598,7 @@
   min-width: 0;
   overflow: hidden;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1625,7 +1625,7 @@
   min-height: 32px;
   padding: 0 10px;
   color: var(--text-muted);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .ochk-fold .ochk-open {
@@ -1682,7 +1682,7 @@
 .ochk-note dt {
   color: var(--text-faint);
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .ochk-note dd {
@@ -1699,7 +1699,7 @@
   padding: 10px 0 12px;
   color: var(--text-faint);
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.65;
 }
 
@@ -1730,6 +1730,7 @@
   flex-direction: column;
   gap: 14px;
   padding: 18px;
+  border: 1px solid var(--line);
   border-radius: var(--radius-lg);
 }
 
@@ -1798,5 +1799,96 @@
 
   .ochk-tail {
     font-size: 12px;
+  }
+}
+
+/* Merging an orchestration's change request (code hosts, phase 4): the method is a .segmented, the
+   branch box a .checkbox, the subject and body .field. Only the layout is new. */
+.omrg {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.omrg-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.omrg-armed,
+.omrg-blocked,
+.omrg-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+}
+
+.omrg-text {
+  flex: 1 1 220px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.omrg-opts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.omrg-col {
+  gap: 10px;
+}
+
+.omrg-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  font-size: 13px;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.omrg-row .mono {
+  overflow-wrap: anywhere;
+}
+
+.omrg-guard {
+  flex: 1 1 220px;
+  line-height: 1.45;
+}
+
+@media (max-width: 768px) {
+  .omrg-opts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .omrg-row,
+  .omrg .btn {
+    min-height: var(--touch);
+  }
+
+  .omrg-foot {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .omrg-foot .grow {
+    display: none;
+  }
+
+  .omrg-foot .btn {
+    justify-content: center;
+  }
+
+  .omrg-guard {
+    font-size: 13px;
+    flex: 0 0 auto;
   }
 }

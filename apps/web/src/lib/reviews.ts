@@ -240,15 +240,6 @@ export function partlyPost<P extends Pick<ReviewPost, 'state'>>(posts: readonly 
   return newest && needsPartialChoice(newest) ? newest : null;
 }
 
-// ---------- the item page's primary action ----------
-
-/**
- * One gradient action per zone. While the person has a draft review, **Submit review** is the
- * zone's, and the header's **Work on it** renders neutral, as it does while **Fix failing checks**
- * shows (`checksFixShowing`).
- */
-export const workOnItNeutral = (opts: { drafts: number; checksFixShowing: boolean }): boolean => opts.drafts > 0 || opts.checksFixShowing;
-
 // ---------- addressing with an agent ----------
 
 /** What `review.triage` suggests for a thread; it only preselects, nothing is sent or done by a mark. */

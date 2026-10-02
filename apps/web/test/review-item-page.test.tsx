@@ -12,6 +12,7 @@ import { ToastProvider } from '@agentry/ui/components/Toast';
 import { keys } from '../src/api';
 import { setLanguage } from '../src/i18n';
 import { AddressReview } from '../src/pages/tasks/item/AddressReview';
+import type { LeadingAction } from '../src/pages/tasks/item/model';
 import { Review } from '../src/pages/tasks/item/Review';
 
 // The item page's review block and its address strip (docs/plans/code-hosts.md, Phase 3): what a
@@ -50,7 +51,7 @@ afterEach(() => {
   else Reflect.deleteProperty(globalThis, 'localStorage');
 });
 
-function page(request: WorkItemPullRequest, seed: (qc: QueryClient) => void, element: 'review' | 'address') {
+function page(request: WorkItemPullRequest, seed: (qc: QueryClient) => void, element: 'review' | 'address', lead: LeadingAction | null = null) {
   const qc = new QueryClient();
   seed(qc);
   return renderToStaticMarkup(
@@ -58,7 +59,7 @@ function page(request: WorkItemPullRequest, seed: (qc: QueryClient) => void, ele
       <MemoryRouter>
         <TooltipProvider>
           <ToastProvider>
-            <ConfirmProvider>{element === 'review' ? <Review pr={request} itemId="item1" changesPath="/tasks/AGN-26/changes" /> : <AddressReview pr={request} />}</ConfirmProvider>
+            <ConfirmProvider>{element === 'review' ? <Review pr={request} itemId="item1" changesPath="/tasks/AGN-26/changes" lead={lead} /> : <AddressReview pr={request} lead={lead} />}</ConfirmProvider>
           </ToastProvider>
         </TooltipProvider>
       </MemoryRouter>

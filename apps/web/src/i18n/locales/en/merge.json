@@ -1,0 +1,236 @@
+{
+  "title": "Merge",
+  "sub": "{{ref}} · {{head}} → {{base}} · {{sha}}",
+  "loading": "Reading what blocks the merge…",
+  "failed": "Agentry could not read the merge state from {{host}}.",
+  "retry": "Try again",
+  "limited": "{{host}} is limiting reads. This is the last state Agentry had; it reads again at {{time}}.",
+  "badge": {
+    "ready": "ready to merge",
+    "warning": "can merge, with a warning",
+    "armed": "auto-merge on",
+    "waitingPipeline": "waiting for the pipeline",
+    "merging": "merging",
+    "headMoved": "branch changed",
+    "checksPending": "checks pending"
+  },
+  "row": {
+    "method": "Method",
+    "message": "Message",
+    "branch": "Branch",
+    "warning": "Warning",
+    "autoMerge": "Auto-merge",
+    "waitsFor": "Waits for",
+    "pipeline": "Pipeline",
+    "commit": "Commit",
+    "now": "Now",
+    "others": "Also blocking"
+  },
+  "method": {
+    "squash": "Squash",
+    "merge": "Merge commit",
+    "rebase": "Rebase",
+    "label": "Merge method",
+    "fixed": "{{host}} sets it for this project",
+    "hint": {
+      "squash": "One commit on {{base}}, with the subject and body below.",
+      "merge": "A merge commit on {{base}}, with the subject and body below.",
+      "rebase": "Each commit of {{head}} is replayed on {{base}}; there is no message to write."
+    }
+  },
+  "message": {
+    "subject": "Subject",
+    "subjectLabel": "Commit subject",
+    "body": "Body (optional)",
+    "bodyLabel": "Commit body",
+    "hostWrites": "{{host}} writes its own"
+  },
+  "branch": {
+    "delete": "Delete the branch {{head}} on {{host}} after merging",
+    "localStays": "The local branch stays: the item’s changes read it."
+  },
+  "warning": {
+    "optional-checks-failing": "Some checks that are not required failed. {{host}} does not need them to merge.",
+    "word": "not required"
+  },
+  "note": {
+    "done": "When it merges, the item moves to Done on its own.",
+    "arm": "{{host}} will merge the {{noun}} when the checks finish, even if Agentry is closed.",
+    "armed": "If Agentry pushes to the branch it turns this off first and tells you, so you can turn it on again.",
+    "pipelineWait": "Merging now could skip the pipeline of the commit you just pushed.",
+    "merging": "Sending the merge to {{host}}…"
+  },
+  "autoMerge": {
+    "on": "on",
+    "by": "@{{who}} · {{when}} · {{method}}",
+    "byUnknown": "{{when}} · {{method}}",
+    "unknown": "{{host}} does not say who or when",
+    "waitsFor": "The {{noun}} merges when the checks and rules allow it"
+  },
+  "pipeline": {
+    "waiting": "Waiting for the pipeline",
+    "waitingDetail": "commit {{sha}} · {{host}} has not attached it yet · checked every 10 s"
+  },
+  "headMoved": {
+    "title": "The branch changed while you were looking, and nothing was merged.",
+    "text": "Read the new changes and merge again: Agentry never merges a commit you have not seen.",
+    "seen": "the one you saw",
+    "now": "the branch’s head now",
+    "changes": "See the changes"
+  },
+  "actions": {
+    "merge": "Merge",
+    "merging": "Merging",
+    "mergeWhenPipeline": "Merge when the pipeline finishes",
+    "arm": "Turn on auto-merge",
+    "disarm": "Turn off",
+    "reread": "Read again",
+    "waiting": "Waiting for the pipeline"
+  },
+  "toast": {
+    "merged": "Merged {{ref}}",
+    "armed": "Auto-merge is on",
+    "disarmed": "Auto-merge is off",
+    "updated": "{{head}} is up to date with {{base}}",
+    "ready": "Marked as ready for review",
+    "fixStarted": "An agent is on it",
+    "failed": "The action failed",
+    "conflicts": "Updating {{head}} from {{base}} conflicted. The conflicts go to the Developer."
+  },
+  "update": {
+    "busy": "Nothing was updated: a chat, a run or another action is working in this branch. Try again when it ends.",
+    "not-offered": "Agentry cannot update this branch: this {{noun}} has no checkout here. Update it on {{host}}.",
+    "not-open": "Nothing was updated: this {{noun}} is not open any more.",
+    "merge-failed": "The branch could not be updated from {{base}}. Nothing was pushed."
+  },
+  "failure": {
+    "head-moved": "The branch changed while you were looking. Nothing was merged.",
+    "method-not-allowed": "The repository does not allow that method any more. Pick another one.",
+    "auto-merge-not-allowed": "Auto-merge is off in this repository.",
+    "auto-merge-not-needed": "Nothing is left to wait for, so there is nothing to arm. Merge now.",
+    "waiting-for-pipeline": "{{host}} has not attached the pipeline of this commit yet. Try again in a moment.",
+    "rate-limited": "{{host}} is limiting requests. Try again later.",
+    "forbidden": "Only a person can merge, and this account may not.",
+    "busy": "Agentry is still working on this branch: a push or another merge action is running. Try again when it ends.",
+    "merge-failed": "{{host}} refused the merge."
+  },
+  "blocker": {
+    "not-open": {
+      "word": "closed",
+      "text": "This {{noun}} is not open any more.",
+      "merged": {
+        "word": "merged",
+        "text": "This {{noun}} was merged."
+      },
+      "closed": {
+        "text": "This {{noun}} was closed without merging."
+      }
+    },
+    "computing": {
+      "word": "working it out",
+      "text": "{{host}} is still working out whether this can merge."
+    },
+    "draft": {
+      "word": "draft",
+      "text": "This {{noun}} is a draft."
+    },
+    "conflicts": {
+      "word": "conflicting",
+      "text": "{{head}} conflicts with {{base}}."
+    },
+    "nothing-to-merge": {
+      "word": "no changes",
+      "text": "{{head}} has nothing that {{base}} lacks."
+    },
+    "behind": {
+      "word": "out of date",
+      "text": "{{base}} requires {{head}} to be up to date."
+    },
+    "checks-running": {
+      "word": "running",
+      "text": "Required checks have not finished."
+    },
+    "checks-failing": {
+      "word": "failing",
+      "text": "Required checks failed.",
+      "named": "Required check {{name}} failed."
+    },
+    "checks-missing": {
+      "word": "not reported",
+      "text": "Required checks have not reported for the latest commit.",
+      "named": "Required check {{name}} has not reported for the latest commit."
+    },
+    "external-checks": {
+      "word": "blocked",
+      "text": "External status checks must pass first."
+    },
+    "review-required": {
+      "word": "not approved",
+      "text": "An approval from someone with write access is required."
+    },
+    "changes-requested": {
+      "word": "changes asked",
+      "text": "A reviewer asked for changes."
+    },
+    "threads-unresolved": {
+      "word": "unresolved",
+      "text": "Every conversation must be resolved first.",
+      "counted_one": "{{count}} conversation is still unresolved.",
+      "counted_other": "{{count}} conversations are still unresolved."
+    },
+    "tracker-key-missing": {
+      "word": "no key",
+      "text": "{{host}} requires a Jira key in the title or description."
+    },
+    "title-rejected": {
+      "word": "title rejected",
+      "text": "The title does not match the pattern this project requires."
+    },
+    "blocked-by-dependency": {
+      "word": "depends on another",
+      "text": "Another {{noun}} must merge first."
+    },
+    "not-yet": {
+      "word": "scheduled",
+      "text": "This {{noun}} cannot merge before its scheduled time."
+    },
+    "locked-files": {
+      "word": "locked files",
+      "text": "Files in this {{noun}} are locked by someone else."
+    },
+    "merge-queue": {
+      "word": "queued",
+      "text": "This branch merges through a queue; add it there."
+    },
+    "blocked-by-policy": {
+      "word": "blocked",
+      "text": "{{host}}'s rules for {{base}} do not allow this merge yet."
+    }
+  },
+  "action": {
+    "mark-ready": "Mark as ready",
+    "update-from-base": "Update from {{base}}",
+    "rebase-on-host": "Rebase on {{host}}",
+    "close": "Close on {{host}}",
+    "auto-merge": "Turn on auto-merge",
+    "fix-checks": "Fix failing checks",
+    "rerun-checks": "Re-run the checks",
+    "request-reviewers": "Ask for a review",
+    "address-review": "Address with an agent",
+    "show-threads": "Show unresolved threads",
+    "edit-title": "Edit title on {{host}}",
+    "open-on-host": "Open on {{host}}",
+    "refresh": "Check again"
+  },
+  "autoMergeOff": {
+    "pushing": "Agentry turned auto-merge off and is pushing to the branch. Turn it on again when the push is done.",
+    "push": "Agentry turned auto-merge off {{when}} because it pushed to the branch. Turn it on again if you still want it.",
+    "update": "Auto-merge was turned off {{when}} by {{who}} for Update from base. Turn it on again if you still want it.",
+    "updateYou": "You turned auto-merge off {{when}} for Update from base. Turn it on again if you still want it.",
+    "updateAgentry": "Agentry turned auto-merge off {{when}} for Update from base. Turn it on again if you still want it."
+  },
+  "rebaseOnHostWhy": {
+    "uncommitted-changes": "Rebase on {{host}} is not offered: the checkout has changes that are not committed, and the rebase would leave it behind.",
+    "unpushed-commits": "Rebase on {{host}} is not offered: the checkout has commits that were never pushed, and the rebase would drop them."
+  }
+}

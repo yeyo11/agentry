@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api -X DELETE repos/yeyo11/agentry-probe/rulesets/24318313
+exit: 0
+secs: .746386984
+env: 

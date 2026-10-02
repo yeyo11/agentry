@@ -13,6 +13,7 @@ import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { useClockTick } from '@agentry/ui/lib/motion';
 import { checkDurationMs, checkMark, checksActions, clockOf, countChecks, groupChecks, isManual, type CheckGroupId, type CheckTone } from '../lib/change-requests';
 import { isErrorLine, orchestrationFix } from '../lib/orchestration-v2';
+import { useOrchestrationLead } from './OrchestrationMerge';
 
 type Words = { noun: string; host: string; ref: (number: number | null, ref?: string | null) => string };
 
@@ -142,8 +143,9 @@ function CheckRow({
 
 /**
  * An orchestration's change request, as CI sees it: the checks of its head, grouped, with each
- * log's tail; the zone's one gradient action is **Fix failing checks**, and once a fix is
- * committed it becomes **Push the fix**, which an orchestration always leaves to the person.
+ * log's tail. **Fix failing checks** is the zone's gradient action unless a push that waits leads, and
+ * once a fix is committed it becomes **Push the fix**, which an orchestration always leaves to the
+ * person; Merge leads when neither is on offer (see `useOrchestrationLead`).
  */
 export function OrchestrationChecks({ orch, pr, words }: { orch: Orchestration; pr: OrchestrationPullRequest & { id: string }; words: Words }) {
   const { t } = useTranslation('orchestrationV2');
@@ -180,6 +182,7 @@ export function OrchestrationChecks({ orch, pr, words }: { orch: Orchestration; 
   });
 
   const stage = orchestrationFix(pr);
+  const lead = useOrchestrationLead(pr);
   const actions = checksActions(checks, { fixState: pr.fixState ?? null });
   const counts = countChecks(checks?.checks ?? []);
   const groups = groupChecks(checks?.checks ?? []);
@@ -216,7 +219,7 @@ export function OrchestrationChecks({ orch, pr, words }: { orch: Orchestration; 
   return (
     <div className="ochk">
       {stage === 'push' && (
-        <section className="ochk-fix grad-border" aria-label={t('checks.push.title')}>
+        <section className="ochk-fix" aria-label={t('checks.push.title')}>
           <div className="ochk-line">
             <h3 className="ochk-h grow">{t('checks.push.title')}</h3>
             <span className="badge badge-idle">{t('checks.push.waiting')}</span>
@@ -229,7 +232,7 @@ export function OrchestrationChecks({ orch, pr, words }: { orch: Orchestration; 
           </div>
           <div className="ochk-line ochk-fix-foot">
             <span className="muted small grow">{t('checks.push.head', { noun: words.noun, ref: words.ref(pr.number, pr.ref), sha })}</span>
-            <button type="button" className="btn btn-primary" disabled={push.isPending} onClick={pushFix}>
+            <button type="button" className={`btn ${lead === 'push' ? 'btn-primary' : ''}`.trim()} disabled={push.isPending} onClick={pushFix}>
               <GitBranch {...ICON_SM} /> {push.isPending ? t('checks.push.pushing') : t('checks.push.button')}
             </button>
           </div>
@@ -255,7 +258,7 @@ export function OrchestrationChecks({ orch, pr, words }: { orch: Orchestration; 
           )}
           <span className="grow" />
           {actions.fix && (
-            <button type="button" className="btn btn-primary" disabled={fix.isPending} onClick={() => fix.mutate()}>
+            <button type="button" className={`btn ${lead === 'fix' ? 'btn-primary' : ''}`.trim()} disabled={fix.isPending} onClick={() => fix.mutate()}>
               <Sparkles {...ICON_SM} /> {t('checks.fix')}
             </button>
           )}

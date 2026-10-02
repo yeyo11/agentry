@@ -392,3 +392,38 @@ export function cleanCriteria(rows: readonly string[]): Array<{ text: string }> 
     .filter(Boolean)
     .map((row) => ({ text: row }));
 }
+
+// ---------- the one gradient action of the pull request zone ----------
+
+/** The actions of the pull request zone that carry the gradient, oldest first. */
+export type LeadingAction = 'push' | 'publish' | 'reply' | 'submit' | 'fix' | 'merge';
+
+export interface LeadingFacts {
+  /** A fix's commit waits for the person's push (Push the fix, Push review fixes) */
+  pushWaiting: boolean;
+  /** A review that stopped half way waits for Publish */
+  publishWaiting: boolean;
+  /** Review threads wait for Reply and resolve after a pushed fix */
+  replyWaiting: boolean;
+  /** The person has a draft review */
+  drafts: number;
+  /** Fix failing checks is on the page */
+  fixOffered: boolean;
+  /** The merge block offers Merge, or arming auto-merge, as its action */
+  mergeOffered: boolean;
+}
+
+/**
+ * The zone's ONE gradient action. What has waited longest leads: a push or a publish that is
+ * pending, the reply to the threads a pushed fix answered, then Submit review, Fix failing checks
+ * and last Merge. Every other button of the zone, and the header's Work on it, renders neutral.
+ */
+export function leadingAction(facts: LeadingFacts): LeadingAction | null {
+  if (facts.pushWaiting) return 'push';
+  if (facts.publishWaiting) return 'publish';
+  if (facts.replyWaiting) return 'reply';
+  if (facts.drafts > 0) return 'submit';
+  if (facts.fixOffered) return 'fix';
+  if (facts.mergeOffered) return 'merge';
+  return null;
+}

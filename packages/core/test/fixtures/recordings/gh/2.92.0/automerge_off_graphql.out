@@ -1,0 +1,1 @@
+{"data":{"enablePullRequestAutoMerge":null},"errors":[{"type":"UNPROCESSABLE","path":["enablePullRequestAutoMerge"],"locations":[{"line":1,"column":64}],"message":"Auto merge is not allowed for this repository"}]}

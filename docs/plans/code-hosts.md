@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-10-01T20:10:00Z
+updated_at: 2026-10-02T09:00:00Z
 tags:
     - plan
     - git
@@ -2008,6 +2008,45 @@ expectedHead, deleteBranch, subject?, body?}`); `POST /change-requests/:id/auto-
 expectedHead}`), `DELETE /change-requests/:id/auto-merge`; `POST /change-requests/:id/update-branch`;
 `POST /change-requests/:id/ready` (B9). Chat tokens: 403.
 
+### Recorded by `m0` (2026-10-01)
+
+`m0` is done: 149 `glab` 1.120.0 calls on the GitLab probe project and 20 + 5 `gh` calls (2.102.0,
+2.92.0) on the GitHub probe repository. They are under `packages/core/test/fixtures/recordings/`,
+with [`m0-NOTES.md`](../../packages/core/test/fixtures/recordings/m0-NOTES.md). Where they disagree
+with the design notes above, the recordings win:
+
+1. **`computing` on GitLab is not a 2–5 s state.** `unchecked` stayed for minutes and through every
+   `with_merge_status_recheck=true` read, and `has_conflicts: false` came back for a conflicting MR
+   while `unchecked`. "Re-read after 5 s, three times" would leave GitLab MRs in `computing` most of
+   the time. On `unchecked` or `checking`, read `mergeabilityChecks` through `glab api graphql`
+   (B6), map the `FAILED` identifiers with the same table, show `computing` only for `CHECKING`,
+   and do not disable Merge on `unchecked` alone: GitLab checks again on merge and refuses with 405
+   or the conflict box.
+2. **"The project has no CI" does not enable Merge now** when `only_allow_merge_if_pipeline_succeeds`
+   is on: with no pipeline the state is `ci_must_pass` and glab refuses. The pipeline guard reads
+   that setting.
+3. **`glab mr merge` refuses in a boxed stderr**, not in `glab api`'s `glab: … (HTTP n)` line:
+   either `All attempts fail: … <status> {message: …}` (server) or a one-line client-side message
+   (draft, conflicts, pipeline required) with no status; the 405 never says why. E4's "409 →
+   `head-moved`" parses the wrapped box, and every other code comes from the re-read.
+4. **`--sha` must be the full id**: a short head gives 409, which reads as `head-moved`.
+5. **`rebase_in_progress` needs `?include_rebase_in_progress=true`**; E9 reads it from the plain
+   body, where it is absent.
+6. **After an `ff` merge `merge_commit_sha` is null**: the merged commit is `sha`.
+7. **A conflicting MR in an `ff` project reads `need_rebase`**, not `conflict`.
+8. **`glab mr update --target-branch` accepts a branch that does not exist**, so Agentry checks it.
+9. **GitHub's auto-merge refusal** says "not allowed" first, before a stale head or an unstable PR;
+   E7's order of `head-moved` and `auto-merge-not-needed` applies only when the setting is on.
+10. **Confirmed as planned:** `--auto-merge=false` merges now and never arms (and is refused with
+    405 when the project requires a pipeline); `with_merge_status_recheck` is accepted everywhere;
+    `glab mr rebase` succeeds and waits; `--target-branch`; `discussions_not_resolved` and its
+    refusal; `gh --body-file -` with `--subject` and `--match-head-commit` on both versions.
+
+**Not recorded:** `ci_still_running` and `draft_status` in REST (the MR stayed `unchecked`; GraphQL
+had both), `not_approved`, `requested_changes`, `status_checks_must_pass` and the other values that
+need Premium or Ultimate (they stay documented only), and a `glab` token with `read_api` only, which
+means creating a token on the owner's account and is the owner's to decide.
+
 ### P0 · `merge-prototypes`
 
 Generator `merge.py`.
@@ -2021,6 +2060,12 @@ Generator `merge.py`.
 - `m-p3` **the orchestration's merge** (`DesktopOrquestacionFusion.html`,
   `MobileOrquestacionFusion.html`) and the board card's "auto-merge on" badge.
 - Check: `lint.py`, `check.mjs`; the owner validates.
+
+P0 was built by `merge-prototypes` (3 tasks, 19.96 USD; `lint.py` and `check.mjs` clean) and validated
+on 2026-10-01 by delegation, after one correction found by looking at the screenshots, which `lint.py`
+does not catch: the item page showed three gradient surfaces (the top bar's "New chat", "Work on it"
+and "Merge"). On the item page, **Merge** is that zone's gradient action (or **Submit review** while the
+person has a draft review), and the header's **Work on it** and the phone's bottom bar render neutral.
 
 ### P1 · `merge-core`
 
@@ -2051,6 +2096,44 @@ Generator `merge.py`.
 - `mu0` model; `mu1` `pages/tasks/item/Merge.tsx` and `i18n/locales/{en,es}/merge.json`; `mu2`
   `pages/OrchestrationDetail.tsx` merge block; `mu3` board badge in `WorkItemCard.tsx`; `mu4` e2e
   (`e2e/specs/merge.spec.mjs`), written, not run.
+
+## Outcome of phase 4 (2026-10-02)
+
+Phase 4 is built on `feat/code-hosts-merge`, in five steps:
+
+- **`m0`, by the owner's assistant**: 149 `glab` and 25 `gh` merge calls, in the recordings, with
+  [Recorded by `m0`](#recorded-by-m0-2026-10-01) where they correct the design.
+- **P0 `merge-prototypes`** (3 tasks, 19.96 USD): validated after one correction (three gradient
+  surfaces on the item page).
+- **P1 `merge-core`** (6 tasks, 27.72 USD): the merge state and the blocked table, Merge, Auto-merge,
+  Update from base, the GitLab pipeline guard, `disarmBeforePush`, the audit rows and the routes.
+- **P2 `merge-web`** (5 tasks, 35.65 USD): the model, the merge block on the item page and on the
+  orchestration, the board badge, and an e2e spec with fake scenarios.
+- **`merge-fix`** (2 tasks, 5.23 USD), after an independent audit of the core.
+
+What the audit and the e2e spec nobody had run found, all fixed:
+
+- **GitLab `unchecked` blocked Merge for minutes** (m0 #1): the code read any `CHECKING` as
+  `computing`, so Agentry never attempted the merge that makes GitLab run its own check. `computing`
+  is now shown only when nothing else blocks, never disables Merge on its own, and the sleeps are gone.
+- **glab's boxed refusal was parsed from its first line**, which is always `ERROR`, so `head-moved`
+  was dead code on GitLab and every refusal was stored as "ERROR".
+- **The person was never told Agentry had turned auto-merge off** before a push: the merge state
+  carries it now, and the block says so in words until the person arms it again.
+- **Rebase on GitLab** is offered only when it would drop nothing from the checkout (clean, nothing
+  unpushed); otherwise the way out of "behind" is Agentry's own update, and the notice says why.
+  Update from base refuses while an agent works in that worktree, and the audit names the real actor.
+- **Reading a merge state made a worktree and a branch.** The merge target asked `itemWorktree`,
+  which makes the checkout when it is missing, so every look at the block left a `task/…` branch in
+  the person's repository. It finds only a worktree that exists now. The reviews spec caught it.
+- **A refresh the person asks for** reads the repository's rules and the checks again; before it
+  computed the state from a minute-old snapshot.
+- The orchestration's Merge was a gradient button while blocked (neutral and off now), and the phone's
+  subject field was 36 px.
+
+**Open, and the owner's:** with authentication off (`none`, the default) a chat has no token to refuse,
+so an agent in a chat that reads the API URL can call a merge route. The 403 for chat tokens holds
+under token or OIDC authentication, and the same is true of the checks and reviews routes.
 
 ## Phase 5: trackers
 

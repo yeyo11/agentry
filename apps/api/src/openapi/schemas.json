@@ -5315,6 +5315,9 @@
         "$ref": "#/components/schemas/ChangeRequestReviewEvent"
       },
       {
+        "$ref": "#/components/schemas/ChangeRequestAutoMergeOffEvent"
+      },
+      {
         "$ref": "#/components/schemas/ScheduleChangedEvent"
       },
       {
@@ -7624,6 +7627,50 @@
       "unresolvedThreads"
     ],
     "description": "The threads or the review decision of a change request changed."
+  },
+  "ChangeRequestAutoMergeOffEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "change-request.auto-merge-off"
+      },
+      "changeRequestId": {
+        "type": "string",
+        "description": "The change request's row id; `id` is the feed's sequence number"
+      },
+      "why": {
+        "$ref": "#/components/schemas/AutoMergeOffWhy"
+      }
+    },
+    "required": [
+      "at",
+      "changeRequestId",
+      "id",
+      "title",
+      "type",
+      "why"
+    ],
+    "description": "Agentry turned a change request's auto-merge off before a push of its own: the person arms it again afterwards."
+  },
+  "AutoMergeOffWhy": {
+    "type": "string",
+    "enum": [
+      "push",
+      "update"
+    ],
+    "description": "Why Agentry turned auto-merge off: before it pushed to the branch (a fix, an address, the first push), or to update it from its base"
   },
   "ScheduleChangedEvent": {
     "type": "object",
@@ -19145,6 +19192,513 @@
       "threadIds"
     ],
     "description": "`POST /change-requests/:id/address`: the threads handed to an agent."
+  },
+  "MergeState": {
+    "type": "object",
+    "properties": {
+      "changeRequestId": {
+        "type": "string"
+      },
+      "host": {
+        "$ref": "#/components/schemas/CodeHostId"
+      },
+      "headSha": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The head commit (full id) this state was read at; a merge carries it back as `expectedHead`"
+      },
+      "methods": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MergeMethod"
+        },
+        "description": "What the repository's settings and rules allow, in the order Agentry offers them; empty when none is allowed"
+      },
+      "defaultMethod": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/MergeMethod"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The method to preselect: the first of `methods`; null when there is none"
+      },
+      "deleteBranchDefault": {
+        "type": "boolean",
+        "description": "The branch box's default: `delete_branch_on_merge` / `remove_source_branch_after_merge`"
+      },
+      "canMerge": {
+        "type": "boolean",
+        "description": "Merge now is possible: no blocker, and on GitLab the pipeline guard allows it"
+      },
+      "blocker": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/MergeBlocker"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The first blocker, or null"
+      },
+      "others": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MergeBlocker"
+        },
+        "description": "The blockers after the first, in order"
+      },
+      "warning": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "optional-checks-failing",
+          null
+        ],
+        "description": "`UNSTABLE` on GitHub: a check that is not required failed; Merge stays on"
+      },
+      "autoMerge": {
+        "$ref": "#/components/schemas/AutoMergeState"
+      },
+      "autoMergeOff": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AutoMergeOff"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Agentry turned auto-merge off for a push; null once the person arms it again (or turns it off themselves)"
+      },
+      "waitingForPipeline": {
+        "type": "boolean",
+        "description": "GitLab: the head's pipeline has not appeared yet; Agentry re-reads every 10 s"
+      },
+      "canRebaseOnHost": {
+        "type": "boolean",
+        "description": "GitLab `ff` project: Rebase on GitLab is an option for `behind`"
+      },
+      "rebaseOnHostWhy": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "uncommitted-changes",
+          "unpushed-commits",
+          null
+        ],
+        "description": "Rebase on GitLab would apply but is not offered: it would drop what is only in the checkout (uncommitted changes, or commits never pushed)"
+      },
+      "readAt": {
+        "type": "string"
+      },
+      "limitedUntil": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "While the host's rate limit is used up: when Agentry may read again; the state is the last one it had"
+      }
+    },
+    "required": [
+      "changeRequestId",
+      "host",
+      "headSha",
+      "methods",
+      "defaultMethod",
+      "deleteBranchDefault",
+      "canMerge",
+      "blocker",
+      "others",
+      "warning",
+      "autoMerge",
+      "autoMergeOff",
+      "waitingForPipeline",
+      "canRebaseOnHost",
+      "rebaseOnHostWhy",
+      "readAt"
+    ],
+    "description": "`GET /change-requests/:id/merge`: what the person may do about merging, read from the host."
+  },
+  "MergeMethod": {
+    "type": "string",
+    "enum": [
+      "squash",
+      "merge",
+      "rebase"
+    ],
+    "description": "How a change request is merged. The host's own words differ (`rebase_merge`, `ff`); this is Agentry's."
+  },
+  "MergeBlocker": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "$ref": "#/components/schemas/MergeBlockerCode"
+      },
+      "detail": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The host's own words, or the name that makes the sentence exact (a check's name); null when there are none"
+      },
+      "action": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/MergeBlockerAction"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "code",
+      "detail",
+      "action"
+    ]
+  },
+  "MergeBlockerCode": {
+    "type": "string",
+    "enum": [
+      "not-open",
+      "computing",
+      "draft",
+      "conflicts",
+      "nothing-to-merge",
+      "behind",
+      "checks-running",
+      "checks-failing",
+      "checks-missing",
+      "external-checks",
+      "review-required",
+      "changes-requested",
+      "threads-unresolved",
+      "tracker-key-missing",
+      "title-rejected",
+      "blocked-by-dependency",
+      "not-yet",
+      "locked-files",
+      "merge-queue",
+      "blocked-by-policy"
+    ],
+    "description": "Why a merge is not offered, in the order docs/plans/code-hosts.md lists them: the first that applies is the state's `blocker`, the rest are `others`. A value the host sends that no row knows is `blocked-by-policy`."
+  },
+  "MergeBlockerAction": {
+    "type": "string",
+    "enum": [
+      "mark-ready",
+      "update-from-base",
+      "rebase-on-host",
+      "close",
+      "auto-merge",
+      "fix-checks",
+      "rerun-checks",
+      "request-reviewers",
+      "address-review",
+      "show-threads",
+      "edit-title",
+      "open-on-host",
+      "refresh"
+    ],
+    "description": "The one thing the person can do about a blocker. Each is an Agentry action or a link, never a command to copy: `update-from-base` is Agentry's own merge of the base into the branch, `rebase-on-host` a host-side rebase (GitLab `ff` projects only)."
+  },
+  "AutoMergeState": {
+    "type": "object",
+    "properties": {
+      "available": {
+        "type": "boolean",
+        "description": "Agentry may arm one now: the repository allows it (GitHub `allow_auto_merge`; GitLab always) and something is left to wait for. When false, `reason` says why."
+      },
+      "reason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "auto-merge-not-allowed",
+          "auto-merge-not-needed",
+          "waiting-for-pipeline",
+          null
+        ]
+      },
+      "armed": {
+        "type": "boolean"
+      },
+      "method": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/MergeMethod"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The method it will merge with; null when it is not armed or the host does not say"
+      },
+      "armedBy": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Who armed it and when, as the host says; null when it is not armed or the host does not say"
+      },
+      "armedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "available",
+      "reason",
+      "armed",
+      "method",
+      "armedBy",
+      "armedAt"
+    ],
+    "description": "Whether an auto-merge may be armed, and whether one is."
+  },
+  "AutoMergeOff": {
+    "type": "object",
+    "properties": {
+      "by": {
+        "type": "string",
+        "description": "Who: `agentry` for its own push, the person who clicked for Update from base"
+      },
+      "at": {
+        "type": "string"
+      },
+      "why": {
+        "$ref": "#/components/schemas/AutoMergeOffWhy"
+      },
+      "pushing": {
+        "type": "boolean",
+        "description": "The push is still going on: arming is refused (`busy`) until it ends"
+      }
+    },
+    "required": [
+      "by",
+      "at",
+      "why",
+      "pushing"
+    ],
+    "description": "The fact that Agentry turned auto-merge off, until the person arms it again"
+  },
+  "MergeRequestBody": {
+    "type": "object",
+    "properties": {
+      "method": {
+        "$ref": "#/components/schemas/MergeMethod"
+      },
+      "expectedHead": {
+        "type": "string",
+        "description": "The full id of the head the person looked at; a head that moved is `head-moved` and nothing is merged"
+      },
+      "deleteBranch": {
+        "type": "boolean"
+      },
+      "subject": {
+        "type": "string",
+        "description": "The commit's subject and body, for `squash` and `merge`; the host's own when absent"
+      },
+      "body": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "expectedHead",
+      "deleteBranch"
+    ],
+    "description": "`POST /change-requests/:id/merge`. The merge is the person's click: a chat token gets 403."
+  },
+  "AutoMergeRequestBody": {
+    "type": "object",
+    "properties": {
+      "method": {
+        "$ref": "#/components/schemas/MergeMethod"
+      },
+      "expectedHead": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "expectedHead"
+    ],
+    "description": "`POST /change-requests/:id/auto-merge`."
+  },
+  "MergeResult": {
+    "type": "object",
+    "properties": {
+      "state": {
+        "$ref": "#/components/schemas/MergeState"
+      },
+      "merged": {
+        "type": "boolean",
+        "const": true
+      },
+      "branchDeleted": {
+        "type": [
+          "boolean",
+          "null"
+        ],
+        "description": "Whether the source branch is gone from the host; null when nobody asked or the host did not say"
+      }
+    },
+    "required": [
+      "state",
+      "merged",
+      "branchDeleted"
+    ],
+    "description": "What `POST /change-requests/:id/merge` answers once the host merged."
+  },
+  "UpdateBranchResult": {
+    "type": "object",
+    "properties": {
+      "state": {
+        "$ref": "#/components/schemas/MergeState"
+      },
+      "conflicts": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Empty: a conflicting update is a 409 that names the paths"
+      },
+      "via": {
+        "type": "string",
+        "enum": [
+          "merge",
+          "rebase"
+        ],
+        "description": "Agentry's own merge of the base into the branch, or a host-side rebase"
+      }
+    },
+    "required": [
+      "state",
+      "conflicts",
+      "via"
+    ],
+    "description": "What `POST /change-requests/:id/update-branch` answers when the branch was updated."
+  },
+  "MergeReadyRequest": {
+    "type": "object",
+    "properties": {
+      "ready": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "ready"
+    ],
+    "description": "`POST /change-requests/:id/ready`: mark ready for review, or back to a draft."
+  },
+  "ChangeRequestMerge": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "changeRequestId": {
+        "type": "string"
+      },
+      "action": {
+        "$ref": "#/components/schemas/ChangeRequestMergeAction"
+      },
+      "method": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/MergeMethod"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null for a disarm"
+      },
+      "expectedHead": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "deleteBranch": {
+        "type": "boolean"
+      },
+      "requestedAt": {
+        "type": "string"
+      },
+      "requestedBy": {
+        "type": "string",
+        "description": "The person who clicked; `agentry` for the disarm Agentry does before it pushes"
+      },
+      "outcome": {
+        "$ref": "#/components/schemas/ChangeRequestMergeOutcome"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/HostReason"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why it failed: a reason code, and the host's first line"
+      },
+      "detail": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "changeRequestId",
+      "action",
+      "method",
+      "expectedHead",
+      "deleteBranch",
+      "requestedAt",
+      "requestedBy",
+      "outcome",
+      "reason",
+      "detail"
+    ],
+    "description": "One row of the audit of merge clicks and armings (`change_request_merges`): who asked, with which method and head, and what the host answered."
+  },
+  "ChangeRequestMergeAction": {
+    "type": "string",
+    "enum": [
+      "merge",
+      "arm",
+      "disarm"
+    ]
+  },
+  "ChangeRequestMergeOutcome": {
+    "type": "string",
+    "enum": [
+      "requested",
+      "merged",
+      "armed",
+      "disarmed",
+      "failed"
+    ],
+    "description": "What became of one merge click or arming. `requested` is written before the host is called."
   },
   "DecisionSettings": {
     "type": "object",

@@ -1,0 +1,5 @@
+gh: 92
+argv: gh api repos/yeyo11/agentry-probe/commits/b38665cc92bb3ddecdc208fcfefae9fd6b2cc9b5 --jq {message:.commit.message,parents:[.parents[].sha]}
+exit: 0
+secs: 1.748270199
+env: 

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T06:00:00Z
-updated_at: 2026-10-01T12:00:00Z
+updated_at: 2026-10-01T18:00:00Z
 tags:
     - work-items
     - pull-request
@@ -359,6 +359,36 @@ project's `flow.checksFixAttempts` (default 2, at most 5) and a person's click i
 
 Out of scope: updating the branches of other open items when `main` moves, webhooks, deleting the
 remote branch after a merge, and merging from Agentry.
+
+### Merging from Agentry
+
+Since code hosts phase 4 the person no longer has to leave Agentry to merge an open pull request.
+The owner's decision of 2026-09-28 (the person merges) is unchanged; what changed is where the click
+is. Everything about the state, the blockers, the GitLab pipeline guard and the calls is in
+[code-hosts.md](code-hosts.md#merging); this section is what it means for an item.
+
+- **Whose click it is.** Merge, Auto-merge and Update from base are the person's, from the item
+  page. A run, a decision point and a chat token never merge: the routes answer a chat token with
+  403, and no code in the core starts a merge by itself. The `change_request_merges` audit records the
+  person (or `agentry` for the disarm before a push).
+- **From Agentry to Done.** `MergeService.merge` writes the audit row, merges on the host, re-reads
+  to confirm, and then calls `merged(id)`, which is the row's own check run as if the watcher had
+  seen the merge. That is the existing path described above: the item moves to Done from any column,
+  as the person, with the cause `pr.merged`, the worktree is removed only when clean, the local
+  branch stays and the main checkout fast-forwards. A merge done on the host, or by an armed
+  auto-merge, reaches Done the same way on the watcher's next read, so there is one path to Done and
+  the click only makes it immediate.
+- **Auto-merge is not Done.** An armed auto-merge changes nothing on the item: it reaches Done when
+  the host merges and the watcher reads it.
+- **Agentry's pushes turn it off.** A fix, an address run and Update from base each disarm an armed
+  auto-merge as `agentry` before the push, and the push does not happen if the host cannot confirm
+  it is off. The person arms it again.
+- **Update from base and the Developer.** The service merges the base into the branch and pushes, or
+  returns the conflicting paths (409) and leaves the worktree as it was. Sending those paths to the
+  Developer, as a conflict at approval does, is not done by the service; the route or the flow side
+  decides, and until it does a conflict stays visible as the `conflicts` blocker.
+- **Orchestrations** merge the same way: the integration branch's change request is merged by the
+  person from the orchestration page, through the same service.
 
 ### "Orchestrate"
 

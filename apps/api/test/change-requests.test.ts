@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { Core, loadConfig } from '@agentry/core';
+import { Core, MergeError, loadConfig } from '@agentry/core';
 import type { ChangeRequest } from '@agentry/shared';
 import { buildApp } from '../src/app.ts';
 
@@ -76,6 +76,12 @@ test('an id no table has is a 404 with a code, on every route', async () => {
     ['GET', `/api/change-requests/${id}/reviewers`],
     ['POST', `/api/change-requests/${id}/reviewers`, { add: ['a'] }],
     ['POST', `/api/change-requests/${id}/address`, { threadIds: [] }],
+    ['GET', `/api/change-requests/${id}/merge`],
+    ['POST', `/api/change-requests/${id}/merge`, { method: 'squash', expectedHead: 'a'.repeat(40), deleteBranch: false }],
+    ['POST', `/api/change-requests/${id}/auto-merge`, { method: 'squash', expectedHead: 'a'.repeat(40) }],
+    ['DELETE', `/api/change-requests/${id}/auto-merge`],
+    ['POST', `/api/change-requests/${id}/update-branch`],
+    ['POST', `/api/change-requests/${id}/ready`, { ready: true }],
   ];
   for (const [method, url, body] of calls) {
     const res = await app.inject({ method: method as 'GET' | 'POST' | 'PUT' | 'DELETE', url, ...(body ? json(body) : {}) });
@@ -132,6 +138,53 @@ test('an address for an orchestration that is gone is a 404 with a code', async 
   const res = await app.inject({ method: 'POST', url: `/api/change-requests/${ORCH_ROW}/address`, ...json({ threadIds: [] }) });
   assert.equal(res.statusCode, 404, res.body);
   assert.equal(res.json<{ code: string }>().code, 'not-found');
+});
+
+test('merge writes are validated before they reach the host', async () => {
+  const base = `/api/change-requests/${ORCH_ROW}`;
+  const head = 'a'.repeat(40);
+  const post = (path: string, body: unknown) => app.inject({ method: 'POST', url: `${base}${path}`, ...json(body) });
+  assert.equal((await post('/merge', {})).statusCode, 400);
+  assert.equal((await post('/merge', { method: 'fast-forward', expectedHead: head, deleteBranch: false })).statusCode, 400);
+  assert.equal((await post('/merge', { method: 'squash', deleteBranch: false })).statusCode, 400);
+  assert.equal((await post('/merge', { method: 'squash', expectedHead: head })).statusCode, 400);
+  assert.equal((await post('/merge', { method: 'squash', expectedHead: head, deleteBranch: false, subject: 7 })).statusCode, 400);
+  assert.equal((await post('/auto-merge', { method: 'squash' })).statusCode, 400);
+  assert.equal((await post('/auto-merge', { expectedHead: head })).statusCode, 400);
+  assert.equal((await post('/ready', {})).statusCode, 400);
+});
+
+test('a merge reaches the service as the caller, a refusal keeps its code, and a conflicting update is a 409 that names the paths', async () => {
+  const merge = core.merge as unknown as Record<string, unknown>;
+  const calls: unknown[][] = [];
+  const original = { merge: merge.merge, updateBranch: merge.updateBranch };
+  merge.merge = (...args: unknown[]) => {
+    calls.push(args);
+    return Promise.reject(new MergeError('new commits reached the branch after you looked', 'head-moved'));
+  };
+  const updates: unknown[][] = [];
+  merge.updateBranch = (...args: unknown[]) => {
+    updates.push(args);
+    return Promise.resolve({ state: {}, conflicts: ['src/a.ts', 'b.md'], via: 'merge' });
+  };
+  try {
+    const head = 'b'.repeat(40);
+    const moved = await app.inject({ method: 'POST', url: `/api/change-requests/${ORCH_ROW}/merge`, ...json({ method: 'merge', expectedHead: head, deleteBranch: true }) });
+    assert.equal(moved.statusCode, 409, moved.body);
+    assert.equal(moved.json<{ code: string }>().code, 'head-moved');
+    assert.deepEqual(calls[0]?.slice(0, 2), [ORCH_ROW, { method: 'merge', expectedHead: head, deleteBranch: true }]);
+    // No credential is set in this app: the actor is the local one
+    assert.equal(calls[0]?.[2], 'local');
+
+    const conflict = await app.inject({ method: 'POST', url: `/api/change-requests/${ORCH_ROW}/update-branch` });
+    assert.equal(conflict.statusCode, 409, conflict.body);
+    // The update is the person's click too: the disarm it makes is recorded as them
+    assert.deepEqual(updates[0], [ORCH_ROW, 'local']);
+    assert.equal(conflict.json<{ code: string }>().code, 'conflicts');
+    assert.match(conflict.json<{ error: string }>().error, /src\/a\.ts, b\.md/);
+  } finally {
+    Object.assign(merge, original);
+  }
 });
 
 // ---------- a chat's own token ----------
@@ -192,7 +245,20 @@ test("a chat's token reads the checks but cannot re-run, cancel, play or fix", a
       const res = await guarded.inject({ method, url, ...fromChat(token, body ?? {}) });
       assert.equal(res.statusCode, 403, `${method} ${url}`);
     }
-    for (const path of ['threads', 'review-drafts', 'review-posts', 'approval', 'reviewers']) {
+    // Merging is the person's click: not the merge, the arming, the update, nor the ready mark
+    const merging: Array<['POST' | 'DELETE', string, unknown?]> = [
+      ['POST', `/api/change-requests/${id}/merge`, { method: 'squash', expectedHead: 'a'.repeat(40), deleteBranch: false }],
+      ['POST', `/api/change-requests/${id}/auto-merge`, { method: 'squash', expectedHead: 'a'.repeat(40) }],
+      ['DELETE', `/api/change-requests/${id}/auto-merge`],
+      ['POST', `/api/change-requests/${id}/update-branch`],
+      ['POST', `/api/change-requests/${id}/ready`, { ready: true }],
+    ];
+    for (const [method, url, body] of merging) {
+      const res = await guarded.inject({ method, url, ...fromChat(token, body ?? {}) });
+      assert.equal(res.statusCode, 403, `${method} ${url}`);
+      assert.match(res.json<{ error: string }>().error, /merge/);
+    }
+    for (const path of ['threads', 'review-drafts', 'review-posts', 'approval', 'reviewers', 'merge']) {
       const read = await guarded.inject({ url: `/api/change-requests/${id}/${path}`, ...fromChat(token) });
       assert.equal(read.statusCode, 404, path);
     }

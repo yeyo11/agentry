@@ -17,6 +17,7 @@ import { CodeHostRegistry } from './hosts/registry.ts';
 import { parseRemote } from './hosts/remote.ts';
 import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from './orchestration-pr-rows.ts';
 import { reviewDiff } from './hosts/review-diff.ts';
+import type { MergeService, PushHold } from './hosts/merge-service.ts';
 import { ReviewsError, type ReviewsService, type ReviewsTarget } from './hosts/reviews-service.ts';
 import { ADDRESS_REFUSALS, addressPromptFor, codeHostAdapter, failingChecks, fixPromptFor, HostFactsCache, threadsToAddress, WATCH_BACKOFF, type ChecksFailingNotice } from './pull-requests.ts';
 import { hostOf } from './work-item-rows.ts';
@@ -53,6 +54,8 @@ export interface OrchestrationPullRequestDeps {
   checks?: ChecksService;
   /** The review threads of a change request; without it nothing is addressed */
   reviews?: ReviewsService;
+  /** Turns auto-merge off before a push to the branch of an open change request */
+  merge?: MergeService;
   /**
    * Starts the fixer's chat in the integration worktree (the orchestration's fixer model and cost
    * limit) and settles when it ends. It commits on the integration branch and never pushes.
@@ -281,11 +284,15 @@ export class OrchestrationPullRequestService {
       if (winner) return this.answer(winner, branch);
     }
     this.announce(row, 'Opening a pull request');
+    let hold: PushHold | null = null;
     try {
+      hold = await this.holdExisting(row, project);
       await pushBranch(orch.cwd, branch, this.env());
     } catch (err) {
       this.fail(row, 'push', messageOf(err));
       throw new OrchestrationPullRequestError(`could not push ${branch}: ${messageOf(err)}`, 'push');
+    } finally {
+      hold?.release();
     }
     try {
       const found = await this.create(row, project, { title: orch.name, body: orchestrationPullRequestBody(orch) });
@@ -297,6 +304,31 @@ export class OrchestrationPullRequestService {
       this.fail(row, 'create', detail);
       return { branch, url: null, detail: `pushed ${branch}, but no pull request was opened: ${detail}`, pullRequest: this.newest(orch.id) };
     }
+  }
+
+  /**
+   * The push that opens a request can land on a branch that already has one (opened by hand, or by an
+   * earlier try) with auto-merge armed. The open request is found by head and base, and the push is held
+   * the way a fix's is: auto-merge off first, the request guarded until the push ends. Nothing found, or a
+   * host that cannot be asked, holds nothing: the create that follows meets the same host.
+   */
+  private async holdExisting(row: OrchestrationPullRequestRow, project: ProjectCodeHost): Promise<PushHold | null> {
+    if (!this.deps.merge) return null;
+    let number: number | null = null;
+    try {
+      const target = await this.target(project, row.host);
+      const found = await this.call(target.binaryPath, target.adapter.find(target.repo, { head: row.branch, base: row.base }), row.cwd);
+      if (found.exitCode === 0) {
+        const open = target.adapter.parseFind(found.stdout).filter((c) => c.state === 'open');
+        if (open.length === 1) number = open[0]?.number ?? null;
+      }
+    } catch {
+      return null;
+    }
+    if (number === null) return null;
+    // The row now names the request, which is how the merge service resolves it
+    this.update(row.id, { number }, ['preparing']);
+    return this.deps.merge.holdForPush(row.id);
   }
 
   private answer(row: OrchestrationPullRequestRow, branch: string): OpenedPullRequest {
@@ -439,16 +471,21 @@ export class OrchestrationPullRequestService {
     if (!row || row.phase !== 'open' || row.fix_state !== 'awaiting-push') throw new OrchestrationPullRequestError('no fix is waiting to be pushed', 'no-fix-to-push');
     if (this.pushing.has(row.id)) return this.newest(orch.id);
     this.pushing.add(row.id);
+    let hold: PushHold | undefined;
     try {
       const worktree = orch.integration?.worktree;
       try {
         // Concludes what the fixer left uncommitted on the integration branch; only in its own worktree, never in the project's checkout
         if (worktree && existsSync(worktree)) commitAll(worktree, row.fix_kind === 'review' ? 'chore: address the review comments' : 'chore: fix the failing checks');
+        hold = await this.deps.merge?.holdForPush(row.id);
         await pushBranch(worktree && existsSync(worktree) ? worktree : row.cwd, row.branch, this.env());
       } catch (err) {
         const detail = messageOf(err);
         if (this.update(row.id, { error_code: 'push', error_detail: detail }, ['open'])) this.announce(row, 'Pushing the fix failed');
         throw new OrchestrationPullRequestError(`could not push ${row.branch}: ${detail}`, 'push');
+      } finally {
+        // The push is over, well or not: the person may arm again
+        hold?.release();
       }
       if (this.update(row.id, { fix_state: null, fix_origin: null, error_code: null, error_detail: null }, ['open'])) {
         // The head moved: what was read for the old one is stale

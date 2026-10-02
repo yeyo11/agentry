@@ -22,10 +22,31 @@ restarting anything:
 | `next` | `7` | The number the first change request gets |
 | `ci` | `none` | The CI of `view`: `none`, `pending`, `passing` or `failing` |
 | `state` | `open` | The state of `view`: `open`, `merged` or `closed` |
-| `checks` | `none` | gh only: the head commit's checks, `none`, `failing`, `running`, `mixed` or `fixed` |
+| `checks` | `none` | gh only: the head commit's checks, `none`, `failing`, `both` (lint and unit both failed), `running`, `mixed` or `fixed` |
 | `headSha` | a fixed sha | The head commit the change request reports (gh's GraphQL read, glab's `mr view`): a spec moves it between what the person looked at and what is read later |
 | `draftFailAfter` | unset | glab only: the draft note call after the N-th one saved fails (exit 1), so a review stops half way with notes still saved |
 | `publishLimit` | unset | glab only: `mr note publish` makes discussions of the first N drafts and drops the rest, exit 0, as a note the host cannot place is dropped |
+| `mergeStatus` | `CLEAN` | gh only: the pull request's `mergeStateStatus` for the merge routes: `CLEAN`, `BLOCKED`, `BEHIND`, `DIRTY`, `UNSTABLE` or `UNKNOWN` (`mergeable` follows) |
+| `mergeDetail` | `mergeable` | glab only: the merge request's `detailed_merge_status` (`need_rebase`, `conflict`, `ci_must_pass`, …); a `mr rebase` makes it `mergeable` again |
+| `mergeMethod`, `squashOption` | `merge`, `default_off` | glab only: the project's merge strategy (`merge`, `rebase_merge`, `ff`) and squash option, which decide the methods offered |
+| `methods` | `squash merge rebase` | gh only: the methods the repository allows, a space separated list |
+| `autoMergeAllowed` | `true` | gh only: `false` is a repository with auto-merge off (the settings say so, and arming is refused) |
+| `deleteBranchOnMerge` | `false` | The repository's default for the branch box (gh `delete_branch_on_merge`, glab `remove_source_branch_after_merge`) |
+| `requiredChecks` | none | gh only: the required status checks of the base branch, a space separated list of contexts, which turn `BLOCKED` into a failed or a running required check |
+| `draft` | `false` | `true` reports the change request as a draft |
+| `reviewDecision` | none | gh only: `REVIEW_REQUIRED` or `CHANGES_REQUESTED` |
+| `armed` | none | A method (`SQUASH`, `squash`…) that seeds auto-merge as already armed |
+
+The merge scenarios answer the merge routes of a change request. gh answers `pr view --json …,autoMergeRequest`,
+`pr merge` (the head guard is the CLI's own: a `--match-head-commit` that is not `headSha` is refused with
+"Head branch was modified", exit 1; `--disable-auto` turns auto-merge off), the arming mutation (refused when
+`autoMergeAllowed` is `false` or its `oid` is not `headSha`) and the branch rules. glab answers `mr view` with
+the merge fields (`head_pipeline` follows `ci`, with the head's sha, and is null for `none`), `mr merge` (a
+`--sha` that is not `headSha` is refused in the boxed stderr with a 409; `--auto-merge` arms, `--auto-merge=false`
+merges), `mr rebase`, the rebase status and the call that cancels auto-merge. What a spec does moves the
+scenario, kept beside the JSON: `<name>.merged` (the method that merged: every read after it says merged) and
+`<name>.armed` (the armed method, which a disarm or a merge removes); `glab.rebased` stands for a rebase the host
+did. A spec moves the head by rewriting `headSha`, which is how the head guard is checked end to end.
 
 The checks scenarios answer the change request routes: the GraphQL read (`gh api -i … graphql`), the
 check runs and statuses of the head, a job's log (ANSI colour, a group marker and an `##[error]`

@@ -17,8 +17,6 @@ import {
   addressable,
   answeredWith,
   countThreads,
-  followUp,
-  followUpThreads,
   isReviewFix,
   lineLabel,
   preselected,
@@ -27,6 +25,8 @@ import {
   type TriageMark,
 } from '../../../lib/reviews';
 import { useChangeRequestWords } from '../board/PullRequest';
+import { useChangeRequestThreads, useFollowUp } from './follow';
+import type { LeadingAction } from './model';
 
 const BADGE = { size: 11, strokeWidth: 2, 'aria-hidden': true } as const;
 const MARKS: readonly TriageMark[] = ['agent', 'person', 'no-action'];
@@ -45,7 +45,6 @@ export function triageMarksOf(record: Pick<DecisionRecord, 'answers'> | null | u
   return marks;
 }
 
-const shortSha = (sha: string | null | undefined) => (sha ?? '').slice(0, 7);
 
 /** `path:142` in mono, or the change request itself for a general thread. */
 function useWhere() {
@@ -188,7 +187,7 @@ function AddressDialog({ pr, list, onClose }: { pr: WorkItemPullRequest; list: C
 }
 
 /** The address under way or waiting for its push: live only while an agent or QA works on it. */
-function ReviewRun({ pr }: { pr: WorkItemPullRequest }) {
+function ReviewRun({ pr, lead }: { pr: WorkItemPullRequest; lead: LeadingAction | null }) {
   const { t } = useTranslation('workItem');
   const words = useChangeRequestWords(pr.host);
   const qc = useQueryClient();
@@ -210,7 +209,7 @@ function ReviewRun({ pr }: { pr: WorkItemPullRequest }) {
         <span>{hint}</span>
       </span>
       {stage === 'push' && (
-        <button type="button" className="btn btn-primary btn-small workitem-push-review" disabled={push.isPending} onClick={() => push.mutate()}>
+        <button type="button" className={`btn btn-small workitem-push-review ${lead === 'push' ? 'btn-primary' : ''}`.trim()} disabled={push.isPending} onClick={() => push.mutate()}>
           <Send {...ICON_SM} />
           {t('address.run.push')}
         </button>
@@ -223,7 +222,7 @@ function ReviewRun({ pr }: { pr: WorkItemPullRequest }) {
  * After the fix reached the branch: the threads that were addressed and are still open, each with
  * "Reply “Addressed in <sha>”" and Resolve. Nothing is posted or resolved but by a click.
  */
-function FollowUp({ pr, threads, sha, onDone }: { pr: WorkItemPullRequest; threads: ReviewThread[]; sha: string; onDone: (ids: string[]) => void }) {
+function FollowUp({ pr, threads, sha, lead, onDone }: { pr: WorkItemPullRequest; threads: ReviewThread[]; sha: string; lead: boolean; onDone: (ids: string[]) => void }) {
   const { t } = useTranslation('workItem');
   const words = useChangeRequestWords(pr.host);
   const qc = useQueryClient();
@@ -307,7 +306,7 @@ function FollowUp({ pr, threads, sha, onDone }: { pr: WorkItemPullRequest; threa
         <span className="mono">{text}</span>
       </div>
       <div className="item-wait-actions">
-        <button type="button" className="btn btn-primary btn-small workitem-reply-resolve" disabled={busy} onClick={() => void all()}>
+        <button type="button" className={`btn btn-small workitem-reply-resolve ${lead ? 'btn-primary' : ''}`.trim()} disabled={busy} onClick={() => void all()}>
           <Check {...ICON_SM} />
           {t('address.followUp.replyAndResolve', { count: threads.length })}
         </button>
@@ -338,41 +337,22 @@ export function AddressButton({ pr, className = 'btn btn-small', label = 'start'
   );
 }
 
-/** The threads of an open change request: the one read the strip, the dialog and the follow-up share. */
-function useChangeRequestThreads(pr: Pick<WorkItemPullRequest, 'id' | 'phase'> | null | undefined) {
-  const id = pr?.phase === 'open' ? pr.id : undefined;
-  return useQuery({
-    queryKey: keys.changeRequestThreads(id ?? ''),
-    queryFn: ({ signal }) => api.changeRequestThreads(id ?? '', false, { signal }),
-    enabled: !!id,
-    // A host that does not serve threads leaves the strip out, rather than an error on every item
-    retry: false,
-  });
-}
-
 /**
  * Everything the item page says about review comments beside the PR panel: a quiet strip with the
  * way in while threads wait, the run while an agent addresses them, and the offer to answer them
  * after the push. It adds no gradient of its own: Submit review, or the dialog's own action, is the
  * zone's.
  */
-export function AddressReview({ pr }: { pr: WorkItemPullRequest | null | undefined }) {
+export function AddressReview({ pr, lead }: { pr: WorkItemPullRequest | null | undefined; lead: LeadingAction | null }) {
   const { t } = useTranslation('workItem');
   const list = useChangeRequestThreads(pr);
-  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
+  const follow = useFollowUp(pr);
   if (!pr?.id || pr.phase !== 'open') return null;
 
-  if (isReviewFix(pr)) return <ReviewRun pr={pr} />;
+  if (isReviewFix(pr)) return <ReviewRun pr={pr} lead={lead} />;
   if (!list.data) return null;
 
-  // The core's record of the push the address made decides, never a head the browser saw change
-  const done = followUp(pr);
-  const replyText = done ? t('address.followUp.replyText', { sha: shortSha(done.sha) }) : '';
-  // A thread already answered with the reply, that this person cannot resolve, has nothing left to offer; and one they
-  // can resolve is offered Resolve alone, since the reply is on the host and is not posted again
-  const follow = done ? followUpThreads(list.data.threads, done.threadIds).filter((thread) => !dismissed.has(thread.id) && !(answeredWith(thread, replyText) && !thread.viewerCanResolve)) : [];
-  if (follow.length > 0 && done)
-    return <FollowUp pr={pr} threads={follow} sha={shortSha(done.sha)} onDone={(ids) => setDismissed((current) => new Set([...current, ...ids]))} />;
+  if (follow) return <FollowUp pr={pr} threads={follow.threads} sha={follow.sha} lead={lead === 'reply'} onDone={follow.dismiss} />;
 
   const open = addressable(list.data.threads).length;
   if (open === 0 || pr.fixState) return null;
