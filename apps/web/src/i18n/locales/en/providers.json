@@ -135,5 +135,168 @@
     "version": "version {{version}}",
     "checking": "Checking agents…",
     "none": "No agent detected"
+  },
+  "sections": {
+    "aria": "Sections of providers",
+    "list": "List",
+    "onLimit": "At a limit",
+    "map": "Model mapping"
+  },
+  "limit": {
+    "title": "Limit",
+    "group": "Limit of {{name}}",
+    "near": "Near its limit",
+    "exhausted": "Limit reached",
+    "asof": "Read {{time}} · {{source}}",
+    "source": {
+      "stream": "during the last run",
+      "probe": "without running anything",
+      "failure": "when a turn hit it"
+    },
+    "window": {
+      "5h": "5 h",
+      "7d": "7 d"
+    },
+    "used": "{{window}}: {{percent}} % used",
+    "resets": "resets {{when}}",
+    "resetUnknown": "reset not known",
+    "unknown": "The last reading is out of date, so the limit is not known until a new one arrives.",
+    "noWindows": "The provider reported no windows."
+  },
+  "onLimit": {
+    "title": "When a provider reaches its limit",
+    "scope": "only work Agentry launches",
+    "intro": "What Agentry does with the work it launches itself (flows, the tasks of an orchestration, the assistant) when its provider reaches the usage limit. Nothing in your own chat moves by itself: it asks you, and the action here comes first.",
+    "default": "Waiting for the reset is what a fresh install does. It sends no work and no summary to another provider until you turn that on here.",
+    "discard": "Discard",
+    "save": "Save changes",
+    "action": {
+      "label": "What to do",
+      "aria": "What to do at a limit",
+      "handoff": {
+        "label": "Continue with a handoff",
+        "hint": "Carries on in the next ready provider, in the same worktree, with a summary of what was asked, what was done and what is left."
+      },
+      "restart": {
+        "label": "Start over",
+        "hint": "Starts again in the next ready provider, in the same worktree, from the original prompt."
+      },
+      "wait": {
+        "label": "Wait for the reset",
+        "hint": "Resumes in the same provider when its limit resets. Spends nothing on another."
+      }
+    },
+    "allowed": {
+      "label": "What a decision may choose",
+      "hint": "Only counts when the “What to do at a limit” point in Decisions is in Shadow or Active. It never chooses outside this.",
+      "chosen": "The action above: always allowed",
+      "yes": "Allowed",
+      "no": "Not offered to decisions"
+    },
+    "maxWait": {
+      "label": "Longest wait",
+      "aria": "Longest wait in hours",
+      "hint": "When Agentry does not know when the limit resets, it waits this long and then fails the work. From {{min}} to {{max}} h.",
+      "short": "No reset date: it waits this long, then fails. 1 to 48 h.",
+      "unit": "h",
+      "value": "{{hours}} h"
+    },
+    "maxMoves": {
+      "label": "Provider changes per piece of work",
+      "aria": "Provider changes per piece of work",
+      "hint": "Past this number the work waits instead of hopping between providers. From {{min}} to {{max}}.",
+      "short": "Past these it waits. 0 to 5."
+    }
+  },
+  "map": {
+    "title": "Model mapping",
+    "intro": "When work moves from one provider to another, it uses the counterpart model you choose here. With no counterpart the work waits for the reset and tells you. Nothing enters on its own: a suggestion does not count until you accept it.",
+    "empty": "starts empty",
+    "count_one": "{{count}} counterpart",
+    "count_other": "{{count}} counterparts",
+    "needTwo": "The mapping needs two providers that are on and list their models.",
+    "from": "From",
+    "fromAria": "Provider of the source models",
+    "savedNow": "Saved at once",
+    "waitingTitle": "A job is waiting for this counterpart.",
+    "waitingBody": "{{model}} has no counterpart on one of the providers. Choose one and the job carries on when the limit resets.",
+    "suggestionFor": "Suggestion for {{name}}",
+    "suggested": "Suggested",
+    "notInForce": "It does not count until you accept it.",
+    "accept": "Accept",
+    "dismiss": "Dismiss",
+    "accepted": "Counterpart accepted",
+    "dismissed": "Suggestion dismissed",
+    "answerFailed": "Could not answer the suggestion",
+    "counterpartAria": "Counterpart of {{name}}",
+    "choose": "Choose a model…",
+    "none": "No counterpart",
+    "noneHint": "No model here can stand in for it: the work waits",
+    "noCounterpart": "No counterpart",
+    "stale": "No longer offered",
+    "staleHint": "{{provider}} no longer lists this model: it is treated as if there were no counterpart.",
+    "waitsHere": "Work with this model waits for the reset.",
+    "askedByJob": "A job needs it",
+    "modelOf": "{{provider}} model",
+    "equalsIn": "Counterpart in {{provider}}",
+    "tier": {
+      "fast": "fast",
+      "balanced": "balanced",
+      "strong": "strong"
+    },
+    "pairTitle": "{{model}} in {{provider}}",
+    "pickAria": "Model to use instead",
+    "save": "Save the counterpart"
+  },
+  "retire": {
+    "title": "Agentry no longer switches Claude accounts",
+    "lead": "Work now moves from one provider to another when one reaches its limit. This notice appears once.",
+    "dismiss": "Understood",
+    "account": {
+      "label": "Account in use",
+      "none": "The account in use",
+      "body": ", the one claude-swap left active. Claude Code uses it as before. To change it, sign in to Claude Code again or save a token in",
+      "link": "Settings → Account"
+    },
+    "changed": {
+      "label": "What changed",
+      "body": "When a provider reaches its limit, work no longer rotates accounts: it continues on another provider with a handoff, starts over there or waits for the reset. You choose in “When a provider reaches its limit”. Until you change it, it waits."
+    },
+    "policies": {
+      "label": "Policies removed",
+      "body_one": "{{count}} project had a rotation policy that no longer exists. Open its provider order:",
+      "body_other": "{{count}} projects had a rotation policy that no longer exists. Each opens its provider order:"
+    },
+    "left": {
+      "label": "Left alone",
+      "body": "claude-swap and its accounts are where they were, and cswap still works from a terminal."
+    },
+    "remove": "Remove Agentry's copy of claude-swap",
+    "removeTitle": "Remove Agentry's copy of claude-swap?",
+    "removeBody": "This deletes only the copy Agentry installed in its data folder. claude-swap's own accounts and files are not touched.",
+    "removeHint": "Deletes only the one Agentry installed in its data folder. Nothing else.",
+    "removed": "Agentry's copy of claude-swap was removed",
+    "nothingToRemove": "There was no copy to remove",
+    "failed": "Could not complete that"
+  },
+  "project": {
+    "title": "Providers",
+    "intro": "Which agents this project may use and what its work does at a limit. Each setting inherits the global one until you change it.",
+    "saved": "Providers saved",
+    "order": "Order",
+    "orderAria": "Provider order of the project",
+    "useGlobal": "Use global",
+    "own": "Own order",
+    "orderGlobal": "Global order: {{order}}",
+    "outside": "Outside the order",
+    "outsideHint": "A provider outside the order never gets this project's work.",
+    "add": "Add",
+    "remove": "Remove {{name}} from the order",
+    "inherited": "inherited · global: {{global}}",
+    "global": "global: {{global}}",
+    "actionAria": "What to do at a limit in this project",
+    "summaryDiffering_one": "{{count}} setting of its own",
+    "summaryDiffering_other": "{{count}} settings of its own",
+    "summaryInherited": "Everything inherited"
   }
 }
