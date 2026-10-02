@@ -9,7 +9,9 @@ import {
   issueNumber,
   parseCommentUrl,
   parseCreatedUrl,
+  requestNumber,
   TrackerInputError,
+  type ClosedIssue,
   type IssueRead,
   type TrackerAdapter,
   type TrackerLabel,
@@ -154,6 +156,21 @@ export const githubIssuesAdapter: TrackerAdapter = {
   close: (repo, key, reason) =>
     write(repo, ['issue', 'close', String(issueNumber(key)), '-R', pin(repo), '--reason', reason === 'not-planned' ? 'not planned' : 'completed']),
   reopen: (repo, key) => write(repo, ['issue', 'reopen', String(issueNumber(key)), '-R', pin(repo)]),
+
+  closedByChangeRequest: (repo, number) => read(repo, ['pr', 'view', String(requestNumber(number)), '-R', pin(repo), '--json', 'closingIssuesReferences']),
+  // Recorded (gh 2.92.0 and 2.102.0, `closing-refs`): `{closingIssuesReferences: [{number, repository: {name, owner: {login}}, url}]}`
+  parseClosedByChangeRequest(stdout): ClosedIssue[] {
+    const refs = asObject(parseValue(stdout, 'closing issues'), 'closing issues').closingIssuesReferences;
+    if (!Array.isArray(refs)) throw new HostParseError('closing issues are not an array');
+    return refs.map((entry) => {
+      const ref = asObject(entry, 'closing issue');
+      const repository = asObject(ref.repository, 'closing issue repository');
+      const owner = asObject(repository.owner, 'closing issue owner').login;
+      if (typeof ref.number !== 'number' || !Number.isSafeInteger(ref.number) || ref.number < 1) throw new HostParseError('closing issue has no number');
+      if (typeof owner !== 'string' || typeof repository.name !== 'string') throw new HostParseError('closing issue has no repository');
+      return { scope: `${owner}/${repository.name}`, key: String(ref.number) };
+    });
+  },
 
   labels: (repo) => read(repo, ['label', 'list', '-R', pin(repo), '--limit', '200', '--json', 'name,color,description']),
   parseLabels(stdout): TrackerLabel[] {

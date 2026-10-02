@@ -5,10 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { AgentryEvent, FlowCriterionResult, WorkItem, WorkItemHistoryPullRequest } from '@agentry/shared';
+import type { AgentryEvent, FlowCriterionResult, IssueRef, WorkItem, WorkItemHistoryPullRequest } from '@agentry/shared';
 import { Db } from '../src/db.ts';
 import { flowPrompt, stageRules } from '../src/flow.ts';
 import { branchExists, mergeInProgress } from '../src/git.ts';
+import { ISSUE_TEXT_MARK, neutralizeClosing } from '../src/trackers/links.ts';
 import { ciOf, pullRequestBody, pullRequestTitle, PullRequestWatcher, WATCH_BACKOFF, WATCH_INTERVAL } from '../src/pull-requests.ts';
 import { itemWorktree } from '../src/work-links.ts';
 import { WorkItemService } from '../src/work-items.ts';
@@ -66,8 +67,8 @@ test("a PR's body carries the description, each criterion with QA's note and a l
 
 test('the issues of an item go into the title (Jira, YouTrack) and a Linked issue section of the body', () => {
   const issues = [
-    { tracker: 'jira' as const, key: 'PROJ-12', externalId: null, title: 't', state: 'open', url: null, importedAt: '', syncedAt: null, syncState: 'none' as const, syncReason: null },
-    { tracker: 'youtrack' as const, key: 'AB-3', externalId: null, title: 't', state: 'open', url: null, importedAt: '', syncedAt: null, syncState: 'none' as const, syncReason: null },
+    { tracker: 'jira' as const, scope: 'PROJ', key: 'PROJ-12', externalId: null, title: 't', state: 'open', url: null, importedAt: '', syncedAt: null, syncState: 'none' as const, syncReason: null },
+    { tracker: 'youtrack' as const, scope: 'AB', key: 'AB-3', externalId: null, title: 't', state: 'open', url: null, importedAt: '', syncedAt: null, syncState: 'none' as const, syncReason: null },
   ];
   assert.equal(pullRequestTitle({ key: 'CW-3', title: 'Fix the cart', type: 'bug', labels: [], issues }), 'fix: Fix the cart (CW-3, PROJ-12, AB-3)');
   const body = pullRequestBody({ key: 'CW-9', description: 'd', acceptanceCriteria: [] }, [], null, ['Closes #12']);
@@ -208,7 +209,7 @@ test('an item with a linked issue opens its PR with Closes in the body, into the
   const s = setup({ tracker: { id: 'github-issues', scope: 'acme/shop', query: '', statusMap: {} } });
   try {
     const item = reviewed(s);
-    s.items.linkIssue(item.id, { tracker: 'github-issues', key: '12', externalId: null, title: 'The total is wrong', state: 'open', url: null });
+    s.items.linkIssue(item.id, { tracker: 'github-issues', scope: 'acme/shop', key: '12', externalId: null, title: 'The total is wrong', state: 'open', url: null });
     await s.service.approve(item.id);
     await s.service.settled();
     const body = readFileSync(join(s.r.state, 'body-7'), 'utf8');
@@ -465,12 +466,13 @@ test('a merged PR moves the item to Done as the person, removes its clean worktr
   }
 });
 
-test('a merged PR tells the tracker sync once, after the item is Done, and whether a closing word could work into its base', async () => {
-  const told: Array<{ itemId: string; closingWord: boolean; host: string; status: string | undefined }> = [];
+test('a merged PR tells the tracker sync once, after the item is Done, and what the host says it closed', async () => {
+  const told: Array<{ itemId: string; closed: unknown; host: string; status: string | undefined }> = [];
   const holder: { s?: Setup } = {};
   const s = setup({
     onMerged: async (notice) => {
       told.push({ ...notice, status: holder.s?.items.find(notice.itemId)?.status });
+      return { closedUnlinked: [] };
     },
   });
   holder.s = s;
@@ -480,7 +482,8 @@ test('a merged PR tells the tracker sync once, after the item is Done, and wheth
     view(s.r, 'MERGED', [{ status: 'COMPLETED', conclusion: 'SUCCESS' }]);
     await new PullRequestWatcher(s.service).tick();
     await new PullRequestWatcher(s.service).tick();
-    assert.deepEqual(told, [{ itemId: item.id, closingWord: true, host: 'github', status: 'done' }]);
+    // no tracker on the project: nothing a host closes is its, and nothing is read
+    assert.deepEqual(told, [{ itemId: item.id, closed: [], host: 'github', status: 'done' }]);
   } finally {
     cleanup(s);
   }
@@ -594,4 +597,35 @@ test('the timings and limits moved from the GitHub-only service are unchanged', 
   assert.equal(title, `feat: ${'x'.repeat(65)}… (CW-1)`);
   const body = pullRequestBody({ key: 'CW-1', description: 'y'.repeat(70_000), acceptanceCriteria: [] }, [], null);
   assert.ok(body.startsWith('y'.repeat(60_000)) && body.endsWith('… cut at 60000 characters'));
+});
+
+test('an issue text cannot close another issue: every closing word, both hosts references', () => {
+  const words = ['close', 'closes', 'closed', 'closing', 'fix', 'fixes', 'fixed', 'fixing', 'resolve', 'resolves', 'resolved', 'resolving'];
+  const refs = ['#99', 'acme/shop#99', 'group/sub/project#99', 'https://github.com/acme/shop/issues/99', 'https://gitlab.com/group/project/-/issues/99', 'GH-99'];
+  const issues = [{ tracker: 'github-issues', key: '12' }] as unknown as IssueRef[];
+  for (const word of words) {
+    for (const casing of [word, word.toUpperCase(), `${word[0]?.toUpperCase() ?? ''}${word.slice(1)}`]) {
+      for (const ref of refs) {
+        const title = pullRequestTitle({ key: 'CW-3', title: `${casing} ${ref}`, type: 'task', labels: [], issues });
+        assert.ok(title.includes(`${casing} \`${ref}\``), title);
+        assert.equal(neutralizeClosing(`${casing}: ${ref}`), `${casing}: \`${ref}\``);
+      }
+    }
+  }
+  assert.equal(pullRequestTitle({ key: 'CW-3', title: 'Closes #99', type: 'task', labels: [], issues }), 'feat: Closes `#99` (CW-3)');
+  assert.equal(neutralizeClosing('Fixes: #1, #2 and #3'), 'Fixes: `#1`, `#2` and `#3`');
+  assert.equal(neutralizeClosing('Closes #1\nresolves\n#2'), 'Closes `#1`\nresolves\n`#2`');
+  // Words that are not closing words, and references with no word, stay as written
+  assert.equal(neutralizeClosing('Prefix #99 and enclose #5, see #7'), 'Prefix #99 and enclose #5, see #7');
+  // A card nobody linked to an issue keeps the title its author wrote
+  assert.equal(pullRequestTitle({ key: 'CW-3', title: 'Closes #99', type: 'task', labels: [], issues: [] }), 'feat: Closes #99 (CW-3)');
+});
+
+test('the body neutralises an imported description, but not the linked issue lines', () => {
+  const description = `> **From GitHub Issues #12** — ${ISSUE_TEXT_MARK}\n>\n> Fixes #99`;
+  const body = pullRequestBody({ key: 'CW-3', description, acceptanceCriteria: [], issues: [] }, [], null, ['Closes #12']);
+  assert.ok(body.includes('> Fixes `#99`'));
+  assert.ok(body.includes('## Linked issue\n\nCloses #12'));
+  const own = pullRequestBody({ key: 'CW-4', description: 'Fixes #99', acceptanceCriteria: [] }, [], null);
+  assert.ok(own.includes('Fixes #99'));
 });

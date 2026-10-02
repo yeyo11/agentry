@@ -7,7 +7,7 @@ import { TITLE_MAX, WorkItemError } from '../work-item-validation.ts';
 import type { IssueLinkInput, WorkItemService } from '../work-items.ts';
 import type { IssueTriage } from '../decisions/issue-triage.ts';
 import { trackerAdapter } from './adapters.ts';
-import { trackerHost } from './links.ts';
+import { ISSUE_TEXT_MARK, trackerHost } from './links.ts';
 import { ISSUES_PAGE_SIZE, IssueIsPullRequest, issueNumber, MAX_ISSUE_BODY, TrackerInputError, type IssueRead, type TrackerAdapter } from './tracker.ts';
 
 // Importing issues into work items (docs/plans/code-hosts.md, phase 5). The person runs the
@@ -77,7 +77,7 @@ export function issueType(labels: readonly string[]): WorkItemType | null {
  * at the longest body Agentry handles.
  */
 export function quotedSource(tracker: TrackerId, key: string, body: string): string {
-  const head = `> **From ${TRACKER_LABEL[tracker]} ${tracker === 'github-issues' || tracker === 'gitlab-issues' ? `#${key}` : key}**`;
+  const head = `> **From ${TRACKER_LABEL[tracker]} ${tracker === 'github-issues' || tracker === 'gitlab-issues' ? `#${key}` : key}** — ${ISSUE_TEXT_MARK}`;
   const text = body.replace(/\r\n?/g, '\n').trim();
   if (!text) return head;
   const cut = text.length > MAX_ISSUE_BODY ? `${text.slice(0, MAX_ISSUE_BODY)}\n… cut at ${String(MAX_ISSUE_BODY)} characters` : text;
@@ -99,7 +99,7 @@ export class TrackerImportService {
     }
     const result = await r.access.run(call);
     const issues = this.parse(() => r.adapter.parseList(this.stdout('the issue list', call, result), req));
-    const imported = this.deps.items.importedKeys(projectId, r.tracker.id, issues.issues.map((i) => i.key));
+    const imported = this.deps.items.importedKeys(projectId, r.tracker.id, r.tracker.scope, issues.issues.map((i) => i.key));
     const listed = issues.issues.map((i) => ({ ...tracked(r.tracker.id, i), importedItemId: imported.get(i.key) ?? null }));
     // The question goes in the background and the page does not wait: its marks show on the next read
     this.deps.triage?.onIssues(projectId, r.tracker.id, listed);
@@ -130,7 +130,7 @@ export class TrackerImportService {
     });
     const result: TrackerImportResult = { imported: [], skipped: [] };
     for (const key of [...new Set(normal)]) {
-      if (this.deps.items.findIssue(projectId, r.tracker.id, key)) {
+      if (this.deps.items.findIssue(projectId, r.tracker.id, r.tracker.scope, key)) {
         result.skipped.push({ key, reason: 'already-imported' });
         continue;
       }
@@ -147,7 +147,7 @@ export class TrackerImportService {
           projectId,
           { title: issue.title.trim().slice(0, TITLE_MAX) || `Issue ${key}`, description: quotedSource(r.tracker.id, key, issue.body), type: issueType(issue.labels) ?? 'task' },
           undefined,
-          linkOf(r.tracker.id, issue),
+          linkOf(r.tracker, issue),
         );
         result.imported.push({ key, itemId: item.id, itemKey: item.key });
       } catch (err) {
@@ -171,7 +171,7 @@ export class TrackerImportService {
       throw refusal(err);
     }
     const issue = await this.read(r, number);
-    return this.deps.items.linkIssue(itemId, linkOf(r.tracker.id, issue));
+    return this.deps.items.linkIssue(itemId, linkOf(r.tracker, issue));
   }
 
   private async resolve(projectId: string): Promise<Resolved> {
@@ -238,8 +238,8 @@ function refusal(err: unknown): Error {
   return err instanceof TrackerInputError ? new TrackerError(err.message, 400) : err instanceof Error ? err : new Error(String(err));
 }
 
-function linkOf(tracker: TrackerId, issue: IssueRead): IssueLinkInput {
-  return { tracker, key: issue.key, externalId: issue.externalId, title: issue.title.slice(0, TITLE_MAX), state: issue.state, url: issue.url };
+function linkOf(tracker: Pick<ProjectTrackerSettings, 'id' | 'scope'>, issue: IssueRead): IssueLinkInput {
+  return { tracker: tracker.id, scope: tracker.scope, key: issue.key, externalId: issue.externalId, title: issue.title.slice(0, TITLE_MAX), state: issue.state, url: issue.url };
 }
 
 function tracked(tracker: TrackerId, issue: IssueRead): TrackerIssue {

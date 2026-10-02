@@ -67,6 +67,7 @@ function calls({ adapter, repo }: TrackerConformanceOptions): NamedCall[] {
   add('reopen', adapter.reopen(repo, KEY));
   for (const column of ['in_progress', 'in_review', 'done'] as const) add(`setStatus(${column})`, adapter.setStatus(repo, KEY, { column, name: null }));
   add('labels', adapter.labels(repo));
+  add('what a change request closes', adapter.closedByChangeRequest(repo, 7));
   return named;
 }
 
@@ -265,6 +266,15 @@ export function checkTrackerConformance(options: TrackerConformanceOptions): Tra
         problems.push(`parseLabels accepted ${JSON.stringify(stdout)}`);
       } catch (error) {
         if (!(error instanceof HostParseError)) problems.push(`parseLabels threw ${String(error)} for ${JSON.stringify(stdout)}`);
+      }
+    }
+    // Output that is not what the host prints for what a change request closes: never an empty list by accident
+    for (const stdout of ['', 'not json', 'null', '42', '{}', '[{}]', '[{"iid":4}]']) {
+      try {
+        adapter.parseClosedByChangeRequest(stdout);
+        problems.push(`parseClosedByChangeRequest accepted ${JSON.stringify(stdout)}`);
+      } catch (error) {
+        if (!(error instanceof HostParseError)) problems.push(`parseClosedByChangeRequest threw ${String(error)} for ${JSON.stringify(stdout)}`);
       }
     }
     return problems;

@@ -146,6 +146,35 @@ test('glab: the labels need the numeric project id', () => {
   assert.throws(() => gitlabIssuesAdapter.labels({ ...glRepo, projectId: undefined }));
 });
 
+test('gh: the issues a pull request closes are read from closingIssuesReferences, each with its repository', () => {
+  const call = githubIssuesAdapter.closedByChangeRequest(ghRepo, 24);
+  assert.equal(call.kind, 'read');
+  const result = replay(call, ghRepo, GH_VERSION);
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(githubIssuesAdapter.parseClosedByChangeRequest(result.stdout), [
+    { scope: 'yeyo11/agentry-probe', key: '20' },
+    { scope: 'yeyo11/agentry-probe', key: '22' },
+    { scope: 'yeyo11/agentry-probe', key: '23' },
+  ]);
+  // Recorded empty too: PR #150 closes nothing
+  assert.deepEqual(githubIssuesAdapter.parseClosedByChangeRequest(out('gh/2.102.0', 'pr150-closing')), []);
+  assert.throws(() => githubIssuesAdapter.parseClosedByChangeRequest('{"closingIssuesReferences":[{"number":1}]}'), HostParseError);
+  assert.throws(() => githubIssuesAdapter.parseClosedByChangeRequest('[]'), HostParseError);
+  assert.throws(() => githubIssuesAdapter.closedByChangeRequest(ghRepo, 0));
+});
+
+test('glab: the issues a merge request closes are read from closes_issues on the project id; the recorded answer is empty', () => {
+  const call = gitlabIssuesAdapter.closedByChangeRequest(glRepo, 9);
+  assert.equal(call.kind, 'read');
+  // The recorded argv, with the host pinned the way every other glab api call of Agentry is
+  assert.deepEqual(call.args, ['api', '--hostname', 'gitlab.com', 'projects/87089091/merge_requests/9/closes_issues']);
+  assert.deepEqual(gitlabIssuesAdapter.parseClosedByChangeRequest(out('glab/1.120.0', 'api_closes')), []);
+  // Not recorded non-empty: the API's issue objects, read by the `iid` and `web_url` issue view was recorded to print
+  assert.deepEqual(gitlabIssuesAdapter.parseClosedByChangeRequest('[{"iid":4,"web_url":"https://gitlab.com/grp/sub/proj/-/work_items/4"}]'), [{ scope: 'grp/sub/proj', key: '4' }]);
+  assert.throws(() => gitlabIssuesAdapter.parseClosedByChangeRequest('[{"iid":4}]'), HostParseError);
+  assert.throws(() => gitlabIssuesAdapter.closedByChangeRequest({ ...glRepo, projectId: undefined }, 9));
+});
+
 test('glab: a list page is read from the recorded output; a full page says there is more', () => {
   const stdout = out('glab/1.120.0', 'issue_list');
   const page = gitlabIssuesAdapter.parseList(stdout, { query: 't0a probe', page: 1 });

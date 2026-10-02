@@ -73,6 +73,7 @@ import {
   inList,
   isLive,
   issueRefOf,
+  UNKNOWN_ISSUE_SCOPE,
   linkOf,
   milestoneOf,
   pullRequestOf,
@@ -169,8 +170,17 @@ export interface WorkItemLinkInput extends CreateWorkItemLinkRequest {
 }
 
 /** An issue to link to an item: what the tracker said when it was read. The sync columns start empty. */
+/**
+ * A link's scope in a WHERE clause. A link whose scope is not known (null in the contract) is stored
+ * as '' or '?', and `IssueRef.scope` cannot tell those two apart, so they match together.
+ */
+const SCOPE_IS = "(scope = ? OR (? IS NULL AND scope IN ('', '?')))";
+const scopeParams = (scope: string | null): [string | null, string | null] => [scope, scope];
+
 export interface IssueLinkInput {
   tracker: TrackerId;
+  /** The tracker scope the issue was read from: the repository it lives in */
+  scope: string;
   key: string;
   externalId: string | null;
   title: string;
@@ -755,21 +765,38 @@ export class WorkItemService {
     return this.issueRows(itemId).map(issueRefOf);
   }
 
-  /** The item an issue was imported or linked as in a project; null when it is not. */
-  findIssue(projectId: string, tracker: TrackerId, key: string): { itemId: string; issue: IssueRef } | null {
-    const row = this.sql.prepare('SELECT * FROM work_item_issues WHERE project_id = ? AND tracker = ? AND key = ?').get(projectId, tracker, key) as IssueRow | undefined;
+  /** The item an issue of this scope was imported or linked as in a project; null when it is not. The same number in another scope is another issue. */
+  findIssue(projectId: string, tracker: TrackerId, scope: string, key: string): { itemId: string; issue: IssueRef } | null {
+    const row = this.sql.prepare('SELECT * FROM work_item_issues WHERE project_id = ? AND tracker = ? AND scope = ? AND key = ?').get(projectId, tracker, scope, key) as IssueRow | undefined;
     return row ? { itemId: row.item_id, issue: issueRefOf(row) } : null;
   }
 
-  /** The items of a project that hold any of these issues, by key, for the import's "already imported" marks. */
-  importedKeys(projectId: string, tracker: TrackerId, keys: readonly string[]): Map<string, string> {
+  /** The items of a project that hold any of these issues of one scope, by key, for the import's "already imported" marks. */
+  importedKeys(projectId: string, tracker: TrackerId, scope: string, keys: readonly string[]): Map<string, string> {
     const out = new Map<string, string>();
     if (!keys.length) return out;
     const rows = this.sql
-      .prepare('SELECT key, item_id FROM work_item_issues WHERE project_id = ? AND tracker = ? AND key IN (SELECT value FROM json_each(?))')
-      .all(projectId, tracker, inList(keys)) as Array<{ key: string; item_id: string }>;
+      .prepare('SELECT key, item_id FROM work_item_issues WHERE project_id = ? AND tracker = ? AND scope = ? AND key IN (SELECT value FROM json_each(?))')
+      .all(projectId, tracker, scope, inList(keys)) as Array<{ key: string; item_id: string }>;
     for (const r of rows) out.set(r.key, r.item_id);
     return out;
+  }
+
+  /**
+   * Gives the links made before they recorded their repository the scope their project's tracker has
+   * now: the project's tracker is the only place the repository of such an issue was ever written.
+   * A project whose tracker is another one, or none, cannot tell, so its links read `?` and are never
+   * written to. Only links still marked '' are looked at, so it runs once for each and a tracker set
+   * up later does not claim old links.
+   */
+  backfillIssueScopes(scopeOf: (projectId: string, tracker: TrackerId) => string | null): number {
+    const rows = this.sql.prepare("SELECT DISTINCT project_id, tracker FROM work_item_issues WHERE scope = ''").all() as Array<{ project_id: string; tracker: string }>;
+    let filled = 0;
+    for (const r of rows) {
+      const scope = scopeOf(r.project_id, r.tracker as TrackerId) ?? UNKNOWN_ISSUE_SCOPE;
+      filled += Number(this.sql.prepare("UPDATE work_item_issues SET scope = ? WHERE project_id = ? AND tracker = ? AND scope = ''").run(scope, r.project_id, r.tracker).changes);
+    }
+    return filled;
   }
 
   /** Links an issue to an item. 409 when the project already holds it, on this item or another. */
@@ -789,12 +816,12 @@ export class WorkItemService {
   }
 
   /** Unlinks an issue from an item; the issue itself is not touched on the tracker. 404 when the item has no such link. */
-  unlinkIssue(itemId: string, tracker: TrackerId, key: string, ctx?: WorkItemContext): WorkItem {
+  unlinkIssue(itemId: string, tracker: TrackerId, scope: string | null, key: string, ctx?: WorkItemContext): WorkItem {
     const actor = actorFrom(ctx);
     const cause = ctx?.cause ?? null;
     const row = this.write(() => {
       this.mustRow(itemId);
-      const removed = this.sql.prepare('DELETE FROM work_item_issues WHERE item_id = ? AND tracker = ? AND key = ?').run(itemId, tracker, key);
+      const removed = this.sql.prepare(`DELETE FROM work_item_issues WHERE item_id = ? AND tracker = ? AND key = ? AND ${SCOPE_IS}`).run(itemId, tracker, key, ...scopeParams(scope));
       if (!removed.changes) throw new WorkItemError('the item is not linked to that issue', 404);
       this.sql.prepare('UPDATE work_items SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), itemId);
       return this.mustRow(itemId);
@@ -813,6 +840,7 @@ export class WorkItemService {
   recordIssueSync(
     itemId: string,
     tracker: TrackerId,
+    scope: string | null,
     key: string,
     sync: { state?: string; syncState: IssueSyncState; reason: HostReason | null },
   ): WorkItem | null {
@@ -821,9 +849,9 @@ export class WorkItemService {
       const written = this.sql
         .prepare(
           `UPDATE work_item_issues SET state = COALESCE(?, state), synced_at = CASE WHEN ? = 'none' THEN NULL ELSE ? END, sync_state = ?, sync_reason = ?
-           WHERE item_id = ? AND tracker = ? AND key = ?`,
+           WHERE item_id = ? AND tracker = ? AND key = ? AND ${SCOPE_IS}`,
         )
-        .run(sync.state ?? null, sync.syncState, now, sync.syncState, sync.syncState === 'failed' ? sync.reason : null, itemId, tracker, key);
+        .run(sync.state ?? null, sync.syncState, now, sync.syncState, sync.syncState === 'failed' ? sync.reason : null, itemId, tracker, key, ...scopeParams(scope));
       if (!written.changes) return null;
       this.sql.prepare('UPDATE work_items SET updated_at = ? WHERE id = ?').run(now, itemId);
       return this.row(itemId);
@@ -839,14 +867,16 @@ export class WorkItemService {
   }
 
   private insertIssue(projectId: string, itemId: string, issue: IssueLinkInput, now: string): void {
-    const taken = this.sql.prepare('SELECT item_id FROM work_item_issues WHERE project_id = ? AND tracker = ? AND key = ?').get(projectId, issue.tracker, issue.key) as { item_id: string } | undefined;
+    const taken = this.sql
+      .prepare('SELECT item_id FROM work_item_issues WHERE project_id = ? AND tracker = ? AND scope = ? AND key = ?')
+      .get(projectId, issue.tracker, issue.scope, issue.key) as { item_id: string } | undefined;
     if (taken) throw new WorkItemError(`issue ${issue.key} is already imported in this project`, 409);
     this.sql
       .prepare(
-        `INSERT INTO work_item_issues (id, project_id, item_id, tracker, key, external_id, title, state, url, imported_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO work_item_issues (id, project_id, item_id, tracker, scope, key, external_id, title, state, url, imported_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(randomUUID(), projectId, itemId, issue.tracker, issue.key, issue.externalId, issue.title, issue.state, issue.url, now);
+      .run(randomUUID(), projectId, itemId, issue.tracker, issue.scope, issue.key, issue.externalId, issue.title, issue.state, issue.url, now);
   }
 
   // ---------- criteria, comments, relations, links ----------

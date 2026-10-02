@@ -765,6 +765,11 @@ export class Core {
       access: (path, tracker) => this.trackerAccess(path, tracker),
     });
     this.events.observe((event) => this.trackerSync.observe(event));
+    // Links made before they recorded their repository read it from their project's tracker, once
+    this.workItems.backfillIssueScopes((projectId, tracker) => {
+      const settings = this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.tracker;
+      return settings?.id === tracker ? settings.scope : null;
+    });
     this.orchestrationPullRequests = new OrchestrationPullRequestService({
       db: this.db,
       settings: () => this.hostsSettings.get(),

@@ -7,7 +7,9 @@ import {
   ISSUES_PAGE_SIZE,
   parseCommentUrl,
   parseCreatedUrl,
+  requestNumber,
   TrackerInputError,
+  type ClosedIssue,
   type IssueRead,
   type TrackerAdapter,
   type TrackerLabel,
@@ -70,6 +72,9 @@ function issueOf(raw: unknown, what: string): IssueRead {
 /** `-l a,b` and `-u a,b`: GitLab takes a comma list, so a name with a comma is refused by `checkLabels` */
 const joined = (labels: string[]): string => labels.join(',');
 
+/** The project path of an issue's `web_url`: `https://host/group/sub/project/-/work_items/12` */
+const ISSUE_PATH = /^https?:\/\/[^/]+\/(.+?)\/-\/(?:issues|work_items)\/\d+$/;
+
 function projectId(repo: HostRepo): number {
   if (repo.projectId === undefined) throw new TrackerInputError('the labels list is read on the numeric project id, which this repository does not have yet');
   return repo.projectId;
@@ -128,6 +133,21 @@ export const gitlabIssuesAdapter: TrackerAdapter = {
   // Idempotent: closing a closed issue exits 0 (recorded)
   close: (repo, key) => write(repo, ['issue', 'close', String(issueNumber(key)), '-R', projectUrl(repo)]),
   reopen: (repo, key) => write(repo, ['issue', 'reopen', String(issueNumber(key)), '-R', projectUrl(repo)]),
+
+  // `closes_issues` is empty for a merge request into a non-default branch (recorded, NOTES §6). Recorded
+  // empty only: a non-empty answer is the API's issue objects, whose `iid` and `web_url` are the ones
+  // `issue view -F json` was recorded to print
+  closedByChangeRequest: (repo, number) => read(repo, ['api', '--hostname', repo.host, `projects/${String(projectId(repo))}/merge_requests/${String(requestNumber(number))}/closes_issues`]),
+  parseClosedByChangeRequest(stdout): ClosedIssue[] {
+    const issues = parseValue(stdout, 'closing issues');
+    if (!Array.isArray(issues)) throw new HostParseError('closing issues are not an array');
+    return issues.map((entry) => {
+      const issue = asObject(entry, 'closing issue');
+      const where = typeof issue.web_url === 'string' ? ISSUE_PATH.exec(issue.web_url) : null;
+      if (typeof issue.iid !== 'number' || !Number.isSafeInteger(issue.iid) || issue.iid < 1 || !where?.[1]) throw new HostParseError('closing issue has no iid or project');
+      return { scope: where[1], key: String(issue.iid) };
+    });
+  },
 
   labels: (repo) => ({
     cli: 'glab',
