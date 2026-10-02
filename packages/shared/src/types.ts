@@ -6348,7 +6348,10 @@ export type DecisionPointId =
   | 'notification.urgency'
   | 'checks.fix'
   | 'review.triage'
-  | 'issue.triage';
+  | 'issue.triage'
+  | 'provider.on-limit'
+  | 'provider.pick'
+  | 'provider.model-map';
 
 /** What a decision was about; the `subject_kind` column of the history */
 export type DecisionSubjectKind =
@@ -6361,7 +6364,8 @@ export type DecisionSubjectKind =
   | 'assistant_run'
   | 'notification'
   | 'palette'
-  | 'tracker_issue';
+  | 'tracker_issue'
+  | 'model';
 
 /** Questions and rubrics are English (D4): providers read `label` and `description`, never a translation */
 export interface DecisionChoiceQuestion {

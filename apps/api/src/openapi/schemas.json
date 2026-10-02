@@ -13891,6 +13891,45 @@
                 "description": "Act points only, 0.5..0.99; absent reads as the point's default"
               }
             }
+          },
+          "provider.on-limit": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "provider.pick": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "provider.model-map": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
           }
         }
       }
@@ -21249,6 +21288,15 @@
           },
           "issue.triage": {
             "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "provider.on-limit": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "provider.pick": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "provider.model-map": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
       },
@@ -21414,6 +21462,15 @@
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "issue.triage": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "provider.on-limit": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "provider.pick": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "provider.model-map": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
@@ -21658,7 +21715,10 @@
       "notification.urgency",
       "checks.fix",
       "review.triage",
-      "issue.triage"
+      "issue.triage",
+      "provider.on-limit",
+      "provider.pick",
+      "provider.model-map"
     ]
   },
   "DecisionPointKind": {
@@ -21977,7 +22037,8 @@
       "assistant_run",
       "notification",
       "palette",
-      "tracker_issue"
+      "tracker_issue",
+      "model"
     ],
     "description": "What a decision was about; the `subject_kind` column of the history"
   },
