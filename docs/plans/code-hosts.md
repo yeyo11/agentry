@@ -2138,6 +2138,10 @@ What the audit and the e2e spec nobody had run found, all fixed:
 so an agent in a chat that reads the API URL can call a merge route. The 403 for chat tokens holds
 under token or OIDC authentication, and the same is true of the checks and reviews routes.
 
+**Decided on 2026-10-02:** left as it is and documented (the owner took the recommended option):
+`none` means no guard, `SECURITY.md` says an agent in a chat can call any route it can reach, and
+who wants the `403` for chats turns on token or OIDC mode.
+
 ## Phase 5: trackers
 
 Branch **`feat/code-hosts-trackers`**, cut from `main` after phase 1 merged. **`t0` (recording)
