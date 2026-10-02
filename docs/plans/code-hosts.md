@@ -2432,6 +2432,12 @@ Generator `webhooks.py`.
   · next in 2 min" (`DSWebhooks.html`).
 - Check: `lint.py`, `check.mjs`; the owner validates.
 
+P0 was built by `webhooks-prototypes` (2 tasks, 13.77 USD; 14 screens, `lint.py` and `check.mjs`
+clean) and validated on 2026-10-02 by delegation, from the screenshots: Integrations → Webhooks has
+one gradient surface (the section's border) beside the top bar's New chat, GitLab rows say "not
+available yet" with their reason and no action, and there is no redelivery on GitHub. The sample
+repositories use example names.
+
 ### P1 · `webhooks-core`
 
 - `w0` (recording, owner's assistant): G1 GitLab with `--input` and a token; the signing token (can
