@@ -793,6 +793,7 @@ export class Core {
       orchestration: (id) => this.orchestrator.get(id),
       itemAccess: (itemId, access) => this.workItemAccess(itemId, access),
       triage: new ReviewTriage({ decisions: this.decisions }),
+      viewed: (id) => this.pullRequestWatcher.view(id),
     });
     this.orchestrator.pullRequests = this.orchestrationPullRequests;
     this.pullRequestWatcher = new PullRequestWatcher([this.pullRequests, this.orchestrationPullRequests]);
@@ -2141,6 +2142,11 @@ export class Core {
   async approveWorkItem(itemId: string): Promise<ApproveResult> {
     await this.workItemAccess(itemId, 'write');
     return this.pullRequests.approve(itemId);
+  }
+
+  /** A webhook delivery named these change requests: each is read on the pacer's next pass. Nothing else changes. */
+  nudgeChangeRequests(ids: readonly string[]): void {
+    for (const id of ids) this.pullRequestWatcher.nudge(id);
   }
 
   /** `POST /work-items/:itemId/pull-request/refresh`: asks the host about the item's open PR now. */
