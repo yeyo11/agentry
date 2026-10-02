@@ -136,6 +136,7 @@ import { ChecksService } from './hosts/checks-service.ts';
 import { MergeService, type MergeTarget } from './hosts/merge-service.ts';
 import { mergeTargetOf } from './hosts/merge-target.ts';
 import { ReviewsService } from './hosts/reviews-service.ts';
+import { WebhookStore } from './webhook-store.ts';
 import { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
 import { codeHostAdapter, PullRequestService, PullRequestWatcher, type ApproveResult } from './pull-requests.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
@@ -421,6 +422,7 @@ export class Core {
   /** The checks of a change request: the head commit's list, log tails, re-runs and cancels */
   readonly checks: ChecksService;
   readonly reviews: ReviewsService;
+  readonly webhooks: WebhookStore;
   /** Merge, auto-merge and update from the base of a change request: the person's click, never a run */
   readonly merge: MergeService;
   /** `/change-requests/:id/…`: a row id of either table, resolved to the service that owns it */
@@ -707,6 +709,7 @@ export class Core {
       decisions: this.decisions,
     });
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
+    this.webhooks = new WebhookStore(this.db.connection);
     this.reviews = new ReviewsService({ db: this.db.connection, resolve: (id) => this.changeRequests.reviewsTarget(id), emit: (event) => this.events.emit(event) });
     this.merge = new MergeService({
       db: this.db.connection,
