@@ -680,7 +680,12 @@ test('what a chat is running shows the shell commands it started and has not had
   }
 });
 
-test("the CLI's list of sessions is read once for everyone asking at the same time, and again once invalidated", async () => {
+test("the CLI's list of sessions is read once for everyone asking at the same time, and again once invalidated", async (t) => {
+  // A read is stamped when it starts, so one that takes longer than the fresh window (a loaded
+  // machine boots the fake CLI slowly) is served stale and read again in the background, and that
+  // read lands in the log mid-test. Frozen time keeps every read fresh, which is what the counts
+  // below are about; only `Date` is frozen, so the exec's own timers still run.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
   const { config, core } = setup();
   const log = join(config.dataDir, 'spawns.log');
   mkdirSync(config.dataDir, { recursive: true });
