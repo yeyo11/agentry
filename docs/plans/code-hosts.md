@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-10-02T09:00:00Z
+updated_at: 2026-10-02T10:00:00Z
 tags:
     - plan
     - git
@@ -2193,6 +2193,42 @@ state, url, imported_at, synced_at, sync_state, sync_reason, UNIQUE (project_id,
 `POST /projects/:id/tracker/import` (`{keys}`); `POST /work-items/:itemId/issues` (link one by key),
 `DELETE /work-items/:itemId/issues/:key`, `POST /work-items/:itemId/issues/:key/sync`. Chat tokens:
 403 on every write and on the credentials.
+
+### Phase 5 in two steps (2026-10-02)
+
+`t0` is split in two so that the GitHub and GitLab trackers do not wait for accounts that are not
+there yet.
+
+- **`t0a`, done**: the two GitLab issue calls the matrix still marked D (F4 `-u`, F8 the labels
+  list), recorded on the private probe project: [Recorded by `t0a`](#recorded-by-t0a-2026-10-02).
+  The GitHub rows were already recorded (R).
+- **`t0b`, the owner's**: Jira (`acli`, a Jira Cloud site and a scratch project) and YouTrack
+  (`youtrack-app`, an instance and a token), as in "Recording before phase 5". Until it is done,
+  `jira` and `youtrack` are in the registry as trackers whose readiness is `unknown` with the reason
+  `not-recorded`, have no adapter and offer no action, so nothing is built on a CLI fact nobody has
+  seen. Phase 5 therefore ships **GitHub Issues and GitLab Issues** first, with the manifests, the
+  settings, the import, the links, the sync and `issue.triage` complete for them; the Jira and
+  YouTrack adapters, fakes and screens follow `t0b` in a smaller step.
+
+### Recorded by `t0a` (2026-10-02)
+
+76 `glab` 1.120.0 captures on the probe project (an issue created, read, listed with `--search`,
+labelled and unlabelled, noted, closed twice, reopened and deleted; the labels list), all cleaned
+up (the project's labels and issues are as they were). In
+`packages/core/test/fixtures/recordings/glab/1.120.0/`.
+
+1. **F4 `glab issue update -u <label>` works**: it prints `✓ removed labels <name>` and the issue's
+   `labels` no longer has it. It says so also when the label was not on the issue, so Agentry
+   re-reads and does not trust the line.
+2. **F8 `projects/<id>/labels?per_page=100` answers** `id`, `name`, `description`, `text_color`,
+   `color`, `archived`, `subscribed`, `priority`, `is_project_label`; empty is `[]`, and the issue
+   list of a project with none is `[]` with exit 0.
+3. **An issue is addressed as `work_items/<iid>`** in every URL glab prints, for `create`, `note`,
+   `close` and `reopen` (notes end in `#note_<id>`); the key stays the `iid`.
+4. **`issue close` on a closed issue exits 0** (idempotent, as F6 says), and an issue that is gone
+   answers `{"error":{"message":"404 Not Found"}}` with exit 1.
+5. **`issue create -l <label>` with a label that was deleted in between attaches nothing and does
+   not fail**, so the labels Agentry passes are the ones it just read (F3's rule).
 
 ### P0 · `trackers-prototypes`
 
