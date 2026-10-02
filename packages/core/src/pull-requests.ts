@@ -48,7 +48,7 @@ import {
 } from './git.ts';
 import { checksFixPrompt, reviewFixPrompt } from './flow.ts';
 import { trackerAdapter } from './trackers/adapters.ts';
-import { linkedIssueLines, titleIssueKeys } from './trackers/links.ts';
+import { isFromIssue, linkedIssueLines, neutralizeClosing, titleIssueKeys } from './trackers/links.ts';
 import type { ClosedIssue } from './trackers/tracker.ts';
 import type { MergedNotice, MergedOutcome } from './trackers/sync.ts';
 import { ChecksError, type ChecksService, type ChecksTarget } from './hosts/checks-service.ts';
@@ -273,7 +273,9 @@ export { ciOf } from './hosts/github/adapter.ts';
 export function pullRequestTitle(item: Pick<WorkItem, 'key' | 'title' | 'type' | 'labels' | 'issues'>): string {
   const label = item.labels.map((l) => l.trim().toLowerCase()).find((l): l is (typeof CONVENTIONAL_TYPES)[number] => (CONVENTIONAL_TYPES as readonly string[]).includes(l));
   const type = label ?? (item.type === 'bug' ? 'fix' : 'feat');
-  let head = `${type}: ${item.title.replace(/\s+/g, ' ').trim()}`;
+  const written = item.title.replace(/\s+/g, ' ').trim();
+  // An issue's title is another person's text, and the squash commit takes this title as its message
+  let head = `${type}: ${isFromIssue({ description: '', issues: item.issues }) ? neutralizeClosing(written) : written}`;
   if (head.length > TITLE_MAX) head = `${head.slice(0, TITLE_MAX - 1).trimEnd()}…`;
   return `${head} (${[item.key, ...titleIssueKeys(item.issues ?? [])].join(', ')})`;
 }
@@ -283,14 +285,15 @@ export function pullRequestTitle(item: Pick<WorkItem, 'key' | 'title' | 'type' |
  * passing verification, and a link to the card. Headings in English; the item's own text as written.
  */
 export function pullRequestBody(
-  item: Pick<WorkItem, 'key' | 'description' | 'acceptanceCriteria'>,
+  item: Pick<WorkItem, 'key' | 'description' | 'acceptanceCriteria'> & Partial<Pick<WorkItem, 'issues'>>,
   verdicts: readonly FlowCriterionResult[],
   webOrigin: string | null,
   /** The item's issues, already worded for this change request: `linkedIssueLines` */
   linked: readonly string[] = [],
 ): string {
   const parts: string[] = [];
-  if (item.description.trim()) parts.push(item.description.trim());
+  // What came from an issue must not close another one; only the Linked issue lines below may
+  if (item.description.trim()) parts.push(isFromIssue(item) ? neutralizeClosing(item.description.trim()) : item.description.trim());
   if (linked.length) parts.push(['## Linked issue', '', ...linked].join('\n'));
   if (item.acceptanceCriteria.length) {
     const lines = ['## Acceptance criteria', ''];
