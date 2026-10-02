@@ -43,8 +43,8 @@ EVENTS = [
 
 # One project each: its monogram is its host's, the name is the project's and the repository sits in mono.
 PROJECTS = {
-  'cw': dict(name='claude-wrapper', host='github', repo='yeyochico/claude-wrapper', where='github.com'),
-  'gdm': dict(name='google-docs-mcp', host='github', repo='yeyochico/google-docs-mcp', where='github.com'),
+  'cw': dict(name='claude-wrapper', host='github', repo='acme/claude-wrapper', where='github.com'),
+  'gdm': dict(name='google-docs-mcp', host='github', repo='acme/google-docs-mcp', where='github.com'),
   'pa': dict(name='pagos-api', host='gitlab', repo='equipo/pagos-api', where='gitlab.inmoseo.net'),
 }
 
@@ -240,7 +240,7 @@ def register_dialog(project='gdm', error=False):
           f'<span class="mono t-xs fg-3">{p["repo"]} · {p["where"]} · gh 2.92.0</span></div>'
           f'<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">{ico("x")}</button></div>'
           f'<div class="dialog-body">{body}</div>'
-          f'<div class="dialog-foot"><span class="t-xs fg-3">Se registra con gh, con tu sesión de yeyochico</span><span class="grow"></span>'
+          f'<div class="dialog-foot"><span class="t-xs fg-3">Se registra con gh, con tu sesión de acme-dev</span><span class="grow"></span>'
           f'<button type="button" class="btn btn-ghost">Cancelar</button><button type="button" class="btn btn-primary">{"Volver a intentarlo" if error else "Registrar webhook"}</button></div></div></div>')
 
 
