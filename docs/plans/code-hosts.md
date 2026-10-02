@@ -2245,6 +2245,12 @@ Generator `trackers.py`.
   card's issue key chip.
 - Check: `lint.py`, `check.mjs`; the owner validates.
 
+P0 was built by `trackers-prototypes` (3 tasks, 18.78 USD; `lint.py` and `check.mjs` clean) and
+validated on 2026-10-02 by delegation, from the screenshots: the import dialog has one gradient
+action (Import), and Integrations has the gradient border of the trackers section (what the screen is
+about) beside the top bar's New chat, so no screen has more than two. Jira and YouTrack are drawn as
+"not available yet" with their reason and no action, as "Phase 5 in two steps" says.
+
 ### P1 · `trackers-core`
 
 - `t0` (recording before phase 5, the owner and the owner's assistant) — see
