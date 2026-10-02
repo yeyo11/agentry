@@ -15,7 +15,7 @@ import {
   verifyGithubSignature,
   verifyGitlabToken,
 } from '../src/hosts/webhook-receiver.ts';
-import { WebhookSecrets } from '../src/webhook-secrets.ts';
+import { newWebhookSecret, WebhookSecrets } from '../src/hosts/webhook-secrets.ts';
 import { WebhookStore } from '../src/webhook-store.ts';
 import { loadConfig } from '../src/paths.ts';
 
@@ -166,7 +166,7 @@ test('an unverified delivery is refused before it is read, and nothing is record
     // The hook of the other host answers the same way, and so does a missing secret
     const good = delivery('pull_request.synchronize');
     assert.equal(h.receiver.handle('gitlab', 'r1', { 'x-gitlab-token': SECRET }, good.raw), 'unauthorized');
-    h.secrets.delete('r1');
+    await h.secrets.delete('r1');
     assert.equal(h.receiver.handle('github', 'r1', good.headers, good.raw), 'unauthorized');
     assert.deepEqual(h.nudged, []);
     assert.deepEqual(h.store.deliveries('r1'), []);
@@ -276,19 +276,16 @@ test('rows are placed by the address of their own pull request, and closed ones 
   }
 });
 
-test('the secret is 32 random bytes in a 0600 file that never leaves the secrets directory', async () => {
+test('the secret is 32 random bytes in a 0600 file', async () => {
   const h = await harness();
   try {
-    const a = WebhookSecrets.generate();
+    const a = newWebhookSecret();
     assert.match(a, /^[0-9a-f]{64}$/);
-    assert.notEqual(a, WebhookSecrets.generate());
-    const dir = join(h.dir, 'webhook-secrets');
-    const [file] = readdirSync(dir);
-    assert.equal(statSync(join(dir, file ?? '')).mode & 0o777, 0o600);
+    assert.notEqual(a, newWebhookSecret());
+    assert.equal(statSync(join(h.dir, 'webhook-secrets.json')).mode & 0o777, 0o600);
     assert.equal(h.secrets.get('r1'), SECRET);
-    assert.equal(h.secrets.get('../etc/passwd'), null);
-    await assert.rejects(h.secrets.set('../escape', 'x'));
-    h.secrets.delete('r1');
+    assert.equal(h.secrets.get('unknown'), null);
+    await h.secrets.delete('r1');
     assert.equal(h.secrets.get('r1'), null);
   } finally {
     done(h);
