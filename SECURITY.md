@@ -89,7 +89,10 @@ What is and is not protected:
 - **Authentication is off by default.** With `mode: none`, every route is open to whoever can reach the
   port under an authority it answers to — on a default install, anyone with an account on the machine:
   they can start a Claude Code chat on your account, read every transcript on the machine and
-  edit the files the container can see.
+  edit the files the container can see. The same goes for a chat's own agent: with the guard off it
+  has no token to refuse, so it can call any route it can reach, merge and webhook registration
+  included (decided 2026-10-02: left as it is and documented; turn on token or OIDC mode to get the
+  `403` for a chat's token).
 - **The Host allowlist only stops a browser.** Anything that sets its own `Host` header — `curl`, a
   script, a port scanner that guesses the name — walks straight past it. It closes DNS rebinding,
   which is the one case where the attacker cannot choose the header; it is not access control, and it
