@@ -790,6 +790,7 @@ export class Core {
       orchestration: (id) => this.orchestrator.get(id),
       itemAccess: (itemId, access) => this.workItemAccess(itemId, access),
       triage: new ReviewTriage({ decisions: this.decisions }),
+      viewed: (id) => this.pullRequestWatcher.view(id),
     });
     this.orchestrator.pullRequests = this.orchestrationPullRequests;
     this.pullRequestWatcher = new PullRequestWatcher([this.pullRequests, this.orchestrationPullRequests]);

@@ -10,7 +10,7 @@ import { Db } from '../src/db.ts';
 import { flowPrompt, stageRules } from '../src/flow.ts';
 import { branchExists, mergeInProgress } from '../src/git.ts';
 import { ISSUE_TEXT_MARK, neutralizeClosing } from '../src/trackers/links.ts';
-import { ciOf, pullRequestBody, pullRequestTitle, PullRequestWatcher, WATCH_BACKOFF, WATCH_INTERVAL } from '../src/pull-requests.ts';
+import { ciOf, pullRequestBody, pullRequestTitle, PullRequestWatcher, WATCH_BACKOFF } from '../src/pull-requests.ts';
 import { itemWorktree } from '../src/work-links.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { cleanup, landOnMain, opened, repo, reviewed, setup, sh, view, write, type Repo, type Setup } from './fixtures/pr-harness.ts';
@@ -413,7 +413,7 @@ test('the watcher writes the CI state and announces the item only when it change
   }
 });
 
-test('after a gh error the watcher leaves the project alone for five minutes, and a refresh still asks', async () => {
+test('after a gh error the watcher leaves the row alone for the pacer’s first failure step, and a refresh still asks', async () => {
   const s = setup();
   try {
     const item = reviewed(s);
@@ -424,7 +424,7 @@ test('after a gh error the watcher leaves the project alone for five minutes, an
     await watcher.tick();
     // The execution layer retries a read that fails with nothing structured, twice
     assert.equal(views(), 3);
-    await watcher.tick();
+    await watcher.pass();
     assert.equal(views(), 3, 'backed off');
     rmSync(join(s.r.state, 'fail'));
     view(s.r, 'OPEN', [{ state: 'SUCCESS' }]);
@@ -591,7 +591,6 @@ test('a PR closed without merging leaves the item in review waiting for approval
 });
 
 test('the timings and limits moved from the GitHub-only service are unchanged', () => {
-  assert.equal(WATCH_INTERVAL, 60_000);
   assert.equal(WATCH_BACKOFF, 5 * 60_000);
   const title = pullRequestTitle({ key: 'CW-1', title: 'x'.repeat(200), type: 'task', labels: [] });
   assert.equal(title, `feat: ${'x'.repeat(65)}… (CW-1)`);
