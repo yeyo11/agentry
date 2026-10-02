@@ -21086,7 +21086,8 @@
       "memory_proposal",
       "assistant_run",
       "notification",
-      "palette"
+      "palette",
+      "tracker_issue"
     ],
     "description": "What a decision was about; the `subject_kind` column of the history"
   },

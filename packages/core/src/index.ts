@@ -142,6 +142,7 @@ import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo, mainCheckout } from './git.ts';
 import { hostOf } from './work-item-rows.ts';
 import { DecisionEngine } from './decisions/engine.ts';
+import { IssueTriage } from './decisions/issue-triage.ts';
 import { ReviewTriage } from './decisions/review-triage.ts';
 import { DecisionResolvers } from './decisions/resolve.ts';
 import { CliDecisionProvider } from './decisions/providers/cli.ts';
@@ -748,6 +749,7 @@ export class Core {
         return record ? { path: record.path, tracker: this.projectSettingsStore.stored(id, record.name)?.tracker ?? null } : null;
       },
       access: (path) => this.pullRequests.hostAccess(path),
+      triage: new IssueTriage({ decisions: this.decisions, db: this.db }),
     });
     this.trackerSync = new TrackerSyncService({
       items: this.workItems,

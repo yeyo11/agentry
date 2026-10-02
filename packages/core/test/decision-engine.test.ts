@@ -73,7 +73,7 @@ async function configure(
 }
 
 test('every point has a definition and a scope the project parser agrees with', () => {
-  assert.equal(DECISION_POINTS.length, 24);
+  assert.equal(DECISION_POINTS.length, 25);
   for (const def of DECISION_POINTS) {
     assert.ok(def.maxStateBytes > 0 && def.defaultThreshold >= 0.5 && def.defaultThreshold <= 0.99, def.id);
     const override = { points: { [def.id]: { mode: 'shadow' } } };
@@ -303,7 +303,7 @@ test('the catalogue and the last state come from the settings and the history', 
   const s = setup();
   s.engine.register(new FakeProvider('jev', answering(0.9)));
   await configure(s, 'flow.bounce', 'shadow');
-  assert.equal(s.engine.catalogue(null).length, 24);
+  assert.equal(s.engine.catalogue(null).length, 25);
   assert.equal(s.engine.catalogue(null).find((p) => p.id === 'flow.bounce')?.effective.mode, 'shadow');
   assert.equal(s.engine.lastState('flow.bounce'), null);
   await s.engine.ask('flow.bounce', subject, { projectId: 'p' });
