@@ -94,6 +94,8 @@ export interface ChangeRequestServiceDeps {
   itemAccess: (itemId: string, access: 'read' | 'write') => Promise<WorkItem>;
   /** Asked who should take each unresolved thread whenever the threads are read; absent, nothing is asked */
   triage?: ReviewTriage;
+  /** Told when a change request is read for its page, so the pacer reads it every 20 s while the page is open */
+  viewed?: (id: string) => void;
 }
 
 /** What `POST …/checks/fix` answers: whether a fix started, and the prompt for a chat of the person's own when it did not. */
@@ -152,6 +154,7 @@ export class ChangeRequestService {
   async get(id: string): Promise<ChangeRequest> {
     const found = this.require(id);
     await this.access(found, 'read');
+    this.deps.viewed?.(id);
     const view = found.kind === 'work-item' ? pullRequestOf(found.row) : orchestrationPullRequestOf(found.row);
     return {
       id,
