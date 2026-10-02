@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T06:00:00Z
-updated_at: 2026-10-01T18:00:00Z
+updated_at: 2026-10-02T12:00:00Z
 tags:
     - work-items
     - pull-request
@@ -424,6 +424,23 @@ history. A chat in no imported project is refused with 409.
 `GET /chats/:id/work-items` lists the items a chat works on or was the origin of, for the chat's
 header.
 
+### Issues
+
+An item can carry **issues** from the project's tracker (`WorkItem.issues`, an `IssueRef` each, rows
+of `work_item_issues`). They arrive by [import](trackers.md#import) (the item is created in backlog,
+its description is the issue's body as a quoted source block under "From GitHub Issues #12", never
+instructions) or are linked by hand with `POST /work-items/:itemId/issues` and removed with
+`DELETE /work-items/:itemId/issues/:key`. An issue is imported once per project (unique on project,
+tracker and key); removing the item deletes its rows. A link or unlink emits `workitem.updated`
+with no changes, and is not a history entry.
+
+The issues travel with the item: its change request's body gets a `## Linked issue` section
+(`Closes #12` only on the tracker's own host and into the default branch), and when the project
+mapped a column to a tracker status the item's moves and its merge are written to the tracker, one
+write each and never retried. The outcome is on the issue (`syncState`, `syncReason`), and
+`POST /work-items/:itemId/issues/:key/sync` is the person's **Sync again**. Details, reasons and
+what is not built (Jira and YouTrack) are in [trackers.md](trackers.md).
+
 ### Links
 
 A link ties an item to a chat, an orchestration task or a document, with the role it played. An
@@ -796,4 +813,4 @@ without descriptions, with Done and the lists paged (20).
 
 ## Related
 
-[[projects.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/work-item-pull-requests.md]] · [[plans/project-ecosystem-audit.md]] · [[code-hosts.md]] · [[design-system.md]] · [[status.md]]
+[[projects.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/work-item-pull-requests.md]] · [[plans/project-ecosystem-audit.md]] · [[code-hosts.md]] · [[trackers.md]] · [[design-system.md]] · [[status.md]]
