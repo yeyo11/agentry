@@ -1067,6 +1067,29 @@ Drawn for [code hosts](plans/code-hosts.md), phase 4 (task `m-p2` of P0), by `re
   disables Merge until **Actualizar** shows the new head. A conflict in a GitLab `ff` project reads
   `behind`, with **Rebasar en GitLab**.
 
+### Freshness of a change request: the line in the PR or MR panel
+
+Drawn for [code hosts](plans/code-hosts.md), phase 6 (task `w-p2` of P0), by
+`reference/tools/webhooks_fresh.py`: `DSWebhooks`, `DesktopTareaFrescura`, `MobileTareaFrescura`. One new
+class family, `.fresh` (`.fresh-state`, `.fresh-text`, `.fresh-why`, `.fresh-t`); the badges, the braille
+spinner and `.btn-ghost` are the existing ones.
+
+- **It is the last row of the item's panel** (`.item-pr-wait`), under "Cuando se fusione…", on a
+  desktop and on a phone, and appears only while the PR or MR is open. A state badge with its word (or
+  the spinner), then one sentence, then **Actualizar** (an icon button of 44 px on a phone).
+- **In words, with numbers in mono and tabular.** `Comprobada hace 40 s · la próxima, en 2 min`; with a
+  healthy webhook `Al instante` (ok) and `Por webhook · último aviso hace 12 s`, and the safety-net read
+  as the second line. The text is renewed; nothing counts down with an animation.
+- **`Al instante` needs a healthy webhook** (a delivery or a successful ping in the last 30 min), and is
+  ok, never cyan: no agent is working. A registered hook that falls silent says `Webhook sin avisos`
+  (warn) and links to Integrations → Webhooks while the line reads at the normal pace.
+- **Warn** is also `Sin respuesta` (the read failed: from when the data is, and when the retry is) and
+  `En pausa` (the host limits reads: until when). **The braille spinner** is only the read in flight,
+  next to the verb, with Actualizar disabled. A plain read has no badge.
+- **Actualizar** sets the next read to now, also during a pause: it is the person's action.
+- **GitLab** shows the same line from the pacer alone: its webhook is not available yet, so it never
+  says `Al instante`, and Integrations says "aún no disponible" instead of offering an action.
+
 ### Address with an agent: the thread list, the triage marks and the "Atendido en" follow-up
 
 Drawn for [code hosts](plans/code-hosts.md), phase 3 (task `r-p3` of P0), by `reference/tools/reviews.py`:
