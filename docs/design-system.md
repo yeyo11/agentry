@@ -1124,6 +1124,33 @@ New classes `.omrg-*` and `.pr-auto`; everything else is an existing control (`.
   "se fusiona sola al pasar la CI · squash". It is a waiting state, not a live one: no `--live`, no spinner,
   no motion. On a phone the strip drops the 22 px host link (the item page has it).
 
+### Tracker issues: the import, the issue chip and the card's key
+
+Drawn for [code hosts](plans/code-hosts.md), phase 5 (task `t-p3` of P0), by `reference/tools/trackers_import.py`:
+`DesktopImportarIssues`, `MobileImportarIssues`, `MobileImportarIssuesLista`, `DesktopTareaIssues`,
+`MobileTareaIssues`, the states sheets `DesktopTareaIssuesEstados` and `MobileTareaIssuesEstados`, and
+`DesktopTableroIssues` / `MobileTableroIssues`. GitHub Issues and GitLab Issues only; Jira and YouTrack have no
+screen until their recordings exist. New classes `.iss-*` (under "Tracker issues" in `agentry-ds.css`); the list is
+the thread list of "Address with an agent" and the item panel is `.fix-panel`.
+
+- **Import** is a `.dialog` opened from "Importar issues" on the board (a `.sheet` on a phone, whose board header
+  has an icon button). The query field is prefilled with the scope and open issues (`is:open` on GitHub; GitLab
+  searches text); a hint says what the tracker's query accepts. Each result: the bug icon when it will import as a
+  bug, `#41` in mono, the `issue.triage` mark, the title, author, age and labels.
+- **The marks** are `lista` (`b-accent`), `por refinar` (`b-idle`) and `no es para agentes` (neutral): a suggestion,
+  not a status, so nothing is chosen because of one. The head says `sugerido · issue.triage` and offers "Elegir las
+  listas". An issue already imported shows `ya importada` and its item's key, has no checkbox and cannot be chosen.
+- **Selection on a phone is a mode**: before it, rows are plain text and the foot offers "Seleccionar issues";
+  in it, each row is a pressed button that says `Elegido` or `Elegir` (44 px), never a checkbox.
+- **One gradient action**: "Importar N issues" (disabled as "Elige un issue" with none chosen). Issue text is
+  untrusted: a `.callout` says it is imported as a quoted source and read as data.
+- **The issue chip (`.iss-chip`)** under the item's title: the key, the sync state as a dot and a word
+  (`pendiente` idle, `sincronizada` ok, `falló` bad, `sincronizando` with the braille spinner, `cerrada fuera` with
+  no colour) and a link to the tracker (44 px on a phone). The panel under it lists each issue with its state, why,
+  and, when it failed, the reason code in mono, **Sincronizar de nuevo** (neutral) and a documentation link.
+- **The card's key (`.iss-fact`)** is `#31` with the issue icon in the facts line, `+1` for more; a done card whose
+  sync failed carries a `wi-strip fail` with `Falló` and the reason.
+
 ## 3. Live states and motion
 
 | Situation | Pattern |
