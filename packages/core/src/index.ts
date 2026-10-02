@@ -263,6 +263,7 @@ export {
 } from './pull-requests.ts';
 export { ChangeRequestError, type ChangeRequestFix } from './change-requests.ts';
 export { TrackerError, quotedSource } from './trackers/import.ts';
+export { WebhooksError } from './hosts/webhooks-service.ts';
 export { MergeError, type MergeOutcome, type UpdateOutcome } from './hosts/merge-service.ts';
 export { OrchestrationPullRequestError, OrchestrationPullRequestService, type OpenedPullRequest } from './orchestration-pull-requests.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';

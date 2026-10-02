@@ -19939,6 +19939,67 @@
     ],
     "description": "`POST /change-requests/:id/address`: the threads handed to an agent."
   },
+  "ProjectWebhooks": {
+    "type": "object",
+    "properties": {
+      "available": {
+        "type": "boolean",
+        "description": "False while the project cannot have a hook; `reason` says why"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WebhookUnavailableReason"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "publicUrl": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The public origin a hook would deliver to; null without a tunnel or a configured origin"
+      },
+      "events": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The events a registration subscribes to"
+      },
+      "canRedeliver": {
+        "type": "boolean",
+        "description": "Redelivery needs a scope the CLI may not have; the UI offers it only when true"
+      },
+      "registrations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WebhookRegistration"
+        }
+      }
+    },
+    "required": [
+      "available",
+      "reason",
+      "publicUrl",
+      "events",
+      "canRedeliver",
+      "registrations"
+    ],
+    "description": "`GET /projects/:id/webhooks`: the registrations, and what the person needs to register one."
+  },
+  "WebhookUnavailableReason": {
+    "type": "string",
+    "enum": [
+      "host-not-recorded",
+      "no-public-url",
+      "no-remote"
+    ],
+    "description": "Why a project's repository has no webhooks to manage: `host-not-recorded` is GitLab, whose hook calls are not recorded yet; `no-public-url` has neither a running tunnel nor a configured public origin; `no-remote` is a project without a code host remote."
+  },
   "MergeState": {
     "type": "object",
     "properties": {

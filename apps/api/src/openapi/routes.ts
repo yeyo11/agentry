@@ -597,6 +597,26 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /schedules/:id/run': d('Schedules', 'Run a schedule now', { description: 'Starts its target immediately, whatever the timetable says and even while it is disabled. The run is recorded without a slot and does not affect when it fires next; the overlap policy does not apply to it. A target that fails to start is a run with status `failed` and its error, not an HTTP error.', ok: ref('ScheduleRun'), created: true }),
   'GET /schedules/:id/runs': d('Schedules', 'History of a schedule', { description: 'Newest first. `started` carries the chat or orchestration it produced; `failed` the error; `skipped` says that slots passed while Agentry was not running: those are never run late. `overlapped` is a slot that came while the last run was still going and was not started (policy `skip`, or a queued slot replaced by a newer one or dropped when the schedule was switched off); `queued` waits for the last run to end, and becomes `started` with the same `slot` when it does.', querystring: obj({ limit: { type: 'integer', description: 'At most 500, default 50' } }), ok: list('ScheduleRun') }),
   // ---- Webhooks
+  'GET /projects/:id/webhooks': d('Webhooks', "A project's webhooks", {
+    description: "The hooks Agentry registered on the project's repository, with what a registration needs: `available` and, when false, the `reason` (`host-not-recorded` for GitLab, whose hook calls are not recorded yet and which offers no action; `no-public-url` without a running tunnel; `no-remote`), the `publicUrl` a hook would deliver to, the `events` it subscribes to and `canRedeliver` (always false: redelivery needs a scope the CLI may not hold). A hook that went quiet is read on the way, so a failure the host reports is said here. The secret is never part of the answer.",
+    params: obj({ id: str('Project id') }),
+    ok: ref('ProjectWebhooks'),
+  }),
+  'POST /projects/:id/webhooks': d('Webhooks', "Register the repository's webhook", {
+    description: "Creates the hook on the host (GitHub, through `gh`) with a new 32-byte secret put on the CLI's stdin, never in its arguments, and answers `201` with the registration. A hook that already has an Agentry address is adopted, and one that is not Agentry's is never touched. 409 `host-not-recorded` (GitLab), `no-public-url`, `no-remote` or `already-registered`; 403 `hook-no-permission` when the account cannot manage hooks; 502 `hook-unreachable` or the host's reason. Refused to a chat's token with 403.",
+    params: obj({ id: str('Project id') }),
+    ok: ref('WebhookRegistration'),
+  }),
+  'POST /projects/:id/webhooks/:registrationId/test': d('Webhooks', 'Send a ping through a webhook', {
+    description: "Asks the host to ping the hook and reads the result back: the registration answered has `lastPingAt` and the host's `lastResponse`, or goes to `failing`. 404 `registration-not-found`; 403 `hook-no-permission`; 502 `hook-unreachable`. Refused to a chat's token with 403.",
+    params: obj({ id: str('Project id'), registrationId: str('Registration id') }, ['id', 'registrationId']),
+    ok: ref('WebhookRegistration'),
+  }),
+  'DELETE /projects/:id/webhooks/:registrationId': d('Webhooks', 'Remove a webhook', {
+    description: "Deletes the hook on the host and its secret here; the registration stays listed as `removed` and its receiver answers 401 from then on. 404 `registration-not-found`; 403 `hook-no-permission`; 502 `hook-unreachable`. Refused to a chat's token with 403.",
+    params: obj({ id: str('Project id'), registrationId: str('Registration id') }, ['id', 'registrationId']),
+    ok: ref('WebhookRegistration'),
+  }),
   'POST /webhooks/github/:registrationId': d('Webhooks', 'Receive a GitHub delivery', {
     description: "Unauthenticated, signature-checked: `X-Hub-Signature-256` is `sha256=` and the HMAC-SHA256 of the raw body under the registration's secret, compared in constant time before the body is parsed. `204` with no body once it is accepted (a replayed `X-GitHub-Delivery` too); `401` with no detail for an unknown or removed registration or a wrong signature; `429` beyond 60 verified deliveries a minute for one registration; `413` over 5 MiB, which polling covers. Moves the next read of the change requests it names to now and changes nothing else.",
   }),
