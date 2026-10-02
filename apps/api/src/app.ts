@@ -40,6 +40,7 @@ import { uploadRoutes } from './routes/uploads.ts';
 import { workItemRoutes } from './routes/work-items.ts';
 import { documentRoutes } from './routes/documents.ts';
 import { assistantRoutes } from './routes/assistant.ts';
+import { webhookRoutes } from './routes/webhooks.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -200,6 +201,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(trackerRoutes, { core });
       await api.register(changeRequestRoutes, { core });
       await api.register(pushRoutes, { core });
+      await api.register(webhookRoutes, { core });
     },
     { prefix: '/api' },
   );

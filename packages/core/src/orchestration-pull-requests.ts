@@ -19,7 +19,8 @@ import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from './
 import { reviewDiff } from './hosts/review-diff.ts';
 import type { MergeService, PushHold } from './hosts/merge-service.ts';
 import { ReviewsError, type ReviewsService, type ReviewsTarget } from './hosts/reviews-service.ts';
-import { ADDRESS_REFUSALS, addressPromptFor, codeHostAdapter, failingChecks, fixPromptFor, HostFactsCache, threadsToAddress, WATCH_BACKOFF, type ChecksFailingNotice } from './pull-requests.ts';
+import type { PaceOutcome } from './hosts/pacer.ts';
+import { ADDRESS_REFUSALS, addressPromptFor, codeHostAdapter, failingChecks, fixPromptFor, HostFactsCache, threadsToAddress, type ChecksFailingNotice } from './pull-requests.ts';
 import { hostOf } from './work-item-rows.ts';
 
 /**
@@ -114,8 +115,7 @@ export class OrchestrationPullRequestService {
   private readonly sql: DatabaseSync;
   private readonly registry = new CodeHostRegistry();
   private readonly runHost: HostRun;
-  /** Directories whose host CLI failed, and until when the watcher leaves them alone */
-  private readonly backoff = new Map<string, number>();
+  private readonly breaker: HostRateLimiter;
   private readonly hostFacts: HostFactsCache;
   private readonly pending = new Set<Promise<void>>();
   private readonly pushing = new Set<string>();
@@ -125,7 +125,7 @@ export class OrchestrationPullRequestService {
   constructor(private readonly deps: OrchestrationPullRequestDeps) {
     this.sql = deps.db.connection;
     this.hostFacts = new HostFactsCache(() => this.now());
-    const breaker = new HostRateLimiter(this.sql);
+    const breaker = (this.breaker = new HostRateLimiter(this.sql));
     this.runHost = deps.run ?? ((call, where) => runHostCall(call, { binaryPath: where.binaryPath, cwd: where.cwd, baseEnv: where.env, breaker }));
   }
 
@@ -523,12 +523,23 @@ export class OrchestrationPullRequestService {
     return target.adapter.parseView(out.stdout);
   }
 
-  /** Asks the host about one open request and writes what changed; a merge or a close reaches the feed, and so does a new CI state. */
-  async check(rowId: string, force = false): Promise<void> {
+  /** The host's floor: under it, background polling stays away and only a person's own action goes through. */
+  private belowFloor(row: OrchestrationPullRequestRow): boolean {
+    if (!row.hostname) return false;
+    const gitlab = row.host === 'gitlab';
+    return (gitlab ? (['core'] as const) : (['core', 'graphql'] as const)).some((bucket) => this.breaker.backgroundPaused(row.hostname ?? '', bucket, gitlab ? 'glab' : 'gh'));
+  }
+
+  /**
+   * Asks the host about one open request and writes what changed; a merge or a close reaches the feed,
+   * and so does a new CI state. As the work items' check, it says how the read went (read, failed, held
+   * back by the floor, or not sent) and the pacer sets the back-off; `force` is a person's refresh.
+   */
+  async check(rowId: string, force = false): Promise<PaceOutcome> {
     const row = this.rowById(rowId);
-    if (!row || row.phase !== 'open' || row.number === null) return;
-    if (!force && (this.backoff.get(row.cwd) ?? 0) > this.now()) return;
-    if (!existsSync(row.cwd)) return;
+    if (!row || row.phase !== 'open' || row.number === null) return 'skipped';
+    if (!force && this.belowFloor(row)) return 'paused';
+    if (!existsSync(row.cwd)) return 'skipped';
     const now = this.now();
     this.sql.exec('BEGIN IMMEDIATE');
     let claimed = false;
@@ -542,7 +553,7 @@ export class OrchestrationPullRequestService {
       this.sql.exec('ROLLBACK');
       throw err;
     }
-    if (!claimed) return;
+    if (!claimed) return 'skipped';
     let view: ChangeRequestView;
     let read: ChangeRequestRead | null = null;
     try {
@@ -555,25 +566,24 @@ export class OrchestrationPullRequestService {
       } else {
         view = await this.viewOf(row);
       }
-      this.backoff.delete(row.cwd);
     } catch {
-      this.backoff.set(row.cwd, this.now() + WATCH_BACKOFF);
       this.update(row.id, { claimed_until: null });
-      return;
+      return 'failed';
     }
     const at = this.iso();
     const url = view.url ?? row.url;
     if (view.state === 'merged') {
       if (this.update(row.id, { phase: 'merged', ci: view.ci, url, closed_at: view.mergedAt || at, checked_at: at, claimed_until: null }, ['open'])) this.announce(row, 'Pull request merged');
-      return;
+      return 'read';
     }
     if (view.state === 'closed') {
       if (this.update(row.id, { phase: 'closed', ci: view.ci, url, closed_at: at, checked_at: at, claimed_until: null }, ['open'])) this.announce(row, 'Pull request closed');
-      return;
+      return 'read';
     }
     this.update(row.id, { ci: view.ci, url, checked_at: at, claimed_until: null }, ['open']);
     if (view.ci !== row.ci || url !== row.url) this.announce(row, 'Pull request updated');
     this.announceFailing(row, view.ci, read?.headSha ?? null);
+    return 'read';
   }
 
   /** As the work items' watcher: `checks.fix` is told once per failing head, and nothing while a fix is under way. */

@@ -49,7 +49,13 @@ checks=${checks:-none}
 head_sha=$(read_key headSha)
 head_sha=${head_sha:-a1b2c3d4e5f60718293a4b5c6d7e8f9012345678}
 # A merge the CLI took (`pr merge`, `mr merge`) leaves the change request merged for every read after it
-[ -f "$dir/$name.merged" ] && mr_state=merged
+# It is merged for the number that was merged, not for every change request the fake serves: a spec merges one
+# and the pacer reads the others. A call that names no number (a list) sees it as merged, as before.
+if [ -f "$dir/$name.merged" ]; then
+  asked=$(echo "$*" | sed -n 's/.*\(pr\|mr\) \(view\|merge\) \([0-9][0-9]*\).*/\3/p; t; s/.*number=\([0-9][0-9]*\).*/\1/p; t; s/.*merge_requests\/\([0-9][0-9]*\).*/\1/p')
+  merged_of=$(cat "$dir/$name.merged-of" 2>/dev/null)
+  if [ -z "$asked" ] || [ -z "$merged_of" ] || [ "$asked" = "$merged_of" ]; then mr_state=merged; fi
+fi
 
 # The merge scenario, for the merge routes. Auto-merge armed is a method name kept beside the JSON
 # (`<name>.armed`, written by the arming call, removed by the disarm; the JSON's `armed` seeds it)
@@ -395,6 +401,7 @@ gh_merge() {
     exit 1
   fi
   case "$*" in *--body-file*) cat > "$dir/gh.merge-body" ;; esac
+  echo "$3" > "$dir/gh.merged-of"
   case "$*" in *--squash*) echo squash > "$dir/gh.merged" ;; *--rebase*) echo rebase > "$dir/gh.merged" ;; *) echo merge > "$dir/gh.merged" ;; esac
   rm -f "$dir/gh.armed"
   echo "✓ Merged pull request #$3"
@@ -459,6 +466,7 @@ glab_merge() {
       echo "✓ Auto-merge enabled for !$3"
       exit 0 ;;
   esac
+  echo "$3" > "$dir/glab.merged-of"
   echo merge > "$dir/glab.merged"
   rm -f "$dir/glab.armed"
   echo "✓ Merged !$3"
@@ -561,6 +569,68 @@ issue_close() {
   echo "✓ Closed issue #$1"
 }
 
+# gh's repository webhooks (`gh api repos/<o>/<n>/hooks…`), as recorded: the secret comes back as
+# `********`, a ping answers empty and makes the hook's `last_response` `204 active` (or `502
+# connection_error` while `hookPing` is `fail`), and a delete of a hook that is gone is a 404. A hook is
+# a file beside the JSON, `gh.hook-<id>`: its address on the first line, `<code> <status>` of its last
+# delivery on the second (`null unused` before any). The secret the CLI was given on stdin is kept in
+# `gh.hook-<id>.secret`, which only a spec reads, so it can sign what the host would deliver.
+hook_events='"pull_request","pull_request_review","pull_request_review_comment","pull_request_review_thread","check_run","check_suite","workflow_run","issue_comment","issues"'
+hook_json() {
+  f="$dir/gh.hook-$1"
+  resp=$(sed -n 2p "$f")
+  code=${resp%% *}
+  printf '{"type":"Repository","id":%s,"name":"web","active":true,"events":[%s],"config":{"content_type":"json","insecure_ssl":"0","secret":"********","url":"%s"},"last_response":{"code":%s,"status":"%s","message":null}}' \
+    "$1" "$hook_events" "$(sed -n 1p "$f")" "$code" "${resp#* }"
+}
+hook_missing() {
+  echo '{"message":"Not Found","status":"404"}'
+  echo "gh: Not Found (HTTP 404)" >&2
+  exit 1
+}
+gh_hooks() {
+  method=$(flag -X "$@")
+  tail=$(echo "$*" | grep -o 'hooks[^ ]*' | head -n 1)
+  id=$(echo "$tail" | sed -n 's#^hooks/\([0-9]*\).*#\1#p')
+  sub=$(echo "$tail" | sed -n 's#^hooks/[0-9]*/\(.*\)#\1#p')
+  if [ -z "$id" ]; then
+    case "$method" in
+      POST)
+        body=$(cat)
+        n=$(cat "$dir/gh.hookseq" 2>/dev/null || echo 9000)
+        n=$((n + 1))
+        echo "$n" > "$dir/gh.hookseq"
+        printf '%s\n%s\n' "$(echo "$body" | sed -n 's/.*"url":"\([^"]*\)".*/\1/p')" 'null unused' > "$dir/gh.hook-$n"
+        echo "$body" | sed -n 's/.*"secret":"\([^"]*\)".*/\1/p' > "$dir/gh.hook-$n.secret"
+        hook_json "$n"; echo; exit 0 ;;
+      *)
+        printf '['
+        sep=
+        for f in "$dir"/gh.hook-[0-9]*; do
+          [ -f "$f" ] || continue
+          case "$f" in *.secret) continue ;; esac
+          printf '%s' "$sep"; hook_json "${f##*gh.hook-}"; sep=,
+        done
+        echo ']'; exit 0 ;;
+    esac
+  fi
+  [ -f "$dir/gh.hook-$id" ] || hook_missing
+  case "$method:$sub" in
+    DELETE:) rm -f "$dir/gh.hook-$id" "$dir/gh.hook-$id.secret"; exit 0 ;;
+    POST:pings)
+      if [ "$(read_key hookPing)" = fail ]; then resp='502 connection_error'; else resp='204 active'; fi
+      printf '%s\n%s\n' "$(sed -n 1p "$dir/gh.hook-$id")" "$resp" > "$dir/gh.hook-$id"
+      exit 0 ;;
+    PATCH:config)
+      body=$(cat)
+      printf '%s\n%s\n' "$(echo "$body" | sed -n 's/.*"url":"\([^"]*\)".*/\1/p')" "$(sed -n 2p "$dir/gh.hook-$id")" > "$dir/gh.hook-$id"
+      printf '{"content_type":"json","insecure_ssl":"0","secret":"********","url":"%s"}\n' "$(sed -n 1p "$dir/gh.hook-$id")"; exit 0 ;;
+    *:) hook_json "$id"; echo; exit 0 ;;
+  esac
+  echo "fake $name: hooks call is not part of the fake: $*" >&2
+  exit 1
+}
+
 version_out() {
   code=$(read_key versionExit)
   if [ -n "$code" ] && [ "$code" != 0 ]; then echo "fake $name: broken" >&2; exit "$code"; fi
@@ -582,6 +652,7 @@ case "$name" in
         exit 0 ;;
       api)
         case "$*" in
+          *repos/*/hooks|*repos/*/hooks\ *|*repos/*/hooks/*) gh_hooks "$@" ;;
           *enablePullRequestAutoMerge*) gh_arm "$@" ;;
           *unresolveReviewThread*) thread_mutation false "$@"; exit 0 ;;
           *resolveReviewThread*) thread_mutation true "$@"; exit 0 ;;

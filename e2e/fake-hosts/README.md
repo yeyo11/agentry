@@ -88,6 +88,14 @@ with a server error, so a status sync fails for real; a close the CLI took is ke
 `<name>.issues-closed` (one number per line), after which every read says closed and the list leaves the issue out.
 `gh issue view` of a number that is not there, and glab's, exit 1 as the hosts do.
 
+The webhook scenario answers gh's repository hooks (`gh api repos/<owner>/<name>/hooks…`): list, create, read, ping, re-point
+(`PATCH …/config`) and delete. A hook is a file beside the JSON, `gh.hook-<id>` (ids from 9001, `gh.hookseq` counts): its
+address on the first line and `<code> <status>` of its last delivery on the second, `null unused` before any. A create keeps
+the secret the CLI was given on stdin in `gh.hook-<id>.secret` (the real host masks it as `********` in every answer, and so does
+the fake), which only a spec reads. A ping makes the last delivery `204 active`, or `502 connection_error` while
+`hookPing` is `fail`; a call on a hook that is not there is a 404, as the host answers. glab has no hook calls: Agentry does not
+register GitLab hooks yet.
+
 Beside the JSON, in the same directory: `<name>.calls` (one line per call, the arguments joined by
 spaces), `<name>.body-<n>` (the description a create was given on stdin) and `<name>.created` (the
 number the last create returned, which `list` then finds).

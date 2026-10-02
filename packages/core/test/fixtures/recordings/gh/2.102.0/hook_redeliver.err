@@ -1,0 +1,2 @@
+gh: Not Found (HTTP 404)
+gh: This API operation needs the "admin:repo_hook" scope. To request it, run:  gh auth refresh -h github.com -s admin:repo_hook

@@ -57,6 +57,7 @@ mistake even though their own rows already gave them a Spanish word.
 | prompt | el prompt, los prompts |
 | system prompt | el system prompt |
 | hook | el hook, los hooks |
+| webhook | el webhook, los webhooks (a host's notification to Agentry; never "gancho web") |
 | MCP, MCP server | el servidor MCP, los servidores MCP |
 | skill | la skill, las skills |
 | plugin | el plugin, los plugins |

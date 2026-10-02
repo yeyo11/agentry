@@ -127,6 +127,7 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'assistant.proposal': true,
   'settings.changed': true,
   'tunnel.changed': true,
+  'webhook.changed': true,
 };
 
 /**
@@ -401,6 +402,9 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'tunnel.changed':
       // The event carries the whole status, which `patchSettings` writes
       return [];
+    case 'webhook.changed':
+      // The project's registrations; a delivery also moves its change requests' freshness, which their own events refresh
+      return [[keys.projectWebhooks(event.projectId), NOW]];
   }
 }
 

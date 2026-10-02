@@ -135,7 +135,7 @@ test('gitlab: after a glab failure the watcher backs off, and a refresh still as
     note(s.r, 'tick, glab fails');
     await watcher.tick();
     note(s.r, 'tick, backed off: no call');
-    await watcher.tick();
+    await watcher.pass();
     rmSync(join(s.r.glabState, 'fail'));
     viewMr(s.r, 'opened', 'success');
     note(s.r, 'refresh');
