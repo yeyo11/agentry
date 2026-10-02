@@ -783,8 +783,11 @@ registered on a host is `<public origin>/api/webhooks/<host>/<registrationId>`.
 - **Verified before parsing, in constant time** (`hosts/webhook-receiver.ts`):
   - GitHub: `X-Hub-Signature-256` is `sha256=` plus the HMAC-SHA256 of the raw body with the secret.
     Recorded on a real signed ping (7 045 bytes).
-  - GitLab: `X-Gitlab-Token` equals the secret. The signing token (`webhook-signature`) is not built:
-    it is not recorded.
+  - GitLab: `X-Gitlab-Token` equals the secret, and a delivery that carries `webhook-signature` must
+    carry a right one: `v1,` plus the base64 HMAC-SHA256 of `<webhook-id>.<webhook-timestamp>.<raw body>`,
+    keyed with the bytes of the base64 part of the signing token, within five minutes (Standard
+    Webhooks; recorded on a real signed delivery). A hook made before the signing token existed
+    sends no signature, and the token alone decides.
   - An unknown or removed registration, a registration of the other host, no stored secret and a bad
     signature all answer the same empty `401`.
 - **Answers:** `204` with no body, `401`, `429` with `Retry-After: 60`, `413`.
@@ -806,10 +809,11 @@ registered on a host is `<public origin>/api/webhooks/<host>/<registrationId>`.
 - **Bookkeeping, not state:** a delivery sets the registration's `lastDeliveryAt` (a ping also
   `lastPingAt`), takes a `failing` registration back to `active`, and emits `webhook.changed`.
 
-### Registration (GitHub only)
+### Registration
 
-`hosts/webhooks-service.ts`, with the hook calls in `hosts/github/hooks.ts`. It is the person's
-click; a chat's token is refused on the writes.
+`hosts/webhooks-service.ts` runs every host through a `HookDriver` (`hosts/hook-driver.ts`): the
+GitHub calls are in `hosts/github/hooks.ts` and the GitLab ones in `hosts/gitlab/hooks.ts`. It is
+the person's click; a chat's token is refused on the writes. The table is GitHub's; GitLab's is below it.
 
 | Step | Call |
 | --- | --- |
@@ -818,6 +822,20 @@ click; a chat's token is refused on the writes.
 | Test (G2) | `gh api -X POST repos/{O}/{N}/hooks/<id>/pings`, then the hook's `last_response` is read |
 | Remove (G3) | `gh api -X DELETE repos/{O}/{N}/hooks/<id>`; a removed registration stays listed until the repository is registered again |
 | Re-point (G7) | `gh api -X PATCH repos/{O}/{N}/hooks/<id>/config --input -`, by id |
+
+GitLab (`glab api -i --hostname <host> …`; `-i` because a failed call prints no status of its own
+on stdout): `POST projects/<id>/hooks --input -` with `{url, token, signing_token, name: "agentry",
+merge_requests_events, pipeline_events, note_events, issues_events: true, push_events, job_events:
+false, enable_ssl_verification: true}`; the listing is `GET projects/<id>/hooks?per_page=100` (a
+project holds at most 100); the test is `POST …/hooks/<id>/test/push_events`, the one test that
+always delivers (the others answer 422 for a project with no merge request, issue, note or
+pipeline); how a hook stands is `GET …/hooks/<id>` plus `GET …/hooks/<id>/events?per_page=1`, whose
+newest `response_status` is the last response (a test waits for a *new* delivery id, so an old good
+delivery is not taken for its answer); `alert_status` other than `executable` is GitLab's own
+back-off and reads as failing; removing is `DELETE` and re-pointing is `PUT` with the URL and the
+tokens, by id. The signing token is `whsec_` plus the base64 of 32 bytes (GitLab refuses any other
+shape) and is derived from the registration's secret, so no second secret is stored. GitLab's
+resend is recorded but not offered: a test is what a person asks for.
 
 The events are `pull_request`, `pull_request_review`, `pull_request_review_comment`,
 `pull_request_review_thread`, `check_run`, `check_suite`, `workflow_run`, `issue_comment` and
@@ -842,15 +860,11 @@ registered hooks by id. A hook that cannot be moved becomes `stale` and is tried
 address. The service emits `webhook.changed` for each change.
 
 Failures are a `WebhooksError` with a status and a code: `403 hook-no-permission` (the account
-cannot manage hooks), `404 registration-not-found`, `409` for `host-not-recorded`, `no-public-url`,
+cannot manage hooks), `404 registration-not-found`, `409` for `no-public-url`,
 `no-remote` and `already-registered`, `502 hook-unreachable` or a host reason.
 
 ### What is not built yet
 
-- **GitLab hooks.** Only the receiver and the pacer use exist. Registering, testing, removing and
-  re-pointing a GitLab hook, the signing token and resend are not built yet; the GitLab half of the
-  recording (`w0`) is done and the build follows. The service reports GitLab as *not
-  available yet* (`host-not-recorded`) with no action and runs no `glab` call.
 - **GitHub redelivery.** It needs the `admin:repo_hook` scope (recorded: exit 1), so it is not
   offered; `canRedeliver` is always false.
 - **Freshness.** `ChangeRequest.freshness` has no producer yet.

@@ -11,6 +11,7 @@ import type { HostCall } from '../src/hosts/code-host.ts';
 import type { HostResult } from '../src/hosts/exec.ts';
 import { classifyCall } from '../src/hosts/classify.ts';
 import { GITHUB_HOOK_EVENTS, githubHooks, lastResponseFailed } from '../src/hosts/github/hooks.ts';
+import { GITLAB_HOOK_EVENTS, gitlabHooks, signingTokenOf } from '../src/hosts/gitlab/hooks.ts';
 import { WebhookSecrets } from '../src/hosts/webhook-secrets.ts';
 import { receiverUrl, WebhooksError, WebhooksService, type WebhookAccess, type WebhookTarget } from '../src/hosts/webhooks-service.ts';
 import { WebhookStore } from '../src/webhook-store.ts';
@@ -32,6 +33,18 @@ const ORIGIN = 'https://abc123.lhr.life';
 const REPO = { host: 'github.com', path: 'yeyo11/app', owner: 'yeyo11', name: 'app' };
 const HOOK = '690965105';
 const HOOKS = `repos/${REPO.owner}/${REPO.name}/hooks`;
+const GL_REPO = { host: 'gitlab.com', path: 'g/p', owner: 'g', name: 'p', projectId: 87089091 };
+const GL_HOOKS = `projects/${GL_REPO.projectId}/hooks`;
+const GL_HOOK = '90544096';
+const GL_REC = join(here, 'fixtures/recordings/glab/1.120.0');
+const glRecorded = (label: string): HostResult => ({
+  stdout: readFileSync(join(GL_REC, `${label}.out`), 'utf8'),
+  stderrFirstLine: readFileSync(join(GL_REC, `${label}.err`), 'utf8').split('\n')[0] ?? '',
+  exitCode: Number(readFileSync(join(GL_REC, `${label}.rc`), 'utf8').trim()),
+  http: null,
+  truncated: false,
+  durationMs: 1,
+});
 
 const result = (r: { stdout: string; stderr: string; exitCode: number }): HostResult => ({ exitCode: r.exitCode, stdout: r.stdout, stderrFirstLine: r.stderr, http: null, truncated: false, durationMs: 1 });
 const ok = (stdout = ''): HostResult => ({ exitCode: 0, stdout, stderrFirstLine: '', http: null, truncated: false, durationMs: 1 });
@@ -52,7 +65,7 @@ interface Fixture {
   answer: (handler: (call: HostCall) => HostResult | undefined) => void;
 }
 
-function fixture(): Fixture {
+function fixture(host: 'github' | 'gitlab' = 'github'): Fixture {
   const config = tempConfig();
   roots.push(dirname(config.dataDir));
   const raw = new DatabaseSync(':memory:');
@@ -61,12 +74,12 @@ function fixture(): Fixture {
   const secrets = new WebhookSecrets(config);
   const calls: HostCall[] = [];
   const events: AgentryEvent[] = [];
-  const state = { origin: ORIGIN as string | null, target: { host: 'github', hostname: 'github.com', repoPath: REPO.path } as WebhookTarget | null, clock: NOW };
+  const state = { origin: ORIGIN as string | null, target: (host === 'github' ? { host: 'github', hostname: 'github.com', repoPath: REPO.path } : { host: 'gitlab', hostname: 'gitlab.com', repoPath: GL_REPO.path }) as WebhookTarget | null, clock: NOW };
   let handler: (call: HostCall) => HostResult | undefined = () => undefined;
   const access: WebhookAccess = {
-    host: 'github',
-    hostname: 'github.com',
-    repo: REPO,
+    host,
+    hostname: host === 'github' ? 'github.com' : 'gitlab.com',
+    repo: host === 'github' ? REPO : GL_REPO,
     run: async (call) => {
       calls.push(call);
       const answer = handler(call);
@@ -282,11 +295,9 @@ test('GitHub saying the hook exists adopts the one with this very address', asyn
   assert.equal(lists, 2);
 });
 
-test('registering is refused, with nothing run, for GitLab and for a missing public address or remote', async () => {
+test('registering is refused, with nothing run, for a missing public address or remote', async () => {
   const f = fixture();
   f.answer(() => undefined);
-  f.state.target = { host: 'gitlab', hostname: 'gitlab.com', repoPath: 'g/p' };
-  await assert.rejects(f.service.register('p1'), (e: unknown) => e instanceof WebhooksError && e.code === 'host-not-recorded');
   f.state.target = null;
   await assert.rejects(f.service.register('p1'), (e: unknown) => e instanceof WebhooksError && e.code === 'no-remote');
   f.state.target = { host: 'github', hostname: 'github.com', repoPath: REPO.path };
@@ -306,12 +317,11 @@ test('a refused or unseen repository becomes "no permission", and the secret kep
 
 // ---------- the overview ----------
 
-test('the overview says why a project has no hooks, and offers no GitLab action', async () => {
+test('the overview says why a project has no hooks', async () => {
   const f = fixture();
   f.answer(() => undefined);
-  f.state.target = { host: 'gitlab', hostname: 'gitlab.com', repoPath: 'g/p' };
-  const gitlab = await f.service.overview('p1');
-  assert.deepEqual([gitlab.available, gitlab.reason, gitlab.events, gitlab.canRedeliver], [false, 'host-not-recorded', [], false]);
+  f.state.target = null;
+  assert.deepEqual([(await f.service.overview('p1')).available, (await f.service.overview('p1')).reason], [false, 'no-remote']);
   f.state.target = { host: 'github', hostname: 'github.com', repoPath: REPO.path };
   f.state.origin = null;
   assert.equal((await f.service.overview('p1')).reason, 'no-public-url');
@@ -512,4 +522,164 @@ test('golden: the calls of registering, re-pointing and removing, in order', asy
     `api --hostname github.com ${HOOKS}/${HOOK}`,
     `api --hostname github.com -X DELETE ${HOOKS}/${HOOK}`,
   ]);
+});
+
+
+// ---------- GitLab ----------
+
+const glArgv = (call: HostCall): string => call.args.join(' ');
+const GL = 'api -i --hostname gitlab.com';
+const glIs = {
+  list: (c: HostCall): boolean => glArgv(c) === `${GL} ${GL_HOOKS}?per_page=100`,
+  create: (c: HostCall): boolean => glArgv(c) === `${GL} -X POST ${GL_HOOKS} -H Content-Type: application/json --input -`,
+  get: (c: HostCall): boolean => glArgv(c) === `${GL} ${GL_HOOKS}/${GL_HOOK}`,
+  events: (c: HostCall): boolean => glArgv(c) === `${GL} ${GL_HOOKS}/${GL_HOOK}/events?per_page=1`,
+  test: (c: HostCall): boolean => glArgv(c) === `${GL} -X POST ${GL_HOOKS}/${GL_HOOK}/test/push_events`,
+  remove: (c: HostCall): boolean => glArgv(c) === `${GL} -X DELETE ${GL_HOOKS}/${GL_HOOK}`,
+  put: (c: HostCall): boolean => glArgv(c) === `${GL} -X PUT ${GL_HOOKS}/${GL_HOOK} -H Content-Type: application/json --input -`,
+};
+const glHook = (url: string, alert = 'executable'): string => JSON.stringify({ id: Number(GL_HOOK), url, name: 'agentry', alert_status: alert, token_present: true });
+const glEvents = (...codes: Array<number | string>): string => JSON.stringify(codes.map((c, i) => ({ id: 27604479645 + codes.length - i, trigger: 'push_hooks', response_status: c })));
+const glMine = (id: string, alert?: string): string => glHook(receiverUrl(ORIGIN, 'gitlab', id), alert);
+
+test('the GitLab hook calls are the recorded ones, with the token and signing token on stdin and never in argv', () => {
+  const create = gitlabHooks.create(GL_REPO, { url: 'https://x.lhr.life/api/webhooks/gitlab/r1', secret: 's3cret' });
+  assert.equal(glArgv(create), `${GL} -X POST ${GL_HOOKS} -H Content-Type: application/json --input -`);
+  assert.ok(!glArgv(create).includes('s3cret'));
+  const body = JSON.parse(create.input ?? '') as Record<string, unknown>;
+  assert.deepEqual(body, {
+    url: 'https://x.lhr.life/api/webhooks/gitlab/r1',
+    token: 's3cret',
+    signing_token: signingTokenOf('s3cret'),
+    enable_ssl_verification: true,
+    name: 'agentry',
+    merge_requests_events: true,
+    pipeline_events: true,
+    note_events: true,
+    issues_events: true,
+    push_events: false,
+    job_events: false,
+  });
+  // GitLab refuses any other shape (recorded): whsec_ and 32 bytes of base64
+  assert.match(signingTokenOf('s3cret'), /^whsec_[A-Za-z0-9+/]{43}=$/);
+  const put = gitlabHooks.repoint(GL_REPO, GL_HOOK, { url: 'https://y.lhr.life/api/webhooks/gitlab/r1', secret: 's3cret' });
+  assert.equal(glArgv(put), `${GL} -X PUT ${GL_HOOKS}/${GL_HOOK} -H Content-Type: application/json --input -`);
+  assert.ok(!('push_events' in (JSON.parse(put.input ?? '') as object)), 'a re-point leaves the events as they are');
+  const calls = [create, put, gitlabHooks.test(GL_REPO, GL_HOOK), gitlabHooks.remove(GL_REPO, GL_HOOK), gitlabHooks.list(GL_REPO), ...gitlabHooks.read(GL_REPO, GL_HOOK)];
+  for (const call of calls) assert.equal(classifyCall(call), call.kind, glArgv(call));
+  assert.throws(() => gitlabHooks.remove(GL_REPO, '1; rm'), /digits only/);
+});
+
+test('the recorded GitLab answers parse: the hook, its newest delivery and the failed ones', () => {
+  const created = gitlabHooks.parseHook([glRecorded('w0_hook_create').stdout]);
+  assert.deepEqual([created.id, created.url, created.disabled, created.lastResponse], [GL_HOOK, 'https://agentry.example.net/gitlab/1', false, null]);
+  const events = gitlabHooks.parseHook([glRecorded('w0_hook_get').stdout, glRecorded('w0_hook_events').stdout]);
+  assert.deepEqual(events.lastResponse, { code: 204, status: 'active' });
+  assert.equal(events.deliveryKey, '27604479645');
+  assert.deepEqual(gitlabHooks.parseHook([glHook('u'), glEvents(500)]).lastResponse, { code: 500, status: 'failed' });
+  assert.deepEqual(gitlabHooks.parseHook([glHook('u'), glEvents('internal error')]).lastResponse, { code: null, status: 'failed' });
+  assert.equal(gitlabHooks.parseHook([glHook('u'), '[]']).lastResponse, null);
+  assert.equal(gitlabHooks.parseHook([glHook('u', 'temporarily_disabled')]).disabled, true);
+  assert.equal(gitlabHooks.parseHooks('[]').length, 0);
+});
+
+test('registering on GitLab sends the token and signing token on stdin and keeps the token in the 0600 file', async () => {
+  const f = fixture('gitlab');
+  f.answer((c) => (glIs.list(c) ? ok('[]') : glIs.create(c) ? glRecorded('w0_hook_create') : undefined));
+  const registration = await f.service.register('p1');
+  assert.deepEqual([registration.host, registration.remoteHookId, registration.state, registration.repoPath], ['gitlab', GL_HOOK, 'active', GL_REPO.path]);
+  assert.equal(registration.url, receiverUrl(ORIGIN, 'gitlab', registration.id));
+  assert.deepEqual(registration.events, [...GITLAB_HOOK_EVENTS]);
+  const secret = f.secrets.get(registration.id) ?? '';
+  const body = JSON.parse(f.calls.find(glIs.create)?.input ?? '') as { token: string; signing_token: string };
+  assert.deepEqual([body.token, body.signing_token], [secret, signingTokenOf(secret)]);
+  assert.ok(f.calls.every((c) => !glArgv(c).includes(secret)));
+});
+
+test('a GitLab hook that is not this install\'s is left alone, and a refusal says the account cannot manage hooks', async () => {
+  const f = fixture('gitlab');
+  f.answer((c) => (glIs.list(c) ? ok(`[${glHook('https://example.com/hook')}]`) : glIs.create(c) ? { exitCode: 1, stdout: '', stderrFirstLine: 'glab: 403 Forbidden (HTTP 403)', http: { status: 403, headers: {} }, truncated: false, durationMs: 1 } : undefined));
+  await assert.rejects(f.service.register('p1'), (e: unknown) => e instanceof WebhooksError && e.code === 'hook-no-permission' && e.status === 403);
+  assert.deepEqual(f.calls.filter((c) => c.kind === 'write').length, 1, 'nothing but the create was tried');
+  assert.equal(f.store.list('p1').length, 0);
+});
+
+test('a GitLab test delivers a push and waits for a NEW delivery before calling the hook healthy', async () => {
+  const f = fixture('gitlab');
+  const reg = f.store.create({ id: 'r1', projectId: 'p1', host: 'gitlab', hostname: 'gitlab.com', repoPath: GL_REPO.path, remoteHookId: GL_HOOK, url: 'https://x/', events: [] });
+  let tests = 0;
+  let reads = 0;
+  f.answer((c) => {
+    if (glIs.test(c)) {
+      tests += 1;
+      return glRecorded('w0_hook_test_push_events');
+    }
+    if (glIs.get(c)) return ok(glHook(reg.url));
+    // an old good delivery first; the new one only shows on the second read
+    if (glIs.events(c)) return ok(tests === 0 ? glEvents(204) : ++reads < 2 ? glEvents(204) : glEvents(204, 204));
+    return undefined;
+  });
+  const tested = await f.service.test('p1', 'r1');
+  assert.equal(tested.state, 'active');
+  assert.equal(tested.lastPingAt, new Date(NOW).toISOString());
+  assert.equal(reads, 2, 'an old delivery was not taken for the answer');
+});
+
+test('a GitLab test whose delivery failed marks the hook failing; one with no delivery changes nothing', async () => {
+  const f = fixture('gitlab');
+  f.store.create({ id: 'r1', projectId: 'p1', host: 'gitlab', hostname: 'gitlab.com', repoPath: GL_REPO.path, remoteHookId: GL_HOOK, url: 'https://x/', events: [] });
+  let tests = 0;
+  f.answer((c) => (glIs.test(c) ? (tests++, glRecorded('w0_hook_test_push_events')) : glIs.get(c) ? ok(glHook('https://x/')) : glIs.events(c) ? ok(tests ? glEvents(502) : '[]') : undefined));
+  await assert.rejects(f.service.test('p1', 'r1'), (e: unknown) => e instanceof WebhooksError && e.code === 'hook-unreachable' && e.detail === '502 failed');
+  assert.equal(f.store.get('r1')?.state, 'failing');
+  // a project with nothing to test (a 422 for an empty project) is the host's reason, not a made-up one
+  f.answer((c) => (glIs.get(c) ? ok(glHook('https://x/')) : glIs.events(c) ? ok('[]') : glIs.test(c) ? glRecorded('w0_hook_test_mr') : undefined));
+  await assert.rejects(f.service.test('p1', 'r1'), (e: unknown) => e instanceof WebhooksError && e.code !== 'hook-unreachable');
+});
+
+test('GitLab: a disabled hook is failing, a deleted one is stale, and a quiet healthy one is active', async () => {
+  const f = fixture('gitlab');
+  f.store.create({ id: 'r1', projectId: 'p1', host: 'gitlab', hostname: 'gitlab.com', repoPath: GL_REPO.path, remoteHookId: GL_HOOK, url: 'https://x/', events: [] });
+  f.answer((c) => (glIs.get(c) ? ok(glMine('r1', 'temporarily_disabled')) : glIs.events(c) ? ok(glEvents(204)) : undefined));
+  assert.equal((await f.service.check('p1', 'r1')).state, 'failing');
+  f.answer((c) => (glIs.get(c) ? ok(glMine('r1')) : glIs.events(c) ? ok(glEvents(204)) : undefined));
+  assert.equal((await f.service.check('p1', 'r1')).state, 'active');
+  f.answer((c) => (glIs.get(c) ? { exitCode: 1, stdout: '{"message":"404 Not found"}', stderrFirstLine: 'glab: 404 Not found (HTTP 404)', http: { status: 404, headers: {} }, truncated: false, durationMs: 1 } : undefined));
+  assert.equal((await f.service.check('p1', 'r1')).state, 'stale');
+});
+
+test('removing on GitLab deletes the hook and the token; a hook already gone is not an error', async () => {
+  const f = fixture('gitlab');
+  f.store.create({ id: 'r1', projectId: 'p1', host: 'gitlab', hostname: 'gitlab.com', repoPath: GL_REPO.path, remoteHookId: GL_HOOK, url: 'https://x/', events: [] });
+  await f.secrets.set('r1', 'tok');
+  f.answer((c) => (glIs.get(c) ? ok(glMine('r1')) : glIs.events(c) ? ok('[]') : glIs.remove(c) ? { ...glRecorded('w0_hook_delete_again'), http: { status: 404, headers: {} } } : undefined));
+  const removed = await f.service.remove('p1', 'r1');
+  assert.equal(removed.state, 'removed');
+  assert.equal(f.secrets.get('r1'), null);
+  assert.ok(f.calls.some(glIs.remove));
+});
+
+test('a new public address re-points a GitLab hook by id with a PUT, and a hook someone else changed is left as it is', async () => {
+  const f = fixture('gitlab');
+  f.store.create({ id: 'r1', projectId: 'p1', host: 'gitlab', hostname: 'gitlab.com', repoPath: GL_REPO.path, remoteHookId: GL_HOOK, url: 'https://old.lhr.life/api/webhooks/gitlab/r1', events: [] });
+  await f.secrets.set('r1', 'tok');
+  f.answer((c) => (glIs.get(c) ? ok(glMine('r1')) : glIs.events(c) ? ok('[]') : glIs.put(c) ? ok(glMine('r1')) : undefined));
+  await f.service.follow('https://new.lhr.life');
+  const put = f.calls.find(glIs.put);
+  const body = JSON.parse(put?.input ?? '') as { url: string; token: string; signing_token: string };
+  assert.deepEqual([body.url, body.token, body.signing_token], ['https://new.lhr.life/api/webhooks/gitlab/r1', 'tok', signingTokenOf('tok')]);
+  assert.equal(f.store.get('r1')?.url, 'https://new.lhr.life/api/webhooks/gitlab/r1');
+  // the person pointed it somewhere else on the host: it stays, and Agentry says it cannot follow
+  f.calls.length = 0;
+  f.answer((c) => (glIs.get(c) ? ok(glHook('https://elsewhere.example/hook')) : glIs.events(c) ? ok('[]') : undefined));
+  await f.service.follow('https://newer.lhr.life');
+  assert.ok(!f.calls.some(glIs.put));
+  assert.equal(f.store.get('r1')?.state, 'stale');
+});
+
+test('the GitLab overview is available once there is a public address, with its own events', async () => {
+  const f = fixture('gitlab');
+  f.answer(() => undefined);
+  const ready = await f.service.overview('p1');
+  assert.deepEqual([ready.available, ready.reason, ready.events, ready.canRedeliver], [true, null, [...GITLAB_HOOK_EVENTS], false]);
 });

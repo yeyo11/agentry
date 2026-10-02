@@ -93,8 +93,11 @@ The webhook scenario answers gh's repository hooks (`gh api repos/<owner>/<name>
 address on the first line and `<code> <status>` of its last delivery on the second, `null unused` before any. A create keeps
 the secret the CLI was given on stdin in `gh.hook-<id>.secret` (the real host masks it as `********` in every answer, and so does
 the fake), which only a spec reads. A ping makes the last delivery `204 active`, or `502 connection_error` while
-`hookPing` is `fail`; a call on a hook that is not there is a 404, as the host answers. glab has no hook calls: Agentry does not
-register GitLab hooks yet.
+`hookPing` is `fail`; a call on a hook that is not there is a 404, as the host answers. glab's project hooks (`glab api -i projects/<id>/hooks…`) are
+files too, `glab.hook-<id>` (ids from 7001, `glab.hookseq` counts): the address on the first line and the newest event,
+`<event id> <response status>` (`glab.eventseq` counts), on the second. The test endpoint makes an event answered `204`, or
+`internal error` while `hookPing` is `fail`; the token the CLI was given is kept in `glab.hook-<id>.secret`; a call on a hook
+that is not there prints the 404 status line that only `-i` shows.
 
 Beside the JSON, in the same directory: `<name>.calls` (one line per call, the arguments joined by
 spaces), `<name>.body-<n>` (the description a create was given on stdin) and `<name>.created` (the

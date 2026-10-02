@@ -631,6 +631,78 @@ gh_hooks() {
   exit 1
 }
 
+# glab's project hooks (`glab api -i projects/<id>/hooks…`), as recorded by w0: the token is never
+# read back (`token_present`), the test endpoint delivers once and the hook's newest event says how
+# it was answered (`204`, or `internal error` while `hookPing` is `fail`), and a call on a hook that is
+# gone is a 404 whose status line only `-i` prints. A hook is a file beside the JSON, `glab.hook-<id>`:
+# its address on the first line, the newest event (`<event id> <response status>`, empty before any)
+# on the second. The token the CLI was given on stdin is kept in `glab.hook-<id>.secret`, which only a
+# spec reads, so it can sign what the host would deliver.
+glab_hook_json() {
+  alert=$(read_key hookAlert)
+  printf '{"id":%s,"url":"%s","name":"agentry","alert_status":"%s","token_present":true,"signing_token_present":true}' \
+    "$1" "$(sed -n 1p "$dir/glab.hook-$1")" "${alert:-executable}"
+}
+glab_hook_missing() {
+  printf 'HTTP/2.0 404 Not Found\n\n{"message":"404 Not found"}\n'
+  echo "glab: 404 Not found (HTTP 404)" >&2
+  exit 1
+}
+glab_hooks() {
+  method=$(flag -X "$@")
+  tail=$(echo "$*" | grep -o 'hooks[^ ]*' | head -n 1)
+  id=$(echo "$tail" | sed -n 's#^hooks/\([0-9]*\).*#\1#p')
+  sub=$(echo "$tail" | sed -n 's#^hooks/[0-9]*/\(.*\)#\1#p')
+  if [ -z "$id" ]; then
+    case "$method" in
+      POST)
+        body=$(cat)
+        n=$(cat "$dir/glab.hookseq" 2>/dev/null || echo 7000)
+        n=$((n + 1))
+        echo "$n" > "$dir/glab.hookseq"
+        printf '%s\n\n' "$(echo "$body" | sed -n 's/.*"url":"\([^"]*\)".*/\1/p')" > "$dir/glab.hook-$n"
+        echo "$body" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p' > "$dir/glab.hook-$n.secret"
+        glab_hook_json "$n"; echo; exit 0 ;;
+      *)
+        printf '['
+        sep=
+        for f in "$dir"/glab.hook-[0-9]*; do
+          [ -f "$f" ] || continue
+          case "$f" in *.secret) continue ;; esac
+          printf '%s' "$sep"; glab_hook_json "${f##*glab.hook-}"; sep=,
+        done
+        echo ']'; exit 0 ;;
+    esac
+  fi
+  [ -f "$dir/glab.hook-$id" ] || glab_hook_missing
+  case "$method:$sub" in
+    DELETE:) rm -f "$dir/glab.hook-$id" "$dir/glab.hook-$id.secret"; exit 0 ;;
+    POST:test/push_events)
+      seq=$(cat "$dir/glab.eventseq" 2>/dev/null || echo 27000)
+      seq=$((seq + 1))
+      echo "$seq" > "$dir/glab.eventseq"
+      if [ "$(read_key hookPing)" = fail ]; then resp='internal error'; else resp=204; fi
+      printf '%s\n%s %s\n' "$(sed -n 1p "$dir/glab.hook-$id")" "$seq" "$resp" > "$dir/glab.hook-$id"
+      echo '{"message":"201 Created"}'; exit 0 ;;
+    POST:test/*) echo '{"message":"Ensure the project has merge requests."}'; echo "glab: Ensure the project has merge requests. (HTTP 422)" >&2; exit 1 ;;
+    PUT:)
+      body=$(cat)
+      printf '%s\n%s\n' "$(echo "$body" | sed -n 's/.*"url":"\([^"]*\)".*/\1/p')" "$(sed -n 2p "$dir/glab.hook-$id")" > "$dir/glab.hook-$id"
+      token=$(echo "$body" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+      [ -n "$token" ] && echo "$token" > "$dir/glab.hook-$id.secret"
+      glab_hook_json "$id"; echo; exit 0 ;;
+    GET:events*|:events*)
+      last=$(sed -n 2p "$dir/glab.hook-$id")
+      if [ -z "$last" ]; then echo '[]'; exit 0; fi
+      printf '[{"id":%s,"trigger":"push_hooks","response_status":' "${last%% *}"
+      case "${last#* }" in 204) printf '204' ;; *) printf '"%s"' "${last#* }" ;; esac
+      echo '}]'; exit 0 ;;
+    :|GET:) glab_hook_json "$id"; echo; exit 0 ;;
+  esac
+  echo "fake $name: hooks call is not part of the fake: $*" >&2
+  exit 1
+}
+
 version_out() {
   code=$(read_key versionExit)
   if [ -n "$code" ] && [ "$code" != 0 ]; then echo "fake $name: broken" >&2; exit "$code"; fi
@@ -780,6 +852,7 @@ case "$name" in
         esac ;;
       "api "*)
         case "$*" in
+          */hooks|*/hooks\ *|*/hooks\?*|*/hooks/*) glab_hooks "$@" ;;
           *cancel_merge_when_pipeline_succeeds*) rm -f "$dir/glab.armed"; echo '{"id":1,"iid":7}'; exit 0 ;;
           *include_rebase_in_progress*) echo '{"iid":7,"rebase_in_progress":false,"merge_error":null}'; exit 0 ;;
           */discussions/*/notes*)

@@ -2552,8 +2552,35 @@ What the audit and the e2e spec nobody had run found, all fixed:
 - **The dark theme's destructive button read 2.6:1** (`--on-bad` was white on a light red); it is
   dark ink now (7.5:1), and the register dialog's scrolling body takes the focus.
 
-**Open:** GitLab registration, test, removal, re-pointing, the signing token and resend. The
-recording they wait for is done (see "Recorded by `w0`, GitLab half").
+### Outcome of phase 6, step 2: GitLab hooks (2026-10-02)
+
+GitLab registers, tests, removes and re-points its hooks like GitHub, from the recording
+("Recorded by `w0`, GitLab half"). Built by me in one pass, with no orchestration: the work is a
+second driver behind an interface the first one already had.
+
+- **One service, two drivers.** `hosts/hook-driver.ts` says what the service needs of a host (create,
+  list, read, test, remove, re-point, and the parsing of each); `github/hooks.ts` and the new
+  `gitlab/hooks.ts` are its two implementations. `webhooks-service.ts` has no host name left except to
+  pick the driver. A hook is found, adopted, re-pointed and removed by the same rules on both hosts:
+  only one whose address carries this install's registration id.
+- **GitLab's last response is the newest event.** A hook has no `last_response`; the driver reads
+  `hooks/<id>/events?per_page=1`. A test waits for a *new* event id, because the old delivery was
+  also good; an event answered with a word instead of a code (`internal error`) is a failure, and
+  `alert_status` other than `executable` (GitLab's own back-off) reads as failing.
+- **The signing token is derived**, `whsec_` + base64 of HMAC-SHA256(secret, a fixed label), so no
+  second secret is stored. The receiver requires the token and, when `webhook-signature` is there,
+  a right signature within five minutes. A hook with no signature (made before, or by an older GitLab)
+  is still accepted on the token alone.
+- **`-i` on every `glab api` call**, because a failed call prints no status of its own on stdout
+  (recorded) and the reason of a failure is read from the status line. `hostAccess` now resolves the
+  numeric project id GitLab's paths need.
+- **The test is `push_events`**, the one that always delivers; the others are 422 for a project with
+  no merge request, issue, note or pipeline. Resend is recorded but not offered.
+- **`host-not-recorded` is gone** from the API, the types and the screens; the GitLab row is the
+  GitHub row. The fake glab of the e2e suite holds hooks as files, and `webhooks.spec.mjs` registers,
+  tests (failing and recovering) and removes a GitLab hook through the UI.
+
+**Open:** nothing for GitLab hooks. Jira and YouTrack have no webhooks in this plan.
 
 ## Jira and YouTrack: documented facts
 

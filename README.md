@@ -901,15 +901,15 @@ The hosts Agentry opens pull and merge requests on, GitHub through `gh` and GitL
 
 ### Webhooks
 
-Where GitHub and GitLab deliver for a hook Agentry registered (tag `Webhooks`). Unauthenticated by design and signature-checked: GitHub's `X-Hub-Signature-256` or GitLab's `X-Gitlab-Token` is verified over the raw body, in constant time, before anything is parsed. A delivery never changes a change request; it only moves the next read of the ones it names to now.
+Where GitHub and GitLab deliver for a hook Agentry registered (tag `Webhooks`). Unauthenticated by design and signature-checked: GitHub's `X-Hub-Signature-256`, or GitLab's `X-Gitlab-Token` plus its `webhook-signature` when it carries one, is verified over the raw body, in constant time, before anything is parsed. A delivery never changes a change request; it only moves the next read of the ones it names to now.
 
 | Method | Route | Description |
 | --- | --- | --- |
 | POST | `/webhooks/github/:registrationId` | A GitHub delivery. `204` at once (a replayed delivery id or signed body too); `401` with no detail for an unknown registration or a bad signature; `429` past 60 verified deliveries a minute; `413` over 5 MiB |
-| POST | `/webhooks/gitlab/:registrationId` | A GitLab delivery, checked by `X-Gitlab-Token`; answers as above |
-| GET | `/projects/:id/webhooks` | A project's registrations plus `available`, the `reason` when not (`host-not-recorded` for GitLab, which offers no action yet; `no-public-url`; `no-remote`), the `publicUrl`, the `events` and `canRedeliver` (always `false`). The secret is never returned |
-| POST | `/projects/:id/webhooks` | Register the repository's GitHub hook (adopts an Agentry hook already there, never touches another) → `201` with the registration; `409` `no-public-url`, `no-remote`, `host-not-recorded`, `already-registered`; `403 hook-no-permission`; `502 hook-unreachable`. Not open to a chat's token |
-| POST | `/projects/:id/webhooks/:registrationId/test` | Ping the hook and read the host's answer back → the registration; `502` when the host did not report an answered delivery. Not open to a chat's token |
+| POST | `/webhooks/gitlab/:registrationId` | A GitLab delivery, checked by `X-Gitlab-Token` and, when present, `webhook-signature`; answers as above |
+| GET | `/projects/:id/webhooks` | A project's registrations plus `available`, the `reason` when not (`no-public-url`; `no-remote`), the `publicUrl`, the `events` and `canRedeliver` (always `false`). The secret is never returned |
+| POST | `/projects/:id/webhooks` | Register the repository's hook, on GitHub or GitLab (adopts an Agentry hook already there, never touches another) → `201` with the registration; `409` `no-public-url`, `no-remote`, `already-registered`; `403 hook-no-permission`; `502 hook-unreachable`. Not open to a chat's token |
+| POST | `/projects/:id/webhooks/:registrationId/test` | Ping the hook (GitLab: a push test) and read the host's answer back → the registration; `502` when the host did not report an answered delivery. Not open to a chat's token |
 | DELETE | `/projects/:id/webhooks/:registrationId` | Delete the hook on the host and its secret here → the registration, now `removed`. Not open to a chat's token |
 
 ### Decisions

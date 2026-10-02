@@ -14,8 +14,10 @@ import {
   githubTarget,
   gitlabTarget,
   verifyGithubSignature,
+  verifyGitlabSignature,
   verifyGitlabToken,
 } from '../src/hosts/webhook-receiver.ts';
+import { signingTokenOf } from '../src/hosts/gitlab/hooks.ts';
 import { newWebhookSecret, WebhookSecrets } from '../src/hosts/webhook-secrets.ts';
 import { WebhookStore } from '../src/webhook-store.ts';
 import { loadConfig } from '../src/paths.ts';
@@ -330,6 +332,55 @@ test('the secret is 32 random bytes in a 0600 file', async () => {
     assert.equal(h.secrets.get('unknown'), null);
     await h.secrets.delete('r1');
     assert.equal(h.secrets.get('r1'), null);
+  } finally {
+    done(h);
+  }
+});
+
+// ---------- GitLab's signing token ----------
+
+const glSign = (raw: Buffer, id: string, timestamp: string, secret = SECRET): string => {
+  const key = Buffer.from(signingTokenOf(secret).slice('whsec_'.length), 'base64');
+  return `v1,${createHmac('sha256', key).update(`${id}.${timestamp}.`).update(raw).digest('base64')}`;
+};
+
+test('GitLab’s signature is HMAC-SHA256 over id.timestamp.body, inside five minutes, and anything else is refused', () => {
+  const raw = Buffer.from('{"object_kind":"push"}');
+  const now = Date.parse('2026-10-02T12:00:00Z');
+  const ts = String(now / 1000);
+  const signature = glSign(raw, 'abc', ts);
+  const check = (over: Partial<{ id: string | null; timestamp: string | null; signature: string | null }> = {}, body = raw, at = now) =>
+    verifyGitlabSignature(SECRET, body, { id: 'abc', timestamp: ts, signature, ...over }, at);
+  assert.equal(check(), true);
+  assert.equal(check({ signature: `v1,other ${signature}` }), true, 'any one of several signatures may match');
+  assert.equal(check({}, Buffer.concat([raw, Buffer.from(' ')])), false);
+  assert.equal(check({ id: 'abd' }), false, 'the id is signed');
+  assert.equal(check({ timestamp: String(now / 1000 + 1) }), false, 'the timestamp is signed');
+  assert.equal(check({}, raw, now + 5 * 60_000 + 1000), false, 'older than five minutes');
+  assert.equal(check({}, raw, now - 5 * 60_000 - 1000), false, 'from the future');
+  assert.equal(check({ signature: null }), false);
+  assert.equal(check({ id: null }), false);
+  assert.equal(check({ timestamp: 'x' }), false);
+  assert.equal(verifyGitlabSignature('another-secret', raw, { id: 'abc', timestamp: ts, signature }, now), false);
+});
+
+test('a GitLab delivery needs the token, and a signature when it carries one', async () => {
+  const h = await harness();
+  try {
+    h.store.create({ id: 'g1', projectId: 'p1', host: 'gitlab', hostname: 'gitlab.com', repoPath: 'g/p', remoteHookId: '2', url: 'https://x.lhr.life/api/webhooks/gitlab/g1', events: [] });
+    await h.secrets.set('g1', SECRET);
+    const raw = Buffer.from(JSON.stringify({ object_kind: 'merge_request', project: { path_with_namespace: 'g/p' }, object_attributes: { iid: 3 } }));
+    const stamp = String(h.clock.now / 1000);
+    const base = { 'x-gitlab-event': 'Merge Request Hook', 'idempotency-key': 'k1', 'webhook-id': 'k1', 'webhook-timestamp': stamp };
+    // the token alone, as a hook made without a signing token delivers
+    assert.equal(h.receiver.handle('gitlab', 'g1', { ...base, 'x-gitlab-token': 'nope' }, raw), 'unauthorized');
+    // a wrong signature is refused even with the right token
+    assert.equal(h.receiver.handle('gitlab', 'g1', { ...base, 'x-gitlab-token': SECRET, 'webhook-signature': glSign(raw, 'k1', stamp, 'wrong') }, raw), 'unauthorized');
+    // a right signature with the wrong token is refused too
+    assert.equal(h.receiver.handle('gitlab', 'g1', { ...base, 'x-gitlab-token': 'nope', 'webhook-signature': glSign(raw, 'k1', stamp) }, raw), 'unauthorized');
+    assert.equal(h.receiver.handle('gitlab', 'g1', { ...base, 'x-gitlab-token': SECRET, 'webhook-signature': glSign(raw, 'k1', stamp) }, raw), 'accepted');
+    const plain = Buffer.from(JSON.stringify({ object_kind: 'merge_request', project: { path_with_namespace: 'g/p' }, object_attributes: { iid: 4 } }));
+    assert.equal(h.receiver.handle('gitlab', 'g1', { 'x-gitlab-event': 'Merge Request Hook', 'idempotency-key': 'k2', 'x-gitlab-token': SECRET }, plain), 'accepted');
   } finally {
     done(h);
   }

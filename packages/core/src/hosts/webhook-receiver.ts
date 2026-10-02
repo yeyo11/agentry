@@ -3,6 +3,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { CodeHostId, WebhookRegistration } from '@agentry/shared';
 import type { AgentryEventInput } from '../events.ts';
 import type { WebhookStore } from '../webhook-store.ts';
+import { signingTokenOf } from './gitlab/hooks.ts';
 import type { WebhookSecrets } from './webhook-secrets.ts';
 
 // What a webhook delivery is allowed to do: be believed or not, and then move the next read of the
@@ -31,9 +32,30 @@ export function verifyGithubSignature(secret: string, raw: Buffer, header: strin
   return sameSecret(expected, header);
 }
 
-/** GitLab's legacy scheme: `X-Gitlab-Token` carries the secret itself. The signing token is not recorded yet and is not read. */
+/** GitLab's legacy scheme: `X-Gitlab-Token` carries the secret itself. */
 export function verifyGitlabToken(secret: string, header: string | undefined): boolean {
   return header !== undefined && sameSecret(secret, header);
+}
+
+/** How far a signed delivery's timestamp may be from now (Standard Webhooks' five minutes). */
+const SIGNATURE_WINDOW_S = 5 * 60;
+
+/**
+ * GitLab's signing token (recorded on a real delivery): `webhook-signature` is `v1,` and the base64
+ * HMAC-SHA256 of `<webhook-id>.<webhook-timestamp>.<raw body>`, keyed with the bytes of the base64 part
+ * after `whsec_`. Several space-separated signatures may be sent; any one that matches counts.
+ */
+export function verifyGitlabSignature(
+  secret: string,
+  raw: Buffer,
+  headers: { id: string | null; timestamp: string | null; signature: string | null },
+  nowMs: number,
+): boolean {
+  if (!headers.id || !headers.timestamp || !headers.signature || !/^\d+$/.test(headers.timestamp)) return false;
+  if (Math.abs(nowMs / 1000 - Number(headers.timestamp)) > SIGNATURE_WINDOW_S) return false;
+  const key = Buffer.from(signingTokenOf(secret).slice('whsec_'.length), 'base64');
+  const expected = `v1,${createHmac('sha256', key).update(`${headers.id}.${headers.timestamp}.`).update(raw).digest('base64')}`;
+  return headers.signature.split(' ').some((candidate) => sameSecret(expected, candidate));
 }
 
 /** What a verified delivery says about which change requests moved. Everything in it is untrusted text. */
@@ -188,7 +210,7 @@ export class WebhookReceiver {
     const genuine =
       host === 'github'
         ? verifyGithubSignature(secret, raw, header(headers, 'x-hub-signature-256') ?? undefined)
-        : verifyGitlabToken(secret, header(headers, 'x-gitlab-token') ?? undefined);
+        : verifyGitlabToken(secret, header(headers, 'x-gitlab-token') ?? undefined) && this.signedWell(secret, raw, headers);
     if (!genuine) return 'unauthorized';
     // Counted once it is genuine, so a stranger who knows the address cannot spend the host's budget
     if (!this.admit(registrationId)) return 'rate-limited';
@@ -221,6 +243,17 @@ export class WebhookReceiver {
       this.deps.nudge(changeRequestsOf(this.deps.sql, registration, target));
     }
     return 'accepted';
+  }
+
+  /**
+   * A GitLab hook is registered with a signing token as well as the token header, so a delivery that
+   * carries a signature must carry a right one. Without the header the token alone decides: a hook
+   * made before the signing token existed, or by an older GitLab, has none to check.
+   */
+  private signedWell(secret: string, raw: Buffer, headers: Record<string, string | string[] | undefined>): boolean {
+    const signature = header(headers, 'webhook-signature');
+    if (signature === null) return true;
+    return verifyGitlabSignature(secret, raw, { id: header(headers, 'webhook-id'), timestamp: header(headers, 'webhook-timestamp'), signature }, this.now());
   }
 
   private admit(registrationId: string): boolean {
