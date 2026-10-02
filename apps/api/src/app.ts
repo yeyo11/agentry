@@ -32,6 +32,7 @@ import { decisionRoutes } from './routes/decisions.ts';
 import { providerRoutes } from './routes/providers.ts';
 import { changeRequestRoutes } from './routes/change-requests.ts';
 import { hostRoutes } from './routes/hosts.ts';
+import { trackerRoutes } from './routes/trackers.ts';
 import { systemRoutes } from './routes/system.ts';
 import { teamRoutes } from './routes/team.ts';
 import { toolPresetRoutes } from './routes/tool-presets.ts';
@@ -136,6 +137,8 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       error: status >= 500 && !exposed ? 'internal error' : err.message,
       ...(typeof reason === 'string' ? { code: reason } : {}),
       ...(typeof postId === 'string' ? { postId } : {}),
+      // The first line the tracker's CLI answered with (redacted in core), shown under Agentry's sentence
+      ...(refusal && status < 500 && typeof (err as { detail?: unknown }).detail === 'string' ? { detail: String((err as { detail?: unknown }).detail) } : {}),
     });
   });
 
@@ -194,6 +197,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(decisionRoutes, { core });
       await api.register(providerRoutes, { core });
       await api.register(hostRoutes, { core });
+      await api.register(trackerRoutes, { core });
       await api.register(changeRequestRoutes, { core });
       await api.register(pushRoutes, { core });
     },

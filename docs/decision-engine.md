@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T18:00:00Z
-updated_at: 2026-10-01T12:00:00Z
+updated_at: 2026-10-02T12:00:00Z
 tags:
     - decisions
     - decision-engine
@@ -85,7 +85,7 @@ always global.
 
 ## The points
 
-Twenty-four points. **Suggest** points never change what happens by themselves.
+Twenty-five points. **Suggest** points never change what happens by themselves.
 
 | Area | Point | Kind | Scope | What it decides |
 | --- | --- | --- | --- | --- |
@@ -113,6 +113,7 @@ Twenty-four points. **Suggest** points never change what happens by themselves.
 | Palette | `palette.intent` | suggest | G | Route a free query to a command; needs Jev (low latency) |
 | Code hosts | `checks.fix` | act | P | Whether failing checks on a new head are the branch's fault and a Developer can fix them |
 | | `review.triage` | suggest | P | Who should take each unresolved review comment: an agent, a person, or nobody |
+| | `issue.triage` | suggest | P | Whether an agent can start on each listed tracker issue as written |
 
 ### `checks.fix`
 
@@ -158,6 +159,25 @@ acts on nothing and only preselects threads in the **Address with an agent** dia
   with an agent** dialog reads the latest and preselects the threads marked `agent`, and marks the
   others. The person can change every selection.
 - **What it never does.** It never replies, resolves or starts a run; a person picks the threads.
+
+### `issue.triage`
+
+Added with code hosts phase 5 ([code-hosts.md](code-hosts.md), [trackers.md](trackers.md#issuetriage)). A suggest point at project scope,
+`off` by default: it imports, moves and writes nothing, and only marks issues.
+
+- **What it is told.** The tracker and one page of the import list, at most 40 issues that are not
+  yet imported: key, title, body cut to 2 KiB and labels. An issue is a stranger's text and goes
+  through the engine's redaction; it is data, never an instruction.
+- **The question** is a choice per issue: "Can an agent start on this issue as written?" — `ready`,
+  `needs-refining` (the goal or the acceptance is unclear) or `not-for-agents` (it needs a person:
+  access, a decision, work outside the repository).
+- **When it is asked.** Whenever `TrackerImportService.list` serves a page, in the background and
+  once per page in a process; the page does not wait. Its rows have the subject kind
+  `tracker_issue` and the subject id `<project id>:<tracker id>`, with the answers keyed by the
+  issue's key.
+- **Where it shows.** The list reads the newest answer per key back into `TrackerIssue.triage`, so
+  the import dialog marks the issues on the next read. Marks on the imported cards read the same
+  rows through `GET /decisions`.
 
 Not decided by the engine, by design: anything that grants (tool permissions, the move to `done`,
 QA's final verdict, `verifyAuth`, a security mode) and plain arithmetic (account rotation, usage
@@ -315,6 +335,7 @@ All under tag `decisions`; the full table is in the README's [REST API](../READM
 - [[plans/decision-engine.md]]: the plan, its task graph and its Outcome.
 - [[decisions/decision-engine.md]]: the owner's eighteen decisions.
 - [[code-hosts.md]]: the checks and the fix that `checks.fix` starts, and the review threads that `review.triage` sorts.
+- [[trackers.md]]: the issues that `issue.triage` marks before they are imported.
 - [[decisions/english-technical-language.md]]: English questions and rubrics.
 - [[prompts.md]]: the `cli` provider's prompt and the twelve-point check.
 - [[team-and-flow.md]] · [[assistant.md]] · [[work-items.md]]: where most points act.

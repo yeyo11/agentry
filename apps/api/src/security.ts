@@ -162,6 +162,23 @@ const CHAT_FORBIDDEN = new Set([
   // Same for the code hosts: the settings name the gh or glab binary Agentry will run
   `PUT ${API_PREFIX}/hosts/settings`,
   `POST ${API_PREFIX}/hosts/refresh`,
+  // And the trackers: the same binaries
+  `PUT ${API_PREFIX}/trackers/settings`,
+  `POST ${API_PREFIX}/trackers/refresh`,
+]);
+
+/**
+ * Importing, linking and syncing issues writes the person's work items and their tracker, and an
+ * issue's text is untrusted: an injection in one must not be able to import more issues, link or
+ * unlink them, change which tracker a project uses or write to the tracker through a chat's token.
+ * Reading the tracker's issues and a project's tracker stays open.
+ */
+const CHAT_FORBIDDEN_TRACKERS = new Set([
+  `PUT ${API_PREFIX}/projects/:id/tracker`,
+  `POST ${API_PREFIX}/projects/:id/tracker/import`,
+  `POST ${API_PREFIX}/work-items/:itemId/issues`,
+  `DELETE ${API_PREFIX}/work-items/:itemId/issues/:key`,
+  `POST ${API_PREFIX}/work-items/:itemId/issues/:key/sync`,
 ]);
 
 /**
@@ -442,6 +459,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       }
       if (chat !== null && CHAT_FORBIDDEN_REVIEWS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot post, approve, resolve or hand out a change request's review" });
+        return reply;
+      }
+      if (chat !== null && CHAT_FORBIDDEN_TRACKERS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot import, link, unlink or sync issues, or change a project's tracker" });
         return reply;
       }
     }

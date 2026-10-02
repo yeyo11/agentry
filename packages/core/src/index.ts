@@ -93,6 +93,10 @@ import type { ProviderDriver, SessionInit } from './providers/driver.ts';
 import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
 import { CodeHostDetector } from './hosts/detector.ts';
 import { CodeHostsSettingsStore } from './hosts/settings.ts';
+import { TrackersSettingsStore } from './trackers/settings.ts';
+import { TrackerImportService } from './trackers/import.ts';
+import { TrackerSyncService } from './trackers/sync.ts';
+import { TrackerDetector } from './trackers/detector.ts';
 import { ProviderDetector } from './providers/detector.ts';
 import { AcpDriver } from './providers/acp/driver.ts';
 import { ChatEntriesTranscripts } from './providers/chat-entries.ts';
@@ -138,6 +142,7 @@ import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo, mainCheckout } from './git.ts';
 import { hostOf } from './work-item-rows.ts';
 import { DecisionEngine } from './decisions/engine.ts';
+import { IssueTriage } from './decisions/issue-triage.ts';
 import { ReviewTriage } from './decisions/review-triage.ts';
 import { DecisionResolvers } from './decisions/resolve.ts';
 import { CliDecisionProvider } from './decisions/providers/cli.ts';
@@ -252,6 +257,7 @@ export {
   type PullRequestDeps,
 } from './pull-requests.ts';
 export { ChangeRequestError, type ChangeRequestFix } from './change-requests.ts';
+export { TrackerError, quotedSource } from './trackers/import.ts';
 export { MergeError, type MergeOutcome, type UpdateOutcome } from './hosts/merge-service.ts';
 export { OrchestrationPullRequestError, OrchestrationPullRequestService, type OpenedPullRequest } from './orchestration-pull-requests.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
@@ -332,6 +338,10 @@ export class Core {
   readonly hosts: CodeHostDetector;
   /** Which code hosts are on and a binary of the person's own (`hosts.json`) */
   readonly hostsSettings: CodeHostsSettingsStore;
+  /** Which issue trackers are on and a binary of the person's own (`trackers.json`) */
+  readonly trackersSettings: TrackersSettingsStore;
+  /** Whether each issue tracker is ready: a host's tracker reads its host's CLI and sign-in */
+  readonly trackers: TrackerDetector;
   readonly permissions: PermissionBroker;
   /** Processes and live streams of the chats Agentry drives */
   readonly runtime: ChatManager;
@@ -401,6 +411,9 @@ export class Core {
   readonly flow: FlowService;
   /** Approved items' pull requests: opened with git and gh on the person's request, and watched until merged */
   readonly pullRequests: PullRequestService;
+  /** Import and link tracker issues: what the project's tracker routes call */
+  readonly trackerImport: TrackerImportService;
+  readonly trackerSync: TrackerSyncService;
   private readonly pullRequestWatcher: PullRequestWatcher;
   /** The change requests of orchestrations' integration branches */
   readonly orchestrationPullRequests: OrchestrationPullRequestService;
@@ -441,6 +454,7 @@ export class Core {
       },
     });
     this.hostsSettings = new CodeHostsSettingsStore(config);
+    this.trackersSettings = new TrackersSettingsStore(config);
     this.hosts = new CodeHostDetector({
       adapter: codeHostAdapter,
       settings: () => this.hostsSettings.get(),
@@ -450,6 +464,7 @@ export class Core {
         return this.events.emit(event);
       },
     });
+    this.trackers = new TrackerDetector({ hosts: this.hosts, adapter: codeHostAdapter, settings: () => this.trackersSettings.get() });
     this.db = new Db(config);
     this.permissions = new PermissionBroker();
     // Must run before anything spawns the CLI: it injects stored credentials into process.env
@@ -718,13 +733,33 @@ export class Core {
         return record ? { path: record.path } : null;
       },
       busy: (itemId) => this.itemBusy(itemId),
+      onMerged: (notice) => this.trackerSync.merged(notice),
       verdicts: (itemId) => this.flow.verdicts(itemId),
+      projectTracker: (id) => this.projectSettingsStore.stored(id, this.projectStore.get(id)?.name)?.tracker ?? null,
       // The card's link is the address the person reaches the panel on: the tunnel when it is up
       webOrigin: () => {
         const tunnel = this.tunnel.status();
         return tunnel.state === 'active' && tunnel.url ? tunnel.url : (this.runtime.apiUrl?.replace(/\/api$/, '') ?? null);
       },
     });
+    this.trackerImport = new TrackerImportService({
+      items: this.workItems,
+      project: (id) => {
+        const record = this.projectStore.get(id);
+        return record ? { path: record.path, tracker: this.projectSettingsStore.stored(id, record.name)?.tracker ?? null } : null;
+      },
+      access: (path) => this.pullRequests.hostAccess(path),
+      triage: new IssueTriage({ decisions: this.decisions, db: this.db }),
+    });
+    this.trackerSync = new TrackerSyncService({
+      items: this.workItems,
+      project: (id) => {
+        const record = this.projectStore.get(id);
+        return record ? { path: record.path, tracker: this.projectSettingsStore.stored(id, record.name)?.tracker ?? null } : null;
+      },
+      access: (path) => this.pullRequests.hostAccess(path),
+    });
+    this.events.observe((event) => this.trackerSync.observe(event));
     this.orchestrationPullRequests = new OrchestrationPullRequestService({
       db: this.db,
       settings: () => this.hostsSettings.get(),

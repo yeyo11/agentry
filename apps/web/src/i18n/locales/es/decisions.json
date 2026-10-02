@@ -115,6 +115,7 @@
       "changesUnexplainedHunk": "Marcar cambios sin explicar en la revisión",
       "checksFix": "Decidir si arreglar los checks fallidos de una rama",
       "reviewTriage": "Sugerir quién atiende cada comentario de revisión",
+      "issueTriage": "Sugerir en qué issues importados puede empezar un agente",
       "notificationUrgency": "Elegir la urgencia de cada aviso",
       "paletteIntent": "Interpretar lo que escribes en la paleta"
     },
@@ -306,6 +307,7 @@
       "changesUnexplainedHunk": "Marcó un cambio sin explicar",
       "checksFix": "Decidió si arreglar los checks",
       "reviewTriage": "Sugirió quién atiende cada comentario",
+      "issueTriage": "Sugirió en qué issues puede empezar un agente",
       "notificationUrgency": "Fijó la urgencia",
       "paletteIntent": "Eligió el comando"
     }

@@ -17,6 +17,7 @@ import {
   type CodeHostsSettings,
   type FlowCriterionResult,
   type ProjectCodeHost,
+  type ProjectTrackerSettings,
   type PullRequestReadiness,
   type WorkItem,
   type WorkItemActor,
@@ -46,6 +47,7 @@ import {
   uncommittedFiles,
 } from './git.ts';
 import { checksFixPrompt, reviewFixPrompt } from './flow.ts';
+import { linkedIssueLines, titleIssueKeys } from './trackers/links.ts';
 import { ChecksError, type ChecksService, type ChecksTarget } from './hosts/checks-service.ts';
 import { reviewDiff } from './hosts/review-diff.ts';
 import type { MergeService, PushHold } from './hosts/merge-service.ts';
@@ -265,21 +267,28 @@ export { ciOf } from './hosts/github/adapter.ts';
  * Conventional type, or else `fix` for a bug and `feat` for anything else. The part before the key
  * is trimmed to 72 characters.
  */
-export function pullRequestTitle(item: Pick<WorkItem, 'key' | 'title' | 'type' | 'labels'>): string {
+export function pullRequestTitle(item: Pick<WorkItem, 'key' | 'title' | 'type' | 'labels' | 'issues'>): string {
   const label = item.labels.map((l) => l.trim().toLowerCase()).find((l): l is (typeof CONVENTIONAL_TYPES)[number] => (CONVENTIONAL_TYPES as readonly string[]).includes(l));
   const type = label ?? (item.type === 'bug' ? 'fix' : 'feat');
   let head = `${type}: ${item.title.replace(/\s+/g, ' ').trim()}`;
   if (head.length > TITLE_MAX) head = `${head.slice(0, TITLE_MAX - 1).trimEnd()}…`;
-  return `${head} (${item.key})`;
+  return `${head} (${[item.key, ...titleIssueKeys(item.issues ?? [])].join(', ')})`;
 }
 
 /**
  * The item's description, its criteria checked as QA found them with QA's note from its newest
  * passing verification, and a link to the card. Headings in English; the item's own text as written.
  */
-export function pullRequestBody(item: Pick<WorkItem, 'key' | 'description' | 'acceptanceCriteria'>, verdicts: readonly FlowCriterionResult[], webOrigin: string | null): string {
+export function pullRequestBody(
+  item: Pick<WorkItem, 'key' | 'description' | 'acceptanceCriteria'>,
+  verdicts: readonly FlowCriterionResult[],
+  webOrigin: string | null,
+  /** The item's issues, already worded for this change request: `linkedIssueLines` */
+  linked: readonly string[] = [],
+): string {
   const parts: string[] = [];
   if (item.description.trim()) parts.push(item.description.trim());
+  if (linked.length) parts.push(['## Linked issue', '', ...linked].join('\n'));
   if (item.acceptanceCriteria.length) {
     const lines = ['## Acceptance criteria', ''];
     for (const c of item.acceptanceCriteria) {
@@ -309,6 +318,8 @@ export interface PullRequestDeps {
   verdicts: (itemId: string) => FlowCriterionResult[];
   /** The origin the web UI is served on, for the card's link; null when unknown */
   webOrigin: () => string | null;
+  /** The project's tracker, for the issue lines of a change request; without it a request names no issue */
+  projectTracker?: (projectId: string) => ProjectTrackerSettings | null;
   /** Merged over the process's environment for git and the host CLIs: where a test puts its fakes */
   env?: NodeJS.ProcessEnv;
   now?: () => number;
@@ -328,6 +339,8 @@ export interface PullRequestDeps {
   flowOn?: (projectId: string) => boolean;
   /** The hook of `checks.fix`: a change request turned `failing` for a head not announced before */
   onChecksFailing?: (notice: ChecksFailingNotice) => void;
+  /** The host merged an item's change request, after the item moved to Done: the tracker's issues are told (`trackers/sync.ts`) */
+  onMerged?: (notice: { itemId: string; closingWord: boolean; host: string }) => Promise<void>;
 }
 
 /** What a request to fix a work item's checks answers: whether a run started, and the prompt either way. */
@@ -458,6 +471,42 @@ export class PullRequestService {
   }
 
   // ---------- reaching the host ----------
+
+  /**
+   * What the item's issues say in the change request's body. A closing word goes in only when the
+   * request's base is the project's default branch: into any other branch neither host closes the
+   * issue, and Agentry closes it after the merge (docs/plans/code-hosts.md, F9). When the default
+   * branch or the repository cannot be told, no closing word is written.
+   */
+  private async issueLines(item: WorkItem, projectPath: string, row: Pick<PullRequestRow, 'host' | 'base'>): Promise<string[]> {
+    const tracker = this.deps.projectTracker?.(item.projectId) ?? null;
+    if (!tracker || !item.issues?.length) return [];
+    let repoPath: string | null = null;
+    try {
+      repoPath = this.origin(projectPath).path;
+    } catch {
+      // no origin: the issue is named without a closing word
+    }
+    const defaultBranch = (await this.readiness(projectPath)).defaultBranch;
+    return linkedIssueLines(item.issues, tracker, { host: hostOf(row.host), repoPath, closing: defaultBranch !== null && defaultBranch === row.base });
+  }
+
+  /**
+   * What an issue tracker of the project runs through: the project's own host CLI, the repository
+   * its `origin` names, and the runner the change requests use (one breaker, one concurrency cap).
+   * Refuses with the readiness status when the host cannot be reached at all.
+   */
+  async hostAccess(projectPath: string): Promise<{ host: CodeHostId; hostname: string; repo: HostRepo; run: (call: HostCall) => Promise<HostResult> }> {
+    const readiness = await this.readiness(projectPath);
+    // A project with no default branch still has issues
+    if (readiness.status !== 'ready' && readiness.status !== 'no-default-branch') {
+      throw new PullRequestError(`this project cannot reach its code host (${readiness.status})${readiness.detail ? `: ${readiness.detail}` : ''}`, 409, readiness.status);
+    }
+    if (!readiness.host) throw new PullRequestError("this project's remote is not on a code host Agentry knows", 409, 'unsupported-host');
+    const target = await this.target(projectPath, { host: readiness.host, hostname: readiness.hostname });
+    const cwd = mainCheckout(projectPath);
+    return { host: readiness.host, hostname: target.repo.host, repo: target.repo, run: (call) => this.call(target, call, cwd) };
+  }
 
   private origin(projectPath: string): OriginPath {
     const cached = this.originCache.get(projectPath);
@@ -697,8 +746,10 @@ export class PullRequestService {
       } finally {
         hold?.release();
       }
-      const body = pullRequestBody(this.deps.items.find(item.id) ?? item, this.deps.verdicts(item.id), this.deps.webOrigin());
-      const { number, url } = await this.create(row, project.path, wt, { title: pullRequestTitle(item), body });
+      // Read again: the issues may have been linked while the branch was prepared
+      const fresh = this.deps.items.find(item.id) ?? item;
+      const body = pullRequestBody(fresh, this.deps.verdicts(item.id), this.deps.webOrigin(), await this.issueLines(fresh, project.path, row));
+      const { number, url } = await this.create(row, project.path, wt, { title: pullRequestTitle(fresh), body });
       this.opened(row, item, number, url);
     } catch (err) {
       const step = err instanceof StepError ? err : new StepError('create', messageOf(err));
@@ -1252,8 +1303,20 @@ export class PullRequestService {
     } catch {
       // removed meanwhile
     }
+    await this.tellTracker(row, projectPath);
     this.removeWorktree(row, item, projectPath);
     await this.forward(projectPath, row.base);
+  }
+
+  /** A closing word in the body only works into the default branch; the tracker's sync decides what else is left to close. */
+  private async tellTracker(row: PullRequestRow, projectPath: string): Promise<void> {
+    if (!this.deps.onMerged) return;
+    try {
+      const defaultBranch = (await this.readiness(projectPath)).defaultBranch;
+      await this.deps.onMerged({ itemId: row.item_id, closingWord: defaultBranch !== null && defaultBranch === row.base, host: row.host });
+    } catch {
+      // the merge is done; the tracker's state is on its own row
+    }
   }
 
   private removeWorktree(row: PullRequestRow, item: WorkItem, projectPath: string): void {

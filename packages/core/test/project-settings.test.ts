@@ -530,3 +530,56 @@ test('listing the projects reads each settings document once', async () => {
   assert.deepEqual([...settings.values()].map((s) => s.keyPrefix), ['ALP', 'BTE', 'GMM', 'DLT']);
   assert.equal(reads, records.length);
 });
+
+test("a project's tracker is validated by tracker: repository, status map and query", () => {
+  const withTracker = (tracker: unknown) => ({ ...valid(), tracker });
+  const gh = { id: 'github-issues', scope: 'acme/shop', query: ' is:open label:bug ', statusMap: { done: 'completed' } };
+  assert.deepEqual(parseProjectSettings(withTracker(gh)).tracker, { ...gh, query: 'is:open label:bug' });
+  assert.deepEqual(parseProjectSettings(withTracker({ id: 'gitlab-issues', scope: 'group/sub/shop' })).tracker, {
+    id: 'gitlab-issues',
+    scope: 'group/sub/shop',
+    query: '',
+    statusMap: {},
+  });
+  // Jira and YouTrack are not recorded: a scope is one token and the statuses are the tracker's own words
+  const jira = { id: 'jira', scope: 'CW', query: '', statusMap: { in_progress: 'In Progress', in_review: 'In Review', done: 'Done' } };
+  assert.deepEqual(parseProjectSettings(withTracker(jira)).tracker, jira);
+  assert.equal(parseProjectSettings(withTracker(null)).tracker, undefined);
+  const refused: Array<[unknown, RegExp]> = [
+    ['x', /tracker must be an object/],
+    [{ ...gh, id: 'linear' }, /unknown tracker/],
+    [{ ...gh, scope: '' }, /tracker.scope/],
+    [{ ...gh, scope: 'acme' }, /owner\/repo/],
+    [{ ...gh, scope: 'a/b/c' }, /owner\/repo/],
+    [{ ...gh, id: 'gitlab-issues', scope: 'shop' }, /group\/project/],
+    [{ ...jira, scope: 'C W' }, /spaces/],
+    [{ ...gh, query: 3 }, /query must be a string/],
+    [{ ...gh, query: 'x'.repeat(1001) }, /longer than/],
+    [{ ...gh, statusMap: [] }, /statusMap must be an object/],
+    [{ ...jira, statusMap: { todo: 'To Do' } }, /statusMap column/],
+    [{ ...jira, statusMap: { done: ' ' } }, /non-empty/],
+    [{ ...gh, statusMap: { in_progress: 'completed' } }, /maps only done/],
+    [{ ...gh, statusMap: { done: 'Done' } }, /maps only done/],
+  ];
+  for (const [tracker, error] of refused) assert.throws(() => parseProjectSettings(withTracker(tracker)), error, JSON.stringify(tracker));
+});
+
+test("a project's tracker is stored, reported as a settings change, and a bad stored one falls back alone", async () => {
+  await withCore(async (core, config) => {
+    const { id } = await core.importProject({ path: dir(), name: 'Shop', template: 'software' });
+    const before = await core.projectSettings(id);
+    const tracker = { id: 'github-issues' as const, scope: 'acme/shop', query: '', statusMap: { done: 'completed' } };
+    await core.saveProjectSettings(id, { ...before, tracker });
+    const after = await core.projectSettings(id);
+    assert.deepEqual(after.tracker, tracker);
+    assert.deepEqual(settingsChanges(before, after), ['settings']);
+    // A hand edit that broke the tracker loses the tracker only, not the modules
+    const file = join(config.dataDir, 'project-settings', `${id}.json`);
+    const doc = JSON.parse(readFileSync(file, 'utf8'));
+    doc.settings.tracker = { id: 'github-issues', scope: 'nope' };
+    writeFileSync(file, JSON.stringify(doc));
+    const read = await core.projectSettings(id);
+    assert.equal(read.tracker, undefined);
+    assert.deepEqual(read.modules, before.modules);
+  });
+});
