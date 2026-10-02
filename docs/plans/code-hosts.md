@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-10-02T12:00:00Z
+updated_at: 2026-10-02T13:00:00Z
 tags:
     - plan
     - git
@@ -2390,6 +2390,36 @@ updated_at)`; `webhook_deliveries (delivery_id TEXT PRIMARY KEY, registration_id
 `POST /projects/:id/webhooks/:registrationId/test`, `DELETE /projects/:id/webhooks/:registrationId`,
 and the two receivers (tag `Webhooks`, documented as unauthenticated and signature-checked). Chat
 tokens: 403 on the three writes. Event `webhook.changed`.
+
+### Recorded by `w0` (2026-10-02), GitHub half
+
+`w0` was run for GitHub on a new private scratch repository, through a scratch receiver behind a
+`localhost.run` tunnel (a real delivery, signed by GitHub, reaching a process of ours); both were
+stopped and the hook deleted. 26 captures per `gh` version are in
+`packages/core/test/fixtures/recordings/gh/` (`hook_*`, with the tunnel's name replaced by a
+placeholder). The GitLab half is **not recorded**: `glab`'s token had stopped working (HTTP 401 on
+every call, a signed-out CLI), and signing in to the owner's account is the owner's.
+
+1. **G1 on GitHub works with `--input -`**, the secret on stdin: the answer carries the hook's `id`
+   and `"secret":"********"`, so the secret is never read back.
+2. **A delivery's signature is exactly G5**: `x-hub-signature-256` = `sha256=` + HMAC-SHA256 of the
+   raw body bytes with the secret (verified against a real `ping`, 7 045 bytes); GitHub also sends
+   `x-hub-signature` (SHA-1), `x-github-delivery`, `x-github-event`, `x-github-hook-id` and
+   `x-github-hook-installation-target-type`. A delivery arrives within a second of the `ping` call.
+3. **G7 works on 2.92.0 and 2.102.0**: `PATCH repos/<repo>/hooks/<id>/config --input -` with
+   `{url, content_type, secret, insecure_ssl}` answers the config with the secret masked, a re-read
+   shows the new URL, and the next ping goes there; `last_response` reads `{"code":204,"status":"active"}`.
+4. **G4 listing works with the `repo` scope; redelivery does not.** `POST .../deliveries/<id>/attempts`
+   exits 1 with "This API operation needs the `admin:repo_hook` scope". Agentry therefore offers no
+   redelivery on GitHub unless the scope is there, and says why. The delivery `id` is a 64-bit
+   integer: read it as a string.
+5. **G3** is as planned: the first delete is empty with exit 0, the second is `Not Found (HTTP 404)`,
+   and the repository's hook list is `[]`.
+
+**Still to record, and the owner's:** the GitLab half of `w0` (G1 with `--input` and a token, the
+signing token and a `webhook-signature` delivery, G7 by `PUT`, resend), which needs `glab` signed in
+again; until then GitLab hooks are registered with the legacy token only and a URL change marks the
+hook stale, as "What is still not recorded" says.
 
 ### P0 · `webhooks-prototypes`
 

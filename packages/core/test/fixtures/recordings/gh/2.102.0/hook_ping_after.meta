@@ -1,0 +1,5 @@
+gh: 102
+argv: gh api --hostname github.com -X POST repos/yeyo11/agentry-probe-w0/hooks/690965105/pings
+exit: 0
+secs: .620684272
+env: 
