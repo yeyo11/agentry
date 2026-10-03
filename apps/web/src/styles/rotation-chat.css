@@ -76,7 +76,7 @@
   padding: 10px 0 0;
   list-style: none;
   border-top: 1px solid var(--line-2);
-  font-size: 12.5px;
+  font-size: 13px;
 }
 
 .lim-out li {
@@ -106,7 +106,7 @@
 
 .lim-stop .when {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--fg-3);
 }
 
@@ -131,7 +131,7 @@
   background: transparent;
   color: var(--fg);
   font: inherit;
-  font-size: 14.5px;
+  font-size: 15px;
 }
 
 .lim-zone {
@@ -229,7 +229,7 @@ button.mv-cand {
 }
 
 .mv-why {
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--fg-2);
 }
@@ -242,7 +242,7 @@ button.mv-cand {
   flex-shrink: 0;
   width: 120px;
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--fg-2);
   font-variant-numeric: tabular-nums;
 }
@@ -353,7 +353,7 @@ button.mv-cand {
   flex-wrap: wrap;
   gap: 4px 12px;
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--fg-2);
 }
 
@@ -394,7 +394,7 @@ button.mv-cand {
 }
 
 .hand-sub {
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--fg-2);
 }
