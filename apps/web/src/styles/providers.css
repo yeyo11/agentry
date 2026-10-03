@@ -1053,7 +1053,16 @@
 
   .map-phone .chip,
   .prov-sheet .btn,
-  .retire .btn {
+  .retire .btn,
+  .prov-toolbar .btn {
+    min-height: var(--touch);
+  }
+
+  /* The label around the switch is the hit area */
+  .prov-switch {
+    align-items: center;
+    justify-content: center;
+    min-width: var(--touch);
     min-height: var(--touch);
   }
 

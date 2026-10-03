@@ -47,30 +47,45 @@ export function withOnLimit(settings: ProvidersSettings, onLimit: OnLimit): Prov
 
 export const clampInt = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, Math.round(value)));
 
-/** The counterpart a person (or an accepted suggestion) chose for one model on one other provider. */
-export function counterpart(map: readonly ModelMapEntry[], from: { provider: ProviderId; model: string }, to: ProviderId): ModelMapEntry | undefined {
-  return map.find((e) => e.from.provider === from.provider && e.from.model === from.model && e.to.provider === to);
+/**
+ * Every name one catalogue row answers to: its alias and the ids the CLI reported for it. The mapping,
+ * its suggestions and the moves carry whichever form the CLI used (`claude-sonnet-5` for the `sonnet`
+ * row), so a row is matched on all of them.
+ */
+export const namesOf = (option: Pick<ModelOption, 'value' | 'ids'>): string[] => [option.value, ...(option.ids ?? [])];
+
+/** True when `model` is the row's alias or one of its ids. */
+export const isModel = (option: Pick<ModelOption, 'value' | 'ids'>, model: string): boolean => namesOf(option).includes(model);
+
+/**
+ * The counterpart a person (or an accepted suggestion) chose for one model on one other provider.
+ * `names` are the other names the model goes by; an entry written under any of them counts.
+ */
+export function counterpart(map: readonly ModelMapEntry[], from: { provider: ProviderId; model: string }, to: ProviderId, names: readonly string[] = [from.model]): ModelMapEntry | undefined {
+  return map.find((e) => e.from.provider === from.provider && names.includes(e.from.model) && e.to.provider === to);
 }
 
 /**
  * The document with the counterpart of one model on one provider set, or removed with `null`.
- * Everything a person writes here has origin `person`.
+ * Everything a person writes here has origin `person`. An entry written under another name of the same
+ * model (`names`) is replaced, so a model never has two.
  */
 export function withCounterpart(
   settings: ProvidersSettings,
   from: { provider: ProviderId; model: string },
   to: { provider: ProviderId; model: string | null },
   at: string,
+  names: readonly string[] = [from.model],
 ): ProvidersSettings {
   const rotation = rotationOf(settings);
-  const rest = rotation.modelMap.filter((e) => !(e.from.provider === from.provider && e.from.model === from.model && e.to.provider === to.provider));
+  const rest = rotation.modelMap.filter((e) => !(e.from.provider === from.provider && names.includes(e.from.model) && e.to.provider === to.provider));
   const modelMap = to.model === null ? rest : [...rest, { from, to: { provider: to.provider, model: to.model }, origin: 'person' as const, at }];
   return { ...settings, rotation: { ...rotation, modelMap } };
 }
 
 /** True when an entry's model is no longer offered by its provider; a catalog not read yet cannot say so. */
 export function isStale(entry: ModelMapEntry, catalog: readonly ModelOption[] | undefined): boolean {
-  return catalog !== undefined && catalog.length > 0 && !catalog.some((m) => m.value === entry.to.model && !m.disabled);
+  return catalog !== undefined && catalog.length > 0 && !catalog.some((m) => isModel(m, entry.to.model) && !m.disabled);
 }
 
 /** The models of a catalog a person may pick: the ones the CLI can run. */
@@ -116,7 +131,8 @@ export function projectProvidersOf(order: ProviderId[] | null, onLimit: Partial<
   if (order) out.order = order;
   const kept: Partial<OnLimit> = {};
   if (onLimit.action !== undefined) kept.action = onLimit.action;
-  if (onLimit.allowed !== undefined) kept.allowed = onLimit.allowed;
+  // The action in force is always one a decision may pick, so an `allowed` kept from before follows it
+  if (onLimit.allowed !== undefined) kept.allowed = ACTIONS.filter((a) => a === onLimit.action || onLimit.allowed?.includes(a));
   if (onLimit.maxWaitHours !== undefined) kept.maxWaitHours = onLimit.maxWaitHours;
   if (onLimit.maxMoves !== undefined) kept.maxMoves = onLimit.maxMoves;
   if (Object.keys(kept).length > 0) out.onLimit = kept;

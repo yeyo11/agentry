@@ -107,7 +107,7 @@ export function LimitBanner({ chat, state }: { chat: Chat; state: LimitState }) 
   };
   const waitMutation = useMutation({ mutationFn: () => api.waitForLimit(chat.id), onSuccess: refresh, onError: (error) => toast.error(t('chats:limit.waitFailed'), error) });
   const stopMutation = useMutation({
-    mutationFn: (moveId: string) => api.stopWaiting(moveId),
+    mutationFn: (moveId: string) => api.cancelProviderMove(moveId),
     onSuccess: refresh,
     onError: (error) => toast.error(t('chats:limit.stopWaitingFailed'), error),
   });

@@ -9,12 +9,12 @@ import { ICON_SM } from '@agentry/ui/components/icons';
 import { useToast } from '@agentry/ui/components/Toast';
 import { Card, Segmented, Tag } from '@agentry/ui/components/ui';
 import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
-import { counterpart, isStale, offered, rotationOf, waitingPairs, withCounterpart } from './rotation';
+import { counterpart, isModel, isStale, namesOf, offered, rotationOf, waitingPairs, withCounterpart } from './rotation';
 
 /** The value of the "No counterpart" option: a `Select` takes strings and `null` is not one. */
 const NONE = '';
 
-type Pair = { from: { provider: ProviderId; model: string }; target: ProviderId };
+type Pair = { from: { provider: ProviderId; model: string }; target: ProviderId; /** Every name the model goes by */ names: string[] };
 
 /**
  * The model mapping: for each model of a provider, the model of each other provider that stands in
@@ -64,11 +64,21 @@ export function ModelMapEditor({
     },
   });
 
+  // Nothing is saved by asking: the answer joins the suggestions above, to be accepted or dismissed
+  const suggest = useMutation({
+    mutationFn: ({ from, target }: Pick<Pair, 'from' | 'target'>) => api.suggestModelMap({ from, target }),
+    onSuccess: (found) => {
+      if (found) void queryClient.invalidateQueries({ queryKey: keys.modelMapSuggestions });
+      else toast.info(t('map.suggestNone'));
+    },
+    onError: (err) => toast.error(t('map.suggestFailed'), err),
+  });
+
   const label = (id: ProviderId) => statuses.find((s) => s.id === id)?.label ?? id;
-  const modelName = (id: ProviderId, model: string) => catalogOf.get(id)?.find((m) => m.value === model)?.label ?? model;
-  const set = (from: Pair['from'], target: ProviderId, model: string | null) => onSave(withCounterpart(settings, from, { provider: target, model }, new Date().toISOString()));
-  const suggestionFor = (from: Pair['from'], target: ProviderId): ModelMapSuggestion | undefined =>
-    (suggestions.data ?? []).find((s) => s.from.provider === from.provider && s.from.model === from.model && s.to.provider === target);
+  const modelName = (id: ProviderId, model: string) => catalogOf.get(id)?.find((m) => isModel(m, model))?.label ?? model;
+  const set = (from: Pair['from'], names: string[], target: ProviderId, model: string | null) => onSave(withCounterpart(settings, from, { provider: target, model }, new Date().toISOString(), names));
+  const suggestionFor = (from: Pair['from'], names: string[], target: ProviderId): ModelMapSuggestion | undefined =>
+    (suggestions.data ?? []).find((s) => s.from.provider === from.provider && names.includes(s.from.model) && s.to.provider === target);
 
   const intro = <p className="rot-intro-text">{t('map.intro')}</p>;
   const head = (
@@ -88,8 +98,9 @@ export function ModelMapEditor({
 
   const targets = withModels.filter((s) => s.id !== source.id);
   const models = offered(catalogOf.get(source.id));
-  const waitsOn = (model: string) => waiting.has(`${source.id}\0${model}`) && targets.some((s) => !counterpart(map, { provider: source.id, model }, s.id));
-  const waitingModel = models.find((m) => waitsOn(m.value));
+  const waitsOn = (m: ModelOption) =>
+    namesOf(m).some((name) => waiting.has(`${source.id}\0${name}`)) && targets.some((s) => !counterpart(map, { provider: source.id, model: m.value }, s.id, namesOf(m)));
+  const waitingModel = models.find(waitsOn);
 
   const picker = (
     <div className="map-from">
@@ -125,8 +136,9 @@ export function ModelMapEditor({
   /** What stands in the cell of one model and one target: the counterpart, its suggestion, or the lack of both. */
   const cell = (m: ModelOption, target: ProviderStatus) => {
     const from = { provider: source.id, model: m.value };
-    const entry = counterpart(map, from, target.id);
-    const suggestion = entry ? undefined : suggestionFor(from, target.id);
+    const names = namesOf(m);
+    const entry = counterpart(map, from, target.id, names);
+    const suggestion = entry ? undefined : suggestionFor(from, names, target.id);
     const catalog = catalogOf.get(target.id);
     const stale = entry ? isStale(entry, catalog) : false;
     const name = `${m.label ?? m.value} → ${target.label}`;
@@ -150,23 +162,37 @@ export function ModelMapEditor({
       );
     }
     const options = offered(catalog).map((o) => ({ value: o.value, label: <span className="mono">{o.label ?? o.value}</span> }));
+    // A counterpart is saved under the name the CLI reported: it reads as the row it belongs to
+    const chosen = entry ? offered(catalog).find((o) => isModel(o, entry.to.model))?.value : undefined;
     // A counterpart that left the catalog stays visible, so it can be read and changed
-    if (entry && !options.some((o) => o.value === entry.to.model)) options.unshift({ value: entry.to.model, label: <span className="mono">{entry.to.model}</span> });
+    if (entry && chosen === undefined) options.unshift({ value: entry.to.model, label: <span className="mono">{entry.to.model}</span> });
     return (
       <div className="map-cell">
         <Select
-          value={entry?.to.model ?? NONE}
+          value={chosen ?? entry?.to.model ?? NONE}
           aria-label={t('map.counterpartAria', { name })}
           placeholder={t('map.choose')}
-          onChange={(v) => set(from, target.id, v === NONE ? null : v)}
+          onChange={(v) => set(from, names, target.id, v === NONE ? null : v)}
           options={[{ value: NONE, label: t('map.none') }, ...options]}
         />
         {!entry && <Tag tone="warn">{t('map.noCounterpart')}</Tag>}
+        {!entry && (
+          <button type="button" className="btn btn-small prov-quiet" disabled={suggest.isPending} aria-label={t('map.suggestAria', { name })} onClick={() => suggest.mutate({ from, target: target.id })}>
+            {t('map.suggest')}
+          </button>
+        )}
         {stale && <Tag tone="warn">{t('map.stale')}</Tag>}
         {!entry && <span className="small muted">{t('map.waitsHere')}</span>}
         {stale && <span className="small muted">{t('map.staleHint', { provider: target.label })}</span>}
       </div>
     );
+  };
+
+  /** The catalogue value of a pair's counterpart, whichever name it was saved under */
+  const currentOf = (p: Pair): string | null => {
+    const model = counterpart(map, p.from, p.target, p.names)?.to.model;
+    if (model === undefined) return null;
+    return offered(catalogOf.get(p.target)).find((o) => isModel(o, model))?.value ?? model;
   };
 
   if (narrow) {
@@ -182,18 +208,19 @@ export function ModelMapEditor({
               <div className="rot-line">
                 <span>{m.label ?? m.value}</span>
                 {m.tier && <span className="mono small muted grow">{t(`map.tier.${m.tier}`)}</span>}
-                {waitsOn(m.value) && <Tag tone="warn">{t('map.askedByJob')}</Tag>}
+                {waitsOn(m) && <Tag tone="warn">{t('map.askedByJob')}</Tag>}
               </div>
               <div className="card">
                 {targets.map((target) => {
                   const from = { provider: source.id, model: m.value };
-                  const entry = counterpart(map, from, target.id);
-                  const suggestion = entry ? undefined : suggestionFor(from, target.id);
+                  const names = namesOf(m);
+                  const entry = counterpart(map, from, target.id, names);
+                  const suggestion = entry ? undefined : suggestionFor(from, names, target.id);
                   if (suggestion) return <div className="rot-cell stacked" key={target.id}><span>{target.label}</span>{cell(m, target)}</div>;
                   return (
-                    <button key={target.id} type="button" className="rot-cell" onClick={() => setPair({ from, target: target.id })}>
+                    <button key={target.id} type="button" className="rot-cell" onClick={() => setPair({ from, target: target.id, names })}>
                       <span className="grow">{target.label}</span>
-                      {entry ? <span className="mono">{entry.to.model}</span> : <Tag tone="warn">{t('map.noCounterpart')}</Tag>}
+                      {entry ? <span className="mono">{modelName(target.id, entry.to.model)}</span> : <Tag tone="warn">{t('map.noCounterpart')}</Tag>}
                       {entry && isStale(entry, catalogOf.get(target.id)) && <Tag tone="warn">{t('map.stale')}</Tag>}
                       <ChevronRight {...ICON_SM} />
                     </button>
@@ -208,10 +235,12 @@ export function ModelMapEditor({
             pair={pair}
             title={t('map.pairTitle', { model: modelName(pair.from.provider, pair.from.model), provider: label(pair.target) })}
             catalog={offered(catalogOf.get(pair.target))}
-            current={counterpart(map, pair.from, pair.target)?.to.model ?? null}
+            current={currentOf(pair)}
+            suggesting={suggest.isPending}
             onClose={() => setPair(null)}
+            onSuggest={() => suggest.mutate({ from: pair.from, target: pair.target }, { onSuccess: (found) => found && setPair(null) })}
             onPick={(model) => {
-              set(pair.from, pair.target, model);
+              set(pair.from, pair.names, pair.target, model);
               setPair(null);
             }}
           />
@@ -235,11 +264,11 @@ export function ModelMapEditor({
           ))}
         </div>
         {models.map((m) => (
-          <div className={`map-row${waitsOn(m.value) ? ' is-target' : ''}`} key={m.value} data-model={m.value}>
+          <div className={`map-row${waitsOn(m) ? ' is-target' : ''}`} key={m.value} data-model={m.value}>
             <div className="map-model">
               <span className="map-model-name">{m.label ?? m.value}</span>
               {m.tier && <span className="mono small muted">{t(`map.tier.${m.tier}`)}</span>}
-              {waitsOn(m.value) && <Tag tone="warn">{t('map.askedByJob')}</Tag>}
+              {waitsOn(m) && <Tag tone="warn">{t('map.askedByJob')}</Tag>}
             </div>
             {targets.map((target) => (
               <div className="map-cell-wrap" key={target.id}>{cell(m, target)}</div>
@@ -257,14 +286,19 @@ function PairSheet({
   title,
   catalog,
   current,
+  suggesting,
   onClose,
+  onSuggest,
   onPick,
 }: {
   pair: Pair;
   title: string;
   catalog: ModelOption[];
   current: string | null;
+  suggesting: boolean;
   onClose: () => void;
+  /** Asks for a suggestion for this pair; the sheet closes when one comes, to show it in the list */
+  onSuggest: () => void;
   onPick: (model: string | null) => void;
 }) {
   const { t } = useTranslation('providers');
@@ -278,9 +312,16 @@ function PairSheet({
       side="bottom"
       className="prov-sheet"
       footer={
-        <button type="button" className="btn btn-primary" onClick={() => onPick(choice)}>
-          {t('map.save')}
-        </button>
+        <>
+          {current === null && (
+            <button type="button" className="btn" disabled={suggesting} onClick={onSuggest}>
+              {t('map.suggest')}
+            </button>
+          )}
+          <button type="button" className="btn btn-primary" onClick={() => onPick(choice)}>
+            {t('map.save')}
+          </button>
+        </>
       }
     >
       <div className="card" role="radiogroup" aria-label={t('map.pickAria')}>
