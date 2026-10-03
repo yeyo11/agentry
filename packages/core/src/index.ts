@@ -156,7 +156,7 @@ import { DecisionEngine } from './decisions/engine.ts';
 import { IssueTriage } from './decisions/issue-triage.ts';
 import { ReviewTriage } from './decisions/review-triage.ts';
 import { DecisionResolvers } from './decisions/resolve.ts';
-import { CliDecisionProvider, chooseCliRoute } from './decisions/providers/cli.ts';
+import { CliDecisionProvider, decisionRoute } from './decisions/providers/cli.ts';
 import { JevProvider } from './decisions/providers/jev.ts';
 import { DecisionCredentialStore, DecisionSettingsStore } from './decisions/settings.ts';
 import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
@@ -628,7 +628,7 @@ export class Core {
         runtime: this.runtime,
         settings: this.decisionSettings,
         // A decision chat never moves: it starts on the first provider that can answer, or says why none can
-        route: (cli) => chooseCliRoute(cli, candidateContext(this.runtime, { settings: this.providersSettings.get(), project: null, statuses: this.providers.known() ?? [] })),
+        route: (cli) => decisionRoute(cli, this.providers.known(), (statuses) => candidateContext(this.runtime, { settings: this.providersSettings.get(), project: null, statuses })),
       }),
     );
     // c6 left this wiring to the routes' worker: without it `jev` is never registered

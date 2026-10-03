@@ -11,7 +11,7 @@ import { defaultProvidersSettings } from '../src/providers/settings.ts';
 import { Core } from '../src/index.ts';
 import { translateClaudePolicy } from '../src/providers/claude-code/policy.ts';
 import { translateCodexPolicy } from '../src/providers/codex/policy.ts';
-import { chooseCliRoute, CliDecisionProvider, DECISION_POLICY, decisionPrompt, decisionSchema, parseAnswers } from '../src/decisions/providers/cli.ts';
+import { decisionRoute, chooseCliRoute, CliDecisionProvider, DECISION_POLICY, decisionPrompt, decisionSchema, parseAnswers } from '../src/decisions/providers/cli.ts';
 import type { DecisionRequest, ProviderResult } from '../src/decisions/engine.ts';
 import { PASTED_NOTE, THINK_THROUGH } from '../src/prompt-rules.ts';
 import { tempConfig } from './helpers.ts';
@@ -268,4 +268,17 @@ test('the chat starts on the provider and the model the route names, and an unav
   } finally {
     core.shutdown();
   }
+});
+
+test('before the providers have been read once, a decision goes to Claude Code with the configured model', () => {
+  const cli = { model: 'haiku', effort: 'low' } as Parameters<typeof decisionRoute>[0];
+  let weighed = false;
+  const route = decisionRoute(cli, null, () => {
+    weighed = true;
+    throw new Error('nothing to weigh before a detection');
+  });
+  assert.deepEqual(route, { provider: 'claude-code', model: 'haiku', effort: 'low' });
+  assert.equal(weighed, false);
+  // Once read, the candidates decide: none at all is a decision that cannot be had
+  assert.deepEqual(decisionRoute(cli, [], () => ({ settings: defaultProvidersSettings([]), project: null, providers: {}, now: Date.now() })), { unavailable: 'server-error' });
 });

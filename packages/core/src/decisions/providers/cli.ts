@@ -1,4 +1,4 @@
-import type { DecisionAnswer, DecisionQuestion, DecisionSettings, DecisionUnavailableReason, ProviderId, ToolPolicy } from '@agentry/shared';
+import type { DecisionAnswer, DecisionQuestion, DecisionSettings, DecisionUnavailableReason, ProviderId, ProviderStatus, ToolPolicy } from '@agentry/shared';
 import type { ChatRuntime, NewChat, RunResult } from '../../chats.ts';
 import { stoppedOnMaxTokens } from '../../open-items.ts';
 import { PASTED_NOTE, pasted, thinkThrough } from '../../prompt-rules.ts';
@@ -72,6 +72,20 @@ export function chooseCliRoute(cli: DecisionSettings['cli'], context: CandidateC
   const first = result.candidates[0];
   if (first?.model) return { provider: first.provider, model: first.model, effort: first.effort };
   return { unavailable: result.excluded.some((e) => e.excluded === 'exhausted') ? 'rate-limited' : 'server-error' };
+}
+
+/**
+ * The route of a decision chat from the providers as last read. Before they have been read once
+ * nothing can be weighed, so Claude Code answers with the configured model, as it did before there
+ * were providers to choose from, rather than no provider at all.
+ */
+export function decisionRoute(
+  cli: DecisionSettings['cli'],
+  statuses: readonly ProviderStatus[] | null,
+  context: (statuses: ProviderStatus[]) => CandidateContext,
+): CliRoute | { unavailable: DecisionUnavailableReason } {
+  if (!statuses) return { provider: 'claude-code', model: cli.model, effort: cli.effort ?? null };
+  return chooseCliRoute(cli, context([...statuses]));
 }
 
 /** How long a stopped chat gets to end before it is removed regardless */
