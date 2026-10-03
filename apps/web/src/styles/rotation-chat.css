@@ -76,7 +76,7 @@
   padding: 10px 0 0;
   list-style: none;
   border-top: 1px solid var(--line-2);
-  font-size: 12.5px;
+  font-size: 13px;
 }
 
 .lim-out li {
@@ -106,7 +106,7 @@
 
 .lim-stop .when {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--fg-3);
 }
 
@@ -131,7 +131,7 @@
   background: transparent;
   color: var(--fg);
   font: inherit;
-  font-size: 14.5px;
+  font-size: 15px;
 }
 
 .lim-zone {
@@ -229,7 +229,7 @@ button.mv-cand {
 }
 
 .mv-why {
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--fg-2);
 }
@@ -242,12 +242,12 @@ button.mv-cand {
   flex-shrink: 0;
   width: 120px;
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--fg-2);
   font-variant-numeric: tabular-nums;
 }
 
-.mv-use .bar {
+.mv-use .meter-track {
   width: 100%;
 }
 
@@ -353,7 +353,7 @@ button.mv-cand {
   flex-wrap: wrap;
   gap: 4px 12px;
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--fg-2);
 }
 
@@ -394,7 +394,7 @@ button.mv-cand {
 }
 
 .hand-sub {
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--fg-2);
 }
@@ -485,6 +485,52 @@ a.cont-from:hover {
   align-items: center;
   gap: 8px;
   padding: 0 20px 8px;
+}
+
+/* A flow run that went on in another provider: a calm note, not a warning. The work is going on. */
+.flow-moved {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 20px 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+
+.flow-moved-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--fg-3);
+}
+
+.flow-moved-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.flow-moved-body b {
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.flow-moved-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.flow-moved-foot .mono {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-3);
 }
 
 @media (max-width: 900px) {

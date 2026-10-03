@@ -1,4 +1,4 @@
-import type { DecisionAnswer, DecisionQuestion, DecisionSettings, DecisionUnavailableReason, ProviderId } from '@agentry/shared';
+import type { DecisionAnswer, DecisionQuestion, DecisionSettings, DecisionUnavailableReason, ProviderId, ToolPolicy } from '@agentry/shared';
 import type { ChatRuntime, NewChat, RunResult } from '../../chats.ts';
 import { stoppedOnMaxTokens } from '../../open-items.ts';
 import { PASTED_NOTE, pasted, thinkThrough } from '../../prompt-rules.ts';
@@ -21,6 +21,13 @@ export interface CliRuntime {
   exited(id: string): Promise<void>;
   remove(id: string): boolean;
 }
+
+/**
+ * What a decision chat may do: nothing. It has no tool, so the policy states that outright; a provider
+ * can take the chat only where this is enforced, which is what lets it run on another provider
+ * (decision 9) without the chat being a person's.
+ */
+export const DECISION_POLICY: ToolPolicy = { read: { allow: false }, edit: { allow: 'none' }, commands: { allow: 'none' }, network: 'deny', gitPush: 'deny' };
 
 /** Where the chat runs: a provider, and the model of its own that stands for the configured one */
 export interface CliRoute {
@@ -54,9 +61,9 @@ export function chooseCliRoute(cli: DecisionSettings['cli'], context: CandidateC
       // The configured model is Claude's (`haiku`): another provider needs the person's mapping for it
       model: { provider: 'claude-code', id: cli.model },
       needs: ['structuredOutput'],
-      policy: null,
+      policy: DECISION_POLICY,
       nativeRules: false,
-      automated: false,
+      automated: true,
       exclude: [],
       effort: cli.effort,
     },
@@ -176,6 +183,7 @@ export class CliDecisionProvider implements DecisionProvider {
         uploads: false,
         api: false,
         confine: { tools: [], settingSources: [] },
+        toolConfig: { preset: null, allowedTools: [], disallowedTools: [], mcp: null, policy: DECISION_POLICY },
         permissionMode: 'dontAsk',
         permissionPrompts: 'none',
       });

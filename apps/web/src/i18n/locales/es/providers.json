@@ -223,6 +223,10 @@
     "suggestionFor": "Sugerencia para {{name}}",
     "suggested": "Sugerido",
     "notInForce": "No vale hasta que lo aceptes.",
+    "suggest": "Sugerir",
+    "suggestAria": "Sugerir un equivalente para {{name}}",
+    "suggestNone": "Ahora no hay nada que sugerir para este modelo",
+    "suggestFailed": "No se ha podido pedir una sugerencia",
     "accept": "Aceptar",
     "dismiss": "Descartar",
     "accepted": "Equivalencia aceptada",
@@ -275,9 +279,14 @@
     "removeTitle": "¿Quitar la copia de claude-swap de Agentry?",
     "removeBody": "Borra solo la copia que Agentry instaló en su carpeta de datos. Las cuentas y los archivos de claude-swap no se tocan.",
     "removeHint": "Borra solo la que Agentry instaló en su carpeta de datos. Nada más.",
-    "removed": "Se quitó la copia de claude-swap de Agentry",
+    "removed": "Se ha quitado la copia de claude-swap de Agentry",
     "nothingToRemove": "No había ninguna copia que quitar",
-    "failed": "No se ha podido completar"
+    "failed": "No se ha podido completar",
+    "home": {
+      "keeps": "Claude Code sigue con {{account}} · el trabajo pasa entre proveedores",
+      "keepsNone": "Claude Code sigue con su cuenta · el trabajo pasa entre proveedores",
+      "see": "Ver qué cambia"
+    }
   },
   "project": {
     "title": "Proveedores",

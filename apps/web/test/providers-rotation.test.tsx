@@ -20,6 +20,7 @@ import {
   counterpart,
   isStale,
   limitRows,
+  namesOf,
   onLimitWith,
   projectProvidersOf,
   rotationOf,
@@ -227,4 +228,46 @@ test('the copy of the rotation cards exists in Spanish, once per key, with the s
     assert.ok(other, `es ${key}`);
     assert.equal(holes(value), holes(other), key);
   }
+});
+
+test('a row is matched on its alias or any id the CLI reported for it (QA-W M2)', () => {
+  const row: ModelOption = { ...SONNET, ids: ['claude-sonnet-5'] };
+  const from = { provider: 'claude-code', model: 'sonnet' };
+  const names = namesOf(row);
+  assert.deepEqual(names, ['sonnet', 'claude-sonnet-5']);
+  // An entry written under the resolved id is found, and writing from the row replaces it
+  const stored = settings({ rotation: { ...DEFAULT_ROTATION, modelMap: [{ from: { provider: 'claude-code', model: 'claude-sonnet-5' }, to: { provider: 'codex', model: 'gpt-6.1-sol' }, origin: 'decision', at: 't' }] } });
+  assert.equal(counterpart(rotationOf(stored).modelMap, from, 'codex'), undefined);
+  assert.equal(counterpart(rotationOf(stored).modelMap, from, 'codex', names)?.to.model, 'gpt-6.1-sol');
+  const written = withCounterpart(stored, from, { provider: 'codex', model: 'gpt-6.1-mini' }, 't2', names);
+  assert.deepEqual(rotationOf(written).modelMap.map((e) => [e.from.model, e.to.model]), [['sonnet', 'gpt-6.1-mini']]);
+  // A counterpart saved as an id is not stale while its row is offered
+  const entry = { from, to: { provider: 'claude-code', model: 'claude-sonnet-5' }, origin: 'person' as const, at: 't' };
+  assert.equal(isStale(entry, [row]), false);
+  assert.equal(isStale(entry, [SONNET]), true);
+});
+
+test('the mapping editor reads a suggestion and a wait carried under the resolved id, and offers Suggest on an empty cell', () => {
+  const client = seeded();
+  client.setQueryData(keys.providerModels('claude-code'), [{ ...SONNET, ids: ['claude-sonnet-5'] }, { ...OPUS, ids: ['claude-opus-5'] }]);
+  client.setQueryData(keys.modelMapSuggestions, [{ id: 'd1', from: { provider: 'claude-code', model: 'claude-opus-5' }, to: { provider: 'codex', model: 'gpt-6.1-sol' }, at: 't' }]);
+  client.setQueryData(keys.providerMoves('waiting'), [{ id: 'm', at: 't', subjectKind: 'task', subjectId: 's', projectId: null, fromChat: 'c', toChat: null, fromProvider: 'claude-code', toProvider: null, fromModel: 'claude-sonnet-5', toModel: null, action: 'wait', state: 'waiting', decidedBy: 'setting', decisionId: null, resetsAt: null, reason: null, updatedAt: 't' }]);
+  const html = render(<ProvidersTab />, client);
+  assert.match(text(html), /Suggested/);
+  assert.match(html, /map-row is-target" data-model="sonnet"/);
+  // Sonnet has no counterpart and no suggestion: its cell offers Suggest
+  assert.match(html, /aria-label="Suggest a counterpart for Sonnet 5.5 → Codex"/);
+});
+
+test('an unknown reading is said, not drawn, even when it still has windows (QA-W m14)', () => {
+  const client = seeded();
+  client.setQueryData(keys.providers, [status('claude-code', { limit: limit({ state: 'unknown' }) }), status('codex')]);
+  const html = render(<ProvidersTab />, client);
+  assert.match(text(html), /the limit is not known until a new one arrives/);
+  assert.doesNotMatch(html, /aria-label="5 h: 72 % used"/);
+});
+
+test("a project's own onLimit.allowed survives a save and follows the action (QA-W m7)", () => {
+  assert.deepEqual(projectProvidersOf(null, { action: 'handoff', allowed: ['wait'] }), { onLimit: { action: 'handoff', allowed: ['handoff', 'wait'] } });
+  assert.deepEqual(projectProvidersOf(['codex'], { allowed: ['restart', 'wait'] }), { order: ['codex'], onLimit: { allowed: ['restart', 'wait'] } });
 });

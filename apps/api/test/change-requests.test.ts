@@ -22,7 +22,6 @@ before(async () => {
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
-      CSWAP_BIN: '/nonexistent/cswap',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
       AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
       AGENTRY_DATA_DIR: join(root, 'data'),
@@ -200,7 +199,6 @@ test("a chat's token reads the checks but cannot re-run, cancel, play or fix", a
   const guardedCore = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
-      CSWAP_BIN: '/nonexistent/cswap',
       CLAUDE_CONFIG_DIR: join(secured, 'claude'),
       AGENTRY_WORKSPACE_DIR: join(secured, 'workspace'),
       AGENTRY_DATA_DIR: join(secured, 'data'),

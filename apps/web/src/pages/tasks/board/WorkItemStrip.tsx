@@ -1,4 +1,4 @@
-import type { CodeHostId, FlowRunCause, WorkItem } from '@agentry/shared';
+import type { CodeHostId, FlowRunCause, LimitWait, WorkItem } from '@agentry/shared';
 import { Check, CircleAlert, Clock, ExternalLink, GitPullRequest, Workflow, X } from 'lucide-react';
 import { useMemo, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -6,6 +6,9 @@ import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
 import { Monogram } from '@agentry/ui/components/icons';
 import { ProgressBar } from '@agentry/ui/components/ProgressBar';
 import { Spinner } from '@agentry/ui/components/Spinner';
+import { timeUntil } from '@agentry/ui/lib/format';
+import { useProviderLabel } from '../../../lib/provider-status';
+import { resetWhen } from '../../../lib/reset-when';
 import { activityTarget, activityVerb, elapsedSince, formatElapsed } from '@agentry/ui/lib/live';
 import { useClockTick } from '@agentry/ui/lib/motion';
 import { chatActivity, orchestrationProgress } from '../../../lib/shell-live';
@@ -89,6 +92,25 @@ function PrLink({ url, number, refText, host }: { url: string | null; number: nu
   );
 }
 
+/** "Waiting for Claude Code · resumes at 14:05 (in 2 h)": the wait line's words, on the strip's own line. */
+export function RunWaitWords({ wait }: { wait: Pick<LimitWait, 'provider' | 'resetsAt'> }) {
+  const { t } = useTranslation('components');
+  const label = useProviderLabel();
+  return (
+    <span className="workitem-strip-verb">
+      <b>{t('limitWait.title', { name: label(wait.provider) })}</b>
+      {' · '}
+      {wait.resetsAt ? (
+        <>
+          {t('limitWait.resumesAt')} <span className="mono">{resetWhen(wait.resetsAt)}</span> ({timeUntil(Date.parse(wait.resetsAt) / 1000)})
+        </>
+      ) : (
+        t('limitWait.unknown')
+      )}
+    </span>
+  );
+}
+
 /**
  * What happens to an item now, at the foot of its card or phone row (`.wi-strip`): one state, led by
  * who acts, and nothing when nothing is going on. Live strips move and take the live tint; a card
@@ -163,6 +185,16 @@ export function WorkItemStrip({
       );
       break;
     }
+    case 'run-waiting':
+      // Waiting for a reset is not live work: no spinner and no clock, the hour it resumes at
+      body = (
+        <>
+          <StripActorMark actor={{ kind: 'role', role: strip.role }} />
+          <Clock {...MARK} />
+          <RunWaitWords wait={strip.wait} />
+        </>
+      );
+      break;
     case 'chat': {
       const activity = chatActivity(sources.chats.find((chat) => chat.id === strip.chatId) ?? {});
       const detail = activity ? activityTarget(activity) : '';

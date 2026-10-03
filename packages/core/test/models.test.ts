@@ -119,6 +119,10 @@ test('an alias is named after the model a chat reported it as, and stands alone 
   assert.equal(options.find((m) => m.value === 'sonnet')?.label, 'Sonnet 5');
   assert.equal(options.find((m) => m.value === 'opus')?.label, 'Opus 5.5 (1M)');
   assert.equal(options.find((m) => m.value === 'haiku')?.label, undefined);
+  // The ids an alias stands for, so a suggestion that carries the id finds its row
+  assert.deepEqual(options.find((m) => m.value === 'sonnet')?.ids, ['claude-sonnet-5']);
+  assert.deepEqual(options.find((m) => m.value === 'opus')?.ids, ['claude-opus-5-5[1m]']);
+  assert.equal(options.find((m) => m.value === 'haiku')?.ids, undefined);
 
   // Kept across a restart, in a document of its own
   await ids.settled();

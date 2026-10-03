@@ -20,6 +20,8 @@ interface Draft {
   /** Null inherits the global order */
   order: ProviderId[] | null;
   action?: LimitAction;
+  /** Not offered here: kept as the project has it, so a save does not drop what the API wrote */
+  allowed?: LimitAction[];
   maxWaitHours?: number;
   maxMoves?: number;
 }
@@ -47,6 +49,7 @@ export function ProjectProviders({ project }: { project: Project }) {
     return {
       order: own?.order ?? null,
       ...(own?.onLimit?.action !== undefined ? { action: own.onLimit.action } : {}),
+      ...(own?.onLimit?.allowed !== undefined ? { allowed: own.onLimit.allowed } : {}),
       ...(own?.onLimit?.maxWaitHours !== undefined ? { maxWaitHours: own.onLimit.maxWaitHours } : {}),
       ...(own?.onLimit?.maxMoves !== undefined ? { maxMoves: own.onLimit.maxMoves } : {}),
     };
@@ -71,6 +74,7 @@ export function ProjectProviders({ project }: { project: Project }) {
       const { providers: _previous, ...rest } = fresh;
       const onLimit: Partial<OnLimit> = {};
       if (draft.action !== undefined) onLimit.action = draft.action;
+      if (draft.allowed !== undefined) onLimit.allowed = draft.allowed;
       if (draft.maxWaitHours !== undefined) onLimit.maxWaitHours = draft.maxWaitHours;
       if (draft.maxMoves !== undefined) onLimit.maxMoves = draft.maxMoves;
       const providers = projectProvidersOf(draft.order, onLimit);

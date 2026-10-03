@@ -199,6 +199,8 @@ export { summarizeOrchestration } from './orchestrator.ts';
 export { compareVersions } from './version-check.ts';
 export { ReleaseWatch, type ReleaseWatchOptions } from './release-watch.ts';
 export { ProviderRotation, candidateContext, effectiveOnLimit } from './rotation.ts';
+export { modelMapSubject, modelMapSubjectId } from './decisions/provider-points.ts';
+export { stanceOf } from './decisions/stance.ts';
 
 /** How long a measurement of every provider serves the work that starts after it */
 const WORK_PROBE_MS = 60_000;

@@ -8,7 +8,7 @@ import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { formatHour } from '@agentry/ui/lib/format';
 import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
 import { useChatUi } from '@agentry/chat-ui/lib/context';
-import { api } from '../../api';
+import { api, keys } from '../../api';
 import { useProviderLabel } from '../../lib/provider-status';
 import { HandoffText, kib } from './MoveSheet';
 
@@ -83,7 +83,7 @@ export function ContinuedDivider({ chat }: { chat: Chat }) {
   const nameOf = useProviderLabel();
   const next = chat.continuedIn;
   const target = useQuery({
-    queryKey: ['chat', next?.chatId ?? '', 'continuation'],
+    queryKey: keys.chatContinuation(next?.chatId ?? ''),
     queryFn: () => api.chat(next?.chatId ?? '', false, { limit: 1 }),
     enabled: Boolean(next),
     staleTime: 60_000,

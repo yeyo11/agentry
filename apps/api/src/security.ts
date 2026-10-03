@@ -186,6 +186,7 @@ const CHAT_FORBIDDEN_ROTATION = new Set([
   `POST ${API_PREFIX}/chats/:id/move`,
   `POST ${API_PREFIX}/chats/:id/wait`,
   `POST ${API_PREFIX}/providers/moves/:id/cancel`,
+  `POST ${API_PREFIX}/providers/model-map/suggest`,
   `POST ${API_PREFIX}/providers/model-map/suggestions/:id`,
   `POST ${API_PREFIX}/providers/cswap-retirement/dismiss`,
   `DELETE ${API_PREFIX}/providers/cswap-retirement/managed-copy`,

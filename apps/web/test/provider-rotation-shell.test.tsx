@@ -9,7 +9,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
 import { keys } from '../src/api';
 import { ProviderChain, WaitLine } from '../src/components/ProviderChain';
-import { ProviderDots } from '../src/components/shell/ProviderDots';
+import { limitDotFacts, ProviderDots } from '../src/components/shell/ProviderDots';
+import { isKnownLimitWindow, limitWindowWord } from '../src/lib/limit-words';
 import i18n from '../src/i18n';
 import { en, es } from '../src/i18n/resources';
 import { decisionsOn } from '../src/lib/orchestration-board';
@@ -91,6 +92,33 @@ test('an exhausted provider shows the word, no bar and its reset', () => {
   assert.doesNotMatch(html, /meter-track/);
   assert.match(bar([status('codex', { state: 'degraded', reason: 'limit-reached' })], [limit('codex', { state: 'exhausted', utilization: 1 })], 'es'), /Codex · límite agotado/);
   void i18n.changeLanguage('en');
+});
+
+test('a provider degraded for another reason still says the limit when its reading is near or at it', () => {
+  const near = bar([status('claude-code', { state: 'degraded', reason: 'version-above-range' })], [limit('claude-code', { state: 'near', utilization: 0.72 })]);
+  assert.match(near, /Claude Code · limit(?! reached)/);
+  assert.doesNotMatch(near, /warnings|degraded/);
+  const hit = bar([status('claude-code', { state: 'degraded', reason: 'version-above-range' })], [limit('claude-code', { state: 'exhausted', utilization: 1 })]);
+  assert.match(hit, /Claude Code · limit reached/);
+  assert.match(hit, /statusbar-bad/);
+  // The reason is not lost: with no limit reading the state's own word stays
+  assert.match(bar([status('claude-code', { state: 'degraded', reason: 'version-above-range' })], [limit('claude-code')]), /Claude Code · warnings/);
+  assert.deepEqual(limitDotFacts({ state: 'degraded', reason: 'version-above-range' }, { state: 'near' }), { hot: true, limitOnly: false, tone: 'warn' });
+  assert.equal(limitDotFacts({ state: 'degraded', reason: 'version-above-range' }, { state: 'exhausted' }).tone, 'bad');
+});
+
+test('window names are worded for the person, and an unknown one is a generic usage limit', async () => {
+  await i18n.changeLanguage('en');
+  const words = (window: string | null) => i18n.t(`shell:limitWindow.${limitWindowWord(window)}`);
+  for (const [name, said] of [['five_hour', '5 h'], ['5h', '5 h'], ['seven_day', '7 d'], ['7d', '7 d'], ['primary', 'main window'], ['secondary', 'second window'], ['weekly_opus', 'usage limit'], [null, 'usage limit']] as const) {
+    assert.equal(words(name), said, String(name));
+  }
+  assert.equal(isKnownLimitWindow('primary'), true);
+  assert.equal(isKnownLimitWindow('toString'), false);
+  assert.equal(isKnownLimitWindow('weekly_opus'), false);
+  await i18n.changeLanguage('es');
+  assert.equal(i18n.t('shell:limitWindow.other'), 'límite de uso');
+  await i18n.changeLanguage('en');
 });
 
 test('a provider with no reading, or a stale one, shows no limit at all', () => {

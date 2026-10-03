@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
+import { modelMapSubject, modelMapSubjectId, stanceOf, type Core } from '@agentry/core';
 import type {
   AnswerModelMapSuggestionRequest,
   CswapRetirementState,
@@ -11,6 +11,7 @@ import type {
   ProviderMoveState,
   ProviderStatus,
   ProvidersSettings,
+  SuggestModelMapRequest,
 } from '@agentry/shared';
 
 /**
@@ -95,6 +96,27 @@ export const providerRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
       if (!mapped) open.push({ id: row.id, from: pair.from, to: { provider: pair.to, model: answer.value }, at: row.at });
     }
     return open;
+  });
+
+  // The person pressing Suggest: asks the point now, whatever it was asked today. 204 when nothing came
+  // back (the point watches only, or had no counterpart); 409 when the point is off
+  app.post<{ Body: SuggestModelMapRequest | undefined }>('/providers/model-map/suggest', async (req, reply): Promise<ModelMapSuggestion | undefined> => {
+    const { from, target } = req.body ?? {};
+    if (typeof from?.provider !== 'string' || typeof from.model !== 'string' || !from.model || typeof target !== 'string') throw new Error('from.provider, from.model and target are required');
+    const own = core.runtime.providers.driverFor(from.provider);
+    const other = core.runtime.providers.driverFor(target);
+    if (!own) throw fail(404, `provider ${from.provider} has no driver`);
+    if (!other) throw fail(404, `provider ${target} has no driver`);
+    if (from.provider === target) throw new Error('the target must be another provider');
+    const stance = stanceOf(core.decisions, 'provider.model-map', null);
+    if (stance === 'off') throw fail(409, 'the model-map decision point is off');
+    const subject = modelMapSubject(from, target, own.models(), other.models());
+    const model = await core.providerPoints.suggestMapping(stance, subject, { force: true });
+    if (!model) return reply.status(204).send() as unknown as undefined;
+    const id = modelMapSubjectId(from.provider, from.model, target);
+    const row = core.db.listDecisions({ point: 'provider.model-map', status: 'answered', limit: 50 }).items.find((r) => r.subjectId === id);
+    if (!row) return reply.status(204).send() as unknown as undefined;
+    return { id: row.id, from: { provider: from.provider, model: from.model }, to: { provider: target, model }, at: row.at };
   });
 
   app.post<{ Params: { id: string }; Body: AnswerModelMapSuggestionRequest | undefined }>('/providers/model-map/suggestions/:id', async (req): Promise<{ ok: true }> => {

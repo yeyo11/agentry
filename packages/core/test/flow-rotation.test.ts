@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { FlowRun, LimitAction, ProjectSettings } from '@agentry/shared';
+import type { AgentryEvent, FlowRun, FlowRunEvent, LimitAction, ProjectSettings } from '@agentry/shared';
 import { Core } from '../src/index.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -81,6 +81,13 @@ async function flowProject(core: Core, dir: string, change: (s: ProjectSettings)
   return project;
 }
 
+/** The `flow.run` events of an action, as they reach a client */
+function flowEvents(core: Core, action: FlowRunEvent['action']): () => FlowRunEvent[] {
+  const seen: AgentryEvent[] = [];
+  core.events.subscribe((e) => seen.push(e));
+  return () => seen.filter((e): e is FlowRunEvent => e.type === 'flow.run' && e.action === action);
+}
+
 const WORK = { summary: 'Implemented', memoryProposals: [], documents: [] };
 const limited = (title: string) => ({ title, status: 'in_progress' as const, type: 'task' as const, description: `FAKE-LIMIT-ONCE\nFAKE-RESULT-WORK ${JSON.stringify(WORK)}` });
 const workRun = (core: Core, projectId: string, title?: string): FlowRun | undefined =>
@@ -89,6 +96,7 @@ const workRun = (core: Core, projectId: string, title?: string): FlowRun | undef
 test('a flow run on Claude at its limit continues on Codex, with its policy and pushes denied', async () => {
   const core = new Core(configWith());
   try {
+    const moves = flowEvents(core, 'moved');
     const project = await flowProject(core, repo());
     const item = core.workItems.create(project.id, limited('Fix the cart'));
     const first = await until(() => workRun(core, project.id)?.chatId, (id) => !!id, 'the run to start');
@@ -107,6 +115,10 @@ test('a flow run on Claude at its limit continues on Codex, with its policy and 
     assert.equal(move?.fromChat, first);
     assert.equal(move?.toProvider, 'codex');
     assert.equal(move?.toModel, 'gpt-5.5');
+    // The board hears the move: a `flow.run` update that names the provider the run goes on with
+    assert.equal(moves().length, 1);
+    assert.equal(moves()[0]?.runId, run.id);
+    assert.equal(moves()[0]?.provider, 'codex');
 
     // The new chat carries the stage's policy, translated for Codex: pushes are denied there too
     const codexChat = core.runtime.get(move!.toChat!);
@@ -127,6 +139,7 @@ test('a flow run on Claude at its limit continues on Codex, with its policy and 
 test('a flow run under a budget waits for the reset: no other provider reports a cost, and a person can stop waiting', async () => {
   const core = new Core(configWith());
   try {
+    const waits = flowEvents(core, 'waiting');
     const project = await flowProject(core, repo(), (s) => ({ ...s, flow: { ...s.flow!, maxCostUsd: 5 } }));
     core.workItems.create(project.id, limited('Fix the cart'));
     // The second card waits for a place: `maxParallel` is 1 and the waiting run keeps its own
@@ -142,6 +155,11 @@ test('a flow run under a budget waits for the reset: no other provider reports a
     assert.equal(waiting?.chatId, run!.chatId);
     assert.equal(waiting?.provider, 'claude-code');
     assert.equal(waiting?.waiting?.moveId, wait?.id);
+    // ... and the board hears it: a `flow.run` update with the provider and when its limit resets
+    assert.equal(waits().length, 1);
+    assert.equal(waits()[0]?.runId, run!.id);
+    assert.equal(waits()[0]?.provider, 'claude-code');
+    assert.ok(waits()[0] && 'resetsAt' in waits()[0]!);
     await sleep(300);
     const other = core.flow.itemRuns(second.id)[0];
     assert.equal(other?.state, 'queued', 'a waiting run holds its place under maxParallel');

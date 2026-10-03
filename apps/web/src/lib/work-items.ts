@@ -22,6 +22,7 @@ import {
   type FlowRun,
   type FlowRunCause,
   type FlowStep,
+  type LimitWait,
   type Project,
   type PullRequestNotReadyReason,
   type PullRequestReadiness,
@@ -406,6 +407,8 @@ export type StripActor = { kind: 'role'; role: string } | { kind: 'person' } | {
  */
 export type WorkItemStripState =
   | { kind: 'run'; role: string; step: FlowStep; startedAt: string | null; activity: ChatActivity | null }
+  /** A run that stopped for its provider's limit to reset: warn and still, never live */
+  | { kind: 'run-waiting'; role: string; step: FlowStep; wait: LimitWait }
   | { kind: 'chat'; chatId: string }
   | { kind: 'node'; orchestrationId: string; taskId: string | null }
   | { kind: 'chat-waiting' }
@@ -480,6 +483,7 @@ function pullRequestStrip(item: StripItem): WorkItemStripState | null {
 export function workItemStrip(item: StripItem, runs: StripRuns = {}): WorkItemStripState | null {
   if (item.status === 'done') return null;
   const running = runs.running?.get(item.id);
+  if (running?.waiting) return { kind: 'run-waiting', role: running.role, step: running.step, wait: running.waiting };
   if (running) return { kind: 'run', role: running.role, step: running.step, startedAt: running.startedAt, activity: running.activity ?? null };
   const link = item.activeLink;
   const live = workItemLiveState(item);
@@ -510,6 +514,7 @@ export function stripActor(strip: WorkItemStripState | null): StripActor | null 
   if (!strip) return null;
   switch (strip.kind) {
     case 'run':
+    case 'run-waiting':
     case 'failed':
     case 'rejected':
     case 'queued':
@@ -557,6 +562,7 @@ export function stripTone(strip: WorkItemStripState): 'live' | 'wait' | 'fail' |
     case 'pr-failed':
       return 'fail';
     case 'pr-conflict':
+    case 'run-waiting':
       return 'warn';
     default:
       return null;

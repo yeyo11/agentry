@@ -21,6 +21,8 @@ import { useChatUi } from '@agentry/chat-ui/lib/context';
 import { COMPACT, useMediaQuery } from '@agentry/ui/lib/media';
 import { checklistProgress } from '../../lib/observe';
 import type { InspectorTab } from './Inspector';
+import { LimitBadge } from './LimitBadge';
+import type { LimitPhase } from './LimitBanner';
 
 /** True once `on` has held for `ms`: a flag that does not flap on a blip. */
 function useHeldFor(on: boolean, ms: number): boolean {
@@ -109,7 +111,20 @@ export interface HeaderActions {
  * One line: back, the title, the pill, and only the action that fits the moment; everything else a
  * chat can do is one press away in the `⋯` menu, and everything it is in the inspector.
  */
-export const ChatHeader = memo(function ChatHeader({ chat, connected, actions }: { chat: Chat; connected: boolean; actions: HeaderActions }) {
+export const ChatHeader = memo(function ChatHeader({
+  chat,
+  connected,
+  actions,
+  limitPhase = 'none',
+  limitResetsAt = null,
+}: {
+  chat: Chat;
+  connected: boolean;
+  actions: HeaderActions;
+  /** Whether the chat sits at its provider's limit; then the pill gives way to the limit's badge and Stop is not offered */
+  limitPhase?: LimitPhase;
+  limitResetsAt?: string | null;
+}) {
   const { t } = useTranslation(['chat', 'work', 'common', 'components']);
   const toast = useToast();
   const { control } = chat;
@@ -211,7 +226,7 @@ export const ChatHeader = memo(function ChatHeader({ chat, connected, actions }:
           {facts.model}
         </span>
       </div>
-      <StatePill chat={chat} connected={connected} />
+      {limitPhase === 'none' ? <StatePill chat={chat} connected={connected} /> : <LimitBadge phase={limitPhase} resetsAt={limitResetsAt} />}
       {chat.health.level !== 'ok' && <HealthBadge health={chat.health} />}
       <ChecklistProgress chat={chat} onOpen={() => inspector.show('activity')} />
       <div className="chat-head-actions">
@@ -224,7 +239,7 @@ export const ChatHeader = memo(function ChatHeader({ chat, connected, actions }:
         )}
         {/* A chat that is not working any more, and has a process nobody is waiting on: the one case
             the menu's Stop is not enough for, since nothing else on the page says it is still up */}
-        {stoppable && live && !working && (
+        {stoppable && live && !working && limitPhase === 'none' && (
           <Tooltip content={t('view.stopHint')}>
             <button type="button" className={`btn btn-small btn-danger chat-stop${compact ? ' is-icon' : ''}`} aria-label={t('common:actions.stop')} disabled={actions.stop.pending} onClick={actions.stop.run}>
               <Square {...ICON_SM} />

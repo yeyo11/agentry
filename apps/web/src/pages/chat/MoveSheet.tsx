@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { Sheet } from '@agentry/ui/components/controls/Sheet';
 import { Dialog } from '@agentry/ui/components/Dialog';
 import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { usageTone } from '@agentry/ui/components/motion';
 import { ProviderMark } from '@agentry/ui/components/ProviderMark';
 import { useToast } from '@agentry/ui/components/Toast';
 import { Segmented, Tag } from '@agentry/ui/components/ui';
@@ -44,6 +45,16 @@ export function HandoffText({ text, full = false, label }: { text: string; full?
         </span>
       ))}
     </pre>
+  );
+}
+
+/** A candidate's use of its limit as a thin bar in the usage thresholds: neutral below 60 %, warn from 60 %, bad from 75 %. */
+export function UsageMeter({ percent }: { percent: number }) {
+  const tone = usageTone(percent);
+  return (
+    <span className="meter-track meter-thin" aria-hidden>
+      <span className={`meter-fill ${tone === 'neutral' ? '' : `is-${tone}`}`.trim()} style={{ width: `${percent}%` }} />
+    </span>
   );
 }
 
@@ -132,11 +143,7 @@ export function MoveSheet({
               </span>
               <span className="mv-use">
                 <span>{percent === null ? t('limit.sheet.usedUnknown') : t('limit.sheet.used', { percent })}</span>
-                {percent !== null && (
-                  <span className="bar bar-thin" aria-hidden>
-                    <i style={{ width: `${percent}%` }} />
-                  </span>
-                )}
+                {percent !== null && <UsageMeter percent={percent} />}
               </span>
             </button>
           );

@@ -69,10 +69,11 @@ export function modelOptions(file: string, seen: Readonly<Record<string, string>
   const options = cliModelOptions(file);
   if (!Object.keys(seen).length) return options;
   return options.map((option) => {
-    if (option.label || !(MODEL_ALIASES as readonly string[]).includes(option.value)) return option;
+    if (!(MODEL_ALIASES as readonly string[]).includes(option.value)) return option;
     const id = seen[option.value];
-    const label = id ? modelDisplayName(id) : null;
-    return label ? { ...option, label } : option;
+    if (!id) return option;
+    const label = option.label ? null : modelDisplayName(id);
+    return { ...option, ids: [id], ...(label ? { label } : {}) };
   });
 }
 

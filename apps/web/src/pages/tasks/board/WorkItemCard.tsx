@@ -234,7 +234,7 @@ export function WorkItemCard({
   const runs = useStripRuns();
   const strip: WorkItemStripState | null = workItemStrip(item, runs);
   const done = item.status === 'done';
-  const working = !done && (workItemLiveState(item) === 'working' || strip?.kind === 'run');
+  const working = !done && strip?.kind !== 'run-waiting' && (workItemLiveState(item) === 'working' || strip?.kind === 'run');
   const classes = [
     'workitem-card',
     done && 'is-done',
