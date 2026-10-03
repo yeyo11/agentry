@@ -15,6 +15,6 @@
     "@agentry/core": "workspace:*",
     "@agentry/shared": "workspace:*",
     "fastify": "^5.12.5",
-    "tsx": "^4.23.13"
+    "tsx": "^4.23.15"
   }
 }
