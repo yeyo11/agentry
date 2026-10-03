@@ -2726,7 +2726,7 @@ owner's desktop app, every code-writing worker on `claude-sonnet-5-5`, and two i
 | G `providers4-groundwork` | g1–g7 | 20.41 USD | Every check passed |
 | D `providers4-rotation` | d1–d7 | 88.11 USD | Passed after the fixer ran (API tests that ran automated work, a limit read after the database closed) |
 | W `providers4-web` | w1–w4 | 49.26 USD | Every check passed |
-| F `providers4-fixes` | f1–f6 | FIXES_COST | FIXES_RESULT |
+| F `providers4-fixes` | f1–f6 | 22.70 USD | Passed after the fixer ran (an API test that counts the provider routes) |
 
 `d4` alone cost 58.90 USD: a core test started the machine's real Gemini CLI, which waited for a
 sign-in for ever, and the worker waited on that test run until it was told why. Tests now never
@@ -2754,7 +2754,20 @@ reach a real agent CLI (core's `tempConfig()`, and `apps/api/test/isolate-provid
 **The audit of W** found 1 blocker, 4 major and 15 minor findings. The blocker was that **no
 provider status carried its limit**: Core built the detector before the runtime that keeps the
 limits and never handed them over, so the chat's limit banner and the limit bars never showed. The
-rest, with the core and API leftovers of the first audit, went to F.
+rest, with the core and API leftovers of the first audit, went to F:
+
+- the **Suggest** button on an empty cell of the mapping editor, and its route
+  (`POST /providers/model-map/suggest`);
+- `ModelOption.ids`, so the editor matches Claude's alias rows with the ids that suggestions, moves
+  and entries carry;
+- the Home card of the claude-swap retirement notice;
+- a flow run that waits or moved, on the board card, the item and the flow chat, with `flow.run`
+  carrying `moved` and `waiting`;
+- the chat header's limit badge and the inspector's Limit row, window names in the person's words,
+  the banner shown only after a turn that ended on the limit;
+- the decision engine's chats carry a policy that allows no tools, so another provider with
+  structured output can take them (decision 9);
+- the copy, the type scale, and an e2e spec that picks the counterpart in the editor.
 
 Not built, by decision: several accounts of one provider, moving a live session, summarising with a
 model, budgets on providers that report no cost, and ACP limit detection beyond what is recorded
