@@ -2711,6 +2711,53 @@ The owner took the recommended option of each, and said to follow the recommenda
    the rotation policies that are gone and offers to remove Agentry's copy. Its own data is never
    touched.
 
+## Outcome of phase 4
+
+Built on `feat/multi-provider-4` on 2026-10-02 and 2026-10-03, in five orchestrations launched on the
+owner's desktop app, every code-writing worker on `claude-sonnet-5-5`, and two independent audits
+(on `claude-opus-5-5`) between them:
+
+| Orchestration | Tasks | Cost | Result |
+|---|---|---|---|
+| P0 `providers4-prototypes` | p1–p3 | 45.54 USD | Validated; part of it ran into the account's session limit and was resumed after the reset |
+| G `providers4-groundwork` | g1–g7 | 20.41 USD | Every check passed |
+| D `providers4-rotation` | d1–d7 | 88.11 USD | Passed after the fixer ran (API tests that ran automated work, a limit read after the database closed) |
+| W `providers4-web` | w1–w4 | 49.26 USD | Every check passed |
+| F `providers4-fixes` | f1–f6 | FIXES_COST | FIXES_RESULT |
+
+`d4` alone cost 58.90 USD: a core test started the machine's real Gemini CLI, which waited for a
+sign-in for ever, and the worker waited on that test run until it was told why. Tests now never
+reach a real agent CLI (core's `tempConfig()`, and `apps/api/test/isolate-providers.ts` for the API).
+
+**The audit of D** found 4 blockers, 7 major and 9 minor findings. Fixed on the branch:
+
+1. **Automated work with no policy could leave Claude Code.** Orchestration tasks start with the
+   graph's own rules and no `ToolPolicy`, and the candidates let that through, so a task could move
+   to a provider where nothing denies `git push`. Such work now stays on Claude Code and, at a
+   limit, waits.
+2. **A chat's token could change what its project does at a limit**, through the project settings.
+   Like the tracker, a chat's copy of the settings keeps the stored providers.
+3. **API tests detected the machine's own CLIs** and ran them (see above).
+4. **A person's "Move now" left an orchestration task on the old chat**, and the wait open in the
+   rotation's memory. `Core.moveChat` closes the wait into the move and re-points the work.
+5. **A mapping made on an alias never matched**: the picker and the map hold Claude's aliases, a
+   chat records the id the CLI resolved. Drivers name every name of a model (`modelNames`).
+6. **A provider at its limit was "not ready" rather than "exhausted"**, so the reason was wrong,
+   start-and-wait never fired, and a passed reset did not make it a candidate again.
+7. **A limit whose handling threw left the work running for ever.** Waiting is now the floor.
+8. **Detection handshakes left Gemini's real process running** (its launcher re-spawns itself);
+   they now end their whole process group.
+
+**The audit of W** found 1 blocker, 4 major and 15 minor findings. The blocker was that **no
+provider status carried its limit**: Core built the detector before the runtime that keeps the
+limits and never handed them over, so the chat's limit banner and the limit bars never showed. The
+rest, with the core and API leftovers of the first audit, went to F.
+
+Not built, by decision: several accounts of one provider, moving a live session, summarising with a
+model, budgets on providers that report no cost, and ACP limit detection beyond what is recorded
+(`r2`). The old tables (`rotation_events`, `usage_history`) are no longer written and are dropped in
+a later release.
+
 ## Decisions (owner, 2026-09-30)
 
 1. **The one rule is generalised** as in section 8. Rejected: relaxing it to allow internal
