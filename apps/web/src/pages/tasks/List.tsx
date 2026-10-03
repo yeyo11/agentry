@@ -224,7 +224,7 @@ function Row({
 }) {
   const { t } = useTranslation('tasks');
   const strip = workItemStrip(item, useStripRuns());
-  const working = item.status !== 'done' && (workItemLiveState(item) === 'working' || strip?.kind === 'run');
+  const working = item.status !== 'done' && strip?.kind !== 'run-waiting' && (workItemLiveState(item) === 'working' || strip?.kind === 'run');
   const blockers = openBlockers(item);
   const total = item.acceptanceCriteria.length;
   const checked = item.acceptanceCriteria.filter((c) => c.checked).length;

@@ -281,7 +281,12 @@
     "removeHint": "Deletes only the one Agentry installed in its data folder. Nothing else.",
     "removed": "Agentry's copy of claude-swap was removed",
     "nothingToRemove": "There was no copy to remove",
-    "failed": "Could not complete that"
+    "failed": "Could not complete that",
+    "home": {
+      "keeps": "Claude Code keeps using {{account}} · work moves between providers",
+      "keepsNone": "Claude Code keeps its account · work moves between providers",
+      "see": "See what changes"
+    }
   },
   "project": {
     "title": "Providers",

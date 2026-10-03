@@ -9,6 +9,7 @@ import { Segmented } from '@agentry/ui/components/ui';
 import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
 import { columnMeta, priorityMeta } from '../../../lib/work-items';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
+import { MoveDecisionMark } from '../../../components/ProviderChain';
 import { useProviderLabel } from '../../../lib/provider-status';
 import { AgentMark } from './Criteria';
 import type { ItemActions } from './hooks';
@@ -131,6 +132,7 @@ function MovedItem({ run, move, person }: MovedRun & { person: string }) {
           {t(`run.movedHow.${move.action === 'restart' ? 'restart' : 'handoff'}`)} · {by}
           {move.toChat && ` · ${t('link.chat', { id: shortId(move.toChat) })}`}
         </span>
+        {move.decisionId && <MoveDecisionMark decisionId={move.decisionId} />}
       </span>
       <time dateTime={move.at} title={formatDateTime(move.at)}>
         {timeAgo(move.at)}
