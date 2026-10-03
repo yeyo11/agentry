@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { usageTone } from '@agentry/ui/components/motion';
 import { Tag } from '@agentry/ui/components/ui';
 import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
+import { useLimitWindowName } from '../../../lib/limit-words';
 import { limitRows } from './rotation';
 
 /**
@@ -18,8 +19,8 @@ export function LimitBars({ status }: { status: ProviderStatus }) {
   // An unknown reading is not drawn: its windows are old and their resets are past
   const rows = limit.state === 'unknown' ? [] : limitRows(limit);
   const exhausted = limit.state === 'exhausted';
-  // The windows with a short name of their own; any other is shown as the provider calls it
-  const name = (window: string) => (window === '5h' ? t('limit.window.5h') : window === '7d' ? t('limit.window.7d') : window);
+  // A window in the person's words (`five_hour` reads "5 h"); one Agentry does not know reads "usage limit"
+  const name = useLimitWindowName();
   const source = limit.source === 'stream' ? t('limit.source.stream') : limit.source === 'probe' ? t('limit.source.probe') : t('limit.source.failure');
 
   return (

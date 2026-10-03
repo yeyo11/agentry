@@ -153,10 +153,6 @@
       "probe": "sin ejecutar nada",
       "failure": "cuando un turno lo alcanzó"
     },
-    "window": {
-      "5h": "5 h",
-      "7d": "7 d"
-    },
     "used": "{{window}}: {{percent}} % usado",
     "resets": "renueva {{when}}",
     "resetUnknown": "renovación desconocida",

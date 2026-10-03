@@ -153,10 +153,6 @@
       "probe": "without running anything",
       "failure": "when a turn hit it"
     },
-    "window": {
-      "5h": "5 h",
-      "7d": "7 d"
-    },
     "used": "{{window}}: {{percent}} % used",
     "resets": "resets {{when}}",
     "resetUnknown": "reset not known",
