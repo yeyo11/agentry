@@ -4,7 +4,7 @@ import test from 'node:test';
 import type { DecisionPointId } from '@agentry/shared';
 import { Db } from '../src/db.ts';
 import { decisionPoint } from '../src/decisions/points.ts';
-import { ProviderPoints, modelMapSubjectId, type OnLimitSubject, type PickSubject } from '../src/decisions/provider-points.ts';
+import { ProviderPoints, modelMapSubject, modelMapSubjectId, type OnLimitSubject, type PickSubject } from '../src/decisions/provider-points.ts';
 import { stanceOf } from '../src/decisions/stance.ts';
 import { choiceOf, decisionRig } from './decision-rig.ts';
 import { tempConfig } from './helpers.ts';
@@ -302,4 +302,15 @@ test('the catalogue declares the plan: act on-limit and pick, suggest and global
   assert.equal(decisionPoint('provider.on-limit')?.kind, 'act');
   assert.equal(decisionPoint('provider.pick')?.maxStateBytes, 4 * 1024);
   assert.equal(decisionPoint('provider.model-map')?.kind, 'suggest');
+});
+
+test('the model-map subject finds the model on its alias or on the id the alias resolved to, and offers only models the target can run', () => {
+  const own = [{ value: 'sonnet', ids: ['claude-sonnet-5'], label: 'Sonnet 5', tier: 'balanced' as const }];
+  const target = [{ value: 'gpt-5', label: 'GPT-5' }, { value: 'old', disabled: true }];
+  for (const model of ['sonnet', 'claude-sonnet-5']) {
+    const subject = modelMapSubject({ provider: 'claude-code', model }, 'codex', own, target);
+    assert.equal(subject.from.name, 'Sonnet 5');
+    assert.equal(subject.from.tier, 'balanced');
+    assert.deepEqual(subject.targets.map((t) => t.id), ['gpt-5']);
+  }
 });

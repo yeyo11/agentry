@@ -649,6 +649,7 @@ to wait, and nothing goes to another vendor until the settings say so.
 | GET | `/providers/moves?chatId=&projectId=&state=&limit=` | Moves and waits, newest first; `waiting` and `resuming` rows are the open waits |
 | POST | `/providers/moves/:id/cancel` | Stop waiting: a flow run or task then ends `stopped`. `409` when the wait is over. Not open to a chat's token |
 | GET | `/providers/model-map/suggestions` | Open `provider.model-map` suggestions: a counterpart nobody has answered yet |
+| POST | `/providers/model-map/suggest` | `{ from: { provider, model }, target }` — a person pressing Suggest: asks `provider.model-map` now and answers the suggestion. `204` when nothing was suggested, `409` when the point is off. Not open to a chat's token |
 | POST | `/providers/model-map/suggestions/:id` | `{ accept }` — accepting writes the entry (`origin: decision`), dismissing only closes it; either reaches the decision as feedback. `409` when the model already has a counterpart. Not open to a chat's token |
 | GET | `/providers/cswap-retirement` | `{ notice }`: what claude-swap left behind (null when there is nothing or it was dismissed) |
 | POST | `/providers/cswap-retirement/dismiss` | Do not show the notice again. Not open to a chat's token |

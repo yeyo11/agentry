@@ -1076,6 +1076,9 @@ export class FlowService {
   observe(event: AgentryEvent): void {
     try {
       switch (event.type) {
+        case 'run.limitWaiting':
+          this.waitStarted(event.runId, { provider: event.provider, resetsAt: event.resetsAt });
+          break;
         case 'workitem.moved':
           if (event.status === event.previousStatus) break;
           if (event.status === 'done') {
@@ -1597,8 +1600,19 @@ export class FlowService {
       } catch {
         // The run knows its chat, and its result still lands; only the item's list of chats misses it
       }
+      this.announce(row.id, 'moved', { provider: move.toProvider });
     }
     return true;
+  }
+
+  /** The run in `chatId` began waiting for its provider's limit to reset: the board and the item hear it. */
+  private waitStarted(chatId: string, limit: { provider: ProviderId; resetsAt: string | null }): void {
+    try {
+      const row = this.sql.prepare("SELECT id FROM flow_runs WHERE chat_id = ? AND state = 'running'").get(chatId) as { id: string } | undefined;
+      if (row) this.announce(row.id, 'waiting', limit);
+    } catch {
+      // heard from the event bus: a closed database (shutting down) must not become its error
+    }
   }
 
   /**
@@ -2109,7 +2123,7 @@ export class FlowService {
     };
   }
 
-  private announce(runId: string, action: FlowRunAction): void {
+  private announce(runId: string, action: FlowRunAction, limit?: { provider: ProviderId; resetsAt?: string | null }): void {
     const run = this.run(runId);
     if (!run) return;
     const key = run.item?.key ?? run.itemId;
@@ -2118,7 +2132,11 @@ export class FlowService {
         ? `${roleTitle(run.role)} queued on ${key}`
         : action === 'started'
           ? `${roleTitle(run.role)} started on ${key}`
-          : `${roleTitle(run.role)} ${run.outcome ?? 'ended'} on ${key}`;
+          : action === 'moved'
+            ? `${roleTitle(run.role)} goes on with another provider on ${key}`
+            : action === 'waiting'
+              ? `${roleTitle(run.role)} waits for a usage limit to reset on ${key}`
+              : `${roleTitle(run.role)} ${run.outcome ?? 'ended'} on ${key}`;
     try {
       this.deps.emit({
         type: 'flow.run',
@@ -2137,6 +2155,7 @@ export class FlowService {
         cause: run.cause,
         retryOf: run.retryOf,
         queuedBy: run.queuedBy,
+        ...(limit ? { provider: limit.provider, ...(action === 'waiting' ? { resetsAt: limit.resetsAt ?? null } : {}) } : {}),
       });
     } catch {
       // the row is written; a broken listener must not undo the run

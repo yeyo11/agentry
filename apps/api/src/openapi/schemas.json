@@ -148,6 +148,13 @@
         "type": "string",
         "description": "What the flag takes: an alias (`opus`) or a model's full name (`claude-fable-5-1[1m]`)"
       },
+      "ids": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The model ids an alias stands for, as chats that ran on it reported them (`claude-sonnet-5` for `sonnet`). Suggestions, moves and accepted mappings carry the id, the catalogue lists the alias: match a row on its `value` or on any of its `ids`. Absent where the value is already the id."
+      },
       "label": {
         "type": "string",
         "description": "What the CLI calls it, where it says so; for an alias, the name of the model a chat started on it reported in its `system/init` event (\"Sonnet 5\" for `claude-sonnet-5`), once one has"
@@ -8477,6 +8484,17 @@
           }
         ],
         "description": "`person` when a person queued it from the waiting cards; null otherwise"
+      },
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "On `moved`: the provider the run goes on with; on `waiting`: the one whose limit it waits for"
+      },
+      "resetsAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "On `waiting`: when that limit resets, ISO; null when unknown"
       }
     },
     "required": [
@@ -8499,14 +8517,16 @@
       "title",
       "type"
     ],
-    "description": "A flow run was queued, started or ended. What it did to the item (a comment, a move, the waiting state) comes as that item's own `workitem.*` events."
+    "description": "A flow run was queued, started or ended, moved to another provider's chat at a usage limit, or began waiting for the limit to reset. What it did to the item (a comment, a move, the waiting state) comes as that item's own `workitem.*` events."
   },
   "FlowRunAction": {
     "type": "string",
     "enum": [
       "queued",
       "started",
-      "ended"
+      "ended",
+      "moved",
+      "waiting"
     ]
   },
   "FlowStage": {
@@ -18401,6 +18421,35 @@
       "accept"
     ],
     "description": "`POST /providers/model-map/suggestions/:id`: accepting writes the entry; dismissing only closes the suggestion."
+  },
+  "SuggestModelMapRequest": {
+    "type": "object",
+    "properties": {
+      "from": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/ProviderId"
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ]
+      },
+      "target": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider the counterpart would be on"
+      }
+    },
+    "required": [
+      "from",
+      "target"
+    ],
+    "description": "`POST /providers/model-map/suggest`: ask `provider.model-map` now for a counterpart of one model on one target."
   },
   "CswapRetirementState": {
     "type": "object",

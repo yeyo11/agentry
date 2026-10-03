@@ -4,7 +4,7 @@ import type { ChatService, ChatWork } from './chat-service.ts';
 import type { ChatManager, ChatRuntime } from './chats.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import type { Db } from './db.ts';
-import type { ModelMapSubject, OnLimitSubject, ProviderPoints, WorkKind, WorkSubjectKind } from './decisions/provider-points.ts';
+import { modelMapSubject, type OnLimitSubject, type ProviderPoints, type WorkKind, type WorkSubjectKind } from './decisions/provider-points.ts';
 import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
 import type { AgentryEventInput } from './events.ts';
 import { runRef } from './event-sources.ts';
@@ -292,15 +292,10 @@ export class ProviderRotation {
     const stance = stanceOf(this.deps.decisions, 'provider.model-map', null);
     if (stance === 'off') return;
     const from = run.provider ?? LEGACY_PROVIDER;
-    const own = this.deps.runtime.providers.driverFor(from)?.models().find((m) => m.value === model);
+    const own: ModelOption[] = this.deps.runtime.providers.driverFor(from)?.models() ?? [];
     for (const excluded of candidates.excluded) {
       if (excluded.excluded !== 'no-mapping') continue;
-      const catalog: ModelOption[] = this.deps.runtime.providers.driverFor(excluded.provider)?.models() ?? [];
-      const subject: ModelMapSubject = {
-        from: { provider: from, model, ...(own?.label ? { name: own.label } : {}), tier: own?.tier ?? null, description: own?.description ?? null },
-        target: excluded.provider,
-        targets: catalog.filter((m) => !m.disabled).map((m) => ({ id: m.value, name: m.label ?? m.value, tier: m.tier ?? null, description: m.description ?? null })),
-      };
+      const subject = modelMapSubject({ provider: from, model }, excluded.provider, own, this.deps.runtime.providers.driverFor(excluded.provider)?.models() ?? []);
       void points.suggestMapping(stance, subject).catch(() => undefined);
     }
   }

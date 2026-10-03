@@ -92,6 +92,12 @@ export interface ModelOption {
   /** What the flag takes: an alias (`opus`) or a model's full name (`claude-fable-5-1[1m]`) */
   value: string;
   /**
+   * The model ids an alias stands for, as chats that ran on it reported them (`claude-sonnet-5` for
+   * `sonnet`). Suggestions, moves and accepted mappings carry the id, the catalogue lists the alias:
+   * match a row on its `value` or on any of its `ids`. Absent where the value is already the id.
+   */
+  ids?: string[];
+  /**
    * What the CLI calls it, where it says so; for an alias, the name of the model a chat started on
    * it reported in its `system/init` event ("Sonnet 5" for `claude-sonnet-5`), once one has
    */
@@ -5619,6 +5625,13 @@ export interface ModelMapSuggestion {
   at: string;
 }
 
+/** `POST /providers/model-map/suggest`: ask `provider.model-map` now for a counterpart of one model on one target. */
+export interface SuggestModelMapRequest {
+  from: { provider: ProviderId; model: string };
+  /** The provider the counterpart would be on */
+  target: ProviderId;
+}
+
 /** `POST /providers/model-map/suggestions/:id`: accepting writes the entry; dismissing only closes the suggestion. */
 export interface AnswerModelMapSuggestionRequest {
   accept: boolean;
@@ -5844,10 +5857,11 @@ export interface DocumentChangedEvent extends AgentryEventBase {
   itemId: string | null;
 }
 
-export type FlowRunAction = 'queued' | 'started' | 'ended';
+export type FlowRunAction = 'queued' | 'started' | 'ended' | 'moved' | 'waiting';
 
 /**
- * A flow run was queued, started or ended. What it did to the item (a comment, a move, the waiting
+ * A flow run was queued, started or ended, moved to another provider's chat at a usage limit, or
+ * began waiting for the limit to reset. What it did to the item (a comment, a move, the waiting
  * state) comes as that item's own `workitem.*` events.
  */
 export interface FlowRunEvent extends AgentryEventBase, WorkItemEventRef {
@@ -5868,6 +5882,10 @@ export interface FlowRunEvent extends AgentryEventBase, WorkItemEventRef {
   retryOf: string | null;
   /** `person` when a person queued it from the waiting cards; null otherwise */
   queuedBy: FlowRunQueuedBy | null;
+  /** On `moved`: the provider the run goes on with; on `waiting`: the one whose limit it waits for */
+  provider?: ProviderId;
+  /** On `waiting`: when that limit resets, ISO; null when unknown */
+  resetsAt?: string | null;
 }
 
 /**
