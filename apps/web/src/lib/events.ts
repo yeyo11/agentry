@@ -34,6 +34,7 @@ import { withToken } from './auth';
 import { dispatchEvent, setFeedState, useFeedState, type FeedState } from './feed';
 import { browserPermission, getPrefs } from './notifications';
 import { noticeServerVersion } from './reload';
+import { onBackForwardCache } from '@agentry/ui/lib/page-cache';
 
 export {
   FALLBACK_POLL_MS,
@@ -644,19 +645,18 @@ function startEventFeed(client: QueryClient): () => void {
   };
   connect();
 
-  // A page kept in the back/forward cache is frozen but its connection stays open, and browsers
-  // allow only six per origin over HTTP/1.1: a few navigations later nothing else can load. Let go
-  // when the page is hidden that way, and pick up from the last id when it comes back.
-  const onPageHide = () => {
-    disconnect();
-    setFeedState('closed');
-  };
-  const onPageShow = (event: PageTransitionEvent) => {
-    // The tab being shown again may have reconnected it already
-    if (event.persisted && !stopped && source === null) connect();
-  };
-  window.addEventListener('pagehide', onPageHide);
-  window.addEventListener('pageshow', onPageShow);
+  // Let go while the page sits in the back/forward cache, and pick up from the last id when it comes back
+  const leaveCache = onBackForwardCache(
+    window,
+    () => {
+      disconnect();
+      setFeedState('closed');
+    },
+    () => {
+      // The tab being shown again may have reconnected it already
+      if (!stopped && source === null) connect();
+    },
+  );
 
   // The same six connections are shared by every tab of the origin, and each tab holds one for this
   // stream: a few tabs left in the background starve the one in front. A tab hidden for a while lets
@@ -685,8 +685,7 @@ function startEventFeed(client: QueryClient): () => void {
   return () => {
     stopped = true;
     clearTimeout(park);
-    window.removeEventListener('pagehide', onPageHide);
-    window.removeEventListener('pageshow', onPageShow);
+    leaveCache();
     document.removeEventListener('visibilitychange', onVisibility);
     disconnect();
     invalidations.cancel();

@@ -346,6 +346,7 @@
   "orchestration-v2 [EMPTY_VERIFICATION, InstallMode, VerificationDraft, canRelaunch, canRerun, checksShown, cleanTask, commandsText, dependantsOf, draftOfVerification, isErrorLine, limitsOf, orchestrationFix, parseCommands, pullRequestHeld, rerunBlockedByPullRequest, specOfOrchestration, specOfTask, verificationOf]",
   "orchestrations [Orchestrations]",
   "other [paintOther]",
+  "page-cache [onBackForwardCache]",
   "paint [CLASS_ROLE, PALETTE, Painter, Piece, Role, pieces, roleOf]",
   "palette-model [Command, Group, MAX_RECENT, MAX_RESULTS, MOTION_LEVELS, RECENT_KEY, createPaletteReporter, readRecent, score]",
   "parts [FlowSummary, MemberNow, PersonMark, RunOutcome, TeamActivity, memberFailure, useRunDone]",
