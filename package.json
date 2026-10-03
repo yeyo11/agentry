@@ -36,10 +36,10 @@
     "//auditConfig": "GHSA-ch52-4w7c-c8xp (http-cache-semantics <=4.2.0, max-stale) has no patched release. It reaches the tree only through apps/desktop's electron-builder (@electron/get > got > cacheable-request), a dev dependency that downloads Electron while packaging the desktop app: no server, image or app code uses it, and there is no shared cache to leak across users. Remove this entry once a patched http-cache-semantics exists and override to it instead."
   },
   "devDependencies": {
-    "@types/node": "^26.6.1",
+    "@types/node": "^26.6.3",
     "axe-core": "^4.13.0",
     "gifenc": "^1.0.3",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
 }
