@@ -468,7 +468,8 @@ function stepProgress(step: OrchestrationStep): number | undefined {
 /** The task of a stage that takes the page's energy border: the running one that says what it is doing, else the first running one. */
 function mostActive(orch: Orchestration, tasks: readonly Orchestration['tasks'][number][]): string | null {
   if (orch.status !== 'running') return null;
-  const running = tasks.filter((t) => t.status === 'running');
+  // Waiting is not live work: it never takes the energy border
+  const running = tasks.filter((t) => t.status === 'running' && !t.waiting);
   return (running.find((t) => t.activity) ?? running[0])?.id ?? null;
 }
 

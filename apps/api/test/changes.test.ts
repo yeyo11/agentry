@@ -12,6 +12,7 @@ import { buildApp } from '../src/app.ts';
 
 // What a worker did on disk, over HTTP: real git worktrees made by real orchestrations, driven by
 // the fake CLI the core tests use, which writes the files a prompt asks for.
+process.env.FAKE_CLAUDE_LOGGED_IN = '1';
 const FAKE_CLAUDE = fileURLToPath(new URL('../../../packages/core/test/fixtures/fake-claude.mjs', import.meta.url));
 
 let app: FastifyInstance;
@@ -48,7 +49,6 @@ before(async () => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-api-changes-data-'));
   const config = loadConfig({
     CLAUDE_BIN: FAKE_CLAUDE,
-    CSWAP_BIN: '/nonexistent/cswap',
     CLAUDE_CONFIG_DIR: join(root, 'claude'),
     AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
     AGENTRY_DATA_DIR: join(root, 'data'),

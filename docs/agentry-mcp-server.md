@@ -48,7 +48,7 @@ method, so the server cannot write by construction.
 | `list_chats` | the chats, filtered by project, state, origin |
 | `get_chat` | a chat's metadata, its last 20 transcript entries and what it waits on; never the export or the stream |
 | `get_usage` | usage and its breakdown for a date range (today by default) |
-| `list_accounts` | the accounts with their usage per window, without refreshing them |
+| `list_providers` | the agent providers with their readiness, account and usage limit per window, as last detected (claude-swap's accounts are gone since providers phase 4) |
 
 The names live in `packages/mcp/src/names.ts` (`AGENTRY_MCP_SERVER`, `AGENTRY_MCP_READ_TOOLS`); a test
 keeps the catalogue in `tools.ts` equal to that list, and the allow list is built from it.

@@ -1,36 +1,52 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><title>Barra de estado (componente)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:var(--bg)}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)})}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
 <div class="app" data-theme="dark" style="width: 1184px; display: flex; flex-direction: column; gap: 14px; padding: 12px 0; background: var(--bg)">
-<section style="position: relative; padding-top: 84px">
-<span class="t-label" style="display: block; padding: 0 14px 6px">Todos listos</span>
-<div style="position: relative"><span class="tooltip" role="tooltip" style="position: absolute; bottom: 36px; right: 130px"><span style="font-weight: 500">Claude Code · listo</span><span class="mono t-xs" style="opacity: .75">versión 2.1.282 · rango probado ≥ 2.1 &lt; 3</span><span class="mono t-xs" style="opacity: .75">sesión iniciada como yeyo@inmoseo.net</span></span><footer class="app statusbar" data-theme="dark" style="width: 1184px">
-<a href="DesktopCuentas.html" class="row" style="gap: 7px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>yeyo@inmoseo.net</a>
-<span class="row" style="gap: 6px">5h<span class="bar bar-thin grad"><i style="width: 45%"></i></span>45%</span>
-<span class="row" style="gap: 6px">7d<span class="bar bar-thin grad"><i style="width: 5%"></i></span>5%</span>
+<section style="position: relative; padding-top: 0px">
+<span class="t-label" style="display: block; padding: 0 14px 6px">Todos listos, con su lectura</span>
+<div style="position: relative"><footer class="app statusbar" data-theme="dark" style="width: 1184px">
 <span class="grow"></span>
 <span class="row" style="gap: 6px"><span class="spin-braille"></span>3 en marcha</span>
 <span>hoy 3,41 US$</span>
-<a href="DesktopProveedores.html" class="row" style="gap: 6px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>Claude Code 2.1.282</a>
-<a href="DesktopProveedores.html" class="row" style="gap: 6px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>Copilot 0.0.353</a>
+<a href="DesktopProveedores.html" class="lim" title="Ventana de 5 h · vuelve a las 14:05 · lectura de hace 2 min"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>Claude Code 2.1.282<span class="bar bar-thin"><i style="width: 45%"></i></span>45 %</a>
+<a href="DesktopProveedores.html" class="lim" title="Ventana de 5 h · vuelve a las 15:40 · lectura de hace 1 min"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>Codex 0.159.3<span class="bar bar-thin"><i style="width: 31%"></i></span>31 %</a>
+<a href="DesktopProveedores.html" class="lim" title="Copilot no informa de su límite"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>GitHub Copilot 1.0.90</a>
 </footer></div>
 </section>
 <section style="position: relative; padding-top: 84px">
-<span class="t-label" style="display: block; padding: 0 14px 6px">Uno sin sesión</span>
-<div style="position: relative"><span class="tooltip" role="tooltip" style="position: absolute; bottom: 36px; right: 14px"><span style="font-weight: 500">Copilot · sin sesión</span><span class="mono t-xs" style="opacity: .75">versión 0.0.353 · instalado en ~/.local/bin</span><span class="mono t-xs" style="opacity: .75">Inicia sesión en Ajustes → Proveedores</span></span><footer class="app statusbar" data-theme="dark" style="width: 1184px">
-<a href="DesktopCuentas.html" class="row" style="gap: 7px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>yeyo@inmoseo.net</a>
-<span class="row" style="gap: 6px">5h<span class="bar bar-thin grad"><i style="width: 45%"></i></span>45%</span>
-<span class="row" style="gap: 6px">7d<span class="bar bar-thin grad"><i style="width: 5%"></i></span>5%</span>
+<span class="t-label" style="display: block; padding: 0 14px 6px">Uno cerca del límite: desde el 60 % de su ventana</span>
+<div style="position: relative"><span class="tooltip" role="tooltip" style="position: absolute; bottom: 36px; right: 14px"><span style="font-weight: 500">Claude Code · cerca del límite</span><span class="mono t-xs" style="opacity: .75">ventana de 5 h al 72 % · vuelve a las 14:05</span><span class="mono t-xs" style="opacity: .75">lectura de hace 3 min, de su último turno</span></span><footer class="app statusbar" data-theme="dark" style="width: 1184px">
 <span class="grow"></span>
 <span class="row" style="gap: 6px"><span class="spin-braille"></span>3 en marcha</span>
 <span>hoy 3,41 US$</span>
-<a href="DesktopProveedores.html" class="row" style="gap: 6px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>Claude Code 2.1.282</a>
-<a href="DesktopProveedores.html" class="row c-warn" style="gap: 6px"><span class="dot dot-warn" style="width: 6px; height: 6px"></span>Copilot · sin sesión</a>
+<a href="DesktopProveedores.html" class="lim near" title="Ventana de 5 h · 72 % · vuelve a las 14:05"><span class="dot dot-warn" style="width: 6px; height: 6px"></span>Claude Code · límite<span class="bar bar-thin warn"><i style="width: 72%"></i></span>72 %</a>
+<a href="DesktopProveedores.html" class="lim" title="Ventana de 5 h · vuelve a las 15:40 · lectura de hace 1 min"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>Codex 0.159.3<span class="bar bar-thin"><i style="width: 31%"></i></span>31 %</a>
+<a href="DesktopProveedores.html" class="lim" title="Copilot no informa de su límite"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>GitHub Copilot 1.0.90</a>
+</footer></div>
+</section>
+<section style="position: relative; padding-top: 84px">
+<span class="t-label" style="display: block; padding: 0 14px 6px">Uno agotado: lo dice con su palabra y cuándo vuelve</span>
+<div style="position: relative"><span class="tooltip" role="tooltip" style="position: absolute; bottom: 36px; right: 14px"><span style="font-weight: 500">Codex · límite agotado</span><span class="mono t-xs" style="opacity: .75">ventana de 5 h al 100 % · vuelve a las 14:05, en 2 h 10 min</span><span class="mono t-xs" style="opacity: .75">el trabajo espera, pasa a otro proveedor o empieza de nuevo, según tus ajustes</span></span><footer class="app statusbar" data-theme="dark" style="width: 1184px">
+<span class="grow"></span>
+<span class="row" style="gap: 6px"><span class="spin-braille"></span>3 en marcha</span>
+<span>hoy 3,41 US$</span>
+<a href="DesktopProveedores.html" class="lim" title="Ventana de 5 h · vuelve a las 14:05 · lectura de hace 2 min"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>Claude Code 2.1.282<span class="bar bar-thin"><i style="width: 38%"></i></span>38 %</a>
+<a href="DesktopProveedores.html" class="lim out" title="Ventana de 5 h · vuelve a las 14:05"><span class="dot dot-bad" style="width: 6px; height: 6px"></span>Codex · límite agotado<span class="age">vuelve 14:05</span></a>
+<a href="DesktopProveedores.html" class="lim" title="Copilot no informa de su límite"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>GitHub Copilot 1.0.90</a>
+</footer></div>
+</section>
+<section style="position: relative; padding-top: 0px">
+<span class="t-label" style="display: block; padding: 0 14px 6px">Uno sin sesión</span>
+<div style="position: relative"><footer class="app statusbar" data-theme="dark" style="width: 1184px">
+<span class="grow"></span>
+<span class="row" style="gap: 6px"><span class="spin-braille"></span>3 en marcha</span>
+<span>hoy 3,41 US$</span>
+<a href="DesktopProveedores.html" class="lim" title="Ventana de 5 h · vuelve a las 14:05 · lectura de hace 2 min"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>Claude Code 2.1.282<span class="bar bar-thin"><i style="width: 45%"></i></span>45 %</a>
+<a href="DesktopProveedores.html" class="lim near" title="Copilot · sin sesión"><span class="dot dot-warn" style="width: 6px; height: 6px"></span>GitHub Copilot · sin sesión</a>
 </footer></div>
 </section>
 <section style="position: relative; padding-top: 0px">
 <span class="t-label" style="display: block; padding: 0 14px 6px">Ninguno encontrado</span>
 <div style="position: relative"><footer class="app statusbar" data-theme="dark" style="width: 1184px">
-
 <span class="grow"></span>
 <a href="DesktopProveedores.html" class="row" style="gap: 6px"><span class="dot dot-idle" style="width: 6px; height: 6px"></span>Ningún agente detectado</a>
 </footer></div>
@@ -38,10 +54,10 @@
 <section style="position: relative; padding-top: 0px">
 <span class="t-label" style="display: block; padding: 0 14px 6px">Comprobando</span>
 <div style="position: relative"><footer class="app statusbar" data-theme="dark" style="width: 1184px">
-
 <span class="grow"></span>
 <span class="row" style="gap: 6px"><span class="spin-braille"></span>Comprobando agentes…</span>
 </footer></div>
 </section>
 </div>
+<script>t()</script>
 </body></html>

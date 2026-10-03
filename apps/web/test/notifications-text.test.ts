@@ -18,7 +18,6 @@ const AT = '2026-01-01T12:00:00Z';
 const base = (title: string) => ({ id: nextId++, at: AT, title });
 const run = { runId: 'run1', runName: 'fix the build', sessionId: null, orchestrationId: null, internal: false };
 const ended = (turns: number, error: string | null): AgentryEvent => ({ type: 'run.ended', ...base('done'), ...run, status: error ? 'failed' : 'completed', error, turns, costUsd: 0.1 });
-const rotated = (from: string | null, resumed: boolean): AgentryEvent => ({ type: 'run.accountRotated', ...base('rotated'), ...run, from, to: from ? 'b@x' : null, resumed });
 const orchestration = (status: 'completed' | 'failed'): AgentryEvent => ({
   type: 'orchestration.updated',
   ...base('o'),
@@ -53,9 +52,6 @@ const EVENTS: AgentryEvent[] = [
   // A run that failed without saying why is the one case that needs a sentence of ours
   { ...(ended(3, 'boom') as Extract<AgentryEvent, { type: 'run.ended' }>), error: null },
   { type: 'run.rateLimited', ...base('limited'), ...run },
-  rotated('a@x', true),
-  rotated('a@x', false),
-  rotated(null, false),
   orchestration('completed'),
   orchestration('failed'),
   conflict(['a.ts'], false),

@@ -15,6 +15,11 @@ import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { providerLink, STATE_TONE, stateLabelKey } from '../../lib/provider-state';
 import { effectiveDefault, entryOf, latestCheck, moveBy, moveTo, orderedIds, withEntry, withOrder } from '../../lib/provider-settings';
 import { useProviders, useRefreshProviders } from '../../lib/providers';
+import { LimitBars } from './providers/LimitBars';
+import { ModelMapEditor } from './providers/ModelMapEditor';
+import { OnLimitCard } from './providers/OnLimitCard';
+import { RetirementNotice } from './providers/RetirementNotice';
+import { withOnLimit } from './providers/rotation';
 
 /** The value of the "Automatic" option: `Select` takes strings and `null` is not one. */
 const AUTO = '';
@@ -108,6 +113,7 @@ export function ProvidersTab() {
   };
 
   const open = binaryOf ? byId.get(binaryOf) : undefined;
+  const saveOnLimit = (onLimit: Parameters<typeof withOnLimit>[1]) => persist(withOnLimit(current, onLimit));
 
   const toolbar = (
     <div className="prov-toolbar">
@@ -131,6 +137,7 @@ export function ProvidersTab() {
     return (
       <div className="prov-page">
         {toolbar}
+        <RetirementNotice statuses={list} />
         <button type="button" className="card prov-order-cell" onClick={() => setOrderOpen(true)} aria-label={t('default.cell')}>
           <span className="prov-order-cell-name">{t('default.cell')}</span>
           <span className="mono prov-order-cell-sub">{summary}</span>
@@ -143,6 +150,7 @@ export function ProvidersTab() {
                 key={status.id}
                 status={status}
                 variant="cell"
+                limit={<LimitBars status={status} />}
                 enabled={entry.enabled}
                 isDefault={status.id === shownDefault}
                 checking={checking === 'all' || checking === status.id}
@@ -162,6 +170,8 @@ export function ProvidersTab() {
             );
           })}
         </section>
+        <OnLimitCard settings={current} saving={save.isPending} onSave={saveOnLimit} />
+        <ModelMapEditor statuses={shown} settings={current} onSave={persist} />
         {/* Mounted only while open, so each opening starts a draft from what is saved now */}
         {orderOpen && (
           <OrderSheet
@@ -192,9 +202,23 @@ export function ProvidersTab() {
     );
   }
 
+  const jump = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
   return (
     <div className="prov-page">
       {toolbar}
+      <RetirementNotice statuses={list} />
+      <nav className="prov-sections" aria-label={t('sections.aria')}>
+        <button type="button" className="chip" onClick={() => jump('prov-list-title')}>
+          {t('sections.list')}
+        </button>
+        <button type="button" className="chip" onClick={() => jump('prov-onlimit-title')}>
+          {t('sections.onLimit')}
+        </button>
+        <button type="button" className="chip" onClick={() => jump('prov-map-title')}>
+          {t('sections.map')}
+        </button>
+      </nav>
       <Card
         className="grad-border prov-card"
         title={<span id="prov-list-title">{t('list.title')}</span>}
@@ -241,6 +265,8 @@ export function ProvidersTab() {
           )}
         />
       </Card>
+      <OnLimitCard settings={current} saving={save.isPending} onSave={saveOnLimit} />
+      <ModelMapEditor statuses={shown} settings={current} onSave={persist} />
     </div>
   );
 }
@@ -338,6 +364,7 @@ function ProviderList({
             {dragging !== null && gap === at && <div className="prov-drop" aria-hidden />}
             <ProviderRow
               status={status}
+              limit={<LimitBars status={status} />}
               enabled={entry.enabled}
               isDefault={status.id === defaultId}
               checking={checking === 'all' || checking === status.id}

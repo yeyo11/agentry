@@ -32,6 +32,8 @@ export interface ProviderRowProps {
   leading?: ReactNode;
   /** The enable switch */
   trailing?: ReactNode;
+  /** The provider's usage limit, under its reason */
+  limit?: ReactNode;
   onRetry?: () => void;
   /** Opens the binary override; without it "Choose binary" is not offered */
   onChooseBinary?: () => void;
@@ -74,6 +76,7 @@ export function ProviderRow({
   compact = false,
   leading,
   trailing,
+  limit,
   onRetry,
   onChooseBinary,
 }: ProviderRowProps) {
@@ -105,6 +108,7 @@ export function ProviderRow({
     <div className="prov-state">
       <Tag tone={STATE_TONE[shown]}>{t(stateLabelKey(shown))}</Tag>
       <p className="prov-reason">{reason}</p>
+      {enabled && limit}
     </div>
   );
 

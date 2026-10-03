@@ -87,7 +87,7 @@ const toolUse = (e) => e.type === 'assistant' && e.message.content.some((b) => b
 const text = (e) => (e.type === 'assistant' ? e.message.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n') : '');
 
 test('answers the subcommands the wrapper runs, and refuses the rest', () => {
-  assert.match(spawnSync(bin, ['--version'], { encoding: 'utf8' }).stdout, /^2\.1\.0-fake \(Claude Code\)/);
+  assert.match(spawnSync(bin, ['--version'], { encoding: 'utf8' }).stdout, /^2\.1\.1-fake \(Claude Code\)/);
   assert.equal(JSON.parse(spawnSync(bin, ['auth', 'status', '--json'], { encoding: 'utf8' }).stdout).loggedIn, true);
   assert.deepEqual(JSON.parse(spawnSync(bin, ['agents', '--json'], { encoding: 'utf8' }).stdout), []);
   assert.deepEqual(JSON.parse(spawnSync(bin, ['plugin', 'list', '--json'], { encoding: 'utf8' }).stdout), []);
@@ -261,6 +261,31 @@ test('a message holding a key of the scripts file is played as its script', asyn
   assert.equal(text(await c.next((e) => e.type === 'assistant')), 'Heard: anything else');
   await c.done();
   rmSync(dir, { recursive: true, force: true });
+});
+
+test('FAKE-LIMIT reports a rejected window, then a 429 result, every time it is sent', async () => {
+  const c = chat();
+  for (let i = 0; i < 2; i++) {
+    c.say('FAKE-LIMIT');
+    const event = await c.next((e) => e.type === 'rate_limit_event');
+    assert.equal(event.rate_limit_info.status, 'rejected');
+    assert.ok(event.rate_limit_info.resetsAt > Date.now() / 1000);
+    const result = await c.next((e) => e.type === 'result');
+    assert.equal(result.is_error, true);
+    assert.equal(result.api_error_status, 429);
+  }
+  await c.done();
+});
+
+test('FAKE-LIMIT-CLEAR reports the window allowed again at no use, and the turn ends well', async () => {
+  const c = chat();
+  c.say('FAKE-LIMIT-CLEAR');
+  const event = await c.next((e) => e.type === 'rate_limit_event');
+  assert.equal(event.rate_limit_info.status, 'allowed');
+  assert.equal(event.rate_limit_info.unifiedWindows['5h'].utilization, 0);
+  const result = await c.next((e) => e.type === 'result');
+  assert.equal(result.is_error, false);
+  await c.done();
 });
 
 test('--worktree works in a worktree of the repository, on its own branch, as the CLI does', async () => {

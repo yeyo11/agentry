@@ -179,11 +179,12 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
 
     case 'rate-limit':
       if (event.info.status === 'rejected') chat.rateLimited = true;
-      host.noteRateLimit(event.info);
+      host.observeLimit(chat, event);
       return;
 
     case 'rate-limited':
       chat.rateLimited = true;
+      host.observeLimit(chat, event);
       return;
 
     case 'permission-request':
@@ -222,14 +223,17 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
     host.learnModelCosts(execution, event.modelUsage);
   }
   host.learnWindows(event.modelUsage);
-  if (event.rateLimited) chat.rateLimited = true;
+  if (event.rateLimited) {
+    chat.rateLimited = true;
+    host.observeLimit(chat, event);
+  }
   const { isError } = event;
   const cause = !isError ? undefined : chat.interruptRequested || chat.stopRequested ? 'stopped' : event.budget ? 'budget' : chat.rateLimited ? 'rate-limit' : undefined;
   const stopReason = event.stopReason ?? chat.stopReason;
   // The next turn's reason is its own
   chat.stopReason = null;
   chat.lastResult = { isError, result: event.text, structuredOutput: event.structuredOutput, costUsd: chat.costUsd, ...(cause ? { cause } : {}), ...(stopReason ? { stopReason } : {}) };
-  // An interrupted turn ends as an error by the agent's account, but nothing went wrong
+  // An interrupted turn ends as an error by the agent's own count, but nothing went wrong
   if (isError && !chat.interruptRequested) chat.error = event.failure;
   chat.interruptRequested = false;
   chat.activity.turnEnded();
@@ -245,7 +249,7 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
     chat.idleTimer = setTimeout(() => chat.session?.endInput(), IDLE_TIMEOUT_MS);
     chat.idleTimer.unref();
   }
-  host.maybeRotate(chat);
+  host.maybeLimit(chat);
 }
 
 /** The parts of a policy a request falls under; a driver lists in `host` the ones it leaves to the judge. */

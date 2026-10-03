@@ -52,7 +52,7 @@ export default a11ySpec(async ({ page, problems, scan, fx }) => {
   if (!(await page.eval(`return document.querySelector('.more-sheet').contains(document.activeElement)`))) problems.push('[420px] opening More does not move focus into it');
   if ((await page.eval(`return document.querySelector('.tabbar-more').getAttribute('aria-expanded')`)) !== 'true') problems.push('[420px] the More button does not say its sheet is open');
   const rest = await page.eval(`return [...document.querySelectorAll('.more-sheet a')].map((a) => a.getAttribute('href'))`);
-  for (const href of ['/projects', '/accounts', '/schedules', '/usage', '/connectors', '/settings', '/docs', '/settings?tab=account']) if (!rest.includes(href)) problems.push(`[420px] More does not offer ${href}`);
+  for (const href of ['/projects', '/schedules', '/usage', '/connectors', '/settings', '/docs', '/settings?tab=account']) if (!rest.includes(href)) problems.push(`[420px] More does not offer ${href}`);
   // Its sections say their figures, as the reference does: at least the project imported above is counted
   await page.waitFor(`return !!document.querySelector('.more-sheet a[href="/projects"] .more-cell-note')`, { label: 'the Projects cell has its count' });
   const projectCount = await page.text('.more-sheet a[href="/projects"] .more-cell-note');
@@ -123,7 +123,7 @@ export default a11ySpec(async ({ page, problems, scan, fx }) => {
   await scan(page, 'new orchestration form');
 
   // ---------- status is never colour alone ----------
-  await checkStatusWords(page, ['/', '/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/orchestration', '/accounts', '/connectors'], problems);
+  await checkStatusWords(page, ['/', '/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/orchestration', '/connectors'], problems);
 
   // ---------- the keyboard: reachable, named, ringed, in order ----------
   await page.eval(`localStorage.removeItem('agentry:project'); return true`);
@@ -152,7 +152,7 @@ export default a11ySpec(async ({ page, problems, scan, fx }) => {
     if (!stop.ring) problems.push(`[keyboard] no visible focus indicator on ${label}`);
   }
   const reached = new Set(stops.map((s) => s.href).filter(Boolean));
-  for (const href of ['/', '/chats', '/orchestration', '/projects', '/accounts', '/settings']) {
+  for (const href of ['/', '/chats', '/orchestration', '/projects', '/settings']) {
     if (!reached.has(href)) problems.push(`[keyboard] the navigation link ${href} is not reachable with Tab`);
   }
   // "Run workflow" and "New orchestration" sit in the menu behind "New chat ▾", whose arrow is its own stop
@@ -184,7 +184,7 @@ export default a11ySpec(async ({ page, problems, scan, fx }) => {
 
   // The command palette is a shortcut: what it offers as pages is also in the navigation
   const navigation = await page.eval(`return [...document.querySelectorAll('#sidebar nav a')].map((a) => a.getAttribute('href'))`);
-  for (const href of ['/', '/chats', '/orchestration', '/projects', '/accounts', '/settings']) {
+  for (const href of ['/', '/chats', '/orchestration', '/projects', '/settings']) {
     if (!navigation.includes(href)) problems.push(`[keyboard] ${href} is in the palette but not in the navigation`);
   }
 });

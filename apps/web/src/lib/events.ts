@@ -34,6 +34,7 @@ import { withToken } from './auth';
 import { dispatchEvent, setFeedState, useFeedState, type FeedState } from './feed';
 import { browserPermission, getPrefs } from './notifications';
 import { noticeServerVersion } from './reload';
+import { onBackForwardCache } from '@agentry/ui/lib/page-cache';
 
 export {
   FALLBACK_POLL_MS,
@@ -83,8 +84,8 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'permission.requested': true,
   'permission.resolved': true,
   'run.rateLimited': true,
-  'run.accountRotated': true,
-  'account.switched': true,
+  'run.providerMoved': true,
+  'run.limitWaiting': true,
   'task.started': true,
   'task.ended': true,
   'subagent.started': true,
@@ -252,10 +253,17 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'permission.requested':
     case 'permission.resolved':
       return [[keys.chatPermissions(event.runId), NOW], [keys.chats, LISTS], [keys.overview, NOW]];
+    case 'run.providerMoved':
+    case 'run.limitWaiting':
+      // A flow run that moved or waits changes its card, its item's runs and the moves they read; the
+      // event names the chat, not the item, so those are read by prefix (only mounted ones refetch)
+      return [
+        [keys.providers, NOW], [['providers', 'moves'], NOW], [keys.overview, NOW], [keys.chats, LISTS],
+        [keys.workItems, NOW], [['work-item'], NOW, 'no-diffs'], [['flow-runs'], NOW], [['flow'], NOW],
+      ];
     case 'run.rateLimited':
-    case 'run.accountRotated':
-    case 'account.switched':
-      return [[keys.accounts, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.chats, LISTS]];
+      // The provider's reading and the chat's banner follow the limit that was just hit
+      return [[keys.providers, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.chats, LISTS]];
     case 'task.started':
     case 'task.ended':
       return [[keys.tasks, NOW], ...detail(NOW), ...chatOf(event), [keys.chats, LISTS], [keys.overview, OVERVIEW]];
@@ -637,19 +645,18 @@ function startEventFeed(client: QueryClient): () => void {
   };
   connect();
 
-  // A page kept in the back/forward cache is frozen but its connection stays open, and browsers
-  // allow only six per origin over HTTP/1.1: a few navigations later nothing else can load. Let go
-  // when the page is hidden that way, and pick up from the last id when it comes back.
-  const onPageHide = () => {
-    disconnect();
-    setFeedState('closed');
-  };
-  const onPageShow = (event: PageTransitionEvent) => {
-    // The tab being shown again may have reconnected it already
-    if (event.persisted && !stopped && source === null) connect();
-  };
-  window.addEventListener('pagehide', onPageHide);
-  window.addEventListener('pageshow', onPageShow);
+  // Let go while the page sits in the back/forward cache, and pick up from the last id when it comes back
+  const leaveCache = onBackForwardCache(
+    window,
+    () => {
+      disconnect();
+      setFeedState('closed');
+    },
+    () => {
+      // The tab being shown again may have reconnected it already
+      if (!stopped && source === null) connect();
+    },
+  );
 
   // The same six connections are shared by every tab of the origin, and each tab holds one for this
   // stream: a few tabs left in the background starve the one in front. A tab hidden for a while lets
@@ -678,8 +685,7 @@ function startEventFeed(client: QueryClient): () => void {
   return () => {
     stopped = true;
     clearTimeout(park);
-    window.removeEventListener('pagehide', onPageHide);
-    window.removeEventListener('pageshow', onPageShow);
+    leaveCache();
     document.removeEventListener('visibilitychange', onVisibility);
     disconnect();
     invalidations.cancel();

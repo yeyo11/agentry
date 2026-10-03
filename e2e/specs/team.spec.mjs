@@ -195,7 +195,7 @@ export default async ({ page, api, check, dirs }) => {
       .run('e2e-failed-run', bare.id, failItem.id, 'the account hit its rate limit', now, now, now);
     failDb.close();
     await page.goto(`/?project=${bare.id}&view=team`, 1500);
-    await page.waitFor(`return document.querySelector('.team-activity')?.textContent.includes('the account reached its limit')`, { label: 'the reason a run failed' });
+    await page.waitFor(`return document.querySelector('.team-activity')?.textContent.includes('its provider reached its limit')`, { label: 'the reason a run failed' });
     check(await page.eval(`return !!document.querySelector('.team-activity .text-err')`), 'a failed run says so in the bad colour, beside its word');
   } finally {
     await page.viewport(1440, 900).catch(() => {});

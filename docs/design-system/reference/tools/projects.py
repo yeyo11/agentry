@@ -1,6 +1,7 @@
 from data import *
 from board import mhead
 from decision_parts import *
+from providers_rotation import project_providers_card
 
 MODS = [
   ('board', 'board', 'Tablero', 'Tareas en cinco columnas, hitos, y su enlace con chats y orquestaciones.'),
@@ -255,9 +256,10 @@ def project_settings_desktop():
 <div class="row" style="justify-content: flex-end; gap: 8px"><button type="button" class="btn btn-ghost">Descartar</button><button type="button" class="btn btn-primary">Guardar los cambios</button></div>
 </div>
 </div>
+{project_providers_card()}
 {override_card()}
 </main>'''
-  write('DesktopProyectoAjustes.html', tall(desktop('Ajustes del proyecto', 'projects', pcrumb('claude-wrapper', ('Ajustes', '')), main), 2100))
+  write('DesktopProyectoAjustes.html', tall(desktop('Ajustes del proyecto', 'projects', pcrumb('claude-wrapper', ('Ajustes', '')), main), 2700))
 
 
 def project_settings_mobile():
@@ -284,6 +286,7 @@ def project_settings_mobile():
 <div class="callout" style="padding: 12px">{ico('eyeoff', 'ico fg-3')}<span>Desactivar un módulo oculta su pestaña y conserva sus datos. Al activarlo vuelve todo.</span></div>
 </div>
 <div class="card" style="overflow: hidden"><a href="#" class="cell" style="min-height: 52px"><span class="grow" style="font-weight: 500">Límites del tablero</span><span class="mono t-xs fg-3">en curso 3 · revisión 3</span>{ico('right', 'ico fg-3')}</a>
+<a href="MobileProyectoAjustesProveedores.html" class="cell" style="min-height: 52px"><span class="grow" style="font-weight: 500">Proveedores</span><span class="mono t-xs fg-3">orden propio · 2 de 5</span>{ico('right', 'ico fg-3')}</a>
 <a href="MobileProyectoAjustesDecisiones.html" class="cell" style="min-height: 52px"><span class="grow" style="font-weight: 500">Decisiones</span><span class="mono t-xs fg-3">heredado · 3 distintos</span>{ico('right', 'ico fg-3')}</a></div>
 </div>
 <div class="m-foot"><button type="button" class="btn btn-primary btn-lg">Guardar los cambios</button></div>'''

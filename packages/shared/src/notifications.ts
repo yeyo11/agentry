@@ -65,11 +65,13 @@ export interface NotificationText {
   turns(count: number): string;
   rateLimited(name: string): string;
   rateLimitedBody(): string;
-  rotated(name: string): string;
-  previousAccount(): string;
-  nextAccount(): string;
-  rotatedBody(from: string, to: string): string;
-  rotatedBodyReplayed(from: string, to: string): string;
+  /**
+   * Work that went on in a new chat on another provider, and work that waits for a reset. Optional
+   * so a client with its own translations keeps compiling until it has said them: the English
+   * below stands in for what it lacks.
+   */
+  movedBody?(action: 'handoff' | 'restart'): string;
+  limitWaitingBody?(resetsAt: string | null): string;
   orchestrationFinished(name: string): string;
   orchestrationFailed(name: string): string;
   orchestrationDoneBody(): string;
@@ -84,6 +86,12 @@ export interface NotificationText {
    */
   serverText(code: string | undefined, params: LocalizedParams | undefined, fallback: string): string;
 }
+
+const movedBodyEnglish = (action: 'handoff' | 'restart'): string =>
+  action === 'handoff' ? 'It went on from a record of what was done.' : 'It started again from its original prompt.';
+
+const limitWaitingBodyEnglish = (resetsAt: string | null): string =>
+  resetsAt ? `It goes on when the limit resets, at ${resetsAt.slice(0, 16).replace('T', ' ')} UTC.` : 'It goes on when the limit resets; no reset time is known.';
 
 /**
  * The English of `apps/web/src/i18n/locales/en/components.json`, for a caller with no translations
@@ -102,11 +110,8 @@ export const englishNotificationText: NotificationText = {
   turns: (count) => `${count} ${count === 1 ? 'turn' : 'turns'}`,
   rateLimited: (name) => `${name} hit a rate limit`,
   rateLimitedBody: () => 'The turn stopped because the account ran out of quota.',
-  rotated: (name) => `${name} moved to another account`,
-  previousAccount: () => 'The previous account',
-  nextAccount: () => 'the next account',
-  rotatedBody: (from, to) => `${from} → ${to}.`,
-  rotatedBodyReplayed: (from, to) => `${from} → ${to}, and the turn was replayed.`,
+  movedBody: movedBodyEnglish,
+  limitWaitingBody: limitWaitingBodyEnglish,
   orchestrationFinished: (name) => `Orchestration ${name} finished`,
   orchestrationFailed: (name) => `Orchestration ${name} failed`,
   orchestrationDoneBody: () => 'Every task completed.',
@@ -307,24 +312,38 @@ export function notificationsFor(event: AgentryEvent, text: NotificationText = e
         }),
       ];
 
-    case 'run.accountRotated': {
-      if (event.internal) return [];
-      const from = event.from ?? text.previousAccount();
-      const to = event.to ?? text.nextAccount();
+    case 'run.providerMoved':
+      // A person's own click is not news to them; what the settings or a decision moved is
+      if (event.internal || event.decidedBy === 'person') return [];
       return [
         draft(event, {
-          key: `rotated:${event.runId}`,
+          key: `moved:${event.runId}:${event.to}`,
           kind: 'limit',
           priority: 'normal',
           tone: 'info',
-          title: text.rotated(event.runName),
-          body: event.resumed ? text.rotatedBodyReplayed(from, to) : text.rotatedBody(from, to),
+          title: event.title,
+          body: (text.movedBody ?? movedBodyEnglish)(event.action),
           href: chatHref(event.runId),
           runId: event.runId,
           orchestrationId: event.orchestrationId,
         }),
       ];
-    }
+
+    case 'run.limitWaiting':
+      if (event.internal) return [];
+      return [
+        draft(event, {
+          key: `limit-waiting:${event.runId}`,
+          kind: 'limit',
+          priority: 'normal',
+          tone: 'warn',
+          title: event.title,
+          body: (text.limitWaitingBody ?? limitWaitingBodyEnglish)(event.resetsAt),
+          href: chatHref(event.runId),
+          runId: event.runId,
+          orchestrationId: event.orchestrationId,
+        }),
+      ];
 
     case 'orchestration.updated': {
       if (event.previousStatus === null || event.previousStatus === event.status) return [];

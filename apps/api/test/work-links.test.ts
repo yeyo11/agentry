@@ -24,6 +24,7 @@ import { buildApp } from '../src/app.ts';
 // Work items with the chats and orchestrations that work on them, over HTTP and a real core. The
 // chats are the fake CLI the core tests use, which does what a line of its prompt says (write a
 // file, hang, fail), in real git worktrees; nothing here reads the real ~/.claude.
+process.env.FAKE_CLAUDE_LOGGED_IN = '1';
 const FAKE_CLAUDE = fileURLToPath(new URL('../../../packages/core/test/fixtures/fake-claude.mjs', import.meta.url));
 
 let app: FastifyInstance;
@@ -78,7 +79,6 @@ before(async () => {
   core = new Core(
     loadConfig({
       CLAUDE_BIN: FAKE_CLAUDE,
-      CSWAP_BIN: '/nonexistent/cswap',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
       AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
       AGENTRY_DATA_DIR: join(root, 'data'),

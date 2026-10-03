@@ -4,9 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { DecisionQuestion } from '@agentry/shared';
+import type { DecisionQuestion, ModelMapEntry, ProviderStatus } from '@agentry/shared';
+import type { NewChat } from '../src/live-chat.ts';
+import type { CandidateContext, CandidateProvider } from '../src/providers/candidates.ts';
+import { defaultProvidersSettings } from '../src/providers/settings.ts';
 import { Core } from '../src/index.ts';
-import { CliDecisionProvider, decisionPrompt, decisionSchema, parseAnswers } from '../src/decisions/providers/cli.ts';
+import { translateClaudePolicy } from '../src/providers/claude-code/policy.ts';
+import { translateCodexPolicy } from '../src/providers/codex/policy.ts';
+import { decisionRoute, chooseCliRoute, CliDecisionProvider, DECISION_POLICY, decisionPrompt, decisionSchema, parseAnswers } from '../src/decisions/providers/cli.ts';
 import type { DecisionRequest, ProviderResult } from '../src/decisions/engine.ts';
 import { PASTED_NOTE, THINK_THROUGH } from '../src/prompt-rules.ts';
 import { tempConfig } from './helpers.ts';
@@ -165,4 +170,115 @@ test('an aborted request is unavailable and removes its chat', async () => {
   } finally {
     core.shutdown();
   }
+});
+
+// ---------- the provider the chat runs on (decision 9) ----------
+
+const NOW = Date.parse('2026-10-02T12:00:00Z');
+const CLI = { model: 'haiku', effort: 'low', maxCostUsd: 0.02 };
+
+function candidate(id: string, over: Partial<CandidateProvider> = {}, st: Partial<ProviderStatus> = {}): CandidateProvider {
+  return {
+    status: { id, label: id, state: 'ready', reason: null, version: '1', compatibleRange: '*', binaryPath: null, configHome: null, account: null, capabilities: [], checkedAt: new Date(NOW).toISOString(), ...st },
+    hasDriver: true,
+    capabilities: ['structuredOutput', 'effort'],
+    // The real translations: the decision chat's policy decides which provider may take it
+    translate: id === 'codex' ? translateCodexPolicy : id === 'claude-code' ? translateClaudePolicy : null,
+    models: [],
+    efforts: ['low', 'medium'],
+    ...over,
+  };
+}
+
+const exhausted: Partial<ProviderStatus> = {
+  limit: { provider: 'claude-code', state: 'exhausted', window: '5h', utilization: 1, resetsAt: new Date(NOW + 3_600_000).toISOString(), windows: {}, observedAt: new Date(NOW).toISOString(), source: 'stream' },
+};
+
+function context(providers: Record<string, CandidateProvider>, modelMap: ModelMapEntry[] = []): CandidateContext {
+  const settings = defaultProvidersSettings(['claude-code', 'codex']);
+  return { settings: { ...settings, rotation: { ...(settings.rotation as NonNullable<typeof settings.rotation>), modelMap } }, project: null, providers, now: NOW };
+}
+
+const HAIKU_TO_CODEX: ModelMapEntry = { from: { provider: 'claude-code', model: 'haiku' }, to: { provider: 'codex', model: 'gpt-5-mini' }, origin: 'person', at: '2026-10-01T00:00:00.000Z' };
+
+test('the route is the first ready provider with structured output: Claude Code while it can answer', () => {
+  const route = chooseCliRoute(CLI, context({ 'claude-code': candidate('claude-code'), codex: candidate('codex') }, [HAIKU_TO_CODEX]));
+  assert.deepEqual(route, { provider: 'claude-code', model: 'haiku', effort: 'low' });
+});
+
+test('at its limit the chat goes to the next provider that has a model for the configured one', () => {
+  const route = chooseCliRoute(CLI, context({ 'claude-code': candidate('claude-code', {}, exhausted), codex: candidate('codex') }, [HAIKU_TO_CODEX]));
+  assert.deepEqual(route, { provider: 'codex', model: 'gpt-5-mini', effort: 'low' });
+});
+
+test('with an empty model mapping nothing else can answer, and the reason is the limit (decision P4-3)', () => {
+  const route = chooseCliRoute(CLI, context({ 'claude-code': candidate('claude-code', {}, exhausted), codex: candidate('codex') }));
+  assert.deepEqual(route, { unavailable: 'rate-limited' });
+});
+
+test('a Claude-only setup keeps the decision chat on Claude Code, and at its limit the answer is rate-limited', () => {
+  assert.deepEqual(chooseCliRoute(CLI, context({ 'claude-code': candidate('claude-code') }, [HAIKU_TO_CODEX])), { provider: 'claude-code', model: 'haiku', effort: 'low' });
+  assert.deepEqual(chooseCliRoute(CLI, context({ 'claude-code': candidate('claude-code', {}, exhausted) }, [HAIKU_TO_CODEX])), { unavailable: 'rate-limited' });
+});
+
+test('a provider that cannot enforce the no-tools policy does not take the chat', () => {
+  const blind = chooseCliRoute(CLI, context({ 'claude-code': candidate('claude-code', {}, exhausted), codex: candidate('codex', { translate: null }) }, [HAIKU_TO_CODEX]));
+  assert.deepEqual(blind, { unavailable: 'rate-limited' });
+});
+
+test('the decision policy allows no tool at all', () => {
+  assert.deepEqual(DECISION_POLICY, { read: { allow: false }, edit: { allow: 'none' }, commands: { allow: 'none' }, network: 'deny', gitPush: 'deny' });
+});
+
+test('a provider without structured output is passed over, and no provider at all is a server error', () => {
+  const noSchema = chooseCliRoute(CLI, context({ 'claude-code': candidate('claude-code', { capabilities: [] }, exhausted), codex: candidate('codex', { capabilities: [] }) }, [HAIKU_TO_CODEX]));
+  assert.deepEqual(noSchema, { unavailable: 'server-error' });
+  const nothing = chooseCliRoute(CLI, context({ 'claude-code': candidate('claude-code', {}, { state: 'not-installed', reason: null }) }));
+  assert.deepEqual(nothing, { unavailable: 'server-error' });
+});
+
+test('the chat starts on the provider and the model the route names, and an unavailable route starts none', async () => {
+  const { core } = setup();
+  try {
+    const started: NewChat[] = [];
+    const runtime = {
+      start: (opts: NewChat): never => {
+        started.push(opts);
+        throw new Error('stop here');
+      },
+      waitForResult: () => Promise.reject(new Error('unused')),
+      stop: () => undefined,
+      exited: () => Promise.resolve(),
+      remove: () => false,
+    };
+    const routed = new CliDecisionProvider({ runtime, settings: core.decisionSettings, route: () => ({ provider: 'codex', model: 'gpt-5-mini', effort: null }) });
+    const result = await routed.ask(request(''), { deadlineMs: 1_000, signal: new AbortController().signal });
+    assert.equal(result.status === 'unavailable' && result.reason, 'server-error');
+    assert.equal(started[0]?.provider, 'codex');
+    assert.equal(started[0]?.model, 'gpt-5-mini');
+    assert.equal(started[0]?.effort, undefined, 'the target keeps its own default effort');
+    assert.deepEqual(started[0]?.confine, { tools: [], settingSources: [] });
+    assert.deepEqual(started[0]?.toolConfig?.policy, DECISION_POLICY, 'the launch states the policy the route was chosen against');
+
+    started.length = 0;
+    const blocked = new CliDecisionProvider({ runtime, settings: core.decisionSettings, route: () => ({ unavailable: 'rate-limited' }) });
+    const refused = await blocked.ask(request(''), { deadlineMs: 1_000, signal: new AbortController().signal });
+    assert.deepEqual(refused.status === 'unavailable' && refused.reason, 'rate-limited');
+    assert.equal(started.length, 0, 'no chat is started for a decision that cannot run');
+  } finally {
+    core.shutdown();
+  }
+});
+
+test('before the providers have been read once, a decision goes to Claude Code with the configured model', () => {
+  const cli = { model: 'haiku', effort: 'low' } as Parameters<typeof decisionRoute>[0];
+  let weighed = false;
+  const route = decisionRoute(cli, null, () => {
+    weighed = true;
+    throw new Error('nothing to weigh before a detection');
+  });
+  assert.deepEqual(route, { provider: 'claude-code', model: 'haiku', effort: 'low' });
+  assert.equal(weighed, false);
+  // Once read, the candidates decide: none at all is a decision that cannot be had
+  assert.deepEqual(decisionRoute(cli, [], () => ({ settings: defaultProvidersSettings([]), project: null, providers: {}, now: Date.now() })), { unavailable: 'server-error' });
 });

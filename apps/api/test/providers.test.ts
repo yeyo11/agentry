@@ -21,7 +21,6 @@ before(async () => {
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
-      CSWAP_BIN: '/nonexistent/cswap',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
       AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
       AGENTRY_DATA_DIR: join(root, 'data'),
@@ -47,8 +46,10 @@ test('every provider is listed with a status, and one by id', async () => {
 test('settings read as the defaults until the first save, then persist in providers.json', async () => {
   const defaults = (await app.inject('/api/providers/settings')).json<ProvidersSettings>();
   assert.equal(defaults.defaultProvider, null);
-  assert.deepEqual(defaults.order, ['claude-code', 'codex', 'gemini', 'copilot', 'opencode']);
-  assert.ok(Object.values(defaults.providers).every((p) => p.enabled && p.binaryPath === null));
+  // Every API test reads only Claude Code until it saves (test/isolate-providers.ts): the machine's
+  // own agents stay out. The shipped defaults, every provider on, are core's tests to check.
+  assert.equal(defaults.order[0], 'claude-code');
+  assert.ok(Object.values(defaults.providers).every((p) => p.binaryPath === null));
   assert.equal(existsSync(join(root, 'data', 'providers.json')), false);
 
   const saved = await app.inject({
@@ -85,6 +86,19 @@ test('settings that name an unknown provider, or a relative binary, are refused 
   assert.deepEqual((await app.inject('/api/providers/settings')).json(), before);
 });
 
+test('the rotation block is saved whole, read back and refused when out of range', async () => {
+  const rotation = { onLimit: { action: 'handoff', allowed: ['handoff', 'wait'], maxWaitHours: 12, maxMoves: 1 }, modelMap: [] };
+  const saved = await app.inject({ method: 'PUT', url: '/api/providers/settings', ...json({ rotation }) });
+  assert.equal(saved.statusCode, 200);
+  assert.deepEqual(saved.json<ProvidersSettings>().rotation, rotation);
+  assert.deepEqual(JSON.parse(readFileSync(join(root, 'data', 'providers.json'), 'utf8')).rotation, rotation);
+  assert.deepEqual((await app.inject('/api/providers/settings')).json<ProvidersSettings>().rotation, rotation);
+  const bad = await app.inject({ method: 'PUT', url: '/api/providers/settings', ...json({ rotation: { onLimit: { maxMoves: 99 } } }) });
+  assert.equal(bad.statusCode, 400);
+  assert.deepEqual((await app.inject('/api/providers/settings')).json<ProvidersSettings>().rotation, rotation);
+  await app.inject({ method: 'PUT', url: '/api/providers/settings', ...json({}) });
+});
+
 test("a chat's token can read the providers but not change the settings or force a detection", async () => {
   const created = await app.inject({ method: 'POST', url: '/api/security/token', ...json({}) });
   const { token } = created.json<{ token: string }>();
@@ -116,7 +130,8 @@ test("a chat's token can read the providers but not change the settings or force
 test('every provider route is documented with a summary and the Providers tag', async () => {
   const spec = (await app.inject('/openapi.json')).json<{ paths: Record<string, Record<string, { summary?: string; tags?: string[] }>> }>();
   const routes = Object.entries(spec.paths).filter(([path]) => path === '/api/providers' || path.startsWith('/api/providers/'));
-  assert.equal(routes.reduce((n, [, methods]) => n + Object.keys(methods).length, 0), 6);
+  // The six of detection and settings, the eight of what a limit does, and the suggestion of a counterpart (f1)
+  assert.equal(routes.reduce((n, [, methods]) => n + Object.keys(methods).length, 0), 15);
   for (const [path, methods] of routes) {
     for (const [method, op] of Object.entries(methods)) {
       assert.ok(op.summary, `${method} ${path} has no summary`);

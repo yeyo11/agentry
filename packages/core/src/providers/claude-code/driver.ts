@@ -1,12 +1,10 @@
 import { PERMISSION_MODES, type ModelOption, type PermissionDecision, type PermissionMode, type PolicyTranslation, type ToolPolicy } from '@agentry/shared';
-import { authFreeEnv } from '../../accounts.ts';
 import { drivesSession, streamJsonProcesses } from '../../processes.ts';
 import { composeContent } from '../../uploads.ts';
 import { modelOptions } from './models.ts';
 import { SessionStoreTranscripts, type TranscriptStore } from '../transcripts.ts';
 import type { SessionStore } from '../../sessions.ts';
 import type {
-  AccountSupport,
   BranchTracker,
   CapabilityConfirmation,
   DriverEvent,
@@ -18,7 +16,7 @@ import type {
   SessionLaunch,
   UserTurn,
 } from '../driver.ts';
-import { buildArgs, command } from './args.ts';
+import { buildArgs } from './args.ts';
 import { ClaudeBranches } from './branches.ts';
 import { ControlChannel } from './control.ts';
 import { confirmClaudeInit } from './handshake.ts';
@@ -89,7 +87,7 @@ class ClaudeCodeSession implements DriverSession {
 
 /**
  * Claude Code behind the driver interface: the CLI's own stream-json protocol, moved here as it was.
- * The binary is the one the configuration names; claude-swap is supplied by Core through `accounts`.
+ * The binary is the one the configuration names; the account is the one the CLI is signed in with.
  */
 export class ClaudeCodeDriver implements ProviderDriver {
   readonly manifest = claudeCodeManifest;
@@ -97,7 +95,6 @@ export class ClaudeCodeDriver implements ProviderDriver {
   readonly sessionIds = 'imposed';
   /** Claude's JSONL transcripts, once Core has handed over the store it reads them with */
   transcripts: TranscriptStore | null = null;
-  accounts: AccountSupport | null = null;
 
   /** Where the CLI lists what the account may run, and the names chats learned for the aliases; set by the manager */
   modelSource: { file: string; seen: () => Readonly<Record<string, string>> } | null = null;
@@ -112,6 +109,15 @@ export class ClaudeCodeDriver implements ProviderDriver {
     return modelOptions(this.modelSource?.file ?? '', this.modelSource?.seen() ?? {});
   }
 
+  modelNames(model: string): string[] {
+    const seen = this.modelSource?.seen() ?? {};
+    const names = new Set([model]);
+    const resolved = seen[model];
+    if (resolved) names.add(resolved);
+    for (const [alias, id] of Object.entries(seen)) if (id === model) names.add(alias);
+    return [...names];
+  }
+
   /** Where the transcripts are read from; set by the manager, like `modelSource` */
   useSessions(sessions: SessionStore): void {
     this.transcripts = new SessionStoreTranscripts(sessions);
@@ -123,12 +129,7 @@ export class ClaudeCodeDriver implements ProviderDriver {
   }
 
   launch(spec: SessionLaunch): LaunchPlan {
-    const launch = this.accounts?.managed ? this.accounts.launchFor({ account: spec.account, cwd: spec.cwd }) : { account: null, configDir: null };
-    const [bin, args] = command(this.claudeBin, this.accounts, launch, buildArgs(spec));
-    // A chat on an account must never inherit a token from the environment: it would override the account
-    const env: NodeJS.ProcessEnv = { ...(launch.account || launch.configDir || spec.account ? authFreeEnv() : process.env) };
-    if (launch.configDir) env.CLAUDE_CONFIG_DIR = launch.configDir;
-    return { bin, args, env, unsetEnv: [] };
+    return { bin: this.claudeBin, args: buildArgs(spec), env: { ...process.env }, unsetEnv: [] };
   }
 
   attach(io: SessionIO, sink: (event: DriverEvent) => void, branches: BranchTracker): DriverSession {

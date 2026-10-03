@@ -700,6 +700,11 @@ a.statusbar-item:focus-visible {
   color: var(--bad);
 }
 
+/* When an exhausted provider comes back, beside its word */
+.statusbar-age {
+  color: var(--fg-3);
+}
+
 .statusbar-live .spinner-glyph {
   color: var(--live);
 }
@@ -1151,19 +1156,16 @@ a.statusbar-item:focus-visible {
   min-width: 0;
 }
 
-/* The active account's avatar: one of the gradient's few places */
+/* The provider's mark in a quiet tile: the card's border is already the screen's gradient */
 .more-account-avatar {
   flex: none;
   display: grid;
   place-items: center;
   width: 40px;
   height: 40px;
-  border-radius: 50%;
-  background: var(--grad);
-  box-shadow: var(--shadow-primary);
-  color: #fff;
-  font-weight: 600;
-  font-size: 15px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-2);
+  background: var(--bg-2);
 }
 
 .more-account-text {

@@ -71,11 +71,14 @@ export const POINT_KEY: Record<DecisionPointId, string> = {
   'checks.fix': 'checksFix',
   'review.triage': 'reviewTriage',
   'issue.triage': 'issueTriage',
+  'provider.on-limit': 'providerOnLimit',
+  'provider.pick': 'providerPick',
+  'provider.model-map': 'providerModelMap',
   'notification.urgency': 'notificationUrgency',
   'palette.intent': 'paletteIntent',
 };
 
-export type AreaId = 'flow' | 'board' | 'memory' | 'assistant' | 'orchestrations' | 'health' | 'review' | 'hosts' | 'notifications' | 'palette';
+export type AreaId = 'flow' | 'board' | 'memory' | 'assistant' | 'orchestrations' | 'health' | 'review' | 'hosts' | 'providers' | 'notifications' | 'palette';
 
 /** `run.continuation` sits under Orchestrations although it also serves the flow (the plan's call). */
 export const AREAS: ReadonlyArray<{ id: AreaId; points: readonly DecisionPointId[] }> = [
@@ -87,6 +90,7 @@ export const AREAS: ReadonlyArray<{ id: AreaId; points: readonly DecisionPointId
   { id: 'health', points: ['supervisor.intervene', 'health.semantic-loop', 'health.test-weakening'] },
   { id: 'review', points: ['changes.unexplained-hunk'] },
   { id: 'hosts', points: ['checks.fix', 'review.triage', 'issue.triage'] },
+  { id: 'providers', points: ['provider.on-limit', 'provider.pick', 'provider.model-map'] },
   { id: 'notifications', points: ['notification.urgency'] },
   { id: 'palette', points: ['palette.intent'] },
 ];

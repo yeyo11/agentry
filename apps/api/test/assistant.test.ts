@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import type { AssistantProposal, AssistantRun, AssistantRunDetail, Project, Team } from '@agentry/shared';
+import { fileURLToPath } from 'node:url';
 import { Core, loadConfig } from '@agentry/core';
 import { buildApp } from '../src/app.ts';
 
@@ -23,12 +24,15 @@ async function importEmpty(modules: string[]): Promise<Project> {
   return res.json<Project>();
 }
 
+// Automated work starts only on a provider that proved it is signed in, so the run's chat needs a CLI that answers
+process.env.FAKE_CLAUDE_LOGGED_IN = '1';
+const FAKE_CLAUDE = fileURLToPath(new URL('../../../packages/core/test/fixtures/fake-claude.mjs', import.meta.url));
+
 before(async () => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-api-assistant-root-'));
   core = new Core(
     loadConfig({
-      CLAUDE_BIN: '/nonexistent/claude',
-      CSWAP_BIN: '/nonexistent/cswap',
+      CLAUDE_BIN: FAKE_CLAUDE,
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
       AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
       AGENTRY_DATA_DIR: join(root, 'data'),
@@ -99,7 +103,7 @@ test("a run's chat is titled in the language the request says the person reads",
   const titles: string[] = [];
   for (const language of ['es-ES,es;q=0.9,en;q=0.8', 'en-GB', undefined]) {
     const path = mkdtempSync(join(tmpdir(), 'agentry-api-assistant-lang-'));
-    // Something to read, so the run starts a chat (which then fails: there is no CLI here)
+    // Something to read, so the run starts a chat (the fake CLI answers it)
     writeFileSync(join(path, 'README.md'), '# Notas\n');
     const p = (await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path, name: 'Notas', template: 'software', modules: ['board'] }) })).json<Project>();
     const res = await app.inject({

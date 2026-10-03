@@ -74,6 +74,7 @@
     "./lib/markdown-blocks": "./src/lib/markdown-blocks.ts",
     "./lib/media": "./src/lib/media.ts",
     "./lib/motion": "./src/lib/motion.ts",
+    "./lib/page-cache": "./src/lib/page-cache.ts",
     "./lib/progress": "./src/lib/progress.ts",
     "./styles/feedback.css": "./src/styles/feedback.css",
     "./styles/illustrations.css": "./src/styles/illustrations.css",

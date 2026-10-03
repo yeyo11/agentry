@@ -126,10 +126,9 @@
       "env-oauth-token",
       "env-api-key",
       "credentials-file",
-      "cswap",
       "none"
     ],
-    "description": "`wrapper-*`: configured through the API; `env-*`: passed through the container environment; `cswap`: claude-swap owns the credential file and the wrapper injects nothing."
+    "description": "`wrapper-*`: configured through the API; `env-*`: passed through the container environment;"
   },
   "PermissionMode": {
     "type": "string",
@@ -148,6 +147,13 @@
       "value": {
         "type": "string",
         "description": "What the flag takes: an alias (`opus`) or a model's full name (`claude-fable-5-1[1m]`)"
+      },
+      "ids": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The model ids an alias stands for, as chats that ran on it reported them (`claude-sonnet-5` for `sonnet`). Suggestions, moves and accepted mappings carry the id, the catalogue lists the alias: match a row on its `value` or on any of its `ids`. Absent where the value is already the id."
       },
       "label": {
         "type": "string",
@@ -186,26 +192,12 @@
       "system": {
         "$ref": "#/components/schemas/SystemInfo"
       },
-      "rateLimit": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/RateLimitInfo"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "accounts": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/AccountsSnapshot"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "Null when claude-swap is not installed"
+      "limits": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProviderLimit"
+        },
+        "description": "One reading per provider that has one"
       },
       "counts": {
         "type": "object",
@@ -257,23 +249,40 @@
     },
     "required": [
       "system",
-      "rateLimit",
-      "accounts",
+      "limits",
       "counts",
       "recentChats"
     ]
   },
-  "RateLimitInfo": {
+  "ProviderLimit": {
     "type": "object",
     "properties": {
-      "status": {
-        "type": "string"
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId"
       },
-      "rateLimitType": {
-        "type": "string"
+      "state": {
+        "$ref": "#/components/schemas/ProviderLimitState"
+      },
+      "window": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The window that binds (`5h`, `7d`, `primary`), when the provider names windows"
+      },
+      "utilization": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Use of that window, 0..1; null when the provider reports none"
       },
       "resetsAt": {
-        "type": "number"
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "ISO time the binding window resets; null when unknown"
       },
       "windows": {
         "type": "object",
@@ -282,14 +291,44 @@
         }
       },
       "observedAt": {
-        "type": "string"
+        "type": "string",
+        "description": "When the reading was taken: the UI says how old it is"
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "stream",
+          "probe",
+          "failure"
+        ],
+        "description": "`stream`: a live run reported it; `probe`: a read that spends nothing; `failure`: a turn died on it"
       }
     },
     "required": [
-      "status",
+      "provider",
+      "state",
+      "window",
+      "utilization",
+      "resetsAt",
       "windows",
-      "observedAt"
-    ]
+      "observedAt",
+      "source"
+    ],
+    "description": "One provider's usage limit, folded from what its driver reports."
+  },
+  "ProviderId": {
+    "type": "string",
+    "description": "An agent provider, by the id its manifest declares (`claude-code`, `codex`, …). A string and not a closed union, so adding a provider is adding a folder in core and never a change here."
+  },
+  "ProviderLimitState": {
+    "type": "string",
+    "enum": [
+      "ok",
+      "near",
+      "exhausted",
+      "unknown"
+    ],
+    "description": "`unknown`: nothing was read, or the reset has passed since; never `ok` without a new reading."
   },
   "RateLimitWindow": {
     "type": "object",
@@ -305,176 +344,6 @@
       "utilization",
       "resetsAt"
     ]
-  },
-  "AccountsSnapshot": {
-    "type": "object",
-    "properties": {
-      "installed": {
-        "type": "boolean"
-      },
-      "total": {
-        "type": "number"
-      },
-      "active": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/AccountSummary"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "autoSwitchRunning": {
-        "type": "boolean"
-      }
-    },
-    "required": [
-      "installed",
-      "total",
-      "active",
-      "autoSwitchRunning"
-    ],
-    "description": "What the dashboard needs about accounts, without the full list."
-  },
-  "AccountSummary": {
-    "type": "object",
-    "properties": {
-      "number": {
-        "type": "number",
-        "description": "Slot number: the identifier every action accepts, alongside the email and the alias"
-      },
-      "email": {
-        "type": "string"
-      },
-      "organizationName": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "alias": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "active": {
-        "type": "boolean"
-      },
-      "disabled": {
-        "type": "boolean",
-        "description": "Held out of the auto-rotation"
-      },
-      "usageStatus": {
-        "type": "string",
-        "description": "`ok`, `token_expired`, `unavailable`… as reported by claude-swap"
-      },
-      "usage": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/AccountUsage"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "usageFetchedAt": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "headroomPct": {
-        "type": [
-          "number",
-          "null"
-        ],
-        "description": "Quota left in the binding window (0-100); null when the usage is unknown"
-      }
-    },
-    "required": [
-      "number",
-      "email",
-      "organizationName",
-      "alias",
-      "active",
-      "disabled",
-      "usageStatus",
-      "usage",
-      "usageFetchedAt",
-      "headroomPct"
-    ]
-  },
-  "AccountUsage": {
-    "type": "object",
-    "properties": {
-      "fiveHour": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/AccountUsageWindow"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "sevenDay": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/AccountUsageWindow"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "scoped": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/AccountUsageWindow"
-        },
-        "description": "Per-model weekly windows (Fable, Opus…) when the account reports them"
-      }
-    },
-    "required": [
-      "fiveHour",
-      "sevenDay",
-      "scoped"
-    ]
-  },
-  "AccountUsageWindow": {
-    "type": "object",
-    "properties": {
-      "pct": {
-        "type": "number",
-        "description": "Share of the window already consumed (0-100)"
-      },
-      "resetsAt": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "countdown": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Human countdown to the reset, e.g. `3h 4m`"
-      },
-      "name": {
-        "type": "string",
-        "description": "Per-model windows carry the model name"
-      }
-    },
-    "required": [
-      "pct",
-      "resetsAt",
-      "countdown"
-    ],
-    "description": "One rate-limit window as claude-swap reports it."
   },
   "ChatSummary": {
     "type": "object",
@@ -579,6 +448,32 @@
         ],
         "description": "Set on a fork: where it started from"
       },
+      "continuedFrom": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatContinuation"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The chat this one continues after a provider move; null when it is not a continuation"
+      },
+      "continuedIn": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatContinuation"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The chat that continues this one after a provider move; null while none does"
+      },
+      "atLimit": {
+        "type": "boolean",
+        "description": "The chat's last turn died on its provider's usage limit. Kept in the server's memory only: after a restart it is absent, and the page falls back on the provider's reading."
+      },
       "state": {
         "$ref": "#/components/schemas/ChatState"
       },
@@ -665,10 +560,6 @@
       "cost"
     ],
     "description": "A chat as the list shows it: everything but what only its own page needs, which costs a read of its transcript and its sidecar files per chat."
-  },
-  "ProviderId": {
-    "type": "string",
-    "description": "An agent provider, by the id its manifest declares (`claude-code`, `codex`, …). A string and not a closed union, so adding a provider is adding a folder in core and never a change here."
   },
   "ChatProject": {
     "type": "object",
@@ -769,6 +660,40 @@
       "at"
     ],
     "description": "Where a fork came from."
+  },
+  "ChatContinuation": {
+    "type": "object",
+    "properties": {
+      "chatId": {
+        "type": "string"
+      },
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider of the chat at the other end"
+      },
+      "action": {
+        "type": "string",
+        "enum": [
+          "handoff",
+          "restart"
+        ]
+      },
+      "at": {
+        "type": "string"
+      },
+      "moveId": {
+        "type": "string",
+        "description": "The  {@link  ProviderMove }  that recorded it"
+      }
+    },
+    "required": [
+      "chatId",
+      "provider",
+      "action",
+      "at",
+      "moveId"
+    ],
+    "description": "The other end of a provider move, as a chat links to it. A move is always a new chat (a session belongs to its provider), so the old chat and the new one point at each other."
   },
   "ChatState": {
     "type": "string",
@@ -875,13 +800,6 @@
           "null"
         ]
       },
-      "account": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Pinned claude-swap account, when it did not use the active one"
-      },
       "maxBudgetUsd": {
         "type": [
           "number",
@@ -918,7 +836,6 @@
       "error",
       "permissionMode",
       "model",
-      "account",
       "maxBudgetUsd",
       "costUsd",
       "tokens",
@@ -2718,6 +2635,28 @@
           "null"
         ]
       },
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider its current chat is on; absent on a task written before providers were chosen"
+      },
+      "chain": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TaskChainEntry"
+        },
+        "description": "The chats the task went through, oldest first, one entry per provider move"
+      },
+      "waiting": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/LimitWait"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set while the task waits for its provider's limit to reset; it stays `running` and keeps its place"
+      },
       "result": {
         "type": [
           "string",
@@ -2821,6 +2760,74 @@
       "interrupted"
     ],
     "description": "`failed` is final: the task's attempts ran out (or it failed in a way a retry cannot mend), and a person decides what happens to it. `blocked`: a task waiting behind one that failed, which is not the same as `pending`, waiting for its turn. `skipped`: that decision, giving the branch up so the graph can finish without it. `stopped` is someone's decision and is never retried on its own; `interrupted` is a task whose execution a wrapper restart cut off, which is: the chat goes on in a new execution, in the worktree it left, while attempts remain."
+  },
+  "TaskChainEntry": {
+    "type": "object",
+    "properties": {
+      "chatId": {
+        "type": "string"
+      },
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId"
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "action": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/LimitAction"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "How this chat came to be; the first chat of a task has none"
+      }
+    },
+    "required": [
+      "chatId",
+      "provider",
+      "model",
+      "action"
+    ],
+    "description": "One chat of a task's chain: the provider and model it ran on, and how it got there."
+  },
+  "LimitAction": {
+    "type": "string",
+    "enum": [
+      "handoff",
+      "restart",
+      "wait"
+    ],
+    "description": "What work does when its provider reaches a usage limit."
+  },
+  "LimitWait": {
+    "type": "object",
+    "properties": {
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId"
+      },
+      "resetsAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "ISO time the limit resets; null when unknown, and the wait ends at the cap"
+      },
+      "moveId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "provider",
+      "resetsAt",
+      "moveId"
+    ],
+    "description": "Work that stopped to wait for a provider's limit to reset."
   },
   "Health": {
     "$ref": "#/components/schemas/ChatHealth",
@@ -3782,6 +3789,28 @@
           "string",
           "null"
         ]
+      },
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider its current chat is on; absent on a task written before providers were chosen"
+      },
+      "chain": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TaskChainEntry"
+        },
+        "description": "The chats the task went through, oldest first, one entry per provider move"
+      },
+      "waiting": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/LimitWait"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set while the task waits for its provider's limit to reset; it stays `running` and keeps its place"
       },
       "error": {
         "type": [
@@ -4818,407 +4847,6 @@
     ],
     "description": "A file uploaded to attach to a message. Images and PDFs reach Claude as content blocks; any other file by its path, which every run can read."
   },
-  "AccountsOverview": {
-    "type": "object",
-    "properties": {
-      "cswap": {
-        "$ref": "#/components/schemas/CswapInfo"
-      },
-      "accounts": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/AccountSummary"
-        }
-      },
-      "activeNumber": {
-        "type": [
-          "number",
-          "null"
-        ]
-      },
-      "autoSwitch": {
-        "$ref": "#/components/schemas/AutoSwitchSettings"
-      },
-      "autoSwitchRunning": {
-        "type": "boolean",
-        "description": "The `cswap auto` supervisor is alive"
-      },
-      "events": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/AutoSwitchEvent"
-        },
-        "description": "Most recent rotation events, newest last"
-      },
-      "configs": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/AccountConfig"
-        },
-        "description": "One per account that has a config directory of its own"
-      },
-      "policies": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/RotationPolicy"
-        }
-      }
-    },
-    "required": [
-      "cswap",
-      "accounts",
-      "activeNumber",
-      "autoSwitch",
-      "autoSwitchRunning",
-      "events",
-      "configs",
-      "policies"
-    ]
-  },
-  "CswapInfo": {
-    "type": "object",
-    "properties": {
-      "installed": {
-        "type": "boolean"
-      },
-      "version": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "path": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "error": {
-        "type": "string"
-      },
-      "source": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/CswapSource"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "compatible": {
-        "type": "boolean",
-        "description": "The version is one whose `--json` output Agentry parses"
-      },
-      "pinned": {
-        "type": "string",
-        "description": "The version Agentry installs and is tested against"
-      },
-      "managed": {
-        "$ref": "#/components/schemas/CswapManagedInfo"
-      }
-    },
-    "required": [
-      "installed",
-      "version",
-      "path",
-      "source",
-      "compatible",
-      "pinned",
-      "managed"
-    ],
-    "description": "The `cswap` binary that owns the account credentials, when it is installed."
-  },
-  "CswapSource": {
-    "type": "string",
-    "enum": [
-      "env",
-      "path",
-      "managed"
-    ],
-    "description": "Where the `cswap` in use came from: `CSWAP_BIN`, the `PATH`, or the copy Agentry installed in its own data directory."
-  },
-  "CswapManagedInfo": {
-    "type": "object",
-    "properties": {
-      "available": {
-        "type": "boolean",
-        "description": "False in the Docker image (claude-swap is baked in), with `CSWAP_BIN`, or with `AGENTRY_CSWAP_MANAGED=0`"
-      },
-      "state": {
-        "$ref": "#/components/schemas/CswapInstallState"
-      },
-      "step": {
-        "type": "string",
-        "enum": [
-          "uv",
-          "claude-swap"
-        ],
-        "description": "While installing: fetching uv, or uv installing claude-swap (and Python, when the system lacks it)"
-      },
-      "version": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Version of the managed copy, when there is one"
-      },
-      "error": {
-        "type": "string",
-        "description": "Why the last install failed"
-      }
-    },
-    "required": [
-      "available",
-      "state",
-      "version"
-    ]
-  },
-  "CswapInstallState": {
-    "type": "string",
-    "enum": [
-      "absent",
-      "installing",
-      "installed",
-      "failed"
-    ],
-    "description": "Progress of the copy of claude-swap Agentry installs itself."
-  },
-  "AutoSwitchSettings": {
-    "type": "object",
-    "properties": {
-      "enabled": {
-        "type": "boolean",
-        "description": "Run `cswap auto` in the background and rotate before the active account runs out"
-      },
-      "threshold": {
-        "type": "number",
-        "description": "Utilization that triggers a proactive switch (50-99.9)"
-      },
-      "strategy": {
-        "type": "string",
-        "enum": [
-          "best",
-          "consume-first"
-        ],
-        "description": "`best` stays until the limit; `consume-first` spends the soonest-resetting account first"
-      },
-      "models": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        },
-        "description": "Per-model weekly windows to watch too, e.g. `['Fable']` or `['all']`"
-      },
-      "intervalSec": {
-        "type": "number",
-        "description": "Poll interval of the supervisor, in seconds (minimum 15)"
-      },
-      "rotateOnLimit": {
-        "type": "boolean",
-        "description": "Rotate and resume a run that dies against its rate limit"
-      }
-    },
-    "required": [
-      "enabled",
-      "threshold",
-      "strategy",
-      "models",
-      "intervalSec",
-      "rotateOnLimit"
-    ],
-    "description": "Settings of the supervised `cswap auto` process."
-  },
-  "AutoSwitchEvent": {
-    "type": "object",
-    "properties": {
-      "seq": {
-        "type": "number"
-      },
-      "ts": {
-        "type": "string"
-      },
-      "event": {
-        "type": "string",
-        "description": "`poll`, `switch`, `no-switch`, `account-quarantined`, `all-exhausted`, `error`, or `rotate` when the wrapper drove it"
-      },
-      "reason": {
-        "type": "string"
-      },
-      "detail": {
-        "type": "string"
-      },
-      "from": {
-        "type": "string"
-      },
-      "to": {
-        "type": "string"
-      },
-      "data": {
-        "type": "object",
-        "additionalProperties": {},
-        "description": "The raw claude-swap payload"
-      }
-    },
-    "required": [
-      "seq",
-      "ts",
-      "event"
-    ],
-    "description": "One `cswap auto --json` line, plus the rotations the wrapper drives itself."
-  },
-  "AccountConfig": {
-    "type": "object",
-    "properties": {
-      "number": {
-        "type": "number",
-        "description": "Slot number, the same identifier  {@link  AccountSummary }  uses"
-      },
-      "configDir": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "`CLAUDE_CONFIG_DIR` for every process started for this account. Null shares the wrapper's, which is what every account did before and stays the default: moving someone's `~/.claude` without being asked is not something a wrapper gets to do. A chat on an account that has one runs `claude` directly against it, so the login is whatever that directory holds."
-      },
-      "links": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        },
-        "description": "Entries Agentry linked into `configDir` from the shared one, relative to it; undone when it is cleared"
-      }
-    },
-    "required": [
-      "number",
-      "configDir",
-      "links"
-    ],
-    "description": "Agentry's own settings for one claude-swap slot: what the binary itself does not keep."
-  },
-  "RotationPolicy": {
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      },
-      "threshold": {
-        "type": "number",
-        "description": "Utilization (0-100) of an account's binding window past which the next one in `order` is taken"
-      },
-      "order": {
-        "type": "array",
-        "items": {
-          "type": "number"
-        },
-        "description": "Slot numbers a chat of these projects may use, in order of preference; every account when absent"
-      },
-      "projects": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        },
-        "description": "Project ids this policy governs; at most one policy governs a project"
-      },
-      "looseChats": {
-        "type": "boolean",
-        "description": "It also governs the chats that belong to no project; at most one policy does"
-      }
-    },
-    "required": [
-      "id",
-      "threshold",
-      "projects"
-    ],
-    "description": "Which accounts the chats of some projects may use, in what order, and when to move on. A project with no policy keeps the global auto-switch, which is the default."
-  },
-  "SwitchAccountRequest": {
-    "type": "object",
-    "properties": {
-      "target": {
-        "type": "string",
-        "description": "Slot number, email or alias; omitted rotates to the next account"
-      },
-      "strategy": {
-        "$ref": "#/components/schemas/SwitchStrategy"
-      }
-    }
-  },
-  "SwitchStrategy": {
-    "type": "string",
-    "enum": [
-      "best",
-      "next-available"
-    ],
-    "description": "Target selection when no explicit account is given"
-  },
-  "SwitchResult": {
-    "type": "object",
-    "properties": {
-      "switched": {
-        "type": "boolean"
-      },
-      "from": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "to": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "reason": {
-        "type": [
-          "string",
-          "null"
-        ]
-      }
-    },
-    "required": [
-      "switched",
-      "from",
-      "to",
-      "reason"
-    ]
-  },
-  "AddAccountTokenRequest": {
-    "type": "object",
-    "properties": {
-      "token": {
-        "type": "string",
-        "description": "Token from `claude setup-token`, or an API key"
-      },
-      "slot": {
-        "type": "number",
-        "description": "Slot to register it in; the next free one when omitted"
-      },
-      "email": {
-        "type": "string",
-        "description": "Label shown until claude-swap resolves the real email"
-      }
-    },
-    "required": [
-      "token"
-    ]
-  },
-  "SetAccountAliasRequest": {
-    "type": "object",
-    "properties": {
-      "alias": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Short name for the account; `null` removes it"
-      }
-    },
-    "required": [
-      "alias"
-    ]
-  },
   "AgentryEvent": {
     "anyOf": [
       {
@@ -5246,10 +4874,10 @@
         "$ref": "#/components/schemas/RunRateLimitedEvent"
       },
       {
-        "$ref": "#/components/schemas/RunAccountRotatedEvent"
+        "$ref": "#/components/schemas/RunProviderMovedEvent"
       },
       {
-        "$ref": "#/components/schemas/AccountSwitchedEvent"
+        "$ref": "#/components/schemas/RunLimitWaitingEvent"
       },
       {
         "$ref": "#/components/schemas/TaskStartedEvent"
@@ -5903,6 +5531,17 @@
       "type": {
         "type": "string",
         "const": "run.rateLimited"
+      },
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider that hit its limit; absent on an event from before limits were per provider"
+      },
+      "resetsAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "ISO time the limit resets; null or absent when unknown"
       }
     },
     "required": [
@@ -5918,7 +5557,7 @@
     ],
     "description": "A turn died against the account's rate limit."
   },
-  "RunAccountRotatedEvent": {
+  "RunProviderMovedEvent": {
     "type": "object",
     "properties": {
       "runId": {
@@ -5958,32 +5597,33 @@
       },
       "type": {
         "type": "string",
-        "const": "run.accountRotated"
+        "const": "run.providerMoved"
       },
       "from": {
-        "type": [
-          "string",
-          "null"
-        ]
+        "$ref": "#/components/schemas/ProviderId"
       },
       "to": {
-        "type": [
-          "string",
-          "null"
+        "$ref": "#/components/schemas/ProviderId"
+      },
+      "action": {
+        "type": "string",
+        "enum": [
+          "handoff",
+          "restart"
         ]
       },
-      "resumed": {
-        "type": "boolean",
-        "description": "The interrupted turn was replayed on the new account"
+      "decidedBy": {
+        "$ref": "#/components/schemas/ProviderMoveDecider"
       }
     },
     "required": [
+      "action",
       "at",
+      "decidedBy",
       "from",
       "id",
       "internal",
       "orchestrationId",
-      "resumed",
       "runId",
       "runName",
       "sessionId",
@@ -5991,11 +5631,44 @@
       "to",
       "type"
     ],
-    "description": "Rotation moved the wrapper to another account after a run hit its limit."
+    "description": "Work went on in a new chat on another provider after a limit."
   },
-  "AccountSwitchedEvent": {
+  "ProviderMoveDecider": {
+    "type": "string",
+    "enum": [
+      "person",
+      "setting",
+      "decision"
+    ],
+    "description": "Who chose a move: the person, the settings, or a decision point."
+  },
+  "RunLimitWaitingEvent": {
     "type": "object",
     "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until the CLI reports the session id"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "internal": {
+        "type": "boolean",
+        "description": "Housekeeping runs (planner, auth check) that consumers usually leave out of notifications"
+      },
       "id": {
         "type": "number",
         "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
@@ -6009,21 +5682,12 @@
       },
       "type": {
         "type": "string",
-        "const": "account.switched"
+        "const": "run.limitWaiting"
       },
-      "from": {
-        "type": [
-          "string",
-          "null"
-        ]
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId"
       },
-      "to": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "reason": {
+      "resetsAt": {
         "type": [
           "string",
           "null"
@@ -6032,14 +5696,18 @@
     },
     "required": [
       "at",
-      "from",
       "id",
-      "reason",
+      "internal",
+      "orchestrationId",
+      "provider",
+      "resetsAt",
+      "runId",
+      "runName",
+      "sessionId",
       "title",
-      "to",
       "type"
     ],
-    "description": "The active account changed, by whatever means (manual switch, `cswap auto`, rotation)."
+    "description": "Work stopped to wait for its provider's limit to reset."
   },
   "TaskStartedEvent": {
     "type": "object",
@@ -7259,6 +6927,17 @@
         ],
         "description": "What the first event of a real session confirmed for the installed version; null until one has"
       },
+      "limit": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProviderLimit"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The provider's usage limit as last read; null when nothing was read yet, absent on an old server"
+      },
       "checkedAt": {
         "type": "string",
         "description": "ISO timestamp of the detection this status came from"
@@ -7313,7 +6992,9 @@
       "auth-required",
       "schema-untested",
       "busy",
-      "disabled"
+      "disabled",
+      "limit-reached",
+      "limit-near"
     ],
     "description": "Why a provider is not `ready`, in one taxonomy for every provider. The UI words each code itself, so a state never shows the text of an exception."
   },
@@ -7333,7 +7014,6 @@
       "effort",
       "costReport",
       "rateLimitWindows",
-      "multiAccount",
       "transcriptFiles",
       "workflowTool"
     ],
@@ -8808,6 +8488,17 @@
           }
         ],
         "description": "`person` when a person queued it from the waiting cards; null otherwise"
+      },
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "On `moved`: the provider the run goes on with; on `waiting`: the one whose limit it waits for"
+      },
+      "resetsAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "On `waiting`: when that limit resets, ISO; null when unknown"
       }
     },
     "required": [
@@ -8830,14 +8521,16 @@
       "title",
       "type"
     ],
-    "description": "A flow run was queued, started or ended. What it did to the item (a comment, a move, the waiting state) comes as that item's own `workitem.*` events."
+    "description": "A flow run was queued, started or ended, moved to another provider's chat at a usage limit, or began waiting for the limit to reset. What it did to the item (a comment, a move, the waiting state) comes as that item's own `workitem.*` events."
   },
   "FlowRunAction": {
     "type": "string",
     "enum": [
       "queued",
       "started",
-      "ended"
+      "ended",
+      "moved",
+      "waiting"
     ]
   },
   "FlowStage": {
@@ -8874,6 +8567,8 @@
     "enum": [
       "budget",
       "no-account",
+      "no-provider",
+      "limit-wait-expired",
       "rate-limit",
       "stopped",
       "restarts",
@@ -8894,7 +8589,7 @@
       "chat-busy",
       "conflict-unresolved"
     ],
-    "description": "Why a run failed or was cancelled, as a stable code a client words in the person's language; the run's `error` keeps the raw text beside it. A run stored before causes were kept gets the one its error reads as, or none.\n\nFailed:\n- `budget`: it reached `flow.maxCostUsd` (`--max-budget-usd`);\n- `no-account`: the account hit its rate limit and no other account could take the run over;\n- `rate-limit`: the account hit its rate limit and the rotation was off;\n- `stopped`: its chat was stopped;\n- `restarts`: Agentry restarted past `MAX_FLOW_RESTARTS` times while it worked;\n- `unreadable`: it ended without a readable structured result;\n- `no-verdict`: a verification ended without a verdict;\n- `max-tokens`: its last turn stopped on the output token limit, so its result is cut short even when it parses;\n- `not-started`: its chat did not start;\n- `not-continued`: its chat could not be continued after a restart;\n- `chat-ended`: its chat ended, or was removed, without a result;\n- `chat-failed`: its chat ended in an error the CLI reported (the error is the CLI's text);\n- `conflict-unresolved`: a work run that was to resolve the merge of the default branch into the   item's branch ended with conflicted paths left (the error names them).\n\nCancelled:\n- `item-moved`: the item left the column before the run started, or while a restart cut it off;\n- `item-removed` and `item-done`: the item was removed, or moved to `done`;\n- `replaced`: the item entered a column again before the run started, and the newer run took its place;\n- `flow-off`: the flow, the Team module or the Board module was switched off;\n- `no-member`: nobody on the team answers for the column any more;\n- `refined`: a todo check would repeat a refine that passed, on an item unchanged since;\n- `chat-busy`: a chat of the person's was already working on the item."
+    "description": "Why a run failed or was cancelled, as a stable code a client words in the person's language; the run's `error` keeps the raw text beside it. A run stored before causes were kept gets the one its error reads as, or none.\n\nFailed:\n- `budget`: it reached `flow.maxCostUsd` (`--max-budget-usd`);\n- `no-account`: the account hit its rate limit and no other account could take the run over;\n- `rate-limit`: the account hit its rate limit and the rotation was off;\n- `stopped`: its chat was stopped;\n- `restarts`: Agentry restarted past `MAX_FLOW_RESTARTS` times while it worked;\n- `unreadable`: it ended without a readable structured result;\n- `no-verdict`: a verification ended without a verdict;\n- `max-tokens`: its last turn stopped on the output token limit, so its result is cut short even when it parses;\n- `not-started`: its chat did not start;\n- `not-continued`: its chat could not be continued after a restart;\n- `chat-ended`: its chat ended, or was removed, without a result;\n- `chat-failed`: its chat ended in an error the CLI reported (the error is the CLI's text);\n- `conflict-unresolved`: a work run that was to resolve the merge of the default branch into the   item's branch ended with conflicted paths left (the error names them).\n\nCancelled:\n- `item-moved`: the item left the column before the run started, or while a restart cut it off;\n- `item-removed` and `item-done`: the item was removed, or moved to `done`;\n- `replaced`: the item entered a column again before the run started, and the newer run took its place;\n- `flow-off`: the flow, the Team module or the Board module was switched off;\n- `no-provider`: no provider could take the run: none is ready, or none can enforce its policy;\n- `limit-wait-expired`: the run waited for a provider's limit to reset and the reset never came   within the wait cap;\n- `no-member`: nobody on the team answers for the column any more;\n- `refined`: a todo check would repeat a refine that passed, on an item unchanged since;\n- `chat-busy`: a chat of the person's was already working on the item."
   },
   "FlowRunQueuedBy": {
     "type": "string",
@@ -9662,6 +9357,32 @@
           }
         ],
         "description": "Set on a fork: where it started from"
+      },
+      "continuedFrom": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatContinuation"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The chat this one continues after a provider move; null when it is not a continuation"
+      },
+      "continuedIn": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatContinuation"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The chat that continues this one after a provider move; null while none does"
+      },
+      "atLimit": {
+        "type": "boolean",
+        "description": "The chat's last turn died on its provider's usage limit. Kept in the server's memory only: after a restart it is absent, and the page falls back on the provider's reading."
       },
       "state": {
         "$ref": "#/components/schemas/ChatState"
@@ -10487,13 +10208,6 @@
         ],
         "description": "`host` sends permissions, questions and plans to the panel; `none`, the default, denies them"
       },
-      "account": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one; `null` unpins a chat on a resume or a fork. A pinned chat that hits its limit is unpinned by the rotation."
-      },
       "prompt": {
         "type": "string"
       },
@@ -10582,13 +10296,6 @@
         ],
         "description": "`host` sends permissions, questions and plans to the panel; `none`, the default, denies them"
       },
-      "account": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one; `null` unpins a chat on a resume or a fork. A pinned chat that hits its limit is unpinned by the rotation."
-      },
       "prompt": {
         "type": "string"
       },
@@ -10664,13 +10371,6 @@
           "none"
         ],
         "description": "`host` sends permissions, questions and plans to the panel; `none`, the default, denies them"
-      },
-      "account": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one; `null` unpins a chat on a resume or a fork. A pinned chat that hits its limit is unpinned by the rotation."
       },
       "prompt": {
         "type": "string"
@@ -12063,86 +11763,6 @@
       "checkedAt"
     ]
   },
-  "RotationPolicyRequest": {
-    "type": "object",
-    "properties": {
-      "threshold": {
-        "type": "number"
-      },
-      "order": {
-        "type": "array",
-        "items": {
-          "type": "number"
-        }
-      },
-      "projects": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        }
-      },
-      "looseChats": {
-        "type": "boolean"
-      }
-    },
-    "required": [
-      "threshold",
-      "projects"
-    ]
-  },
-  "UpdateAccountConfigRequest": {
-    "type": "object",
-    "properties": {
-      "configDir": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Null goes back to sharing the wrapper's config dir, and removes the links Agentry made"
-      },
-      "shareSettings": {
-        "type": "boolean",
-        "description": "Also link the shared settings (`settings.json`, `CLAUDE.md`, `keybindings.json`, `agents`, `commands`, `skills`) into the directory. Symlinks, never copies and never over an existing entry, so undoing it leaves the shared ones untouched."
-      }
-    },
-    "required": [
-      "configDir"
-    ]
-  },
-  "UsageHistoryPoint": {
-    "type": "object",
-    "properties": {
-      "at": {
-        "type": "string"
-      },
-      "pct": {
-        "type": "number",
-        "description": "Share of the window consumed (0-100), exactly as claude-swap reported it"
-      },
-      "window": {
-        "$ref": "#/components/schemas/UsageWindowKind"
-      },
-      "account": {
-        "type": "number",
-        "description": "Slot number"
-      }
-    },
-    "required": [
-      "at",
-      "pct",
-      "window",
-      "account"
-    ],
-    "description": "One reading of an account's usage, kept as a row so the panel can draw a line."
-  },
-  "UsageWindowKind": {
-    "type": "string",
-    "enum": [
-      "5h",
-      "7d"
-    ],
-    "description": "Which rate-limit window a usage point belongs to."
-  },
   "Schedule": {
     "type": "object",
     "properties": {
@@ -12925,6 +12545,10 @@
           }
         ],
         "description": "The project's issue tracker; absent or null when it has none"
+      },
+      "providers": {
+        "$ref": "#/components/schemas/ProjectProvidersSettings",
+        "description": "Per-project overrides of the provider order and of what happens at a limit; a missing field inherits"
       }
     },
     "required": [
@@ -13434,6 +13058,45 @@
                 "description": "Act points only, 0.5..0.99; absent reads as the point's default"
               }
             }
+          },
+          "provider.on-limit": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "provider.pick": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
+          },
+          "provider.model-map": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/DecisionMode",
+                "description": "Absent reads as `off` for every point"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Act points only, 0.5..0.99; absent reads as the point's default"
+              }
+            }
           }
         }
       }
@@ -13503,6 +13166,42 @@
       "youtrack"
     ],
     "description": "The issue trackers Agentry knows. Closed: adding one is a code change. Only `github-issues` and `gitlab-issues` have an adapter; `jira` and `youtrack` are in the registry with the readiness `unknown` and the reason `not-recorded` until their CLIs are recorded."
+  },
+  "ProjectProvidersSettings": {
+    "type": "object",
+    "properties": {
+      "order": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProviderId"
+        }
+      },
+      "onLimit": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/LimitAction",
+            "description": "What automated work does at a limit; a person's chat offers it first"
+          },
+          "allowed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LimitAction"
+            },
+            "description": "What a decision point may choose among; always includes `action`"
+          },
+          "maxWaitHours": {
+            "type": "number",
+            "description": "How long a wait with no known reset lasts before the run fails, 1..48"
+          },
+          "maxMoves": {
+            "type": "number",
+            "description": "Moves per run before it waits, 0..5"
+          }
+        }
+      }
+    },
+    "description": "What a project overrides of `providers.json`: the order its work picks providers in, and the fields of `rotation.onLimit` it sets itself. The model mapping stays global."
   },
   "ProjectTemplate": {
     "type": "object",
@@ -15670,13 +15369,6 @@
           "none"
         ],
         "description": "`host` sends permissions, questions and plans to the panel; `none`, the default, denies them"
-      },
-      "account": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one; `null` unpins a chat on a resume or a fork. A pinned chat that hits its limit is unpinned by the rotation."
       }
     },
     "description": "What can be chosen when a process starts on a chat, whether it is new, resumed or a fork."
@@ -16084,6 +15776,21 @@
       },
       "model": {
         "type": "string"
+      },
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider the run's chat is on; `claude-code` on a run written before providers were chosen"
+      },
+      "waiting": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/LimitWait"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set while the run waits for its provider's limit to reset; null otherwise"
       },
       "stage": {
         "$ref": "#/components/schemas/FlowStage"
@@ -18315,6 +18022,10 @@
           }
         ],
         "description": "The provider a new chat starts with; null takes the first ready one in `order`"
+      },
+      "rotation": {
+        "$ref": "#/components/schemas/RotationSettings",
+        "description": "What happens at a usage limit, and the model mapping; absent on a file written before it, read as the defaults"
       }
     },
     "required": [
@@ -18343,6 +18054,522 @@
       "binaryPath"
     ],
     "description": "What a person chose for one provider."
+  },
+  "RotationSettings": {
+    "type": "object",
+    "properties": {
+      "onLimit": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/LimitAction",
+            "description": "What automated work does at a limit; a person's chat offers it first"
+          },
+          "allowed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LimitAction"
+            },
+            "description": "What a decision point may choose among; always includes `action`"
+          },
+          "maxWaitHours": {
+            "type": "number",
+            "description": "How long a wait with no known reset lasts before the run fails, 1..48"
+          },
+          "maxMoves": {
+            "type": "number",
+            "description": "Moves per run before it waits, 0..5"
+          }
+        },
+        "required": [
+          "action",
+          "allowed",
+          "maxWaitHours",
+          "maxMoves"
+        ]
+      },
+      "modelMap": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ModelMapEntry"
+        },
+        "description": "Global only; never filled without a person"
+      }
+    },
+    "required": [
+      "onLimit",
+      "modelMap"
+    ]
+  },
+  "ModelMapEntry": {
+    "type": "object",
+    "properties": {
+      "from": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/ProviderId"
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ]
+      },
+      "to": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/ProviderId"
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ]
+      },
+      "origin": {
+        "type": "string",
+        "enum": [
+          "person",
+          "decision"
+        ],
+        "description": "`decision`: a suggestion of the `provider.model-map` point that a person accepted"
+      },
+      "at": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "from",
+      "to",
+      "origin",
+      "at"
+    ],
+    "description": "One model standing in for another across two providers."
+  },
+  "ProviderCandidates": {
+    "type": "object",
+    "properties": {
+      "candidates": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "$ref": "#/components/schemas/ProviderId"
+            },
+            "model": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "utilization": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "resetsAt": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "provider",
+            "model",
+            "utilization",
+            "resetsAt"
+          ]
+        }
+      },
+      "excluded": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "$ref": "#/components/schemas/ProviderId"
+            },
+            "excluded": {
+              "$ref": "#/components/schemas/Exclusion"
+            }
+          },
+          "required": [
+            "provider",
+            "excluded"
+          ]
+        }
+      },
+      "movesCapped": {
+        "type": "boolean",
+        "description": "The work made every move it may: nothing is offered however many are ready"
+      }
+    },
+    "required": [
+      "candidates",
+      "excluded",
+      "movesCapped"
+    ],
+    "description": "`GET /providers/candidates`: who could take a chat at a limit, and why each of the others cannot."
+  },
+  "Exclusion": {
+    "type": "string",
+    "enum": [
+      "disabled",
+      "not-ready",
+      "no-driver",
+      "capability",
+      "policy",
+      "policy-not-portable",
+      "no-mapping",
+      "exhausted",
+      "left-already",
+      "not-in-order"
+    ],
+    "description": "Why a provider cannot take a run, as the candidates say it; the UI words each one."
+  },
+  "ProviderMove": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "at": {
+        "type": "string"
+      },
+      "subjectKind": {
+        "$ref": "#/components/schemas/ProviderMoveSubjectKind"
+      },
+      "subjectId": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "fromChat": {
+        "type": "string"
+      },
+      "toChat": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The new chat; null for a wait"
+      },
+      "fromProvider": {
+        "$ref": "#/components/schemas/ProviderId"
+      },
+      "toProvider": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProviderId"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "fromModel": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "toModel": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "action": {
+        "$ref": "#/components/schemas/LimitAction"
+      },
+      "state": {
+        "$ref": "#/components/schemas/ProviderMoveState"
+      },
+      "decidedBy": {
+        "$ref": "#/components/schemas/ProviderMoveDecider"
+      },
+      "decisionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The decision point's answer, when `decidedBy` is `decision`"
+      },
+      "resetsAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "ISO time the wait ends; null when unknown or not a wait"
+      },
+      "reason": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "updatedAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "at",
+      "subjectKind",
+      "subjectId",
+      "projectId",
+      "fromChat",
+      "toChat",
+      "fromProvider",
+      "toProvider",
+      "fromModel",
+      "toModel",
+      "action",
+      "state",
+      "decidedBy",
+      "decisionId",
+      "resetsAt",
+      "reason",
+      "updatedAt"
+    ],
+    "description": "A row of `provider_moves`: a move to another provider, or a wait for a reset. History and the wait queue in one."
+  },
+  "ProviderMoveSubjectKind": {
+    "type": "string",
+    "enum": [
+      "chat",
+      "flow_run",
+      "task",
+      "assistant_run"
+    ]
+  },
+  "ProviderMoveState": {
+    "type": "string",
+    "enum": [
+      "waiting",
+      "resuming",
+      "moved",
+      "resumed",
+      "failed",
+      "cancelled"
+    ]
+  },
+  "ModelMapSuggestion": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "The decision's id: what `POST /providers/model-map/suggestions/:id` answers"
+      },
+      "from": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/ProviderId"
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ]
+      },
+      "to": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/ProviderId"
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ]
+      },
+      "at": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "from",
+      "to",
+      "at"
+    ],
+    "description": "An open `provider.model-map` suggestion: a counterpart the engine proposed that no person has answered yet."
+  },
+  "AnswerModelMapSuggestionRequest": {
+    "type": "object",
+    "properties": {
+      "accept": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "accept"
+    ],
+    "description": "`POST /providers/model-map/suggestions/:id`: accepting writes the entry; dismissing only closes the suggestion."
+  },
+  "SuggestModelMapRequest": {
+    "type": "object",
+    "properties": {
+      "from": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/ProviderId"
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ]
+      },
+      "target": {
+        "$ref": "#/components/schemas/ProviderId",
+        "description": "The provider the counterpart would be on"
+      }
+    },
+    "required": [
+      "from",
+      "target"
+    ],
+    "description": "`POST /providers/model-map/suggest`: ask `provider.model-map` now for a counterpart of one model on one target."
+  },
+  "CswapRetirementState": {
+    "type": "object",
+    "properties": {
+      "notice": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CswapRetirement"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "notice"
+    ],
+    "description": "`GET /providers/cswap-retirement`: `notice` is null when there is nothing to say or the person dismissed it."
+  },
+  "CswapRetirement": {
+    "type": "object",
+    "properties": {
+      "found": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": [
+            "accounts",
+            "account-config",
+            "managed-copy",
+            "cswap-bin"
+          ]
+        }
+      },
+      "managedCopy": {
+        "type": "boolean",
+        "description": "Agentry's own copy of claude-swap is on disk: the one thing the notice offers to remove"
+      },
+      "policyProjects": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Projects that had a rotation policy; their provider order is what applies now"
+      }
+    },
+    "required": [
+      "found",
+      "managedCopy",
+      "policyProjects"
+    ],
+    "description": "What claude-swap left behind, for the one-time notice."
+  },
+  "MoveChatRequest": {
+    "type": "object",
+    "properties": {
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId"
+      },
+      "action": {
+        "type": "string",
+        "enum": [
+          "handoff",
+          "restart"
+        ]
+      },
+      "model": {
+        "type": "string",
+        "description": "A model of the target provider; absent takes the mapped one"
+      }
+    },
+    "required": [
+      "provider",
+      "action"
+    ],
+    "description": "`POST /chats/:id/move`: a person moves a chat that reached a limit."
+  },
+  "HandoffPreview": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string"
+      },
+      "bytes": {
+        "type": "number"
+      },
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId"
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "sections": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The headers of the sections the text contains"
+      }
+    },
+    "required": [
+      "text",
+      "bytes",
+      "provider",
+      "model",
+      "sections"
+    ],
+    "description": "`GET /chats/:id/handoff`: the text as it would be sent, built locally and not sent."
   },
   "CodeHostsSettings": {
     "type": "object",
@@ -20637,6 +20864,15 @@
           },
           "issue.triage": {
             "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "provider.on-limit": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "provider.pick": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "provider.model-map": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
       },
@@ -20802,6 +21038,15 @@
             "$ref": "#/components/schemas/DecisionPointSettings"
           },
           "issue.triage": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "provider.on-limit": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "provider.pick": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "provider.model-map": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           }
         }
@@ -21046,7 +21291,10 @@
       "notification.urgency",
       "checks.fix",
       "review.triage",
-      "issue.triage"
+      "issue.triage",
+      "provider.on-limit",
+      "provider.pick",
+      "provider.model-map"
     ]
   },
   "DecisionPointKind": {
@@ -21365,7 +21613,8 @@
       "assistant_run",
       "notification",
       "palette",
-      "tracker_issue"
+      "tracker_issue",
+      "model"
     ],
     "description": "What a decision was about; the `subject_kind` column of the history"
   },

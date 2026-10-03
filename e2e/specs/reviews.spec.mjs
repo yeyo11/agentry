@@ -64,6 +64,8 @@ const cartSource = (changed) =>
 
 const ORCH_MARKER = 'e2e-reviews-survey-task';
 const POINT = 'review.triage';
+// The block is drawn before the host answers, saying it is reading: what it says is read once it has
+const reviewBlockRead = `const b = document.querySelector('.rv'); return !!b && !b.innerText.includes('Reading the review')`;
 const unresolvedIn = (text) => Number(/(\d+) unresolved/i.exec(text)?.[1] ?? Number.NaN);
 
 function git(cwd, ...args) {
@@ -220,7 +222,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     for (const theme of ['dark', 'light']) {
       await page.eval(`localStorage.setItem('agentry-theme', '${theme}'); return true`);
       await page.goto(`/tasks/${item.key}`, 1500);
-      await page.waitFor(`return !!document.querySelector('.rv')`, { label: `[${theme}] the review block` });
+      await page.waitFor(reviewBlockRead, { label: `[${theme}] the review block` });
       const block = await page.text('.rv');
       check(/Review/.test(block) && /review required/i.test(block) && /hubot/i.test(block) && /monalisa/i.test(block), `[${theme}] the block names the decision and the reviewers (${block.slice(0, 160)})`);
       check(/\d+ unresolved/i.test(block), `[${theme}] and counts the unresolved threads`);
@@ -349,7 +351,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       for (const theme of ['dark', 'light']) {
         await setTheme(theme);
         await page.goto(`/tasks/${item.key}`, 1500);
-        await page.waitFor(`return !!document.querySelector('.rv')`, { label: `[${theme}] the review block (triage)` });
+        await page.waitFor(reviewBlockRead, { label: `[${theme}] the review block (triage)` });
         // The same count before the threads load (the block has the reviewers' number) and after
         const early = unresolvedIn(await page.text('.rv'));
         await page.waitFor(`return !!document.querySelector('.item-pr-wait.is-address')`, { label: `[${theme}] the address strip (triage)` });
@@ -600,7 +602,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       for (const theme of ['dark', 'light']) {
         await page.eval(`localStorage.setItem('agentry-theme', '${theme}'); return true`);
         await page.goto(`/tasks/${labItem.key}`, 1500);
-        await page.waitFor(`return !!document.querySelector('.rv')`, { label: `[${theme}] the review block on a merge request` });
+        await page.waitFor(reviewBlockRead, { label: `[${theme}] the review block on a merge request` });
         const text = await page.text('.rv');
         check(/your approval/i.test(text) && !/github/i.test(text), `[${theme}] a merge request shows the person's approval and never GitHub's words (${text.replace(/\s+/g, " ").slice(0, 600)})`);
         await axeCheck(page, check, `[${theme}] axe finds nothing on a merge request's review`);

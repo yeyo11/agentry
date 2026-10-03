@@ -23,6 +23,7 @@ import { ClaudeCodeDriver } from './claude-code/driver.ts';
 import type { CapabilityConfirmation, HandshakeResult, ProviderDriver } from './driver.ts';
 import type { ProviderConfigHome, ProviderManifest } from './manifest.ts';
 import { installDirs, resolveCommand } from './path.ts';
+import { limitAt, type HandshakeLimits, type ProviderLimits } from './limits.ts';
 import { DRIVER_TRANSPORTS, ProviderRegistry } from './registry.ts';
 
 /** One TTL for every provider: what a detection saw is served until it is this old */
@@ -53,6 +54,11 @@ export interface ProviderDetectorDeps {
    * Ignored when the person pointed at a binary of their own, which that read knows nothing of.
    */
   readClaude?: () => Promise<ClaudeReading>;
+  /**
+   * Where each provider's usage limit is read from and kept. A provider that has reached or neared
+   * its limit is `degraded` while it lasts, and a handshake that read the limits records them here.
+   */
+  limits?: ProviderLimits;
   /** Where the models a handshake listed are kept between runs; defaults to `provider-catalogs.json` in the data directory */
   catalogs?: ProviderCatalogsStore;
   /** Extra command names tried before a manifest's own, per provider (Claude Code's `CLAUDE_BIN`) */
@@ -206,6 +212,7 @@ export class ProviderDetector {
     this.debounceMs = deps.debounceMs ?? WATCH_DEBOUNCE_MS;
     this.minWatchGapMs = deps.minWatchGapMs ?? WATCH_MIN_GAP_MS;
     this.catalogs = deps.catalogs ?? new ProviderCatalogsStore(deps.config);
+    if (deps.limits) this.useLimits(deps.limits);
     // The models of the last run serve until this run's handshake has read them again
     for (const manifest of this.registry.list()) {
       const cached = this.catalogs.get(manifest.id);
@@ -213,9 +220,36 @@ export class ProviderDetector {
     }
   }
 
+  /**
+   * Where the limits are read from. Core builds the detector before the runtime that keeps them, so
+   * it hands them over here once they exist; without them no status carries its limit.
+   */
+  useLimits(limits: ProviderLimits): void {
+    this.deps.limits = limits;
+    // A limit reached or left changes what a status says without any detection
+    limits.onChange(() => {
+      if (this.cache && !this.closed) this.deps.emit?.({ type: 'providers.changed', title: 'Providers changed', providers: this.known() ?? [] });
+    });
+  }
+
   /** What the last detection saw, whatever its age, without starting one; null before the first */
   known(): ProviderStatus[] | null {
-    return this.cache ? this.ordered([...this.cache.statuses.values()]) : null;
+    return this.cache ? this.ordered([...this.cache.statuses.values()].map((status) => this.withLimit(status))) : null;
+  }
+
+  /**
+   * A status with the provider's limit laid over it, when the detector has somewhere to read it. The
+   * cache keeps statuses without it, so a limit that moves never counts as a detection that changed.
+   */
+  private withLimit(status: ProviderStatus): ProviderStatus {
+    const store = this.deps.limits;
+    if (!store) return status;
+    const limit = store.get(status.id);
+    const next: ProviderStatus = { ...status, limit };
+    if (status.state !== 'ready' || !limit) return next;
+    if (limit.state === 'exhausted') return { ...next, state: 'degraded', reason: 'limit-reached' };
+    if (limit.state === 'near') return { ...next, state: 'degraded', reason: 'limit-near' };
+    return next;
   }
 
   /**
@@ -244,7 +278,8 @@ export class ProviderDetector {
   }
 
   knownOne(id: ProviderId): ProviderStatus | null {
-    return this.cache?.statuses.get(id) ?? null;
+    const status = this.cache?.statuses.get(id);
+    return status ? this.withLimit(status) : null;
   }
 
   /**
@@ -495,7 +530,11 @@ export class ProviderDetector {
 
     const key = `${manifest.id}\0${binaryPath}\0${version}`;
     const kept = this.handshakes.get(key);
-    if (kept && ('result' in kept || this.now() - kept.at < this.ttlMs)) return { permissionModes, handshake: 'result' in kept ? kept.result : null };
+    // A provider at or near its limit is read again every TTL, so its recovery is seen without a chat
+    const watching = this.deps.limits?.raw(manifest.id)?.state;
+    const aged = kept ? this.now() - kept.at >= this.ttlMs : false;
+    const refresh = aged && (watching === 'near' || watching === 'exhausted');
+    if (kept && ('result' in kept ? !refresh : !aged)) return { permissionModes, handshake: 'result' in kept ? kept.result : null };
 
     const abort = new AbortController();
     const outcome = await this.timed(driver.handshake(env, abort.signal).catch(() => null), this.probeTimeoutMs * 2);
@@ -503,6 +542,8 @@ export class ProviderDetector {
     const result = outcome === 'timeout' ? null : outcome;
     this.handshakes.set(key, result ? { at: this.now(), result } : { at: this.now(), failed: true });
     if (!result) return { permissionModes, handshake: null };
+    const read = (result as HandshakeResult & HandshakeLimits).rateLimits;
+    if (read) this.deps.limits?.observeProbe(manifest.id, read);
 
     // The handshake's version is the agent's own and may read differently from `--version`, so what
     // it confirmed is filed under the version the probe read, the one a status is compared with

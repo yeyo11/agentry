@@ -1,6 +1,7 @@
 import { hashKey, skipToken, useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { TRANSCRIPT_PAGE_MAX } from '@agentry/shared';
+import { onBackForwardCache } from '@agentry/ui/lib/page-cache';
 import type { AgentTranscript, Chat, ChatDetail, RunEvent, TranscriptEntry } from '@agentry/shared';
 import { evictRuns, joinRun, joinToPage, trimRun, type Run } from './chat-pages';
 import { appendStreamed, ChatStreamStore, spliceTail, streamMark, type StreamingPartial, type StreamSnapshot } from './chat-stream';
@@ -377,10 +378,27 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
       connect();
     };
 
+    // A cached page lets go of its stream like a hidden one, but at once: frozen, it would never get to
+    const leaveCache = onBackForwardCache(
+      window,
+      () => {
+        clearTimeout(hidden);
+        disconnect();
+        dropped = true;
+        store.setConnected(false);
+      },
+      () => {
+        if (source || retry) return;
+        attempts = 0;
+        connect();
+      },
+    );
+
     connect();
     if (document.visibilityState === 'hidden') onVisibility();
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
+      leaveCache();
       document.removeEventListener('visibilitychange', onVisibility);
       if (frame) cancelAnimationFrame(frame);
       for (const timer of [hidden, confirm, turnEnd, settle]) clearTimeout(timer);

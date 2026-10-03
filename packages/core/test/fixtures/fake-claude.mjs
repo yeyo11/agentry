@@ -72,7 +72,8 @@ if (args[0] === '--version') {
   process.exit(0);
 }
 if (args[0] === 'auth') {
-  process.stdout.write('{"loggedIn":false}\n');
+  // Automated work starts only on a provider that proved it is signed in: tests that run it say so
+  process.stdout.write(process.env.FAKE_CLAUDE_LOGGED_IN === '1' ? '{"loggedIn":true,"authMethod":"claude.ai","email":"fake@example.com"}\n' : '{"loggedIn":false}\n');
   process.exit(0);
 }
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);

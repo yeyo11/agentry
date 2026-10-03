@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T21:00:00Z
-updated_at: 2026-09-30T21:00:00Z
+updated_at: 2026-10-03T10:30:00Z
 tags:
     - api
     - web
@@ -92,6 +92,14 @@ summary) and `apps/web/test/activity-feed.test.ts` (the patch and its delays).
   origin, ordinary requests queue behind the streams. The ways out are HTTP/2 (which a browser only
   speaks over TLS, so behind a proxy or the tunnel) or one feed shared between tabs through a
   `SharedWorker` or a `BroadcastChannel`. Not done.
+
+  Pages kept for Back count too: the back/forward cache freezes a page with its streams still
+  connected, and the timer that parks a hidden tab's stream is frozen with it. So every stream the
+  web opens lets go on `pagehide` and opens again on a `pageshow` from the cache, through
+  `onBackForwardCache` (`packages/ui/src/lib/page-cache.ts`); a web test fails on an `EventSource`
+  opened without it. Before the chat stream did this, opening a few chats in a row left the one in
+  front with no connection to spare, and its next request waited in the browser's queue for half a
+  minute.
 - **The chat list is still whole.** `GET /chats` carries each chat's `executions` (45 % of the
   list). It compresses well, but the same summary treatment would apply there.
 

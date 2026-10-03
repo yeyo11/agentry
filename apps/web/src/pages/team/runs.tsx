@@ -53,6 +53,8 @@ const FAILURES = [
   'budget',
   'no-account',
   'rate-limit',
+  'no-provider',
+  'limit-wait-expired',
   'stopped',
   'unreadable',
   'no-verdict',

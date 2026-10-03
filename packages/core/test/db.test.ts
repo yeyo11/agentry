@@ -5,9 +5,9 @@ import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { DecisionRecord, Execution } from '@agentry/shared';
+import type { DecisionRecord, Execution, ProviderMove } from '@agentry/shared';
 import type { LegacyRun, StoredChat } from '../src/chat-records.ts';
-import { CHAT_ENTRIES_SCHEMA_VERSION, CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, ISSUE_SCOPE_SCHEMA_VERSION, ISSUES_SCHEMA_VERSION, MERGES_SCHEMA_VERSION, migrate, REVIEWS_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
+import { CHAT_ENTRIES_SCHEMA_VERSION, PROVIDER_ROTATION_SCHEMA_VERSION,CHAT_PROVIDER_SCHEMA_VERSION, CHECKS_SCHEMA_VERSION, CODE_HOSTS_SCHEMA_VERSION, Db, DECISION_SIGNALS_SCHEMA_VERSION as MIGRATIONS_WITH_SIGNALS, ISSUE_SCOPE_SCHEMA_VERSION, ISSUES_SCHEMA_VERSION, MERGES_SCHEMA_VERSION, migrate, REVIEWS_SCHEMA_VERSION, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
 import { orchestrationPullRequestOf, type OrchestrationPullRequestRow } from '../src/orchestration-pr-rows.ts';
 import { changeRequestMergeOf, pullRequestOf, reviewDraftOf, reviewPostOf, type ChangeRequestMergeRow, type PullRequestRow, type ReviewDraftRow, type ReviewPostRow } from '../src/work-item-rows.ts';
@@ -17,77 +17,6 @@ import { tempConfig } from './helpers.ts';
 
 const at = (minute: number) => `2026-09-18T20:${String(minute).padStart(2, '0')}:00.000Z`;
 
-test('events survive a reopen, which the in-memory buffer never did', () => {
-  const config = tempConfig();
-  const first = new Db(config);
-  first.appendRotationEvent({ ts: at(28), event: 'switch', from: 'a@x.es', to: 'b@x.es', reason: 'at-limit' });
-  first.appendRotationEvent({ ts: at(29), event: 'poll', data: { pct: 53 } });
-  first.close();
-
-  const second = new Db(config);
-  const events = second.rotationEvents();
-  assert.equal(events.length, 2);
-  assert.deepEqual(
-    events.map((e) => e.event),
-    ['switch', 'poll'],
-  );
-  assert.equal(events[0]?.from, 'a@x.es');
-  assert.equal(events[0]?.to, 'b@x.es');
-  assert.deepEqual(events[1]?.data, { pct: 53 });
-  // Absent columns stay absent rather than becoming null
-  assert.equal('reason' in (events[1] ?? {}), false);
-  second.close();
-});
-
-test('reads the newest events, oldest last, and filters by timestamp', () => {
-  const db = new Db(tempConfig());
-  for (let i = 0; i < 10; i++) db.appendRotationEvent({ ts: at(i), event: `e${String(i)}` });
-
-  const latest = db.rotationEvents({ limit: 3 });
-  assert.deepEqual(
-    latest.map((e) => e.event),
-    ['e7', 'e8', 'e9'],
-  );
-
-  const since = db.rotationEvents({ since: at(7) });
-  assert.deepEqual(
-    since.map((e) => e.event),
-    ['e8', 'e9'],
-  );
-  db.close();
-});
-
-test('pruning keeps the newest rows and leaves the sequence intact', () => {
-  const db = new Db(tempConfig());
-  for (let i = 0; i < 10; i++) db.appendRotationEvent({ ts: at(i), event: `e${String(i)}` });
-
-  assert.equal(db.pruneRotationEvents(4), 6);
-  const kept = db.rotationEvents();
-  assert.deepEqual(
-    kept.map((e) => e.event),
-    ['e6', 'e7', 'e8', 'e9'],
-  );
-  // A later append must not reuse a pruned seq: the panel pages on it
-  const next = db.appendRotationEvent({ ts: at(10), event: 'e10' });
-  assert.equal(next.seq, 11);
-  assert.equal(db.pruneRotationEvents(100), 0);
-  db.close();
-});
-
-test('two connections on one data dir both write, as two wrapper processes would', () => {
-  const config = tempConfig();
-  const a = new Db(config);
-  const b = new Db(config);
-  a.appendRotationEvent({ ts: at(30), event: 'from-a' });
-  b.appendRotationEvent({ ts: at(31), event: 'from-b' });
-  assert.deepEqual(
-    a.rotationEvents().map((e) => e.event),
-    ['from-a', 'from-b'],
-  );
-  a.close();
-  b.close();
-});
-
 const execution = (id: string, startedAt: string, extra: Partial<Execution> = {}): Execution => ({
   id,
   startedAt,
@@ -96,7 +25,6 @@ const execution = (id: string, startedAt: string, extra: Partial<Execution> = {}
   error: null,
   permissionMode: 'plan',
   model: null,
-  account: null,
   maxBudgetUsd: null,
   costUsd: 0.5,
   tokens: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 },
@@ -118,7 +46,6 @@ const chat = (id: string, createdAt: string, executions: Execution[] = [executio
     lastText: 'ok',
     model: null,
     permissionMode: 'plan',
-    account: null,
     permissionPrompts: 'none',
     createdAt,
     updatedAt: createdAt,
@@ -773,4 +700,61 @@ test('migrate gives issue links their scope: old rows keep everything and read n
   assert.throws(() => insert('c', 'ACME/A'), /UNIQUE/, 'a repository path is case-insensitive');
   assert.ok(raw.prepare("SELECT 1 FROM pragma_index_list('work_item_issues') WHERE name = 'work_item_issues_item'").get(), 'the item index is back');
   raw.close();
+});
+
+const move = (id: string, fromChat: string, state: 'waiting' | 'moved' = 'waiting'): ProviderMove => ({
+  id, at: at(1), subjectKind: 'chat', subjectId: fromChat, projectId: null, fromChat, toChat: null, fromProvider: 'claude-code', toProvider: null,
+  fromModel: null, toModel: null, action: 'wait', state, decidedBy: 'setting', decisionId: null, resetsAt: null, reason: null, updatedAt: at(1),
+});
+
+test('the provider rotation tables upgrade from the version before, keeping chats and flow runs', () => {
+  const raw = new DatabaseSync(':memory:');
+  migrate(raw, PROVIDER_ROTATION_SCHEMA_VERSION - 1);
+  const old = chat('old', '2026-09-18T10:00:00Z');
+  raw.prepare('INSERT INTO chats (id, created_at, json) VALUES (?, ?, ?)').run('old', old.record.createdAt, JSON.stringify(old.record));
+  raw.prepare("INSERT INTO flow_runs (id, project_id, item_id, role, agent, model, stage, column_name, state, queued_at) VALUES ('r1', 'p', 'i', 'dev', 'a', 'm', 'work', 'todo', 'ended', ?)").run(at(1));
+  migrate(raw);
+  assert.equal((raw.prepare('SELECT COUNT(*) AS n FROM chats').get() as { n: number }).n, 1);
+  assert.equal((raw.prepare('SELECT provider FROM flow_runs WHERE id = ?').get('r1') as { provider: string | null }).provider, null);
+  assert.ok(raw.prepare("SELECT 1 FROM sqlite_master WHERE name = 'provider_moves_open'").get());
+  raw.close();
+});
+
+test('an older limit reading never overwrites a newer one', () => {
+  const db = new Db(tempConfig());
+  const reading = (observedAt: string, utilization: number) => ({ provider: 'codex', state: 'near' as const, window: '5h', utilization, resetsAt: null, windows: {}, observedAt, source: 'probe' as const });
+  assert.equal(db.upsertProviderLimit(reading(at(10), 0.8)), true);
+  assert.equal(db.upsertProviderLimit(reading(at(5), 0.1)), false);
+  assert.equal(db.providerLimit('codex')?.utilization, 0.8);
+  assert.equal(db.upsertProviderLimit(reading(at(11), 0.9)), true);
+  assert.equal(db.providerLimits()[0]?.utilization, 0.9);
+  db.close();
+});
+
+test('two connections racing one wait claim: one winner; one open wait per chat', () => {
+  const config = tempConfig();
+  const a = new Db(config);
+  const b = new Db(config);
+  assert.equal(a.insertProviderMove(move('m1', 'c1')), true);
+  assert.equal(b.insertProviderMove(move('m2', 'c1')), false, 'a second open wait for the chat is refused');
+  assert.equal(a.claimProviderMove('m1', at(2), at(7)), true);
+  assert.equal(b.claimProviderMove('m1', at(3), at(8)), false);
+  assert.equal(b.claimProviderMove('m1', at(9), at(14)), true, 'an expired claim can be taken again');
+  assert.equal(a.openProviderMoves(at(10)).length, 0);
+  assert.equal(a.closeProviderMove('m1', 'resumed', at(15), { toChat: 'c2' }), true);
+  assert.equal(b.closeProviderMove('m1', 'cancelled', at(16)), false);
+  assert.equal(a.providerMove('m1')?.toChat, 'c2');
+  assert.equal(a.insertProviderMove(move('m3', 'c1')), true, 'closed, so the chat may wait again');
+  a.close();
+  b.close();
+});
+
+test('closed moves are pruned and open waits never are', () => {
+  const db = new Db(tempConfig());
+  db.insertProviderMove(move('old-moved', 'c1', 'moved'));
+  db.insertProviderMove(move('old-wait', 'c2'));
+  assert.equal(db.pruneProviderMoves(at(30)), 1);
+  assert.deepEqual(db.providerMoves().map((m) => m.id), ['old-wait']);
+  assert.deepEqual(db.providerMoves({ chatId: 'c2', state: 'waiting' }).map((m) => m.id), ['old-wait']);
+  db.close();
 });

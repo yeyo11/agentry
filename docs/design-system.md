@@ -727,6 +727,102 @@ both ids), `DesktopChats` and `MobileChats` (a Claude, a Codex and a Copilot cha
 written by `reference/tools/chatproviders.py`; the first run lifted the four older screens into the
 shared shell and swapped their pixel radii for tokens.
 
+### Rotation between providers: the limit, the on-limit card, the mapping and the project override
+
+Drawn for phase 4 of [multiple agent providers](plans/multi-provider.md) (task `p1` of
+`providers4-prototypes`) and waiting for the owner's validation before W builds it. Nothing here is
+live: no `--live`, no loop, no energy border. The only gradient is each screen's one primary
+("Guardar los cambios"). The rules are under "Rotation between providers" in
+[agentry-ds.css](design-system/agentry-ds.css).
+
+- **The limit block (`.prov-limit`).** Inside a provider's row (`.prov-state`) or cell, under the
+  reason: the label "Límite", a state badge, and the age of the reading with where it came from
+  ("Lectura de hace 3 min · durante la última ejecución"). Then a row per window (`.lim-row`): the
+  window in mono (`5 h`, `7 d`), a usage `.bar`, the percentage and the reset time. Bars follow the
+  usage rule: neutral below 60 %, `warn` from 60 %, `bad` from 75 % or on the exhausted window.
+  - States, each a word with its colour: **Cerca del límite** (`b-warn`), **Límite alcanzado**
+    (`b-bad`), **Sin lectura** (`b-idle`, with a sentence instead of bars). With headroom there is no
+    badge. A provider that does not report quota, or whose limit just reset, is "Sin lectura": it is
+    never shown as free without a new reading.
+  - It is not drawn in the first-run rows (`.compact`). On a phone the reset drops under its bar.
+- **Al llegar a un límite (`.rot-row`).** A card in Settings → Providers: a callout saying the
+  default is to wait, then rows of title and hint on the left and the control on the right: the action
+  (`Segmented`: Continuar con un resumen / Empezar de nuevo / Esperar al reinicio), what a decision may
+  choose (`.rot-check`, the action above always on and disabled), the wait cap and the moves cap
+  (`.stepper`). On a phone it is its own screen, reached from a cell: radios at 44 px
+  (`.rot-radio`), switches and steppers at 44 px.
+- **Equivalencias de modelos (`.map-row`).** A card with a source `Segmented` (the provider the models
+  come from) and a row per model, a column per target. A cell is a mono select, or one of three
+  marks, always with a word: **Sin equivalente** (`b-warn`, with "Sugerir" and the sentence that the
+  work waits), **Ya no se ofrece** (`b-warn`) and **Sugerido** (`b-accent`, in a dashed `.map-suggest`
+  with Aceptar and Descartar: "No vale hasta que lo aceptes"). A row a waiting job needs is
+  `.is-target`, with a `warn` callout above. On a phone each model is a card of cells; a cell opens a
+  `Sheet` with radios, "Ninguno" and "Sugerir una equivalencia".
+- **Project override.** In the project's Ajustes, a card above Decisiones: the order (`Segmented`
+  "Usar el global" / "Orden propio", rows with a handle, up/down on a phone, "Quitar del orden", and
+  "Fuera del orden" below with "Añadir") and the on-limit fields (`.ov-field`). A field that
+  inherits says "Heredado" and its segment is dimmed (`.seg.is-inherited`); a changed one says
+  "global: …" and a ghost "Usar la global", as Decisiones does. On a phone it is its own screen.
+- **Copy.** Modes are named in words, never ids: "Continuar con un resumen" (handoff), "Empezar de
+  nuevo" (restart), "Esperar al reinicio" (wait).
+
+Reference screens: `DesktopProveedores` and `MobileProveedores` (the limit block),
+`DesktopProveedoresRotacion`, `MobileProveedoresRotacion`, `MobileProveedoresEquivalencias`,
+`MobileProveedoresEquivalenciasPar`, `DesktopProyectoAjustes` and `MobileProyectoAjustes` (the
+override, with `MobileProyectoAjustesProveedores`) and `DSLimites` (every state). They are written by
+`reference/tools/providers_rotation.py`, which `providers.py` and `projects.py` import.
+
+### Rotation between providers: the chat at a limit and after a move
+
+Drawn for phase 4 of [multiple agent providers](plans/multi-provider.md) (task `p2` of
+`providers4-prototypes`) by `reference/tools/chatrotation.py`, and waiting for the owner's validation
+before the web work starts. New classes `.lim-*`, `.mv-*`, `.hand-*` and `.cont-*` in
+[agentry-ds.css](design-system/agentry-ds.css); the badge, the buttons, `.seg`, `.dialog`, `.sheet` and
+`.bar` are the existing ones.
+
+- **The banner (`.lim`)** sits above the composer of a chat whose provider reached its limit. A warn
+  panel: the warn icon, the title ("Claude Code ha llegado a su límite de 5 horas"; the window is
+  named in words, "semanal" for the weekly one), the reset in mono ("Se restablece a las 14:05 · en
+  2 h 10 min", or "No se sabe cuándo se restablece · última lectura hace 12 min"), the feasible
+  actions and, under a hairline, the options that are not offered, each with its reason in the
+  person's words (`.lim-out`). The one primary of the zone is the setting's action, the gradient;
+  **Continuar en Codex** (handoff), **Empezar de nuevo en Codex** (restart) and **Esperar al
+  reinicio** (wait) are neutral, and **Ver el traspaso** is ghost. A person's chat never moves on its
+  own (P4-2): nothing here spends on another vendor without a click, and the composer is disabled
+  until the person chooses.
+- **When nothing can take the work**, wait is the floor and becomes the primary; the banner says why
+  ("No hay otro programa…", "Opus 5.5 no tiene equivalente en Codex"), and a missing mapping offers
+  **Elegir equivalencia**, which opens the mapping editor on that pair.
+- **Waiting.** The same panel titled "Esperando a Claude Code", the reset, and one sentence of what
+  happens then. **Mover ahora** (opens the move sheet) and **Dejar de esperar**, both neutral: no
+  gradient, since there is no primary, and nothing animates, since a wait is not live work. The
+  header badge reads "esperando · 14:05" and the details panel gains a "Límite" row with a warn badge.
+- **The move sheet (`.mv-*`)** is a dialog on a desktop and a `Sheet` on a phone. A `.seg` picks
+  "Continuar con traspaso" or "Empezar de nuevo"; the candidates are radio rows with the model mapping
+  ("Opus 5.5 → gpt-6.1-sol") and a thin neutral usage bar; a candidate that cannot take the work is a
+  dashed row with a plain badge and its reason; the facts that carry over (model, permissions,
+  folder) each say where they come from; then **Texto que recibirá**, the handoff exactly as it would
+  be sent (`.hand-text`, mono, English because it is a prompt, with the pasted block marked and the
+  note after it), its size against the 12 KiB cap, and a notice that the session does not move and
+  nothing has been sent yet. The one primary is **Continuar en Codex**.
+- **The old chat** ends with a divider (`.cont-div`): "Continuado en Codex en «title»", the new
+  chat's id, how it began (con un traspaso, de cero) and a link to it. Its header badge reads
+  "continuado en Codex", its composer is disabled with the same sentence, and the details panel
+  gains a "Continuado" link row.
+- **The new chat** keeps one provider (P4-1). Its header carries the `ProviderBadge` and
+  "Continuado desde Claude Code" as a link; its first message is the collapsed card (`.hand-card`,
+  "Traspaso de Claude Code", or "Petición original" after a restart) with "Ver el chat anterior" and
+  Mostrar / Ocultar. Opened, it shows the text the agent received. The chat is live, so it has the
+  energy border, and the status bar's limit reading is back to normal.
+- **The status bar** of a chat at a limit shows the 5 h bar full, `bad`, with the word "límite".
+- **Gradients.** One per screen besides the shell: the setting's action in the banner, or the
+  primary of the sheet over the dimmed page. The waiting banner has none. `--live` appears only on
+  the new chat, which is working.
+
+Reference screens: `DesktopChatLimite`, `DesktopChatLimiteTraspaso`, `DesktopChatEspera`,
+`DesktopChatContinuado`, `DesktopChatContinuadoOrigen`, the five `MobileChat…` twins, and
+`DSRotacionChat` (every state of the banner, the card and the divider).
+
 ### Integrations: the code hosts' CLIs
 
 Drawn for [code hosts](plans/code-hosts.md) (task `p1` of P0) and waiting for the owner's validation
@@ -1198,6 +1294,41 @@ is `.fix-panel.wait` with the phase 2 fix path (`fix_state`, the same push rule)
   under the list) and "Resolver"; one the Developer left alone offers a link to the thread on the host. A
   resolved thread folds its quote. Agentry never replies or resolves by itself.
 - **Hosts.** The noun and number follow the host (`PR #12`, `MR !12`); the thread semantics are the same.
+
+### Rotation between providers: the chain chip, a wait, the limit in the status bar and the retirement notice
+
+Drawn for phase 4 of [multiple agent providers](plans/multi-provider.md) (task `p3` of
+`providers4-prototypes`), by `reference/tools/rotation_work.py` (with `rotation_flow.py` and
+`rotation_decisions.py`), and waiting for the owner's validation before W starts. New classes `.chain*`,
+`.wait-line`, `.statusbar .lim` and `.retire*`; the rest is existing (`.prov-mark`, `.decided`, `.callout`,
+`.badge`). Nothing here is live except what already ran: waiting does not move.
+
+- **The chain (`.chain`, `.chain-chip`).** One chip per chat of a task or run, oldest first, each the provider's
+  mark and name, with the arrow between. The last is the chat that runs now (`.now`, `--fg`); the rest are history.
+  On a desktop a chip opens its chat; on a phone chips are read and the card's button opens the newest. `.chain-how`
+  says how it moved, in mono: "traspaso", "de nuevo". A chip shows only when the work moved or waits.
+- **A wait (`.wait-line`).** A warn-tinted strip with the clock where a running task shows its command: "Esperando a
+  Claude Code · vuelve a las 14:05", and why in one line (a limit, no reset time with its cap, no equivalent model,
+  the other provider also out, the moves cap). No spinner, no rail, no energy border; the badge says "esperando". The
+  task keeps its parallel slot. "Mover ahora" opens the handoff sheet and is disabled, with its reason, when no
+  provider can take the work; "Dejar de esperar" is quiet.
+- **Status bar (`.lim`).** One dot per provider as in phase 1, with its limit: a neutral bar below 60 %, warn with
+  "límite" and the percentage from 60 %, bad with "límite agotado" and when it returns. A provider that reports no
+  limit has no bar: an unknown reading is never drawn as good. The title gives the window, the reset and the reading's
+  age. claude-swap's account is gone from the bar.
+- **Retirement notice (`.retire`).** Neutral, with the idle mark and "Entendido": which account is in force, what
+  changed, which projects lost a rotation policy (links to their provider order) and what was left alone. Its one
+  destructive action, removing Agentry's own copy, is `btn-danger` and offered only when that copy exists. It sits in
+  Home's provider card and at the top of Settings → Providers; no gradient.
+- **Decisions.** A Providers group with `provider.on-limit` and `provider.pick` (act, per project) and
+  `provider.model-map` (suggest, global): 25 points in 10 groups. Each note says what bounds it.
+- **Gradients.** The orchestration page's Coste card loses `.grad-border` so the energy border and the shell's
+  primary stay within the budget of two.
+
+Reference screens: `DesktopOrquestacion` and `MobileOrquestacion` (a moved task and two waiting ones),
+`DesktopChatFlujoMovido`, `MobileChatFlujoMovido`, `StatusBar`, `Main` and `MobileInicio` (the notice),
+`DesktopProveedoresRetirada`, `MobileProveedoresRetirada`, `DesktopAjustesDecisionesProveedores`,
+`MobileAjustesDecisionesProveedores` and `DSRotacion` (rules, every wait and cause, the status bar states).
 
 ### Merging an orchestration, and the board card's auto-merge line
 

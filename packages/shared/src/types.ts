@@ -54,7 +54,6 @@ export interface AgentryReleaseInfo {
 
 /**
  * `wrapper-*`: configured through the API; `env-*`: passed through the container environment;
- * `cswap`: claude-swap owns the credential file and the wrapper injects nothing.
  */
 export type TokenSource =
   | 'wrapper-oauth-token'
@@ -62,7 +61,6 @@ export type TokenSource =
   | 'env-oauth-token'
   | 'env-api-key'
   | 'credentials-file'
-  | 'cswap'
   | 'none';
 
 export interface AuthStatus {
@@ -93,6 +91,12 @@ export interface SystemInfo {
 export interface ModelOption {
   /** What the flag takes: an alias (`opus`) or a model's full name (`claude-fable-5-1[1m]`) */
   value: string;
+  /**
+   * The model ids an alias stands for, as chats that ran on it reported them (`claude-sonnet-5` for
+   * `sonnet`). Suggestions, moves and accepted mappings carry the id, the catalogue lists the alias:
+   * match a row on its `value` or on any of its `ids`. Absent where the value is already the id.
+   */
+  ids?: string[];
   /**
    * What the CLI calls it, where it says so; for an alias, the name of the model a chat started on
    * it reported in its `system/init` event ("Sonnet 5" for `claude-sonnet-5`), once one has
@@ -403,8 +407,6 @@ export interface Execution {
   error: string | null;
   permissionMode: PermissionMode;
   model: string | null;
-  /** Pinned claude-swap account, when it did not use the active one */
-  account: string | null;
   /** Ceiling on what it could spend */
   maxBudgetUsd: number | null;
   /** Null when the CLI reported none: cost is only known for what Agentry launched */
@@ -752,6 +754,20 @@ export interface ChatEnvironment {
 }
 
 /**
+ * The other end of a provider move, as a chat links to it. A move is always a new chat (a session
+ * belongs to its provider), so the old chat and the new one point at each other.
+ */
+export interface ChatContinuation {
+  chatId: string;
+  /** The provider of the chat at the other end */
+  provider: ProviderId;
+  action: 'handoff' | 'restart';
+  at: string;
+  /** The {@link ProviderMove} that recorded it */
+  moveId: string;
+}
+
+/**
  * One Claude Code conversation: the root entity of the product. Always exactly one session id, which
  * is also the chat's id. Subagents and workflows are branches of a chat, not chats.
  */
@@ -778,6 +794,15 @@ export interface Chat {
   orchestration: ChatOrchestration | null;
   /** Set on a fork: where it started from */
   derivedFrom: ChatFork | null;
+  /** The chat this one continues after a provider move; null when it is not a continuation */
+  continuedFrom?: ChatContinuation | null;
+  /** The chat that continues this one after a provider move; null while none does */
+  continuedIn?: ChatContinuation | null;
+  /**
+   * The chat's last turn died on its provider's usage limit. Kept in the server's memory only: after
+   * a restart it is absent, and the page falls back on the provider's reading.
+   */
+  atLimit?: boolean;
   state: ChatState;
   control: ChatControl;
   /** The live execution, when Agentry has a process on the chat; also the last of `executions` */
@@ -958,11 +983,6 @@ export interface ChatStartOptions {
   maxBudgetUsd?: number;
   /** `host` sends permissions, questions and plans to the panel; `none`, the default, denies them */
   permissionPrompts?: 'host' | 'none';
-  /**
-   * Pin it to a claude-swap account (slot number, email or alias) instead of the active one; `null`
-   * unpins a chat on a resume or a fork. A pinned chat that hits its limit is unpinned by the rotation.
-   */
-  account?: string | null;
 }
 
 /** Starts a new chat. */
@@ -1217,6 +1237,17 @@ export interface ProjectSettings {
   decisions?: ProjectDecisionSettings;
   /** The project's issue tracker; absent or null when it has none */
   tracker?: ProjectTrackerSettings | null;
+  /** Per-project overrides of the provider order and of what happens at a limit; a missing field inherits */
+  providers?: ProjectProvidersSettings;
+}
+
+/**
+ * What a project overrides of `providers.json`: the order its work picks providers in, and the
+ * fields of `rotation.onLimit` it sets itself. The model mapping stays global.
+ */
+export interface ProjectProvidersSettings {
+  order?: ProviderId[];
+  onLimit?: Partial<RotationSettings['onLimit']>;
 }
 
 /**
@@ -2125,6 +2156,9 @@ export type FlowRunOutcome = 'passed' | 'rejected' | 'failed' | 'cancelled';
  * - `item-removed` and `item-done`: the item was removed, or moved to `done`;
  * - `replaced`: the item entered a column again before the run started, and the newer run took its place;
  * - `flow-off`: the flow, the Team module or the Board module was switched off;
+ * - `no-provider`: no provider could take the run: none is ready, or none can enforce its policy;
+ * - `limit-wait-expired`: the run waited for a provider's limit to reset and the reset never came
+ *   within the wait cap;
  * - `no-member`: nobody on the team answers for the column any more;
  * - `refined`: a todo check would repeat a refine that passed, on an item unchanged since;
  * - `chat-busy`: a chat of the person's was already working on the item.
@@ -2132,6 +2166,8 @@ export type FlowRunOutcome = 'passed' | 'rejected' | 'failed' | 'cancelled';
 export type FlowRunCause =
   | 'budget'
   | 'no-account'
+  | 'no-provider'
+  | 'limit-wait-expired'
   | 'rate-limit'
   | 'stopped'
   | 'restarts'
@@ -2175,6 +2211,10 @@ export interface FlowRun {
   /** The member's agent file name, as `claude --agent` takes it */
   agent: string;
   model: string;
+  /** The provider the run's chat is on; `claude-code` on a run written before providers were chosen */
+  provider?: ProviderId;
+  /** Set while the run waits for its provider's limit to reset; null otherwise */
+  waiting?: LimitWait | null;
   stage: FlowStage;
   /** The stage as the person reads it, by its column: `check` is a `refine` in `todo` */
   step: FlowStep;
@@ -3103,6 +3143,23 @@ export type OrchestrationTaskStatus = 'pending' | 'running' | 'completed' | 'fai
 /** `waiting`: nothing runs and a task failed for good, so integration and synthesis are held back until a person decides. */
 export type OrchestrationStatus = 'running' | 'waiting' | 'completed' | 'failed' | 'stopped';
 
+/** One chat of a task's chain: the provider and model it ran on, and how it got there. */
+export interface TaskChainEntry {
+  chatId: string;
+  provider: ProviderId;
+  model: string | null;
+  /** How this chat came to be; the first chat of a task has none */
+  action: LimitAction | null;
+}
+
+/** Work that stopped to wait for a provider's limit to reset. */
+export interface LimitWait {
+  provider: ProviderId;
+  /** ISO time the limit resets; null when unknown, and the wait ends at the cap */
+  resetsAt: string | null;
+  moveId: string;
+}
+
 export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   status: OrchestrationTaskStatus;
   /** Git worktree this task works in, when the orchestration isolates its workers */
@@ -3127,6 +3184,12 @@ export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   continuations?: number;
   runId: string | null;
   sessionId: string | null;
+  /** The provider its current chat is on; absent on a task written before providers were chosen */
+  provider?: ProviderId;
+  /** The chats the task went through, oldest first, one entry per provider move */
+  chain?: TaskChainEntry[];
+  /** Set while the task waits for its provider's limit to reset; it stays `running` and keeps its place */
+  waiting?: LimitWait | null;
   result: string | null;
   error: string | null;
   startedAt: string | null;
@@ -3891,222 +3954,6 @@ export interface ConnectorsOverview {
   error?: string;
 }
 
-// ---------- Accounts (claude-swap) ----------
-
-/**
- * Where the `cswap` in use came from: `CSWAP_BIN`, the `PATH`, or the copy Agentry installed in its
- * own data directory.
- */
-export type CswapSource = 'env' | 'path' | 'managed';
-
-/** Progress of the copy of claude-swap Agentry installs itself. */
-export type CswapInstallState = 'absent' | 'installing' | 'installed' | 'failed';
-
-export interface CswapManagedInfo {
-  /** False in the Docker image (claude-swap is baked in), with `CSWAP_BIN`, or with `AGENTRY_CSWAP_MANAGED=0` */
-  available: boolean;
-  state: CswapInstallState;
-  /** While installing: fetching uv, or uv installing claude-swap (and Python, when the system lacks it) */
-  step?: 'uv' | 'claude-swap';
-  /** Version of the managed copy, when there is one */
-  version: string | null;
-  /** Why the last install failed */
-  error?: string;
-}
-
-/** The `cswap` binary that owns the account credentials, when it is installed. */
-export interface CswapInfo {
-  installed: boolean;
-  version: string | null;
-  path: string | null;
-  error?: string;
-  source: CswapSource | null;
-  /** The version is one whose `--json` output Agentry parses */
-  compatible: boolean;
-  /** The version Agentry installs and is tested against */
-  pinned: string;
-  managed: CswapManagedInfo;
-}
-
-/** One rate-limit window as claude-swap reports it. */
-export interface AccountUsageWindow {
-  /** Share of the window already consumed (0-100) */
-  pct: number;
-  resetsAt: string | null;
-  /** Human countdown to the reset, e.g. `3h 4m` */
-  countdown: string | null;
-  /** Per-model windows carry the model name */
-  name?: string;
-}
-
-export interface AccountUsage {
-  fiveHour: AccountUsageWindow | null;
-  sevenDay: AccountUsageWindow | null;
-  /** Per-model weekly windows (Fable, Opus…) when the account reports them */
-  scoped: AccountUsageWindow[];
-}
-
-export interface AccountSummary {
-  /** Slot number: the identifier every action accepts, alongside the email and the alias */
-  number: number;
-  email: string;
-  organizationName: string | null;
-  alias: string | null;
-  active: boolean;
-  /** Held out of the auto-rotation */
-  disabled: boolean;
-  /** `ok`, `token_expired`, `unavailable`… as reported by claude-swap */
-  usageStatus: string;
-  usage: AccountUsage | null;
-  usageFetchedAt: string | null;
-  /** Quota left in the binding window (0-100); null when the usage is unknown */
-  headroomPct: number | null;
-}
-
-/** Target selection when no explicit account is given */
-export type SwitchStrategy = 'best' | 'next-available';
-
-export interface SwitchResult {
-  switched: boolean;
-  from: string | null;
-  to: string | null;
-  reason: string | null;
-}
-
-/** Settings of the supervised `cswap auto` process. */
-export interface AutoSwitchSettings {
-  /** Run `cswap auto` in the background and rotate before the active account runs out */
-  enabled: boolean;
-  /** Utilization that triggers a proactive switch (50-99.9) */
-  threshold: number;
-  /** `best` stays until the limit; `consume-first` spends the soonest-resetting account first */
-  strategy: 'best' | 'consume-first';
-  /** Per-model weekly windows to watch too, e.g. `['Fable']` or `['all']` */
-  models: string[];
-  /** Poll interval of the supervisor, in seconds (minimum 15) */
-  intervalSec: number;
-  /** Rotate and resume a run that dies against its rate limit */
-  rotateOnLimit: boolean;
-}
-
-/** One `cswap auto --json` line, plus the rotations the wrapper drives itself. */
-export interface AutoSwitchEvent {
-  seq: number;
-  ts: string;
-  /** `poll`, `switch`, `no-switch`, `account-quarantined`, `all-exhausted`, `error`, or `rotate` when the wrapper drove it */
-  event: string;
-  reason?: string;
-  detail?: string;
-  from?: string;
-  to?: string;
-  /** The raw claude-swap payload */
-  data?: Record<string, unknown>;
-}
-
-export interface AccountsOverview {
-  cswap: CswapInfo;
-  accounts: AccountSummary[];
-  activeNumber: number | null;
-  autoSwitch: AutoSwitchSettings;
-  /** The `cswap auto` supervisor is alive */
-  autoSwitchRunning: boolean;
-  /** Most recent rotation events, newest last */
-  events: AutoSwitchEvent[];
-  /** One per account that has a config directory of its own */
-  configs: AccountConfig[];
-  policies: RotationPolicy[];
-}
-
-/** What the dashboard needs about accounts, without the full list. */
-export interface AccountsSnapshot {
-  installed: boolean;
-  total: number;
-  active: AccountSummary | null;
-  autoSwitchRunning: boolean;
-}
-
-export interface SwitchAccountRequest {
-  /** Slot number, email or alias; omitted rotates to the next account */
-  target?: string;
-  strategy?: SwitchStrategy;
-}
-
-export interface AddAccountTokenRequest {
-  /** Token from `claude setup-token`, or an API key */
-  token: string;
-  /** Slot to register it in; the next free one when omitted */
-  slot?: number;
-  /** Label shown until claude-swap resolves the real email */
-  email?: string;
-}
-
-export interface SetAccountAliasRequest {
-  /** Short name for the account; `null` removes it */
-  alias: string | null;
-}
-
-/**
- * Which accounts the chats of some projects may use, in what order, and when to move on. A project
- * with no policy keeps the global auto-switch, which is the default.
- */
-export interface RotationPolicy {
-  id: string;
-  /** Utilization (0-100) of an account's binding window past which the next one in `order` is taken */
-  threshold: number;
-  /** Slot numbers a chat of these projects may use, in order of preference; every account when absent */
-  order?: number[];
-  /** Project ids this policy governs; at most one policy governs a project */
-  projects: string[];
-  /** It also governs the chats that belong to no project; at most one policy does */
-  looseChats?: boolean;
-}
-
-export interface RotationPolicyRequest {
-  threshold: number;
-  order?: number[];
-  projects: string[];
-  looseChats?: boolean;
-}
-
-/** Agentry's own settings for one claude-swap slot: what the binary itself does not keep. */
-export interface AccountConfig {
-  /** Slot number, the same identifier {@link AccountSummary} uses */
-  number: number;
-  /**
-   * `CLAUDE_CONFIG_DIR` for every process started for this account. Null shares the wrapper's,
-   * which is what every account did before and stays the default: moving someone's `~/.claude`
-   * without being asked is not something a wrapper gets to do. A chat on an account that has one
-   * runs `claude` directly against it, so the login is whatever that directory holds.
-   */
-  configDir: string | null;
-  /** Entries Agentry linked into `configDir` from the shared one, relative to it; undone when it is cleared */
-  links: string[];
-}
-
-export interface UpdateAccountConfigRequest {
-  /** Null goes back to sharing the wrapper's config dir, and removes the links Agentry made */
-  configDir: string | null;
-  /**
-   * Also link the shared settings (`settings.json`, `CLAUDE.md`, `keybindings.json`, `agents`,
-   * `commands`, `skills`) into the directory. Symlinks, never copies and never over an existing
-   * entry, so undoing it leaves the shared ones untouched.
-   */
-  shareSettings?: boolean;
-}
-
-/** Which rate-limit window a usage point belongs to. */
-export type UsageWindowKind = '5h' | '7d';
-
-/** One reading of an account's usage, kept as a row so the panel can draw a line. */
-export interface UsageHistoryPoint {
-  at: string;
-  /** Share of the window consumed (0-100), exactly as claude-swap reported it */
-  pct: number;
-  window: UsageWindowKind;
-  /** Slot number */
-  account: number;
-}
-
 // ---------- Scheduling ----------
 
 /** What a schedule starts when it fires. */
@@ -4206,9 +4053,8 @@ export interface UpdateScheduleRequest {
 
 export interface Overview {
   system: SystemInfo;
-  rateLimit: RateLimitInfo | null;
-  /** Null when claude-swap is not installed */
-  accounts: AccountsSnapshot | null;
+  /** One reading per provider that has one */
+  limits: ProviderLimit[];
   counts: {
     projects: number;
     chats: number;
@@ -4493,23 +4339,26 @@ export interface PermissionResolvedEvent extends AgentryEventBase, RunEventRef {
 /** A turn died against the account's rate limit. */
 export interface RunRateLimitedEvent extends AgentryEventBase, RunEventRef {
   type: 'run.rateLimited';
+  /** The provider that hit its limit; absent on an event from before limits were per provider */
+  provider?: ProviderId;
+  /** ISO time the limit resets; null or absent when unknown */
+  resetsAt?: string | null;
 }
 
-/** Rotation moved the wrapper to another account after a run hit its limit. */
-export interface RunAccountRotatedEvent extends AgentryEventBase, RunEventRef {
-  type: 'run.accountRotated';
-  from: string | null;
-  to: string | null;
-  /** The interrupted turn was replayed on the new account */
-  resumed: boolean;
+/** Work went on in a new chat on another provider after a limit. */
+export interface RunProviderMovedEvent extends AgentryEventBase, RunEventRef {
+  type: 'run.providerMoved';
+  from: ProviderId;
+  to: ProviderId;
+  action: 'handoff' | 'restart';
+  decidedBy: ProviderMoveDecider;
 }
 
-/** The active account changed, by whatever means (manual switch, `cswap auto`, rotation). */
-export interface AccountSwitchedEvent extends AgentryEventBase {
-  type: 'account.switched';
-  from: string | null;
-  to: string | null;
-  reason: string | null;
+/** Work stopped to wait for its provider's limit to reset. */
+export interface RunLimitWaitingEvent extends AgentryEventBase, RunEventRef {
+  type: 'run.limitWaiting';
+  provider: ProviderId;
+  resetsAt: string | null;
 }
 
 export interface TaskStartedEvent extends AgentryEventBase, ActivityEventRef {
@@ -4718,7 +4567,6 @@ export type ProviderCapability =
   | 'effort'
   | 'costReport'
   | 'rateLimitWindows'
-  | 'multiAccount'
   | 'transcriptFiles'
   | 'workflowTool';
 
@@ -4765,7 +4613,11 @@ export type ProviderReasonCode =
   | 'auth-required'
   | 'schema-untested'
   | 'busy'
-  | 'disabled';
+  | 'disabled'
+  /** The provider's usage limit is exhausted and has not reset yet */
+  | 'limit-reached'
+  /** The provider's binding window is above 60 % */
+  | 'limit-near';
 
 /** The code hosts Agentry reaches through their own CLI. Closed: adding one is a code change. */
 export type CodeHostId = 'github' | 'gitlab';
@@ -5626,6 +5478,8 @@ export interface ProviderStatus {
   permissionModes?: PermissionMode[];
   /** What the first event of a real session confirmed for the installed version; null until one has */
   confirmed?: { at: string; version: string; capabilities: ProviderCapability[] } | null;
+  /** The provider's usage limit as last read; null when nothing was read yet, absent on an old server */
+  limit?: ProviderLimit | null;
   /** ISO timestamp of the detection this status came from */
   checkedAt: string;
 }
@@ -5647,6 +5501,169 @@ export interface ProvidersSettings {
   order: ProviderId[];
   /** The provider a new chat starts with; null takes the first ready one in `order` */
   defaultProvider: ProviderId | null;
+  /** What happens at a usage limit, and the model mapping; absent on a file written before it, read as the defaults */
+  rotation?: RotationSettings;
+}
+
+/** What work does when its provider reaches a usage limit. */
+export type LimitAction = 'handoff' | 'restart' | 'wait';
+
+export interface RotationSettings {
+  onLimit: {
+    /** What automated work does at a limit; a person's chat offers it first */
+    action: LimitAction;
+    /** What a decision point may choose among; always includes `action` */
+    allowed: LimitAction[];
+    /** How long a wait with no known reset lasts before the run fails, 1..48 */
+    maxWaitHours: number;
+    /** Moves per run before it waits, 0..5 */
+    maxMoves: number;
+  };
+  /** Global only; never filled without a person */
+  modelMap: ModelMapEntry[];
+}
+
+/** One model standing in for another across two providers. */
+export interface ModelMapEntry {
+  from: { provider: ProviderId; model: string };
+  to: { provider: ProviderId; model: string };
+  /** `decision`: a suggestion of the `provider.model-map` point that a person accepted */
+  origin: 'person' | 'decision';
+  at: string;
+}
+
+/** `unknown`: nothing was read, or the reset has passed since; never `ok` without a new reading. */
+export type ProviderLimitState = 'ok' | 'near' | 'exhausted' | 'unknown';
+
+/** One provider's usage limit, folded from what its driver reports. */
+export interface ProviderLimit {
+  provider: ProviderId;
+  state: ProviderLimitState;
+  /** The window that binds (`5h`, `7d`, `primary`), when the provider names windows */
+  window: string | null;
+  /** Use of that window, 0..1; null when the provider reports none */
+  utilization: number | null;
+  /** ISO time the binding window resets; null when unknown */
+  resetsAt: string | null;
+  windows: Record<string, RateLimitWindow>;
+  /** When the reading was taken: the UI says how old it is */
+  observedAt: string;
+  /** `stream`: a live run reported it; `probe`: a read that spends nothing; `failure`: a turn died on it */
+  source: 'stream' | 'probe' | 'failure';
+}
+
+export type ProviderMoveState = 'waiting' | 'resuming' | 'moved' | 'resumed' | 'failed' | 'cancelled';
+
+/** Who chose a move: the person, the settings, or a decision point. */
+export type ProviderMoveDecider = 'person' | 'setting' | 'decision';
+
+export type ProviderMoveSubjectKind = 'chat' | 'flow_run' | 'task' | 'assistant_run';
+
+/**
+ * A row of `provider_moves`: a move to another provider, or a wait for a reset. History and the
+ * wait queue in one.
+ */
+export interface ProviderMove {
+  id: string;
+  at: string;
+  subjectKind: ProviderMoveSubjectKind;
+  subjectId: string;
+  projectId: string | null;
+  fromChat: string;
+  /** The new chat; null for a wait */
+  toChat: string | null;
+  fromProvider: ProviderId;
+  toProvider: ProviderId | null;
+  fromModel: string | null;
+  toModel: string | null;
+  action: LimitAction;
+  state: ProviderMoveState;
+  decidedBy: ProviderMoveDecider;
+  /** The decision point's answer, when `decidedBy` is `decision` */
+  decisionId: string | null;
+  /** ISO time the wait ends; null when unknown or not a wait */
+  resetsAt: string | null;
+  reason: string | null;
+  updatedAt: string;
+}
+
+/** Why a provider cannot take a run, as the candidates say it; the UI words each one. */
+export type Exclusion =
+  | 'disabled'
+  | 'not-ready'
+  | 'no-driver'
+  | 'capability'
+  | 'policy'
+  | 'policy-not-portable'
+  | 'no-mapping'
+  | 'exhausted'
+  | 'left-already'
+  | 'not-in-order';
+
+/** A provider that can take a run, or one that cannot and why. */
+export type CandidateView =
+  | { provider: ProviderId; model: string | null; utilization: number | null; resetsAt: string | null }
+  | { provider: ProviderId; excluded: Exclusion };
+
+/** `POST /chats/:id/move`: a person moves a chat that reached a limit. */
+export interface MoveChatRequest {
+  provider: ProviderId;
+  action: 'handoff' | 'restart';
+  /** A model of the target provider; absent takes the mapped one */
+  model?: string;
+}
+
+/** `GET /providers/candidates`: who could take a chat at a limit, and why each of the others cannot. */
+export interface ProviderCandidates {
+  candidates: Array<Extract<CandidateView, { model: string | null }>>;
+  excluded: Array<Extract<CandidateView, { excluded: Exclusion }>>;
+  /** The work made every move it may: nothing is offered however many are ready */
+  movesCapped: boolean;
+}
+
+/** An open `provider.model-map` suggestion: a counterpart the engine proposed that no person has answered yet. */
+export interface ModelMapSuggestion {
+  /** The decision's id: what `POST /providers/model-map/suggestions/:id` answers */
+  id: string;
+  from: { provider: ProviderId; model: string };
+  to: { provider: ProviderId; model: string };
+  at: string;
+}
+
+/** `POST /providers/model-map/suggest`: ask `provider.model-map` now for a counterpart of one model on one target. */
+export interface SuggestModelMapRequest {
+  from: { provider: ProviderId; model: string };
+  /** The provider the counterpart would be on */
+  target: ProviderId;
+}
+
+/** `POST /providers/model-map/suggestions/:id`: accepting writes the entry; dismissing only closes the suggestion. */
+export interface AnswerModelMapSuggestionRequest {
+  accept: boolean;
+}
+
+/** What claude-swap left behind, for the one-time notice. */
+export interface CswapRetirement {
+  found: Array<'accounts' | 'account-config' | 'managed-copy' | 'cswap-bin'>;
+  /** Agentry's own copy of claude-swap is on disk: the one thing the notice offers to remove */
+  managedCopy: boolean;
+  /** Projects that had a rotation policy; their provider order is what applies now */
+  policyProjects: string[];
+}
+
+/** `GET /providers/cswap-retirement`: `notice` is null when there is nothing to say or the person dismissed it. */
+export interface CswapRetirementState {
+  notice: CswapRetirement | null;
+}
+
+/** `GET /chats/:id/handoff`: the text as it would be sent, built locally and not sent. */
+export interface HandoffPreview {
+  text: string;
+  bytes: number;
+  provider: ProviderId;
+  model: string | null;
+  /** The headers of the sections the text contains */
+  sections: string[];
 }
 
 /**
@@ -5845,10 +5862,11 @@ export interface DocumentChangedEvent extends AgentryEventBase {
   itemId: string | null;
 }
 
-export type FlowRunAction = 'queued' | 'started' | 'ended';
+export type FlowRunAction = 'queued' | 'started' | 'ended' | 'moved' | 'waiting';
 
 /**
- * A flow run was queued, started or ended. What it did to the item (a comment, a move, the waiting
+ * A flow run was queued, started or ended, moved to another provider's chat at a usage limit, or
+ * began waiting for the limit to reset. What it did to the item (a comment, a move, the waiting
  * state) comes as that item's own `workitem.*` events.
  */
 export interface FlowRunEvent extends AgentryEventBase, WorkItemEventRef {
@@ -5869,6 +5887,10 @@ export interface FlowRunEvent extends AgentryEventBase, WorkItemEventRef {
   retryOf: string | null;
   /** `person` when a person queued it from the waiting cards; null otherwise */
   queuedBy: FlowRunQueuedBy | null;
+  /** On `moved`: the provider the run goes on with; on `waiting`: the one whose limit it waits for */
+  provider?: ProviderId;
+  /** On `waiting`: when that limit resets, ISO; null when unknown */
+  resetsAt?: string | null;
 }
 
 /**
@@ -6025,8 +6047,8 @@ export type AgentryEvent =
   | PermissionRequestedEvent
   | PermissionResolvedEvent
   | RunRateLimitedEvent
-  | RunAccountRotatedEvent
-  | AccountSwitchedEvent
+  | RunProviderMovedEvent
+  | RunLimitWaitingEvent
   | TaskStartedEvent
   | TaskEndedEvent
   | SubagentStartedEvent
@@ -6136,7 +6158,10 @@ export type DecisionPointId =
   | 'notification.urgency'
   | 'checks.fix'
   | 'review.triage'
-  | 'issue.triage';
+  | 'issue.triage'
+  | 'provider.on-limit'
+  | 'provider.pick'
+  | 'provider.model-map';
 
 /** What a decision was about; the `subject_kind` column of the history */
 export type DecisionSubjectKind =
@@ -6149,7 +6174,8 @@ export type DecisionSubjectKind =
   | 'assistant_run'
   | 'notification'
   | 'palette'
-  | 'tracker_issue';
+  | 'tracker_issue'
+  | 'model';
 
 /** Questions and rubrics are English (D4): providers read `label` and `description`, never a translation */
 export interface DecisionChoiceQuestion {

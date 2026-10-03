@@ -5,6 +5,7 @@ import { basename, join, resolve } from 'node:path';
 import type {
   Attachment,
   ChatActivity,
+  ChatContinuation,
   ChatFork,
   ChatOrigin,
   ChatToolConfig,
@@ -12,7 +13,6 @@ import type {
   Execution,
   NewChatRequest,
   PermissionMode,
-  RateLimitInfo,
   RunEvent,
   RunStatus,
 } from '@agentry/shared';
@@ -24,7 +24,7 @@ import type { Db } from './db.ts';
 import type { ModelAliasIds } from './models.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
-import type { AccountSupport, BranchTracker, DriverSession, ModelUsage, ProviderDriver } from './providers/driver.ts';
+import type { BranchTracker, DriverEvent, DriverSession, ModelUsage, ProviderDriver } from './providers/driver.ts';
 import { emptyTokenUsage } from './usage.ts';
 
 const MAX_EVENTS_PER_RUN = 5000;
@@ -38,7 +38,7 @@ export interface RunResult {
   costUsd: number;
   /**
    * Why a failed result is not one to try again blindly: the budget ran out (the retry meets the same
-   * ceiling), the account hit its limit (rotating accounts is the runner's job) or someone stopped it.
+   * ceiling), its provider hit its usage limit (moving the work is the rotation's job) or someone stopped it.
    */
   cause?: 'budget' | 'rate-limit' | 'stopped';
   /** The main agent's last `stop_reason` in the turn (`end_turn`, `tool_use`, `max_tokens`…), when the CLI said */
@@ -151,6 +151,8 @@ export interface ChatRuntime {
   workingDir: string;
   origin: ChatOrigin;
   derivedFrom: ChatFork | null;
+  continuedFrom?: ChatContinuation | null;
+  continuedIn?: ChatContinuation | null;
   model: string | null;
   permissionMode: PermissionMode;
   /** The process's state, as the stream reports it: a chat's own state is derived from it */
@@ -168,7 +170,6 @@ export interface ChatRuntime {
   error: string | null;
   orchestrationId: string | null;
   orchestrationTaskId: string | null;
-  account: string | null;
   permissionPrompts: 'host' | 'none';
   /** Prompts waiting for someone right now: the chat is stuck until they are answered */
   pendingPrompts: number;
@@ -204,9 +205,6 @@ export const now = () => new Date().toISOString();
 /** Started (a failed spawn has no pid) and not exited yet */
 export const processUp = (proc: ChildProcess): boolean => proc.pid !== undefined && proc.exitCode === null && proc.signalCode === null;
 
-/** What the runner needs to know about claude-swap, injected by Core to avoid a cycle. */
-export type AccountResolver = AccountSupport;
-
 /**
  * What the code that reads and writes a chat's process needs of the manager that owns the chat: the
  * stores it records into, the announcements it makes and the few things only the manager can do.
@@ -222,10 +220,11 @@ export interface ChatHost {
   emit(event: string, ...args: unknown[]): void;
   persist(): void;
   noteActivity(chat: LiveChat): void;
-  noteRateLimit(info: RateLimitInfo): void;
+  /** Folds what the chat's provider reported about its limit into the provider's reading */
+  observeLimit(chat: LiveChat, event: DriverEvent): void;
   learnModelCosts(execution: Execution, modelUsage: ModelUsage[]): void;
   learnWindows(modelUsage: ModelUsage[]): void;
-  maybeRotate(chat: LiveChat): void;
+  maybeLimit(chat: LiveChat): void;
   /** Ends the chat's execution as failed for a protocol fault and takes the process down */
   failProtocol(chat: LiveChat, message: string): void;
 }
@@ -306,16 +305,20 @@ export class LiveChat {
   nativeId: string | null = null;
   /** The last turn sent, files included, so a turn lost to a rate limit is replayed whole */
   lastUserTurn: { text: string; attachments: string[] } | null = null;
-  /** The turn died against the account's rate limit */
+  /** The turn died against its provider's usage limit */
   rateLimited = false;
   /**
    * The main agent's last `stop_reason` in this turn, from stream-json: a turn cut by `max_tokens`
    * can still end with JSON that parses, and a reader of the result has to know it was cut
    */
   stopReason: string | null = null;
-  /** A rotation was already asked for this attempt */
-  rotationRequested = false;
-  rotationRetries = 0;
+  /** `limit-hit` was already announced for this attempt */
+  limitRequested = false;
+  /** Replays of the last turn for this execution: a second failure on the limit is a real one */
+  limitReplays = 0;
+  /** The chat this one continues after a move to another provider, and the one that continues it */
+  continuedFrom: ChatContinuation | null = null;
+  continuedIn: ChatContinuation | null = null;
 
   constructor(
     /** The session id */
@@ -354,7 +357,6 @@ export class LiveChat {
         ...(record.model ? { model: record.model } : {}),
         permissionMode: record.permissionMode,
         internal: record.origin === 'internal',
-        ...(record.account ? { account: record.account } : {}),
         permissionPrompts: record.permissionPrompts,
         // A resumed chat keeps the tools and servers it was given, not the ones the CLI would pick
         ...(record.tools ? { toolConfig: record.tools, allowedTools: record.tools.allowedTools, disallowedTools: record.tools.disallowedTools } : {}),
@@ -379,6 +381,8 @@ export class LiveChat {
     // The process's own status, for whatever still asks: nothing is running, and how it ended is
     // what the last execution says
     chat.status = last?.outcome === 'completed' || last?.outcome === 'failed' ? last.outcome : 'stopped';
+    chat.continuedFrom = record.continuedFrom ?? null;
+    chat.continuedIn = record.continuedIn ?? null;
     chat.createdAt = record.createdAt;
     chat.updatedAt = record.updatedAt;
     chat.endedAt = last?.endedAt ?? record.updatedAt;
@@ -456,7 +460,6 @@ export class LiveChat {
       error: null,
       permissionMode: this.permissionMode,
       model: this.model,
-      account: this.opts.account ?? null,
       maxBudgetUsd: typeof this.opts.maxBudgetUsd === 'number' && this.opts.maxBudgetUsd > 0 ? this.opts.maxBudgetUsd : null,
       costUsd: null,
       tokens: emptyTokenUsage(),
@@ -475,6 +478,8 @@ export class LiveChat {
       workingDir: this.workingDir ?? (this.opts.worktree ? join(this.cwd, '.claude', 'worktrees', this.opts.worktree) : this.cwd),
       origin: this.origin,
       derivedFrom: this.derivedFrom,
+      continuedFrom: this.continuedFrom,
+      continuedIn: this.continuedIn,
       model: this.model,
       permissionMode: this.permissionMode,
       status: this.status,
@@ -490,7 +495,6 @@ export class LiveChat {
       error: this.error,
       orchestrationId: this.meta.orchestrationId ?? null,
       orchestrationTaskId: this.meta.orchestrationTaskId ?? null,
-      account: this.opts.account ?? null,
       permissionPrompts: this.opts.permissionPrompts === 'host' ? 'host' : 'none',
       ...(this.nativeId ? { nativeSessionId: this.nativeId } : {}),
       pendingPrompts: this.pendingPrompts,
@@ -516,11 +520,12 @@ export class LiveChat {
       orchestrationId: this.meta.orchestrationId ?? null,
       orchestrationTaskId: this.meta.orchestrationTaskId ?? null,
       derivedFrom: this.derivedFrom,
+      continuedFrom: this.continuedFrom,
+      continuedIn: this.continuedIn,
       prompt: this.opts.prompt,
       lastText: this.lastText,
       model: this.model,
       permissionMode: this.permissionMode,
-      account: this.opts.account ?? null,
       permissionPrompts: this.opts.permissionPrompts === 'host' ? 'host' : 'none',
       ...(this.nativeId ? { nativeSessionId: this.nativeId } : {}),
       tools: this.tools,

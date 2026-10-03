@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { ProviderLimit } from '@agentry/shared';
 import { desktopClasses } from '../src/lib/desktop.ts';
-import { chatActivity, fabFor, hidesTabBar, hidesTopBar, liveSummary, moreNotes, orchestrationProgress, pickUsageWindows, swapUsageWindows, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
+import { chatActivity, fabFor, hidesTabBar, hidesTopBar, liveSummary, moreNotes, orchestrationProgress, cardProvider, limitReading, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
 
 // The shell is where a person sees at a glance what is alive. What it lists has to be in the order
 // that needs them most, never twice, and a shape it does not expect must not break a row.
@@ -144,30 +145,49 @@ test('the phone FAB follows the page: the same round button where it starts some
   // A project's tab is a page of its own, whose settings end in a Save the button would cover
   assert.deepEqual(fabFor('/', '?project=p1'), { action: 'chat' });
   for (const search of ['?view=settings', '?project=p1&view=board']) assert.equal(fabFor('/', search), null, search);
-  for (const path of ['/tasks/milestones', '/chats/abc', '/chats/new', '/orchestration/o1', '/tasks/AGN-12', '/projects/new', '/settings', '/accounts', '/usage', '/nowhere']) {
+  for (const path of ['/tasks/milestones', '/chats/abc', '/chats/new', '/orchestration/o1', '/tasks/AGN-12', '/projects/new', '/settings', '/usage', '/nowhere']) {
     assert.equal(fabFor(path), null, path);
   }
 });
 
-test('the status bar reads the account-wide 5 h and 7 d windows, never a per-model one', () => {
-  const picked = pickUsageWindows({
-    seven_day_opus: { utilization: 0.9, resetsAt: 3 },
-    seven_day: { utilization: 0.054, resetsAt: 2 },
-    five_hour: { utilization: 0.449, resetsAt: 1 },
-  });
-  assert.deepEqual(picked.fiveHour, { name: 'five_hour', percent: 45, resetsAt: 1 });
-  assert.deepEqual(picked.sevenDay, { name: 'seven_day', percent: 5, resetsAt: 2 });
-  // A window the CLI did not report is missing, not zero, and a reading over 100 % is capped
-  assert.deepEqual(pickUsageWindows(undefined), { fiveHour: null, sevenDay: null });
-  assert.equal(pickUsageWindows({ five_hour: { utilization: 1.3, resetsAt: 0 } }).fiveHour?.percent, 100);
-  assert.equal(pickUsageWindows({ five_hour: { utilization: 0.2, resetsAt: 0 } }).sevenDay, null);
+const limit = (over: Partial<ProviderLimit>): ProviderLimit => ({
+  provider: 'claude-code',
+  state: 'ok',
+  window: '5h',
+  utilization: 0.449,
+  resetsAt: '2026-10-02T14:05:00.000Z',
+  windows: {},
+  observedAt: '2026-10-02T12:00:00.000Z',
+  source: 'stream',
+  ...over,
 });
 
-test("claude-swap's reading of the active account becomes the same bars, in whole percent", () => {
-  const read = swapUsageWindows({ fiveHour: { pct: 82.4, resetsAt: '1970-01-01T00:00:10.000Z', countdown: null }, sevenDay: null });
-  assert.deepEqual(read.fiveHour, { name: 'five_hour', percent: 82, resetsAt: 10 });
-  assert.equal(read.sevenDay, null);
-  assert.deepEqual(swapUsageWindows(undefined), { fiveHour: null, sevenDay: null });
+test("a provider's limit reads as a whole percentage of the window that binds, capped at 100", () => {
+  assert.deepEqual(limitReading(limit({})), { state: 'ok', percent: 45, resetsAt: '2026-10-02T14:05:00.000Z', window: '5h' });
+  assert.equal(limitReading(limit({ utilization: 1.3, state: 'exhausted' }))?.percent, 100);
+  // A provider that gives the windows and no single figure: the binding window's own
+  assert.equal(limitReading(limit({ utilization: null, windows: { '5h': { utilization: 0.72, resetsAt: 0 } } }))?.percent, 72);
+  // One that reports no figure at all still says it is near or at its limit
+  assert.deepEqual(limitReading(limit({ state: 'near', utilization: null, window: null })), { state: 'near', percent: null, resetsAt: '2026-10-02T14:05:00.000Z', window: null });
+});
+
+test('a limit that is not known says nothing: a stale reading is never "fine"', () => {
+  assert.equal(limitReading(limit({ state: 'unknown' })), null);
+  assert.equal(limitReading(null), null);
+  assert.equal(limitReading(undefined), null);
+});
+
+test("the phone's More card speaks for the default provider, else the first that is ready", () => {
+  const statuses = [
+    { id: 'claude-code', state: 'degraded' },
+    { id: 'codex', state: 'ready' },
+    { id: 'copilot', state: 'ready' },
+  ] as const;
+  assert.equal(cardProvider(statuses, 'copilot')?.id, 'copilot');
+  assert.equal(cardProvider(statuses, null)?.id, 'codex');
+  assert.equal(cardProvider(statuses, 'gemini')?.id, 'codex');
+  assert.equal(cardProvider([{ id: 'claude-code', state: 'degraded' }], null)?.id, 'claude-code');
+  assert.equal(cardProvider([], null), null);
 });
 
 test('the desktop app marks the page with its platform; a browser marks nothing', () => {
@@ -181,21 +201,18 @@ test('the desktop app marks the page with its platform; a browser marks nothing'
 test('the More sheet says a problem before a count, and nothing it does not know yet', () => {
   assert.deepEqual(moreNotes({}), {});
   assert.deepEqual(
-    moreNotes({ projects: 3, accounts: { total: 4, exhausted: 2 }, schedules: 0, todayCost: 1145.86, connectors: { total: 3, pending: 1 } }),
+    moreNotes({ projects: 3, schedules: 0, todayCost: 1145.86, connectors: { total: 3, pending: 1 } }),
     {
       '/projects': { kind: 'count', value: 3 },
-      '/accounts': { kind: 'exhausted', value: 2 },
       '/schedules': { kind: 'count', value: 0 },
       '/usage': { kind: 'cost', value: 1145.86 },
       '/connectors': { kind: 'pending', value: 1 },
     },
   );
-  // No account spent and none waiting for authorisation: the plain count, not a zero badge
-  const calm = moreNotes({ accounts: { total: 4, exhausted: 0 }, connectors: { total: 3, pending: 0 } });
-  assert.deepEqual(calm['/accounts'], { kind: 'count', value: 4 });
+  // Nothing waiting for authorisation: the plain count, not a zero badge
+  const calm = moreNotes({ connectors: { total: 3, pending: 0 } });
   assert.deepEqual(calm['/connectors'], { kind: 'count', value: 3 });
-  // Before the account list is read, the overview's total; a day with no cost is said, not left blank
-  assert.deepEqual(moreNotes({ accounts: { total: 2 } })['/accounts'], { kind: 'count', value: 2 });
+  // A day with no cost is said, not left blank
   assert.deepEqual(moreNotes({ todayCost: null })['/usage'], { kind: 'cost', value: null });
 });
 

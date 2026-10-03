@@ -303,7 +303,7 @@
     "file": "DesktopProyectoAjustes.html",
     "title": "Desktop · Ajustes del proyecto",
     "w": 1440,
-    "h": 2100
+    "h": 2700
   },
   {
     "file": "DesktopProyecto.html",
@@ -1088,6 +1088,150 @@
   {
     "file": "MobileTareaFrescura.html",
     "title": "Móvil · Tarea, frescura de la PR",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DSLimites.html",
+    "title": "Design system · Límites de los proveedores",
+    "w": 1440,
+    "h": 1300
+  },
+  {
+    "file": "DesktopProveedoresRotacion.html",
+    "title": "Desktop · Ajustes, proveedores: al llegar a un límite y equivalencias",
+    "w": 1440,
+    "h": 1700
+  },
+  {
+    "file": "MobileProveedoresRotacion.html",
+    "title": "Móvil · Ajustes, al llegar a un límite",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileProveedoresEquivalencias.html",
+    "title": "Móvil · Ajustes, equivalencias de modelos",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileProveedoresEquivalenciasPar.html",
+    "title": "Móvil · Ajustes, equivalencia de un modelo",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileProyectoAjustesProveedores.html",
+    "title": "Móvil · Ajustes del proyecto, proveedores",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopChatLimite.html",
+    "title": "Desktop · Chat en el límite",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopChatLimiteTraspaso.html",
+    "title": "Desktop · Chat en el límite, hoja del traspaso",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopChatEspera.html",
+    "title": "Desktop · Chat esperando el reinicio",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopChatContinuado.html",
+    "title": "Desktop · Chat continuado en otro proveedor",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopChatContinuadoOrigen.html",
+    "title": "Desktop · Chat que continuó en otro",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileChatLimite.html",
+    "title": "Móvil · Chat en el límite",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileChatLimiteTraspaso.html",
+    "title": "Móvil · Chat en el límite, hoja del traspaso",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileChatEspera.html",
+    "title": "Móvil · Chat esperando el reinicio",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileChatContinuado.html",
+    "title": "Móvil · Chat continuado en otro proveedor",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileChatContinuadoOrigen.html",
+    "title": "Móvil · Chat que continuó en otro",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DSRotacionChat.html",
+    "title": "Design system · Rotación, el chat",
+    "w": 1440,
+    "h": 2480
+  },
+  {
+    "file": "DSRotacion.html",
+    "title": "Design system · Rotación entre proveedores",
+    "w": 1440,
+    "h": 5600
+  },
+  {
+    "file": "DesktopChatFlujoMovido.html",
+    "title": "Desktop · Chat de una ejecución que cambió de proveedor",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileChatFlujoMovido.html",
+    "title": "Móvil · Chat de una ejecución que cambió de proveedor",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopProveedoresRetirada.html",
+    "title": "Desktop · Proveedores con el aviso de claude-swap",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileProveedoresRetirada.html",
+    "title": "Móvil · Proveedores con el aviso de claude-swap",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DesktopAjustesDecisionesProveedores.html",
+    "title": "Desktop · Decisiones, área de proveedores",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileAjustesDecisionesProveedores.html",
+    "title": "Móvil · Decisiones, área de proveedores",
     "w": 390,
     "h": 844
   }

@@ -1892,3 +1892,115 @@
     flex: 0 0 auto;
   }
 }
+
+/* ---- Rotation between providers: the chain of a task and the strip of a wait (design system, "Rotation between providers") ----
+   Waiting is not live work: nothing here moves, and the only status colour is warn, beside its word. */
+.chain {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chain-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chain-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 9px 0 3px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-2);
+  background: var(--bg-2);
+  color: var(--fg-2);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+a.chain-chip:hover {
+  color: var(--fg);
+  border-color: var(--line-3);
+  text-decoration: none;
+}
+
+.chain-chip .prov-mark {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-pill);
+  font-size: 9.5px;
+}
+
+/* The newest chat of the chain is the one that runs now: the others are history */
+.chain-chip.now {
+  color: var(--fg);
+  border-color: var(--line-3);
+  font-weight: 500;
+}
+
+.chain-arrow {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--fg-3);
+}
+
+.chain-how {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+.chain-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+/* Where a running task shows its command, a waiting one shows this: warn tint and the clock, no spinner */
+.wait-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+  color: var(--fg-2);
+  padding: 9px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.wait-line > svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--warn);
+}
+
+.wait-line b {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.wait-line .mono {
+  color: var(--fg);
+}
+
+.wait-line .why {
+  display: block;
+  margin-top: 2px;
+  color: var(--fg-2);
+}
+
+/* On the item: the chain of a run that moved and the wait of one that stopped, above the item's own text */
+.workitem-runstate {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

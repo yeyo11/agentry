@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><title>Agentry · Orquestación (móvil)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Orquestación (móvil)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:var(--bg)}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)})}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
 
-<div class="app m-screen glow-top" data-theme="dark" style="background-size: 100% 300px">
+<div class="app m-screen glow-top" data-theme="dark" style="background-size: 100% 300px; height: auto; min-height: 844px">
 <header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 2px">
 <a href="MobileOrquestaciones.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver"><svg class="ico ico-lg" viewBox="0 0 24 24" style="stroke-width: 2"><path d="m15 6-6 6 6 6"></path></svg></a>
-<span class="col grow" style="gap: 2px"><span style="font-weight: 600; font-size: 16px">spanish-copy</span><span class="row t-xs mono" style="gap: 6px"><span class="spin-braille"></span><span class="c-live">en curso</span></span></span>
+<span class="col grow" style="gap: 2px"><span style="font-weight: 600; font-size: 16px">spanish-copy</span><span class="row t-xs mono" style="gap: 6px"><span class="spin-braille"></span><span class="c-live">en curso</span><span class="c-warn">· 2 esperando</span></span></span>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones"><svg class="ico ico-lg" viewBox="0 0 24 24" style="stroke-width: 3"><path d="M5 12h.01M12 12h.01M19 12h.01"></path></svg></button>
 </header>
 
@@ -24,14 +24,27 @@
 <span class="badge" style="height: 28px; flex-shrink: 0">verificación</span>
 </div>
 
+<!--rot-->
 <article class="card energy col" style="padding: 14px; gap: 10px">
-<div class="row"><span class="spin-ring"></span><span class="grow" style="font-weight: 600">Spanish copy: config</span><span class="mono t-xs fg-3">10:59</span></div>
-<div class="row mono t-xs" style="gap: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px"><span class="c-live">$</span><span class="ellipsis fg-2">pnpm --filter @agentry/web test</span></div>
+<div class="row"><span class="spin-ring"></span><span class="grow" style="font-weight: 600">Spanish copy: config</span><button type="button" class="decided" aria-label="Pasó a Codex por un punto de decisión. Ver la respuesta"><span class="decided-face">decidido</span></button><span class="mono t-xs fg-3">10:59</span></div>
+<div class="chain-row"><span class="chain" role="group" aria-label="Proveedores, del primero al actual"><span class="chain-chip"><span class="prov-mark" style="--hue: 24" role="img" aria-label="Claude Code" title="Claude Code">CC</span>Claude Code</span><svg class="ico chain-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg><span class="chain-chip now"><span class="prov-mark" style="--hue: 215" role="img" aria-label="Codex" title="Codex">CX</span>Codex</span></span><span class="chain-how">traspaso · 13:48</span></div>
+<div class="row mono t-xs" style="gap: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px"><span class="c-live">$</span><span class="ellipsis fg-2">pnpm --filter @agentry/web test</span></div>
 <div class="row"><button type="button" class="btn grow">Enviar pista</button><a href="MobileChat.html" class="btn grow">Abrir chat</a></div>
 </article>
 <article class="card row" style="padding: 12px 14px; gap: 10px"><span style="width: 16px; height: 16px; border-radius: 50%; background: var(--ok-soft); display: grid; place-items: center"><svg class="ico c-ok" viewBox="0 0 24 24" style="width: 11px; height: 11px; stroke-width: 3"><path d="m5 12 5 5 9-10"></path></svg></span><span class="col grow" style="gap: 1px"><span class="t-sm" style="font-weight: 500">Shell and components</span><span class="mono t-xs c-ok">2.º intento · 10:28</span></span><span class="t-num t-sm">3,51 $</span></article>
-<article class="card row rail-live" style="padding: 12px 14px 12px 16px; gap: 10px"><span class="spin-ring"></span><span class="col grow" style="gap: 1px"><span class="t-sm" style="font-weight: 500">Chats and home</span><span class="mono t-xs c-live">Run web unit tests</span></span><span class="mono t-xs fg-3">10:59</span></article>
-<article class="card row rail-live" style="padding: 12px 14px 12px 16px; gap: 10px"><span class="spin-ring"></span><span class="col grow" style="gap: 1px"><span class="t-sm" style="font-weight: 500">Orchestration, schedules, usage</span><span class="t-xs shimmer">Pensando</span></span><span class="mono t-xs fg-3">10:59</span></article>
+<article class="card col" style="padding: 14px; gap: 10px">
+<div class="row"><svg class="ico ico-sm c-warn" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"></path></svg><span class="grow t-sm" style="font-weight: 500">Chats and home</span><button type="button" class="decided" aria-label="Espera al reinicio de Claude Code por un punto de decisión. Ver la respuesta"><span class="decided-face">decidido</span></button><span class="badge b-warn">esperando</span></div>
+<div class="chain-row"><span class="chain" role="group" aria-label="Proveedores, del primero al actual"><span class="chain-chip now"><span class="prov-mark" style="--hue: 24" role="img" aria-label="Claude Code" title="Claude Code">CC</span>Claude Code</span></span><span class="chain-how">ocupa su sitio</span></div>
+<div class="wait-line" role="status"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"></path></svg><span><b>Esperando a Claude Code</b> · vuelve a las <span class="mono">14:05</span> (en 2 h 10 min)<span class="why">Llegó a su límite de 5 h. La tarea conserva su sitio y retomará el turno sola.</span></span></div>
+<div class="row"><button type="button" class="btn grow">Dejar de esperar</button><button type="button" class="btn grow"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>Mover ahora</button></div>
+</article>
+<article class="card col" style="padding: 14px; gap: 10px">
+<div class="row"><svg class="ico ico-sm c-warn" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"></path></svg><span class="grow t-sm" style="font-weight: 500">Orchestration, schedules, usage</span><span class="badge b-warn">esperando</span></div>
+<div class="chain-row"><span class="chain" role="group" aria-label="Proveedores, del primero al actual"><span class="chain-chip now"><span class="prov-mark" style="--hue: 24" role="img" aria-label="Claude Code" title="Claude Code">CC</span>Claude Code</span></span><span class="chain-how">sin equivalente · opus-5.5</span></div>
+<div class="wait-line" role="status"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"></path></svg><span><b>Esperando a Claude Code</b> · vuelve a las <span class="mono">14:05</span> (en 2 h 10 min)<span class="why">Opus 5.5 no tiene equivalente en Codex, y el trabajo no puede pasar allí sin uno.</span></span></div>
+<div class="row"><button type="button" class="btn grow">Dejar de esperar</button><a href="MobileProveedoresRotacion.html" class="btn grow">Elegir equivalente</a></div>
+</article>
+<!--/rot-->
 </div>
 </div>
 </body></html>

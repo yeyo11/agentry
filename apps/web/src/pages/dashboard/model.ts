@@ -4,7 +4,6 @@
  * how much is live in each project.
  */
 import type {
-  AccountUsageWindow,
   ChatSummary,
   Orchestration,
   OrchestrationTaskState,
@@ -14,6 +13,7 @@ import type {
   PermissionRequest,
   Schedule,
 } from '@agentry/shared';
+import { CLAUDE_CODE_ID } from '../../lib/provider-state';
 import type { ProgressCounts, ProgressStatus, StepState } from '@agentry/ui/lib/progress';
 
 /** What a chat stopped for, described so the component words it in the active language. */
@@ -213,18 +213,12 @@ const WEEKLY = /seven|7\s*d|week/i;
 const clampPct = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
 
 /**
- * The 5 h and weekly windows of the account in use. claude-swap's reading of the active account is
- * the precise one when it is installed; otherwise the windows the CLI reported in its last rate
- * limit event, recognised by name.
+ * The 5 h and weekly windows of Claude Code, recognised by name: the Home card names Claude's account,
+ * so another provider's reading never stands in for it.
  */
-export function limitSummary(overview: Pick<Overview, 'accounts' | 'rateLimit'> | undefined): LimitSummary {
-  const usage = overview?.accounts?.active?.usage;
-  if (usage && (usage.fiveHour || usage.sevenDay)) {
-    const fromSwap = (w: AccountUsageWindow | null): LimitWindow | null =>
-      w ? { pct: clampPct(w.pct), resetsAt: w.resetsAt ? Date.parse(w.resetsAt) || null : null } : null;
-    return { fiveHour: fromSwap(usage.fiveHour), weekly: fromSwap(usage.sevenDay) };
-  }
-  const windows = Object.entries(overview?.rateLimit?.windows ?? {});
+export function limitSummary(overview: Pick<Overview, 'limits'> | undefined): LimitSummary {
+  // The widget sits beside Claude's account, so it reads Claude's windows and no other provider's
+  const windows = Object.entries((overview?.limits ?? []).find((l) => l.provider === CLAUDE_CODE_ID)?.windows ?? {});
   const find = (pattern: RegExp): LimitWindow | null => {
     const found = windows.find(([name]) => pattern.test(name))?.[1];
     return found ? { pct: clampPct(found.utilization * 100), resetsAt: found.resetsAt ? found.resetsAt * 1000 : null } : null;

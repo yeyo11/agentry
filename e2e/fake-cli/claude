@@ -243,6 +243,27 @@ function startTurn(message) {
   const scripted = steps.some((s) => s.kind === 'say' || s.kind === 'json' || s.kind === 'stream');
   turn = { steps, current: null, startedAt: Date.now(), interrupted: false, scripted, lastSaid: '', structured: undefined };
   log('turn', { text, commands });
+  // A line `FAKE-LIMIT` is the account's usage limit, as the CLI's stream-json reports it: a rejected
+  // `rate_limit_event` whose window resets in an hour, then a result that failed with a 429. The same
+  // prompt sent again fails again, so a spec can tell a rotation that moved the chat from one that retried
+  if (/^FAKE-LIMIT\s*$/m.test(text)) {
+    emit({ type: 'rate_limit_event', rate_limit_info: { status: 'rejected', rateLimitType: 'five_hour', resetsAt: Math.floor(Date.now() / 1000) + 3600, unifiedWindows: { '5h': { utilization: 1 } } } });
+    turn = null;
+    turns++;
+    emit({ type: 'result', subtype: 'error_during_execution', is_error: true, api_error_status: 429, num_turns: 1, total_cost_usd: costUsd, result: "You've hit your usage limit" });
+    log('result', { error: true, turns, limit: true });
+    const next = inbox.shift();
+    if (next !== undefined) setImmediate(() => startTurn(next));
+    return;
+  }
+  // A line `FAKE-LIMIT-CLEAR` is the window back to normal: an allowed `rate_limit_event` at no use, so a
+  // spec that drove the account to its limit can leave it as it found it for the specs after it
+  if (/^FAKE-LIMIT-CLEAR\s*$/m.test(text)) {
+    emit({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed', rateLimitType: 'five_hour', resetsAt: Math.floor(Date.now() / 1000) + 3600, unifiedWindows: { '5h': { utilization: 0 } } } });
+    assistant([heard(text)]);
+    endTurn({ result: 'Limit cleared' });
+    return;
+  }
   if (steps.length === 0) {
     assistant([heard(text)]);
     endTurn({ result: `Heard: ${firstLine(text)}` });

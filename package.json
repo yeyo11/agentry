@@ -27,7 +27,13 @@
     "//": "undici arrives with the Scalar docs viewer and every 7.x below 7.29.0 carries the twelve advisories pnpm audit reports, four of them high. Nothing here calls undici on purpose (the OIDC verifier goes through globalThis.fetch), but it ships in the image. Caret and not >=: undici 8 is a major the Scalar packages were not written against. CI runs pnpm audit --audit-level=high, so the next one fails a pull request instead of waiting for an audit.",
     "overrides": {
       "undici": "^7.29.0"
-    }
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-ch52-4w7c-c8xp"
+      ]
+    },
+    "//auditConfig": "GHSA-ch52-4w7c-c8xp (http-cache-semantics <=4.2.0, max-stale) has no patched release. It reaches the tree only through apps/desktop's electron-builder (@electron/get > got > cacheable-request), a dev dependency that downloads Electron while packaging the desktop app: no server, image or app code uses it, and there is no shared cache to leak across users. Remove this entry once a patched http-cache-semantics exists and override to it instead."
   },
   "devDependencies": {
     "@types/node": "^26.6.1",

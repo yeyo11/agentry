@@ -22,7 +22,7 @@ import type {
 const PRIVACY_NOTICE =
   'A decision point set to Jev sends a redacted summary of its state (titles, descriptions, short excerpts) to TypeSafe, which runs the model. Nothing is sent until you consent to that point after previewing what it sends, and secrets are masked before anything leaves this machine.';
 
-const SUBJECT_KINDS: readonly DecisionSubjectKind[] = ['work_item', 'change_request', 'flow_run', 'task', 'chat', 'memory_proposal', 'assistant_run', 'notification', 'palette', 'tracker_issue'];
+const SUBJECT_KINDS: readonly DecisionSubjectKind[] = ['work_item', 'change_request', 'flow_run', 'task', 'chat', 'memory_proposal', 'assistant_run', 'notification', 'palette', 'tracker_issue', 'model'];
 
 const DEFAULT_STATS_DAYS = 30;
 const DAY_MS = 86_400_000;

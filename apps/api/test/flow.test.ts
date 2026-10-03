@@ -14,6 +14,7 @@ import { buildApp } from '../src/app.ts';
 // each run with the structured result the item's description scripts for its stage, and logs the
 // arguments it was started with, which is how the flags the flow passes are checked. Nothing here
 // reads the real ~/.claude.
+process.env.FAKE_CLAUDE_LOGGED_IN = '1';
 const FAKE_CLAUDE = fileURLToPath(new URL('../../../packages/core/test/fixtures/fake-claude.mjs', import.meta.url));
 
 let app: FastifyInstance;
@@ -68,7 +69,6 @@ before(async () => {
   core = new Core(
     loadConfig({
       CLAUDE_BIN: FAKE_CLAUDE,
-      CSWAP_BIN: '/nonexistent/cswap',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
       AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
       AGENTRY_DATA_DIR: join(root, 'data'),

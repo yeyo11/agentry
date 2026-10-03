@@ -85,7 +85,7 @@ always global.
 
 ## The points
 
-Twenty-five points. **Suggest** points never change what happens by themselves.
+Twenty-eight points. **Suggest** points never change what happens by themselves.
 
 | Area | Point | Kind | Scope | What it decides |
 | --- | --- | --- | --- | --- |
@@ -114,6 +114,9 @@ Twenty-five points. **Suggest** points never change what happens by themselves.
 | Code hosts | `checks.fix` | act | P | Whether failing checks on a new head are the branch's fault and a Developer can fix them |
 | | `review.triage` | suggest | P | Who should take each unresolved review comment: an agent, a person, or nobody |
 | | `issue.triage` | suggest | P | Whether an agent can start on each listed tracker issue as written |
+| Providers | `provider.on-limit` | act | P | What automated work does at a provider's usage limit: hand off, restart on the next provider, or wait |
+| | `provider.pick` | act | P | Which candidate provider starts a piece of automated work |
+| | `provider.model-map` | suggest | G | The closest model on another provider; nothing is in force until a person accepts it |
 
 ### `checks.fix`
 
@@ -180,8 +183,9 @@ Added with code hosts phase 5 ([code-hosts.md](code-hosts.md), [trackers.md](tra
   rows through `GET /decisions`.
 
 Not decided by the engine, by design: anything that grants (tool permissions, the move to `done`,
-QA's final verdict, `verifyAuth`, a security mode) and plain arithmetic (account rotation, usage
-bars, cost caps). Jev never generates text, code or prompts.
+QA's final verdict, `verifyAuth`, a security mode) and plain arithmetic (usage bars, cost caps, a
+provider's headroom and reset, the candidate filters). The provider points only choose among the
+feasible options the person allowed: the arithmetic stays code. Jev never generates text, code or prompts.
 
 Each point lives in the catalogue (`decisions/points.ts`): its kind, scope, threshold, state fields,
 byte limit, state version, `savesRun`, `visible` and questions. Call sites take a `stanceOf` (`off`,

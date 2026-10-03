@@ -3,15 +3,17 @@ import { ArrowRight, ArrowUp, Check, GitPullRequest, Hourglass, Link2, MessageSq
 import { lazy, Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { useWorkItemRuns } from '../../../api';
+import { useProviderMoves, useWorkItemRuns } from '../../../api';
 import { Monogram } from '@agentry/ui/components/icons';
 import { Segmented } from '@agentry/ui/components/ui';
 import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
 import { columnMeta, priorityMeta } from '../../../lib/work-items';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
+import { MoveDecisionMark } from '../../../components/ProviderChain';
+import { useProviderLabel } from '../../../lib/provider-status';
 import { AgentMark } from './Criteria';
 import type { ItemActions } from './hooks';
-import { activityOf, causeLine, historyLine, historyPullRequestHost, shortId, type ActivityFilter, type HistoryLine } from './model';
+import { activityOf, causeLine, historyLine, historyPullRequestHost, movedRunsOf, shortId, type ActivityFilter, type HistoryLine, type MovedRun } from './model';
 import { RunStatusBadge, useFailureReason } from './RunParts';
 import { commentRun, failureCommentRun, retriesOf, runStep } from './runs';
 
@@ -106,6 +108,40 @@ function RetryItem({ run, person }: { run: FlowRun; person: string }) {
 }
 
 /**
+ * A run that went on in a new chat on another provider after a limit ("Developer run moved from
+ * Claude Code to Codex · handoff · by the settings · chat 7c2e01"). The core writes no history for a
+ * move, so the page says it at the moment the move was recorded.
+ */
+function MovedItem({ run, move, person }: MovedRun & { person: string }) {
+  const { t } = useTranslation('workItem');
+  const roleName = useRoleName();
+  const label = useProviderLabel();
+  const by = move.decidedBy === 'person' ? person : t(`run.movedBy.${move.decidedBy}`);
+  return (
+    <li className="history-entry">
+      <span className="history-icon" aria-hidden>
+        <span>
+          <ArrowRight size={11} strokeWidth={2} />
+        </span>
+      </span>
+      <span className="history-text">
+        <span>
+          {t('run.moved', { role: roleName(run.role), from: label(move.fromProvider), to: label(move.toProvider ?? move.fromProvider) })}
+        </span>
+        <span className="history-cause">
+          {t(`run.movedHow.${move.action === 'restart' ? 'restart' : 'handoff'}`)} · {by}
+          {move.toChat && ` · ${t('link.chat', { id: shortId(move.toChat) })}`}
+        </span>
+        {move.decisionId && <MoveDecisionMark decisionId={move.decisionId} />}
+      </span>
+      <time dateTime={move.at} title={formatDateTime(move.at)}>
+        {timeAgo(move.at)}
+      </time>
+    </li>
+  );
+}
+
+/**
  * The comment the core writes when a run fails is English ("This verification run failed and moved
  * nothing: …"): drawn from the run instead, in the person's words, with the way to its chat.
  */
@@ -165,9 +201,10 @@ function CommentItem({ comment, person, runs }: { comment: WorkItemComment; pers
  * history of their own. Read for every item, as its links read them: a run that failed before its
  * chat started leaves no link, yet its comment is one of the flow's.
  */
-export function useItemRuns(item: Pick<WorkItemDetail, 'id' | 'links'>): { runs: FlowRun[]; retries: FlowRun[] } {
+export function useItemRuns(item: Pick<WorkItemDetail, 'id' | 'links' | 'projectId'>): { runs: FlowRun[]; retries: FlowRun[]; moved: MovedRun[] } {
   const runs = useWorkItemRuns(item.id).data ?? [];
-  return { runs, retries: retriesOf(runs) };
+  const moves = useProviderMoves(item.projectId).data;
+  return { runs, retries: retriesOf(runs), moved: moves ? movedRunsOf(runs, moves) : [] };
 }
 
 /** The box a comment is written in; Ctrl/⌘ + Enter sends it as well as the button. */
@@ -209,8 +246,8 @@ export function CommentBox({ actions, compact = false }: { actions: ItemActions;
 export function Activity({ item, actions, person, compact = false }: { item: WorkItemDetail; actions: ItemActions; person: string; compact?: boolean }) {
   const { t } = useTranslation('workItem');
   const [filter, setFilter] = useState<ActivityFilter>('all');
-  const { runs, retries } = useItemRuns(item);
-  const entries = activityOf(item.history, item.comments, filter, retries);
+  const { runs, retries, moved } = useItemRuns(item);
+  const entries = activityOf(item.history, item.comments, filter, retries, moved);
   return (
     <section className="workitem-section workitem-activity" aria-labelledby={`activity-${item.id}`}>
       <div className={compact ? 'workitem-section-head is-bare' : 'workitem-section-head'}>
@@ -237,7 +274,7 @@ export function Activity({ item, actions, person, compact = false }: { item: Wor
                 value: 'history',
                 label: (
                   <>
-                    {t('activity.history')} <span className="segment-count">{item.history.length + retries.length}</span>
+                    {t('activity.history')} <span className="segment-count">{item.history.length + retries.length + moved.length}</span>
                   </>
                 ),
               },
@@ -254,6 +291,8 @@ export function Activity({ item, actions, person, compact = false }: { item: Wor
               <HistoryItem key={entry.entry.id} entry={entry.entry} person={person} />
             ) : entry.kind === 'retry' ? (
               <RetryItem key={`retry-${entry.run.id}`} run={entry.run} person={person} />
+            ) : entry.kind === 'moved' ? (
+              <MovedItem key={`moved-${entry.move.id}`} run={entry.run} move={entry.move} person={person} />
             ) : (
               <CommentItem key={entry.comment.id} comment={entry.comment} person={person} runs={runs} />
             ),

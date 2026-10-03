@@ -37,7 +37,7 @@ test('the descendants of a process are every process under it, deepest first, an
 
 test('the CLI is found under a wrapper by what it drives, not by its name', () => {
   const table = [
-    entry(100, 1, ['cswap', 'chat', 'work', '--']),
+    entry(100, 1, ['wrapper', 'chat', 'work', '--']),
     entry(101, 100, ['claude', '--input-format', 'stream-json', '--session-id', 'abc']),
     entry(102, 101, ['bash', '-c', 'pnpm e2e']),
   ];

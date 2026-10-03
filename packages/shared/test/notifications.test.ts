@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { displayTitle, interrupts, KINDS, LEVELS, notificationsFor, settlesWaiting, waitingDrafts, type AgentryEvent, type NotificationDraft } from '../src/index.ts';
+import { displayTitle, englishNotificationText, interrupts, KINDS, LEVELS, notificationsFor, settlesWaiting, waitingDrafts, type AgentryEvent, type NotificationDraft } from '../src/index.ts';
 
 /*
  * The mapping the web's toasts and the server's push sender share. The web covers it through its
@@ -120,20 +120,32 @@ test('a rate limit and the account it moved to are one kind', () => {
   assert.equal(draft.kind, 'limit');
   assert.equal(draft.title, 'fix the build hit a rate limit');
   assert.equal(draft.body, 'The turn stopped because the account ran out of quota.');
+});
 
-  const rotated = (extra: Partial<Extract<AgentryEvent, { type: 'run.accountRotated' }>> = {}): AgentryEvent => ({
-    type: 'run.accountRotated',
-    ...base('rotated'),
+test('a move to another provider and a wait for a reset are limit news, except a move the person made', () => {
+  const moved = (decidedBy: 'person' | 'setting' | 'decision', action: 'handoff' | 'restart' = 'handoff'): AgentryEvent => ({
+    type: 'run.providerMoved',
+    ...base('fix the build moved to Codex'),
     ...run,
-    from: 'a@x',
-    to: 'b@x',
-    resumed: true,
-    ...extra,
+    from: 'claude-code',
+    to: 'codex',
+    action,
+    decidedBy,
   });
-  assert.equal(only(notificationsFor(rotated())).body, 'a@x → b@x, and the turn was replayed.');
-  assert.equal(only(notificationsFor(rotated({ resumed: false }))).body, 'a@x → b@x.');
-  // Accounts Agentry cannot name are still an account
-  assert.equal(only(notificationsFor(rotated({ from: null, to: null, resumed: false }))).body, 'The previous account → the next account.');
+  const draft = only(notificationsFor(moved('setting')));
+  assert.equal(draft.kind, 'limit');
+  assert.equal(draft.title, 'fix the build moved to Codex');
+  assert.equal(draft.body, 'It went on from a record of what was done.');
+  assert.equal(only(notificationsFor(moved('decision', 'restart'))).body, 'It started again from its original prompt.');
+  assert.deepEqual(notificationsFor(moved('person')), []);
+
+  const waiting = (resetsAt: string | null): AgentryEvent => ({ type: 'run.limitWaiting', ...base("fix the build waits for Claude Code's limit to reset"), ...run, provider: 'claude-code', resetsAt });
+  assert.equal(only(notificationsFor(waiting('2026-01-01T17:30:00Z'))).body, 'It goes on when the limit resets, at 2026-01-01 17:30 UTC.');
+  assert.equal(only(notificationsFor(waiting(null))).body, 'It goes on when the limit resets; no reset time is known.');
+  assert.deepEqual(notificationsFor({ ...(waiting(null) as Extract<AgentryEvent, { type: 'run.limitWaiting' }>), internal: true }), []);
+  // A client with its own words says them, and one without falls back to the English
+  const spanish = { ...englishNotificationText, limitWaitingBody: () => 'Continúa al reiniciarse el límite.' };
+  assert.equal(only(notificationsFor(waiting(null), spanish)).body, 'Continúa al reiniciarse el límite.');
 });
 
 test('finished work inside a chat stays low unless it failed, and opens the panel that shows it', () => {

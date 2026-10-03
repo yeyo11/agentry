@@ -1,12 +1,14 @@
-import type { Orchestration, OrchestrationTaskState } from '@agentry/shared';
+import type { LimitWait, Orchestration, OrchestrationTaskState } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Ban,
+  ArrowRight,
   ChevronDown,
   CircleAlert,
   CircleCheck,
   CircleDashed,
   CirclePause,
+  Clock,
   CircleX,
   CornerDownRight,
   GitFork,
@@ -39,6 +41,8 @@ import { withoutKey } from '../lib/work-item-links';
 import { ActivityTicker } from '@agentry/ui/components/ActivityTicker';
 import { Collapsible, Tooltip } from '@agentry/ui/components/controls';
 import { DecisionMark } from './DecisionMark';
+import { NoCounterpartWhy, ProviderChain, useMovedWords, useNoCounterpart, WaitLine } from './ProviderChain';
+import { useProviderLabel } from '../lib/provider-status';
 import { useConfirm } from '@agentry/ui/components/Dialog';
 import { useLinkedWorkItem, WorkItemKeyLink } from './WorkItemKeyLink';
 import { ICON_SM } from '@agentry/ui/components/icons';
@@ -176,6 +180,7 @@ function useTaskActions(orch: Orchestration, task: OrchestrationTaskState): { bu
   const { t: tv } = useTranslation('orchestrationV2');
   const queryClient = useQueryClient();
   const confirm = useConfirm();
+  const toast = useToast();
   const [hinting, setHinting] = useState(false);
   const decisions = decisionsOn(orch, task);
   const decide = useMutation({
@@ -194,12 +199,30 @@ function useTaskActions(orch: Orchestration, task: OrchestrationTaskState): { bu
     onSuccess: (next) => queryClient.setQueryData(keys.orchestration(orch.id), next),
   });
   const name = task.name || task.id;
+  const { t: tc } = useTranslation('components');
+  const stopWait = useMutation({
+    mutationFn: () => api.cancelProviderMove(task.waiting?.moveId ?? ''),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.orchestration(orch.id) }),
+    onError: (error) => toast.error(tc('limitWait.stopFailed'), error),
+  });
   const behind = orch.tasks.filter((t) => t.status === 'blocked').length;
   // The task itself is not counted among what depends on it
   const dependants = dependantsOf(orch.tasks, task.id).length - 1;
 
   const buttons = (
     <>
+      {task.waiting && (
+        <>
+          <button type="button" className="btn btn-small btn-quiet" disabled={stopWait.isPending} onClick={() => stopWait.mutate()}>
+            {tc('limitWait.stop')}
+          </button>
+          {task.sessionId && (
+            <Link to={`/chats/${encodeURIComponent(task.sessionId)}`} className="btn btn-small" title={tc('limitWait.moveNowTitle')}>
+              <ArrowRight {...ICON_SM} /> {tc('limitWait.moveNow')}
+            </Link>
+          )}
+        </>
+      )}
       {decisions.hint && !hinting && (
         <button type="button" className="btn btn-small btn-quiet" onClick={() => setHinting(true)}>
           <Send {...ICON_SM} /> {t('board.sendAHint')}
@@ -317,8 +340,35 @@ function TaskCost({ task }: { task: OrchestrationTaskState }) {
   return <span title={t('board.costTitle')}>{formatCost(task.costUsd)}</span>;
 }
 
+/** The status a task is drawn in: one waiting for a reset keeps its place but looks like the held ones (warn), not like live work. */
+function shownStatus(task: OrchestrationTaskState): OrchestrationTaskState['status'] {
+  return task.status === 'running' && task.waiting ? 'blocked' : task.status;
+}
+
+/**
+ * A task's badge. A task waiting for its provider's limit to reset is still `running` for the graph
+ * (it keeps its place), but nothing works: the badge says "waiting" with the clock and never spins.
+ */
+function TaskStatusBadge({ task }: { task: OrchestrationTaskState }) {
+  const { t } = useTranslation('components');
+  if (task.status === 'running' && task.waiting)
+    return (
+      <span className="badge badge-warn">
+        <Clock {...ICON_SM} />
+        {t('limitWait.badge')}
+      </span>
+    );
+  return <BoardStatusBadge status={task.status} />;
+}
+
 /** A task's state as a mark beside its name: the ring while it runs, a shape once it has an outcome. The word is in its status box. */
-function TaskMark({ status }: { status: OrchestrationTaskState['status'] }) {
+function TaskMark({ status, waiting = false }: { status: OrchestrationTaskState['status']; waiting?: boolean }) {
+  if (status === 'running' && waiting)
+    return (
+      <span className="task-mark is-warn" aria-hidden>
+        <Clock size={12} strokeWidth={2.25} />
+      </span>
+    );
   if (status === 'running') return <Spinner variant="ring" />;
   const { icon: Icon, tone } = STATUS[status];
   return (
@@ -328,16 +378,25 @@ function TaskMark({ status }: { status: OrchestrationTaskState['status'] }) {
   );
 }
 
+/** The wait strip of a task: what holds it is the limit, or no counterpart for its model on the other provider (with the way to set one). */
+function TaskWaitLine({ task, wait }: { task: OrchestrationTaskState; wait: LimitWait }) {
+  const { t } = useTranslation('components');
+  const noCounterpart = useNoCounterpart(wait);
+  return <WaitLine wait={wait} why={noCounterpart ? <NoCounterpartWhy provider={noCounterpart.provider} model={task.model} /> : t('limitWait.why')} />;
+}
+
 /**
  * The one line that says where a task stands, in words: what a running worker is doing (its
  * command, in mono), how a finished one ended, what a blocked one waits for.
  */
 function TaskStatusBox({ orch, task }: { orch: Orchestration; task: OrchestrationTaskState }) {
-  const { t } = useTranslation(['orchestration', 'primitives']);
+  const { t } = useTranslation(['orchestration', 'primitives', 'components']);
   const attempt = attemptLabel(orch, task);
   const behind = task.status === 'blocked' ? blockedBy(orch, task) : [];
   switch (task.status) {
     case 'running':
+      // Waiting for a reset is not live work: no ticker, no spinner, the clock and the hour
+      if (task.waiting) return <TaskWaitLine task={task} wait={task.waiting} />;
       return task.activity ? (
         <div className="task-box is-live">
           <ActivityTicker activity={task.activity} className="task-ticker" />
@@ -400,6 +459,25 @@ function TaskStatusBox({ orch, task }: { orch: Orchestration; task: Orchestratio
   }
 }
 
+/**
+ * The providers a task went through, as chips that open their chats, when it moved or waits. A task
+ * that ran on one provider and never waited needs no chain.
+ */
+function TaskChain({ task }: { task: OrchestrationTaskState }) {
+  const { t } = useTranslation('components');
+  const movedWords = useMovedWords();
+  const noCounterpart = useNoCounterpart(task.waiting);
+  const chain = task.chain?.length ? task.chain : task.provider && task.sessionId ? [{ chatId: task.sessionId, provider: task.provider, model: task.model ?? null, action: null }] : [];
+  if (chain.length < 2 && !task.waiting) return null;
+  const last = chain[chain.length - 1];
+  const how = noCounterpart
+    ? t('providerChain.noCounterpart', { model: task.model || t('limitWait.itsModel') })
+    : task.waiting
+      ? t('providerChain.keepsPlace')
+      : [movedWords(last?.action), last?.model].filter(Boolean).join(' · ');
+  return <ProviderChain chain={chain} how={how || undefined} />;
+}
+
 /** Everything a task says beyond its head line, the same in a stage's card and in a graph node. */
 function TaskBody({ orch, task, inspected, onInspect }: { orch: Orchestration; task: OrchestrationTaskState; inspected: boolean; onInspect?: () => void }) {
   const { t } = useTranslation('orchestration');
@@ -409,6 +487,7 @@ function TaskBody({ orch, task, inspected, onInspect }: { orch: Orchestration; t
   const actions = useTaskActions(orch, task);
   return (
     <>
+      <TaskChain task={task} />
       <TaskStatusBox orch={orch} task={task} />
       {task.status === 'running' && task.health && task.health.level !== 'ok' && (
         <div className="stack-tight">
@@ -496,11 +575,12 @@ export function TaskCard({
 }) {
   const reduced = useReducedMotion();
   const titleId = useId();
+  const shown = shownStatus(task);
   return (
     // Keyed on status so a task visibly settles into its new state when it changes
     <motion.article
       key={task.status}
-      className={`board-task status-${task.status}`}
+      className={`board-task status-${shown}`}
       aria-labelledby={titleId}
       initial={reduced ? false : { opacity: 0.4, scale: 0.98 }}
       // Fading a skipped task would drop its muted text below the contrast the badge needs
@@ -509,7 +589,7 @@ export function TaskCard({
     >
       <span className="board-task-fill" aria-hidden />
       <div className="board-task-head">
-        <BoardStatusBadge status={task.status} />
+        <TaskStatusBadge task={task} />
         <span className="muted small mono board-task-facts">
           <TaskDuration task={task} />
           {task.costUsd > 0 && (
@@ -531,8 +611,10 @@ export function TaskCard({
  * else how it ended or what it waits for, in its status colour and always in words.
  */
 function TaskSummaryLine({ orch, task }: { orch: Orchestration; task: OrchestrationTaskState }) {
-  const { t } = useTranslation(['orchestration', 'primitives']);
+  const { t } = useTranslation(['orchestration', 'primitives', 'components']);
   const attempt = attemptLabel(orch, task);
+  const providerLabel = useProviderLabel();
+  if (task.status === 'running' && task.waiting) return <span className="task-row-summary is-warn">{t('components:limitWait.title', { name: providerLabel(task.waiting.provider) })}</span>;
   if (task.status === 'running')
     return task.activity ? (
       <ActivityTicker activity={task.activity} showElapsed={false} className="task-row-summary is-live" />
@@ -589,11 +671,13 @@ export function TaskRow({
 }) {
   const { t } = useTranslation('orchestration');
   const titleId = useId();
+  const shown = shownStatus(task);
   const bodyId = useId();
   const narrow = useMediaQuery(NARROW);
   const [open, setOpen] = useState(false);
   const summary = narrow && !energy;
-  const live = energy ? 'live-energy' : task.status === 'running' ? 'live-rail' : '';
+  // Waiting for a reset is not live work: no rail, no energy border
+  const live = task.waiting ? '' : energy ? 'live-energy' : task.status === 'running' ? 'live-rail' : '';
   const facts = (
     <span className="task-row-facts mono small muted">
       <TaskDuration task={task} />
@@ -607,9 +691,9 @@ export function TaskRow({
   );
   return (
     <li className="task-row-item">
-      <article className={`task-row status-${task.status} ${live} ${summary ? 'is-summary' : ''}`.replace(/\s+/g, ' ').trim()} aria-labelledby={titleId}>
+      <article className={`task-row status-${shown} ${live} ${summary ? 'is-summary' : ''}`.replace(/\s+/g, ' ').trim()} aria-labelledby={titleId}>
         <div className="task-row-head">
-          <TaskMark status={task.status} />
+          <TaskMark status={task.status} waiting={Boolean(task.waiting)} />
           {summary ? (
             <div className="task-row-title">
               <TaskName task={task} id={titleId} className="task-row-name" level="h3" />

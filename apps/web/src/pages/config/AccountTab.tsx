@@ -2,8 +2,7 @@ import type { TokenSource } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleCheck, CircleX } from 'lucide-react';
 import { useState } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
 import { Select } from '@agentry/ui/components/controls';
 import { ICON_SM } from '@agentry/ui/components/icons';
@@ -18,7 +17,6 @@ const TOKEN_SOURCE_KEY = {
   'env-oauth-token': 'envOauthToken',
   'env-api-key': 'envApiKey',
   'credentials-file': 'credentialsFile',
-  cswap: 'cswap',
   none: 'none',
 } as const satisfies Record<TokenSource, string>;
 
@@ -103,11 +101,6 @@ export function AccountTab() {
             )}
           </span>
         </div>
-        {auth?.tokenSource === 'cswap' && (
-          <p className="small muted">
-            <Trans t={t} i18nKey="account.cswapNote" components={{ anchor: <Link to="/accounts" /> }} />
-          </p>
-        )}
         <p className="small muted">
           {t('account.loggedInNote')}
         </p>

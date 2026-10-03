@@ -28,7 +28,10 @@ import { taskPath } from '../lib/work-items';
 import { AgentScope } from '@agentry/chat-ui/lib/agent';
 import { useChatUi } from '@agentry/chat-ui/lib/context';
 import { Composer, type ComposerKind } from '@agentry/chat-ui/composer/Composer';
+import { FlowMovedNote } from './chat/FlowMoved';
 import { ChatHeader, type HeaderActions } from './chat/Header';
+import { ContinuedDivider, ContinuedFrom, HandoffCard, LimitStopped } from './chat/HandoffCard';
+import { BlockedComposer, LimitBanner, useLimitState } from './chat/LimitBanner';
 import { Inspector, useInspector } from './chat/Inspector';
 import { PartOf } from './chat/PartOf';
 import { useQueuedMessages } from '@agentry/chat-ui/composer/queued';
@@ -84,7 +87,12 @@ export function ChatView() {
   // Words handed back to the composer: a message the chat ended without ever reading
   const [restore, setRestore] = useState<{ text: string; at: number } | null>(null);
   // A message still waiting for the turn is a card over the box, so it is not also a row here
-  const items = useMemo(() => (queued.length === 0 ? transcript.items : transcript.items.filter((entry) => !isPending(entry))), [transcript.items, queued.length, isPending]);
+  const pendingless = useMemo(() => (queued.length === 0 ? transcript.items : transcript.items.filter((entry) => !isPending(entry))), [transcript.items, queued.length, isPending]);
+  // A chat that continues another starts with the handoff the move sent: a collapsed card of its own, not a message
+  const handoffFirst = chat?.continuedFrom?.action === 'handoff' && transcript.from === 0 ? pendingless[0] : undefined;
+  const handoffText = handoffFirst && handoffFirst.role === 'user' ? handoffFirst.blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n') : '';
+  const items = useMemo(() => (handoffText && handoffFirst ? pendingless.filter((entry) => entry !== handoffFirst) : pendingless), [pendingless, handoffText, handoffFirst]);
+  const limit = useLimitState(chat);
   usePageTitle(chat ? t('view.pageTitle', { title: displayTitle(chat) }) : t('view.pageTitleFallback'));
 
   // Another chat starts at its end, with nothing half-typed for a copy of the last one
@@ -273,7 +281,7 @@ export function ChatView() {
     <AgentScope chat={chat}>
     <div className={`run-layout ${inspector.rail ? 'has-inspector' : ''}`.trim()}>
       <section className="run-main" aria-label={t('view.conversation')}>
-        <ChatHeader chat={chat} connected={connected} actions={actions} />
+        <ChatHeader chat={chat} connected={connected} actions={actions} limitPhase={limit.phase} limitResetsAt={limit.resetsAt} />
         <ErrorBox error={stopError ?? interruptError} />
         {control.mode === 'readOnly' && (
           <div className="alert alert-warn chat-banner" role="status">
@@ -295,9 +303,13 @@ export function ChatView() {
             )}
           </div>
         )}
+        <ContinuedFrom chat={chat} />
         {chat.orchestration && <PartOf link={chat.orchestration} />}
         {itemLinks.map((link) => (
           <WorkItemPartOf key={link.item.id} link={link} chatId={chat.id} />
+        ))}
+        {itemLinks.map((link) => (
+          <FlowMovedNote key={link.item.id} link={link} chatId={chat.id} />
         ))}
         <FindBar find={find} />
 
@@ -325,6 +337,7 @@ export function ChatView() {
                 )}
               </div>
             )}
+            {handoffText && <HandoffCard chat={chat} text={handoffText} />}
             {items.length === 0 ? (
               !working && <Empty icon={MessageSquare} title={t('view.nothingWritten')} />
             ) : (
@@ -344,6 +357,8 @@ export function ChatView() {
             {/* Pinned under the transcript: a chat waiting on a decision is stuck until it gets one */}
             <PermissionPrompts chatId={id} live={live} />
             <LiveTail stream={stream} chat={chat} continued={endsWithAssistant(items)} />
+            {(limit.phase !== 'none' || chat.continuedIn) && <LimitStopped chat={chat} at={chat.executions.at(-1)?.endedAt ?? chat.updatedAt} waiting={limit.phase === 'waiting'} />}
+            {chat.continuedIn && <ContinuedDivider chat={chat} />}
           </div>
           <AnimatePresence>
             {!follow && (
@@ -411,7 +426,13 @@ export function ChatView() {
             </div>
           </div>
         )}
-        {composer && composer !== 'fork' && (
+        {(limit.phase !== 'none' || chat.continuedIn) && composer !== 'fork' && (
+          <div className="lim-zone">
+            {limit.phase !== 'none' && <LimitBanner chat={chat} state={limit} />}
+            <BlockedComposer chat={chat} state={limit} />
+          </div>
+        )}
+        {composer && composer !== 'fork' && limit.phase === 'none' && !chat.continuedIn && (
           // Keyed by the chat: a draft and its files belong to the chat they were written in
           <Composer
             key={chat.id}

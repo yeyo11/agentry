@@ -11,6 +11,7 @@ import type {
   ChangedFile,
   CodeHostId,
   FlowRun,
+  ProviderMove,
   WorkItem,
   WorkItemAssignee,
   WorkItemCause,
@@ -208,10 +209,33 @@ export function causeLine(cause: Pick<WorkItemCause, 'event' | 'chatId'> | null,
 
 export type ActivityFilter = 'all' | 'comments' | 'history';
 
+/** A flow run and the move that took it to another provider. */
+export interface MovedRun {
+  run: FlowRun;
+  move: ProviderMove;
+}
+
+/**
+ * The moves of an item's runs to another provider, oldest first. A wait is not a move, and neither
+ * is a move that never made its new chat; the run itself says that it waits.
+ */
+export function movedRunsOf(runs: readonly FlowRun[], moves: readonly ProviderMove[]): MovedRun[] {
+  const byId = new Map(runs.map((run) => [run.id, run]));
+  const found: MovedRun[] = [];
+  for (const move of moves) {
+    if (move.subjectKind !== 'flow_run' || move.toChat === null || move.toProvider === null || move.action === 'wait') continue;
+    const run = byId.get(move.subjectId);
+    if (run) found.push({ run, move });
+  }
+  return found.sort((a, b) => a.move.at.localeCompare(b.move.at));
+}
+
 export type ActivityEntry =
   | { kind: 'history'; at: string; entry: WorkItemHistoryEntry }
   | { kind: 'comment'; at: string; comment: WorkItemComment }
-  | { kind: 'retry'; at: string; run: FlowRun };
+  | { kind: 'retry'; at: string; run: FlowRun }
+  /** A run that went on in a new chat on another provider after a limit */
+  | { kind: 'moved'; at: string; run: FlowRun; move: ProviderMove };
 
 /**
  * Oldest first, as the page reads top to bottom. The history's `created` entry opens it; a comment
@@ -224,10 +248,12 @@ export function activityOf(
   comments: readonly WorkItemComment[],
   filter: ActivityFilter = 'all',
   retries: readonly FlowRun[] = [],
+  moved: readonly MovedRun[] = [],
 ): ActivityEntry[] {
   const entries: ActivityEntry[] = [
     ...(filter === 'comments' ? [] : history.map((entry) => ({ kind: 'history' as const, at: entry.createdAt, entry }))),
     ...(filter === 'comments' ? [] : retries.map((run) => ({ kind: 'retry' as const, at: run.queuedAt, run }))),
+    ...(filter === 'comments' ? [] : moved.map(({ run, move }) => ({ kind: 'moved' as const, at: move.at, run, move }))),
     ...(filter === 'history' ? [] : comments.map((comment) => ({ kind: 'comment' as const, at: comment.createdAt, comment }))),
   ];
   return entries

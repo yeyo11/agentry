@@ -26,6 +26,17 @@ import {
   type ChatExport,
   type Execution,
   type ChatStartOptions,
+  type ChatToolConfig,
+  type ToolPolicy,
+  type HandoffPreview,
+  type MoveChatRequest,
+  type ProjectProvidersSettings,
+  type ProviderMove,
+  type ProviderMoveDecider,
+  type ProviderMoveSubjectKind,
+  type ProviderStatus,
+  type ProvidersSettings,
+  type EditStep,
   type ForkChatRequest,
   type ProviderCapability,
   type ProviderId,
@@ -40,12 +51,21 @@ import {
   type UsageReport,
   type UsageSeries,
 } from '@agentry/shared';
+import { randomUUID } from 'node:crypto';
+import { buildHandoff } from './handoff.ts';
+import { editStepsFromEntries, editStepsOf } from './edit-steps.ts';
+import { gitRaw } from './git.ts';
+import type { Db } from './db.ts';
+import { candidatesFor, type CandidateProvider, type CandidateResult, type RunNeeds } from './providers/candidates.ts';
+import { runRef } from './event-sources.ts';
+import { rulesOnDriver } from './tool-policy.ts';
 import { pageSize } from './sessions.ts';
 import { toChatEnvironment, toChildren, type BranchFacts } from './chat-branches.ts';
 import { mergeLiveWorkflows } from './workflows.ts';
 import { chatControl, chatState, lastEndedOf, sessionHolder, type SessionHolder } from './chat-model.ts';
 import type { ChatTools } from './chat-tools.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
+import { DECISION_EFFORTS } from './decisions/settings.ts';
 import type { AdoptedChat, ChatManager, ChatRuntime, ExecutionExtras, NewChat } from './chats.ts';
 import type { CliSession, TranscriptSummary } from './cli-facts.ts';
 import type { HealthService } from './health-service.ts';
@@ -125,6 +145,14 @@ export class CapabilityRefusal extends Error {
   }
 }
 
+/** A request that still pins a chat to an account: they went away with claude-swap. */
+export class AccountsRetired extends Error {
+  readonly statusCode = 400;
+  constructor() {
+    super('accounts were retired; see Settings → Providers');
+  }
+}
+
 /** Where a directory belongs. Supplied by whoever knows the projects, so this file does not. */
 export interface Placement {
   project: ChatProject | null;
@@ -151,6 +179,54 @@ export interface ChatServiceDeps {
    * before: a person who continues it gets it back without the run's rules.
    */
   memberChat?: (chatId: string) => boolean;
+  /** What moving a chat to another provider reads; without it a chat cannot be moved */
+  move?: ChatMoveDeps;
+}
+
+/** What the work a chat does for adds to a move: a flow run's or a task's own prompt, limits and rules. */
+export interface ChatWork {
+  kind: Exclude<RunNeeds['kind'], 'chat'>;
+  subjectKind: ProviderMoveSubjectKind;
+  subjectId: string;
+  /** The prompt Agentry sent for the run or the task, when it is not the chat's first one */
+  prompt?: string | null;
+  /** Acceptance criteria not yet met, or the task's open items */
+  openItems?: string[];
+  /** The stage's or the task's closing instructions */
+  closing?: string | null;
+  /** The flow member's agent file, inlined as instructions where the target cannot take it as a subagent */
+  agent?: { name: string; prompt: string } | null;
+  /** Capabilities the work needs beyond what the chat shows (`workflowTool`) */
+  needs?: ProviderCapability[];
+  /** What is left of the work's budget; null when it has none */
+  remainingBudgetUsd?: number | null;
+}
+
+export interface ChatMoveDeps {
+  /** `providers.json`, as it stands now */
+  settings: () => ProvidersSettings;
+  /** The detector's last reading of every provider */
+  statuses: () => ProviderStatus[];
+  /** A project's own providers settings (its order and its on-limit overrides); null when it sets none */
+  projectProviders: (projectId: string) => ProjectProvidersSettings | null;
+  /** The move rows: written when a chat moves, read for the chain */
+  moves: Pick<Db, 'insertProviderMove' | 'providerMoves'>;
+  /** The run or task a chat works for; null for a person's chat */
+  work?: (chatId: string) => ChatWork | null;
+}
+
+/** Who chose a move, and what it is a move of; a person's click on a chat is `{ decidedBy: 'person' }`. */
+export interface MoveOrigin {
+  decidedBy: ProviderMoveDecider;
+  decisionId?: string | null;
+  reason?: string | null;
+  /** The reset the work was at when it moved; kept on the row */
+  resetsAt?: string | null;
+}
+
+/** A move that cannot happen now: the chat is not at a limit, was moved already, or no candidate takes it. */
+export class MoveRefusal extends Error {
+  readonly statusCode = 409;
 }
 
 export interface ChatFilter {
@@ -190,6 +266,19 @@ interface Standing {
  * own some. There is one chat per session id whatever it is read from, so a chat is never listed
  * twice however many of those know it.
  */
+/** The levels every agent that takes an effort lists, and the five Claude Code's `--effort` takes */
+const PORTABLE_EFFORTS = ['low', 'medium', 'high'];
+
+/**
+ * The effort levels a provider takes, for the candidates: none for a provider without the `effort`
+ * capability. The catalogues list models, not levels, so Claude Code's own scale stands for it and the
+ * portable ones for the rest; a level outside them is dropped on a move, never sent to a CLI that may refuse it.
+ */
+export function effortsOf(provider: ProviderId, capabilities: readonly ProviderCapability[]): string[] {
+  if (!capabilities.includes('effort')) return [];
+  return provider === LEGACY_PROVIDER ? [...DECISION_EFFORTS] : PORTABLE_EFFORTS;
+}
+
 export class ChatService {
   private cliCache: { at: number; value: CliSession[] } | null = null;
   /** The read under way, shared by whoever asks meanwhile; `gen` tells one started before an invalidation */
@@ -319,6 +408,9 @@ export class ChatService {
       origin,
       orchestration: orchestration ? { id: orchestration.id, name: orchestration.name, taskId: orchestration.taskId, taskName: orchestration.taskName } : null,
       derivedFrom: runtime?.derivedFrom ?? null,
+      continuedFrom: runtime?.continuedFrom ?? null,
+      continuedIn: runtime?.continuedIn ?? null,
+      ...(runtime && this.deps.runtime.atLimit(runtime.id) ? { atLimit: true } : {}),
       state,
       control,
       execution: live,
@@ -543,9 +635,10 @@ export class ChatService {
    */
   private gate(
     requested: ProviderId | undefined,
-    options: Pick<ChatStartOptions, 'account' | 'maxBudgetUsd' | 'permissionPrompts'>,
+    options: Pick<ChatStartOptions, 'maxBudgetUsd' | 'permissionPrompts'> & { account?: unknown },
     asks: { schema?: boolean; worktree?: boolean; fork?: boolean; interrupt?: boolean; setModel?: boolean } = {},
   ): ProviderId {
+    if (options.account !== undefined) throw new AccountsRetired();
     const provider = this.deps.runtime.driverFor(requested).manifest.id;
     const has = new Set(this.deps.runtime.providers.capabilities(provider));
     const need = (capability: ProviderCapability, asked: boolean, what: string): void => {
@@ -554,7 +647,6 @@ export class ChatService {
     need('structuredOutput', asks.schema === true, 'A JSON schema');
     need('interrupt', asks.interrupt === true, 'An interrupt');
     need('setModel', asks.setModel === true, 'Switching the model');
-    need('multiAccount', typeof options.account === 'string', 'Pinning an account');
     need('worktreeFlag', asks.worktree === true, 'A worktree');
     need('budgetLimit', options.maxBudgetUsd !== undefined, 'A budget');
     need('interactivePermissions', options.permissionPrompts === 'host', 'Host prompts');
@@ -566,7 +658,10 @@ export class ChatService {
    * Starts a new chat. `onStart` hears of it in the same tick the process is spawned, before any of
    * its output can arrive: for a caller that has to tie the chat to something before it answers.
    */
-  async create(request: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'systemPromptSnapshot' | 'uploads' | 'keepAlive' | 'confine'>, onStart?: (chat: ChatRuntime) => void): Promise<ChatSummary> {
+  async create(
+    request: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'systemPromptSnapshot' | 'uploads' | 'keepAlive' | 'confine'> & { policy?: ToolPolicy },
+    onStart?: (chat: ChatRuntime) => void,
+  ): Promise<ChatSummary> {
     // Refused before anything is resolved or spawned: no driver is a 400, and so is a gate
     const provider = this.gate(request.provider, request, { schema: request.jsonSchema !== undefined && request.jsonSchema !== null, worktree: request.worktree !== undefined });
     // `--agents` reads the file it is given: only the definitions the flow writes, never a path a
@@ -584,7 +679,11 @@ export class ChatService {
     // is the server's, and answers as one
     let started: ChatRuntime;
     try {
-      started = this.deps.runtime.start({ ...request, ...chosen, provider });
+      // Automated work states its policy beside the rules: a move translates it for the next provider
+      const toolConfig: ChatToolConfig | undefined = request.policy
+        ? { ...(chosen?.toolConfig ?? { preset: null, allowedTools: request.allowedTools ?? [], disallowedTools: request.disallowedTools ?? [], mcp: null }), policy: request.policy }
+        : undefined;
+      started = this.deps.runtime.start({ ...request, ...chosen, ...(toolConfig ? { toolConfig } : {}), provider });
       onStart?.(started);
     } catch (err) {
       throw startFailure(err);
@@ -694,6 +793,263 @@ export class ChatService {
       : await this.deps.tools.resolve(request, adoption.cwd, this.deps.runtime.get(id)?.tools ?? null, { fresh: true });
     const forked = this.deps.runtime.fork(id, { ...request, ...chosen, provider, ...(handBack ? { handBack } : {}) }, adoption);
     return this.require(forked.id);
+  }
+
+  // ---------- moving a chat to another provider ----------
+
+  private moveDeps(): ChatMoveDeps {
+    const move = this.deps.move;
+    if (!move) throw new MoveRefusal('moving a chat between providers is not available here');
+    return move;
+  }
+
+  /** The chats this one continues, nearest first: the providers it already left and how many moves it made. */
+  private chainOf(id: string): { left: ProviderId[]; moves: number } {
+    const left: ProviderId[] = [];
+    const seen = new Set<string>([id]);
+    for (let link = this.deps.runtime.get(id)?.continuedFrom; link && !seen.has(link.chatId); link = this.deps.runtime.get(link.chatId)?.continuedFrom) {
+      seen.add(link.chatId);
+      left.push(link.provider);
+    }
+    return { left, moves: left.length };
+  }
+
+  /** What the registry, the detector and the limits say of every provider, in the shape the candidates read. */
+  private candidateProviders(deps: ChatMoveDeps): Record<ProviderId, CandidateProvider | undefined> {
+    const { providers: registry, limits } = this.deps.runtime;
+    const statuses = deps.statuses();
+    const out: Record<ProviderId, CandidateProvider | undefined> = {};
+    for (const manifest of registry.list()) {
+      const status = statuses.find((s) => s.id === manifest.id);
+      if (!status) continue;
+      const driver = registry.driverFor(manifest.id);
+      // This process saw the newest reading; the detector's copy may be a poll behind
+      const limit = limits.get(manifest.id) ?? status.limit ?? null;
+      out[manifest.id] = {
+        status: { ...status, limit },
+        hasDriver: driver !== null,
+        capabilities: registry.capabilities(manifest.id),
+        translate: driver ? (policy) => driver.translatePolicy(policy) : null,
+        models: driver?.models() ?? [],
+        efforts: effortsOf(manifest.id, registry.capabilities(manifest.id)),
+      };
+    }
+    return out;
+  }
+
+  /** What a chat needs of the provider that continues it, read from the chat and from the work behind it. */
+  private needsOf(id: string, work: ChatWork | null): { needs: RunNeeds; tools: ChatToolConfig | null } {
+    const runtime = this.deps.runtime.get(id);
+    if (!runtime) throw new Error('chat not found');
+    const tools = runtime.tools ?? null;
+    const provider = runtime.provider ?? LEGACY_PROVIDER;
+    const capabilities: ProviderCapability[] = [...(work?.needs ?? [])];
+    if (this.deps.runtime.heldToSchema(id)) capabilities.push('structuredOutput');
+    if (runtime.executions.some((e) => e.maxBudgetUsd !== null)) capabilities.push('budgetLimit');
+    if (runtime.permissionPrompts === 'host') capabilities.push('interactivePermissions');
+    const policy = tools?.policy ?? null;
+    const { moves, left } = this.chainOf(id);
+    return {
+      tools,
+      needs: {
+        kind: work?.kind ?? 'chat',
+        from: { provider, model: runtime.model },
+        model: runtime.model ? { provider, id: runtime.model, names: this.deps.runtime.providers.driverFor(provider)?.modelNames?.(runtime.model) ?? [runtime.model] } : null,
+        needs: [...new Set(capabilities)],
+        policy,
+        nativeRules: policy === null && ((tools?.allowedTools.length ?? 0) > 0 || (tools?.disallowedTools.length ?? 0) > 0),
+        automated: work !== null,
+        exclude: left,
+        moves,
+      },
+    };
+  }
+
+  /**
+   * Which providers can take the chat's work from where it stands, and why each of the others cannot:
+   * what the limit banner and the move sheet list. The same function starting work uses.
+   */
+  candidates(id: string): CandidateResult {
+    const deps = this.moveDeps();
+    const runtime = this.deps.runtime.get(id);
+    if (!runtime) throw new Error('chat not found');
+    const work = deps.work?.(id) ?? null;
+    const { needs } = this.needsOf(id, work);
+    const project = this.deps.place(runtime.workingDir, null).project;
+    return candidatesFor(needs, {
+      settings: deps.settings(),
+      project: project ? deps.projectProviders(project.id) : null,
+      providers: this.candidateProviders(deps),
+      now: Date.now(),
+    });
+  }
+
+  /** Every entry of a chat's transcript, the main thread only, oldest first. */
+  private async mainEntriesOf(id: string): Promise<TranscriptEntry[]> {
+    const pages: TranscriptEntry[][] = [];
+    let before: number | undefined;
+    for (;;) {
+      const page = await this.fromStores(id, (store, key) => store.page(key, { limit: TRANSCRIPT_PAGE_MAX, ...(before !== undefined ? { before } : {}) }));
+      if (!page) return pages.length > 0 ? pages.flat() : (this.deps.runtime.messages(id) ?? []).filter((e) => !e.isSidechain);
+      pages.unshift(page.entries);
+      if (page.from === 0 || page.entries.length === 0) return pages.flat();
+      before = page.from;
+    }
+  }
+
+  /** The handoff for moving `id` to `provider`: built by code from the transcript and the worktree's git state. */
+  private async buildHandoffFor(id: string, provider: ProviderId, work: ChatWork | null): Promise<ReturnType<typeof buildHandoff>> {
+    const runtime = this.deps.runtime.get(id);
+    if (!runtime) throw new Error('chat not found');
+    const entries = await this.mainEntriesOf(id);
+    const steps = editStepsOf(editStepsFromEntries(entries), { root: runtime.workingDir, running: false });
+    const results = new Map<string, { isError: boolean; content: string }>();
+    for (const entry of entries) {
+      for (const block of entry.blocks) if (block.type === 'tool_result') results.set(block.toolUseId, { isError: block.isError, content: block.content });
+    }
+    const commands: Array<{ command: string; exitCode: number | null }> = [];
+    let checklist: Array<{ text: string; done: boolean }> = [];
+    let lastMessage: string | null = null;
+    for (const entry of entries) {
+      for (const block of entry.blocks) {
+        if (block.type === 'text' && entry.role === 'assistant' && block.text.trim()) lastMessage = block.text.trim();
+        if (block.type !== 'tool_use' || typeof block.input !== 'object' || block.input === null) continue;
+        const input = block.input as Record<string, unknown>;
+        if (typeof input.command === 'string') {
+          const result = results.get(block.id);
+          const code = result?.isError ? Number(/Exit code (\d+)/.exec(result.content)?.[1] ?? 1) : result ? 0 : null;
+          commands.push({ command: input.command, exitCode: code });
+        } else if (block.name === 'TodoWrite' && Array.isArray(input.todos)) {
+          checklist = input.todos.flatMap((todo): Array<{ text: string; done: boolean }> => {
+            const item = todo as { content?: unknown; status?: unknown };
+            return typeof item.content === 'string' ? [{ text: item.content, done: item.status === 'completed' }] : [];
+          });
+        }
+      }
+    }
+    const git = (args: string[]): string | null => {
+      try {
+        return gitRaw(runtime.workingDir, args, { timeout: 15_000 });
+      } catch {
+        return null;
+      }
+    };
+    return buildHandoff({
+      prompt: work?.prompt ?? runtime.prompt,
+      steps: steps.map((s): Pick<EditStep, 'path' | 'tool' | 'additions' | 'deletions' | 'created' | 'intent'> => ({ path: s.path, tool: s.tool, additions: s.additions, deletions: s.deletions, created: s.created, intent: s.intent })),
+      commands,
+      checklist,
+      gitStatus: git(['status', '--porcelain', '--untracked-files=all']),
+      gitDiffStat: git(['diff', '--stat']),
+      lastMessage,
+      openItems: [...(work?.openItems ?? []), ...checklist.filter((c) => !c.done).map((c) => c.text)],
+      closing: work?.closing ?? null,
+      agent: work?.agent ?? null,
+      target: { subagents: this.deps.runtime.providers.capabilities(provider).includes('subagents') },
+    });
+  }
+
+  /** The candidate that would take the chat on `provider`, or the reason it cannot. */
+  private targetFor(id: string, provider: ProviderId, model?: string): CandidateResult['candidates'][number] {
+    const result = this.candidates(id);
+    const found = result.candidates.find((c) => c.provider === provider);
+    if (!found) {
+      const why = result.movesCapped ? 'the work has made all the moves it may' : (result.excluded.find((e) => e.provider === provider)?.excluded ?? 'not-in-order');
+      throw new MoveRefusal(`${provider} cannot take this chat: ${why}`);
+    }
+    if (!model) return found;
+    const catalog = this.deps.runtime.providers.driverFor(provider)?.models() ?? [];
+    if (catalog.length > 0 && !catalog.some((m) => m.value === model && !m.disabled)) throw new MoveRefusal(`${provider} does not offer the model ${model}`);
+    return { ...found, model };
+  }
+
+  /** The handoff text exactly as `move` would send it, built locally and sent nowhere. */
+  async handoff(id: string, provider: ProviderId, model?: string): Promise<HandoffPreview> {
+    const deps = this.moveDeps();
+    const target = this.targetFor(id, provider, model);
+    const built = await this.buildHandoffFor(id, provider, deps.work?.(id) ?? null);
+    return { text: built.text, bytes: built.bytes, provider, model: target.model, sections: built.sections };
+  }
+
+  /**
+   * Moves a chat to a new chat on another provider, linked both ways (decision P4-1). A handoff
+   * starts the new chat from the record of what was done; a restart, from the original prompt. The
+   * move is a row, and the run, task or item the chat works for is re-pointed by whoever called.
+   */
+  async continueOn(id: string, request: MoveChatRequest, origin: MoveOrigin = { decidedBy: 'person' }): Promise<{ chat: ChatSummary; move: ProviderMove }> {
+    const deps = this.moveDeps();
+    const runtime = this.deps.runtime.get(id);
+    if (!runtime) throw new Error('chat not found');
+    if (runtime.continuedIn) throw new MoveRefusal('this chat was already continued on another provider');
+    // A live chat that has not reached its limit is working: moving it would throw away a running turn
+    if (runtime.pid !== null && !this.deps.runtime.atLimit(id)) throw new MoveRefusal('this chat is working and has not reached a limit');
+    const work = deps.work?.(id) ?? null;
+    const target = this.targetFor(id, request.provider, request.model);
+    const driver = this.deps.runtime.driverFor(request.provider);
+    const capabilities = this.deps.runtime.providers.capabilities(request.provider);
+
+    const handoff = request.action === 'handoff' ? await this.buildHandoffFor(id, request.provider, work) : null;
+    // Where the target cannot take the agent file as a subagent its prompt leads a restart's first turn
+    const agentLead = request.action === 'restart' && work?.agent && !capabilities.includes('subagents') ? `${work.agent.prompt.trim()}\n\n` : '';
+    const prompt = handoff?.text ?? `${agentLead}${work?.prompt ?? runtime.prompt}`;
+
+    const { tools } = this.needsOf(id, work);
+    const rules = tools?.policy ? rulesOnDriver(driver, request.provider, tools.policy) : null;
+    const mcp = capabilities.includes('mcp') ? (tools?.mcp ?? null) : null;
+    const toolConfig: ChatToolConfig | null =
+      rules || mcp ? { preset: tools?.preset ?? null, allowedTools: rules?.allowedTools ?? [], disallowedTools: rules?.disallowedTools ?? [], mcp, ...(tools?.policy ? { policy: tools.policy } : {}) } : null;
+
+    // Never a more permissive mode than the chat had: one the target does not list becomes `manual`
+    const permissionMode = driver.permissionModes().some((m) => m.mode === runtime.permissionMode) ? runtime.permissionMode : 'manual';
+    const budgets = runtime.executions.map((e) => e.maxBudgetUsd).filter((b): b is number => b !== null);
+    const spent = runtime.executions.reduce((sum, e) => sum + (e.costUsd ?? 0), 0);
+    const remaining = work?.remainingBudgetUsd ?? (budgets.length ? Math.max(0, Math.max(...budgets) - spent) : null);
+
+    const moveId = randomUUID();
+    const started = await this.deps.runtime.continueOn(id, {
+      provider: request.provider,
+      model: target.model,
+      effort: target.effort,
+      permissionMode,
+      prompt,
+      action: request.action,
+      moveId,
+      toolConfig,
+      ...(typeof remaining === 'number' ? { maxBudgetUsd: remaining } : {}),
+    });
+    const at = new Date().toISOString();
+    const move: ProviderMove = {
+      id: moveId,
+      at,
+      subjectKind: work?.subjectKind ?? 'chat',
+      subjectId: work?.subjectId ?? id,
+      projectId: this.deps.place(runtime.workingDir, null).project?.id ?? null,
+      fromChat: id,
+      toChat: started.id,
+      fromProvider: runtime.provider ?? LEGACY_PROVIDER,
+      toProvider: request.provider,
+      fromModel: runtime.model,
+      toModel: target.model,
+      action: request.action,
+      state: 'moved',
+      decidedBy: origin.decidedBy,
+      decisionId: origin.decisionId ?? null,
+      resetsAt: origin.resetsAt ?? null,
+      reason: origin.reason ?? null,
+      updatedAt: at,
+    };
+    deps.moves.insertProviderMove(move);
+    const label = this.deps.runtime.providers.list().find((m) => m.id === request.provider)?.label ?? request.provider;
+    this.deps.runtime.bus?.emit({
+      type: 'run.providerMoved',
+      title: `${runtime.name} moved to ${label}`,
+      ...runRef(runtime),
+      from: move.fromProvider,
+      to: request.provider,
+      action: request.action,
+      decidedBy: origin.decidedBy,
+    });
+    return { chat: await this.require(started.id), move };
   }
 
   /**

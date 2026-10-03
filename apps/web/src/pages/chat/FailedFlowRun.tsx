@@ -14,8 +14,8 @@ import { rawError, retryOutcome, runStep } from '../tasks/item/runs';
 import { useRoleName } from '../team/RoleAvatar';
 
 /**
- * A chat a member ran for the flow reads "completed" even when its run failed (no result, a limit
- * with no account left, a restart it could not continue from). The banner at the head of the chat
+ * A chat a member ran for the flow reads "completed" even when its run failed (no result, no provider that could take it,
+ * a limit that never reset, a restart it could not continue from). The banner at the head of the chat
  * (`.run-fail`, ChatFlujo) says so in the person's words, from the run's cause, with the core's raw
  * text under it; then what the retry did and its chat, or "Retry" while the run can still be queued
  * again. The item never moved, so the banner says that too.

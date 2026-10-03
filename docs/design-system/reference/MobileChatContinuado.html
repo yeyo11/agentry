@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Chat continuado (móvil)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:var(--bg)}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)})}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
+<div class="app m-screen " data-theme="dark" style="font-size: 15px">
+<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 2px; border-bottom: 1px solid var(--line); background: var(--bg-1)">
+<a href="MobileChats.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver a chats"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width: 2"><path d="m15 6-6 6 6 6"></path></svg></a>
+<span class="col grow" style="gap: 3px; min-width: 0"><span class="ellipsis" style="font-weight: 600; font-size: 15px">Revisa la PWA y la app desktop</span><span class="row t-xs mono" style="gap: 8px"><span class="prov-badge"><span class="prov-mark" style="--hue: 215" aria-hidden="true">CX</span>Codex</span><span class="spin-braille"></span><span class="c-live">trabajando</span></span><span class="t-xs fg-2">Continuado desde Claude Code</span></span>
+<button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Detalles del chat"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5M12 8h.01"></path></svg></button>
+</header>
+
+<div class="col" style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 16px 18px; gap: 14px; line-height: 1.6">
+<section class="hand-card" aria-label="Traspaso de Claude Code"><div class="hand-head"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg><span class="col grow" style="gap: 2px"><span class="hand-title">Traspaso de Claude Code</span><span class="mono t-xs fg-2">3,1 KiB · enviado a gpt-6.1-sol</span></span></div><span class="hand-sub">Lo que Codex recibió como primer mensaje: qué se pidió, qué se hizo, dónde estaba el trabajo y qué faltaba.</span><div class="hand-acts"><a href="MobileChatContinuadoOrigen.html" class="btn btn-lg">Ver el chat anterior</a><button type="button" class="btn btn-ghost btn-lg" aria-expanded="false"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>Mostrar</button></div></section>
+<p style="margin: 0">Retomo la tarea donde la dejó Claude Code: conecto el aviso con el de instalación y arreglo el typecheck.</p>
+<div class="row t-sm" style="gap: 8px"><span class="spin-braille"></span><span class="shimmer" style="font-weight: 500; white-space: nowrap; flex-shrink: 0">Codex está trabajando</span><span class="mono t-xs fg-3 ellipsis">pnpm typecheck · 15s</span></div>
+</div>
+
+<div class="col" style="flex-shrink: 0; padding: 8px 12px 28px; gap: 8px; border-top: 1px solid var(--line); background: var(--bg-1)"><div class="row" style="gap: 6px; overflow: hidden"><button type="button" class="chip" style="height: 32px">gpt-6.1-sol</button><button type="button" class="chip" style="height: 32px">Omitir permisos</button></div>
+<div class="card energy row" style="border-radius: var(--r-xl); padding: 4px; gap: 4px; align-items: flex-end"><button type="button" class="btn btn-ghost btn-icon" aria-label="Adjuntar" style="width: 40px; height: 40px; border-radius: 50%"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button><label class="grow" style="display: flex; min-height: var(--touch); align-items: center"><textarea rows="1" placeholder="Envía un mensaje" aria-label="Mensaje" style="width: 100%; border: 0; outline: 0; resize: none; background: transparent; font-size: 16px; padding: 0"></textarea></label><button type="button" class="btn btn-danger btn-icon" aria-label="Detener" style="width: 40px; height: 40px; border-radius: 50%"><svg viewBox="0 0 24 24" style="width: 13px; height: 13px; fill: currentColor"><path d="M6 6h12v12H6z"></path></svg></button></div>
+</div>
+</div>
+<script>t()</script>
+</body></html>

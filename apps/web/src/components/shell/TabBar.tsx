@@ -40,8 +40,6 @@ function CellNote({ note }: { note: MoreNote | undefined }) {
   const { t } = useTranslation('shell');
   if (!note) return null;
   switch (note.kind) {
-    case 'exhausted':
-      return <Tag tone="bad">{t('tabbar.exhausted', { count: note.value })}</Tag>;
     case 'pending':
       return <Tag tone="warn">{t('tabbar.pending', { count: note.value })}</Tag>;
     case 'cost':

@@ -30,7 +30,9 @@
     "auth-required": "Necesita que inicies sesión desde la herramienta del proveedor.",
     "schema-untested": "Su salida estructurada no se ha probado en esta versión, así que Agentry no la usa para eso.",
     "busy": "Está ocupado con otra sesión y no se ha podido comprobar ahora.",
-    "disabled": "No se busca ni se comprueba mientras esté desactivado."
+    "disabled": "No se busca ni se comprueba mientras esté desactivado.",
+    "limit-reached": "Ha alcanzado su límite de uso y todavía no se ha restablecido.",
+    "limit-near": "Está cerca de su límite de uso."
   },
   "row": {
     "default": "Predeterminado",
@@ -133,5 +135,173 @@
     "version": "versión {{version}}",
     "checking": "Comprobando agentes…",
     "none": "Ningún agente detectado"
+  },
+  "sections": {
+    "aria": "Secciones de proveedores",
+    "list": "Lista",
+    "onLimit": "Al llegar a un límite",
+    "map": "Equivalencias de modelos"
+  },
+  "limit": {
+    "title": "Límite",
+    "group": "Límite de {{name}}",
+    "near": "Cerca del límite",
+    "exhausted": "Límite agotado",
+    "asof": "Lectura de {{time}} · {{source}}",
+    "source": {
+      "stream": "durante la última ejecución",
+      "probe": "sin ejecutar nada",
+      "failure": "cuando un turno lo alcanzó"
+    },
+    "used": "{{window}}: {{percent}} % usado",
+    "resets": "renueva {{when}}",
+    "resetUnknown": "renovación desconocida",
+    "unknown": "La última lectura está desactualizada, así que el límite se desconoce hasta que llegue una nueva.",
+    "noWindows": "El proveedor no informó de ninguna ventana."
+  },
+  "onLimit": {
+    "title": "Al llegar un proveedor a su límite",
+    "scope": "solo trabajo lanzado por Agentry",
+    "intro": "Qué hace Agentry con el trabajo que lanza él (flujos, tareas de una orquestación, el asistente) cuando su proveedor agota el límite de uso. En un chat tuyo no se mueve nada solo: te lo pregunta, y la opción de aquí va primero.",
+    "default": "Esperar al reinicio es lo que viene de serie. Una instalación nueva no manda trabajo ni resúmenes a otro proveedor hasta que lo actives aquí.",
+    "discard": "Descartar",
+    "save": "Guardar los cambios",
+    "action": {
+      "label": "Qué hacer",
+      "aria": "Qué hacer al llegar a un límite",
+      "handoff": {
+        "label": "Continuar con un traspaso",
+        "hint": "Sigue en el siguiente proveedor listo, en el mismo worktree, con un resumen de lo pedido, lo hecho y lo que falta."
+      },
+      "restart": {
+        "label": "Empezar de nuevo",
+        "hint": "Empieza otra vez en el siguiente proveedor listo, en el mismo worktree, desde el prompt original."
+      },
+      "wait": {
+        "label": "Esperar al reinicio",
+        "hint": "Reanuda en el mismo proveedor cuando se renueve el límite. No gasta nada en otro."
+      }
+    },
+    "allowed": {
+      "label": "Qué puede elegir una decisión",
+      "hint": "Solo cuenta si el punto «Qué hacer al llegar al límite» de Decisiones está en Sombra o en Activo. Nunca elige fuera de esto.",
+      "chosen": "La acción de arriba: siempre permitida",
+      "yes": "Permitida",
+      "no": "No se ofrece a las decisiones"
+    },
+    "maxWait": {
+      "label": "Espera máxima",
+      "aria": "Espera máxima en horas",
+      "hint": "Si Agentry no sabe cuándo se renueva el límite, espera hasta este tiempo y después da el trabajo por fallido. De {{min}} a {{max}} h.",
+      "short": "Sin fecha de reinicio, espera hasta aquí y falla. De 1 a 48 h.",
+      "unit": "h",
+      "value": "{{hours}} h"
+    },
+    "maxMoves": {
+      "label": "Cambios de proveedor por trabajo",
+      "aria": "Cambios de proveedor por trabajo",
+      "hint": "Pasado este número, el trabajo espera en lugar de seguir saltando entre proveedores. De {{min}} a {{max}}.",
+      "short": "Pasados estos, espera. De 0 a 5."
+    }
+  },
+  "map": {
+    "title": "Equivalencias de modelos",
+    "intro": "Cuando un trabajo pasa de un proveedor a otro, usa el modelo equivalente que elijas aquí. Sin equivalente, el trabajo espera al reinicio y te lo dice. Nada entra solo: una sugerencia no vale hasta que la aceptas.",
+    "empty": "empieza vacía",
+    "count_one": "{{count}} equivalencia",
+    "count_other": "{{count}} equivalencias",
+    "needTwo": "Las equivalencias necesitan dos proveedores activos que listen sus modelos.",
+    "from": "Desde",
+    "fromAria": "Proveedor de los modelos de origen",
+    "savedNow": "Se guarda al instante",
+    "waitingTitle": "Un trabajo espera esta equivalencia.",
+    "waitingBody": "{{model}} no tiene equivalente en uno de los proveedores. Elige uno y el trabajo seguirá cuando se renueve el límite.",
+    "suggestionFor": "Sugerencia para {{name}}",
+    "suggested": "Sugerido",
+    "notInForce": "No vale hasta que lo aceptes.",
+    "suggest": "Sugerir",
+    "suggestAria": "Sugerir un equivalente para {{name}}",
+    "suggestNone": "Ahora no hay nada que sugerir para este modelo",
+    "suggestFailed": "No se ha podido pedir una sugerencia",
+    "accept": "Aceptar",
+    "dismiss": "Descartar",
+    "accepted": "Equivalencia aceptada",
+    "dismissed": "Sugerencia descartada",
+    "answerFailed": "No se ha podido responder a la sugerencia",
+    "counterpartAria": "Equivalente de {{name}}",
+    "choose": "Elegir modelo…",
+    "none": "Sin equivalente",
+    "noneHint": "Ningún modelo de aquí puede ocupar su lugar: el trabajo espera",
+    "noCounterpart": "Sin equivalente",
+    "stale": "Ya no se ofrece",
+    "staleHint": "{{provider}} ya no lista este modelo: se trata como si no hubiera equivalente.",
+    "waitsHere": "Un trabajo con este modelo espera al reinicio.",
+    "askedByJob": "Lo pide un trabajo",
+    "modelOf": "Modelo de {{provider}}",
+    "equalsIn": "Equivale en {{provider}}",
+    "tier": {
+      "fast": "rápido",
+      "balanced": "equilibrado",
+      "strong": "fuerte"
+    },
+    "pairTitle": "{{model}} en {{provider}}",
+    "pickAria": "Modelo que lo sustituye",
+    "save": "Guardar la equivalencia"
+  },
+  "retire": {
+    "title": "Agentry ya no cambia de cuenta de Claude",
+    "lead": "Ahora el trabajo pasa de un proveedor a otro cuando uno llega a su límite. Este aviso sale una sola vez.",
+    "dismiss": "Entendido",
+    "account": {
+      "label": "Cuenta en uso",
+      "none": "La cuenta en uso",
+      "body": ", la que dejó activa claude-swap. Claude Code la usa como siempre. Para cambiarla, inicia sesión de nuevo en Claude Code o guarda un token en",
+      "link": "Ajustes → Cuenta"
+    },
+    "changed": {
+      "label": "Qué ha cambiado",
+      "body": "Cuando un proveedor llega a su límite, el trabajo ya no rota de cuenta: continúa en otro con un traspaso, empieza de nuevo allí o espera al reinicio. Lo eliges en «Al llegar un proveedor a su límite». Hasta que lo cambies, espera."
+    },
+    "policies": {
+      "label": "Políticas quitadas",
+      "body_one": "{{count}} proyecto tenía una política de rotación que ya no existe. Abre su orden de proveedores:",
+      "body_other": "{{count}} proyectos tenían una política de rotación que ya no existe. Cada uno abre su orden de proveedores:"
+    },
+    "left": {
+      "label": "Sin tocar",
+      "body": "claude-swap y sus cuentas siguen donde estaban, y cswap funciona desde una terminal."
+    },
+    "remove": "Quitar la copia de claude-swap de Agentry",
+    "removeTitle": "¿Quitar la copia de claude-swap de Agentry?",
+    "removeBody": "Borra solo la copia que Agentry instaló en su carpeta de datos. Las cuentas y los archivos de claude-swap no se tocan.",
+    "removeHint": "Borra solo la que Agentry instaló en su carpeta de datos. Nada más.",
+    "removed": "Se ha quitado la copia de claude-swap de Agentry",
+    "nothingToRemove": "No había ninguna copia que quitar",
+    "failed": "No se ha podido completar",
+    "home": {
+      "keeps": "Claude Code sigue con {{account}} · el trabajo pasa entre proveedores",
+      "keepsNone": "Claude Code sigue con su cuenta · el trabajo pasa entre proveedores",
+      "see": "Ver qué cambia"
+    }
+  },
+  "project": {
+    "title": "Proveedores",
+    "intro": "Qué agentes puede usar este proyecto y qué hace su trabajo al llegar a un límite. Cada ajuste hereda el global hasta que lo cambias.",
+    "saved": "Proveedores guardados",
+    "order": "Orden",
+    "orderAria": "Orden de proveedores del proyecto",
+    "useGlobal": "Usar el global",
+    "own": "Orden propio",
+    "orderGlobal": "Orden global: {{order}}",
+    "outside": "Fuera del orden",
+    "outsideHint": "Un proveedor fuera del orden no recibe nunca trabajo de este proyecto.",
+    "add": "Añadir",
+    "remove": "Quitar {{name}} del orden",
+    "inherited": "heredado · global: {{global}}",
+    "global": "global: {{global}}",
+    "actionAria": "Qué hacer al llegar a un límite en este proyecto",
+    "summaryDiffering_one": "{{count}} ajuste propio",
+    "summaryDiffering_other": "{{count}} ajustes propios",
+    "summaryInherited": "Todo heredado"
   }
 }

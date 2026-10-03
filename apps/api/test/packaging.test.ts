@@ -9,7 +9,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import Fastify from 'fastify';
-import { Core, CSWAP_VERSION, UV_VERSION, loadConfig } from '@agentry/core';
+import { Core, loadConfig } from '@agentry/core';
 import { buildApp } from '../src/app.ts';
 import { listenOn } from '../src/server.ts';
 
@@ -22,7 +22,6 @@ async function wrapper() {
   const core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
-      CSWAP_BIN: '/nonexistent/cswap',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
       AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
       AGENTRY_DATA_DIR: join(root, 'data'),
@@ -52,9 +51,11 @@ test('the Agentry release is read without asking GitHub, and the image says it i
   await app.close();
 });
 
-test('the image bakes the claude-swap and uv the managed install pins', () => {
-  assert.equal(/^ARG CLAUDE_SWAP_VERSION=(.*)$/m.exec(dockerfile)?.[1], CSWAP_VERSION);
-  assert.equal(/^ARG UV_VERSION=(.*)$/m.exec(dockerfile)?.[1], UV_VERSION);
+test('the image no longer installs claude-swap or uv, and no packaging file mounts its data', () => {
+  assert.doesNotMatch(dockerfile, /claude-swap|cswap|uv-install/i);
+  for (const file of ['docker-compose.yml', 'deploy/helm/agentry/templates/deployment.yaml', '.env.example']) {
+    assert.doesNotMatch(readFileSync(resolve(here, '../../..', file), 'utf8'), /claude-swap|cswap/i, file);
+  }
 });
 
 test('closing the server does not wait for a browser tab that is still listening to the event stream', async () => {
@@ -131,7 +132,6 @@ test('the compiled API serves and stops on its own, with no source tree, node_mo
       PORT: '0',
       HOST: '127.0.0.1',
       CLAUDE_BIN: '/nonexistent/claude',
-      CSWAP_BIN: '/nonexistent/cswap',
       CLAUDE_CONFIG_DIR: join(dir, 'claude'),
       AGENTRY_WORKSPACE_DIR: join(dir, 'workspace'),
       AGENTRY_DATA_DIR: join(dir, 'data'),
@@ -209,8 +209,7 @@ test('the image does not offer the tunnel until the operator turns it on', async
     new Core(
       loadConfig({
         CLAUDE_BIN: '/nonexistent/claude',
-        CSWAP_BIN: '/nonexistent/cswap',
-        CLAUDE_CONFIG_DIR: join(root, 'claude'),
+          CLAUDE_CONFIG_DIR: join(root, 'claude'),
         AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
         AGENTRY_DATA_DIR: join(root, 'data'),
         // A guard that allows the tunnel, so the only thing refusing it is the switch

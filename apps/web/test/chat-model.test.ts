@@ -39,7 +39,6 @@ const execution = (over: Partial<Execution> = {}): Execution => ({
   error: null,
   permissionMode: 'manual',
   model: null,
-  account: null,
   maxBudgetUsd: null,
   costUsd: null,
   tokens,

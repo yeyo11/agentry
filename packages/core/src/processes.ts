@@ -8,7 +8,7 @@ export interface CliProcess {
 /**
  * Whether a process is a CLI working on that session: stream-json on stdin, and the session on
  * `--resume` or `--session-id`. Matching on the arguments rather than the binary is what also finds
- * one started through `cswap run … --`, and a pid the system has since reused for something else
+ * one a wrapper started as a child of its own, and a pid the system has since reused for something else
  * does not match. A `--fork-session` process reads the session it resumes but writes the copy named
  * by `--session-id`, so only the copy counts as the session it drives.
  */
@@ -186,7 +186,7 @@ export function descendantsOf(table: readonly ProcessEntry[], root: number): Pro
 
 /**
  * The process of the CLI itself under the pid Agentry spawned, which is the same one unless a
- * wrapper (`cswap chat …`) started it as a child: found by what it drives, not by its name.
+ * wrapper started it as a child: found by what it drives, not by its name.
  */
 export function cliProcessOf(table: readonly ProcessEntry[], spawned: number, sessionId: string): ProcessEntry | null {
   const own = table.find((p) => p.pid === spawned);
@@ -265,4 +265,21 @@ export function terminateTree(root: ProcessEntry, table: readonly ProcessEntry[]
     }
   }, graceMs).unref();
   return ended;
+}
+
+/**
+ * Signals the process group a child spawned with `detached: true` leads, so that what it started
+ * ends with it; the child alone when there is no group to signal.
+ */
+export function killGroup(child: { pid?: number | undefined; kill(signal: NodeJS.Signals): boolean }, signal: NodeJS.Signals): void {
+  if (child.pid === undefined) return;
+  try {
+    process.kill(-child.pid, signal);
+  } catch {
+    try {
+      child.kill(signal);
+    } catch {
+      /* already gone */
+    }
+  }
 }

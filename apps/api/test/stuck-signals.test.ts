@@ -12,6 +12,7 @@ import { buildApp } from '../src/app.ts';
 // Stepping in on a worker over HTTP: cancel one command, send a hint, and the health an
 // orchestration carries for a task that is running. The CLI is a fake that runs a real process
 // tree for `SLEEP`, so a cancel kills a real one.
+process.env.FAKE_CLAUDE_LOGGED_IN = '1';
 const FAKE_CLAUDE = fileURLToPath(new URL('../../../packages/core/test/fixtures/fake-claude-control.mjs', import.meta.url));
 
 let app: FastifyInstance;
@@ -25,7 +26,6 @@ before(async () => {
   core = new Core(
     loadConfig({
       CLAUDE_BIN: FAKE_CLAUDE,
-      CSWAP_BIN: '/nonexistent/cswap',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
       AGENTRY_WORKSPACE_DIR: workspace,
       AGENTRY_DATA_DIR: join(root, 'data'),
