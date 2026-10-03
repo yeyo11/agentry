@@ -254,7 +254,12 @@ export function targetsFor(event: AgentryEvent): Target[] {
       return [[keys.chatPermissions(event.runId), NOW], [keys.chats, LISTS], [keys.overview, NOW]];
     case 'run.providerMoved':
     case 'run.limitWaiting':
-      return [[keys.providers, NOW], [keys.overview, NOW], [keys.chats, LISTS]];
+      // A flow run that moved or waits changes its card, its item's runs and the moves they read; the
+      // event names the chat, not the item, so those are read by prefix (only mounted ones refetch)
+      return [
+        [keys.providers, NOW], [['providers', 'moves'], NOW], [keys.overview, NOW], [keys.chats, LISTS],
+        [keys.workItems, NOW], [['work-item'], NOW, 'no-diffs'], [['flow-runs'], NOW], [['flow'], NOW],
+      ];
     case 'run.rateLimited':
       // The provider's reading and the chat's banner follow the limit that was just hit
       return [[keys.providers, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.chats, LISTS]];

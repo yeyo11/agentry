@@ -901,6 +901,46 @@
   overflow: hidden;
 }
 
+.retire-home {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+
+.retire-home-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.retire-home-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .retire-home {
+    flex-wrap: wrap;
+  }
+
+  .retire-home .retire-text {
+    flex-basis: calc(100% - 44px);
+  }
+
+  .retire-home-actions {
+    flex: 1 1 100%;
+  }
+
+  .retire-home-actions .btn {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: 44px;
+  }
+}
+
 .retire-head {
   display: flex;
   align-items: flex-start;

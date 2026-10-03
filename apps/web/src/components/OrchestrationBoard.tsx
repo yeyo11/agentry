@@ -1,4 +1,4 @@
-import type { Orchestration, OrchestrationTaskState } from '@agentry/shared';
+import type { LimitWait, Orchestration, OrchestrationTaskState } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Ban,
@@ -41,7 +41,7 @@ import { withoutKey } from '../lib/work-item-links';
 import { ActivityTicker } from '@agentry/ui/components/ActivityTicker';
 import { Collapsible, Tooltip } from '@agentry/ui/components/controls';
 import { DecisionMark } from './DecisionMark';
-import { ProviderChain, useMovedWords, WaitLine } from './ProviderChain';
+import { NoCounterpartWhy, ProviderChain, useMovedWords, useNoCounterpart, WaitLine } from './ProviderChain';
 import { useProviderLabel } from '../lib/provider-status';
 import { useConfirm } from '@agentry/ui/components/Dialog';
 import { useLinkedWorkItem, WorkItemKeyLink } from './WorkItemKeyLink';
@@ -378,6 +378,13 @@ function TaskMark({ status, waiting = false }: { status: OrchestrationTaskState[
   );
 }
 
+/** The wait strip of a task: what holds it is the limit, or no counterpart for its model on the other provider (with the way to set one). */
+function TaskWaitLine({ task, wait }: { task: OrchestrationTaskState; wait: LimitWait }) {
+  const { t } = useTranslation('components');
+  const noCounterpart = useNoCounterpart(wait);
+  return <WaitLine wait={wait} why={noCounterpart ? <NoCounterpartWhy provider={noCounterpart.provider} model={task.model} /> : t('limitWait.why')} />;
+}
+
 /**
  * The one line that says where a task stands, in words: what a running worker is doing (its
  * command, in mono), how a finished one ended, what a blocked one waits for.
@@ -389,7 +396,7 @@ function TaskStatusBox({ orch, task }: { orch: Orchestration; task: Orchestratio
   switch (task.status) {
     case 'running':
       // Waiting for a reset is not live work: no ticker, no spinner, the clock and the hour
-      if (task.waiting) return <WaitLine wait={task.waiting} why={t('components:limitWait.why')} />;
+      if (task.waiting) return <TaskWaitLine task={task} wait={task.waiting} />;
       return task.activity ? (
         <div className="task-box is-live">
           <ActivityTicker activity={task.activity} className="task-ticker" />
@@ -459,10 +466,15 @@ function TaskStatusBox({ orch, task }: { orch: Orchestration; task: Orchestratio
 function TaskChain({ task }: { task: OrchestrationTaskState }) {
   const { t } = useTranslation('components');
   const movedWords = useMovedWords();
+  const noCounterpart = useNoCounterpart(task.waiting);
   const chain = task.chain?.length ? task.chain : task.provider && task.sessionId ? [{ chatId: task.sessionId, provider: task.provider, model: task.model ?? null, action: null }] : [];
   if (chain.length < 2 && !task.waiting) return null;
   const last = chain[chain.length - 1];
-  const how = task.waiting ? t('providerChain.keepsPlace') : [movedWords(last?.action), last?.model].filter(Boolean).join(' · ');
+  const how = noCounterpart
+    ? t('providerChain.noCounterpart', { model: task.model || t('limitWait.itsModel') })
+    : task.waiting
+      ? t('providerChain.keepsPlace')
+      : [movedWords(last?.action), last?.model].filter(Boolean).join(' · ');
   return <ProviderChain chain={chain} how={how || undefined} />;
 }
 

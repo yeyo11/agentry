@@ -265,7 +265,8 @@
       "handoff": "moved · handoff",
       "restart": "moved · started over"
     },
-    "keepsPlace": "keeps its place"
+    "keepsPlace": "keeps its place",
+    "noCounterpart": "no counterpart · {{model}}"
   },
   "limitWait": {
     "title": "Waiting for {{name}}",
@@ -276,7 +277,10 @@
     "stopFailed": "Could not stop waiting",
     "moveNow": "Move now",
     "moveNowTitle": "Open its chat to move it to another provider",
-    "badge": "waiting"
+    "badge": "waiting",
+    "noCounterpart": "{{model}} has no counterpart on {{name}}, and the work cannot go there without one.",
+    "itsModel": "Its model",
+    "chooseCounterpart": "Choose the counterpart"
   },
   "notificationText": {
     "waitingPermission": "{{name}} needs your approval to use {{tool}}",

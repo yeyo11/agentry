@@ -3,6 +3,7 @@ import { Component, Suspense, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ErrorBox, Skeleton } from '@agentry/ui/components/ui';
 import type { DashboardLayout, LayoutWidget } from './layout';
+import { RetirementCard } from './RetirementCard';
 import { WIDGET_AREAS, widgetDefinition, type WidgetArea } from './registry';
 
 /** One widget failing to render (or to load its chunk) takes its own cell down, not the dashboard. */
@@ -62,6 +63,7 @@ export function Dashboard({ layout, project, label }: { layout: DashboardLayout;
   }
   return (
     <div className="dashboard">
+      <RetirementCard />
       <div className="dashboard-grid" role="region" aria-label={label}>
         {WIDGET_AREAS.map((area) => {
           const widgets = byArea.get(area) ?? [];

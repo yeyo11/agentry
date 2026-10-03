@@ -265,7 +265,8 @@
       "handoff": "movida · traspaso",
       "restart": "movida · empezada de nuevo"
     },
-    "keepsPlace": "conserva su sitio"
+    "keepsPlace": "conserva su sitio",
+    "noCounterpart": "sin equivalente · {{model}}"
   },
   "limitWait": {
     "title": "Esperando a {{name}}",
@@ -276,7 +277,10 @@
     "stopFailed": "No se ha podido dejar de esperar",
     "moveNow": "Mover ahora",
     "moveNowTitle": "Abre su chat para pasarla a otro proveedor",
-    "badge": "esperando"
+    "badge": "esperando",
+    "noCounterpart": "{{model}} no tiene equivalente en {{name}}, y el trabajo no puede pasar allí sin uno.",
+    "itsModel": "Su modelo",
+    "chooseCounterpart": "Elegir el equivalente"
   },
   "notificationText": {
     "waitingPermission": "{{name}} necesita tu aprobación para usar {{tool}}",

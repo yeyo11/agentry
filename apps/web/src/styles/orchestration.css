@@ -1997,3 +1997,10 @@ a.chain-chip:hover {
   margin-top: 2px;
   color: var(--fg-2);
 }
+
+/* On the item: the chain of a run that moved and the wait of one that stopped, above the item's own text */
+.workitem-runstate {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
