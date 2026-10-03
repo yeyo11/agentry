@@ -3,6 +3,21 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.33.0](https://github.com/yeyo11/agentry/compare/v0.32.0...v0.33.0) (2026-10-03)
+
+
+### Features
+
+* **hosts:** GitLab webhooks: register, test, remove, re-point and verify the signing token (phase 6, step 2) ([#181](https://github.com/yeyo11/agentry/issues/181)) ([8ee45be](https://github.com/yeyo11/agentry/commit/8ee45be9465742b9b529f7b14e10f27996cb0c3c))
+* **providers:** rotation between providers at a usage limit, and claude-swap retired (multiple providers phase 4) ([#188](https://github.com/yeyo11/agentry/issues/188)) ([be1318f](https://github.com/yeyo11/agentry/commit/be1318fd54c741c035d462efe25f6bccd7b51206))
+
+
+### Documentation
+
+* commit the team's agent types, project skills and seven refined CW specs ([#184](https://github.com/yeyo11/agentry/issues/184)) ([d57d3a6](https://github.com/yeyo11/agentry/commit/d57d3a69fb836134240ddc40893c0a85b2831a10))
+* **plans:** voice actions through Siri Shortcuts ([#187](https://github.com/yeyo11/agentry/issues/187)) ([0aa60e3](https://github.com/yeyo11/agentry/commit/0aa60e339b5609a8de6ba58861ba0dc9b3f918ba))
+* record the CW-18 answers and the decision on authentication off ([#183](https://github.com/yeyo11/agentry/issues/183)) ([d8a2d4c](https://github.com/yeyo11/agentry/commit/d8a2d4c19d31946108f710e045832a451abaa5f1))
+
 ## [0.32.0](https://github.com/yeyo11/agentry/compare/v0.31.0...v0.32.0) (2026-10-02)
 
 
