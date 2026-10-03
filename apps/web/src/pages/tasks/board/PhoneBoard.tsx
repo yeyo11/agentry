@@ -203,7 +203,7 @@ function PhoneRow({
 }) {
   const { t } = useTranslation('tasks');
   const done = item.status === 'done';
-  const working = !done && (workItemLiveState(item) === 'working' || strip?.kind === 'run');
+  const working = !done && strip?.kind !== 'run-waiting' && (workItemLiveState(item) === 'working' || strip?.kind === 'run');
   const assignee = item.assignee && !stripNamesAssignee(item.assignee, strip) ? <Assignee item={item} /> : null;
   const facts = item.type !== 'epic' && hasFacts(item);
   return (

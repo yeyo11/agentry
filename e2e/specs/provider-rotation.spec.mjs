@@ -38,20 +38,52 @@ export default async ({ page, api, check, dirs }) => {
   const clickButton = (label) => page.click('.lim .btn', label, 400);
 
   try {
-    // A model the chat runs on needs a counterpart before it can move; a chat with none needs nothing
+    // A model the chat runs on needs a counterpart before it can move. The person gives it in the mapping
+    // editor, on the row of the model's alias: the chat reports the resolved id, the row is named by the alias
     const probe = await limited();
-    const mapping = probe.model ? [{ from: { provider: 'claude-code', model: probe.model }, to: { provider: 'codex', model: 'gpt-6.1-sol' }, origin: 'person', at: new Date().toISOString() }] : [];
     await api.put('/providers/settings', {
       ...saved,
-      rotation: { onLimit: { action: 'handoff', allowed: ['handoff', 'restart', 'wait'], maxWaitHours: 6, maxMoves: 2 }, modelMap: mapping },
+      rotation: { onLimit: { action: 'handoff', allowed: ['handoff', 'restart', 'wait'], maxWaitHours: 6, maxMoves: 2 }, modelMap: [] },
     });
     await api.post('/providers/refresh');
+    if (probe.model) {
+      const claudeModels = (await api.get('/providers/claude-code/models')).body;
+      const codexModels = (await api.get('/providers/codex/models')).body.filter((m) => !m.disabled);
+      const row = claudeModels.find((m) => m.value === probe.model || (m.ids ?? []).includes(probe.model));
+      check(!!row && codexModels.length > 0, `the chat's model has a row in the catalog, and Codex offers models (${probe.model})`);
+      const target = codexModels[0];
+      await page.viewport(1440, 900);
+      await page.goto('/settings?tab=providers', 300);
+      const rowSelector = `.map-row[data-model=${JSON.stringify(row.value)}]`;
+      await page.waitFor(`return !!document.querySelector(${JSON.stringify(rowSelector)})`, { label: 'the alias row in the mapping editor' });
+      check(await page.eval(`return !!document.querySelector(${JSON.stringify(`${rowSelector} [aria-label^="Suggest a counterpart"]`)})`), 'an empty cell offers Suggest');
+      await page.select(`${rowSelector} [aria-label^="Counterpart of"]`, target.label ?? target.value);
+      const end = Date.now() + 10_000;
+      let entries = [];
+      while (Date.now() < end) {
+        entries = (await api.get('/providers/settings')).body.rotation?.modelMap ?? [];
+        if (entries.length > 0) break;
+        await page.sleep(250);
+      }
+      check(entries.length === 1 && entries[0].to.provider === 'codex' && entries[0].to.model === target.value, `picking in the editor saves the counterpart (${JSON.stringify(entries)})`);
+      check(entries[0]?.from.model === row.value || (row.ids ?? []).includes(entries[0]?.from.model), 'the entry is written under the row it was picked on');
+    }
+
+    // ---- Home carries the retirement notice while it is open, and only then ----
+    const notice = (await api.get('/providers/cswap-retirement')).body?.notice;
+    await page.viewport(1440, 900);
+    await page.goto('/', 600);
+    await page.waitFor(`return !!document.querySelector('main, [role=main]')`, { label: 'Home' });
+    await page.sleep(800);
+    check((await page.eval(`return !!document.querySelector('.retire-home')`)) === !!notice, `Home shows the retirement card exactly when the notice is open (${!!notice})`);
 
     // ---- The banner at the limit, in both themes ----
     await page.viewport(1440, 900);
     await page.goto('/', 300);
     await theme('dark');
     await page.goto(`/chats/${probe.id}`, 1200);
+    // The banner reads the limit from the provider's status
+    check((await api.get('/providers/claude-code')).body?.limit?.state === 'exhausted', 'the provider status carries the limit');
     await page.waitFor(`return !!document.querySelector('.lim .lim-title')`, { label: 'the limit banner' });
     const title = await text('.lim .lim-title');
     check(/Claude Code reached its .*limit/.test(title), `the banner names the provider and the limit (${JSON.stringify(title)})`);

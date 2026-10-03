@@ -13,6 +13,7 @@ import type {
   PermissionRequest,
   Schedule,
 } from '@agentry/shared';
+import { CLAUDE_CODE_ID } from '../../lib/provider-state';
 import type { ProgressCounts, ProgressStatus, StepState } from '@agentry/ui/lib/progress';
 
 /** What a chat stopped for, described so the component words it in the active language. */
@@ -212,11 +213,12 @@ const WEEKLY = /seven|7\s*d|week/i;
 const clampPct = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
 
 /**
- * The 5 h and weekly windows of the first provider that reports any, recognised by name. Claude Code
- * is first in the overview unless the person ordered otherwise.
+ * The 5 h and weekly windows of Claude Code, recognised by name: the Home card names Claude's account,
+ * so another provider's reading never stands in for it.
  */
 export function limitSummary(overview: Pick<Overview, 'limits'> | undefined): LimitSummary {
-  const windows = Object.entries((overview?.limits ?? []).find((l) => Object.keys(l.windows).length > 0)?.windows ?? {});
+  // The widget sits beside Claude's account, so it reads Claude's windows and no other provider's
+  const windows = Object.entries((overview?.limits ?? []).find((l) => l.provider === CLAUDE_CODE_ID)?.windows ?? {});
   const find = (pattern: RegExp): LimitWindow | null => {
     const found = windows.find(([name]) => pattern.test(name))?.[1];
     return found ? { pct: clampPct(found.utilization * 100), resetsAt: found.resetsAt ? found.resetsAt * 1000 : null } : null;

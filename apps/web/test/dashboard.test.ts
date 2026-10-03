@@ -258,10 +258,12 @@ test('task segments: one per task, done first and what is ahead last', () => {
   assert.deepEqual(taskSegments([]), []);
 });
 
-test('limits: the windows of the first provider that reports any, by name', () => {
+test('limits: the windows of Claude Code, by name, and no other provider\'s', () => {
   const reading = (windows: ProviderLimit['windows']): ProviderLimit => ({ provider: 'claude-code', state: 'ok', window: null, utilization: null, resetsAt: null, windows, observedAt: '', source: 'stream' });
   const claude = reading({ seven_day: { utilization: 0.051, resetsAt: 200 }, five_hour: { utilization: 1.2, resetsAt: 100 } });
-  assert.deepEqual(limitSummary({ limits: [reading({}), claude] }), { fiveHour: { pct: 100, resetsAt: 100_000 }, weekly: { pct: 5, resetsAt: 200_000 } });
+  const codex: ProviderLimit = { ...claude, provider: 'codex', windows: { primary: { utilization: 0.4, resetsAt: 50 } } };
+  assert.deepEqual(limitSummary({ limits: [codex, { ...reading({}), provider: 'copilot' }, claude] }), { fiveHour: { pct: 100, resetsAt: 100_000 }, weekly: { pct: 5, resetsAt: 200_000 } });
+  assert.deepEqual(limitSummary({ limits: [codex] }), { fiveHour: null, weekly: null });
   assert.deepEqual(limitSummary(undefined), { fiveHour: null, weekly: null });
   assert.deepEqual(limitSummary({ limits: [] }), { fiveHour: null, weekly: null });
 });

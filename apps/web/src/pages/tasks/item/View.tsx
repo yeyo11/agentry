@@ -37,6 +37,7 @@ import { PullRequestState } from './PullRequest';
 import { useRefreshPullRequestOnOpen } from '../board/PullRequest';
 import { LabelsEditor, Properties } from './Properties';
 import { Relations } from './Relations';
+import { RunState } from './RunState';
 import { WaitingBadge, WaitingState } from './Waiting';
 import { CopyLink, ItemMenu, StatusBadge, useBackPath, useItemButtons, type ItemVariant } from './ViewHead';
 
@@ -75,6 +76,7 @@ function Wide({ item, actions, person, variant }: { item: WorkItemDetail; action
       {head}
       {buttons.refusal}
       <WaitingState item={item} actions={actions} />
+      <RunState item={item} />
       <PullRequestState item={item} />
       <Issues item={item} />
       <div className="workitem-heading">
@@ -266,6 +268,7 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
           <>
             {buttons.refusal}
             <WaitingState item={item} actions={actions} />
+            <RunState item={item} />
             <PullRequestState item={item} />
             <Issues item={item} />
             <Description item={item} actions={actions} />
