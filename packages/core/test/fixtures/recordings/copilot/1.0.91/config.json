@@ -1,0 +1,21 @@
+// User settings belong in settings.json.
+// This file is managed automatically.
+{
+  "firstLaunchAt": "2026-03-11T00:00:00.000Z",
+  "lastLoggedInUser": {
+    "host": "https://github.com",
+    "login": "octocat"
+  },
+  "loggedInUsers": [
+    {
+      "host": "https://github.com",
+      "login": "monalisa"
+    },
+    {
+      "host": "https://github.com",
+      "login": "octocat",
+      "kind": "githubDotCom"
+    }
+  ],
+  "appTipShown": true
+}

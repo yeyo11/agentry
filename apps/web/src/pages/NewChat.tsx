@@ -74,8 +74,9 @@ export function NewChat() {
   const modelOptions = claude
     ? claudeModels
     : (providerModels.data ?? []).filter((m) => !m.disabled).map((m) => ({ value: m.value, label: m.label ?? m.value, hint: m.description }));
-  // A provider that picks its model when the chat starts has nothing to switch to
-  const modelLocked = Boolean(provider) && !provider?.capabilities.includes('setModel');
+  // Every agent takes a model when the chat starts (Copilot as `--model`); one without `setModel`
+  // only cannot change it afterwards, which the hint says
+  const modelFixed = Boolean(provider) && !provider?.capabilities.includes('setModel');
   const modes: readonly PermissionMode[] = provider?.permissionModes ?? PERMISSION_MODES;
   const pickProvider = (id: string) => {
     setChosenProvider(id);
@@ -93,7 +94,7 @@ export function NewChat() {
       if (files.ids.length) opts.attachments = files.ids;
       if (providerId) opts.provider = providerId;
       if (cwd.trim()) opts.cwd = cwd.trim();
-      if (model.trim() && !modelLocked) opts.model = model.trim();
+      if (model.trim()) opts.model = model.trim();
       if (permissionMode) opts.permissionMode = permissionMode;
       if (appendSystemPrompt.trim()) opts.appendSystemPrompt = appendSystemPrompt.trim();
       if (tools.toolPreset !== undefined) opts.toolPreset = tools.toolPreset;
@@ -189,12 +190,8 @@ export function NewChat() {
               />
             </Field>
           )}
-          <Field label={t('new.model')} hint={modelLocked ? t('new.modelLocked', { agent }) : t('new.modelHint')}>
-            {modelLocked ? (
-              <input type="text" disabled aria-label={t('new.model')} placeholder={t('new.modelAuto')} value="" readOnly />
-            ) : (
-              <Combobox aria-label={t('new.model')} placeholder={t('new.modelPlaceholder')} value={model} onChange={setModel} options={modelOptions} />
-            )}
+          <Field label={t('new.model')} hint={modelFixed ? t('new.modelFixed', { agent }) : t('new.modelHint')}>
+            <Combobox aria-label={t('new.model')} placeholder={t('new.modelPlaceholder')} value={model} onChange={setModel} options={modelOptions} />
           </Field>
           <Field label={t('new.permissionMode')} hint={t('new.permissionModeHint')}>
             <Select<PermissionMode | ''>

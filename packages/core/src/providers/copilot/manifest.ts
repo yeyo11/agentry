@@ -25,9 +25,16 @@ export const copilotManifest: ProviderManifest = {
   },
   install: { url: 'https://docs.github.com/copilot/how-tos/copilot-cli' },
   auth: {
-    // `copilot login` exists, but `--help` shows no subcommand that reports the state, so nothing is
-    // probed and readiness says `no-probe`.
-    probe: { kind: 'none' },
+    // `copilot login` exists, but `--help` shows no subcommand that reports the state. The CLI keeps
+    // who signed in in its own state file: `copilot help config` calls it the "global config.json",
+    // in COPILOT_HOME, and on 1.0.91 it lists `loggedInUsers` and `lastLoggedInUser` ({ host, login }).
+    // The token itself is in the system's credential store, so a listed account whose token was
+    // revoked still reads as signed in until a chat fails on it.
+    probe: {
+      kind: 'file',
+      file: { default: '~/.copilot/config.json', env: 'COPILOT_HOME', insideEnv: 'config.json' },
+      users: { list: 'loggedInUsers', current: 'lastLoggedInUser', defaultHost: 'https://github.com' },
+    },
     // Source: `copilot login --help`, in order of precedence.
     credentialEnv: ['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'],
     signInUrl: 'https://docs.github.com/copilot/how-tos/copilot-cli',

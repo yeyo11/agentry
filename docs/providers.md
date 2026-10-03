@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:00:00Z
-updated_at: 2026-10-01T18:00:00Z
+updated_at: 2026-10-03T12:00:00Z
 tags:
     - providers
     - detection
@@ -142,6 +142,22 @@ found (an override included), and spends nothing:
   `session/resume`, MCP) and confirms those declared capabilities. It cannot say whether anyone is
   signed in (`authMethods` are offered either way), so a provider with no login probe stays
   `unknown` with `no-probe`, and a recording of a signed-in account is what settles it.
+- **Copilot's login** is read from the state file the CLI writes, since it has no command that
+  reports one: `config.json` in `COPILOT_HOME` (`~/.copilot` by default; `copilot help config` calls
+  it the "global config.json"). It starts with `//` comment lines and lists `loggedInUsers` and the
+  `lastLoggedInUser` (`{ host, login }`, recorded on 1.0.91). An account listed is `ready` and named
+  on the status (`login`, or `login@host` off github.com); no file or no account is `signed-out`,
+  unless `COPILOT_GITHUB_TOKEN`, `GH_TOKEN` or `GITHUB_TOKEN` is set, which signs the CLI in with
+  nothing free to check, and stays `unknown` / `no-probe`. The token is in the system's credential
+  store, so an account whose token was revoked reads `ready` until a chat fails on it. The UI offers
+  no Retry for `no-probe`: there is no check to repeat.
+- **Copilot's models** are not in `initialize`. From 1.0.91 `session/new` lists them (`models` and a
+  `model` config option), but every session it opens stays in the person's Copilot history and
+  `session/close` does not remove it, so detection never opens one. A chat's session teaches them
+  instead: the ACP driver hands what a session offered to the detector, which files it in
+  `provider-catalogs.json`, so the picker has them from then on. Copilot takes the model as
+  `--model` when the chat starts and cannot switch it afterwards (`setModel` is not declared), so
+  New chat lets the person pick one and says it stays for the whole chat.
 
 What a handshake reads is kept for the binary and version it was read from, and run again only when
 either changes, never once per TTL. A handshake that fails (the process did not start, did not answer

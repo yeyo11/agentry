@@ -5,12 +5,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import type { ProviderLimit, ProvidersSettings } from '@agentry/shared';
+import type { ModelOption, ProviderLimit, ProvidersSettings } from '@agentry/shared';
 import type { AgentryEventInput } from '../src/events.ts';
 import { loadConfig } from '../src/paths.ts';
 import { ProviderLimits, type ProviderLimitStore } from '../src/providers/limits.ts';
 import { ProviderDetector, satisfiesRange } from '../src/providers/detector.ts';
 import { confirmClaudeInit } from '../src/providers/claude-code/handshake.ts';
+import { AcpDriver } from '../src/providers/acp/driver.ts';
+import { PROVIDER_MANIFESTS, ProviderRegistry } from '../src/providers/registry.ts';
 import type { SessionInit } from '../src/providers/driver.ts';
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -38,7 +40,7 @@ async function fake(name: string, body: string): Promise<string> {
   return file;
 }
 
-function detector(options: { limits?: ProviderLimits; settings?: ProvidersSettings | null; events?: AgentryEventInput[]; probeTimeoutMs?: number; env?: NodeJS.ProcessEnv } = {}) {
+function detector(options: { limits?: ProviderLimits; settings?: ProvidersSettings | null; events?: AgentryEventInput[]; probeTimeoutMs?: number; env?: NodeJS.ProcessEnv; registry?: ProviderRegistry } = {}) {
   const env = { PATH: bin, HOME: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), AGENTRY_DATA_DIR: join(home, 'data'), ...options.env };
   return new ProviderDetector({
     config: loadConfig(env),
@@ -49,6 +51,7 @@ function detector(options: { limits?: ProviderLimits; settings?: ProvidersSettin
     settings: () => options.settings ?? null,
     emit: (event) => options.events?.push(event),
     limits: options.limits,
+    registry: options.registry,
     probeTimeoutMs: options.probeTimeoutMs ?? 5_000,
     debounceMs: 50,
     minWatchGapMs: 0,
@@ -59,6 +62,25 @@ const CLAUDE = (version: string, loggedIn: boolean) =>
   `case "$1" in --version) echo "${version} (Claude Code)";; auth) echo '{"loggedIn": ${String(loggedIn)}, "email": "me@example.com"}';; esac`;
 const CODEX = (loginExit: number) =>
   `case "$1" in --version) echo "codex-cli 0.159.3";; login) exit ${String(loginExit)};; esac`;
+
+/** Copilot's state file as 1.0.91 writes it: comment lines, then JSON with the accounts that signed in */
+const COPILOT_CONFIG = `// User settings belong in settings.json.
+// This file is managed automatically.
+{
+  "firstLaunchAt": "2026-03-11T00:00:00.000Z",
+  "lastLoggedInUser": { "host": "https://github.com", "login": "octocat" },
+  "loggedInUsers": [
+    { "host": "https://github.com", "login": "monalisa" },
+    { "host": "https://github.com", "login": "octocat", "kind": "githubDotCom" },
+    { "host": "https://acme.ghe.com", "login": "hubot" }
+  ]
+}
+`;
+
+async function copilotSignedIn(dir: string, text: string): Promise<void> {
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, 'config.json'), text);
+}
 
 async function statusOf(d: ProviderDetector, id: string) {
   const status = (await d.refresh()).find((s) => s.id === id);
@@ -137,6 +159,58 @@ describe('ProviderDetector', () => {
     await fake('gemini', 'echo "0.62.0"');
     const gemini = await statusOf(detector(), 'gemini');
     assert.deepEqual([gemini.state, gemini.reason, gemini.version], ['unknown', 'no-probe', '0.62.0']);
+  });
+
+  it('reads Copilot\'s sign-in from the accounts its state file lists, wherever COPILOT_HOME puts it', async () => {
+    await fake('copilot', 'echo "GitHub Copilot CLI 1.0.91."');
+    const signedOut = await statusOf(detector(), 'copilot');
+    assert.deepEqual([signedOut.state, signedOut.reason], ['signed-out', 'missing-credentials'], 'no state file, no login');
+
+    const own = join(home, '.copilot');
+    // Other state and no account: never signed in
+    await copilotSignedIn(own, '// This file is managed automatically.\n{ "firstLaunchAt": "2026-03-11T00:00:00.000Z", "loggedInUsers": [] }');
+    assert.equal((await statusOf(detector(), 'copilot')).state, 'signed-out');
+    // A token in the environment signs in without a file, and cannot be checked for free
+    const withToken = await statusOf(detector({ env: { GH_TOKEN: 'set' } }), 'copilot');
+    assert.deepEqual([withToken.state, withToken.reason], ['unknown', 'no-probe']);
+
+    await copilotSignedIn(own, COPILOT_CONFIG);
+    const ready = await statusOf(detector(), 'copilot');
+    assert.deepEqual([ready.state, ready.account], ['ready', 'octocat'], 'the account in use, read past the comment lines');
+    await copilotSignedIn(own, COPILOT_CONFIG.replace('"lastLoggedInUser": { "host": "https://github.com", "login": "octocat" }', '"lastLoggedInUser": { "host": "https://acme.ghe.com", "login": "hubot" }'));
+    assert.equal((await statusOf(detector(), 'copilot')).account, 'hubot@acme.ghe.com', 'an account on another host says which');
+    await copilotSignedIn(own, '{ "loggedInUsers": [ { "host": "https://github.com", "login": "monalisa" } ] }');
+    assert.equal((await statusOf(detector(), 'copilot')).account, 'monalisa', 'with none marked in use, the first listed');
+
+    const moved = join(root, `copilot-home${n}`);
+    await copilotSignedIn(moved, COPILOT_CONFIG);
+    await rm(own, { recursive: true });
+    assert.equal((await statusOf(detector(), 'copilot')).state, 'signed-out');
+    assert.equal((await statusOf(detector({ env: { COPILOT_HOME: moved } }), 'copilot')).state, 'ready', 'COPILOT_HOME moves the file');
+  });
+
+  it('keeps the models a Copilot chat was offered, and hands them back after a restart', async () => {
+    const copilotManifest = PROVIDER_MANIFESTS.find((m) => m.id === 'copilot');
+    assert.ok(copilotManifest);
+    // The chat's side is the driver's own test; here, what the detector does with what it hears
+    class Heard extends AcpDriver {
+      listener: ((models: ModelOption[]) => void) | null = null;
+      override watchCatalog(listener: (models: ModelOption[]) => void): void {
+        this.listener = listener;
+        super.watchCatalog(listener);
+      }
+    }
+    const first = new Heard(copilotManifest);
+    detector({ registry: new ProviderRegistry(PROVIDER_MANIFESTS, [first]) });
+    assert.ok(first.listener, 'the detector listens to the driver');
+    first.listener([{ value: 'auto', label: 'Auto' }, { value: 'gpt-5.2', label: 'GPT-5.2' }]);
+    const file = join(home, 'data', 'provider-catalogs.json');
+    await until(() => existsSync(file));
+    assert.deepEqual((JSON.parse(readFileSync(file, 'utf8')) as Record<string, { models: Array<{ value: string }> }>).copilot?.models.map((m) => m.value), ['auto', 'gpt-5.2']);
+
+    const after = new Heard(copilotManifest);
+    detector({ registry: new ProviderRegistry(PROVIDER_MANIFESTS, [after]) });
+    assert.deepEqual(after.models().map((m) => m.value), ['auto', 'gpt-5.2'], 'the picker has them before any chat of this run');
   });
 
   it('reads OpenCode sign-in from the credentials file its login writes', async () => {
@@ -427,10 +501,11 @@ describe('driver handshakes', () => {
 
   it('asks an ACP agent only to initialize, with Copilot\'s updates off, and confirms what it offers', async () => {
     await copilot();
+    await copilotSignedIn(join(home, '.copilot'), COPILOT_CONFIG);
     const log = join(root, `acp${n}.jsonl`);
     const status = await statusOf(detector({ env: { FAKE_ACP_LOG: log, FAKE_ACP_VERSION: '1.0.90' } }), 'copilot');
-    // An agent answers initialize signed in or not, so this says nothing about the account
-    assert.deepEqual([status.state, status.reason, status.account], ['unknown', 'no-probe', null]);
+    // An agent answers initialize signed in or not: the account comes from the CLI's state file
+    assert.deepEqual([status.state, status.reason, status.account], ['ready', null, 'octocat']);
     assert.equal(status.version, '1.0.90');
     assert.equal(status.confirmed?.version, '1.0.90');
     assert.ok(status.confirmed.capabilities.includes('resume'));

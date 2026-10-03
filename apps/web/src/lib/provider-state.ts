@@ -1,4 +1,4 @@
-import type { ProviderReadinessState, ProviderStatus } from '@agentry/shared';
+import type { ProviderReadinessState, ProviderReasonCode, ProviderStatus } from '@agentry/shared';
 
 // What a provider's state looks like and what can be done about it, as plain data: the row, the
 // first-run step and the status bar all read it, and a test reads it without a page.
@@ -37,9 +37,10 @@ export interface ProviderAction {
 /**
  * The remedy per state, from the validated prototype: sign in when signed out, install or point at
  * a binary when the program is missing or the wrong version, update when it works but is old, and
- * retry when the check could not run. Ready has nothing to fix.
+ * retry when the check could not run. Ready has nothing to fix, and neither has a provider with no
+ * check to run (`no-probe`): retrying would read the same nothing again.
  */
-export function actionsFor(state: ProviderReadinessState): ProviderAction[] {
+export function actionsFor(state: ProviderReadinessState, reason: ProviderReasonCode | null = null): ProviderAction[] {
   switch (state) {
     case 'ready':
       return [];
@@ -53,7 +54,7 @@ export function actionsFor(state: ProviderReadinessState): ProviderAction[] {
     case 'not-installed':
       return [{ kind: 'install', primary: true }];
     case 'unknown':
-      return [{ kind: 'retry', primary: true }];
+      return reason === 'no-probe' ? [] : [{ kind: 'retry', primary: true }];
   }
 }
 

@@ -25,7 +25,7 @@ server's environment to its probes), so a spec changes it without restarting any
 
 | Key | Default | Effect |
 | --- | --- | --- |
-| `version` | the recorded one (codex `0.159.3`, copilot `1.0.90`, gemini `0.62.0`, opencode `1.18.34`) | The version `--version` prints, and the one the Copilot protocol fake answers as (`1.0.65` or `1.0.90`) |
+| `version` | the recorded one (codex `0.159.3`, copilot `1.0.91`, gemini `0.62.0`, opencode `1.18.34`) | The version `--version` prints, and the one the Copilot protocol fake answers as (`1.0.65`, `1.0.90` or `1.0.91`) |
 | `signedIn` | `true` | `login status` exits 0, or 1 when `false`; the protocol fakes answer as signed out |
 | `versionExit` | `0` | A non-zero exit code for `--version`: a binary that is broken |
 

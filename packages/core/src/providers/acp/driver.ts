@@ -78,6 +78,7 @@ export class AcpDriver implements ProviderDriver {
   private agent: AgentFacts | null = null;
   private offeredModel: boolean | null = null;
   private offered: ModelOption[] = [];
+  private catalogListener: ((models: ModelOption[]) => void) | null = null;
   /** The agent's session id per chat, so a fork named by chat id finds its source */
   private readonly natives = new Map<string, string>();
   private readonly files = new Map<string, string[]>();
@@ -102,6 +103,20 @@ export class AcpDriver implements ProviderDriver {
   models(): ModelOption[] {
     const seen = new Set<string>();
     return [...this.profile.defaultModels, ...this.offered].filter((m) => !seen.has(m.value) && !!seen.add(m.value));
+  }
+
+  /** The models a session offered on an earlier run, kept by the detector until a session offers them again */
+  setCatalog(models: ModelOption[]): void {
+    if (models.length > 0) this.offered = models;
+  }
+
+  /**
+   * Who keeps what a session offers. An ACP agent names its models only once a session exists (the
+   * handshake opens none: Copilot keeps every session it opens in the person's history), so a chat
+   * is where the catalog is learned.
+   */
+  watchCatalog(listener: (models: ModelOption[]) => void): void {
+    this.catalogListener = listener;
   }
 
   permissionModes(): Array<{ mode: PermissionMode; native: string }> {
@@ -141,7 +156,10 @@ export class AcpDriver implements ProviderDriver {
       onSession: (nativeId, offered) => {
         this.natives.set(spec.id, nativeId);
         this.offeredModel = offered.models.length > 0;
-        if (offered.models.length > 0) this.offered = offered.models;
+        if (offered.models.length > 0) {
+          this.offered = offered.models;
+          this.catalogListener?.(this.models());
+        }
       },
       nativeOf: (chatId) => this.natives.get(chatId),
       onEnd: () => {

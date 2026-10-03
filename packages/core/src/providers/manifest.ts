@@ -11,10 +11,23 @@ export interface ProviderConfigHome {
 }
 
 /**
- * How to tell whether a provider is signed in. `file` is for a CLI whose login writes a credentials
- * file but prints its state only for people: a JSON object with at least one key is signed in.
- * `none` means the vendor documents no probe that spends nothing, so readiness for that provider
- * stays `unknown` with the reason `no-probe` instead of a guess.
+ * Where a state file lists who signed in: `list` is an array of accounts, `current` the one in use.
+ * An account is an object with a `login` and, for a CLI that signs in to several hosts, a `host`.
+ */
+export interface ProviderSignedInUsers {
+  list: string;
+  current: string;
+  /** The host an account belongs to when it names none; it is left out of the account's name */
+  defaultHost: string;
+}
+
+/**
+ * How to tell whether a provider is signed in. `file` is for a CLI whose login writes a file but
+ * prints its state only for people: a JSON object with at least one key is signed in, unless
+ * `users` names where the CLI lists the accounts that signed in, and then one must be listed (the
+ * file holds other state too). Whole-line `//` comments are allowed: some CLIs head their state
+ * file with one. `none` means the vendor documents no probe that spends nothing, so readiness for
+ * that provider stays `unknown` with the reason `no-probe` instead of a guess.
  */
 export type ProviderAuthProbe =
   | {
@@ -23,7 +36,7 @@ export type ProviderAuthProbe =
       /** How the answer reads: `json` has a boolean `loggedIn`, `exit-code` means 0 is signed in */
       result: 'json' | 'exit-code';
     }
-  | { kind: 'file'; file: ProviderConfigHome }
+  | { kind: 'file'; file: ProviderConfigHome; users?: ProviderSignedInUsers }
   | { kind: 'none' };
 
 /**

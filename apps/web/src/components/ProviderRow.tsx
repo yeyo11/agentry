@@ -112,7 +112,7 @@ export function ProviderRow({
     </div>
   );
 
-  const actions = checking || !enabled ? [] : actionsFor(status.state);
+  const actions = checking || !enabled ? [] : actionsFor(status.state, status.reason);
   const buttons = actions.map((action) => (
     <ActionButton key={action.kind} action={action} status={status} onRetry={onRetry} onChooseBinary={onChooseBinary} />
   ));

@@ -122,7 +122,7 @@ const prompt = (c: Client, sessionId: string, text: string) =>
   c.call('session/prompt', { sessionId, prompt: [{ type: 'text', text }] });
 
 const PROFILES = [
-  { profile: 'copilot', rel: 'copilot/1.0.90/acp-prompt-with-owner-account-by-accident.jsonl', id: /^[0-9a-f-]{36}$/, list: true, fork: false },
+  { profile: 'copilot', rel: 'copilot/1.0.91/acp-session-new-signed-in.jsonl', id: /^[0-9a-f-]{36}$/, list: true, fork: false },
   { profile: 'gemini', rel: 'gemini/0.62.0/acp-initialize.jsonl', id: /^[0-9a-f-]{36}$/, list: false, fork: false },
   { profile: 'opencode', rel: 'opencode/1.18.34/acp-initialize.jsonl', id: /^ses_[0-9a-f]{26}$/, list: true, fork: true },
 ] as const;
@@ -280,10 +280,11 @@ for (const p of PROFILES) {
 }
 
 describe('fake-acp-agent specifics', () => {
-  test('Copilot answers the handshake of the version asked, and 1.0.90 has session/close', async () => {
+  test('Copilot answers the handshake of the version asked, and from 1.0.90 has session/close', async () => {
     for (const [v, rel] of [
       ['1.0.65', 'copilot/1.0.65/acp-initialize.jsonl'],
       ['1.0.90', 'copilot/1.0.90/acp-prompt-with-owner-account-by-accident.jsonl'],
+      ['1.0.91', 'copilot/1.0.91/acp-session-new-signed-in.jsonl'],
     ] as const) {
       const c = new Client('copilot', { FAKE_ACP_VERSION: v });
       const init = await c.call('initialize', INIT);

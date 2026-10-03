@@ -77,6 +77,9 @@ test('each state offers the remedy the prototype shows, one primary at most', ()
   assert.deepEqual(kinds('used-before'), ['choose-binary', 'install']);
   assert.deepEqual(kinds('incompatible'), ['choose-binary', 'install']);
   assert.deepEqual(kinds('unknown'), ['retry']);
+  // Nothing to retry where there is no check: Copilot with only a token in the environment
+  assert.deepEqual(actionsFor('unknown', 'no-probe'), []);
+  assert.deepEqual(actionsFor('unknown', 'probe-timeout').map((a) => a.kind), ['retry']);
   for (const state of STATES) assert.ok(actionsFor(state).filter((a) => a.primary).length <= 1, state);
 });
 

@@ -45,7 +45,7 @@ function ask(name, args, request) {
   });
 }
 
-const RECORDED = { codex: '0.159.3', copilot: '1.0.90', gemini: '0.62.0', opencode: '1.18.34' };
+const RECORDED = { codex: '0.159.3', copilot: '1.0.91', gemini: '0.62.0', opencode: '1.18.34' };
 
 for (const [name, version] of Object.entries(RECORDED)) {
   test(`${name} answers --version with the recorded version unless a spec says another`, () => {

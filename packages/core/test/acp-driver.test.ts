@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { after, describe, test } from 'node:test';
-import type { ToolPolicy } from '@agentry/shared';
+import type { ModelOption, ToolPolicy } from '@agentry/shared';
 import { AcpDriver } from '../src/providers/acp/driver.ts';
 import { neutralRequest, optionFor } from '../src/providers/acp/permissions.ts';
 import { translateCopilotPolicy } from '../src/providers/acp/policy-copilot.ts';
@@ -241,6 +241,26 @@ describe('a session', () => {
       { name: 'local', command: 'node', args: ['s.js'], env: [{ name: 'K', value: 'v' }] },
       { type: 'http', name: 'remote', url: 'https://m.test/mcp', headers: [{ name: 'A', value: 'b' }] },
     ]);
+  });
+
+  test('the models a session offers reach the catalog once each, and a kept catalog serves after a restart', async () => {
+    const s = start('gemini');
+    const learned: ModelOption[][] = [];
+    s.driver.watchCatalog((models) => learned.push(models));
+    await s.until(() => s.events.some((e) => e.kind === 'init'), 'the init');
+    assert.deepEqual(learned.at(-1)?.map((m) => m.value), ['default', 'fake-model']);
+
+    const restarted = new AcpDriver(manifest('gemini'), { dataDir: join(root, 'data') });
+    assert.deepEqual(restarted.models().map((m) => m.value), ['default'], 'before any session, only the profile\'s own');
+    restarted.setCatalog(learned.at(-1) ?? []);
+    assert.deepEqual(restarted.models().map((m) => m.value), ['default', 'fake-model']);
+
+    // Copilot 1.0.91 lists `auto` three times
+    const copilot = start('copilot');
+    const offered: ModelOption[][] = [];
+    copilot.driver.watchCatalog((models) => offered.push(models));
+    await copilot.until(() => copilot.events.some((e) => e.kind === 'init'), 'the Copilot init');
+    assert.deepEqual(offered.at(-1)?.map((m) => m.value), ['auto']);
   });
 
   test('a signed-out agent fails the session with auth-required', async () => {
