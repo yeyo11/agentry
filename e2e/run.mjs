@@ -197,9 +197,11 @@ const fakeEnv = {
   AGENTRY_FAKE_CLI_LOG: fakeCli.log,
   AGENTRY_FAKE_CLI_SCRIPTS: fakeCli.scripts,
   AGENTRY_FAKE_CLI_HEARTBEAT_MS: '500',
+  // By absolute path, not by PATH alone: the API puts the login shell's PATH first, and on a machine
+  // with Claude Code in ~/.local/bin that found the real CLI, so every fakeCli spec talked to it and
+  // ran out its time
+  CLAUDE_BIN: join(here, 'fake-cli', 'claude'),
 };
-// Named by PATH alone, so the variable must not point anywhere else
-delete fakeEnv.CLAUDE_BIN;
 
 /** The server running now, and which CLI it was given */
 let server = null;

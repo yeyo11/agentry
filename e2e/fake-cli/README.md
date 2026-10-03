@@ -8,7 +8,8 @@ It calls no model and no network. Its own test: `node --test e2e/fake-cli/claude
 ## Using it
 
 - **In a spec:** `export const fakeCli = true;`. `e2e/run.mjs` runs those specs after every other
-  one, on a server restarted with `e2e/fake-cli` first on `PATH` (and `CLAUDE_BIN` unset), the
+  one, on a server restarted with `e2e/fake-cli` first on `PATH` and `CLAUDE_BIN` set to its
+  `claude` (the API puts the login shell's `PATH` first, so `PATH` alone can find the real CLI), the
   sandbox's config directory and `AGENTRY_HEALTH_INTERVAL_MS=500`. The spec's context gains
   `fakeCli: { bin, log, scripts }`, and `dirs.configDir` is always the sandbox's. `scripts` is the
   path `AGENTRY_FAKE_CLI_SCRIPTS` names: write it to script a turn whose prompt the spec does not
