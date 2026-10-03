@@ -85,6 +85,7 @@ import type {
   ImportProjectRequest,
   HandoffPreview,
   ModelMapSuggestion,
+  SuggestModelMapRequest,
   MoveChatRequest,
   ModelOption,
   NewChatRequest,
@@ -943,11 +944,12 @@ export const api = {
   moveChat: (id: string, body: MoveChatRequest) => request<ChatSummary>(`/chats/${enc(id)}/move`, { method: 'POST', body }),
   /** A person's click: the turn that hit the limit is sent again when the provider's limit resets */
   waitForLimit: (id: string) => request<ProviderMove>(`/chats/${enc(id)}/wait`, { method: 'POST' }),
-  stopWaiting: (moveId: string) => request<ProviderMove>(`/providers/moves/${enc(moveId)}/cancel`, { method: 'POST' }),
-  /** Closes an open wait as cancelled: a flow run or a task that waited ends stopped */
+  /** Closes an open wait as cancelled: a chat that waited stays as it is, a flow run or a task that waited ends stopped */
   cancelProviderMove: (id: string) => request<ProviderMove>(`/providers/moves/${enc(id)}/cancel`, { method: 'POST' }),
   /** Counterparts the model-map point proposed, which nothing uses until a person accepts them */
   modelMapSuggestions: (o: ReadOptions = {}) => request<ModelMapSuggestion[]>('/providers/model-map/suggestions', o),
+  /** A person pressing Suggest: the counterpart the point proposes now, or null when it had none */
+  suggestModelMap: (body: SuggestModelMapRequest) => request<ModelMapSuggestion | null>('/providers/model-map/suggest', { method: 'POST', body }),
   answerModelMapSuggestion: (id: string, accept: boolean) =>
     request<{ ok: true }>(`/providers/model-map/suggestions/${enc(id)}`, { method: 'POST', body: { accept } }),
   /** What claude-swap left behind; `notice` is null when there is nothing to say or it was dismissed */
@@ -1014,6 +1016,7 @@ export const keys = {
   providerCandidates: (chatId: string) => ['providers', 'candidates', chatId] as const,
   chatHandoff: (chatId: string, provider: string, model: string) => ['providers', 'handoff', chatId, provider, model] as const,
   modelMapSuggestions: ['providers', 'model-map', 'suggestions'] as const,
+  chatContinuation: (chatId: string) => ['chat', chatId, 'continuation'] as const,
   cswapRetirement: ['providers', 'cswap-retirement'] as const,
   hosts: ['hosts'] as const,
   hostSettings: ['hosts', 'settings'] as const,

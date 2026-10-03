@@ -15,7 +15,8 @@ export function LimitBars({ status }: { status: ProviderStatus }) {
   const { t } = useTranslation('providers');
   const limit = status.limit;
   if (!limit) return null;
-  const rows = limitRows(limit);
+  // An unknown reading is not drawn: its windows are old and their resets are past
+  const rows = limit.state === 'unknown' ? [] : limitRows(limit);
   const exhausted = limit.state === 'exhausted';
   // The windows with a short name of their own; any other is shown as the provider calls it
   const name = (window: string) => (window === '5h' ? t('limit.window.5h') : window === '7d' ? t('limit.window.7d') : window);
