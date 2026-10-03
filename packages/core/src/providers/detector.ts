@@ -21,7 +21,7 @@ import { compareVersions } from '../version-check.ts';
 import { ProviderCatalogsStore } from './catalogs.ts';
 import { ClaudeCodeDriver } from './claude-code/driver.ts';
 import type { CapabilityConfirmation, HandshakeResult, ProviderDriver } from './driver.ts';
-import type { ProviderConfigHome, ProviderManifest } from './manifest.ts';
+import type { ProviderConfigHome, ProviderManifest, ProviderSignedInUsers } from './manifest.ts';
 import { installDirs, resolveCommand } from './path.ts';
 import { limitAt, type HandshakeLimits, type ProviderLimits } from './limits.ts';
 import { DRIVER_TRANSPORTS, ProviderRegistry } from './registry.ts';
@@ -136,7 +136,16 @@ function isDirectory(path: string): boolean {
  * A credentials file a CLI's login writes: absent or an empty object is signed out, a JSON object
  * with a key is signed in, and anything else is a file we cannot read rather than a missing login.
  */
-function readCredentialsFile(path: string): AuthProbe {
+const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/** `login`, or `login@host` for an account on a host other than the default one */
+function accountName(entry: unknown, users: ProviderSignedInUsers): string | null {
+  if (!isRecord(entry) || typeof entry.login !== 'string' || !entry.login) return null;
+  const host = typeof entry.host === 'string' && entry.host !== users.defaultHost ? entry.host.replace(/^https?:\/\//, '') : null;
+  return host ? `${entry.login}@${host}` : entry.login;
+}
+
+export function readCredentialsFile(path: string, users?: ProviderSignedInUsers): AuthProbe {
   let text: string;
   try {
     text = readFileSync(path, 'utf8');
@@ -146,9 +155,15 @@ function readCredentialsFile(path: string): AuthProbe {
     return code === 'EACCES' || code === 'EPERM' ? { kind: 'denied' } : { kind: 'failed' };
   }
   try {
-    const json: unknown = JSON.parse(text);
-    if (json === null || typeof json !== 'object' || Array.isArray(json)) return { kind: 'failed' };
-    return Object.keys(json).length > 0 ? { kind: 'ok', account: null } : { kind: 'signed-out' };
+    // Whole lines only: a `//` inside a value (a URL) is not a comment
+    const json: unknown = JSON.parse(text.replace(/^\s*\/\/.*$/gm, ''));
+    if (!isRecord(json)) return { kind: 'failed' };
+    if (!users) return Object.keys(json).length > 0 ? { kind: 'ok', account: null } : { kind: 'signed-out' };
+    const listed = Array.isArray(json[users.list]) ? (json[users.list] as unknown[]) : [];
+    const names = listed.map((entry) => accountName(entry, users)).filter((name): name is string => name !== null);
+    if (names.length === 0) return { kind: 'signed-out' };
+    const current = accountName(json[users.current], users);
+    return { kind: 'ok', account: current !== null && names.includes(current) ? current : (names[0] ?? null) };
   } catch {
     return { kind: 'failed' };
   }
@@ -217,6 +232,12 @@ export class ProviderDetector {
     for (const manifest of this.registry.list()) {
       const cached = this.catalogs.get(manifest.id);
       if (cached) this.giveCatalog(manifest.id, cached.models);
+      // An agent that names its models only inside a session teaches them from the chats it runs
+      const driver: (ProviderDriver & { watchCatalog?: (listener: (models: ModelOption[]) => void) => void }) | null = this.registry.driverFor(manifest.id);
+      driver?.watchCatalog?.((models) => {
+        const version = this.known()?.find((s) => s.id === manifest.id)?.version ?? cached?.version ?? '';
+        void this.catalogs.set(manifest.id, { version, models }).catch(() => undefined);
+      });
     }
   }
 
@@ -608,7 +629,13 @@ export class ProviderDetector {
   private async probeAuth(manifest: ProviderManifest, binaryPath: string, env: NodeJS.ProcessEnv): Promise<AuthProbe> {
     const probe = manifest.auth.probe;
     if (probe.kind === 'none') return { kind: 'none' };
-    if (probe.kind === 'file') return readCredentialsFile(this.locate(probe.file));
+    if (probe.kind === 'file') {
+      const read = readCredentialsFile(this.locate(probe.file), probe.users);
+      // A token in the environment signs the CLI in without a file, and nothing that costs nothing
+      // says whether it is valid: that is the same not knowing as a provider with no probe
+      if (read.kind === 'signed-out' && manifest.auth.credentialEnv.some((name) => Boolean(env[name]))) return { kind: 'none' };
+      return read;
+    }
     const res = await this.exec(binaryPath, probe.args, env);
     if (res.outcome !== 'done') return { kind: res.outcome };
     if (probe.result === 'exit-code') return res.code === 0 ? { kind: 'ok', account: null } : { kind: 'signed-out' };

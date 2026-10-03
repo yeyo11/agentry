@@ -31,7 +31,7 @@ const recorded = FOLDERS.flatMap((folder) => files(join(ROOT, folder)));
 
 test('the provider recordings are committed', () => {
   assert.ok(recorded.length > 50, `only ${recorded.length} files under ${FOLDERS.join(', ')}`);
-  for (const folder of ['codex/0.159.3', 'copilot/1.0.65', 'copilot/1.0.90', 'gemini/0.62.0', 'opencode/1.18.34'])
+  for (const folder of ['codex/0.159.3', 'copilot/1.0.65', 'copilot/1.0.90', 'copilot/1.0.91', 'gemini/0.62.0', 'opencode/1.18.34'])
     assert.ok(statSync(join(ROOT, folder)).isDirectory(), folder);
 });
 

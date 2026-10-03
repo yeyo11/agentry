@@ -1,0 +1,12 @@
+Environment Variables:
+
+  `COPILOT_AUTO_UPDATE`: set to "false" to disable downloading updated CLI versions automatically. Can also be disabled with the --no-auto-update flag. Auto-update is enabled by default, except in CI environments (detected via `CI`, `BUILD_NUMBER`, `RUN_ID`, or `SYSTEM_COLLECTIONURI` environment variables), where it is disabled by default. Standalone development builds run their bundled package by default and do not offer or install CLI updates unless release-style package behavior is selected with a canonical semantic version in `COPILOT_CLI_VERSION`. `COPILOT_CLI_DIST_DIR` and `--prefer-version` select an explicit package but do not enable updates for a development-identity package. On other standalone-binary installations, disabling it this way or with --no-auto-update also makes launches ignore any newer version already in the package cache and run the version built into the installed binary.
+
+  `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN` (in order of precedence): an authentication token that takes precedence over previously stored credentials. Exception: in Codespaces, the auto-injected `GITHUB_TOKEN` (a user-to-server token) does not take precedence over a `/login` account. An explicitly exported `GITHUB_TOKEN`, `COPILOT_GITHUB_TOKEN`, or `GH_TOKEN` still takes precedence.
+
+  `COPILOT_HOME`: override the directory where configuration and state files are stored; defaults to `$HOME/.copilot`.
+
+  `COPILOT_MODEL`: optionally set the agent model. Can be overridden by the --model command line option or the /model command.
+
+  `GH_HOST`: GitHub hostname for authentication and API requests; defaults to "github.com". Set this to your GitHub Enterprise Cloud with data residency hostname (e.g., "mycompany.ghe.com"). Use when both GitHub CLI and Copilot CLI should target the same host.
+

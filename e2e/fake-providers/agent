@@ -13,7 +13,7 @@ read_key() {
 # The version each driver is tested against (the recorded one), so a fake is `ready` unless a spec says otherwise
 case "$name" in
   codex) default=0.159.3 ;;
-  copilot) default=1.0.90 ;;
+  copilot) default=1.0.91 ;;
   gemini) default=0.62.0 ;;
   opencode) default=1.18.34 ;;
   *) default=0.0.0 ;;

@@ -1,0 +1,73 @@
+Usage: copilot login [OPTIONS]
+
+Authenticate with Copilot via OAuth.
+
+The default authentication mode on a local desktop is a web-based browser flow:
+Copilot opens your browser to authorize and captures the result on a local
+loopback callback. Known remote or headless environments (including SSH,
+Codespaces, dev containers, CI, and headless Linux) default to the OAuth device
+code flow instead. Use --device-code or --web-flow to force a specific mode.
+After
+completion, an authentication token will be stored securely in the system
+credential store. If a credential store is not found or there is an issue using
+it, the token will be stored in a plain text config file under ~/.copilot/.
+
+Alternatively, use --with-token to pass a token on standard input. When standard
+input is a terminal, Copilot prompts for the token without displaying it.
+
+Copilot login will also use an authentication token found in environment
+variables. This method is most suitable for "headless" use such as automation.
+The following are checked in order of precedence: COPILOT_GITHUB_TOKEN,
+GH_TOKEN,
+GITHUB_TOKEN. See `copilot help environment` for more info.
+
+Supported token types include fine-grained personal access tokens (v2 PATs) with
+the "Copilot Requests" permission, OAuth tokens from the GitHub Copilot CLI app,
+and OAuth tokens from the GitHub CLI (gh) app.
+
+Classic personal access tokens (ghp_) are not supported.
+
+Use --host to authenticate with a GitHub Enterprise Cloud instance that uses
+data
+residency (e.g., https://example.ghe.com).
+
+Options:
+      --host <host>
+          GitHub host URL (default: https://github.com)
+
+      --device-code
+          Authenticate using the OAuth device code flow (default in
+          remote or headless environments)
+
+      --web-flow
+          Authenticate using the browser (web) flow (default on local
+          desktops)
+
+      --with-token
+          Read an authentication token from standard input
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+Examples:
+  # Authenticate with github.com
+  $ copilot login
+
+  # Authenticate using the device code flow
+  $ copilot login --device-code
+
+  # Force the browser (web) flow on a remote terminal
+  $ copilot login --web-flow
+
+  # Authenticate by reading a token from a file
+  $ copilot login --with-token < mytoken.txt
+
+  # Authenticate with GitHub Enterprise Cloud (data residency)
+  $ copilot login --host https://example.ghe.com
+
+  # Authenticate using a fine-grained PAT from an environment variable
+  $ COPILOT_GITHUB_TOKEN=github_pat_... copilot login
+
+Learn More:
+  Use `copilot <command> --help` for more information about a command.
+  Read the documentation at https://docs.github.com/copilot/how-tos/copilot-cli

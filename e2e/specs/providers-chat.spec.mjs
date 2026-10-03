@@ -2,11 +2,14 @@
 // e2e/fake-providers (they speak the real protocols from the recordings, see its README).
 //
 // Codex is the sandbox's default fake (`run.mjs` seeds its override); Copilot is pointed at its fake
-// here through Settings → Providers' binary override and put back at the end.
+// here through Settings → Providers' binary override, signed in through the state file its login
+// writes (`config.json` in COPILOT_HOME, which `run.mjs` points into the sandbox), and both are put
+// back at the end.
 //
 // What is not covered: an OpenCode chat whose history comes from a fixture database. It needs the
 // recorded schema built with `node:sqlite` and an `OPENCODE_DB` the server was started with, which
 // the sandbox does not set; the driver side has its own test (packages/core/test/opencode-transcripts.test.ts).
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
@@ -50,14 +53,17 @@ export default async ({ page, api, check, dirs }) => {
   };
   const theme = (name) => page.eval(`localStorage.setItem('agentry-theme', ${JSON.stringify(name)}); return true`);
 
+  const copilotHome = join(dirname(dirs.dataDir), 'copilot-home');
+
   try {
+    // Copilot has no command that reports a login; its own state file lists who signed in
+    mkdirSync(copilotHome, { recursive: true });
+    writeFileSync(join(copilotHome, 'config.json'), '// This file is managed automatically.\n{ "lastLoggedInUser": { "host": "https://github.com", "login": "octocat" }, "loggedInUsers": [ { "host": "https://github.com", "login": "octocat" } ] }\n');
     await api.put('/providers/settings', { ...saved, providers: { ...saved.providers, copilot: { enabled: true, binaryPath: join(fakes, 'copilot') } }, defaultProvider: null });
     await api.post('/providers/refresh');
     await ready('codex');
-    // Copilot documents no sign-in probe that costs nothing (its manifest's `auth.probe` is `none`), so
-    // the detector reads its version and says `unknown` / `no-probe`, never `ready`
-    const copilotFound = await detected('copilot', (s) => s?.binaryPath === join(fakes, 'copilot') && s.version !== null && s.reason !== null, 'copilot is found');
-    check(copilotFound.state === 'unknown' && copilotFound.reason === 'no-probe' && copilotFound.version === '1.0.90', `the fake copilot is found, with no probe to say it is signed in (${copilotFound.state} ${copilotFound.reason} ${copilotFound.version})`);
+    const copilotFound = await detected('copilot', (s) => s?.binaryPath === join(fakes, 'copilot') && s.version !== null && s.state === 'ready', 'copilot is found, signed in');
+    check(copilotFound.account === 'octocat' && copilotFound.version === '1.0.91', `the fake copilot is ready with the account its state file names (${copilotFound.account} ${copilotFound.version})`);
 
     // ---- A chat on the fake Codex: the provider in the header and its words in the transcript ----
     const codex = await api.post('/chats', { prompt: 'TURN tidy the build', cwd: dirs.workspaceDir, provider: 'codex', permissionPrompts: 'host' });
@@ -113,7 +119,7 @@ export default async ({ page, api, check, dirs }) => {
     await scan(page, check, 'the chats list, light');
     await theme('dark');
 
-    // ---- New chat: the picker, the model locked on Copilot, the modes of the provider ----
+    // ---- New chat: the picker, the model of each provider, the modes of the provider ----
     await page.goto('/chats/new', 800);
     await page.waitFor(`return !!document.querySelector('.composer-status')`, { label: 'the options chip' });
     await page.click('.composer-status', undefined, 400);
@@ -121,17 +127,17 @@ export default async ({ page, api, check, dirs }) => {
     const picked = await api.get('/providers');
     const first = picked.body.find((p) => p.state === 'ready' || p.state === 'degraded');
     check(Boolean(first), 'at least one provider is ready');
-    // Pick Copilot: its model field is disabled and says why
+    // Pick Copilot: the model is chosen when the chat starts, and the hint says it stays for the chat
     await page.click('[aria-label="Agent"]', undefined, 300);
     await page.click('[role=option]', 'GitHub Copilot', 300);
-    await page.waitFor(`return document.querySelector('input[aria-label="Model"]')?.disabled === true`, { label: 'the model is locked on Copilot' });
-    check((await page.eval(`return document.body.innerText`)).includes('GitHub Copilot picks the model when the chat starts'), 'the reason is said next to the model');
+    await page.waitFor(`return document.body.innerText.includes('GitHub Copilot keeps this model for the whole chat')`, { label: 'the hint on Copilot' });
+    check(await page.eval(`return document.querySelector('input[aria-label="Model"]')?.disabled === false`), 'the model can be chosen on Copilot');
     await page.shot('providers-newchat-copilot');
     await scan(page, check, 'New chat on Copilot, dark');
-    // Back to Codex: the model can be chosen again
+    // Back to Codex: it can switch models in the middle of a chat, so there is nothing to warn of
     await page.click('[aria-label="Agent"]', undefined, 300);
     await page.click('[role=option]', 'Codex', 300);
-    await page.waitFor(`return document.querySelector('input[aria-label="Model"]')?.disabled === false`, { label: 'the model is free on Codex' });
+    await page.waitFor(`return !document.body.innerText.includes('keeps this model for the whole chat')`, { label: 'no warning on Codex' });
 
     // ---- The same pages on a phone ----
     await page.viewport(390, 844);
@@ -148,6 +154,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.viewport(1440, 900).catch(() => {});
     await page.eval(`localStorage.removeItem('agentry-theme'); return true`).catch(() => {});
     for (const id of created) await api.post(`/chats/${id}/stop`).catch(() => {});
+    rmSync(join(copilotHome, 'config.json'), { force: true });
     await api.put('/providers/settings', saved).catch(() => {});
     await api.post('/providers/refresh').catch(() => {});
   }

@@ -50,11 +50,11 @@ const profile = flag('--profile') ?? 'copilot';
 const PROFILES = {
   copilot: {
     dir: (v) => `copilot/${v}`,
-    versions: ['1.0.65', '1.0.90'],
-    file: { '1.0.65': 'acp-initialize.jsonl', '1.0.90': 'acp-prompt-with-owner-account-by-accident.jsonl' },
-    versionText: { '1.0.65': 'GitHub Copilot CLI 1.0.65.', '1.0.90': 'GitHub Copilot CLI 1.0.90.' },
+    versions: ['1.0.65', '1.0.90', '1.0.91'],
+    file: { '1.0.65': 'acp-initialize.jsonl', '1.0.90': 'acp-prompt-with-owner-account-by-accident.jsonl', '1.0.91': 'acp-session-new-signed-in.jsonl' },
+    versionText: { '1.0.65': 'GitHub Copilot CLI 1.0.65.', '1.0.90': 'GitHub Copilot CLI 1.0.90.', '1.0.91': 'GitHub Copilot CLI 1.0.91.' },
     methods: ['session/new', 'session/load', 'session/list', 'session/set_mode', 'session/set_config_option', 'session/prompt'],
-    extraMethods: { '1.0.90': ['session/close'] },
+    extraMethods: { '1.0.90': ['session/close'], '1.0.91': ['session/close'] },
     newId: () => randomUUID(),
     authMessage: 'Authentication required. Run `copilot login`.',
     titles: true,
