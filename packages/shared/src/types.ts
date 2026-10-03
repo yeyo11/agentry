@@ -5956,11 +5956,10 @@ export interface TunnelChangedEvent extends AgentryEventBase {
 export type WebhookState = 'active' | 'failing' | 'stale' | 'removed';
 
 /**
- * Why a project's repository has no webhooks to manage: `host-not-recorded` is GitLab, whose hook
- * calls are not recorded yet; `no-public-url` has neither a running tunnel nor a configured public
- * origin; `no-remote` is a project without a code host remote.
+ * Why a project's repository has no webhooks to manage: `no-public-url` has neither a running
+ * tunnel nor a configured public origin; `no-remote` is a project without a code host remote.
  */
-export type WebhookUnavailableReason = 'host-not-recorded' | 'no-public-url' | 'no-remote';
+export type WebhookUnavailableReason = 'no-public-url' | 'no-remote';
 
 /** What the host last answered when it delivered to the hook, as it reports it. */
 export interface WebhookLastResponse {

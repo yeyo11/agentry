@@ -423,7 +423,7 @@
   "view [RunActions, Section, ViewProps, sectionsOf, useRunActions]",
   "viewport [useKeyboardInset]",
   "views [PROJECT_VIEWS, ProjectViewId, VIEW_MODULE, asProjectView, legacyTabRedirect, projectViews]",
-  "webhooks [BACKUP_POLL_MINUTES, FreshnessKind, FreshnessLine, HEALTHY_WINDOW_MS, POLL_MINUTES, UNAVAILABLE_REASON_KEYS, WebhookActionKind, WebhookRowKind, WebhookTone, freshnessLine, isHealthy, isWebhookBuilt, lastHeardAt, liveRegistration, publicOrigin, responseWord, rowKind, spanWords, webhookActions, webhookTone]",
+  "webhooks [BACKUP_POLL_MINUTES, FreshnessKind, FreshnessLine, HEALTHY_WINDOW_MS, POLL_MINUTES, UNAVAILABLE_REASON_KEYS, WebhookActionKind, WebhookRowKind, WebhookTone, freshnessLine, isHealthy, lastHeardAt, liveRegistration, publicOrigin, responseWord, rowKind, spanWords, webhookActions, webhookTone]",
   "welcome [Welcome]",
   "wire-words [modeLabel, toolKindLabel]",
   "wizard [Draft, STEPS, Source, Step, Wizard, useWizard]",

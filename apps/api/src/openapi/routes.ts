@@ -590,12 +590,12 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'GET /schedules/:id/runs': d('Schedules', 'History of a schedule', { description: 'Newest first. `started` carries the chat or orchestration it produced; `failed` the error; `skipped` says that slots passed while Agentry was not running: those are never run late. `overlapped` is a slot that came while the last run was still going and was not started (policy `skip`, or a queued slot replaced by a newer one or dropped when the schedule was switched off); `queued` waits for the last run to end, and becomes `started` with the same `slot` when it does.', querystring: obj({ limit: { type: 'integer', description: 'At most 500, default 50' } }), ok: list('ScheduleRun') }),
   // ---- Webhooks
   'GET /projects/:id/webhooks': d('Webhooks', "A project's webhooks", {
-    description: "The hooks Agentry registered on the project's repository, with what a registration needs: `available` and, when false, the `reason` (`host-not-recorded` for GitLab, whose hook calls are not recorded yet and which offers no action; `no-public-url` without a running tunnel; `no-remote`), the `publicUrl` a hook would deliver to, the `events` it subscribes to and `canRedeliver` (always false: redelivery needs a scope the CLI may not hold). A hook that went quiet is read on the way, so a failure the host reports is said here. The secret is never part of the answer.",
+    description: "The hooks Agentry registered on the project's repository, with what a registration needs: `available` and, when false, the `reason` (`no-public-url` without a running tunnel; `no-remote`), the `publicUrl` a hook would deliver to, the `events` it subscribes to and `canRedeliver` (always false: GitHub's redelivery needs a scope the CLI may not hold, and GitLab's resend is not offered). A hook that went quiet is read on the way, so a failure the host reports is said here. The secret is never part of the answer.",
     params: obj({ id: str('Project id') }),
     ok: ref('ProjectWebhooks'),
   }),
   'POST /projects/:id/webhooks': d('Webhooks', "Register the repository's webhook", {
-    description: "Creates the hook on the host (GitHub, through `gh`) with a new 32-byte secret put on the CLI's stdin, never in its arguments, and answers `201` with the registration. A hook that already has an Agentry address is adopted, and one that is not Agentry's is never touched. 409 `host-not-recorded` (GitLab), `no-public-url`, `no-remote` or `already-registered`; 403 `hook-no-permission` when the account cannot manage hooks; 502 `hook-unreachable` or the host's reason. Refused to a chat's token with 403.",
+    description: "Creates the hook on the host (GitHub through `gh`, GitLab through `glab`) with a new 32-byte secret put on the CLI's stdin, never in its arguments (GitLab also gets a signing token derived from it), and answers `201` with the registration. A hook that already has an Agentry address is adopted, and one that is not Agentry's is never touched. 409 `no-public-url`, `no-remote` or `already-registered`; 403 `hook-no-permission` when the account cannot manage hooks; 502 `hook-unreachable` or the host's reason. Refused to a chat's token with 403.",
     params: obj({ id: str('Project id') }),
     ok: ref('WebhookRegistration'),
   }),
@@ -613,7 +613,7 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
     description: "Unauthenticated, signature-checked: `X-Hub-Signature-256` is `sha256=` and the HMAC-SHA256 of the raw body under the registration's secret, compared in constant time before the body is parsed. `204` with no body once it is accepted (a replayed `X-GitHub-Delivery` or signed body too); `401` with no detail for an unknown or removed registration or a wrong signature; `429` beyond 60 verified deliveries a minute for one registration; `413` over 5 MiB, which polling covers. Moves the next read of the change requests it names to now and changes nothing else.",
   }),
   'POST /webhooks/gitlab/:registrationId': d('Webhooks', 'Receive a GitLab delivery', {
-    description: "Unauthenticated, token-checked: `X-Gitlab-Token` must equal the registration's secret, compared in constant time. Answers and limits as the GitHub receiver, with the replay check on `Idempotency-Key`.",
+    description: "Unauthenticated, token-checked: `X-Gitlab-Token` must equal the registration's secret, compared in constant time. A delivery that carries `webhook-signature` (the hook is registered with a signing token) must also carry a right one: `v1,` and the base64 HMAC-SHA256 of `<webhook-id>.<webhook-timestamp>.<raw body>` within five minutes. Answers and limits as the GitHub receiver, with the replay check on `Idempotency-Key`.",
   }),
 };
 

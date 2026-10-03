@@ -20217,11 +20217,10 @@
   "WebhookUnavailableReason": {
     "type": "string",
     "enum": [
-      "host-not-recorded",
       "no-public-url",
       "no-remote"
     ],
-    "description": "Why a project's repository has no webhooks to manage: `host-not-recorded` is GitLab, whose hook calls are not recorded yet; `no-public-url` has neither a running tunnel nor a configured public origin; `no-remote` is a project without a code host remote."
+    "description": "Why a project's repository has no webhooks to manage: `no-public-url` has neither a running tunnel nor a configured public origin; `no-remote` is a project without a code host remote."
   },
   "MergeState": {
     "type": "object",

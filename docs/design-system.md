@@ -926,9 +926,9 @@ new, in `agentry-ds.css`: `.hook-origin` (the strip under the card's head), `.ho
   An active hook Agentry re-pointed by itself says so in its facts ("apuntado de nuevo · por Agentry ·
   hace 4 min"). With no public address a hook that had one is stale and offers only Quitar, and an off
   row offers nothing.
-- **GitLab** is shown as not available yet, with the honest reason and no button: its registration is
-  not recorded, so the screen does not say how it would work. A hook put there by hand still reaches the
-  receiver, and the pacer reads its merge requests like any other.
+- **GitLab** has the same row, states and buttons as GitHub: its registration, test, removal and
+  re-pointing are recorded (`w0`), so the screen needs nothing of its own. The dialog lists GitLab's four
+  events (`merge_requests_events`, `pipeline_events`, `note_events`, `issues_events`) in place of the nine.
 - **No redelivery on GitHub.** It needs a scope Agentry does not ask for, so the screen has no button
   for it and never offers a command to copy.
 - **The register dialog** lists the address (read-only, with copy), the nine events in mono with what

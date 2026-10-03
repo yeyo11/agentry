@@ -5,8 +5,7 @@
 // set the screens are saved for comparing them with the reference screenshots.
 //
 // 1. The sandbox has no public address (the tunnel refuses to open with authentication off), so the card says so,
-//    links to Remote access and offers no action; a GitLab project's row reads "Not available yet" with its
-//    reason and no action.
+//    links to Remote access and offers no action, GitLab's row included.
 // 2. With an address (the page's answer to `GET /projects/:id/webhooks` carries one; everything else is the real
 //    server and the real fake gh): the row offers Register, its dialog shows the address and the nine events and
 //    never a secret, and its one primary button is the screen's only new gradient. The server refuses to register
@@ -14,6 +13,8 @@
 // 3. A registration written into the database, with its hook in the fake gh: Test pings through the CLI and the
 //    row shows the host's answer; a ping the host cannot deliver makes the row failing with the response; Remove
 //    asks first, calls DELETE and the row goes off. gh's argv and every answer and screen carry no secret.
+// 3b. The same for a GitLab project, through the fake glab: Test makes the host deliver a push and the row shows the
+//    answer; Remove asks first and calls DELETE.
 // 4. The receiver: an unknown registration, a missing or wrong signature, and a registration the server holds no
 //    secret for answer the same empty 401; GitLab's token is checked the same way; an oversized body is 413.
 // 5. The freshness line on the item page, from the page's answer to `GET /change-requests/:id`: instant while the
@@ -45,6 +46,8 @@ const ADDRESS = 'https://e2e0a1b2c3d4.lhr.life';
 const HOOK_ID = '9001';
 // What the fake gh was given on stdin: a spec reads it to prove it never reaches a screen, an answer or argv
 const SECRET = '5e3c0b7a91d44f6e8a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f';
+const GL_HOOK_ID = '7001';
+const GL_EVENTS = ['merge_requests_events', 'pipeline_events', 'note_events', 'issues_events'];
 const EVENTS = ['pull_request', 'pull_request_review', 'pull_request_review_comment', 'pull_request_review_thread', 'check_run', 'check_suite', 'workflow_run', 'issue_comment', 'issues'];
 const PHONE = [390, 844];
 const STORE = 'e2e-webhooks';
@@ -111,6 +114,14 @@ export default async ({ page, api, check, dirs }) => {
       return [];
     }
   };
+  const glCalls = () => {
+    try {
+      return readFileSync(join(stateDir, 'glab.calls'), 'utf8').split('\n').filter(Boolean);
+    } catch {
+      return [];
+    }
+  };
+  const glRegistrationId = randomUUID();
   const hookFile = join(stateDir, `gh.hook-${HOOK_ID}`);
   const writeHook = (response) => {
     mkdirSync(stateDir, { recursive: true });
@@ -119,7 +130,7 @@ export default async ({ page, api, check, dirs }) => {
   };
   const resetFakes = () => {
     try {
-      for (const file of readdirSync(stateDir)) if (/^(gh|glab)\.(hook|calls|json|next|created)/.test(file) || file === 'gh.hookseq' || file === 'glab.json') rmSync(join(stateDir, file), { force: true });
+      for (const file of readdirSync(stateDir)) if (/^(gh|glab)\.(hook|calls|json|next|created)/.test(file) || file === 'gh.hookseq' || file === 'glab.json' || file === 'glab.hookseq' || file === 'glab.eventseq') rmSync(join(stateDir, file), { force: true });
     } catch {
       // nothing was written
     }
@@ -220,7 +231,7 @@ export default async ({ page, api, check, dirs }) => {
     check(bare.available === false && bare.reason === 'no-public-url' && bare.publicUrl === null, `no tunnel: no address (${JSON.stringify(bare)})`);
     check(JSON.stringify(bare.events) === JSON.stringify(EVENTS) && bare.canRedeliver === false && bare.registrations.length === 0, `nine events, no redelivery, nothing registered (${JSON.stringify(bare)})`);
     const lab = (await api.get(`/projects/${glId}/webhooks`)).body;
-    check(lab.available === false && lab.reason === 'host-not-recorded' && lab.events.length === 0, `GitLab is not available yet (${JSON.stringify(lab)})`);
+    check(lab.available === false && lab.reason === 'no-public-url' && JSON.stringify(lab.events) === JSON.stringify(GL_EVENTS) && lab.canRedeliver === false, `no tunnel: GitLab has no address either, and its own four events (${JSON.stringify(lab)})`);
 
     // ---- 1. No public address ----
     await page.goto('/', 300);
@@ -228,13 +239,13 @@ export default async ({ page, api, check, dirs }) => {
     removeOverlay = await page.onNewDocument(overlay);
     await config({});
     await openIntegrations(ghId, 'unavailable', 'no address, dark');
-    await page.waitFor(kindIs(glId, 'gitlab'), { label: 'the GitLab row' });
+    await page.waitFor(kindIs(glId, 'unavailable'), { label: 'the GitLab row' });
     check(await page.eval(`return !!document.querySelector('.wh-card .wh-notice a[href="/settings?tab=remote"]')`), 'with no address the card links to Remote access');
     check(!(await page.eval(`return !!document.querySelector('.wh-card .wh-bar')`)), 'and shows no address line');
     check((await actionsOf(ghId)).length === 0, 'a project with no address to register on offers no action');
-    check((await actionsOf(glId)).length === 0, 'a GitLab row offers no action');
+    check((await actionsOf(glId)).length === 0, 'a GitLab row with no address offers no action either');
     const gitlabRow = await text(rowOf(glId));
-    check(/Not available yet/.test(gitlabRow) && /glab/.test(gitlabRow) && /X-Gitlab-Token/.test(gitlabRow), `a GitLab row says it is not available yet and why (${gitlabRow})`);
+    check(/Meanwhile Agentry reads the pull requests every 2 min/.test(gitlabRow) && !/Not available yet/.test(gitlabRow), `a GitLab row says the same as a GitHub one (${gitlabRow})`);
     check(/Meanwhile Agentry reads the pull requests every 2 min/.test(await text(rowOf(ghId))), `the row says how the pull requests are read meanwhile (${await text(rowOf(ghId))})`);
     check(!/redeliver/i.test(await text('.wh-card')), 'there is no redelivery');
     await everyScreen('webhooks-no-address-dark', 'Webhooks without an address, dark');
@@ -248,7 +259,7 @@ export default async ({ page, api, check, dirs }) => {
     await openIntegrations(ghId, 'off', 'with an address, dark');
     check((await actionsOf(ghId)).join(',') === 'register', `an unregistered project offers Register and nothing else (${(await actionsOf(ghId)).join(',')})`);
     check((await text('.wh-card .wh-bar')).includes(ADDRESS) && /Open/.test(await text('.wh-card .wh-bar')), 'the card says where notices arrive, and that it is open');
-    check((await actionsOf(glId)).length === 0, 'GitLab still offers nothing');
+    check((await actionsOf(glId)).join(',') === 'register', `a GitLab project offers Register too (${(await actionsOf(glId)).join(',')})`);
     check(/Without a webhook, Agentry reads the pull requests every 2 min/.test(await text(rowOf(ghId))), 'an off row says what a webhook is for');
     await everyScreen('webhooks-off-dark', 'Webhooks with an address, dark');
     await setTheme('light');
@@ -353,6 +364,51 @@ export default async ({ page, api, check, dirs }) => {
     await openIntegrations(ghId, 'failing', 'failing, recovering');
     await page.click(`${rowOf(ghId)} [data-action="test"]`, undefined, 300);
     await page.waitFor(kindIs(ghId, 'active'), { timeout: 30_000, label: 'a test the host answers makes it active again' });
+
+    // ---- 3b. A GitLab hook: the fake glab holds it, the database registers it ----
+    mkdirSync(stateDir, { recursive: true });
+    writeFileSync(join(stateDir, `glab.hook-${GL_HOOK_ID}`), `${ADDRESS}/api/webhooks/gitlab/${glRegistrationId}\n\n`);
+    writeFileSync(join(stateDir, `glab.hook-${GL_HOOK_ID}.secret`), `${SECRET}\n`);
+    dbRun(
+      `INSERT INTO webhook_registrations (id, project_id, host, hostname, repo_path, remote_hook_id, url, events, state, last_delivery_at, last_ping_at, last_response, created_at, updated_at)
+       VALUES (?, ?, 'gitlab', 'gitlab.com', 'acme/shop', ?, ?, ?, 'active', NULL, NULL, NULL, ?, ?)`,
+      glRegistrationId,
+      glId,
+      GL_HOOK_ID,
+      `${ADDRESS}/api/webhooks/gitlab/${glRegistrationId}`,
+      JSON.stringify(GL_EVENTS),
+      now,
+      now,
+    );
+    await openIntegrations(ghId, 'active', 'GitLab registered, dark');
+    await page.waitFor(kindIs(glId, 'active'), { label: 'the GitLab row is active' });
+    check((await actionsOf(glId)).join(',') === 'test,remove', `a registered GitLab project offers Test and Remove (${(await actionsOf(glId)).join(',')})`);
+    await everyScreen('webhooks-gitlab-active-dark', 'a GitLab webhook, dark');
+    const beforeGlTest = glCalls().length;
+    await page.click(`${rowOf(glId)} [data-action="test"]`, undefined, 300);
+    await page.waitFor(`return /GitLab answered the test with 204/.test([...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' '))`, { timeout: 30_000, label: 'GitLab answered the test' });
+    const glTest = glCalls().slice(beforeGlTest);
+    check(glTest.some((c) => c.includes(`-X POST projects/4242/hooks/${GL_HOOK_ID}/test/push_events`)), `Test asks GitLab for a push test through glab (${glTest.join(' / ')})`);
+    check(glTest.every((c) => !c.includes(SECRET)), 'and no glab call carries the token');
+    const glTested = (await api.get(`/projects/${glId}/webhooks`)).body.registrations[0];
+    check(glTested.state === 'active' && glTested.lastResponse?.code === 204 && glTested.lastPingAt !== null, `the registration keeps what GitLab said (${JSON.stringify(glTested)})`);
+    await noSecret('after the GitLab test');
+    // A hook GitLab cannot deliver to: the newest event says so
+    state('glab', { hookPing: 'fail' });
+    await page.click(`${rowOf(glId)} [data-action="test"]`, undefined, 300);
+    await page.waitFor(kindIs(glId, 'failing'), { timeout: 30_000, label: 'the GitLab row is failing' });
+    state('glab', {});
+    await openIntegrations(ghId, 'active', 'GitLab failing, recovering');
+    await page.click(`${rowOf(glId)} [data-action="test"]`, undefined, 300);
+    await page.waitFor(kindIs(glId, 'active'), { timeout: 30_000, label: 'a test GitLab answers makes it active again' });
+    // Remove: asks first, deletes the hook through glab
+    await page.click(`${rowOf(glId)} [data-action="remove"]`, undefined, 400);
+    await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: 'the GitLab removal asks first' });
+    check(glCalls().every((c) => !c.includes('-X DELETE')), 'nothing was deleted on GitLab before the person confirmed');
+    await press('[role=dialog]', 'Remove webhook');
+    await page.waitFor(kindIs(glId, 'off'), { timeout: 30_000, label: 'the GitLab row goes off' });
+    check(glCalls().some((c) => c.includes(`-X DELETE projects/4242/hooks/${GL_HOOK_ID}`)), 'Remove deletes the hook on GitLab through glab');
+    check(!readdirSync(stateDir).some((f) => f.startsWith(`glab.hook-${GL_HOOK_ID}`)), 'and the hook is gone from the host');
 
     // ---- A phone ----
     await page.viewport(...PHONE);

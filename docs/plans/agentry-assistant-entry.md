@@ -192,6 +192,17 @@ The designer draws this before anything is built (criterion 1). The constraints,
 
 ## Questions for the owner
 
+**Decided on 2026-10-02 (the owner was asked; the plan follows the recommended option of each):**
+
+1. The default model: `sonnet`.
+2. The project assistant's page stays as it is in CW-18. The owner leaned towards making it a mode of
+   the new assistant: that is the follow-up story this plan already names, not part of CW-18.
+3. The greeting is drawn by the web, with no model turn. The owner liked live figures in it (chats
+   running, orchestrations, today's spend, read from the API): CW-18 may show them if the build
+   stays small; otherwise they are the follow-up.
+
+The original questions, for the record:
+
 Record the answers in [agentry-assistant.md](agentry-assistant.md) before building (criterion 4):
 
 1. **The default model.** `sonnet`, like the project assistant (`DEFAULT_ASSISTANT_MODEL`), or the
