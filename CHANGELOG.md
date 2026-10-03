@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.33.1](https://github.com/yeyo11/agentry/compare/v0.33.0...v0.33.1) (2026-10-03)
+
+
+### Bug fixes
+
+* **providers:** Copilot reads its login from its state file and learns its models from chats ([#191](https://github.com/yeyo11/agentry/issues/191)) ([627bab7](https://github.com/yeyo11/agentry/commit/627bab7c4f1e7a8a1be2263ed21359667a251e1c))
+
 ## [0.33.0](https://github.com/yeyo11/agentry/compare/v0.32.0...v0.33.0) (2026-10-03)
 
 
