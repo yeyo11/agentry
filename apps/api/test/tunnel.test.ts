@@ -41,7 +41,6 @@ async function wrapper(t: TestContext): Promise<Wrapper> {
   const core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
-      CSWAP_BIN: '/nonexistent/cswap',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
       AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
       AGENTRY_DATA_DIR: join(root, 'data'),

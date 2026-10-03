@@ -198,6 +198,25 @@ gap is accepted and written down: under Codex's `workspace-write` sandbox a push
 no network and succeeds, and the judge only sees escalations. Agentry's worktrees push to the real
 `origin`, which the sandbox's network-off setting stops.
 
+## Rotation at a limit
+
+What happens when a provider reaches its limit is decided per kind of work. A person's chat only
+asks: it is announced, and nothing moves until the person clicks. Automated work (a flow run, a
+task, the assistant) moves by the rotation settings, and only to a provider that enforces its tool
+policy with pushes denied, so it never lands where its rules would be lost.
+
+- **A schedule's chat is treated as a person's.** The rotation does not know it as work, so at a
+  limit it only asks. This is the safe direction: a schedule never moves on its own to a provider
+  whose rules differ from the ones it was written for, and its next run starts again on the
+  provider it names.
+- **A decision chat is automated with a policy that allows no tool at all** (read off, edit none,
+  commands none, network and pushes denied). That is what lets the `cli` decision provider run on
+  the first ready provider with structured output and a model for the configured one, and keeps it on
+  Claude Code where nothing else enforces the policy.
+- **The effort carries over** when the target takes an effort and lists the level: Claude Code's own
+  scale (`low` to `max`) and, for the other providers, `low`, `medium` and `high`; a level the target
+  does not list falls back to its default.
+
 ## Where transcripts live
 
 Not every provider writes its transcripts as files, and each provider's `TranscriptStore` reads what

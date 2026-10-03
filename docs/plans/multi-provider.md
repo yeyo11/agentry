@@ -2319,11 +2319,14 @@ export interface ModelMapEntry {
 2. **The account in force** is the one claude-swap left active, since it swapped the shared
    `.credentials.json`. Claude Code reads it as any signed-in CLI does. With the suspension gone, a
    token saved through Settings → Account (`credentials.json`) applies again and wins, as it did
-   before claude-swap. The notice says which one is in force (`tokenSource`).
+   before claude-swap. The notice says which one is in force: the web reads `tokenSource` from
+   `GET /system`, which already carries it, so the notice's own payload does not repeat it.
 3. **A one-time notice** appears when any of `accounts.json`, `account-config.json`, Agentry's
    managed copy (`data/tools`) or `CSWAP_BIN` is found at boot. It is on Home's setup rows and at the
-   top of Settings → Providers until dismissed. Dismissing it is a flag in `app-settings.json`. It
-   says:
+   top of Settings → Providers until dismissed. Dismissing it writes `cswap-retirement.json` in the
+   data directory, a small document of its own rather than a key of `app-settings.json`: that file's
+   keys are settings a person edits, each with an environment override and a row in the settings API,
+   and a one-time notice flag is none of those. It says:
    - Agentry no longer switches Claude accounts, and work now moves between providers;
    - which account Claude Code is signed in with (`claude auth status`);
    - how to change it (sign in again in Claude Code, or save a token in Settings → Account);

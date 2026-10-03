@@ -5,6 +5,7 @@ import test from 'node:test';
 import type { ChatSummary, LimitAction, ProviderMove, ProviderStatus, ProvidersSettings } from '@agentry/shared';
 import { ChatService, type ChatMoveDeps, type ChatServiceDeps, type ChatWork } from '../src/chat-service.ts';
 import { ChatManager } from '../src/chats.ts';
+import { Core } from '../src/index.ts';
 import { Db } from '../src/db.ts';
 import type { ModelMapSubject, OnLimitSubject, ProviderPoints } from '../src/decisions/provider-points.ts';
 import type { AgentryEventInput } from '../src/events.ts';
@@ -166,6 +167,19 @@ test("a person's chat at a limit is announced and left alone, until its click", 
   }
 });
 
+test("a schedule's chat is a person's: at a limit it only asks, and nothing moves on its own", async () => {
+  // A schedule starts an ordinary chat and ties no run, task or item to it, so no work is found for it
+  const { db, events, limited, rotation, close } = rig({ action: 'handoff', allowed: ['handoff', 'wait'], repoint: true });
+  try {
+    const id = await limited();
+    assert.equal(events.filter((e) => e.type === 'run.rateLimited').length, 1);
+    assert.equal(db.providerMoves({ chatId: id }).length, 0);
+    assert.equal(rotation.holds(id), false);
+  } finally {
+    close();
+  }
+});
+
 test('wait on Claude: the turn is replayed once when the reset has passed', async () => {
   const { chats, db, ended, limited, rotation, close } = rig();
   try {
@@ -283,37 +297,31 @@ test('a wait survives a restart: the chat is restored and its turn goes on', asy
   }
 });
 
-test('two processes on one data directory replay a wait once', async () => {
-  const { chats, config, db, limited, rotation: one, close } = rig();
-  const db2 = new Db(config);
+test('two Cores on one data directory replay a wait once', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const one = new Core(config);
+  let two: Core | null = null;
   try {
-    const id = await limited();
-    const row = pastMove(id, 'claude-code');
-    db.insertProviderMove(row);
-    const settings = settingsOf({});
-    const two = new ProviderRotation({
-      db: db2,
-      runtime: chats,
-      chats: { candidates: () => ({ candidates: [], excluded: [], movesCapped: false }), continueOn: async () => assert.fail('no move') } as never,
-      settings: () => settings,
-      projectProviders: () => null,
-      projectOf: () => null,
-      decisions: null,
-      points: null,
-      emit: () => undefined,
-      pollMs: 20,
-      slackMs: 0,
-    });
-    one.recover();
-    two.recover();
-    await waitFor(() => db.providerMove(row.id)?.state === 'resumed');
-    await chats.exited(id);
+    const chat = one.runtime.start({ prompt: 'FAKE-LIMIT-ONCE', name: 'limited', keepAlive: false });
+    await one.runtime.exited(chat.id);
+    await new Promise((r) => setTimeout(r, 30));
+    // The second process boots on the same data directory and restores the same chat from its transcript
+    two = new Core(config);
+    const second = two;
+    await waitFor(() => second.runtime.get(chat.id) !== undefined);
+    const turns = (core: Core) => core.runtime.get(chat.id)?.executions.length ?? 0;
+    const before = turns(one) + turns(second);
+    const row = pastMove(chat.id, 'claude-code');
+    assert.equal(one.db.insertProviderMove(row), true);
+    one.rotation.recover();
+    second.rotation.recover();
+    await waitFor(() => one.db.providerMove(row.id)?.state === 'resumed');
+    await Promise.all([one.runtime.exited(chat.id), second.runtime.exited(chat.id)]);
     await new Promise((r) => setTimeout(r, 150));
-    assert.equal(chats.get(id)?.executions.length, 2, 'the original turn and one replay');
-    two.close();
+    assert.equal(turns(one) + turns(second), before + 1, 'one replay between the two processes');
   } finally {
-    db2.close();
-    close();
+    two?.shutdown();
+    one.shutdown();
   }
 });
 
@@ -545,6 +553,8 @@ test("the candidates' context reads the registry, the detector and the limits", 
     assert.deepEqual(Object.keys(context.providers).sort(), ['claude-code', 'codex']);
     assert.equal(context.providers.codex?.hasDriver, true);
     assert.ok(context.providers['claude-code']?.capabilities.includes('structuredOutput'));
+    assert.deepEqual(context.providers['claude-code']?.efforts, ['low', 'medium', 'high', 'xhigh', 'max'], 'the effort carries over, so the candidates list the levels');
+    assert.deepEqual(context.providers.codex?.efforts, ['low', 'medium', 'high']);
   } finally {
     close();
   }

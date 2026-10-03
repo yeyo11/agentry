@@ -65,6 +65,7 @@ import { mergeLiveWorkflows } from './workflows.ts';
 import { chatControl, chatState, lastEndedOf, sessionHolder, type SessionHolder } from './chat-model.ts';
 import type { ChatTools } from './chat-tools.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
+import { DECISION_EFFORTS } from './decisions/settings.ts';
 import type { AdoptedChat, ChatManager, ChatRuntime, ExecutionExtras, NewChat } from './chats.ts';
 import type { CliSession, TranscriptSummary } from './cli-facts.ts';
 import type { HealthService } from './health-service.ts';
@@ -265,6 +266,19 @@ interface Standing {
  * own some. There is one chat per session id whatever it is read from, so a chat is never listed
  * twice however many of those know it.
  */
+/** The levels every agent that takes an effort lists, and the five Claude Code's `--effort` takes */
+const PORTABLE_EFFORTS = ['low', 'medium', 'high'];
+
+/**
+ * The effort levels a provider takes, for the candidates: none for a provider without the `effort`
+ * capability. The catalogues list models, not levels, so Claude Code's own scale stands for it and the
+ * portable ones for the rest; a level outside them is dropped on a move, never sent to a CLI that may refuse it.
+ */
+export function effortsOf(provider: ProviderId, capabilities: readonly ProviderCapability[]): string[] {
+  if (!capabilities.includes('effort')) return [];
+  return provider === LEGACY_PROVIDER ? [...DECISION_EFFORTS] : PORTABLE_EFFORTS;
+}
+
 export class ChatService {
   private cliCache: { at: number; value: CliSession[] } | null = null;
   /** The read under way, shared by whoever asks meanwhile; `gen` tells one started before an invalidation */
@@ -816,6 +830,7 @@ export class ChatService {
         capabilities: registry.capabilities(manifest.id),
         translate: driver ? (policy) => driver.translatePolicy(policy) : null,
         models: driver?.models() ?? [],
+        efforts: effortsOf(manifest.id, registry.capabilities(manifest.id)),
       };
     }
     return out;

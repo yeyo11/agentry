@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { LimitAction, ModelOption, ProjectProvidersSettings, ProviderId, ProviderLimit, ProviderMove, ProviderMoveDecider, ProvidersSettings, ProviderStatus, RotationSettings } from '@agentry/shared';
-import type { ChatService, ChatWork } from './chat-service.ts';
+import { effortsOf, type ChatService, type ChatWork } from './chat-service.ts';
 import type { ChatManager, ChatRuntime } from './chats.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import type { Db } from './db.ts';
@@ -93,6 +93,7 @@ export function candidateContext(
       capabilities: runtime.providers.capabilities(manifest.id),
       translate: driver ? (policy) => driver.translatePolicy(policy) : null,
       models: driver?.models() ?? [],
+      efforts: effortsOf(manifest.id, runtime.providers.capabilities(manifest.id)),
     };
   }
   return { settings: input.settings, project: input.project, providers, now: input.now ?? Date.now() };
