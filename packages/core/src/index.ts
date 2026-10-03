@@ -550,6 +550,8 @@ export class Core {
     });
     this.uploads = new UploadStore(config.dataDir);
     this.runtime = new ChatManager(config, this.db, drivers);
+    // The detector was built before the runtime that keeps the limits: every status carries its limit from here on
+    this.providers.useLimits(this.runtime.limits);
     // One store, so the token a chat's process is handed is the one the guard accepts
     this.runtime.chatTokens = this.security.chatTokens;
     this.runtime.defaults = this.appSettings;

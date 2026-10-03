@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@agentry/core';
-import type { ChatSummary, CswapRetirementState, HandoffPreview, ModelMapSuggestion, ProviderCandidates, ProviderMove, ProvidersSettings } from '@agentry/shared';
+import type { ChatSummary, CswapRetirementState, HandoffPreview, ModelMapSuggestion, ProviderCandidates, ProviderMove, ProvidersSettings, ProviderStatus } from '@agentry/shared';
 import { buildApp } from '../src/app.ts';
 
 // What happens at a usage limit, over HTTP: a chat on the fake Claude that dies against its limit
@@ -91,6 +91,14 @@ test('a chat that is working, or does not exist, has no candidates, no handoff a
   assert.equal((await app.inject('/api/chats/nope/handoff?provider=codex')).statusCode, 404);
   assert.equal((await app.inject({ method: 'POST', url: '/api/chats/nope/move', ...json({ provider: 'codex', action: 'restart' }) })).statusCode, 404);
   assert.equal((await app.inject({ method: 'POST', url: '/api/chats/nope/wait' })).statusCode, 404);
+});
+
+test("a provider's status carries its limit once a chat reached it: what the chat banner and the limit bars read", async () => {
+  await chatAtLimit();
+  const status = (await app.inject('/api/providers/claude-code')).json<ProviderStatus>();
+  assert.equal(status.limit?.state, 'exhausted', JSON.stringify(status));
+  const listed = (await app.inject('/api/providers')).json<ProviderStatus[]>().find((s) => s.id === 'claude-code');
+  assert.equal(listed?.limit?.state, 'exhausted');
 });
 
 test('the move and wait bodies are validated before anything happens', async () => {

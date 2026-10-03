@@ -212,15 +212,24 @@ export class ProviderDetector {
     this.debounceMs = deps.debounceMs ?? WATCH_DEBOUNCE_MS;
     this.minWatchGapMs = deps.minWatchGapMs ?? WATCH_MIN_GAP_MS;
     this.catalogs = deps.catalogs ?? new ProviderCatalogsStore(deps.config);
-    // A limit reached or left changes what a status says without any detection
-    deps.limits?.onChange(() => {
-      if (this.cache && !this.closed) this.deps.emit?.({ type: 'providers.changed', title: 'Providers changed', providers: this.known() ?? [] });
-    });
+    if (deps.limits) this.useLimits(deps.limits);
     // The models of the last run serve until this run's handshake has read them again
     for (const manifest of this.registry.list()) {
       const cached = this.catalogs.get(manifest.id);
       if (cached) this.giveCatalog(manifest.id, cached.models);
     }
+  }
+
+  /**
+   * Where the limits are read from. Core builds the detector before the runtime that keeps them, so
+   * it hands them over here once they exist; without them no status carries its limit.
+   */
+  useLimits(limits: ProviderLimits): void {
+    this.deps.limits = limits;
+    // A limit reached or left changes what a status says without any detection
+    limits.onChange(() => {
+      if (this.cache && !this.closed) this.deps.emit?.({ type: 'providers.changed', title: 'Providers changed', providers: this.known() ?? [] });
+    });
   }
 
   /** What the last detection saw, whatever its age, without starting one; null before the first */
