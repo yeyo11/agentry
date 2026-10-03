@@ -245,6 +245,27 @@
       "show": "Mostrar",
       "hide": "Ocultar",
       "textLabel": "Texto del traspaso"
+    },
+    "header": {
+      "reached": "Límite alcanzado",
+      "waiting": "esperando",
+      "waitingUntil": "esperando · {{at}}"
+    },
+    "row": {
+      "title": "Límite",
+      "reached": "alcanzado",
+      "waiting": "esperando",
+      "until": "hasta las {{at}}",
+      "resumes": "se reanuda a las {{at}}",
+      "resetUnknown": "reinicio desconocido"
+    },
+    "flowMoved": {
+      "title": "Esta ejecución continúa aquí desde {{name}}.",
+      "handoff": "{{name}} ha llegado a su límite y el trabajo ha seguido en {{to}}, con un traspaso. Sigue siendo la misma ejecución del flujo.",
+      "restart": "{{name}} ha llegado a su límite y el trabajo ha empezado de nuevo en {{to}}. Sigue siendo la misma ejecución del flujo.",
+      "moves": "Movimientos {{count}} de {{max}}",
+      "movesNoMax": "Movimientos {{count}}",
+      "previous": "Abrir el chat anterior"
     }
   }
 }

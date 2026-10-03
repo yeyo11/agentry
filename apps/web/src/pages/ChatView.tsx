@@ -28,6 +28,7 @@ import { taskPath } from '../lib/work-items';
 import { AgentScope } from '@agentry/chat-ui/lib/agent';
 import { useChatUi } from '@agentry/chat-ui/lib/context';
 import { Composer, type ComposerKind } from '@agentry/chat-ui/composer/Composer';
+import { FlowMovedNote } from './chat/FlowMoved';
 import { ChatHeader, type HeaderActions } from './chat/Header';
 import { ContinuedDivider, ContinuedFrom, HandoffCard, LimitStopped } from './chat/HandoffCard';
 import { BlockedComposer, LimitBanner, useLimitState } from './chat/LimitBanner';
@@ -280,7 +281,7 @@ export function ChatView() {
     <AgentScope chat={chat}>
     <div className={`run-layout ${inspector.rail ? 'has-inspector' : ''}`.trim()}>
       <section className="run-main" aria-label={t('view.conversation')}>
-        <ChatHeader chat={chat} connected={connected} actions={actions} />
+        <ChatHeader chat={chat} connected={connected} actions={actions} limitPhase={limit.phase} limitResetsAt={limit.resetsAt} />
         <ErrorBox error={stopError ?? interruptError} />
         {control.mode === 'readOnly' && (
           <div className="alert alert-warn chat-banner" role="status">
@@ -306,6 +307,9 @@ export function ChatView() {
         {chat.orchestration && <PartOf link={chat.orchestration} />}
         {itemLinks.map((link) => (
           <WorkItemPartOf key={link.item.id} link={link} chatId={chat.id} />
+        ))}
+        {itemLinks.map((link) => (
+          <FlowMovedNote key={link.item.id} link={link} chatId={chat.id} />
         ))}
         <FindBar find={find} />
 

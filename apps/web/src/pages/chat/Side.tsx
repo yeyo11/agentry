@@ -12,13 +12,15 @@ import { HealthBadge, HealthPanel, isStepIn } from '../../components/observe/Hea
 import { EnvironmentBody } from '../../components/EnvironmentPanel';
 import { ICON_SM } from '@agentry/ui/components/icons';
 import { ProgressRing } from '@agentry/ui/components/motion';
-import { CopyButton } from '@agentry/ui/components/ui';
+import { CopyButton, Tag } from '@agentry/ui/components/ui';
 import { WorkflowCard } from '../../components/WorkflowCard';
 import { api } from '../../api';
 import { contextLevel, contextShare, formatPercent, formatTokens } from '@agentry/chat-ui/lib/chat-model';
 import { useDetailPanel } from '../../lib/detail';
-import { durationBetween, formatCost, formatDateTime, formatNumber, timeAgo } from '@agentry/ui/lib/format';
+import { durationBetween, formatCost, formatDateTime, formatHour, formatNumber, timeAgo, toMs } from '@agentry/ui/lib/format';
+import { useLimitWindowName } from '../../lib/limit-words';
 import { healthReason, signalReason } from '../../lib/server-strings';
+import { useLimitState } from './LimitBanner';
 
 /**
  * One part of the inspector: a heading and what it says, with a rule above instead of a card
@@ -319,6 +321,25 @@ export function HealthCard({ chat }: { chat: Chat }) {
 
 // ---------- facts ----------
 
+/** The inspector's "Limit" row, only while the chat sits at its provider's limit or waits for the reset. */
+function LimitRow({ chat }: { chat: Chat }) {
+  const { t } = useTranslation('chats');
+  const windowOf = useLimitWindowName();
+  const state = useLimitState(chat);
+  const at = toMs(state.resetsAt);
+  if (state.phase === 'none') return null;
+  const waiting = state.phase === 'waiting';
+  return (
+    <>
+      <dt>{t('limit.row.title')}</dt>
+      <dd>
+        <Tag tone="warn">{waiting ? t('limit.row.waiting') : t('limit.row.reached')}</Tag> {windowOf(state.status?.limit?.window)}
+        <div className="mono small muted">{at === null ? t('limit.row.resetUnknown') : t(waiting ? 'limit.row.resumes' : 'limit.row.until', { at: formatHour(at) })}</div>
+      </dd>
+    </>
+  );
+}
+
 export function FactsCard({ chat }: { chat: Chat }) {
   const { t } = useTranslation(['chat', 'chats', 'work', 'common']);
   const agent = useAgentName();
@@ -342,6 +363,7 @@ export function FactsCard({ chat }: { chat: Chat }) {
         <dd>
           <span className="badge insp-mode">{modeLabel(live?.permissionMode ?? chat.executions.at(-1)?.permissionMode ?? t('chat:shared.default'))}</span>
         </dd>
+        <LimitRow chat={chat} />
         <dt>{t('chat:shared.model')}</dt>
         <dd className="mono">{live?.model ?? chat.model ?? t('chat:shared.default')}</dd>
         <dt>{t('chat:shared.project')}</dt>

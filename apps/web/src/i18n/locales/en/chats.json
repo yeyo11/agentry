@@ -245,6 +245,27 @@
       "show": "Show",
       "hide": "Hide",
       "textLabel": "Text of the handoff"
+    },
+    "header": {
+      "reached": "Limit reached",
+      "waiting": "waiting",
+      "waitingUntil": "waiting · {{at}}"
+    },
+    "row": {
+      "title": "Limit",
+      "reached": "reached",
+      "waiting": "waiting",
+      "until": "until {{at}}",
+      "resumes": "resumes at {{at}}",
+      "resetUnknown": "reset not known"
+    },
+    "flowMoved": {
+      "title": "This run continues here from {{name}}.",
+      "handoff": "{{name}} reached its limit and the work went on in {{to}}, with a handoff. It is still the same flow run.",
+      "restart": "{{name}} reached its limit and the work started over in {{to}}. It is still the same flow run.",
+      "moves": "Moves {{count}} of {{max}}",
+      "movesNoMax": "Moves {{count}}",
+      "previous": "Open the previous chat"
     }
   }
 }
