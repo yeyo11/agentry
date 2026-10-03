@@ -277,6 +277,17 @@ test('FAKE-LIMIT reports a rejected window, then a 429 result, every time it is 
   await c.done();
 });
 
+test('FAKE-LIMIT-CLEAR reports the window allowed again at no use, and the turn ends well', async () => {
+  const c = chat();
+  c.say('FAKE-LIMIT-CLEAR');
+  const event = await c.next((e) => e.type === 'rate_limit_event');
+  assert.equal(event.rate_limit_info.status, 'allowed');
+  assert.equal(event.rate_limit_info.unifiedWindows['5h'].utilization, 0);
+  const result = await c.next((e) => e.type === 'result');
+  assert.equal(result.is_error, false);
+  await c.done();
+});
+
 test('--worktree works in a worktree of the repository, on its own branch, as the CLI does', async () => {
   const git = (cwd, ...a) => spawnSync('git', a, { cwd, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_NAME: 'Fake', GIT_AUTHOR_EMAIL: 'fake@example.com', GIT_COMMITTER_NAME: 'Fake', GIT_COMMITTER_EMAIL: 'fake@example.com' } });
   const c = chat({}, {

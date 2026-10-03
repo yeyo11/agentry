@@ -256,6 +256,14 @@ function startTurn(message) {
     if (next !== undefined) setImmediate(() => startTurn(next));
     return;
   }
+  // A line `FAKE-LIMIT-CLEAR` is the window back to normal: an allowed `rate_limit_event` at no use, so a
+  // spec that drove the account to its limit can leave it as it found it for the specs after it
+  if (/^FAKE-LIMIT-CLEAR\s*$/m.test(text)) {
+    emit({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed', rateLimitType: 'five_hour', resetsAt: Math.floor(Date.now() / 1000) + 3600, unifiedWindows: { '5h': { utilization: 0 } } } });
+    assistant([heard(text)]);
+    endTurn({ result: 'Limit cleared' });
+    return;
+  }
   if (steps.length === 0) {
     assistant([heard(text)]);
     endTurn({ result: `Heard: ${firstLine(text)}` });

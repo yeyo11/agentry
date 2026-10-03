@@ -190,6 +190,16 @@ export default async ({ page, api, check, dirs }) => {
       await api.del(`/chats/${id}`).catch(() => {});
     }
     await api.put('/providers/settings', saved).catch(() => {});
+    // The server is shared with the specs after this one: Claude's reading goes back to normal, or every
+    // decision and automated run after it would find Claude Code exhausted for the next hour
+    const clear = await api.post('/chats', { prompt: 'FAKE-LIMIT-CLEAR', cwd: dirs.workspaceDir, provider: 'claude-code' }).catch(() => null);
+    const clearId = clear?.body?.id;
+    for (let i = 0; i < 80; i++) {
+      const limit = (await api.get('/providers/claude-code').catch(() => ({ body: null }))).body?.limit;
+      if (limit?.state !== 'exhausted') break;
+      await page.sleep(250);
+    }
+    if (clearId) await api.del(`/chats/${clearId}`).catch(() => {});
     await api.post('/providers/refresh').catch(() => {});
   }
 };
