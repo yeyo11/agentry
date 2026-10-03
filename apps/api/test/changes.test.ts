@@ -49,7 +49,6 @@ before(async () => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-api-changes-data-'));
   const config = loadConfig({
     CLAUDE_BIN: FAKE_CLAUDE,
-    CSWAP_BIN: '/nonexistent/cswap',
     CLAUDE_CONFIG_DIR: join(root, 'claude'),
     AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
     AGENTRY_DATA_DIR: join(root, 'data'),

@@ -25,7 +25,6 @@ before(async () => {
   core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
-      CSWAP_BIN: '/nonexistent/cswap',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
       AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
       AGENTRY_DATA_DIR: join(root, 'data'),
@@ -653,7 +652,6 @@ test('a burst of readers costs one detection, and the open health route spawns n
   const probe = new Core(
     loadConfig({
       CLAUDE_BIN: bin,
-      CSWAP_BIN: '/nonexistent/cswap',
       CLAUDE_CONFIG_DIR: join(root, 'claude-config'),
       AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
       AGENTRY_DATA_DIR: join(root, 'data'),
