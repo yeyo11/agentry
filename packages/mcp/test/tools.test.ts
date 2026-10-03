@@ -53,7 +53,7 @@ test('every tool is called once and answers with the seeded data', async () => {
     ['read_document', { projectId: s.project.id, path: 'docs/plan.md' }, '# Shop plan'],
     ['list_chats', {}, '['],
     ['get_usage', { from: '2026-09-01', to: '2026-09-30' }, 'breakdown'],
-    ['list_accounts', {}, '{'],
+    ['list_providers', {}, 'claude-code'],
   ];
   for (const [name, args, expected] of calls) {
     const result = await s.call(name, args);

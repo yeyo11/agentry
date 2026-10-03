@@ -20,7 +20,7 @@ export const AGENTRY_MCP_READ_TOOL_NAMES = [
   'list_chats',
   'get_chat',
   'get_usage',
-  'list_accounts',
+  'list_providers',
 ] as const;
 
 export type AgentryMcpReadToolName = (typeof AGENTRY_MCP_READ_TOOL_NAMES)[number];

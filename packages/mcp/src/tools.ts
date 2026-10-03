@@ -193,10 +193,10 @@ export const TOOLS: readonly Tool[] = [
     },
   },
   {
-    name: 'list_accounts',
-    description: "The Claude accounts with their usage per window. Use it for 'how close am I to the limit'.",
+    name: 'list_providers',
+    description: "The agent providers (Claude Code, Codex, Gemini CLI, GitHub Copilot, OpenCode): whether each is ready and why not, its account, and its usage limit per window with the reset. Use it for 'how close am I to the limit' and 'which agents can I use'.",
     inputSchema: schema({}),
-    // Never `refresh=1`: a refresh polls claude-swap
-    run: (_args, api) => api.get('/accounts'),
+    // What the detector last read, never a new detection: refreshing runs every installed CLI
+    run: (_args, api) => api.get('/providers'),
   },
 ];

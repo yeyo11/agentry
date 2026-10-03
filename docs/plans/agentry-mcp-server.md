@@ -173,7 +173,7 @@ construction. CW-17 adds a separate writer.
 | `list_chats` | `GET /chats` | `project?`, `state?`, `origin?`, `limit?` (≤ 50). `state` covers the chats that are waiting |
 | `get_chat` | `GET /chats/:id?limit=20`, and `GET /chats/:id/permissions` when the chat uses host prompts | `chatId`. Returns the chat's metadata and summary, its last 20 transcript entries, and what it is waiting on. It is **never** the export or the stream |
 | `get_usage` | `GET /usage?from=&to=` and `GET /usage/breakdown?from=&to=` | `from?`, `to?` (`YYYY-MM-DD`). The default is today |
-| `list_accounts` | `GET /accounts` (**without** `refresh=1`, because a refresh polls `claude-swap`) | none. Returns each account with its usage per window, which answers "limits" |
+| `list_providers` (was `list_accounts`) | `GET /providers` (never `POST /providers/refresh`, which runs every installed CLI) | none. Returns each provider with its readiness and its limit per window, which answers "limits". Renamed when providers phase 4 retired claude-swap and `/accounts` |
 
 The architect may merge or split tools, but three things must stay covered: every group the card names
 (projects, work items, orchestrations, flow runs and team, journal and documents, chats, usage and
