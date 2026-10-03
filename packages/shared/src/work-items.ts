@@ -162,7 +162,7 @@ export const FLOW_RUNS_PAGE = 50;
 /** The most runs one page of the team's activity may ask for */
 export const FLOW_RUNS_PAGE_MAX = 200;
 
-export const FLOW_RUN_ACTIONS = valuesOf<FlowRunAction>()(['queued', 'started', 'ended']);
+export const FLOW_RUN_ACTIONS = valuesOf<FlowRunAction>()(['queued', 'started', 'ended', 'moved', 'waiting']);
 
 export const FLOW_VERDICTS = valuesOf<FlowVerdict>()(['pass', 'fail']);
 

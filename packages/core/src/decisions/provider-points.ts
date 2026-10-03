@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { LimitAction, ProviderId } from '@agentry/shared';
+import type { LimitAction, ModelOption, ProviderId } from '@agentry/shared';
 import type { DecisionOutcome } from './engine.ts';
 import type { DecisionAsker } from './stance.ts';
 
@@ -75,6 +75,19 @@ const MODEL_MAP_EVERY_MS = 24 * 60 * 60 * 1000;
 const SUMMARIES = 3;
 
 const ACTIONS: readonly LimitAction[] = ['handoff', 'restart', 'wait'];
+
+/**
+ * The model-map question for one model and one target, from the two catalogues. The model may be an
+ * alias or the id it resolved to: the row is found on either, so the point sees the model's name.
+ */
+export function modelMapSubject(from: { provider: ProviderId; model: string }, target: ProviderId, ownCatalog: ModelOption[], targetCatalog: ModelOption[]): ModelMapSubject {
+  const own = ownCatalog.find((m) => m.value === from.model || m.ids?.includes(from.model));
+  return {
+    from: { provider: from.provider, model: from.model, ...(own?.label ? { name: own.label } : {}), tier: own?.tier ?? null, description: own?.description ?? null },
+    target,
+    targets: targetCatalog.filter((m) => !m.disabled).map((m) => ({ id: m.value, name: m.label ?? m.value, tier: m.tier ?? null, description: m.description ?? null })),
+  };
+}
 
 export const modelMapSubjectId = (provider: ProviderId, model: string, target: ProviderId): string => `${provider}:${model}→${target}`;
 

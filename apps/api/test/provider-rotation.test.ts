@@ -249,6 +249,45 @@ test('a model-mapping suggestion is listed until it is answered; accepting write
   assert.equal((await app.inject({ method: 'POST', url: '/api/providers/model-map/suggestions/sugg-again', ...json({ accept: true }) })).statusCode, 409);
 });
 
+test("Suggest asks the model-map point now, whatever it was asked today: 409 when the point is off, 204 when nothing came back, the suggestion when something did", async () => {
+  const suggest = (body: unknown) => app.inject({ method: 'POST', url: '/api/providers/model-map/suggest', ...json(body) });
+  const pair = { from: { provider: 'claude-code', model: 'claude-opus-x' }, target: 'codex' };
+  assert.equal((await suggest({ from: { provider: 'claude-code' }, target: 'codex' })).statusCode, 400);
+  assert.equal((await suggest({ ...pair, target: 'claude-code' })).statusCode, 400);
+  assert.equal((await suggest({ ...pair, target: 'nowhere' })).statusCode, 404);
+  // The point is off unless the person turned it on
+  assert.equal((await suggest(pair)).statusCode, 409);
+
+  const effective = core.decisions.effective.bind(core.decisions);
+  const ask = core.providerPoints.suggestMapping.bind(core.providerPoints);
+  const asked: Array<{ force?: boolean; from: string; targets: string[] }> = [];
+  let counterpart: string | null = null;
+  core.decisions.effective = (point, projectId, settings) => ({ ...effective(point, projectId, settings), mode: 'active', limited: false });
+  core.providerPoints.suggestMapping = async (stance, subject, opts) => {
+    asked.push({ ...(opts?.force ? { force: true } : {}), from: subject.from.model, targets: subject.targets.map((t) => t.id) });
+    if (counterpart) {
+      core.db.insertDecision({
+        id: 'sugg-pressed', point: 'provider.model-map', kind: 'suggest', projectId: null, subjectKind: 'model', subjectId: `claude-code:claude-opus-x→codex`, provider: 'cli', model: 'test', mode: 'active', status: 'answered',
+        unavailable: null, state: {}, questions: [], answers: { counterpart: { kind: 'choice', value: counterpart, probabilities: null, confidence: null } }, confidence: null, threshold: null, acted: false, visible: false,
+        savedRun: false, latencyMs: 1, inputTokens: null, costUsd: null, outcome: null, agreed: null, resolvedAt: null, feedback: null, feedbackAt: null, openedAt: null, paletteAction: null, at: new Date().toISOString(),
+      });
+    }
+    return counterpart;
+  };
+  try {
+    assert.equal((await suggest(pair)).statusCode, 204);
+    counterpart = 'gpt-5.5';
+    const res = await suggest(pair);
+    assert.equal(res.statusCode, 200, res.body);
+    const suggestion = res.json<ModelMapSuggestion>();
+    assert.deepEqual([suggestion.id, suggestion.from, suggestion.to], ['sugg-pressed', pair.from, { provider: 'codex', model: 'gpt-5.5' }]);
+    assert.ok(asked.length === 2 && asked.every((a) => a.force && a.from === 'claude-opus-x'), JSON.stringify(asked));
+  } finally {
+    core.decisions.effective = effective;
+    core.providerPoints.suggestMapping = ask;
+  }
+});
+
 test('the claude-swap notice reads, dismisses and removes only Agentry\'s own copy', async () => {
   const data = join(root, 'data');
   mkdirSync(join(data, 'tools'), { recursive: true });
@@ -287,6 +326,7 @@ test("the accounts routes are gone, and a chat's token cannot move, wait, cancel
       ['POST', `/api/chats/${id}/wait`, undefined],
       ['POST', '/api/providers/moves/some/cancel', undefined],
       ['POST', '/api/providers/model-map/suggestions/some', { accept: true }],
+      ['POST', '/api/providers/model-map/suggest', { from: { provider: 'claude-code', model: 'opus' }, target: 'codex' }],
       ['POST', '/api/providers/cswap-retirement/dismiss', undefined],
       ['DELETE', '/api/providers/cswap-retirement/managed-copy', undefined],
     ] as const) {
