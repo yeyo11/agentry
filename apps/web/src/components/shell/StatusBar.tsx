@@ -7,6 +7,7 @@ import { api, keys } from '../../api';
 import { ICON } from '@agentry/ui/components/icons';
 import { formatCost } from '@agentry/ui/lib/format';
 import { cardProvider, limitReading } from '../../lib/shell-live';
+import { useLimitWindowName } from '../../lib/limit-words';
 import { PROVIDERS_SETTINGS_PATH, useEnabledProviders } from '../../lib/provider-status';
 import { resetWhen } from '../../lib/reset-when';
 import { useUsageNow } from '../../lib/usage-now';
@@ -94,6 +95,7 @@ function LimitMeter({ label, percent, exhausted }: { label: string; percent: num
  */
 export function ProviderCard({ now, connection }: { now: Now; connection: Connection }) {
   const { t } = useTranslation(['shell', 'providers']);
+  const windowOf = useLimitWindowName();
   const { statuses } = useEnabledProviders();
   const defaultProvider = useQuery({ queryKey: keys.providerSettings, queryFn: () => api.providerSettings() }).data?.defaultProvider;
   const status = statuses ? cardProvider(statuses, defaultProvider) : null;
@@ -137,7 +139,7 @@ export function ProviderCard({ now, connection }: { now: Now; connection: Connec
       {rows.length > 0 && (
         <span className="more-account-limits">
           {rows.map((row) => (
-            <LimitMeter key={row.name} label={row.name === '5h' || row.name === '7d' ? t(`providers:limit.window.${row.name}`) : row.name} percent={row.percent} exhausted={reading?.state === 'exhausted' && row.name === limit?.window} />
+            <LimitMeter key={row.name} label={windowOf(row.name)} percent={row.percent} exhausted={reading?.state === 'exhausted' && row.name === limit?.window} />
           ))}
         </span>
       )}

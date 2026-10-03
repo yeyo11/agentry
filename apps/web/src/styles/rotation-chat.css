@@ -247,7 +247,7 @@ button.mv-cand {
   font-variant-numeric: tabular-nums;
 }
 
-.mv-use .bar {
+.mv-use .meter-track {
   width: 100%;
 }
 
@@ -485,6 +485,52 @@ a.cont-from:hover {
   align-items: center;
   gap: 8px;
   padding: 0 20px 8px;
+}
+
+/* A flow run that went on in another provider: a calm note, not a warning. The work is going on. */
+.flow-moved {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 20px 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+
+.flow-moved-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--fg-3);
+}
+
+.flow-moved-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.flow-moved-body b {
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.flow-moved-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.flow-moved-foot .mono {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-3);
 }
 
 @media (max-width: 900px) {

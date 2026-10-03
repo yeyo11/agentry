@@ -60,7 +60,7 @@
       "exhausted": "limit reached",
       "resumes": "resets {{when}}",
       "used": "{{provider}}: {{percent}}% of the {{window}} window used",
-      "tipWindow": "{{window}} window · {{percent}}% used",
+      "tipWindow": "{{window}} · {{percent}}% used",
       "tipReset": "resets {{when}}",
       "tipAge": "read {{age}}",
       "unknown": "Its last reading is out of date, so its limit is not known",
@@ -119,5 +119,12 @@
     "more": "More actions",
     "cancel": "Cancel",
     "close": "Close"
+  },
+  "limitWindow": {
+    "five_hour": "5 h",
+    "seven_day": "7 d",
+    "primary": "main window",
+    "secondary": "second window",
+    "other": "usage limit"
   }
 }
