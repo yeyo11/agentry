@@ -8,6 +8,7 @@ commit messages. Do not edit it by hand.
 
 ### Bug fixes
 
+* **e2e:** point CLAUDE_BIN at the fake CLI so fakeCli specs stop reaching the real one ([#190](https://github.com/yeyo11/agentry/issues/190)) ([a1aab18](https://github.com/yeyo11/agentry/commit/a1aab18e70cb20e6cf352118fb6626e99b017ffb))
 * **providers:** Copilot reads its login from its state file and learns its models from chats ([#191](https://github.com/yeyo11/agentry/issues/191)) ([627bab7](https://github.com/yeyo11/agentry/commit/627bab7c4f1e7a8a1be2263ed21359667a251e1c))
 
 ## [0.33.0](https://github.com/yeyo11/agentry/compare/v0.32.0...v0.33.0) (2026-10-03)
