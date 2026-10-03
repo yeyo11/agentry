@@ -470,6 +470,10 @@
         ],
         "description": "The chat that continues this one after a provider move; null while none does"
       },
+      "atLimit": {
+        "type": "boolean",
+        "description": "The chat's last turn died on its provider's usage limit. Kept in the server's memory only: after a restart it is absent, and the page falls back on the provider's reading."
+      },
       "state": {
         "$ref": "#/components/schemas/ChatState"
       },
@@ -9375,6 +9379,10 @@
           }
         ],
         "description": "The chat that continues this one after a provider move; null while none does"
+      },
+      "atLimit": {
+        "type": "boolean",
+        "description": "The chat's last turn died on its provider's usage limit. Kept in the server's memory only: after a restart it is absent, and the page falls back on the provider's reading."
       },
       "state": {
         "$ref": "#/components/schemas/ChatState"

@@ -35,6 +35,8 @@ export function limitPhase(chat: Chat, status: ProviderStatus | undefined, wait:
   if (chat.continuedIn) return 'none';
   if (wait) return 'waiting';
   if (chat.state === 'working') return 'none';
+  // The server saw this chat's turn die on the limit: that is the fact, whatever was read since
+  if (chat.atLimit) return 'limit';
   const limit = status?.limit;
   if (!limit || limit.state !== 'exhausted') return 'none';
   const last = chat.executions.at(-1);

@@ -410,6 +410,7 @@ export class ChatService {
       derivedFrom: runtime?.derivedFrom ?? null,
       continuedFrom: runtime?.continuedFrom ?? null,
       continuedIn: runtime?.continuedIn ?? null,
+      ...(runtime && this.deps.runtime.atLimit(runtime.id) ? { atLimit: true } : {}),
       state,
       control,
       execution: live,

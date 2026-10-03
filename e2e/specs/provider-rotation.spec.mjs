@@ -23,7 +23,8 @@ export default async ({ page, api, check, dirs }) => {
   const text = (selector) => page.eval(`return document.querySelector(${JSON.stringify(selector)})?.innerText ?? ''`);
   // The chat reaches its limit when the provider's reading says so; the page reads the same fact
   const limited = async (prompt = 'FAKE-LIMIT') => {
-    const started = await api.post('/chats', { prompt, cwd: dirs.workspaceDir, provider: 'claude-code', permissionPrompts: 'host' });
+    // Started on the alias a person picks, so the catalog learns which id the alias resolved to
+    const started = await api.post('/chats', { prompt, cwd: dirs.workspaceDir, provider: 'claude-code', model: 'sonnet', permissionPrompts: 'host' });
     check(started.status < 300, `a Claude chat starts (${started.status} ${JSON.stringify(started.body)})`);
     created.push(started.body.id);
     const end = Date.now() + 40_000;

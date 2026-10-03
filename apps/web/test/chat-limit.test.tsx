@@ -126,6 +126,15 @@ test('a chat is at its limit only when the reading says so, it is not working an
   assert.equal(limitPhase(chat(), undefined, null), 'none');
 });
 
+test("the server's own fact that the turn died on the limit wins over a reading taken since", () => {
+  // A detection or another chat refreshed the reading after this turn ended: the reading alone would hide it
+  const later = status('claude-code', 'Claude Code', { limit: limit({ observedAt: '2099-01-01T00:00:00Z' }) });
+  assert.equal(limitPhase(chat(), later, null), 'none');
+  assert.equal(limitPhase(chat({ atLimit: true }), later, null), 'limit');
+  assert.equal(limitPhase(chat({ atLimit: true }), undefined, null), 'limit');
+  assert.equal(limitPhase(chat({ atLimit: true, state: 'working' }), claude, null), 'none');
+});
+
 test('an open wait is the waiting phase, and a chat that moved on shows no limit at all', () => {
   assert.equal(limitPhase(chat(), claude, wait()), 'waiting');
   assert.equal(limitPhase(chat({ state: 'working' }), claude, wait()), 'waiting');

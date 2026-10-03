@@ -798,6 +798,11 @@ export interface Chat {
   continuedFrom?: ChatContinuation | null;
   /** The chat that continues this one after a provider move; null while none does */
   continuedIn?: ChatContinuation | null;
+  /**
+   * The chat's last turn died on its provider's usage limit. Kept in the server's memory only: after
+   * a restart it is absent, and the page falls back on the provider's reading.
+   */
+  atLimit?: boolean;
   state: ChatState;
   control: ChatControl;
   /** The live execution, when Agentry has a process on the chat; also the last of `executions` */
