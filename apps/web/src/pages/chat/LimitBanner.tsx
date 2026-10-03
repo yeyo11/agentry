@@ -9,6 +9,7 @@ import { useToast } from '@agentry/ui/components/Toast';
 import { formatDateTime, formatDuration, formatHour, timeAgo, toMs } from '@agentry/ui/lib/format';
 import { api, keys } from '../../api';
 import { useProviders } from '../../lib/providers';
+import { isKnownLimitWindow, useLimitWindowName } from '../../lib/limit-words';
 import { PROVIDERS_SETTINGS_PATH } from '../../lib/provider-status';
 import { rotationOf } from '../config/providers/rotation';
 import { MoveSheet, type MoveChoice } from './MoveSheet';
@@ -27,7 +28,7 @@ export interface LimitState {
 /**
  * Whether the chat sits at its provider's limit. The server keeps the fact only in memory, so the
  * page reads it from what survives a reload: an open wait, or the provider's own reading, together
- * with a chat that is not working and whose last turn did not end well. A chat that moved on, or
+ * with a chat that is not working and whose last turn did not end well, after the reading was taken. A chat that moved on, or
  * whose reading says the limit is not reached, shows nothing.
  */
 export function limitPhase(chat: Chat, status: ProviderStatus | undefined, wait: ProviderMove | null): LimitPhase {
@@ -38,6 +39,11 @@ export function limitPhase(chat: Chat, status: ProviderStatus | undefined, wait:
   if (!limit || limit.state !== 'exhausted') return 'none';
   const last = chat.executions.at(-1);
   if (!last || last.outcome === 'completed' || last.outcome === 'stopped') return 'none';
+  // The turn must have ended on this limit: one that ended before the reading was taken failed for
+  // another reason, or on an earlier window, and the limit is not what stopped it
+  const ended = toMs(last.endedAt);
+  const observed = toMs(limit.observedAt);
+  if (ended === null || (observed !== null && ended < observed)) return 'none';
   const reset = toMs(limit.resetsAt);
   return reset !== null && reset <= Date.now() ? 'none' : 'limit';
 }
@@ -94,6 +100,7 @@ export function LimitBanner({ chat, state }: { chat: Chat; state: LimitState }) 
   const providers = useProviders();
   const [sheet, setSheet] = useState<MoveChoice | null>(null);
   const resetWords = useResetWords(state);
+  const windowOf = useLimitWindowName();
   const { phase, status, wait } = state;
   const settings = useQuery({ queryKey: keys.providerSettings, queryFn: () => api.providerSettings(), enabled: phase === 'limit' });
   const candidates = useQuery({ queryKey: keys.providerCandidates(chat.id), queryFn: () => api.providerCandidates(chat.id), enabled: phase !== 'none' });
@@ -116,8 +123,8 @@ export function LimitBanner({ chat, state }: { chat: Chat; state: LimitState }) 
   const found = candidates.data;
   const first = found && !found.movesCapped ? found.candidates[0] : undefined;
   const window = status?.limit?.window ?? null;
-  const windowName = window === '5h' ? t('providers:limit.window.5h') : window === '7d' ? t('providers:limit.window.7d') : window;
-  const title = windowName ? t('chats:limit.titleWindow', { name, window: windowName }) : t('chats:limit.title', { name });
+  // A window the app has no words for is not named: "reached its usage limit" says it
+  const title = isKnownLimitWindow(window) ? t('chats:limit.titleWindow', { name, window: windowOf(window) }) : t('chats:limit.title', { name });
 
   if (phase === 'waiting') {
     return (

@@ -60,7 +60,7 @@
       "exhausted": "límite agotado",
       "resumes": "vuelve {{when}}",
       "used": "{{provider}}: {{percent}} % de la ventana de {{window}} usado",
-      "tipWindow": "Ventana de {{window}} · {{percent}} % usado",
+      "tipWindow": "{{window}} · {{percent}} % usado",
       "tipReset": "vuelve {{when}}",
       "tipAge": "lectura {{age}}",
       "unknown": "Su última lectura está desfasada, así que no se conoce su límite",
@@ -119,5 +119,12 @@
     "more": "Más acciones",
     "cancel": "Cancelar",
     "close": "Cerrar"
+  },
+  "limitWindow": {
+    "five_hour": "5 h",
+    "seven_day": "7 d",
+    "primary": "ventana principal",
+    "secondary": "ventana secundaria",
+    "other": "límite de uso"
   }
 }

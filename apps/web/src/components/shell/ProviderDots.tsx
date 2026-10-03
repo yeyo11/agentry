@@ -5,11 +5,25 @@ import { PROVIDERS_SETTINGS_PATH, useEnabledProviders } from '../../lib/provider
 import { STATE_TONE, stateLabelKey } from '../../lib/provider-state';
 import { useProviderReason } from '../ProviderRow';
 import { timeAgo } from '@agentry/ui/lib/format';
-import { limitReading } from '../../lib/shell-live';
+import { limitReading, type LimitReading } from '../../lib/shell-live';
+import { useLimitWindowName } from '../../lib/limit-words';
 import { resetWhen } from '../../lib/reset-when';
 import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
 import { StatusDot, usageTone, type DotTone } from '@agentry/ui/components/motion';
 import { Spinner } from '@agentry/ui/components/Spinner';
+
+/**
+ * What the dot says of a provider whose last reading is near or at its limit. The limit is always
+ * the word, even when something else degraded the provider too (the reason stays in the tip), and
+ * an exhausted limit is bad whatever the state; a limit that is only near is warn.
+ */
+export function limitDotFacts(status: Pick<ProviderStatus, 'state' | 'reason'>, reading: Pick<LimitReading, 'state'> | null): { hot: boolean; limitOnly: boolean; tone: DotTone } {
+  const hot = reading !== null && reading.state !== 'ok';
+  // A provider degraded only by its limit is working: the limit says it, not "degraded"
+  const limitOnly = hot && (status.state === 'ready' || status.reason === 'limit-reached' || status.reason === 'limit-near');
+  const tone: DotTone = reading?.state === 'exhausted' ? 'bad' : limitOnly ? 'warn' : STATE_TONE[status.state];
+  return { hot, limitOnly, tone };
+}
 
 /**
  * "Claude Code 2.1.282 ▬▬ 45 %" when it works; "Claude Code · limit ▬▬ 72 %" near its limit;
@@ -21,23 +35,21 @@ function ProviderDot({ status, limit }: { status: ProviderStatus; limit: Provide
   const { t: ts } = useTranslation('shell');
   const reason = useProviderReason(status);
   const reading = limitReading(limit);
-  const hot = reading !== null && reading.state !== 'ok';
-  // A provider degraded only by its limit is working: the limit says it, not "degraded"
-  const limitOnly = hot && (status.state === 'ready' || status.reason === 'limit-reached' || status.reason === 'limit-near');
-  const tone: DotTone = limitOnly ? (reading.state === 'exhausted' ? 'bad' : 'warn') : STATE_TONE[status.state];
+  const windowOf = useLimitWindowName();
+  const { hot, limitOnly, tone } = limitDotFacts(status, reading);
   const ok = status.state === 'ready';
   const word = t(stateLabelKey(status.state)).toLowerCase();
   const limitWord = reading ? (reading.state === 'exhausted' ? ts('statusbar.limit.exhausted') : ts('statusbar.limit.near')) : '';
-  const text = limitOnly ? `${status.label} · ${limitWord}` : ok ? [status.label, status.version].filter(Boolean).join(' ') : `${status.label} · ${word}`;
+  const text = hot ? `${status.label} · ${limitWord}` : ok ? [status.label, status.version].filter(Boolean).join(' ') : `${status.label} · ${word}`;
   const barTone = reading?.percent == null ? 'neutral' : usageTone(reading.percent, reading.state === 'exhausted');
   const showBar = reading !== null && reading.percent !== null && reading.state !== 'exhausted';
   const where = [status.version ? t('statusbar.version', { version: status.version }) : null, status.binaryPath ?? status.configHome]
     .filter(Boolean)
     .join(' · ');
-  const windowName = reading?.window ?? '';
+  const windowName = windowOf(reading?.window);
   const tip = (
     <span className="statusbar-tip">
-      <span>{`${status.label} · ${limitOnly ? limitWord : word}`}</span>
+      <span>{`${status.label} · ${hot ? limitWord : word}`}</span>
       {where && <span className="mono">{where}</span>}
       {!ok && !limitOnly && <span className="mono">{reason}</span>}
       {reading && (
@@ -60,7 +72,7 @@ function ProviderDot({ status, limit }: { status: ProviderStatus; limit: Provide
       <NavLink
         to={PROVIDERS_SETTINGS_PATH}
         className={`statusbar-item ${tone === 'warn' ? 'statusbar-warn' : tone === 'bad' ? 'statusbar-bad' : ''}`.trim()}
-        aria-label={`${status.label}: ${limitOnly ? limitWord : word}${reading?.percent != null ? `, ${reading.percent} %` : ''}`}
+        aria-label={`${status.label}: ${hot ? limitWord : word}${reading?.percent != null ? `, ${reading.percent} %` : ''}`}
       >
         <StatusDot tone={tone} />
         <span className="ellipsis">{text}</span>

@@ -2,10 +2,10 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Chat, Execution, ProviderCandidates, ProviderLimit, ProviderMove, ProviderStatus, ProvidersSettings } from '@agentry/shared';
+import type { Chat, Execution, FlowRun, WorkItemDetail, ProviderCandidates, ProviderLimit, ProviderMove, ProviderStatus, ProvidersSettings } from '@agentry/shared';
 import { ChatUiProvider, type ChatUiConfig } from '@agentry/chat-ui/lib/context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import React from 'react';
+import React, { type ComponentProps } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { TooltipProvider } from '@agentry/ui/components/controls';
@@ -13,7 +13,10 @@ import { ToastProvider } from '@agentry/ui/components/Toast';
 import { keys } from '../src/api';
 import i18n from '../src/i18n';
 import { ContinuedDivider, ContinuedFrom, HandoffCard, LimitStopped } from '../src/pages/chat/HandoffCard';
+import { LimitBadge } from '../src/pages/chat/LimitBadge';
+import { FlowMovedNote, chainOfMoves } from '../src/pages/chat/FlowMoved';
 import { BlockedComposer, LimitBanner, limitPhase, type LimitState } from '../src/pages/chat/LimitBanner';
+import { UsageMeter } from '../src/pages/chat/MoveSheet';
 
 // The chat package is compiled with the classic runtime here, so its context needs `React` in scope
 (globalThis as { React?: typeof React }).React = React;
@@ -60,7 +63,7 @@ const limit = (over: Partial<ProviderLimit> = {}): ProviderLimit => ({
   utilization: 1,
   resetsAt: FUTURE,
   windows: {},
-  observedAt: new Date().toISOString(),
+  observedAt: '2026-10-02T11:54:00Z',
   source: 'stream',
   ...over,
 });
@@ -258,4 +261,92 @@ test('the copy of the chat at a limit exists in Spanish, once per key, with the 
     assert.ok(other, `es limit.${key}`);
     assert.equal(holes(value), holes(other), key);
   }
+});
+
+test('a chat whose last turn ended before the reading was taken is not at that limit, nor is one that has no end', () => {
+  const at = (endedAt: string | null) => chat({ executions: [execution({ endedAt })] });
+  assert.equal(limitPhase(at('2026-10-02T11:55:00Z'), claude, null), 'limit');
+  // An old failure of an idle chat, on a provider another chat found exhausted since
+  assert.equal(limitPhase(at('2026-10-02T09:00:00Z'), claude, null), 'none');
+  assert.equal(limitPhase(at(null), claude, null), 'none');
+});
+
+test('the banner names a window by the words of the app, and a window it does not know is not named', () => {
+  const title = (window: string | null) => {
+    const s = status('claude-code', 'Claude Code', { limit: limit({ window }) });
+    return text(render(<LimitBanner chat={chat()} state={{ ...state('limit'), status: s }} />, seeded()));
+  };
+  assert.match(title('five_hour'), /Claude Code reached its 5 h limit/);
+  assert.match(title('seven_day'), /Claude Code reached its 7 d limit/);
+  assert.match(title('primary'), /Claude Code reached its main window limit/);
+  assert.match(title('weekly_opus'), /Claude Code reached its usage limit/);
+  assert.doesNotMatch(title('weekly_opus'), /weekly_opus/);
+  assert.match(title(null), /Claude Code reached its usage limit/);
+});
+
+test('the header says the limit in a warn badge, with the hour it resumes when it waits', () => {
+  const badge = (phase: 'limit' | 'waiting', resetsAt: string | null) => text(render(<LimitBadge phase={phase} resetsAt={resetsAt} />, seeded()));
+  assert.match(badge('limit', FUTURE), /Limit reached/);
+  assert.match(badge('waiting', FUTURE), /waiting · \d\d:\d\d/);
+  assert.equal(badge('waiting', null).trim(), 'waiting');
+  assert.match(render(<LimitBadge phase="limit" resetsAt={null} />, seeded()), /badge-warn/);
+});
+
+test('a candidate in the move sheet shows its use in the usage thresholds', () => {
+  const tone = (percent: number) => (/meter-fill ?([^"]*)"/.exec(renderToStaticMarkup(<UsageMeter percent={percent} />))?.[1] ?? '').trim();
+  assert.equal(tone(34), '');
+  assert.equal(tone(60), 'is-warn');
+  assert.equal(tone(74), 'is-warn');
+  assert.equal(tone(75), 'is-bad');
+});
+
+const flowItem = { id: 'i1', key: 'AGN-28', projectId: 'p1', links: [{ kind: 'chat', chatId: 'e3d8a1', teamRole: 'developer', role: 'work' }] } as unknown as WorkItemDetail;
+const flowLink = { item: flowItem, role: 'work', movesOnEnd: true } as unknown as ComponentProps<typeof FlowMovedNote>['link'];
+const flowMove = (over: Partial<ProviderMove> = {}): ProviderMove => ({
+  ...wait(),
+  subjectKind: 'flow_run',
+  subjectId: 'r1',
+  projectId: 'p1',
+  fromChat: 'c-old-1',
+  toChat: 'e3d8a1',
+  toProvider: 'codex',
+  toModel: 'gpt-6.1-sol',
+  action: 'handoff',
+  state: 'moved',
+  at: '2026-10-02T11:58:00Z',
+  resetsAt: null,
+  ...over,
+});
+
+function flowClient(moves: ProviderMove[], chatId = 'e3d8a1'): QueryClient {
+  const client = seeded();
+  client.setQueryData(keys.workItemRuns('i1'), [{ id: 'r1', chatId, role: 'developer' } as FlowRun]);
+  client.setQueryData(keys.providerMoves('project:p1'), moves);
+  return client;
+}
+
+test("a flow run's chat that came from another provider says so, with the chain and the moves it has made", () => {
+  const html = render(<FlowMovedNote chatId="e3d8a1" link={flowLink} />, flowClient([flowMove()]));
+  const words = text(html);
+  assert.match(words, /This run continues here from Claude Code\./);
+  assert.match(words, /reached its limit and the work went on in Codex, with a handoff/);
+  assert.match(words, /Claude Code Codex/);
+  assert.match(words, /moved · handoff · \d\d:\d\d · gpt-6\.1-sol/);
+  assert.match(words, /Moves 1 of 2/);
+  assert.match(html, /href="\/chats\/c-old-1"/);
+  assert.doesNotMatch(html, /spinner|shimmer|energy/);
+  // Two moves: the chain has three chats and the strip speaks of the last one
+  const two = [flowMove({ id: 'm0', fromChat: 'c0', fromProvider: 'copilot', toChat: 'c-old-1', toProvider: 'claude-code', at: '2026-10-02T10:00:00Z' }), flowMove()];
+  assert.deepEqual(
+    chainOfMoves(two).map((c) => c.provider),
+    ['copilot', 'claude-code', 'codex'],
+  );
+  assert.match(text(render(<FlowMovedNote chatId="e3d8a1" link={flowLink} />, flowClient(two))), /Moves 2 of 2/);
+});
+
+test('a flow chat that never moved, or whose run went on elsewhere, shows no strip', () => {
+  assert.doesNotMatch(render(<FlowMovedNote chatId="e3d8a1" link={flowLink} />, flowClient([])), /flow-moved/);
+  // The old chat of a moved run is not the run's chat any more
+  assert.doesNotMatch(render(<FlowMovedNote chatId="c-old-1" link={flowLink} />, flowClient([flowMove()], 'e3d8a1')), /flow-moved/);
+  assert.doesNotMatch(render(<FlowMovedNote chatId="e3d8a1" link={flowLink} />, flowClient([flowMove({ action: 'wait', toChat: null, toProvider: null })])), /flow-moved/);
 });
