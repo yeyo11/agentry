@@ -3719,15 +3719,21 @@ export interface AuditPage {
 // read-only, the same way `AGENTRY_AUTH_TOKEN` already works for the guard: whoever deployed the
 // install decided it, and the UI must not quietly override a deploy.
 
-/** Where a layered setting's current value comes from. `env` means the UI may show it but not change it. */
+/**
+ * Where a layered setting's current value comes from. `env` means the UI may show it but not change
+ * it, except for `allowedHosts`, whose layers add up instead of replacing one another: there `env`
+ * only says the environment names some of the hosts, and `allowedHostLayers` tells which.
+ */
 export type AppSettingSource = 'env' | 'file' | 'default';
 
 /** The values of the settings that can change at runtime, without their sources. */
 export interface AppSettingValues {
   /**
    * Host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern with
-   * at least two labels below the wildcard. Only the configured part: the exact names a running
-   * tunnel adds for itself are not listed here, because nobody may edit them.
+   * at least two labels below the wildcard. Read, it is the configured allowlist: the environment's
+   * hosts followed by the ones added in the UI. Written (`PUT`), it is the UI's part only, which
+   * adds to the environment's: a host the environment already names is not stored again. The exact
+   * names a running tunnel adds for itself are in neither, because nobody may edit them.
    */
   allowedHosts: string[];
   /** How many runs may work at once; a change applies to the next run, without a restart */
@@ -3742,15 +3748,34 @@ export interface AppSettingValues {
   providersStepSeen: boolean;
 }
 
+/**
+ * The hosts the guard answers to besides loopback, by who put each one there. Unlike the other
+ * settings, the layers add up: what the guard answers is all three together.
+ */
+export interface AllowedHostLayers {
+  /** From `AGENTRY_ALLOWED_HOSTS`: fixed by whoever deployed the install, read-only in the UI */
+  env: string[];
+  /** From `app-settings.json`: added in the UI, and what a `PUT` of `allowedHosts` replaces */
+  file: string[];
+  /** Exact names lent while their owner runs (a running tunnel's host): memory only, never editable */
+  runtime: string[];
+}
+
 /** `GET /settings/app`: every layered setting, and where each one's value comes from. */
 export interface AppSettings extends AppSettingValues {
+  /**
+   * For `allowedHosts`, the highest layer that names any host (`env`, then `file`, then
+   * `default`); it does not make the list read-only, `allowedHostLayers` does that per host.
+   */
   sources: Record<keyof AppSettingValues, AppSettingSource>;
+  allowedHostLayers: AllowedHostLayers;
 }
 
 /**
  * `PUT /settings/app`: the settings to change, and only those. A setting the environment set is
  * refused rather than written to the file, where it would do nothing until the variable goes away
- * and then change behaviour by surprise.
+ * and then change behaviour by surprise. `allowedHosts` is the exception: it replaces the UI's
+ * hosts, which add to the environment's, so it is accepted whatever the environment says.
  */
 export type UpdateAppSettingsRequest = Partial<AppSettingValues>;
 

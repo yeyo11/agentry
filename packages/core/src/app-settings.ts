@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PERMISSION_MODES, type AppSettings, type AppSettingSource, type AppSettingValues, type PermissionMode } from '@agentry/shared';
+import { PERMISSION_MODES, type AllowedHostLayers, type AppSettings, type AppSettingSource, type AppSettingValues, type PermissionMode } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
 import type { AgentryEventInput } from './events.ts';
 import { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, hostPatternProblem, type CoreConfig } from './paths.ts';
@@ -11,6 +11,11 @@ import { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, hostPatternProblem, type CoreCon
  * `app-settings.json` in the data directory, then the default. The environment wins because it is
  * what whoever deployed the install decided, and the UI must not quietly override a deploy; it
  * shows such a value read-only instead, the way `AGENTRY_AUTH_TOKEN` already works for the guard.
+ *
+ * `allowedHosts` is the exception: its layers add up. A deploy names the hosts it must always
+ * answer to, and the person running it can still add one (a new tunnel domain, a LAN address)
+ * without restarting; the environment's hosts stay fixed, so the UI cannot take away what the
+ * deploy decided, only add to it.
  */
 
 const KEYS = Object.keys(APP_SETTING_ENV) as (keyof AppSettingValues)[];
@@ -108,16 +113,21 @@ export interface RuntimeHostOptions {
 export class RuntimeHosts {
   private readonly hosts = new Map<string, RuntimeHostOptions>();
 
+  /** `onChange` hears a name coming or going, not a re-add of one already there */
+  constructor(private readonly onChange?: () => void) {}
+
   add(host: string, options: RuntimeHostOptions = {}): void {
     const name = host.trim().toLowerCase();
     if (!EXACT_HOST.test(name)) throw new Error(`a runtime host must be an exact name such as 'abc.example.com', not '${host}'`);
     const header = options.clientIpHeader?.trim().toLowerCase();
     if (header !== undefined && !HEADER_NAME.test(header)) throw new Error(`'${options.clientIpHeader}' is not a header name`);
+    const added = !this.hosts.has(name);
     this.hosts.set(name, header ? { clientIpHeader: header } : {});
+    if (added) this.onChange?.();
   }
 
   remove(host: string): void {
-    this.hosts.delete(host.trim().toLowerCase());
+    if (this.hosts.delete(host.trim().toLowerCase())) this.onChange?.();
   }
 
   /** The options a host was added with, or undefined when it is not one of them; `name` is lowercased already */
@@ -129,6 +139,9 @@ export class RuntimeHosts {
     return [...this.hosts.keys()];
   }
 }
+
+/** The settings as the layers resolve them; the runtime hosts are read when someone asks */
+type Resolved = Omit<AppSettings, 'allowedHostLayers'> & { hostLayers: Omit<AllowedHostLayers, 'runtime'> };
 
 export interface AppSettingsDeps {
   emit?: (event: AgentryEventInput) => void;
@@ -147,9 +160,12 @@ export class AppSettingsStore implements RunDefaults {
   /** Why the file could not be read: every write is refused until someone fixes or removes it */
   private readonly broken: string | null = null;
   private writing: Promise<void> = Promise.resolve();
-  private current: AppSettings;
-  /** Exact names the tunnel adds and removes; the guard answers them beside `allowedHosts` */
-  readonly runtimeHosts = new RuntimeHosts();
+  private current: Resolved;
+  /**
+   * Exact names the tunnel adds and removes; the guard answers them beside `allowedHosts`. A change
+   * goes out as `settings.changed`, so the settings page lists the tunnel's host while it is lent.
+   */
+  readonly runtimeHosts = new RuntimeHosts(() => this.deps.emit?.({ type: 'settings.changed', title: 'Settings changed', settings: this.get() }));
 
   constructor(
     config: CoreConfig,
@@ -172,10 +188,19 @@ export class AppSettingsStore implements RunDefaults {
   }
 
   get(): AppSettings {
-    return { ...this.current, allowedHosts: [...this.current.allowedHosts], sources: { ...this.current.sources } };
+    const { hostLayers, ...current } = this.current;
+    return {
+      ...current,
+      allowedHosts: [...current.allowedHosts],
+      sources: { ...current.sources },
+      allowedHostLayers: { env: [...hostLayers.env], file: [...hostLayers.file], runtime: this.runtimeHosts.list() },
+    };
   }
 
-  /** The configured allowlist: the same array until a change replaces it, so a reader can cache what it builds from it */
+  /**
+   * The configured allowlist, the environment's hosts and the UI's together: the same array until a
+   * change replaces it, so a reader can cache what it builds from it
+   */
   get allowedHosts(): readonly string[] {
     return this.current.allowedHosts;
   }
@@ -191,7 +216,10 @@ export class AppSettingsStore implements RunDefaults {
   /**
    * Changes the settings the body names, and only those. A setting the environment set is refused
    * rather than written: it would do nothing until the variable goes away, and then change
-   * behaviour by surprise. The whole body is checked before anything is written.
+   * behaviour by surprise. `allowedHosts` is not, since the file's hosts add to the environment's;
+   * the ones the environment already names are left out of what is stored, so a client that sends
+   * back the list it read does not copy the deploy's hosts into the file. The whole body is checked
+   * before anything is written.
    */
   async update(input: unknown): Promise<AppSettings> {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('app settings must be a JSON object');
@@ -201,9 +229,10 @@ export class AppSettingsStore implements RunDefaults {
     const changes: Partial<Record<keyof AppSettingValues, unknown>> = {};
     for (const key of KEYS) {
       if (body[key] === undefined) continue;
-      if (this.fromEnv.has(key)) throw new Error(`${key} is set by the environment (${APP_SETTING_ENV[key]}) and cannot be changed here`);
+      if (this.fromEnv.has(key) && key !== 'allowedHosts') throw new Error(`${key} is set by the environment (${APP_SETTING_ENV[key]}) and cannot be changed here`);
       changes[key] = parseValue(key, body[key]);
     }
+    if (changes.allowedHosts !== undefined) changes.allowedHosts = this.notFromEnv(changes.allowedHosts as string[]);
     if (this.broken) throw new Error(this.broken);
     if (!Object.keys(changes).length) return this.get();
 
@@ -222,7 +251,13 @@ export class AppSettingsStore implements RunDefaults {
     return settings;
   }
 
-  private resolve(): AppSettings {
+  /** The hosts a file layer adds: without the ones the environment names already */
+  private notFromEnv(hosts: readonly string[]): string[] {
+    const fixed = new Set(this.fromEnv.has('allowedHosts') ? this.env.allowedHosts : []);
+    return hosts.filter((host) => !fixed.has(host));
+  }
+
+  private resolve(): Resolved {
     const values: Partial<Record<keyof AppSettingValues, unknown>> = {};
     const sources = {} as Record<keyof AppSettingValues, AppSettingSource>;
     for (const key of KEYS) {
@@ -230,7 +265,11 @@ export class AppSettingsStore implements RunDefaults {
       sources[key] = source;
       values[key] = source === 'env' ? this.env[key] : source === 'file' ? this.stored[key] : DEFAULT_APP_SETTINGS[key];
     }
+    // The one setting whose layers add up rather than replace each other
+    const env = this.fromEnv.has('allowedHosts') ? [...this.env.allowedHosts] : [];
+    const file = this.notFromEnv(this.stored.allowedHosts ?? []);
+    if (env.length === 0) sources.allowedHosts = this.stored.allowedHosts !== undefined ? 'file' : 'default';
     const resolved = values as AppSettingValues;
-    return { ...resolved, allowedHosts: [...resolved.allowedHosts], sources };
+    return { ...resolved, allowedHosts: [...env, ...file], sources, hostLayers: { env, file } };
   }
 }
