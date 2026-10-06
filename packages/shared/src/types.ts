@@ -3781,16 +3781,45 @@ export type UpdateAppSettingsRequest = Partial<AppSettingValues>;
 
 // ---------- Tunnel ----------
 
-// Reaching Agentry from a phone or another network through localhost.run, over the system's own
-// `ssh`: one provider, no account, nothing to install (docs/plans/tunnel.md). The tunnel only
-// exists while the guard asks for authentication, and only its exact host joins the allowlist.
+// Reaching Agentry from a phone or another computer on the person's tailnet, through the Tailscale
+// CLI (`tailscale serve`, tailnet-only, never Funnel): one provider, the person's own Tailscale
+// session, reached only through its CLI flags and `--json` output (docs/plans/tunnel.md). The
+// tunnel only exists while the guard asks for authentication, and only its exact host joins the
+// allowlist.
 
 /**
- * `verifying`: the provider handed out an address, and Agentry is checking that `GET /api/health`
- * answers through it before showing it. A resolver asked too early caches the missing name, so an
- * address shown before it works can look broken for a minute.
+ * `starting`: Agentry is adding its Serve rule. `verifying`: the rule was sent, and Agentry reads
+ * the node's Serve config back to make sure it holds and points at this server before showing the
+ * address.
  */
 export type TunnelState = 'stopped' | 'starting' | 'verifying' | 'active' | 'stopping' | 'failed';
+
+/**
+ * Whether this machine's Tailscale can carry the tunnel. The whole Remote access section depends
+ * on it, so each way it is not ready is its own state, with a reason the UI explains:
+ *
+ * - `missing`: no `tailscale` CLI to run;
+ * - `unsupported`: a CLI older than 1.52, whose `serve` takes other arguments;
+ * - `daemonDown`: the CLI is there but `tailscaled` does not answer it;
+ * - `loggedOut`: the node is not signed in to a tailnet (`NeedsLogin`, `NeedsMachineAuth`);
+ * - `stopped`: signed in but not connected (`Stopped`, or any state other than `Running`);
+ * - `httpsDisabled`: MagicDNS or HTTPS certificates are off for the tailnet, so Serve has no
+ *   `https://<node>.<tailnet>.ts.net` to answer on;
+ * - `ready`: Serve can be used.
+ *
+ * Agentry never signs in, starts or configures Tailscale itself: it says what to run.
+ */
+export type TailscaleReadinessState = 'missing' | 'unsupported' | 'daemonDown' | 'loggedOut' | 'stopped' | 'httpsDisabled' | 'ready';
+
+export interface TailscaleReadiness {
+  state: TailscaleReadinessState;
+  /** The CLI's version (`tailscale version`, first line); null when there is no CLI to ask */
+  version: string | null;
+  /** This node's MagicDNS name, without the trailing dot; null until the daemon reports one */
+  host: string | null;
+  /** What is missing, with a code a client translates; null while `ready` */
+  reason: Localized | null;
+}
 
 /** What the tunnel may be told to do beside starting and stopping it. */
 export interface TunnelSettings {
@@ -3804,25 +3833,28 @@ export type UpdateTunnelSettingsRequest = Partial<TunnelSettings>;
 /** `GET /tunnel`, and what `tunnel.changed` carries. */
 export interface TunnelStatus {
   state: TunnelState;
-  /** The public HTTPS address; null unless `state` is `active`, so nobody is sent to one that does not answer yet */
-  url: string | null;
   /**
-   * When the current address started working. The free domain changes regularly, and an installed
-   * PWA belongs to the origin it was installed from, so a client can tell how old the address is.
-   * Null unless `state` is `active`
+   * The tailnet HTTPS address (`https://<node>.<tailnet>.ts.net:<port>`), reachable only from the
+   * person's own tailnet; null unless `state` is `active`, so nobody is sent to one that does not
+   * answer yet
    */
+  url: string | null;
+  /** When the tunnel last became active; null unless `state` is `active` */
   since: string | null;
   /** Why the tunnel failed, with a code a client translates; null unless `state` is `failed` */
   reason: Localized | null;
   /**
    * Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`). Off by default in the Docker
-   * image and the Helm chart: the tunnel reaches the server from inside the container, around the
-   * published port, the operator's proxy and its TLS, so opening that path is the operator's call.
-   * While false, `start` is refused and the UI says who can turn it on instead of offering a button
+   * image and the Helm chart: the container sees neither the host's `tailscale` CLI nor its
+   * daemon, and a way in that goes around the operator's published port and proxy is the
+   * operator's call. While false, `start` is refused and the UI says who can turn it on instead of
+   * offering a button
    */
   enabled: boolean;
-  /** An `ssh` was found to run; without one the tunnel cannot start, and the UI says how to install it */
-  sshAvailable: boolean;
+  /** Whether Tailscale can carry the tunnel, and if not, why; the UI shows nothing else until it is `ready` */
+  tailscale: TailscaleReadiness;
+  /** The HTTPS port on the tailnet name that Agentry's Serve rule uses (`AGENTRY_TUNNEL_PORT`, 8443 by default) */
+  port: number;
   settings: TunnelSettings;
 }
 
@@ -4257,10 +4289,11 @@ export interface PushPayload {
   /** Path to open, e.g. `/chats/<id>?prompt=<id>`; null when there is nothing but the app to open */
   href: string | null;
   /**
-   * The same place as `href`, as an absolute URL on the tunnel's public address at the moment the
-   * push was sent; null while no tunnel is active. The free address changes, and an install made on
-   * an old one still receives its pushes, so its worker opens this instead of its own dead origin
-   * (docs/plans/tunnel.md, "Answer: notifications after a domain change")
+   * The same place as `href`, as an absolute URL on the tunnel's tailnet address at the moment the
+   * push was sent; null while no tunnel is active. An install made on a tunnel address that has
+   * since moved (another node name or port) still receives its pushes, so its worker opens this
+   * instead of its own dead origin (docs/plans/tunnel.md, "Answer: notifications after a domain
+   * change")
    */
   url: string | null;
   at: string;
@@ -5986,8 +6019,9 @@ export interface TunnelChangedEvent extends AgentryEventBase {
 export type WebhookState = 'active' | 'failing' | 'stale' | 'removed';
 
 /**
- * Why a project's repository has no webhooks to manage: `no-public-url` has neither a running
- * tunnel nor a configured public origin; `no-remote` is a project without a code host remote.
+ * Why a project's repository has no webhooks to manage: `no-public-url` has no public origin a
+ * code host could deliver to (the tunnel is tailnet-only, so it is not one); `no-remote` is a
+ * project without a code host remote.
  */
 export type WebhookUnavailableReason = 'no-public-url' | 'no-remote';
 
@@ -6034,7 +6068,7 @@ export interface ProjectWebhooks {
   /** False while the project cannot have a hook; `reason` says why */
   available: boolean;
   reason: WebhookUnavailableReason | null;
-  /** The public origin a hook would deliver to; null without a tunnel or a configured origin */
+  /** The public origin a hook would deliver to; null without one (the tailnet-only tunnel is not public) */
   publicUrl: string | null;
   /** The events a registration subscribes to */
   events: string[];

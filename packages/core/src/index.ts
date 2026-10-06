@@ -191,7 +191,7 @@ export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
 export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
-export { LOCALHOST_RUN_KNOWN_HOSTS, TunnelManager, TunnelRefusedError, parseTunnelUrl, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
+export { DEFAULT_TUNNEL_PORT, MIN_TAILSCALE_VERSION, TunnelManager, TunnelRefusedError, parseTailscaleVersion, readinessFromStatus, servePortUse, type ServePortUse, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
 export { ChatRefusal } from './chats.ts';
 export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type ChatFilter, type Placement } from './chat-service.ts';
@@ -398,7 +398,7 @@ export class Core {
    * hosts answered beside the allowlist. What applies now is read here, never from `config`
    */
   readonly appSettings: AppSettingsStore;
-  /** The tunnel through localhost.run: lends its verified host to `appSettings.runtimeHosts` */
+  /** The tunnel through `tailscale serve`: lends the node's verified name to `appSettings.runtimeHosts` */
   readonly tunnel: TunnelManager;
   readonly uploads: UploadStore;
   /** What happens when a provider reaches its limit: waits, moves and the timers behind them */
@@ -524,7 +524,8 @@ export class Core {
     });
     this.tunnel = new TunnelManager({
       dataDir: config.dataDir,
-      sshBin: config.sshBin,
+      tailscaleBin: config.tailscaleBin,
+      port: config.tunnelPort,
       enabled: config.tunnelEnabled,
       security: this.security,
       hosts: this.appSettings.runtimeHosts,
@@ -891,14 +892,13 @@ export class Core {
         if (!record) throw new Error('no such project');
         return this.pullRequests.hostAccess(record.path);
       },
-      publicUrl: () => {
-        const tunnel = this.tunnel.status();
-        return tunnel.state === 'active' ? tunnel.url : null;
-      },
+      // The tunnel is tailnet-only (`tailscale serve`, never Funnel), so a code host on the internet
+      // cannot deliver to it: no public origin, and polling carries the repositories alone
+      publicUrl: () => null,
       emit: (event) => this.events.emit(event),
     });
-    // A tunnel that comes up on a new address takes the registered hooks with it (decision 2)
-    this.events.observe((event) => this.webhookService.observe(event));
+    // `webhookService.observe` (re-pointing hooks at a new tunnel address) is not wired: the tunnel's
+    // tailnet address is not one a code host can deliver to, so a hook must never be moved there
     // A healthy hook for a repository lets the pacer read its rows every 15 minutes instead of every two
     this.pullRequestWatcher = new PullRequestWatcher([this.pullRequests, this.orchestrationPullRequests], { signals: { webhookHealthy: (row) => this.webhookService.covers(row.url) } });
     this.events.observe((event) => this.pullRequests.observe(event));

@@ -1065,8 +1065,9 @@
     "decideFailed": "Could not change the proposal"
   },
   "remote": {
-    "title": "Tunnel through localhost.run",
-    "intro": "Open a public HTTPS address for this Agentry, to reach it from a phone or another network. It goes through localhost.run over this machine's ssh: no account, and nothing to install.",
+    "title": "Tunnel through Tailscale",
+    "intro": "Reach this Agentry from your phone or another computer on your tailnet, through this machine's Tailscale. Only devices signed in to your tailnet can open the address; nothing is published on the internet.",
+    "node": "This machine on the tailnet:",
     "states": {
       "stopped": "closed",
       "starting": "opening",
@@ -1076,32 +1077,54 @@
       "failed": "failed"
     },
     "progress": {
-      "starting": "Waiting for localhost.run to hand out an address…",
-      "verifying": "Checking that Agentry answers through the new address before showing it…",
+      "starting": "Adding Agentry's Serve rule to this machine's Tailscale…",
+      "verifying": "Checking that Tailscale holds the rule before showing the address…",
       "stopping": "Closing the tunnel…"
     },
     "start": "Open tunnel",
     "stop": "Close tunnel",
     "retry": "Try again",
-    "caveat": "The free address changes from time to time. localhost.run terminates TLS, so it sees every request that crosses the tunnel, your token included.",
+    "caveat": "Agentry adds one Serve rule on port {{port}} of this machine's tailnet name, and removes only that rule when it closes. Traffic is encrypted end to end by Tailscale.",
     "failedTitle": "The tunnel failed",
     "authRequired": {
       "title": "Turn on authentication first",
       "body": "While Agentry asks for no credential, anyone with the address would control this machine, so the tunnel stays closed. Turn on a token or OIDC in Security.",
       "action": "Open Security"
     },
-    "sshMissing": {
-      "tag": "no ssh",
-      "title": "ssh not found",
-      "body": "The tunnel runs through this machine's ssh, and none was found. Install the OpenSSH client ({{package}} on Debian and Ubuntu), then try again."
+    "tailscale": {
+      "tags": {
+        "missing": "not installed",
+        "unsupported": "too old",
+        "daemonDown": "not running",
+        "loggedOut": "signed out",
+        "stopped": "not connected",
+        "httpsDisabled": "no HTTPS"
+      },
+      "titles": {
+        "unsupported": "This Tailscale is too old",
+        "daemonDown": "The Tailscale service is not running",
+        "loggedOut": "Tailscale is not signed in",
+        "stopped": "Tailscale is not connected",
+        "httpsDisabled": "HTTPS is not available on this tailnet"
+      },
+      "missing": {
+        "title": "Tailscale is not installed",
+        "body": "Remote access runs through Tailscale, and no tailscale command was found on this machine. Install Tailscale, sign in to your tailnet, then check again. Install it on your phone too, signed in to the same tailnet.",
+        "install": "Install Tailscale"
+      },
+      "runThis": "Run this in a terminal on this machine:",
+      "openDns": "Open DNS settings",
+      "update": "Update Tailscale",
+      "recheck": "Check again",
+      "version": "Tailscale {{version}}"
     },
     "disabled": {
       "tag": "turned off",
       "title": "The tunnel is turned off in this deploy",
-      "body": "Whoever runs this Agentry decides whether it may open a public address. They can turn it on with {{variable}} (tunnel.enabled in the Helm chart)."
+      "body": "Whoever runs this Agentry decides whether it may be reached through Tailscale. They can turn it on with {{variable}} (tunnel.enabled in the Helm chart)."
     },
     "address": {
-      "label": "Public address",
+      "label": "Tailnet address",
       "copy": "Copy address",
       "since": "Opened {{time}}",
       "scan": "Scan the code with your phone's camera to open it there.",
@@ -1110,13 +1133,13 @@
     "startWith": {
       "title": "On start",
       "label": "Open the tunnel when Agentry starts",
-      "hint": "Off by default. It still needs authentication turned on and ssh installed."
+      "hint": "Off by default. It still needs authentication turned on and Tailscale ready."
     },
     "stopConfirm": {
       "title": "Close the tunnel this page uses?",
       "body": "This page reached Agentry through the tunnel, so closing it ends this page too. To open it again, use Agentry on its own machine."
     },
-    "footnote": "Each new address is a new site for the browser: sign in there once. An app installed from an old address keeps opening that one; if you turn notifications on again at the new address, remove the old device under Notifications.",
+    "footnote": "The address stays the same while this machine keeps its name on the tailnet. Open it on a phone with the Tailscale app signed in to the same tailnet, and sign in to Agentry there once.",
     "startFailed": "Could not open the tunnel",
     "closedHere": {
       "title": "Tunnel closed",

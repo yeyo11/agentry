@@ -10,8 +10,7 @@
   "open": "Abierta",
   "noAddress": {
     "title": "Agentry no tiene una dirección pública.",
-    "body": "Los hosts no pueden llegar hasta aquí: abre el túnel en Ajustes → Acceso remoto.",
-    "link": "Abrir Acceso remoto"
+    "body": "El túnel solo llega a tu propia tailnet, así que un host de código en internet no puede entregar aquí."
   },
   "state": {
     "active": "Activo",
@@ -25,7 +24,7 @@
     "failing": "{{host}} no consigue entregar los avisos: la dirección de Agentry respondió con un error.",
     "stale": "El webhook apunta a una dirección que ya no es la de Agentry. Agentry lo apunta solo a la nueva cuando puede; hasta entonces, quítalo o espera.",
     "noAddress": "Registrar un webhook necesita una dirección pública. Mientras tanto Agentry lee las PR cada {{count}} min.",
-    "noAddressStale": "El túnel está cerrado, así que {{host}} ya no llega a Agentry. Cuando haya una dirección nueva, Agentry apuntará el webhook a ella."
+    "noAddressStale": "{{host}} ya no llega a la dirección a la que apunta este webhook, y Agentry no tiene una dirección pública a la que moverlo. Quítalo; mientras tanto Agentry lee las PR por su cuenta."
   },
   "fact": {
     "lastNotice": "último aviso",

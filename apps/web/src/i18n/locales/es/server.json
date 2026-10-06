@@ -78,9 +78,17 @@
     "authRequired": "El túnel necesita autenticación: activa antes un token u OIDC en Seguridad.",
     "disabled": "Este Agentry no ofrece el túnel. Quien lo ejecuta puede activarlo con AGENTRY_TUNNEL=on.",
     "noPort": "Agentry todavía no está escuchando, así que no hay nada hacia lo que abrir un túnel.",
-    "sshMissing": "No se ha encontrado ningún ssh que ejecutar. Instala el cliente de OpenSSH (openssh-client) y vuelve a intentarlo.",
-    "hostKey": "localhost.run ha respondido con una clave de host distinta de la que fija Agentry, así que el túnel no se ha abierto.",
-    "unverified": "localhost.run ha dado {{host}}, pero Agentry no ha podido llegar a sí mismo por ella.",
-    "exited": "ssh terminó antes de que localhost.run diera una dirección: {{detail}}"
+    "tailscaleMissing": "No se ha encontrado la CLI de Tailscale (tailscale). Instala Tailscale en esta máquina, inicia sesión y vuelve a intentarlo.",
+    "tailscaleUnsupported": "Tailscale {{version}} es demasiado antiguo: el túnel necesita la 1.52 o posterior. Actualiza Tailscale y vuelve a intentarlo.",
+    "tailscaleDaemonDown": "La CLI de tailscale no ha podido llegar al servicio de Tailscale (tailscaled). Ponlo en marcha y vuelve a intentarlo.",
+    "tailscaleLoggedOut": "Esta máquina no tiene la sesión iniciada en ninguna tailnet. Ejecuta tailscale up en un terminal y vuelve a intentarlo.",
+    "tailscaleNotConnected": "Tailscale no está conectado en esta máquina ({{state}}). Ejecuta tailscale up en un terminal y vuelve a intentarlo.",
+    "magicDnsOff": "MagicDNS está desactivado en esta tailnet. Actívalo en la página DNS de la consola de administración de Tailscale y vuelve a intentarlo.",
+    "httpsOff": "Los certificados HTTPS están desactivados en esta tailnet. Actívalos en la página DNS de la consola de administración de Tailscale y vuelve a intentarlo.",
+    "servePermission": "Tailscale no ha permitido a este usuario cambiar los ajustes de Serve de esta máquina. Ejecuta sudo tailscale set --operator=$USER una vez y vuelve a intentarlo.",
+    "portTaken": "El puerto {{port}} del nombre de esta máquina en la tailnet ya sirve otra cosa, y Agentry no lo toca. Libéralo o elige otro puerto con AGENTRY_TUNNEL_PORT.",
+    "serveFailed": "tailscale serve no ha aceptado la regla: {{detail}}",
+    "unverified": "La regla de Serve se ha enviado, pero la configuración de Serve de esta máquina no muestra que apunte a Agentry.",
+    "ruleRemoved": "La regla de Serve de Agentry se ha quitado o cambiado fuera de Agentry, así que el túnel está cerrado."
   }
 }

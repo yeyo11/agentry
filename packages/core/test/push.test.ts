@@ -7,7 +7,7 @@ import type { AgentryEvent, PushPayload, TunnelState } from '@agentry/shared';
 import { Db } from '../src/db.ts';
 import { EventBus, type AgentryEventInput } from '../src/events.ts';
 import { PushService, absoluteOn, idOfEndpoint, truncateEndpoint, type PushTransport } from '../src/push.ts';
-import { parseTunnelUrl } from '../src/tunnel.ts';
+import { readinessFromStatus } from '../src/tunnel.ts';
 import { tempConfig } from './helpers.ts';
 
 const ENDPOINT = 'https://updates.push.services.mozilla.com/wpush/v2/gAAAAABsubscription-one';
@@ -317,13 +317,13 @@ test('a closed service stops hearing the bus', async () => {
 
 // ---------- The tunnel's current address ----------
 
-const TUNNEL = 'https://9f8e7d6c5b4a30.lhr.life';
+const TUNNEL = 'https://agentry-test.tail0000.ts.net:8443';
 
 function tunnelEvent(state: TunnelState, url: string | null): AgentryEventInput {
   return {
     type: 'tunnel.changed',
     title: `Tunnel ${state}`,
-    tunnel: { state, url, since: url ? new Date().toISOString() : null, reason: null, sshAvailable: true, enabled: true, settings: { startWithAgentry: false } },
+    tunnel: { state, url, since: url ? new Date().toISOString() : null, reason: null, enabled: true, tailscale: { state: 'ready', version: '1.102.4', host: 'agentry-test.tail0000.ts.net', reason: null }, port: 8443, settings: { startWithAgentry: false } },
   };
 }
 
@@ -342,8 +342,8 @@ test('while a tunnel is active every push carries its path on the current addres
   assert.equal(sent.at(-1)?.payload.href, '/chats/chat-2');
   assert.equal(sent.at(-1)?.payload.url, `${TUNNEL}/chats/chat-2`);
 
-  // The domain changed: the next push names the new address, which is the whole point
-  const moved = 'https://0a1b2c3d4e5f60.lhr.life';
+  // The address moved (a renamed node): the next push names the new one, which is the whole point
+  const moved = 'https://renamed.tail0000.ts.net:8443';
   events.emit(tunnelEvent('starting', null));
   events.emit(tunnelEvent('verifying', null));
   events.emit(tunnelEvent('active', moved));
@@ -368,7 +368,7 @@ test('only a path of ours on an https address becomes an absolute URL', () => {
   assert.equal(absoluteOn(TUNNEL, '/chats/a?prompt=b'), `${TUNNEL}/chats/a?prompt=b`);
   assert.equal(absoluteOn(`${TUNNEL}/`, null), `${TUNNEL}/`);
   assert.equal(absoluteOn(null, '/chats/a'), null);
-  assert.equal(absoluteOn('http://9f8e7d6c5b4a30.lhr.life', '/chats/a'), null);
+  assert.equal(absoluteOn('http://agentry-test.tail0000.ts.net:8443', '/chats/a'), null);
   assert.equal(absoluteOn(TUNNEL, '//evil.example/x'), null);
   assert.equal(absoluteOn(TUNNEL, 'https://evil.example/x'), null);
   assert.equal(absoluteOn('not a url', '/x'), null);
@@ -379,6 +379,9 @@ test('the worker follows only the kind of address the tunnel hands out', () => {
   const worker = readFileSync(join(import.meta.dirname, '../../../apps/web/public/sw.js'), 'utf8');
   const suffix = /const TUNNEL_SUFFIX = '([^']+)';/.exec(worker)?.[1];
   assert.ok(suffix, 'sw.js names the suffix it follows');
-  const url = parseTunnelUrl('9f8e7d6c5b4a30.lhr.life tunneled with tls termination, https://9f8e7d6c5b4a30.lhr.life');
-  assert.ok(url && new URL(url).hostname.endsWith(suffix), `${String(url)} ends with ${suffix}`);
+  const { host } = readinessFromStatus(
+    { BackendState: 'Running', Self: { DNSName: 'agentry-test.tail0000.ts.net.' }, CurrentTailnet: { MagicDNSEnabled: true }, CertDomains: ['agentry-test.tail0000.ts.net'] },
+    '1.102.4',
+  );
+  assert.ok(host?.endsWith(suffix), `${String(host)} ends with ${suffix}`);
 });

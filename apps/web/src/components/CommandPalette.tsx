@@ -184,7 +184,7 @@ export function CommandPalette() {
       ['files', t('palette.settingsTabs.files'), 'explorer hooks scripts keybindings', SlidersHorizontal],
       ['memory', t('palette.settingsTabs.memory'), 'facts feedback MEMORY.md projects', Brain],
       ['plugins', t('palette.settingsTabs.plugins'), 'marketplace install extensions', Puzzle],
-      ['remote', t('palette.settingsTabs.remote'), 'tunnel localhost.run phone public address qr ssh', Globe],
+      ['remote', t('palette.settingsTabs.remote'), 'tunnel tailscale tailnet serve phone address qr', Globe],
     ];
     for (const [tab, title, extra, icon] of tabs) {
       // Remote access is Agentry's own, not a file in ~/.claude

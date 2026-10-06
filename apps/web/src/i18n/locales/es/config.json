@@ -1065,8 +1065,9 @@
     "decideFailed": "No se ha podido cambiar la propuesta"
   },
   "remote": {
-    "title": "Túnel por localhost.run",
-    "intro": "Abre una dirección HTTPS pública para este Agentry, para llegar a él desde un móvil u otra red. Pasa por localhost.run con el ssh de esta máquina: sin cuenta y sin instalar nada.",
+    "title": "Túnel por Tailscale",
+    "intro": "Llega a este Agentry desde el móvil u otro ordenador de tu tailnet, a través del Tailscale de esta máquina. Solo los dispositivos con sesión en tu tailnet pueden abrir la dirección; no se publica nada en internet.",
+    "node": "Esta máquina en la tailnet:",
     "states": {
       "stopped": "cerrado",
       "starting": "abriendo",
@@ -1076,32 +1077,54 @@
       "failed": "fallido"
     },
     "progress": {
-      "starting": "Esperando a que localhost.run dé una dirección…",
-      "verifying": "Comprobando que Agentry responde por la nueva dirección antes de mostrarla…",
+      "starting": "Añadiendo la regla de Serve de Agentry al Tailscale de esta máquina…",
+      "verifying": "Comprobando que Tailscale mantiene la regla antes de mostrar la dirección…",
       "stopping": "Cerrando el túnel…"
     },
     "start": "Abrir el túnel",
     "stop": "Cerrar el túnel",
     "retry": "Reintentar",
-    "caveat": "La dirección gratuita cambia de vez en cuando. localhost.run termina el TLS, así que ve cada petición que cruza el túnel, tu token incluido.",
+    "caveat": "Agentry añade una regla de Serve en el puerto {{port}} del nombre de esta máquina en la tailnet, y al cerrar quita solo esa regla. Tailscale cifra el tráfico de extremo a extremo.",
     "failedTitle": "El túnel ha fallado",
     "authRequired": {
       "title": "Activa antes la autenticación",
       "body": "Mientras Agentry no pida ninguna credencial, cualquiera con la dirección controlaría esta máquina, así que el túnel sigue cerrado. Activa un token u OIDC en Seguridad.",
       "action": "Abrir Seguridad"
     },
-    "sshMissing": {
-      "tag": "sin ssh",
-      "title": "No se encuentra ssh",
-      "body": "El túnel pasa por el ssh de esta máquina y no se ha encontrado ninguno. Instala el cliente de OpenSSH ({{package}} en Debian y Ubuntu) y vuelve a intentarlo."
+    "tailscale": {
+      "tags": {
+        "missing": "sin instalar",
+        "unsupported": "demasiado antiguo",
+        "daemonDown": "detenido",
+        "loggedOut": "sin sesión",
+        "stopped": "sin conexión",
+        "httpsDisabled": "sin HTTPS"
+      },
+      "titles": {
+        "unsupported": "Este Tailscale es demasiado antiguo",
+        "daemonDown": "El servicio de Tailscale no está en marcha",
+        "loggedOut": "Tailscale no tiene la sesión iniciada",
+        "stopped": "Tailscale no está conectado",
+        "httpsDisabled": "HTTPS no está disponible en esta tailnet"
+      },
+      "missing": {
+        "title": "Tailscale no está instalado",
+        "body": "El acceso remoto pasa por Tailscale, y no se ha encontrado el comando tailscale en esta máquina. Instala Tailscale, inicia sesión en tu tailnet y vuelve a comprobarlo. Instálalo también en el móvil, con la sesión en la misma tailnet.",
+        "install": "Instalar Tailscale"
+      },
+      "runThis": "Ejecuta esto en un terminal de esta máquina:",
+      "openDns": "Abrir los ajustes de DNS",
+      "update": "Actualizar Tailscale",
+      "recheck": "Volver a comprobar",
+      "version": "Tailscale {{version}}"
     },
     "disabled": {
       "tag": "desactivado",
       "title": "El túnel está desactivado en este despliegue",
-      "body": "Quien ejecuta este Agentry decide si puede abrir una dirección pública. Puede activarlo con {{variable}} (tunnel.enabled en el chart de Helm)."
+      "body": "Quien ejecuta este Agentry decide si se puede llegar a él por Tailscale. Puede activarlo con {{variable}} (tunnel.enabled en el chart de Helm)."
     },
     "address": {
-      "label": "Dirección pública",
+      "label": "Dirección en la tailnet",
       "copy": "Copiar la dirección",
       "since": "Abierta {{time}}",
       "scan": "Escanea el código con la cámara del móvil para abrirla allí.",
@@ -1110,13 +1133,13 @@
     "startWith": {
       "title": "Al arrancar",
       "label": "Abrir el túnel al arrancar Agentry",
-      "hint": "Desactivado de forma predeterminada. Sigue necesitando la autenticación activada y ssh instalado."
+      "hint": "Desactivado de forma predeterminada. Sigue necesitando la autenticación activada y Tailscale listo."
     },
     "stopConfirm": {
       "title": "¿Cerrar el túnel que usa esta página?",
       "body": "Esta página llegó a Agentry por el túnel, así que cerrarlo también la deja sin conexión. Para volver a abrirlo, usa Agentry en su propia máquina."
     },
-    "footnote": "Cada dirección nueva es un sitio nuevo para el navegador: inicia sesión allí una vez. Una app instalada desde una dirección antigua sigue abriendo esa; si vuelves a activar las notificaciones en la nueva, quita el dispositivo antiguo en Notificaciones.",
+    "footnote": "La dirección no cambia mientras esta máquina conserve su nombre en la tailnet. Ábrela en un móvil con la app de Tailscale en la misma tailnet e inicia sesión en Agentry allí una vez.",
     "startFailed": "No se ha podido abrir el túnel",
     "closedHere": {
       "title": "Túnel cerrado",

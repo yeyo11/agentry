@@ -1,18 +1,22 @@
-import type { AuthMode, TunnelState, TunnelStatus } from '@agentry/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ShieldAlert, TriangleAlert } from 'lucide-react';
+import type { AuthMode, TailscaleReadiness, TunnelState, TunnelStatus } from '@agentry/shared';
+import { useIsFetching, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ExternalLink, ShieldAlert, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
 import { Switch } from '@agentry/ui/components/controls';
 import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON } from '@agentry/ui/components/icons';
+import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { QrCode } from '../../components/QrCode';
 import { useToast } from '@agentry/ui/components/Toast';
 import { Card, CopyButton, Empty, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
 import { timeAgo } from '@agentry/ui/lib/format';
 import { localized } from '../../lib/server-strings';
+
+/** Where Tailscale is downloaded, and where a tailnet turns MagicDNS and HTTPS certificates on. */
+export const TAILSCALE_DOWNLOAD_URL = 'https://tailscale.com/download';
+export const TAILSCALE_DNS_ADMIN_URL = 'https://login.tailscale.com/admin/dns';
 
 /** The state as a colour, always beside its word: ok is open, warn is on its way or leaving, idle waits for the person. */
 export const TUNNEL_TONE: Record<TunnelState, 'ok' | 'warn' | 'bad' | 'idle'> = {
@@ -38,9 +42,10 @@ export function reachedThrough(url: string | null, host: string): boolean {
 }
 
 /**
- * Settings → Remote access: a public HTTPS address for this Agentry through localhost.run, over the
- * machine's own ssh. The status comes whole with every `tunnel.changed` (lib/events.ts), so the
- * page follows the tunnel through its states without polling.
+ * Settings → Remote access: this Agentry on the person's tailnet, through `tailscale serve`. The
+ * status comes whole with every `tunnel.changed` (lib/events.ts), so the page follows the tunnel
+ * through its states without polling; reading it again also asks the CLI again, which is how a
+ * `tailscale up` run in a terminal shows up.
  */
 export function RemoteAccessTab() {
   const tunnel = useQuery({ queryKey: keys.tunnel, queryFn: api.tunnel });
@@ -66,6 +71,7 @@ function TunnelCard({ status, authMode }: { status: TunnelStatus; authMode: Auth
   const toast = useToast();
   const confirm = useConfirm();
   const onStatus = (next: TunnelStatus) => queryClient.setQueryData(keys.tunnel, next);
+  const checking = useIsFetching({ queryKey: keys.tunnel }) > 0;
 
   // Set once this page has closed the tunnel it came through: its address is gone, so nothing it
   // could fetch from here on would answer, and a failure is the expected end rather than an error
@@ -101,10 +107,12 @@ function TunnelCard({ status, authMode }: { status: TunnelStatus; authMode: Auth
         status={status}
         authMode={authMode}
         pending={start.isPending || stop.isPending}
+        checking={checking}
         onStart={() => start.mutate()}
         onStop={() => void close()}
+        onRecheck={() => void queryClient.invalidateQueries({ queryKey: keys.tunnel })}
       />
-      {status.sshAvailable && status.enabled && (
+      {status.enabled && status.tailscale.state === 'ready' && (
         <Card title={t('remote.startWith.title')}>
           <Switch
             checked={status.settings.startWithAgentry}
@@ -123,24 +131,31 @@ function TunnelCard({ status, authMode }: { status: TunnelStatus; authMode: Auth
 
 /**
  * What the tunnel card shows for a status, kept apart from the queries so a test can draw every
- * state. The start button is the zone's one primary action; while the guard is open it is replaced
- * by the reason and the way to Security, and without ssh by how to install it.
+ * state. Nothing about the tunnel is offered until Tailscale is ready: before that, the card says
+ * what is missing and what the person runs or turns on, because Agentry never signs in to or
+ * configures Tailscale itself. Once ready, the start button is the zone's one primary action;
+ * while the guard is open it is replaced by the reason and the way to Security.
  */
 export function TunnelPanel({
   status,
   authMode,
   pending = false,
+  checking = false,
   closedHere = false,
   onStart,
   onStop,
+  onRecheck = () => {},
 }: {
   status: TunnelStatus;
   authMode: AuthMode;
   pending?: boolean;
+  /** The status is being read again, which also asks the CLI again */
+  checking?: boolean;
   /** This page closed the tunnel it came through, and nothing behind its address answers any more */
   closedHere?: boolean;
   onStart: () => void;
   onStop: () => void;
+  onRecheck?: () => void;
 }) {
   const { t } = useTranslation('config');
   const { state } = status;
@@ -175,31 +190,16 @@ export function TunnelPanel({
     );
   }
 
-  if (!status.sshAvailable) {
-    return (
-      <Card title={t('remote.title')} actions={<Tag tone="warn">{t('remote.sshMissing.tag')}</Tag>}>
-        <Empty
-          illustration="cli-missing"
-          tone="warn"
-          size="sm"
-          title={t('remote.sshMissing.title')}
-          action={
-            guarded ? (
-              <button type="button" className="btn btn-primary" disabled={pending} onClick={onStart}>
-                {t('remote.retry')}
-              </button>
-            ) : undefined
-          }
-        >
-          {t('remote.sshMissing.body', { package: 'openssh-client' })}
-        </Empty>
-      </Card>
-    );
-  }
+  if (status.tailscale.state !== 'ready') return <TailscaleNotReady readiness={status.tailscale} checking={checking} onRecheck={onRecheck} />;
 
   return (
     <Card title={t('remote.title')} actions={<Tag tone={TUNNEL_TONE[state]}>{t(`remote.states.${state}`)}</Tag>}>
       <p className="small muted">{t('remote.intro')}</p>
+      {status.tailscale.host && (
+        <p className="small muted" data-testid="tunnel-node">
+          {t('remote.node')} <span className="mono">{status.tailscale.host}</span>
+        </p>
+      )}
 
       {state === 'active' && status.url && <TunnelAddress url={status.url} since={status.since} />}
 
@@ -243,9 +243,87 @@ export function TunnelPanel({
               {state === 'failed' ? t('remote.retry') : t('remote.start')}
             </button>
           )}
-          <p className="small muted">{t('remote.caveat')}</p>
+          <p className="small muted">{t('remote.caveat', { port: status.port })}</p>
         </div>
       )}
+    </Card>
+  );
+}
+
+/**
+ * Tailscale is not there or not ready. Not installed is the one state with an illustration, since
+ * the whole section depends on it; the others say what is missing in the server's words (by code),
+ * and what the person can do about it: a command to run, or the admin page to open.
+ */
+function TailscaleNotReady({ readiness, checking, onRecheck }: { readiness: TailscaleReadiness; checking: boolean; onRecheck: () => void }) {
+  const { t } = useTranslation('config');
+  const recheck = (
+    <button type="button" className="btn" disabled={checking} onClick={onRecheck} data-testid="tunnel-recheck">
+      {t('remote.tailscale.recheck')}
+    </button>
+  );
+
+  if (readiness.state === 'missing') {
+    return (
+      <Card title={t('remote.title')} actions={<Tag tone="warn">{t('remote.tailscale.tags.missing')}</Tag>}>
+        <div data-testid="tunnel-tailscale-missing">
+          <Empty
+            illustration="cli-missing"
+            tone="warn"
+            size="sm"
+            title={t('remote.tailscale.missing.title')}
+            action={
+              <div className="form-actions">
+                <a className="btn btn-primary" href={TAILSCALE_DOWNLOAD_URL} target="_blank" rel="noreferrer">
+                  {t('remote.tailscale.missing.install')}
+                  <ExternalLink {...ICON_SM} />
+                </a>
+                {recheck}
+              </div>
+            }
+          >
+            {t('remote.tailscale.missing.body')}
+          </Empty>
+        </div>
+      </Card>
+    );
+  }
+
+  const { state } = readiness;
+  if (state === 'ready') return null;
+  // Only the command that is the same everywhere Tailscale runs; how tailscaled is started is the system's
+  const command = state === 'loggedOut' || state === 'stopped' ? 'tailscale up' : null;
+  const link =
+    state === 'httpsDisabled'
+      ? { href: TAILSCALE_DNS_ADMIN_URL, label: t('remote.tailscale.openDns') }
+      : state === 'unsupported'
+        ? { href: TAILSCALE_DOWNLOAD_URL, label: t('remote.tailscale.update') }
+        : null;
+  return (
+    <Card title={t('remote.title')} actions={<Tag tone="warn">{t(`remote.tailscale.tags.${state}`)}</Tag>}>
+      <p className="small muted">{t('remote.intro')}</p>
+      <div className="alert alert-warn" role="status" data-testid={`tunnel-tailscale-${state}`}>
+        <TriangleAlert {...ICON} className="alert-icon" />
+        <div className="alert-body">
+          <strong>{t(`remote.tailscale.titles.${state}`)}</strong>
+          {readiness.reason && <div className="small">{localized(readiness.reason)}</div>}
+          {command && (
+            <div className="small">
+              {t('remote.tailscale.runThis')} <code className="mono">{command}</code>
+            </div>
+          )}
+          <div className="form-actions">
+            {link && (
+              <a className="btn btn-small" href={link.href} target="_blank" rel="noreferrer">
+                {link.label}
+                <ExternalLink {...ICON_SM} />
+              </a>
+            )}
+            {recheck}
+          </div>
+        </div>
+      </div>
+      {readiness.version && <p className="small muted">{t('remote.tailscale.version', { version: readiness.version })}</p>}
     </Card>
   );
 }

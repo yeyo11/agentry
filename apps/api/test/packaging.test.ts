@@ -200,8 +200,9 @@ test('a listen that failed for any other reason is not retried away', async (t) 
   await assert.rejects(listenOn(app, 8787, '203.0.113.1'), (err: NodeJS.ErrnoException) => err.code !== 'EADDRINUSE');
 });
 
-// Open question 2 of docs/plans/tunnel.md: in the image the tunnel would reach the server from
-// inside the container, around the published port, the proxy and its TLS, so the operator opts in.
+// Open question 2 of docs/plans/tunnel.md: in the image the container sees neither the host's
+// tailscale CLI nor its daemon, and a way in around the published port and the proxy is the
+// operator's to open, so the operator opts in.
 test('the image does not offer the tunnel until the operator turns it on', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-pkg-tunnel-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));

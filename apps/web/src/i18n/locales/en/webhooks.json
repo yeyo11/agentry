@@ -10,8 +10,7 @@
   "open": "Open",
   "noAddress": {
     "title": "Agentry has no public address.",
-    "body": "Hosts cannot reach this far: open the tunnel in Settings → Remote access.",
-    "link": "Open Remote access"
+    "body": "The tunnel only reaches your own tailnet, so a code host on the internet cannot deliver here."
   },
   "state": {
     "active": "Active",
@@ -25,7 +24,7 @@
     "failing": "{{host}} cannot deliver the notices: Agentry's address answered with an error.",
     "stale": "The webhook points to an address that is no longer Agentry's. Agentry points it at the new one by itself when it can; until then, remove it or wait.",
     "noAddress": "Registering a webhook needs a public address. Meanwhile Agentry reads the pull requests every {{count}} min.",
-    "noAddressStale": "The tunnel is closed, so {{host}} no longer reaches Agentry. When there is a new address, Agentry points the webhook at it."
+    "noAddressStale": "{{host}} can no longer reach the address this webhook points to, and Agentry has no public address to move it to. Remove it; meanwhile Agentry reads the pull requests on its own."
   },
   "fact": {
     "lastNotice": "last notice",

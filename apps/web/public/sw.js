@@ -117,11 +117,13 @@ const TEST_PUSH_KEY_PREFIX = 'push:test:';
 const APPLE_PUSH_HOST = /(^|\.)push\.apple\.com$/;
 
 /**
- * The names localhost.run hands out for free (packages/core/src/tunnel.ts; the tests assert the two
- * agree). An install made on one of them outlives it: the address changes, the push subscription
- * does not, and the worker keeps receiving pushes for an origin that no longer answers.
+ * The MagicDNS names Tailscale gives a node (`<node>.<tailnet>.ts.net`, packages/core/src/tunnel.ts;
+ * the tests assert the two agree). The tunnel's address is stable, but it can still move: the node
+ * renamed in the admin console, or another port (`AGENTRY_TUNNEL_PORT`). An install made on the old
+ * one outlives it: the push subscription does not change, and the worker keeps receiving pushes for
+ * an origin that no longer answers.
  */
-const TUNNEL_SUFFIX = '.lhr.life';
+const TUNNEL_SUFFIX = '.ts.net';
 
 /** Every window of this origin, open or not, controlled by this worker or not. */
 const windows = () => self.clients.matchAll({ type: 'window', includeUncontrolled: true });
@@ -192,7 +194,7 @@ const tunnelHost = (hostname) => hostname.endsWith(TUNNEL_SUFFIX) && hostname.le
  * tunnel address and the server has since moved to another one. Only then is `url` followed, and
  * only to another tunnel address over https: a phone installed on the LAN or at the desk keeps
  * opening its own origin while a tunnel happens to be open, rather than being sent through the
- * provider.
+ * tailnet.
  */
 function destination(data) {
   const target = chooseTarget(data);

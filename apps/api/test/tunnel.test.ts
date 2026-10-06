@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -11,18 +11,22 @@ import { Core, loadConfig } from '@agentry/core';
 import type { AuditPage, TunnelStatus } from '@agentry/shared';
 import { buildApp } from '../src/app.ts';
 
-// The whole wrapper, listening on loopback, behind the fake ssh the core tests use: what goes
-// through "the public URL" goes through the fake's proxy, with the tunnel's own `Host`, as
-// localhost.run delivers it. Nothing here touches the network.
-const FAKE_SSH = fileURLToPath(new URL('../../../packages/core/test/fixtures/fake-ssh.mjs', import.meta.url));
+// The whole wrapper, listening on loopback, behind the fake `tailscale` the core tests use. What
+// tailscaled would deliver from a phone on the tailnet arrives from 127.0.0.1 carrying the node's
+// name and the Serve port in `Host`, so a request made that way stands for it. Nothing here touches
+// a real tailnet.
+const FAKE_TAILSCALE = fileURLToPath(new URL('../../../packages/core/test/fixtures/fake-tailscale.mjs', import.meta.url));
+const NODE = 'agentry-test.tail0000.ts.net';
 
 const json = (body: unknown, headers: Record<string, string> = {}) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json', ...headers } });
 
 interface Wrapper {
   app: FastifyInstance;
   core: Core;
-  /** A request through the tunnel's address, as a phone would make it */
-  remote: (url: string, path: string, headers?: Record<string, string>, method?: string) => Promise<number>;
+  /** The node's Serve config, as the fake CLI keeps it */
+  serve: () => unknown;
+  /** A request as tailscaled relays it: from loopback, with the tailnet name as its host */
+  remote: (path: string, headers?: Record<string, string>, method?: string) => Promise<number>;
 }
 
 async function until(check: () => boolean | Promise<boolean>, what: string, ms = 5_000): Promise<void> {
@@ -35,16 +39,17 @@ async function until(check: () => boolean | Promise<boolean>, what: string, ms =
 
 async function wrapper(t: TestContext): Promise<Wrapper> {
   const root = mkdtempSync(join(tmpdir(), 'agentry-tunnel-api-'));
-  const routes = join(root, 'routes.json');
-  const saved = process.env.FAKE_SSH_ROUTES;
-  process.env.FAKE_SSH_ROUTES = routes;
+  const node = join(root, 'node.json');
+  writeFileSync(node, JSON.stringify({ serve: {} }));
+  const saved = process.env.FAKE_TAILSCALE_STATE;
+  process.env.FAKE_TAILSCALE_STATE = node;
   const core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
       AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
       AGENTRY_DATA_DIR: join(root, 'data'),
-      SSH_BIN: FAKE_SSH,
+      TAILSCALE_BIN: FAKE_TAILSCALE,
     }),
   );
   const app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
@@ -52,26 +57,22 @@ async function wrapper(t: TestContext): Promise<Wrapper> {
   t.after(async () => {
     core.shutdown();
     await app.close();
-    if (saved === undefined) delete process.env.FAKE_SSH_ROUTES;
-    else process.env.FAKE_SSH_ROUTES = saved;
+    if (saved === undefined) delete process.env.FAKE_TAILSCALE_STATE;
+    else process.env.FAKE_TAILSCALE_STATE = saved;
   });
-
-  const remote = (url: string, path: string, headers: Record<string, string> = {}, method = 'GET'): Promise<number> => {
-    const host = new URL(url).hostname;
-    const port = existsSync(routes) ? (JSON.parse(readFileSync(routes, 'utf8')) as Record<string, number>)[host] : undefined;
-    if (!port) return Promise.resolve(0);
-    return new Promise((resolve) => {
-      const req = request({ host: '127.0.0.1', port, path, method, headers: { ...headers, host } }, (res) => {
+  const { port } = app.server.address() as AddressInfo;
+  const remote = (path: string, headers: Record<string, string> = {}, method = 'GET'): Promise<number> =>
+    new Promise((resolve) => {
+      const req = request({ host: '127.0.0.1', port, path, method, headers: { ...headers, host: `${NODE}:8443` } }, (res) => {
         res.resume();
         resolve(res.statusCode ?? 0);
       });
       req.on('error', () => resolve(0));
       req.end();
     });
-  };
-  core.tunnel.verify = async (url) => (await remote(url, '/api/health')) === 200;
-  core.tunnel.attach((app.server.address() as AddressInfo).port);
-  return { app, core, remote };
+  core.tunnel.attach(port);
+  const serve = () => (JSON.parse(readFileSync(node, 'utf8')) as { serve: unknown }).serve;
+  return { app, core, serve, remote };
 }
 
 async function withToken(app: FastifyInstance): Promise<string> {
@@ -90,69 +91,77 @@ async function openTunnel(w: Wrapper, token: string): Promise<TunnelStatus> {
   return tunnel(w.app, token);
 }
 
-test('the tunnel starts stopped, with ssh found and start with Agentry off', async (t) => {
+test('the tunnel starts stopped, with a ready Tailscale read from its CLI and start with Agentry off', async (t) => {
   const { app } = await wrapper(t);
   const status = await tunnel(app);
-  assert.deepEqual(status, { state: 'stopped', url: null, since: null, reason: null, enabled: true, sshAvailable: true, settings: { startWithAgentry: false } });
+  assert.deepEqual(status, {
+    state: 'stopped',
+    url: null,
+    since: null,
+    reason: null,
+    enabled: true,
+    tailscale: { state: 'ready', version: '1.102.4', host: NODE, reason: null },
+    port: 8443,
+    settings: { startWithAgentry: false },
+  });
 });
 
 test('no tunnel without authentication', async (t) => {
-  const { app } = await wrapper(t);
+  const { app, serve } = await wrapper(t);
   const refused = await app.inject({ method: 'POST', url: '/api/tunnel/start' });
   assert.equal(refused.statusCode, 409);
   assert.match((refused.json() as { error: string }).error, /needs authentication/);
   assert.equal((await tunnel(app)).state, 'stopped');
+  assert.deepEqual(serve(), {});
 });
 
-test('the tunnel host is answered while active, and refused again once it stops', async (t) => {
+test('the tailnet name is answered while active, and refused again once it stops', async (t) => {
   const w = await wrapper(t);
   const token = await withToken(w.app);
   const auth = { authorization: `Bearer ${token}` };
+  // Before the tunnel, the node's name is not one this wrapper answers to
+  assert.equal(await w.remote('/api/overview', auth), 421);
   const active = await openTunnel(w, token);
-  assert.ok(active.url);
-  assert.equal(await w.remote(active.url, '/api/overview', auth), 200);
+  assert.equal(active.url, `https://${NODE}:8443`);
+  assert.equal(await w.remote('/api/overview', auth), 200);
   // The host is let in, the guard still is not skipped
-  assert.equal(await w.remote(active.url, '/api/overview'), 401);
+  assert.equal(await w.remote('/api/overview'), 401);
 
   const stopped = await w.app.inject({ method: 'POST', url: '/api/tunnel/stop', headers: auth });
   assert.equal((stopped.json() as TunnelStatus).state, 'stopped');
-  // The fake's proxy is gone with ssh; the host itself is what the guard refuses now
-  const host = new URL(active.url).hostname;
-  assert.equal((await w.app.inject({ url: '/api/overview', headers: { ...auth, host } })).statusCode, 421);
+  assert.equal(await w.remote('/api/overview', auth), 421);
+  assert.deepEqual(w.serve(), {});
 
   const audit = (await w.app.inject({ url: '/api/audit', headers: auth })).json() as AuditPage;
   const summaries = audit.entries.map((row) => row.summary).reverse();
   assert.deepEqual(
     summaries.filter((s) => /tunnel/i.test(s)),
-    ['Start the tunnel', `Tunnel host ${host} joined the allowlist`, `Tunnel host ${host} left the allowlist`, 'Stop the tunnel'],
+    ['Start the tunnel', `Tunnel host ${NODE} joined the allowlist`, `Tunnel host ${NODE} left the allowlist`, 'Stop the tunnel'],
   );
 });
 
-test('closing the tunnel from a page that came through it answers before the connection goes', async (t) => {
+test('closing the tunnel from a page that came through it answers before the rule goes', async (t) => {
   const w = await wrapper(t);
   const token = await withToken(w.app);
-  const active = await openTunnel(w, token);
-  assert.ok(active.url);
-  // The reply travels back through the ssh that the stop kills: it has to leave first
-  assert.equal(await w.remote(active.url, '/api/tunnel/stop', { authorization: `Bearer ${token}` }, 'POST'), 200);
+  await openTunnel(w, token);
+  assert.equal(await w.remote('/api/tunnel/stop', { authorization: `Bearer ${token}` }, 'POST'), 200);
+  assert.notDeepEqual(w.serve(), {}, 'the rule this reply travels back through is still there when it leaves');
   await until(async () => (await tunnel(w.app, token)).state === 'stopped', 'stopped');
+  assert.deepEqual(w.serve(), {});
 });
 
 test('switching the mode to none closes the tunnel before the switch lands', async (t) => {
   const w = await wrapper(t);
   const token = await withToken(w.app);
-  const active = await openTunnel(w, token);
-  const host = new URL(active.url ?? '').hostname;
-  const pid = w.core.tunnel.pid;
-  assert.ok(pid);
+  await openTunnel(w, token);
 
   const unguarded = await w.app.inject({ method: 'PUT', url: '/api/security/auth', ...json({ mode: 'none' }, { authorization: `Bearer ${token}` }) });
   assert.equal(unguarded.statusCode, 200);
   // Already closed when the answer arrives, not some time after
   assert.equal(w.core.tunnel.status().state, 'stopped');
   assert.deepEqual(w.core.appSettings.runtimeHosts.list(), []);
-  assert.equal((await w.app.inject({ url: '/api/overview', headers: { host } })).statusCode, 421);
-  assert.throws(() => process.kill(pid, 0));
+  assert.deepEqual(w.serve(), {});
+  assert.equal(await w.remote('/api/overview'), 421);
   const audit = w.core.db.auditPage({ limit: 50 }).entries.map((row) => row.summary);
   assert.ok(audit.includes('Stop the tunnel: authentication was turned off'));
 });
@@ -160,18 +169,18 @@ test('switching the mode to none closes the tunnel before the switch lands', asy
 test('ten wrong guesses through the tunnel do not make the owner on loopback wait', async (t) => {
   const w = await wrapper(t);
   const token = await withToken(w.app);
-  const active = await openTunnel(w, token);
-  assert.ok(active.url);
-  for (let i = 0; i < 10; i++) assert.equal(await w.remote(active.url, '/api/overview', { authorization: 'Bearer wrong' }), 401);
-  assert.equal(await w.remote(active.url, '/api/overview', { authorization: 'Bearer wrong' }), 429);
-  // A client-address header is not trusted to pick another bucket: localhost.run passes it through
-  assert.equal(await w.remote(active.url, '/api/overview', { authorization: 'Bearer wrong', 'x-forwarded-for': '198.51.100.9' }), 429);
+  await openTunnel(w, token);
+  for (let i = 0; i < 10; i++) assert.equal(await w.remote('/api/overview', { authorization: 'Bearer wrong' }), 401);
+  assert.equal(await w.remote('/api/overview', { authorization: 'Bearer wrong' }), 429);
+  // A client-address header is not trusted to pick another bucket: what Serve sets was not measured
+  assert.equal(await w.remote('/api/overview', { authorization: 'Bearer wrong', 'x-forwarded-for': '100.64.0.9' }), 429);
   assert.equal((await w.app.inject({ url: '/api/overview', headers: { authorization: `Bearer ${token}` } })).statusCode, 200);
 });
 
 test('every move of the tunnel is a tunnel.changed on the feed, with the address only while it works', async (t) => {
   const w = await wrapper(t);
   const token = await withToken(w.app);
+  await tunnel(w.app, token);
   const seen: TunnelStatus[] = [];
   const stop = w.core.events.observe((event) => {
     if (event.type === 'tunnel.changed') seen.push(event.tunnel);
@@ -188,4 +197,17 @@ test('every move of the tunnel is a tunnel.changed on the feed, with the address
   );
   assert.ok(seen.every((s) => (s.state === 'active') === (s.url !== null)));
   assert.equal(seen.at(-1)?.settings.startWithAgentry, true);
+});
+
+test('a Tailscale that is not signed in is said before anything is offered, and start fails with it', async (t) => {
+  const w = await wrapper(t);
+  writeFileSync(process.env.FAKE_TAILSCALE_STATE ?? '', JSON.stringify({ serve: {}, backendState: 'NeedsLogin' }));
+  const token = await withToken(w.app);
+  const status = await tunnel(w.app, token);
+  assert.equal(status.tailscale.state, 'loggedOut');
+  assert.equal(status.tailscale.reason?.code, 'tunnel.tailscaleLoggedOut');
+  const started = await w.app.inject({ method: 'POST', url: '/api/tunnel/start', headers: { authorization: `Bearer ${token}` } });
+  assert.equal(started.statusCode, 200);
+  assert.equal((started.json() as TunnelStatus).state, 'failed');
+  assert.deepEqual(w.serve(), {});
 });

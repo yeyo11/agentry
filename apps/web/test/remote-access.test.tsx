@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import type { AppSettings, AuthMode, TunnelState, TunnelStatus } from '@agentry/shared';
+import type { AppSettings, AuthMode, TailscaleReadiness, TunnelState, TunnelStatus } from '@agentry/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -15,21 +15,24 @@ import i18n from '../src/i18n';
 import { patchSettings, targetsFor } from '../src/lib/events';
 import { encodeQr, formatBits, reedSolomon } from '../src/lib/qr';
 import { AppSettingsCards, changedSettings, parseHosts } from '../src/pages/config/AppSettingsCards';
-import { reachedThrough, TUNNEL_TONE, TunnelPanel } from '../src/pages/config/RemoteAccessTab';
+import { reachedThrough, TAILSCALE_DNS_ADMIN_URL, TAILSCALE_DOWNLOAD_URL, TUNNEL_TONE, TunnelPanel } from '../src/pages/config/RemoteAccessTab';
 
 // Settings → Remote access and the layered settings (docs/plans/tunnel.md, task `web`): the tunnel's
-// state in a word and a colour, the address with its QR code only while it answers, the guard and
-// ssh standing in for the button when either is missing, and settings the environment owns shown
-// but never sent.
+// state in a word and a colour, the address with its QR code only while it answers, Tailscale's
+// readiness and the guard standing in for the button when either is missing, and settings the
+// environment owns shown but never sent.
 
-const URL_ = 'https://0a1b2c3d4e5f67.lhr.life';
+const NODE = 'agentry-test.tail0000.ts.net';
+const URL_ = `https://${NODE}:8443`;
+const READY: TailscaleReadiness = { state: 'ready', version: '1.102.4', host: NODE, reason: null };
 const status = (state: TunnelState, extra: Partial<TunnelStatus> = {}): TunnelStatus => ({
   state,
   url: state === 'active' ? URL_ : null,
   since: state === 'active' ? new Date(Date.now() - 60_000).toISOString() : null,
   reason: null,
-  sshAvailable: true,
   enabled: true,
+  tailscale: READY,
+  port: 8443,
   settings: { startWithAgentry: false },
   ...extra,
 });
@@ -156,7 +159,7 @@ test('an open tunnel shows its address in mono with copy and a QR code, and the 
   assert.match(html, /class="tunnel-address grad-border"/);
   assert.match(html, new RegExp(`<a class="mono break" href="${URL_}"`));
   assert.match(html, /aria-label="Copy address"/);
-  assert.match(html, /<svg class="qr"[^>]*role="img"[^>]*aria-label="QR code of https:\/\/0a1b2c3d4e5f67\.lhr\.life"/);
+  assert.match(html, /<svg class="qr"[^>]*role="img"[^>]*aria-label="QR code of https:\/\/agentry-test\.tail0000\.ts\.net:8443"/);
   assert.match(html, /data-testid="tunnel-stop"/);
   assert.doesNotMatch(html, /tunnel-start|btn-primary/);
 });
@@ -166,15 +169,16 @@ test('no address or QR code is shown before the address answers', () => {
     const html = panel(status(state));
     assert.doesNotMatch(html, /tunnel-address|class="qr"/, state);
   }
-  assert.ok(text(panel(status('verifying'))).includes('Checking that Agentry answers'));
+  assert.ok(text(panel(status('verifying'))).includes('Checking that Tailscale holds the rule'));
 });
 
-test('a closed tunnel offers the one primary action, with the line about the address and the provider', () => {
+test('a closed tunnel offers the one primary action, with the node, its port and what Agentry touches', () => {
   const html = panel(status('stopped'));
   assert.match(html, /class="btn btn-primary"[^>]*data-testid="tunnel-start"/);
   assert.equal((html.match(/btn-primary/g) ?? []).length, 1);
-  assert.ok(text(html).includes('The free address changes from time to time'));
-  assert.ok(text(html).includes('sees every request'));
+  assert.match(html, new RegExp(`<span class="mono">${NODE.replaceAll('.', '\\.')}</span>`));
+  assert.ok(text(html).includes('one Serve rule on port 8443'));
+  assert.ok(text(html).includes('removes only that rule'));
 });
 
 test('while the guard is open, the warning and the way to Security replace the start button', () => {
@@ -184,12 +188,34 @@ test('while the guard is open, the warning and the way to Security replace the s
   assert.doesNotMatch(html, /tunnel-start|btn-primary/);
 });
 
-test('without ssh the card says how to install it instead of offering a button that fails', () => {
-  const html = panel(status('failed', { sshAvailable: false, reason: { code: 'tunnel.sshMissing', text: 'x' } }));
-  assert.match(html, /state-illustrated/);
-  assert.ok(text(html).includes('ssh not found'));
-  assert.ok(text(html).includes('openssh-client'));
-  assert.doesNotMatch(html, /tunnel-start/);
+test('without Tailscale the card says how to install it, with the one illustration, and offers nothing else', () => {
+  const html = panel(status('stopped', { tailscale: { state: 'missing', version: null, host: null, reason: { code: 'tunnel.tailscaleMissing', text: 'x' } } }));
+  assert.match(html, /data-testid="tunnel-tailscale-missing"/);
+  assert.equal((html.match(/state-illustrated/g) ?? []).length, 1);
+  assert.ok(text(html).includes('Tailscale is not installed'));
+  assert.match(html, new RegExp(`href="${TAILSCALE_DOWNLOAD_URL}"`));
+  assert.match(html, /data-testid="tunnel-recheck"/);
+  assert.doesNotMatch(html, /tunnel-start|tunnel-stop|tunnel-auth-required/);
+});
+
+test('each way Tailscale is not ready says what is missing and what to do, before anything is offered', () => {
+  const cases: [Exclude<TailscaleReadiness['state'], 'ready' | 'missing'>, string, string | null][] = [
+    ['unsupported', 'tunnel.tailscaleUnsupported', TAILSCALE_DOWNLOAD_URL],
+    ['daemonDown', 'tunnel.tailscaleDaemonDown', null],
+    ['loggedOut', 'tunnel.tailscaleLoggedOut', null],
+    ['stopped', 'tunnel.tailscaleNotConnected', null],
+    ['httpsDisabled', 'tunnel.httpsOff', TAILSCALE_DNS_ADMIN_URL],
+  ];
+  for (const [state, code, link] of cases) {
+    const reason = { code, params: { version: '1.50.1', state: 'Stopped' }, text: 'x' };
+    // Even with the guard open, readiness comes first: the auth warning would be advice for later
+    const html = panel(status('stopped', { tailscale: { state, version: '1.102.4', host: null, reason } }), 'none');
+    assert.match(html, new RegExp(`data-testid="tunnel-tailscale-${state}"`), state);
+    assert.ok(text(html).includes(i18n.t(`config:remote.tailscale.titles.${state}`)), state);
+    assert.doesNotMatch(html, /state-illustrated|tunnel-start|tunnel-auth-required/, state);
+    if (link) assert.match(html, new RegExp(`href="${link}"`), state);
+    assert.equal(/<code class="mono">tailscale up<\/code>/.test(html), state === 'loggedOut' || state === 'stopped', state);
+  }
 });
 
 test('a deploy that turned the tunnel off says who can turn it on, and offers no button', () => {
@@ -200,11 +226,11 @@ test('a deploy that turned the tunnel off says who can turn it on, and offers no
 });
 
 test("a failure is said in the reader's language from its code", async () => {
-  const reason = { code: 'tunnel.unverified', params: { host: 'a.lhr.life' }, text: 'English' };
+  const reason = { code: 'tunnel.portTaken', params: { port: '8443' }, text: 'English' };
   await i18n.changeLanguage('es');
   try {
     const html = panel(status('failed', { reason }));
-    assert.ok(text(html).includes('localhost.run ha dado a.lhr.life'));
+    assert.ok(text(html).includes('El puerto 8443 del nombre de esta máquina'));
     assert.match(html, /Reintentar/);
   } finally {
     await i18n.changeLanguage('en');
@@ -221,9 +247,11 @@ test('every reason the tunnel can give has its sentence in both languages', () =
 });
 
 test('closing is only questioned when this page came through the tunnel', () => {
-  assert.equal(reachedThrough(URL_, '0a1b2c3d4e5f67.lhr.life'), true);
+  assert.equal(reachedThrough(URL_, `${NODE}:8443`), true);
+  // The same machine on another port is not the tunnel
+  assert.equal(reachedThrough(URL_, NODE), false);
   assert.equal(reachedThrough(URL_, 'localhost:8787'), false);
-  assert.equal(reachedThrough(null, '0a1b2c3d4e5f67.lhr.life'), false);
+  assert.equal(reachedThrough(null, `${NODE}:8443`), false);
 });
 
 // ---------- the event feed ----------

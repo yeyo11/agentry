@@ -486,7 +486,7 @@ test("only an active tunnel's address is followed", async () => {
 
 // ---------- reachable ----------
 
-test('the core hands the tunnel\'s events to the service, and its secret to the receiver', async (t) => {
+test("the core never moves a hook to the tunnel's tailnet address, and still hands the receiver its secret", async (t) => {
   const config = tempConfig();
   roots.push(dirname(config.dataDir));
   const core = new Core(config);
@@ -497,9 +497,13 @@ test('the core hands the tunnel\'s events to the service, and its secret to the 
   const seen: AgentryEvent[] = [];
   core.events.subscribe((event) => seen.push(event));
 
-  // The project is gone, so the hook cannot be reached: the registration is told so, through the bus
-  core.events.emit({ type: 'tunnel.changed', title: 'Tunnel active', tunnel: { state: 'active', url: 'https://new789.lhr.life', since: null, reason: null, enabled: true, sshAvailable: true } as TunnelStatus });
-  await core.webhookService.follow('https://new789.lhr.life');
+  // An active tunnel is reachable only from the tailnet: a code host on the internet cannot deliver there
+  core.events.emit({ type: 'tunnel.changed', title: 'Tunnel active', tunnel: { state: 'active', url: 'https://node.tail0000.ts.net:8443' } as TunnelStatus });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(core.webhooks.get('r1')?.url, receiverUrl(ORIGIN, 'github', 'r1'));
+  assert.ok(!seen.some((e) => e.type === 'webhook.changed'));
+  // The service itself still follows a public origin it is handed, and says when a hook cannot be reached
+  await core.webhookService.follow('https://new789.example.net');
   assert.equal(core.webhooks.get('r1')?.state, 'stale');
   assert.ok(seen.some((e) => e.type === 'webhook.changed'));
 });
