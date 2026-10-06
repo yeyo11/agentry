@@ -24,9 +24,10 @@
     "desktop:dist": "pnpm --filter @agentry/desktop dist:linux"
   },
   "pnpm": {
-    "//": "undici arrives with the Scalar docs viewer and every 7.x below 7.29.0 carries the twelve advisories pnpm audit reports, four of them high. Nothing here calls undici on purpose (the OIDC verifier goes through globalThis.fetch), but it ships in the image. Caret and not >=: undici 8 is a major the Scalar packages were not written against. CI runs pnpm audit --audit-level=high, so the next one fails a pull request instead of waiting for an audit.",
+    "//": "undici arrives with the Scalar docs viewer and every 7.x below 7.29.0 carries the twelve advisories pnpm audit reports, four of them high. Nothing here calls undici on purpose (the OIDC verifier goes through globalThis.fetch), but it ships in the image. Caret and not >=: undici 8 is a major the Scalar packages were not written against. CI runs pnpm audit --audit-level=high, so the next one fails a pull request instead of waiting for an audit. source-map-js reaches the tree through vite > postcss; 1.2.1 has GHSA-68fv-2mgg-jv7q (event-loop denial of service through source-map section offsets) and 1.2.2 patches it within the same major.",
     "overrides": {
-      "undici": "^7.29.0"
+      "undici": "^7.29.0",
+      "source-map-js": "^1.2.2"
     },
     "auditConfig": {
       "ignoreGhsas": [
