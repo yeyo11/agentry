@@ -1135,8 +1135,9 @@
       "label": "Hosts",
       "hint": "One per line: a name, or *.example.com for the names under it. No ports.",
       "placeholder": "agentry.example.com",
-      "none": "Only localhost",
-      "saved": "Allowed hosts saved"
+      "saved": "Allowed hosts saved",
+      "fromTunnel": "tunnel, while it is open",
+      "hintBesideEnv": "One per line: a name, or *.example.com for the names under it. No ports. They answer beside the ones from the environment, at once."
     },
     "runs": {
       "title": "Runs",

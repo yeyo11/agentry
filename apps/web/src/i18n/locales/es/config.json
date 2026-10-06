@@ -1135,8 +1135,9 @@
       "label": "Hosts",
       "hint": "Uno por línea: un nombre, o *.example.com para los nombres que cuelgan de él. Sin puertos.",
       "placeholder": "agentry.example.com",
-      "none": "Solo localhost",
-      "saved": "Hosts permitidos guardados"
+      "saved": "Hosts permitidos guardados",
+      "fromTunnel": "túnel, mientras está abierto",
+      "hintBesideEnv": "Uno por línea: un nombre, o *.example.com para los nombres que cuelgan de él. Sin puertos. Responden junto a los del entorno, al momento."
     },
     "runs": {
       "title": "Ejecuciones",
