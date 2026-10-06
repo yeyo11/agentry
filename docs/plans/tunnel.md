@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T10:34:29.651906091Z
-updated_at: 2026-10-02T18:00:00Z
+updated_at: 2026-10-06T12:00:00Z
 tags:
     - plan
     - tunnel
@@ -8,6 +8,7 @@ tags:
     - security
     - settings
     - built
+    - tailscale
 ---
 # Plan: reaching Agentry through a tunnel
 
@@ -15,6 +16,11 @@ Let a person open their Agentry from a phone or another network without a VPS, a
 reverse proxy, an account or anything new to install. Agentry opens a tunnel through
 [localhost.run](https://localhost.run) with the system's own `ssh`, shows the public HTTPS address
 and a QR code, and closes it again, all from the settings page.
+
+> **Superseded on 2026-10-06.** The provider is now Tailscale (`tailscale serve`, tailnet-only), not
+> localhost.run over `ssh`: see [The move to Tailscale](#the-move-to-tailscale-2026-10-06). The rest
+> of this plan is the record of the localhost.run build; the security rules, the layered settings,
+> the Docker switch and the push answer still hold, adapted as that section says.
 
 Status: **built on 2026-09-27** by the orchestration `tunnel` from `feat/tunnel`, as one pull
 request. Every task delivered, and both open questions are answered below. The merged branch's e2e
@@ -34,6 +40,8 @@ with nothing to configure.
 The tunnel does not touch Claude Code, so the one rule is not involved.
 
 ## One provider, and why this one
+
+*Superseded on 2026-10-06 by Tailscale; see [The move to Tailscale](#the-move-to-tailscale-2026-10-06).*
 
 The requirement is **one option, with nothing extra to install**. A provider interface and a
 choice in the UI are left out on purpose.
@@ -171,8 +179,8 @@ Every task runs on Opus, with no time or cost limit.
 
 ### Decisions already taken, not to be reopened by a task
 
-1. **One provider: localhost.run, through the system's `ssh`.** No provider interface, no choice in
-   the UI, no binary to download. Everything under "One provider, and why this one" holds.
+1. **One provider: localhost.run, through the system's `ssh`** (superseded on 2026-10-06: Tailscale).
+   No provider interface, no choice in the UI, no binary to download. Everything under "One provider, and why this one" holds.
 2. **No tunnel without authentication**, and the security list above is the definition of done
    for the tunnel, item by item.
 3. **Layered settings hang off `Core`.** No global singleton and no module-level state. A test can
@@ -670,6 +678,101 @@ webhooks. What it changed here, and why:
 [code-hosts.md](../code-hosts.md#events-and-paced-polling) has the receivers, the pacer and the
 registration calls; [deploy.md](../deploy.md#webhooks-and-the-public-address) has what a deployment
 must expose.
+
+## The move to Tailscale (2026-10-06)
+
+The owner decided on 2026-10-06 to replace localhost.run with the **Tailscale CLI**, and only
+Tailscale: no provider selector, and localhost.run is gone from the code. Built on the branch
+`feat/tunnel-tailscale`.
+
+### Why
+
+- **A stable host.** localhost.run's free name changed regularly, and everything that hangs off an
+  origin paid for it: sign in again on every address, an installed PWA and its push subscription
+  stuck on a dead origin, duplicated subscriptions, a voice shortcut to set up again. A node's MagicDNS
+  name does not change while the machine keeps its name.
+- **No third party in the clear.** localhost.run terminated TLS and saw every request, the bearer
+  token and the `?token=` URLs included. Tailscale encrypts end to end and tailscaled terminates TLS
+  on the machine itself, with a real certificate for the node's name.
+- **No ssh, and the vendor's own CLI.** No pinned host key to keep current, no banner to parse, no
+  public IP on stderr, no outbound TCP 22. Tailscale is reached the way the one rule asks of every
+  program Agentry drives: its CLI flags and `--json` output, with the person's own session.
+- **Not on the internet.** `tailscale serve`, never Funnel: only the person's tailnet can reach it.
+  What was rejected in the first plan as "install and account" is what the owner chose: the phone
+  needs the Tailscale app, and that is the boundary that keeps strangers out.
+
+### Owner decisions
+
+1. Tailscale only, localhost.run removed, no provider selector.
+2. `tailscale serve` (tailnet-only) by default; Funnel is not offered.
+3. Authentication stays required before the tunnel opens: the `mode: 'none'` refusal and the stop
+   when the guard is turned off are unchanged.
+
+### What was measured (tailscale 1.102.4, this machine, node in `Running`)
+
+- `tailscale status --json` carries `BackendState` (`Running`, `NeedsLogin`, `Stopped`…),
+  `Self.DNSName` with a trailing dot, `CertDomains` (only filled while HTTPS certificates are on) and
+  `CurrentTailnet.MagicDNSEnabled`. A CLI that cannot reach tailscaled exits 1 with "failed to
+  connect to local tailscaled" and no JSON.
+- `tailscale serve status --json` printed `{}` for a node with no Serve config, and reading it needs
+  no special permission.
+- `tailscale serve --bg --yes --https=18443 http://127.0.0.1:<port>` was **refused**: "sending serve
+  config: Access denied: serve config denied", with the advice `sudo tailscale set --operator=$USER`.
+  The user here is not the node's operator, and Agentry does not change that, so adding a rule could
+  not be exercised on the real node. That refusal became `tunnel.servePermission`.
+- `tailscale serve --https=18443 off` on a port with no rule answered "error: failed to remove web
+  serve: handler does not exist" (exit 1), without needing the operator: `off` is a read-modify-write
+  of the CLI's that touches only the handler it names. Agentry treats that answer as already gone.
+- The node's Serve config was `{}` before and after: nothing was left behind.
+
+The shape of a rule in `serve status --json` (`TCP["<port>"].HTTPS` and
+`Web["<node>:<port>"].Handlers["/"].Proxy`) is `ipn.ServeConfig`'s, as the CLI prints it; the fake CLI
+(`packages/core/test/fixtures/fake-tailscale.mjs`) writes the same shape, and the tests drive every
+path through it.
+
+### Decisions taken while building it
+
+- **Port 8443, configurable.** Serve config is global to the node, and `tailscale serve` without a
+  port takes 443, which is where a person's own rule most likely is. Agentry uses 8443
+  (`AGENTRY_TUNNEL_PORT`) and only ever adds or removes the `/` handler on that port. A port holding
+  anything else, or even a rule of Agentry's exact shape that Agentry did not record adding, is
+  `tunnel.portTaken`. Rejected: a path on 443 (`--set-path`), which would share a listener with the
+  person's rules and make "remove only ours" depend on the CLI's handling of siblings.
+- **`--bg` with a record, not a foreground process.** A background rule outlives Agentry, so the rule
+  is recorded in `<dataDir>/tunnel/serve-rule.json` before it is sent, removed on stop and,
+  synchronously, on shutdown, and reconciled on the next start after a crash. The pid file and the
+  orphan logic of the ssh tunnel are gone. Rejected: a foreground `tailscale serve` child, whose rule
+  would vanish with the child but which would linger as an orphan after a crash of Agentry, the very
+  case the record covers.
+- **Verified by reading the config back, not through the tailnet name.** A node reaching its own
+  Serve listener through its MagicDNS name could not be measured (no operator), and MagicDNS may not
+  resolve on the machine itself (`--accept-dns=false`). Reading `serve status --json` after adding
+  proves the rule exists and points at this server. A monitor reads Tailscale and the rule every 30 s
+  while active: a removed or changed rule fails the tunnel at once, Tailscale not ready twice in a
+  row fails it with that reason, and a renamed node moves the allowed host.
+- **Readiness is its own field.** `TunnelStatus.sshAvailable` became `tailscale`
+  (`TailscaleReadiness`: `missing`, `unsupported` below 1.52, `daemonDown`, `loggedOut`, `stopped`,
+  `httpsDisabled`, `ready`, with the CLI version, the node name and a localized reason) plus `port`.
+  The tab shows nothing of the tunnel until it is `ready`, and `GET /api/tunnel` asks the CLI again
+  when its answer is older than two seconds.
+- **No trusted client header.** Serve's identity headers (`Tailscale-User-Login`…) are documented as
+  replacing a client's own; whether `X-Forwarded-For` is set and safe could not be measured. The
+  runtime host is still registered without `clientIpHeader`, and tunnel traffic keeps its own
+  backoff bucket.
+- **Webhooks lose their public origin.** A tailnet address is unreachable for GitHub or GitLab.com,
+  so `Core` hands the webhook service no public URL (`no-public-url`) and no longer wires its
+  `tunnel.changed` observer, so no hook is ever re-pointed at a tailnet name. The service keeps
+  `follow` for a public origin a later setting may provide. The Webhooks card says the tunnel only
+  reaches the tailnet, and its link to Remote access is gone.
+- **Docker stays off, for a new reason.** The container sees neither the host's CLI nor its daemon;
+  the image ships no `tailscale`. `openssh-client` stays in the image, for git.
+- **Packaging.** The `.deb` no longer depends on `openssh-client`, and does not depend on
+  `tailscale` (not in Debian's archive); the tab says how to install it. `SSH_BIN` is gone;
+  `TAILSCALE_BIN` points at another CLI.
+- **The worker's suffix** (`TUNNEL_SUFFIX` in `sw.js`) is now `.ts.net`: the address rarely moves,
+  but when it does (a renamed node, another port) an install follows it as before.
+- **The e2e suite never asks the real Tailscale**: `e2e/run.mjs` points `TAILSCALE_BIN` at the fake,
+  with a node file in the sandbox.
 
 ## Related
 
