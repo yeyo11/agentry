@@ -137,10 +137,11 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
   and able to tell you that a chat is waiting while it is closed, over Web Push this server signs
   with its own VAPID key. No app store, no native shell, no third-party push account. The
   push half needs HTTPS: see [On a phone](#on-a-phone).
-- **Reach it from anywhere, with nothing to set up** — Settings → Remote access opens a public HTTPS
-  address through [localhost.run](https://localhost.run) over the system's own `ssh`, with a QR code
-  for the phone: no account, no domain, no proxy. It only opens while authentication is on, only its
-  exact host is let in, and the provider's host key is pinned. See [docs/tunnel.md](docs/tunnel.md).
+- **Reach it from your phone, through your own tailnet** — Settings → Remote access serves this
+  Agentry on your [Tailscale](https://tailscale.com) tailnet with `tailscale serve` (never Funnel), at
+  a stable HTTPS address with a QR code for the phone: no domain, no proxy, nothing on the public
+  internet. It only opens while authentication is on, only the node's exact name is let in, and only
+  the one Serve rule Agentry added is ever removed. See [docs/tunnel.md](docs/tunnel.md).
 - **One container, one volume** — non-root, the CLI baked in and pinned with an update check,
   everything else on a data volume. Compose profiles, a TLS proxy and a Helm chart are in
   [docs/deploy.md](docs/deploy.md).
@@ -324,11 +325,11 @@ nothing. [docs/deploy.md](docs/deploy.md) has the TLS proxy that fixes it. On iP
 reaches an app on the Home Screen only, never a Safari tab: install first, then turn the switch on
 from the app that starts.
 
-**No domain or proxy?** Settings → Remote access opens a tunnel through localhost.run, which gives an
-HTTPS origin, and so push, with nothing to configure. Turn on authentication first: the tunnel refuses
-to open without it. Its free address changes from time to time, and each new address is a new site for
-the phone: sign in there once. Notifications sent after a change open the new address on Chrome (not
-verified on iOS). localhost.run terminates TLS, so it sees every request, the token included. See
+**No domain or proxy?** With Tailscale on this machine and on the phone, Settings → Remote access
+serves Agentry on your tailnet at `https://<machine>.<tailnet>.ts.net:8443`, an HTTPS origin with a
+real certificate, and so push. Turn on authentication first: the tunnel refuses to open without it.
+The tailnet needs MagicDNS and HTTPS certificates on, and the address stays the same while the
+machine keeps its name. Only devices on your tailnet can reach it. See
 [docs/tunnel.md](docs/tunnel.md).
 
 ## Local development
@@ -421,8 +422,9 @@ transpiler.
 | `AGENTRY_PID_FILE` | `/tmp/agentry.pid` in the image | Where the server writes its pid, so the image's healthcheck can end a wedged server |
 | `AGENTRY_HEALTH_RESTART_AFTER` | `3` | Consecutive failed health probes (30 s apart) after which the container restarts itself |
 | `AGENTRY_ALLOWED_HOSTS` | – (loopback only) | Comma-separated host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern standing for that domain's subdomains. A `Host` that matches none of them is refused `421` before the credential is read. Ports and letter case are ignored; `GET /api/health` is exempt. Behind a proxy, name the public host here or everything answers `421`. Its hosts are fixed; more can be added in Settings → Security, without a restart ([docs/layered-settings.md](docs/layered-settings.md)); a running tunnel's exact host is added on its own |
-| `AGENTRY_TUNNEL` | on (off in the image) | Whether Settings → Remote access may open a tunnel through localhost.run: `on`/`1`/`true` or `off`/`0`/`false`, empty meaning the default; anything else stops the server at startup. In Docker it goes around the published port and the proxy, which is why it is off there. See [docs/tunnel.md](docs/tunnel.md) |
-| `SSH_BIN` | `ssh` | The `ssh` the tunnel runs. It never reads `~/.ssh` |
+| `AGENTRY_TUNNEL` | on (off in the image) | Whether Settings → Remote access may serve Agentry on the tailnet through `tailscale serve`: `on`/`1`/`true` or `off`/`0`/`false`, empty meaning the default; anything else stops the server at startup. A container sees neither the host's `tailscale` CLI nor its daemon, which is why it is off there. See [docs/tunnel.md](docs/tunnel.md) |
+| `AGENTRY_TUNNEL_PORT` | `8443` | The HTTPS port of Agentry's Serve rule on the tailnet name, kept off 443 so a Serve rule of your own is never touched. Not a port between 1 and 65535 stops the server at startup |
+| `TAILSCALE_BIN` | `tailscale` | The Tailscale CLI the tunnel runs |
 | `AGENTRY_CORS_ORIGIN` | – (CORS off) | Comma-separated origins (or `*`, which echoes the caller) for external browser clients. The event streams obey this list too. The bundled UI never needs it: in dev it uses the Vite `/api` proxy, in production it is same-origin |
 | `VITE_API_TARGET` | `http://localhost:8787` | Where the Vite dev server proxies `/api` |
 | `AGENTRY_IDLE_TIMEOUT_MS` | `600000` | Idle runs are closed after this (they resume transparently) |
@@ -467,12 +469,13 @@ directory it wins over the environment).
   credential would otherwise lock the owner out.
   A token you supply yourself must be at least 24 characters; one Agentry generates is 32 random
   bytes. The wait counts the peer's address, so behind a reverse proxy every client shares one
-  count — see [SECURITY.md](SECURITY.md). Through the tunnel, which carries no trustworthy client
-  address, all traffic shares one count of its own, apart from loopback, so a stranger's guesses
-  never make the desk wait.
+  count — see [SECURITY.md](SECURITY.md). Through the tunnel, whose client address is not trusted,
+  all traffic shares one count of its own, apart from loopback, so a guess from the tailnet never
+  makes the desk wait.
 - **The tunnel.** Settings → Remote access refuses to open while the mode is `none`, and turning the
-  mode to `none` closes it first. localhost.run terminates its TLS, so it sees every request, the
-  token included, and the `?token=` URLs below. See [docs/tunnel.md](docs/tunnel.md).
+  mode to `none` closes it first. Tailscale encrypts it end to end and terminates TLS on this machine,
+  so no third party sees the requests; every member of your tailnet who can reach the node can reach
+  the address. See [docs/tunnel.md](docs/tunnel.md).
 - **What stays open.** `GET /api/health`, so a probe needs no credential, and the built UI bundle,
   which is what gives a `401` a sign-in screen instead of a blank page. `/docs` and `/openapi.json`
   are guarded like everything else.
@@ -541,8 +544,9 @@ what is and is not protected.
   template; bring your own — and if it gives the pod a host name, put that name in
   `AGENTRY_ALLOWED_HOSTS` through the chart's `env`.
 - **The tunnel** (Settings → Remote access) is off in the image and the chart unless you turn it on
-  (`AGENTRY_TUNNEL=on`, or `tunnel.enabled: true`): from inside the container it goes around the
-  published port, the proxy and the Ingress. It needs outbound TCP 22.
+  (`AGENTRY_TUNNEL=on`, or `tunnel.enabled: true`). The image ships no `tailscale` CLI and sees no
+  tailscaled, so it only works with a Tailscale the container can reach, and then it goes around the
+  published port, the proxy and the Ingress.
 - **A pinned Claude Code**: the image installs a fixed version and Settings → Account says when a
   newer one is published, with how to move. The check reads the npm registry on demand and once a
   day.
@@ -615,10 +619,10 @@ next start, audited with actor `env` (see [Securing it](#securing-it)).
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/tunnel` | `{ state, url, since, reason, enabled, sshAvailable, settings }`: `url` and `since` only while `active`, `reason` (with a `code`) only while `failed`, `enabled` false where the deploy does not offer the tunnel (`AGENTRY_TUNNEL`, off in the image) |
+| GET | `/tunnel` | `{ state, url, since, reason, enabled, tailscale, port, settings }`: `url` and `since` only while `active`, `reason` (with a `code`) only while `failed`, `enabled` false where the deploy does not offer the tunnel (`AGENTRY_TUNNEL`, off in the image), `tailscale` whether the CLI is installed, signed in, connected and has HTTPS on (`state`, `version`, `host`, `reason`), read again from the CLI at most every two seconds |
 | PUT | `/tunnel/settings` | `{ startWithAgentry }`, off by default. Emits `tunnel.changed` |
-| POST | `/tunnel/start` | Opens the tunnel through localhost.run; `409` while the auth mode is `none` or where `enabled` is false. The address shows, and its exact host joins the allowlist, once `/api/health` answers through it |
-| POST | `/tunnel/stop` | Takes the host off the allowlist and ends `ssh`; turning the auth mode to `none` does it first |
+| POST | `/tunnel/start` | Adds Agentry's `tailscale serve` rule on `port`; `409` while the auth mode is `none` or where `enabled` is false, `failed` with the reason when Tailscale is not ready or the port serves something else. The address shows, and the node's exact name joins the allowlist, once the rule reads back from the Serve config |
+| POST | `/tunnel/stop` | Takes the name off the allowlist and removes only Agentry's Serve rule; turning the auth mode to `none` does it first |
 
 ### Usage limits and rotation between providers
 
@@ -1445,12 +1449,12 @@ interactive `claude` session (`/mcp`) or in claude.ai's connector settings: Agen
   who holds it, so every device that turned push on is sent the same notifications, whoever the chat
   was started by, and anyone who can reach Settings can test or remove another device's registration.
   Turning it on on a shared phone tells whoever is holding it that a chat is waiting.
-- The tunnel goes through one provider, localhost.run, which terminates TLS and so sees every
-  request, the bearer token and the five `?token=` URLs included. Its free address changes from time
-  to time; each new one is a new site for a phone, which signs in again there, and an app installed
-  from an old address keeps opening that one. Notifications follow the current address on Chrome;
-  on iOS that is not verified. localhost.run passes no client address, so every stranger behind the
-  tunnel shares one failed-login wait, and can make your phone wait with them.
+- The tunnel reaches only your own tailnet, through Tailscale: the phone needs the Tailscale app
+  signed in to it, and a code host on the internet cannot deliver webhooks there, so webhooks have
+  no address to register (polling carries the pull requests). The tailnet needs MagicDNS and HTTPS
+  certificates on, and the node's user must be its Tailscale operator to change Serve settings.
+  Every request through it shares one failed-login wait, so a guess from another tailnet device can
+  make your phone wait.
 - A subscription token is meant for your own individual use; use an API key for anything
   shared or multi-user.
 - A handoff carries the transcript's text to the next agent, which may be another vendor's. The

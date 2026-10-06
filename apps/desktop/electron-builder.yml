@@ -82,7 +82,8 @@ linux:
 deb:
   # Electron's own runtime libraries only: the server runs on Electron's bundled Node, so no nodejs package.
   # The Claude Code CLI is looked up on the user's PATH at run time and is not a package dependency either.
-  # openssh-client is the tunnel's ssh (Settings > Remote access); a desktop system already has it.
+  # Tailscale (Settings > Remote access) is not a dependency either: it is not in Debian's archive,
+  # and the tab says how to install it when it is missing.
   depends:
     - libgtk-3-0
     - libnotify4
@@ -93,7 +94,6 @@ deb:
     - libatspi2.0-0
     - libuuid1
     - libsecret-1-0
-    - openssh-client
   # Not covered by electron-builder: AppStream metadata goes where software centres look for it.
   # Extra fpm arguments in `source=destination` form.
   fpm:

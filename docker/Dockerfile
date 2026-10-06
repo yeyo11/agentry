@@ -24,8 +24,9 @@ RUN pnpm --filter @agentry/web build \
 
 FROM node:22-bookworm-slim
 
-# Tools Claude Code relies on when working inside projects. openssh-client is also the tunnel's
-# ssh, which this image only runs once the operator sets AGENTRY_TUNNEL=on.
+# Tools Claude Code relies on when working inside projects (openssh-client is git's, over ssh).
+# The tunnel's `tailscale` CLI is not here: the host's Tailscale is not visible from a container, so
+# the tunnel stays off in this image unless the operator sets AGENTRY_TUNNEL=on and provides one.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl git openssh-client procps ripgrep jq python3 \
  && rm -rf /var/lib/apt/lists/*
