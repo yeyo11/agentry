@@ -1197,6 +1197,19 @@ button.master-item-on:hover {
   font-size: 13px;
 }
 
+/* A host that cannot be edited here, with who put it there beside it */
+.app-settings-host {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.app-settings-host > .mono {
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 900px) {
   .tunnel-address {
     flex-direction: column;

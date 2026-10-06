@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-10-02T18:00:00Z
+updated_at: 2026-10-06T10:00:00Z
 tags:
     - deploy
     - docker
@@ -69,6 +69,9 @@ longer `localhost`:
   `*.tunnel.example` does not answer to `eviltunnel.example`. Name a domain you control or that a
   provider controls; a wildcard over a public suffix (`*.com`) guards nothing and is refused at
   startup rather than accepted.
+- **Adding a host later** does not need a restart. Settings → Security → Allowed hosts keeps the
+  variable's hosts fixed and lets you add more, which answer beside them from the next request
+  ([layered-settings.md](layered-settings.md)).
 - **Rewriting `Host` to the upstream** (nginx's `proxy_set_header Host $proxy_host`, some ingress
   controllers by default) makes Agentry see the service name or the pod address. Either pass the
   original name instead, or add whatever the proxy sends to `AGENTRY_ALLOWED_HOSTS`. In the Helm

@@ -248,6 +248,7 @@ test('the tunnel and the settings are written whole from their events, and a new
     defaultPermissionMode: 'plan',
     providersStepSeen: false,
     sources: { allowedHosts: 'default', maxConcurrentRuns: 'file', defaultPermissionMode: 'file', providersStepSeen: 'default' },
+    allowedHostLayers: { env: [], file: [], runtime: [] },
   };
   const event = { id: 2, at: '', type: 'settings.changed', settings } as Parameters<typeof patchSettings>[1];
   patchSettings(client, event);
@@ -257,20 +258,32 @@ test('the tunnel and the settings are written whole from their events, and a new
 
 // ---------- the layered settings ----------
 
-const layered = (sources: Partial<AppSettings['sources']> = {}): AppSettings => ({
-  allowedHosts: ['agentry.example.com'],
-  maxConcurrentRuns: 8,
-  defaultPermissionMode: 'acceptEdits',
-  providersStepSeen: false,
-  sources: { allowedHosts: 'file', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', providersStepSeen: 'default', ...sources },
-});
+const layered = (sources: Partial<AppSettings['sources']> = {}, hosts: Partial<AppSettings['allowedHostLayers']> = {}): AppSettings => {
+  const allowedHostLayers = { env: [], file: ['agentry.example.com'], runtime: [], ...hosts };
+  return {
+    allowedHosts: [...allowedHostLayers.env, ...allowedHostLayers.file],
+    maxConcurrentRuns: 8,
+    defaultPermissionMode: 'acceptEdits',
+    providersStepSeen: false,
+    sources: { allowedHosts: 'file', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', providersStepSeen: 'default', ...sources },
+    allowedHostLayers,
+  };
+};
 
 test('a save sends only what moved, and never a key the environment set', () => {
   const saved = layered({ maxConcurrentRuns: 'env' });
   assert.deepEqual(changedSettings(saved, { ...saved }), {});
-  assert.deepEqual(changedSettings(saved, { ...saved, defaultPermissionMode: 'plan' }), { defaultPermissionMode: 'plan' });
-  assert.deepEqual(changedSettings(saved, { ...saved, maxConcurrentRuns: 2 }), {});
-  assert.deepEqual(changedSettings(saved, { ...saved, allowedHosts: ['a.example.com', 'b.example.com'] }), { allowedHosts: ['a.example.com', 'b.example.com'] });
+  assert.deepEqual(changedSettings(saved, { defaultPermissionMode: 'plan' }), { defaultPermissionMode: 'plan' });
+  assert.deepEqual(changedSettings(saved, { maxConcurrentRuns: 2 }), {});
+  assert.deepEqual(changedSettings(saved, { allowedHosts: ['a.example.com', 'b.example.com'] }), { allowedHosts: ['a.example.com', 'b.example.com'] });
+});
+
+test("hosts are compared with the ones added here, so the environment's never count as a change", () => {
+  const saved = layered({ allowedHosts: 'env' }, { env: ['*.devtunnels.ms'], file: ['agentry.example.com'] });
+  assert.deepEqual(changedSettings(saved, { allowedHosts: ['agentry.example.com'] }), {});
+  assert.deepEqual(changedSettings(saved, { allowedHosts: ['agentry.example.com', '192.168.1.184'] }), { allowedHosts: ['agentry.example.com', '192.168.1.184'] });
+  // The run defaults' save does not carry the hosts along
+  assert.deepEqual(changedSettings(saved, { maxConcurrentRuns: 8, defaultPermissionMode: 'acceptEdits' }), {});
 });
 
 test('hosts are read one per line, lower-cased, without the blanks', () => {
@@ -279,16 +292,27 @@ test('hosts are read one per line, lower-cased, without the blanks', () => {
 
 test('a setting the environment set is shown read-only, naming its variable', () => {
   const client = new QueryClient();
-  client.setQueryData(keys.appSettings, layered({ allowedHosts: 'env', defaultPermissionMode: 'env' }));
+  client.setQueryData(keys.appSettings, layered({ allowedHosts: 'env', defaultPermissionMode: 'env' }, { env: ['*.devtunnels.ms'], file: ['agentry.example.com'] }));
   const html = wrap(<AppSettingsCards />, client);
   assert.ok(text(html).includes('set by the environment'));
   assert.ok(html.includes('AGENTRY_ALLOWED_HOSTS'));
   assert.ok(html.includes('AGENTRY_DEFAULT_PERMISSION_MODE'));
-  // The hosts are a list, not a field, and the mode's picker is disabled; the run limit stays editable
-  assert.doesNotMatch(html, /<textarea/);
-  assert.match(html, /<li class="mono">agentry\.example\.com<\/li>/);
+  // The environment's hosts are a tagged list; the ones added here stay editable beside them
+  assert.match(html, /<li class="app-settings-host"><span class="mono">\*\.devtunnels\.ms<\/span><span class="badge badge-muted"><span class="badge-text">set by the environment/);
+  assert.match(html, /<textarea[^>]*data-testid="allowed-hosts"[^>]*>agentry\.example\.com<\/textarea>/);
+  assert.ok(text(html).includes('beside the ones from the environment'));
+  // The mode's picker is disabled; the run limit stays editable
   assert.match(html, /role="combobox"[^>]*disabled=""[^>]*class="select-trigger/);
   assert.doesNotMatch(html, /AGENTRY_MAX_CONCURRENT_RUNS/);
+});
+
+test("the tunnel's host is listed read-only while it is lent, and is not in the field", () => {
+  const client = new QueryClient();
+  client.setQueryData(keys.appSettings, layered({}, { file: [], runtime: ['abc123.lhr.life'] }));
+  const html = wrap(<AppSettingsCards />, client);
+  assert.match(html, /<span class="mono">abc123\.lhr\.life<\/span><span class="badge badge-muted"><span class="badge-text">tunnel, while it is open/);
+  assert.match(html, /<textarea[^>]*data-testid="allowed-hosts"[^>]*><\/textarea>/);
+  assert.doesNotMatch(html, /AGENTRY_ALLOWED_HOSTS/);
 });
 
 test('settings nobody pinned are editable', () => {
@@ -296,5 +320,6 @@ test('settings nobody pinned are editable', () => {
   client.setQueryData(keys.appSettings, layered());
   const html = wrap(<AppSettingsCards />, client);
   assert.doesNotMatch(html, /set by the environment/);
+  assert.doesNotMatch(html, /fixed-hosts/);
   assert.match(html, /<textarea[^>]*data-testid="allowed-hosts"[^>]*>agentry\.example\.com<\/textarea>/);
 });

@@ -8851,7 +8851,7 @@
         "items": {
           "type": "string"
         },
-        "description": "Host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern with at least two labels below the wildcard. Only the configured part: the exact names a running tunnel adds for itself are not listed here, because nobody may edit them."
+        "description": "Host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern with at least two labels below the wildcard. Read, it is the configured allowlist: the environment's hosts followed by the ones added in the UI. Written (`PUT`), it is the UI's part only, which adds to the environment's: a host the environment already names is not stored again. The exact names a running tunnel adds for itself are in neither, because nobody may edit them."
       },
       "maxConcurrentRuns": {
         "type": "number",
@@ -8886,10 +8886,15 @@
           "maxConcurrentRuns",
           "defaultPermissionMode",
           "providersStepSeen"
-        ]
+        ],
+        "description": "For `allowedHosts`, the highest layer that names any host (`env`, then `file`, then `default`); it does not make the list read-only, `allowedHostLayers` does that per host."
+      },
+      "allowedHostLayers": {
+        "$ref": "#/components/schemas/AllowedHostLayers"
       }
     },
     "required": [
+      "allowedHostLayers",
       "allowedHosts",
       "defaultPermissionMode",
       "maxConcurrentRuns",
@@ -8905,7 +8910,39 @@
       "file",
       "default"
     ],
-    "description": "Where a layered setting's current value comes from. `env` means the UI may show it but not change it."
+    "description": "Where a layered setting's current value comes from. `env` means the UI may show it but not change it, except for `allowedHosts`, whose layers add up instead of replacing one another: there `env` only says the environment names some of the hosts, and `allowedHostLayers` tells which."
+  },
+  "AllowedHostLayers": {
+    "type": "object",
+    "properties": {
+      "env": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "From `AGENTRY_ALLOWED_HOSTS`: fixed by whoever deployed the install, read-only in the UI"
+      },
+      "file": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "From `app-settings.json`: added in the UI, and what a `PUT` of `allowedHosts` replaces"
+      },
+      "runtime": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Exact names lent while their owner runs (a running tunnel's host): memory only, never editable"
+      }
+    },
+    "required": [
+      "env",
+      "file",
+      "runtime"
+    ],
+    "description": "The hosts the guard answers to besides loopback, by who put each one there. Unlike the other settings, the layers add up: what the guard answers is all three together."
   },
   "TunnelChangedEvent": {
     "type": "object",
@@ -17965,7 +18002,7 @@
         "items": {
           "type": "string"
         },
-        "description": "Host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern with at least two labels below the wildcard. Only the configured part: the exact names a running tunnel adds for itself are not listed here, because nobody may edit them."
+        "description": "Host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern with at least two labels below the wildcard. Read, it is the configured allowlist: the environment's hosts followed by the ones added in the UI. Written (`PUT`), it is the UI's part only, which adds to the environment's: a host the environment already names is not stored again. The exact names a running tunnel adds for itself are in neither, because nobody may edit them."
       },
       "maxConcurrentRuns": {
         "type": "number",
@@ -17980,7 +18017,7 @@
         "description": "The first-run Providers step was shown and answered (continued or skipped). Kept here rather than in the browser so a second browser, a phone or the desktop app does not ask again; the step still returns whenever no provider is ready."
       }
     },
-    "description": "`PUT /settings/app`: the settings to change, and only those. A setting the environment set is refused rather than written to the file, where it would do nothing until the variable goes away and then change behaviour by surprise."
+    "description": "`PUT /settings/app`: the settings to change, and only those. A setting the environment set is refused rather than written to the file, where it would do nothing until the variable goes away and then change behaviour by surprise. `allowedHosts` is the exception: it replaces the UI's hosts, which add to the environment's, so it is accepted whatever the environment says."
   },
   "UpdateTunnelSettingsRequest": {
     "type": "object",

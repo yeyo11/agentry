@@ -52,6 +52,7 @@ test('an install that sets nothing answers exactly as before the settings had la
     providersStepSeen: false,
     defaultPermissionMode: 'acceptEdits',
     sources: { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', providersStepSeen: 'default' },
+    allowedHostLayers: { env: [], file: [], runtime: [] },
   });
   assert.equal((await app.inject('/api/system')).json().defaultPermissionMode, 'acceptEdits');
   // Open, loopback only, and nothing written to disk for it
@@ -99,21 +100,40 @@ test('a change to the settings goes out on the event feed with the whole documen
 });
 
 test('a setting the environment holds is shown, and a PUT for it is refused', async (t) => {
-  const { app } = await wrapper({ AGENTRY_ALLOWED_HOSTS: 'agentry.example.com', AGENTRY_DEFAULT_PERMISSION_MODE: 'bypassPermissions' });
+  const { app } = await wrapper({ AGENTRY_DEFAULT_PERMISSION_MODE: 'bypassPermissions' });
   t.after(() => app.close());
 
   const settings = (await app.inject('/api/settings/app')).json<AppSettings>();
-  assert.deepEqual(settings.sources, { allowedHosts: 'env', maxConcurrentRuns: 'default', defaultPermissionMode: 'env', providersStepSeen: 'default' });
+  assert.deepEqual(settings.sources, { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'env', providersStepSeen: 'default' });
   assert.equal(settings.defaultPermissionMode, 'bypassPermissions');
 
-  const refused = await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ allowedHosts: ['other.example.com'] }) });
+  const refused = await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ defaultPermissionMode: 'plan' }) });
   assert.equal(refused.statusCode, 400);
-  assert.match(refused.json().error, /set by the environment \(AGENTRY_ALLOWED_HOSTS\)/);
-  assert.equal(await status(app, 'other.example.com'), 421);
-  assert.equal(await status(app, 'agentry.example.com'), 200);
+  assert.match(refused.json().error, /set by the environment \(AGENTRY_DEFAULT_PERMISSION_MODE\)/);
 
   const bad = await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ maxConcurrentRuns: 0 }) });
   assert.equal(bad.statusCode, 400);
+});
+
+test("a host added in the UI is answered beside the environment's, which cannot be removed", async (t) => {
+  const { app } = await wrapper({ AGENTRY_ALLOWED_HOSTS: '*.devtunnels.ms,192.168.1.184' });
+  t.after(() => app.close());
+  assert.equal(await status(app, 'agentry.example.com'), 421);
+
+  const put = await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ allowedHosts: ['agentry.example.com'] }) });
+  assert.equal(put.statusCode, 200);
+  const saved = put.json<AppSettings>();
+  assert.deepEqual(saved.allowedHosts, ['*.devtunnels.ms', '192.168.1.184', 'agentry.example.com']);
+  assert.deepEqual(saved.allowedHostLayers, { env: ['*.devtunnels.ms', '192.168.1.184'], file: ['agentry.example.com'], runtime: [] });
+  assert.equal(saved.sources.allowedHosts, 'env');
+  // Applied to the next request, without a restart, and the environment's hosts keep answering
+  assert.equal(await status(app, 'agentry.example.com'), 200);
+  assert.equal(await status(app, 'abc.devtunnels.ms'), 200);
+
+  assert.equal((await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ allowedHosts: [] }) })).statusCode, 200);
+  assert.equal(await status(app, 'agentry.example.com'), 421);
+  assert.equal(await status(app, '192.168.1.184'), 200);
+  assert.equal((await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ allowedHosts: ['*.com'] }) })).statusCode, 400);
 });
 
 test('the settings are guarded like every other settings route', async (t) => {
@@ -140,8 +160,9 @@ test('a runtime host is answered while it is registered, and forgotten when it i
   assert.equal(await status(app, 'ABC123.lhr.life:443'), 200);
   // Exact: another tunnel on the same provider is somebody else's
   assert.equal(await status(app, 'other.lhr.life'), 421);
-  // Not listed as configuration: nobody may edit what the tunnel owns
-  assert.deepEqual((await app.inject('/api/settings/app')).json<AppSettings>().allowedHosts, []);
+  // Not listed as configuration, since nobody may edit what the tunnel owns, but shown apart
+  const settings = (await app.inject('/api/settings/app')).json<AppSettings>();
+  assert.deepEqual([settings.allowedHosts, settings.allowedHostLayers.runtime], [[], ['abc123.lhr.life']]);
 
   core.appSettings.runtimeHosts.remove('abc123.lhr.life');
   assert.equal(await status(app, 'abc123.lhr.life'), 421);

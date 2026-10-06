@@ -280,6 +280,7 @@ test('a setting or the tunnel changing refreshes the page but never wakes anyone
       defaultPermissionMode: 'acceptEdits',
       providersStepSeen: false,
       sources: { allowedHosts: 'default', maxConcurrentRuns: 'env', defaultPermissionMode: 'file', providersStepSeen: 'default' },
+      allowedHostLayers: { env: [], file: [], runtime: [] },
     },
   };
   const tunnel: AgentryEvent = {
