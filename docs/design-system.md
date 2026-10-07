@@ -1803,6 +1803,12 @@ Variants the app drew where the reference had no class, mirrored in §19 of
   title centred at 17 px between "Cancelar" or "Cerrar" and what the flow creates.
 - `.model-pick-sheet` / `.model-pick-option`: `ModelPicker` on a phone opens a sheet of 48 px
   options, the current model checked (`.model-pick-check`), instead of a popover.
+- `.work-link-retried`, `.work-link-acts` / `.work-link-retry` (CW-20): under a failed run's reason
+  on the item's link, what its retry did ("Reintentada: pasó hace 10 min", the outcome in its own
+  status word and colour) or, while the run can still be queued again, a small neutral "Reintentar"
+  raised above the row's open-the-chat overlay; 44 px on a phone.
+- `.workitem-strip-verb.is-quote` (CW-20): QA's words on a sent-back card, clamped to three lines;
+  the whole text is on the item.
 - `.flow-limit-cost`: the cost limit of a flow run in the Límites card, a field with its currency
   inside; full width, 44 px and a 16 px input on a phone.
 - `.board-flow-row`: the phone board's flow state under the views, the whole row a link to the

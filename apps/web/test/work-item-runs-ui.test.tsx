@@ -209,7 +209,7 @@ test("every run in a chat the Developer continued is a link of its own, so a fai
     assert.match(html, /badge-bad/);
     assert.match(html, /href="\/chats\/c-dev"/, "a failed run's link opens the chat it ran in");
   }
-  assert.match(text(failedRows[0] ?? ''), /reached its limit/);
+  assert.match(text(failedRows[0] ?? ''), /reached its usage limit/);
   assert.match(text(failedRows[1] ?? ''), /No account had quota left/);
 });
 
