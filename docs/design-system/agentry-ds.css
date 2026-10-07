@@ -2030,6 +2030,12 @@ a.cont-from:hover { color: var(--fg); }
 .m-screen .cont-line { display: none; }
 /* ---------- end of Rotation, the chat ---------- */
 
+/* ---------- 20. The graph's shape (CW-16): stages and the longest chain under a graph's tasks ---------- */
+.graph-shape-line { font-variant-numeric: tabular-nums; }
+.graph-shape-chain { font-family: var(--mono); }
+.graph-shape-id { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+.graph-shape-note { animation: none; }
+
 /* ---------- 21. A failed run's link and a sent-back card (CW-20) ---------- */
 .work-link-retried { font-size: 12px; line-height: 1.5; color: var(--fg-2); }
 .work-link-acts { position: relative; z-index: 1; display: flex; }
