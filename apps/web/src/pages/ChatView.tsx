@@ -28,6 +28,7 @@ import { taskPath } from '../lib/work-items';
 import { AgentScope } from '@agentry/chat-ui/lib/agent';
 import { useChatUi } from '@agentry/chat-ui/lib/context';
 import { Composer, type ComposerKind } from '@agentry/chat-ui/composer/Composer';
+import { AssistantGreeting } from './agentry-assistant/Greeting';
 import { FlowMovedNote } from './chat/FlowMoved';
 import { ChatHeader, type HeaderActions } from './chat/Header';
 import { ContinuedDivider, ContinuedFrom, HandoffCard, LimitStopped } from './chat/HandoffCard';
@@ -337,6 +338,8 @@ export function ChatView() {
                 )}
               </div>
             )}
+            {/* The first message of the assistant's chats, so only where the transcript starts */}
+            {chat.agentryAssistant && !transcript.more && <AssistantGreeting />}
             {handoffText && <HandoffCard chat={chat} text={handoffText} />}
             {items.length === 0 ? (
               !working && <Empty icon={MessageSquare} title={t('view.nothingWritten')} />

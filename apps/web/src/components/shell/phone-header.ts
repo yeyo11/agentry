@@ -30,6 +30,8 @@ export const PHONE_HEADER_ROUTES: readonly PhoneHeaderRoute[] = [
   { path: /^\/projects\/new\/?$/, phoneHeader: 'page' },
   // The project assistant (MobileAsistente)
   { path: /^\/projects\/[^/]+\/assistant\/?$/, phoneHeader: 'page' },
+  // The Agentry assistant's entry (MobileAsistenteAgentry); its chat is the chat page and keeps the chat's header
+  { path: /^\/assistant\/?$/, phoneHeader: 'page' },
   // Tasks, the board and the list reached from Más, and a new task (MobileTablero, MobileNuevaTarea)
   { path: /^\/tasks\/?$/, phoneHeader: 'page' },
   // The milestones and a work item's page (MobileHitos, MobileTarea); the review of an item's

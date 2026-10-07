@@ -1412,6 +1412,51 @@ stages the graph runs in and names its longest chain; nothing on it is live or c
   action, and it does not animate in (`animation: none`).
 - A graph of one stage says "1 stage, all in parallel" and names no chain.
 
+### The Agentry assistant: the entry, the greeting and the host prompt of a write
+
+Drawn for the umbrella CW-30 ([plans/agentry-assistant.md](plans/agentry-assistant.md): CW-18, the entry and its
+confined chat, then CW-17, the write tools), by `reference/tools/assistant_entry.py`, in `DesktopAsistenteAgentry`,
+`DesktopAsistenteAgentryChat`, `MobileAsistenteAgentry`, `MobileAsistenteAgentryChat` and `MobileAsistenteAgentryMas`. The
+decisions the drawing takes (criterion 1 of CW-18, candidate 1 of the spec):
+
+- **Where it lives.** A sidebar item "Asistente" with the sparkle, in the first group under Inicio (route
+  `/assistant`), and on a phone the same item as the first row of Más. The tab bar keeps its four tabs and Más is the one
+  lit while the screen is open. The palette's "Asistente de Agentry" action is always present and is not drawn. The sparkle is the
+  plain nav icon on desktop and the neutral `.ai-mark` tile (28 px inside a `.cell`) on the phone: never the gradient, so the entry
+  costs no gradient slot on any screen. `.nav-item.on` keeps the shell's own rail.
+- **The entry screen is content, not an `Empty`.** The mark, the greeting (34 px on desktop, 24 on a phone), one line saying
+  what the assistant does and that it asks before writing, the live figures in mono (the counts of what is running in
+  `--live`, today's spend neutral: they are live things, and the line is optional if the build stays small), "Para
+  empezar" with the starters, and the composer. The page has one gradient surface, the send button. The composer is **not**
+  energy-bordered: nothing runs yet. Once the first turn runs it is the chat's working composer and takes the screen's one
+  energy border, as on any chat.
+- **Starters** are buttons that fill the composer, never send. Each shows what it is about and the sentence it fills in
+  guillemets. The ones that write carry `.badge.b-warn` "pide permiso" (warn means needs authorisation, and says it in
+  words). On a phone three starters show, one column, 44 px at least.
+- **The context** is a chip in the composer's row, "Con <project> como contexto" with an × to clear it (a 44 px target on a phone,
+  where the label ends in an ellipsis to leave room for the × and the model chip). With no project the chip is absent.
+- **The chat** of an assistant (`DesktopAsistenteAgentryChat`) starts with the greeting as its first message, dimmed
+  (`.as-greeting`), then the person's first prompt, which is the chat's title, never the greeting. Tool lines say what was read in
+  the person's words ("Tablero de AGN", "AGN-12"), never an identifier of the wire. While a write waits for permission nothing
+  moves: the badge says "necesita tu permiso" in `--warn`, the braille spinner and the energy border are off, and the one
+  gradient surface is **Permitir**; the send button is disabled.
+- **The host prompt of a write** (`.permission`) is the app's existing `.permission`, `-head`, `-input` and `-actions`, drawn here
+  for the first time. A write tool is titled in the person's words ("Crear tarea en AGN", not the tool's name), with the plug icon
+  that `icons.tsx` gives to `mcp__` tools; under it the input in mono (`.permission-input`, keys dimmed with `.k`), one line saying
+  what happens on each answer (`.permission-note`), **Permitir** (primary) and **Denegar** (`btn-danger`) and the reason field.
+  There is no "allow and always": a write has no suggestions to offer. On a phone the buttons are 44 px, side by side, and the
+  reason field takes the next row with the short placeholder "¿Por qué no? (opcional)" because the app's sentence does not fit a
+  phone's input; the build can keep the app's string if it truncates acceptably.
+
+| Reference class | App class or component | Rule |
+|---|---|---|
+| `.as-hello`, `.as-hello-sub`, `.as-figures` (`.live`) | new, on `/assistant` | the greeting block. `.as-hello` makes the `.ai-mark` 40 px; the figures are mono, tabular, and only the live counts are cyan |
+| `.as-starters`, `.as-starter` (`-body`, `-title`, `-ask`) | new, the entry's suggestion chips | a two-column grid on desktop and one column on a phone; the button fills the composer. A `.badge.b-warn` on the right when it writes |
+| `.as-context` (`.x`) | `.chip` with a clear button | "Con <project> como contexto"; × is a 44 px target on a phone |
+| `.as-greeting` | the first message of an assistant chat | the sparkle on `.ai-mark.sm` and one dimmed line; the same at the top of a reopened assistant chat |
+| `.cell > .ai-mark` | the Más row | the sparkle tile at the size of the other rows' `.proj` |
+| `.permission` (`-head`, `-input` with `.k`, `-note`, `-actions`, `-reason`) | `.permission`, `.permission-head`, `.permission-input`, `.permission-actions`, `.permission-reason` of `PermissionPrompts` | warn-tinted card, never gradient; the title is the readable name of the tool, the mono block is the input, Permitir is the screen's primary |
+
 ## 3. Live states and motion
 
 | Situation | Pattern |
