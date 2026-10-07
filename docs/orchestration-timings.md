@@ -91,6 +91,20 @@ is read when the page opens and again when the graph moves to another phase (the
 the graph's, the integration's and the checks' status), never polled. Design rules are in
 [design-system.md](design-system.md) under `.orch-timings`.
 
+## Known gaps
+
+Rebased on 2026-10-07 onto `main`, where three things had changed under it:
+
+- **Checks run in parallel groups.** Each check of a group records its own run (`pass`,
+  `startedAt`, duration), so a group's runs overlap in time; one fixer attempt can be at several
+  failed checks of a group, and its `VerificationFix.command` names them all, joined by `; `.
+- **Chats run on several providers.** A wait is a limit wait when the failed span's error reads
+  like a provider's limit (`RATE_LIMIT_RE`: usage, rate, session limit, quota), which covers the
+  wording of Claude Code and Codex alike; a provider that words it otherwise counts as a retry wait.
+- **A worker at a limit can move to another provider or wait for a reset** (multiple providers,
+  phase 4). The timings still read the task's own chat: the time a moved worker spent on the
+  provider it moved to shows as that chat's span only when the task's `runId` points at it.
+
 ## Related
 
 [[plans/orchestration-timings.md]] · [[plans/orchestration-speed.md]] · [[decisions/orchestration-timings-on-read.md]] · [[design-system.md]]
