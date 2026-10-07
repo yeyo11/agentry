@@ -3,6 +3,41 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.34.0](https://github.com/yeyo11/agentry/compare/v0.33.1...v0.34.0) (2026-10-07)
+
+
+### Features
+
+* choose the effort level wherever a model is chosen (CW-25) ([#215](https://github.com/yeyo11/agentry/issues/215)) ([0e58044](https://github.com/yeyo11/agentry/commit/0e580440961517f4efd08c7be14da80c8f7a89ca))
+* **core:** every flow, agent file and assistant prompt records in English (CW-2) ([#204](https://github.com/yeyo11/agentry/issues/204)) ([ba558cc](https://github.com/yeyo11/agentry/commit/ba558ccf3326628e53f744bb1b356af43c882005))
+* drop Jira from Agentry ([#211](https://github.com/yeyo11/agentry/issues/211)) ([cf3f582](https://github.com/yeyo11/agentry/commit/cf3f58259c0e001bc630622b5ba71eae9b7fc8b1))
+* **orchestration:** cheaper worker checks and an e2e-specs task before the merge (CW-15) ([#213](https://github.com/yeyo11/agentry/issues/213)) ([5bf55d2](https://github.com/yeyo11/agentry/commit/5bf55d2f9532a05fcc6300b4ba7e67e2b550536a))
+* **settings:** add hosts in the UI on top of AGENTRY_ALLOWED_HOSTS ([#194](https://github.com/yeyo11/agentry/issues/194)) ([f4db9bb](https://github.com/yeyo11/agentry/commit/f4db9bbda8259c1650a48a00db52fa137c8cc061))
+* shorter orchestration chains, with planner guidance and a longest-chain hint (CW-16) ([#205](https://github.com/yeyo11/agentry/issues/205)) ([ac50698](https://github.com/yeyo11/agentry/commit/ac50698ed4d6d9ed72da944516668ef52efce95e))
+* **trackers:** YouTrack through youtrack-app, recorded on an instance of our own (code hosts phase 5, step 2) ([#203](https://github.com/yeyo11/agentry/issues/203)) ([dc125c2](https://github.com/yeyo11/agentry/commit/dc125c2fc107462a09833af12fcaf5b30a950578))
+* **tunnel:** remote access through tailscale serve instead of localhost.run ([#195](https://github.com/yeyo11/agentry/issues/195)) ([fbce38b](https://github.com/yeyo11/agentry/commit/fbce38b2b36ab7e0b4a583367e68f9f7512c38c3))
+* **web:** every phone detail screen heads itself, with no app top bar (CW-8) ([#208](https://github.com/yeyo11/agentry/issues/208)) ([0e217cd](https://github.com/yeyo11/agentry/commit/0e217cdf297feec82a6830eff2d5ad723a8cb3ab))
+* where an orchestration's time went, recorded, served and shown (CW-13) ([#210](https://github.com/yeyo11/agentry/issues/210)) ([0d000d4](https://github.com/yeyo11/agentry/commit/0d000d4598de02029b9c166468e010395c8e80c3))
+
+
+### Bug fixes
+
+* **core:** mask YouTrack's token too in what leaves the machine ([#209](https://github.com/yeyo11/agentry/issues/209)) ([8f81a77](https://github.com/yeyo11/agentry/commit/8f81a77207b69db9813189628b99ca1f937a27f5))
+* **decisions:** mask Agentry's own tokens and keys in what leaves the machine ([#201](https://github.com/yeyo11/agentry/issues/201)) ([5ffa4e4](https://github.com/yeyo11/agentry/commit/5ffa4e4b504206fdd3c864dc85fd9fccc04ec9c5))
+* **deps:** override source-map-js to 1.2.2 for GHSA-68fv-2mgg-jv7q ([#196](https://github.com/yeyo11/agentry/issues/196)) ([5153883](https://github.com/yeyo11/agentry/commit/51538838c9c52da382952dfc9424f239d9268e03))
+* record Jev's cost from its input tokens and backfill history (CW-29) ([#212](https://github.com/yeyo11/agentry/issues/212)) ([168e04c](https://github.com/yeyo11/agentry/commit/168e04cd3bffcb056e090f02b71b45c7bd0cdbc7))
+* **test:** runners time out and force their exit, and every api test shuts its Core down (CW-27) ([#214](https://github.com/yeyo11/agentry/issues/214)) ([914b794](https://github.com/yeyo11/agentry/commit/914b794203eca535e88507da2e33083ad02bb009))
+* **web:** every flow run is its own link, a failed one shows its raw error and its retry (CW-20) ([#206](https://github.com/yeyo11/agentry/issues/206)) ([6c9be8e](https://github.com/yeyo11/agentry/commit/6c9be8e6b6f2b8d51bfa29deb8bf373201a72638))
+
+
+### Build and packaging
+
+* **deps-dev:** bump the dev-dependencies group across 1 directory with 5 updates ([#109](https://github.com/yeyo11/agentry/issues/109)) ([fd6b54a](https://github.com/yeyo11/agentry/commit/fd6b54ad3cceaaaa916d2b6b9d552ed67038c0ee))
+* **deps:** bump docker/login-action from 3 to 4 ([#162](https://github.com/yeyo11/agentry/issues/162)) ([c1e3e4d](https://github.com/yeyo11/agentry/commit/c1e3e4d24e0717262be2ced88a3935d597e8efa9))
+* **deps:** bump googleapis/release-please-action from 4 to 5 ([#161](https://github.com/yeyo11/agentry/issues/161)) ([5cd0f69](https://github.com/yeyo11/agentry/commit/5cd0f69e452f26776003a09c9449ea9a4bb1e49f))
+* **deps:** the production group of [#200](https://github.com/yeyo11/agentry/issues/200), with the CSS parity floor following shiki 4.5 ([#202](https://github.com/yeyo11/agentry/issues/202)) ([f7ce383](https://github.com/yeyo11/agentry/commit/f7ce383881d98ab40da537c0dbfcce541c802fd4))
+* **docker:** Node 26 image, pnpm from npm ([#199](https://github.com/yeyo11/agentry/issues/199)) ([4a777b4](https://github.com/yeyo11/agentry/commit/4a777b45119abc91273dddbd7a2fa979caf713a2))
+
 ## [0.33.1](https://github.com/yeyo11/agentry/compare/v0.33.0...v0.33.1) (2026-10-03)
 
 
