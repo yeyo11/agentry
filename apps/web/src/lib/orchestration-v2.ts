@@ -1,4 +1,4 @@
-import type { Orchestration, OrchestrationPullRequest, OrchestrationTaskState, VerificationSpec } from '@agentry/shared';
+import type { Effort, Orchestration, OrchestrationPullRequest, OrchestrationTaskState, VerificationSpec } from '@agentry/shared';
 
 // The spec a graph is read back as, and the rules for starting one over, are the server's too: they
 // live in @agentry/shared so a schedule filled here starts what a relaunch there would.
@@ -61,6 +61,8 @@ export interface VerificationDraft {
   fixer: boolean;
   maxAttempts: number;
   model: string;
+  /** The fixer's effort; unset takes the recommendation for its model */
+  effort?: Effort;
   /** What the fixer may spend over all its attempts; no ceiling when absent */
   maxCostUsd?: number;
   install: InstallMode;
@@ -89,6 +91,7 @@ export function verificationOf(draft: VerificationDraft): VerificationSpec | und
     fixer: draft.fixer,
     maxAttempts: Math.max(1, draft.maxAttempts),
     ...(draft.model.trim() ? { model: draft.model.trim() } : {}),
+    ...(draft.effort ? { effort: draft.effort } : {}),
     // Only the fixer spends, so a ceiling without one would be a field nothing reads
     ...(draft.fixer && draft.maxCostUsd !== undefined && draft.maxCostUsd > 0 ? { maxCostUsd: draft.maxCostUsd } : {}),
     // The server refuses an empty command; an empty box falls back to detection instead
@@ -105,6 +108,7 @@ export function draftOfVerification(spec: VerificationSpec | undefined): Verific
     fixer: spec.fixer,
     maxAttempts: spec.maxAttempts,
     model: spec.model ?? '',
+    ...(spec.effort ? { effort: spec.effort } : {}),
     ...(spec.maxCostUsd !== undefined ? { maxCostUsd: spec.maxCostUsd } : {}),
     install: spec.install === null ? 'none' : spec.install === undefined ? 'detected' : 'command',
     installCommand: typeof spec.install === 'string' ? spec.install : '',

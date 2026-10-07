@@ -1,10 +1,11 @@
-import type { OrchestrationTaskSpec } from '@agentry/shared';
+import type { OrchestrationEngine, OrchestrationTaskSpec } from '@agentry/shared';
 import { Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { limitsOf } from '../lib/orchestration-v2';
 import { NumberInput } from '@agentry/ui/components/controls';
 import { Field } from '@agentry/ui/components/ui';
+import { EffortField } from './EffortPicker';
 import { ModelCombobox } from './ui';
 import { useLinkedWorkItem, WorkItemKeyLink } from './WorkItemKeyLink';
 
@@ -17,7 +18,12 @@ export function TaskEditor({
   others,
   onChange,
   onRemove,
+  engine,
+  orchestrationModel,
 }: {
+  engine?: OrchestrationEngine;
+  /** The model the graph runs on, which a task with none of its own inherits */
+  orchestrationModel?: string;
   task: OrchestrationTaskSpec;
   others: string[];
   onChange: (patch: Partial<OrchestrationTaskSpec>) => void;
@@ -54,7 +60,15 @@ export function TaskEditor({
       <Field label={t('config:orchestration.prompt')}>
         <textarea rows={3} value={task.prompt} onChange={(e) => onChange({ prompt: e.target.value })} />
       </Field>
-      <div className="form-grid">
+      <div className="form-grid form-grid-3">
+        {/* A workflow runs on the orchestration's effort alone */}
+        <EffortField
+          value={task.effort ?? ''}
+          onChange={(effort) => onChange({ effort: effort || undefined })}
+          model={task.model || orchestrationModel}
+          use="worker"
+          unavailable={engine === 'workflow' ? 'workflow' : undefined}
+        />
         <Field label={t('orchestrationV2:limits.maxMinutes')} hint={t('orchestrationV2:limits.taskHint')}>
           <NumberInput
             aria-label={t('orchestrationV2:limits.maxMinutesOf', { id: task.id || t('taskEditor.noId') })}

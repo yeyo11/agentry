@@ -317,6 +317,12 @@ function ChatBody({ chatId }: { chatId: string }) {
             <dd className="mono">{chat.model}</dd>
           </>
         )}
+        {chat.executions.at(-1)?.effort && (
+          <>
+            <dt>{t('detail.effort')}</dt>
+            <dd className="mono">{chat.executions.at(-1)?.effort}</dd>
+          </>
+        )}
         <dt>{t('detail.directory')}</dt>
         <dd className="mono break">{chat.cwd}</dd>
         {chat.cost.usd !== null && chat.cost.usd > 0 && (

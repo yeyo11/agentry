@@ -114,6 +114,36 @@
   background: var(--fg-2);
 }
 
+/* The effort a run used, beside its model: the same neutral tag, with the level after a dot */
+.effort-tag {
+  gap: 0;
+}
+
+/* EffortPicker: a Select whose rows are levels in mono; xhigh and max carry a warn "costly" word */
+.effort-pick {
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+}
+.effort-pick .select-trigger {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.effort-level {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.effort-costly {
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 11px;
+}
+
 /* A path a member may write */
 .scope-chip {
   display: inline-flex;
@@ -2046,6 +2076,16 @@ a.member-run:hover {
 
 .member-run-note.is-failed {
   color: var(--bad);
+}
+
+/* The effort picker in a row of its own (a member's page, the Flow's models): the width of its longest level */
+.member-effort-pick,
+.flow-effort-pick {
+  width: 160px;
+  flex: none;
+}
+.member-page.is-phone .member-effort-pick {
+  width: 100%;
 }
 
 /* The member's model: the picker in its row; on a phone the whole row is the button that opens the sheet */

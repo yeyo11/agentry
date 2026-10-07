@@ -1,4 +1,4 @@
-import type { PermissionMode, WorkItem, WorkOnWorkItemRequest } from '@agentry/shared';
+import type { Effort, PermissionMode, WorkItem, WorkOnWorkItemRequest } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Play } from 'lucide-react';
 import { useState } from 'react';
@@ -10,6 +10,7 @@ import { Select, Switch } from '@agentry/ui/components/controls';
 import { Dialog } from '@agentry/ui/components/Dialog';
 import { ICON_SM } from '@agentry/ui/components/icons';
 import { ErrorBox, Field } from '@agentry/ui/components/ui';
+import { EffortField } from '../../../components/EffortPicker';
 import { ModelCombobox, PERMISSION_MODES } from '../../../components/ui';
 
 /** The branch "Work on it" works on, as the API names it: `task/<key>` in lower case. */
@@ -27,6 +28,7 @@ export function WorkOnDialog({ item, onClose }: { item: Pick<WorkItem, 'id' | 'k
   const qc = useQueryClient();
   const overview = useOverview();
   const [model, setModel] = useState('');
+  const [effort, setEffort] = useState<Effort | ''>('');
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [appendSystemPrompt, setAppendSystemPrompt] = useState('');
   const [tools, setTools] = useState<ToolChoices>({});
@@ -37,6 +39,7 @@ export function WorkOnDialog({ item, onClose }: { item: Pick<WorkItem, 'id' | 'k
     mutationFn: () => {
       const req: WorkOnWorkItemRequest = { permissionPrompts: askHere ? 'host' : 'none' };
       if (model.trim()) req.model = model.trim();
+      if (effort) req.effort = effort;
       if (permissionMode) req.permissionMode = permissionMode;
       if (appendSystemPrompt.trim()) req.appendSystemPrompt = appendSystemPrompt.trim();
       if (tools.toolPreset !== undefined) req.toolPreset = tools.toolPreset;
@@ -72,6 +75,7 @@ export function WorkOnDialog({ item, onClose }: { item: Pick<WorkItem, 'id' | 'k
           <Field label={tn('new.model')} hint={tn('new.modelHint')}>
             <ModelCombobox aria-label={tn('new.model')} placeholder={tn('new.modelPlaceholder')} value={model} onChange={setModel} />
           </Field>
+          <EffortField value={effort} onChange={setEffort} model={model} use="work" />
           <Field label={tn('new.permissionMode')} hint={tn('new.permissionModeHint')}>
             <Select<PermissionMode | ''>
               aria-label={tn('new.permissionMode')}

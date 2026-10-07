@@ -1,4 +1,4 @@
-import type { NewChatRequest, PermissionMode } from '@agentry/shared';
+import type { Effort, NewChatRequest, PermissionMode } from '@agentry/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, ArrowUp, Check, FolderOpen, MessageSquare, Network, Search, X, type LucideIcon } from 'lucide-react';
 import { useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
@@ -17,7 +17,8 @@ import { useProjectScope } from '../lib/project-scope';
 import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { ErrorBox, Field, Segmented, usePageTitle } from '@agentry/ui/components/ui';
 import { PERMISSION_MODES, useModelOptions } from '../components/ui';
-import { useNewChatProviders, useProviderModels } from '../lib/provider-status';
+import { EffortField } from '../components/EffortPicker';
+import { useEffortUnavailable, useNewChatProviders, useProviderModels } from '../lib/provider-status';
 import { ProviderMark } from '@agentry/ui/components/ProviderMark';
 import { upperFirst } from '@agentry/chat-ui/lib/agent';
 import { modeLabel } from '@agentry/chat-ui/lib/wire-words';
@@ -55,6 +56,7 @@ export function NewChat() {
   const ready = (prompt.trim() || files.ids.length > 0) && !files.uploading;
   const [cwd, setCwd] = useState(params.get('cwd') ?? scope.project?.path ?? '');
   const [model, setModel] = useState('');
+  const [effort, setEffort] = useState<Effort | ''>('');
   const [chosenProvider, setChosenProvider] = useState('');
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [askHere, setAskHere] = useState(true);
@@ -67,6 +69,7 @@ export function NewChat() {
   const provider = providers.find((p) => p.id === chosenProvider) ?? providers[0];
   const providerId = provider?.id ?? '';
   const hasMcp = !provider || provider.capabilities.includes('mcp');
+  const effortUnavailable = useEffortUnavailable(providerId);
   const claude = providerId === '' || providerId === 'claude-code';
   const agent = provider?.label ?? tc('agent.generic');
   const providerModels = useProviderModels(claude ? '' : providerId);
@@ -82,6 +85,7 @@ export function NewChat() {
     setChosenProvider(id);
     // A model or a mode of the other agent means nothing to this one
     setModel('');
+    setEffort('');
     setPermissionMode('');
   };
   const known = (projects.data ?? []).find((p) => p.path === cwd.trim());
@@ -95,6 +99,7 @@ export function NewChat() {
       if (providerId) opts.provider = providerId;
       if (cwd.trim()) opts.cwd = cwd.trim();
       if (model.trim()) opts.model = model.trim();
+      if (effort && !effortUnavailable) opts.effort = effort;
       if (permissionMode) opts.permissionMode = permissionMode;
       if (appendSystemPrompt.trim()) opts.appendSystemPrompt = appendSystemPrompt.trim();
       if (tools.toolPreset !== undefined) opts.toolPreset = tools.toolPreset;
@@ -193,6 +198,7 @@ export function NewChat() {
           <Field label={t('new.model')} hint={modelFixed ? t('new.modelFixed', { agent }) : t('new.modelHint')}>
             <Combobox aria-label={t('new.model')} placeholder={t('new.modelPlaceholder')} value={model} onChange={setModel} options={modelOptions} />
           </Field>
+          <EffortField value={effort} onChange={setEffort} model={model} use="chat" unavailable={effortUnavailable} />
           <Field label={t('new.permissionMode')} hint={t('new.permissionModeHint')}>
             <Select<PermissionMode | ''>
               aria-label={t('new.permissionMode')}

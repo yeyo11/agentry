@@ -1,5 +1,6 @@
 import { ArrowLeft, Ban, CircleCheck, CircleX, CirclePause, LayoutTemplate, Play, Plus, Square, TriangleAlert, Zap } from 'lucide-react';
 import type {
+  Effort,
   OrchestrationSummary as OrchestrationRecord,
   OrchestrationEngine,
   OrchestrationSpec,
@@ -27,6 +28,7 @@ import { SaveTemplateDialog, TemplatesList } from '../components/OrchestrationTe
 import { ProgressBar } from '@agentry/ui/components/ProgressBar';
 import { removeTaskAt, renameTask, TaskEditor, validateGraph } from '../components/TaskEditor';
 import { Card, Empty, ErrorBox, Field, Loading, PageHeader, Segmented, Tag } from '@agentry/ui/components/ui';
+import { EffortField } from '../components/EffortPicker';
 import { ModelCombobox, PERMISSION_MODES } from '../components/ui';
 import { useFallbackInterval } from '../lib/feed';
 import { formatCost, timeAgo } from '@agentry/ui/lib/format';
@@ -69,6 +71,7 @@ function CreateForm({ onDone, template, boardDraft }: { onDone: () => void; temp
   const [objective, setObjective] = useState(seed?.objective ?? '');
   const [cwd, setCwd] = useState(seed?.cwd ?? '');
   const [model, setModel] = useState(seed?.model ?? '');
+  const [effort, setEffort] = useState<Effort | ''>(seed?.effort ?? '');
   const [maxTasks, setMaxTasks] = useState(5);
   const [concurrency, setConcurrency] = useState(seed?.concurrency ?? 3);
   const [maxAttempts, setMaxAttempts] = useState(seed?.maxAttempts ?? 2);
@@ -110,6 +113,7 @@ function CreateForm({ onDone, template, boardDraft }: { onDone: () => void; temp
         objective: objective.trim(),
         cwd: cwd.trim() || undefined,
         model: model.trim() || undefined,
+        effort: effort || undefined,
         maxTasks,
       }),
     onSuccess: (run) => {
@@ -168,6 +172,7 @@ function CreateForm({ onDone, template, boardDraft }: { onDone: () => void; temp
     objective: objective.trim() || undefined,
     cwd: cwd.trim() || undefined,
     model: model.trim() || undefined,
+    effort: effort || undefined,
     permissionMode: permissionMode || undefined,
     concurrency,
     // A workflow has no retries of its own to configure
@@ -242,6 +247,7 @@ function CreateForm({ onDone, template, boardDraft }: { onDone: () => void; temp
           <Field label={t('taskEditor.model')}>
             <ModelCombobox aria-label={t('taskEditor.model')} placeholder={t('defaultPlaceholder')} value={model} onChange={setModel} />
           </Field>
+          <EffortField value={effort} onChange={setEffort} model={model} use="worker" />
           {mode === 'auto' && (
             <Field label={t('config:orchestration.maxTasks')}>
               <NumberInput min={1} max={12} value={maxTasks} onChange={(v) => setMaxTasks(v || 1)} />
@@ -405,6 +411,8 @@ function CreateForm({ onDone, template, boardDraft }: { onDone: () => void; temp
                   others={tasks.filter((_, j) => j !== i).map((t) => t.id).filter(Boolean)}
                   onChange={(patch) => updateTask(i, patch)}
                   onRemove={() => removeTask(i)}
+                  engine={engine}
+                  orchestrationModel={model}
                 />
               ))}
             </div>
