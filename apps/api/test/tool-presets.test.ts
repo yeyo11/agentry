@@ -9,12 +9,13 @@ import { Core, loadConfig } from '@agentry/core';
 import { buildApp } from '../src/app.ts';
 
 let app: FastifyInstance;
+let core: Core;
 
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 
 before(async () => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-presets-'));
-  const core = new Core(
+  core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
@@ -25,7 +26,10 @@ before(async () => {
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
 });
 
-after(() => app.close());
+after(async () => {
+  await app.close();
+  core.shutdown();
+});
 
 test('tool presets ship with defaults and can be created, edited and deleted', async () => {
   const shipped = (await app.inject('/api/config/tool-presets')).json<ToolPresetsOverview>();

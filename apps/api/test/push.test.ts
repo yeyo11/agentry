@@ -11,6 +11,7 @@ import { buildApp } from '../src/app.ts';
 // The routes only, against an isolated data dir and a missing CLI: nothing here posts to a push
 // service, which is covered as a unit in @agentry/core.
 let app: FastifyInstance;
+let core: Core;
 
 const ENDPOINT = 'https://updates.push.services.mozilla.com/wpush/v2/gAAAAABapi-test-endpoint';
 const keys = { p256dh: 'BExampleP256dhKeyForTests', auth: 'exampleAuthSecret' };
@@ -19,7 +20,7 @@ const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'co
 
 before(async () => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-push-'));
-  const core = new Core(
+  core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
@@ -30,7 +31,10 @@ before(async () => {
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
 });
 
-after(() => app.close());
+after(async () => {
+  await app.close();
+  core.shutdown();
+});
 
 test('the key route makes the keypair on first use and returns only its public half', async () => {
   const res = await app.inject('/api/push/key');

@@ -36,7 +36,10 @@ before(async () => {
   projectId = res.json().id;
 });
 
-after(() => app.close());
+after(async () => {
+  await app.close();
+  core.shutdown();
+});
 
 test('every API route is documented in the OpenAPI document', async () => {
   const spec = (await app.inject('/openapi.json')).json();
