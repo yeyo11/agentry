@@ -10,12 +10,14 @@ import type {
   ChatOrigin,
   ChatToolConfig,
   EffectiveEnvironment,
+  Effort,
   Execution,
   NewChatRequest,
   PermissionMode,
   RunEvent,
   RunStatus,
 } from '@agentry/shared';
+import { isEffort } from '@agentry/shared';
 import { ChatActivityTracker } from './chat-activity.ts';
 import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import type { ChatRecord, StoredChat } from './chat-records.ts';
@@ -348,6 +350,7 @@ export class LiveChat {
    * stopped it: it ends as `interrupted`.
    */
   static restore({ record, executions }: StoredChat, config: CoreConfig, driver: ProviderDriver): LiveChat {
+    const lastEffort = executions[executions.length - 1]?.effort ?? null;
     const chat = new LiveChat(
       record.id,
       {
@@ -355,6 +358,8 @@ export class LiveChat {
         cwd: record.cwd,
         name: record.name,
         ...(record.model ? { model: record.model } : {}),
+        // A resume or a fork goes on with the effort the last execution ran with, unless it is given
+        ...(lastEffort ? { effort: lastEffort } : {}),
         permissionMode: record.permissionMode,
         internal: record.origin === 'internal',
         permissionPrompts: record.permissionPrompts,
@@ -437,6 +442,15 @@ export class LiveChat {
     return this.proc !== null && processUp(this.proc);
   }
 
+  /**
+   * The effort the next process starts with: what the start options chose, and only on a provider
+   * that declares `effort`: a driver without it is never handed a level it cannot take.
+   */
+  get effort(): Effort | null {
+    const level = this.opts.effort;
+    return isEffort(level) && this.driver.manifest.capabilities.includes('effort') ? level : null;
+  }
+
   /** The mode and model the chat runs with now, and the live execution with it. */
   setSettings(update: { permissionMode?: PermissionMode; model?: string }): void {
     const live = this.execution;
@@ -460,6 +474,7 @@ export class LiveChat {
       error: null,
       permissionMode: this.permissionMode,
       model: this.model,
+      effort: this.effort,
       maxBudgetUsd: typeof this.opts.maxBudgetUsd === 'number' && this.opts.maxBudgetUsd > 0 ? this.opts.maxBudgetUsd : null,
       costUsd: null,
       tokens: emptyTokenUsage(),

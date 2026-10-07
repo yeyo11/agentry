@@ -795,6 +795,9 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // migration must not change when the constant is updated later.
   `UPDATE decisions SET cost_usd = input_tokens * 0.042 / 1000000.0
    WHERE provider = 'jev' AND cost_usd IS NULL AND input_tokens IS NOT NULL;`,
+  // The effort a run started with (null: none was passed). Chats keep theirs in each execution's JSON.
+  `ALTER TABLE flow_runs ADD COLUMN effort TEXT;
+   ALTER TABLE assistant_runs ADD COLUMN effort TEXT;`,
 ];
 
 /**

@@ -1,5 +1,6 @@
 // Contract shared between core, API and UI.
 
+import type { Effort, EffortReason } from './effort.ts';
 import type { NotificationKind, NotificationLevel, NotificationPriority } from './notifications.ts';
 
 // ---------- System ----------
@@ -407,6 +408,8 @@ export interface Execution {
   error: string | null;
   permissionMode: PermissionMode;
   model: string | null;
+  /** The effort its process was started with; null when none was passed (the CLI's default, or a provider without effort), absent on an execution recorded before it was kept */
+  effort?: Effort | null;
   /** Ceiling on what it could spend */
   maxBudgetUsd: number | null;
   /** Null when the CLI reported none: cost is only known for what Agentry launched */
@@ -970,6 +973,13 @@ export interface ChatStartOptions {
   /** The provider to run on; the first one in the person's order that can run chats when absent */
   provider?: ProviderId;
   model?: string;
+  /**
+   * How hard the model thinks (`--effort`): one of {@link EFFORT_LEVELS}, which the API checks; a
+   * string here because an agent's own list of levels may name others. Absent keeps the last
+   * execution's on a resume or a fork, and takes the recommendation for the model on a new chat.
+   * Ignored by a provider that does not declare `effort`. It cannot change on a live chat: a new
+   * value applies from the next process.
+   */
   effort?: string;
   permissionMode?: PermissionMode;
   appendSystemPrompt?: string;
@@ -1183,6 +1193,8 @@ export interface ProjectTeamMember extends ProjectTeamRole {
    * The refine and verify stages keep their own tool sets. Checked with {@link isTeamCommandPattern}.
    */
   commands?: string[];
+  /** How hard the member thinks in the flow's runs; absent takes the recommendation for its model and the stage */
+  effort?: Effort;
 }
 
 /**
@@ -2106,6 +2118,8 @@ export interface PutTeamMemberRequest extends ProjectTeamRole {
   writes?: string[];
   /** Absent or null leaves the shell unrestricted in the work stage ({@link ProjectTeamMember.commands}) */
   commands?: string[] | null;
+  /** Absent or null takes the recommendation for the member's model and the stage ({@link ProjectTeamMember.effort}) */
+  effort?: Effort | null;
   /** Write a starting agent file for the role when there is none; an existing file is never overwritten */
   createFile?: boolean;
 }
@@ -2215,6 +2229,8 @@ export interface FlowRun {
   /** The member's agent file name, as `claude --agent` takes it */
   agent: string;
   model: string;
+  /** The effort the run started with; null when none was passed, absent on a run written before it was kept */
+  effort?: Effort | null;
   /** The provider the run's chat is on; `claude-code` on a run written before providers were chosen */
   provider?: ProviderId;
   /** Set while the run waits for its provider's limit to reset; null otherwise */
@@ -2704,6 +2720,8 @@ export interface AssistantRun {
   status: AssistantRunStatus;
   /** Model alias or id the chat ran with; `sonnet` unless the request chose another */
   model: string;
+  /** The effort the chat ran with; null when none was passed, absent on a run stored before it was kept */
+  effort?: Effort | null;
   /** What the person described: the one resource "Create with AI" builds, or what an empty project is for */
   description: string | null;
   /**
@@ -2784,6 +2802,8 @@ export interface StartAssistantRunRequest {
   kind: AssistantRunKind;
   /** Default `sonnet` (`DEFAULT_ASSISTANT_MODEL`) */
   model?: string;
+  /** Absent takes the recommendation for the model (`assistant`); none for a model it does not know */
+  effort?: Effort;
   /**
    * For a `resources` run, the one resource to build ("Create with AI"), with `resourceKind`; for a
    * `project` or `work-items` run, what the project is for when there is nothing to read
@@ -2813,6 +2833,10 @@ export interface ProposedTeamMember extends ProjectTeamRole {
   description: string;
   /** The agent file's body; empty lets the team service write its starting one */
   instructions: string;
+  /** The effort recommended for its model in the flow; null or absent for a model with no recommendation */
+  effort?: Effort | null;
+  /** Why that effort, as a code a client words; null or absent without one */
+  effortReason?: EffortReason | null;
 }
 
 /** A resource the assistant proposes: a whole file, opened in the editor before anything is saved. */
@@ -3077,6 +3101,8 @@ export interface OrchestrationTaskSpec {
   dependsOn?: string[];
   cwd?: string;
   model?: string;
+  /** Takes the orchestration's, then the recommendation for the model (`worker`); ignored on the `workflow` engine */
+  effort?: Effort;
   /** What this worker may spend before Agentry stops it; the graph's default when absent */
   limits?: TaskLimits;
   /**
@@ -3108,6 +3134,8 @@ export interface OrchestrationSpec {
   engineReason?: string;
   cwd?: string;
   model?: string;
+  /** For the workers that set none, the synthesizer, and, on the `workflow` engine, every task */
+  effort?: Effort;
   permissionMode?: PermissionMode;
   /** Max agents running in parallel (default 3) */
   concurrency?: number;
@@ -3152,6 +3180,8 @@ export interface TaskChainEntry {
   chatId: string;
   provider: ProviderId;
   model: string | null;
+  /** The effort it ran with; null when none was passed, absent on an entry written before it was kept */
+  effort?: Effort | null;
   /** How this chat came to be; the first chat of a task has none */
   action: LimitAction | null;
 }
@@ -3220,6 +3250,8 @@ export interface Orchestration {
   status: OrchestrationStatus;
   cwd: string;
   model: string | null;
+  /** The effort the graph was launched with, for the workers and the synthesizer that set none */
+  effort?: Effort | null;
   permissionMode: PermissionMode;
   concurrency: number;
   synthesize: boolean;
@@ -3310,6 +3342,8 @@ export interface VerificationSpec {
   maxAttempts: number;
   /** Model for the fixer; the graph's when absent */
   model?: string;
+  /** Effort for the fixer; absent takes the recommendation for its model (`fixer`) */
+  effort?: Effort;
   /** Minutes each command may run before it is killed and counts as failed (default 20) */
   timeoutMinutes?: number;
   /**
@@ -3372,6 +3406,8 @@ export interface VerificationFix {
   startedAt: string;
   endedAt: string | null;
   costUsd: number;
+  /** The effort the fixer ran with; null when none was passed, absent before it was kept */
+  effort?: Effort | null;
 }
 
 export interface VerificationState {
@@ -3581,6 +3617,8 @@ export interface PlanRequest {
   objective: string;
   cwd?: string;
   model?: string;
+  /** Absent takes the recommendation for the model (`planner`) */
+  effort?: Effort;
   maxTasks?: number;
 }
 
@@ -3626,6 +3664,7 @@ export interface LaunchOrchestrationTemplateRequest {
   /** Name of the orchestration; the template's when absent */
   name?: string;
   model?: string;
+  effort?: Effort;
 }
 
 // ---------- Configuration ----------
