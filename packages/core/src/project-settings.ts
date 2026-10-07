@@ -17,7 +17,7 @@ import type {
   WorkItemStatus,
   WorkItemType,
 } from '@agentry/shared';
-import { isTeamCommandPattern, MAX_CHECKS_FIX_ATTEMPTS, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@agentry/shared';
+import { EFFORT_LEVELS, isEffort, isTeamCommandPattern, MAX_CHECKS_FIX_ATTEMPTS, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
 import { parseProjectDecisions } from './decisions/settings.ts';
 import { parseOnLimit } from './providers/settings.ts';
@@ -191,7 +191,7 @@ function parseBoard(value: unknown): BoardSettings {
   return { types, columnLimits };
 }
 
-function parseTeam(value: unknown): ProjectTeamSettings {
+export function parseTeam(value: unknown): ProjectTeamSettings {
   if (!isObject(value) || !Array.isArray(value.members)) throw new Error('team.members must be an array');
   if (value.members.length > MAX_TEAM) throw new Error(`team has more than ${MAX_TEAM} members`);
   const members = value.members.map((raw: unknown, i): ProjectTeamMember => {
@@ -216,6 +216,11 @@ function parseTeam(value: unknown): ProjectTeamSettings {
         if (!isTeamCommandPattern(command)) throw new Error(`team member ${i} commands: not a command pattern: ${JSON.stringify(command)}`);
       }
       member.commands = [...new Set(raw.commands as string[])];
+    }
+    // null, like leaving it out, takes the recommendation for the member's model
+    if (raw.effort !== undefined && raw.effort !== null) {
+      if (!isEffort(raw.effort)) throw new Error(`team member ${i} effort must be one of ${EFFORT_LEVELS.join(', ')}`);
+      member.effort = raw.effort;
     }
     return member;
   });

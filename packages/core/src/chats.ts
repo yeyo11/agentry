@@ -572,7 +572,14 @@ export class ChatManager extends EventEmitter {
     const attachments = this.resolveAttachments(request.attachments);
     const chat = new LiveChat(
       randomUUID(),
-      { prompt: request.prompt, cwd: source.cwd, name: `${source.name} (fork)`.slice(0, 60), ...(source.model ? { model: source.model } : {}) },
+      {
+        prompt: request.prompt,
+        cwd: source.cwd,
+        name: `${source.name} (fork)`.slice(0, 60),
+        ...(source.model ? { model: source.model } : {}),
+        // A fork thinks as hard as its source did, unless the request says otherwise
+        ...(known?.effort ? { effort: known.effort } : {}),
+      },
       {},
       'agentry',
       { chatId: sourceId, at: now() },
@@ -895,7 +902,7 @@ export class ChatManager extends EventEmitter {
       cwd: chat.cwd,
       permissionMode: chat.permissionMode,
       ...(opts.model ? { model: opts.model } : {}),
-      ...(opts.effort ? { effort: opts.effort } : {}),
+      ...(chat.effort ? { effort: chat.effort } : {}),
       ...(opts.appendSystemPrompt ? { appendSystemPrompt: opts.appendSystemPrompt } : {}),
       ...(opts.allowedTools ? { allowedTools: opts.allowedTools } : {}),
       ...(opts.disallowedTools ? { disallowedTools: opts.disallowedTools } : {}),
