@@ -20,7 +20,48 @@ const SECRET_PATTERNS: readonly RegExp[] = [
   /\bAKIA[0-9A-Z]{16}\b/g,
   /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g,
   /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{12,}/gi,
+  // A chat's own API token, whatever names it: the prefix is there so a leaked one is recognised
+  /\bagc_[A-Za-z0-9_-]{20,}/g,
 ];
+
+/**
+ * Secrets Agentry itself holds, which no pattern can tell from other text: the owner's API token
+ * written as `T="…"` looks like any long word (seen leaving the machine in a decision's state on
+ * 2026-10-02). `values` are the ones kept in plain (the Jev key, the webhook secrets), masked
+ * wherever they appear; `isSecret` answers for one Agentry keeps only as a hash (the owner's and the
+ * desktop's token, the live chat tokens), asked about every word long enough to be one.
+ */
+export interface SecretRecognizer {
+  values(): readonly string[];
+  isSecret(word: string): boolean;
+}
+
+const recognizers = new Set<SecretRecognizer>();
+
+/** Registers what Agentry's own secrets are; the returned function takes it back (a test, a shutdown). */
+export function recognizeSecrets(recognizer: SecretRecognizer): () => void {
+  recognizers.add(recognizer);
+  return () => recognizers.delete(recognizer);
+}
+
+/**
+ * A word that could be a generated token or key: no shorter than the shortest Agentry accepts, and
+ * not starting or ending with a dot, so the full stop after a token in a sentence is not part of it
+ */
+const TOKEN_WORD = /[A-Za-z0-9_~+/=-][A-Za-z0-9._~+/=-]{22,}[A-Za-z0-9_~+/=-]/g;
+/** Shorter plain values would mask ordinary words */
+const MIN_KNOWN_VALUE = 12;
+
+function maskKnown(text: string): string {
+  if (recognizers.size === 0) return text;
+  let out = text;
+  for (const recognizer of recognizers) {
+    for (const value of recognizer.values()) {
+      if (value.length >= MIN_KNOWN_VALUE && out.includes(value)) out = out.split(value).join(SECRET_MASK);
+    }
+  }
+  return out.replace(TOKEN_WORD, (word) => ([...recognizers].some((r) => r.isSecret(word)) ? SECRET_MASK : word));
+}
 /** `API_KEY=abc`, `"password": "abc"`, `token: abc`; the name stays, the value goes */
 const SECRET_ASSIGNMENT = /\b([A-Za-z0-9_.-]*(?:secret|token|passw(?:or)?d|api[_-]?key|private[_-]?key|credential|auth)[A-Za-z0-9_.-]*)(["']?\s*[:=]\s*["']?)[^\s"',;}]{4,}/gi;
 /** A field named like this never carries text worth sending */
@@ -28,7 +69,7 @@ const SECRET_KEY = /(?:secret|token|passw(?:or)?d|api[_-]?key|private[_-]?key|cr
 
 /** The text with anything that looks like a secret replaced by the mask */
 export function maskSecrets(text: string): string {
-  let out = text;
+  let out = maskKnown(text);
   for (const pattern of SECRET_PATTERNS) {
     out = out.replace(pattern, (_match, scheme: unknown) => (typeof scheme === 'string' ? `${scheme} ${SECRET_MASK}` : SECRET_MASK));
   }
