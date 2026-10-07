@@ -752,15 +752,17 @@ test("a chat's token is honoured under OIDC too, under the same loopback rules",
   assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...fromChatWith(token, { mode: 'none' }) })).statusCode, 403);
 });
 
-test("an open wrapper stays open and records a chat's writes as local", async (t) => {
+test("an open wrapper stays open and labels a chat's writes as the chat, and a token that is not valid as local", async (t) => {
   const { app, core } = await wrapper();
   t.after(() => app.close());
   const token = core.security.chatTokens.mint('chat-42');
   assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...fromChatWith(token, { name: 'open' }) })).statusCode, 201);
   // Nothing guards it, so the chat's token administers nothing either way
   assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...fromChatWith(token, { readOnly: false }) })).statusCode, 200);
+  // The label is all the token does here: a wrong one is not refused, it is `local`
+  assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...fromChatWith('agentry_chat_wrong', { name: 'wrong' }) })).statusCode, 201);
   const entries = (await app.inject('/api/audit')).json().entries as Array<{ actor: string }>;
-  assert.ok(entries.every((entry) => entry.actor === 'local'));
+  assert.deepEqual(entries.map((entry) => entry.actor), ['local', 'chat:chat-42', 'chat:chat-42']);
 });
 
 test("the owner's token is still the owner's when chat tokens exist", async (t) => {

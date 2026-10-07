@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { DESKTOP_ACTOR, type Core, type RuntimeHosts } from '@agentry/core';
+import { DESKTOP_ACTOR, chatActor, type Core, type RuntimeHosts } from '@agentry/core';
 import { ROUTE_DOCS } from './openapi/routes.ts';
 
 /**
@@ -517,6 +517,13 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
         void reply.status(403).send({ error: "a chat's token cannot import, link, unlink or sync issues, or change a project's tracker" });
         return reply;
       }
+    }
+    // Open mode grants everything already, so a chat's token only labels who wrote: a missing, wrong
+    // or expired one leaves `local` and is never refused
+    if (mode === 'none' && req.actor === null) {
+      const presented = credentialOf(req, path);
+      const chatId = presented === undefined ? null : core.security.chatTokens.verify(presented);
+      if (chatId !== null) req.actor = chatActor(chatId);
     }
     req.actor ??= 'local';
 

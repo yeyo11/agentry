@@ -126,9 +126,10 @@ export function assistantChatOptions(launch: AgentryMcpLaunch, guide: string): A
     toolConfig: { preset: null, allowedTools: launch.allowedTools, disallowedTools: [], mcp: launch.mcp },
     mcp: launch.mcp,
     confine: launch.confine,
-    // Read tools under dontAsk: whatever is not allowed is denied, and nothing can bypass it
-    permissionMode: launch.permissionMode,
-    permissionPrompts: 'none',
+    // `manual` (the CLI's default), never acceptEdits, auto or bypassPermissions: the read tools are allowed ahead of time and no write tool
+    // is, so the CLI asks the person (a host prompt) before it runs one. Under dontAsk a write would be denied outright
+    permissionMode: 'manual',
+    permissionPrompts: 'host',
     uploads: false,
     keepAlive: true,
   };

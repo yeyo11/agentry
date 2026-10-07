@@ -35,6 +35,7 @@ import {
   type StartAssistantRunRequest,
   type WorkItem,
   type WorkItemActor,
+  type WorkItemCause,
   type WorkItemPriority,
   type WorkItemRef,
   type WorkItemType,
@@ -1013,7 +1014,7 @@ export class AssistantService {
    * `POST /assistant/proposals/:id/accept`, with what the person changed. The proposal is claimed
    * first, so two accepts cannot both write; if writing fails it is handed back, still pending.
    */
-  async accept(proposalId: string, input: unknown = {}, actor: WorkItemActor = PERSON): Promise<AssistantProposal> {
+  async accept(proposalId: string, input: unknown = {}, actor: WorkItemActor = PERSON, cause: WorkItemCause | null = null): Promise<AssistantProposal> {
     const edits = parseEdits(input);
     const row = this.proposalRow(proposalId);
     if (!row) throw new AssistantError('assistant proposal not found', 404);
@@ -1025,7 +1026,7 @@ export class AssistantService {
     if (!this.claim(row.id, 'pending', 'accepted', actor)) throw new AssistantError('the proposal was decided meanwhile', 409);
     let outcome: Outcome;
     try {
-      outcome = await this.perform(project, proposal, edits, actor);
+      outcome = await this.perform(project, proposal, edits, actor, cause);
     } catch (err) {
       this.sql.prepare("UPDATE assistant_proposals SET status = 'pending', decided_by_kind = NULL, decided_by_role = NULL, decided_at = NULL WHERE id = ? AND status = 'accepted'").run(row.id);
       throw err;
@@ -1076,7 +1077,7 @@ export class AssistantService {
     }
   }
 
-  private async perform(project: AssistantProject, proposal: AssistantProposal, edits: Edits, actor: WorkItemActor): Promise<Outcome> {
+  private async perform(project: AssistantProject, proposal: AssistantProposal, edits: Edits, actor: WorkItemActor, via: WorkItemCause | null): Promise<Outcome> {
     if (proposal.kind === 'team-member') {
       const m = { ...proposal.member, ...edits.member };
       const members = project.settings.team?.members ?? [];
@@ -1115,7 +1116,7 @@ export class AssistantService {
         epicId,
         acceptanceCriteria: w.acceptanceCriteria,
       },
-      { actor, cause: source ? { ...source, event: 'assistant.accepted' } : null },
+      { actor, cause: via ?? (source ? { ...source, event: 'assistant.accepted' } : null) },
     );
     if (proposal.reason.trim()) {
       try {
