@@ -1380,6 +1380,23 @@ the thread list of "Address with an agent" and the item panel is `.fix-panel`.
 - **The card's key (`.iss-fact`)** is `#31` with the issue icon in the facts line, `+1` for more; a done card whose
   sync failed carries a `wi-strip fail` with `Falló` and the reason.
 
+### The graph's shape, in the launch form and the graph editor
+
+Built for [CW-16](plans/graph-shape.md) and [the orchestrations guide](orchestrations.md). Under the
+task list of the launch form, the relaunch panel and the graph editor, one quiet line says how many
+stages the graph runs in and names its longest chain; nothing on it is live or coloured.
+
+- **`.graph-shape`** holds it, a `stack-tight`. **`.graph-shape-line`** is a `form-hint` with the
+  count in mono and tabular figures ("4 stages in series"), then ` · ` and **`.graph-shape-chain`**:
+  the task ids of the longest chain in mono, joined by `→`, as a `role="group"` named "Longest chain
+  of dependencies" so a screen reader reads it as one thing. Each id is a **`.graph-shape-id`** that wraps anywhere rather
+  than widen the form on a phone.
+- **Over four stages** a `.alert.alert-info` **`.graph-shape-note`** says the longest chain sets how
+  long the orchestration takes, and how to shorten it (fold a types-only task into the first
+  implementation task; make docs depend on the implementation, not on the review). It is advice, not a status: info, no
+  action, and it does not animate in (`animation: none`).
+- A graph of one stage says "1 stage, all in parallel" and names no chain.
+
 ## 3. Live states and motion
 
 | Situation | Pattern |

@@ -2022,3 +2022,9 @@ a.cont-from:hover { color: var(--fg); }
 .m-screen .cont-body { max-width: none; flex: 1 1 auto; }
 .m-screen .cont-line { display: none; }
 /* ---------- end of Rotation, the chat ---------- */
+
+/* ---------- 20. The graph's shape (CW-16): stages and the longest chain under a graph's tasks ---------- */
+.graph-shape-line { font-variant-numeric: tabular-nums; }
+.graph-shape-chain { font-family: var(--mono); }
+.graph-shape-id { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+.graph-shape-note { animation: none; }
