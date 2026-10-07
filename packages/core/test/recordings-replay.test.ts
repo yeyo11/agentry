@@ -82,7 +82,6 @@ test('a call nobody recorded exits 97 and says so on stderr', () => {
 
   const otherStdin = run('glab', ['mr', 'note', 'create', '4', '-R', 'yeyo11/agentry'], {}, 'a body nobody recorded\n');
   assert.equal(otherStdin.status, 97, 'stdin is part of the call');
-  assert.equal(run('acli', ['--version']).status, 97, 'no tracker is recorded yet');
 });
 
 test('host, repository and ids are templated, so another repository gets the same recorded answer', () => {

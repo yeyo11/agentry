@@ -44,13 +44,10 @@ after(async () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test('every tracker is listed: Jira is unknown because nobody recorded it, YouTrack is recorded with its floor', async () => {
+test('every tracker is listed, YouTrack with its recorded floor, and Jira is not one', async () => {
   const all = (await app.inject('/api/trackers')).json<TrackerStatus[]>();
-  assert.deepEqual(all.map((s) => s.id), ['github-issues', 'gitlab-issues', 'jira', 'youtrack']);
-  const jira = (await app.inject('/api/trackers/jira')).json<TrackerStatus>();
-  assert.equal(jira.state, 'unknown');
-  assert.equal(jira.reason, 'not-recorded');
-  assert.equal(jira.binaryPath, null);
+  assert.deepEqual(all.map((s) => s.id), ['github-issues', 'gitlab-issues', 'youtrack']);
+  assert.equal((await app.inject('/api/trackers/jira')).statusCode, 404);
   const youtrack = (await app.inject('/api/trackers/youtrack')).json<TrackerStatus>();
   assert.notEqual(youtrack.reason, 'not-recorded');
   assert.equal(youtrack.minimum, '1.0.3');
@@ -75,7 +72,7 @@ test('tracker settings read as the defaults, persist in trackers.json and refuse
   assert.equal((await app.inject('/api/trackers/gitlab-issues')).json<TrackerStatus>().state, 'unknown');
 
   const before = (await app.inject('/api/trackers/settings')).json();
-  for (const bad of [{ trackers: { nope: { enabled: true } } }, { trackers: { jira: { binaryPath: 'acli' } } }, { trackers: { jira: { enabled: 'yes' } } }, []]) {
+  for (const bad of [{ trackers: { nope: { enabled: true } } }, { trackers: { jira: { enabled: true } } }, { trackers: { youtrack: { enabled: 'yes' } } }, []]) {
     assert.equal((await app.inject({ method: 'PUT', url: '/api/trackers/settings', ...json(bad) })).statusCode, 400, JSON.stringify(bad));
   }
   assert.deepEqual((await app.inject('/api/trackers/settings')).json(), before);
@@ -113,15 +110,9 @@ test('the tracker issues and the import are refused with a reason when they cann
   assert.equal((await app.inject(issues)).statusCode, 409);
   assert.equal((await app.inject({ method: 'POST', url: importUrl, ...json({ keys: ['1'] }) })).statusCode, 409);
 
-  // Jira has no recording: nothing is called, and the answer says why
+  // Jira is not a tracker Agentry supports
   const jira = { id: 'jira', scope: 'PROJ', query: '', statusMap: {} };
-  assert.equal((await app.inject({ method: 'PUT', url: `/api/projects/${project.id}/tracker`, ...json(jira) })).statusCode, 200);
-  const listed = await app.inject(issues);
-  assert.equal(listed.statusCode, 409);
-  assert.equal(listed.json<{ code: string }>().code, 'not-recorded');
-  const imported = await app.inject({ method: 'POST', url: importUrl, ...json({ keys: ['PROJ-1'] }) });
-  assert.equal(imported.statusCode, 409);
-  assert.equal(imported.json<{ code: string }>().code, 'not-recorded');
+  assert.equal((await app.inject({ method: 'PUT', url: `/api/projects/${project.id}/tracker`, ...json(jira) })).statusCode, 400);
 
   // The request itself is checked before the tracker is
   assert.equal((await app.inject(`${issues}?page=0`)).statusCode, 400);

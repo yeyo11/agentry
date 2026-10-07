@@ -13,11 +13,11 @@ export const trackerHost = (id: TrackerId): CodeHostId | null => TRACKER_HOST[id
 const PLAIN_KEY = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
 /**
- * The keys a change request's title carries: only Jira and YouTrack, whose integrations link by a
+ * The keys a change request's title carries: only YouTrack's, whose integration links by a
  * key in the title. GitHub and GitLab link from the body, so their titles stay as they were.
  */
 export function titleIssueKeys(issues: readonly Pick<IssueRef, 'tracker' | 'key'>[]): string[] {
-  return issues.filter((i) => (i.tracker === 'jira' || i.tracker === 'youtrack') && PLAIN_KEY.test(i.key)).map((i) => i.key);
+  return issues.filter((i) => i.tracker === 'youtrack' && PLAIN_KEY.test(i.key)).map((i) => i.key);
 }
 
 export interface LinkedIssueContext {
@@ -33,7 +33,7 @@ export interface LinkedIssueContext {
  * The lines of a change request's "Linked issue" section. On GitHub and GitLab: `Closes #12` when the
  * tracker is the request's own host and the base is the default branch, the bare reference
  * otherwise (`#12`, or `group/project#12` when the issue is in another repository). The key of a
- * Jira or YouTrack issue is always written as it is. The repository is the one on the link. An issue of a tracker the project no longer
+ * YouTrack issue is always written as it is. The repository is the one on the link. An issue of a tracker the project no longer
  * uses is left out: where it lives is not known.
  */
 export function linkedIssueLines(issues: readonly Pick<IssueRef, 'tracker' | 'scope' | 'key'>[], tracker: Pick<ProjectTrackerSettings, 'id'>, ctx: LinkedIssueContext): string[] {

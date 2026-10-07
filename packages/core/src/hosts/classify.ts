@@ -117,8 +117,8 @@ function classifyYoutrack(parsed: Parsed): HostCall['kind'] {
   return 'read';
 }
 
-/** How many command words after the group can carry the verb: `mr note create`, `jira workitem comment create` */
-const VERB_WINDOW: Record<'gh' | 'glab' | 'acli', number> = { gh: 2, glab: 2, acli: 4 };
+/** How many command words after the group can carry the verb: `mr note create` */
+const VERB_WINDOW: Record<'gh' | 'glab', number> = { gh: 2, glab: 2 };
 
 /** `read` or `write`, from the argv alone */
 export function classifyCall(call: Pick<HostCall, 'cli' | 'args' | 'input'>): HostCall['kind'] {

@@ -551,9 +551,11 @@ test("a project's tracker is validated by tracker: repository, status map and qu
     query: '',
     statusMap: {},
   });
-  // Jira and YouTrack are not recorded: a scope is one token and the statuses are the tracker's own words
-  const jira = { id: 'jira', scope: 'CW', query: '', statusMap: { in_progress: 'In Progress', in_review: 'In Review', done: 'Done' } };
-  assert.deepEqual(parseProjectSettings(withTracker(jira)).tracker, jira);
+  // A YouTrack scope is one token, the project's short name, and the statuses are its own State names
+  const youtrack = { id: 'youtrack', scope: 'CW', query: '', statusMap: { in_progress: 'In Progress', in_review: 'In Review', done: 'Done' } };
+  assert.deepEqual(parseProjectSettings(withTracker(youtrack)).tracker, youtrack);
+  // Jira is not a tracker any more
+  assert.throws(() => parseProjectSettings(withTracker({ ...youtrack, id: 'jira' })), /unknown tracker/);
   assert.equal(parseProjectSettings(withTracker(null)).tracker, undefined);
   const refused: Array<[unknown, RegExp]> = [
     ['x', /tracker must be an object/],
@@ -562,12 +564,12 @@ test("a project's tracker is validated by tracker: repository, status map and qu
     [{ ...gh, scope: 'acme' }, /owner\/repo/],
     [{ ...gh, scope: 'a/b/c' }, /owner\/repo/],
     [{ ...gh, id: 'gitlab-issues', scope: 'shop' }, /group\/project/],
-    [{ ...jira, scope: 'C W' }, /spaces/],
+    [{ ...youtrack, scope: 'C W' }, /spaces/],
     [{ ...gh, query: 3 }, /query must be a string/],
     [{ ...gh, query: 'x'.repeat(1001) }, /longer than/],
     [{ ...gh, statusMap: [] }, /statusMap must be an object/],
-    [{ ...jira, statusMap: { todo: 'To Do' } }, /statusMap column/],
-    [{ ...jira, statusMap: { done: ' ' } }, /non-empty/],
+    [{ ...youtrack, statusMap: { todo: 'To Do' } }, /statusMap column/],
+    [{ ...youtrack, statusMap: { done: ' ' } }, /non-empty/],
     [{ ...gh, statusMap: { in_progress: 'completed' } }, /maps only done/],
     [{ ...gh, statusMap: { done: 'Done' } }, /maps only done/],
   ];

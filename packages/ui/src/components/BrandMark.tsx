@@ -15,7 +15,6 @@ const BRAND_OF: Readonly<Record<string, string>> = {
   'github-issues': 'github',
   gitlab: 'gitlab',
   'gitlab-issues': 'gitlab',
-  jira: 'jira',
   youtrack: 'youtrack',
   'claude-code': 'claude-code',
   codex: 'codex',

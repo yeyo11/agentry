@@ -13221,7 +13221,7 @@
       },
       "scope": {
         "type": "string",
-        "description": "The repository for GitHub and GitLab, a Jira project key, a YouTrack project short name"
+        "description": "The repository for GitHub and GitLab, a YouTrack project short name"
       },
       "query": {
         "type": "string",
@@ -13256,10 +13256,9 @@
     "enum": [
       "github-issues",
       "gitlab-issues",
-      "jira",
       "youtrack"
     ],
-    "description": "The issue trackers Agentry knows. Closed: adding one is a code change. `github-issues`, `gitlab-issues` and `youtrack` have an adapter; `jira` is in the registry with the readiness `unknown` and the reason `not-recorded` until `acli` is recorded."
+    "description": "The issue trackers Agentry knows. Closed: adding one is a code change."
   },
   "ProjectProvidersSettings": {
     "type": "object",
@@ -14028,7 +14027,7 @@
       },
       "key": {
         "type": "string",
-        "description": "What the person reads: `12` on GitHub and GitLab, `PROJ-12` on Jira and YouTrack"
+        "description": "What the person reads: `12` on GitHub and GitLab, `PROJ-12` on YouTrack"
       },
       "scope": {
         "type": [
@@ -18730,7 +18729,7 @@
             "type": "null"
           }
         ],
-        "description": "The code host a tracker reuses the CLI and the sign-in of; null for `jira` and `youtrack`, which have CLIs of their own"
+        "description": "The code host a tracker reuses the CLI and the sign-in of; null for `youtrack`, which has a CLI of its own"
       },
       "binaryPath": {
         "type": [
@@ -18846,9 +18845,6 @@
           "gitlab-issues": {
             "$ref": "#/components/schemas/TrackerSettingsEntry"
           },
-          "jira": {
-            "$ref": "#/components/schemas/TrackerSettingsEntry"
-          },
           "youtrack": {
             "$ref": "#/components/schemas/TrackerSettingsEntry"
           }
@@ -18856,7 +18852,6 @@
         "required": [
           "github-issues",
           "gitlab-issues",
-          "jira",
           "youtrack"
         ]
       }
