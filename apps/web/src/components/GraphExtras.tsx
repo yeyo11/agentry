@@ -6,6 +6,7 @@ import { graphShape } from '../lib/orchestration-steps';
 import { limitsOf, type InstallMode, type VerificationDraft } from '../lib/orchestration-v2';
 import { NumberInput, Select, Switch } from '@agentry/ui/components/controls';
 import { Field } from '@agentry/ui/components/ui';
+import { EffortField } from './EffortPicker';
 import { ModelCombobox } from './ui';
 
 const INSTALL_MODES: readonly InstallMode[] = ['detected', 'command', 'none'];
@@ -104,6 +105,7 @@ export function VerificationFields({ value, onChange }: { value: VerificationDra
                   onChange={(model) => onChange({ ...value, model })}
                 />
               </Field>
+              <EffortField value={value.effort ?? ''} onChange={(effort) => onChange({ ...value, effort: effort || undefined })} model={value.model} use="fixer" />
               <Field label={t('verification.maxCost')} hint={t('verification.maxCostHint')}>
                 <NumberInput
                   aria-label={t('verification.maxCost')}

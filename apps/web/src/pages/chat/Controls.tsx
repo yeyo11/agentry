@@ -1,8 +1,10 @@
-import type { Chat, PermissionMode } from '@agentry/shared';
+import type { Chat, Effort, PermissionMode } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatToolsPicker } from '../../components/ChatToolsPicker';
+import { EffortField } from '../../components/EffortPicker';
+import { useEffortUnavailable } from '../../lib/provider-status';
 import { Select } from '@agentry/ui/components/controls';
 import { ErrorBox, Tag } from '@agentry/ui/components/ui';
 import { ModelCombobox, PERMISSION_MODES } from '../../components/ui';
@@ -85,10 +87,25 @@ export function LiveOptions({ chat }: { chat: Chat }) {
   );
 }
 
+/**
+ * `StartChoices` is spread into the resume and fork request as it is, so the effort rides in it. The
+ * chat package does not name the key, hence the wider type here.
+ */
+type StartEffort = StartChoices & { effort?: Effort };
+
+export function withEffort(value: StartChoices, effort: Effort | ''): StartChoices {
+  const next: StartEffort = { ...value };
+  if (effort) next.effort = effort;
+  else delete next.effort;
+  return next;
+}
+
 /** What a resume or a fork may start with; left alone, it starts as the chat last ran. */
 export function StartOptions({ chat, value, onChange, forking }: { chat: Chat; value: StartChoices; onChange: (next: StartChoices) => void; forking: boolean }) {
   const { t } = useTranslation(['chat', 'work']);
   const last = chat.executions.at(-1);
+  const chosen: StartEffort = value;
+  const unavailable = useEffortUnavailable(chat.provider);
   return (
     <div className="chat-options">
       <label>
@@ -109,6 +126,14 @@ export function StartOptions({ chat, value, onChange, forking }: { chat: Chat; v
           onChange={(model) => onChange({ ...value, model: model.trim() ? model : undefined })}
         />
       </label>
+      <EffortField
+        value={chosen.effort ?? ''}
+        onChange={(effort) => onChange(withEffort(value, effort))}
+        model={value.model ?? last?.model ?? chat.model}
+        use="chat"
+        inherited={last?.effort}
+        unavailable={unavailable}
+      />
       <ChatToolsPicker value={value} onChange={(tools) => onChange({ ...value, ...tools })} scope={{ projectId: chat.project?.id }} current={chat.tools ?? null} forking={forking} />
     </div>
   );

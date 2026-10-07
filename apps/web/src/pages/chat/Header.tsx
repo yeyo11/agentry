@@ -91,7 +91,9 @@ function headingFacts(chat: Chat): { where: string; model: string | null | undef
   const dir = chat.cwd.split(/[\\/]/).filter(Boolean).at(-1);
   const project = chat.project?.name ?? dir;
   const model = chat.execution?.model ?? chat.executions.at(-1)?.model ?? chat.model;
-  return { where: [project, chat.id.slice(0, 6)].filter((fact): fact is string => Boolean(fact)).join(' · '), model };
+  // The effort the process was started with, beside the model it ran on
+  const effort = chat.execution?.effort ?? chat.executions.at(-1)?.effort;
+  return { where: [project, chat.id.slice(0, 6)].filter((fact): fact is string => Boolean(fact)).join(' · '), model: model && effort ? `${model} · ${effort}` : model };
 }
 
 export interface HeaderActions {

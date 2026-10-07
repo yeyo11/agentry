@@ -1,6 +1,8 @@
 import { existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import {
+  EFFORT_LEVELS,
+  isEffort,
   PERMISSION_MODES,
   WORK_ITEM_STATUSES,
   workItemBranch,
@@ -113,6 +115,7 @@ export function startOptions(request: ChatStartOptions | undefined): ChatStartOp
     const value = r[key];
     if (value === undefined) continue;
     if (typeof value !== 'string') throw new WorkItemError(`${key} must be a string`, 400);
+    if (key === 'effort' && !isEffort(value)) throw new WorkItemError(`effort must be one of ${EFFORT_LEVELS.join(', ')}`, 400);
     (options as Record<string, string>)[key] = value;
   }
   for (const key of ['allowedTools', 'disallowedTools'] as const) {

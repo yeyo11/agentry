@@ -835,6 +835,12 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 /* The model of a role, in mono. Neutral: a model is a choice, not a state. */
 .model-tag { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: var(--r-xs); background: var(--bg-3); border: 1px solid var(--line); font-family: var(--mono); font-size: 11px; color: var(--fg-2); white-space: nowrap; }
 .model-tag.opus::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--fg-2); }
+/* The effort a run used, beside its model (.effort-tag), and the picker that sets it (.effort-pick, .effort-level, .effort-costly): xhigh and max carry a warn "costly" word. */
+.effort-tag { gap: 0; }
+.effort-pick { display: inline-block; min-width: 0; max-width: 100%; }
+.effort-pick .select-trigger { font-family: var(--mono); font-size: 13px; }
+.effort-level { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 13px; }
+.effort-costly { padding: 0 6px; border-radius: var(--r-xs); background: var(--warn-soft); color: var(--warn); font-size: 11px; }
 /* A path a role may write, or may not (.deny, struck through). */
 .scope { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 7px; border-radius: var(--r-xs); border: 1px solid var(--line-2); font-family: var(--mono); font-size: 11px; color: var(--fg-2); white-space: nowrap; }
 .scope.deny { border-style: dashed; color: var(--fg-3); text-decoration: line-through; text-decoration-color: var(--line-3); }

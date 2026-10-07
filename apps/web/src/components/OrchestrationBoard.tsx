@@ -29,6 +29,7 @@ import { useId, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
+import { EffortTag } from './EffortPicker';
 import { useDetailPanel } from '../lib/detail';
 import { attemptLabel, blockedBy, decisionsOn, waitingSummary } from '../lib/orchestration-board';
 import { durationBetween, formatCost } from '@agentry/ui/lib/format';
@@ -527,6 +528,8 @@ function TaskBody({ orch, task, inspected, onInspect }: { orch: Orchestration; t
             </span>
           )}
           {task.model && <span className="mono">{task.model}</span>}
+          {/* What the task's last chat ran with, beside its model */}
+          <EffortTag effort={task.chain?.at(-1)?.effort} />
           {/* The branch is how the work is found afterwards, so it is worth the space */}
           {task.branch && (
             <span className="mono ellipsis" title={task.worktree ?? undefined}>

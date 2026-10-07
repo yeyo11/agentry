@@ -80,7 +80,7 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 
 - **The decision engine's shadow period.** Nothing has been measured yet. All 22 points have a
   resolver (CW-28 added `palette.intent`, `notification.urgency` and `orchestration.model`), and the `cli` provider
-  waits for CW-4's quota hold and CW-25's effort control; see the plan's
+  waits for CW-4's quota hold and, now that CW-25's effort control has landed ([effort.md](effort.md)), only on that hold; see the plan's
   [Outcome](plans/decision-engine.md#outcome).
 - **The project ecosystem** was merged into `main` in #118 and is no longer open as a whole; see the
   plan's [Outcome](plans/project-ecosystem.md#the-ecosystem-as-a-whole) and the Known gaps of

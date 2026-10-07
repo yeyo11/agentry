@@ -6,7 +6,10 @@ import {
   ASSISTANT_RESOURCE_KINDS,
   ASSISTANT_RUN_KINDS,
   DEFAULT_ASSISTANT_MODEL,
+  EFFORT_LEVELS,
   assistantResourcePath,
+  isEffort,
+  recommendedEffort,
   type AcceptAssistantProposalRequest,
   type AgentryEvent,
   type AssistantFinding,
@@ -24,6 +27,7 @@ import {
   type AssistantSource,
   type ChatActivity,
   type ConfigScopeKind,
+  type Effort,
   type Localized,
   type PermissionMode,
   type ProjectSettings,
@@ -51,6 +55,7 @@ import {
   CONTENT_MAX,
   DESCRIPTION_MAX as MEMBER_DESCRIPTION_MAX,
   parseAnswer,
+  recommendedMemberEffort,
   RESOURCE_NAME,
   RESUME_PROMPT,
   type AssistantAnswer,
@@ -128,6 +133,8 @@ export interface AssistantLaunch {
   run: AssistantRun;
   cwd: string;
   model: string;
+  /** What was chosen, or the recommendation for the model; null for none. A provider without `effort` is passed none */
+  effort: Effort | null;
   prompt: string;
   appendSystemPrompt: string;
   jsonSchema: Record<string, unknown>;
@@ -149,7 +156,7 @@ export interface AssistantDeps {
   project(projectId: string): Promise<AssistantProject>;
   known(project: AssistantProject): Promise<AssistantKnown>;
   /** Starts (or continues) the run's chat; `onStart` hears of it in the tick its process is spawned */
-  launch(launch: AssistantLaunch, onStart: (chatId: string, provider?: ProviderId) => void): Promise<void>;
+  launch(launch: AssistantLaunch, onStart: (chatId: string, provider?: ProviderId, effort?: Effort | null) => void): Promise<void>;
   chatBusy(chatId: string): boolean;
   stop(chatId: string): void;
   /** The rotation has the chat's usage limit: it is deciding, waiting for the reset or moving the run; the run stays running */
@@ -283,6 +290,8 @@ interface RunRow {
   kind: string;
   status: string;
   model: string;
+  /** Null when none was passed, and on a row written before the column */
+  effort: string | null;
   description: string | null;
   focus: string | null;
   language: string | null;
@@ -432,14 +441,15 @@ export class AssistantService {
       }
       this.sql
         .prepare(
-          `INSERT INTO assistant_runs (id, project_id, kind, status, model, description, focus, language, resource_kind, empty, template, proposes, base_sources, reads, supersedes, started_at)
-           VALUES (?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
+          `INSERT INTO assistant_runs (id, project_id, kind, status, model, effort, description, focus, language, resource_kind, empty, template, proposes, base_sources, reads, supersedes, started_at)
+           VALUES (?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
           projectId,
           request.kind,
           request.model,
+          request.effort,
           request.description,
           request.focus,
           language,
@@ -474,6 +484,7 @@ export class AssistantService {
   private parseStart(input: unknown): {
     kind: AssistantRunKind;
     model: string;
+    effort: Effort | null;
     description: string | null;
     focus: string | null;
     resourceKind: AssistantResourceKind | null;
@@ -486,6 +497,13 @@ export class AssistantService {
     if (body.model !== undefined && body.model !== null) {
       if (typeof body.model !== 'string' || !MODEL.test(body.model.trim())) throw new AssistantError('model must be a model alias or id', 400);
       model = body.model.trim();
+    }
+    let effort: Effort | null = null;
+    if (body.effort !== undefined && body.effort !== null) {
+      if (!isEffort(body.effort)) throw new AssistantError(`effort must be one of ${EFFORT_LEVELS.join(', ')}`, 400);
+      effort = body.effort;
+    } else {
+      effort = recommendedEffort(model, 'assistant');
     }
     let description: string | null = null;
     if (body.description !== undefined && body.description !== null) {
@@ -511,7 +529,7 @@ export class AssistantService {
     if (kind === 'resources' && description && !resourceKind) throw new AssistantError('a resource built from a description needs its resourceKind', 400);
     if (resourceKind && !description) throw new AssistantError('resourceKind needs the description of the resource to build', 400);
     if (body.supersede !== undefined && typeof body.supersede !== 'boolean') throw new AssistantError('supersede must be a boolean', 400);
-    return { kind, model, description, focus, resourceKind, supersede: body.supersede === true };
+    return { kind, model, effort, description, focus, resourceKind, supersede: body.supersede === true };
   }
 
   private kindOf(value: unknown): AssistantRunKind {
@@ -560,6 +578,7 @@ export class AssistantService {
       run: this.runOf(row),
       cwd: project.path,
       model: row.model,
+      effort: isEffort(row.effort) ? row.effort : null,
       prompt: resumeChatId ? RESUME_PROMPT : assistantPrompt(brief, row.model),
       appendSystemPrompt: systemPrompt(known.journal, known.instructions),
       jsonSchema: assistantSchema(brief),
@@ -572,9 +591,10 @@ export class AssistantService {
     };
     let started = false;
     try {
-      await this.deps.launch(launch, (chatId) => {
+      await this.deps.launch(launch, (chatId, _provider, effort) => {
         started = true;
-        this.sql.prepare("UPDATE assistant_runs SET chat_id = ? WHERE id = ? AND status = 'running'").run(chatId, row.id);
+        // What the chat was started with, which a provider without `effort` leaves null
+        this.sql.prepare("UPDATE assistant_runs SET chat_id = ?, effort = CASE WHEN ? = 1 THEN ? ELSE effort END WHERE id = ? AND status = 'running'").run(chatId, effort === undefined ? 0 : 1, effort ?? null, row.id);
         this.prompts.set(chatId, launch.prompt);
         if (row.kind === 'resources' && row.description && row.resource_kind) this.drafting.set(chatId, row.id);
         this.announce(row.id, 'read');
@@ -609,7 +629,7 @@ export class AssistantService {
         for (let n = 2; agents.has(agent); n++) agent = `${r.role}-${String(n)}`;
         agents.add(agent);
         return {
-          member: { ...r, agent, writes: TEMPLATE_WRITES[r.role] ?? [], fromTemplate: true, description: r.responsibility, instructions: '' },
+          member: { ...r, ...recommendedMemberEffort(r.model), agent, writes: TEMPLATE_WRITES[r.role] ?? [], fromTemplate: true, description: r.responsibility, instructions: '' },
           reason: `One of the template's roles: ${r.responsibility}.`,
         };
       });
@@ -1243,6 +1263,7 @@ export class AssistantService {
       kind: row.kind as AssistantRunKind,
       status,
       model: row.model,
+      effort: isEffort(row.effort) ? row.effort : null,
       description: row.description,
       ...(row.kind === 'work-items' ? { focus: row.focus } : {}),
       ...(row.language ? { language: assistantLanguage(row.language) } : {}),

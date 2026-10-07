@@ -1,6 +1,9 @@
 import { dirname, resolve } from 'node:path';
 import {
+  EFFORT_LEVELS,
   entrySearchText,
+  isEffort,
+  recommendedEffort,
   searchPattern,
   TranscriptSearch,
   TRANSCRIPT_PAGE_MAX,
@@ -144,6 +147,14 @@ export class CapabilityRefusal extends Error {
     what: string,
   ) {
     super(`${what} needs the "${capability}" capability, which ${provider} does not have`);
+  }
+}
+
+/** An effort that is not one of the levels the CLI takes: the caller's to change. */
+export class EffortRefusal extends Error {
+  readonly statusCode = 400;
+  constructor() {
+    super(`effort must be one of ${EFFORT_LEVELS.join(', ')}`);
   }
 }
 
@@ -677,10 +688,11 @@ export class ChatService {
    */
   private gate(
     requested: ProviderId | undefined,
-    options: Pick<ChatStartOptions, 'maxBudgetUsd' | 'permissionPrompts'> & { account?: unknown },
+    options: Pick<ChatStartOptions, 'maxBudgetUsd' | 'permissionPrompts' | 'effort'> & { account?: unknown },
     asks: { schema?: boolean; worktree?: boolean; fork?: boolean; interrupt?: boolean; setModel?: boolean } = {},
   ): ProviderId {
     if (options.account !== undefined) throw new AccountsRetired();
+    if (options.effort !== undefined && options.effort !== null && !isEffort(options.effort)) throw new EffortRefusal();
     const provider = this.deps.runtime.driverFor(requested).manifest.id;
     const has = new Set(this.deps.runtime.providers.capabilities(provider));
     const need = (capability: ProviderCapability, asked: boolean, what: string): void => {
@@ -690,6 +702,7 @@ export class ChatService {
     need('interrupt', asks.interrupt === true, 'An interrupt');
     need('setModel', asks.setModel === true, 'Switching the model');
     need('worktreeFlag', asks.worktree === true, 'A worktree');
+    need('effort', options.effort !== undefined && options.effort !== null, 'An effort');
     need('budgetLimit', options.maxBudgetUsd !== undefined, 'A budget');
     need('interactivePermissions', options.permissionPrompts === 'host', 'Host prompts');
     need('fork', asks.fork === true, 'A fork');
@@ -729,7 +742,9 @@ export class ChatService {
       const toolConfig: ChatToolConfig | undefined = request.policy
         ? { ...(chosen?.toolConfig ?? { preset: null, allowedTools: request.allowedTools ?? [], disallowedTools: request.disallowedTools ?? [], mcp: null }), policy: request.policy }
         : undefined;
-      started = this.deps.runtime.start({ ...request, ...chosen, ...(toolConfig ? { toolConfig } : {}), provider });
+      // A new chat thinks as hard as the guides recommend for its model; a provider without `effort` is passed none
+      const effort = request.effort ?? recommendedEffort(request.model, 'chat') ?? undefined;
+      started = this.deps.runtime.start({ ...request, ...(effort ? { effort } : {}), ...chosen, ...(toolConfig ? { toolConfig } : {}), provider });
       onStart?.(started);
     } catch (err) {
       throw startFailure(err);

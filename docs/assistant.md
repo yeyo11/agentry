@@ -133,7 +133,7 @@ and a third.
   answer.";
 - **a member's model** is recommended as the guides place the two: `opus` for the roles that carry
   the hardest long-horizon work, `sonnet` for the others. Each proposal's `reason` says why its
-  model fits (`MODEL_CHOICE`). Recommending a member's effort waits for CW-25.
+  model fits (`MODEL_CHOICE`). Its effort is recommended too: `recommendedMemberEffort` gives each proposal an effort and a reason code (see [effort.md](effort.md)).
 
 **An answer cut by the token limit fails the run.** A turn whose last `stop_reason` in the CLI's
 stream-json is `max_tokens` can still end with JSON that parses and is missing what it was writing.

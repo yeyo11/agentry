@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
+import { EffortTag } from '../../components/EffortPicker';
 import { ProposedWorkItemMeta } from '../../components/assistant/run';
 import { DecisionMark } from '../../components/DecisionMark';
 import { ICON, ICON_SM } from '@agentry/ui/components/icons';
@@ -138,6 +139,7 @@ export function MemberProposalRow({ proposal, decide, phone, compact = false }: 
   const meta = (
     <div className="suggestion-meta">
       <ModelTag model={member.model} />
+      <EffortTag effort={member.effort} recommended />
       {!compact && (
         <>
           {!phone && <span aria-hidden>·</span>}

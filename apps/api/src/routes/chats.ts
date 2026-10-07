@@ -192,6 +192,8 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
 
   app.patch<{ Params: { id: string }; Body: ChatSettingsUpdate }>('/chats/:id', (req) => {
     const { permissionMode, model } = req.body ?? {};
+    // A live process cannot change how hard it thinks: a new effort applies from the next one, on resume
+    if ('effort' in (req.body ?? {})) throw new Error('effort cannot change on a live chat: give it when the chat is resumed');
     if (permissionMode !== undefined && !PERMISSION_MODES.includes(permissionMode)) {
       throw new Error(`permissionMode must be one of ${PERMISSION_MODES.join(', ')}`);
     }

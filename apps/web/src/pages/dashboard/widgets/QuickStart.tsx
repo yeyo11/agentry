@@ -1,4 +1,4 @@
-import type { NewChatRequest, PermissionMode } from '@agentry/shared';
+import type { Effort, NewChatRequest, PermissionMode } from '@agentry/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { SendHorizontal } from 'lucide-react';
 import { useState } from 'react';
@@ -9,6 +9,7 @@ import { ChatToolsPicker, type ToolChoices } from '../../../components/ChatTools
 import { Collapsible, Select } from '@agentry/ui/components/controls';
 import { ICON_SM } from '@agentry/ui/components/icons';
 import { ErrorBox, Field } from '@agentry/ui/components/ui';
+import { EffortField } from '../../../components/EffortPicker';
 import { ModelCombobox, PERMISSION_MODES } from '../../../components/ui';
 import type { WidgetProps } from '../registry';
 import { WidgetCard } from '../WidgetCard';
@@ -24,6 +25,7 @@ export default function QuickStartWidget({ project, title, id }: WidgetProps) {
   const presets = useQuery({ queryKey: keys.toolPresets, queryFn: api.toolPresets });
   const [prompt, setPrompt] = useState('');
   const [model, setModel] = useState('');
+  const [effort, setEffort] = useState<Effort | ''>('');
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [tools, setTools] = useState<ToolChoices>({});
 
@@ -33,6 +35,7 @@ export default function QuickStartWidget({ project, title, id }: WidgetProps) {
       const opts: NewChatRequest = { prompt: prompt.trim(), permissionPrompts: 'host' };
       if (project) opts.cwd = project.path;
       if (model.trim()) opts.model = model.trim();
+      if (effort) opts.effort = effort;
       if (permissionMode) opts.permissionMode = permissionMode;
       if (tools.toolPreset !== undefined) opts.toolPreset = tools.toolPreset;
       if (tools.mcp) opts.mcp = tools.mcp;
@@ -95,6 +98,7 @@ export default function QuickStartWidget({ project, title, id }: WidgetProps) {
             <Field label={t('chats:new.model')}>
               <ModelCombobox aria-label={t('chats:new.model')} placeholder={t('chats:new.modelPlaceholder')} value={model} onChange={setModel} />
             </Field>
+            <EffortField value={effort} onChange={setEffort} model={model} use="chat" />
             <Field label={t('chats:new.permissionMode')}>
               <Select<PermissionMode | ''>
                 aria-label={t('chats:new.permissionMode')}
