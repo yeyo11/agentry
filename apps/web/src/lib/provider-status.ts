@@ -86,6 +86,17 @@ export function useNewChatProviders(): ProviderStatus[] {
   }, [statuses, defaultProvider]);
 }
 
+/**
+ * Why an effort cannot be chosen for a provider, or undefined when it can: only a driver that
+ * declares `effort` is passed one. An empty id is the default agent (Claude Code); until the list is
+ * read the control stays usable, as nothing says otherwise.
+ */
+export function useEffortUnavailable(provider: ProviderId | null | undefined): 'provider' | undefined {
+  const statuses = useProviders().data;
+  const status = statuses?.find((s) => s.id === (provider || 'claude-code'));
+  return status && !status.capabilities.includes('effort') ? 'provider' : undefined;
+}
+
 /** What the provider offers for the model picker; nothing is read for an empty id. */
 export function useProviderModels(provider: ProviderId) {
   return useQuery({ queryKey: keys.providerModels(provider), queryFn: () => api.providerModels(provider), enabled: provider !== '', retry: false });

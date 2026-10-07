@@ -159,6 +159,7 @@
     "tokenBreakdown": "· entrada {{input}} · salida {{output}} · lectura de caché {{cacheRead}} · escritura de caché {{cacheWrite}}",
     "toolCalls": "Llamadas a herramientas",
     "model": "Modelo",
+    "effort": "Effort",
     "directory": "Directorio",
     "prompt": "Prompt",
     "tasksLaunched": "Tareas en segundo plano que lanzó ({{count}})",
@@ -364,5 +365,22 @@
     "fingerprintFile": "{{path}}: {{additions}} añadidas, {{deletions}} quitadas",
     "fingerprintFileSeen": "{{path}}: {{additions}} añadidas, {{deletions}} quitadas, visto",
     "fingerprintMore": "{{count}} archivos más, demasiado pequeños para un segmento propio: abrir el primero"
+  },
+  "effort": {
+    "label": "Effort",
+    "recommended": "{{level}} · recomendado",
+    "asBefore": "{{level}} · como antes",
+    "cliDefault": "El del CLI",
+    "costly": "costoso",
+    "costlyHint": "Añade rondas de revisión y coste: resérvalo para el trabajo donde compense.",
+    "used": "Effort usado",
+    "recommendedTitle": "Effort recomendado",
+    "unavailableProvider": "Este agente no admite un nivel de effort.",
+    "unavailableWorkflow": "El motor de workflows usa el effort de toda la orquestación.",
+    "reason": {
+      "opus-medium": "Opus 5.5 da sus mejores resultados en medium; low se acerca en muchas tareas de código con un coste mucho menor.",
+      "sonnet-medium": "Sonnet 5.5 rinde bien en medium en tareas bien especificadas y en el chat; en low puede saltarse la verificación.",
+      "sonnet-high": "Sonnet 5.5 rinde mejor en high al planificar y al arreglar lo que falló, donde el trabajo es difícil o largo."
+    }
   }
 }

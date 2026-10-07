@@ -9,6 +9,7 @@ import type {
   DecisionTestResult,
   DecisionUnavailableReason,
 } from '@agentry/shared';
+import { isEffort } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Cpu, KeyRound, Save, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -19,6 +20,7 @@ import { useConfirm } from '@agentry/ui/components/Dialog';
 import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { useToast } from '@agentry/ui/components/Toast';
 import { ErrorBox, Segmented, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { EffortPicker } from '../../components/EffortPicker';
 import { ModelCombobox } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
 import { formatNumber, timeAgo } from '@agentry/ui/lib/format';
@@ -41,9 +43,6 @@ const JEV_HOST = 'api.typesafe.ai';
 /** "When it repeats" (D10): this many of the last `RECENT` Jev requests failing raises the warning. */
 const RECENT = 10;
 const REPEATS = 3;
-const EFFORTS = ['low', 'medium', 'high'] as const;
-type Effort = (typeof EFFORTS)[number];
-const isEffort = (value: string): value is Effort => (EFFORTS as readonly string[]).includes(value);
 export const MODES: DecisionMode[] = ['off', 'shadow', 'active'];
 
 /** The ids hold dots, which i18next reads as nesting, so each point has a flat camelCase key. */
@@ -336,8 +335,6 @@ function EngineSection({
   daysValid: boolean;
 }) {
   const { t } = useTranslation('decisions');
-  // A value the server accepts but the picker does not list (xhigh, max) stays visible rather than vanishing
-  const efforts: string[] = isEffort(draft.cli.effort) ? [...EFFORTS] : [...EFFORTS, draft.cli.effort];
 
   return (
     <section id={sectionId('engine')} className="card dp-card" aria-labelledby="decisions-engine-title">
@@ -374,12 +371,13 @@ function EngineSection({
             <div className="dp-model">
               <ModelCombobox aria-label={t('engine.cliModel')} value={draft.cli.model} onChange={(model) => patch({ cli: { ...draft.cli, model } })} />
             </div>
-            {/* CW-25's effort control is not merged yet: a Segmented it can reuse */}
-            <Segmented
-              label={t('engine.effort')}
-              value={draft.cli.effort}
-              onChange={(effort) => patch({ cli: { ...draft.cli, effort } })}
-              options={efforts.map((value) => ({ value, label: isEffort(value) ? t(`engine.effortOptions.${value}`) : value }))}
+            <EffortPicker
+              aria-label={t('engine.effort')}
+              value={isEffort(draft.cli.effort) ? draft.cli.effort : ''}
+              onChange={(effort) => effort && patch({ cli: { ...draft.cli, effort } })}
+              model={draft.cli.model}
+              use="chat"
+              allowUnset={false}
             />
             <div className="dp-cost">
               <NumberInput

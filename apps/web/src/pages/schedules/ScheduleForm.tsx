@@ -1,9 +1,11 @@
-import type { CreateScheduleRequest, OrchestrationSpec, OrchestrationTaskSpec, PermissionMode, Schedule, ScheduleOverlap, ScheduleTarget } from '@agentry/shared';
+import type { CreateScheduleRequest, Effort, OrchestrationSpec, OrchestrationTaskSpec, PermissionMode, Schedule, ScheduleOverlap, ScheduleTarget } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useOrchestrations } from '../../api';
+import { EffortField } from '../../components/EffortPicker';
+import { isEffort } from '@agentry/shared';
 import { Combobox, NumberInput, Select, Switch } from '@agentry/ui/components/controls';
 import { ICON_SM } from '@agentry/ui/components/icons';
 import { useToast } from '@agentry/ui/components/Toast';
@@ -59,6 +61,10 @@ export function ScheduleForm({ schedule, initialCron, defaultCwd, onClose }: { s
   const [prompt, setPrompt] = useState(chat?.prompt ?? '');
   const [cwd, setCwd] = useState(chat?.cwd ?? orchestration?.cwd ?? defaultCwd ?? '');
   const [model, setModel] = useState(chat?.model ?? orchestration?.model ?? '');
+  const [effort, setEffort] = useState<Effort | ''>(() => {
+    const saved = chat?.effort ?? orchestration?.effort;
+    return isEffort(saved) ? saved : '';
+  });
   // Nobody is at the keyboard when it fires, so the default is a mode that does not stop to ask
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(chat?.permissionMode ?? orchestration?.permissionMode ?? 'acceptEdits');
   const [objective, setObjective] = useState(orchestration?.objective ?? '');
@@ -96,6 +102,7 @@ export function ScheduleForm({ schedule, initialCron, defaultCwd, onClose }: { s
       setObjective(spec.objective ?? '');
       setCwd(spec.cwd ?? '');
       setModel(spec.model ?? '');
+      setEffort(spec.effort ?? '');
       setPermissionMode(spec.permissionMode ?? 'acceptEdits');
       setWorktree(spec.worktree ?? true);
       setTasks(initialTasks(spec));
@@ -112,7 +119,7 @@ export function ScheduleForm({ schedule, initialCron, defaultCwd, onClose }: { s
       return {
         kind: 'chat',
         // Spread first: fields set elsewhere (an account pin, a tool preset) survive an edit
-        chat: { ...chat, prompt: prompt.trim(), cwd: cwd.trim() || undefined, model: model.trim() || undefined, permissionMode, permissionPrompts: chat?.permissionPrompts ?? 'none' },
+        chat: { ...chat, prompt: prompt.trim(), cwd: cwd.trim() || undefined, model: model.trim() || undefined, effort: effort || undefined, permissionMode, permissionPrompts: chat?.permissionPrompts ?? 'none' },
       };
     }
     const previous = new Map((orchestration?.tasks ?? []).map((task) => [task.id, task]));
@@ -125,6 +132,7 @@ export function ScheduleForm({ schedule, initialCron, defaultCwd, onClose }: { s
         objective: objective.trim() || undefined,
         cwd: cwd.trim() || undefined,
         model: model.trim() || undefined,
+        effort: effort || undefined,
         permissionMode,
         permissionPrompts: orchestration?.permissionPrompts ?? 'none',
         worktree,
@@ -346,6 +354,7 @@ export function ScheduleForm({ schedule, initialCron, defaultCwd, onClose }: { s
           <Field label={t('form.model')}>
             <ModelCombobox aria-label={t('form.model')} value={model} onChange={setModel} placeholder={t('form.modelPlaceholder')} />
           </Field>
+          <EffortField value={effort} onChange={setEffort} model={model} use={kind === 'chat' ? 'chat' : 'worker'} />
           <Field label={t('form.permissionMode')} hint={t('form.permissionModeHint')}>
             <Select<PermissionMode>
               aria-label={t('form.permissionMode')}
