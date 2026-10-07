@@ -209,6 +209,11 @@ Measured by: the route answers for every finished graph, and the script reproduc
 
 ### B. `limit-resume`: a worker that hits its limit carries on
 
+Superseded on 2026-10-07: phase 4 of [multi-provider.md](multi-provider.md#phase-4-rotation-between-providers)
+(#188) waits for the reset in the worker's chat or moves the task to a new chat, with no attempt
+spent. See [limit-resume.md](limit-resume.md#what-replaced-it).
+
+
 - When a worker of an orchestration hits its rate limit and rotation found another account,
   continue the worker's chat on the new account (`continueChat`) without spending one of its
   attempts. This replaces "the next tasks use it".
@@ -341,7 +346,8 @@ Filled in as the workstreams land and the graphs after them are measured.
    **Answered on 2026-09-30: wait and resume by itself (option A).** A task or flow run with no
    account left is *waiting for quota* (warn, with the time the first account resets), never
    failed, and Agentry resumes it in its own chat as soon as an account has room. While it waits,
-   nothing new starts on the exhausted pool. This is what CW-4 builds.
+   nothing new starts on the exhausted pool. CW-4 was to build it; phase 4 of multiple providers did
+   instead (see [limit-resume.md](limit-resume.md#what-replaced-it)).
 3. **Two big graphs at once.** Should the launch form warn, should the second one wait in a queue
    until the first one ends, or should the accounts be split between them?
 
