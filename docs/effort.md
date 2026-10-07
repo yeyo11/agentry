@@ -100,9 +100,9 @@ actually passed, not what was asked.
 
 ## Related
 
-- [[providers]]
-- [[prompts]]
-- [[team-and-flow]]
-- [[orchestrations]]
-- [[assistant]]
-- [[plans/decision-engine]]
+- [[providers.md]]
+- [[prompts.md]]
+- [[team-and-flow.md]]
+- [[orchestrations.md]]
+- [[assistant.md]]
+- [[plans/decision-engine.md]]
