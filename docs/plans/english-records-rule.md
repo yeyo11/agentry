@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T16:00:00Z
-updated_at: 2026-09-29T12:00:00Z
+updated_at: 2026-10-07T12:00:00Z
 tags:
     - plan
     - spec
@@ -101,6 +101,16 @@ The Developer's write scope is `packages/`, `apps/`, `e2e/`, `scripts/` and `doc
   writes; a chat's title is in the person's language
   ([decision](docs/decisions/english-technical-language.md)).
 ```
+
+## Outcome (2026-10-07)
+
+Built on 2026-09-29 on `task/cw-2` and rebased onto `main` on 2026-10-07, where the prompts had
+gained the pasted-content note, the unattended text and the think-first lines: the shared sentence
+stays the last thing before each closing line, after them. Part 1 landed with it: the rule is in
+CONTRIBUTING.md (House style) and CLAUDE.md (Conventions). The prompts added since were checked:
+the decision engine's answers carry no free text (its schema has no reason field), and the change
+request bodies and the verification's fix prompts are Agentry's own English, so none needed the
+sentence.
 
 ## Related
 
