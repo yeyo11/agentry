@@ -424,7 +424,12 @@ export function driverConformance(name: string, harness: DriverHarness): void {
       await until(() => broker.list(asking.id)[0], 'the request');
       await chats.interrupt(asking.id);
       await until(() => chats.get(asking.id)?.status === 'idle', 'the interrupted turn');
-      for (const id of ids) await chats.exited(id);
+      // `exited` answers at once for a chat whose process has not started yet: with five at once, the
+      // result is what says a chat's events are all in
+      for (const id of ids) {
+        await chats.waitForResult(id);
+        await chats.exited(id);
+      }
       let seen = 0;
       let last = 0;
       for (const id of [...ids, asking.id]) {
