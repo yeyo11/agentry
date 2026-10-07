@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { maskSecrets, recognizeSecrets, redactState, SECRET_MASK } from '../src/decisions/redact.ts';
 import { AuthStore } from '../src/security/auth.ts';
+import { Core } from '../src/index.ts';
 import { tempConfig } from './helpers.ts';
 
 // Agentry's own secrets in what may leave the machine. On 2026-10-02 the owner's API token reached
@@ -45,4 +46,20 @@ test('a secret kept in plain is masked as it is; one too short to tell from a wo
   }
   // Taken back: nothing is recognised any more
   assert.equal(maskSecrets('key jev-live-0123456789abcdef'), 'key jev-live-0123456789abcdef');
+});
+
+test("the core masks the secrets it keeps: YouTrack's token, the Jev key, and its own API token", async () => {
+  const config = { ...tempConfig(), claudeBin: '/nonexistent/claude' };
+  const core = new Core(config);
+  try {
+    await core.youtrackCredentials.set({ host: 'https://acme.youtrack.cloud', token: 'perm-YouTrackTokenValue.0123456789' });
+    await core.decisionCredentials.set({ key: 'jev-0123456789abcdefghij' });
+    const { token } = await core.security.setToken();
+    const masked = maskSecrets(`YT=perm-YouTrackTokenValue.0123456789 K=jev-0123456789abcdefghij T="${token}"`);
+    assert.equal(masked, `YT=${SECRET_MASK} K=${SECRET_MASK} T="${SECRET_MASK}"`);
+  } finally {
+    core.shutdown();
+  }
+  // Shut down, it no longer adds its secrets to the redaction
+  assert.equal(maskSecrets('perm-YouTrackTokenValue.0123456789'), 'perm-YouTrackTokenValue.0123456789');
 });
