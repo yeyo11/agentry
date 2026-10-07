@@ -16,9 +16,11 @@ test('GitHub and GitLab number their issues, Jira and YouTrack write the key', (
   assert.equal(issueRef('jira', 'PROJ-12'), 'PROJ-12');
 });
 
-test('a tracker that is not built offers no action, whatever its state', () => {
+test('a tracker that is not built offers no action, whatever its state; YouTrack is connected on its row', () => {
   assert.equal(trackerAction(status('jira', 'unknown')), null);
-  assert.equal(trackerAction(status('youtrack', 'not-installed')), null);
+  assert.equal(trackerAction(status('youtrack', 'not-installed')), 'install');
+  assert.equal(trackerAction(status('youtrack', 'signed-out')), 'connect');
+  assert.equal(trackerAction(status('youtrack', 'ready')), null);
   assert.equal(trackerAction(status('github-issues', 'signed-out')), 'sign-in');
   assert.equal(trackerAction(status('gitlab-issues', 'not-installed')), 'install');
   assert.equal(trackerAction(status('github-issues', 'ready')), null);

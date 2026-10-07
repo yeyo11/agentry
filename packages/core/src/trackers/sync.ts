@@ -56,6 +56,10 @@ const READINESS_REASON: Record<string, HostReason> = {
   incompatible: 'cli-incompatible',
   'unsupported-host': 'unsupported-host',
   'tracker-disabled': 'tracker-disabled',
+  // YouTrack's door says it in these words already
+  'tracker-signed-out': 'tracker-signed-out',
+  'cli-missing': 'cli-missing',
+  'cli-incompatible': 'cli-incompatible',
 };
 
 interface Outcome {
@@ -153,7 +157,7 @@ export class TrackerSyncService {
   private async syncIssue(item: WorkItem, issue: IssueRef, column: TrackerMappedStatus, closing: Closing): Promise<void> {
     const { tracker: id, key } = issue;
     const r = this.resolve(item.projectId, id);
-    // Jira and YouTrack have no adapter: there is nothing to write and nothing to say about it
+    // Jira has no adapter: there is nothing to write and nothing to say about it
     if (!r?.adapter) return;
     const name = r.tracker.statusMap[column] ?? null;
     if (name === null) return;
@@ -190,6 +194,7 @@ export class TrackerSyncService {
     const to = { column, name };
     // GitHub and GitLab have one status: only `done` writes, and the others are no work at all
     if (!adapter.writes(column)) return null;
+    const same = (status: string | undefined): boolean => status !== undefined && status.trim().toLowerCase() === name.trim().toLowerCase();
     let access: TrackerAccess;
     try {
       access = await this.deps.access(projectPath, adapter.id);
@@ -201,6 +206,23 @@ export class TrackerSyncService {
     const scope = scopeOf(issueScope, access.hostname);
     const before = await this.read(adapter, access, scope, key);
     if ('reason' in before) return { syncState: 'failed', reason: before.reason };
+    // A tracker with statuses of its own (YouTrack) is told the mapped name, and confirmed by it
+    if (adapter.namedStatuses) {
+      if (same(before.status)) return { state: before.status, syncState: 'synced', reason: null };
+      const call = adapter.setStatus(scope, key, to);
+      if (call === null) return null;
+      const written = await access.run(call);
+      if (written.exitCode !== 0) {
+        const reason = failureOf(written, call);
+        // The issue was just read, so a refused write is the status name: YouTrack answers an unknown
+        // State with exit 2 or 4 depending on its message (recorded)
+        return { state: before.status ?? before.state, syncState: 'failed', reason: reason === 'auth-failed' || reason === 'timeout' || reason === 'forbidden' ? reason : 'transition-unknown' };
+      }
+      const after = await this.read(adapter, access, scope, key);
+      if ('reason' in after) return { state: before.status ?? before.state, syncState: 'failed', reason: 'write-unconfirmed' };
+      if (!same(after.status)) return { state: after.status ?? after.state, syncState: 'failed', reason: 'write-unconfirmed' };
+      return { state: after.status, syncState: 'synced', reason: null };
+    }
     if (column === 'done') {
       if (before.state === 'closed') return { state: before.state, syncState: 'synced', reason: null };
       // The host said it closed it and the read still shows it open: it may be a moment behind. The
@@ -220,12 +242,13 @@ export class TrackerSyncService {
     return { state: after.state, syncState: 'synced', reason: null };
   }
 
-  private async read(adapter: TrackerAdapter, access: TrackerAccess, scope: HostRepo, key: string): Promise<{ state: string } | { reason: HostReason }> {
+  private async read(adapter: TrackerAdapter, access: TrackerAccess, scope: HostRepo, key: string): Promise<{ state: string; status?: string } | { reason: HostReason }> {
     try {
       const call = adapter.get(scope, key);
       const result = await access.run(call);
       if (result.exitCode !== 0) return { reason: failureOf(result, call) };
-      return { state: adapter.parseGet(result.stdout).state };
+      const issue = adapter.parseGet(result.stdout);
+      return issue.status ? { state: issue.state, status: issue.status } : { state: issue.state };
     } catch (err) {
       const reason = err instanceof Error && err.name === 'IssueIsPullRequest' ? 'issue-is-pull-request' : 'unexpected-output';
       return { reason };

@@ -21,7 +21,9 @@
     "signIn": "How to sign in",
     "chooseBinary": "Choose binary",
     "retry": "Retry",
-    "opensNewTab": "opens in a new tab"
+    "opensNewTab": "opens in a new tab",
+    "connect": "Connect",
+    "changeAccess": "Change access"
   },
   "reason": {
     "ready": "Installed, signed in and answering.",
@@ -69,12 +71,17 @@
     "title": "Issue trackers",
     "total_one": "{{count}} tracker",
     "total_other": "{{count}} trackers",
-    "note": "Agentry imports issues from GitHub Issues (#12) and GitLab Issues (#12) with the same programs it already uses for pull requests and merge requests: it asks for no other session and stores no other key. Jira and YouTrack will come once it has checked how their programs answer.",
+    "note": "Agentry imports issues from GitHub Issues (#12) and GitLab Issues (#12) with the same programs it already uses for pull requests and merge requests, and from YouTrack (PROJ-12) with JetBrains' youtrack-app and the address and token you give it below. Jira will come once Agentry has checked how its program answers.",
     "notAvailable": "Not available yet",
     "reason": {
       "ready": "Reads and writes issues with {{cli}}, with the session it already has. It works in projects whose code is on {{host}}.",
       "disabled": "Agentry does not use {{tracker}} while it is off.",
-      "not-recorded": "{{tracker}} is not available yet: Agentry has not seen how {{cli}} answers, and builds nothing on something it has not seen."
+      "not-recorded": "{{tracker}} is not available yet: Agentry has not seen how {{cli}} answers, and builds nothing on something it has not seen.",
+      "readyOwn": "Reads and writes issues on {{host}} with {{cli}}, as {{user}}. It works in any project, whatever its code host.",
+      "no-credentials": "Give Agentry the address of your YouTrack and a permanent token to use it.",
+      "token-rejected": "{{host}} did not accept the token. Create a new one in your YouTrack profile, under Account security.",
+      "host-unreachable": "{{host}} did not answer. Check the address, and that this machine can reach it.",
+      "notInstalledOwn": "{{cli}} is not installed, or Agentry cannot find it. It is JetBrains' program for YouTrack, installed with npm."
     },
     "bin": {
       "title": "{{cli}} binary for {{tracker}}",
@@ -82,6 +89,29 @@
       "hint": "Left empty, {{tracker}} uses the same program as {{host}}. If you choose another, Agentry reads its version before saving it and checks it is not older than {{minimum}}.",
       "usePath": "Use the one of the host",
       "cleared": "{{tracker}} now uses the program of {{host}}"
+    },
+    "binOwn": {
+      "placeholder": "{{cli}} from the PATH",
+      "hint": "Left empty, Agentry looks for {{cli}} on the PATH. If you choose another, Agentry reads its version before saving it and checks it is not older than {{minimum}}.",
+      "usePath": "Search the PATH",
+      "cleared": "{{tracker}} uses {{cli}} from the PATH again"
+    },
+    "credentials": {
+      "title": "Access to YouTrack",
+      "host": "Address",
+      "hostHint": "Your instance's address, such as https://acme.youtrack.cloud, or https://example.com/youtrack when it lives under a path.",
+      "token": "Permanent token",
+      "tokenHint": "Create it in YouTrack, in your profile under Account security, with the YouTrack scope. Agentry hands it to youtrack-app only through its environment and never shows it again.",
+      "tokenSaved": "Saved · leave it empty to keep it",
+      "encrypted": "Kept encrypted with this computer's keyring.",
+      "plain": "Kept in a file only this server's user can read.",
+      "save": "Check and save",
+      "forget": "Forget access",
+      "connected": "YouTrack is connected as {{user}}",
+      "savedNotReady": "Saved, but YouTrack is not ready: {{reason}}",
+      "forgotten": "Agentry forgot the access to YouTrack",
+      "failed": "Could not save the access to YouTrack",
+      "loadFailed": "Could not read the access to YouTrack"
     }
   }
 }

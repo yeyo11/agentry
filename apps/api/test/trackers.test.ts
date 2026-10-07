@@ -44,15 +44,17 @@ after(async () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test('every tracker is listed, and Jira and YouTrack are unknown because nobody recorded them', async () => {
+test('every tracker is listed: Jira is unknown because nobody recorded it, YouTrack is recorded with its floor', async () => {
   const all = (await app.inject('/api/trackers')).json<TrackerStatus[]>();
   assert.deepEqual(all.map((s) => s.id), ['github-issues', 'gitlab-issues', 'jira', 'youtrack']);
-  for (const id of ['jira', 'youtrack']) {
-    const one = (await app.inject(`/api/trackers/${id}`)).json<TrackerStatus>();
-    assert.equal(one.state, 'unknown');
-    assert.equal(one.reason, 'not-recorded');
-    assert.equal(one.binaryPath, null);
-  }
+  const jira = (await app.inject('/api/trackers/jira')).json<TrackerStatus>();
+  assert.equal(jira.state, 'unknown');
+  assert.equal(jira.reason, 'not-recorded');
+  assert.equal(jira.binaryPath, null);
+  const youtrack = (await app.inject('/api/trackers/youtrack')).json<TrackerStatus>();
+  assert.notEqual(youtrack.reason, 'not-recorded');
+  assert.equal(youtrack.minimum, '1.0.3');
+  assert.equal(youtrack.host, null);
   assert.equal((await app.inject('/api/trackers/github-issues')).json<TrackerStatus>().host, 'github');
   assert.equal((await app.inject('/api/trackers/nope')).statusCode, 404);
   assert.deepEqual((await app.inject({ method: 'POST', url: '/api/trackers/refresh' })).json<TrackerStatus[]>().map((s) => s.id), all.map((s) => s.id));
@@ -183,6 +185,22 @@ test('the same issue number from two repositories is two links: a key alone is a
   assert.deepEqual(removed.json<WorkItem>().issues?.map((i) => i.scope), ['acme/a']);
 });
 
+test('the YouTrack address and token are saved, never answered back, and refused when malformed', async () => {
+  assert.deepEqual((await app.inject('/api/trackers/youtrack/credentials')).json(), { host: null, tokenSet: false, encrypted: false });
+  for (const bad of [{}, { host: 'not a url', token: 'perm-x' }, { host: 'https://x.youtrack.cloud' }, { host: 'https://x.youtrack.cloud', token: 'two words' }]) {
+    assert.equal((await app.inject({ method: 'PUT', url: '/api/trackers/youtrack/credentials', ...json(bad) })).statusCode, 400, JSON.stringify(bad));
+  }
+  const saved = await app.inject({ method: 'PUT', url: '/api/trackers/youtrack/credentials', ...json({ host: 'https://x.youtrack.cloud/', token: 'perm-secret-value' }) });
+  assert.equal(saved.statusCode, 200, saved.body);
+  assert.deepEqual(saved.json(), { host: 'https://x.youtrack.cloud', tokenSet: true, encrypted: false });
+  assert.ok(!saved.body.includes('perm-secret-value'));
+  assert.ok(!(await app.inject('/api/trackers/youtrack/credentials')).body.includes('perm-secret-value'));
+  assert.ok(!(await app.inject('/api/trackers/youtrack')).body.includes('perm-secret-value'));
+  const cleared = await app.inject({ method: 'DELETE', url: '/api/trackers/youtrack/credentials' });
+  assert.deepEqual(cleared.json(), { host: null, tokenSet: false, encrypted: false });
+  assert.ok(!existsSync(join(root, 'data', 'youtrack-credentials.json')));
+});
+
 test("a chat's token can read trackers and their issues but not import, link, sync or change anything", async () => {
   const project = await importProject('Guarded');
   const item = (await app.inject({ method: 'POST', url: `/api/projects/${project.id}/work-items`, ...json({ title: 'Guard' }) })).json<WorkItem>();
@@ -208,6 +226,9 @@ test("a chat's token can read trackers and their issues but not import, link, sy
       ['POST', `/api/work-items/${item.id}/issues`, { key: '12' }],
       ['DELETE', `/api/work-items/${item.id}/issues/7`, undefined],
       ['POST', `/api/work-items/${item.id}/issues/7/sync`, undefined],
+      ['GET', '/api/trackers/youtrack/credentials', undefined],
+      ['PUT', '/api/trackers/youtrack/credentials', { host: 'https://evil.example', token: 'perm-evil' }],
+      ['DELETE', '/api/trackers/youtrack/credentials', undefined],
     ] as const) {
       assert.equal((await app.inject(fromChat(method, url, body))).statusCode, 403, `${method} ${url}`);
     }
@@ -250,7 +271,7 @@ test('every tracker route is documented with a summary and a tag', async () => {
   const spec = (await app.inject('/openapi.json')).json<{ paths: Record<string, Record<string, { summary?: string; tags?: string[] }>> }>();
   const wanted = (path: string) => path.startsWith('/api/trackers') || path.includes('/tracker') || path.includes('/issues');
   const routes = Object.entries(spec.paths).filter(([path]) => wanted(path));
-  assert.equal(routes.reduce((n, [, methods]) => n + Object.keys(methods).length, 0), 12);
+  assert.equal(routes.reduce((n, [, methods]) => n + Object.keys(methods).length, 0), 15);
   for (const [path, methods] of routes) {
     for (const [method, op] of Object.entries(methods)) {
       assert.ok(op.summary, `${method} ${path} has no summary`);

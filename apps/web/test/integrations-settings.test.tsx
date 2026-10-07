@@ -59,7 +59,7 @@ const defaultTrackers = (): TrackerStatus[] => [
   tracker('github-issues'),
   tracker('gitlab-issues', { cli: 'glab', binaryPath: '/usr/bin/glab', version: '1.120.0', minimum: '1.120.0', recorded: ['1.120.0'] }),
   tracker('jira'),
-  tracker('youtrack'),
+  tracker('youtrack', { state: 'signed-out', reason: 'no-credentials', binaryPath: '/usr/bin/youtrack-app', version: '1.0.3', minimum: '1.0.3', recorded: ['1.0.3'], user: null }),
 ];
 
 const trackerSettings: TrackersSettings = {
@@ -156,20 +156,29 @@ test('with neither program found the page is the one empty state', async () => {
   assert.equal((html.match(/data-illustration=/g) ?? []).length, 1);
 });
 
-test('the trackers section lists the four trackers; Jira and YouTrack are not available yet, with their reason and no action', async () => {
+test('the trackers section lists the four trackers; Jira is not available yet, with its reason and no action', async () => {
   const html = await render([host({}), gitlab({})]);
   const text = words(html);
   assert.match(text, /4 trackers · 2 ready/);
   for (const id of ['github-issues', 'gitlab-issues', 'jira', 'youtrack']) assert.match(html, new RegExp(`data-tracker="${id}"`));
   assert.match(text, /Reads and writes issues with gh, with the session it already has\. It works in projects whose code is on GitHub\./);
   const row = (id: string) => html.split(`data-tracker="${id}"`)[1]?.split('data-tracker=')[0] ?? '';
-  for (const id of ['jira', 'youtrack']) {
-    assert.match(words(row(id)), /Not available yet/);
-    assert.match(words(row(id)), /Agentry has not seen how .* answers/);
-    assert.doesNotMatch(row(id), /data-action=/);
-  }
+  assert.match(words(row('jira')), /Not available yet/);
+  assert.match(words(row('jira')), /Agentry has not seen how acli answers/);
+  assert.doesNotMatch(row('jira'), /data-action=/);
+  // YouTrack has no access yet: Connect comes first, then its binary
+  assert.match(words(row('youtrack')), /Give Agentry the address of your YouTrack and a permanent token/);
+  assert.deepEqual([...row('youtrack').matchAll(/data-action="([a-z-]+)"/g)].map((m) => m[1]), ['connect', 'choose-binary']);
   assert.match(row('github-issues'), /data-action="choose-binary"/);
   assert.equal((html.match(/grad-border/g) ?? []).length, 1, 'the trackers are the one gradient surface');
+});
+
+test('a ready YouTrack names the instance and the account, and offers to change its access', async () => {
+  const html = await render([host({}), gitlab({})], [...defaultTrackers().slice(0, 3), tracker('youtrack', { state: 'ready', reason: null, binaryPath: '/usr/bin/youtrack-app', version: '1.0.3', user: 'ana' })]);
+  const row = html.split('data-tracker="youtrack"')[1]?.split('data-tracker=')[0] ?? '';
+  assert.match(words(row), /with youtrack-app, as ana/);
+  assert.match(words(row), /Change access/);
+  assert.deepEqual([...row.matchAll(/data-action="([a-z-]+)"/g)].map((m) => m[1]), ['connect', 'choose-binary']);
 });
 
 test('a tracker asks for the one remedy its state needs', async () => {

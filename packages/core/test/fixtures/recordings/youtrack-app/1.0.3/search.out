@@ -1,0 +1,128 @@
+[
+  {
+    "idReadable": "AGP-2",
+    "updated": 1791363728033,
+    "resolved": null,
+    "summary": "Probe issue two (bug)",
+    "customFields": [
+      {
+        "value": {
+          "name": "Normal",
+          "$type": "EnumBundleElement"
+        },
+        "name": "Priority",
+        "$type": "SingleEnumIssueCustomField"
+      },
+      {
+        "value": {
+          "name": "Task",
+          "$type": "EnumBundleElement"
+        },
+        "name": "Type",
+        "$type": "SingleEnumIssueCustomField"
+      },
+      {
+        "value": {
+          "name": "Open",
+          "$type": "StateBundleElement"
+        },
+        "name": "State",
+        "$type": "StateIssueCustomField"
+      },
+      {
+        "value": {
+          "name": "admin",
+          "$type": "User"
+        },
+        "name": "Assignee",
+        "$type": "SingleUserIssueCustomField"
+      },
+      {
+        "value": [],
+        "name": "Sprints",
+        "$type": "MultiVersionIssueCustomField"
+      },
+      {
+        "value": null,
+        "name": "Ideal days",
+        "$type": "SimpleIssueCustomField"
+      },
+      {
+        "value": null,
+        "name": "Original estimation",
+        "$type": "SimpleIssueCustomField"
+      }
+    ],
+    "tags": [],
+    "project": {
+      "shortName": "AGP",
+      "$type": "Project"
+    },
+    "description": null,
+    "id": "3-20",
+    "$type": "Issue"
+  },
+  {
+    "idReadable": "AGP-1",
+    "updated": 1791363727348,
+    "resolved": null,
+    "summary": "Probe issue one",
+    "customFields": [
+      {
+        "value": {
+          "name": "Normal",
+          "$type": "EnumBundleElement"
+        },
+        "name": "Priority",
+        "$type": "SingleEnumIssueCustomField"
+      },
+      {
+        "value": {
+          "name": "Task",
+          "$type": "EnumBundleElement"
+        },
+        "name": "Type",
+        "$type": "SingleEnumIssueCustomField"
+      },
+      {
+        "value": {
+          "name": "Open",
+          "$type": "StateBundleElement"
+        },
+        "name": "State",
+        "$type": "StateIssueCustomField"
+      },
+      {
+        "value": {
+          "name": "admin",
+          "$type": "User"
+        },
+        "name": "Assignee",
+        "$type": "SingleUserIssueCustomField"
+      },
+      {
+        "value": [],
+        "name": "Sprints",
+        "$type": "MultiVersionIssueCustomField"
+      },
+      {
+        "value": null,
+        "name": "Ideal days",
+        "$type": "SimpleIssueCustomField"
+      },
+      {
+        "value": null,
+        "name": "Original estimation",
+        "$type": "SimpleIssueCustomField"
+      }
+    ],
+    "tags": [],
+    "project": {
+      "shortName": "AGP",
+      "$type": "Project"
+    },
+    "description": "First line\n\nSecond paragraph with `code`.",
+    "id": "3-19",
+    "$type": "Issue"
+  }
+]

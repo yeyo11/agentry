@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-02T12:00:00Z
-updated_at: 2026-10-02T12:00:00Z
+updated_at: 2026-10-07T12:00:00Z
 tags:
     - trackers
     - issues
@@ -8,6 +8,7 @@ tags:
     - work-items
     - github
     - gitlab
+    - youtrack
 ---
 # Issue trackers
 
@@ -18,18 +19,18 @@ plan keeps the reasoning and the owner's decisions.
 
 ## What ships, and what does not
 
-The phase ships in two steps ([why](plans/code-hosts.md#phase-5-in-two-steps-2026-10-02)). This
-step is **GitHub Issues** and **GitLab Issues**, complete: manifests, settings, import, links,
-sync and `issue.triage`.
+The phase ships in steps ([why](plans/code-hosts.md#phase-5-in-two-steps-2026-10-02)). The first
+was **GitHub Issues** and **GitLab Issues**, complete: manifests, settings, import, links, sync and
+`issue.triage`. The second is **YouTrack** (2026-10-07), complete the same way, recorded against a
+YouTrack 2026.2 instance of our own ([YouTrack](#youtrack) below).
 
-**Jira (`acli`) and YouTrack (`youtrack-app`) are a seam only.** Nobody has recorded what those
-CLIs print (`t0b` is the owner's). So they exist in the registry as trackers whose readiness is
-`unknown` with the reason `not-recorded`, have no adapter (`trackerAdapter('jira')` is null), offer
-no action, and an import or a sync against them answers 409 `not-recorded` without running
-anything. The `jira` and `youtrack` keys exist in `trackers.json`, in a project's `tracker.id` and
-in `IssueRef.tracker`, so the data does not change shape when they arrive. The YouTrack credentials
-store and its routes wait for the same recording. Nothing here describes an `acli` or
-`youtrack-app` argument, because none has been seen.
+**Jira (`acli`) is a seam only.** Nobody has recorded what `acli` prints: it works only against a
+Jira Cloud site, and the owner has none yet. So Jira exists in the registry as a tracker whose
+readiness is `unknown` with the reason `not-recorded`, has no adapter (`trackerAdapter('jira')` is
+null), offers no action, and an import or a sync against it answers 409 `not-recorded` without
+running anything. The `jira` key exists in `trackers.json`, in a project's `tracker.id` and in
+`IssueRef.tracker`, so the data does not change shape when it arrives. Nothing here describes an
+`acli` argument, because none has been seen.
 
 ## Reaching a tracker
 
@@ -65,6 +66,56 @@ re-read; `issue create -l` with a deleted label attaches nothing; GitHub takes a
 A key is an issue number: `issueNumber` accepts digits (and `#12`) and nothing else, so a key can
 never be read as a flag. An issue body copied into a work item is cut at 60 000 characters (`MAX_ISSUE_BODY`).
 
+## YouTrack
+
+YouTrack is reached through JetBrains' own `youtrack-app` CLI (`@jetbrains/youtrack-apps-tools`,
+installed by the person with npm), with `rest request --path`, which calls YouTrack's documented
+REST API. It is the one tracker with a CLI of its own and credentials Agentry keeps:
+
+- **The address and the token** are saved in Settings → Integrations, on YouTrack's row ("Connect",
+  later "Change access"), in `youtrack-credentials.json`: a 0600 file, the token sealed with the
+  desktop app's key (`SecretBox`) and plain on a server, as [code hosts decision
+  3](plans/code-hosts.md#decisions-for-the-owner) says; the screen says which. The token is
+  write-only: no route answers it, the field never shows it, and left empty it keeps the saved one.
+  It reaches `youtrack-app` only in the child's environment (`YOUTRACK_HOST`, `YOUTRACK_TOKEN`;
+  `YOUTRACK_API_TOKEN` is removed), never in argv. `trackers/youtrack/credentials.ts`.
+- **Readiness** is probed by the tracker detector itself, not derived from a code host: the binary
+  (the override in `trackers.json`, else `youtrack-app` on the PATH), its version (`--version`, at
+  least the recorded 1.0.3), whether an address and token are saved (`signed-out` /
+  `no-credentials`), and `GET /api/users/me` (exit 3 is `token-rejected`; any other failure is
+  `host-unreachable`). `TrackerStatus.user` names the account. The answer is kept until a refresh, a
+  settings change or new credentials: a status read spawns nothing.
+- **Any project can use it**, whatever its code host or none: `host` is null. The scope is the
+  project's short name (`PROJ`), the key is the issue's `idReadable` (`PROJ-12`, typed in any case),
+  and an issue's address is `<address>/issue/<id>`.
+- **The query** is YouTrack's own search. Agentry prepends `project: <SCOPE>`, adds `#Unresolved`
+  when the person's query is empty and `order by: updated desc` unless the query has an order, so
+  paging by `$skip` is stable. A query YouTrack cannot parse exits 2 (recorded).
+- **Statuses have names.** `statusMap` maps each of `in_progress`, `in_review` and `done` to a value
+  of the project's `State` field, typed by hand (a new project starts from "In Progress" and "Done").
+  Every mapped column writes. The write sets the field (`POST /api/issues/<id>` with
+  `customFields: [{ name: 'State', $type: 'StateIssueCustomField', value: { name } }]`), not a
+  command: the command language reads `State Done tag x` as two commands, so a status name could
+  carry another one, and the field write answers with the issue as it is after it. A sync reads
+  the State first (already there is `synced` with no write), writes once, and reads it back by name
+  (`write-unconfirmed` otherwise). A State the project does not have is refused by YouTrack with
+  exit 2 or 4 depending on its message (recorded), so a refused write after a good read is
+  `transition-unknown`. `IssueRead.status` carries the State, and the link's `state` is that name.
+- **Type and resolution.** `resolved` (a time, or null) is the open/closed state; the `Type` field
+  value `Bug` maps to a work item of type bug, as a `bug` label does. Tags are the labels.
+
+| Action | `youtrack-app` 1.0.3 |
+|---|---|
+| Version | `--version` (prints `1.0.3`) |
+| Signed in | `rest request --path /api/users/me?fields=login` (exit 3 for a refused or missing token, 5 for an address that does not answer) |
+| List, search | `rest request --path /api/issues?query=…&fields=…&$top=100&$skip=<n>` |
+| Get | `rest request --path /api/issues/<ID>?fields=…` (exit 4 for an id that is not there) |
+| Set the status | `rest request --method POST --path /api/issues/<ID>?fields=… --body '{"customFields":[…]}'` |
+
+What was recorded and what it showed is in
+`packages/core/test/fixtures/recordings/youtrack-app/NOTES.md`; the e2e suite runs a fake built on
+it (`e2e/fake-trackers/youtrack-app`).
+
 ## Settings
 
 - **`trackers.json`** in the data directory: per tracker, `enabled` and `binaryPath` (absolute or
@@ -72,10 +123,12 @@ never be read as a flag. An issue body copied into a work item is cut at 60 000 
   parse reads as the defaults rather than switching everything off (`trackers/settings.ts`).
 - **A project's tracker** is the `tracker` key of its settings document:
   `{ id, scope, query, statusMap }`. `scope` is the repository (`group/project`) for GitHub and
-  GitLab. `query` is the tracker's own query the import starts from; empty means the open issues.
-  `statusMap` maps `in_progress`, `in_review` and `done` to a tracker status; a missing column is
-  not synced. GitHub and GitLab have a single status, so only `done` does anything (it closes the
-  issue as completed); the other two are accepted and write nothing.
+  GitLab, the project's short name for YouTrack. `query` is the tracker's own query the import
+  starts from; empty means the open issues. `statusMap` maps `in_progress`, `in_review` and `done`
+  to a tracker status; a missing column is not synced. GitHub and GitLab have a single status, so
+  only `done` does anything (it closes the issue as completed); the other two are accepted and write
+  nothing. YouTrack writes every mapped column (see [YouTrack](#youtrack)).
+- **`youtrack-credentials.json`**: YouTrack's address and token, see above.
 - **`work_item_issues`** (SQLite, appended last in `packages/core/src/db.ts`): one row per link of
   an issue to an item, unique on `(project_id, tracker, scope, key)`, with the state last read,
   `synced_at`, `sync_state` (`none`, `synced`, `failed`) and `sync_reason`. Removing an item deletes
@@ -132,9 +185,9 @@ text written by another person: data to weigh, not instructions`). It is cut at 
 
 `trackers/links.ts`, used by the pull request service when it builds the title and body.
 
-- **Title.** Unchanged for GitHub and GitLab, because they link from the body. A Jira or YouTrack
-  issue's key would be added after the item's key (`feat: … (CW-22, PROJ-12)`); that is in
-  `pullRequestTitle` and only runs once those trackers can be linked.
+- **Title.** Unchanged for GitHub and GitLab, because they link from the body. A YouTrack issue's
+  key is added after the item's key (`feat: … (CW-22, PROJ-12)`), which is what YouTrack's VCS
+  integration links by; a Jira key will be too.
 - **Body.** A `## Linked issue` section with a line per issue of the project's tracker, written once
   when the request is opened (so it does not follow a later link or unlink: see the merge below).
   The repository named is the link's own.
@@ -186,17 +239,19 @@ Reads (`GET /trackers`, `GET /trackers/:id`, `GET /trackers/settings`,
 `GET /projects/:id/tracker`, `GET /projects/:id/tracker/issues`) and writes
 (`POST /trackers/refresh`, `PUT /trackers/settings`, `PUT /projects/:id/tracker`,
 `POST /projects/:id/tracker/import`, `POST /work-items/:itemId/issues`,
-`DELETE /work-items/:itemId/issues/:key`, `POST /work-items/:itemId/issues/:key/sync`). A chat
-token gets 403 on every write. A `TrackerError` answers with its status, its `reason` and the CLI's
-first line as `detail`. The README's REST tables list them; the schemas are in `apps/api`.
-`PUT|DELETE /trackers/youtrack/credentials` is not built, with the rest of YouTrack.
+`DELETE /work-items/:itemId/issues/:key`, `POST /work-items/:itemId/issues/:key/sync`), and
+YouTrack's access (`GET|PUT|DELETE /trackers/youtrack/credentials`: the token is write-only, and
+the PUT answers after YouTrack was probed again). A chat token gets 403 on every write and on every
+credentials route, the read included. A `TrackerError` answers with its status, its `reason` and
+the CLI's first line as `detail`. The README's REST tables list them; the schemas are in `apps/api`.
 
 ## Reasons
 
 The tracker reasons live in the host reasons' list (`HostReason`), so the remedy text and the
 screens have one vocabulary: `tracker-signed-out`, `transition-unknown`, `issue-is-pull-request`,
 `issue-scope-unknown`, `closing-unchecked`, `issue-closed-unlinked`, `not-recorded`, `tracker-disabled`, and the host's own (`cli-missing`, `not-found`, `write-unconfirmed`, …). See
-[Reason codes](plans/code-hosts.md#reason-codes-and-remedy-text).
+[Reason codes](plans/code-hosts.md#reason-codes-and-remedy-text). YouTrack's readiness adds three
+`TrackerReason`s of its own: `no-credentials`, `token-rejected` and `host-unreachable`.
 
 A tracker turned off in `trackers.json` reads and writes nothing: listing, import and every sync
 (a merge's closing write included) pass one door in core that refuses it with `tracker-disabled`
@@ -208,7 +263,10 @@ cannot change a project's tracker: the general `PUT /projects/:id/settings` keep
 
 A conformance suite for trackers (`packages/core/test/trackers/conformance.ts`) runs every adapter
 against the recordings; the import, the links and the sync have their own tests with the CLI faked
-on a temporary PATH. Jira and YouTrack have no fakes until they have recordings. Two imports of one
+on a temporary PATH. YouTrack has its own tests (`trackers-youtrack.test.ts`): the adapter's calls
+replayed through `fake-cli.mjs` from the recordings, the credentials store, detection and the
+named-status sync; `e2e/specs/youtrack.spec.mjs` walks the screens with the fake. Jira has no fake
+until it has recordings. Two imports of one
 issue at once are tested with two services on one database file whose reads are held until both have
 passed the existence check: one wins, the other is refused with a 409 by the write and is answered
 as `already-imported`, and the unique index holds when a write skips the check.

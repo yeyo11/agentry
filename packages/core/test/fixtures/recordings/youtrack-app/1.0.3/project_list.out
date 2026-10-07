@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "shortName": "DEMO",
+      "id": "0-0",
+      "$type": "Project"
+    }
+  ],
+  "pagination": {
+    "skip": 0,
+    "limit": 50,
+    "returned": 1,
+    "nextSkip": null,
+    "hasMore": false
+  }
+}

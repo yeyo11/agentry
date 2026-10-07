@@ -4,7 +4,7 @@
  * browser (test/project-tracker.test.ts).
  */
 import type { CodeHostId, ProjectTrackerSettings, TrackerId, TrackerMappedStatus, TrackerStatus } from '@agentry/shared';
-import { canChooseTracker, isTrackerBuilt, setMapped, trackerTone, type TrackerTone } from '../../lib/trackers';
+import { canChooseTracker, hasNamedStatuses, isTrackerBuilt, setMapped, trackerTone, YOUTRACK_DEFAULT_STATES, type TrackerTone } from '../../lib/trackers';
 
 export interface TrackerDraft {
   /** The chosen tracker; null is none */
@@ -21,7 +21,17 @@ export const draftOf = (saved: ProjectTrackerSettings | null | undefined): Track
 
 /** What is saved: nothing when no tracker is chosen. The scope and query are kept as typed, minus the edges. */
 export const settingsOf = (draft: TrackerDraft): ProjectTrackerSettings | null =>
-  draft.id ? { id: draft.id, scope: draft.scope.trim(), query: draft.query.trim(), statusMap: draft.statusMap } : null;
+  draft.id ? { id: draft.id, scope: draft.scope.trim(), query: draft.query.trim(), statusMap: trimmedMap(draft.statusMap) } : null;
+
+/** A status typed by hand (YouTrack's State) is saved without its edges, and one left blank is not synced. */
+function trimmedMap(map: TrackerDraft['statusMap']): TrackerDraft['statusMap'] {
+  const out: TrackerDraft['statusMap'] = {};
+  for (const [column, value] of Object.entries(map) as Array<[TrackerMappedStatus, string | undefined]>) {
+    const trimmed = value?.trim();
+    if (trimmed) out[column] = trimmed;
+  }
+  return out;
+}
 
 export const sameDraft = (a: TrackerDraft, b: TrackerDraft): boolean => JSON.stringify(settingsOf(a)) === JSON.stringify(settingsOf(b));
 
@@ -29,13 +39,15 @@ export const sameDraft = (a: TrackerDraft, b: TrackerDraft): boolean => JSON.str
 export const canSaveDraft = (draft: TrackerDraft): boolean => draft.id === null || draft.scope.trim() !== '';
 
 /**
- * Choosing a tracker starts from what works on both built ones: the repository of the origin remote
- * as scope and `done` closing the issue. Choosing the same one again changes nothing, and another
+ * Choosing a tracker starts from what works: on GitHub and GitLab the repository of the origin
+ * remote as scope and `done` closing the issue; on YouTrack an empty project short name and the
+ * State names a new YouTrack project has. Choosing the same one again changes nothing, and another
  * tracker's query does not carry over.
  */
 export function chooseTracker(draft: TrackerDraft, id: TrackerId | null, remotePath: string | null): TrackerDraft {
   if (id === null) return NO_TRACKER;
   if (draft.id === id) return draft;
+  if (hasNamedStatuses(id)) return { id, scope: '', query: '', statusMap: { in_progress: YOUTRACK_DEFAULT_STATES.in_progress, done: YOUTRACK_DEFAULT_STATES.done } };
   return { id, scope: remotePath ?? '', query: '', statusMap: isTrackerBuilt(id) ? { done: 'completed' } : {} };
 }
 

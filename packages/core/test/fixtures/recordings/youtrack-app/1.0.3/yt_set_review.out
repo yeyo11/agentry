@@ -1,0 +1,63 @@
+{
+  "idReadable": "AGP-1",
+  "updated": 1791364134549,
+  "resolved": null,
+  "summary": "Probe issue one (edited)",
+  "customFields": [
+    {
+      "value": {
+        "name": "Normal",
+        "$type": "EnumBundleElement"
+      },
+      "name": "Priority",
+      "$type": "SingleEnumIssueCustomField"
+    },
+    {
+      "value": {
+        "name": "Task",
+        "$type": "EnumBundleElement"
+      },
+      "name": "Type",
+      "$type": "SingleEnumIssueCustomField"
+    },
+    {
+      "value": {
+        "name": "To Verify",
+        "$type": "StateBundleElement"
+      },
+      "name": "State",
+      "$type": "StateIssueCustomField"
+    },
+    {
+      "value": {
+        "name": "admin",
+        "$type": "User"
+      },
+      "name": "Assignee",
+      "$type": "SingleUserIssueCustomField"
+    },
+    {
+      "value": [],
+      "name": "Sprints",
+      "$type": "MultiVersionIssueCustomField"
+    },
+    {
+      "value": null,
+      "name": "Ideal days",
+      "$type": "SimpleIssueCustomField"
+    },
+    {
+      "value": null,
+      "name": "Original estimation",
+      "$type": "SimpleIssueCustomField"
+    }
+  ],
+  "tags": [],
+  "project": {
+    "shortName": "AGP",
+    "$type": "Project"
+  },
+  "description": "Edited body",
+  "id": "3-19",
+  "$type": "Issue"
+}

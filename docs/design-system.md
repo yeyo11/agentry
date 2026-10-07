@@ -882,11 +882,20 @@ it adds no CSS: `.prov-row.compact`, `.prov-cell`, `.prov-bin`, the badges and `
   the other states add Cómo iniciar sesión ↗, Actualizar ↗, Ver instalación ↗ or Reintentar. The
   override panel is `.prov-bin`, and its field is empty by default: empty means "the same program as
   the host".
-- **Jira and YouTrack** are in the registry with readiness `unknown` and the reason `not-recorded`.
-  They have no adapter, so their row has the plain badge "Aún no disponible" (no status colour: there
-  is nothing to colour), an honest sentence, `unknown · not-recorded` in mono (on a desktop; the phone drops it) and **no action**. The
-  screen says nothing about how `acli` or `youtrack-app` behave, because nobody has seen it, and it has
-  no token field.
+- **Jira** is in the registry with readiness `unknown` and the reason `not-recorded`. It has no
+  adapter, so its row has the plain badge "Aún no disponible" (no status colour: there is nothing to
+  colour), an honest sentence, `unknown · not-recorded` in mono (on a desktop; the phone drops it)
+  and **no action**. The screen says nothing about how `acli` behaves, because nobody has seen it.
+- **YouTrack** (built 2026-10-07, [trackers.md](trackers.md#youtrack)) has a CLI of its own and the
+  access Agentry keeps, so its state is its own: "Sin sesión" (warn) with "Indica a Agentry la
+  dirección…" while nothing is saved or the token is refused, "Listo" naming the instance and the
+  account once the instance answers. Its remedy is **Conectar**, which opens the access form under
+  the row in the same `.prov-bin` panel as the binary override (on a phone, a `Sheet`): the address
+  and the permanent token as mono fields, each with its hint, the token a password field that never
+  shows the saved value ("Guardado · déjalo vacío para conservarlo"), a line that says whether it is
+  kept encrypted or in a 0600 file, "Comprobar y guardar" (the panel's one button, primary only in
+  the Sheet), Cancelar and "Olvidar acceso" (`.btn-danger`: it removes something). Once ready the
+  same button reads "Cambiar acceso", ghost, before "Elegir binario". No new class.
 - **Phone.** The trackers' section as `.prov-cell`s, the override as a `Sheet` with its field at 16 px
   and "Comprobar y guardar" as its one primary; every target is 44 px.
 - **Gradients and motion.** One gradient surface per screen (the card's border; the Sheet's primary
@@ -988,12 +997,17 @@ gradient is its Save.
   that is never red, green or cyan), name, the readiness badge and one plain line. Only a ready
   tracker can be picked; the others stay in the list with their reason in words, `aria-disabled`, so
   the person sees what exists. GitHub Issues and GitLab Issues reuse the host's CLI and need the
-  project's host to be theirs ("No disponible" otherwise). Jira and YouTrack are `b-idle` "Sin
-  comprobar" with the reason `not-recorded`: they have no adapter and offer no action. A saved choice
+  project's host to be theirs ("No disponible" otherwise). YouTrack works on any project once its
+  access is saved, and says so in its own words when it is not. Jira is `b-idle` "Sin comprobar"
+  with the reason `not-recorded`: it has no adapter and offers no action. A saved choice
   that is not ready stays marked and says so with a `.callout-warn` and one action, "Ir a Integraciones".
-- **Scope and query** are mono fields. Scope is the repository (the host's own by default); the query
-  is the tracker's own search, in GitHub's syntax or as free text for GitLab. A saved Jira
-  shows its key and a disabled query: the seam of the settings, nothing more.
+- **Scope and query** are mono fields. Scope is the repository (the host's own by default), or
+  YouTrack's project short name (`PROJ`); the query is the tracker's own search, in GitHub's syntax,
+  as free text for GitLab, or in YouTrack's query language. A saved Jira shows its key and a
+  disabled query: the seam of the settings, nothing more.
+- **YouTrack's mapping** is a mono text field per column instead of the select, since each project
+  names its own States; the placeholders are the names a new YouTrack project has, and the hint says
+  every column writes and is read back.
 - **The mapping (`.trk-map`)** is one select (`.select` with a chevron, `.trk-sel`) per board column,
   Agentry's side first. GitHub and GitLab have no statuses between open and closed, so In progress and
   In review are disabled "Sin cambios" with the reason beside them, and Done offers one real choice:
@@ -1358,8 +1372,9 @@ New classes `.omrg-*` and `.pr-auto`; everything else is an existing control (`.
 Drawn for [code hosts](plans/code-hosts.md), phase 5 (task `t-p3` of P0), by `reference/tools/trackers_import.py`:
 `DesktopImportarIssues`, `MobileImportarIssues`, `MobileImportarIssuesLista`, `DesktopTareaIssues`,
 `MobileTareaIssues`, the states sheets `DesktopTareaIssuesEstados` and `MobileTareaIssuesEstados`, and
-`DesktopTableroIssues` / `MobileTableroIssues`. GitHub Issues and GitLab Issues only; Jira and YouTrack have no
-screen until their recordings exist. New classes `.iss-*` (under "Tracker issues" in `agentry-ds.css`); the list is
+`DesktopTableroIssues` / `MobileTableroIssues`. Drawn with GitHub Issues and GitLab Issues; YouTrack uses the same
+screens with its own keys (`PROJ-12`) and its State as the issue's state. Jira has no screen until its recording
+exists. New classes `.iss-*` (under "Tracker issues" in `agentry-ds.css`); the list is
 the thread list of "Address with an agent" and the item panel is `.fix-panel`.
 
 - **Import** is a `.dialog` opened from "Importar issues" on the board (a `.sheet` on a phone, whose board header

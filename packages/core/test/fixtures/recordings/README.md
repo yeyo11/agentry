@@ -3,7 +3,8 @@
 Scrubbed copies of what the Codex, GitHub Copilot, Gemini and OpenCode CLIs sent and answered when
 they were run on 2026-10-01 to write `docs/plans/multi-provider.md`, "Phase 3". The fakes in
 `packages/core/test/fixtures/` replay these shapes and invent no event. The `gh` and `glab`
-folders beside these belong to the code hosts and have their own notes.
+folders beside these belong to the code hosts and have their own notes, and `youtrack-app` to the
+YouTrack tracker, with its own `NOTES.md`.
 
 Every run used a sandbox: `env -i`, an empty `HOME`, `CODEX_HOME`, `COPILOT_HOME`,
 `GEMINI_CLI_HOME` and `XDG_*` inside it, and `timeout` on every call. `*.jsonl` files hold one
