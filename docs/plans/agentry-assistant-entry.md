@@ -38,9 +38,9 @@ to Anthropic, and the greeting is not produced by a model call (see [The greetin
 
 | Dependency | Why | Status |
 |---|---|---|
-| **CW-6**, the Agentry MCP server and its read tools (`packages/core` or `packages/mcp`), assumed to be named `agentry` so its tools reach the CLI as `mcp__agentry__<name>`, as [assistant-write-tools.md](assistant-write-tools.md) assumes too | the chat is confined to its tools. Without it the chat has nothing to do | not built (`packages/` has only `shared` and `core`) |
-| **CW-17**, the write tools and how each write is confirmed ([assistant-write-tools.md](assistant-write-tools.md)) | it sets the chat's permission mode and prompts. CW-18 does not wait for it: it ships with the read tools | proposed, waiting for the owner's A/B/C |
-| CW-10, a per-chat API token ([chat-api-token.md](chat-api-token.md)) | the MCP server calls `AGENTRY_API_URL`. In `token` mode (the desktop app with the tunnel) it gets `401` without `AGENTRY_API_TOKEN` | proposed |
+| **CW-6**, the Agentry MCP server and its read tools (`packages/core` or `packages/mcp`), assumed to be named `agentry` so its tools reach the CLI as `mcp__agentry__<name>`, as [assistant-write-tools.md](assistant-write-tools.md) assumes too | the chat is confined to its tools. Without it the chat has nothing to do | built (#171): server `agentry`, helper `agentryMcp()` in `packages/core/src/agentry-mcp.ts` |
+| **CW-17**, the write tools and how each write is confirmed ([assistant-write-tools.md](assistant-write-tools.md)) | it sets the chat's permission mode and prompts. CW-18 does not wait for it: it ships with the read tools | option A decided (2026-10-02), not built; it lands after CW-18 (umbrella CW-30) |
+| CW-10, a per-chat API token ([chat-api-token.md](chat-api-token.md)) | the MCP server calls `AGENTRY_API_URL`. In `token` mode (the desktop app with the tunnel) it gets `401` without `AGENTRY_API_TOKEN` | built |
 | The design reference for the entry, desktop and phone | a new primary surface counts against the gradient budget | to draw (criterion 1) |
 | The owner's answers (see [Questions for the owner](#questions-for-the-owner)) | the default model, the project assistant page, and the greeting | open |
 
