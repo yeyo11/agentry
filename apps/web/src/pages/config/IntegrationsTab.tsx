@@ -12,12 +12,13 @@ import { Spinner } from '@agentry/ui/components/Spinner';
 import { useToast } from '@agentry/ui/components/Toast';
 import { Card, Empty, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
 import { changeRequestWords } from '../../lib/code-hosts';
-import { isTrackerBuilt, trackerAction, trackerEntry, trackerTone, trackerWords, TRACKER_IDS, withTrackerEntry } from '../../lib/trackers';
+import { isTrackerBuilt, keepsCredentials, trackerAction, trackerEntry, trackerTone, trackerWords, TRACKER_IDS, withTrackerEntry } from '../../lib/trackers';
 import type { TrackerActionKind } from '../../lib/trackers';
 import { timeAgo } from '@agentry/ui/lib/format';
 import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { STATE_TONE } from '../../lib/provider-state';
 import { WebhooksSection } from './WebhooksSection';
+import { YoutrackAccess } from './YoutrackAccess';
 
 /**
  * The vendors' own pages: where each CLI is installed and where its sign-in is explained. A remedy
@@ -27,6 +28,14 @@ const LINKS: Record<CodeHostId, { install: string; signIn: string }> = {
   github: { install: 'https://cli.github.com', signIn: 'https://cli.github.com/manual/gh_auth_login' },
   gitlab: { install: 'https://gitlab.com/gitlab-org/cli#installation', signIn: 'https://docs.gitlab.com/cli/auth/login/' },
 };
+
+/** Where a tracker with a CLI of its own is installed: JetBrains' package for YouTrack. */
+const OWN_INSTALL: Partial<Record<TrackerId, string>> = { youtrack: 'https://www.npmjs.com/package/@jetbrains/youtrack-apps-tools' };
+
+/** The reasons only a tracker that keeps its own credentials gives; they are worded in the tracker's texts, not the host's. */
+const OWN_REASONS = ['no-credentials', 'token-rejected', 'host-unreachable'] as const;
+type OwnReason = (typeof OWN_REASONS)[number];
+const isOwnReason = (reason: TrackerStatus['reason']): reason is OwnReason => (OWN_REASONS as readonly string[]).includes(reason ?? '');
 
 /** States in which the program runs; anything else after "Check and save" means the path is refused. */
 const WORKS: ReadonlySet<string> = new Set(['ready', 'degraded', 'signed-out']);
@@ -113,6 +122,8 @@ export function IntegrationsTab() {
   const [binaryOf, setBinaryOf] = useState<CodeHostId | null>(null);
   const [trackerBinaryOf, setTrackerBinaryOf] = useState<TrackerId | null>(null);
   const [checkingTracker, setCheckingTracker] = useState<TrackerId | null>(null);
+  // YouTrack's address and token, opened under its row (a sheet on a phone)
+  const [accessOpen, setAccessOpen] = useState(false);
 
   const failed = hosts.error ?? settings.error ?? trackers.error ?? trackerSettings.error;
   if (failed) return <ErrorBox error={failed} />;
@@ -243,15 +254,24 @@ export function IntegrationsTab() {
         status={status}
         enabled={entry.enabled}
         variant={narrow ? 'cell' : 'row'}
-        open={trackerBinaryOf === status.id}
+        open={trackerBinaryOf === status.id || (accessOpen && keepsCredentials(status.id))}
+        accessOpen={accessOpen && keepsCredentials(status.id)}
         checking={checking === 'all' || checkingTracker === status.id}
         onRetry={() => void recheck('all')}
         onChooseBinary={() => {
           setBinaryOf(null);
+          setAccessOpen(false);
           setTrackerBinaryOf((now) => (now === status.id ? null : status.id));
         }}
+        onConnect={() => {
+          setBinaryOf(null);
+          setTrackerBinaryOf(null);
+          setAccessOpen((now) => !now);
+        }}
         panel={
-          !narrow && trackerBinaryOf === status.id ? (
+          !narrow && accessOpen && keepsCredentials(status.id) ? (
+            <YoutrackAccess onDone={() => setAccessOpen(false)} reasonOf={(fresh, address) => trackerReasonText(t, fresh, address)} />
+          ) : !narrow && trackerBinaryOf === status.id ? (
             <BinaryEditor
               key={status.id}
               status={status}
@@ -352,6 +372,11 @@ export function IntegrationsTab() {
       {trackersCard}
       {projects.data && <WebhooksSection projects={projects.data} />}
       {missing}
+      {narrow && accessOpen && (
+        <Sheet open onOpenChange={(next) => !next && setAccessOpen(false)} title={t('tracker.credentials.title')} className="prov-sheet">
+          <YoutrackAccess sheet onDone={() => setAccessOpen(false)} reasonOf={(fresh, address) => trackerReasonText(t, fresh, address)} />
+        </Sheet>
+      )}
       {narrow && openTracker && (
         <Sheet open onOpenChange={(next) => !next && setTrackerBinaryOf(null)} title={t('tracker.bin.title', { cli: openTracker.cli, tracker: trackerWords(openTracker.id).label })} className="prov-sheet">
           <BinaryEditor
@@ -404,7 +429,7 @@ function useHostReason(status: ProgramStatus, enabled: boolean): string {
     minimum: status.minimum ?? '',
     recorded: status.recorded[status.recorded.length - 1] ?? '',
   };
-  if (status.reason !== null && status.reason !== 'not-recorded') return t(`reason.${status.reason}`, params);
+  if (status.reason !== null && status.reason !== 'not-recorded' && !isOwnReason(status.reason)) return t(`reason.${status.reason}`, params);
   switch (status.state) {
     case 'ready':
       return t('reason.ready');
@@ -674,9 +699,18 @@ function BinaryEditor({
   );
 }
 
-/** The binary editor's words for a tracker: it names the tracker, and an empty path means its host's program. */
+/** The binary editor's words for a tracker: it names the tracker, and an empty path means its host's program, or the PATH for one with its own. */
 function trackerBinaryWords(t: TFunction<'integrations'>, status: TrackerStatus): BinaryWords {
   const tracker = trackerWords(status.id).label;
+  if (status.host === null) {
+    return {
+      title: t('tracker.bin.title', { cli: status.cli, tracker }),
+      placeholder: t('tracker.binOwn.placeholder', { cli: status.cli }),
+      hint: t('tracker.binOwn.hint', { cli: status.cli, minimum: status.minimum ?? '' }),
+      usePath: t('tracker.binOwn.usePath'),
+      cleared: t('tracker.binOwn.cleared', { tracker, cli: status.cli }),
+    };
+  }
   const host = status.host === 'gitlab' ? 'GitLab' : 'GitHub';
   return {
     title: t('tracker.bin.title', { cli: status.cli, tracker }),
@@ -687,13 +721,30 @@ function trackerBinaryWords(t: TFunction<'integrations'>, status: TrackerStatus)
   };
 }
 
+/**
+ * What a tracker with credentials of its own says, by state: the address it reaches and the account,
+ * or what is missing. Null for a state the host's words already cover.
+ */
+function ownTrackerReason(t: TFunction<'integrations'>, status: TrackerStatus, host: string): string | null {
+  if (status.state === 'ready') return t('tracker.reason.readyOwn', { host, cli: status.cli, user: status.user ?? '' });
+  if (status.state === 'not-installed') return t('tracker.reason.notInstalledOwn', { cli: status.cli });
+  if (isOwnReason(status.reason)) return t(`tracker.reason.${status.reason}`, { host });
+  return null;
+}
+
+/** The reason of a tracker in words, outside a row: the toast after its access is saved. */
+function trackerReasonText(t: TFunction<'integrations'>, status: TrackerStatus, host: string): string {
+  return ownTrackerReason(t, status, host) ?? status.reason ?? status.state;
+}
+
 /** The plain-words reason of a tracker row: its own for ready, off and not recorded, the CLI's otherwise. */
-function useTrackerReason(status: TrackerStatus, enabled: boolean): string {
+function useTrackerReason(status: TrackerStatus, enabled: boolean, accessHost: string): string {
   const { t } = useTranslation('integrations');
   const hostReason = useHostReason(status, true);
   const tracker = trackerWords(status.id).label;
   if (!enabled) return t('tracker.reason.disabled', { tracker });
   if (status.reason === 'not-recorded') return t('tracker.reason.not-recorded', { tracker, cli: status.cli });
+  if (status.host === null) return ownTrackerReason(t, status, accessHost) ?? hostReason;
   if (status.state === 'ready') return t('tracker.reason.ready', { cli: status.cli, host: status.host === 'gitlab' ? 'GitLab' : 'GitHub' });
   return hostReason;
 }
@@ -707,25 +758,32 @@ function TrackerRow({
   enabled,
   variant,
   open,
+  accessOpen,
   checking,
   panel,
   onRetry,
   onChooseBinary,
+  onConnect,
 }: {
   status: TrackerStatus;
   enabled: boolean;
   variant: 'row' | 'cell';
   open: boolean;
+  /** Whether YouTrack's address and token are open under the row */
+  accessOpen: boolean;
   checking: boolean;
   panel: React.ReactNode;
   onRetry: () => void;
   onChooseBinary: () => void;
+  onConnect: () => void;
 }) {
   const { t } = useTranslation('integrations');
   const { t: tProviders } = useTranslation('providers');
   const words = trackerWords(status.id);
   const built = isTrackerBuilt(status.id);
-  const reason = useTrackerReason(status, enabled);
+  const own = keepsCredentials(status.id);
+  const access = useQuery({ queryKey: keys.youtrackCredentials, queryFn: ({ signal }) => api.youtrackCredentials({ signal }), enabled: own });
+  const reason = useTrackerReason(status, enabled, access.data?.host ?? '');
   const meta = metaLine(status);
   const tone = trackerTone(status, enabled);
   const shown = enabled ? status.state : 'disabled';
@@ -764,6 +822,8 @@ function TrackerRow({
   const remedy: TrackerActionKind | null = checking ? null : trackerAction(status, enabled);
   // A built tracker can always be pointed at another binary; the remedy its state asks for comes first
   const kinds: TrackerActionKind[] = remedy ? [remedy] : [];
+  // Access that works can still be changed, after the remedy and before the binary
+  if (!checking && own && enabled && remedy !== 'connect') kinds.push('connect');
   if (!checking && built && enabled && remedy !== 'choose-binary') kinds.push('choose-binary');
   const hostLinks = status.host ? LINKS[status.host] : null;
   const buttons = kinds.map((kind) => {
@@ -776,8 +836,16 @@ function TrackerRow({
       </a>
     );
     switch (kind) {
-      case 'install':
-        return hostLinks && link(hostLinks.install, t('row.install'));
+      case 'install': {
+        const install = hostLinks?.install ?? OWN_INSTALL[status.id];
+        return install && link(install, t('row.install'));
+      }
+      case 'connect':
+        return (
+          <button key={kind} type="button" className={className} data-action={kind} aria-pressed={accessOpen} onClick={onConnect}>
+            {remedy === 'connect' ? t('row.connect') : t('row.changeAccess')}
+          </button>
+        );
       case 'sign-in':
         return hostLinks && link(hostLinks.signIn, t('row.signIn'));
       case 'choose-binary':

@@ -67,6 +67,11 @@ export class ChatTokenStore {
     return minted.chatId;
   }
 
+  /** Whether a word is a token this store minted, expired or not: for masking, never for access. */
+  holds(word: string): boolean {
+    return word.startsWith(CHAT_TOKEN_PREFIX) && this.tokens.has(sha256(word).toString('hex'));
+  }
+
   revoke(token: string): void {
     this.tokens.delete(sha256(token).toString('hex'));
   }

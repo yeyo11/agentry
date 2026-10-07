@@ -21,7 +21,9 @@
     "signIn": "Cómo iniciar sesión",
     "chooseBinary": "Elegir binario",
     "retry": "Reintentar",
-    "opensNewTab": "se abre en una pestaña nueva"
+    "opensNewTab": "se abre en una pestaña nueva",
+    "connect": "Conectar",
+    "changeAccess": "Cambiar acceso"
   },
   "reason": {
     "ready": "Instalado, con sesión iniciada y respondiendo.",
@@ -69,12 +71,17 @@
     "title": "Gestores de incidencias",
     "total_one": "{{count}} gestor",
     "total_other": "{{count}} gestores",
-    "note": "Agentry importa incidencias de GitHub Issues (#12) y GitLab Issues (#12) con los mismos programas que ya usa para las PR y las MR: no pide otra sesión ni guarda otra clave. Jira y YouTrack llegarán cuando se haya comprobado cómo responden sus programas.",
+    "note": "Agentry importa incidencias de GitHub Issues (#12) y GitLab Issues (#12) con los mismos programas que ya usa para las PR y las MR, y de YouTrack (PROJ-12) con youtrack-app, el programa de JetBrains, y la dirección y el token que le des aquí abajo. Jira llegará cuando se haya comprobado cómo responde su programa.",
     "notAvailable": "Aún no disponible",
     "reason": {
       "ready": "Lee y escribe incidencias con {{cli}}, con la sesión que ya tiene. Sirve en los proyectos cuyo código está en {{host}}.",
       "disabled": "Agentry no usa {{tracker}} mientras esté desactivado.",
-      "not-recorded": "{{tracker}} todavía no está disponible: Agentry aún no ha visto cómo responde {{cli}} y no construye nada sobre algo que no ha visto."
+      "not-recorded": "{{tracker}} todavía no está disponible: Agentry aún no ha visto cómo responde {{cli}} y no construye nada sobre algo que no ha visto.",
+      "readyOwn": "Lee y escribe incidencias en {{host}} con {{cli}}, como {{user}}. Sirve en cualquier proyecto, esté donde esté su código.",
+      "no-credentials": "Indica a Agentry la dirección de tu YouTrack y un token permanente para usarlo.",
+      "token-rejected": "{{host}} no ha aceptado el token. Crea otro en tu perfil de YouTrack, en Seguridad de la cuenta.",
+      "host-unreachable": "{{host}} no ha respondido. Revisa la dirección y que este equipo pueda llegar a ella.",
+      "notInstalledOwn": "{{cli}} no está instalado, o Agentry no lo encuentra. Es el programa de JetBrains para YouTrack y se instala con npm."
     },
     "bin": {
       "title": "Binario de {{cli}} para {{tracker}}",
@@ -82,6 +89,29 @@
       "hint": "Vacío, {{tracker}} usa el mismo programa que {{host}}. Si eliges otro, Agentry lee su versión antes de guardarlo y comprueba que no es anterior a la {{minimum}}.",
       "usePath": "Usar el del host",
       "cleared": "{{tracker}} vuelve a usar el programa de {{host}}"
+    },
+    "binOwn": {
+      "placeholder": "{{cli}} del PATH",
+      "hint": "Vacío, Agentry busca {{cli}} en el PATH. Si eliges otro, Agentry lee su versión antes de guardarlo y comprueba que no es anterior a la {{minimum}}.",
+      "usePath": "Buscar en el PATH",
+      "cleared": "{{tracker}} vuelve a usar {{cli}} del PATH"
+    },
+    "credentials": {
+      "title": "Acceso a YouTrack",
+      "host": "Dirección",
+      "hostHint": "La dirección de tu instancia, como https://acme.youtrack.cloud, o https://example.com/youtrack si está bajo una ruta.",
+      "token": "Token permanente",
+      "tokenHint": "Créalo en YouTrack, en tu perfil, en Seguridad de la cuenta, con el ámbito YouTrack. Agentry se lo pasa a youtrack-app solo por su entorno y no vuelve a mostrarlo.",
+      "tokenSaved": "Guardado · déjalo vacío para conservarlo",
+      "encrypted": "Se guarda cifrado con el llavero de este equipo.",
+      "plain": "Se guarda en un archivo que solo puede leer el usuario de este servidor.",
+      "save": "Comprobar y guardar",
+      "forget": "Olvidar acceso",
+      "connected": "YouTrack conectado como {{user}}",
+      "savedNotReady": "Guardado, pero YouTrack no está listo: {{reason}}",
+      "forgotten": "Agentry ha olvidado el acceso a YouTrack",
+      "failed": "No se ha podido guardar el acceso a YouTrack",
+      "loadFailed": "No se ha podido leer el acceso a YouTrack"
     }
   }
 }

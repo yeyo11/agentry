@@ -1,0 +1,5 @@
+youtrack-app: 1.0.3
+argv: youtrack-app rest request --method POST --path /api/issues/AGP-2?fields=idReadable,resolved,customFields(name,value(name)) --body {"customFields":[{"name":"State","$type":"StateIssueCustomField","value":{"name":"Done"}}]}
+exit: 0
+env: 
+stdin-sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855

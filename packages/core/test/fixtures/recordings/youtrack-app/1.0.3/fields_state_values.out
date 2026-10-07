@@ -1,0 +1,161 @@
+[
+  {
+    "bundle": {
+      "values": [
+        {
+          "archived": false,
+          "name": "Show-stopper",
+          "$type": "EnumBundleElement"
+        },
+        {
+          "archived": false,
+          "name": "Critical",
+          "$type": "EnumBundleElement"
+        },
+        {
+          "archived": false,
+          "name": "Major",
+          "$type": "EnumBundleElement"
+        },
+        {
+          "archived": false,
+          "name": "Normal",
+          "$type": "EnumBundleElement"
+        },
+        {
+          "archived": false,
+          "name": "Minor",
+          "$type": "EnumBundleElement"
+        }
+      ],
+      "$type": "EnumBundle"
+    },
+    "field": {
+      "name": "Priority",
+      "$type": "CustomField"
+    },
+    "$type": "EnumProjectCustomField"
+  },
+  {
+    "bundle": {
+      "values": [
+        {
+          "isResolved": false,
+          "archived": false,
+          "name": "Open",
+          "$type": "StateBundleElement"
+        },
+        {
+          "isResolved": false,
+          "archived": false,
+          "name": "In Progress",
+          "$type": "StateBundleElement"
+        },
+        {
+          "isResolved": false,
+          "archived": false,
+          "name": "To Verify",
+          "$type": "StateBundleElement"
+        },
+        {
+          "isResolved": true,
+          "archived": false,
+          "name": "Done",
+          "$type": "StateBundleElement"
+        },
+        {
+          "isResolved": true,
+          "archived": false,
+          "name": "Duplicate",
+          "$type": "StateBundleElement"
+        }
+      ],
+      "$type": "StateBundle"
+    },
+    "field": {
+      "name": "State",
+      "$type": "CustomField"
+    },
+    "$type": "StateProjectCustomField"
+  },
+  {
+    "bundle": {
+      "values": [],
+      "$type": "VersionBundle"
+    },
+    "field": {
+      "name": "Sprints",
+      "$type": "CustomField"
+    },
+    "$type": "VersionProjectCustomField"
+  },
+  {
+    "bundle": {
+      "values": [
+        {
+          "archived": false,
+          "name": "Bug",
+          "$type": "EnumBundleElement"
+        },
+        {
+          "archived": false,
+          "name": "Epic",
+          "$type": "EnumBundleElement"
+        },
+        {
+          "archived": false,
+          "name": "User Story",
+          "$type": "EnumBundleElement"
+        },
+        {
+          "archived": false,
+          "name": "Task",
+          "$type": "EnumBundleElement"
+        }
+      ],
+      "$type": "EnumBundle"
+    },
+    "field": {
+      "name": "Type",
+      "$type": "CustomField"
+    },
+    "$type": "EnumProjectCustomField"
+  },
+  {
+    "bundle": {
+      "values": [
+        {
+          "name": "Agentry probe Team",
+          "$type": "ProjectTeam"
+        }
+      ],
+      "$type": "UserBundle"
+    },
+    "field": {
+      "name": "Assignee",
+      "$type": "CustomField"
+    },
+    "$type": "UserProjectCustomField"
+  },
+  {
+    "field": {
+      "name": "Ideal days",
+      "$type": "CustomField"
+    },
+    "$type": "SimpleProjectCustomField"
+  },
+  {
+    "field": {
+      "name": "Original estimation",
+      "$type": "CustomField"
+    },
+    "$type": "SimpleProjectCustomField"
+  },
+  {
+    "field": {
+      "name": "Story points",
+      "$type": "CustomField"
+    },
+    "$type": "SimpleProjectCustomField"
+  }
+]

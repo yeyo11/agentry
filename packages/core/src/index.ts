@@ -103,7 +103,10 @@ import { CodeHostsSettingsStore } from './hosts/settings.ts';
 import { TrackersSettingsStore } from './trackers/settings.ts';
 import { TrackerError, TrackerImportService, type TrackerAccess } from './trackers/import.ts';
 import { TrackerSyncService } from './trackers/sync.ts';
-import { TrackerDetector } from './trackers/detector.ts';
+import { TrackerDetector, youtrackSecrets } from './trackers/detector.ts';
+import { YoutrackCredentialStore } from './trackers/youtrack/credentials.ts';
+import { runHostCall } from './hosts/exec.ts';
+import { youtrackIssueUrl } from './trackers/youtrack/adapter.ts';
 import { ProviderDetector } from './providers/detector.ts';
 import { AcpDriver } from './providers/acp/driver.ts';
 import { ChatEntriesTranscripts } from './providers/chat-entries.ts';
@@ -133,6 +136,7 @@ import { parseKeyPrefix, parseModules, parseProjectSettings, parseProjectSetup, 
 import { PROJECT_TEMPLATES } from './project-templates.ts';
 import { attachProject, projectCandidates, ProjectStore, type ChatPlace, type ProjectRecord } from './projects.ts';
 import { AuthStore } from './security/auth.ts';
+import { recognizeSecrets } from './decisions/redact.ts';
 import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
@@ -173,7 +177,7 @@ export {
 } from './decisions/engine.ts';
 export { CliDecisionProvider, decisionPrompt, decisionSchema, parseAnswers as parseDecisionAnswers } from './decisions/providers/cli.ts';
 export { DECISION_POINTS, decisionPoint, type DecisionPointDefinition, type DecisionSubject } from './decisions/points.ts';
-export { cutToBytes, maskSecrets, redactState, SECRET_MASK, stateBytes } from './decisions/redact.ts';
+export { cutToBytes, maskSecrets, recognizeSecrets, redactState, SECRET_MASK, stateBytes, type SecretRecognizer } from './decisions/redact.ts';
 export {
   DecisionCredentialStore,
   DecisionSettingsStore,
@@ -359,6 +363,8 @@ export class Core {
   readonly trackersSettings: TrackersSettingsStore;
   /** Whether each issue tracker is ready: a host's tracker reads its host's CLI and sign-in */
   readonly trackers: TrackerDetector;
+  /** The YouTrack instance and token `youtrack-app` is handed (`youtrack-credentials.json`, decision 3) */
+  readonly youtrackCredentials: YoutrackCredentialStore;
   readonly permissions: PermissionBroker;
   /** Processes and live streams of the chats Agentry drives */
   readonly runtime: ChatManager;
@@ -448,6 +454,8 @@ export class Core {
   readonly webhooks: WebhookStore;
   /** The 0600 files that hold each registration's signing secret; never returned by the API */
   readonly webhookSecrets: WebhookSecrets;
+  /** Takes Agentry's own secrets back out of the redaction, at shutdown */
+  private readonly forgetSecrets: () => void;
   /** What `POST /webhooks/:host/:registrationId` calls: verify, dedupe, then move the named rows' next read to now */
   readonly webhookReceiver: WebhookReceiver;
   /** Registers, tests, removes and re-points the hooks Agentry keeps on a repository; the receiver reads their secrets from `webhookSecrets` itself */
@@ -498,7 +506,13 @@ export class Core {
         return this.events.emit(event);
       },
     });
-    this.trackers = new TrackerDetector({ hosts: this.hosts, adapter: codeHostAdapter, settings: () => this.trackersSettings.get() });
+    this.youtrackCredentials = new YoutrackCredentialStore(config);
+    this.trackers = new TrackerDetector({
+      hosts: this.hosts,
+      adapter: codeHostAdapter,
+      settings: () => this.trackersSettings.get(),
+      youtrackCredentials: () => this.youtrackCredentials.get(),
+    });
     this.db = new Db(config);
     this.permissions = new PermissionBroker();
     // Must run before anything spawns the CLI: it injects stored credentials into process.env
@@ -785,6 +799,12 @@ export class Core {
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.webhooks = new WebhookStore(this.db.connection);
     this.webhookSecrets = new WebhookSecrets(config);
+    // Agentry's own secrets are masked in everything that may leave the machine (a decision's state,
+    // a handoff), whatever text surrounds them
+    this.forgetSecrets = recognizeSecrets({
+      values: () => [this.decisionCredentials.getKey() ?? '', ...this.webhookSecrets.values()],
+      isSecret: (word) => this.security.isOwnSecret(word),
+    });
     this.webhookReceiver = new WebhookReceiver({
       store: this.webhooks,
       secrets: this.webhookSecrets,
@@ -1605,7 +1625,32 @@ export class Core {
    */
   private async trackerAccess(projectPath: string, tracker: TrackerId): Promise<TrackerAccess> {
     if (!this.trackerEnabled(tracker)) throw new TrackerError('this tracker is turned off in the trackers settings', 409, 'tracker-disabled');
+    if (tracker === 'youtrack') return this.youtrackAccess(projectPath);
     return this.pullRequests.hostAccess(projectPath);
+  }
+
+  /**
+   * YouTrack is not the project's host: its calls go to the instance Agentry keeps the address and
+   * token of, through the `youtrack-app` the detector found ready, with the token only in the
+   * child's environment.
+   */
+  private async youtrackAccess(projectPath: string): Promise<TrackerAccess> {
+    const status = await this.trackers.status('youtrack');
+    const credentials = this.youtrackCredentials.get();
+    if (!status || status.state !== 'ready' || !status.binaryPath || !credentials) {
+      const reason = status?.state === 'not-installed' ? 'cli-missing' : status?.state === 'incompatible' ? 'cli-incompatible' : status?.state === 'signed-out' || !credentials ? 'tracker-signed-out' : 'unreachable';
+      throw new TrackerError(`YouTrack is not ready (${status?.reason ?? status?.state ?? 'unknown'}): see Settings, Integrations`, 409, reason);
+    }
+    const binaryPath = status.binaryPath;
+    const secretEnv = youtrackSecrets(credentials);
+    const cwd = mainCheckout(projectPath);
+    return {
+      host: null,
+      hostname: credentials.host,
+      repo: null,
+      run: (call) => runHostCall(call, { binaryPath, cwd, baseEnv: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, secretEnv }),
+      issueUrl: (key) => youtrackIssueUrl(credentials.host, key),
+    };
   }
 
   /** The project's settings document, created on first read with every module off. */
@@ -2537,6 +2582,7 @@ export class Core {
   }
 
   shutdown(): void {
+    this.forgetSecrets();
     this.pullRequestWatcher.stop();
     // First, while the database is still open for the row that says its host left
     this.tunnel.shutdown();
