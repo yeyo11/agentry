@@ -2615,6 +2615,11 @@
       "status": {
         "$ref": "#/components/schemas/OrchestrationTaskStatus"
       },
+      "builtIn": {
+        "type": "string",
+        "const": "e2e-specs",
+        "description": "A task Agentry added to the graph itself, not one the person or the planner wrote; a relaunch adds it again"
+      },
       "worktree": {
         "type": [
           "string",
@@ -3432,6 +3437,10 @@
       "failGraph": {
         "type": "boolean",
         "description": "A failed verification ends the orchestration as `failed` and no pull request is offered (default false)"
+      },
+      "e2eSpecs": {
+        "type": "boolean",
+        "description": "Before integration, a task of the graph (`e2e-specs`) runs only the browser specs the graph's changes touch, each alone on a port of its own, so a spec the work broke or left stale is caught before the merge (CW-15). On by default; `false` leaves the task out."
       }
     },
     "required": [
@@ -3898,6 +3907,11 @@
     "properties": {
       "status": {
         "$ref": "#/components/schemas/OrchestrationTaskStatus"
+      },
+      "builtIn": {
+        "type": "string",
+        "const": "e2e-specs",
+        "description": "A task Agentry added to the graph itself, not one the person or the planner wrote; a relaunch adds it again"
       },
       "worktree": {
         "type": [

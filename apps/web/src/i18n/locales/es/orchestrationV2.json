@@ -64,7 +64,9 @@
     "costOf": "El agente ha gastado {{cost}} de su límite de {{limit}}.",
     "failedGraphTitle": "Las comprobaciones han hecho fallar este grafo",
     "failedGraphBody": "Todas las tareas terminaron, pero las comprobaciones sobre la rama fusionada fallaron y el grafo se lanzó para fallar en ese caso. La tarjeta de verificación de abajo dice qué falló; si pasan en una ejecución posterior, el grafo se recupera.",
-    "pullRequestHeld": "No se ofrece pull request: las comprobaciones fallaron y este grafo se lanzó para fallar en ese caso."
+    "pullRequestHeld": "No se ofrece pull request: las comprobaciones fallaron y este grafo se lanzó para fallar en ese caso.",
+    "e2eSpecs": "Ejecutar las specs del navegador que tocan los cambios antes de fusionar",
+    "e2eSpecsHint": "Una tarea añadida al final del grafo ejecuta solo las specs del navegador que toca el trabajo de las demás, cada una sola en su propio puerto, y arregla una spec que el trabajo haya dejado desfasada. Los workers no ejecutan ninguna."
   },
   "templates": {
     "none": "Aún no hay plantillas",
