@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T21:30:00Z
-updated_at: 2026-09-29T12:00:00Z
+updated_at: 2026-10-07T16:00:00Z
 tags:
     - assistant
     - ai-suggestions
@@ -386,6 +386,15 @@ had left for the owner:
   as the CLI does with `--json-schema`, and `hold:` waits for a file so a spec can keep it
   half-written.
 
+## Its global sibling
+
+The project assistant stays as it is: one project, read-only, proposals one by one. The **Agentry
+assistant** is a separate, global chat that reads Agentry through its MCP server and writes only
+after the person allows each call; see [agentry-assistant.md](agentry-assistant.md). Its proposal
+tools (`accept_assistant_proposal`, `discard_assistant_proposal`) call the routes above with the
+chat's token: the proposal is then decided, and its item made, by an agent of role `assistant` with
+the cause `chat.api-write`. Folding the two into one is a follow-up.
+
 ## Known gaps
 
 None of its own. Orchestration 6 (`ecosystem-gaps`, 2026-09-28) closed every gap this section listed,
@@ -398,4 +407,4 @@ chat has run on an alias, it shows the alias.
 
 ## Related
 
-[[team-and-flow.md]] · [[prompts.md]] · [[projects.md]] · [[work-items.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[agentry-assistant.md]] · [[team-and-flow.md]] · [[prompts.md]] · [[projects.md]] · [[work-items.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

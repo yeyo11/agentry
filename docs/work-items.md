@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T06:00:00Z
-updated_at: 2026-10-02T12:00:00Z
+updated_at: 2026-10-07T16:00:00Z
 tags:
     - work-items
     - pull-request
@@ -774,6 +774,16 @@ client does not know the next number.
   The nodes keep their `workItemId`, so launching links them.
 - **An orchestration's page** names each node's item by its key, linked to the item.
 
+### A write from a chat
+
+A chat that calls the work-item routes with its own token (the Agentry assistant's write tools, after
+the person allowed the call) is recorded as who made the change. `chatWriteContext` in
+`apps/api/src/routes/work-items.ts` reads the request's `chat:<id>` label: create, PATCH, move and
+comment, and the assistant's proposal accept and discard, record the history entry with the actor
+`agent`, the role `assistant` for an assistant chat (none for any other chat) and the cause
+`chat.api-write`; a comment also carries its source. A request without a chat token is the person's,
+as before. See [agentry-assistant.md](agentry-assistant.md).
+
 ## Routes
 
 The README's [Work items](../README.md#work-items) table lists every route, with the filters (`status`,
@@ -813,4 +823,4 @@ without descriptions, with Done and the lists paged (20).
 
 ## Related
 
-[[projects.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/work-item-pull-requests.md]] · [[plans/project-ecosystem-audit.md]] · [[code-hosts.md]] · [[trackers.md]] · [[design-system.md]] · [[status.md]]
+[[projects.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[agentry-assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/work-item-pull-requests.md]] · [[plans/project-ecosystem-audit.md]] · [[code-hosts.md]] · [[trackers.md]] · [[design-system.md]] · [[status.md]]

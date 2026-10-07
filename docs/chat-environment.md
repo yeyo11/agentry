@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T12:00:00Z
-updated_at: 2026-09-29T12:00:00Z
+updated_at: 2026-10-07T16:00:00Z
 tags:
     - chats
     - api
@@ -50,11 +50,16 @@ app the person was looking at. Nothing told the agent where its own wrapper was.
   - It cannot administer the guard: `PUT /api/security/auth`, `POST|DELETE /api/security/token`,
     `POST /api/tunnel/start` and `PUT /api/tunnel/settings` answer `403`. Read-only and the host
     allowlist apply as to the owner.
-  - Writes are audited as `chat:<chatId>`.
+  - Writes are audited as `chat:<chatId>`, also under `mode: none`: there the token grants nothing
+    (the mode already allows everything) and only labels the request, so a wrong or missing one stays
+    `local` and is never refused (CW-17, `apps/api/src/security.ts`). The work-item routes turn that
+    label into an agent actor with the cause `chat.api-write`
+    ([work-items.md](work-items.md#a-write-from-a-chat)).
   - An inherited `AGENTRY_API_TOKEN` is always removed, like the URL: it is another wrapper's.
   - MCP servers the CLI starts inherit it, which is how the assistant's server calls the API. Agentry's
     own server (`agentry`) is given it in its config file as `${AGENTRY_API_TOKEN}`, expanded by the CLI
-    ([agentry-mcp-server.md](plans/agentry-mcp-server.md)).
+    ([agentry-mcp-server.md](plans/agentry-mcp-server.md)). The global assistant chat uses it for its
+    read and write tools ([agentry-assistant.md](agentry-assistant.md)).
 
   The full specification is [chat-api-token.md](plans/chat-api-token.md); the decision is §2 of
   [flow-start-and-chat-token.md](plans/flow-start-and-chat-token.md).

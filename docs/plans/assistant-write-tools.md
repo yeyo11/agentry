@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T22:00:00Z
-updated_at: 2026-09-28T22:00:00Z
+updated_at: 2026-10-07T16:00:00Z
 tags:
     - plan
     - spec
@@ -8,11 +8,11 @@ tags:
     - mcp
     - permissions
     - work-items
-    - proposed
+    - built
 ---
 # Spec: write tools for the Agentry assistant, each confirmed by the person (CW-17)
 
-Status: **proposed**. Story CW-17 of epic CW-12, "The Agentry assistant". It builds on
+Status: **built** on `feat/assistant-entry` (2026-10-07), not merged to `main` yet; see [Outcome](#outcome). Story CW-17 of epic CW-12, "The Agentry assistant". It builds on
 [agentry-assistant.md](agentry-assistant.md) and depends on two earlier stories:
 
 - **CW-6**: Agentry's own MCP server, with its read tools.
@@ -228,6 +228,23 @@ The e2e suite is not required, but the existing `a11y` and `motion` specs must s
   spec says no.
 - Should stopping a flow run or a task join this set? The plan lists it; this card does not.
 
+## Outcome
+
+Built on `feat/assistant-entry` after CW-18, with option A (every write through the CLI's permission
+prompt, shown as a host prompt). Feature doc: [agentry-assistant.md](../agentry-assistant.md);
+tools: [agentry-mcp-server.md](../agentry-mcp-server.md#write-tools).
+
+- Nine tools in `packages/mcp/src/write-tools.ts`; `move_work_item` refuses `done`.
+- The chat's permission mode is the CLI's default (`manual` in Agentry) with host prompts; no write
+  tool is allowed ahead of time. A write's prompt has no suggestions and an allow carries no rules.
+- A chat token labels the actor `chat:<id>` under `mode: none`; the history records an agent of role
+  `assistant` with the cause `chat.api-write`.
+- **Departures:** the permission branch is in `chat-fold.ts`, not `chats.ts`; `assistant.ts` and the
+  guide prompt changed too; `start_chat` has no `agent` input.
+- **Left open:** a title per tool in the permission prompt and the cause's copy in the history
+  (web), an end-to-end confirmed and denied write through the real CLI, and the work-item proposal
+  accept path with a real proposal.
+
 ## Related
 
-[[plans/agentry-assistant.md]] · [[plans/chat-api-token.md]] · [[plans/flow-start-and-chat-token.md]] · [[assistant.md]] · [[chat-environment.md]] · [[work-items.md]] · [[team-and-flow.md]]
+[[agentry-assistant.md]] · [[plans/agentry-assistant.md]] · [[plans/chat-api-token.md]] · [[plans/flow-start-and-chat-token.md]] · [[assistant.md]] · [[chat-environment.md]] · [[work-items.md]] · [[team-and-flow.md]]
