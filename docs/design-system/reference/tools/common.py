@@ -162,7 +162,7 @@ LIVE_DEFAULT = '''<div class="col" style="gap: 4px">
 TASKS_OPEN = {'claude-wrapper': '13', 'Todos los proyectos': '16'}
 
 
-def sidebar(active, live=None, project='claude-wrapper'):
+def sidebar(active, live=None, project='claude-wrapper', assistant=False):
   def item(key, href, icon, name, extra=''):
     on = ' on' if key == active else ''
     return f'<a href="{href}" class="nav-item{on}">{ico(icon)}<span class="grow">{name}</span>{extra}</a>'
@@ -174,7 +174,7 @@ def sidebar(active, live=None, project='claude-wrapper'):
 </div>
 <button type="button" class="field" style="width: 100%; cursor: pointer; justify-content: flex-start; background: var(--bg-2)">{ico('search')}<span class="grow t-sm" style="text-align: left">Buscar o ejecutar…</span><span class="kbd">⌘K</span></button>
 <div class="col" style="gap: 1px">
-{item('home', 'Main.html', 'home', 'Inicio')}
+{item('home', 'Main.html', 'home', 'Inicio')}{(chr(10) + item('assistant', 'DesktopAsistenteAgentry.html', 'sparkle', 'Asistente')) if assistant else ''}
 {item('chats', 'DesktopChats.html', 'chats', 'Chats', '<span class="count">197</span>')}
 {item('tasks', 'DesktopTablero.html', 'tasks', 'Tareas', f'<span class="count">{TASKS_OPEN[project]}</span>' if project in TASKS_OPEN else '')}
 {item('orch', 'DesktopOrquestaciones.html', 'orch', 'Orquestaciones', '<span class="count-pill live">1</span>')}
@@ -235,9 +235,9 @@ def pcrumb(project, *parts):
   return '<span class="fg-3">/</span>'.join(bits)
 
 
-def desktop(title, active, crumb, main, overlay='', project='claude-wrapper', live=None, agents=2, running=2, css=''):
+def desktop(title, active, crumb, main, overlay='', project='claude-wrapper', live=None, agents=2, running=2, css='', assistant=False):
   body = f'''<div class="app shell" data-theme="dark" style="width: 1440px; height: 1024px; position: relative">
-{sidebar(active, live, project)}
+{sidebar(active, live, project, assistant)}
 <div class="main-col" style="position: relative">
 {topbar(crumb, project, agents)}
 {main}
