@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T18:00:00Z
-updated_at: 2026-10-06T10:00:00Z
+updated_at: 2026-10-06T12:00:00Z
 tags:
     - settings
     - configuration
@@ -113,16 +113,15 @@ are atomic and one at a time.
 
 Beside the configured hosts, the guard also answers a set of **runtime hosts**: exact names that
 their owner adds and removes while Agentry runs. The only owner so far is the
-[tunnel](tunnel.md), which lends its host while the address answers. The set:
+[tunnel](tunnel.md), which lends the node's tailnet name while its Serve rule holds. The set:
 
-- **Exact names only, never a pattern.** `*.lhr.life` would let in every other tunnel on the same
-  provider.
+- **Exact names only, never a pattern.** `*.ts.net` would let in every other node of every tailnet.
 - **Memory only.** Never written to `app-settings.json` or any file. `GET /api/settings/app` lists
   them apart, in `allowedHostLayers.runtime`, for reading only: `allowedHosts` there is the
   configured part. Adding or removing one emits `settings.changed`.
 - **Its own failed-login bucket.** A runtime host may be registered with a header that carries the
   client's address. Its failed logins are then keyed by the last hop of that header, because earlier
-  hops can be forged by the client. With no header (the tunnel's case: localhost.run sets none), all
+  hops can be forged by the client. With no header (the tunnel's case: Tailscale Serve's were not measured), all
   of that host's traffic shares one bucket, `runtime:<host>`, kept apart from loopback. On every other
   host, the key stays the peer's address and any such header is ignored, so nobody on the machine can
   forge their way into another bucket.

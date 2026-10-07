@@ -13,8 +13,9 @@ import { newWebhookSecret, type WebhookSecrets } from './webhook-secrets.ts';
 
 // Registering, testing, removing and re-pointing the hooks Agentry keeps on a repository
 // (docs/plans/code-hosts.md, phase 6). It is the person's click that registers (the route is not
-// open to a chat's token); after that, a new public URL from the tunnel re-points the hooks Agentry
-// registered, by id and never anyone else's (decision 2). Each host's calls are a `HookDriver`
+// open to a chat's token); after that, a new public origin re-points the hooks Agentry registered,
+// by id and never anyone else's (decision 2). Today there is no public origin: the tunnel is
+// tailnet-only (`tailscale serve`), so `Core` hands the service none and does not wire `observe`. Each host's calls are a `HookDriver`
 // (GitHub's and GitLab's are both recorded); everything else here is the same for both. A hook only
 // tells Agentry to look again (hosts/pacer.ts); polling stays the source of truth.
 
@@ -92,7 +93,7 @@ export interface WebhooksServiceDeps {
   secrets: Pick<WebhookSecrets, 'get' | 'set' | 'delete'>;
   target: (projectId: string) => Promise<WebhookTarget | null>;
   access: (projectId: string) => Promise<WebhookAccess>;
-  /** The origin the tunnel answers on right now; null without one */
+  /** The public origin a code host can deliver to; null without one (the tailnet-only tunnel is not one) */
   publicUrl: () => string | null;
   emit?: (event: AgentryEventInput) => void;
   now?: () => number;
@@ -420,7 +421,7 @@ export class WebhooksService {
   private publicOrigin(): string {
     const url = this.deps.publicUrl();
     const origin = url ? originOf(url) : null;
-    if (!origin) throw new WebhooksError('Agentry has no public address for a hook to deliver to: start the tunnel first', 409, 'no-public-url');
+    if (!origin) throw new WebhooksError('Agentry has no public address for a hook to deliver to', 409, 'no-public-url');
     return origin;
   }
 

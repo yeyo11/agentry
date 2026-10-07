@@ -1,77 +1,60 @@
-import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
-import { accessSync, constants, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { delimiter, isAbsolute, join } from 'node:path';
-import { createInterface } from 'node:readline';
-import type { AuthMode, Localized, LocalizedParams, TunnelSettings, TunnelState, TunnelStatus } from '@agentry/shared';
+import { execFile, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import type { AuthMode, Localized, LocalizedParams, TailscaleReadiness, TunnelSettings, TunnelState, TunnelStatus } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
 import type { AgentryEventInput } from './events.ts';
 import type { RuntimeHostOptions } from './app-settings.ts';
 
 /*
- * Reaching Agentry from a phone or another network through localhost.run, over the system's own
- * `ssh` (docs/plans/tunnel.md). One provider, no account, nothing to install. What has to hold
- * before a byte crosses: no tunnel without authentication, only the tunnel's exact host joins the
- * allowlist and only once it answers, and the provider's host key is pinned, because a network
- * that could swap the SSH endpoint would otherwise receive every request, the token included.
+ * Reaching Agentry from a phone or another computer on the person's tailnet, through the Tailscale
+ * CLI (docs/plans/tunnel.md). Agentry adds one `tailscale serve` rule (tailnet-only, never Funnel)
+ * on a port of its own, and takes exactly that rule away again. Tailscale is reached only through
+ * its CLI's flags and `--json` output, with the person's own session: no LocalAPI socket, no tsnet,
+ * no sign-in of Agentry's own. What has to hold before a byte crosses: no tunnel without
+ * authentication, only the node's exact name joins the allowlist and only while the rule holds, and
+ * nothing in the node's Serve config that Agentry did not add is ever changed.
  */
 
-/**
- * localhost.run's host key, as read on 2026-09-27 (`ssh-ed25519`,
- * `SHA256:pG6qrBxubYfWa1Zadu/V0NUgjEDiBds/7e2xzte/QNM`). It ships with Agentry and is the only
- * key its `known_hosts` holds: a key the provider rotates fails the tunnel with `tunnel.hostKey`
- * rather than being learned, which is what trust on first use would do on a hostile network.
- */
-export const LOCALHOST_RUN_KNOWN_HOSTS = 'localhost.run ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILVqOuSMnyeGDVO1lG6EaG5In/dXABCchhmHKkuRU2s9\n';
+/** The HTTPS port of Agentry's Serve rule unless `AGENTRY_TUNNEL_PORT` says otherwise: not 443, which the person's own `tailscale serve` takes by default. */
+export const DEFAULT_TUNNEL_PORT = 8443;
 
-const DESTINATION = 'nokey@localhost.run';
-
-const NAME = '[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+';
-/**
- * The one banner line the address comes from, as localhost.run prints it:
- * `<id>.lhr.life tunneled with tls termination, https://<id>.lhr.life`. The same banner links to
- * the provider's docs, so any `https://` in the output would not do; and the name has to be the
- * same on both sides of the line, or it is not the line we think it is.
- */
-const BANNER = new RegExp(`^(${NAME}) tunneled with tls termination, https://(${NAME})$`, 'i');
-
-/** The public address in a line of ssh's output, or null when the line is not the banner. */
-export function parseTunnelUrl(line: string): string | null {
-  const match = BANNER.exec(line.trim());
-  if (!match?.[1] || match[1].toLowerCase() !== match[2]?.toLowerCase()) return null;
-  return `https://${match[1].toLowerCase()}`;
-}
+/** `tailscale serve` took its current arguments (`--bg`, `--https=<port>`, `off`) in 1.52 */
+export const MIN_TAILSCALE_VERSION: readonly [number, number] = [1, 52];
 
 /**
- * localhost.run adds no header that carries the client's address, and passes the client's own
- * `X-Forwarded-For` through untouched (measured on 2026-09-27), so trusting one would let a
- * stranger pick whose failure budget they spend. The tunnel's host is therefore registered
- * without a header, and its traffic gets a backoff bucket of its own, apart from loopback.
+ * Tailscale Serve sets `Tailscale-User-Login` and friends, and is documented to replace a client's
+ * own copies, but whether it also sets `X-Forwarded-For` could not be measured here (the node's
+ * Serve settings need an operator this machine's user is not). Trusting an unmeasured header would
+ * let a client pick whose failure budget they spend, so the host is registered without one, and
+ * all tunnel traffic shares one backoff bucket of its own, apart from loopback.
  */
 export const TUNNEL_HOST_OPTIONS: RuntimeHostOptions = {};
 
 export interface TunnelTiming {
-  /** How long to keep asking the public address for `/api/health` before giving up on it */
-  verifyTimeoutMs: number;
-  verifyIntervalMs: number;
-  /** Waits between reconnects, the last one repeating */
-  backoffMs: readonly number[];
-  /** Attempts in a row that never reach `active` before the tunnel is reported failed */
-  maxAttempts: number;
-  /** How long ssh gets to leave after SIGTERM before SIGKILL */
-  killGraceMs: number;
+  /** How often an active tunnel re-reads Tailscale's state and its Serve rule */
+  monitorMs: number;
+  /** How long one `tailscale` call may take before it counts as failed */
+  commandTimeoutMs: number;
+  /** How long a readiness probe is reused before `refresh` asks the CLI again */
+  probeTtlMs: number;
+  /** Readings in a row that find Tailscale down or the rule gone before an active tunnel gives up */
+  maxMisses: number;
 }
 
 const DEFAULT_TIMING: TunnelTiming = {
-  verifyTimeoutMs: 60_000,
-  verifyIntervalMs: 2_000,
-  backoffMs: [1_000, 2_000, 5_000, 10_000, 30_000, 60_000],
-  maxAttempts: 6,
-  killGraceMs: 3_000,
+  monitorMs: 30_000,
+  commandTimeoutMs: 10_000,
+  probeTtlMs: 2_000,
+  maxMisses: 2,
 };
 
 export interface TunnelDeps {
   dataDir: string;
-  sshBin: string;
+  /** The `tailscale` CLI, from `TAILSCALE_BIN` */
+  tailscaleBin: string;
+  /** The HTTPS port on the node's tailnet name; `DEFAULT_TUNNEL_PORT` when left out */
+  port?: number;
   /**
    * Whether this deploy offers the tunnel (`CoreConfig.tunnelEnabled`); true when left out. False
    * refuses every start, "start with Agentry" included, and the status says so.
@@ -79,13 +62,11 @@ export interface TunnelDeps {
   enabled?: boolean;
   /** Read on every decision rather than copied: the mode can change while the tunnel is open */
   security: { readonly mode: AuthMode };
-  /** Where the verified host is registered for the guard, and removed from again */
+  /** Where the node's name is registered for the guard, and removed from again */
   hosts: { add(host: string, options?: RuntimeHostOptions): void; remove(host: string): void };
   emit?: (event: AgentryEventInput) => void;
   /** One row in the security history; the routes' own requests are audited by the API already */
   audit?: (row: { method: string; path: string; summary: string }) => void;
-  /** Whether `/api/health` answers `200` through the public address; replaced by the tests */
-  verify?: (url: string, signal: AbortSignal) => Promise<boolean>;
   timing?: Partial<TunnelTiming>;
 }
 
@@ -105,122 +86,182 @@ const REASONS = {
   disabled: () => reason('tunnel.disabled', 'This Agentry does not offer the tunnel. Whoever runs it can turn it on with AGENTRY_TUNNEL=on.'),
   authRequired: () => reason('tunnel.authRequired', 'The tunnel needs authentication: turn on a token or OIDC in Security first.'),
   noPort: () => reason('tunnel.noPort', 'Agentry is not listening yet, so there is nothing to open a tunnel to.'),
-  sshMissing: () => reason('tunnel.sshMissing', 'No ssh was found to run. Install the OpenSSH client (openssh-client) and try again.'),
-  hostKey: () => reason('tunnel.hostKey', "localhost.run answered with a host key that is not the one Agentry pins, so the tunnel was not opened."),
-  unverified: (host: string) => reason('tunnel.unverified', `localhost.run handed out ${host}, but Agentry could not reach itself through it.`, { host }),
-  exited: (detail: string) => reason('tunnel.exited', `ssh ended before localhost.run handed out an address: ${detail}`, { detail }),
+  missing: () => reason('tunnel.tailscaleMissing', 'The Tailscale CLI (tailscale) was not found. Install Tailscale on this machine and sign in, then try again.'),
+  unsupported: (version: string) =>
+    reason('tunnel.tailscaleUnsupported', `Tailscale ${version} is too old: the tunnel needs 1.52 or later. Update Tailscale, then try again.`, { version }),
+  daemonDown: () => reason('tunnel.tailscaleDaemonDown', 'The tailscale CLI could not reach the Tailscale service (tailscaled). Start it, then try again.'),
+  loggedOut: () => reason('tunnel.tailscaleLoggedOut', 'This machine is not signed in to a tailnet. Run tailscale up in a terminal, then try again.'),
+  notConnected: (state: string) =>
+    reason('tunnel.tailscaleNotConnected', `Tailscale is not connected on this machine (${state}). Run tailscale up in a terminal, then try again.`, { state }),
+  magicDnsOff: () => reason('tunnel.magicDnsOff', 'MagicDNS is off for this tailnet. Turn it on in the DNS page of the Tailscale admin console, then try again.'),
+  httpsOff: () => reason('tunnel.httpsOff', 'HTTPS certificates are off for this tailnet. Turn them on in the DNS page of the Tailscale admin console, then try again.'),
+  permission: () =>
+    reason('tunnel.servePermission', "Tailscale refused to change this machine's Serve settings for this user. Run sudo tailscale set --operator=$USER once, then try again."),
+  // A string, so the page does not group its digits as it would a count
+  portTaken: (port: number) =>
+    reason('tunnel.portTaken', `Port ${port} of this machine's tailnet name is already served by something else, and Agentry leaves it alone. Free it, or set AGENTRY_TUNNEL_PORT to another port.`, { port: String(port) }),
+  serveFailed: (detail: string) => reason('tunnel.serveFailed', `tailscale serve did not accept the rule: ${detail}`, { detail }),
+  unverified: () => reason('tunnel.unverified', "The Serve rule was sent, but this machine's Serve config does not show it pointing at Agentry."),
+  ruleRemoved: () => reason('tunnel.ruleRemoved', "Agentry's Serve rule was removed or changed outside Agentry, so the tunnel is closed."),
 };
 
-/** Is `bin` something this process can execute: a path that is, or a name found on the `PATH`. */
-function findExecutable(bin: string): boolean {
-  const runnable = (file: string): boolean => {
-    try {
-      accessSync(file, constants.X_OK);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-  if (isAbsolute(bin) || bin.includes('/')) return runnable(bin);
-  return (process.env.PATH ?? '').split(delimiter).some((dir) => dir !== '' && runnable(join(dir, bin)));
+interface CliResult {
+  ok: boolean;
+  /** The CLI could not be run at all */
+  missing: boolean;
+  stdout: string;
+  stderr: string;
 }
 
-/** The command line of a live process, or null when it is gone or cannot be read. */
-function commandOf(pid: number): string | null {
-  try {
-    return readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').join(' ');
-  } catch {
-    // Not Linux, or no such process: `ps` answers on macOS, and fails for a pid that is gone
-    try {
-      return execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' }).trim() || null;
-    } catch {
-      return null;
-    }
-  }
-}
-
-async function defaultVerify(url: string, signal: AbortSignal): Promise<boolean> {
-  try {
-    const res = await fetch(new URL('/api/health', url), { signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]), redirect: 'manual' });
-    if (res.status !== 200) return false;
-    // The provider's own pages answer too; only Agentry's health has this shape
-    const body = (await res.json()) as { ok?: unknown };
-    return typeof body.ok === 'boolean';
-  } catch {
-    return false;
-  }
-}
-
-const sleep = (ms: number, signal: AbortSignal): Promise<void> =>
-  new Promise((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    signal.addEventListener('abort', () => {
-      clearTimeout(timer);
-      resolve();
-    }, { once: true });
+function runCli(bin: string, args: string[], timeoutMs: number): Promise<CliResult> {
+  return new Promise((resolve) => {
+    execFile(bin, args, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8' }, (error, stdout, stderr) => {
+      if (!error) {
+        resolve({ ok: true, missing: false, stdout, stderr });
+        return;
+      }
+      const code = (error as NodeJS.ErrnoException).code;
+      resolve({ ok: false, missing: code === 'ENOENT' || code === 'EACCES', stdout, stderr: stderr || error.message });
+    });
   });
+}
+
+/** The first line a CLI wrote on stderr, short enough to show; it never carries a secret here. */
+const firstLine = (text: string): string => (text.split('\n').find((line) => line.trim())?.trim() ?? '').slice(0, 200);
+
+/** `1.102.4` from the first line of `tailscale version`, as numbers; null when it is not a version. */
+export function parseTailscaleVersion(output: string): [number, number, number] | null {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(output.trim());
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+}
+
+/** What `tailscale status --json` says, reduced to what the tunnel needs. */
+interface StatusJson {
+  BackendState?: unknown;
+  Self?: { DNSName?: unknown } | null;
+  CurrentTailnet?: { MagicDNSEnabled?: unknown } | null;
+  CertDomains?: unknown;
+}
+
+/**
+ * Readiness from `tailscale status --json` (measured on 1.102.4): `BackendState` says whether the
+ * node is signed in and connected, `Self.DNSName` is its name with a trailing dot, and
+ * `CertDomains` is only filled while HTTPS certificates are on for the tailnet.
+ */
+export function readinessFromStatus(json: StatusJson, version: string): TailscaleReadiness {
+  const state = typeof json.BackendState === 'string' ? json.BackendState : 'NoState';
+  const dns = typeof json.Self?.DNSName === 'string' ? json.Self.DNSName.replace(/\.$/, '').toLowerCase() : '';
+  const host = dns || null;
+  if (state === 'NeedsLogin' || state === 'NeedsMachineAuth') return { state: 'loggedOut', version, host, reason: REASONS.loggedOut() };
+  if (state !== 'Running') return { state: 'stopped', version, host, reason: REASONS.notConnected(state) };
+  if (json.CurrentTailnet?.MagicDNSEnabled !== true) return { state: 'httpsDisabled', version, host, reason: REASONS.magicDnsOff() };
+  const certs = Array.isArray(json.CertDomains) ? json.CertDomains.filter((name): name is string => typeof name === 'string').map((name) => name.toLowerCase()) : [];
+  if (!host || !certs.includes(host)) return { state: 'httpsDisabled', version, host, reason: REASONS.httpsOff() };
+  return { state: 'ready', version, host, reason: null };
+}
+
+/** The parts of `tailscale serve status --json` (an `ipn.ServeConfig`) the tunnel reads. */
+interface ServeConfigJson {
+  TCP?: Record<string, unknown> | null;
+  Web?: Record<string, { Handlers?: Record<string, { Proxy?: unknown } | null> | null } | null> | null;
+  Foreground?: Record<string, ServeConfigJson | null> | null;
+}
+
+/** Whether a port of the node's Serve config is free, holds exactly the rule Agentry would add, or holds anything else. */
+export type ServePortUse = 'free' | 'match' | 'other';
+
+const sameTarget = (a: unknown, b: string): boolean => typeof a === 'string' && a.replace(/\/+$/, '') === b.replace(/\/+$/, '');
+
+/**
+ * How `port` is used in a Serve config. Only one shape is Agentry's: an HTTPS listener on the port
+ * with a single `/` handler that proxies to this server. A path the person added beside it, a TCP
+ * forwarder, or a foreground `tailscale serve` on the port is theirs.
+ */
+export function servePortUse(config: ServeConfigJson, port: number, host: string, target: string): ServePortUse {
+  const key = String(port);
+  const uses = (c: ServeConfigJson | null | undefined): boolean => !!c && (c.TCP?.[key] !== undefined || Object.keys(c.Web ?? {}).some((name) => name.endsWith(`:${key}`)));
+  const foreground = Object.values(config.Foreground ?? {}).some(uses);
+  if (!uses(config) && !foreground) return 'free';
+  if (foreground) return 'other';
+  const webKeys = Object.keys(config.Web ?? {}).filter((name) => name.endsWith(`:${key}`));
+  const handlers = config.Web?.[`${host}:${key}`]?.Handlers ?? {};
+  const tcp = config.TCP?.[key] as { HTTPS?: unknown } | undefined;
+  const paths = Object.keys(handlers);
+  const only = webKeys.length === 1 && paths.length === 1 && paths[0] === '/';
+  return only && tcp?.HTTPS === true && sameTarget(handlers['/']?.Proxy, target) ? 'match' : 'other';
+}
+
+/** The rule Agentry added, kept on disk so a crash cannot leave it behind unnoticed. */
+interface ServeRecord {
+  port: number;
+  host: string;
+  target: string;
+}
 
 const DEFAULT_SETTINGS: TunnelSettings = { startWithAgentry: false };
 
+/** What the status says before the CLI was first asked: nothing is known, so nothing is offered. */
+const UNPROBED: TailscaleReadiness = { state: 'missing', version: null, host: null, reason: null };
+
+const versionAtLeast = (version: [number, number, number], min: readonly [number, number]): boolean =>
+  version[0] > min[0] || (version[0] === min[0] && version[1] >= min[1]);
+
 /**
- * The tunnel: one `ssh -R` child at a time, its state, and the host it lends the guard.
+ * The tunnel: one Serve rule at a time, its state, and the host it lends the guard.
  *
- * `stopped → starting → verifying → active`, with `failed` and `stopping`. A dropped connection or
- * a new address goes back through `starting` or `verifying`: the old host leaves the allowlist at
- * once, the new one joins only once `/api/health` answers through it, and each move is a
- * `tunnel.changed` on the feed. The child dies with Agentry, and a pid file clears the one a crash
- * left behind on the next start.
+ * `stopped → starting → verifying → active`, with `failed` and `stopping`. Tailscale keeps a
+ * background Serve rule in the node's own config, beyond Agentry's life, so the rule is recorded in
+ * `<dataDir>/tunnel/serve-rule.json` before it is added, removed on stop and on shutdown, and a
+ * rule a crash left behind is reconciled away when Agentry starts again. Removal only ever touches
+ * a port that still holds exactly the rule Agentry added.
  */
 export class TunnelManager {
   private readonly dir: string;
-  private readonly knownHosts: string;
-  private readonly pidFile: string;
+  private readonly recordFile: string;
   private readonly settingsFile: string;
   private readonly timing: TunnelTiming;
-  /**
-   * Whether Agentry answers through an address. Public so a test that builds a whole `Core` can
-   * route the check through the fake ssh's loopback proxy: the real one would ask the internet.
-   */
-  verify: (url: string, signal: AbortSignal) => Promise<boolean>;
+  private readonly port: number;
   private settings: TunnelSettings = { ...DEFAULT_SETTINGS };
   private state: TunnelState = 'stopped';
   private reason: Localized | null = null;
-  /** The address ssh last printed, verified or not */
-  private address: string | null = null;
+  private tailscale: TailscaleReadiness = UNPROBED;
+  private probedAt = 0;
+  private probing: Promise<TailscaleReadiness> | null = null;
   /** The host lent to the guard: set only while `active` */
   private lent: string | null = null;
   private since: string | null = null;
-  private sshAvailable: boolean;
   private target: { host: string; port: number } | null = null;
-  private child: ChildProcess | null = null;
-  /** Whether the person wants the tunnel open; reconnects only happen while it is true */
+  /** Whether the person wants the tunnel open */
   private wanted = false;
-  private attempts = 0;
-  /** Aborted whenever the child it belongs to is replaced or the tunnel stops */
+  /** Aborted whenever the tunnel stops or gives up, so a call still in flight changes nothing after it */
   private run = new AbortController();
+  private opening: Promise<void> | null = null;
   private stopping: Promise<void> | null = null;
+  /** A leftover rule being taken away; a start waits for it, so it never removes the new one */
+  private cleaning: Promise<void> = Promise.resolve();
+  private monitor: NodeJS.Timeout | null = null;
+  private checking = false;
+  private misses = 0;
 
   constructor(private readonly deps: TunnelDeps) {
     this.dir = join(deps.dataDir, 'tunnel');
-    this.knownHosts = join(this.dir, 'known_hosts');
-    this.pidFile = join(this.dir, 'ssh.pid');
+    this.recordFile = join(this.dir, 'serve-rule.json');
     this.settingsFile = join(deps.dataDir, 'tunnel-settings.json');
     this.timing = { ...DEFAULT_TIMING, ...deps.timing };
-    this.verify = deps.verify ?? defaultVerify;
-    this.sshAvailable = findExecutable(deps.sshBin);
+    this.port = deps.port ?? DEFAULT_TUNNEL_PORT;
     this.settings = this.readSettings();
-    this.clearOrphan();
   }
 
   status(): TunnelStatus {
     const active = this.state === 'active';
     return {
       state: this.state,
-      url: active ? this.address : null,
+      url: active && this.lent ? this.urlOf(this.lent) : null,
       since: active ? this.since : null,
       reason: this.state === 'failed' ? this.reason : null,
       enabled: this.enabled,
-      sshAvailable: this.sshAvailable,
+      tailscale: { ...this.tailscale },
+      port: this.port,
       settings: { ...this.settings },
     };
   }
@@ -229,17 +270,69 @@ export class TunnelManager {
     return this.deps.enabled ?? true;
   }
 
-  /** The PID of the ssh child, while there is one; for tests and diagnostics */
-  get pid(): number | null {
-    return this.child?.pid ?? null;
+  private urlOf(host: string): string {
+    return this.port === 443 ? `https://${host}` : `https://${host}:${this.port}`;
+  }
+
+  /**
+   * Asks the CLI again when the last answer is older than a moment, and says so on the feed when
+   * the answer changed. The routes call it before answering, so the tab reflects a `tailscale up`
+   * run in a terminal without a restart. Where the deploy does not offer the tunnel, the CLI is
+   * never run.
+   */
+  async refresh(force = false): Promise<TunnelStatus> {
+    if (this.enabled && (force || Date.now() - this.probedAt > this.timing.probeTtlMs)) {
+      const before = JSON.stringify(this.tailscale);
+      await this.probe();
+      if (JSON.stringify(this.tailscale) !== before) this.changed();
+    }
+    return this.status();
+  }
+
+  private probe(): Promise<TailscaleReadiness> {
+    this.probing ??= this.readReadiness()
+      .then((readiness) => {
+        this.tailscale = readiness;
+        this.probedAt = Date.now();
+        return readiness;
+      })
+      .finally(() => {
+        this.probing = null;
+      });
+    return this.probing;
+  }
+
+  private async readReadiness(): Promise<TailscaleReadiness> {
+    const version = await this.cli(['version']);
+    if (version.missing || !version.ok) return { state: 'missing', version: null, host: null, reason: REASONS.missing() };
+    const text = firstLine(version.stdout);
+    const parsed = parseTailscaleVersion(text);
+    if (!parsed || !versionAtLeast(parsed, MIN_TAILSCALE_VERSION)) return { state: 'unsupported', version: text || null, host: null, reason: REASONS.unsupported(text || 'unknown') };
+    const shown = parsed.join('.');
+    const status = await this.cli(['status', '--json']);
+    // `--json` prints the state even when the node is stopped; only a daemon that does not answer leaves no JSON
+    let json: StatusJson | null = null;
+    try {
+      json = JSON.parse(status.stdout) as StatusJson;
+    } catch {
+      json = null;
+    }
+    if (!json || typeof json !== 'object') return { state: 'daemonDown', version: shown, host: null, reason: REASONS.daemonDown() };
+    return readinessFromStatus(json, shown);
+  }
+
+  private cli(args: string[]): Promise<CliResult> {
+    return runCli(this.deps.tailscaleBin, args, this.timing.commandTimeoutMs);
   }
 
   /**
    * Where the tunnel forwards to: the port the server actually bound to, which is not always the
-   * one it asked for. Opens the tunnel when "start with Agentry" is on.
+   * one it asked for. Takes away a rule a crash left behind, then opens the tunnel when "start with
+   * Agentry" is on.
    */
   attach(port: number, host = '127.0.0.1'): void {
     this.target = { host, port };
+    if (existsSync(this.recordFile)) this.cleaning = this.removeRule().catch(() => undefined);
     // A setting saved before the operator turned the tunnel off is not a reason to open it
     if (!this.settings.startWithAgentry || !this.enabled) return;
     this.start('agentry').catch((error: unknown) => {
@@ -250,30 +343,36 @@ export class TunnelManager {
 
   /**
    * Opens the tunnel. Refused under `mode: 'none'`: the tunnel would turn "whoever reaches the port
-   * owns the machine" into "whoever has the URL does". Refused as well where the deploy does not offer
-   * it: in Docker the operator decides whether the container may open a way in of its own. A missing `ssh` is a state, not an error.
+   * owns the machine" into "whoever on the tailnet has the URL does". Refused as well where the
+   * deploy does not offer it. A Tailscale that is not ready is a state, not an error.
    */
   async start(actor: 'request' | 'agentry' = 'request'): Promise<TunnelStatus> {
     if (!this.enabled) throw new TunnelRefusedError(REASONS.disabled());
     if (this.deps.security.mode === 'none') throw new TunnelRefusedError(REASONS.authRequired());
     if (!this.target) throw new TunnelRefusedError(REASONS.noPort());
     await this.stopping;
+    await this.cleaning;
     if (this.wanted) return this.status();
-    this.sshAvailable = findExecutable(this.deps.sshBin);
-    if (!this.sshAvailable) {
-      this.fail(REASONS.sshMissing());
+    const readiness = await this.probe();
+    if (readiness.state !== 'ready' || !readiness.host) {
+      this.fail(readiness.reason ?? REASONS.missing());
       return this.status();
     }
     this.wanted = true;
-    this.attempts = 0;
+    this.misses = 0;
+    this.run = new AbortController();
     if (actor !== 'request') this.deps.audit?.({ method: 'POST', path: '/api/tunnel/start', summary: 'Start the tunnel with Agentry' });
-    this.connect();
+    this.set('starting');
+    const run = this.run;
+    this.opening = this.open(readiness.host, run).finally(() => {
+      if (this.run === run) this.opening = null;
+    });
     return this.status();
   }
 
-  /** Closes the tunnel and takes its host off the allowlist before it answers. */
+  /** Closes the tunnel: its host leaves the allowlist first, then Agentry's Serve rule goes. */
   async stop(why: 'request' | 'unguarded' = 'request'): Promise<TunnelStatus> {
-    if (!this.wanted && !this.child) {
+    if (!this.wanted && !this.opening && !this.stopping) {
       if (this.state === 'failed') this.set('stopped');
       return this.status();
     }
@@ -281,10 +380,11 @@ export class TunnelManager {
     if (why === 'unguarded') this.deps.audit?.({ method: 'POST', path: '/api/tunnel/stop', summary: 'Stop the tunnel: authentication was turned off' });
     this.stopping ??= (async () => {
       this.run.abort();
+      this.stopMonitor();
       this.withdraw();
       this.set('stopping');
-      await this.kill();
-      this.address = null;
+      await this.opening;
+      await this.removeRule();
       this.set('stopped');
     })().finally(() => {
       this.stopping = null;
@@ -298,27 +398,42 @@ export class TunnelManager {
     const body = input as Record<string, unknown>;
     const unknownKeys = Object.keys(body).filter((key) => key !== 'startWithAgentry');
     if (unknownKeys.length) throw new Error(`unknown tunnel settings: ${unknownKeys.join(', ')}; the known one is startWithAgentry`);
-    if (body.startWithAgentry === undefined) return this.status();
+    if (body.startWithAgentry === undefined) return this.refresh();
     if (typeof body.startWithAgentry !== 'boolean') throw new Error('startWithAgentry must be a boolean');
     const next = { ...this.settings, startWithAgentry: body.startWithAgentry };
     await writeAtomic(this.settingsFile, `${JSON.stringify(next, null, 2)}\n`);
     this.settings = next;
+    // The event carries the whole status, readiness included, so it is read first
+    await this.refresh();
     this.changed();
     return this.status();
   }
 
   /**
-   * Synchronous, for the process that is going away: there is no later to wait for the child in.
-   * SIGTERM is enough for ssh, and whatever survives it is what the pid file is for.
+   * Synchronous, for the process that is going away: there is no later to wait in. The Serve rule
+   * outlives the process unless it is taken away now; when that fails, the record stays for the
+   * next start to reconcile.
    */
   shutdown(): void {
     this.wanted = false;
     this.run.abort();
+    this.stopMonitor();
     this.withdraw();
-    const child = this.child;
-    this.child = null;
-    if (child && child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
-    rmSync(this.pidFile, { force: true });
+    const record = this.readRecord();
+    if (!record) return;
+    const run = (args: string[]) => spawnSync(this.deps.tailscaleBin, args, { encoding: 'utf8', timeout: this.timing.commandTimeoutMs });
+    try {
+      const status = run(['serve', 'status', '--json']);
+      if (status.status !== 0) return;
+      const use = servePortUse(JSON.parse(status.stdout) as ServeConfigJson, record.port, record.host, record.target);
+      if (use === 'match') {
+        const off = run(['serve', '--yes', `--https=${record.port}`, 'off']);
+        if (off.status !== 0 && !/handler does not exist/i.test(off.stderr)) return;
+      }
+      rmSync(this.recordFile, { force: true });
+    } catch {
+      // The record stays: the next start takes the rule away
+    }
   }
 
   private readSettings(): TunnelSettings {
@@ -332,176 +447,155 @@ export class TunnelManager {
     }
   }
 
-  /**
-   * A crash leaves the child behind, still forwarding to a port that may belong to somebody else
-   * by now. It is only killed when its command line names this wrapper's `known_hosts`: a pid the
-   * system handed to another process since is none of our business.
-   */
-  private clearOrphan(): void {
-    if (!existsSync(this.pidFile)) return;
-    const pid = Number(readFileSync(this.pidFile, 'utf8').trim());
-    if (Number.isInteger(pid) && pid > 0 && commandOf(pid)?.includes(this.knownHosts)) {
-      try {
-        process.kill(pid, 'SIGTERM');
-      } catch {
-        // Gone in between
-      }
+  private readRecord(): ServeRecord | null {
+    try {
+      const raw = JSON.parse(readFileSync(this.recordFile, 'utf8')) as Partial<ServeRecord>;
+      if (typeof raw.port === 'number' && typeof raw.host === 'string' && typeof raw.target === 'string') return { port: raw.port, host: raw.host, target: raw.target };
+    } catch {
+      // No record, or one nobody can read: nothing is known to be Agentry's
     }
-    rmSync(this.pidFile, { force: true });
+    return null;
+  }
+
+  private writeRecord(record: ServeRecord): void {
+    mkdirSync(this.dir, { recursive: true, mode: 0o700 });
+    writeFileSync(this.recordFile, `${JSON.stringify(record)}\n`, { mode: 0o600 });
+  }
+
+  private async serveConfig(): Promise<ServeConfigJson | null> {
+    const result = await this.cli(['serve', 'status', '--json']);
+    if (!result.ok) return null;
+    try {
+      const json = JSON.parse(result.stdout) as unknown;
+      return json && typeof json === 'object' ? (json as ServeConfigJson) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private targetUrl(): string | null {
+    return this.target ? `http://${this.target.host}:${this.target.port}` : null;
   }
 
   /**
-   * Everything ssh needs is named here, and nothing is read from the person's `~/.ssh`: no config
-   * file (`-F none`), no keys or agent (the `nokey` user authenticates with `none`), and a
-   * `known_hosts` of Agentry's own that holds the pinned key and is never written by ssh.
+   * Adds the rule, unless the port is already someone else's, and reads the config back before the
+   * host is lent to the guard. The record is written before the rule is sent, so a crash in between
+   * leaves something to reconcile rather than a rule nobody knows about.
    */
-  private args(target: { host: string; port: number }): string[] {
-    return [
-      '-F', 'none',
-      '-T',
-      '-n',
-      '-o', 'BatchMode=yes',
-      '-o', 'ExitOnForwardFailure=yes',
-      '-o', 'ServerAliveInterval=30',
-      '-o', 'ServerAliveCountMax=3',
-      '-o', 'ConnectTimeout=20',
-      '-o', `UserKnownHostsFile=${this.knownHosts}`,
-      '-o', 'GlobalKnownHostsFile=none',
-      '-o', 'StrictHostKeyChecking=yes',
-      '-o', 'UpdateHostKeys=no',
-      '-o', 'PubkeyAuthentication=no',
-      '-o', 'IdentityAgent=none',
-      '-o', 'IdentityFile=none',
-      '-R', `80:${target.host}:${target.port}`,
-      DESTINATION,
-    ];
-  }
-
-  private connect(): void {
-    const target = this.target;
-    if (!target || !this.wanted) return;
+  private async open(host: string, run: AbortController): Promise<void> {
+    const target = this.targetUrl();
+    if (!target) return;
+    const live = (): boolean => !run.signal.aborted && this.wanted;
+    const before = await this.serveConfig();
+    if (!live()) return;
+    if (!before) return this.giveUp(REASONS.daemonDown());
+    if (servePortUse(before, this.port, host, target) !== 'free') return this.giveUp(REASONS.portTaken(this.port));
+    this.writeRecord({ port: this.port, host, target });
+    const added = await this.cli(['serve', '--bg', '--yes', `--https=${this.port}`, target]);
+    if (!added.ok) {
+      const detail = firstLine(added.stderr);
+      return this.giveUp(/access denied/i.test(added.stderr) ? REASONS.permission() : REASONS.serveFailed(detail || 'no output'));
+    }
+    if (!live()) return;
+    this.set('verifying');
+    const after = await this.serveConfig();
+    if (!live()) return;
+    if (!after || servePortUse(after, this.port, host, target) !== 'match') return this.giveUp(REASONS.unverified());
     if (this.deps.security.mode === 'none') {
       void this.stop('unguarded');
       return;
     }
-    this.run = new AbortController();
-    const run = this.run;
-    this.attempts++;
-    this.address = null;
-    this.set('starting');
-    mkdirSync(this.dir, { recursive: true, mode: 0o700 });
-    // Written on every attempt, so a file somebody edited is the pin again before ssh reads it
-    writeFileSync(this.knownHosts, LOCALHOST_RUN_KNOWN_HOSTS, { mode: 0o600 });
-
-    const child = spawn(this.deps.sshBin, this.args(target), { stdio: ['ignore', 'pipe', 'pipe'] });
-    this.child = child;
-    if (child.pid) writeFileSync(this.pidFile, String(child.pid), { mode: 0o600 });
-    let failure: Localized | null = null;
-    let lastLine = '';
-
-    const onLine = (line: string): void => {
-      if (run.signal.aborted) return;
-      const url = parseTunnelUrl(line);
-      if (url) {
-        if (url !== this.address) void this.onAddress(url, run);
-        return;
-      }
-      if (/host key verification failed|remote host identification has changed/i.test(line)) failure = REASONS.hostKey();
-      // The banner names the caller's public address; it has no place in a reason shown on screen
-      else if (line.trim() && !/connection id|^=+$/i.test(line.trim())) lastLine = line.trim();
-    };
-    if (child.stdout) createInterface({ input: child.stdout }).on('line', onLine);
-    if (child.stderr) createInterface({ input: child.stderr }).on('line', onLine);
-
-    let ended = false;
-    const onEnd = (code: number | null, signal: NodeJS.Signals | null): void => {
-      if (ended) return;
-      ended = true;
-      if (this.child === child) {
-        this.child = null;
-        rmSync(this.pidFile, { force: true });
-      }
-      if (run.signal.aborted || !this.wanted) return;
-      run.abort();
-      // The address it had is gone with it, and so is the host lent to the guard
-      this.withdraw();
-      const sawAddress = this.address !== null;
-      this.address = null;
-      if (failure?.code === 'tunnel.hostKey' || failure?.code === 'tunnel.sshMissing') {
-        this.giveUp(failure);
-        return;
-      }
-      this.retry(failure ?? (sawAddress ? null : REASONS.exited(lastLine || (signal ? `killed by ${signal}` : `exit code ${String(code)}`))));
-    };
-    child.once('error', (error: NodeJS.ErrnoException) => {
-      if (error.code === 'ENOENT') {
-        this.sshAvailable = false;
-        failure = REASONS.sshMissing();
-      } else failure = REASONS.exited(error.message);
-      // A child that never started emits no `close` to wait for
-      if (child.pid === undefined) onEnd(null, null);
-    });
-    child.once('close', onEnd);
+    this.lend(host);
+    this.deps.audit?.({ method: 'PUT', path: '/api/tunnel', summary: `Tunnel host ${host} joined the allowlist` });
+    this.set('active');
+    this.startMonitor(run);
   }
 
-  private retry(why: Localized | null): void {
-    if (why) this.reason = why;
-    if (this.attempts >= this.timing.maxAttempts) {
-      this.giveUp(this.reason ?? REASONS.exited('the connection kept dropping'));
+  private lend(host: string): void {
+    this.deps.hosts.add(host, TUNNEL_HOST_OPTIONS);
+    this.lent = host;
+    this.since = new Date().toISOString();
+  }
+
+  /**
+   * Takes Agentry's rule away, if the port still holds exactly it. A port that is free, or that
+   * someone else took over, is not Agentry's any more: the record goes and nothing is touched. When
+   * Tailscale cannot be asked, the record stays for the next try.
+   */
+  private async removeRule(): Promise<void> {
+    const record = this.readRecord();
+    if (!record) {
+      rmSync(this.recordFile, { force: true });
       return;
     }
-    const wait = this.timing.backoffMs[Math.min(this.attempts - 1, this.timing.backoffMs.length - 1)] ?? 0;
-    this.set('starting');
-    const run = this.run = new AbortController();
-    void sleep(wait, run.signal).then(() => {
-      if (!run.signal.aborted && this.wanted) this.connect();
-    });
+    const config = await this.serveConfig();
+    if (!config) return;
+    if (servePortUse(config, record.port, record.host, record.target) === 'match') {
+      const off = await this.cli(['serve', '--yes', `--https=${record.port}`, 'off']);
+      if (!off.ok && !/handler does not exist/i.test(off.stderr)) return;
+    }
+    rmSync(this.recordFile, { force: true });
+  }
+
+  /**
+   * While active, Tailscale is read again now and then: a `tailscale down`, a sign-out or a
+   * `tailscale serve reset` in a terminal would otherwise leave the tab saying open over an address
+   * that no longer answers. A node renamed in the admin console moves the lent host with it.
+   */
+  private startMonitor(run: AbortController): void {
+    this.stopMonitor();
+    this.monitor = setInterval(() => void this.check(run), this.timing.monitorMs);
+    this.monitor.unref();
+  }
+
+  private stopMonitor(): void {
+    if (this.monitor) clearInterval(this.monitor);
+    this.monitor = null;
+  }
+
+  private async check(run: AbortController): Promise<void> {
+    if (this.checking) return;
+    this.checking = true;
+    try {
+      const readiness = await this.probe();
+      if (run.signal.aborted || this.state !== 'active') return;
+      if (readiness.state !== 'ready' || !readiness.host) {
+        if (++this.misses >= this.timing.maxMisses) this.giveUp(readiness.reason ?? REASONS.daemonDown());
+        return;
+      }
+      const record = this.readRecord();
+      const config = await this.serveConfig();
+      if (run.signal.aborted || this.state !== 'active') return;
+      if (!config || !record) {
+        if (++this.misses >= this.timing.maxMisses) this.giveUp(REASONS.daemonDown());
+        return;
+      }
+      // Read under the name the node has now: a rename moves the rule's key in the Serve config with it
+      if (servePortUse(config, record.port, readiness.host, record.target) !== 'match') {
+        this.giveUp(REASONS.ruleRemoved());
+        return;
+      }
+      this.misses = 0;
+      if (readiness.host !== this.lent) {
+        // The node was renamed: the rule follows the node, and the old name stops answering
+        this.withdraw();
+        this.lend(readiness.host);
+        this.writeRecord({ ...record, host: readiness.host });
+        this.deps.audit?.({ method: 'PUT', path: '/api/tunnel', summary: `Tunnel host ${readiness.host} joined the allowlist` });
+        this.changed();
+      }
+    } finally {
+      this.checking = false;
+    }
   }
 
   private giveUp(why: Localized): void {
     this.wanted = false;
-    void this.kill();
-    this.fail(why);
-  }
-
-  /**
-   * A new address, the first one or a change on the same connection. The old host leaves the
-   * allowlist now; the new one joins only once Agentry answers through it, so nobody is sent to an
-   * address that does not work yet, and a resolver asked too early does not cache it as missing.
-   */
-  private async onAddress(url: string, run: AbortController): Promise<void> {
+    this.run.abort();
+    this.stopMonitor();
     this.withdraw();
-    this.address = url;
-    this.set('verifying');
-    const host = new URL(url).hostname;
-    const deadline = Date.now() + this.timing.verifyTimeoutMs;
-    const current = (): boolean => !run.signal.aborted && this.address === url && this.wanted;
-    while (current()) {
-      if (await this.verify(url, run.signal)) {
-        if (!current()) return;
-        if (this.deps.security.mode === 'none') {
-          void this.stop('unguarded');
-          return;
-        }
-        this.deps.hosts.add(host, TUNNEL_HOST_OPTIONS);
-        this.lent = host;
-        this.since = new Date().toISOString();
-        this.attempts = 0;
-        this.reason = null;
-        this.deps.audit?.({ method: 'PUT', path: '/api/tunnel', summary: `Tunnel host ${host} joined the allowlist` });
-        this.set('active');
-        return;
-      }
-      if (Date.now() >= deadline) break;
-      await sleep(this.timing.verifyIntervalMs, run.signal);
-    }
-    if (!current()) return;
-    // An address that never answers is a failed attempt: drop the connection and try another
-    this.reason = REASONS.unverified(host);
-    run.abort();
-    this.address = null;
-    await this.kill();
-    if (this.wanted) this.retry(null);
+    this.fail(why);
+    this.cleaning = this.removeRule().catch(() => undefined);
   }
 
   /** Takes the lent host back from the guard, and writes down that it left. */
@@ -513,18 +607,6 @@ export class TunnelManager {
     this.since = null;
   }
 
-  private async kill(): Promise<void> {
-    const child = this.child;
-    this.child = null;
-    rmSync(this.pidFile, { force: true });
-    if (!child || child.exitCode !== null || child.signalCode !== null) return;
-    const closed = new Promise<void>((resolve) => child.once('close', () => resolve()));
-    child.kill('SIGTERM');
-    const timer = setTimeout(() => child.kill('SIGKILL'), this.timing.killGraceMs);
-    await closed;
-    clearTimeout(timer);
-  }
-
   private fail(why: Localized): void {
     this.reason = why;
     this.set('failed');
@@ -533,7 +615,6 @@ export class TunnelManager {
   private set(state: TunnelState): void {
     if (state === this.state && state !== 'failed') return;
     this.state = state;
-    // Kept while reconnecting, as what the next failure will say if it comes to that
     if (state === 'stopped') this.reason = null;
     this.changed();
   }

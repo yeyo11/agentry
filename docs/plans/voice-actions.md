@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T11:47:49.567228489Z
-updated_at: 2026-09-28T11:47:49.567228489Z
+updated_at: 2026-10-06T12:00:00Z
 tags:
     - plan
     - voice
@@ -79,10 +79,10 @@ the clipboard step has to happen on the iPhone itself.
   code is `agentry-voice:v1:` followed by base64 JSON `{ url, token }`. On every run the shortcut
   checks the clipboard for that prefix first. If it is there, the shortcut saves the code to
   `Shortcuts/agentry-voice.json` in iCloud Drive and clears the clipboard; if not, it reads the
-  file. So **Set up again** after the tunnel changes address is the same two steps, without adding
-  the shortcut again. That matters because the anonymous localhost.run address changes on every
-  open ([tunnel.md](../tunnel.md#the-address-changes)). A stable address (a domain, Tailscale)
-  never needs it.
+  file. So **Set up again** after the address changes is the same two steps, without adding the
+  shortcut again. Since the tunnel moved to Tailscale (2026-10-06) its address is stable, so that
+  only happens when the machine's tailnet name or the tunnel port changes
+  ([tunnel.md](../tunnel.md#the-address)); the phone needs the Tailscale app on the same tailnet.
 - **One shortcut per language.** The name is the phrase, so there are two iCloud links: "Crea una
   orquestación" and "Create an orchestration". Settings offers the one for the UI language, and
   says the person can rename it to any phrase they prefer.

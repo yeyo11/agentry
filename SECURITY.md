@@ -15,19 +15,20 @@ What is and is not protected:
   always passes (`localhost`, `::1`, any `127.x.x.x`); `AGENTRY_ALLOWED_HOSTS` is the comma-separated
   list of whatever else a deployment answers to, compared without the port and case-insensitively.
   An entry may be a `*.domain` pattern, which stands for that domain's subdomains and not for the
-  domain itself — what a tunnel or a per-branch environment needs, since its host is new every time.
+  domain itself — what a per-branch environment needs, since its host is new every time.
   This is what stands between the API and a page on someone else's domain that rebinds its own name
   to `127.0.0.1` and then drives Agentry from the browser of whoever visited it. `GET /api/health`
   stays open regardless, so a probe is unaffected, and a request carrying no `Host` at all passes:
   HTTP/1.1 requires one and every browser sends one, so it cannot be the rebinding case.
   Without the variable the list is editable in Settings → Security, under the same rule (a
-  `*.com` is refused from the file too). A running tunnel adds its own exact host, never a pattern,
-  in memory only, and only once the address has answered.
-- **The tunnel refuses to exist without the guard.** Settings → Remote access (localhost.run over
-  ssh) will not start while the mode is `none`, and turning the mode to `none` closes it first. The
-  provider's host key is pinned, `~/.ssh` is never read, and in the Docker image and the Helm chart
-  the tunnel is off unless the operator sets `AGENTRY_TUNNEL=on`. See
-  [docs/tunnel.md](docs/tunnel.md).
+  `*.com` is refused from the file too). A running tunnel adds the node's exact tailnet name, never a
+  pattern, in memory only, and only once its Serve rule has read back.
+- **The tunnel refuses to exist without the guard.** Settings → Remote access (`tailscale serve`,
+  tailnet-only, never Funnel) will not start while the mode is `none`, and turning the mode to `none`
+  closes it first. Agentry never signs in to Tailscale or changes its settings beyond the one Serve
+  rule it adds on its own port, which it removes only while the port still holds exactly that rule.
+  In the Docker image and the Helm chart the tunnel is off unless the operator sets
+  `AGENTRY_TUNNEL=on`. See [docs/tunnel.md](docs/tunnel.md).
 - **The configuration explorer hides the credentials by path, not by the kind of scope.**
   `.credentials.json`, `.claude.json` and the transcripts are refused whenever the root being read
   resolves to the CLI's own configuration directory — symlinks included. It used to depend on the
@@ -106,11 +107,13 @@ What is and is not protected:
   reverse proxy counts as the same client: someone guessing through that proxy can make it answer
   `429` to everyone else for up to a minute. The cap is what keeps that to a minute rather than a
   lockout, and it is why the wait is not a substitute for a long token.
-- **Through the tunnel, the provider sees everything.** localhost.run terminates TLS, so every
-  request and answer, the bearer token included, is readable there. It passes no client address, so
-  all tunnel traffic shares one failed-authentication wait, kept apart from loopback: a stranger's
-  guesses can make your phone wait for up to a minute, never the desk. In a container, the tunnel
-  goes around the published port, the proxy and the Ingress, which is why it is off there by default.
+- **Through the tunnel, the tailnet is the audience.** Tailscale encrypts the traffic end to end and
+  terminates TLS on this machine, so no relay reads it, but every device on the tailnet that the
+  tailnet's access rules let reach this node can reach the address; the token is still required.
+  Whether Serve's forwarding headers can be trusted was not measured, so all tunnel traffic shares
+  one failed-authentication wait, kept apart from loopback: a guess from the tailnet can make your
+  phone wait for up to a minute, never the desk. In a container, the tunnel would go around the
+  published port, the proxy and the Ingress, which is why it is off there by default.
 - **The token can travel in a query string** on the five GETs a browser makes without headers
   (`/api/events`, `/api/chats/:id/stream`, `/api/uploads/:id/content`, `/api/chats/:id/export` and
   `/api/projects/:id/export`), so a proxy's access log may record it.

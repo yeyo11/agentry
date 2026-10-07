@@ -12,9 +12,9 @@ Keep it a ClusterIP behind port-forward, or set auth.mode to token or oidc befor
 {{- end }}
 {{- if .Values.tunnel.enabled }}
 
-tunnel.enabled is true: from Settings > Remote access, anyone who can sign in can open a public
-localhost.run address that reaches this pod around the Service, the Ingress and its TLS. It needs
-egress to localhost.run on TCP 22, and it refuses to open while the auth mode is "none".
+tunnel.enabled is true: from Settings > Remote access, anyone who can sign in can serve this pod on
+the tailnet of the Tailscale it can reach (`tailscale serve`), around the Service and the Ingress.
+The image ships no tailscale CLI, and it refuses to open while the auth mode is "none".
 {{- end }}
 {{- if not .Values.claude.existingSecret }}
 
