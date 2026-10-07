@@ -4772,24 +4772,29 @@ export interface HostsChangedEvent extends AgentryEventBase {
 // ---------- Issue trackers (code hosts, phase 5) ----------
 
 /**
- * The issue trackers Agentry knows. Closed: adding one is a code change. Only `github-issues` and
- * `gitlab-issues` have an adapter; `jira` and `youtrack` are in the registry with the readiness
- * `unknown` and the reason `not-recorded` until their CLIs are recorded.
+ * The issue trackers Agentry knows. Closed: adding one is a code change. `github-issues`,
+ * `gitlab-issues` and `youtrack` have an adapter; `jira` is in the registry with the readiness
+ * `unknown` and the reason `not-recorded` until `acli` is recorded.
  */
 export type TrackerId = 'github-issues' | 'gitlab-issues' | 'jira' | 'youtrack';
 
 /** Readiness of a tracker; `unknown` is a tracker nobody recorded the CLI of, or one not probed yet. */
 export type TrackerState = 'ready' | 'signed-out' | 'incompatible' | 'not-installed' | 'unknown';
 
-/** Why a tracker is not `ready`: the code hosts' reasons, and `not-recorded` for a CLI with no recording. */
-export type TrackerReason = CodeHostReason | 'not-recorded';
+/**
+ * Why a tracker is not `ready`: the code hosts' reasons, `not-recorded` for a CLI with no recording,
+ * and for a tracker that keeps its own credentials (YouTrack): `no-credentials` (no address or token
+ * saved), `token-rejected` (the instance refused the token) and `host-unreachable` (no answer from
+ * the address).
+ */
+export type TrackerReason = CodeHostReason | 'not-recorded' | 'no-credentials' | 'token-rejected' | 'host-unreachable';
 
 /** One tracker as detected on this machine, served from the detector's cache. */
 export interface TrackerStatus {
   id: TrackerId;
   label: string;
   cli: string;
-  /** The code host a tracker reuses the CLI and the sign-in of; null for `jira` and `youtrack` */
+  /** The code host a tracker reuses the CLI and the sign-in of; null for `jira` and `youtrack`, which have CLIs of their own */
   host: CodeHostId | null;
   binaryPath: string | null;
   version: string | null;
@@ -4800,8 +4805,25 @@ export interface TrackerStatus {
   state: TrackerState;
   /** Why the state is not `ready`; null when it is */
   reason: TrackerReason | null;
+  /** The account the tracker's own credentials sign in as (YouTrack); absent for the host trackers */
+  user?: string | null;
   /** ISO timestamp of the detection this status came from */
   checkedAt: string;
+}
+
+/** `GET /trackers/youtrack/credentials`: what is saved, never the token itself. */
+export interface YoutrackCredentialsStatus {
+  /** The instance's address, as `youtrack-app` is given it; null when nothing is saved */
+  host: string | null;
+  tokenSet: boolean;
+  /** Whether the token is sealed with the desktop app's key; false on a server, where the file is plain 0600 */
+  encrypted: boolean;
+}
+
+/** `PUT /trackers/youtrack/credentials`: the token may be left out to keep the saved one. */
+export interface PutYoutrackCredentialsRequest {
+  host: string;
+  token?: string;
 }
 
 /** What a person chose for one tracker. */

@@ -13202,7 +13202,7 @@
       "jira",
       "youtrack"
     ],
-    "description": "The issue trackers Agentry knows. Closed: adding one is a code change. Only `github-issues` and `gitlab-issues` have an adapter; `jira` and `youtrack` are in the registry with the readiness `unknown` and the reason `not-recorded` until their CLIs are recorded."
+    "description": "The issue trackers Agentry knows. Closed: adding one is a code change. `github-issues`, `gitlab-issues` and `youtrack` have an adapter; `jira` is in the registry with the readiness `unknown` and the reason `not-recorded` until `acli` is recorded."
   },
   "ProjectProvidersSettings": {
     "type": "object",
@@ -18673,7 +18673,7 @@
             "type": "null"
           }
         ],
-        "description": "The code host a tracker reuses the CLI and the sign-in of; null for `jira` and `youtrack`"
+        "description": "The code host a tracker reuses the CLI and the sign-in of; null for `jira` and `youtrack`, which have CLIs of their own"
       },
       "binaryPath": {
         "type": [
@@ -18715,6 +18715,13 @@
         ],
         "description": "Why the state is not `ready`; null when it is"
       },
+      "user": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The account the tracker's own credentials sign in as (YouTrack); absent for the host trackers"
+      },
       "checkedAt": {
         "type": "string",
         "description": "ISO timestamp of the detection this status came from"
@@ -18754,9 +18761,21 @@
       {
         "type": "string",
         "const": "not-recorded"
+      },
+      {
+        "type": "string",
+        "const": "no-credentials"
+      },
+      {
+        "type": "string",
+        "const": "token-rejected"
+      },
+      {
+        "type": "string",
+        "const": "host-unreachable"
       }
     ],
-    "description": "Why a tracker is not `ready`: the code hosts' reasons, and `not-recorded` for a CLI with no recording."
+    "description": "Why a tracker is not `ready`: the code hosts' reasons, `not-recorded` for a CLI with no recording, and for a tracker that keeps its own credentials (YouTrack): `no-credentials` (no address or token saved), `token-rejected` (the instance refused the token) and `host-unreachable` (no answer from the address)."
   },
   "TrackersSettings": {
     "type": "object",
@@ -18809,6 +18828,46 @@
       "binaryPath"
     ],
     "description": "What a person chose for one tracker."
+  },
+  "YoutrackCredentialsStatus": {
+    "type": "object",
+    "properties": {
+      "host": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The instance's address, as `youtrack-app` is given it; null when nothing is saved"
+      },
+      "tokenSet": {
+        "type": "boolean"
+      },
+      "encrypted": {
+        "type": "boolean",
+        "description": "Whether the token is sealed with the desktop app's key; false on a server, where the file is plain 0600"
+      }
+    },
+    "required": [
+      "host",
+      "tokenSet",
+      "encrypted"
+    ],
+    "description": "`GET /trackers/youtrack/credentials`: what is saved, never the token itself."
+  },
+  "PutYoutrackCredentialsRequest": {
+    "type": "object",
+    "properties": {
+      "host": {
+        "type": "string"
+      },
+      "token": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "host"
+    ],
+    "description": "`PUT /trackers/youtrack/credentials`: the token may be left out to keep the saved one."
   },
   "TrackerIssuesPage": {
     "type": "object",

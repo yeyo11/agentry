@@ -147,6 +147,12 @@ writeFileSync(
   join(dirs.dataDir, 'hosts.json'),
   `${JSON.stringify({ hosts: { github: { enabled: true, binaryPath: join(here, 'fake-hosts', 'gh') }, gitlab: { enabled: true, binaryPath: join(here, 'fake-hosts', 'glab') } } }, null, 2)}\n`,
 );
+// YouTrack's program is a fake too (e2e/fake-trackers), reached by the override in trackers.json; the
+// address and token stay unset, so a spec saves them like a person does
+writeFileSync(
+  join(dirs.dataDir, 'trackers.json'),
+  `${JSON.stringify({ trackers: { youtrack: { enabled: true, binaryPath: join(here, 'fake-trackers', 'youtrack-app') } } }, null, 2)}\n`,
+);
 // glab lists the hosts it knows in its own config.yml: the sandbox has one, with gitlab.com and an
 // account, so a real ~/.config/glab-cli never changes what the specs see
 const glabConfigDir = join(sandbox, 'glab-config');

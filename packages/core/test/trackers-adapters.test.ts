@@ -24,6 +24,7 @@ const recordings = join(here, 'fixtures/recordings');
 const out = (dir: string, label: string): string => readFileSync(join(recordings, dir, `${label}.out`), 'utf8');
 
 const ghRepo: HostRepo = { host: 'github.com', path: 'yeyo11/agentry-probe', owner: 'yeyo11', name: 'agentry-probe' };
+const ytScope: HostRepo = { host: 'https://acme.youtrack.cloud', path: 'AGP', owner: '', name: 'AGP' };
 const glRepo: HostRepo = { host: 'gitlab.com', path: 'yeyo11/agentry', owner: 'yeyo11', name: 'agentry', projectId: 87089091 };
 
 /** The recordings were made with `-R owner/repo`; Agentry pins the host, so the pin is taken off to find the recorded argv. */
@@ -63,19 +64,19 @@ test('the conformance suite fails on purpose for an adapter that breaks a rule',
 
 test('an issue search that reads like a verb is a read, not a write', () => {
   for (const adapter of trackerAdapters()) {
-    const repo = adapter.id === 'github-issues' ? ghRepo : glRepo;
+    const repo = adapter.id === 'github-issues' ? ghRepo : adapter.id === 'gitlab-issues' ? glRepo : ytScope;
     for (const query of ['close', 'update', 'merge', 'create']) assert.equal(classifyCall(adapter.list(repo, { query, page: 1 })), 'read', `${adapter.id} ${query}`);
   }
 });
 
-// ---------- the registry: Jira and YouTrack have no adapter ----------
+// ---------- the registry: Jira has no adapter ----------
 
-test('only the recorded trackers have an adapter; jira and youtrack have none until their CLIs are recorded', () => {
+test('only the recorded trackers have an adapter; jira has none until acli is recorded', () => {
   assert.equal(trackerAdapter('github-issues'), githubIssuesAdapter);
   assert.equal(trackerAdapter('gitlab-issues'), gitlabIssuesAdapter);
   assert.equal(trackerAdapter('jira'), null);
-  assert.equal(trackerAdapter('youtrack'), null);
-  assert.deepEqual(trackerAdapters().map((a) => a.id).sort(), ['github-issues', 'gitlab-issues']);
+  assert.equal(trackerAdapter('youtrack')?.id, 'youtrack');
+  assert.deepEqual(trackerAdapters().map((a) => a.id).sort(), ['github-issues', 'gitlab-issues', 'youtrack']);
 });
 
 // ---------- GitLab, replayed from glab 1.120.0 ----------

@@ -6,7 +6,7 @@
  */
 import type { IssueRef, IssueSyncState, IssueTriageMark, TrackerId, TrackerIssue, TrackerMappedStatus, TrackerSettingsEntry, TrackerStatus, TrackersSettings } from '@agentry/shared';
 
-/** The order every list draws the trackers in: the two that work, then the two that do not yet. */
+/** The order every list draws the trackers in: the host trackers, then the ones with a CLI of their own. */
 export const TRACKER_IDS: readonly TrackerId[] = ['github-issues', 'gitlab-issues', 'jira', 'youtrack'];
 
 export interface TrackerWords {
@@ -30,8 +30,20 @@ export function issueRef(tracker: TrackerId, key: string): string {
   return tracker === 'github-issues' || tracker === 'gitlab-issues' ? `#${key}` : key;
 }
 
-/** Only these two have an adapter in this step; the others are shown with their reason and no action. */
-export const isTrackerBuilt = (id: TrackerId): boolean => id === 'github-issues' || id === 'gitlab-issues';
+/** The trackers with an adapter; Jira is shown with its reason and no action until acli is recorded. */
+export const isTrackerBuilt = (id: TrackerId): boolean => id !== 'jira';
+
+/**
+ * Whether the tracker has statuses of its own that a column is mapped to by name (YouTrack's
+ * `State`), rather than only open and closed.
+ */
+export const hasNamedStatuses = (id: TrackerId): boolean => id === 'youtrack';
+
+/** Whether Agentry keeps the address and token the tracker's CLI is handed, rather than a sign-in of the CLI's own. */
+export const keepsCredentials = (id: TrackerId): boolean => id === 'youtrack';
+
+/** The State names a YouTrack project starts with, offered as placeholders; the project's own may differ. */
+export const YOUTRACK_DEFAULT_STATES: Readonly<Record<TrackerMappedStatus, string>> = { in_progress: 'In Progress', in_review: 'To Verify', done: 'Done' };
 
 export type TrackerTone = 'ok' | 'warn' | 'bad' | 'idle' | 'muted';
 
@@ -47,7 +59,7 @@ export function trackerTone(status: Pick<TrackerStatus, 'state'>, enabled = true
   }
 }
 
-export type TrackerActionKind = 'sign-in' | 'install' | 'choose-binary' | 'retry';
+export type TrackerActionKind = 'sign-in' | 'connect' | 'install' | 'choose-binary' | 'retry';
 
 /**
  * The one thing a person can do about a tracker row. A tracker that is not built, or turned off,
@@ -58,7 +70,8 @@ export function trackerAction(status: Pick<TrackerStatus, 'id' | 'state'>, enabl
   if (!enabled || !isTrackerBuilt(status.id)) return null;
   switch (status.state) {
     case 'ready': return null;
-    case 'signed-out': return 'sign-in';
+    // YouTrack's sign-in is the address and token Agentry keeps, entered on the row itself
+    case 'signed-out': return keepsCredentials(status.id) ? 'connect' : 'sign-in';
     case 'incompatible': return 'choose-binary';
     case 'not-installed': return 'install';
     case 'unknown': return 'retry';
@@ -86,12 +99,12 @@ export const MAPPED_COLUMNS: readonly TrackerMappedStatus[] = ['in_progress', 'i
  * `done`, which closes the issue as completed; the other columns are saved but not written.
  */
 export function statusChoices(id: TrackerId, column: TrackerMappedStatus): string[] {
-  if (!isTrackerBuilt(id)) return [];
+  if (!isTrackerBuilt(id) || hasNamedStatuses(id)) return [];
   return column === 'done' ? ['completed'] : [];
 }
 
 /** Whether a column's mapping does something on this tracker, so the form can say so beside the others. */
-export const columnSyncs = (id: TrackerId, column: TrackerMappedStatus): boolean => statusChoices(id, column).length > 0;
+export const columnSyncs = (id: TrackerId, column: TrackerMappedStatus): boolean => hasNamedStatuses(id) || statusChoices(id, column).length > 0;
 
 /** The map without a column that was cleared (an empty string reads as not synced). */
 export function setMapped(map: Partial<Record<TrackerMappedStatus, string>>, column: TrackerMappedStatus, value: string): Partial<Record<TrackerMappedStatus, string>> {

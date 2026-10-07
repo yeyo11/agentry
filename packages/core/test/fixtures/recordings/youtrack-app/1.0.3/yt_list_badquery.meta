@@ -1,0 +1,5 @@
+youtrack-app: 1.0.3
+argv: youtrack-app rest request --path /api/issues?query=project%3A+AGP+project%3A+%28%28%28+order+by%3A+updated+desc&fields=idReadable%2Cid%2Csummary%2Cdescription%2Cresolved%2Cupdated%2Cproject%28shortName%29%2Ctags%28name%29%2CcustomFields%28name%2Cvalue%28name%29%29&%24top=100&%24skip=0
+exit: 2
+env: 
+stdin-sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855

@@ -1349,12 +1349,13 @@ export class PullRequestService {
   private async closedByMerge(row: PullRequestRow): Promise<ClosedIssue[] | null> {
     const tracker = this.deps.projectTracker?.(row.project_id) ?? null;
     const adapter = tracker ? trackerAdapter(tracker.id) : null;
-    if (!adapter || adapter.host !== row.host) return [];
+    if (!adapter?.closedByChangeRequest || !adapter.parseClosedByChangeRequest || adapter.host !== row.host) return [];
     try {
       const target = await this.checksTarget(row);
       if (!target || row.number === null) return null;
-      const out = await target.run(adapter.closedByChangeRequest(target.repo, row.number));
-      return out.exitCode === 0 ? adapter.parseClosedByChangeRequest(out.stdout) : null;
+      const { closedByChangeRequest, parseClosedByChangeRequest } = adapter;
+      const out = await target.run(closedByChangeRequest(target.repo, row.number));
+      return out.exitCode === 0 ? parseClosedByChangeRequest(out.stdout) : null;
     } catch {
       return null;
     }

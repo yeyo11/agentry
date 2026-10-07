@@ -1,0 +1,63 @@
+{
+  "project": {
+    "shortName": "AGP",
+    "name": "Agentry probe",
+    "id": "0-1",
+    "$type": "Project"
+  },
+  "schema": {
+    "type": "object",
+    "properties": {
+      "Priority": {
+        "type": "string",
+        "enum": [
+          "Show-stopper",
+          "Critical",
+          "Major",
+          "Normal",
+          "Minor"
+        ]
+      },
+      "State": {
+        "type": "string",
+        "enum": [
+          "Open",
+          "In Progress",
+          "To Verify",
+          "Done",
+          "Duplicate"
+        ]
+      },
+      "Sprints": {
+        "description": "Array of versions",
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "Type": {
+        "type": "string",
+        "enum": [
+          "Bug",
+          "Epic",
+          "User Story",
+          "Task"
+        ]
+      },
+      "Assignee": {
+        "description": "Login. Example: \"john.doe\"",
+        "type": "string"
+      },
+      "Ideal days": {
+        "type": "integer"
+      },
+      "Original estimation": {
+        "type": "integer"
+      },
+      "Story points": {
+        "type": "integer"
+      }
+    },
+    "required": []
+  }
+}

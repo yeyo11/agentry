@@ -818,11 +818,14 @@ The hosts Agentry opens pull and merge requests on, GitHub through `gh` and GitL
 | POST | `/hosts/refresh` | Detect again now. Not open to a chat's token |
 | GET | `/hosts/settings` | The document from `hosts.json`: enabled and binary override per host |
 | PUT | `/hosts/settings` | Replace it, validated; hosts are detected again in the background and every project's readiness is read again. Not open to a chat's token |
-| GET | `/trackers` | Every issue tracker's status: GitHub and GitLab Issues follow their code host; Jira and YouTrack are `unknown` with `not-recorded` until their CLIs are recorded |
+| GET | `/trackers` | Every issue tracker's status: GitHub and GitLab Issues follow their code host; YouTrack runs `youtrack-app` with the address and token Agentry keeps; Jira is `unknown` with `not-recorded` until `acli` is recorded |
 | GET | `/trackers/:id` | One status; `404` for another id |
 | POST | `/trackers/refresh` | Detect again now. Not open to a chat's token |
 | GET | `/trackers/settings` | The document from `trackers.json`: enabled and binary override per tracker |
 | PUT | `/trackers/settings` | Replace it, validated; trackers are detected again in the background. Not open to a chat's token |
+| GET | `/trackers/youtrack/credentials` | The YouTrack address, whether a token is saved and whether it is encrypted; never the token. Not open to a chat's token |
+| PUT | `/trackers/youtrack/credentials` | `{ host, token? }` — save the address and a permanent token (0600, sealed in the desktop app); YouTrack is detected again before the answer. Not open to a chat's token |
+| DELETE | `/trackers/youtrack/credentials` | Forget them. Not open to a chat's token |
 | GET | `/projects/:id/tracker` | The project's tracker (`id`, `scope`, `query`, `statusMap`), or null |
 | PUT | `/projects/:id/tracker` | Replace the tracker, validated, leaving the rest of the settings; a null body clears it. Not open to a chat's token |
 | GET | `/projects/:id/tracker/issues` | `?query=&page=` — a page of the tracker's own query, each issue marked with the item it was imported as |
