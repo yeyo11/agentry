@@ -228,7 +228,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.goto(settingsUrl, 300);
     await page.waitFor(`return [...document.querySelectorAll('.settings-cell')].some((c) => c.textContent.includes('Issues'))`, { timeout: 40_000, label: 'the tracker is a cell on a phone' });
     await page.click('.settings-cell', 'Issues', 500);
-    await page.waitFor(`return document.querySelectorAll('[role=dialog] .trk-opt').length === 5`, { label: 'the phone sheet lists the trackers and None' });
+    await page.waitFor(`return document.querySelectorAll('[role=dialog] .trk-opt').length === 4`, { label: 'the phone sheet lists the trackers and None' });
     check((await page.eval(`return [...document.querySelectorAll('[role=dialog] .trk-opt')].every((o) => o.getBoundingClientRect().height >= 44)`)) === true, 'each tracker choice is a 44 px target');
     check((await page.eval(overflow)) <= 1, `[390px project tracker] nothing scrolls sideways (${await page.eval(overflow)}px)`);
     await trackerCardGradients('[390px] the project tracker sheet');
