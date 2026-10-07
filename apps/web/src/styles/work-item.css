@@ -587,6 +587,24 @@ a.work-link-name:hover {
   overflow-wrap: anywhere;
 }
 
+/* What the retry of a failed run did, or the retry itself while the run can still be queued again */
+.work-link-retried {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+
+.work-link-acts {
+  position: relative;
+  /* Above the name's overlay, which makes the rest of the row open the chat */
+  z-index: 1;
+  display: flex;
+}
+
+.workitem-layout.is-phone .work-link-retry {
+  min-height: var(--touch);
+}
+
 /* ---- what changed in its worktree (.diff-file) ----
    Under .workitem-card: the review screen has a .changes-head of its own (components/changes). */
 

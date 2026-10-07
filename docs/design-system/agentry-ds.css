@@ -2022,3 +2022,10 @@ a.cont-from:hover { color: var(--fg); }
 .m-screen .cont-body { max-width: none; flex: 1 1 auto; }
 .m-screen .cont-line { display: none; }
 /* ---------- end of Rotation, the chat ---------- */
+
+/* ---------- 21. A failed run's link and a sent-back card (CW-20) ---------- */
+.work-link-retried { font-size: 12px; line-height: 1.5; color: var(--fg-2); }
+.work-link-acts { position: relative; z-index: 1; display: flex; }
+.m-screen .work-link-retry { min-height: var(--touch); }
+.workitem-strip-verb.is-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
+

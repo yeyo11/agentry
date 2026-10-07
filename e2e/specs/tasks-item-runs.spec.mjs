@@ -65,7 +65,8 @@ export default async ({ page, api, check, dirs }) => {
     check(links.includes(`QA verifies ${item.key}`), `each run is named by its role and stage (${links})`);
     const failedRow = await page.eval(`return [...document.querySelectorAll('.work-link-row.is-run')].find((r) => r.querySelector('.badge-bad'))?.textContent ?? ''`);
     check(failedRow.includes('failed') && failedRow.includes('It was cut off 3 times: Agentry restarted while it verified it.'), `the failed run says why, in words (${failedRow})`);
-    check(!failedRow.includes('cut off by a restart'), "the raw text stays on the run's chat, where there is room for it");
+    check(failedRow.includes('cut off by a restart (restarts: 2 of 2)'), 'the raw error under the worded reason');
+    check(await page.eval(`return !!document.querySelector('.work-link-row.is-run .work-link-raw.mono')`), 'the raw error is in mono');
     check(await page.eval(`return !!document.querySelector('.work-link-row.is-run .role-avatar')`), "a run's link leads with its role's squircle");
 
     const activity = await page.text('.workitem-activity');

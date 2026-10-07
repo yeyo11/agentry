@@ -59,3 +59,13 @@ test('the guard reads rules as the stylesheet writes them', () => {
   assert.throws(() => assertGivesWay(rule('.v { min-width: 0; white-space: nowrap }', '.v'), 'v'));
   assert.throws(() => assertGivesWay(rule('.v { flex: 1 0 auto; min-width: 0 }', '.v'), 'v'));
 });
+
+test("QA's words on a sent-back card keep to three lines, however long its summary", () => {
+  // On claude-wrapper's real board a QA summary of some 1,100 characters stretched the card to a page (CW-20)
+  const quote = rule(board, '.workitem-strip-verb.is-quote');
+  assert.equal(quote.get('-webkit-line-clamp'), '3');
+  assert.equal(quote.get('line-clamp'), '3');
+  assert.equal(quote.get('display'), '-webkit-box');
+  assert.equal(quote.get('-webkit-box-orient'), 'vertical');
+  assert.equal(quote.get('overflow'), 'hidden');
+});
