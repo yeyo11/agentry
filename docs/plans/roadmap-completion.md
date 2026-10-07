@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-10-01T13:40:00Z
+updated_at: 2026-10-07T18:00:00Z
 tags:
     - plan
     - roadmap
@@ -8,12 +8,13 @@ tags:
 ---
 # Plan: finish the roadmap
 
-Status: **Verified on `e0efe0eb` (0.29.1)**: see [Verification](#verification-2026-10-01). Run as
-one orchestration on top of `main` at `f78fab7` (`feat!: chats, projects and Agentry's own model`).
-Every task below landed except the pieces listed under
-[Outcome](#outcome-what-landed-and-what-did-not). Most of those were built later by
-[post-roadmap](post-roadmap.md). The specs the tasks wrote pass when run one at a time. A full
-`pnpm e2e` run is the one item still open.
+Status: **Verified on `a0d6f2967` (0.33.1)**, with the full `pnpm e2e` run: see
+[Verification (2026-10-07)](#verification-2026-10-07), and the first pass in
+[Verification (2026-10-01)](#verification-2026-10-01). Run as one orchestration on top of `main` at
+`f78fab7` (`feat!: chats, projects and Agentry's own model`). Every task below landed except the
+pieces listed under [Outcome](#outcome-what-landed-and-what-did-not). Most of those were built later
+by [post-roadmap](post-roadmap.md), and the accounts pieces were retired on purpose by #188. The one
+item open is `paging.spec.mjs`, which fails alone on a loaded machine (CW-32).
 
 This document is the source of truth for every task of that orchestration. It closes the whole
 **Next** section of [ROADMAP.md](../../ROADMAP.md): agent observability, security, richer chat
@@ -539,6 +540,154 @@ only a unit test.
 **Count:** 48 items. 27 done, 11 done later, 9 dropped, 1 open. No claim of the plan failed.
 `fixed` is not used in this plan: the one wrong text found (the `?token=` list) is recorded in
 [post-roadmap](post-roadmap.md#verification-2026-10-01), whose claim it is.
+
+## Verification (2026-10-07)
+
+The final verification: every item again, on `main` at `a0d6f2967` (0.33.1), and the full
+`pnpm e2e` suite the run of 2026-10-01 left open. Since then `main` has gained multiple providers
+phases 3 and 4 (#167, #188), code hosts phases 2 to 6, the decision engine's later points, and
+dropped Jira ([no-jira.md](../decisions/no-jira.md), #211). Phase 4 retired claude-swap and the
+Accounts page, which changes two marks below. Every file and test named in the 2026-10-01 tables
+was looked up again; the rows that only repeat that check say "as on 2026-10-01".
+
+### Landed
+
+| Item | Mark | Evidence / reason |
+| --- | --- | --- |
+| Shared types, and the fields later tasks added | done | As on 2026-10-01, every name still in `packages/shared/src/types.ts`. `openapi:schemas` writes 596 schemas and leaves no diff |
+| 1 `git-changes` | done | The eight changes, diff and checklist routes are in `routes.ts` (with `…/changes/steps` added by #115); `change-watcher.ts`, `changes.test.ts` (core and api); `observability.spec.mjs` |
+| 1 `stuck-signals` | done | As on 2026-10-01: `health.ts`, `health-service.ts`, `processes.ts`, `task-limits.ts`, `command_durations` in `db.ts`, `POST /chats/:id/commands/:toolUseId/cancel`, `POST /chats/:id/hint`; `health-actions.spec.mjs` |
+| 1 `e2e-harness` | done | `e2e/run.mjs`, `e2e/processes.mjs`; `node --test e2e/harness.test.mjs` (see [the checks](#the-checks-2026-10-07)). The server start limit is now `E2E_SERVER_START_TIMEOUT`, 120 s by default, which closes the 2026-10-01 follow-up |
+| 1 `verification-phase` | done | `verification.ts`, `POST /orchestrations/:id/verify`, `verification.test.ts` "every worker is told which checks are its own, whatever the objective says" |
+| `pending-gaps`: a chat already waiting raises a notification on load | done | `seedWaiting` in `apps/web/src/lib/notifications.ts`, called from `components/Notifications.tsx`; `apps/web/test/notifications-seed.test.ts` |
+| `pending-gaps`: a waiting notification opens the prompt | done | `PROMPT_PARAM` in `packages/chat-ui/src/lib/permission-param.ts`, read by `PermissionPrompts.tsx` and written by `apps/web/src/lib/notifications-model.ts` |
+| `pending-gaps`: a chat cut off by a restart says why and when | done | `INTERRUPTED_BY_RESTART` in `chat-model.ts`; `restore.test.ts` "an execution a restart cut off says why…" |
+| `pending-gaps`: `workflow.ended` carries `agentId` | done | `WorkflowEndedEvent` in `types.ts` |
+| `pending-gaps`: `sessionId` on every subagent | done | `ChatSubagent` in `types.ts` |
+| `pending-gaps`: `apps/web/test/detail.test.ts` | done | The file passes; `detail.spec.mjs` |
+| 2 `security` | done | As on 2026-10-01 (`security/oidc.ts`, `redactSecrets`, `auditPage`); `QUERY_TOKEN` in `apps/api/src/security.ts` lists five `?token=` GETs, and `apps/api/test/security.test.ts` checks all five; `security.spec.mjs` passes after `392455dee` made it wait for the tab's cards |
+| 3 `chat-mcp-tools` | done | `chat-tools.ts`, `--strict-mcp-config` in `providers/claude-code/args.ts`, `chat-tools.test.ts`; `tool-presets.spec.mjs` |
+| 4 `orchestration-v2` | done | `rerunTask` (`orchestrator.ts`), `POST /orchestrations/:id/relaunch`, `relaunchedFrom`, `orchestration-templates.ts`; `orchestration-v2.spec.mjs` |
+| 5 `connectors` | done | `connectors.ts`, `connectors.test.ts`; `connectors.spec.mjs` now waits for `#sidebar nav a` instead of a fixed pause, which closes the 2026-10-01 follow-up |
+| 6 `accounts-config` | dropped | Retired with claude-swap by multiple providers phase 4 (#188): "Several accounts of one provider. Decision 6: one account per provider, the one signed in to its CLI" ([Out of scope](multi-provider.md#out-of-scope-2)). `account-config.ts`, its test, the `/accounts` routes and `accounts-config.spec.mjs` are gone; README *Coming from claude-swap* says so, and ROADMAP's Multi-account bullet now does too |
+| 7 `scheduling` | done | `cron.ts`, `schedules.ts`, `GET /schedules/preview`, `GET /schedules/:id/runs`; `schedules.test.ts`; `schedules.spec.mjs` |
+| 8 `usage-cost` | done | `GET /usage/series`, `GET /usage/breakdown` (`usage-series.ts`), `GET /chats/:id/export` (`chat-export.ts`); `usage-series.test.ts`; `usage.spec.mjs` |
+| 9 `packaging` | done | `docker/Dockerfile` (`CLAUDE_CODE_VERSION=2.1.278`, `AGENTRY_CLAUDE_CODE_PINNED`), the `cli-version` routes and test, `deploy/helm/agentry` (deployment, service, PVC, secret), Caddy's `tls` profile in `docker-compose.yml`, `docs/deploy.md`. `helm` is still not installed here |
+| 10 `web-observability`: work panel, health actions, Changes and Doing now | done | `components/observe/Work.tsx`, `Health.tsx`; `observability.spec.mjs`, `health-actions.spec.mjs` |
+| 10 `web-observability`: editor links and their settings tab | dropped | As on 2026-10-01: removed by [changes-review](changes-review.md) decision 1 (#115); no `settings/editor` anywhere in the source |
+| 10 `web-security` | done | `pages/config/SecurityTab.tsx`, `apps/web/test/auth.test.tsx`; `security.spec.mjs` (after `392455dee`) |
+| 10 `web-schedules-usage` | done | `pages/Schedules.tsx`, `pages/Usage.tsx`, export links in `pages/chat/Header.tsx`; `cron-builder.test.ts`, `cron-words.test.ts`; `schedules.spec.mjs`, `usage.spec.mjs` |
+| 10 `web-orchestration-v2`: re-run, relaunch, templates, limits, verification card, Connectors page | done | `orchestration-v2.spec.mjs`, `connectors.spec.mjs` |
+| 10 `web-orchestration-v2`: config directory, policies and usage history on the accounts page | dropped | The Accounts page was retired in #188, as for `accounts-config` above |
+| 11 `docs` | done | README, `SECURITY.md`, `ROADMAP.md`. Every one of the 324 routes in `routes.ts` has a README row (checked by script; the plugin actions share one row) |
+
+### Left out, and why
+
+| Item | Mark | Evidence / reason |
+| --- | --- | --- |
+| The Haiku supervisor | done later | [post-roadmap `supervisor`](post-roadmap.md#supervisor): `supervisor.ts` (model `haiku`, the `read-only` preset, `maxCostUsd`), `supervisor.spec.mjs` |
+| Health levels `slow`, `stuck`, `looping` | dropped | The plan's own reason; `HealthLevel = 'ok' \| 'warn' \| 'bad'` |
+| Editor settings on the server | dropped | Built by post-roadmap, then removed with the editor integration (#115) |
+| `code --diff` as a copied command | dropped | Removed with the editor integration (#115); CLAUDE.md: "never hand out a command to copy" |
+| Answering a permission from the notification | done later | post-roadmap `web-security-2`: `PermissionAnswer` in `components/NotificationPanel.tsx`; `notifications.spec.mjs` |
+| Plugin and connector servers in a chat's MCP selection | dropped | README Known limitations, as on 2026-10-01 |
+| Forks do not inherit the source chat's tools | done later | post-roadmap `tool-presets-2`; `chat-tools.test.ts` "a fork runs with the tools and servers of its source…" |
+| A resume keeps the MCP config as picked | done later | post-roadmap `tool-presets-2`; `chat-tools.test.ts` "a resume that picks no servers…" |
+| No named default preset, no "restore the shipped presets" | done later | `PUT /config/tool-presets/default`, `POST /config/tool-presets/restore`; `apps/api/test/tool-presets.test.ts`; `tool-presets.spec.mjs` |
+| A sign-in through an identity provider | dropped | ROADMAP *Decided against, for now* |
+| The audit log's method and status filters, and escaping `%` and `_` | done later | post-roadmap `security-2`: `ESCAPE '\'` in `db.ts`, `method` and `status` on `GET /audit` |
+| A banner on every page while read-only is on | dropped | ROADMAP *Decided against, for now* |
+| Verification: no fixer cost limit, no install step, a failed check does not fail the graph | done later | post-roadmap `verification-2`; `verification.test.ts` "a spec keeps its cost limit, install step and failGraph…" |
+| Scheduling: no overlap policy, no `schedule.*` event, no import of an orchestration | done later | post-roadmap `scheduling-2` and `web-chats-tools`; `schedules.test.ts`; "From an existing orchestration" in `locales/en/schedules.json` |
+| Usage: no project export, the custom range is typed | done later | post-roadmap `usage-2` (`project-export.ts`, `project-export.test.ts`) and `web-schedules-usage-2` (`packages/ui/src/components/controls/DatePicker.tsx`) |
+| Packaging: no Ingress, the chart is not under release-please, nothing run for real | dropped | ROADMAP *Decided against, for now*. `deploy/helm/agentry/templates` has no Ingress, and `release-please-config.json` does not name the chart |
+| Server-written strings shown in English; a template cannot be renamed in place | done later | post-roadmap `i18n-server-strings` (`server-strings.test.ts` in core and web) and `web-chats-tools` (`orchestration-v2.spec.mjs` "rename a template in place") |
+| Cancelling a command off Linux | dropped | README Known limitations: it reads `/proc` |
+| Browser coverage: no spec run, no spec for the health action buttons | done later | post-roadmap `e2e-health-actions` (`e2e/fake-cli/claude`, `health-actions.spec.mjs`), and the full suite ran on this date (below) |
+
+### What "done" means
+
+| Item | Mark | Evidence / reason |
+| --- | --- | --- |
+| `pnpm typecheck`, `pnpm test`, `pnpm build` green | done | The typecheck and the build pass. The tests pass but for two web timing tests that missed their budget at a load near 109 and pass alone; see [the checks](#the-checks-2026-10-07) |
+| `pnpm e2e` green once at the end | open → CW-32 | The full suite ran once and was not green on this machine (45 passed, 14 failed, 11 not run). Alone, 21 of the 25 pass, three more pass after `392455dee` and `26004cc82`, and only `paging.spec.mjs` still fails: CW-32. CI ran the suite green the same day |
+| OpenAPI schemas regenerated and committed | done | `wrote 596 schemas`, no diff |
+| Every task's result says what it delivered, left out and verified | done | [Outcome](#outcome-what-landed-and-what-did-not), checked item by item above |
+
+### The checks (2026-10-07)
+
+Run on 2026-10-07 in a worktree off `main` at `a0d6f2967` (0.33.1), each once, under `timeout`. The
+machine was shared with other orchestrations: the load average was between 65 and 109 on 12 cores
+for the typecheck, the tests and the build, and fell to between 12 and 25 afterwards. The only commit
+of this verification before the checks touched `ROADMAP.md` alone.
+
+- `pnpm typecheck`: passes, every workspace project (`TYPECHECK EXIT 0`).
+- `pnpm test`: **4,074 tests pass, 2 fail, both timing budgets missed under load.** shared 32,
+  ui 3, chat-ui 4 and web 1,236 of 1,238. pnpm stops at the first package that fails, so core, api,
+  mcp and desktop were run straight after with `pnpm --no-bail --filter …`: core 2,463, api 272,
+  desktop 52, mcp 12, `# fail 0` in each. The two web failures, at a load near 109:
+  - `highlight.test.ts` "the first block in a grammar shiki compiles on the spot is still coloured":
+    1 styled run instead of 3, because compiling the C++ grammar ran past the per-line time budget
+    (the test took 17.8 s);
+  - `robustness.test.ts` "a block of 59 000 characters of one shape is still read in time": `bash`
+    took 43.8 s over 59,000 characters of `"\r\n"`, past the test's 30 s.
+
+  Run alone at a load near 100 both failed again; run alone at a load near 18
+  (`npx tsx --test test/highlight.test.ts test/robustness.test.ts`), `# pass 14`, `# fail 0`. They
+  measure time, so they fail on a machine this loaded and are recorded as flaky under load, not as
+  a fault.
+- `pnpm build`: passes (`BUILD EXIT 0`).
+- `pnpm --filter @agentry/api openapi:schemas`: `wrote 596 schemas`, and `git status` shows no diff.
+- `node --test e2e/harness.test.mjs`, by hand at a load near 12: `# tests 14`, `# pass 14`,
+  `# fail 0`, the whole file in one run. The 2026-10-01 flake (`API did not start`) is gone with the
+  120 s server start limit.
+- `E2E_PORT=8899 timeout 3000 pnpm e2e`, once, after `pnpm build`: **the full suite ran, and it was
+  not green.** Four shards on ports 8899 to 8902 (620 to 864 s each, against 305 to 345 s
+  estimated), at a load average of 16 when it started and up to 63 during it. Of the 71 spec files,
+  45 passed, `chat.spec.mjs` was skipped (it needs `E2E_LIVE=1`), 14 failed, and 11 were not run:
+  `merge.spec.mjs` passed its 600 s limit, and shard 1 stops after a timed-out spec, since that spec
+  may still be driving the browser. One failure (`create-ai-stream`) was `Unknown system error
+  -122` on a write: `/tmp`, a 16 GB tmpfs shared with the other orchestrations' test runs, went
+  from 46 % to 80 % full during the afternoon.
+
+  Each of the 25 was then run alone (`E2E_SHARDS=1 node e2e/run.mjs <spec>.spec.mjs`), one at a
+  time, on `E2E_PORT=8951`. Another orchestration started its own e2e run on 8899 to 8901 halfway
+  through, so the solo runs of `shell` and `tasks-review` that met it were thrown away and repeated
+  on 8951.
+  - **Passed alone at the first try (16):** `detail`, `team-gaps`, `checks`, `create-ai-stream`,
+    `decisions`, `flow-waiting`, `merge` (235 s), and nine of the 11 that never ran: `models`,
+    `motion`, `provider-rotation`, `providers-chat`, `providers`, `slash-menu`, `suggest`,
+    `tasks-links` and `trackers`.
+  - **Flaky under load (5):** they failed alone at loads between 28 and 51 and passed alone later:
+    `projects-wizard` ("the card shows the key"), `orchestration-v2` ("Show all resets the search",
+    twice at loads of 41 and 51, then passed at 19), `reviews`, `tasks-item` and `webhooks` (whose
+    second solo run died on `disk I/O error` from SQLite as `/tmp` filled, and whose third passed).
+    Of the known flaky specs in [redesign-night-shift.md](redesign-night-shift.md#before-launching)
+    (`config`, `home`, `observability`, `chats`, `orchestration-v2`), only `orchestration-v2` is
+    among them; the others passed in the full run.
+  - **Fixed (3):** `security`, `shell` and `tasks-review` failed alone each time, each because it
+    read the page a fixed pause after loading it. `security` read the tab before
+    `/security/auth` answered: the audit log was drawn and the Read-only, Access and Token cards were
+    not yet (a screenshot taken a moment later shows them all). `shell` measured the phone tab bar,
+    and the FAB on the new orchestration form, before they were drawn. `tasks-review` pressed `n`
+    before the board that owns the shortcut was drawn. They now wait for those conditions, as #166
+    did for the others: `392455dee` (`test(e2e): wait for the security tab's cards instead of a
+    fixed pause`) and `26004cc82` (`test(e2e): wait for the phone tab bar, the new orchestration
+    form and the board instead of fixed pauses`). All three pass alone after the change.
+  - **Open (1):** `paging.spec.mjs`, "no long tasks while typing", failed alone three times, at loads
+    of 41, 39 and 22, with 16 to 27 long tasks of 52 to 268 ms. It also failed alone on 2026-09-28.
+    The check fails on any long task over 50 ms, so on this machine it cannot tell a regression from
+    a busy CPU: **CW-32**.
+
+  For comparison, CI ran all four e2e shards green the same day on `5a253a2c4` (run 37629191381, a
+  branch that contains #205 and #211), on runners nobody else was using.
+
+**Count:** 49 items (the `web-orchestration-v2` row is split in two). 26 done, 11 done later, 11
+dropped, 1 open (CW-32). Against 2026-10-01, two marks changed from done to dropped, because #188
+retired the accounts pieces on purpose, and the open item moved from "the full suite was never run"
+to the one spec that fails alone. No claim of the plan failed. `fixed` is not used for a claim:
+the three e2e specs repaired here tested claims that hold, and are recorded in
+[the checks](#the-checks-2026-10-07).
 
 ## What "done" means for this orchestration
 
