@@ -1833,8 +1833,16 @@ Where §2 planned an app name and the app settled on another:
 - The skeleton cards are `.workitem-card.is-skeleton`, and the task list's foot is
   `.workitem-list-more`; Team activity's foot is `.list-more`.
 - `.m-head` is `PhoneHeader` (`.phone-head*`, `components/shell/`). Which routes it heads is one
-  table, `PHONE_HEADER_ROUTES` in `phone-header.ts`: the ecosystem's screens now, the rest of the app
-  in a separate job ([status.md](status.md#what-is-open)).
+  table, `PHONE_HEADER_ROUTES` in `phone-header.ts`: every phone detail screen, the tab roots keeping
+  the top bar ([phone-headers-rest-of-app.md](plans/phone-headers-rest-of-app.md)). A page built on
+  `PageHeader` heads itself on a phone through its `phone` prop; the chat (`.chat-head`) and the
+  review of changes (`.changes-head`) keep their own headers, with 44 px targets on a phone.
+- `.sheet-action-reason`: under a `MoreActions` sheet, a disabled entry's reason written out (a
+  finger has no hover to read a title by); `.sheet-action-gap` keeps an unchecked toggle's label in
+  line with a checked one's. A download entry stays a real link in the sheet.
+- `.phone-head-sub .badge`: a state under a phone head's title (the orchestration's) is the mono line
+  itself, in its tone and with its icon, not a boxed badge. `.orch-phone-head` names the
+  orchestration at 16 px, as MobileOrquestacion does.
 - Time follows decision 10 with the owner's rule for past moments: a relative time everywhere, and
   the bare hour ("17:44") only inside a list grouped by day, such as Team activity.
 
@@ -1845,6 +1853,9 @@ Variants the app drew where the reference had no class, mirrored in §19 of
   title centred at 17 px between "Cancelar" or "Cerrar" and what the flow creates.
 - `.model-pick-sheet` / `.model-pick-option`: `ModelPicker` on a phone opens a sheet of 48 px
   options, the current model checked (`.model-pick-check`), instead of a popover.
+- `.chat-back`, `.chat-more` (CW-8): the chat's own header on a phone, which keeps its rows instead
+  of `PhoneHeader`: the way back to Chats and the "⋯" that opens the chat's actions as a `Sheet`
+  (`MoreActions`), both 44 px.
 - `.work-link-retried`, `.work-link-acts` / `.work-link-retry` (CW-20): under a failed run's reason
   on the item's link, what its retry did ("Reintentada: pasó hace 10 min", the outcome in its own
   status word and colour) or, while the run can still be queued again, a small neutral "Reintentar"
