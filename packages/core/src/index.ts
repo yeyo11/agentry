@@ -65,8 +65,9 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@agentry/shared';
-import { AGENTRY_LANGUAGES, agentryLanguage, type DecisionRecord, type LimitWait, type PermissionMode, type ProjectCodeHost, type ProviderId, type ProviderMove, type ToolPolicy } from '@agentry/shared';
+import { AGENTRY_LANGUAGES, agentryLanguage, isEffort, type DecisionRecord, type Effort, type LimitWait, type PermissionMode, type ProjectCodeHost, type ProviderId, type ProviderMove, type ToolPolicy } from '@agentry/shared';
 import { LEGACY_PROVIDER } from './chat-records.ts';
+import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import { rulesOnDriver } from './tool-policy.ts';
 import pkg from '../package.json' with { type: 'json' };
 import { CswapRetirementNotice } from './cswap-retirement.ts';
@@ -130,7 +131,7 @@ import { UploadStore } from './uploads.ts';
 import { MemoryStore } from './memory.ts';
 import { JournalService } from './journal.ts';
 import { MemoryProposalService } from './memory-proposals.ts';
-import { Orchestrator } from './orchestrator.ts';
+import { Orchestrator, validateEffort } from './orchestrator.ts';
 import { orchestrationTimings } from './orchestration-timings.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
 import { byStart, EXPORTED_ORIGINS, type ProjectExportSource } from './project-export.ts';
@@ -1300,6 +1301,7 @@ export class Core {
   async runWorkflow(request: RunWorkflowRequest): Promise<ChatSummary> {
     const name = request.name?.trim();
     if (!name) throw new Error('name is required');
+    validateEffort(request.effort);
     const known = await this.workflowDefinitions(request.cwd);
     if (!known.some((w) => w.name === name)) throw new Error(`workflow "${name}" not found in .claude/workflows/`);
     const args = request.args?.trim();
@@ -1314,6 +1316,7 @@ export class Core {
       permissionPrompts: 'host',
       ...(request.cwd ? { cwd: request.cwd } : {}),
       ...(request.model ? { model: request.model } : {}),
+      ...effortOption(resolveEffort('chat', request.model, request.effort)),
     });
     const chat = await this.chats.summaryOf(started.id);
     if (!chat) throw new Error('chat not found');
@@ -1882,19 +1885,20 @@ export class Core {
    * uploads directory, the journal and CLAUDE.md appended but never recorded, the result held to the
    * run's schema, and one turn. A run a restart cut off continues in its own chat, confined again.
    */
-  private async launchAssistantRun(launch: AssistantLaunch, onStart: (chatId: string, provider?: ProviderId) => void): Promise<void> {
+  private async launchAssistantRun(launch: AssistantLaunch, onStart: (chatId: string, provider?: ProviderId, effort?: Effort | null) => void): Promise<void> {
     // A run cut off by a restart goes on in its own chat, on the provider that chat has
     const resumed = launch.resumeChatId ? this.runtime.get(launch.resumeChatId) : null;
     const claude = (resumed ? (resumed.provider ?? LEGACY_PROVIDER) : null) === LEGACY_PROVIDER;
     // A run with no shell cannot push, and says so: automated work moves only with pushes denied
     const policy: ToolPolicy = { ...launch.policy, gitPush: 'deny' };
-    const choice = resumed ? null : await this.workProviders.choose(this.assistantStartInput(launch, policy));
+    const choice = resumed ? null : await this.workProviders.choose({ ...this.assistantStartInput(launch, policy), effort: launch.effort });
     const provider = resumed ? (resumed.provider ?? LEGACY_PROVIDER) : (choice?.provider ?? LEGACY_PROVIDER);
     const rules = rulesOnDriver(this.runtime.driverFor(provider), provider, policy);
     const capabilities = this.runtime.providers.capabilities(provider);
     const options = {
       model: resumed ? launch.model : (choice?.model ?? undefined),
-      ...(choice?.effort ? { effort: choice.effort } : {}),
+      // A new chat takes the level the provider kept; a chat continued after a restart, the run's own
+      ...effortOption(resumed ? (launch.effort ?? undefined) : (choice?.effort ?? undefined)),
       appendSystemPrompt: launch.appendSystemPrompt || undefined,
       permissionMode: this.permissionModeFor(provider, launch.permissionMode),
       allowedTools: provider === LEGACY_PROVIDER ? launch.allowedTools : rules.allowedTools,
@@ -1909,13 +1913,18 @@ export class Core {
     // for a confined session, to a person who continues the chat after the run
     const extras = { jsonSchema: launch.jsonSchema, keepAlive: false, ...(provider === LEGACY_PROVIDER ? { confine } : {}), systemPromptSnapshot: 'off' as const };
     if (launch.resumeChatId) {
-      onStart(launch.resumeChatId, provider);
       // A chat on another provider keeps the policy it was started with: Claude's rules would replace it
       const resume = claude ? options : { model: options.model, appendSystemPrompt: options.appendSystemPrompt, permissionMode: options.permissionMode, permissionPrompts: options.permissionPrompts };
+      onStart(launch.resumeChatId, provider, this.effortPassed(provider, 'effort' in resume ? resume.effort : undefined) ?? (resumed ? usedEffort(resumed) : null));
       await this.chats.resume(launch.resumeChatId, { ...resume, prompt: launch.prompt }, extras);
       return;
     }
-    await this.chats.create({ ...options, ...extras, provider, policy, prompt: launch.prompt, cwd: launch.cwd }, (started) => onStart(started.id, provider));
+    await this.chats.create({ ...options, ...extras, provider, policy, prompt: launch.prompt, cwd: launch.cwd }, (started) => onStart(started.id, provider, usedEffort(started)));
+  }
+
+  /** The effort a chat of this provider starts with, from what was asked: none where the provider does not declare `effort`. */
+  private effortPassed(provider: ProviderId, effort: string | null | undefined): Effort | null {
+    return isEffort(effort) && this.runtime.driverFor(provider).manifest.capabilities.includes('effort') ? effort : null;
   }
 
   private assistantStartInput(launch: AssistantLaunch, policy: ToolPolicy): StartInput {
@@ -1984,7 +1993,7 @@ export class Core {
    * Developer's run continues its own chat from an earlier round, or starts one if that chat cannot
    * be continued; a run a restart cut off continues in its chat or fails.
    */
-  private async launchFlowRun(launch: FlowLaunch, onStart: (chatId: string, provider?: ProviderId) => void): Promise<void> {
+  private async launchFlowRun(launch: FlowLaunch, onStart: (chatId: string, provider?: ProviderId, effort?: Effort | null) => void): Promise<void> {
     const { item, member, run } = launch;
     const record = this.requireProject(item.projectId);
     if (!existsSync(record.path)) throw new Error(`the project's directory ${record.path} is missing`);
@@ -1993,7 +2002,9 @@ export class Core {
     // first provider that can enforce the stage's policy and take its model, `provider.pick` included.
     // Chosen before anything is touched, so a run no provider can take fails with nothing half done
     const needs: StartInput['needs'] = ['structuredOutput', ...(launch.maxBudgetUsd !== null ? (['budgetLimit'] as const) : [])];
-    const choice = resumed ? null : await this.workProviders.choose({ kind: 'flow-run', subjectKind: 'flow_run', subjectId: run.id, projectId: item.projectId, title: item.title, model: member.model, needs, policy: launch.policy });
+    // The member's own, else what the guides recommend for its model at this stage
+    const effort = resolveEffort(run.stage, member.model, member.effort);
+    const choice = resumed ? null : await this.workProviders.choose({ kind: 'flow-run', subjectKind: 'flow_run', subjectId: run.id, projectId: item.projectId, title: item.title, model: member.model, needs, policy: launch.policy, effort: effort ?? null });
     const resumedOn = resumed ? (resumed.provider ?? LEGACY_PROVIDER) : null;
     const agentsFile = (resumedOn ?? choice?.provider ?? LEGACY_PROVIDER) === LEGACY_PROVIDER ? await this.flowAgentsFile(record.path, member) : null;
     const place = launch.inWorktree ? itemWorktree(record.path, item) : null;
@@ -2027,7 +2038,8 @@ export class Core {
     const newProvider = choice?.provider ?? LEGACY_PROVIDER;
     const options = {
       model: choice?.model ?? member.model,
-      ...(choice?.effort ? { effort: choice.effort } : {}),
+      // A new chat takes the level its provider kept; a run that goes on in a chat, the member's own
+      ...effortOption(choice ? choice.effort : effort),
       appendSystemPrompt: launch.appendSystemPrompt || undefined,
       permissionMode: this.permissionModeFor(newProvider, launch.permissionMode),
       ...startedOn(newProvider),
@@ -2051,7 +2063,8 @@ export class Core {
     if (launch.resumeChatId) {
       const chatId = launch.resumeChatId;
       // Told first: the result is matched to the run by its chat, and may not wait for the resume to return
-      onStart(chatId, resumedOn ?? undefined);
+      // A chat goes on with the last execution's effort unless the run gives one, which only Claude's chats are given here
+      onStart(chatId, resumedOn ?? undefined, (resumedOn === LEGACY_PROVIDER ? this.effortPassed(LEGACY_PROVIDER, options.effort) : null) ?? (resumed ? usedEffort(resumed) : null));
       try {
         // A chat on another provider keeps the policy it was started with: Claude's rules would replace it
         const resume = resumedOn === LEGACY_PROVIDER ? options : { model: options.model, appendSystemPrompt: options.appendSystemPrompt, permissionMode: options.permissionMode, permissionPrompts: options.permissionPrompts };
@@ -2069,10 +2082,10 @@ export class Core {
     const createdOptions =
       created === choice
         ? options
-        : { ...options, model: created.model ?? member.model, ...(created.effort ? { effort: created.effort } : {}), permissionMode: this.permissionModeFor(created.provider, launch.permissionMode), ...startedOn(created.provider) };
+        : { ...options, model: created.model ?? member.model, ...effortOption(created.effort), permissionMode: this.permissionModeFor(created.provider, launch.permissionMode), ...startedOn(created.provider) };
     const createdExtras = created.provider === LEGACY_PROVIDER ? { ...extras, agent: member.agent, agentsFile: agentsFile ?? (await this.flowAgentsFile(record.path, member)) } : extras;
     await this.chats.create({ ...createdOptions, ...createdExtras, provider: created.provider, policy: launch.policy, prompt, cwd: place?.cwd ?? record.path }, (started) => {
-      onStart(started.id, created.provider);
+      onStart(started.id, created.provider, usedEffort(started));
       link(started.id);
     });
   }

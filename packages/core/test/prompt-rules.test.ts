@@ -197,7 +197,7 @@ test('the fixer carries the unattended instruction, real verification and the no
 });
 
 test('workers keep the split: unit checks while they work, the end-to-end suite once after the merge', () => {
-  assert.match(workerChecks(true), /run the type check and the unit tests/);
+  assert.match(workerChecks(true), /run the type check and the tests of the package or the test files you changed/);
   assert.match(workerChecks(true), /Do not run the end-to-end or browser suite: it runs once, on the merged branch/);
   assert.match(workerChecks(false), /Do not run the end-to-end or browser suite: it is slow/);
 });

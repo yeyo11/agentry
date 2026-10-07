@@ -1,4 +1,4 @@
-import type { FlowRun, FlowRunCause, FlowStage, FlowStep, ProjectFlowSettings, ProjectSettings, PutTeamMemberRequest, TeamMember, WorkItemStatus, WorkItemType } from '@agentry/shared';
+import type { Effort, FlowRun, FlowRunCause, FlowStage, FlowStep, ProjectFlowSettings, ProjectSettings, PutTeamMemberRequest, TeamMember, WorkItemStatus, WorkItemType } from '@agentry/shared';
 import { DEFAULT_FLOW_MAX_PARALLEL, flowStepOf, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, teamCommandProblem, WORK_ITEM_STATUSES, type TeamCommandProblem } from '@agentry/shared';
 import { daysAgo } from '@agentry/ui/lib/format';
 
@@ -307,17 +307,20 @@ export function writesFor(scope: WriteScope, paths: readonly string[]): string[]
  * route reads an absent list as unrestricted.
  */
 export function memberBody(
-  member: Pick<TeamMember, 'role' | 'model' | 'responsibility' | 'writes' | 'commands'>,
-  patch: Partial<Pick<TeamMember, 'model' | 'responsibility'>> & { writes?: string[] | null; commands?: string[] | null } = {},
+  member: Pick<TeamMember, 'role' | 'model' | 'responsibility' | 'writes' | 'commands' | 'effort'>,
+  patch: Partial<Pick<TeamMember, 'model' | 'responsibility'>> & { writes?: string[] | null; commands?: string[] | null; effort?: Effort | null } = {},
 ): PutTeamMemberRequest {
   const writes = patch.writes === undefined ? member.writes : (patch.writes ?? undefined);
   const commands = patch.commands === undefined ? member.commands : (patch.commands ?? undefined);
+  // The route replaces the member whole: an effort left out would drop the one saved
+  const effort = patch.effort === undefined ? member.effort : (patch.effort ?? undefined);
   return {
     role: member.role,
     model: patch.model ?? member.model,
     responsibility: patch.responsibility ?? member.responsibility,
     ...(writes ? { writes: [...writes] } : {}),
     ...(commands ? { commands: [...commands] } : {}),
+    ...(effort ? { effort } : {}),
   };
 }
 

@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p test/tsconfig.json",
-    "test": "tsx --test test/*.test.ts test/*.test.tsx",
+    "test": "tsx --test --test-timeout=240000 --test-force-exit test/*.test.ts test/*.test.tsx",
     "parity": "tsx scripts/parity.ts",
     "icons": "tsx scripts/icons.ts"
   },

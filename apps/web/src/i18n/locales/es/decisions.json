@@ -13,11 +13,6 @@
     "cliHint": "Un chat interno por petición, con tu cuenta. Cuenta en tu cuota.",
     "cliModel": "Modelo del CLI",
     "effort": "Esfuerzo",
-    "effortOptions": {
-      "low": "Bajo",
-      "medium": "Medio",
-      "high": "Alto"
-    },
     "maxCost": "Límite de coste por petición (USD)",
     "maxCostInvalid": "El límite tiene que ser mayor que 0 US$ y como mucho {{max}} US$.",
     "jevKey": "Clave de Jev",

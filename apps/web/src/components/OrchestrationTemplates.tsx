@@ -1,4 +1,4 @@
-import type { OrchestrationSpec, OrchestrationTemplate } from '@agentry/shared';
+import type { Effort, OrchestrationSpec, OrchestrationTemplate } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Pencil, Play, TextCursorInput, Trash2, X } from 'lucide-react';
 import { useId, useState } from 'react';
@@ -11,6 +11,7 @@ import { Dialog, useConfirm } from '@agentry/ui/components/Dialog';
 import { ICON_SM } from '@agentry/ui/components/icons';
 import { useToast } from '@agentry/ui/components/Toast';
 import { Empty, ErrorBox, Field, Loading } from '@agentry/ui/components/ui';
+import { EffortField } from './EffortPicker';
 import { ModelCombobox } from './ui';
 
 /**
@@ -98,6 +99,7 @@ function LaunchTemplateDialog({ template, onClose }: { template: OrchestrationTe
   const [cwd, setCwd] = useState(template.spec.cwd ?? '');
   const [name, setName] = useState('');
   const [model, setModel] = useState('');
+  const [effort, setEffort] = useState<Effort | ''>('');
   const launch = useMutation({
     mutationFn: () =>
       api.launchOrchestrationTemplate(template.id, {
@@ -105,6 +107,7 @@ function LaunchTemplateDialog({ template, onClose }: { template: OrchestrationTe
         ...(cwd.trim() ? { cwd: cwd.trim() } : {}),
         ...(name.trim() ? { name: name.trim() } : {}),
         ...(model.trim() ? { model: model.trim() } : {}),
+        ...(effort ? { effort } : {}),
       }),
     onSuccess: (orch) => {
       void queryClient.invalidateQueries({ queryKey: keys.orchestrations });
@@ -162,6 +165,7 @@ function LaunchTemplateDialog({ template, onClose }: { template: OrchestrationTe
               onChange={setModel}
             />
           </Field>
+          <EffortField value={effort} onChange={setEffort} model={model || template.spec.model} use="worker" />
         </div>
         <ErrorBox error={launch.error} title={t('templates.launchFailed')} />
       </form>

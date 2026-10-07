@@ -1139,6 +1139,9 @@ move). What orchestration 6 already built is aligned to the reference, not rebui
 screen Night Shift drew with a back arrow (chat, a task's chat, a flow run's chat, orchestration,
 accounts, changes…), each page drawing its back, title and "⋯" sheet. Not part of this feature.
 
+**Done** in CW-8: every phone detail screen now heads itself, and the tab roots keep the bar. What
+was built, screen by screen, is in [phone-headers-rest-of-app.md](phone-headers-rest-of-app.md).
+
 ## Parked: a knowledge base and integrations
 
 Raised by the owner on 2026-09-27 after the four orchestrations, and parked the same day: the
@@ -1907,7 +1910,8 @@ Built on `feat/ecosystem-design-base` (orchestration 6's web work and the design
 
 What it applied and left, screen by screen, is at the end of
 [the review's note](../design-system/ecosystem-review.md#applied-in-development). The phone headers
-of the rest of the app are the separate job above, recorded in [status.md](../status.md#what-is-open).
+of the rest of the app were the separate job above, built in CW-8
+([phone-headers-rest-of-app.md](phone-headers-rest-of-app.md)).
 `pnpm e2e` runs once, in the verification of the merged branch.
 
 ## Related

@@ -12,7 +12,8 @@ import { WorkItemKey } from '../components/work-item-icons';
 import { ListToolbar } from '@agentry/ui/components/ListToolbar';
 import { StatusDot } from '@agentry/ui/components/motion';
 import { useToast } from '@agentry/ui/components/Toast';
-import { Card, Empty, ErrorBox, Loading, PageHeader, Tag } from '@agentry/ui/components/ui';
+import { Card, Empty, ErrorBox, Loading, Tag } from '@agentry/ui/components/ui';
+import { PageHeader } from '../components/PageHeader';
 import { intlLocale } from '@agentry/ui/i18n/language';
 import { formatDate, formatDateTime, formatNumber, timeAgo, toMs } from '@agentry/ui/lib/format';
 import { matchesText, PROJECT_SORTERS, type ProjectSort } from '../lib/lists';
@@ -361,6 +362,14 @@ export function Projects() {
         // A phone's header is its title and its actions (MobileProyectos); the count is the cards themselves
         subtitle={narrow ? undefined : t('page.subtitle', { count: projects.length, n: formatNumber(projects.length) })}
         actions={newButton(!emptyShown)}
+        // MobileProyectos: the title and a new project, the FAB below starting a chat
+        phone={{
+          actions: (
+            <Link to={NEW_PROJECT_PATH} className="icon-btn" aria-label={t('work:projects.newProject')}>
+              <FolderPlus {...ICON} />
+            </Link>
+          ),
+        }}
       />
       <ErrorBox error={error} />
       {isLoading ? (

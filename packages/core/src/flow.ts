@@ -10,6 +10,7 @@ import {
   FLOW_RUNS_PAGE,
   FLOW_RUNS_PAGE_MAX,
   FLOW_STAGE_OF_COLUMN,
+  isEffort,
   AGENTRY_LANGUAGES,
   flowStepOf,
   MAX_CONTINUATIONS,
@@ -20,6 +21,7 @@ import {
   type ChatActivity,
   type DecisionPointId,
   type DocumentKind,
+  type Effort,
   type FlowCriterionResult,
   type FlowMemoryProposal,
   type FlowRun,
@@ -238,7 +240,7 @@ export interface FlowDeps {
    * Starts or continues the run's chat in the item's place. `onStart` hears of the chat in the tick
    * its process is spawned, before any of its output can arrive.
    */
-  launch: (launch: FlowLaunch, onStart: (chatId: string, provider?: ProviderId) => void) => Promise<void>;
+  launch: (launch: FlowLaunch, onStart: (chatId: string, provider?: ProviderId, effort?: Effort | null) => void) => Promise<void>;
   /** A chat has a live execution now (a person may be working in it) */
   chatBusy: (chatId: string) => boolean;
   /**
@@ -294,6 +296,8 @@ interface RunRow {
   role: string;
   agent: string;
   model: string;
+  /** Null when none was passed, and on a row written before the column */
+  effort: string | null;
   provider: string | null;
   stage: string;
   column_name: string;
@@ -1463,9 +1467,12 @@ export class FlowService {
     };
     let started = false;
     try {
-      await this.deps.launch(launch, (chatId, provider) => {
+      await this.deps.launch(launch, (chatId, provider, effort) => {
         started = true;
-        this.sql.prepare('UPDATE flow_runs SET chat_id = ?, provider = COALESCE(?, provider) WHERE id = ?').run(chatId, provider ?? null, row.id);
+        // The effort recorded is the one the chat was started with: none where its provider takes none
+        this.sql
+          .prepare('UPDATE flow_runs SET chat_id = ?, provider = COALESCE(?, provider), effort = ? WHERE id = ?')
+          .run(chatId, provider ?? null, effort ?? null, row.id);
         this.prompts.set(chatId, launch.prompt);
         this.announce(row.id, 'started');
       });
@@ -2099,6 +2106,7 @@ export class FlowService {
       role: row.role,
       agent: row.agent,
       model: row.model,
+      effort: isEffort(row.effort) ? row.effort : null,
       ...(row.provider ? { provider: row.provider } : {}),
       ...(waiting ? { waiting } : {}),
       stage: row.stage as FlowStage,

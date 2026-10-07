@@ -334,6 +334,7 @@ is the name each class should take in the app.
 | `.role-av` (`.xs`, `.sm`, `.lg`) | new `RoleAvatar` (`.role-avatar`) | a role is a neutral squircle with its initials in mono; a person stays a round `.monogram`, so a board never mixes them up. The role's `--hue` is only on the corner diamond, as on the epic label. `.xs` (18 px) leads a card's strip and a filter chip |
 | `.model-tag` (`.opus`) | new `.model-tag` | the model of a role, neutral: a model is a choice, not a state |
 | `.model-pick` (`.resolved`) | new `ModelPicker` (`.model-picker`) | where a role's model is chosen (Flow, a member, the assistant's proposal): the alias as a `.model-tag`, then the model it resolves to today, "[sonnet] Sonnet 5", then the chevron. The alias is what the agent file stores |
+| `.effort-pick` (`.effort-level`, `.effort-costly`), `.effort-tag` | new `EffortPicker` and `EffortTag` (`apps/web/src/components`) | where a run's effort is chosen, wherever a model is: the shared `Select` with levels in mono. Unset reads "medium · recommended" with the reason in a tooltip; `xhigh` and `max` carry a warn "costly" word (never colour alone). Disabled with a tooltip where the provider has no effort or the workflow engine takes the orchestration's. `.effort-tag` is the level a run used, a `.model-tag` beside its model |
 | `.run-day`, `.run-row` (`.rail-live`), `.run-main`, `.run-title`, `.run-side`, `.run-now`, `.run-sum` | new `.flow-run*` (`components/team/`) | one flow run: the member's squircle, "QA · verificación" (the stage by what it does: refinado in Backlog, comprobación in Por hacer, where the Product Owner only checks the item is ready, implementación, verificación), the outcome as a badge with its word, the item, and what it did or is doing; on the right when it ended, how long it took and what it cost. Outcomes keep one meaning each: en marcha (live), pasó (ok), fallida (bad); devuelta, en cola and cancelada are neutral because none is a fault. On a phone the whole row is the target and opens the run's chat |
 | `.run-why` | new `.flow-run-why` | why a run failed, under it: the reason in Spanish in bold, what it left behind, the run's own `error` in mono, "Ver el chat" and "Reintentar" |
 | `.run-fail` (`.acts`) | new `.flow-run-failed` | the same failure as a banner at the head of the run's chat and nowhere else on that page: what failed, what did not move, the error, and "Reintentar la verificación". Once a later run of the same stage exists, the retry gives way to what that run did ("Reintentada hoy: pasó hace 12 min") and a link to its chat. The same holds for "Reintentar" in `.run-why` |
@@ -1833,8 +1834,16 @@ Where §2 planned an app name and the app settled on another:
 - The skeleton cards are `.workitem-card.is-skeleton`, and the task list's foot is
   `.workitem-list-more`; Team activity's foot is `.list-more`.
 - `.m-head` is `PhoneHeader` (`.phone-head*`, `components/shell/`). Which routes it heads is one
-  table, `PHONE_HEADER_ROUTES` in `phone-header.ts`: the ecosystem's screens now, the rest of the app
-  in a separate job ([status.md](status.md#what-is-open)).
+  table, `PHONE_HEADER_ROUTES` in `phone-header.ts`: every phone detail screen, the tab roots keeping
+  the top bar ([phone-headers-rest-of-app.md](plans/phone-headers-rest-of-app.md)). A page built on
+  `PageHeader` heads itself on a phone through its `phone` prop; the chat (`.chat-head`) and the
+  review of changes (`.changes-head`) keep their own headers, with 44 px targets on a phone.
+- `.sheet-action-reason`: under a `MoreActions` sheet, a disabled entry's reason written out (a
+  finger has no hover to read a title by); `.sheet-action-gap` keeps an unchecked toggle's label in
+  line with a checked one's. A download entry stays a real link in the sheet.
+- `.phone-head-sub .badge`: a state under a phone head's title (the orchestration's) is the mono line
+  itself, in its tone and with its icon, not a boxed badge. `.orch-phone-head` names the
+  orchestration at 16 px, as MobileOrquestacion does.
 - Time follows decision 10 with the owner's rule for past moments: a relative time everywhere, and
   the bare hour ("17:44") only inside a list grouped by day, such as Team activity.
 
@@ -1845,6 +1854,9 @@ Variants the app drew where the reference had no class, mirrored in §19 of
   title centred at 17 px between "Cancelar" or "Cerrar" and what the flow creates.
 - `.model-pick-sheet` / `.model-pick-option`: `ModelPicker` on a phone opens a sheet of 48 px
   options, the current model checked (`.model-pick-check`), instead of a popover.
+- `.chat-back`, `.chat-more` (CW-8): the chat's own header on a phone, which keeps its rows instead
+  of `PhoneHeader`: the way back to Chats and the "⋯" that opens the chat's actions as a `Sheet`
+  (`MoreActions`), both 44 px.
 - `.work-link-retried`, `.work-link-acts` / `.work-link-retry` (CW-20): under a failed run's reason
   on the item's link, what its retry did ("Reintentada: pasó hace 10 min", the outcome in its own
   status word and colour) or, while the run can still be queued again, a small neutral "Reintentar"

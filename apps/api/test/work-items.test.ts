@@ -68,7 +68,10 @@ before(async () => {
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
 });
 
-after(() => app.close());
+after(async () => {
+  await app.close();
+  core.shutdown();
+});
 
 test('a project with its Board module off refuses changes with a clear error, and keeps showing what it holds', async () => {
   const project = await importProject('Switchy', []);

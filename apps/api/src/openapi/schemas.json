@@ -815,6 +815,17 @@
           "null"
         ]
       },
+      "effort": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Effort"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The effort its process was started with; absent when none was passed (the CLI's default, or a provider without effort) and on an execution recorded before it was kept"
+      },
       "maxBudgetUsd": {
         "type": [
           "number",
@@ -867,6 +878,16 @@
       "interrupted"
     ],
     "description": "How an execution ended. `interrupted`: its process was lost (the wrapper restarted or crashed) rather than stopped or finished."
+  },
+  "Effort": {
+    "type": "string",
+    "enum": [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+    ]
   },
   "TokenUsage": {
     "type": "object",
@@ -2313,6 +2334,10 @@
       },
       "model": {
         "type": "string"
+      },
+      "effort": {
+        "$ref": "#/components/schemas/Effort",
+        "description": "Absent takes the recommendation for the model (`chat`)"
       }
     },
     "required": [
@@ -2360,6 +2385,17 @@
           "string",
           "null"
         ]
+      },
+      "effort": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Effort"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The effort the graph was launched with, for the workers and the synthesizer that set none"
       },
       "permissionMode": {
         "$ref": "#/components/schemas/PermissionMode"
@@ -2604,6 +2640,10 @@
       "model": {
         "type": "string"
       },
+      "effort": {
+        "$ref": "#/components/schemas/Effort",
+        "description": "Takes the orchestration's, then the recommendation for the model (`worker`); ignored on the `workflow` engine"
+      },
       "limits": {
         "$ref": "#/components/schemas/TaskLimits",
         "description": "What this worker may spend before Agentry stops it; the graph's default when absent"
@@ -2614,6 +2654,11 @@
       },
       "status": {
         "$ref": "#/components/schemas/OrchestrationTaskStatus"
+      },
+      "builtIn": {
+        "type": "string",
+        "const": "e2e-specs",
+        "description": "A task Agentry added to the graph itself, not one the person or the planner wrote; a relaunch adds it again"
       },
       "worktree": {
         "type": [
@@ -2803,6 +2848,17 @@
           "string",
           "null"
         ]
+      },
+      "effort": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Effort"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The effort it ran with; null when none was passed, absent on an entry written before it was kept"
       },
       "action": {
         "anyOf": [
@@ -3414,6 +3470,10 @@
         "type": "string",
         "description": "Model for the fixer; the graph's when absent"
       },
+      "effort": {
+        "$ref": "#/components/schemas/Effort",
+        "description": "Effort for the fixer; absent takes the recommendation for its model (`fixer`)"
+      },
       "timeoutMinutes": {
         "type": "number",
         "description": "Minutes each command may run before it is killed and counts as failed (default 20)"
@@ -3432,6 +3492,10 @@
       "failGraph": {
         "type": "boolean",
         "description": "A failed verification ends the orchestration as `failed` and no pull request is offered (default false)"
+      },
+      "e2eSpecs": {
+        "type": "boolean",
+        "description": "Before integration, a task of the graph (`e2e-specs`) runs only the browser specs the graph's changes touch, each alone on a port of its own, so a spec the work broke or left stale is caught before the merge (CW-15). On by default; `false` leaves the task out."
       }
     },
     "required": [
@@ -3548,6 +3612,17 @@
       },
       "costUsd": {
         "type": "number"
+      },
+      "effort": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Effort"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The effort the fixer ran with; null when none was passed, absent before it was kept"
       }
     },
     "required": [
@@ -3686,6 +3761,17 @@
           "string",
           "null"
         ]
+      },
+      "effort": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Effort"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The effort the graph was launched with, for the workers and the synthesizer that set none"
       },
       "permissionMode": {
         "$ref": "#/components/schemas/PermissionMode"
@@ -3899,6 +3985,11 @@
       "status": {
         "$ref": "#/components/schemas/OrchestrationTaskStatus"
       },
+      "builtIn": {
+        "type": "string",
+        "const": "e2e-specs",
+        "description": "A task Agentry added to the graph itself, not one the person or the planner wrote; a relaunch adds it again"
+      },
       "worktree": {
         "type": [
           "string",
@@ -4028,6 +4119,7 @@
       "dependsOn": {},
       "cwd": {},
       "model": {},
+      "effort": {},
       "limits": {},
       "workItemId": {}
     },
@@ -4045,6 +4137,7 @@
       "dependsOn",
       "cwd",
       "model",
+      "effort",
       "limits",
       "workItemId"
     ],
@@ -4184,6 +4277,10 @@
       "model": {
         "type": "string"
       },
+      "effort": {
+        "$ref": "#/components/schemas/Effort",
+        "description": "For the workers that set none, the synthesizer, and, on the `workflow` engine, every task"
+      },
       "permissionMode": {
         "$ref": "#/components/schemas/PermissionMode"
       },
@@ -4261,6 +4358,10 @@
       },
       "model": {
         "type": "string"
+      },
+      "effort": {
+        "$ref": "#/components/schemas/Effort",
+        "description": "Takes the orchestration's, then the recommendation for the model (`worker`); ignored on the `workflow` engine"
       },
       "limits": {
         "$ref": "#/components/schemas/TaskLimits",
@@ -4591,6 +4692,10 @@
       },
       "model": {
         "type": "string"
+      },
+      "effort": {
+        "$ref": "#/components/schemas/Effort",
+        "description": "Absent takes the recommendation for the model (`planner`)"
       },
       "maxTasks": {
         "type": "number"
@@ -10740,7 +10845,8 @@
         "type": "string"
       },
       "effort": {
-        "type": "string"
+        "type": "string",
+        "description": "How hard the model thinks (`--effort`): one of  {@link  EFFORT_LEVELS  } , which the API checks; a string here because an agent's own list of levels may name others. Absent keeps the last execution's on a resume or a fork, and takes the recommendation for the model on a new chat. Ignored by a provider that does not declare `effort`. It cannot change on a live chat: a new value applies from the next process."
       },
       "permissionMode": {
         "$ref": "#/components/schemas/PermissionMode"
@@ -10828,7 +10934,8 @@
         "type": "string"
       },
       "effort": {
-        "type": "string"
+        "type": "string",
+        "description": "How hard the model thinks (`--effort`): one of  {@link  EFFORT_LEVELS  } , which the API checks; a string here because an agent's own list of levels may name others. Absent keeps the last execution's on a resume or a fork, and takes the recommendation for the model on a new chat. Ignored by a provider that does not declare `effort`. It cannot change on a live chat: a new value applies from the next process."
       },
       "permissionMode": {
         "$ref": "#/components/schemas/PermissionMode"
@@ -10904,7 +11011,8 @@
         "type": "string"
       },
       "effort": {
-        "type": "string"
+        "type": "string",
+        "description": "How hard the model thinks (`--effort`): one of  {@link  EFFORT_LEVELS  } , which the API checks; a string here because an agent's own list of levels may name others. Absent keeps the last execution's on a resume or a fork, and takes the recommendation for the model on a new chat. Ignored by a provider that does not declare `effort`. It cannot change on a live chat: a new value applies from the next process."
       },
       "permissionMode": {
         "$ref": "#/components/schemas/PermissionMode"
@@ -11800,6 +11908,10 @@
           "model": {
             "type": "string"
           },
+          "effort": {
+            "$ref": "#/components/schemas/Effort",
+            "description": "For the workers that set none, the synthesizer, and, on the `workflow` engine, every task"
+          },
           "permissionMode": {
             "$ref": "#/components/schemas/PermissionMode"
           },
@@ -11941,6 +12053,9 @@
       },
       "model": {
         "type": "string"
+      },
+      "effort": {
+        "$ref": "#/components/schemas/Effort"
       }
     },
     "description": "Launches a template. What is given here overrides the template's spec for this run only."
@@ -13225,6 +13340,10 @@
           "type": "string"
         },
         "description": "The shell commands the member may run in the flow's work stage, as patterns the CLI's permission rules take (`npm test`, `pnpm *`: each becomes `Bash(<pattern>)`). Absent means `Bash` is not restricted there, as before; present means only these, and an empty list means no shell at all. The refine and verify stages keep their own tool sets. Checked with  {@link  isTeamCommandPattern  } ."
+      },
+      "effort": {
+        "$ref": "#/components/schemas/Effort",
+        "description": "How hard the member thinks in the flow's runs; absent takes the recommendation for its model and the stage"
       }
     },
     "required": [
@@ -15901,7 +16020,8 @@
         "type": "string"
       },
       "effort": {
-        "type": "string"
+        "type": "string",
+        "description": "How hard the model thinks (`--effort`): one of  {@link  EFFORT_LEVELS  } , which the API checks; a string here because an agent's own list of levels may name others. Absent keeps the last execution's on a resume or a fork, and takes the recommendation for the model on a new chat. Ignored by a provider that does not declare `effort`. It cannot change on a live chat: a new value applies from the next process."
       },
       "permissionMode": {
         "$ref": "#/components/schemas/PermissionMode"
@@ -16214,6 +16334,10 @@
         },
         "description": "The shell commands the member may run in the flow's work stage, as patterns the CLI's permission rules take (`npm test`, `pnpm *`: each becomes `Bash(<pattern>)`). Absent means `Bash` is not restricted there, as before; present means only these, and an empty list means no shell at all. The refine and verify stages keep their own tool sets. Checked with  {@link  isTeamCommandPattern  } ."
       },
+      "effort": {
+        "$ref": "#/components/schemas/Effort",
+        "description": "How hard the member thinks in the flow's runs; absent takes the recommendation for its model and the stage"
+      },
       "file": {
         "$ref": "#/components/schemas/TeamAgentFile"
       },
@@ -16357,6 +16481,17 @@
       },
       "model": {
         "type": "string"
+      },
+      "effort": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Effort"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The effort the run started with; null when none was passed, absent on a run written before it was kept"
       },
       "provider": {
         "$ref": "#/components/schemas/ProviderId",
@@ -16638,6 +16773,17 @@
           }
         ],
         "description": "Absent or null leaves the shell unrestricted in the work stage ( {@link  ProjectTeamMember.commands } )"
+      },
+      "effort": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Effort"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Absent or null takes the recommendation for the member's model and the stage ( {@link  ProjectTeamMember.effort } )"
       },
       "createFile": {
         "type": "boolean",
@@ -17444,6 +17590,17 @@
         "type": "string",
         "description": "Model alias or id the chat ran with; `sonnet` unless the request chose another"
       },
+      "effort": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Effort"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The effort the chat ran with; null when none was passed, absent on a run stored before it was kept"
+      },
       "description": {
         "type": [
           "string",
@@ -17780,6 +17937,17 @@
         "type": "string",
         "description": "Model alias or id the chat ran with; `sonnet` unless the request chose another"
       },
+      "effort": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Effort"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The effort the chat ran with; null when none was passed, absent on a run stored before it was kept"
+      },
       "description": {
         "type": [
           "string",
@@ -18102,6 +18270,28 @@
       "instructions": {
         "type": "string",
         "description": "The agent file's body; empty lets the team service write its starting one"
+      },
+      "effort": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Effort"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The effort recommended for its model in the flow; null or absent for a model with no recommendation"
+      },
+      "effortReason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/EffortReason"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why that effort, as a code a client words; null or absent without one"
       }
     },
     "required": [
@@ -18115,6 +18305,15 @@
       "writes"
     ],
     "description": "A role of the team the assistant proposes, as the member it would add."
+  },
+  "EffortReason": {
+    "type": "string",
+    "enum": [
+      "opus-medium",
+      "sonnet-medium",
+      "sonnet-high"
+    ],
+    "description": "Why a level is recommended, as a code a client words (and translates) for the tooltip."
   },
   "AssistantResourceProposal": {
     "type": "object",
@@ -18431,6 +18630,10 @@
         "type": "string",
         "description": "Default `sonnet` (`DEFAULT_ASSISTANT_MODEL`)"
       },
+      "effort": {
+        "$ref": "#/components/schemas/Effort",
+        "description": "Absent takes the recommendation for the model (`assistant`); none for a model it does not know"
+      },
       "description": {
         "type": "string",
         "description": "For a `resources` run, the one resource to build (\"Create with AI\"), with `resourceKind`; for a `project` or `work-items` run, what the project is for when there is nothing to read"
@@ -18477,6 +18680,28 @@
           "instructions": {
             "type": "string",
             "description": "The agent file's body; empty lets the team service write its starting one"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Effort"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The effort recommended for its model in the flow; null or absent for a model with no recommendation"
+          },
+          "effortReason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EffortReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why that effort, as a code a client words; null or absent without one"
           },
           "role": {},
           "model": {},

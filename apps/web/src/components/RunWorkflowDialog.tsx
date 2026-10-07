@@ -1,4 +1,4 @@
-import type { WorkflowDefinition } from '@agentry/shared';
+import type { Effort, WorkflowDefinition } from '@agentry/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Play } from 'lucide-react';
 import { useState } from 'react';
@@ -8,6 +8,7 @@ import { api, keys } from '../api';
 import { Dialog } from '@agentry/ui/components/Dialog';
 import { ICON_SM } from '@agentry/ui/components/icons';
 import { Empty, ErrorBox, Field, Loading, Tag } from '@agentry/ui/components/ui';
+import { EffortField } from './EffortPicker';
 import { ModelCombobox } from './ui';
 
 /** Arguments for one saved workflow, and the chat that runs it. */
@@ -16,6 +17,7 @@ function RunForm({ workflow, cwd, onCancel }: { workflow: WorkflowDefinition; cw
   const navigate = useNavigate();
   const [args, setArgs] = useState('');
   const [model, setModel] = useState('');
+  const [effort, setEffort] = useState<Effort | ''>('');
   const run = useMutation({
     mutationFn: () =>
       api.runWorkflow({
@@ -23,6 +25,7 @@ function RunForm({ workflow, cwd, onCancel }: { workflow: WorkflowDefinition; cw
         ...(cwd ? { cwd } : {}),
         ...(args.trim() ? { args: args.trim() } : {}),
         ...(model.trim() ? { model: model.trim() } : {}),
+        ...(effort ? { effort } : {}),
       }),
     onSuccess: (chat) => navigate(`/chats/${encodeURIComponent(chat.id)}`),
   });
@@ -40,6 +43,7 @@ function RunForm({ workflow, cwd, onCancel }: { workflow: WorkflowDefinition; cw
       <Field label={t('runWorkflow.model')} hint={t('runWorkflow.modelHint')}>
         <ModelCombobox aria-label={t('runWorkflow.model')} placeholder={t('runWorkflow.modelPlaceholder')} value={model} onChange={setModel} />
       </Field>
+      <EffortField value={effort} onChange={setEffort} model={model} use="chat" />
       <ErrorBox error={run.error} title={t('runWorkflow.startError')} />
       <div className="form-actions">
         <button type="submit" className="btn btn-primary" disabled={run.isPending}>

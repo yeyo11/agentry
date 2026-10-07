@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useSchedules } from '../api';
 import { ICON_SM } from '@agentry/ui/components/icons';
-import { Empty, ErrorBox, PageHeader, Skeleton } from '@agentry/ui/components/ui';
+import { Empty, ErrorBox, Skeleton } from '@agentry/ui/components/ui';
+import { PageHeader } from '../components/PageHeader';
 import { useProjectScope } from '../lib/project-scope';
 import { ScheduleForm } from './schedules/ScheduleForm';
 import '../insights.css';
@@ -28,6 +29,8 @@ export function ScheduleEditor() {
     <PageHeader
       title={id ? t('form.editTitle') : t('form.newTitle')}
       subtitle={schedule?.name}
+      // A modal flow on a phone, as a new task is (MobileNuevaTarea): "Cancelar" leaves the way the form's own button does
+      phone={{ subtitle: schedule?.name, dismiss: { kind: 'cancel', onDismiss: back } }}
       actions={
         <Link to="/schedules" className="btn">
           <ChevronLeft {...ICON_SM} /> {t('form.back')}

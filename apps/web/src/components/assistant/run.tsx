@@ -4,6 +4,7 @@ import { useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useOverview } from '../../api';
+import { EffortTag } from '../EffortPicker';
 import { formatCost, formatDuration, formatNumber, timeAgo } from '@agentry/ui/lib/format';
 import { elapsedSince } from '@agentry/ui/lib/live';
 import { useClockTick } from '@agentry/ui/lib/motion';
@@ -66,6 +67,7 @@ export function RunFacts({ run, label, ago = false, showSchema = false }: { run:
     <div className="suggestion-facts">
       {label && <span>{label}</span>}
       {run.chatId !== null && <span>{model}</span>}
+      {run.chatId !== null && <EffortTag effort={run.effort} />}
       {!running && run.durationMs !== null && run.chatId !== null && <span>{formatDuration(run.durationMs)}</span>}
       <span className="cost">{cost}</span>
       {run.chatId && <Link to={`/chats/${encodeURIComponent(run.chatId)}`}>{t('facts.chat', { id: run.chatId.slice(0, 6) })}</Link>}

@@ -18,22 +18,24 @@ change gets in.
 
 | | |
 | --- | --- |
-| Version | **0.23.1** on `main`, the same across all five packages |
-| Released | 2026-09-28 (v0.23.1, #121; 0.23.0 in #119 right after the ecosystem in #118), by release-please from the commit messages |
+| Version | **0.33.1** on `main`, the same across all eight packages; 0.34.0 waits in the release pull request (#197) |
+| Released | 2026-10-03 (v0.33.1, #192), by release-please from the commit messages |
 | Runtime | Node >= 22, pnpm workspace |
-| Source | 703 tracked `.ts`/`.tsx` files on `main`; the API contract is 4,630 lines of `packages/shared/src/types.ts` |
-| REST | 24 route files, documented as OpenAPI 3.1 and served at `/docs` |
-| Tests | 188 unit and integration test files, plus 58 browser specs under `e2e/specs/` |
+| Source | 1,562 tracked `.ts`/`.tsx` files on `main`; the API contract is 6,737 lines of `packages/shared/src/types.ts` |
+| REST | 29 route files, documented as OpenAPI 3.1 and served at `/docs` |
+| Tests | 350 unit and integration test files, plus 71 browser specs under `e2e/specs/` |
 | CI | `ci.yml` (a `checks` job: advisories, OpenAPI drift, typecheck, tests, build; four `e2e (k/4)` shards, skipped on docs-only pull requests; the `test` gate; the image smoke test), `desktop.yml`, `image.yml`, `release.yml` |
 
-The shape is unchanged: `packages/shared` holds the types every other package imports,
-`packages/core` drives the CLI and owns the store, `apps/api` serves Fastify over it, `apps/web` is
-the React UI, `apps/desktop` wraps both in Electron for Linux. See
+The shape: `packages/shared` holds the types every other package imports,
+`packages/core` drives the agent CLIs and owns the store, `packages/mcp` is Agentry's own MCP
+server, `apps/api` serves Fastify over the core, `packages/ui` and `packages/chat-ui` hold the web's
+primitives and the conversation, `apps/web` is the React UI, and `apps/desktop` wraps it in Electron
+for Linux. See
 [Monorepo layout](../README.md#monorepo-layout).
 
 The UI follows the **Night Shift** design system ([design-system.md](design-system.md)): near-black
 neutrals and Geist, dark by default, a status bar on desktop, and four tabs and a FAB on a phone.
-The tokens live in `apps/web/src/styles/tokens.css`, and a web test fails on any colour, radius or
+The tokens live in `packages/ui/src/styles/tokens.css`, and a web test fails on any colour, radius or
 duration written anywhere else.
 
 ## What is built
@@ -80,24 +82,12 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 
 - **The decision engine's shadow period.** Nothing has been measured yet. All 22 points have a
   resolver (CW-28 added `palette.intent`, `notification.urgency` and `orchestration.model`), and the `cli` provider
-  waits for CW-25's effort control (CW-4's quota hold was superseded by phase 4 of multiple providers); see the plan's
+  no longer waits on anything: CW-25's effort control landed ([effort.md](effort.md)) and CW-4's quota hold was superseded by phase 4 of multiple providers; see the plan's
   [Outcome](plans/decision-engine.md#outcome).
 - **The project ecosystem** was merged into `main` in #118 and is no longer open as a whole; see the
   plan's [Outcome](plans/project-ecosystem.md#the-ecosystem-as-a-whole) and the Known gaps of
   [work-items.md](work-items.md#known-gaps), [team-and-flow.md](team-and-flow.md#known-gaps) and
   [assistant.md](assistant.md#known-gaps) for what stays open per area.
-- **Phone headers for the rest of the app, a separate job.** Night Shift draws every phone detail
-  screen with a back arrow, its title and a "⋯" sheet, and no app top bar; the app still shows the
-  global top bar on most of them. Orchestration 7 switched only the ecosystem's screens over (the
-  project and its tabs, Tasks, a work item, the assistant, the new project wizard), by the owner's
-  decision, since the incoherence predates the ecosystem. The rest waits: a chat, a task's chat and
-  a flow run's chat (the chat page, which keeps its own header with the ecosystem's rows under it),
-  an orchestration, accounts, changes and the other screens drawn with a back arrow. It is cheap
-  now: the shell decides by route (`PHONE_HEADER_ROUTES` in `apps/web/src/components/shell/phone-header.ts`,
-  where a route marked `phoneHeader: 'page'` hides `.topbar` on a phone), so each screen is one
-  entry there plus the page drawing `PhoneHeader` (back, title, "⋯" through `MoreActions`). Recorded
-  in [the plan](plans/project-ecosystem.md#separate-job-recorded-here-so-it-is-not-lost); left out
-  of #118, a separate job.
 - **The editable dashboard.** Home renders any layout that validates, from a registry of widget
   types, but the layout is not editable or persisted per project, and the Documents and Flows
   widgets do not exist. Left out of the redesign deliberately — see

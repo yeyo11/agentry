@@ -1,8 +1,10 @@
 /**
  * Who heads a screen on a phone, decided by route: the app's top bar (scope, search, the bell), or
  * the page itself, with a back arrow, its title and a "⋯" sheet (design system, decision 4). Night
- * Shift draws every phone detail screen the second way; the routes below are the ones switched to
- * it so far. Moving another screen over is one entry here plus the page drawing `PhoneHeader`.
+ * Shift draws every phone detail screen the second way, and every one of them is listed below; the
+ * tab roots (Home without a project, Chats, Orchestrations) and the 404 page keep the bar. A new
+ * detail screen is one entry here plus the page drawing its header (`PhoneHeader`, or the chat's and
+ * the changes screen's own).
  * Pure, so the table is tested without a browser (test/shell-design.test.tsx).
  */
 
@@ -18,9 +20,9 @@ export interface PhoneHeaderRoute {
 }
 
 /**
- * The ecosystem's screens (orchestration 7, the owner's decision on phone headers). A task's chat
- * and a flow run's chat are the chat page, shared by every chat, and keep the chat's own header
- * until the rest of the app moves over.
+ * The ecosystem's screens (orchestration 7, the owner's decision on phone headers), then the rest of
+ * the app (CW-8, docs/plans/phone-headers-rest-of-app.md). The chat page, which is also a task's chat
+ * and a flow run's chat, and the changes screen keep their own headers rather than `PhoneHeader`.
  */
 export const PHONE_HEADER_ROUTES: readonly PhoneHeaderRoute[] = [
   // A project's page and every tab of it: the board, the team, a member, the flow, documents, memory,
@@ -32,9 +34,28 @@ export const PHONE_HEADER_ROUTES: readonly PhoneHeaderRoute[] = [
   { path: /^\/projects\/[^/]+\/assistant\/?$/, phoneHeader: 'page' },
   // Tasks, the board and the list reached from Más, and a new task (MobileTablero, MobileNuevaTarea)
   { path: /^\/tasks\/?$/, phoneHeader: 'page' },
-  // The milestones and a work item's page (MobileHitos, MobileTarea); the review of an item's
-  // changes is a screen of its own and keeps the bar
+  // The milestones and a work item's page (MobileHitos, MobileTarea)
   { path: /^\/tasks\/[^/]+\/?$/, phoneHeader: 'page' },
+  // A new chat, a modal flow closed with ✕ (MobileNuevoChat); listed before a chat, which it also matches
+  { path: /^\/chats\/new\/?$/, phoneHeader: 'page' },
+  // A chat, a task's chat and a flow run's chat (MobileChat, MobileChatTarea, MobileChatFlujo): `.chat-head`
+  { path: /^\/chats\/[^/]+\/?$/, phoneHeader: 'page' },
+  // The review of changes (MobileCambios, MobilePasos, MobileDiff): `.changes-head`
+  { path: /^\/chats\/[^/]+\/changes\/?$/, phoneHeader: 'page' },
+  { path: /^\/tasks\/[^/]+\/changes\/?$/, phoneHeader: 'page' },
+  { path: /^\/orchestration\/[^/]+\/(?:tasks\/[^/]+\/)?changes\/?$/, phoneHeader: 'page' },
+  // An orchestration (MobileOrquestacion)
+  { path: /^\/orchestration\/[^/]+\/?$/, phoneHeader: 'page' },
+  // The screens reached from Más (MobileCuentas, MobileProyectos, MobileProgramaciones, MobileUso,
+  // MobileConectores, MobileAjustes)
+  { path: /^\/projects\/?$/, phoneHeader: 'page' },
+  { path: /^\/schedules\/?$/, phoneHeader: 'page' },
+  // The schedule editor, a modal flow headed by "Cancelar" (the MobileNuevaTarea pattern)
+  { path: /^\/schedules\/(?:new|[^/]+\/edit)\/?$/, phoneHeader: 'page' },
+  { path: /^\/usage\/?$/, phoneHeader: 'page' },
+  { path: /^\/connectors\/?$/, phoneHeader: 'page' },
+  // Settings, its list and each tab (MobileAjustes, MobileInstalar)
+  { path: /^\/settings\/?$/, phoneHeader: 'page' },
 ];
 
 export function phoneHeaderOf(pathname: string, projectPage = false): PhoneHeaderMark {

@@ -1,4 +1,4 @@
-import type { Orchestration, OrchestrationTaskSpec } from '@agentry/shared';
+import type { Effort, Orchestration, OrchestrationTaskSpec } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Rocket } from 'lucide-react';
 import { useState } from 'react';
@@ -11,6 +11,7 @@ import { ICON_SM } from '@agentry/ui/components/icons';
 import { GraphShape } from './GraphExtras';
 import { removeTaskAt, renameTask, TaskEditor, validateGraph } from './TaskEditor';
 import { Card, ErrorBox, Field } from '@agentry/ui/components/ui';
+import { EffortField } from './EffortPicker';
 import { ModelCombobox } from './ui';
 
 /**
@@ -24,6 +25,7 @@ export function RelaunchPanel({ orch, onCancel }: { orch: Orchestration; onCance
   const [name, setName] = useState(orch.name);
   const [objective, setObjective] = useState(orch.objective ?? '');
   const [model, setModel] = useState(orch.model ?? '');
+  const [effort, setEffort] = useState<Effort | ''>(orch.effort ?? '');
   const [concurrency, setConcurrency] = useState(orch.concurrency);
   const [maxAttempts, setMaxAttempts] = useState(orch.maxAttempts);
   const [tasks, setTasks] = useState<OrchestrationTaskSpec[]>(() => orch.tasks.map(specOfTask));
@@ -38,6 +40,7 @@ export function RelaunchPanel({ orch, onCancel }: { orch: Orchestration; onCance
           name: name.trim(),
           ...(objective.trim() ? { objective: objective.trim() } : {}),
           ...(model.trim() ? { model: model.trim() } : {}),
+          ...(effort ? { effort } : {}),
           concurrency,
           ...(graph ? { maxAttempts } : {}),
         },
@@ -66,6 +69,7 @@ export function RelaunchPanel({ orch, onCancel }: { orch: Orchestration; onCance
           <Field label={t('orchestration:taskEditor.model')}>
             <ModelCombobox aria-label={t('orchestration:taskEditor.model')} placeholder={t('orchestration:defaultPlaceholder')} value={model} onChange={setModel} />
           </Field>
+          <EffortField value={effort} onChange={setEffort} model={model || orch.model} use="worker" />
           <Field label={t('config:orchestration.concurrency')} hint={t('config:orchestration.concurrencyHint')}>
             <NumberInput min={1} max={8} value={concurrency} onChange={(v) => setConcurrency(v || 1)} />
           </Field>
@@ -97,6 +101,8 @@ export function RelaunchPanel({ orch, onCancel }: { orch: Orchestration; onCance
               others={tasks.filter((_, j) => j !== i).map((other) => other.id).filter(Boolean)}
               onChange={(patch) => setTasks((prev) => renameTask(prev, i, patch))}
               onRemove={() => setTasks((prev) => removeTaskAt(prev, i))}
+              engine={orch.engine ?? 'graph'}
+              orchestrationModel={model || orch.model || undefined}
             />
           ))}
         </div>

@@ -1,4 +1,4 @@
-import type { Team } from '@agentry/shared';
+import type { Effort, Team } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +7,8 @@ import { Combobox, Select } from '@agentry/ui/components/controls';
 import { Dialog } from '@agentry/ui/components/Dialog';
 import { useToast } from '@agentry/ui/components/Toast';
 import { Field } from '@agentry/ui/components/ui';
+import { EffortField } from '../../components/EffortPicker';
+import { useEffortUnavailable } from '../../lib/provider-status';
 import { ModelCombobox } from '../../components/ui';
 import { AGENT_NAME, agentNameFor, isKnownRole, KNOWN_ROLES, roleIdFor } from './model';
 import { useRoleName } from './RoleAvatar';
@@ -21,12 +23,14 @@ const NEW_FILE = '';
 export function AddMemberDialog({ projectId, team, initialAgent, onClose, onAdded }: { projectId: string; team: Team; initialAgent?: string; onClose: () => void; onAdded: (agent: string) => void }) {
   const { t } = useTranslation(['team', 'common']);
   const roleName = useRoleName();
+  const unavailable = useEffortUnavailable(undefined);
   const toast = useToast();
   const queryClient = useQueryClient();
   const taken = new Set(team.members.map((member) => member.role));
   const free = KNOWN_ROLES.filter((role) => !taken.has(role));
   const [role, setRole] = useState<string>(initialAgent ? '' : (free[0] ?? ''));
   const [existing, setExisting] = useState<string>(initialAgent ?? NEW_FILE);
+  const [effort, setEffort] = useState<Effort | ''>('');
   const [model, setModel] = useState(role === 'product-owner' || role === 'architect' ? 'opus' : 'sonnet');
   const [responsibility, setResponsibility] = useState('');
 
@@ -41,6 +45,7 @@ export function AddMemberDialog({ projectId, team, initialAgent, onClose, onAdde
       api.putTeamMember(projectId, agent, {
         role: roleId,
         model: model.trim(),
+        ...(effort ? { effort } : {}),
         responsibility: responsibility.trim(),
         createFile: !existing,
       }),
@@ -95,6 +100,7 @@ export function AddMemberDialog({ projectId, team, initialAgent, onClose, onAdde
         <Field label={t('member.model')}>
           <ModelCombobox value={model} onChange={setModel} aria-label={t('member.model')} />
         </Field>
+        <EffortField value={effort} onChange={setEffort} model={model} use="work" unavailable={unavailable} />
         <Field label={t('member.responsibility')} hint={t('member.responsibilityHint')}>
           <textarea rows={3} value={responsibility} onChange={(event) => setResponsibility(event.target.value)} placeholder={t('add.responsibilityPlaceholder')} />
         </Field>

@@ -1590,9 +1590,64 @@ a.statusbar-item:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
+/* A state under the title is the mono line itself, in its tone with its icon, not a boxed badge
+   (MobileOrquestacion: "⠋ en curso") */
+.phone-head-sub .badge {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 12px;
+  letter-spacing: 0;
+  line-height: inherit;
+  text-transform: none;
+}
+
 .phone-head-actions {
   display: flex;
   align-items: center;
   gap: 2px;
   flex: none;
+}
+
+/* A screen that filters by the project scope carries the top bar's selector in its own header (the
+   top bar is hidden): the title keeps its width, and the project's pill takes what is left */
+.phone-head:has(.project-scope) .phone-head-text {
+  flex: 0 0 auto;
+}
+
+.phone-head:has(.project-scope) .phone-head-actions {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  min-width: 0;
+  gap: 6px;
+}
+
+.phone-head .project-scope {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.phone-head .project-scope .select-trigger {
+  max-width: 100%;
+}
+
+.phone-head .project-scope-icon {
+  display: none;
+}
+
+.phone-head .select-trigger.project-selector {
+  width: auto;
+  min-width: 0;
+  min-height: var(--touch);
+  padding: 0 12px 0 16px;
+  gap: 6px;
+  border-radius: var(--radius-pill);
+  font-size: 15px;
+}
+
+.phone-head .select-trigger.project-selector .select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

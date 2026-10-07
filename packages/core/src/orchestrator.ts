@@ -30,7 +30,8 @@ import type {
   VerifyOrchestrationRequest,
   WorkflowDefinition,
 } from '@agentry/shared';
-import { MODEL_RE, PERMISSION_MODES, specOfOrchestration } from '@agentry/shared';
+import { EFFORT_LEVELS, isEffort, MODEL_RE, PERMISSION_MODES, specOfOrchestration, type Effort } from '@agentry/shared';
+import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import type { WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
 import { OrchestrationEventTracker } from './event-sources.ts';
@@ -70,6 +71,9 @@ import {
   runCommand,
   tail,
   workerChecks,
+  E2E_SPECS_TASK_ID,
+  e2eSpecsChecks,
+  e2eSpecsPrompt,
   DEFAULT_VERIFY_MINUTES,
   MAX_FAILED_SPECS,
   type CommandHandle,
@@ -374,16 +378,26 @@ export function validateModel(model: string | null | undefined, what = 'model'):
   if (typeof model !== 'string' || !MODEL_RE.test(model)) throw new Error(`${what} must be a model alias or id, such as haiku`);
 }
 
+/** An effort the CLI would refuse is refused at launch, not by a worker dying in the middle of a graph. */
+export function validateEffort(effort: unknown, what = 'effort'): void {
+  if (effort === undefined || effort === null) return;
+  if (!isEffort(effort)) throw new Error(`${what} must be one of ${EFFORT_LEVELS.join(', ')}`);
+}
+
 export function validatePermissionMode(mode: PermissionMode | undefined): void {
   if (mode === undefined) return;
   if (!PERMISSION_MODES.includes(mode)) throw new Error(`permissionMode must be one of ${PERMISSION_MODES.join(', ')}`);
 }
 
 /** The settings of a whole spec, the per-task models included: every one of them becomes a flag. */
-export function validateSpecSettings(spec: Pick<OrchestrationSpec, 'model' | 'permissionMode' | 'tasks'>): void {
+export function validateSpecSettings(spec: Pick<OrchestrationSpec, 'model' | 'effort' | 'permissionMode' | 'tasks'>): void {
   validateModel(spec.model);
+  validateEffort(spec.effort);
   validatePermissionMode(spec.permissionMode);
-  for (const task of spec.tasks ?? []) validateModel(task.model, `task '${task.id}' model`);
+  for (const task of spec.tasks ?? []) {
+    validateModel(task.model, `task '${task.id}' model`);
+    validateEffort(task.effort, `task '${task.id}' effort`);
+  }
 }
 
 /**
@@ -675,6 +689,7 @@ export class Orchestrator {
       status: 'running',
       cwd: root,
       model: spec.model ?? null,
+      effort: spec.effort ?? null,
       permissionMode: spec.permissionMode ?? this.runs.defaults.defaultPermissionMode,
       concurrency: Math.min(Math.max(spec.concurrency ?? 3, 1), this.runs.defaults.maxConcurrentRuns),
       synthesize: spec.synthesize ?? false,
@@ -708,6 +723,8 @@ export class Orchestrator {
         dependsOn: t.dependsOn ?? [],
         cwd: t.cwd,
         model: t.model,
+        // A workflow's tasks are subagents of one session: only the graph's own effort applies there
+        ...(t.effort && engine === 'graph' ? { effort: t.effort } : {}),
         // Kept on the node so a relaunch carries it: the link to the item is made from it
         ...(t.workItemId ? { workItemId: t.workItemId } : {}),
         status: 'pending',
@@ -721,6 +738,27 @@ export class Orchestrator {
         costUsd: 0,
       })),
     };
+    // The owner's answer to the plan's open question 1 (CW-15): workers run no browser spec, and one
+    // task that depends on every other one runs the specs their combined work touches, before the
+    // merge. Only where a verification phase exists, and not twice when the graph already names one
+    if (verification && verification.e2eSpecs !== false && orch.tasks.length > 0 && !orch.tasks.some((t) => t.id === E2E_SPECS_TASK_ID)) {
+      orch.tasks.push({
+        id: E2E_SPECS_TASK_ID,
+        name: 'Browser specs the changes touch',
+        prompt: e2eSpecsPrompt(orch.baseCommit ?? null),
+        dependsOn: orch.tasks.map((t) => t.id),
+        builtIn: 'e2e-specs',
+        status: 'pending',
+        attempts: 0,
+        runId: null,
+        sessionId: null,
+        result: null,
+        error: null,
+        startedAt: null,
+        endedAt: null,
+        costUsd: 0,
+      });
+    }
     this.items.set(orch.id, orch);
     if (engine === 'workflow') this.launchWorkflow(orch, null);
     else this.schedule(orch);
@@ -882,6 +920,10 @@ export class Orchestrator {
     if (req.objective !== undefined) spec.objective = req.objective;
     if (req.cwd) spec.cwd = req.cwd;
     if (req.model) spec.model = req.model;
+    if (req.effort) {
+      validateEffort(req.effort);
+      spec.effort = req.effort;
+    }
     return this.create(spec, { templateId: template.id });
   }
 
@@ -895,7 +937,7 @@ export class Orchestrator {
     // ends, are Agentry's rules
     return [
       `Your task (${task.name}):\n${task.prompt}`,
-      workerChecks(!!orch.verificationSpec),
+      task.builtIn === 'e2e-specs' ? e2eSpecsChecks() : workerChecks(!!orch.verificationSpec),
       REAL_VERIFICATION,
       frontend(designSources(orch.cwd)),
       scopeAndCompletion(),
@@ -1048,6 +1090,11 @@ export class Orchestrator {
     return prepared;
   }
 
+  /** The task's, then the graph's, then the recommendation for the model it runs on. */
+  private workerEffort(orch: Orchestration, task: OrchestrationTaskState): Effort | undefined {
+    return resolveEffort('worker', task.model ?? orch.model, task.effort, orch.effort);
+  }
+
   /** What a task needs of the provider that starts it: the same question a move asks, with nothing started yet. */
   private startInput(orch: Orchestration, task: OrchestrationTaskState): StartInput {
     const limits = effectiveLimits(orch.limits, task.limits);
@@ -1058,6 +1105,7 @@ export class Orchestrator {
       projectId: this.projectIdOf(task.cwd ?? orch.cwd),
       title: task.name,
       model: task.model ?? orch.model ?? null,
+      effort: this.workerEffort(orch, task) ?? null,
       needs: [...(limits?.maxCostUsd !== undefined ? (['budgetLimit'] as const) : []), ...(orch.permissionPrompts === 'host' ? (['interactivePermissions'] as const) : [])],
       // Workers carry the graph's own rules, typed for Claude Code: with any, the task stays there
       policy: null,
@@ -1118,7 +1166,7 @@ export class Orchestrator {
           cwd: prepared?.cwd ?? task.cwd ?? orch.cwd,
           // The CLI adopts the worktree prepared above, locks it and works in it
           ...(prepared?.adopt ? { worktree: name } : {}),
-          ...(choice ? { provider: choice.provider, ...(choice.effort ? { effort: choice.effort } : {}) } : {}),
+          ...(choice ? { provider: choice.provider, ...effortOption(choice.effort) } : effortOption(this.workerEffort(orch, task))),
           model: (choice ? choice.model : (task.model ?? orch.model)) ?? undefined,
           permissionMode: orch.permissionMode,
           ...(orch.allowedTools?.length ? { allowedTools: orch.allowedTools } : {}),
@@ -1134,7 +1182,7 @@ export class Orchestrator {
       task.runId = run.id;
       task.sessionId = run.id;
       task.provider = run.provider ?? LEGACY_PROVIDER;
-      task.chain = [{ chatId: run.id, provider: task.provider, model: run.model, action: null }];
+      task.chain = [{ chatId: run.id, provider: task.provider, model: run.model, effort: usedEffort(run), action: null }];
       task.waiting = null;
       task.attempts = 1;
       // The cost of a chat that is gone (its record deleted) stays in the graph's total, not here
@@ -1647,6 +1695,7 @@ ${quoted}
           tasks.map((t) => `<task id="${t.id}" name="${t.name}">\n${pasted((t.result ?? '').slice(0, MAX_DEP_CONTEXT))}\n</task>`).join('\n'),
         cwd: state.worktree ?? orch.cwd,
         model: orch.model ?? undefined,
+        ...effortOption(resolveEffort('worker', orch.model, orch.effort)),
         permissionMode: orch.permissionMode,
         // These rules are Claude Code's, so a default provider set to another one never receives them
         provider: 'claude-code',
@@ -1715,6 +1764,7 @@ ${quoted}
               .join('\n'),
           cwd: onBranch ? this.integratedDir(orch, integration.worktree as string) : orch.cwd,
           model: orch.model ?? undefined,
+          ...effortOption(resolveEffort('worker', orch.model, orch.effort)),
           permissionMode: orch.permissionMode,
           name: `${orch.name}:synthesis`.slice(0, 60),
           keepAlive: false,
@@ -2105,6 +2155,7 @@ ${quoted}
           }),
           cwd: dir,
           model: spec.model ?? orch.model ?? undefined,
+          ...effortOption(resolveEffort('fixer', spec.model ?? orch.model, spec.effort)),
           permissionMode: orch.permissionMode,
           // These rules are Claude Code's, so a default provider set to another one never receives them
           provider: 'claude-code',
@@ -2121,6 +2172,7 @@ ${quoted}
       control.fixerRunId = run.id;
       // Kept past the attempt, so the fixer's chat stays findable from the graph
       record.runId = run.id;
+      record.effort = usedEffort(run);
       this.persist();
       const result = await this.runs.waitForResult(run.id);
       orch.costUsd += result.costUsd;
@@ -2234,6 +2286,7 @@ ${quoted}
    */
   startPlan(req: PlanRequest): ChatRuntime {
     if (!req.objective?.trim()) throw new Error('objective is required');
+    validateEffort(req.effort);
     const maxTasks = Math.min(Math.max(req.maxTasks ?? 6, 1), 12);
     const cwd = resolve(req.cwd ?? this.config.workspaceDir);
     return this.runs.start({
@@ -2250,6 +2303,7 @@ ${quoted}
         [PASTED_NOTE, ...thinkThrough(req.model)].join('\n\n'),
       cwd,
       model: req.model,
+      ...effortOption(resolveEffort('planner', req.model, req.effort)),
       permissionMode: 'manual',
       // These rules are Claude Code's, so a default provider set to another one never receives them
       provider: 'claude-code',
@@ -2297,7 +2351,8 @@ ${quoted}
     validateTasks(draft.tasks);
     // A model the CLI would refuse is dropped rather than failing the draft: the plan is still worth
     // editing, and the task then runs on the graph's model.
-    const tasks = draft.tasks.map(({ model, ...task }) => (typeof model === 'string' && MODEL_RE.test(model.trim()) ? { ...task, model: model.trim() } : task));
+    // The planner is not asked for an effort: whatever it sent is dropped, and the person chooses
+    const tasks = draft.tasks.map(({ model, effort: _effort, ...task }) => (typeof model === 'string' && MODEL_RE.test(model.trim()) ? { ...task, model: model.trim() } : task));
     const head = run.prompt.indexOf(PROMPT_HEAD);
     const tail = run.prompt.indexOf(PROMPT_TAIL);
     // The planner only knows what a workflow is; whether this CLI can run one, its own init told us
@@ -2664,6 +2719,8 @@ ${quoted}
             prompt,
             cwd: orch.cwd,
             model: orch.model ?? undefined,
+            // Its tasks are subagents of this session: the graph's effort is the only one that applies
+            ...effortOption(resolveEffort('worker', orch.model, orch.effort)),
             permissionMode: orch.permissionMode,
             // These rules are Claude Code's, so a default provider set to another one never receives them
             provider: 'claude-code',

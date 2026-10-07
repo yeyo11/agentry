@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 // Direct imports: this page is in the shell bundle, and the barrel would pull the lazy form controls into it
 import { Menu, type MenuEntry } from '@agentry/ui/components/controls/Menu';
+import { MoreActions } from '@agentry/ui/components/controls/MoreActions';
 import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
 import { HealthBadge } from '../../components/observe/Health';
 import { ProgressBar } from '@agentry/ui/components/ProgressBar';
@@ -90,7 +91,9 @@ function headingFacts(chat: Chat): { where: string; model: string | null | undef
   const dir = chat.cwd.split(/[\\/]/).filter(Boolean).at(-1);
   const project = chat.project?.name ?? dir;
   const model = chat.execution?.model ?? chat.executions.at(-1)?.model ?? chat.model;
-  return { where: [project, chat.id.slice(0, 6)].filter((fact): fact is string => Boolean(fact)).join(' · '), model };
+  // The effort the process was started with, beside the model it ran on
+  const effort = chat.execution?.effort ?? chat.executions.at(-1)?.effort;
+  return { where: [project, chat.id.slice(0, 6)].filter((fact): fact is string => Boolean(fact)).join(' · '), model: model && effort ? `${model} · ${effort}` : model };
 }
 
 export interface HeaderActions {
@@ -254,7 +257,8 @@ export const ChatHeader = memo(function ChatHeader({
             </button>
           </Tooltip>
         )}
-        <Menu entries={entries} label={t('view.moreActions')} />
+        {/* A dropdown on a desktop, a sheet of big buttons on a phone (MobileChat's ⋯) */}
+        <MoreActions entries={entries} label={t('view.moreActions')} className="chat-more" />
       </div>
     </header>
   );

@@ -1,4 +1,4 @@
-import type { Orchestration, OrchestrationPullRequest, OrchestrationTaskState, VerificationSpec } from '@agentry/shared';
+import type { Effort, Orchestration, OrchestrationPullRequest, OrchestrationTaskState, VerificationSpec } from '@agentry/shared';
 
 // The spec a graph is read back as, and the rules for starting one over, are the server's too: they
 // live in @agentry/shared so a schedule filled here starts what a relaunch there would.
@@ -61,11 +61,15 @@ export interface VerificationDraft {
   fixer: boolean;
   maxAttempts: number;
   model: string;
+  /** The fixer's effort; unset takes the recommendation for its model */
+  effort?: Effort;
   /** What the fixer may spend over all its attempts; no ceiling when absent */
   maxCostUsd?: number;
   install: InstallMode;
   installCommand: string;
   failGraph: boolean;
+  /** The browser specs the changes touch, run by a task of the graph before the merge (on unless turned off) */
+  e2eSpecs: boolean;
 }
 
 export const EMPTY_VERIFICATION: VerificationDraft = {
@@ -77,6 +81,7 @@ export const EMPTY_VERIFICATION: VerificationDraft = {
   install: 'detected',
   installCommand: '',
   failGraph: false,
+  e2eSpecs: true,
 };
 
 /** A draft with no command is no verification: checks of nothing would only add a phase that always passes. */
@@ -89,11 +94,13 @@ export function verificationOf(draft: VerificationDraft): VerificationSpec | und
     fixer: draft.fixer,
     maxAttempts: Math.max(1, draft.maxAttempts),
     ...(draft.model.trim() ? { model: draft.model.trim() } : {}),
+    ...(draft.effort ? { effort: draft.effort } : {}),
     // Only the fixer spends, so a ceiling without one would be a field nothing reads
     ...(draft.fixer && draft.maxCostUsd !== undefined && draft.maxCostUsd > 0 ? { maxCostUsd: draft.maxCostUsd } : {}),
     // The server refuses an empty command; an empty box falls back to detection instead
     ...(draft.install === 'none' ? { install: null } : draft.install === 'command' && installCommand ? { install: installCommand } : {}),
     ...(draft.failGraph ? { failGraph: true } : {}),
+    ...(draft.e2eSpecs ? {} : { e2eSpecs: false }),
   };
 }
 
@@ -105,10 +112,12 @@ export function draftOfVerification(spec: VerificationSpec | undefined): Verific
     fixer: spec.fixer,
     maxAttempts: spec.maxAttempts,
     model: spec.model ?? '',
+    ...(spec.effort ? { effort: spec.effort } : {}),
     ...(spec.maxCostUsd !== undefined ? { maxCostUsd: spec.maxCostUsd } : {}),
     install: spec.install === null ? 'none' : spec.install === undefined ? 'detected' : 'command',
     installCommand: typeof spec.install === 'string' ? spec.install : '',
     failGraph: spec.failGraph ?? false,
+    e2eSpecs: spec.e2eSpecs !== false,
   };
 }
 

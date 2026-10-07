@@ -172,8 +172,14 @@ test('the compiled API serves and stops on its own, with no source tree, node_mo
     assert.deepEqual(await exited, [0, null], 'SIGTERM reaches the server itself now that no package manager stands in between');
     assert.equal(existsSync(pidFile), false, 'a server that stopped must not leave a pid file for the healthcheck to signal');
   } finally {
-    server.kill('SIGKILL');
-    rmSync(dir, { recursive: true, force: true });
+    // The server may still be writing its data dir when a failed assertion lands here: it is waited
+    // for before the dir goes, or a loaded machine sees ENOTEMPTY (four runs of this file at once, CW-27)
+    if (server.exitCode === null && server.signalCode === null) {
+      const gone = once(server, 'exit');
+      server.kill('SIGKILL');
+      await gone;
+    }
+    rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 });
 
