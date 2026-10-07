@@ -143,6 +143,16 @@ export class AuthStore {
     renameSync(tmp, this.file);
   }
 
+  /**
+   * Whether a word is the owner's token, the desktop app's or a chat's, compared by hash: for
+   * masking it where it should not travel, never for access.
+   */
+  isOwnSecret(word: string): boolean {
+    if (this.stored.tokenHash && sameSecret(word, this.stored.tokenHash)) return true;
+    if (this.desktopHash && sameSecret(word, this.desktopHash)) return true;
+    return this.chatTokens.holds(word);
+  }
+
   /** The public shape: mode, whether a token exists, the OIDC fields — never the token. */
   get config(): AuthConfig {
     return {

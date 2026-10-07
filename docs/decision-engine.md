@@ -196,7 +196,12 @@ a point that is off costs nothing.
 
 - **The state is declared.** A point sends only the fields its catalogue entry lists, every string
   cut to the point's byte limit, with anything that looks like a secret masked
-  (`decisions/redact.ts`). The builder is the single source of what leaves.
+  (`decisions/redact.ts`). Agentry's own secrets are masked too, whatever text surrounds them,
+  since no pattern tells `T="<token>"` from any long word (the owner's token reached Jev that way
+  on 2026-10-02): the Jev key and the webhook secrets as they are, and the owner's, the desktop
+  app's and every live chat's API token by hashing each word long enough to be one, since those
+  are kept only as hashes. A chat token (`agc_…`) is masked by its prefix as well. The builder is
+  the single source of what leaves.
 - **Consent per point.** Moving a point out of `off` the first time opens a dialog with the exact
   state (`GET /decisions/points/:point/preview`: the last request, or what it would send now, built
   locally and not sent), its size and the provider it goes to. Consent records the state version and
