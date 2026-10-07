@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T18:00:00Z
-updated_at: 2026-09-28T18:00:00Z
+updated_at: 2026-10-07T12:00:00Z
 tags:
     - plan
     - spec
@@ -8,13 +8,31 @@ tags:
     - accounts
     - rate-limit
     - performance
-    - proposed
+    - superseded
 ---
 # Spec: a worker that hits its limit carries on (CW-4)
 
 Workstream B (`limit-resume`) of [plans/orchestration-speed.md](orchestration-speed.md), story CW-4
-of the epic CW-11 "Faster orchestrations". Status: **refined, not built. Blocked on open question 2
-of the plan** (see [The owner's decision](#the-owners-decision)).
+of the epic CW-11 "Faster orchestrations". Status: **superseded (2026-10-07) by phase 4 of
+[multi-provider.md](multi-provider.md#phase-4-rotation-between-providers)**, merged in #188. Not built
+as written here; see [What replaced it](#what-replaced-it).
+
+## What replaced it
+
+Phase 4 (rotation between providers) solved the same problem in a wider form, and its code is on
+`main`:
+
+- A worker that hits its usage limit is not failed and spends no attempt: `settle()` in
+  `packages/core/src/orchestrator.ts` hands a `rate-limit` result to the rotation when
+  `limitHeld(task.runId)` is true.
+- The rotation either waits for the reset in the same chat (the replayed turn is picked up by
+  `waitEnded`), or moves the task to a new chat on another account or provider; the move is kept on
+  the task as `task.chain`, and the task's cost sums every chat of the chain.
+- The board shows the waiting task and the chain, as drawn in `DesktopOrquestacion.html`.
+
+So the owner's answer to open question 2 (wait and resume by itself) is what runs today. The
+`limited` status, `exhaustedUntil` and the 15 min fallback below were never built; the rest of this
+spec is kept for the record.
 
 ## Why
 
