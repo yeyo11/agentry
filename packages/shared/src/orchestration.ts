@@ -19,6 +19,7 @@ export function cleanTask(task: OrchestrationTaskSpec): OrchestrationTaskSpec {
     ...(task.dependsOn?.length ? { dependsOn: task.dependsOn } : {}),
     ...(task.cwd ? { cwd: task.cwd } : {}),
     ...(task.model?.trim() ? { model: task.model.trim() } : {}),
+    ...(task.effort ? { effort: task.effort } : {}),
     ...(limits ? { limits } : {}),
     ...(task.workItemId ? { workItemId: task.workItemId } : {}),
   };
@@ -42,6 +43,7 @@ export function specOfTask(task: OrchestrationTaskState): OrchestrationTaskSpec 
     dependsOn: task.dependsOn ?? [],
     ...(task.cwd ? { cwd: task.cwd } : {}),
     ...(task.model ? { model: task.model } : {}),
+    ...(task.effort ? { effort: task.effort } : {}),
     ...(task.limits ? { limits: task.limits } : {}),
     // A relaunch is the same work on the same items, so each node keeps its link
     ...(task.workItemId ? { workItemId: task.workItemId } : {}),
@@ -64,6 +66,7 @@ export function specOfOrchestration(orch: Orchestration): OrchestrationSpec {
     ...(orch.engineReason ? { engineReason: orch.engineReason } : {}),
     cwd: orch.cwd,
     ...(orch.model ? { model: orch.model } : {}),
+    ...(orch.effort ? { effort: orch.effort } : {}),
     permissionMode: orch.permissionMode,
     concurrency: orch.concurrency,
     synthesize: orch.synthesize,

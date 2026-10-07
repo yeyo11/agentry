@@ -13,11 +13,6 @@
     "cliHint": "One housekeeping chat per request, with your account. It counts against your quota.",
     "cliModel": "CLI model",
     "effort": "Effort",
-    "effortOptions": {
-      "low": "Low",
-      "medium": "Medium",
-      "high": "High"
-    },
     "maxCost": "Cost limit per request (USD)",
     "maxCostInvalid": "The limit has to be above $0 and at most ${{max}}.",
     "jevKey": "Jev key",

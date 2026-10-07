@@ -1,4 +1,4 @@
-import type { FlowWaiting, Project, ProjectFlowSettings, Team, WorkItemStatus } from '@agentry/shared';
+import type { Effort, FlowWaiting, Project, ProjectFlowSettings, Team, WorkItemStatus } from '@agentry/shared';
 import { DEFAULT_FLOW_MAX_PARALLEL, MAX_FLOW_PARALLEL } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, CornerDownLeft, Info, Lock, Undo2 } from 'lucide-react';
@@ -7,7 +7,9 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
 import { NumberInput, Select, Switch } from '@agentry/ui/components/controls';
+import { EffortPicker } from '../../components/EffortPicker';
 import { ModelPicker } from '../../components/ModelPicker';
+import { useEffortUnavailable } from '../../lib/provider-status';
 import { ICON_SM } from '@agentry/ui/components/icons';
 import { WorkItemStatusIcon } from '../../components/work-item-icons';
 import { useToast } from '@agentry/ui/components/Toast';
@@ -66,12 +68,14 @@ export function FlowEditor({
 }) {
   const { t } = useTranslation(['team', 'tasks', 'config']);
   const roleName = useRoleName();
+  const unavailable = useEffortUnavailable(undefined);
   const phone = useMediaQuery(NARROW);
   const words = useColumnWords();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<ProjectFlowSettings | null>(null);
   const [models, setModels] = useState<Record<string, string>>({});
+  const [efforts, setEfforts] = useState<Record<string, Effort | ''>>({});
   const baseline = proposal ?? saved;
   // The draft keeps the limits as typed, so "0." on the way to "0.5" is not wiped; what is compared and saved is settled
   const flow = draft ?? baseline;
@@ -81,7 +85,10 @@ export function FlowEditor({
   // The cards already on the board when a save switched the flow on: asked about once, then gone
   const [waiting, setWaiting] = useState<FlowWaiting | null>(null);
 
-  const modelChanges = team.members.filter((member) => models[member.agent] !== undefined && models[member.agent]?.trim() !== member.model);
+  const modelChanges = team.members.filter(
+    (member) =>
+      (models[member.agent] !== undefined && models[member.agent]?.trim() !== member.model) || (efforts[member.agent] !== undefined && efforts[member.agent] !== (member.effort ?? '')),
+  );
   // What saving would write, the proposal included; leaving only warns about what the person edited
   const flowChanged = !sameFlow(next, saved);
   const edited = (draft !== null && !sameFlow(next, baseline)) || modelChanges.length > 0;
@@ -93,6 +100,7 @@ export function FlowEditor({
   const discard = () => {
     setDraft(null);
     setModels({});
+    setEfforts({});
     setCostText(null);
   };
 
@@ -106,7 +114,7 @@ export function FlowEditor({
         await api.putProjectSettings(project.id, { ...fresh, flow: next });
       }
       for (const member of modelChanges)
-        await api.putTeamMember(project.id, member.agent, memberBody(member, { model: (models[member.agent] ?? member.model).trim() }));
+        await api.putTeamMember(project.id, member.agent, memberBody(member, { model: (models[member.agent] ?? member.model).trim(), effort: efforts[member.agent] === undefined ? undefined : efforts[member.agent] || null }));
       return { switchedOn };
     },
     onSuccess: ({ switchedOn }) => {
@@ -343,6 +351,7 @@ export function FlowEditor({
       <ul className="flow-model-rows">
         {team.members.map((member) => {
           const value = models[member.agent] ?? member.model;
+          const effort = efforts[member.agent] ?? member.effort ?? '';
           return (
             <li key={member.agent} className="flow-model-row">
               <RoleAvatar role={member.role} size="sm" />
@@ -352,6 +361,15 @@ export function FlowEditor({
                 value={value}
                 onChange={(model) => setModels((now) => ({ ...now, [member.agent]: model }))}
                 aria-label={t('flow.modelFor', { role: roleName(member.role) })}
+              />
+              <EffortPicker
+                className="flow-effort-pick"
+                value={effort}
+                onChange={(next) => setEfforts((now) => ({ ...now, [member.agent]: next }))}
+                model={value}
+                use="work"
+                unavailable={unavailable}
+                aria-label={t('flow.effortFor', { role: roleName(member.role) })}
               />
             </li>
           );

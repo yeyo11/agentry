@@ -1,4 +1,4 @@
-import type { Project, TeamMember } from '@agentry/shared';
+import type { Effort, Project, TeamMember } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookText, Check, ChevronLeft, ChevronRight, FileWarning, Pencil, Undo2, UserMinus } from 'lucide-react';
 import { useState } from 'react';
@@ -7,7 +7,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api, keys, useMemoryProposals } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
 import { MoreActions, Tooltip } from '@agentry/ui/components/controls';
+import { EffortPicker } from '../../components/EffortPicker';
 import { ModelPicker } from '../../components/ModelPicker';
+import { useEffortUnavailable } from '../../lib/provider-status';
 import { useConfirm } from '@agentry/ui/components/Dialog';
 import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { PhoneHeader } from '../../components/shell/PhoneHeader';
@@ -38,6 +40,7 @@ import { RoleAvatar, useResponsibility, useRoleName } from './RoleAvatar';
 interface Draft {
   responsibility: string;
   model: string;
+  effort: Effort | '';
   scope: WriteScope;
   paths: string[];
   commandScope: CommandScope;
@@ -76,6 +79,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
   const memoryOn = project.modules.includes('memory');
   const proposals = useMemoryProposals(memoryOn ? project.id : null, 'pending');
   const mine = (proposals.data ?? []).filter((proposal) => proposal.proposedBy.role === member.role);
+  const unavailable = useEffortUnavailable(undefined);
   const [editing, setEditing] = useState(false);
   // A responsibility still the template's is shown, and edited, in the person's language; left as
   // shown, it is saved as core wrote it, in the English Claude reads
@@ -84,6 +88,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
   const saved: Draft = {
     responsibility: shownResponsibility,
     model: member.model,
+    effort: member.effort ?? '',
     scope: writeScope(member.writes),
     paths: member.writes ?? [],
     commandScope: commandScope(member.commands),
@@ -98,7 +103,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
   const commands = commandsFor(now.commandScope, now.commands);
   const responsibility = now.responsibility.trim() === shownResponsibility.trim() ? member.responsibility : now.responsibility.trim();
   const metaChanged =
-    responsibility !== member.responsibility || now.model.trim() !== saved.model || !sameWrites(writes, member.writes) || !sameCommands(commands ?? undefined, member.commands);
+    responsibility !== member.responsibility || now.model.trim() !== saved.model || now.effort !== saved.effort || !sameWrites(writes, member.writes) || !sameCommands(commands ?? undefined, member.commands);
   const commandsBad = commands !== null && commandsProblem(commands) !== null;
   const fileChanged = member.file.state !== 'missing' && draft.content !== undefined && draft.content !== saved.content;
   const dirty = metaChanged || fileChanged;
@@ -117,7 +122,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
       // The metadata first: Agentry may rewrite a file it wrote itself to follow it, and the person's
       // own edit to the file must be the last word
       if (metaChanged)
-        await api.putTeamMember(project.id, member.agent, memberBody(member, { model: now.model.trim(), responsibility, writes: writes ?? null, commands }));
+        await api.putTeamMember(project.id, member.agent, memberBody(member, { model: now.model.trim(), effort: now.effort || null, responsibility, writes: writes ?? null, commands }));
       if (fileChanged) await api.putResource({ projectId: project.id }, AGENTS, member.agent, now.content);
     },
     onSuccess: async () => {
@@ -278,6 +283,10 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
       <div className="prop-row">
         <span className="prop-key">{t('member.model')}</span>
         <ModelPicker className="member-model-pick" value={now.model} onChange={(model) => set({ model })} aria-label={t('flow.modelFor', { role: name })} />
+      </div>
+      <div className="prop-row">
+        <span className="prop-key">{t('member.effort')}</span>
+        <EffortPicker className="member-effort-pick" value={now.effort} onChange={(effort) => set({ effort })} model={now.model} use="work" unavailable={unavailable} aria-label={t('flow.effortFor', { role: name })} />
       </div>
       <div className="prop-row">
         <span className="prop-key">{t('member.column')}</span>

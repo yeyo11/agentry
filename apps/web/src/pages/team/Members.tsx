@@ -7,6 +7,7 @@ import { api, ApiRequestError, keys } from '../../api';
 import { MoreActions } from '@agentry/ui/components/controls';
 import { useConfirm } from '@agentry/ui/components/Dialog';
 import { ICON_SM } from '@agentry/ui/components/icons';
+import { EffortTag } from '../../components/EffortPicker';
 import { WorkItemStatusIcon } from '../../components/work-item-icons';
 import { useToast } from '@agentry/ui/components/Toast';
 import { Empty } from '@agentry/ui/components/ui';
@@ -106,6 +107,7 @@ function MemberCard({ member, href, onRemove }: { member: TeamMember; href: stri
           <span className="member-title">
             <span className="member-name">{name}</span>
             <ModelTag model={member.model} />
+            <EffortTag effort={member.effort} />
             <FileState member={member} />
           </span>
           <span className="member-file">{member.file.path}</span>
@@ -177,6 +179,7 @@ export function MemberCells({ team, memberHref }: { team: Team; memberHref: (age
                 <span className="member-title">
                   <span className="member-cell-name">{roleName(member.role)}</span>
                   <ModelTag model={member.model} />
+                  <EffortTag effort={member.effort} />
                 </span>
                 <MemberNow member={member} compact />
               </span>

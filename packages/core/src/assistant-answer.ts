@@ -2,6 +2,7 @@ import {
   ASSISTANT_RESOURCE_KINDS,
   WORK_ITEM_PRIORITIES,
   agentryLanguage,
+  effortRecommendation,
   type AgentryLanguage,
   WORK_ITEM_TYPES,
   assistantResourcePath,
@@ -126,11 +127,17 @@ const FRONTMATTER: Record<AssistantResourceKind, string> = {
 };
 
 /**
- * How a member's model is chosen, as the Opus 5.5 and Sonnet 5.5 guides place them. Effort is left
- * out on purpose: recommending it waits for CW-25.
+ * How a member's model is chosen, as the Opus 5.5 and Sonnet 5.5 guides place them. Its effort is
+ * not the model's to say: Agentry recommends it from the same guides ({@link recommendedMemberEffort}).
  */
 export const MODEL_CHOICE =
   'recommend opus for the roles that carry the hardest long-horizon work (deciding a design, refining large or vague items, working unattended across many files for a long time) and sonnet for the others, which it does well for less; say in its reason why the model you chose fits the role.';
+
+/** The effort and the reason to recommend a member whose model is this one: a member refines, works and verifies, which the table gives alike. */
+export function recommendedMemberEffort(model: string): Pick<ProposedTeamMember, 'effort' | 'effortReason'> {
+  const found = effortRecommendation(model, 'work');
+  return { effort: found?.effort ?? null, effortReason: found?.reason ?? null };
+}
 
 const nullableString = (description: string) => ({ type: ['string', 'null'], description });
 const strings = (description: string) => ({ type: 'array', items: { type: 'string' }, description });
@@ -450,6 +457,7 @@ export function parseAnswer(raw: unknown, brief: Pick<AssistantBrief, 'kind' | '
       const role = roleId(m.role);
       const responsibility = str(m.responsibility, MEMBER_TEXT_MAX);
       if (!role || !responsibility || roles.has(role)) continue;
+      const model = str(m.model, MEMBER_SHORT_MAX) ?? 'sonnet';
       const named = str(m.agent, 64);
       const agent = named && RESOURCE_NAME.test(named) && !agents.has(named) ? named : role;
       if (!RESOURCE_NAME.test(agent) || agents.has(agent)) continue;
@@ -458,7 +466,8 @@ export function parseAnswer(raw: unknown, brief: Pick<AssistantBrief, 'kind' | '
       members.push({
         role,
         agent,
-        model: str(m.model, MEMBER_SHORT_MAX) ?? 'sonnet',
+        model,
+        ...recommendedMemberEffort(model),
         responsibility,
         writes: stringList(m.writes, WRITES_MAX, MEMBER_TEXT_MAX).filter((w) => relPath(w) !== null),
         fromTemplate: templateRoles.has(role),

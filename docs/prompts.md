@@ -152,8 +152,8 @@ the result.
 4. The description and the criteria (`workItemPrompt`), the criteria QA judges (listed with their
    ids), and the rejection comment are wrapped. The journal in the system prompt is wrapped as well.
    `PASTED_NOTE` closes every stage.
-5. Work runs carry `scopeAndCompletion()`. Members have no effort setting yet (CW-25), so the
-   `xhigh`/`max` sentence never applies today. Refine and verify are held to their schema and a
+5. Work runs carry `scopeAndCompletion()`. A member's effort is optional (CW-25), so the
+   `xhigh`/`max` sentence applies only when one sets it. Refine and verify are held to their schema and a
    narrower task, so they do not carry it.
 6. Work and verify carry `REAL_VERIFICATION`. Refine is n/a: it changes no code.
 7. Refine and verify include `THINK_THROUGH` when the member's model is Sonnet. Work does not: it
@@ -206,8 +206,8 @@ All other points are n/a: this is material, not instructions.
 **The member model recommendation** (the `teamMembers` line and the schema's `model` field,
 `MODEL_CHOICE`): recommend `opus` for the roles that carry the hardest long-horizon work (deciding
 a design, refining large or vague items, working unattended across many files for a long time), and
-`sonnet` for the others. Each member's `reason` must say why its model fits. Recommending a
-member's **effort** is deferred to CW-25.
+`sonnet` for the others. Each member's `reason` must say why its model fits. Its **effort** is recommended too (CW-25,
+[effort.md](effort.md)).
 
 ### Planner (`startPlan`)
 
@@ -347,9 +347,8 @@ line belongs in CW-12, in `prompt-rules.ts` beside the others.
 
 ## Deferred
 
-- **A member's effort** (and so point 5's `xhigh`/`max` sentence for members) waits for CW-25. The
-  assistant recommends a model only, and `scopeAndCompletion(effort)` is ready for the effort when
-  it exists.
+- **A member's effort** is built (CW-25, see [effort.md](effort.md)): the assistant recommends one per
+  member and `scopeAndCompletion(effort)` applies to a member that sets `xhigh` or `max`.
 
 ## Known gaps
 

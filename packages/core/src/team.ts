@@ -19,7 +19,7 @@ import type {
   TeamMember,
   WorkItemStatus,
 } from '@agentry/shared';
-import { MAX_TEAM_COMMANDS, teamCommandProblem, WORK_ITEM_STATUSES } from '@agentry/shared';
+import { EFFORT_LEVELS, isEffort, MAX_TEAM_COMMANDS, teamCommandProblem, WORK_ITEM_STATUSES } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
 import type { AgentryEventInput } from './events.ts';
 import { projectTemplate } from './project-templates.ts';
@@ -324,6 +324,11 @@ export function parseMemberRequest(agent: string, input: unknown): { member: Pro
       if (problem) throw new TeamError(`not a command pattern: ${JSON.stringify(command)} (one line, no parentheses, not only a wildcard)`, 400);
     }
     member.commands = [...new Set(body.commands as string[])];
+  }
+  // null, like leaving it out, takes the recommendation for the member's model
+  if (body.effort !== undefined && body.effort !== null) {
+    if (!isEffort(body.effort)) throw new TeamError(`effort must be one of ${EFFORT_LEVELS.join(', ')}`, 400);
+    member.effort = body.effort;
   }
   if (body.createFile !== undefined && typeof body.createFile !== 'boolean') throw new TeamError('createFile must be a boolean', 400);
   return { member, createFile: body.createFile === true };
