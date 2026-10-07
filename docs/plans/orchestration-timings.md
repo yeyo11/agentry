@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T18:00:00Z
-updated_at: 2026-09-28T18:00:00Z
+updated_at: 2026-09-29T18:00:00Z
 tags:
     - plan
     - spec
@@ -9,12 +9,13 @@ tags:
     - performance
     - api
     - web
-    - proposed
+    - built
 ---
 # Spec: record where an orchestration's time goes (CW-13)
 
 Workstream A (`timings`) of [plans/orchestration-speed.md](orchestration-speed.md), story CW-13 of
-the epic CW-11 "Faster orchestrations". Status: **refined, not built**. It is the `timings-core` and
+the epic CW-11 "Faster orchestrations". Status: **built** on 2026-09-29; what was built is in
+[orchestration-timings.md](../orchestration-timings.md). It is the `timings-core` and
 `timings-web` nodes of the plan's graph: `timings-core` owns `types.ts` and the OpenAPI schemas.
 
 ## Why
