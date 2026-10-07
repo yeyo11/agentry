@@ -400,7 +400,47 @@
     "planFeedback": "¿Qué debería cambiar? (se envía al modelo)",
     "otherAnswerTo": "Otra respuesta a: {{question}}",
     "whatItWantsToRun": "Lo que quiere ejecutar",
-    "plan": "Plan"
+    "plan": "Plan",
+    "writes": {
+      "types": {
+        "epic": "épica",
+        "story": "historia",
+        "task": "tarea",
+        "bug": "bug"
+      },
+      "statuses": {
+        "backlog": "Backlog",
+        "todo": "Por hacer",
+        "in_progress": "En curso",
+        "in_review": "En revisión",
+        "done": "Hecho"
+      },
+      "priorities": {
+        "low": "baja",
+        "medium": "media",
+        "high": "alta",
+        "urgent": "urgente"
+      },
+      "anItem": "una tarea",
+      "createWorkItem": "Crear {{type}}: {{title}}",
+      "updateWorkItem": "Cambiar {{item}}",
+      "moveWorkItem": "Mover {{item}} a {{status}}",
+      "commentWorkItem": "Comentar en {{item}}",
+      "retryFlowRun": "Volver a ejecutar una ejecución del flujo fallida",
+      "retryOrchestrationTask": "Volver a ejecutar una tarea fallida de una orquestación",
+      "startChat": "Iniciar un chat",
+      "acceptProposal": "Aceptar una propuesta del asistente",
+      "discardProposal": "Descartar una propuesta del asistente",
+      "fields": {
+        "title": "Título: {{value}}",
+        "status": "Columna: {{value}}",
+        "priority": "Prioridad: {{value}}",
+        "type": "Tipo: {{value}}",
+        "labels": "Etiquetas: {{value}}",
+        "criteria": "Criterios de aceptación: {{value}}",
+        "model": "Modelo: {{value}}"
+      }
+    }
   },
   "find": {
     "button": "Buscar",
