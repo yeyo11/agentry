@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-10-02T15:00:00Z
+updated_at: 2026-10-07T12:00:00Z
 tags:
     - plan
     - git
@@ -2345,8 +2345,53 @@ What the audit and the e2e spec nobody had run found, all fixed:
   saved from the screen; the issue chips are a real list (axe refused a link with the listitem role);
   and "Check again" in Integrations now also reads the trackers, so its actions appear when both are in.
 
-**Open:** `t0b` (the owner: a Jira Cloud site and a YouTrack instance with tokens) and the Jira and
-YouTrack adapters, fakes and screens that follow it.
+**Open:** `t0b`'s Jira half (a Jira Cloud site) and the Jira adapter, fake and screens that follow
+it. YouTrack's half is done: see the next section.
+
+## Outcome of phase 5, step 2: YouTrack (2026-10-07)
+
+`t0b`'s YouTrack half did not need an account of the owner's. JetBrains ships YouTrack as a Docker
+image, free up to ten users, so the recording ran against an instance of our own
+(`jetbrains/youtrack:2026.2.19562`, bound to 127.0.0.1) with `youtrack-app` 1.0.3 and a permanent
+token of its administrator. What it showed is in
+`packages/core/test/fixtures/recordings/youtrack-app/NOTES.md`, and the reference is the
+[YouTrack section of trackers.md](../trackers.md#youtrack). Built:
+
+- **Core.** `trackers/youtrack/adapter.ts` (list, get, set the status), `trackers/youtrack/credentials.ts`
+  (decision 3: 0600, sealed with the desktop key, plain on a server), the manifest with the
+  recorded floor (`recording: 'own'`, minimum 1.0.3), detection of a tracker with a CLI of its own
+  in `TrackerDetector` (binary, version, credentials, `/api/users/me`, cached until a refresh or new
+  credentials), and YouTrack's own door in `Core.trackerAccess` (the token only in the child's
+  environment). The adapter interface gained `key()` and `namedStatuses`; GitHub's and GitLab's
+  close and change-request reads moved to `HostTrackerAdapter`. The sync confirms a named status by
+  reading it back by name.
+- **API.** `GET|PUT|DELETE /trackers/youtrack/credentials`, refused to a chat's token (the read
+  too), the token never answered; `TrackerStatus.user` and three `TrackerReason`s
+  (`no-credentials`, `token-rejected`, `host-unreachable`).
+- **Web.** YouTrack's row in Settings → Integrations with "Connect" / "Change access" and the
+  address and token form (a sheet on a phone); the project's tracker form with the short name, the
+  YouTrack query hint and a State typed per column; the import dialog's hint.
+- **Tests.** `trackers-youtrack.test.ts` (adapter replayed from the recordings, credentials,
+  detection, the named-status sync), the API's credentials and chat-token tests, the web's lib
+  tests, and `e2e/specs/youtrack.spec.mjs` over the fake `e2e/fake-trackers/youtrack-app`.
+- **Checked live.** A server from the branch, the real `youtrack-app` and the instance: connected
+  as `admin`, listed the project's unresolved issues with their type and address, imported one, and
+  moving its task to In progress, In review and Done set `In Progress`, `To Verify` and `Done` on
+  the instance, each read back.
+
+Where the build went around the plan:
+
+- **The status is written as a field, not a command.** The matrix's T9 used `/api/commands`
+  (`State <value>`). The recording showed the command language reads everything after the value as
+  more commands and refuses quoted or braced values, so a mapped name could smuggle another command.
+  `POST /api/issues/<id>` with the `State` custom field takes the name as JSON data and answers with
+  the issue after the write.
+- **Exit 5** (`fetch failed`) is not in the README's list; it is `host-unreachable`.
+- **HTTP 400 exits 2 or 4 by its message**, so a refused write after a good read is
+  `transition-unknown`, whatever the code.
+- **Only what Agentry calls is built**, as for GitHub and GitLab: create, update, comment and tags
+  (T6 to T8, T11) were recorded and are not in the adapter; the change request is linked by the key
+  in its title.
 
 ## Phase 6: webhooks and paced polling
 
@@ -2588,8 +2633,9 @@ second driver behind an interface the first one already had.
 
 ## Jira and YouTrack: documented facts
 
-Nothing here has been run. Every cell is **doc-only** until `t0` records it; the adapters are not
-built before that.
+The Jira cells are **doc-only** until `t0b` records `acli`. The YouTrack cells were recorded on
+2026-10-07 (R; T9 is X: Agentry sets the `State` field instead of running a command, see
+[the outcome](#outcome-of-phase-5-step-2-youtrack-2026-10-07)); the Ev column reads Jira · YouTrack.
 
 Sources: Atlassian CLI command reference, fetched 2026-09-30
 ([jira workitem](https://developer.atlassian.com/cloud/acli/reference/commands/jira-workitem/),
@@ -2637,18 +2683,18 @@ What the docs say, and what they leave open:
 
 | # | Action | Jira (`acli`) | YouTrack (`youtrack-app`) | Ev |
 |---|---|---|---|---|
-| T1 | Version | `acli --version` (not in the reference pages read) | `youtrack-app --version` | D · D |
-| T2 | Signed in | `acli jira auth status` → exit code (undocumented) | `youtrack-app rest request --path '/api/users/me?fields=login,name'` → exit 0, or 3 = `tracker-signed-out` | D · D |
-| T3 | Projects | `acli jira project list --json --paginate` | `youtrack-app project list --json --limit 50 --skip <n>`; `project info --project <short> --json` (the project's `id` for create) | D · D |
-| T4 | Search | `acli jira workitem search --jql '<scope and query>' --json --fields key,summary,status,issuetype,labels,updated --limit 100` (and `--paginate` up to Agentry's ceiling) | `youtrack-app rest request --path '/api/issues?query=<url-encoded>&fields=idReadable,summary,resolved,updated,project(shortName),tags(name),customFields(name,value(name))&$top=100&$skip=<n>'` | D · D |
-| T5 | Get | `acli jira workitem view <KEY> --json --fields key,summary,description,status,labels,issuetype` | `… rest request --path '/api/issues/<ID>?fields=idReadable,summary,description,resolved,tags(name),customFields(name,value(name))'` | D · D |
-| T6 | Create | `acli jira workitem create --project <KEY> --type Task --summary <s> --description-file <tmpfile> --json` | `… rest request --method POST --path '/api/issues?fields=idReadable' --body '{"project":{"id":"<id>"},"summary":…,"description":…}'` | D · D |
-| T7 | Update | `acli jira workitem edit --key <KEY> --summary <s> --description-file <tmpfile> --yes --json` | `… --method POST --path '/api/issues/<ID>?fields=idReadable' --body '{"summary":…,"description":…}'` | D · D |
-| T8 | Comment | `acli jira workitem comment create --key <KEY> --body-file <tmpfile> --json` | `… --method POST --path '/api/issues/<ID>/comments?fields=id' --body '{"text":…}'` | D · D |
-| T9 | Move to a status (sync, close) | `acli jira workitem transition --key <KEY> --status "<name>" --yes --json` | `… --method POST --path /api/commands --body '{"query":"State <value>","issues":[{"idReadable":"<ID>"}]}'` | D · D |
-| T10 | Reopen | T9 with the mapped open status | T9 with the mapped open state | D · D |
-| T11 | Labels | `edit --key <KEY> --labels <l>` / `--remove-labels <l> --yes` | commands `tag <name>` / `untag <name>` through `/api/commands` | D · D |
-| T12 | Link to a change request | a comment with the URL (T8) and the key in the change request's title; no remote-link command | a comment with the URL (T8) and the id in the title | D · D |
+| T1 | Version | `acli --version` (not in the reference pages read) | `youtrack-app --version` | D · R |
+| T2 | Signed in | `acli jira auth status` → exit code (undocumented) | `youtrack-app rest request --path '/api/users/me?fields=login,name'` → exit 0, or 3 = `tracker-signed-out` | D · R |
+| T3 | Projects | `acli jira project list --json --paginate` | `youtrack-app project list --json --limit 50 --skip <n>`; `project info --project <short> --json` (the project's `id` for create) | D · R |
+| T4 | Search | `acli jira workitem search --jql '<scope and query>' --json --fields key,summary,status,issuetype,labels,updated --limit 100` (and `--paginate` up to Agentry's ceiling) | `youtrack-app rest request --path '/api/issues?query=<url-encoded>&fields=idReadable,summary,resolved,updated,project(shortName),tags(name),customFields(name,value(name))&$top=100&$skip=<n>'` | D · R |
+| T5 | Get | `acli jira workitem view <KEY> --json --fields key,summary,description,status,labels,issuetype` | `… rest request --path '/api/issues/<ID>?fields=idReadable,summary,description,resolved,tags(name),customFields(name,value(name))'` | D · R |
+| T6 | Create | `acli jira workitem create --project <KEY> --type Task --summary <s> --description-file <tmpfile> --json` | `… rest request --method POST --path '/api/issues?fields=idReadable' --body '{"project":{"id":"<id>"},"summary":…,"description":…}'` | D · R |
+| T7 | Update | `acli jira workitem edit --key <KEY> --summary <s> --description-file <tmpfile> --yes --json` | `… --method POST --path '/api/issues/<ID>?fields=idReadable' --body '{"summary":…,"description":…}'` | D · R |
+| T8 | Comment | `acli jira workitem comment create --key <KEY> --body-file <tmpfile> --json` | `… --method POST --path '/api/issues/<ID>/comments?fields=id' --body '{"text":…}'` | D · R |
+| T9 | Move to a status (sync, close) | `acli jira workitem transition --key <KEY> --status "<name>" --yes --json` | `… --method POST --path /api/commands --body '{"query":"State <value>","issues":[{"idReadable":"<ID>"}]}'` | D · X |
+| T10 | Reopen | T9 with the mapped open status | T9 with the mapped open state | D · R |
+| T11 | Labels | `edit --key <KEY> --labels <l>` / `--remove-labels <l> --yes` | commands `tag <name>` / `untag <name>` through `/api/commands` | D · R |
+| T12 | Link to a change request | a comment with the URL (T8) and the key in the change request's title; no remote-link command | a comment with the URL (T8) and the id in the title | D · R |
 
 ### Recording before phase 5
 

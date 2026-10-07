@@ -59,6 +59,11 @@ export class WebhookSecrets {
     return JSON.stringify(Object.fromEntries(Object.entries(secrets).map(([id, value]) => [id, this.box.seal(value)])));
   }
 
+  /** Every secret held, for masking them where they should not travel */
+  values(): string[] {
+    return Object.values(this.secrets);
+  }
+
   get(registrationId: string): string | null {
     return this.secrets[registrationId] ?? null;
   }

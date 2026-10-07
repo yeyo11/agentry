@@ -209,7 +209,7 @@ export function useImportForm(project: Project, tracker: ProjectTrackerSettings,
           {t('import.run')}
         </button>
       </form>
-      <span className="form-hint small muted">{t(tracker.id === 'github-issues' || tracker.id === 'gitlab-issues' ? `import.hint.${tracker.id}` : 'import.hint.other')}</span>
+      <span className="form-hint small muted">{t(tracker.id === 'jira' ? 'import.hint.other' : `import.hint.${tracker.id}`)}</span>
       <div className="addr-group">
         <div className="addr-bar">
           <span className="section-label">{t('import.open', { count: list.issues.length })}</span>

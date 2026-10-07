@@ -315,21 +315,25 @@
       "not-installed": "{{cli}} is not installed, or Agentry cannot find it.",
       "unknown": "Agentry has not checked {{cli}} yet.",
       "not-built": "Agentry cannot offer {{tracker}} yet: its program ({{cli}}) is not supported in this version.",
-      "disabled": "{{tracker}} is turned off in Integrations."
+      "disabled": "{{tracker}} is turned off in Integrations.",
+      "readyOwn": "{{cli}} answers with the access saved in Integrations.",
+      "signedOutOwn": "Give Agentry the address and token of your YouTrack in Integrations."
     },
     "scope": {
       "repository": "Repository",
-      "project": "Project key"
+      "project": "Project short name"
     },
     "scopeHint": "The issues of this repository. By default it is the one of the <mono>origin</mono> remote.",
     "query": "Query",
     "queryPlaceholder": {
       "github-issues": "is:open label:bug",
-      "gitlab-issues": "login error"
+      "gitlab-issues": "login error",
+      "youtrack": "#Unresolved Type: Bug"
     },
     "queryHint": {
       "github-issues": "GitHub's search as it is, the one you would type in its issues tab. It comes already written when you import.",
-      "gitlab-issues": "The text GitLab searches the issues for. It comes already written when you import."
+      "gitlab-issues": "The text GitLab searches the issues for. It comes already written when you import.",
+      "youtrack": "YouTrack's search as you would type it there; Agentry adds the project and, when it is empty, #Unresolved. It comes already written when you import."
     },
     "queryHintDefault": "{{tracker}}'s own query. It comes already written when you import. Empty means the open issues.",
     "map": "When a task moves",
@@ -339,6 +343,9 @@
       "completed": "Close as completed"
     },
     "onlyOpenClosed": "{{tracker}} only has open and closed.",
-    "mapHint": "When the pull request is merged the issue closes by itself with <mono>Closes {{ref}}</mono> in its description. If it could not, because the target branch is not the main one, Agentry closes it afterwards and checks that it is closed."
+    "mapHint": "When the pull request is merged the issue closes by itself with <mono>Closes {{ref}}</mono> in its description. If it could not, because the target branch is not the main one, Agentry closes it afterwards and checks that it is closed.",
+    "scopeHintProject": "The short name of the YouTrack project, such as PROJ: the issues of that project.",
+    "statusPlaceholder": "State, as your project calls it",
+    "mapHintNamed": "Each column sets the issue's State field to the name you write here, as your project calls it, and Agentry reads it back to check it. A State the project does not have is shown on the task, and nothing else changes."
   }
 }

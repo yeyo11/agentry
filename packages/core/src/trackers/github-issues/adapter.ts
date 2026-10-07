@@ -9,7 +9,7 @@ import {
   TrackerInputError,
   type ClosedIssue,
   type IssueRead,
-  type TrackerAdapter,
+  type HostTrackerAdapter,
 } from '../tracker.ts';
 
 // GitHub Issues is gh's own `issue` and `label` commands, pinned to the host and repository on every
@@ -83,10 +83,15 @@ function issueOf(raw: unknown, what: string): IssueRead {
   };
 }
 
-export const githubIssuesAdapter: TrackerAdapter = {
+const closeIssue = (repo: HostRepo, key: string): HostCall => write(repo, ['issue', 'close', String(issueNumber(key)), '-R', pin(repo), '--reason', 'completed']);
+
+export const githubIssuesAdapter: HostTrackerAdapter = {
   id: 'github-issues',
   host: 'github',
   cli: 'gh',
+  namedStatuses: false,
+
+  key: (key) => String(issueNumber(key)),
 
   // gh has no page argument: page N reads up to N pages' worth plus one, capped at the ceiling, and
   // `parseList` cuts the page out of it. The extra one says whether there is more.
@@ -116,8 +121,8 @@ export const githubIssuesAdapter: TrackerAdapter = {
   },
 
   writes: (column) => column === 'done',
-  setStatus: (repo, key, { column }) => (column === 'done' ? githubIssuesAdapter.close(repo, key) : null),
-  close: (repo, key) => write(repo, ['issue', 'close', String(issueNumber(key)), '-R', pin(repo), '--reason', 'completed']),
+  setStatus: (repo, key, { column }) => (column === 'done' ? closeIssue(repo, key) : null),
+  close: closeIssue,
 
   closedByChangeRequest: (repo, number) => read(repo, ['pr', 'view', String(requestNumber(number)), '-R', pin(repo), '--json', 'closingIssuesReferences']),
   // Recorded (gh 2.92.0 and 2.102.0, `closing-refs`): `{closingIssuesReferences: [{number, repository: {name, owner: {login}}, url}]}`

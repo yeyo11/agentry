@@ -56,5 +56,6 @@
   "tool-presets.spec.mjs": 12.2,
   "updates-desktop.spec.mjs": 8.2,
   "updates.spec.mjs": 3.1,
-  "usage.spec.mjs": 13.5
+  "usage.spec.mjs": 13.5,
+  "youtrack.spec.mjs": 16.0
 }

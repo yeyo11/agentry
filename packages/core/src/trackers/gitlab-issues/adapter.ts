@@ -7,7 +7,7 @@ import {
   TrackerInputError,
   type ClosedIssue,
   type IssueRead,
-  type TrackerAdapter,
+  type HostTrackerAdapter,
 } from '../tracker.ts';
 
 // GitLab Issues is glab's own `issue` command, pinned to the project's URL on every call (`-R
@@ -72,10 +72,15 @@ function projectId(repo: HostRepo): number {
   return repo.projectId;
 }
 
-export const gitlabIssuesAdapter: TrackerAdapter = {
+const closeIssue = (repo: HostRepo, key: string): HostCall => write(repo, ['issue', 'close', String(issueNumber(key)), '-R', projectUrl(repo)]);
+
+export const gitlabIssuesAdapter: HostTrackerAdapter = {
   id: 'gitlab-issues',
   host: 'gitlab',
   cli: 'glab',
+  namedStatuses: false,
+
+  key: (key) => String(issueNumber(key)),
 
   // Page N is `-P 100 -p N`; a short page is the end (recorded: the paging of `mr list`)
   list(repo, { query, page }) {
@@ -94,9 +99,9 @@ export const gitlabIssuesAdapter: TrackerAdapter = {
   parseGet: (stdout) => issueOf(parseValue(stdout, 'issue view'), 'issue view'),
 
   writes: (column) => column === 'done',
-  setStatus: (repo, key, { column }) => (column === 'done' ? gitlabIssuesAdapter.close(repo, key) : null),
+  setStatus: (repo, key, { column }) => (column === 'done' ? closeIssue(repo, key) : null),
   // Idempotent: closing a closed issue exits 0 (recorded)
-  close: (repo, key) => write(repo, ['issue', 'close', String(issueNumber(key)), '-R', projectUrl(repo)]),
+  close: closeIssue,
 
   // `closes_issues` is empty for a merge request into a non-default branch (recorded, NOTES §6). Recorded
   // empty only: a non-empty answer is the API's issue objects, whose `iid` and `web_url` are the ones

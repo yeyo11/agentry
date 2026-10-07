@@ -1,0 +1,93 @@
+#!/usr/bin/env node
+// A fake youtrack-app for the specs: it answers what Agentry asks, in the shapes and exit codes
+// youtrack-app 1.0.3 was recorded to print (packages/core/test/fixtures/recordings/youtrack-app),
+// and never reaches a network. See README.md.
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const dir = join(process.env.AGENTRY_DATA_DIR ?? '.', 'fake-trackers');
+const file = join(dir, 'youtrack.json');
+mkdirSync(dir, { recursive: true });
+const args = process.argv.slice(2);
+appendFileSync(join(dir, 'youtrack.calls'), `${JSON.stringify({ args, host: process.env.YOUTRACK_HOST ?? null, token: process.env.YOUTRACK_TOKEN ? 'set' : null })}\n`);
+
+const fail = (code, line) => {
+  process.stderr.write(`${line}\n`);
+  process.exit(code);
+};
+
+const ISSUES = [
+  { idReadable: 'PROJ-1', id: '2-1', summary: 'Checkout total ignores the coupon', description: 'Steps:\n\n1. Add a coupon\n2. The total does not change', state: 'Open', type: 'Bug', tags: ['payments'] },
+  { idReadable: 'PROJ-2', id: '2-2', summary: 'Export orders as CSV', description: '', state: 'Open', type: 'Task', tags: [] },
+  { idReadable: 'PROJ-3', id: '2-3', summary: '<img src=x onerror=alert(1)> in a title stays text', description: '<script>alert(1)</script>', state: 'In Progress', type: 'Task', tags: [] },
+];
+const RESOLVED = new Set(['Done', 'Duplicate', 'Fixed']);
+const STATES = new Set(['Open', 'In Progress', 'To Verify', 'Done', 'Duplicate']);
+
+const load = () => (existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {});
+const config = load();
+const issues = config.issues ?? ISSUES;
+const save = () => writeFileSync(file, JSON.stringify({ ...config, issues }, null, 2));
+
+const flag = (name) => {
+  const at = args.indexOf(name);
+  return at === -1 ? undefined : args[at + 1];
+};
+
+if (args[0] === '--version') {
+  process.stdout.write(`${config.version ?? '1.0.3'}\n`);
+  process.exit(0);
+}
+if (args[0] !== 'rest' || args[1] !== 'request') fail(2, `Error: "${args.join(' ')}" is not part of the fake`);
+if (!process.env.YOUTRACK_HOST) fail(2, 'Error: Option "--host" is required');
+if (!process.env.YOUTRACK_TOKEN) fail(3, `Error: Token is required. Please create one at ${process.env.YOUTRACK_HOST}/users/me?tab=account-security`);
+if (config.unreachable) fail(5, 'TypeError: fetch failed');
+if (process.env.YOUTRACK_TOKEN !== (config.token ?? 'perm-good')) fail(3, 'Error: [401] Invalid token');
+
+const url = new URL(`http://fake${flag('--path') ?? ''}`);
+const method = (flag('--method') ?? 'GET').toUpperCase();
+const out = (body) => {
+  process.stdout.write(`${JSON.stringify(body, null, 2)}\n`);
+  process.exit(0);
+};
+const shape = (issue) => ({
+  idReadable: issue.idReadable,
+  id: issue.id,
+  summary: issue.summary,
+  ...(issue.description ? { description: issue.description } : {}),
+  resolved: RESOLVED.has(issue.state) ? 1791363748416 : null,
+  updated: 1791363728033,
+  project: { shortName: issue.idReadable.split('-')[0], $type: 'Project' },
+  tags: issue.tags.map((name) => ({ name, $type: 'Tag' })),
+  customFields: [
+    { value: { name: issue.state, $type: 'StateBundleElement' }, name: 'State', $type: 'StateIssueCustomField' },
+    { value: { name: issue.type, $type: 'EnumBundleElement' }, name: 'Type', $type: 'SingleEnumIssueCustomField' },
+  ],
+  $type: 'Issue',
+});
+
+if (url.pathname === '/api/users/me') out({ login: config.user ?? 'e2e-user', $type: 'Me' });
+if (url.pathname === '/api/issues' && method === 'GET') {
+  const query = url.searchParams.get('query') ?? '';
+  const project = /^project: (\S+)/.exec(query)?.[1];
+  if (!project || query.includes('(((')) fail(2, "Error: [400] Can't parse search query, please check and update query syntax");
+  const skip = Number(url.searchParams.get('$skip') ?? 0);
+  const unresolved = query.includes('#Unresolved');
+  const listed = issues.filter((i) => i.idReadable.startsWith(`${project}-`) && (!unresolved || !RESOLVED.has(i.state)));
+  out(listed.slice(skip, skip + Number(url.searchParams.get('$top') ?? 100)).map(shape));
+}
+const one = /^\/api\/issues\/([A-Z][A-Z0-9_]*-\d+)$/.exec(url.pathname);
+if (one) {
+  const issue = issues.find((i) => i.idReadable === one[1]);
+  if (!issue) fail(4, `Error: [404] Entity with id ${one[1]} not found`);
+  if (method === 'GET') out(shape(issue));
+  const body = JSON.parse(flag('--body') ?? '{}');
+  const next = body.customFields?.find((f) => f.name === 'State')?.value?.name;
+  if (next !== undefined) {
+    if (config.refuseWrites || !STATES.has(next)) fail(4, `Error: [400] An ${next}-type entity with the specified name ({1}) was not found`);
+    issue.state = next;
+    save();
+  }
+  out(shape(issue));
+}
+fail(4, `Error: [404] ${url.pathname} is not part of the fake`);

@@ -90,12 +90,11 @@ describe('TrackerDetector', () => {
     assert.equal(incompatible?.reason, 'below-minimum');
   });
 
-  it('reads jira and youtrack as unknown with not-recorded, with no floor, no binary and no probe', async () => {
+  it('reads jira as unknown with not-recorded, with no floor, no binary and no probe', async () => {
     await fake('acli');
-    await fake('youtrack-app');
     const script: Script = { calls: [] };
     const { trackers } = detectors(script);
-    for (const id of ['jira', 'youtrack'] as const) {
+    for (const id of ['jira'] as const) {
       const status = await trackers.status(id);
       assert.equal(status?.state, 'unknown', id);
       assert.equal(status?.reason, 'not-recorded', id);
@@ -104,7 +103,7 @@ describe('TrackerDetector', () => {
       assert.deepEqual(status?.recorded, [], id);
       assert.equal(status?.binaryPath, null, id);
     }
-    assert.ok(!script.calls?.some((call) => call.cli === 'acli' || call.cli === 'youtrack-app'));
+    assert.ok(!script.calls?.some((call) => call.cli === 'acli'));
   });
 
   it('a tracker turned off is unknown with no reason, and jira stays not-recorded', async () => {

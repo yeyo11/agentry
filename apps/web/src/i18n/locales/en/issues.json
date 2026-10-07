@@ -7,7 +7,8 @@
     "hint": {
       "github-issues": "This is GitHub's own search: add label:bug or author:name. Only issues come out, not pull requests.",
       "gitlab-issues": "GitLab searches the text of issues. Only issues come out, not merge requests.",
-      "other": "Only issues come out."
+      "other": "Only issues come out.",
+      "youtrack": "This is YouTrack's own search, inside the project: add Type: Bug or #Unresolved. Agentry orders by last update unless you write an order by."
     },
     "open": "Issues · {{count}}",
     "suggested": "suggested · issue.triage",

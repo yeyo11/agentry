@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "shortName": "AGP",
+      "id": "0-1",
+      "$type": "Project"
+    }
+  ],
+  "pagination": {
+    "skip": 0,
+    "limit": 1,
+    "returned": 1,
+    "nextSkip": 1,
+    "hasMore": true
+  }
+}

@@ -17,8 +17,13 @@ export interface TrackerManifest {
   host: CodeHostId | null;
   /**
    * `host` when the CLI facts are the host's own recordings, so the release floor is the host's.
+   * `own` for a tracker with a CLI of its own that was recorded: its floor and releases are below.
    * Null while nobody has recorded the CLI: the tracker is listed, reads `unknown` with the reason
    * `not-recorded`, and has no adapter and no action.
    */
-  recording: 'host' | null;
+  recording: 'host' | 'own' | null;
+  /** For `own`: the oldest release Agentry works with, the one recorded */
+  minimum?: string;
+  /** For `own`: the releases the CLI facts were recorded on */
+  recorded?: readonly string[];
 }

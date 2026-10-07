@@ -32,7 +32,7 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const CLIS = ['gh', 'glab', 'acli', 'youtrack-app'];
-const DEFAULT_VERSION = { gh: '2.92.0', glab: '1.120.0' };
+const DEFAULT_VERSION = { gh: '2.92.0', glab: '1.120.0', 'youtrack-app': '1.0.3' };
 const UNRECORDED = 97;
 const EMPTY_SHA256 = createHash('sha256').update('').digest('hex');
 

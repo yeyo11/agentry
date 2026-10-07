@@ -12,7 +12,7 @@ import { useToast } from '@agentry/ui/components/Toast';
 import { ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
 import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
-import { issueRef, MAPPED_COLUMNS, statusChoices, TRACKER_IDS, trackerEntry, trackerWords } from '../../lib/trackers';
+import { hasNamedStatuses, issueRef, MAPPED_COLUMNS, statusChoices, TRACKER_IDS, trackerEntry, trackerWords, YOUTRACK_DEFAULT_STATES } from '../../lib/trackers';
 import { canSaveDraft, chooseTracker, draftOf, sameDraft, settingsOf, trackerOptions, withMapped, type TrackerDraft, type TrackerOption } from './project-tracker';
 
 /**
@@ -92,9 +92,21 @@ export function ProjectTracker({ project }: { project: Project }) {
         <label className="section-label" htmlFor="project-tracker-scope">
           {t(`tracker.scope.${words.scopeKey === 'scope.project' ? 'project' : 'repository'}`)}
         </label>
-        <input id="project-tracker-scope" className="mono" value={draft.scope} placeholder={remotePath ?? ''} onChange={(e) => change({ ...draft, scope: e.target.value })} />
+        <input
+          id="project-tracker-scope"
+          className="mono"
+          value={draft.scope}
+          placeholder={hasNamedStatuses(chosen) ? 'PROJ' : (remotePath ?? '')}
+          spellCheck={false}
+          autoCapitalize="off"
+          onChange={(e) => change({ ...draft, scope: e.target.value })}
+        />
         <span className="form-hint">
-          <Trans t={t} i18nKey="tracker.scopeHint" values={{ tracker: words.label }} components={{ mono: <span className="mono" /> }} />
+          {hasNamedStatuses(chosen) ? (
+            t('tracker.scopeHintProject')
+          ) : (
+            <Trans t={t} i18nKey="tracker.scopeHint" values={{ tracker: words.label }} components={{ mono: <span className="mono" /> }} />
+          )}
         </span>
       </div>
       <div className="form-row">
@@ -114,12 +126,16 @@ export function ProjectTracker({ project }: { project: Project }) {
           ))}
         </div>
         <span className="form-hint">
-          <Trans
-            t={t}
-            i18nKey="tracker.mapHint"
-            values={{ ref: issueRef(chosen, '12'), cli: chosenCli ?? '' }}
-            components={{ mono: <span className="mono" /> }}
-          />
+          {hasNamedStatuses(chosen) ? (
+            t('tracker.mapHintNamed')
+          ) : (
+            <Trans
+              t={t}
+              i18nKey="tracker.mapHint"
+              values={{ ref: issueRef(chosen, '12'), cli: chosenCli ?? '' }}
+              components={{ mono: <span className="mono" /> }}
+            />
+          )}
         </span>
       </div>
     </>
@@ -183,7 +199,9 @@ export function ProjectTracker({ project }: { project: Project }) {
 function TrackerChoice({ option, selected, cli, hostname, onPick }: { option: TrackerOption; selected: boolean; cli: string; hostname: string; onPick: () => void }) {
   const { t } = useTranslation('projects');
   const words = trackerWords(option.id);
-  const reason = t(`tracker.reason.${option.reason}`, { cli, tracker: words.label, hostname: hostname || t('tracker.thisHost') });
+  // A tracker with its own access (YouTrack) is ready or signed out in its own words, not the code host's
+  const ownKey = option.status.host === null && (option.reason === 'ready' || option.reason === 'signed-out') ? (option.reason === 'ready' ? 'readyOwn' : 'signedOutOwn') : null;
+  const reason = t(`tracker.reason.${ownKey ?? option.reason}`, { cli, tracker: words.label, hostname: hostname || t('tracker.thisHost') });
   return (
     <button
       type="button"
@@ -206,11 +224,36 @@ function TrackerChoice({ option, selected, cli, hostname, onPick }: { option: Tr
   );
 }
 
-/** One column: Done closes the issue on the two built trackers; the others are saved but written nowhere, and say so. */
+/**
+ * One column. On GitHub and GitLab, Done closes the issue and the others are saved but written
+ * nowhere, and say so; on YouTrack every column sets the State the person names.
+ */
 function MapRow({ tracker, column, value, onChange }: { tracker: TrackerId; column: TrackerMappedStatus; value: string; onChange: (value: string) => void }) {
   const { t } = useTranslation(['projects', 'tasks']);
   const choices = statusChoices(tracker, column);
   const name = t(`tasks:status.${column}`);
+  if (hasNamedStatuses(tracker)) {
+    return (
+      <div className="trk-map-row">
+        <span className="trk-map-col">
+          <WorkItemStatusIcon status={column} decorative />
+          {name}
+        </span>
+        <ChevronRight {...ICON_SM} className="ico" aria-hidden />
+        <span className="trk-sel">
+          <input
+            className="mono"
+            aria-label={t('tracker.statusOf', { column: name })}
+            value={value}
+            spellCheck={false}
+            placeholder={YOUTRACK_DEFAULT_STATES[column]}
+            title={t('tracker.statusPlaceholder')}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="trk-map-row">
       <span className="trk-map-col">

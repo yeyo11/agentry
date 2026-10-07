@@ -1,0 +1,5 @@
+youtrack-app: 1.0.3
+argv: youtrack-app rest request --path /api/issues?query=project%3A%20AGP%20%23Unresolved&fields=idReadable,id,summary,description,resolved,updated,project(shortName),tags(name),customFields(name,value(name))&$top=100&$skip=0
+exit: 0
+env: 
+stdin-sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855

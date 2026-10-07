@@ -1,0 +1,54 @@
+{
+  "idReadable": "AGP-1",
+  "resolved": 1791363748416,
+  "customFields": [
+    {
+      "value": {
+        "name": "Normal",
+        "$type": "EnumBundleElement"
+      },
+      "name": "Priority",
+      "$type": "SingleEnumIssueCustomField"
+    },
+    {
+      "value": {
+        "name": "Task",
+        "$type": "EnumBundleElement"
+      },
+      "name": "Type",
+      "$type": "SingleEnumIssueCustomField"
+    },
+    {
+      "value": {
+        "name": "Done",
+        "$type": "StateBundleElement"
+      },
+      "name": "State",
+      "$type": "StateIssueCustomField"
+    },
+    {
+      "value": {
+        "name": "admin",
+        "$type": "User"
+      },
+      "name": "Assignee",
+      "$type": "SingleUserIssueCustomField"
+    },
+    {
+      "value": [],
+      "name": "Sprints",
+      "$type": "MultiVersionIssueCustomField"
+    },
+    {
+      "value": null,
+      "name": "Ideal days",
+      "$type": "SimpleIssueCustomField"
+    },
+    {
+      "value": null,
+      "name": "Original estimation",
+      "$type": "SimpleIssueCustomField"
+    }
+  ],
+  "$type": "Issue"
+}

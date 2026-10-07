@@ -17,8 +17,9 @@ export const ISSUES_PAGE_SIZE = 100;
 export const MAX_ISSUE_BODY = 60_000;
 
 /**
- * Where a GitHub or GitLab tracker's issues live: the project's repository. The tracker is the
- * host's own, so it is pinned exactly as the host's calls are.
+ * Where a tracker's issues live. For GitHub and GitLab, the project's repository: the tracker is the
+ * host's own, so it is pinned exactly as the host's calls are. For YouTrack, `path` is the project's
+ * short name and `host` the instance's address.
  */
 export type TrackerScope = HostRepo;
 
@@ -39,6 +40,10 @@ export interface IssueRead {
   updatedAt: string | null;
   /** Pull requests that close it, by number (GitHub's `closedByPullRequestsReferences`) */
   closedByChangeRequests: number[];
+  /** The tracker's own status name (YouTrack's `State`); absent for a tracker with only open and closed */
+  status?: string | null;
+  /** The tracker's own issue type (YouTrack's `Type`), which maps to a work item type when it is `Bug` */
+  kind?: string | null;
 }
 
 /** An issue a change request closes when it merges, as the host says it does: where it lives, and its key. */
@@ -86,9 +91,17 @@ export class IssueIsPullRequest extends Error {
 
 export interface TrackerAdapter {
   readonly id: TrackerId;
-  /** The code host whose CLI and sign-in this tracker uses */
-  readonly host: CodeHostId;
-  readonly cli: 'gh' | 'glab';
+  /** The code host whose CLI and sign-in this tracker uses; null for a tracker with a CLI of its own */
+  readonly host: CodeHostId | null;
+  readonly cli: 'gh' | 'glab' | 'youtrack-app';
+  /**
+   * Whether the tracker has statuses of its own (YouTrack's `State`): a sync is then confirmed by the
+   * status name read back, not by open or closed, and every mapped column writes.
+   */
+  readonly namedStatuses: boolean;
+
+  /** The key as the tracker prints it, from what a person typed. Throws `TrackerInputError` for one it cannot take */
+  key(key: string): string;
 
   /** One page of the query. Throws `TrackerInputError` for a page below 1 */
   list(scope: TrackerScope, req: IssueListRequest): HostCall;
@@ -107,16 +120,25 @@ export interface TrackerAdapter {
    * `done` writes (it closes as completed); every other column is null: nothing to do, not a failure.
    */
   setStatus(scope: TrackerScope, key: string, to: TrackerStatusTarget): HostCall | null;
-  /** Closes as completed: the one reason Agentry writes */
-  close(scope: TrackerScope, key: string): HostCall;
+  /** Closes as completed: the one reason Agentry writes. Only the host trackers, whose `done` is a close */
+  close?(scope: TrackerScope, key: string): HostCall;
 
   /**
    * The issues the host says a change request closes (matrix F10: `closingIssuesReferences` on
    * GitHub, `closes_issues` on GitLab). `repo` is the change request's repository. Read after the
    * merge: what the body asked for is not what the host did, as the body is written once.
    */
-  closedByChangeRequest(repo: TrackerScope, number: number): HostCall;
+  closedByChangeRequest?(repo: TrackerScope, number: number): HostCall;
   /** Throws `HostParseError` on a shape it cannot read */
+  parseClosedByChangeRequest?(stdout: string): ClosedIssue[];
+}
+
+/** A tracker that is a code host's own issues: `done` is a close, and the host says what a merge closed. */
+export interface HostTrackerAdapter extends TrackerAdapter {
+  readonly host: CodeHostId;
+  readonly cli: 'gh' | 'glab';
+  close(scope: TrackerScope, key: string): HostCall;
+  closedByChangeRequest(repo: TrackerScope, number: number): HostCall;
   parseClosedByChangeRequest(stdout: string): ClosedIssue[];
 }
 
