@@ -8,7 +8,7 @@ import type { IssueLinkInput, WorkItemService } from '../work-items.ts';
 import type { IssueTriage } from '../decisions/issue-triage.ts';
 import { trackerAdapter } from './adapters.ts';
 import { ISSUE_TEXT_MARK, trackerHost } from './links.ts';
-import { ISSUES_PAGE_SIZE, IssueIsPullRequest, issueNumber, MAX_ISSUE_BODY, TrackerInputError, type IssueRead, type TrackerAdapter } from './tracker.ts';
+import { ISSUES_PAGE_SIZE, IssueIsPullRequest, MAX_ISSUE_BODY, TrackerInputError, type IssueRead, type TrackerAdapter } from './tracker.ts';
 
 // Importing issues into work items (docs/plans/code-hosts.md, phase 5). The person runs the
 // tracker's own query, picks issues, and each becomes one work item with a `work_item_issues` row.
@@ -41,12 +41,18 @@ export class TrackerError extends WorkItemError {
   }
 }
 
-/** What a project's host lends the trackers that reuse it: see `PullRequestService.hostAccess`. */
+/**
+ * Where a tracker's calls go. For GitHub and GitLab, what the project's host lends the trackers that
+ * reuse it (see `PullRequestService.hostAccess`); for YouTrack, the instance Agentry keeps the
+ * address and token of, with `host` null and `hostname` the instance's address.
+ */
 export interface TrackerAccess {
-  host: CodeHostId;
+  host: CodeHostId | null;
   hostname: string;
-  repo: HostRepo;
+  repo: HostRepo | null;
   run: (call: HostCall) => Promise<HostResult>;
+  /** An issue's address, for a tracker whose answers do not carry it */
+  issueUrl?: (key: string) => string;
 }
 
 export interface TrackerImportDeps {
@@ -66,9 +72,9 @@ interface Resolved {
   scope: HostRepo;
 }
 
-/** The work item type an issue's labels map to; only `bug` does. */
-export function issueType(labels: readonly string[]): WorkItemType | null {
-  return labels.some((l) => l.trim().toLowerCase() === 'bug') ? 'bug' : null;
+/** The work item type an issue's labels, or the tracker's own issue type, map to; only `bug` does. */
+export function issueType(labels: readonly string[], kind: string | null = null): WorkItemType | null {
+  return [...labels, ...(kind === null ? [] : [kind])].some((l) => l.trim().toLowerCase() === 'bug') ? 'bug' : null;
 }
 
 /**
@@ -99,6 +105,7 @@ export class TrackerImportService {
     }
     const result = await r.access.run(call);
     const issues = this.parse(() => r.adapter.parseList(this.stdout('the issue list', call, result), req));
+    issues.issues = issues.issues.map((i) => withUrl(i, r.access));
     const imported = this.deps.items.importedKeys(projectId, r.tracker.id, r.tracker.scope, issues.issues.map((i) => i.key));
     const listed = issues.issues.map((i) => ({ ...tracked(r.tracker.id, i), importedItemId: imported.get(i.key) ?? null }));
     // The question goes in the background and the page does not wait: its marks show on the next read
@@ -123,7 +130,7 @@ export class TrackerImportService {
     if (unique.length > IMPORT_MAX_KEYS) throw new TrackerError(`one import takes at most ${String(IMPORT_MAX_KEYS)} issues`, 400);
     const normal = unique.map((k) => {
       try {
-        return String(issueNumber(k));
+        return r.adapter.key(k);
       } catch (err) {
         throw refusal(err);
       }
@@ -145,7 +152,7 @@ export class TrackerImportService {
       try {
         const item = this.deps.items.create(
           projectId,
-          { title: issue.title.trim().slice(0, TITLE_MAX) || `Issue ${key}`, description: quotedSource(r.tracker.id, key, issue.body), type: issueType(issue.labels) ?? 'task' },
+          { title: issue.title.trim().slice(0, TITLE_MAX) || `Issue ${key}`, description: quotedSource(r.tracker.id, key, issue.body), type: issueType(issue.labels, issue.kind ?? null) ?? 'task' },
           undefined,
           linkOf(r.tracker, issue),
         );
@@ -166,7 +173,7 @@ export class TrackerImportService {
     const r = await this.resolve(item.projectId);
     let number: string;
     try {
-      number = String(issueNumber(key));
+      number = r.adapter.key(key);
     } catch (err) {
       throw refusal(err);
     }
@@ -180,11 +187,11 @@ export class TrackerImportService {
     const { tracker } = project;
     if (!tracker) throw new TrackerError('this project has no tracker: choose one in its settings', 409);
     const adapter = trackerAdapter(tracker.id);
-    // Jira and YouTrack: their CLIs are not recorded, so nothing is built on them
+    // Jira: acli is not recorded, so nothing is built on it
     if (!adapter) throw new TrackerError(`${TRACKER_LABEL[tracker.id]} is not available yet: its CLI has not been recorded`, 409, 'not-recorded');
     const access = await this.deps.access(project.path, tracker.id);
     if (access.host !== trackerHost(tracker.id)) {
-      throw new TrackerError(`${TRACKER_LABEL[tracker.id]} needs a project on ${adapter.host}, and this one is on ${access.host}`, 409, 'unsupported-host');
+      throw new TrackerError(`${TRACKER_LABEL[tracker.id]} needs a project on ${String(adapter.host)}, and this one is on ${String(access.host)}`, 409, 'unsupported-host');
     }
     const at = tracker.scope.lastIndexOf('/');
     const scope: HostRepo = { host: access.hostname, path: tracker.scope, owner: at === -1 ? '' : tracker.scope.slice(0, at), name: tracker.scope.slice(at + 1) };
@@ -199,7 +206,7 @@ export class TrackerImportService {
       throw refusal(err);
     }
     const result = await r.access.run(call);
-    return this.parse(() => r.adapter.parseGet(this.stdout(`issue ${key}`, call, result, goneOn(call, result))));
+    return withUrl(this.parse(() => r.adapter.parseGet(this.stdout(`issue ${key}`, call, result, goneOn(call, result)))), r.access);
   }
 
   /** The CLI's stdout, or the failure as the error a caller throws. */
@@ -227,6 +234,8 @@ export class TrackerImportService {
  * stdout (recorded). Only the shape is looked at, never the message.
  */
 function goneOn(call: HostCall, result: HostResult): HostReason {
+  // youtrack-app documents and was recorded to answer 4 for an id that is not there
+  if (call.cli === 'youtrack-app') return result.exitCode === 4 ? 'not-found' : 'unreachable';
   if (result.exitCode !== 1) return 'unreachable';
   if (call.cli === 'gh') return 'not-found';
   const body = tryParseJson(result.stdout);
@@ -238,8 +247,13 @@ function refusal(err: unknown): Error {
   return err instanceof TrackerInputError ? new TrackerError(err.message, 400) : err instanceof Error ? err : new Error(String(err));
 }
 
+/** The issue with its address, when the tracker's answer does not carry one */
+function withUrl(issue: IssueRead, access: TrackerAccess): IssueRead {
+  return issue.url === null && access.issueUrl ? { ...issue, url: access.issueUrl(issue.key) } : issue;
+}
+
 function linkOf(tracker: Pick<ProjectTrackerSettings, 'id' | 'scope'>, issue: IssueRead): IssueLinkInput {
-  return { tracker: tracker.id, scope: tracker.scope, key: issue.key, externalId: issue.externalId, title: issue.title.slice(0, TITLE_MAX), state: issue.state, url: issue.url };
+  return { tracker: tracker.id, scope: tracker.scope, key: issue.key, externalId: issue.externalId, title: issue.title.slice(0, TITLE_MAX), state: issue.status ?? issue.state, url: issue.url };
 }
 
 function tracked(tracker: TrackerId, issue: IssueRead): TrackerIssue {
@@ -249,9 +263,9 @@ function tracked(tracker: TrackerId, issue: IssueRead): TrackerIssue {
     externalId: issue.externalId,
     title: issue.title,
     body: issue.body,
-    state: issue.state,
+    state: issue.status ?? issue.state,
     labels: issue.labels,
-    type: issueType(issue.labels),
+    type: issueType(issue.labels, issue.kind ?? null),
     url: issue.url,
     updatedAt: issue.updatedAt,
     importedItemId: null,

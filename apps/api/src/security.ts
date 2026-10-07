@@ -174,6 +174,10 @@ const CHAT_FORBIDDEN = new Set([
   // And the trackers: the same binaries
   `PUT ${API_PREFIX}/trackers/settings`,
   `POST ${API_PREFIX}/trackers/refresh`,
+  // YouTrack's token is the one tracker secret Agentry keeps: a chat neither reads where it points nor changes it
+  `GET ${API_PREFIX}/trackers/youtrack/credentials`,
+  `PUT ${API_PREFIX}/trackers/youtrack/credentials`,
+  `DELETE ${API_PREFIX}/trackers/youtrack/credentials`,
 ]);
 
 /**

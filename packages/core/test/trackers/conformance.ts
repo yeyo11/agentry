@@ -2,16 +2,16 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { HostParseError, type HostCall, type HostRepo } from '../../src/hosts/code-host.ts';
 import type { CodeHostManifest } from '../../src/hosts/manifest.ts';
-import { TrackerInputError, type TrackerAdapter } from '../../src/trackers/tracker.ts';
+import { TrackerInputError, type HostTrackerAdapter } from '../../src/trackers/tracker.ts';
 
 /**
- * The conformance suite every tracker adapter passes (docs/plans/code-hosts.md, "Fakes and tests,
+ * The conformance suite every host tracker adapter passes (docs/plans/code-hosts.md, "Fakes and tests,
  * for every phase"), in the two layers of the code host suite: `checkTrackerConformance` returns the
  * violations of each rule as sentences, `runTrackerConformance` registers one test per rule.
  */
 
 export interface TrackerConformanceOptions {
-  adapter: TrackerAdapter;
+  adapter: HostTrackerAdapter;
   /** The manifest of the code host whose CLI the tracker uses */
   hostManifest: CodeHostManifest;
   repo: HostRepo;
