@@ -7,7 +7,8 @@
     "hint": {
       "github-issues": "Es la búsqueda de GitHub: añade label:bug o author:nombre. Solo salen issues, no pull requests.",
       "gitlab-issues": "GitLab busca en el texto de los issues. Solo salen issues, no merge requests.",
-      "other": "Solo salen issues."
+      "other": "Solo salen issues.",
+      "youtrack": "Es la búsqueda de YouTrack, dentro del proyecto: añade Type: Bug o #Unresolved. Agentry ordena por la última actualización salvo que escribas un order by."
     },
     "open": "Issues · {{count}}",
     "suggested": "sugerido · issue.triage",

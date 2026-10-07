@@ -144,7 +144,7 @@ test('a project without a tracker, with an unrecorded one or on another host can
   const none = setup({ tracker: null });
   await assert.rejects(none.service.importIssues('p1', ['1']), (err: unknown) => err instanceof TrackerError && err.statusCode === 409 && err.reason === null);
 
-  for (const id of ['jira', 'youtrack'] as TrackerId[]) {
+  for (const id of ['jira'] as TrackerId[]) {
     const s = setup({ tracker: { id, scope: 'PROJ', query: '', statusMap: {} } });
     await assert.rejects(s.service.list('p1', null, 1), (err: unknown) => err instanceof TrackerError && err.reason === 'not-recorded');
     assert.equal(s.calls.length, 0, `${id} has no adapter, so no call is made`);

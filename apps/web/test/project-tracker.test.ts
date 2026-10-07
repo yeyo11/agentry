@@ -72,11 +72,26 @@ test('a tracker that is off, signed out or not installed says why', () => {
   assert.equal(trackerOption(status({ state: 'not-installed' }), 'github', true).reason, 'not-installed');
 });
 
-test('Jira and YouTrack are shown as not available yet, with no way to choose them', () => {
+test('Jira is shown as not available yet, with no way to choose it', () => {
   const jira = trackerOption(status({ id: 'jira', cli: 'acli', host: null, state: 'unknown', reason: 'not-recorded' }), 'github', true);
   assert.equal(jira.choosable, false);
   assert.equal(jira.reason, 'not-built');
-  assert.equal(trackerOption(status({ id: 'youtrack', cli: 'youtrack-app', host: null }), 'github', true).choosable, false);
+});
+
+test('YouTrack can be chosen on any project once it is ready, and not while its access is missing', () => {
+  for (const host of ['github', 'gitlab', null] as const) {
+    assert.equal(trackerOption(status({ id: 'youtrack', cli: 'youtrack-app', host: null, state: 'ready', reason: null }), host, true).choosable, true);
+  }
+  const missing = trackerOption(status({ id: 'youtrack', cli: 'youtrack-app', host: null, state: 'signed-out', reason: 'no-credentials' }), 'github', true);
+  assert.equal(missing.choosable, false);
+  assert.equal(missing.reason, 'signed-out');
+});
+
+test('choosing YouTrack starts from an empty project and the State names a new project has; typed States are saved trimmed', () => {
+  const draft = chooseTracker(NO_TRACKER, 'youtrack', 'acme/widgets');
+  assert.deepEqual(draft, { id: 'youtrack', scope: '', query: '', statusMap: { in_progress: 'In Progress', done: 'Done' } });
+  const typed = withMapped(withMapped({ ...draft, scope: ' AGP ' }, 'in_review', '  To Verify '), 'in_progress', '   ');
+  assert.deepEqual(settingsOf(typed), { id: 'youtrack', scope: 'AGP', query: '', statusMap: { in_review: 'To Verify', done: 'Done' } });
 });
 
 test('the chooser lists the trackers in the order every list uses', () => {

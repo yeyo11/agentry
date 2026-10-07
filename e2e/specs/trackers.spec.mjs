@@ -8,7 +8,8 @@
 // saved for comparing them with the reference screenshots.
 //
 // 1. Settings → Integrations: four tracker rows. GitHub Issues and GitLab Issues are ready and offer
-//    only "Choose binary"; Jira and YouTrack say "Not available yet" with their reason and no action.
+//    only "Choose binary"; Jira says "Not available yet" with its reason and no action; YouTrack has
+//    no access saved yet and offers "Connect" (youtrack.spec.mjs walks it).
 // 2. A project whose origin is a GitHub repository: its tracker form refuses the trackers that cannot
 //    work (GitLab's, Jira, YouTrack), takes GitHub Issues with the repository filled in, saves, and
 //    reads back after a reload. On a phone the form is a sheet.
@@ -167,10 +168,10 @@ export default async ({ page, api, check, dirs }) => {
       check(github.state === 'ready' && gitlab.state === 'ready', `[${theme}] GitHub Issues and GitLab Issues are ready (${github.state}, ${gitlab.state})`);
       check(github.actions.join() === 'choose-binary' && gitlab.actions.join() === 'choose-binary', `[${theme}] a ready tracker offers only Choose binary (${github.actions}; ${gitlab.actions})`);
       check(github.text.includes('#12') && gitlab.text.includes('#12'), `[${theme}] each row says how its issues are numbered`);
-      for (const row of [jira, youtrack]) {
-        check(row.actions.length === 0, `[${theme}] ${row.id} offers no action (${row.actions})`);
-        check(row.text.includes('Not available yet') && row.text.includes('not-recorded'), `[${theme}] ${row.id} says it is not available yet, with its reason (${row.text.replace(/\s+/g, ' ')})`);
-      }
+      check(jira.actions.length === 0, `[${theme}] jira offers no action (${jira.actions})`);
+      check(jira.text.includes('Not available yet') && jira.text.includes('not-recorded'), `[${theme}] jira says it is not available yet, with its reason (${jira.text.replace(/\s+/g, ' ')})`);
+      check(youtrack.state === 'signed-out' && youtrack.actions.join() === 'connect,choose-binary', `[${theme}] YouTrack has no access yet and offers Connect first (${youtrack.state}; ${youtrack.actions})`);
+      check(youtrack.text.includes('PROJ-12'), `[${theme}] YouTrack says how its issues are numbered`);
       await atMostTwo(`[${theme}] Integrations`);
       await page.shot(`trackers-integrations-${theme}`);
       await scan(page, check, `Settings → Integrations with the trackers, ${theme}`);
@@ -179,7 +180,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.viewport(390, 844);
     await page.goto('/settings?tab=integrations', 300);
     await page.waitFor(`return document.querySelectorAll('.prov-cell[data-tracker]').length === 4`, { label: 'a cell per tracker on a phone' });
-    check((await page.eval(`return document.querySelectorAll('.prov-cell[data-tracker="jira"] [data-action], .prov-cell[data-tracker="youtrack"] [data-action]').length`)) === 0, 'the phone shows Jira and YouTrack with no action');
+    check((await page.eval(`return document.querySelectorAll('.prov-cell[data-tracker="jira"] [data-action]').length`)) === 0, 'the phone shows Jira with no action');
     check((await page.eval(overflow)) <= 1, `[390px Integrations] nothing scrolls sideways (${await page.eval(overflow)}px)`);
     await atMostTwo('[390px] Integrations');
     await page.shot('trackers-integrations-phone');
