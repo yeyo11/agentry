@@ -1,0 +1,207 @@
+/*
+ * The Agentry assistant (pages/agentry-assistant): the references `DesktopAsistenteAgentry` and
+ * `MobileAsistenteAgentry`. The composer and the transcript are the chat's own; this lays out the
+ * greeting, the starters and the context chip.
+ */
+
+.as-entry .run-scroll {
+  display: flex;
+  justify-content: center;
+}
+
+.as-body {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  width: 100%;
+  max-width: 740px;
+  padding-top: 56px;
+}
+
+.as-hello {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.as-hello .suggestion-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-lg);
+}
+
+.as-hello .suggestion-mark svg {
+  width: 20px;
+  height: 20px;
+}
+
+.as-hello-title {
+  margin: 0;
+  font-size: 34px;
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.as-hello-sub {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+
+.as-figures {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.as-figures .live {
+  color: var(--live);
+}
+
+.as-starters-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.as-starters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.as-starter {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 64px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-2);
+  background: var(--bg-2);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.as-starter:hover {
+  border-color: var(--line-3);
+  background: var(--bg-3);
+}
+
+.as-starter > svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--fg-3);
+}
+
+.as-starter-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.as-starter-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.as-starter-ask {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--fg-2);
+}
+
+/* The context and the model, under the box */
+.as-composer-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.as-context {
+  min-width: 0;
+  gap: 4px;
+  padding-right: 4px;
+  cursor: default;
+}
+
+.as-context .x {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--fg-3);
+  cursor: pointer;
+}
+
+.as-context .x:hover {
+  background: var(--bg-4);
+  color: var(--fg);
+}
+
+/* The first message of an assistant's chat: dimmed, one line of what it is */
+.as-greeting {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: var(--fg-2);
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.as-greeting p {
+  margin: 0;
+  padding-top: 1px;
+}
+
+@media (max-width: 900px) {
+  .as-body {
+    padding-top: 8px;
+    gap: 18px;
+  }
+
+  .as-hello-title {
+    font-size: 24px;
+  }
+
+  .as-hello-sub {
+    font-size: 14px;
+  }
+
+  .as-starters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .as-starter {
+    min-height: var(--touch);
+  }
+
+  .as-context {
+    flex: 1 1 auto;
+  }
+
+  .as-context .x {
+    width: var(--touch);
+    height: var(--touch);
+    margin: -8px -4px -8px 0;
+  }
+}

@@ -180,6 +180,7 @@ import type {
   SetAuthTokenRequest,
   SetCredentialsRequest,
   SettingsDoc,
+  StartAgentryAssistantChatRequest,
   StartAssistantRunRequest,
   SuggestModelMapRequest,
   SupervisorConfig,
@@ -905,6 +906,8 @@ export const api = {
     request<{ ok: true }>(`/projects/${enc(projectId)}/documents/file${qs({ path })}`, { method: 'DELETE' }),
   tieDocument: (itemId: string, req: TieDocumentRequest) =>
     request<WorkItemLink>(`/work-items/${enc(itemId)}/documents`, { method: 'POST', body: req }),
+  // ---- the Agentry assistant: a confined global chat (docs/plans/agentry-assistant-entry.md)
+  startAgentryAssistantChat: (req: StartAgentryAssistantChatRequest) => request<ChatSummary>('/assistant/chats', { method: 'POST', body: req }),
   // ---- the project assistant (docs/plans/project-ecosystem.md, orchestration 4)
   /** Refused with 409 while a run of the same kind runs in the project */
   startAssistantRun: (projectId: string, req: StartAssistantRunRequest) =>
