@@ -2003,6 +2003,7 @@ a.chain-chip:hover {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
 
 /* The longest chain of a graph being written: a quiet hint under the task list, never a block. */
 .graph-shape-line {
