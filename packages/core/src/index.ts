@@ -802,7 +802,7 @@ export class Core {
     // Agentry's own secrets are masked in everything that may leave the machine (a decision's state,
     // a handoff), whatever text surrounds them
     this.forgetSecrets = recognizeSecrets({
-      values: () => [this.decisionCredentials.getKey() ?? '', ...this.webhookSecrets.values()],
+      values: () => [this.decisionCredentials.getKey() ?? '', this.youtrackCredentials.get()?.token ?? '', ...this.webhookSecrets.values()],
       isSecret: (word) => this.security.isOwnSecret(word),
     });
     this.webhookReceiver = new WebhookReceiver({
