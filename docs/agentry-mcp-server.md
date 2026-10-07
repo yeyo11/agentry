@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-01T12:00:00Z
-updated_at: 2026-10-01T12:00:00Z
+updated_at: 2026-10-07T16:00:00Z
 tags:
     - mcp
     - assistant
@@ -13,12 +13,12 @@ tags:
 Agentry ships a small MCP server, named **`agentry`**, so a chat can look things up in the wrapper that
 runs it: "how is AGN-12 going?", "why did the verification of orchestration 7 fail?". The CLI starts it
 from a config file Agentry hands over with `--mcp-config`, and it calls the REST API at
-`AGENTRY_API_URL`. Its tools reach the CLI as `mcp__agentry__<tool>`. This slice has read tools only;
-the spec is [plans/agentry-mcp-server.md](plans/agentry-mcp-server.md) (CW-6, epic
+`AGENTRY_API_URL`. Its tools reach the CLI as `mcp__agentry__<tool>`: 15 read tools (CW-6) and nine
+write tools (CW-17, [below](#write-tools)). The spec is [plans/agentry-mcp-server.md](plans/agentry-mcp-server.md) (CW-6, epic
 [plans/agentry-assistant.md](plans/agentry-assistant.md)).
 
-It adds no screen and no route. Nothing in the UI hands it to a chat yet: the assistant's entry
-(CW-18) will, through the helper below.
+It adds no screen and no route. The Agentry assistant's chat ([agentry-assistant.md](agentry-assistant.md))
+is what hands it to a chat, through the helper below.
 
 ## The one rule
 
@@ -30,8 +30,8 @@ Anthropic package. The MCP protocol (JSON-RPC 2.0 over stdio, one message per li
 
 ## The tools
 
-Every tool is a `GET` on a route that already exists. The package's HTTP client refuses any other
-method, so the server cannot write by construction.
+Every read tool is a `GET` on a route that already exists. The client's `request` and `get` refuse any
+other method; the write tools below go through `send`, the only way to write.
 
 | Tool | Returns |
 |---|---|
@@ -62,6 +62,28 @@ Rules for every tool:
 - A 4xx or 5xx is an error result with the status and the route's `error` text; there is no retry. A
   `401` says that the API is guarded and the chat has no token. A network error names the URL tried.
 - Each request times out after `REQUEST_TIMEOUT_MS` (15 s).
+
+## Write tools
+
+`packages/mcp/src/write-tools.ts`, listed after the read tools (24 in all). Each calls one route that
+already exists, with the chat's bearer token, resolves a key such as `AGN-12` through
+`GET /work-items/by-key/:key`, and returns only the key, id, status and run or chat id. The input schema
+stays strict and now accepts lists and nested objects (labels, criteria).
+
+| Tool | Route |
+|---|---|
+| `create_work_item` | `POST /projects/:id/work-items` (backlog unless a status other than done is given) |
+| `update_work_item` | `PATCH /work-items/:id` |
+| `move_work_item` | `POST /work-items/:id/move`; refuses `done` before any request |
+| `comment_work_item` | `POST /work-items/:id/comments` |
+| `retry_flow_run` | `POST /flow-runs/:id/retry` |
+| `retry_orchestration_task` | `POST /orchestrations/:id/tasks/:taskId/retry` |
+| `start_chat` | `POST /chats` with only `prompt`, `cwd` (the project's path) and `model` |
+| `accept_assistant_proposal`, `discard_assistant_proposal` | `POST /assistant/proposals/:id/accept` and `/discard` |
+
+None deletes, stops, skips or restores, and none can widen a chat. The write names are in `names.ts`
+(`isAgentryMcpWriteTool`) and are never in `--allowedTools`: the CLI asks the person before each call,
+and Agentry shows no "always allow" for them ([agentry-assistant.md](agentry-assistant.md#writes-confirmed-one-by-one-option-a)).
 
 ## Environment
 
@@ -108,7 +130,7 @@ The helper returns what a caller spreads into `runtime.start`:
 | `--tools=` | empty: no built-in tool |
 | `--setting-sources=` | empty: no user, project or local settings, rules, hooks or servers |
 | `--allowedTools` | the read tools by name, and nothing else |
-| `--permission-mode` | `dontAsk`: what is not allowed is denied, not prompted |
+| `--permission-mode` | `dontAsk`: what is not allowed is denied, not prompted. The helper's default; the assistant chat overrides it with the CLI's default mode and host prompts so a write can be confirmed |
 | `--add-dir` | none |
 
 **Checked with the real CLI (2.1.286):**
@@ -134,8 +156,7 @@ The helper returns what a caller spreads into `runtime.start`:
 
 ## Not here
 
-Write tools and how writes are confirmed (CW-17, [plans/assistant-write-tools.md](plans/assistant-write-tools.md)),
-the assistant's entry, route and prompt (CW-18), and listing `agentry` in the person's MCP settings: it
-is internal and given only to chats Agentry confines.
+Stop, skip, rerun and delete tools, moving a card to Done, and listing `agentry` in the person's MCP
+settings: it is internal and given only to chats Agentry confines.
 
-Related: [[plans/agentry-mcp-server.md]], [[plans/agentry-assistant.md]], [[chat-environment.md]], [[assistant.md]], [[desktop.md]]
+Related: [[plans/agentry-mcp-server.md]], [[plans/agentry-assistant.md]], [[agentry-assistant.md]], [[chat-environment.md]], [[assistant.md]], [[desktop.md]]

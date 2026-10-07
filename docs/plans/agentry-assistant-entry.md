@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T23:30:00Z
-updated_at: 2026-09-28T23:30:00Z
+updated_at: 2026-10-07T16:00:00Z
 tags:
     - plan
     - spec
@@ -8,11 +8,11 @@ tags:
     - mcp
     - chats
     - design-system
-    - proposed
+    - built
 ---
 # Spec: a global entry for the Agentry assistant (CW-18)
 
-This spec covers story CW-18 of the epic CW-12, "The Agentry assistant". Status: **refined, not built**.
+This spec covers story CW-18 of the epic CW-12, "The Agentry assistant". Status: **built** on `feat/assistant-entry` (2026-10-07), not merged to `main` yet; see [Outcome](#outcome).
 It builds the "The chat" bullet of [agentry-assistant.md](agentry-assistant.md), which records the
 owner's decisions of 2026-09-28. Those decisions are not reopened here: Agentry ships its own MCP server, passed with
 `--mcp-config` and `--strict-mcp-config`, and the assistant can write.
@@ -221,6 +221,23 @@ Record the answers in [agentry-assistant.md](agentry-assistant.md) before buildi
 - `Read`/`Grep`/`Glob` over project files and read access to `docs/`: add them later, deliberately.
 - Changing the project assistant, the wizard, "Sugerir tareas" or the resources with AI.
 
+## Outcome
+
+Built on `feat/assistant-entry` as the umbrella CW-30's first story; feature doc
+[agentry-assistant.md](../agentry-assistant.md).
+
+- **Where it lives (criterion 1):** candidate 1: a sidebar item "Asistente" / "Assistant" with the
+  sparkle under Inicio, the first row of the Más sheet on a phone (the tab bar keeps four tabs) and an
+  always-present palette action. The screen is `/assistant`.
+- **Core and API:** `POST /assistant/chats` (`StartAgentryAssistantChatRequest`: prompt, project,
+  model), `Chat.agentryAssistant` as the marker, and `assistantChatOptions`, applied at every process
+  of the chat. Read tools under `dontAsk` at first; CW-17 then changed it.
+- **Web:** the entry, four read-only starters that only fill the composer, the context chip, the model
+  picker defaulting to `sonnet`, and the greeting drawn from i18n with no model turn.
+- **Left open:** the entry composer has no energy border (it hands over to the chat's composer at
+  once), the phone header shows a back arrow where the reference has only the title, and the layout
+  was not checked in a browser.
+
 ## Related
 
-[[plans/agentry-assistant.md]] · [[plans/assistant-write-tools.md]] · [[assistant.md]] · [[chat-environment.md]] · [[plans/chat-api-token.md]] · [[design-system.md]] · [[phone-layout.md]]
+[[agentry-assistant.md]] · [[plans/agentry-assistant.md]] · [[plans/assistant-write-tools.md]] · [[assistant.md]] · [[chat-environment.md]] · [[plans/chat-api-token.md]] · [[design-system.md]] · [[phone-layout.md]]
