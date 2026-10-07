@@ -203,3 +203,18 @@ test('it will not start without the API address, and it cannot be moved to anoth
     cleanup(core);
   }
 });
+
+test('an assistant chat thinks at the effort recommended for an assistant, or at the level asked for, and refuses one that is not a level', async () => {
+  const { config, spawns } = setup();
+  const core = new Core(config);
+  try {
+    core.runtime.apiUrl = API;
+    const recommended = await core.startAgentryAssistantChat({ prompt: 'hi' });
+    assert.match(await spawned(spawns, (l) => l.includes(recommended.id), 'the chat to spawn'), /--effort medium/);
+    const chosen = await core.startAgentryAssistantChat({ prompt: 'hi', effort: 'low' });
+    assert.match(await spawned(spawns, (l) => l.includes(chosen.id), 'the chat to spawn'), /--effort low/);
+    await assert.rejects(core.startAgentryAssistantChat({ prompt: 'hi', effort: 'extreme' }), /effort must be one of/);
+  } finally {
+    cleanup(core);
+  }
+});

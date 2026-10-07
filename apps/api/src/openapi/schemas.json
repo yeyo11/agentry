@@ -18715,6 +18715,10 @@
       "model": {
         "type": "string",
         "description": "Defaults to `sonnet`"
+      },
+      "effort": {
+        "$ref": "#/components/schemas/Effort",
+        "description": "Unset is the recommendation for the model as an assistant (`recommendedEffort(model, 'assistant')`)"
       }
     },
     "required": [

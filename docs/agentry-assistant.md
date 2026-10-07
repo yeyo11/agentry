@@ -35,8 +35,9 @@ which the CLI starts from the `--mcp-config` file Agentry wrote. No SDK, no call
 - **Entry screen:** the greeting, optional live figures (chats running, orchestrations, today's
   spend), four read-only starter chips and a composer. A starter only fills the composer. The project
   in scope shows as "Con <project> como contexto" and an × clears it. The model picker defaults to
-  `sonnet`. The send button is the screen's one gradient; there is no illustration.
-- **Starting:** `POST /assistant/chats` with `{ prompt, projectId?, model? }` and nothing else a chat
+  `sonnet`, and the effort picker beside it to the level recommended for an assistant (`medium` on
+  Opus 5.5 and Sonnet 5.5, see [effort.md](effort.md)). The send button is the screen's one gradient; there is no illustration.
+- **Starting:** `POST /assistant/chats` with `{ prompt, projectId?, model?, effort? }` and nothing else a chat
   could choose. The language comes from `Accept-Language`. The web then opens `/chats/:id`.
 - **Greeting:** drawn by `ChatView` from i18n (`AssistantGreeting`) for every chat that carries the
   `agentryAssistant` marker, including one reopened from Chats. It costs no tokens.

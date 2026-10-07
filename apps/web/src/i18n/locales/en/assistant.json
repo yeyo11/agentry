@@ -169,6 +169,7 @@
     "context": "With {{name}} as context",
     "clearContext": "Remove the context",
     "model": "Model",
+    "effort": "Effort",
     "startError": "The assistant could not start",
     "greeting": "Hi, I'm the Agentry assistant. Ask me about your projects, tasks, orchestrations or usage."
   }

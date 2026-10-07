@@ -851,6 +851,8 @@ export interface StartAgentryAssistantChatRequest {
   projectId?: string | null;
   /** Defaults to `sonnet` */
   model?: string;
+  /** Unset is the recommendation for the model as an assistant (`recommendedEffort(model, 'assistant')`) */
+  effort?: Effort;
 }
 
 /** A page of a chat's transcript with the chat it belongs to. */

@@ -13,6 +13,7 @@ import { AgentryAssistant } from '../src/pages/agentry-assistant/Entry';
 import { AssistantGreeting } from '../src/pages/agentry-assistant/Greeting';
 import { AGENTRY_ASSISTANT_PATH, STARTERS } from '../src/pages/agentry-assistant/model';
 import { ProjectScopeProvider } from '../src/lib/project-scope';
+import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
 
 // CW-18, the web part: the entry screen, its greeting and starters, the greeting of an assistant's
 // chat, and the call that starts it.
@@ -21,7 +22,9 @@ const wrap = (children: ReactNode) =>
   renderToStaticMarkup(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter>
-        <ProjectScopeProvider>{children}</ProjectScopeProvider>
+        <TooltipProvider>
+          <ProjectScopeProvider>{children}</ProjectScopeProvider>
+        </TooltipProvider>
       </MemoryRouter>
     </QueryClientProvider>,
   );

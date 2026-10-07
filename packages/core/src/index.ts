@@ -1440,9 +1440,11 @@ export class Core {
     if (body.model !== undefined && body.model !== null && (typeof body.model !== 'string' || !body.model.trim())) throw new AssistantError('model must be text', 400);
     const project = typeof body.projectId === 'string' && body.projectId ? this.projectStore.get(body.projectId) : null;
     if (typeof body.projectId === 'string' && body.projectId && !project) throw new AssistantError('project not found', 404);
+    if (body.effort !== undefined && body.effort !== null && !isEffort(body.effort)) throw new AssistantError('effort must be one of low, medium, high, xhigh, max', 400);
     const model = typeof body.model === 'string' ? body.model.trim() : DEFAULT_ASSISTANT_MODEL;
+    const effort = resolveEffort('assistant', model, typeof body.effort === 'string' ? body.effort : undefined);
     return this.chats.create(
-      { prompt, model, provider: LEGACY_PROVIDER, ...(project && existsSync(project.path) ? { cwd: project.path } : {}) },
+      { prompt, model, ...effortOption(effort), provider: LEGACY_PROVIDER, ...(project && existsSync(project.path) ? { cwd: project.path } : {}) },
       undefined,
       { projectId: project?.id ?? null, language },
     );

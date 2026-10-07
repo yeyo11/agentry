@@ -169,6 +169,7 @@
     "context": "Con {{name}} como contexto",
     "clearContext": "Quitar el contexto",
     "model": "Modelo",
+    "effort": "Esfuerzo",
     "startError": "No se ha podido iniciar el asistente",
     "greeting": "Hola, soy el asistente de Agentry. Pregúntame por tus proyectos, tareas, orquestaciones o el uso."
   }

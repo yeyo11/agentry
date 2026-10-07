@@ -3,8 +3,10 @@ import { ArrowUp, FolderGit2, X } from 'lucide-react';
 import { useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import type { Effort } from '@agentry/shared';
 import { api, useOverview } from '../../api';
 import { AssistantMark } from '../../components/assistant/run';
+import { EffortPicker } from '../../components/EffortPicker';
 import { ModelPicker } from '../../components/ModelPicker';
 import { PhoneHeader } from '../../components/shell/PhoneHeader';
 import { useUsageNow } from '../../lib/usage-now';
@@ -32,11 +34,12 @@ export function AgentryAssistant() {
   const context = dropped ? null : project;
   const [prompt, setPrompt] = useState('');
   const [model, setModel] = useState(DEFAULT_MODEL);
+  const [effort, setEffort] = useState<Effort | ''>('');
   const box = useRef<HTMLTextAreaElement>(null);
   usePageTitle(t('agentry.title'));
 
   const start = useMutation({
-    mutationFn: () => api.startAgentryAssistantChat({ prompt: prompt.trim(), projectId: context?.id ?? null, model }),
+    mutationFn: () => api.startAgentryAssistantChat({ prompt: prompt.trim(), projectId: context?.id ?? null, model, ...(effort ? { effort } : {}) }),
     onSuccess: (chat) => navigate(`/chats/${chat.id}`),
   });
   const ready = prompt.trim().length > 0 && !start.isPending;
@@ -124,6 +127,7 @@ export function AgentryAssistant() {
               </span>
             )}
             <ModelPicker value={model} onChange={setModel} aria-label={t('agentry.model')} />
+            <EffortPicker value={effort} onChange={setEffort} model={model} use="assistant" aria-label={t('agentry.effort')} />
           </div>
         </div>
       </section>
