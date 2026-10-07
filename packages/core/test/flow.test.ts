@@ -5,13 +5,14 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { Worker } from 'node:worker_threads';
-import { flowRunStatus, MAX_CONTINUATIONS, type DecisionAnswer, type DecisionPointId, type AgentryEvent, type AgentryLanguage, type FlowRunDocument, type FlowMemoryProposal, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@agentry/shared';
+import { flowRunStatus, MAX_CONTINUATIONS, type DecisionAnswer, type DecisionPointId, type AgentryEvent, type AgentryLanguage, type FlowRunDocument, type FlowMemoryProposal, type FlowStage, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@agentry/shared';
 import { Db, FLOW_CAUSE_SCHEMA_VERSION, FLOW_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import { DecisionEngine, type DecisionProvider, type DecisionRequest, type ProviderResult } from '../src/decisions/engine.ts';
 import { decisionPoint } from '../src/decisions/points.ts';
 import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS } from '../src/decisions/settings.ts';
 import { EventBus } from '../src/events.ts';
 import { checkCommandRules, FlowError, flowPrompt, flowResultSchema, flowTitle, FlowService, parseFlowRunQuery, parseResult, stageRules, testCommandRules, testCommands, type FlowChatResult, type FlowLaunch, type FlowPullRequests } from '../src/flow.ts';
+import { RECORDS_IN_ENGLISH } from '../src/team.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { FRONTEND, PASTED_NOTE, REAL_VERIFICATION, SCOPE_AND_COMPLETION, THINK_THROUGH, UNATTENDED } from '../src/prompt-rules.ts';
 import { tempConfig } from './helpers.ts';
@@ -185,6 +186,27 @@ test("a run's chat is titled in the person's language: the member's role, the it
   // A role of the person's own reads as they named it, in either language
   assert.equal(flowTitle({ key: 'AGN-5', title: 'y' }, 'data-steward', 'es'), 'Data Steward · AGN-5 · y');
   assert.equal(flowTitle({ key: 'AGN-6', title: 'z' }, 'architect', 'es'), 'Arquitecto · AGN-6 · z');
+});
+
+test('every stage tells the member to record in English, while a Spanish run keeps its title in Spanish', () => {
+  const s = setup();
+  const it = s.items.create('p1', { title: 'Arreglar el carrito', status: 'todo', acceptanceCriteria: [{ text: 'Las líneas sobreviven a una recarga' }] });
+  const member = { agent: 'qa', role: 'qa', model: 'sonnet', responsibility: 'Verifies' };
+  const stages: Array<[FlowStage, WorkItemStatus]> = [['refine', 'backlog'], ['refine', 'todo'], ['work', 'in_progress'], ['verify', 'in_review']];
+  for (const [stage, column] of stages) {
+    for (const language of ['en', 'es'] as const) {
+      const prompt = flowPrompt(stage, column, it, member, { documentsPath: 'docs', rejection: null, language });
+      const lines = prompt.split('\n');
+      assert.equal(lines[0], flowTitle(it, member.role, language), `${stage} from ${column} in ${language} keeps its title first`);
+      assert.ok(lines.includes(RECORDS_IN_ENGLISH), `${stage} from ${column} in ${language} carries the English rule`);
+      // Right before the closing line, so it is the last thing read before the result is written
+      assert.equal(lines.at(-3), RECORDS_IN_ENGLISH);
+      assert.match(lines.at(-1) ?? '', /^End with the structured result/);
+    }
+  }
+  assert.equal(flowPrompt('work', 'in_progress', { ...it, key: 'AGN-9' }, { ...member, role: 'developer' }, { documentsPath: 'docs', rejection: null, language: 'es' }).split('\n')[0], 'Desarrollador · AGN-9 · Arreglar el carrito');
+  // The person's words are quoted as written, next to the rule that the record is English
+  assert.match(flowPrompt('verify', 'in_review', it, member, { documentsPath: 'docs', rejection: null, language: 'es' }), /Las líneas sobreviven a una recarga/);
 });
 
 test('refining in backlog completes the item, comments, and moves it to todo, where it costs no second run', async () => {

@@ -730,6 +730,17 @@ button.workitem-mrow-more-link {
   font-weight: 400;
 }
 
+/* QA's words on a sent-back card: its whole summary, which can run to a page, so a card keeps
+   three lines of it and the rest is on the item */
+.workitem-strip-verb.is-quote {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
 .workitem-strip time {
   flex-shrink: 0;
   font-family: var(--mono);

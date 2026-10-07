@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T22:00:00Z
-updated_at: 2026-09-28T22:00:00Z
+updated_at: 2026-09-29T21:00:00Z
 tags:
     - spec
     - design-system
@@ -9,12 +9,13 @@ tags:
     - flow
     - board
     - CW-20
-    - proposed
+    - built
 ---
 # Spec (CW-20): check on real data what the design audit could not
 
-Status: **refined**, ready to start. This is a verification card: its output is a comparison, the
-fixes or cards it leads to, and an updated audit document. It adds no feature.
+Status: **checked** on 2026-09-29. The comparison, its three fixes and the two cards it leads to are
+in [the audit](project-ecosystem-audit.md#orchestration-7-on-real-data-cw-20). This is a
+verification card: it adds no feature.
 
 ## Why
 

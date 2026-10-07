@@ -17,6 +17,7 @@ import { RelaunchPanel } from '../components/RelaunchPanel';
 import { Stepper, type StepItem } from '@agentry/ui/components/Stepper';
 import { useToast } from '@agentry/ui/components/Toast';
 import { RichText } from '@agentry/chat-ui/components/Transcript';
+import { TimingsPanel } from '../components/TimingsPanel';
 import { FailedByChecksNotice, VerificationCard } from '../components/VerificationCard';
 import { WorkflowCard as WorkflowRunCard } from '../components/WorkflowCard';
 import { IntegrationChanges, TaskWork } from '../components/observe/Work';
@@ -1015,6 +1016,8 @@ export function OrchestrationDetail() {
           <FinalResult orch={orch} />
         </>
       )}
+
+      <TimingsPanel orch={orch} />
 
       {inspectedTask && <TaskWork orch={orch} task={inspectedTask} onClose={() => setParam('task', null)} />}
     </div>

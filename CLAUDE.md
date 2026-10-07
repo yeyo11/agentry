@@ -46,6 +46,9 @@ orchestration launched on the other one does not show up in yours.
 
 - TypeScript strict, no `any`, respect `noUncheckedIndexedAccess`.
 - Comments explain why, not what.
+- Everything technical is English (code, comments, docs, commits, prompts, agent files, and what
+  agents record: journal, memory, acceptance criteria, QA notes), even when the work item or chat is
+  Spanish; UI copy goes through i18n, and a person's own words stay as written.
 - Settings-shaped documents go in JSON files; streams and accumulating records go in SQLite
   (`packages/core/src/db.ts`), as rows.
 - UI controls come from `packages/ui/src/components/controls`, never native select/checkbox/range.

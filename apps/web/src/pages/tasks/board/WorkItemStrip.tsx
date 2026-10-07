@@ -341,7 +341,15 @@ export function WorkItemStrip({
       body = (
         <>
           <StripActorMark actor={{ kind: 'role', role: strip.role }} />
-          <span className="workitem-strip-verb is-quiet">{strip.quote ? t('strip.quote', { text: strip.quote }) : t('strip.sentBackBy', { role: roleName(strip.role) })}</span>
+          {/* QA's words are its whole summary, often a long paragraph: the card shows their start
+              and the item or a hover the rest (CW-20, on claude-wrapper's real data) */}
+          {strip.quote ? (
+            <span className="workitem-strip-verb is-quiet is-quote" title={strip.quote}>
+              {t('strip.quote', { text: strip.quote })}
+            </span>
+          ) : (
+            <span className="workitem-strip-verb is-quiet">{t('strip.sentBackBy', { role: roleName(strip.role) })}</span>
+          )}
         </>
       );
       break;

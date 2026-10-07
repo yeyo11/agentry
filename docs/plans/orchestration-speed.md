@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T13:57:10.191855215Z
-updated_at: 2026-09-30T06:00:00Z
+updated_at: 2026-10-07T12:00:00Z
 tags:
     - plan
     - orchestration
@@ -83,6 +83,103 @@ does not retry a failure that has a `cause`, so the task stays failed.
 
 Waiting for a free slot only mattered in `roadmap-completion` and `post-roadmap` (19 and 17 tasks).
 It does not matter in the recent graphs.
+
+### Measured with the script
+
+Run on 2026-09-29 with `node scripts/orchestration-timings.mjs` (workstream A, built by CW-13), against
+this branch's API over a copy of the dev server's data (the dev server itself ran a build without
+`GET /orchestrations/:id/timings`). Everything below is the script's output, unedited.
+
+#### Phase split (15 finished graphs with 5 tasks or more)
+
+| Phase | Hours | Share |
+|---|---|---|
+| Tasks (first task started → last task ended) | 30.3 | 77 % |
+| After the tasks: integration, verification, synthesis | 9.3 | 23 % |
+
+#### After the tasks
+
+| Graph | After the tasks | Agentry running checks | Fixer |
+|---|---|---|---|
+| ecosystem-design | 51 min | ~45 | 5 |
+| ecosystem-gaps | 87 min | ~18 | 17 (2 attempts) |
+| ecosystem-review-fixes | 49 min | ~36 | 12 |
+| ecosystem-assistant | 51 min | ~31 | 19 |
+| ecosystem-team | 67 min | ~33 | 33 |
+| ecosystem-board-web | 75 min | ~52 | 22 (3 attempts) |
+| tunnel | 41 min | ~32 | 7 |
+| ecosystem-fixes | 11 min | ~10 | – |
+| ecosystem-foundation | 11 min | ~10 | – |
+| mobile-pwa | 9 min | ~8 | – |
+| ui-redesign | 21 min | ~7 | 7 |
+| post-roadmap | 37 min | ~6 | 9 |
+| roadmap-completion | 39 min | – | – |
+| chats-redesign | 7 min | – | – |
+| agentry-live-events-notifications-execution-detail | 1 min | – | – |
+
+#### Critical paths
+
+| Graph | Critical path | Length | Tasks phase | Parallelism |
+|---|---|---|---|---|
+| ecosystem-design | design-core → design-shell → design-project → design-review → design-docs | 254 min | 254 min | 1.0 |
+| ecosystem-gaps | gaps-shared → gaps-flow → gaps-web-team → gaps-review → gaps-docs | 152 min | 152 min | 1.4 |
+| ecosystem-review-fixes | fix-core-data → fix-links-api → fix-web-tasks → review-5 → docs-5 | 117 min | 117 min | 1.6 |
+| ecosystem-assistant | assistant-types → assistant-core → web-suggest → web-review-4 → docs-4 | 97 min | 97 min | 1.4 |
+| ecosystem-team | team-types → documents-core → flow-core → web-memory-docs → web-review-3 → docs-3 | 115 min | 115 min | 1.4 |
+| ecosystem-board-web | web-foundation → web-item → web-review → docs-web | 203 min | 203 min | 1.0 |
+| tunnel | types → settings-layers → tunnel-core → push-current-url → web → docs | 187 min | 187 min | 0.6 |
+| ecosystem-fixes | proto-fix-system → proto-fix-desktop → proto-fix-review → docs-fixes | 108 min | 108 min | 1.6 |
+| ecosystem-foundation | proto-foundation → proto-team → proto-index → docs | 85 min | 85 min | 2.1 |
+| mobile-pwa | push-model → push-server → push-web → docs | 61 min | 61 min | 1.4 |
+| ui-redesign | live-activity → lists → media → docs | 87 min | 87 min | 2.4 |
+| post-roadmap | types → scheduling-2 → web-schedules-usage-2 → media → docs | 89 min | 89 min | 2.1 |
+| roadmap-completion | types → connectors → web-orchestration-v2 → docs | 91 min | 91 min | 3.0 |
+| chats-redesign | model → chats-core → context-cost → web-home-nav → a11y → verification | 112 min | 112 min | 1.4 |
+| agentry-live-events-notifications-execution-detail | event-feed → notifications → integrate | 63 min | 63 min | 1.3 |
+
+#### Limit waits over 5 min
+
+| Task | Waited | From | Why |
+|---|---|---|---|
+| ecosystem-design:design-project | 94 min | 2026-09-28 14:02 | You've hit your session limit · resets 8:10pm (Europe/Madrid) |
+| ecosystem-board-web:web-foundation | 87 min | 2026-09-27 11:57 | You've hit your session limit · resets 3:10pm (Europe/Madrid) |
+| tunnel:web | 87 min | 2026-09-27 11:57 | You've hit your session limit · resets 3:10pm (Europe/Madrid) |
+
+#### Inside the workers (138 chats, 42.3 h)
+
+| Where | Hours | Share | Note |
+|---|---|---|---|
+| Model turns | 22.8 | 54 % | 14,868 turns, median 2.9 s |
+| `pnpm test` | 5.7 | 14 % | 405 calls |
+| Type check | 1.6 | 4 % | 474 calls |
+| `until … sleep` / `while sleep` polling | 2.6 | 6 % | 156 calls |
+| Bash reads (`grep`, `sed`, `cat`…) | 1.4 | 3 % | 6,830 calls |
+
+13 graphs were stored before some figures were recorded; a `~` figure is derived from the others. Missing: ecosystem-design (verification.runs); ecosystem-gaps (verification.runs); ecosystem-review-fixes (verification.runs); ecosystem-assistant (integration.startedAt, verification.runs); ecosystem-team (verification.runs); ecosystem-board-web (verification.runs); tunnel (verification.runs); ecosystem-fixes (integration.startedAt, verification.startedAt, verification.runs, verification.fixes); ecosystem-foundation (integration.startedAt, verification.startedAt, verification.runs, verification.fixes); mobile-pwa (integration.startedAt, verification.startedAt, verification.runs, verification.fixes); ui-redesign (verification.runs); post-roadmap (verification.runs); agentry-live-events-notifications-execution-detail (integration.startedAt, synthesisStartedAt).
+
+How it differs from the hand-built tables above:
+
+- **Graphs added since.** 15 graphs now have five tasks or more (`ecosystem-design` finished after
+  the tables were made), so the phase split is 30.3 h / 9.3 h instead of 26.1 h / 7.0 h. The share
+  barely moves: 77 % / 23 % against 79 % / 21 %.
+- **The after-the-tasks table matches.** For the five graphs the plan listed, the time after the
+  tasks, the checks and the fixer come out exactly as built by hand (75/52/22 with 3 attempts,
+  67/33/33, 51/31/19, 49/36/12, 41/32/7). Those graphs were stored before check runs were kept, so
+  "Agentry running checks" is derived (`~`): the time after the tasks less the fixer, integration
+  and synthesis, which is how the hand-built figure was reached. A graph run from now on reports
+  every run instead.
+- **Parallelism is now exact, and lower where a limit hit.** It is the sum of every task's
+  executions over the tasks phase, so the 87 min `tunnel:web` and `web-foundation` spent waiting on
+  the session limit no longer count as work: `tunnel` reads 0.6 and `ecosystem-board-web` 1.0,
+  against 1.4–1.6 from task spans.
+- **The limit waits are found by their error**, not by title: the three the plan names are there
+  (`tunnel:web`, `ecosystem-board-web:web-foundation`, and `ecosystem-design:design-project`, which
+  ran after the tables were made). `web-projects` hit the limit too, but was resumed within 5 min.
+- **Inside the workers** counts the task chats of the graphs above (138, 42.3 h, against 144 and
+  41.9 h over every graph). A model turn now runs from the entry before an assistant entry to it,
+  so 22.8 h against 26.5 h. The patterns are wider for tests (`node --test`, `vitest`, filtered
+  runs: 405 calls, 5.7 h) and narrower for type checks (`tsc` and `pnpm typecheck` only: 474 calls,
+  1.6 h), and polling now includes `sleep N; tail …` loops (2.6 h).
 
 ## The work
 

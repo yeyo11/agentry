@@ -1,4 +1,4 @@
-import type { ChatWorkflow, ChatWorkflowAgent, Orchestration, OrchestrationStatus, OrchestrationTaskState, OrchestrationTaskSummary } from '@agentry/shared';
+import type { ChatWorkflow, ChatWorkflowAgent, Orchestration, OrchestrationStatus, OrchestrationTaskSpec, OrchestrationTaskState, OrchestrationTaskSummary } from '@agentry/shared';
 import { currentStepIndex, type ProgressCounts, type StepState } from '@agentry/ui/lib/progress';
 import { pullRequestHeld } from './orchestration-v2';
 
@@ -47,6 +47,72 @@ export function layerTasks<T extends Pick<OrchestrationTaskState, 'id' | 'depend
     (layers[level] ??= []).push(task);
   }
   return Array.from(layers, (layer) => layer ?? []);
+}
+
+/** The longest chain of a graph: how many tasks run one after another, and which. */
+export interface GraphShape {
+  stages: number;
+  chain: string[];
+}
+
+/**
+ * The longest dependency chain of a graph being written, which is what sets how long its task
+ * phase lasts. Pure and total: the form holds half-typed graphs, so unknown dependencies and empty
+ * ids are ignored, and a cycle (which only the core reports) gives null instead of looping.
+ *
+ * On a tie the chain ends at the task listed first, and each step back takes the first dependency
+ * in `dependsOn` order, so the same graph always reads the same way.
+ */
+export function graphShape(tasks: ReadonlyArray<Pick<OrchestrationTaskSpec, 'id' | 'dependsOn'>>): GraphShape | null {
+  const named = tasks.filter((t) => t.id);
+  const byId = new Map<string, Pick<OrchestrationTaskSpec, 'id' | 'dependsOn'>>();
+  // A duplicate id is validateGraph's to report; the first one is the task the others point at
+  for (const task of named) if (!byId.has(task.id)) byId.set(task.id, task);
+  if (byId.size === 0) return null;
+
+  const depth = new Map<string, number>();
+  const via = new Map<string, string | null>();
+  const visiting = new Set<string>();
+  let cyclic = false;
+  const depthOf = (id: string): number => {
+    const known = depth.get(id);
+    if (known !== undefined) return known;
+    if (visiting.has(id)) {
+      cyclic = true;
+      return 0;
+    }
+    visiting.add(id);
+    let best = 0;
+    let from: string | null = null;
+    for (const dep of byId.get(id)?.dependsOn ?? []) {
+      if (!byId.has(dep)) continue;
+      const d = depthOf(dep);
+      // Strictly greater keeps the first dependency on a tie
+      if (d > best) {
+        best = d;
+        from = dep;
+      }
+    }
+    visiting.delete(id);
+    depth.set(id, best + 1);
+    via.set(id, from);
+    return best + 1;
+  };
+
+  let end: string | null = null;
+  let stages = 0;
+  for (const id of byId.keys()) {
+    const d = depthOf(id);
+    if (d > stages) {
+      stages = d;
+      end = id;
+    }
+  }
+  if (cyclic || end === null) return null;
+
+  const chain: string[] = [];
+  for (let at: string | null = end; at !== null; at = via.get(at) ?? null) chain.unshift(at);
+  return { stages, chain };
 }
 
 /** The stage a task is in, from 1, out of the graph's stages; null when the graph has no such task. */

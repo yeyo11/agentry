@@ -20,7 +20,7 @@ import { Collapsible, Combobox, NumberInput, Select, Switch } from '@agentry/ui/
 import { ICON } from '@agentry/ui/components/icons';
 import { WorkItemStatusIcon } from '../components/work-item-icons';
 import { WorkItemKeyLink } from '../components/WorkItemKeyLink';
-import { DefaultLimits, VerificationFields } from '../components/GraphExtras';
+import { DefaultLimits, GraphShape, VerificationFields } from '../components/GraphExtras';
 import { ListToolbar } from '@agentry/ui/components/ListToolbar';
 import { BoardStatusBadge } from '../components/OrchestrationBoard';
 import { SaveTemplateDialog, TemplatesList } from '../components/OrchestrationTemplates';
@@ -408,6 +408,7 @@ function CreateForm({ onDone, template, boardDraft }: { onDone: () => void; temp
                 />
               ))}
             </div>
+            <GraphShape tasks={tasks} />
             {localError && (
               <div className="alert alert-warn" role="alert">
                 {localError}

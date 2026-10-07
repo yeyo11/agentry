@@ -66,3 +66,49 @@ test('the pipeline fills each bar by how far its step got and says its state in 
   assert.match(html, /1\/1 · step\.done/);
   assert.match(html, /aria-current="step"[^>]*>(?:(?!<\/button>).)*Stage 2/);
 });
+
+// ---------- the longest-chain hint of the launch form and the graph editor (docs/orchestrations.md) ----------
+
+const spec = (id: string, dependsOn: string[] = []) => ({ id, name: id, prompt: 'do it', dependsOn });
+const plain = (html: string) => html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
+// Loaded here, after the tests above: they read untranslated keys, and loading i18n translates them
+const load = async () => {
+  const [{ default: i18n, setLanguage }, { GraphShape }] = await Promise.all([import('../src/i18n'), import('../src/components/GraphExtras')]);
+  setLanguage('en');
+  await i18n.changeLanguage('en');
+  return { i18n, GraphShape };
+};
+
+test('a graph of four stages shows its count and its chain, and no notice', async () => {
+  const { GraphShape } = await load();
+  const html = renderToStaticMarkup(<GraphShape tasks={[spec('core'), spec('web', ['core']), spec('review', ['web']), spec('docs', ['review']), spec('extra')]} />);
+  assert.match(plain(html), /4 stages in series · core → web → review → docs/);
+  // A label on a span without a role is prohibited ARIA; the chain is a named group
+  assert.match(html, /role="group" aria-label="Longest chain of dependencies"/);
+  assert.doesNotMatch(html, /alert-info/);
+  assert.doesNotMatch(html, /role="alert"/);
+});
+
+test('a graph of five stages adds a neutral notice that never reads as an alert', async () => {
+  const { GraphShape } = await load();
+  const tasks = [spec('types'), spec('core', ['types']), spec('web', ['core']), spec('web-review', ['web']), spec('docs', ['web-review'])];
+  const html = renderToStaticMarkup(<GraphShape tasks={tasks} />);
+  assert.match(plain(html), /5 stages in series · types → core → web → web-review → docs/);
+  assert.match(html, /class="alert alert-info graph-shape-note" role="note"/);
+  assert.doesNotMatch(html, /role="alert"|alert-warn|alert-bad/);
+});
+
+test('a graph of one stage reads as all in parallel, in Spanish too', async () => {
+  const { i18n, GraphShape } = await load();
+  await i18n.changeLanguage('es');
+  const html = renderToStaticMarkup(<GraphShape tasks={[spec('a'), spec('b')]} />);
+  assert.match(plain(html), /1 etapa, todo en paralelo/);
+  assert.doesNotMatch(html, /→/);
+  await i18n.changeLanguage('en');
+});
+
+test('a cycle or an empty graph renders nothing', async () => {
+  const { GraphShape } = await load();
+  assert.equal(renderToStaticMarkup(<GraphShape tasks={[spec('a', ['b']), spec('b', ['a'])]} />), '');
+  assert.equal(renderToStaticMarkup(<GraphShape tasks={[]} />), '');
+});

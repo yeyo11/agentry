@@ -14,7 +14,7 @@ import i18n from '../src/i18n';
 import { FailedFlowRunNote } from '../src/pages/chat/FailedFlowRun';
 import { Activity } from '../src/pages/tasks/item/Activity';
 import type { ItemActions } from '../src/pages/tasks/item/hooks';
-import { chatlessRuns } from '../src/pages/tasks/item/model';
+import { chatlessRuns, failedRunOfChat, linkEntries } from '../src/pages/tasks/item/model';
 import { latestOfStep, RunLinkRow } from '../src/pages/tasks/item/RunLink';
 import { WaitingBadge } from '../src/pages/tasks/item/Waiting';
 
@@ -154,7 +154,7 @@ test("the item's links name each flow run by its role and stage, with its outcom
   assert.match(oldest ?? '', /failed/);
   assert.match(oldest ?? '', /It was cut off 3 times/);
   assert.match(oldest ?? '', /did not move the task/);
-  assert.doesNotMatch(oldest ?? '', /cut off by a restart/, 'with a cause to word it by, the raw text stays on the chat');
+  assert.match(oldest ?? '', /cut off by a restart \(restarts: 2 of 2\)/, 'the raw error under the worded reason, as design-system.md tells a failure (CW-20)');
   assert.match(html, /role-avatar/, "a run's link leads with the role's squircle");
   assert.match(html, /badge-bad/);
   assert.match(html, /badge-ok/);
@@ -181,6 +181,53 @@ test("a run that failed before its chat started is on the item's links, with its
   assert.doesNotMatch(waiting, /did not move/);
 });
 
+test("every run in a chat the Developer continued is a link of its own, so a failure a retry covered stays on the item", () => {
+  // CW-25 on claude-wrapper: four Developer runs in one chat, two of them failed (no account, then a
+  // rate limit) and each retried in that same chat; the item drew only the newest, which passed
+  const at = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+  const dev = (over: Partial<FlowRun>) => run({ role: 'developer', agent: 'developer', stage: 'work', step: 'work', column: 'in_progress', chatId: 'c-dev', ...over });
+  const runs = [
+    dev({ id: 'r4', retryOf: 'r3', queuedAt: at(10) }),
+    dev({ id: 'r3', outcome: 'failed', cause: 'rate-limit', error: 'the account hit its rate limit', queuedAt: at(20) }),
+    run({ id: 'r-qa', chatId: 'c-qa', outcome: 'rejected', queuedAt: at(30) }),
+    dev({ id: 'r2', retryOf: 'r1', queuedAt: at(40) }),
+    dev({ id: 'r1', outcome: 'failed', cause: 'no-account', error: 'no account with quota left', queuedAt: at(50) }),
+    run({ id: 'r-queued', chatId: null, state: 'queued', outcome: null, startedAt: null, endedAt: null, queuedAt: at(5) }),
+  ];
+  const links = [link('c-dev', { teamRole: 'developer', role: 'work', createdAt: at(50) }), link('c-qa', { createdAt: at(30) }), link('c-person', { teamRole: null, createdAt: at(60) })];
+  const entries = linkEntries(links, runs);
+  assert.deepEqual(
+    entries.map((e) => e.run?.id ?? e.link?.id),
+    ['r-queued', 'r4', 'r3', 'r-qa', 'r2', 'r1', 'l-c-person'],
+    'each run once, newest first, and a chat no run stands for as its own link',
+  );
+  assert.ok(entries.filter((e) => e.run?.chatId === 'c-dev').every((e) => e.link?.chatId === 'c-dev'), "the chat's runs all open that chat");
+  const failedRows = entries.flatMap((e) => (e.run?.outcome === 'failed' ? [render(<RunLinkRow link={e.link} run={e.run} item={item} chat={undefined} latest={latestOfStep(e.run, runs)} />)] : []));
+  assert.equal(failedRows.length, 2, 'both failures are drawn');
+  for (const html of failedRows) {
+    assert.match(text(html), /Developer implements AGN-26/);
+    assert.match(html, /badge-bad/);
+    assert.match(html, /href="\/chats\/c-dev"/, "a failed run's link opens the chat it ran in");
+  }
+  assert.match(text(failedRows[0] ?? ''), /reached its usage limit/);
+  assert.match(text(failedRows[1] ?? ''), /No account had quota left/);
+});
+
+test("a flow's chat link waits for the item's runs rather than flashing as a plain chat", () => {
+  // On claude-wrapper the links first read "idle" with no squircle, then turned into their runs
+  const links = [link('c-dev', { teamRole: 'developer' }), link('c-person', { teamRole: null, createdAt: '2026-09-27T09:00:00.000Z' })];
+  assert.deepEqual(
+    linkEntries(links, null).map((e) => e.link?.id),
+    ['l-c-person'],
+    "until the runs answer, only the links no flow run stands for",
+  );
+  assert.deepEqual(
+    linkEntries(links, []).map((e) => e.link?.id),
+    ['l-c-dev', 'l-c-person'],
+    'once they answered, a flow chat with no run on record is still drawn, as a chat',
+  );
+});
+
 test("the activity draws a failed run's comment from the run, names each flow comment's run, and tells the retry", () => {
   const html = render(<Activity item={item} actions={noActions} person="yeyo" />);
   const said = text(html);
@@ -200,4 +247,37 @@ test('an item the flow left to the person says "waits for you" beside its column
   assert.match(text(render(<WaitingBadge item={{ waiting: 'approval' }} />)), /waits for you/);
   assert.match(render(<WaitingBadge item={{ waiting: 'bounces' }} />), /badge-idle/);
   assert.equal(render(<WaitingBadge item={{ waiting: null }} />), '');
+});
+
+test("a chat whose failed run was retried in that same chat still carries the banner, telling the retry without a link back to itself", () => {
+  // Chat d170a6 on claude-wrapper: the Developer's no-account failure and its passing retry share one
+  // chat, and the banner read only the newest run, so the chat never said a run in it had failed (CW-20)
+  const retry = { id: 'r-retry', state: 'ended', outcome: 'passed', chatId: 'c-dev', queuedAt: new Date(Date.now() - 1_200_000).toISOString(), endedAt: new Date(Date.now() - 600_000).toISOString() };
+  const shared = run({ id: 'r-fail', chatId: 'c-dev', outcome: 'failed', cause: 'no-account', error: 'no account with quota left', retriedBy: retry as FlowRun['retriedBy'] });
+  const newest = run({ id: 'r-retry', chatId: 'c-dev', retryOf: 'r-fail' });
+  assert.equal(failedRunOfChat('c-dev', [newest, shared]), shared, "the chat's newest failed run, though a later one passed");
+  assert.equal(failedRunOfChat('c-dev', [newest]), null, 'no banner for a chat none of whose runs failed');
+  assert.equal(failedRunOfChat('c-other', [newest, shared]), null);
+  const html = render(<FailedFlowRunNote item={item} run={shared} chatId="c-dev" />);
+  const said = text(html);
+  assert.match(said, /No account had quota left/);
+  assert.match(said, /Retried: passed/);
+  assert.doesNotMatch(said, /in chat/, 'the retry ran in the chat being read');
+  assert.doesNotMatch(html, /href="\/chats\/c-dev"/, 'no way back into the chat already open');
+});
+
+test("a failed run's link offers Retry while it can be queued again, and once retried says what the retry did", () => {
+  // work-items.md, "Links": the reason, then "Reintentar" while it can be retried, or what the retry did (CW-20)
+  const open = render(<RunLinkRow link={link('c-old')} run={{ ...failed, retryable: true }} item={item} chat={undefined} latest />);
+  assert.match(open, /work-link-retry/);
+  assert.match(text(open), /Retry/);
+  const stuck = render(<RunLinkRow link={link('c-old')} run={{ ...failed, retryable: false }} item={item} chat={undefined} latest />);
+  assert.doesNotMatch(stuck, /work-link-retry/, 'the item left the run column, so nothing can be retried');
+  const retriedBy = { id: 'r-new', state: 'ended', outcome: 'passed', chatId: 'c-new', queuedAt: passed.queuedAt, endedAt: passed.endedAt } as FlowRun['retriedBy'];
+  const done = text(render(<RunLinkRow link={link('c-old')} run={{ ...failed, retriedBy, retryable: false }} item={item} chat={undefined} latest={false} />));
+  assert.match(done, /Retried: passed/);
+  assert.match(done, /in chat c-new/);
+  assert.doesNotMatch(done, /Retry\b(?!ed)/, 'a run retried once offers no second retry');
+  const passedRow = render(<RunLinkRow link={link('c-new')} run={passed} item={item} chat={undefined} latest />);
+  assert.doesNotMatch(passedRow, /work-link-retr/, 'a run that passed says nothing of retries');
 });
