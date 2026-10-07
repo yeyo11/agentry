@@ -54,7 +54,6 @@ const exec = (start: number, end: number | null, outcome: ExecutionOutcome | nul
   error,
   permissionMode: 'acceptEdits',
   model: null,
-  account: null,
   maxBudgetUsd: null,
   costUsd: null,
   tokens: emptyTokenUsage(),
