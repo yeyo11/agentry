@@ -2042,3 +2042,44 @@ a.cont-from:hover { color: var(--fg); }
 .m-screen .work-link-retry { min-height: var(--touch); }
 .workitem-strip-verb.is-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
 
+
+/* ---------- 22. The Agentry assistant (CW-30): the entry screen, its starters and the host prompt of a write ---------- */
+.as-hello { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.as-hello .ai-mark { width: 40px; height: 40px; border-radius: var(--r-lg); }
+.as-hello .ai-mark .ico { width: 20px; height: 20px; }
+.as-hello-sub { margin: 0; font-size: 15px; line-height: 1.5; color: var(--fg-2); }
+.as-figures { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-family: var(--mono); font-size: 12px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.as-figures b { font-weight: 500; color: var(--fg-2); }
+.as-figures .live { color: var(--live); }
+.as-starters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.as-starter { display: flex; align-items: flex-start; gap: 12px; min-height: 64px; padding: 12px 14px; border-radius: var(--r-lg); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg); text-align: left; cursor: pointer; }
+.as-starter:hover { border-color: var(--line-3); background: var(--bg-3); }
+.as-starter .ico { margin-top: 1px; color: var(--fg-3); }
+.as-starter-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto; }
+.as-starter-title { font-size: 14px; font-weight: 500; }
+.as-starter-ask { font-size: 12.5px; line-height: 1.45; color: var(--fg-2); }
+.as-starter .badge { align-self: flex-start; }
+.as-context { gap: 4px; padding-right: 4px; }
+.as-context .x { display: inline-grid; padding: 0; border: 0; background: transparent; cursor: pointer; place-items: center; width: 20px; height: 20px; border-radius: var(--r-full); color: var(--fg-3); }
+.as-context .x:hover { background: var(--bg-4); color: var(--fg); }
+.cell > .ai-mark { width: 28px; height: 28px; border-radius: var(--r-sm); }
+.as-greeting { display: flex; align-items: flex-start; gap: 12px; color: var(--fg-2); font-size: 14px; line-height: 1.6; }
+.m-screen .as-starters { grid-template-columns: minmax(0, 1fr); }
+.m-screen .as-starter { min-height: var(--touch); }
+.m-screen .as-context { min-width: 0; flex: 1 1 auto; }
+.m-screen .as-context .x { width: var(--touch); height: var(--touch); margin: -8px -4px -8px 0; }
+
+/* A write the assistant asks for: the app's .permission, drawn in the reference for the first time */
+.permission { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: var(--r-lg); border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line)); background: color-mix(in srgb, var(--warn) 10%, var(--bg-2)); }
+.permission-head { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.permission-head .ico { color: var(--warn); }
+.permission-head strong { font-weight: 600; }
+.permission-head .badge { margin-left: auto; }
+.permission-input { margin: 0; padding: 8px 10px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.6; background: var(--bg-1); border-radius: var(--r-sm); white-space: pre; color: var(--fg); }
+.permission-input .k { color: var(--fg-3); }
+.permission-note { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--fg-2); }
+.permission-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.permission-reason { flex: 1 1 200px; min-width: 0; }
+.m-screen .permission-actions .btn { flex: 1 1 0; justify-content: center; }
+.m-screen .permission-reason { flex-basis: 100%; }
+/* ---------- end of The Agentry assistant ---------- */
