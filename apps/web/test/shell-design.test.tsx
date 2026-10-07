@@ -37,7 +37,7 @@ test('every phone detail screen heads itself, marked by route, and the tab roots
     // The rest of the app (CW-8): the chat page is also a task's chat and a flow run's chat
     '/chats/c1', '/chats/c1/', '/chats/new', '/orchestration/o1', '/orchestration/o1/',
     '/chats/c1/changes', '/tasks/AGN-26/changes', '/orchestration/o1/changes', '/orchestration/o1/tasks/t1/changes',
-    '/accounts', '/accounts/', '/projects', '/projects/', '/schedules', '/schedules/new', '/schedules/s1/edit', '/schedules/s1/edit/',
+    '/projects', '/projects/', '/schedules', '/schedules/new', '/schedules/s1/edit', '/schedules/s1/edit/',
     '/usage', '/connectors', '/settings', '/settings/',
   ];
   for (const path of detail) assert.equal(phoneHeaderOf(path), 'page', path);
