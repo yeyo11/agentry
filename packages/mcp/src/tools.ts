@@ -1,30 +1,30 @@
 import type { ApiClient, Query } from './client.ts';
 import { ApiError } from './client.ts';
-import type { AgentryMcpReadToolName } from './names.ts';
+import type { AgentryMcpToolName } from './names.ts';
 import type { Property, Schema } from './schema.ts';
 
 export interface Tool {
-  name: AgentryMcpReadToolName;
+  name: AgentryMcpToolName;
   description: string;
   inputSchema: Schema;
   run(args: Record<string, unknown>, api: ApiClient): Promise<unknown>;
 }
 
-const str = (description: string, extra: Partial<Property> = {}): Property => ({ type: 'string', description, ...extra });
-const int = (description: string, minimum: number, maximum?: number): Property => ({
+export const str = (description: string, extra: Partial<Property> = {}): Property => ({ type: 'string', description, ...extra });
+export const int = (description: string, minimum: number, maximum?: number): Property => ({
   type: 'integer',
   description,
   minimum,
   ...(maximum === undefined ? {} : { maximum }),
 });
-const schema = (properties: Record<string, Property>, required: string[] = []): Schema => ({
+export const schema = (properties: Record<string, Property>, required: string[] = []): Schema => ({
   type: 'object',
   properties,
   ...(required.length ? { required } : {}),
   additionalProperties: false,
 });
 
-const text = (args: Record<string, unknown>, key: string): string | undefined => {
+export const text = (args: Record<string, unknown>, key: string): string | undefined => {
   const value = args[key];
   return typeof value === 'string' ? value : undefined;
 };
@@ -32,13 +32,13 @@ const num = (args: Record<string, unknown>, key: string): number | undefined => 
   const value = args[key];
   return typeof value === 'number' ? value : undefined;
 };
-const need = (args: Record<string, unknown>, key: string): string => text(args, key) ?? '';
+export const need = (args: Record<string, unknown>, key: string): string => text(args, key) ?? '';
 /** One path segment: an id or a key from the model must never reach past its own place in the path */
-const seg = (value: string): string => encodeURIComponent(value);
+export const seg = (value: string): string => encodeURIComponent(value);
 
-const KEY = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
+export const KEY = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
 const PAGE_MAX = 50;
-const projectId = str('The project id, as list_projects gives it', { minLength: 1, maxLength: 200 });
+export const projectId = str('The project id, as list_projects gives it', { minLength: 1, maxLength: 200 });
 
 const BOARD_FILTERS = ['status', 'type', 'priority', 'labels', 'assignee'] as const;
 

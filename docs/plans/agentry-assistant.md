@@ -1,17 +1,16 @@
 ---
 created_at: 2026-09-28T20:30:00Z
-updated_at: 2026-10-02T17:00:00Z
+updated_at: 2026-10-07T16:00:00Z
 tags:
     - plan
     - assistant
     - mcp
     - chats
-    - proposed
+    - built
 ---
 # Plan: the Agentry assistant, a chat that knows Agentry
 
-Status: **proposed, next after the ecosystem**, which merged into main in #118 on 2026-09-28. Decided
-with the owner on 2026-09-28.
+Status: **built** on `feat/assistant-entry` (umbrella CW-30, GitHub issue #189; not yet merged to `main`). Decided with the owner on 2026-09-28, open questions answered on 2026-10-02. Built: the MCP server with its read tools (CW-6, #171), the per-chat API token (CW-10), the global entry and confined chat (CW-18) and the confirmed write tools (CW-17). Feature doc: [agentry-assistant.md](../agentry-assistant.md). See [Delivery](#delivery-the-umbrella-cw-30).
 
 ## What the owner asked for
 
@@ -70,12 +69,54 @@ Decided on 2026-10-02: option A (the owner said to follow the recommendations). 
 
 ## Open questions
 
-- Where the entry lives in the design system (a new primary surface needs the designer; the gradient
-  budget allows two per screen).
-- The model by default (`sonnet` like the project assistant, or the person's default).
-- Whether the project assistant's page becomes a mode of this assistant or stays as it is.
-- Which write tools ship first (suggested: work items and comments, retry of a failed run or task).
+- ~~Where the entry lives~~: a sidebar item under Inicio and the first row of the Más sheet on a phone, plus the palette action (2026-10-07).
+- ~~The model by default~~: `sonnet` (2026-10-02, see [agentry-assistant-entry.md](agentry-assistant-entry.md)).
+- ~~Whether the project assistant's page becomes a mode~~: it stays as it is in CW-18; folding the
+  two is a follow-up (2026-10-02).
+- ~~Which write tools ship first~~: the nine of [assistant-write-tools.md](assistant-write-tools.md).
+
+## Delivery: the umbrella CW-30
+
+CW-30 (from GitHub issue #189) is the umbrella of this plan on the board. It replaces the earlier epic
+key CW-12, which the story specs still name. It ships no code of its own: it is done when its stories
+are built and the whole journey below works on `main`.
+
+| Story | Spec | State (2026-10-07) |
+|---|---|---|
+| CW-6, MCP server and read tools | [agentry-mcp-server.md](agentry-mcp-server.md) | built (#171), feature doc [../agentry-mcp-server.md](../agentry-mcp-server.md) |
+| CW-10, per-chat API token | [chat-api-token.md](chat-api-token.md) | built |
+| CW-18, global entry, confined chat, greeting, `POST /assistant/chats` | [agentry-assistant-entry.md](agentry-assistant-entry.md) | built on `feat/assistant-entry`: `/assistant`, sidebar, Más sheet and palette entries, the confined chat, the greeting from i18n; the design reference is drawn in `docs/design-system` |
+| CW-17, write tools confirmed by the CLI's permission prompt (option A) | [assistant-write-tools.md](assistant-write-tools.md) | built on `feat/assistant-entry`: nine write tools, each a host permission prompt, an agent actor of role `assistant` with the cause `chat.api-write` |
+
+**Order.** CW-18 first, then CW-17. CW-18 builds the assistant chat's argv in one function, with the
+read tools under `dontAsk`; CW-17 extends that same function (`default` + `permissionPrompts: 'host'`)
+and adds the write tools, so it cannot land first. Inside CW-18, the design reference (its criterion 1)
+comes before the web work; the core and the API can be built in parallel with the fake CLI.
+
+**The journey that closes the umbrella.** With no project in the store, a person opens the assistant
+from its entry, sees the greeting, asks "how is CW-x going?" and gets an answer from a read tool with
+no prompt. They ask it to create a work item, see the host permission prompt titled in their
+language, allow it, and the item exists with an agent actor of role `assistant` and a chat cause; the
+same request denied changes nothing. The chat is listed in Chats by its first prompt, counts in Usage,
+and keeps its confinement when resumed, forked or picked up after a restart.
+
+**Not in the umbrella** (each becomes its own card when the owner wants it):
+
+- stop tools for a flow run or an orchestration task, `rerun`, `skip`, `retry-clean`, deleting a work
+  item, and moving a card to Done (CW-17's open questions);
+- `Read`/`Grep`/`Glob` over project files and read access to `docs/`;
+- the project assistant's page as a mode of this assistant;
+- live figures in the greeting, if CW-18 leaves them out;
+- the decision-engine point for the assistant's tool choice ([decision-engine.md](decision-engine.md)).
+
+## Outcome
+
+Built on `feat/assistant-entry` (CW-18, then CW-17), not merged to `main` yet. The journey above works
+as specified except for what stays open: the permission prompt still shows the raw tool name and the
+entry's copy still says it only reads; no end-to-end run through the real CLI was made; the entry was
+not compared with the reference in a browser. The e2e runs once on the merged branch. See
+[agentry-assistant.md](../agentry-assistant.md#known-gaps).
 
 ## Related
 
-[[assistant.md]] · [[plans/agentry-mcp-server.md]] · [[plans/assistant-write-tools.md]] · [[plans/agentry-assistant-entry.md]] · [[plans/chat-api-token.md]] · [[chat-environment.md]] · [[plans/project-ecosystem.md]] · [[plans/orchestration-speed.md]] · [[decisions/decision-engine.md]]
+[[agentry-assistant.md]] · [[assistant.md]] · [[plans/agentry-mcp-server.md]] · [[plans/assistant-write-tools.md]] · [[plans/agentry-assistant-entry.md]] · [[plans/chat-api-token.md]] · [[chat-environment.md]] · [[plans/project-ecosystem.md]] · [[plans/orchestration-speed.md]] · [[decisions/decision-engine.md]]

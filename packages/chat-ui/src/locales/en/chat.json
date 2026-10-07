@@ -400,7 +400,47 @@
     "planFeedback": "What should change? (sent to the model)",
     "otherAnswerTo": "Other answer to: {{question}}",
     "whatItWantsToRun": "What it wants to run",
-    "plan": "Plan"
+    "plan": "Plan",
+    "writes": {
+      "types": {
+        "epic": "epic",
+        "story": "story",
+        "task": "task",
+        "bug": "bug"
+      },
+      "statuses": {
+        "backlog": "Backlog",
+        "todo": "To do",
+        "in_progress": "In progress",
+        "in_review": "In review",
+        "done": "Done"
+      },
+      "priorities": {
+        "low": "low",
+        "medium": "medium",
+        "high": "high",
+        "urgent": "urgent"
+      },
+      "anItem": "a work item",
+      "createWorkItem": "Create {{type}}: {{title}}",
+      "updateWorkItem": "Change {{item}}",
+      "moveWorkItem": "Move {{item}} to {{status}}",
+      "commentWorkItem": "Comment on {{item}}",
+      "retryFlowRun": "Run a failed flow run again",
+      "retryOrchestrationTask": "Run a failed orchestration task again",
+      "startChat": "Start a chat",
+      "acceptProposal": "Accept a proposal of the assistant",
+      "discardProposal": "Discard a proposal of the assistant",
+      "fields": {
+        "title": "Title: {{value}}",
+        "status": "Column: {{value}}",
+        "priority": "Priority: {{value}}",
+        "type": "Type: {{value}}",
+        "labels": "Labels: {{value}}",
+        "criteria": "Acceptance criteria: {{value}}",
+        "model": "Model: {{value}}"
+      }
+    }
   },
   "find": {
     "button": "Search",

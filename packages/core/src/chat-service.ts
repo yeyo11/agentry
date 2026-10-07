@@ -8,6 +8,7 @@ import {
   TranscriptSearch,
   TRANSCRIPT_PAGE_MAX,
   type AgentTranscript,
+  type AgentryAssistantMarker,
   type BackgroundTaskOutput,
   type CancelCommandRequest,
   type CancelCommandResult,
@@ -461,6 +462,7 @@ export class ChatService {
       derivedFrom: runtime?.derivedFrom ?? null,
       continuedFrom: runtime?.continuedFrom ?? null,
       continuedIn: runtime?.continuedIn ?? null,
+      ...(runtime?.agentryAssistant ? { agentryAssistant: runtime.agentryAssistant } : {}),
       ...(runtime && this.deps.runtime.atLimit(runtime.id) ? { atLimit: true } : {}),
       state,
       control,
@@ -712,9 +714,13 @@ export class ChatService {
    * its output can arrive: for a caller that has to tie the chat to something before it answers.
    */
   async create(
-    request: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'systemPromptSnapshot' | 'uploads' | 'keepAlive' | 'confine'> & { policy?: ToolPolicy },
+    body: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'systemPromptSnapshot' | 'uploads' | 'keepAlive' | 'confine'> & { policy?: ToolPolicy },
     onStart?: (chat: ChatRuntime) => void,
+    /** Only the core's own entry for the Agentry assistant passes it: a body sent to the API never makes a chat one */
+    agentryAssistant?: AgentryAssistantMarker,
   ): Promise<ChatSummary> {
+    const { agentryAssistant: _sent, ...rest } = body as typeof body & { agentryAssistant?: unknown };
+    const request = agentryAssistant ? { ...rest, agentryAssistant } : rest;
     // Refused before anything is resolved or spawned: no driver is a 400, and so is a gate
     const provider = this.gate(request.provider, request, { schema: request.jsonSchema !== undefined && request.jsonSchema !== null, worktree: request.worktree !== undefined });
     // `--agents` reads the file it is given: only the definitions the flow writes, never a path a
@@ -1035,6 +1041,8 @@ export class ChatService {
     const deps = this.moveDeps();
     const runtime = this.deps.runtime.get(id);
     if (!runtime) throw new Error('chat not found');
+    // Its confinement is made of Claude Code's flags: another provider would run it unconfined
+    if (runtime.agentryAssistant) throw new MoveRefusal('the Agentry assistant runs on Claude Code only');
     if (runtime.continuedIn) throw new MoveRefusal('this chat was already continued on another provider');
     // A live chat that has not reached its limit is working: moving it would throw away a running turn
     if (runtime.pid !== null && !this.deps.runtime.atLimit(id)) throw new MoveRefusal('this chat is working and has not reached a limit');

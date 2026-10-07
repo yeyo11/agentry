@@ -1,6 +1,7 @@
 import { ApiError, type ApiClient } from './client.ts';
 import { validate } from './schema.ts';
 import { TOOLS, type Tool } from './tools.ts';
+import { WRITE_TOOLS } from './write-tools.ts';
 
 /** Longest tool result, in characters, before it is cut */
 export const RESULT_MAX_CHARS = 50_000;
@@ -33,7 +34,7 @@ export function render(value: unknown): string {
 }
 
 export function createServer(options: { api: ApiClient; version: string; tools?: readonly Tool[] }): Server {
-  const tools = options.tools ?? TOOLS;
+  const tools = options.tools ?? [...TOOLS, ...WRITE_TOOLS];
   const byName = new Map(tools.map((tool) => [tool.name as string, tool]));
 
   async function call(params: unknown): Promise<unknown> {

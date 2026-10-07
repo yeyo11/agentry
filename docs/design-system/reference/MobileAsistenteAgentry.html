@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Asistente de Agentry (móvil)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:var(--bg)}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)})}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
+<div class="app m-screen " data-theme="dark">
+<header class="m-head"><h1 class="t-h1 grow">Asistente</h1></header>
+<div class="m-body" style="gap: 18px; padding-top: 8px">
+<div class="as-hello"><span class="ai-mark" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg></span><h2 class="t-h1">Hola, soy el asistente de Agentry</h2><p class="as-hello-sub" style="font-size: 14px">Te cuento cómo van tus proyectos, tareas, orquestaciones y el uso. Antes de escribir nada, te pido permiso.</p><p class="as-figures" aria-label="Ahora mismo"><span><b class="live">2</b> chats en marcha</span><span><b class="live">1</b> orquestación</span><span>hoy <b>3,41 US$</b></span></p></div>
+<section class="col" style="gap: 8px" aria-label="Para empezar"><span class="t-label">Para empezar</span>
+<div class="as-starters"><button type="button" class="as-starter"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM8.5 12l2.5 2.5 4.5-5"></path></svg><span class="as-starter-body"><span class="as-starter-title">Estado del tablero</span><span class="as-starter-ask">«¿Cómo va AGN-12?»</span></span></button><button type="button" class="as-starter"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V11M10 20V4M16 20v-6M3 20.5h18"></path></svg><span class="as-starter-body"><span class="as-starter-title">Uso y límites</span><span class="as-starter-ask">«¿Cuánto he gastado hoy?»</span></span></button><button type="button" class="as-starter"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"></path></svg><span class="as-starter-body"><span class="as-starter-title">Crear una tarea</span><span class="as-starter-ask">«Crea una tarea en AGN para revisar los límites de las columnas»</span></span><span class="badge b-warn">pide permiso</span></button></div></section>
+</div>
+<div class="col" style="flex-shrink: 0; padding: 10px 12px 12px; gap: 10px; border-top: 1px solid var(--line); background: var(--bg-1)">
+<div class="row" style="gap: 6px"><span class="chip as-context"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span class="ellipsis">Con claude-wrapper como contexto</span><button type="button" class="x" aria-label="Quitar el contexto"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button></span><button type="button" class="chip">Sonnet</button></div>
+<div class="card row" style="border-radius: var(--r-xl); padding: 4px; gap: 4px; align-items: flex-end">
+<label class="grow" style="display: flex; min-height: var(--touch); align-items: center; padding-left: 12px"><textarea rows="1" placeholder="Pregunta o pide algo…" aria-label="Mensaje" style="width: 100%; border: 0; outline: 0; resize: none; background: transparent; font-size: 16px; padding: 0"></textarea></label>
+<button type="button" class="btn btn-primary btn-icon" aria-label="Enviar" style="width: var(--touch); height: var(--touch); border-radius: 50%"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width: 2.2"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+</div>
+<nav class="app tabbar" data-theme="dark" aria-label="Principal" style="width: 390px">
+<a href="MobileInicio.html" class="tab-m"><span class="pill"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg></span>Inicio</a>
+<a href="MobileChats.html" class="tab-m"><span class="pill"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg></span>Chats</a>
+<a href="MobileOrquestaciones.html" class="tab-m"><span class="pill"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span>Orquestaciones<span class="count-pill live">1</span></a>
+<a href="MobileMas.html" class="tab-m on"><span class="pill"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></span>Más</a>
+</nav>
+</div>
+<script>t()</script>
+</body></html>

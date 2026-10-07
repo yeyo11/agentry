@@ -3,8 +3,8 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { AGENTRY_MCP_READ_TOOLS, AGENTRY_MCP_SERVER } from '@agentry/mcp';
-import type { McpSelection, PermissionMode } from '@agentry/shared';
-import { writeMcpConfig } from './chat-tools.ts';
+import type { ChatToolConfig, McpSelection, PermissionMode } from '@agentry/shared';
+import { writeMcpConfigSync } from './chat-tools.ts';
 import type { ChatConfinement } from './live-chat.ts';
 
 /** The absolute path of the bundled `mcp.mjs`. The API bundle and the desktop app set it; from source it is unset. */
@@ -68,10 +68,15 @@ export function mcpCommand(env: NodeJS.ProcessEnv, execPath: string): { command:
  * it expands them, and passes the rest of its environment through as well.
  */
 export async function agentryMcp(opts: AgentryMcpOptions): Promise<AgentryMcpLaunch> {
+  return agentryMcpSync(opts);
+}
+
+/** `agentryMcp` for a caller that cannot wait: a process about to spawn. */
+export function agentryMcpSync(opts: AgentryMcpOptions): AgentryMcpLaunch {
   if (!opts.apiUrl) throw new Error("Agentry's MCP server needs the API's address, and the API is not listening yet");
   const env = opts.env ?? process.env;
   const { command, args } = mcpCommand(env, opts.execPath ?? process.execPath);
-  const config = await writeMcpConfig(opts.dataDir, {
+  const config = writeMcpConfigSync(opts.dataDir, {
     [AGENTRY_MCP_SERVER]: {
       command,
       args,
@@ -90,5 +95,42 @@ export async function agentryMcp(opts: AgentryMcpOptions): Promise<AgentryMcpLau
     allowedTools: [...AGENTRY_MCP_READ_TOOLS],
     confine: { tools: [], settingSources: [] },
     permissionMode: 'dontAsk',
+  };
+}
+
+/**
+ * What an Agentry assistant chat runs with, whoever asked for what. This is the one place its argv
+ * is decided: the core applies it again at every process of the chat (start, resume, fork, a turn
+ * after a restart), over whatever the request or the stored record held. The write tools extend
+ * this function, and nothing else.
+ */
+export interface AssistantChatOptions {
+  appendSystemPrompt: string;
+  allowedTools: string[];
+  disallowedTools: string[];
+  toolConfig: ChatToolConfig;
+  mcp: AgentryMcpLaunch['mcp'];
+  confine: ChatConfinement;
+  permissionMode: PermissionMode;
+  permissionPrompts: 'none' | 'host';
+  /** No uploads directory: the chat reads nothing the person attached to other chats */
+  uploads: false;
+  keepAlive: true;
+}
+
+export function assistantChatOptions(launch: AgentryMcpLaunch, guide: string): AssistantChatOptions {
+  return {
+    appendSystemPrompt: guide,
+    allowedTools: launch.allowedTools,
+    disallowedTools: [],
+    toolConfig: { preset: null, allowedTools: launch.allowedTools, disallowedTools: [], mcp: launch.mcp },
+    mcp: launch.mcp,
+    confine: launch.confine,
+    // `manual` (the CLI's default), never acceptEdits, auto or bypassPermissions: the read tools are allowed ahead of time and no write tool
+    // is, so the CLI asks the person (a host prompt) before it runs one. Under dontAsk a write would be denied outright
+    permissionMode: 'manual',
+    permissionPrompts: 'host',
+    uploads: false,
+    keepAlive: true,
   };
 }

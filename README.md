@@ -719,6 +719,7 @@ resources or the board. One run at a time per project and kind (409 otherwise). 
 | GET | `/assistant/runs/:runId` | A run with every proposal it made |
 | POST | `/assistant/runs/:runId/stop` | Stop a running run; it proposes nothing |
 | POST | `/assistant/proposals/:proposalId/accept` | `{ member?, resource?, workItem? }` — write the proposal with the person's edits: a member through the team, a resource saved at its scope, a work item created in Backlog with its reason as first comment |
+| POST | `/assistant/chats` | `{ prompt, projectId?, model?, effort? }` — start a chat with the Agentry assistant (`sonnet` by default, at the effort recommended for an assistant unless one is given), answering what `POST /chats` answers: 201 with the chat; 400 for an empty prompt, 404 for an unknown project. The chat reads Agentry only through its own MCP server (`agentry`), has no built-in tool, no settings file and no uploads directory, and keeps that confinement when resumed, forked or picked up after a restart. The project is context, not a requirement; the answer language is read from `Accept-Language` |
 | POST | `/assistant/proposals/:proposalId/discard` | Discard a pending proposal; nothing is written |
 | POST | `/assistant/proposals/:proposalId/restore` | Restore a discarded proposal |
 

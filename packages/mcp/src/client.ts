@@ -3,7 +3,7 @@ export const REQUEST_TIMEOUT_MS = 15_000;
 
 export type FetchLike = (
   url: string,
-  init: { method: string; headers: Record<string, string>; signal: AbortSignal },
+  init: { method: string; headers: Record<string, string>; signal: AbortSignal; body?: string },
 ) => Promise<{ status: number; text(): Promise<string> }>;
 
 export interface ClientOptions {
@@ -29,6 +29,8 @@ export type Query = Record<string, string | number | boolean | undefined>;
 
 export interface ApiClient {
   get(path: string, query?: Query): Promise<unknown>;
+  /** The write tools' only way out: a POST or a PATCH with a JSON body, nothing else */
+  send(method: 'POST' | 'PATCH', path: string, body?: unknown): Promise<unknown>;
   /** Kept so the refusal belongs to the client, not to whoever calls it */
   request(method: string, path: string, query?: Query): Promise<unknown>;
 }
@@ -45,7 +47,7 @@ export function apiUrlFrom(value: string | undefined): string | null {
   }
 }
 
-/** Read-only by construction: it sends GET and refuses every other method before a request is made */
+/** `request` and `get` only read; `send` is the one way to write, and only POST and PATCH: nothing here deletes */
 export function createClient(options: ClientOptions): ApiClient {
   const doFetch: FetchLike = options.fetch ?? ((url, init) => fetch(url, init));
   const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
@@ -54,8 +56,7 @@ export function createClient(options: ClientOptions): ApiClient {
   // Informational: it grants nothing, it lets a later audit attribute the call
   if (options.chatId) headers['x-agentry-chat'] = options.chatId;
 
-  async function request(method: string, path: string, query: Query = {}): Promise<unknown> {
-    if (method !== 'GET') throw new ApiError(`this server only reads: ${method} is refused`, null);
+  async function perform(method: string, path: string, query: Query = {}, body?: unknown): Promise<unknown> {
     const search = new URLSearchParams();
     for (const [key, value] of Object.entries(query)) if (value !== undefined && value !== '') search.set(key, String(value));
     const qs = search.toString();
@@ -63,7 +64,12 @@ export function createClient(options: ClientOptions): ApiClient {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await doFetch(url, { method, headers, signal: controller.signal });
+      const res = await doFetch(url, {
+        method,
+        headers: body === undefined ? headers : { ...headers, 'content-type': 'application/json' },
+        signal: controller.signal,
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
       const text = await res.text();
       if (res.status >= 200 && res.status < 300) {
         try {
@@ -82,7 +88,11 @@ export function createClient(options: ClientOptions): ApiClient {
     }
   }
 
-  return { request, get: (path, query) => request('GET', path, query) };
+  return {
+    request: (method, path, query) => (method === 'GET' ? perform(method, path, query) : Promise.reject(new ApiError(`this server only reads: ${method} is refused`, null))),
+    get: (path, query) => perform('GET', path, query),
+    send: (method, path, body) => perform(method, path, {}, body ?? {}),
+  };
 }
 
 function failure(status: number, body: string): string {

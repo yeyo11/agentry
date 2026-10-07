@@ -131,5 +131,46 @@
     "propose": "Pedir propuesta",
     "body": "Cada miembro es un agente del CLI en <code>.claude/agents/</code>, con su rol, su modelo y lo que puede escribir, así que también trabaja desde la terminal. El asistente lee el proyecto y te propone un equipo; tú lo aceptas miembro a miembro.",
     "foot": "Proponer abre un chat del CLI que solo lee el proyecto"
+  },
+  "agentry": {
+    "title": "Asistente",
+    "hello": "Hola, soy el asistente de Agentry",
+    "sub": "Te cuento cómo van tus proyectos, tareas, orquestaciones y el uso.",
+    "figures": "Ahora mismo",
+    "chatsWorking_one": "{{n}} chat en marcha",
+    "chatsWorking_other": "{{n}} chats en marcha",
+    "orchestrations_one": "{{n}} orquestación",
+    "orchestrations_other": "{{n}} orquestaciones",
+    "today": "hoy {{cost}}",
+    "starters": "Para empezar",
+    "starter": {
+      "board": {
+        "title": "Estado del tablero",
+        "ask": "¿Qué hay abierto en el tablero y qué está bloqueado?"
+      },
+      "orchestrations": {
+        "title": "Orquestaciones",
+        "ask": "¿Por qué ha fallado la última orquestación?"
+      },
+      "team": {
+        "title": "Flujo y equipo",
+        "ask": "¿Qué tarjetas está esperando el equipo?"
+      },
+      "usage": {
+        "title": "Uso y límites",
+        "ask": "¿Cuánto he gastado hoy?"
+      }
+    },
+    "message": "Mensaje",
+    "placeholder": "Pregunta por proyectos, tareas, orquestaciones o uso…",
+    "placeholderShort": "Pregunta algo…",
+    "send": "Enviar",
+    "starting": "Iniciando…",
+    "context": "Con {{name}} como contexto",
+    "clearContext": "Quitar el contexto",
+    "model": "Modelo",
+    "effort": "Esfuerzo",
+    "startError": "No se ha podido iniciar el asistente",
+    "greeting": "Hola, soy el asistente de Agentry. Pregúntame por tus proyectos, tareas, orquestaciones o el uso."
   }
 }
