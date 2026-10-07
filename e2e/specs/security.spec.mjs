@@ -18,7 +18,11 @@ export default async ({ page, api, check }) => {
 
   await page.goto('/settings', 800);
   await page.eval(`localStorage.removeItem(${JSON.stringify(TOKEN_KEY)}); return true`);
-  await page.goto('/settings?tab=security', 1500);
+  // The audit log loads on its own and the other cards wait for /security/auth, so both are waited
+  // for: a fixed pause read a blank or half-drawn tab on a loaded machine
+  const securityTab = `const t=document.querySelector('[role=tabpanel]')?.innerText??'';return t.includes('Audit log')&&t.includes('Read-only mode')`;
+  await page.goto('/settings?tab=security', 0);
+  await page.waitFor(securityTab, { label: 'the security tab', timeout: 60_000 });
   const initial = await panelText();
   for (const heading of ['Read-only mode', 'Access', 'Token', 'Audit log']) check(initial.toLowerCase().includes(heading.toLowerCase()), `the security tab has a "${heading}" card`);
   check(initial.toLowerCase().includes('open'), 'the unguarded mode is said in words, not only shown');
@@ -40,7 +44,8 @@ export default async ({ page, api, check }) => {
   check(!JSON.stringify(config.body).includes(token), 'the configuration never carries the token');
   await page.click('button', 'I have copied it', 500);
   check(!(await page.eval(`return !!document.querySelector('[data-testid=new-token]')`)), 'the token is gone once it is acknowledged');
-  await page.goto('/settings?tab=security', 1500);
+  await page.goto('/settings?tab=security', 0);
+  await page.waitFor(securityTab, { label: 'the security tab after a reload', timeout: 60_000 });
   check(!(await page.text('body')).includes(token), 'after a reload the token is nowhere on the page');
 
   // Read-only: the switch flips it, a write is refused with 405, the switch flips it back
@@ -62,7 +67,8 @@ export default async ({ page, api, check }) => {
 
   try {
     // Token mode: asks before it locks the door, and this browser keeps working because it holds the token
-    await page.goto('/settings?tab=security', 1500);
+    await page.goto('/settings?tab=security', 0);
+    await page.waitFor(securityTab, { label: 'the security tab before token mode', timeout: 60_000 });
     await page.click('[role=radio]', 'Token');
     await page.click('button', 'Save access', 600);
     await page.waitFor(`return !!document.querySelector('[role=dialog],[role=alertdialog]')`, { label: 'the lock-out confirmation' });
