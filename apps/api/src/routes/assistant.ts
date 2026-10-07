@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { assistantLanguage, type Core } from '@agentry/core';
-import type { AcceptAssistantProposalRequest, StartAssistantRunRequest } from '@agentry/shared';
+import type { AcceptAssistantProposalRequest, StartAgentryAssistantChatRequest, StartAssistantRunRequest } from '@agentry/shared';
 
 /**
  * The project assistant: read-only runs through the CLI that propose a team, resources and work
@@ -13,6 +13,12 @@ export const assistantRoutes: FastifyPluginAsync<{ core: Core }> = async (app, {
     const run = await core.assistant.start(req.params.id, req.body ?? {}, assistantLanguage(req.headers['accept-language']));
     return reply.code(201).send(run);
   });
+
+  // The Agentry assistant: a global, confined chat that reads Agentry through its MCP server. The body
+  // carries a prompt, a project for context and a model and no other option of a chat
+  app.post<{ Body: StartAgentryAssistantChatRequest }>('/assistant/chats', async (req, reply) =>
+    reply.code(201).send(await core.startAgentryAssistantChat(req.body, assistantLanguage(req.headers['accept-language']))),
+  );
 
   app.get<{ Params: { id: string }; Querystring: { kind?: string } }>('/projects/:id/assistant/runs', (req) => {
     core.assistantProjectExists(req.params.id);

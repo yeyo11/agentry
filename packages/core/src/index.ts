@@ -65,7 +65,7 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@agentry/shared';
-import { AGENTRY_LANGUAGES, agentryLanguage, type DecisionRecord, type LimitWait, type PermissionMode, type ProjectCodeHost, type ProviderId, type ProviderMove, type ToolPolicy } from '@agentry/shared';
+import { AGENTRY_LANGUAGES, agentryLanguage, DEFAULT_ASSISTANT_MODEL, type AgentryAssistantMarker, type DecisionRecord, type LimitWait, type PermissionMode, type ProjectCodeHost, type ProviderId, type ProviderMove, type ToolPolicy } from '@agentry/shared';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { rulesOnDriver } from './tool-policy.ts';
 import pkg from '../package.json' with { type: 'json' };
@@ -120,7 +120,8 @@ import { ProvidersSettingsStore } from './providers/settings.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
 import { PushService } from './push.ts';
-import { agentryMcp, type AgentryMcpLaunch } from './agentry-mcp.ts';
+import { agentryMcp, agentryMcpSync, assistantChatOptions, type AgentryMcpLaunch, type AssistantChatOptions } from './agentry-mcp.ts';
+import { agentryAssistantPrompt } from './agentry-assistant-prompt.ts';
 import { ChatTools, ToolPresetStore } from './chat-tools.ts';
 import { McpConfig } from './config/mcp.ts';
 import { ConfigResources } from './config/resources.ts';
@@ -577,6 +578,7 @@ export class Core {
     this.runtime.chatTokens = this.security.chatTokens;
     this.runtime.defaults = this.appSettings;
     this.runtime.permissions = this.permissions;
+    this.runtime.assistantLaunch = (marker) => this.assistantChatLaunch(marker);
     this.runtime.providerSettings = () => this.providersSettings.get();
     this.runtime.bus = this.events;
     this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events);
@@ -1419,6 +1421,36 @@ export class Core {
   /** Agentry's own MCP server for a chat, and the flags that confine the chat to its read tools. */
   agentryMcp(): Promise<AgentryMcpLaunch> {
     return agentryMcp({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: AGENTRY_VERSION });
+  }
+
+  /**
+   * Starts a chat with the Agentry assistant (`POST /assistant/chats`): the person's prompt, the
+   * project in scope as context if there is one, and nothing else of the chat is theirs to choose.
+   * It runs in the project's directory when that exists, else in the workspace. Its confinement is
+   * `assistantChatLaunch`, applied again at every process of the chat.
+   */
+  async startAgentryAssistantChat(input: unknown, language: AgentryLanguage = 'en'): Promise<ChatSummary> {
+    const body = input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+    const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
+    if (!prompt) throw new AssistantError('prompt is required', 400);
+    if (body.projectId !== undefined && body.projectId !== null && typeof body.projectId !== 'string') throw new AssistantError('projectId must be text', 400);
+    if (body.model !== undefined && body.model !== null && (typeof body.model !== 'string' || !body.model.trim())) throw new AssistantError('model must be text', 400);
+    const project = typeof body.projectId === 'string' && body.projectId ? this.projectStore.get(body.projectId) : null;
+    if (typeof body.projectId === 'string' && body.projectId && !project) throw new AssistantError('project not found', 404);
+    const model = typeof body.model === 'string' ? body.model.trim() : DEFAULT_ASSISTANT_MODEL;
+    return this.chats.create(
+      { prompt, model, provider: LEGACY_PROVIDER, ...(project && existsSync(project.path) ? { cwd: project.path } : {}) },
+      undefined,
+      { projectId: project?.id ?? null, language },
+    );
+  }
+
+  /** What the assistant chat of this marker runs with: `assistantChatOptions`, with the guide for its project and language. */
+  private assistantChatLaunch(marker: AgentryAssistantMarker): AssistantChatOptions {
+    const project = marker.projectId ? this.projectStore.get(marker.projectId) : null;
+    const scope = project ? { id: project.id, name: project.name, key: this.projectSettingsStore.stored(project.id, project.name)?.keyPrefix ?? '', path: project.path } : null;
+    const launch = agentryMcpSync({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: AGENTRY_VERSION });
+    return assistantChatOptions(launch, agentryAssistantPrompt(scope, marker.language));
   }
 
   async setCredentials(credentials: StoredCredentials): Promise<SystemInfo> {

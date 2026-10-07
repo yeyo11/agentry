@@ -65,7 +65,7 @@ const ROOT_TYPES = [
   'JournalPage', 'JournalEntry', 'CreateJournalEntryRequest', 'MemoryProposal', 'ApproveMemoryProposalRequest', 'RejectMemoryProposalRequest',
   'ProjectDocuments', 'DocumentFile', 'WriteDocumentRequest', 'TieDocumentRequest',
   // The project assistant: runs and their proposals
-  'AssistantRun', 'AssistantRunDetail', 'StartAssistantRunRequest', 'AssistantProposal', 'AcceptAssistantProposalRequest',
+  'AssistantRun', 'AssistantRunDetail', 'StartAssistantRunRequest', 'StartAgentryAssistantChatRequest', 'AssistantProposal', 'AcceptAssistantProposalRequest',
   // Settings that change at runtime, and the tunnel
   'AppSettings', 'UpdateAppSettingsRequest', 'TunnelStatus', 'TunnelSettings', 'UpdateTunnelSettingsRequest',
   // Providers

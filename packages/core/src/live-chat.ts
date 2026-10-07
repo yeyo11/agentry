@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { basename, join, resolve } from 'node:path';
 import type {
+  AgentryAssistantMarker,
   Attachment,
   ChatActivity,
   ChatContinuation,
@@ -78,6 +79,11 @@ export interface NewChat extends NewChatRequest {
   toolConfig?: ChatToolConfig | null;
   /** Held to a closed set of tools and no settings file: the project assistant's read-only runs */
   confine?: ChatConfinement;
+  /**
+   * Makes the chat one of the Agentry assistant: whatever the request asked for its tools, mode and
+   * prompt, the core sets them again at every process (`ChatManager.assistantLaunch`).
+   */
+  agentryAssistant?: AgentryAssistantMarker;
 }
 
 /**
@@ -177,6 +183,7 @@ export interface ChatRuntime {
   activity: ChatActivity | null;
   /** The tool preset and MCP servers Agentry started it with; null when it picked none */
   tools?: ChatToolConfig | null;
+  agentryAssistant?: AgentryAssistantMarker | null;
   executions: Execution[];
   backgroundTasks: BackgroundTask[];
   subagents: SubagentInfo[];
@@ -361,6 +368,7 @@ export class LiveChat {
         // A resumed chat keeps the tools and servers it was given, not the ones the CLI would pick
         ...(record.tools ? { toolConfig: record.tools, allowedTools: record.tools.allowedTools, disallowedTools: record.tools.disallowedTools } : {}),
         ...(record.tools?.mcp?.config ? { mcp: record.tools.mcp } : {}),
+        ...(record.agentryAssistant ? { agentryAssistant: record.agentryAssistant } : {}),
       },
       { orchestrationId: record.orchestrationId ?? undefined, orchestrationTaskId: record.orchestrationTaskId ?? undefined },
       record.origin,
@@ -501,6 +509,7 @@ export class LiveChat {
       // A chat with no process of ours is doing nothing, whatever the last stream left behind
       activity: this.alive ? this.activity.current() : null,
       tools: this.tools,
+      ...(this.opts.agentryAssistant ? { agentryAssistant: this.opts.agentryAssistant } : {}),
       executions: this.executions,
       backgroundTasks: [...this.branches.tasks.values()],
       subagents: [...this.branches.subagents.values()],
@@ -529,6 +538,7 @@ export class LiveChat {
       permissionPrompts: this.opts.permissionPrompts === 'host' ? 'host' : 'none',
       ...(this.nativeId ? { nativeSessionId: this.nativeId } : {}),
       tools: this.tools,
+      ...(this.opts.agentryAssistant ? { agentryAssistant: this.opts.agentryAssistant } : {}),
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };
