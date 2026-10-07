@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { ChatStartOptions, ChatToolConfig, CommandRule, McpSelection, ToolPolicy, ToolPreset, ToolPresetsConfig, ToolPresetsOverview } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
 import type { McpConfig } from './config/mcp.ts';
@@ -289,11 +289,26 @@ export class ChatTools {
  * carry the servers' `env` and `headers`, which are secrets: only the owner may read it.
  */
 export async function writeMcpConfig(dataDir: string, mcpServers: Record<string, Record<string, unknown>>): Promise<string> {
-  const body = `${JSON.stringify({ mcpServers }, null, 2)}\n`;
-  const dir = join(dataDir, 'mcp');
-  await mkdir(dir, { recursive: true, mode: 0o700 });
-  const file = join(dir, `${createHash('sha256').update(body).digest('hex').slice(0, 16)}.json`);
+  const { file, body } = mcpConfigFile(dataDir, mcpServers);
+  await mkdir(dirname(file), { recursive: true, mode: 0o700 });
   await writeFile(file, body, { mode: 0o600 });
   await chmod(file, 0o600);
   return file;
+}
+
+/**
+ * The same file, written where a process is about to spawn and cannot wait: an Agentry assistant
+ * chat is given its config again at every process, a restart's included.
+ */
+export function writeMcpConfigSync(dataDir: string, mcpServers: Record<string, Record<string, unknown>>): string {
+  const { file, body } = mcpConfigFile(dataDir, mcpServers);
+  mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+  writeFileSync(file, body, { mode: 0o600 });
+  chmodSync(file, 0o600);
+  return file;
+}
+
+function mcpConfigFile(dataDir: string, mcpServers: Record<string, Record<string, unknown>>): { file: string; body: string } {
+  const body = `${JSON.stringify({ mcpServers }, null, 2)}\n`;
+  return { file: join(dataDir, 'mcp', `${createHash('sha256').update(body).digest('hex').slice(0, 16)}.json`), body };
 }

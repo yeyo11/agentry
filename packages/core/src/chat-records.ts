@@ -1,4 +1,4 @@
-import type { ChatContinuation, ChatFork, ChatOrigin, ChatToolConfig, Execution, PermissionMode } from '@agentry/shared';
+import type { AgentryAssistantMarker, ChatContinuation, ChatFork, ChatOrigin, ChatToolConfig, Execution, PermissionMode } from '@agentry/shared';
 import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import { emptyTokenUsage } from './usage.ts';
 
@@ -39,6 +39,8 @@ export interface ChatRecord {
   permissionPrompts: 'host' | 'none';
   /** The tool preset and MCP servers it was started with; a process that resumes it is given them again */
   tools?: ChatToolConfig | null;
+  /** Set on a chat of the Agentry assistant: every process of it, after a restart too, is confined again */
+  agentryAssistant?: AgentryAssistantMarker | null;
   createdAt: string;
   updatedAt: string;
 }
