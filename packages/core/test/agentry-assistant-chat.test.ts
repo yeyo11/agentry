@@ -105,7 +105,9 @@ test('an assistant chat starts confined, on sonnet, in the project in scope, wit
     assert.match(argv, /pagos-api/);
     assert.match(argv, new RegExp(project.id));
     await idle(core, chat.id);
-    const [env] = readFileSync(envs, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { url: string | null; token: string | null });
+    // Every spawn of the fake CLI logs its environment, the core's own probes (`agents`, `--version`)
+    // too, and those carry no address: the chat is the one spawn given one
+    const env = readFileSync(envs, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { url: string | null; token: string | null }).find((e) => e.url !== null);
     assert.equal(env?.url, API);
     assert.ok(env?.token, 'the per-chat API token the MCP server calls the API with');
     assert.deepEqual((await core.chats.get(chat.id))?.agentryAssistant, { projectId: project.id, language: 'es' });
