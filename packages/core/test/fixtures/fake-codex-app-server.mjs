@@ -32,7 +32,7 @@
 //                             is set, and to memory otherwise
 //   FAKE_CODEX_LOG=<file>     appends one JSON line `{ dir, line }` per message in or out
 //   FAKE_CODEX_SPAWNS=<file>  appends `<pid> <argv>` and the CODEX_HOME seen, as the Claude fake does
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -100,12 +100,23 @@ function ask(method, params) {
 
 // Threads, kept whole so a later process can resume or fork them.
 const threads = new Map();
-if (STATE && existsSync(STATE)) for (const t of JSON.parse(readFileSync(STATE, 'utf8'))) threads.set(t.id, t);
+// Several fakes share the file when a test starts chats at once: each writes a whole new file and
+// renames it over the old one, so a fake starting meanwhile reads one file or the other, never half
+const readState = () => {
+  try {
+    return JSON.parse(readFileSync(STATE, 'utf8'));
+  } catch {
+    return [];
+  }
+};
+if (STATE && existsSync(STATE)) for (const t of readState()) threads.set(t.id, t);
 const save = () => {
   if (STATE) {
     // A real Codex makes its home as it needs it; the sandbox of a spec only names the directory
     mkdirSync(dirname(STATE), { recursive: true });
-    writeFileSync(STATE, JSON.stringify([...threads.values()]));
+    const tmp = `${STATE}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify([...threads.values()]));
+    renameSync(tmp, STATE);
   }
 };
 
