@@ -61,7 +61,10 @@
   proactive rotation at a usage threshold, rotate-and-resume for a chat that hits its limit, and
   per-chat account pinning. Each account can have a config directory of its own (nothing moved or
   copied), a project — or the chats that belong to no project — can have its own rotation policy, and
-  every account's usage is kept as a history.
+  every account's usage is kept as a history. **Retired in #188** (multiple providers, phase 4): one
+  account per provider, the one signed in to its CLI, and a usage limit moves the work to another
+  provider, waits for the reset or starts over. See [docs/providers.md](docs/providers.md#rotation-at-a-limit) and
+  [the plan's Outcome of phase 4](docs/plans/multi-provider.md#outcome-of-phase-4).
 - **claude.ai connectors** — the Docs, Gmail and Calendar connectors the CLI can see, as `claude mcp
   list` reports them, with prepared prompts that start a chat and what to do to authorise one. What
   has no CLI surface (web artifacts, claude.ai memory) is said plainly on the page.

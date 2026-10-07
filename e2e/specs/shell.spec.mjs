@@ -159,7 +159,9 @@ export default async ({ page, api, check, dirs }) => {
     // ---- a phone: the tab bar, nothing sideways, fingers get room ----
     await page.viewport(390, 844);
     for (const path of ['/', '/chats', '/tasks', '/orchestration', '/settings']) {
-      await page.goto(path, 900);
+      await page.goto(path, 0);
+      // A fixed pause measured a page still loading on a busy machine: wait for the page and its tab bar
+      await page.waitFor(`return !!document.querySelector('.tabbar .tabbar-tab') && !!document.querySelector('main')?.innerText.trim()`, { label: `[390px ${path}] the page and its tab bar`, timeout: 60_000 });
       const overflow = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
       check(overflow <= 1, `[390px ${path}] nothing scrolls sideways (${overflow}px)`);
       const tabbar = await page.eval(`const t = document.querySelector('.tabbar'); if (!t) return null; const r = t.getBoundingClientRect(); return { bottom: r.bottom, tabs: [...t.querySelectorAll('.tabbar-tab')].map((e) => e.getBoundingClientRect().height) }`);
@@ -191,8 +193,9 @@ export default async ({ page, api, check, dirs }) => {
       await page.click('.fab', undefined, 900);
       check((await page.eval(`return location.pathname + location.search`)) === '/orchestration?new=1', 'the Orchestrations FAB opens the new orchestration form');
     }
-    await page.goto('/orchestration?new=1', 900);
-    check(await until(`return !document.querySelector('.fab')`), 'the new orchestration form is open, so the FAB steps aside');
+    await page.goto('/orchestration?new=1', 0);
+    // Waited for, not read after a pause: the list draws its FAB before the form replaces it
+    await page.waitFor(`return !!document.querySelector('main textarea') && !document.querySelector('.fab')`, { label: 'the new orchestration form is open, so the FAB steps aside', timeout: 60_000 });
     // Tasks is in the More sheet on a phone, and its FAB starts a task
     const tasksFab = await fab('/tasks');
     expectFab(tasksFab, '/tasks', 'New task');

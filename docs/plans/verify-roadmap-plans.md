@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T00:00:00Z
-updated_at: 2026-10-01T13:40:00Z
+updated_at: 2026-10-07T18:00:00Z
 tags:
     - plan
     - roadmap
@@ -15,6 +15,12 @@ both on the launch's instructions. `main` was at 0.29.1, not 0.23.x, so the Stat
 And the full `pnpm e2e` suite was not run: only the specs that prove a claim ran, one at a time, on
 `E2E_PORT=8863`. The full run is the one item left open in both plans, listed with the other
 follow-ups in [post-roadmap.md](post-roadmap.md#follow-ups). No work item was created for them.
+
+The final run, with the full suite, followed on 2026-10-07 on `main` at `a0d6f2967` (0.33.1): see
+[roadmap-completion](roadmap-completion.md#verification-2026-10-07) and
+[post-roadmap](post-roadmap.md#verification-2026-10-07). The suite was run once with `E2E_PORT=8899`
+and every failed spec alone after it. Three specs were fixed, and the one that still fails alone,
+`paging.spec.mjs`, is CW-32.
 
 ## Why
 

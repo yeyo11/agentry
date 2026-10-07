@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-10-07T12:00:00Z
+updated_at: 2026-10-07T18:00:00Z
 tags:
     - status
     - project-state
@@ -18,22 +18,24 @@ change gets in.
 
 | | |
 | --- | --- |
-| Version | **0.23.1** on `main`, the same across all five packages |
-| Released | 2026-09-28 (v0.23.1, #121; 0.23.0 in #119 right after the ecosystem in #118), by release-please from the commit messages |
+| Version | **0.33.1** on `main`, the same across all eight packages; 0.34.0 waits in the release pull request (#197) |
+| Released | 2026-10-03 (v0.33.1, #192), by release-please from the commit messages |
 | Runtime | Node >= 22, pnpm workspace |
-| Source | 703 tracked `.ts`/`.tsx` files on `main`; the API contract is 4,630 lines of `packages/shared/src/types.ts` |
-| REST | 24 route files, documented as OpenAPI 3.1 and served at `/docs` |
-| Tests | 188 unit and integration test files, plus 58 browser specs under `e2e/specs/` |
+| Source | 1,562 tracked `.ts`/`.tsx` files on `main`; the API contract is 6,737 lines of `packages/shared/src/types.ts` |
+| REST | 29 route files, documented as OpenAPI 3.1 and served at `/docs` |
+| Tests | 350 unit and integration test files, plus 71 browser specs under `e2e/specs/` |
 | CI | `ci.yml` (a `checks` job: advisories, OpenAPI drift, typecheck, tests, build; four `e2e (k/4)` shards, skipped on docs-only pull requests; the `test` gate; the image smoke test), `desktop.yml`, `image.yml`, `release.yml` |
 
-The shape is unchanged: `packages/shared` holds the types every other package imports,
-`packages/core` drives the CLI and owns the store, `apps/api` serves Fastify over it, `apps/web` is
-the React UI, `apps/desktop` wraps both in Electron for Linux. See
+The shape: `packages/shared` holds the types every other package imports,
+`packages/core` drives the agent CLIs and owns the store, `packages/mcp` is Agentry's own MCP
+server, `apps/api` serves Fastify over the core, `packages/ui` and `packages/chat-ui` hold the web's
+primitives and the conversation, `apps/web` is the React UI, and `apps/desktop` wraps it in Electron
+for Linux. See
 [Monorepo layout](../README.md#monorepo-layout).
 
 The UI follows the **Night Shift** design system ([design-system.md](design-system.md)): near-black
 neutrals and Geist, dark by default, a status bar on desktop, and four tabs and a FAB on a phone.
-The tokens live in `apps/web/src/styles/tokens.css`, and a web test fails on any colour, radius or
+The tokens live in `packages/ui/src/styles/tokens.css`, and a web test fails on any colour, radius or
 duration written anywhere else.
 
 ## What is built
@@ -80,7 +82,7 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 
 - **The decision engine's shadow period.** Nothing has been measured yet. All 22 points have a
   resolver (CW-28 added `palette.intent`, `notification.urgency` and `orchestration.model`), and the `cli` provider
-  waits for CW-4's quota hold and, now that CW-25's effort control has landed ([effort.md](effort.md)), only on that hold; see the plan's
+  no longer waits on anything: CW-25's effort control landed ([effort.md](effort.md)) and CW-4's quota hold was superseded by phase 4 of multiple providers; see the plan's
   [Outcome](plans/decision-engine.md#outcome).
 - **The project ecosystem** was merged into `main` in #118 and is no longer open as a whole; see the
   plan's [Outcome](plans/project-ecosystem.md#the-ecosystem-as-a-whole) and the Known gaps of
@@ -105,8 +107,8 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 | [`plans/agent-observability.md`](plans/agent-observability.md) | Landed, in full |
 | [`plans/ui-redesign.md`](plans/ui-redesign.md) | Done, every task delivered |
 | [`plans/mobile.md`](plans/mobile.md) | Shipped — all five tasks, see [Outcome](plans/mobile.md#outcome) |
-| [`plans/roadmap-completion.md`](plans/roadmap-completion.md) | Verified — see [Verification](plans/roadmap-completion.md#verification-2026-10-01) (2026-10-01, 0.29.1; a full `pnpm e2e` run still open) |
-| [`plans/post-roadmap.md`](plans/post-roadmap.md) | Verified — see [Verification](plans/post-roadmap.md#verification-2026-10-01) (2026-10-01, 0.29.1; a full `pnpm e2e` run still open) |
+| [`plans/roadmap-completion.md`](plans/roadmap-completion.md) | Verified — see [Verification](plans/roadmap-completion.md#verification-2026-10-07) (2026-10-07, 0.33.1, with the full `pnpm e2e` run; `paging.spec.mjs` open as CW-32) |
+| [`plans/post-roadmap.md`](plans/post-roadmap.md) | Verified — see [Verification](plans/post-roadmap.md#verification-2026-10-07) (2026-10-07, 0.33.1, with the full `pnpm e2e` run; `paging.spec.mjs` open as CW-32) |
 | [`plans/spanish-copy.md`](plans/spanish-copy.md) | Landed (#94) — see [Outcome](plans/spanish-copy.md#outcome) |
 | [`plans/app-updates.md`](plans/app-updates.md) | Landed (#95) — see [Outcome](plans/app-updates.md#outcome) |
 | [`plans/redesign-night-shift.md`](plans/redesign-night-shift.md) | Landed (#101) — see [Outcome](plans/redesign-night-shift.md#outcome) |
@@ -134,24 +136,26 @@ pnpm test
 pnpm build && pnpm e2e
 ```
 
-Last run on 2026-10-01 by the verification of the two roadmap plans
-([roadmap-completion](plans/roadmap-completion.md#the-checks),
-[post-roadmap](plans/post-roadmap.md#the-checks)), on `main` at `7242b4fe` (0.29.1) plus two
-commits of its own (`e0efe0eb`), with a load average between 23 and 58:
+Last run on 2026-10-07 by the final verification of the two roadmap plans
+([the checks](plans/roadmap-completion.md#the-checks-2026-10-07)), on `main` at `a0d6f2967`
+(0.33.1), on a machine shared with other orchestrations (load average 16 to 109 on 12 cores, and a
+`/tmp` that went from 46 % to 80 % full):
 
 - `pnpm typecheck`: passes.
-- `pnpm test`: passes, 2,714 tests across the seven packages (core 1,443, web 967, api 217, desktop
-  49, shared 31, chat-ui 4, ui 3), none failing.
-- `pnpm build`: passes. The OpenAPI schemas regenerate with no drift.
-- `node --test e2e/harness.test.mjs`: 14 of 14 pass on their own. A whole run under load failed 4
-  with `API did not start`, because the runner waits about 20 s for the server.
-- Browser specs: only the 12 that prove the two plans ran, one at a time. All pass, and
-  `connectors.spec.mjs` is flaky under load: it failed once and passed alone. **The full suite was
-  not run.** Its last full run is the one below.
+- `pnpm test`: 4,074 tests pass across the eight packages (core 2,463, web 1,236 of 1,238, api 272,
+  desktop 52, shared 32, mcp 12, chat-ui 4, ui 3). Two web timing tests (`highlight.test.ts`,
+  `robustness.test.ts`) missed their budget at a load near 109 and pass alone at a load near 18.
+- `pnpm build`: passes. The OpenAPI schemas regenerate with no drift (596 schemas).
+- `node --test e2e/harness.test.mjs`: 14 of 14 pass, the whole file in one run.
+- `pnpm e2e` (`E2E_PORT=8899`, four shards): of 71 spec files, 45 passed, `chat.spec.mjs` was
+  skipped (it needs `E2E_LIVE=1`), 14 failed and 11 were not run after `merge.spec.mjs` passed its
+  600 s limit. Run alone one at a time, 21 of those 25 pass. `security`, `shell` and `tasks-review`
+  read the page a fixed pause after loading it; they now wait for what they check, and pass. Only
+  `paging.spec.mjs` ("no long tasks while typing") still fails alone, at every load tried down to
+  22: **CW-32**. CI ran all four shards green the same day.
 
-The full suite last ran on `main` at `cc08204e` (0.23.0, the ecosystem of #118 plus its release), on 2026-09-28,
-on a machine with a load average near 50. `main` has changed a great deal since then (multiple
-providers, code hosts, the web packages), so treat this as history, not as today's state:
+The full suite's previous run on `main` was at `cc08204e` (0.23.0, the ecosystem of #118 plus its
+release), on 2026-09-28, on a machine with a load average near 50. Kept as history:
 
 - `pnpm typecheck`: passes.
 - `pnpm test`: passes, 1,898 tests across the five packages (core 810, web 849, api 166, desktop 42,
