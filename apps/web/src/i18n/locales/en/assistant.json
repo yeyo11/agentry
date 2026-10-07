@@ -131,5 +131,45 @@
     "propose": "Ask for a proposal",
     "body": "Each member is a CLI agent in <code>.claude/agents/</code>, with its role, its model and what it may write, so it also works from the terminal. The assistant reads the project and proposes a team; you accept it member by member.",
     "foot": "Proposing opens a CLI chat that only reads the project"
+  },
+  "agentry": {
+    "title": "Assistant",
+    "hello": "Hi, I'm the Agentry assistant",
+    "sub": "I can tell you how your projects, tasks, orchestrations and usage are doing.",
+    "figures": "Right now",
+    "chatsWorking_one": "{{n}} chat running",
+    "chatsWorking_other": "{{n}} chats running",
+    "orchestrations_one": "{{n}} orchestration",
+    "orchestrations_other": "{{n}} orchestrations",
+    "today": "today {{cost}}",
+    "starters": "To get started",
+    "starter": {
+      "board": {
+        "title": "State of the board",
+        "ask": "What is open on the board, and what is blocked?"
+      },
+      "orchestrations": {
+        "title": "Orchestrations",
+        "ask": "Why did the last orchestration fail?"
+      },
+      "team": {
+        "title": "Flow and team",
+        "ask": "Which cards is the team waiting on?"
+      },
+      "usage": {
+        "title": "Usage and limits",
+        "ask": "How much have I spent today?"
+      }
+    },
+    "message": "Message",
+    "placeholder": "Ask about projects, tasks, orchestrations or usage…",
+    "placeholderShort": "Ask something…",
+    "send": "Send",
+    "starting": "Starting…",
+    "context": "With {{name}} as context",
+    "clearContext": "Remove the context",
+    "model": "Model",
+    "startError": "The assistant could not start",
+    "greeting": "Hi, I'm the Agentry assistant. Ask me about your projects, tasks, orchestrations or usage."
   }
 }

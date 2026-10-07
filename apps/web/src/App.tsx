@@ -10,6 +10,7 @@ import {
   Play,
   Plug,
   Settings2,
+  Sparkle,
   SquareCheck,
   Workflow,
 } from 'lucide-react';
@@ -47,6 +48,7 @@ import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
 import { fabFor, hidesTabBar } from './lib/shell-live';
 import { NEW_TASK_PATH, TASKS_PATH } from './lib/work-items';
 import { Home } from './pages/Home';
+import { AGENTRY_ASSISTANT_PATH } from './pages/agentry-assistant/model';
 
 // Only the landing pages ship in the main bundle; everything else loads on first visit
 const ChatView = lazyPage(() => import('./pages/ChatView').then((m) => m.ChatView));
@@ -64,6 +66,7 @@ const Orchestration = lazyPage(() => import('./pages/Orchestration').then((m) =>
 const OrchestrationDetail = lazyPage(() => import('./pages/OrchestrationDetail').then((m) => m.OrchestrationDetail));
 const Projects = lazyPage(() => import('./pages/Projects').then((m) => m.Projects));
 const NewProject = lazyPage(() => import('./pages/projects/NewProject').then((m) => m.NewProject));
+const AgentryAssistant = lazyPage(() => import('./pages/agentry-assistant/Entry').then((m) => m.AgentryAssistant));
 const AssistantPage = lazyPage(() => import('./pages/assistant/Assistant').then((m) => m.AssistantPage));
 const TasksBoard = lazyPage(() => import('./pages/tasks/Board').then((m) => m.Board));
 const Milestones = lazyPage(() => import('./pages/tasks/Milestones').then((m) => m.Milestones));
@@ -176,6 +179,8 @@ function Shell() {
   const updateAvailable = release.data?.updateAvailable === true;
 
   const home: NavItem = { to: '/', label: t('nav.home'), icon: House, count: { value: counts?.chatsWaiting, what: t('nav.badge.waiting') } };
+  // The global assistant: the sparkle is its mark, never the gradient, so the entry costs no gradient slot
+  const assistant: NavItem = { to: AGENTRY_ASSISTANT_PATH, label: t('nav.assistant'), icon: Sparkle };
   const chats: NavItem = { to: '/chats', label: t('nav.chats'), icon: MessagesSquare, count: { value: counts?.chatsWorking, what: t('nav.badge.working'), live: true } };
   // The open items of the scope: neutral, since an item waiting in a column is not something running
   const tasks: NavItem = { to: TASKS_PATH, label: t('shell:nav.tasks'), icon: SquareCheck, count: { value: openTasks, what: t('shell:nav.open', { count: openTasks ?? 0 }) } };
@@ -198,7 +203,7 @@ function Shell() {
   };
   // What a person does, then where it happens: the sidebar's two groups
   const groups = [
-    { id: 'work', label: t('shell:nav.work'), items: [home, chats, tasks, orchestrations, schedules] },
+    { id: 'work', label: t('shell:nav.work'), items: [home, assistant, chats, tasks, orchestrations, schedules] },
     { id: 'space', label: t('shell:nav.space'), items: [projects, connectors, usage, settings] },
   ];
   const items = groups.flatMap((group) => group.items);
@@ -330,6 +335,7 @@ function Shell() {
             <Suspense fallback={<Skeleton rows={5} height={18} />}>
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/assistant" element={<AgentryAssistant />} />
               <Route path="/chats" element={<Chats />} />
               <Route path="/chats/new" element={<NewChat />} />
               <Route path="/chats/:id" element={<ChatView />} />
@@ -384,7 +390,7 @@ function Shell() {
             pathname={pathname}
             projectPage={projectPage}
             tabs={[home, chats, orchestrations]}
-            more={[tasks, projects, schedules, usage, connectors, settings]}
+            more={[assistant, tasks, projects, schedules, usage, connectors, settings]}
             start={startEntries}
             account={<ProviderCard now={now} connection={connection} />}
             connection={connectionLink}
