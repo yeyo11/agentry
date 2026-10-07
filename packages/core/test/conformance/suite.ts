@@ -63,7 +63,8 @@ export interface DriverHarness {
 const KINDS: readonly RunEventKind[] = ['message', 'init', 'result', 'task', 'status', 'stderr', 'notice', 'other', 'partial'];
 const EVENT_KEYS = new Set(['seq', 'ts', 'kind', 'entry', 'status', 'text', 'block', 'init', 'outcome', 'task', 'data']);
 
-async function until<T>(read: () => T | undefined | null | false, what: string, ms = 8000): Promise<T> {
+// Generous: the deadline only matters when something is wrong, and CI runs five fake CLIs at once here.
+async function until<T>(read: () => T | undefined | null | false, what: string, ms = 30_000): Promise<T> {
   const deadline = Date.now() + ms;
   for (;;) {
     const value = read();
