@@ -46,7 +46,8 @@ HTTP call to Anthropic.
 - **An agent file**, `.claude/agents/<agent>.md` in the project. `claude --agent` reads it, so the
   same member works from a terminal.
 - **Metadata** in `settings.team.members` of the project's settings document: the `role`, its
-  `model`, its `responsibility`, the paths it may write (`writes`) and, optionally, the shell
+  `model`, its `effort` (optional: unset is the recommendation for the model and the stage, see
+  [effort.md](effort.md)), its `responsibility`, the paths it may write (`writes`) and, optionally, the shell
   commands it may run in the work stage (`commands`, see
   [What a run may do](#what-a-run-may-do)).
 

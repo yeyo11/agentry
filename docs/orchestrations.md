@@ -59,7 +59,9 @@ and runs at most the one test it wants to read.
 
 A task that only writes prose (documentation, changelog-style notes) sets its `model` to `sonnet`:
 it is faster and cheaper, and writing about finished code does not need the stronger model. Every
-other task leaves `model` out and runs on the graph's.
+other task leaves `model` out and runs on the graph's. A task's `effort` works the same way: left out,
+it runs on the graph's, then on the recommendation for the model (see [effort.md](effort.md)); on
+the `workflow` engine only the graph's effort applies.
 
 ### 6. Name the files and routes in each task prompt
 

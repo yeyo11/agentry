@@ -595,8 +595,8 @@ candidate, and it is added to this table then. The project assistant of
 - **CW-25, effort wherever a model is chosen.** `--effort` already reaches the CLI (`chats.ts`
   `buildArgs`), so the `cli` provider's `effort` setting does not wait for it. The Decisions tab's
   effort control reuses CW-25's control when CW-25 is merged first; otherwise the tab adds it and
-  CW-25 adopts it. `orchestration.model` suggests an effort per task only once CW-25 lets a task
-  carry one.
+  CW-25 adopts it. **CW-25 landed** ([effort.md](../effort.md)): the Decisions tab uses `EffortPicker`,
+  and a task can carry an effort, so `orchestration.model` may suggest one per task.
 - **CW-15, worker checks and the `e2e-specs` task** (the owner's answer C in
   [orchestration-speed.md](orchestration-speed.md)). Choosing which browser specs a graph's changes
   touch is a candidate point (a choice over the spec files, suggest only) once that task exists. Not
@@ -739,7 +739,7 @@ the full `pnpm test` and `pnpm build && pnpm e2e` once, at the end.
   - Files: `orchestrator.ts`, `supervisor.ts`, tests. `orchestration.fixer` is asked per failed step
     (CW-14's parallel groups), so its test covers a group of two failing checks.
   - Soft dependency on CW-4 and CW-25, as in [In flight](#decision-points-on-main): the resolvers
-    ignore `limited` once CW-4 lands; the effort choice of `orchestration.model` waits for CW-25.
+    ignore `limited` once CW-4 lands; the effort choice of `orchestration.model` no longer waits: CW-25 landed.
 - `w4` (signals): `health.semantic-loop`, `health.test-weakening`, `notification.urgency`,
   `flow.scope-drift`, `changes.unexplained-hunk`.
   - Files: `health.ts`, `health-service.ts`, `push.ts`, `packages/shared/src/notifications.ts`,
@@ -1066,8 +1066,9 @@ merged branch. The feature is documented in [decision-engine.md](../decision-eng
   `exhaustedUntil` hold lands, it should be false while the hold is in the future and answer `no-quota`
   without starting a chat; today a rate-limited decision chat answers `rate-limited`. The
   `orchestration.retry` and `run.continuation` resolvers must also ignore `limited` executions then.
-- **CW-25 seam.** The tab's `Segmented` effort control should give way to CW-25's control, and
-  `orchestration.model` may suggest an effort per task only once a task can carry one.
+- **CW-25 seam: closed.** CW-25 landed ([effort.md](../effort.md)): the Decisions tab uses `EffortPicker`
+  in place of its own `Segmented`, and a task can carry an effort, so `orchestration.model` may suggest one
+  per task.
 - **Not built, as planned:** the global Agentry assistant's tool choice and CW-15's `e2e-specs` choice
   as points; CW-13's `decision` chat role.
 - **Shadow period.** Nothing has been measured yet: the owner runs chosen points in `shadow` on their
