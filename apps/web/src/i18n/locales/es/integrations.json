@@ -71,7 +71,7 @@
     "title": "Gestores de incidencias",
     "total_one": "{{count}} gestor",
     "total_other": "{{count}} gestores",
-    "note": "Agentry importa incidencias de GitHub Issues (#12) y GitLab Issues (#12) con los mismos programas que ya usa para las PR y las MR, y de YouTrack (PROJ-12) con youtrack-app, el programa de JetBrains, y la dirección y el token que le des aquí abajo. Jira llegará cuando se haya comprobado cómo responde su programa.",
+    "note": "Agentry importa incidencias de GitHub Issues (#12) y GitLab Issues (#12) con los mismos programas que ya usa para las PR y las MR, y de YouTrack (PROJ-12) con youtrack-app, el programa de JetBrains, y la dirección y el token que le des aquí abajo.",
     "notAvailable": "Aún no disponible",
     "reason": {
       "ready": "Lee y escribe incidencias con {{cli}}, con la sesión que ya tiene. Sirve en los proyectos cuyo código está en {{host}}.",

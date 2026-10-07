@@ -1,6 +1,6 @@
 import type { TrackerId } from '@agentry/shared';
 
-const IDS: Record<TrackerId, true> = { 'github-issues': true, 'gitlab-issues': true, jira: true, youtrack: true };
+const IDS: Record<TrackerId, true> = { 'github-issues': true, 'gitlab-issues': true, youtrack: true };
 
 /** Every tracker Agentry knows, ready or not: settings and a project's tracker are validated against it. */
 export const TRACKER_IDS = Object.keys(IDS) as TrackerId[];

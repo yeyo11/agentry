@@ -51,18 +51,17 @@ const settings = (patch: Partial<TrackersSettings['trackers']>): (() => Trackers
   trackers: {
     'github-issues': { enabled: true, binaryPath: null },
     'gitlab-issues': { enabled: true, binaryPath: null },
-    jira: { enabled: true, binaryPath: null },
     youtrack: { enabled: true, binaryPath: null },
     ...patch,
   },
 });
 
 describe('TrackerDetector', () => {
-  it('lists the four trackers in registry order, a host tracker ready with its host\'s CLI and floor', async () => {
+  it('lists the three trackers in registry order, a host tracker ready with its host\'s CLI and floor', async () => {
     await fake('gh');
     const { trackers } = detectors({ ghAuth: ghHosts({ 'github.com': 'octo' }) });
     const all = await trackers.statuses();
-    assert.deepEqual(all.map((s) => s.id), ['github-issues', 'gitlab-issues', 'jira', 'youtrack']);
+    assert.deepEqual(all.map((s) => s.id), ['github-issues', 'gitlab-issues', 'youtrack']);
     const [github, gitlab] = all;
     assert.equal(github?.state, 'ready');
     assert.equal(github?.reason, null);
@@ -90,11 +89,12 @@ describe('TrackerDetector', () => {
     assert.equal(incompatible?.reason, 'below-minimum');
   });
 
-  it('reads jira as unknown with not-recorded, with no floor, no binary and no probe', async () => {
-    await fake('acli');
+  it('reads a tracker whose CLI is not recorded as unknown with not-recorded, with no floor, no binary and no probe', async () => {
+    await fake('youtrack-app');
     const script: Script = { calls: [] };
-    const { trackers } = detectors(script);
-    for (const id of ['jira'] as const) {
+    const unrecorded = TRACKER_MANIFESTS.map((m) => (m.id === 'youtrack' ? { ...m, recording: null, minimum: undefined, recorded: undefined } : m));
+    const { trackers } = detectors(script, { registry: new TrackerRegistry(unrecorded) });
+    for (const id of ['youtrack'] as const) {
       const status = await trackers.status(id);
       assert.equal(status?.state, 'unknown', id);
       assert.equal(status?.reason, 'not-recorded', id);
@@ -103,16 +103,15 @@ describe('TrackerDetector', () => {
       assert.deepEqual(status?.recorded, [], id);
       assert.equal(status?.binaryPath, null, id);
     }
-    assert.ok(!script.calls?.some((call) => call.cli === 'acli'));
+    assert.ok(!script.calls?.some((call) => call.cli === 'youtrack-app'));
   });
 
-  it('a tracker turned off is unknown with no reason, and jira stays not-recorded', async () => {
+  it('a tracker turned off is unknown with no reason', async () => {
     await fake('gh');
     const { trackers } = detectors({ ghAuth: ghHosts({ 'github.com': 'octo' }) }, { settings: settings({ 'github-issues': { enabled: false, binaryPath: null } }) });
     const github = await trackers.status('github-issues');
     assert.equal(github?.state, 'unknown');
     assert.equal(github?.reason, null);
-    assert.equal((await trackers.status('jira'))?.reason, 'not-recorded');
   });
 
   it('reads the version of a binary chosen for the tracker, and holds it to the host\'s floor', async () => {
@@ -149,6 +148,6 @@ describe('TrackerDetector', () => {
 describe('every tracker manifest', () => {
   it('names a host that exists exactly when its CLI facts are the host\'s', () => {
     for (const manifest of TRACKER_MANIFESTS) assert.equal(manifest.host !== null, manifest.recording === 'host', manifest.id);
-    assert.ok(new TrackerRegistry().list().length === 4);
+    assert.ok(new TrackerRegistry().list().length === 3);
   });
 });

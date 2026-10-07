@@ -14,12 +14,11 @@ P.setdefault('ext', 'M14 4h6v6M20 4l-8 8M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7
 
 # ---------------------------------------------------------------- shared
 # id -> label, monogram letters, hue (never red, green or cyan), the CLI. The two with a host reuse its CLI and
-# readiness; Jira and YouTrack have no recording yet (phase 5 in two steps), so the registry knows them and the
-# screens show them as trackers whose readiness is unknown, reason `not-recorded`.
+# readiness; YouTrack had no recording yet when these were drawn (phase 5 in two steps), so the screens show it
+# as a tracker whose readiness is unknown, reason `not-recorded`.
 TRK_P2 = {
   'github-issues': ('GitHub Issues', 'GH', 262, 'gh'),
   'gitlab-issues': ('GitLab Issues', 'GL', 45, 'glab'),
-  'jira': ('Jira', 'JI', 300, 'acli'),
   'youtrack': ('YouTrack', 'YT', 75, 'youtrack-app'),
 }
 # readiness -> word, badge class, dot class; the words are the host's (hosts.py), `unknown` included
@@ -38,32 +37,22 @@ SCENES = {
              query='is:open', where='github.com',
              opts=[('github-issues', 'ready', 'gh tiene sesión en github.com y responde.'),
                    ('gitlab-issues', 'unavailable', 'El host de este proyecto es github.com, no GitLab.'),
-                   ('jira', 'unknown', NOT_RECORDED_P2.format(cli='acli')),
                    ('youtrack', 'unknown', NOT_RECORDED_P2.format(cli='youtrack-app'))]),
   'gl': dict(host='gl-ready', saved='gitlab-issues', noun='MR', ref='!12', cli='glab', scope='equipo/pagos-api',
              query='', where='gitlab.inmoseo.net',
              opts=[('github-issues', 'unavailable', 'El host de este proyecto es gitlab.inmoseo.net, no GitHub.'),
                    ('gitlab-issues', 'ready', 'glab tiene sesión en gitlab.inmoseo.net y responde.'),
-                   ('jira', 'unknown', NOT_RECORDED_P2.format(cli='acli')),
                    ('youtrack', 'unknown', NOT_RECORDED_P2.format(cli='youtrack-app'))]),
   'none': dict(host='gh-ready', saved=None, noun='PR', ref='#12', cli='gh', scope='yeyochico/claude-wrapper',
                query='is:open', where='github.com',
                opts=[('github-issues', 'ready', 'gh tiene sesión en github.com y responde.'),
                      ('gitlab-issues', 'unavailable', 'El host de este proyecto es github.com, no GitLab.'),
-                     ('jira', 'unknown', NOT_RECORDED_P2.format(cli='acli')),
                      ('youtrack', 'unknown', NOT_RECORDED_P2.format(cli='youtrack-app'))]),
   'out': dict(host='signed-out', saved='github-issues', noun='PR', ref='#12', cli='gh', scope='yeyochico/claude-wrapper',
               query='is:open', where='github.com',
               opts=[('github-issues', 'signed-out', 'gh no tiene sesión en github.com.'),
                     ('gitlab-issues', 'unavailable', 'El host de este proyecto es github.com, no GitLab.'),
-                    ('jira', 'unknown', NOT_RECORDED_P2.format(cli='acli')),
                     ('youtrack', 'unknown', NOT_RECORDED_P2.format(cli='youtrack-app'))]),
-  'jira': dict(host='gh-ready', saved='jira', noun='PR', ref='#12', cli='gh', scope='PROJ', query='',
-               where='github.com',
-               opts=[('github-issues', 'ready', 'gh tiene sesión en github.com y responde.'),
-                     ('gitlab-issues', 'unavailable', 'El host de este proyecto es github.com, no GitLab.'),
-                     ('jira', 'unknown', NOT_RECORDED_P2.format(cli='acli')),
-                     ('youtrack', 'unknown', NOT_RECORDED_P2.format(cli='youtrack-app'))]),
 }
 
 
@@ -116,7 +105,7 @@ def sel(label, options, value, disabled=False, big=False):
 def mapping(sc, big=False):
   """The status mapping, one select per column of the board. GitHub and GitLab have no statuses between open and
   closed, so the first two are fixed to "Sin cambios" with the reason beside them, and Done is the one choice:
-  close the issue. Jira and YouTrack's statuses will fill the first two when their recordings exist."""
+  close the issue. YouTrack's States fill all three once its recording exists."""
   s = SCENES[sc]
   tid = s['saved']
   label = TRK_P2[tid][0] if tid else ''
@@ -128,10 +117,10 @@ def mapping(sc, big=False):
     foot = (f'Al fusionarse la {s["noun"]} la incidencia se cierra sola con <span class="mono fg-2">Closes #12</span> en su descripción. '
             f'Si no pudo, porque la rama de destino no es la principal, Agentry la cierra después y comprueba que ha quedado cerrada.')
   else:
-    rows = [('in_progress', 'En curso', ['Sin cambios'], 'Sin cambios', True, 'Disponible cuando Agentry pruebe acli.'),
-            ('in_review', 'En revisión', ['Sin cambios'], 'Sin cambios', True, 'Disponible cuando Agentry pruebe acli.'),
-            ('done', 'Hecha', ['Sin cambios'], 'Sin cambios', True, 'Disponible cuando Agentry pruebe acli.')]
-    foot = 'Los estados de Jira se leen de su propio proyecto; hasta entonces el tablero no cambia nada en Jira.'
+    rows = [('in_progress', 'En curso', ['Sin cambios'], 'Sin cambios', True, 'Disponible cuando Agentry pruebe youtrack-app.'),
+            ('in_review', 'En revisión', ['Sin cambios'], 'Sin cambios', True, 'Disponible cuando Agentry pruebe youtrack-app.'),
+            ('done', 'Hecha', ['Sin cambios'], 'Sin cambios', True, 'Disponible cuando Agentry pruebe youtrack-app.')]
+    foot = 'Los estados de YouTrack se leen de su propio proyecto; hasta entonces el tablero no cambia nada en YouTrack.'
   out = ''
   for k, name, options, value, dis, note in rows:
     note_html = f'<span class="trk-map-note">{note}</span>' if note else ''
@@ -145,11 +134,11 @@ def fields(sc, big=False):
   tid = s['saved']
   if tid is None:
     return ''
-  if tid == 'jira':
-    scope_label, scope_hint = 'Clave del proyecto', 'La clave del proyecto de Jira, la que encabeza sus incidencias.'
-    q_hint = 'Hasta que Agentry pruebe acli, la consulta no se puede escribir.'
+  if tid == 'youtrack':
+    scope_label, scope_hint = 'Nombre corto del proyecto', 'El nombre corto del proyecto de YouTrack, el que encabeza sus incidencias.'
+    q_hint = 'Hasta que Agentry pruebe youtrack-app, la consulta no se puede escribir.'
     disabled = ' disabled'
-    q_ph = 'Disponible cuando Agentry pruebe acli'
+    q_ph = 'Disponible cuando Agentry pruebe youtrack-app'
   elif tid == 'gitlab-issues':
     scope_label = 'Alcance'
     scope_hint = 'Las incidencias de este repositorio. Por defecto es el del remoto <span class="mono fg-2">origin</span>.'
@@ -176,7 +165,7 @@ def saved_note(sc):
     return (f'<div class="callout callout-warn" role="note">{ico("warn", "ico fg-3")}<span style="line-height: 1.5">Hasta que {s["cli"]} tenga sesión en {s["where"]}, Agentry no lee ni cierra incidencias de este proyecto. '
             f'Lo guardado se conserva.</span><a href="DesktopIntegraciones.html" class="btn btn-sm">Ir a Integraciones</a></div>')
   if state == 'unknown':
-    return (f'<div class="callout" role="note">{ico("info", "ico fg-3")}<span style="line-height: 1.5">Este proyecto guarda Jira, pero Agentry todavía no ha probado acli: no lee ni escribe incidencias. '
+    return (f'<div class="callout" role="note">{ico("info", "ico fg-3")}<span style="line-height: 1.5">Este proyecto guarda un tracker que Agentry todavía no ha probado: no lee ni escribe incidencias. '
             f'Puedes elegir otro tracker o dejarlo guardado.</span></div>')
   return ''
 
@@ -258,7 +247,6 @@ STATES = [
   ('gl', 'GitLab, listo', 'En un host de GitLab el tracker es GitLab Issues y el cambio es una MR, !12. Solo cierra la incidencia: GitLab no pide un motivo.'),
   ('none', 'Sin tracker', 'Es lo que tiene un proyecto al principio. Se elige "Ninguno" y no hay alcance, consulta ni estados que rellenar.'),
   ('out', 'El tracker guardado no está listo', 'La sesión de gh se perdió. Lo guardado se conserva, se dice en palabras y el único camino es Integraciones.'),
-  ('jira', 'Jira guardado, sin comprobar', 'La clave existe en los ajustes para cuando Agentry pruebe acli. Mientras tanto no hay consulta ni estados, y nada se escribe en Jira.'),
 ]
 
 
@@ -272,7 +260,7 @@ def states_desktop():
 {proj_tabs('settings')}
 <div class="col" style="gap: 26px; max-width: 880px">{cells}</div>
 </main>'''
-  write('DesktopProyectoTrackerEstados.html', tall(desktop('Ajustes del proyecto, tracker en otros estados', 'projects', pcrumb('claude-wrapper', ('Ajustes', '')), main), 4150))
+  write('DesktopProyectoTrackerEstados.html', tall(desktop('Ajustes del proyecto, tracker en otros estados', 'projects', pcrumb('claude-wrapper', ('Ajustes', '')), main), 3250))
 
 
 def states_mobile(name, title, scs, height=844):
@@ -297,7 +285,7 @@ def t_p2():
   tracker_mobile('MobileProyectoTracker.html', 'gh', 'Ajustes del proyecto, tracker')
   tracker_mobile('MobileProyectoTrackerElegir.html', 'gh', 'Ajustes del proyecto, elegir tracker', sheet=choose_sheet('gh'), height=844)
   states_mobile('MobileProyectoTrackerEstados.html', 'Ajustes del proyecto, tracker en otros estados', ('gl', 'none'))
-  states_mobile('MobileProyectoTrackerEstados2.html', 'Ajustes del proyecto, tracker guardado que no está listo', ('out', 'jira'))
+  states_mobile('MobileProyectoTrackerEstados2.html', 'Ajustes del proyecto, tracker guardado que no está listo', ('out',))
 
 
 # ================================================================ t-p1: Settings → Integrations
@@ -307,9 +295,9 @@ def t_p2():
 # share (the states, the badge, the binary panel's look, the hosts card above the trackers).
 #   python3 trackers.py
 #
-# Scope of this step: GitHub Issues and GitLab Issues. Jira (acli) and YouTrack (youtrack-app) have no
-# recordings yet (plan: "Phase 5 in two steps"), so they are rows with readiness `unknown`, reason
-# `not-recorded`, no action and no detail about their CLIs: nothing here is built on a fact nobody has seen.
+# Scope of this step: GitHub Issues and GitLab Issues. YouTrack (youtrack-app) had no recording yet when this
+# was drawn (plan: "Phase 5 in two steps"), so it is a row with readiness `unknown`, reason `not-recorded`,
+# no action and no detail about its CLI.
 from common import ico, write, tabbar, mobile
 from decisions import scrim
 from providers import card_head, mhead
@@ -320,7 +308,6 @@ from hosts import STATE, badge, head as hosts_head, hosts_card, desktop_page, sc
 TRK = {
   'github-issues': ('GitHub Issues', 'GH', 262, 'gh', '2.92.0', '#12', 'GitHub'),
   'gitlab-issues': ('GitLab Issues', 'GL', 45, 'glab', '1.120.0', '#12', 'GitLab'),
-  'jira': ('Jira', 'JR', 215, 'acli', '', 'CW-22', None),
   'youtrack': ('YouTrack', 'YT', 330, 'youtrack-app', '', 'PROJ-12', None),
 }
 
@@ -340,8 +327,6 @@ HOSTS = [
 ]
 
 NOT_BUILT = {
-  'jira': ('Jira todavía no está disponible: Agentry aún no ha visto cómo responde <span class="mono">acli</span> '
-           'y no construye nada sobre algo que no ha visto.'),
   'youtrack': ('YouTrack todavía no está disponible: Agentry aún no ha visto cómo responde <span class="mono">youtrack-app</span> '
                'y no construye nada sobre algo que no ha visto.'),
 }
@@ -353,8 +338,6 @@ MAIN = [
   dict(id='gitlab-issues', state='ready', version='1.120.0', path='~/.local/bin/glab',
        reason='Lee y escribe incidencias con glab, con la sesión que ya tiene. Sirve en los proyectos cuyo código está en GitLab.',
        short='Usa glab y su sesión, en proyectos con el código en GitLab.'),
-  dict(id='jira', state='not-recorded', version='', path='', reason=NOT_BUILT['jira'],
-       short='Agentry aún no ha visto cómo responde <span class="mono">acli</span>, y no construye nada sobre eso.'),
   dict(id='youtrack', state='not-recorded', version='', path='', reason=NOT_BUILT['youtrack'],
        short='Agentry aún no ha visto cómo responde <span class="mono">youtrack-app</span>, y no construye nada sobre eso.'),
 ]
@@ -393,7 +376,7 @@ def mono_ico(tid):
 
 def actions(t, open_=False):
   """One action each, every button neutral. A ready tracker offers the binary override (it is always
-  allowed); the other states follow hosts.py's table; Jira and YouTrack offer nothing."""
+  allowed); the other states follow hosts.py's table; a tracker not recorded offers nothing."""
   s = t['state']
   ext = ico('ext', 'ico ico-sm')
   pressed = ' aria-pressed="true"' if open_ else ''
@@ -470,7 +453,7 @@ def summary(machine):
 
 
 INTRO = ('Agentry importa incidencias de GitHub Issues (<span class="mono">#12</span>) y GitLab Issues (<span class="mono">#12</span>) con los mismos programas '
-         'que ya usa para las PR y las MR: no pide otra sesión ni guarda otra clave. Jira y YouTrack llegarán cuando se haya comprobado cómo responden sus programas.')
+         'que ya usa para las PR y las MR: no pide otra sesión ni guarda otra clave. YouTrack llegará cuando se haya comprobado cómo responde su programa.')
 
 
 def trackers_card(machine, open_id=None, id_='sec-trackers', grad=True, heading=True):

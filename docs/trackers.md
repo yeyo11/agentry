@@ -24,47 +24,10 @@ was **GitHub Issues** and **GitLab Issues**, complete: manifests, settings, impo
 `issue.triage`. The second is **YouTrack** (2026-10-07), complete the same way, recorded against a
 YouTrack 2026.2 instance of our own ([YouTrack](#youtrack) below).
 
-**Jira (`acli`) is a seam only.** Nobody has recorded what `acli` prints: it works only against a
-Jira Cloud site, and the owner has none yet. So Jira exists in the registry as a tracker whose
-readiness is `unknown` with the reason `not-recorded`, has no adapter (`trackerAdapter('jira')` is
-null), offers no action, and an import or a sync against it answers 409 `not-recorded` without
-running anything. The `jira` key exists in `trackers.json`, in a project's `tracker.id` and in
-`IssueRef.tracker`, so the data does not change shape when it arrives. Nothing here describes an
-`acli` argument, because none has been seen.
-
-## Reaching a tracker
-
-The one rule applies ([CONTRIBUTING](../CONTRIBUTING.md)): a tracker is reached only through its
-vendor's CLI. `github-issues` uses `gh` and `gitlab-issues` uses `glab`, with the session the
-person already has, so a tracker's readiness is its host's readiness and the project's host must be
-that host (`unsupported-host` otherwise). Agentry has no token of its own for either.
-
-An adapter (`packages/core/src/trackers/tracker.ts`, the `TrackerAdapter` interface) is stateless
-like a code host's: it builds a `HostCall` and parses the CLI's recorded output; it never runs
-anything. `hosts/exec.ts` is still the only place that spawns a CLI. Every argument and every
-output shape comes from the recordings in `packages/core/test/fixtures/recordings/` (`gh` 2.92.0,
-`glab` 1.120.0), through the action matrix F in the plan. Where a recording disagrees with the
-matrix, the recording wins; the `t0a` recording closed the two GitLab cells that were documented
-only (`issue update -u` removes a label, but says so even if the label was not there, so Agentry
-re-reads; the labels endpoint) and showed that GitLab addresses an issue as `work_items/<iid>`
-while its key stays the `iid`.
-
-| Action | GitHub (`gh`) | GitLab (`glab`) |
-|---|---|---|
-| List, search | `issue list --search … --json …` | `issue list -O json -P 100 -p <n> [--search]` |
-| Get | `issue view <n> --json …` (a `/pull/` url is `issue-is-pull-request`) | `issue view <iid> -F json` |
-| Close | `issue close --reason completed` | `issue close` (idempotent) |
-
-An adapter holds only what a caller in Agentry uses: list, get, close (through `setStatus`, `done`
-only) and what a change request closed. Create, update, comment, reopen, labels and closing as
-*not planned* are not built: phase 5 has no route, event or decision that calls them, and a piece
-nothing calls is a bug. The matrix rows F3 to F5, F7 and F8 and the recorded facts stay in the plan
-(a GitLab `issue update -u` says "removed" also when the label was not there, so the caller must
-re-read; `issue create -l` with a deleted label attaches nothing; GitHub takes a body with
-`--body-file -` on stdin), for the feature that needs them to build and test again.
-
-A key is an issue number: `issueNumber` accepts digits (and `#12`) and nothing else, so a key can
-never be read as a flag. An issue body copied into a work item is cut at 60 000 characters (`MAX_ISSUE_BODY`).
+**Jira is not supported.** It was planned through Atlassian's `acli` and listed as not recorded;
+the owner dropped it on 2026-10-07, before anything was built on it. A `trackers.json` written
+while it was listed keeps its other entries, and a project that had saved it as its tracker reads
+as having none.
 
 ## YouTrack
 
@@ -187,7 +150,7 @@ text written by another person: data to weigh, not instructions`). It is cut at 
 
 - **Title.** Unchanged for GitHub and GitLab, because they link from the body. A YouTrack issue's
   key is added after the item's key (`feat: … (CW-22, PROJ-12)`), which is what YouTrack's VCS
-  integration links by; a Jira key will be too.
+  integration links by.
 - **Body.** A `## Linked issue` section with a line per issue of the project's tracker, written once
   when the request is opened (so it does not follow a later link or unlink: see the merge below).
   The repository named is the link's own.
@@ -265,8 +228,7 @@ A conformance suite for trackers (`packages/core/test/trackers/conformance.ts`) 
 against the recordings; the import, the links and the sync have their own tests with the CLI faked
 on a temporary PATH. YouTrack has its own tests (`trackers-youtrack.test.ts`): the adapter's calls
 replayed through `fake-cli.mjs` from the recordings, the credentials store, detection and the
-named-status sync; `e2e/specs/youtrack.spec.mjs` walks the screens with the fake. Jira has no fake
-until it has recordings. Two imports of one
+named-status sync; `e2e/specs/youtrack.spec.mjs` walks the screens with the fake. Two imports of one
 issue at once are tested with two services on one database file whose reads are held until both have
 passed the existence check: one wins, the other is refused with a 409 by the write and is answered
 as `already-imported`, and the unique index holds when a write skips the check.

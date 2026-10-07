@@ -73,7 +73,7 @@ const ACTIONS: Record<CodeHostStatus['state'], ActionKind[]> = {
 };
 
 /** How each tracker writes an issue's number, as an example beside its name. */
-const NUMBERING: Record<TrackerId, string> = { 'github-issues': '#12', 'gitlab-issues': '#12', jira: 'CW-22', youtrack: 'PROJ-12' };
+const NUMBERING: Record<TrackerId, string> = { 'github-issues': '#12', 'gitlab-issues': '#12', youtrack: 'PROJ-12' };
 
 const entryOf = (settings: CodeHostsSettings, id: CodeHostId) => settings.hosts[id] ?? { enabled: true, binaryPath: null };
 
@@ -750,8 +750,8 @@ function useTrackerReason(status: TrackerStatus, enabled: boolean, accessHost: s
 }
 
 /**
- * One tracker: its readiness, the reason in words and one remedy. Jira and YouTrack are listed as
- * not available yet, with their reason and no action: nothing is built on a CLI nobody has seen.
+ * One tracker: its readiness, the reason in words and one remedy. A tracker listed before its CLI is
+ * recorded says so, with its reason and no action: nothing is built on a CLI nobody has seen.
  */
 function TrackerRow({
   status,
