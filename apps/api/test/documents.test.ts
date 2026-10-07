@@ -56,7 +56,10 @@ before(async () => {
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
 });
 
-after(() => app.close());
+after(async () => {
+  await app.close();
+  core.shutdown();
+});
 
 test('write, read, list and delete a document, each announced on the feed', async () => {
   const { project, dir } = await importProject('Docs');

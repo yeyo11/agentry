@@ -14,10 +14,11 @@ import { buildApp } from '../src/app.ts';
 // unchanged answer comes back empty, and event streams left alone so each event arrives as written.
 
 let app: FastifyInstance;
+let core: Core;
 
 before(async () => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-api-wire-'));
-  const core = new Core(
+  core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
@@ -28,7 +29,10 @@ before(async () => {
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
 });
 
-after(() => app.close());
+after(async () => {
+  await app.close();
+  core.shutdown();
+});
 
 test('an answer is compressed for a client that accepts it, and plain for one that does not', async () => {
   const plain = await app.inject('/openapi.json');
