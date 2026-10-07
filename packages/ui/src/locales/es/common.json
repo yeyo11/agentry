@@ -11,6 +11,9 @@
   "requestTimeout": "El servidor no ha respondido a tiempo. Puede que siga trabajando: recarga para ver el estado actual.",
   "networkError": "No se ha podido conectar con Agentry. Revisa la conexión o si la dirección que usas sigue funcionando.",
   "httpError": "No se ha podido llegar a Agentry por esta dirección (error {{status}}). Ha respondido un proxy o un túnel intermedio.",
+  "cost": {
+    "lessThan": "menos de {{amount}}"
+  },
   "time": {
     "justNow": "ahora mismo",
     "now": "ahora",

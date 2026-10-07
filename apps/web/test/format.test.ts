@@ -34,6 +34,8 @@ test('English output is the text the hand-written formatters produced', () => {
   assert.equal(formatCost(0), '$0.00');
   assert.equal(formatCost(0.0012), '$0.0012');
   assert.equal(formatCost(1.5), '$1.50');
+  assert.equal(formatCost(0.0032), '$0.0032');
+  assert.equal(formatCost(0.00001), 'less than $0.0001');
   assert.equal(formatCost(1234.5), '$1,234.50');
   assert.equal(formatBytes(512), '512 B');
   assert.equal(formatBytes(1536), '1.5 KB');
@@ -57,6 +59,8 @@ test('Spanish output', () => {
     assert.equal(timeUntil(nowSeconds() + 3 * 60 + 0.4), 'dentro de 3 min');
     // Intl separates amount and currency with a no-break space
     assert.equal(formatCost(1.5), '1,50\u00a0US$');
+    assert.equal(formatCost(0.0032), '0,0032\u00a0US$');
+    assert.equal(formatCost(0.00001), 'menos de 0,0001\u00a0US$');
     assert.equal(formatBytes(1536), '1,5 KB');
     assert.equal(formatNumber(1500), '1500');
     assert.equal(formatNumber(15000), '15.000');

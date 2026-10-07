@@ -125,7 +125,11 @@ export function formatClock(value: string | null | undefined): string {
   return ms == null ? '' : dateTime('time', TIME).format(ms);
 }
 
+const MIN_SHOWN_COST = 0.0001;
+
 export function formatCost(usd: number | null | undefined): string {
+  // A real cost must never read as zero: under the last digit shown it says so
+  if (usd && usd > 0 && usd < MIN_SHOWN_COST) return i18n.t('common:cost.lessThan', { amount: formatCost(MIN_SHOWN_COST) });
   const digits = usd && usd < 0.01 ? 4 : 2;
   return cached(`usd:${digits}`, (l) =>
     new Intl.NumberFormat(l, { style: 'currency', currency: 'USD', minimumFractionDigits: digits, maximumFractionDigits: digits }),

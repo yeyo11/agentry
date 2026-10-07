@@ -16,7 +16,7 @@ import {
 } from '@typesafe-ai/sdk';
 import type { DecisionAnswer, DecisionQuestion, DecisionUnavailableReason } from '@agentry/shared';
 import type { DecisionProvider, DecisionRequest, ProviderResult } from '../engine.ts';
-import { JEV_MODEL } from '../settings.ts';
+import { JEV_MODEL, JEV_PRICE_USD_PER_INPUT_TOKEN } from '../settings.ts';
 
 /** The one call the adapter makes; tests stub it instead of the network */
 export interface JevClient {
@@ -174,13 +174,15 @@ export class JevProvider implements DecisionProvider {
         const result = await client.systemOne(payload, { signal: opts.signal, timeout: remaining });
         const answers = fromSdkAnswers(request.questions, result);
         if (!answers) return { status: 'unavailable', reason: 'invalid-answer', latencyMs: elapsed() };
+        const inputTokens = typeof result.usage?.input_tokens === 'number' ? result.usage.input_tokens : null;
         return {
           status: 'answered',
           answers,
           latencyMs: elapsed(),
-          inputTokens: typeof result.usage?.input_tokens === 'number' ? result.usage.input_tokens : null,
-          // TypeSafe reports tokens, not a price, and a guessed one would be shown as fact
-          costUsd: null,
+          inputTokens,
+          // TypeSafe reports only tokens: the cost is derived from its published price. Without
+          // tokens it stays null, since 0 would read as a measured free request.
+          costUsd: inputTokens === null ? null : inputTokens * JEV_PRICE_USD_PER_INPUT_TOKEN,
           model: typeof result.model === 'string' && result.model ? result.model : model,
         };
       } catch (error) {

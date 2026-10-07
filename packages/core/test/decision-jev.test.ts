@@ -47,7 +47,7 @@ test('jev maps the questions out and the answers back', async () => {
   assert.deepEqual(out.answers.size, { kind: 'score', value: 'mid', probabilities: { small: 0.1, mid: 0.7, big: 0.2 }, confidence: 0.8 });
   assert.deepEqual(out.answers.urgent, { kind: 'noul', value: false, probability: 0.1, confidence: 0.9 });
   assert.equal(out.inputTokens, 42);
-  assert.equal(out.costUsd, null);
+  assert.ok(Math.abs((out.costUsd ?? 0) - (42 * 0.042) / 1e6) < 1e-15);
   assert.equal(out.model, 'jev-1.13.0');
   const sent = seen[0];
   assert.equal(sent?.model, 'jev-1.13.0');
@@ -165,4 +165,13 @@ test('jev reads the key on every call', async () => {
   key = 'two';
   await jev.ask(request, live);
   assert.deepEqual(made, ['one', 'two']);
+});
+
+test('jev stores no tokens and no cost when the answer reports no usage', async () => {
+  const { jev } = provider(async () => ({ ...good, usage: undefined } as unknown as typeof good));
+  const out = await jev.ask(request, live);
+  assert.equal(out.status, 'answered');
+  if (out.status !== 'answered') return;
+  assert.equal(out.inputTokens, null);
+  assert.equal(out.costUsd, null);
 });

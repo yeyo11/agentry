@@ -11,6 +11,9 @@
   "requestTimeout": "The server did not answer in time. It may still be working — reload to see the current state.",
   "networkError": "Could not reach Agentry. Check the connection, or whether the address you are using still works.",
   "httpError": "Agentry could not be reached through this address (error {{status}}). A proxy or tunnel in between answered instead.",
+  "cost": {
+    "lessThan": "less than {{amount}}"
+  },
   "time": {
     "justNow": "just now",
     "now": "now",
