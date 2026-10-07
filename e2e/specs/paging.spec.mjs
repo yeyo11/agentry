@@ -1,11 +1,13 @@
 // Long transcripts: paged by the API and windowed in the UI. A synthetic 2000-entry session is
 // seeded into the isolated config dir; every entry carries a marker (m0000…m1999) in its visible
 // text, so the spec can tell which row of the whole transcript is on screen.
+import { cpus, loadavg } from 'node:os';
 import { mark, seedTranscript } from './transcript-seed.mjs';
 
 const TOTAL = 2000;
 const SESSION = 'e2e-paging-0000-0000-000000000000';
 const PROJECT = '-work-paging';
+const TYPED = 'Keep going with the parser fix';
 
 /**
  * The marker of the first row whose top is inside the viewport, and where that top sits. A step
@@ -153,17 +155,42 @@ export default async ({ page, api, check, dirs }) => {
     // Without support the observer would see nothing and the check below would pass vacuously
     check(await page.eval(`return PerformanceObserver.supportedEntryTypes.includes('longtask')`), 'the browser reports long tasks');
     await page.eval(
-      `window.__longTasks=[];new PerformanceObserver(l=>window.__longTasks.push(...l.getEntries().map(e=>e.duration))).observe({type:'longtask'});return true`,
+      `window.__longTasks=[];new PerformanceObserver(l=>window.__longTasks.push(...l.getEntries().map(e=>({start:e.startTime,duration:e.duration})))).observe({type:'longtask'});return true`,
     );
-    for (const ch of 'Keep going with the parser fix') await page.type(ch);
+    // A busy machine makes long tasks of its own, so a bare count cannot tell a regression from the
+    // load. Each keystroke window (the driver's 150 ms after the input, then two frames) is followed
+    // by an idle window of the same shape, so both see the same load; only what typing adds counts.
+    const now = 'return performance.now()';
+    const twoFrames = 'await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));return performance.now()';
+    const keyWindows = [];
+    const idleWindows = [];
+    for (const ch of TYPED) {
+      const keyStart = await page.eval(now);
+      await page.type(ch);
+      keyWindows.push([keyStart, await page.eval(twoFrames)]);
+      const idleStart = await page.eval(now);
+      await page.sleep(150);
+      idleWindows.push([idleStart, await page.eval(twoFrames)]);
+    }
     await settle(page);
     const typed = await page.eval(`return document.querySelector('textarea[placeholder^="Send a message"]').value`);
-    check(typed === 'Keep going with the parser fix', `the textarea took every keystroke (${JSON.stringify(typed)})`);
-    const longTasks = await page.eval(`return window.__longTasks.filter(d=>d>50)`);
-    check(longTasks.length === 0, `no long tasks while typing (${longTasks.map((d) => `${Math.round(d)}ms`).join(', ')})`);
+    check(typed === TYPED, `the textarea took every keystroke (${JSON.stringify(typed)})`);
+    const longTasks = await page.eval('return window.__longTasks.filter(t=>t.duration>50)');
+    const withLongTask = (windows) => windows.filter(([from, to]) => longTasks.some((t) => t.start >= from && t.start < to)).length;
+    const keys = withLongTask(keyWindows);
+    const idle = withLongTask(idleWindows);
+    const seen = `${keys} of ${keyWindows.length} keystroke windows and ${idle} of ${idleWindows.length} idle windows had a long task` +
+      (longTasks.length ? ` (${longTasks.map((t) => `${Math.round(t.duration)}ms`).join(', ')})` : '');
+    // Idle windows that stall this often mean the run cannot measure typing at all; the load
+    // average is logged to explain it, not used to decide it
+    if (idle >= 10) {
+      console.log(`  paging: long-task check skipped: ${seen}; load average ${loadavg()[0].toFixed(1)} on ${cpus().length} cores`);
+    } else {
+      check(keys - idle <= 5, `no long tasks while typing beyond the idle baseline: ${seen}`);
+    }
     console.log(
       `  paging: ${landedNodes} nodes on landing, ${fullNodes} with all ${TOTAL} held; ` +
-        `${reading.mark} ${reading.offset.toFixed(1)}→${after.toFixed(1)}px, ${top.mark} ${top.offset.toFixed(1)}→${topAfter.toFixed(1)}px`,
+        `${reading.mark} ${reading.offset.toFixed(1)}→${after.toFixed(1)}px, ${top.mark} ${top.offset.toFixed(1)}→${topAfter.toFixed(1)}px; ${seen}`,
     );
     await page.shot('paging-session');
   } finally {

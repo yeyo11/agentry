@@ -169,7 +169,12 @@ release), on 2026-09-28, on a machine with a load average near 50. Kept as histo
     alone, and so does `tasks-links.spec.mjs`;
   - `home.spec.mjs` (the figures are a strip under the hero) fails alone too;
   - `paging.spec.mjs` (no long tasks while typing) fails alone too, with long tasks of 55–72 ms
-    that the load on the machine may explain;
+    that the load on the machine may explain. Since CW-32 the check compares the 30 keystroke
+    windows with 30 interleaved idle windows and fails when keystrokes add more than 5; it skips,
+    saying so, when 10 idle windows stall. At a load near 6 (it never dropped below 2) it passed
+    6 of 6 with no long task, but under synthetic load the idle windows stayed clean while typing
+    still met long tasks, so a loaded run can still fail
+    ([paging-long-tasks](plans/paging-long-tasks.md#measurements-2026-10-07));
   - `shell.spec.mjs` fails alone too, on "and on the project's tabs" (in the full run it failed
     earlier, on "Settings opens on Appearance"). Since CW-31 its phone checks wait for the layout
     they measure instead of reading it once after a pause, and it passed 10 runs in a row alone.
