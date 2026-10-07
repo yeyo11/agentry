@@ -23,6 +23,16 @@ export default async ({ page, api, check, dirs }) => {
   // True once the page shows what `body` looks for: pages are code-split and a loaded machine draws
   // them later than a goto's fixed wait, so a check reads the page once it has settled
   const until = (body, timeout = 10000) => page.waitFor(body, { timeout }).then(() => true, () => false);
+  // The same wait for a check that reports what it measured: reads `body` until `ok` holds for it,
+  // and returns the last reading either way, so a failure still says what the page showed
+  const settled = async (body, ok, timeout = 10000) => {
+    const end = Date.now() + timeout;
+    for (;;) {
+      const value = await page.eval(body).catch(() => null);
+      if (ok(value) || Date.now() > end) return value;
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+  };
   try {
     await page.viewport(1440, 900);
     await page.goto('/', 0);
@@ -162,48 +172,60 @@ export default async ({ page, api, check, dirs }) => {
       await page.goto(path, 0);
       // A fixed pause measured a page still loading on a busy machine: wait for the page and its tab bar
       await page.waitFor(`return !!document.querySelector('.tabbar .tabbar-tab') && !!document.querySelector('main')?.innerText.trim()`, { label: `[390px ${path}] the page and its tab bar`, timeout: 60_000 });
-      const overflow = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
-      check(overflow <= 1, `[390px ${path}] nothing scrolls sideways (${overflow}px)`);
-      const tabbar = await page.eval(`const t = document.querySelector('.tabbar'); if (!t) return null; const r = t.getBoundingClientRect(); return { bottom: r.bottom, tabs: [...t.querySelectorAll('.tabbar-tab')].map((e) => e.getBoundingClientRect().height) }`);
-      check(tabbar !== null && Math.abs(tabbar.bottom - 844) <= 1, `[390px ${path}] the tab bar sits on the bottom edge`);
+      // Each read waits for the layout to settle: the tab bar is in the DOM before the page's styles
+      // and fonts have placed it, and a loaded machine was caught measuring it mid-layout
+      const overflow = await settled('return document.documentElement.scrollWidth - window.innerWidth', (o) => o !== null && o <= 1);
+      check(overflow !== null && overflow <= 1, `[390px ${path}] nothing scrolls sideways (${overflow}px)`);
+      const tabbar = await settled(
+        `const t = document.querySelector('.tabbar'); if (!t) return null; const r = t.getBoundingClientRect(); return { bottom: r.bottom, tabs: [...t.querySelectorAll('.tabbar-tab')].map((e) => e.getBoundingClientRect().height) }`,
+        (t) => t !== null && Math.abs(t.bottom - 844) <= 1 && t.tabs.length === 4 && t.tabs.every((h) => h >= 44),
+      );
+      check(tabbar !== null && Math.abs(tabbar.bottom - 844) <= 1, `[390px ${path}] the tab bar sits on the bottom edge (${JSON.stringify(tabbar)})`);
       check(tabbar !== null && tabbar.tabs.length === 4 && tabbar.tabs.every((h) => h >= 44), `[390px ${path}] four tabs, each at least 44px tall (${tabbar?.tabs.join(', ')})`);
-      check(!(await page.eval(`return !!document.querySelector('.topbar-new')?.getClientRects().length`)), `[390px ${path}] New chat moved from the top bar to the FAB`);
-      check(!(await page.eval(`return !!document.querySelector('.statusbar')?.getClientRects().length`)), `[390px ${path}] the status bar is desktop only`);
+      check(await until(`return !document.querySelector('.topbar-new')?.getClientRects().length`), `[390px ${path}] New chat moved from the top bar to the FAB`);
+      check(await until(`return !document.querySelector('.statusbar')?.getClientRects().length`), `[390px ${path}] the status bar is desktop only`);
       // Labels are whole words: "Orchestrations" used to be cut to "Orquestaciones" minus its end
-      const cut = await page.eval(`return [...document.querySelectorAll('.tabbar-label')].filter((l) => l.scrollWidth > l.clientWidth + 1).map((l) => l.textContent)`);
-      check(cut.length === 0, `[390px ${path}] no tab label is truncated (${cut.join(', ')})`);
+      const cut = await settled(`return [...document.querySelectorAll('.tabbar-label')].filter((l) => l.scrollWidth > l.clientWidth + 1).map((l) => l.textContent)`, (c) => c?.length === 0);
+      check(cut?.length === 0, `[390px ${path}] no tab label is truncated (${cut?.join(', ')})`);
     }
     // The FAB: the same round icon everywhere, named New chat, New orchestration on its page, none on
     // Settings — and none where the page's own empty state already offers what it would start
-    const fab = async (path) => {
-      await page.goto(path, 900);
-      return page.eval(`const standIn = !!document.querySelector('main .state-empty .btn-primary'); const f = document.querySelector('.fab'); if (!f || !f.getClientRects().length) return { standIn, shown: false }; const r = f.getBoundingClientRect(), t = document.querySelector('.tabbar').getBoundingClientRect(); return { standIn, shown: true, text: f.innerText.trim(), name: f.getAttribute('aria-label') ?? f.innerText.trim(), above: t.top - r.bottom, height: r.height, width: r.width, right: innerWidth - r.right }`);
+    // `name` is the FAB the page should end up with, null for none: the read waits until the page
+    // shows that (or its empty state's stand-in), since the FAB and the empty state arrive with the data
+    const fab = async (path, name) => {
+      await page.goto(path, 0);
+      // A work item's page heads itself and has no tab bar, so only the page is waited for
+      await page.waitFor(`return !!document.querySelector('main')?.innerText.trim()`, { label: `[390px ${path}] the page`, timeout: 60_000 });
+      return settled(
+        `const standIn = !!document.querySelector('main .state-empty .btn-primary'); const f = document.querySelector('.fab'); if (!f || !f.getClientRects().length) return { standIn, shown: false }; const r = f.getBoundingClientRect(), t = document.querySelector('.tabbar')?.getBoundingClientRect(); return { standIn, shown: true, text: f.innerText.trim(), name: f.getAttribute('aria-label') ?? f.innerText.trim(), above: t ? t.top - r.bottom : null, height: r.height, width: r.width, right: innerWidth - r.right }`,
+        (seen) => seen !== null && ((name === null || seen.standIn) ? !seen.shown : seen.shown && seen.text === '' && seen.name === name && seen.above !== null && seen.above >= 8),
+      );
     };
     const expectFab = (seen, path, name) => {
       if (seen.standIn) check(!seen.shown, `[390px ${path}] the empty state offers the action, so there is no FAB (${JSON.stringify(seen)})`);
       else check(seen.shown && seen.text === '' && seen.name === name, `[390px ${path}] the FAB is an icon named ${name} (${JSON.stringify(seen)})`);
     };
-    const home = await fab('/');
+    const home = await fab('/', 'New chat');
     expectFab(home, '/', 'New chat');
     if (home.shown) check(home.above >= 8 && home.height >= 44 && home.width >= 44 && home.right >= 8, `[390px /] the FAB sits above the tab bar, inside the screen, 44px or larger (${JSON.stringify(home)})`);
-    expectFab(await fab('/chats'), '/chats', 'New chat');
-    const orchestrations = await fab('/orchestration');
+    expectFab(await fab('/chats', 'New chat'), '/chats', 'New chat');
+    const orchestrations = await fab('/orchestration', 'New orchestration');
     expectFab(orchestrations, '/orchestration', 'New orchestration');
     if (orchestrations.shown) {
       await page.click('.fab', undefined, 900);
-      check((await page.eval(`return location.pathname + location.search`)) === '/orchestration?new=1', 'the Orchestrations FAB opens the new orchestration form');
+      check(await until(`return location.pathname + location.search === '/orchestration?new=1'`), 'the Orchestrations FAB opens the new orchestration form');
     }
     await page.goto('/orchestration?new=1', 0);
     // Waited for, not read after a pause: the list draws its FAB before the form replaces it
     await page.waitFor(`return !!document.querySelector('main textarea') && !document.querySelector('.fab')`, { label: 'the new orchestration form is open, so the FAB steps aside', timeout: 60_000 });
     // Tasks is in the More sheet on a phone, and its FAB starts a task
-    const tasksFab = await fab('/tasks');
+    const tasksFab = await fab('/tasks', 'New task');
     expectFab(tasksFab, '/tasks', 'New task');
-    check((await page.eval(`return document.querySelector('.tabbar-more')?.classList.contains('is-active')`)) === true, '[390px /tasks] More is the current tab, where Tasks lives');
+    check(await until(`return document.querySelector('.tabbar-more')?.classList.contains('is-active') === true`), '[390px /tasks] More is the current tab, where Tasks lives');
     // A project's page is behind More too, where Projects lives (MobileProyecto), not under Home
     await page.goto(`/?project=${projectId}`, 900);
     await page.waitFor(`return document.querySelector('.tabbar-more')?.classList.contains('is-active') === true`, { label: "[390px a project's page] More is the current tab" });
-    check(!(await page.eval(`return document.querySelector('.tabbar a[href="/"]').classList.contains('is-active')`)), "[390px a project's page] Home is not");
+    check(await until(`return document.querySelector('.tabbar a[href="/"]')?.classList.contains('is-active') === false`), "[390px a project's page] Home is not");
     // A phone's detail screens head themselves with a way back, as their references do: no top bar
     // there, and the bar with the scope, search and the bell everywhere else (gap 21)
     // Both read a drawn shell: the bar is in the DOM on every route, and hidden by CSS on a phone's detail screens
@@ -213,9 +235,9 @@ export default async ({ page, api, check, dirs }) => {
       await page.goto(path, 1200);
       await page.waitFor(`return !!document.querySelector('main h1')`, { label: `[390px ${path}] the page` });
       check(await until(topBarHidden), `[390px ${path}] no top bar over a screen that heads itself`);
-      const back = await page.eval(`const b = [...document.querySelectorAll('main button, main a')].find((e) => e.getAttribute('aria-label') && e.querySelector(':scope > svg.lucide-chevron-left')); if (!b) return null; const r = b.getBoundingClientRect(); return { top: r.top, h: r.height }`);
+      const back = await settled(`const b = [...document.querySelectorAll('main button, main a')].find((e) => e.getAttribute('aria-label') && e.querySelector(':scope > svg.lucide-chevron-left')); if (!b) return null; const r = b.getBoundingClientRect(); return { top: r.top, h: r.height }`, (b) => b !== null && b.top < 80 && b.h >= 44);
       check(back !== null && back.top < 80 && back.h >= 44, `[390px ${path}] its header leads back, at the top, as a 44 px target (${JSON.stringify(back)})`);
-      check((await page.eval(`return document.querySelector('.shell')?.dataset.phoneHeader`)) === 'page', `[390px ${path}] the shell marks the route phoneHeader: 'page'`);
+      check(await until(`return document.querySelector('.shell')?.dataset.phoneHeader === 'page'`), `[390px ${path}] the shell marks the route phoneHeader: 'page'`);
     }
     // The rest of the app heads itself too (CW-8): a chat (also a task's and a flow run's), an
     // orchestration, the review of changes, and the screens reached from More
@@ -230,9 +252,9 @@ export default async ({ page, api, check, dirs }) => {
       await page.goto(path, 1200);
       await page.waitFor(`return !!document.querySelector('main h1')`, { label: `[390px ${path}] the page` });
       check(await until(topBarHidden), `[390px ${path}] no top bar over a screen that heads itself`);
-      const back = await page.eval(`const b = [...document.querySelectorAll('main button, main a')].find((e) => e.getAttribute('aria-label') && e.querySelector(':scope > svg.lucide-chevron-left')); if (!b) return null; const r = b.getBoundingClientRect(); return { top: r.top, h: r.height, w: r.width }`);
+      const back = await settled(`const b = [...document.querySelectorAll('main button, main a')].find((e) => e.getAttribute('aria-label') && e.querySelector(':scope > svg.lucide-chevron-left')); if (!b) return null; const r = b.getBoundingClientRect(); return { top: r.top, h: r.height, w: r.width }`, (b) => b !== null && b.top < 80 && b.h >= 44 && b.w >= 44);
       check(back !== null && back.top < 80 && back.h >= 44 && back.w >= 44, `[390px ${path}] its header leads back, at the top, as a 44 px target (${JSON.stringify(back)})`);
-      check((await page.eval(`return document.querySelector('.shell')?.dataset.phoneHeader`)) === 'page', `[390px ${path}] the shell marks the route phoneHeader: 'page'`);
+      check(await until(`return document.querySelector('.shell')?.dataset.phoneHeader === 'page'`), `[390px ${path}] the shell marks the route phoneHeader: 'page'`);
     }
     // PhoneHeader's h1 is the screen's title on the screens it heads
     for (const [path, title] of [['/projects', 'Projects'], ['/schedules', 'Schedules'], ['/usage', 'Usage'], ['/connectors', 'Connectors'], ['/settings', 'Settings']]) {
@@ -249,7 +271,7 @@ export default async ({ page, api, check, dirs }) => {
     // A Settings tab goes back to the list, not through history
     await page.goto('/settings?tab=appearance', 1200);
     await page.click('main .phone-head .phone-head-back', undefined, 900);
-    check((await page.eval(`return location.pathname + location.search`)) === '/settings', '[390px a Settings tab] back returns to the list');
+    check(await until(`return location.pathname + location.search === '/settings'`), '[390px a Settings tab] back returns to the list');
     // The chat keeps its own header, whose ⋯ opens as a sheet with the chat's entries
     await page.goto(`/chats/${chatId}`, 1200);
     check(await until(`return !!document.querySelector('main .chat-head') && !document.querySelector('main .phone-head')`), '[390px a chat] the chat keeps its own header');
@@ -261,53 +283,56 @@ export default async ({ page, api, check, dirs }) => {
     // A new chat and the schedule editor are modal flows: ✕ and "Cancel", no arrow
     await page.goto('/chats/new', 1200);
     check(await until(`return !!document.querySelector('main .new-chat-head') && document.querySelector('.topbar')?.getClientRects().length === 0`), '[390px /chats/new] no top bar over a new chat');
-    const close = await page.eval(`const b = document.querySelector('main .new-chat-head a[href="/chats"]'); if (!b) return null; const r = b.getBoundingClientRect(); return { top: r.top, h: r.height, w: r.width, x: !!b.querySelector('svg.lucide-x') }`);
+    const close = await settled(`const b = document.querySelector('main .new-chat-head a[href="/chats"]'); if (!b) return null; const r = b.getBoundingClientRect(); return { top: r.top, h: r.height, w: r.width, x: !!b.querySelector('svg.lucide-x') }`, (c) => c !== null && c.x && c.top < 80 && c.h >= 44 && c.w >= 44);
     check(close !== null && close.x && close.top < 80 && close.h >= 44 && close.w >= 44, `[390px /chats/new] a 44 px ✕ closes it, at the top (${JSON.stringify(close)})`);
     await page.goto('/schedules/new', 1200);
     check(await until(`return !!document.querySelector('main .phone-head') && document.querySelector('.topbar')?.getClientRects().length === 0`), '[390px /schedules/new] no top bar over the editor');
-    check(await page.eval(`return !!document.querySelector('main .phone-head .phone-head-cancel') && !document.querySelector('main .phone-head svg.lucide-chevron-left')`), '[390px /schedules/new] "Cancel" leaves it, with no back arrow');
+    check(await until(`return !!document.querySelector('main .phone-head .phone-head-cancel') && !document.querySelector('main .phone-head svg.lucide-chevron-left')`), '[390px /schedules/new] "Cancel" leaves it, with no back arrow');
     await page.click('main .phone-head .phone-head-cancel', undefined, 900);
-    check((await page.eval(`return location.pathname`)) === '/schedules', '[390px /schedules/new] Cancel goes back to the schedules');
+    check(await until(`return location.pathname === '/schedules'`), '[390px /schedules/new] Cancel goes back to the schedules');
     // Editing one is the same modal flow; disabled and yearly, so it never fires during the run
     const schedule = await api.post('/schedules', { name: 'e2e-shell-phone-head', cron: '0 3 1 1 *', enabled: false, target: { kind: 'chat', chat: { prompt: 'hi', cwd: dirs.workspaceDir } } });
-    check(schedule.status === 201, `a schedule to edit (${schedule.status})`);
+    check(schedule.status === 201, `a schedule to edit (${schedule.status} ${JSON.stringify(schedule.body)})`);
     scheduleId = schedule.body?.id ?? null;
     await page.goto(`/schedules/${scheduleId}/edit`, 1200);
     await page.waitFor(`return !!document.querySelector('main .phone-head .phone-head-cancel')`, { label: '[390px a schedule\'s editor] its header' });
     check(await until(topBarHidden), "[390px a schedule's editor] no top bar over the editor");
-    check((await page.eval(`return document.querySelector('.shell')?.dataset.phoneHeader`)) === 'page', "[390px a schedule's editor] the shell marks the route phoneHeader: 'page'");
-    check(!(await page.eval(`return !!document.querySelector('main .phone-head svg.lucide-chevron-left')`)), "[390px a schedule's editor] \"Cancel\" and no back arrow");
+    check(await until(`return document.querySelector('.shell')?.dataset.phoneHeader === 'page'`), "[390px a schedule's editor] the shell marks the route phoneHeader: 'page'");
+    check(await until(`return !document.querySelector('main .phone-head svg.lucide-chevron-left')`), "[390px a schedule's editor] \"Cancel\" and no back arrow");
     // The desktop app keeps its top bar, the window's title bar, at any width
     await page.goto('/projects', 1200);
+    // On a drawn page: the class goes on the document the route rendered, not on the one being left
+    await page.waitFor(`return !!document.querySelector('main .phone-head h1')`, { label: '[390px /projects] the page' });
     await page.eval(`document.documentElement.classList.add('is-desktop'); return true`);
-    check(await page.eval(topBarShown), '[390px /projects, desktop app] the top bar stays');
+    check(await until(topBarShown), '[390px /projects, desktop app] the top bar stays');
     await page.eval(`document.documentElement.classList.remove('is-desktop'); return true`);
     // The new project wizard is a modal flow: no top bar either, and a ✕ in place of the arrow
     await page.goto('/projects/new', 1200);
     await page.waitFor(`return !!document.querySelector('main h1')`, { label: '[390px /projects/new] the wizard' });
     check(await until(topBarHidden), '[390px /projects/new] no top bar over the wizard, which heads itself');
-    check(await page.eval(`const b = document.querySelector('main a[href="/projects"] svg.lucide-x, main button svg.lucide-x'); return !!b && b.closest('a, button').getBoundingClientRect().top < 80`), '[390px /projects/new] its header closes it, at the top');
+    check(await until(`const b = document.querySelector('main a[href="/projects"] svg.lucide-x, main button svg.lucide-x'); return !!b && b.closest('a, button').getBoundingClientRect().top < 80`), '[390px /projects/new] its header closes it, at the top');
     // Tasks keeps the project scope, in its own header
     await page.goto('/tasks', 0);
     await page.waitFor(`return !!document.querySelector('main .tasks-phone-head .project-selector')?.getClientRects().length`, { label: '[390px /tasks] the project scope is in the header' });
     for (const path of ['/chats', '/orchestration', '/orchestration?new=1', '/?project=all', '/nowhere']) {
       await page.goto(path, 0);
       await page.waitFor(topBarShown, { label: `[390px ${path}] the top bar stays` });
-      check((await page.eval(`return document.querySelector('.shell')?.dataset.phoneHeader`)) === 'app', `[390px ${path}] the route keeps the app's header`);
+      check(await until(`return document.querySelector('.shell')?.dataset.phoneHeader === 'app'`), `[390px ${path}] the route keeps the app's header`);
     }
     await page.goto(`/?project=${projectId}`, 900);
     await page.goto('/tasks', 900);
     if (tasksFab.shown) {
       await page.click('.fab', undefined, 900);
-      check((await page.eval(`return location.pathname + location.search`)) === '/tasks?new=1', 'the Tasks FAB opens the New task form');
+      check(await until(`return location.pathname + location.search === '/tasks?new=1'`), 'the Tasks FAB opens the New task form');
     }
-    check(!(await fab(`/tasks/${key}`)).shown, "[390px a work item] no FAB on a work item's page");
-    check(!(await fab('/settings')).shown, '[390px /settings] no FAB where there is nothing to start');
-    if ((await fab('/')).shown) {
+    check(!(await fab(`/tasks/${key}`, null)).shown, "[390px a work item] no FAB on a work item's page");
+    check(!(await fab('/settings', null)).shown, '[390px /settings] no FAB where there is nothing to start');
+    if ((await fab('/', 'New chat')).shown) {
       await page.click('.fab', undefined, 900);
-      check((await page.eval(`return location.pathname`)) === '/chats/new', 'the Home FAB opens New chat');
+      check(await until(`return location.pathname === '/chats/new'`), 'the Home FAB opens New chat');
     } else await page.goto('/chats/new', 900);
-    check(!(await page.eval(`return !!document.querySelector('.fab')`)), 'New chat has its own composer, so the FAB steps aside');
+    // Waited for: the page left behind keeps its FAB until New chat has drawn
+    check(await until(`return !!document.querySelector('main .new-chat-head') && !document.querySelector('.fab')`), 'New chat has its own composer, so the FAB steps aside');
     await page.goto('/orchestration', 900);
     check(await until(`return document.querySelector('.tabbar a[href="/orchestration"]')?.classList.contains('is-active') === true`), 'the current tab is marked');
     // A wide window keeps the app's top bar over the same screens: only a phone heads them itself
@@ -315,14 +340,17 @@ export default async ({ page, api, check, dirs }) => {
     for (const path of [`/chats/${chatId}`, `/orchestration/${orchestrationId}`, '/projects', '/settings', '/schedules/new']) {
       await page.goto(path, 1200);
       check(await until(topBarShown), `[1440px ${path}] the top bar stays`);
-      check(!(await page.eval(`return !!document.querySelector('main .phone-head')`)), `[1440px ${path}] no phone header`);
+      check(await until(`return !document.querySelector('main .phone-head')`), `[1440px ${path}] no phone header`);
     }
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
     await page.eval(`localStorage.removeItem('agentry-theme'); localStorage.removeItem('agentry-motion'); localStorage.removeItem('agentry-language'); localStorage.removeItem('agentry-palette-recent'); localStorage.removeItem('agentry:project'); return true`).catch(() => {});
-    // schedules.spec starts from none
+    // schedules.spec starts from none. By name as well as by id: a create that failed after it was
+    // saved left one behind whose id this spec never learned
     if (scheduleId) await api.del(`/schedules/${scheduleId}`).catch(() => {});
+    const left = await api.get('/schedules').catch(() => null);
+    for (const s of Array.isArray(left?.body) ? left.body : []) if (s.name === 'e2e-shell-phone-head') await api.del(`/schedules/${s.id}`).catch(() => {});
     if (orchestrationId) await api.del(`/orchestrations/${orchestrationId}`).catch(() => {});
     if (chatId) await api.del(`/chats/${chatId}`).catch(() => {});
     // Later specs count the projects
