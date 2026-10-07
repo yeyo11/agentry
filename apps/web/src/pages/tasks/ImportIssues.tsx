@@ -29,7 +29,7 @@ export function useProjectTracker(projectId: string | null | undefined) {
   });
 }
 
-/** Import is offered where the project has a tracker with an adapter; Jira and YouTrack have none yet. */
+/** Import is offered where the project has a tracker with an adapter. */
 export const canImportFrom = (tracker: ProjectTrackerSettings | null | undefined): tracker is ProjectTrackerSettings => !!tracker && isTrackerBuilt(tracker.id);
 
 /** What the search field starts with: the project's own query, or the tracker's way of saying "open issues". */
@@ -209,7 +209,7 @@ export function useImportForm(project: Project, tracker: ProjectTrackerSettings,
           {t('import.run')}
         </button>
       </form>
-      <span className="form-hint small muted">{t(tracker.id === 'jira' ? 'import.hint.other' : `import.hint.${tracker.id}`)}</span>
+      <span className="form-hint small muted">{t(`import.hint.${tracker.id}`)}</span>
       <div className="addr-group">
         <div className="addr-bar">
           <span className="section-label">{t('import.open', { count: list.issues.length })}</span>

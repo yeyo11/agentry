@@ -165,7 +165,7 @@ test('YouTrack credentials enter the child of youtrack-app only, never another C
   assert.equal(yt.YOUTRACK_TOKEN, 'perm-token');
   assert.equal(yt.YOUTRACK_API_TOKEN, undefined);
   assert.equal(buildHostEnv('gh', base, secrets).YOUTRACK_TOKEN, undefined);
-  assert.equal(buildHostEnv('acli', base, secrets).YOUTRACK_TOKEN, undefined);
+  assert.equal(buildHostEnv('glab', base, secrets).YOUTRACK_TOKEN, undefined);
   // an adapter's copy cannot change the table
   envOf('gh').set.GH_TELEMETRY = '1';
   assert.equal(envOf('gh').set.GH_TELEMETRY, '0');
@@ -213,13 +213,10 @@ test('the classifier: porcelain verbs, api methods and fields, graphql documents
   assert.equal(kind('gh', 'api', 'graphql', '-F', 'query=@document.graphql'), 'write');
   assert.equal(classifyCall({ cli: 'gh', args: ['api', 'graphql', '--input', '-'], input: '{"query":"query { viewer { login } }"}' }), 'read');
   assert.equal(classifyCall({ cli: 'gh', args: ['api', 'graphql', '--input', '-'], input: '{"query":"mutation { x }"}' }), 'write');
-  // youtrack-app and acli
+  // youtrack-app
   assert.equal(kind('youtrack-app', 'rest', 'request', '--path', '/api/issues'), 'read');
   assert.equal(kind('youtrack-app', 'rest', 'request', '--method', 'POST', '--path', '/api/issues'), 'write');
   assert.equal(kind('youtrack-app', 'project', 'list'), 'read');
-  assert.equal(kind('acli', 'jira', 'workitem', 'search', '--jql', 'x', '--json'), 'read');
-  assert.equal(kind('acli', 'jira', 'workitem', 'transition', '--key', 'A-1'), 'write');
-  assert.equal(kind('acli', 'jira', 'workitem', 'comment', 'create'), 'write');
 });
 
 test('a call declared read that the classifier says is a write is run as a write: never retried', async () => {

@@ -790,6 +790,11 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    CREATE INDEX provider_moves_from_chat ON provider_moves (from_chat);
    CREATE UNIQUE INDEX provider_moves_open ON provider_moves (from_chat) WHERE state IN ('waiting', 'resuming');
    ALTER TABLE flow_runs ADD COLUMN provider TEXT;`,
+  // Jev's answers were stored with no cost though their tokens were kept. A literal, not the
+  // constant in decisions/settings.ts: it is the price when those rows were written, and a
+  // migration must not change when the constant is updated later.
+  `UPDATE decisions SET cost_usd = input_tokens * 0.042 / 1000000.0
+   WHERE provider = 'jev' AND cost_usd IS NULL AND input_tokens IS NOT NULL;`,
 ];
 
 /**

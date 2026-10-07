@@ -11,6 +11,7 @@ import { buildApp } from '../src/app.ts';
 // The team routes over a real core with scratch dirs and a missing CLI: nothing here spawns Claude
 // or reads the real ~/.claude.
 let app: FastifyInstance;
+let core: Core;
 
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 
@@ -23,7 +24,7 @@ async function importProject(modules: string[]): Promise<Project> {
 
 before(async () => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-api-team-root-'));
-  const core = new Core(
+  core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CLAUDE_CONFIG_DIR: join(root, 'claude'),
@@ -34,7 +35,10 @@ before(async () => {
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
 });
 
-after(() => app.close());
+after(async () => {
+  await app.close();
+  core.shutdown();
+});
 
 test('a team is built from the template, edited member by member and read back', async () => {
   const p = await importProject(['board', 'team']);

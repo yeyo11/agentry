@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// The replay fake: stands in for `gh`, `glab`, `acli` or `youtrack-app` and answers each call with
+// The replay fake: stands in for `gh`, `glab` or `youtrack-app` and answers each call with
 // what the real CLI printed when it was recorded (`recordings/index.json`, built by
 // `packages/core/scripts/recordings-index.mjs`). stdout and stderr are replayed byte for byte from
 // the capture files, each on its own stream, and the process exits with the recorded code.
 //
 // Which CLI it is: the basename of the path it was started through (a symlink or copy named `gh`,
-// `glab`, `acli` or `youtrack-app`), else `FAKE_CLI`. Environment:
+// `glab` or `youtrack-app`), else `FAKE_CLI`. Environment:
 //
 //   FAKE_CLI             the CLI, when the file is run as `node fake-cli.mjs`
 //   FAKE_CLI_VERSION     the recorded release to answer as (default: gh 2.92.0, glab 1.120.0)
@@ -31,7 +31,7 @@ import { appendFileSync, readFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const CLIS = ['gh', 'glab', 'acli', 'youtrack-app'];
+const CLIS = ['gh', 'glab', 'youtrack-app'];
 const DEFAULT_VERSION = { gh: '2.92.0', glab: '1.120.0', 'youtrack-app': '1.0.3' };
 const UNRECORDED = 97;
 const EMPTY_SHA256 = createHash('sha256').update('').digest('hex');
@@ -45,7 +45,7 @@ const fail = (message) => {
   process.exit(UNRECORDED);
 };
 
-if (!cli || !CLIS.includes(cli)) fail(`unrecorded call: no CLI named (run it as gh, glab, acli or youtrack-app, or set FAKE_CLI)`);
+if (!cli || !CLIS.includes(cli)) fail(`unrecorded call: no CLI named (run it as gh, glab or youtrack-app, or set FAKE_CLI)`);
 
 const dir = process.env.FAKE_CLI_RECORDINGS ?? join(dirname(fileURLToPath(import.meta.url)), 'recordings');
 const index = JSON.parse(readFileSync(join(dir, 'index.json'), 'utf8'));

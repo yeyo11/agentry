@@ -6,8 +6,7 @@ import type { TrackerStatus, TrackersSettings, YoutrackCredentialsStatus } from 
  * The issue trackers Agentry reads and writes through a CLI: what detection found, derived from the
  * code hosts' cache, a re-detection on demand, and the settings document. Validation lives in core.
  * The settings write and the refresh are refused to a chat's token in `security.ts`: the write names
- * a binary Agentry will run. Jira is listed with the readiness `unknown` and the reason
- * `not-recorded` until `acli` is recorded. YouTrack's address and token are kept by core and the
+ * a binary Agentry will run. YouTrack's address and token are kept by core and the
  * token is never answered back; every credentials route is refused to a chat's token.
  */
 export const trackerRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {

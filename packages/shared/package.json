@@ -8,6 +8,6 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p test/tsconfig.json",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test --test-timeout=240000 --test-force-exit test/*.test.ts"
   }
 }

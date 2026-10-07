@@ -30,7 +30,10 @@ before(async () => {
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
 });
 
-after(() => app.close());
+after(async () => {
+  await app.close();
+  core.shutdown();
+});
 
 test('the templates are listed, and the route is not taken for a project id', async () => {
   const res = await app.inject('/api/projects/templates');

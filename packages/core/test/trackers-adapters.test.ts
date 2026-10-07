@@ -69,12 +69,11 @@ test('an issue search that reads like a verb is a read, not a write', () => {
   }
 });
 
-// ---------- the registry: Jira has no adapter ----------
+// ---------- the registry ----------
 
-test('only the recorded trackers have an adapter; jira has none until acli is recorded', () => {
+test('every tracker has an adapter', () => {
   assert.equal(trackerAdapter('github-issues'), githubIssuesAdapter);
   assert.equal(trackerAdapter('gitlab-issues'), gitlabIssuesAdapter);
-  assert.equal(trackerAdapter('jira'), null);
   assert.equal(trackerAdapter('youtrack')?.id, 'youtrack');
   assert.deepEqual(trackerAdapters().map((a) => a.id).sort(), ['github-issues', 'gitlab-issues', 'youtrack']);
 });

@@ -61,7 +61,7 @@ const bare =(html: string) => html.replace(/<div class="toasts"[^>]*><\/div>/, '
 const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
 test('a chip says the key as its tracker writes it, the sync state in words, and links out', () => {
-  const html = wrap(<IssueChips item={{ issues: [issue({ syncState: 'failed' }), issue({ tracker: 'jira', key: 'PROJ-12', url: null })] }} />);
+  const html = wrap(<IssueChips item={{ issues: [issue({ syncState: 'failed' }), issue({ tracker: 'youtrack', key: 'PROJ-12', url: null })] }} />);
   assert.match(html, /#14/);
   assert.match(html, /PROJ-12/);
   assert.match(text(html), /failed/);
@@ -106,7 +106,7 @@ test('Import issues is neutral unless it leads', () => {
 
 test('only a tracker that is built can import, and the query starts from the project\'s', () => {
   assert.equal(canImportFrom(tracker), true);
-  assert.equal(canImportFrom({ ...tracker, id: 'jira' }), false);
+  assert.equal(canImportFrom({ ...tracker, id: 'youtrack' }), true);
   assert.equal(canImportFrom(null), false);
   assert.equal(startingQuery(tracker), 'is:open');
   assert.equal(startingQuery({ id: 'gitlab-issues', query: '' }), '');

@@ -72,10 +72,10 @@ test('a tracker that is off, signed out or not installed says why', () => {
   assert.equal(trackerOption(status({ state: 'not-installed' }), 'github', true).reason, 'not-installed');
 });
 
-test('Jira is shown as not available yet, with no way to choose it', () => {
-  const jira = trackerOption(status({ id: 'jira', cli: 'acli', host: null, state: 'unknown', reason: 'not-recorded' }), 'github', true);
-  assert.equal(jira.choosable, false);
-  assert.equal(jira.reason, 'not-built');
+test('a tracker turned off in Integrations cannot be chosen, and says so', () => {
+  const off = trackerOption(status({ id: 'youtrack', cli: 'youtrack-app', host: null, state: 'ready', reason: null }), 'github', false);
+  assert.equal(off.choosable, false);
+  assert.equal(off.reason, 'disabled');
 });
 
 test('YouTrack can be chosen on any project once it is ready, and not while its access is missing', () => {

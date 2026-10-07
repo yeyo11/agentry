@@ -758,3 +758,40 @@ test('closed moves are pruned and open waits never are', () => {
   assert.deepEqual(db.providerMoves({ chatId: 'c2', state: 'waiting' }).map((m) => m.id), ['old-wait']);
   db.close();
 });
+
+test('the cost backfill prices only the jev rows that kept tokens and lost their cost', () => {
+  const raw = new DatabaseSync(':memory:');
+  migrate(raw);
+  const latest = (raw.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
+  // A database as the release before the backfill left it
+  raw.exec(`PRAGMA user_version = ${String(latest - 1)}`);
+  const insert = raw.prepare(
+    `INSERT INTO decisions (id, point, kind, subject_kind, provider, model, mode, status, state, questions, acted, visible, saved_run, latency_ms, input_tokens, cost_usd, at)
+     VALUES (?, 'run.continuation', 'act', 'flow_run', ?, 'm', 'shadow', 'answered', '{}', '[]', 0, 0, 0, 1, ?, ?, '2026-09-30T10:00:00Z')`,
+  );
+  insert.run('old', 'jev', 1_000_000, null);
+  insert.run('no-tokens', 'jev', null, null);
+  insert.run('has-cost', 'jev', 1_000_000, 0.5);
+  insert.run('cli', 'cli', 1_000_000, null);
+  migrate(raw);
+  const cost = (id: string) => (raw.prepare('SELECT cost_usd FROM decisions WHERE id = ?').get(id) as { cost_usd: number | null }).cost_usd;
+  assert.equal(cost('old'), 0.042);
+  assert.equal(cost('no-tokens'), null);
+  assert.equal(cost('has-cost'), 0.5);
+  assert.equal(cost('cli'), null);
+});
+
+test('decision stats sum the jev cost of a window of priced rows', () => {
+  const db = new Db(tempConfig());
+  const price = 0.042 / 1_000_000;
+  // 51 decisions totalling 76,403 input tokens, as the shadow run recorded them
+  let left = 76_403;
+  for (let i = 0; i < 51; i++) {
+    const tokens = i === 50 ? left : 1498;
+    left -= tokens;
+    db.insertDecision(decisionRow(`j${String(i)}`, { inputTokens: tokens, costUsd: tokens * price }));
+  }
+  const stats = db.decisionStats(at(0));
+  assert.ok(Math.abs(stats.jevCostUsd - 76_403 * price) < 1e-12);
+  assert.ok(Math.abs((stats.points[0]?.costUsd ?? 0) - 76_403 * price) < 1e-12);
+});

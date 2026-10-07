@@ -5,12 +5,11 @@ import { gitlabIssuesManifest } from '../src/trackers/gitlab-issues/manifest.ts'
 import type { TrackerManifest } from '../src/trackers/manifest.ts';
 import { TrackerRegistry } from '../src/trackers/registry.ts';
 
-test('the registry lists the four trackers, each by its CLI', () => {
+test('the registry lists the three trackers, each by its CLI', () => {
   const registry = new TrackerRegistry();
   assert.deepEqual(registry.list().map((m) => [m.id, m.cli, m.host]), [
     ['github-issues', 'gh', 'github'],
     ['gitlab-issues', 'glab', 'gitlab'],
-    ['jira', 'acli', null],
     ['youtrack', 'youtrack-app', null],
   ]);
   assert.equal(registry.get('github-issues'), githubIssuesManifest);
@@ -23,7 +22,7 @@ test('a host\'s tracker needs the project\'s host to be that host; the others fi
   assert.equal(registry.fitsProject('github-issues', 'gitlab'), false);
   assert.equal(registry.fitsProject('github-issues', null), false);
   assert.equal(registry.fitsProject('gitlab-issues', 'gitlab'), true);
-  assert.equal(registry.fitsProject('jira', 'github'), true);
+  assert.equal(registry.fitsProject('youtrack', 'github'), true);
   assert.equal(registry.fitsProject('youtrack', null), true);
 });
 

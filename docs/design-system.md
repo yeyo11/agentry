@@ -608,17 +608,17 @@ item page, the dialog and the decision point, each with its phone counterpart),
 ### Brand marks: the official logo of a program
 
 Every program Agentry names wears **its own official mark**: the code hosts (GitHub, GitLab), the
-issue trackers (a tracker on a host wears the host's mark; Jira, YouTrack) and the agents (Claude
+issue trackers (a tracker on a host wears the host's mark; YouTrack its own) and the agents (Claude
 Code, Codex, GitHub Copilot, Gemini, OpenCode). A name with no mark keeps its monogram.
 
-- **The art is the brand's own file**, never redrawn: Simple Icons (CC0) for GitHub, GitLab, Jira,
+- **The art is the brand's own file**, never redrawn: Simple Icons (CC0) for GitHub, GitLab,
   Claude, GitHub Copilot, Google Gemini and OpenCode; LobeHub's icon set (MIT) for Codex; JetBrains'
   brand resources for YouTrack. `packages/ui/src/components/brand-art.ts` holds the paths and says
   where each came from. A brand's mark is its trademark, used to name the program.
 - **A light tile in both themes** (`--brand-tile`, a hairline border, `--radius-sm`), and the mark
   in the brand's colour (`--brand-<id>` in `tokens.css`, the one place a brand's hex lives). The
-  tile does not follow the theme: a mark reads as the brand draws it, and Jira's blue or GitHub's
-  black would not hold on a dark surface.
+  tile does not follow the theme: a mark reads as the brand draws it, and GitHub's black or
+  YouTrack's gradient would not hold on a dark surface.
 - **Where**: the code host and tracker rows of Integrations, the project's host line and tracker
   choice, the import dialog's head, the provider rows and the chat badges (`.prov-mark` keeps its
   class, and the mark sits at 20 px there). Beside its label the mark is decoration (`aria-hidden`);
@@ -872,9 +872,9 @@ Drawn for [code hosts](plans/code-hosts.md) (task `t-p1` of phase 5 P0) and wait
 validation. It is a second card on the same Settings → Integrations page, under the hosts' card, and
 it adds no CSS: `.prov-row.compact`, `.prov-cell`, `.prov-bin`, the badges and `.monogram` do all of it.
 
-- **Four rows** (GitHub Issues, GitLab Issues, Jira, YouTrack), each with its `.monogram` (`GH`,
-  `GL`, `JR`, `YT`; a hue that is never red, green or cyan, no brand art), its name with an example
-  key in mono (`#12`, `CW-22`, `PROJ-12`), the CLI it goes through in mono, the state and the reason.
+- **Three rows** (GitHub Issues, GitLab Issues, YouTrack), each with its `.monogram` (`GH`,
+  `GL`, `YT`; a hue that is never red, green or cyan, no brand art), its name with an example
+  key in mono (`#12`, `PROJ-12`), the CLI it goes through in mono, the state and the reason.
   The card carries `.grad-border` (it is what the screen is about); the hosts' card above it does not.
 - **GitHub Issues and GitLab Issues** reuse their host's CLI and readiness, so their state is the
   host's said in the tracker's words, with the same words and badges as the hosts' table. Their one
@@ -882,10 +882,9 @@ it adds no CSS: `.prov-row.compact`, `.prov-cell`, `.prov-bin`, the badges and `
   the other states add Cómo iniciar sesión ↗, Actualizar ↗, Ver instalación ↗ or Reintentar. The
   override panel is `.prov-bin`, and its field is empty by default: empty means "the same program as
   the host".
-- **Jira** is in the registry with readiness `unknown` and the reason `not-recorded`. It has no
-  adapter, so its row has the plain badge "Aún no disponible" (no status colour: there is nothing to
-  colour), an honest sentence, `unknown · not-recorded` in mono (on a desktop; the phone drops it)
-  and **no action**. The screen says nothing about how `acli` behaves, because nobody has seen it.
+- **A tracker listed before its CLI is recorded** has the plain badge "Aún no disponible" (no
+  status colour: there is nothing to colour), an honest sentence, `unknown · not-recorded` in mono
+  (on a desktop; the phone drops it) and **no action**. None is listed today.
 - **YouTrack** (built 2026-10-07, [trackers.md](trackers.md#youtrack)) has a CLI of its own and the
   access Agentry keeps, so its state is its own: "Sin sesión" (warn) with "Indica a Agentry la
   dirección…" while nothing is saved or the token is refused, "Listo" naming the instance and the
@@ -902,7 +901,7 @@ it adds no CSS: `.prov-row.compact`, `.prov-cell`, `.prov-bin`, the badges and `
   replaces nothing, the card behind it is the other). Nothing is live except the checking spinner.
 
 Reference screens: `DesktopIntegracionesTrackers` (both hosts ready above GitHub Issues and GitLab
-Issues ready, Jira and YouTrack not available), `DesktopIntegracionesTrackersEstados` (incompatible
+Issues ready, YouTrack not available, as drawn before YouTrack was built), `DesktopIntegracionesTrackersEstados` (incompatible
 with its override open, signed out, not installed, unknown and checking), `MobileIntegracionesTrackers`,
 `MobileIntegracionesTrackersEstados`, `MobileIntegracionesTrackersSinInstalar` and
 `MobileIntegracionesTrackersBinario`. They are generated by `reference/tools/trackers.py`.
@@ -998,13 +997,12 @@ gradient is its Save.
   tracker can be picked; the others stay in the list with their reason in words, `aria-disabled`, so
   the person sees what exists. GitHub Issues and GitLab Issues reuse the host's CLI and need the
   project's host to be theirs ("No disponible" otherwise). YouTrack works on any project once its
-  access is saved, and says so in its own words when it is not. Jira is `b-idle` "Sin comprobar"
-  with the reason `not-recorded`: it has no adapter and offers no action. A saved choice
+  access is saved, and says so in its own words when it is not. A tracker whose CLI is not recorded would be
+  `b-idle` "Sin comprobar" with the reason `not-recorded`, with no action. A saved choice
   that is not ready stays marked and says so with a `.callout-warn` and one action, "Ir a Integraciones".
 - **Scope and query** are mono fields. Scope is the repository (the host's own by default), or
   YouTrack's project short name (`PROJ`); the query is the tracker's own search, in GitHub's syntax,
-  as free text for GitLab, or in YouTrack's query language. A saved Jira shows its key and a
-  disabled query: the seam of the settings, nothing more.
+  as free text for GitLab, or in YouTrack's query language.
 - **YouTrack's mapping** is a mono text field per column instead of the select, since each project
   names its own States; the placeholders are the names a new YouTrack project has, and the hint says
   every column writes and is read back.
@@ -1018,7 +1016,7 @@ gradient is its Save.
   each select is full width with its note under it, and Save is the footer's gradient button.
 
 Reference screens: `DesktopProyectoTracker`, `DesktopProyectoTrackerEstados` (GitLab ready, no tracker,
-saved tracker not ready, Jira saved without a recording), `MobileProyectoTracker`,
+saved tracker not ready, a tracker saved without a recording), `MobileProyectoTracker`,
 `MobileProyectoTrackerElegir`, `MobileProyectoTrackerEstados` and `MobileProyectoTrackerEstados2`.
 Generated by `reference/tools/trackers.py` (`t_p2`).
 
@@ -1373,8 +1371,7 @@ Drawn for [code hosts](plans/code-hosts.md), phase 5 (task `t-p3` of P0), by `re
 `DesktopImportarIssues`, `MobileImportarIssues`, `MobileImportarIssuesLista`, `DesktopTareaIssues`,
 `MobileTareaIssues`, the states sheets `DesktopTareaIssuesEstados` and `MobileTareaIssuesEstados`, and
 `DesktopTableroIssues` / `MobileTableroIssues`. Drawn with GitHub Issues and GitLab Issues; YouTrack uses the same
-screens with its own keys (`PROJ-12`) and its State as the issue's state. Jira has no screen until its recording
-exists. New classes `.iss-*` (under "Tracker issues" in `agentry-ds.css`); the list is
+screens with its own keys (`PROJ-12`) and its State as the issue's state. New classes `.iss-*` (under "Tracker issues" in `agentry-ds.css`); the list is
 the thread list of "Address with an agent" and the item panel is `.fix-panel`.
 
 - **Import** is a `.dialog` opened from "Importar issues" on the board (a `.sheet` on a phone, whose board header
@@ -1836,8 +1833,16 @@ Where §2 planned an app name and the app settled on another:
 - The skeleton cards are `.workitem-card.is-skeleton`, and the task list's foot is
   `.workitem-list-more`; Team activity's foot is `.list-more`.
 - `.m-head` is `PhoneHeader` (`.phone-head*`, `components/shell/`). Which routes it heads is one
-  table, `PHONE_HEADER_ROUTES` in `phone-header.ts`: the ecosystem's screens now, the rest of the app
-  in a separate job ([status.md](status.md#what-is-open)).
+  table, `PHONE_HEADER_ROUTES` in `phone-header.ts`: every phone detail screen, the tab roots keeping
+  the top bar ([phone-headers-rest-of-app.md](plans/phone-headers-rest-of-app.md)). A page built on
+  `PageHeader` heads itself on a phone through its `phone` prop; the chat (`.chat-head`) and the
+  review of changes (`.changes-head`) keep their own headers, with 44 px targets on a phone.
+- `.sheet-action-reason`: under a `MoreActions` sheet, a disabled entry's reason written out (a
+  finger has no hover to read a title by); `.sheet-action-gap` keeps an unchecked toggle's label in
+  line with a checked one's. A download entry stays a real link in the sheet.
+- `.phone-head-sub .badge`: a state under a phone head's title (the orchestration's) is the mono line
+  itself, in its tone and with its icon, not a boxed badge. `.orch-phone-head` names the
+  orchestration at 16 px, as MobileOrquestacion does.
 - Time follows decision 10 with the owner's rule for past moments: a relative time everywhere, and
   the bare hour ("17:44") only inside a list grouped by day, such as Team activity.
 
@@ -1848,6 +1853,9 @@ Variants the app drew where the reference had no class, mirrored in §19 of
   title centred at 17 px between "Cancelar" or "Cerrar" and what the flow creates.
 - `.model-pick-sheet` / `.model-pick-option`: `ModelPicker` on a phone opens a sheet of 48 px
   options, the current model checked (`.model-pick-check`), instead of a popover.
+- `.chat-back`, `.chat-more` (CW-8): the chat's own header on a phone, which keeps its rows instead
+  of `PhoneHeader`: the way back to Chats and the "⋯" that opens the chat's actions as a `Sheet`
+  (`MoreActions`), both 44 px.
 - `.work-link-retried`, `.work-link-acts` / `.work-link-retry` (CW-20): under a failed run's reason
   on the item's link, what its retry did ("Reintentada: pasó hace 10 min", the outcome in its own
   status word and colour) or, while the run can still be queued again, a small neutral "Reintentar"

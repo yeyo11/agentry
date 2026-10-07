@@ -7,13 +7,13 @@ import type { HostRateLimiter } from './rate-limit.ts';
 import { firstLine, redactHostText } from './redact.ts';
 import { retryRead, type RetryOptions } from './retry.ts';
 
-// The one place that starts `gh`, `glab`, `acli`, `youtrack-app`. An adapter never runs anything: it
+// The one place that starts `gh`, `glab`, `youtrack-app`. An adapter never runs anything: it
 // returns a HostCall and parses what came back. The rules (process groups, timeouts per class, the
 // stdout caps, stdout/stderr/exit code as three separate things) are in docs/plans/code-hosts.md,
 // "The execution layer".
 
 export interface HostCall {
-  cli: 'gh' | 'glab' | 'acli' | 'youtrack-app';
+  cli: 'gh' | 'glab' | 'youtrack-app';
   /** argv, never a shell string */
   args: string[];
   /** stdin; bodies always travel here or in a 0600 temp file */

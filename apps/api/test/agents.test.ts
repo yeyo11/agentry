@@ -13,12 +13,15 @@ import { buildApp } from '../src/app.ts';
 // laid out the way the CLI keeps them (the fixtures live with the core tests).
 const FIXTURES = fileURLToPath(new URL('../../../packages/core/test/fixtures', import.meta.url));
 const SESSION = 'sess-api-agents';
-const PROJECT = '-work-api-agents';
+// The task output lives in a shared temp dir (`/tmp/claude-<uid>/<project>`): one name per process keeps
+// runs of this file side by side from writing over each other's output
+const PROJECT = `-work-api-agents-${String(process.pid)}`;
 const AGENT = 'a1b2c3d4e5f60718';
 const WF_RUN = 'wf_5c79d6c0-b39';
 const WF_AGENT = 'a4fdeef8a7b5856b5';
 
 let app: FastifyInstance;
+let core: Core;
 let tasksRoot: string;
 
 before(async () => {
@@ -50,12 +53,14 @@ before(async () => {
   mkdirSync(join(tasksRoot, SESSION, 'tasks'), { recursive: true });
   writeFileSync(join(tasksRoot, SESSION, 'tasks', 'bg-sub-1.output'), 'watching…\nrebuilt\n');
 
-  app = await buildApp(new Core(config), { logLevel: 'silent', webDist: join(root, 'no-ui') });
+  core = new Core(config);
+  app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
 });
 
 after(async () => {
   rmSync(tasksRoot, { recursive: true, force: true });
   await app.close();
+  core.shutdown();
 });
 
 test('a subagent comes back with its prompt, usage, result and the tasks it launched', async () => {

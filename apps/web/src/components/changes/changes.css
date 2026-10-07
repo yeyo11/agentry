@@ -640,6 +640,14 @@
     margin-left: 0;
   }
 
+  /* The screen's head on a phone, with no top bar over it: a finger-sized way back and ⋯ */
+  .changes-review .changes-head-row > .icon-btn {
+    flex: none;
+    width: var(--touch);
+    height: var(--touch);
+    color: var(--text);
+  }
+
   .changes-review .changes-title {
     font-size: 24px;
   }

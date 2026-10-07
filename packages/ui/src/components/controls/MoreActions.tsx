@@ -1,4 +1,4 @@
-import { ChevronDown, Ellipsis } from 'lucide-react';
+import { Check, ChevronDown, Ellipsis } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NARROW, useMediaQuery } from '../../lib/media';
@@ -67,25 +67,47 @@ export function MoreActions({
       <Sheet open={open} onOpenChange={setOpen} title={title ?? name} side="bottom">
         <div className="sheet-actions">
           {itemsOf(entries).map((item) => {
-            const Icon = item.icon;
+            const Icon = item.checked ? Check : item.icon;
+            const className = `btn btn-block ${item.destructive ? 'btn-danger' : ''}`.trim();
+            const content = (
+              <>
+                {Icon ? <Icon {...ICON_SM} /> : item.checked === false && <span className="sheet-action-gap" aria-hidden />}
+                {item.label}
+              </>
+            );
+            // A download stays a real link, as in the menu: the server answers with Content-Disposition
+            if (item.href && !item.disabled)
+              return (
+                <a key={item.id} className={className} href={item.href} download={item.download} onClick={() => setOpen(false)}>
+                  {content}
+                </a>
+              );
             return (
               <button
                 key={item.id}
                 type="button"
-                className={`btn btn-block ${item.destructive ? 'btn-danger' : ''}`.trim()}
+                className={className}
                 disabled={item.disabled}
                 title={item.disabled ? item.disabledReason : undefined}
+                aria-pressed={item.checked}
                 onClick={() => {
                   // The sheet closes before the action runs, so a confirmation is not stacked over it
                   setOpen(false);
                   item.onSelect?.();
                 }}
               >
-                {Icon && <Icon {...ICON_SM} />}
-                {item.label}
+                {content}
               </button>
             );
           })}
+          {/* A finger has no hover to read a title by, so a disabled item's reason is written out */}
+          {itemsOf(entries)
+            .filter((item) => item.disabled && item.disabledReason)
+            .map((item) => (
+              <p key={`${item.id}-reason`} className="sheet-action-reason">
+                {item.disabledReason}
+              </p>
+            ))}
         </div>
       </Sheet>
     </>

@@ -1056,6 +1056,16 @@
     gap: 6px;
   }
 
+  /* With no top bar over it, the header is the phone's head (MobileChat): its way back and its ⋯
+     are finger-sized */
+  .chat-head .chat-back,
+  .chat-head .chat-more {
+    flex: none;
+    width: var(--touch);
+    height: var(--touch);
+    color: var(--text);
+  }
+
   .run-scroll {
     padding-right: 4px;
   }
@@ -1334,6 +1344,13 @@
 
 .new-chat-head > .segmented {
   justify-self: center;
+}
+
+/* The ✕ is the screen's head with no top bar over it (MobileNuevoChat): a finger-sized target */
+.new-chat-head > .icon-btn {
+  width: var(--touch);
+  height: var(--touch);
+  color: var(--text);
 }
 
 .new-chat.is-narrow .new-chat-scroll {

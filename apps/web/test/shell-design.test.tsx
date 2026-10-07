@@ -28,13 +28,21 @@ test.beforeEach(async () => {
   await i18n.changeLanguage('es');
 });
 
-test("the ecosystem's screens head themselves on a phone, marked by route", () => {
+test('every phone detail screen heads itself, marked by route, and the tab roots keep the bar', () => {
   assert.equal(phoneHeaderOf('/', true), 'page', "a project's page and its tabs");
   assert.equal(phoneHeaderOf('/', false), 'app', 'Home of every project keeps the bar');
-  for (const path of ['/tasks', '/tasks/', '/tasks/milestones', '/tasks/AGN-26', '/projects/new', '/projects/p1/assistant'])
-    assert.equal(phoneHeaderOf(path), 'page', path);
-  // The chat page, a task's chat and a flow run's chat among them, keeps the chat's header for now
-  for (const path of ['/chats', '/chats/c1', '/chats/new', '/orchestration', '/orchestration/o1', '/projects', '/settings', '/tasks/AGN-26/changes'])
+  const detail = [
+    // The ecosystem's screens (orchestration 7)
+    '/tasks', '/tasks/', '/tasks/milestones', '/tasks/AGN-26', '/projects/new', '/projects/p1/assistant',
+    // The rest of the app (CW-8): the chat page is also a task's chat and a flow run's chat
+    '/chats/c1', '/chats/c1/', '/chats/new', '/orchestration/o1', '/orchestration/o1/',
+    '/chats/c1/changes', '/tasks/AGN-26/changes', '/orchestration/o1/changes', '/orchestration/o1/tasks/t1/changes',
+    '/projects', '/projects/', '/schedules', '/schedules/new', '/schedules/s1/edit', '/schedules/s1/edit/',
+    '/usage', '/connectors', '/settings', '/settings/',
+  ];
+  for (const path of detail) assert.equal(phoneHeaderOf(path), 'page', path);
+  // The tab roots and a page that does not exist keep the app's top bar
+  for (const path of ['/chats', '/chats/', '/orchestration', '/orchestration/', '/nowhere', '/chats/c1/changes/extra'])
     assert.equal(phoneHeaderOf(path), 'app', path);
   assert.equal(phoneHeaderOf('/chats', true), 'app', 'the project flag is about `/` alone');
   assert.ok(PHONE_HEADER_ROUTES.every((route) => route.phoneHeader === 'page'), 'the table lists only the routes switched over');
