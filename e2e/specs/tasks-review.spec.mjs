@@ -91,7 +91,9 @@ export default async ({ page, api, check, dirs }) => {
     });
 
     await part('New task: "Create another" keeps the form, and focus lands on the new card (17)', async () => {
-      await page.goto(`/tasks?project=${project.id}`, 1500);
+      await page.goto(`/tasks?project=${project.id}`, 0);
+      // The shortcut lives on the board: a key pressed before it is drawn is lost on a busy machine
+      await page.waitFor(`return !!document.querySelector('.workitem-col [data-item-id]')`, { label: 'the board', timeout: 60_000 });
       await page.key('n');
       await page.waitFor(`return !!document.querySelector('.newtask-form')`, { label: 'New task' });
       await page.click('.dialog-foot .check, .dialog-foot [role=checkbox]', undefined, 300);
