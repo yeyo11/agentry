@@ -824,6 +824,28 @@ export interface Chat {
   health: ChatHealth;
   /** What it was started with, when Agentry started it: absent for a chat born in a terminal */
   tools?: ChatToolConfig | null;
+  /** Set on a chat of the Agentry assistant: it keeps its confinement whenever it is continued, resumed or forked */
+  agentryAssistant?: AgentryAssistantMarker | null;
+}
+
+/**
+ * What an Agentry assistant chat remembers about what it is, so the core re-applies its confinement
+ * and its guide on every process, whatever a request asks.
+ */
+export interface AgentryAssistantMarker {
+  /** The project in scope when the chat started: context, not a requirement */
+  projectId: string | null;
+  /** The language the assistant answers in, read from `Accept-Language` when the chat started */
+  language: AgentryLanguage;
+}
+
+/** Starts a chat with the Agentry assistant; nothing else about the chat can be chosen. */
+export interface StartAgentryAssistantChatRequest {
+  prompt: string;
+  /** The project to take as context; the chat starts with none when absent or null */
+  projectId?: string | null;
+  /** Defaults to `sonnet` */
+  model?: string;
 }
 
 /** A page of a chat's transcript with the chat it belongs to. */

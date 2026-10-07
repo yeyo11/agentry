@@ -533,6 +533,17 @@
           }
         ],
         "description": "What it was started with, when Agentry started it: absent for a chat born in a terminal"
+      },
+      "agentryAssistant": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AgentryAssistantMarker"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set on a chat of the Agentry assistant: it keeps its confinement whenever it is continued, resumed or forked"
       }
     },
     "required": [
@@ -1321,6 +1332,35 @@
       "servers"
     ],
     "description": "Which of the configured MCP servers a chat starts with. Agentry writes the file the CLI reads and passes it as `--mcp-config` / `--strict-mcp-config`; there is no other way in."
+  },
+  "AgentryAssistantMarker": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The project in scope when the chat started: context, not a requirement"
+      },
+      "language": {
+        "$ref": "#/components/schemas/AgentryLanguage",
+        "description": "The language the assistant answers in, read from `Accept-Language` when the chat started"
+      }
+    },
+    "required": [
+      "projectId",
+      "language"
+    ],
+    "description": "What an Agentry assistant chat remembers about what it is, so the core re-applies its confinement and its guide on every process, whatever a request asks."
+  },
+  "AgentryLanguage": {
+    "type": "string",
+    "enum": [
+      "en",
+      "es"
+    ],
+    "description": "The languages Agentry speaks. A chat Agentry starts on its own is listed by the first line of its prompt, so that line is written in the person's language, read from the request's `Accept-Language` (`agentryLanguage`) and kept on what runs later or again (an assistant run, a flow run); the instructions for Claude after it may stay in English."
   },
   "AuthVerification": {
     "type": "object",
@@ -10042,6 +10082,17 @@
           }
         ],
         "description": "What it was started with, when Agentry started it: absent for a chat born in a terminal"
+      },
+      "agentryAssistant": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AgentryAssistantMarker"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set on a chat of the Agentry assistant: it keeps its confinement whenever it is continued, resumed or forked"
       }
     },
     "required": [
@@ -16586,14 +16637,6 @@
     ],
     "description": "Another run as a run refers to it: enough to say what it did and open its chat."
   },
-  "AgentryLanguage": {
-    "type": "string",
-    "enum": [
-      "en",
-      "es"
-    ],
-    "description": "The languages Agentry speaks. A chat Agentry starts on its own is listed by the first line of its prompt, so that line is written in the person's language, read from the request's `Accept-Language` (`agentryLanguage`) and kept on what runs later or again (an assistant run, a flow run); the instructions for Claude after it may stay in English."
-  },
   "TeamFromTemplateRequest": {
     "type": "object",
     "properties": {
@@ -18453,6 +18496,29 @@
       "kind"
     ],
     "description": "`POST /projects/:id/assistant/runs`. One run at a time per project and kind: a second one while one runs is refused with 409. A new run leaves the previous one's pending proposals as they are, unless `supersede` says to set them aside (\"Suggest again\")."
+  },
+  "StartAgentryAssistantChatRequest": {
+    "type": "object",
+    "properties": {
+      "prompt": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The project to take as context; the chat starts with none when absent or null"
+      },
+      "model": {
+        "type": "string",
+        "description": "Defaults to `sonnet`"
+      }
+    },
+    "required": [
+      "prompt"
+    ],
+    "description": "Starts a chat with the Agentry assistant; nothing else about the chat can be chosen."
   },
   "AcceptAssistantProposalRequest": {
     "type": "object",
