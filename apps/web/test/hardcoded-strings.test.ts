@@ -38,7 +38,6 @@ const ALLOWED: ReadonlyArray<{ text: string; why: string }> = [
   { text: 'Agentry', why: 'the product name, the same in every language' },
   { text: 'GitHub Issues', why: "a tracker's own name, a proper noun that is never translated" },
   { text: 'GitLab Issues', why: "a tracker's own name, a proper noun that is never translated" },
-  { text: 'Jira', why: "a tracker's own name, a proper noun that is never translated" },
   { text: 'Esc', why: 'the key as it is engraved on the keyboard' },
   { text: 'Ctrl', why: 'the key as it is engraved on the keyboard' },
   { text: 'The user declined to answer', why: 'the default deny reason, read by the model and not by a person' },

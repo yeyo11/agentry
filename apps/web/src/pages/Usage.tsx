@@ -7,10 +7,12 @@ import { BarChart } from '../components/BarChart';
 import { DecisionsLineView } from '../components/DecisionsLine';
 import { ProjectExportCard } from '../components/ProjectExport';
 import { DatePicker } from '@agentry/ui/components/controls';
-import { Card, Empty, ErrorBox, PageHeader, Segmented, Skeleton } from '@agentry/ui/components/ui';
+import { Card, Empty, ErrorBox, Segmented, Skeleton } from '@agentry/ui/components/ui';
+import { PageHeader } from '../components/PageHeader';
 import { formatCost, formatNumber } from '@agentry/ui/lib/format';
 import { intlLocale } from '@agentry/ui/i18n/language';
 import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { useOwnPhoneHeader } from '../components/shell/PhoneHeader';
 import { useProjectScope } from '../lib/project-scope';
 import { bucketFor, customRangeError, metricValue, presetRange, sumMetric, topSlices, type RangePreset, type UsageMetric } from '../lib/usage-view';
 import { parseDay, toDay } from '@agentry/ui/lib/calendar';
@@ -60,6 +62,7 @@ export function Usage() {
   const [active, setActive] = useState<number | null>(null);
   const [asTable, setAsTable] = useState(false);
   const narrow = useMediaQuery(NARROW);
+  const ownHead = useOwnPhoneHeader();
   const fmt = useFormatMetric();
 
   const bucket = bucketFor(applied, wantedBucket);
@@ -110,15 +113,20 @@ export function Usage() {
     return t('readout.chats', { count: chatCount });
   };
 
+  const rangeSwitch = (
+    <Segmented<RangePreset> label={t('range.label')} value={preset} onChange={pickPreset} options={PRESETS.map((value) => ({ value, label: t(`range.${value}`) }))} />
+  );
+
   return (
     <>
       <PageHeader
         title={t('page.title')}
         subtitle={t('page.subtitle')}
-        actions={
-          <Segmented<RangePreset> label={t('range.label')} value={preset} onChange={pickPreset} options={PRESETS.map((value) => ({ value, label: t(`range.${value}`) }))} />
-        }
+        phone={{}}
+        actions={rangeSwitch}
       />
+      {/* MobileUso: the header is the title alone, and the periods sit under it */}
+      {ownHead && rangeSwitch}
       {preset === 'custom' && (
         <div className="filter-bar" role="group" aria-label={t('range.custom')}>
           <div className="field usage-date">

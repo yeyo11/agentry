@@ -42,7 +42,10 @@ const status = async (app: FastifyInstance, host: string, headers: Record<string
 
 test('an install that sets nothing answers exactly as before the settings had layers', async (t) => {
   const { app, core } = await wrapper();
-  t.after(() => app.close());
+  t.after(async () => {
+    await app.close();
+    core.shutdown();
+  });
 
   const settings = await app.inject('/api/settings/app');
   assert.equal(settings.statusCode, 200);
@@ -71,8 +74,11 @@ test('an install that sets nothing answers exactly as before the settings had la
 });
 
 test('a host added in the settings is answered at once, and refused again once it is removed', async (t) => {
-  const { app } = await wrapper();
-  t.after(() => app.close());
+  const { app, core } = await wrapper();
+  t.after(async () => {
+    await app.close();
+    core.shutdown();
+  });
 
   assert.equal(await status(app, 'agentry.example.com'), 421);
   const put = await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ allowedHosts: ['agentry.example.com', '*.preview.example.com'] }) });
@@ -88,7 +94,10 @@ test('a host added in the settings is answered at once, and refused again once i
 
 test('a change to the settings goes out on the event feed with the whole document', async (t) => {
   const { app, core } = await wrapper();
-  t.after(() => app.close());
+  t.after(async () => {
+    await app.close();
+    core.shutdown();
+  });
   const seen: AgentryEvent[] = [];
   core.events.subscribe((event) => seen.push(event));
 
@@ -100,8 +109,11 @@ test('a change to the settings goes out on the event feed with the whole documen
 });
 
 test('a setting the environment holds is shown, and a PUT for it is refused', async (t) => {
-  const { app } = await wrapper({ AGENTRY_DEFAULT_PERMISSION_MODE: 'bypassPermissions' });
-  t.after(() => app.close());
+  const { app, core } = await wrapper({ AGENTRY_DEFAULT_PERMISSION_MODE: 'bypassPermissions' });
+  t.after(async () => {
+    await app.close();
+    core.shutdown();
+  });
 
   const settings = (await app.inject('/api/settings/app')).json<AppSettings>();
   assert.deepEqual(settings.sources, { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'env', providersStepSeen: 'default' });
@@ -116,8 +128,11 @@ test('a setting the environment holds is shown, and a PUT for it is refused', as
 });
 
 test("a host added in the UI is answered beside the environment's, which cannot be removed", async (t) => {
-  const { app } = await wrapper({ AGENTRY_ALLOWED_HOSTS: '*.devtunnels.ms,192.168.1.184' });
-  t.after(() => app.close());
+  const { app, core } = await wrapper({ AGENTRY_ALLOWED_HOSTS: '*.devtunnels.ms,192.168.1.184' });
+  t.after(async () => {
+    await app.close();
+    core.shutdown();
+  });
   assert.equal(await status(app, 'agentry.example.com'), 421);
 
   const put = await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ allowedHosts: ['agentry.example.com'] }) });
@@ -137,8 +152,11 @@ test("a host added in the UI is answered beside the environment's, which cannot 
 });
 
 test('the settings are guarded like every other settings route', async (t) => {
-  const { app } = await wrapper();
-  t.after(() => app.close());
+  const { app, core } = await wrapper();
+  t.after(async () => {
+    await app.close();
+    core.shutdown();
+  });
   const token = await withToken(app);
 
   assert.equal((await app.inject('/api/settings/app')).statusCode, 401);
@@ -152,7 +170,10 @@ test('the settings are guarded like every other settings route', async (t) => {
 
 test('a runtime host is answered while it is registered, and forgotten when it is removed', async (t) => {
   const { app, core } = await wrapper();
-  t.after(() => app.close());
+  t.after(async () => {
+    await app.close();
+    core.shutdown();
+  });
 
   assert.equal(await status(app, 'abc123.lhr.life'), 421);
   core.appSettings.runtimeHosts.add('abc123.lhr.life');
@@ -170,7 +191,10 @@ test('a runtime host is answered while it is registered, and forgotten when it i
 
 test('ten failures through a runtime host do not make a loopback client wait', async (t) => {
   const { app, core } = await wrapper();
-  t.after(() => app.close());
+  t.after(async () => {
+    await app.close();
+    core.shutdown();
+  });
   const token = await withToken(app);
   core.appSettings.runtimeHosts.add('abc123.lhr.life');
 
@@ -182,7 +206,10 @@ test('ten failures through a runtime host do not make a loopback client wait', a
 
 test('with a client header registered, each client through the tunnel waits on its own', async (t) => {
   const { app, core } = await wrapper();
-  t.after(() => app.close());
+  t.after(async () => {
+    await app.close();
+    core.shutdown();
+  });
   const token = await withToken(app);
   core.appSettings.runtimeHosts.add('abc123.lhr.life', { clientIpHeader: 'X-Forwarded-For' });
 

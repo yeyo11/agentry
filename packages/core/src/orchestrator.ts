@@ -71,6 +71,9 @@ import {
   runCommand,
   tail,
   workerChecks,
+  E2E_SPECS_TASK_ID,
+  e2eSpecsChecks,
+  e2eSpecsPrompt,
   DEFAULT_VERIFY_MINUTES,
   MAX_FAILED_SPECS,
   type CommandHandle,
@@ -735,6 +738,27 @@ export class Orchestrator {
         costUsd: 0,
       })),
     };
+    // The owner's answer to the plan's open question 1 (CW-15): workers run no browser spec, and one
+    // task that depends on every other one runs the specs their combined work touches, before the
+    // merge. Only where a verification phase exists, and not twice when the graph already names one
+    if (verification && verification.e2eSpecs !== false && orch.tasks.length > 0 && !orch.tasks.some((t) => t.id === E2E_SPECS_TASK_ID)) {
+      orch.tasks.push({
+        id: E2E_SPECS_TASK_ID,
+        name: 'Browser specs the changes touch',
+        prompt: e2eSpecsPrompt(orch.baseCommit ?? null),
+        dependsOn: orch.tasks.map((t) => t.id),
+        builtIn: 'e2e-specs',
+        status: 'pending',
+        attempts: 0,
+        runId: null,
+        sessionId: null,
+        result: null,
+        error: null,
+        startedAt: null,
+        endedAt: null,
+        costUsd: 0,
+      });
+    }
     this.items.set(orch.id, orch);
     if (engine === 'workflow') this.launchWorkflow(orch, null);
     else this.schedule(orch);
@@ -913,7 +937,7 @@ export class Orchestrator {
     // ends, are Agentry's rules
     return [
       `Your task (${task.name}):\n${task.prompt}`,
-      workerChecks(!!orch.verificationSpec),
+      task.builtIn === 'e2e-specs' ? e2eSpecsChecks() : workerChecks(!!orch.verificationSpec),
       REAL_VERIFICATION,
       frontend(designSources(orch.cwd)),
       scopeAndCompletion(),

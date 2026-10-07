@@ -814,6 +814,16 @@ body:has(> .sheet-scrim) > #root {
   min-height: 44px;
   justify-content: flex-start;
 }
+/* An unchecked toggle keeps its label in line with the checked ones' */
+.sheet-action-gap {
+  width: 14px;
+  flex: none;
+}
+.sheet-action-reason {
+  margin: 0;
+  color: var(--fg-3);
+  font-size: 12px;
+}
 @keyframes sheet-up {
   from {
     transform: translateY(100%);

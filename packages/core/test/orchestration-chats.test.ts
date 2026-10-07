@@ -70,7 +70,8 @@ test('every chat of a graph is linked to it with its role, and the integrator an
 
     const row = (await core.chats.usage()).orchestrations.find((o) => o.orchestration.id === orch.id);
     const spent = (id: string | null | undefined) => core.runtime.get(id as string)?.executions.reduce((sum, e) => sum + (e.costUsd ?? 0), 0) ?? 0;
-    const expected = [orch.tasks[0]?.sessionId, integrator.id, fixer, orch.synthesisRunId].reduce((sum, id) => sum + spent(id), 0);
+    // Every task counts, the `e2e-specs` task Agentry adds when verification is on included
+    const expected = [...orch.tasks.map((t) => t.sessionId), integrator.id, fixer, orch.synthesisRunId].reduce((sum, id) => sum + spent(id), 0);
     assert.ok(spent(fixer) > 0 && spent(integrator.id) > 0);
     assert.equal(Math.round((row?.costUsd ?? 0) * 1e6), Math.round(expected * 1e6));
   } finally {

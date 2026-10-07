@@ -23,7 +23,6 @@ export const IMPORT_MAX_KEYS = ISSUES_PAGE_SIZE;
 const TRACKER_LABEL: Record<TrackerId, string> = {
   'github-issues': 'GitHub Issues',
   'gitlab-issues': 'GitLab Issues',
-  jira: 'Jira',
   youtrack: 'YouTrack',
 };
 
@@ -187,7 +186,7 @@ export class TrackerImportService {
     const { tracker } = project;
     if (!tracker) throw new TrackerError('this project has no tracker: choose one in its settings', 409);
     const adapter = trackerAdapter(tracker.id);
-    // Jira: acli is not recorded, so nothing is built on it
+    // A tracker listed before its CLI is recorded has no adapter, so nothing is built on it
     if (!adapter) throw new TrackerError(`${TRACKER_LABEL[tracker.id]} is not available yet: its CLI has not been recorded`, 409, 'not-recorded');
     const access = await this.deps.access(project.path, tracker.id);
     if (access.host !== trackerHost(tracker.id)) {

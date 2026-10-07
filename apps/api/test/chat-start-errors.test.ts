@@ -40,7 +40,10 @@ before(async () => {
   project = res.json<Project>();
 });
 
-after(() => app.close());
+after(async () => {
+  await app.close();
+  core.shutdown();
+});
 
 async function workOn(title: string) {
   const created = await app.inject({ method: 'POST', url: `/api/projects/${project.id}/work-items`, ...json({ title }) });

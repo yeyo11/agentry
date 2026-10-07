@@ -44,11 +44,18 @@ export class TrackersSettingsStore {
   private read(): TrackersSettings {
     if (!existsSync(this.file)) return defaultTrackersSettings(this.ids);
     try {
-      return this.parse(JSON.parse(readFileSync(this.file, 'utf8')));
+      return this.parse(this.known(JSON.parse(readFileSync(this.file, 'utf8'))));
     } catch {
       // A hand edit that went bad reads as the defaults rather than keeping every tracker off
       return defaultTrackersSettings(this.ids);
     }
+  }
+
+  /** A file written by a build that knew a tracker this one does not (Jira, dropped) keeps the rest */
+  private known(input: unknown): unknown {
+    if (!isObject(input) || !isObject(input.trackers)) return input;
+    const ids = this.ids as readonly string[];
+    return { ...input, trackers: Object.fromEntries(Object.entries(input.trackers).filter(([id]) => ids.includes(id))) };
   }
 
   private parse(input: unknown): TrackersSettings {

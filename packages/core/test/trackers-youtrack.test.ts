@@ -47,7 +47,6 @@ test('youtrack has an adapter, reached through youtrack-app with no code host of
   assert.equal(youtrackAdapter.host, null);
   assert.equal(youtrackAdapter.cli, 'youtrack-app');
   assert.equal(youtrackAdapter.namedStatuses, true);
-  assert.equal(trackerAdapter('jira'), null);
 });
 
 test('an issue id is a short name, a dash and a number, upper cased; anything else is refused before a call', () => {
@@ -230,7 +229,7 @@ function detector(opts: { binary?: boolean; credentials?: boolean; version?: Hos
     hosts: { statuses: async () => hosts, refresh: async () => hosts },
     adapter: () => undefined,
     resolvePath: async () => (opts.binary === false ? '/nowhere' : join(here, 'fixtures')),
-    settings: () => (opts.binary === false ? null : { trackers: { 'github-issues': { enabled: true, binaryPath: null }, 'gitlab-issues': { enabled: true, binaryPath: null }, jira: { enabled: true, binaryPath: null }, youtrack: { enabled: true, binaryPath: program } } }),
+    settings: () => (opts.binary === false ? null : { trackers: { 'github-issues': { enabled: true, binaryPath: null }, 'gitlab-issues': { enabled: true, binaryPath: null }, youtrack: { enabled: true, binaryPath: program } } }),
     youtrackCredentials: () => (opts.credentials === false ? null : { host: 'https://x.youtrack.cloud', token: 'perm-t' }),
     ownRun,
   });
@@ -262,8 +261,6 @@ test('youtrack says what is missing: the program, the credentials, a refused tok
   assert.deepEqual(pick(await detector({ me: result(null, '', 'timeout') }).d.status('youtrack')), { state: 'unknown', reason: 'timeout' });
   assert.deepEqual(pick(await detector({ version: result(0, '1.0.2\n') }).d.status('youtrack')), { state: 'incompatible', reason: 'below-minimum' });
   assert.deepEqual(pick(await detector({ version: result(0, 'nonsense') }).d.status('youtrack')), { state: 'unknown', reason: 'probe-failed' });
-  // Jira stays as it was: listed, not recorded, never probed
-  assert.deepEqual(pick(await detector({}).d.status('jira')), { state: 'unknown', reason: 'not-recorded' });
 });
 
 test('a status read spawns nothing after the first; a refresh or new credentials probe again', async () => {

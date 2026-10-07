@@ -157,7 +157,7 @@ export class TrackerSyncService {
   private async syncIssue(item: WorkItem, issue: IssueRef, column: TrackerMappedStatus, closing: Closing): Promise<void> {
     const { tracker: id, key } = issue;
     const r = this.resolve(item.projectId, id);
-    // Jira has no adapter: there is nothing to write and nothing to say about it
+    // A tracker with no adapter has nothing to write and nothing to say about it
     if (!r?.adapter) return;
     const name = r.tracker.statusMap[column] ?? null;
     if (name === null) return;

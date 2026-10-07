@@ -1379,6 +1379,12 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 .flow-waiting-role { flex: 1 1 auto; color: var(--fg-2); }
 .flow-waiting-count { flex-shrink: 0; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--fg-2); }
 .flow-waiting-sheet .sheet-actions .btn { min-height: var(--touch); justify-content: center; }
+/* A MoreActions sheet (CW-8): a disabled entry's reason under the buttons, and the gap of an unchecked toggle */
+.sheet-action-reason { margin: 0; color: var(--fg-3); font-size: 12px; }
+.sheet-action-gap { width: 14px; flex: none; }
+/* A state under a phone head's title is the mono line in its tone, not a boxed badge; an orchestration's name is 16 px */
+.phone-head-sub .badge { min-height: 0; padding: 0; border: 0; background: none; font-size: 12px; letter-spacing: 0; line-height: inherit; text-transform: none; }
+.orch-phone-head h1 { font-size: 16px; letter-spacing: -0.01em; }
 /* The failed run's banner (.run-fail, the app's .chat-run-failed): its secondary action, quiet; a
    phone drops it, since the row above the banner already opens the item */
 .btn.chat-run-failed-quiet { border-color: transparent; background: transparent; }

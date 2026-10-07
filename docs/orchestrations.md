@@ -55,6 +55,12 @@ tasks. A review task that runs it again spends its time on a result nobody reads
 reviews the design, the conventions and what the checks cannot see (copy, naming, a missed case),
 and runs at most the one test it wants to read.
 
+With verification on, Agentry also adds one task to the end of the graph, `e2e-specs`: it depends
+on every other task, so it starts from their combined work, and runs only the browser specs that
+work touches, each alone on a port of its own, fixing a spec the work left stale before the merge.
+Workers run none (CW-15). The planner does not write that task, and a graph that names one keeps its
+own; `verification.e2eSpecs: false` leaves it out.
+
 ### 5. `sonnet` for prose-only tasks
 
 A task that only writes prose (documentation, changelog-style notes) sets its `model` to `sonnet`:

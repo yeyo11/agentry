@@ -68,6 +68,8 @@ export interface VerificationDraft {
   install: InstallMode;
   installCommand: string;
   failGraph: boolean;
+  /** The browser specs the changes touch, run by a task of the graph before the merge (on unless turned off) */
+  e2eSpecs: boolean;
 }
 
 export const EMPTY_VERIFICATION: VerificationDraft = {
@@ -79,6 +81,7 @@ export const EMPTY_VERIFICATION: VerificationDraft = {
   install: 'detected',
   installCommand: '',
   failGraph: false,
+  e2eSpecs: true,
 };
 
 /** A draft with no command is no verification: checks of nothing would only add a phase that always passes. */
@@ -97,6 +100,7 @@ export function verificationOf(draft: VerificationDraft): VerificationSpec | und
     // The server refuses an empty command; an empty box falls back to detection instead
     ...(draft.install === 'none' ? { install: null } : draft.install === 'command' && installCommand ? { install: installCommand } : {}),
     ...(draft.failGraph ? { failGraph: true } : {}),
+    ...(draft.e2eSpecs ? {} : { e2eSpecs: false }),
   };
 }
 
@@ -113,6 +117,7 @@ export function draftOfVerification(spec: VerificationSpec | undefined): Verific
     install: spec.install === null ? 'none' : spec.install === undefined ? 'detected' : 'command',
     installCommand: typeof spec.install === 'string' ? spec.install : '',
     failGraph: spec.failGraph ?? false,
+    e2eSpecs: spec.e2eSpecs !== false,
   };
 }
 

@@ -147,16 +147,18 @@ export async function scanBothThemes(page, pages, scan, each) {
   }
 }
 
-/** At phone width, in the dark theme: axe, and no page scrolls sideways */
-export async function scanNarrow(page, pages, scan, problems) {
-  await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
+/** At phone width, in the dark theme unless told otherwise: axe, and no page scrolls sideways */
+export async function scanNarrow(page, pages, scan, problems, theme = 'dark') {
+  await page.eval(`localStorage.setItem('agentry-theme', ${JSON.stringify(theme)}); return true`);
   await page.viewport(420, 900);
+  const where = theme === 'dark' ? '420px' : `420px ${theme}`;
   for (const path of pages) {
     await settle(page, path);
-    await scan(page, `420px ${path}`);
+    await scan(page, `${where} ${path}`);
     const overflow = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
-    if (overflow > 1) problems.push(`[420px ${path}] the page scrolls sideways by ${overflow}px`);
+    if (overflow > 1) problems.push(`[${where} ${path}] the page scrolls sideways by ${overflow}px`);
   }
+  if (theme !== 'dark') await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
 }
 
 /** At tablet width, no page scrolls sideways */

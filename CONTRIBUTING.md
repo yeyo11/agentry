@@ -24,13 +24,12 @@ host names only, never a token. What a code host is, and how to add one, is in
 [docs/code-hosts.md](docs/code-hosts.md).
 
 **Issue trackers follow it too.** GitHub Issues and GitLab Issues are reached through the same
-`gh` and `glab` and the same `hosts/exec.ts`, with the host's session. Jira is reached only through
-`acli` (the person signs in with `acli jira auth login` in a terminal, and Agentry never sees an
-Atlassian token) and YouTrack only through `youtrack-app`; the YouTrack token Agentry keeps is
-passed in the child's environment, never in argv. Neither CLI is wired yet: an adapter, a fake
-and any argument or output shape wait for a recording of the real CLI committed under
-`packages/core/test/fixtures/recordings/`, and until then the tracker is `unknown` with the reason
-`not-recorded`. Issue text is a stranger's: stored as a quoted block, never as instructions.
+`gh` and `glab` and the same `hosts/exec.ts`, with the host's session. YouTrack is reached only
+through JetBrains' `youtrack-app`; the YouTrack token Agentry keeps is passed in the child's
+environment, never in argv. A tracker's adapter, fake and every argument or output shape come from
+a recording of the real CLI committed under `packages/core/test/fixtures/recordings/`; a tracker
+listed before its CLI is recorded is `unknown` with the reason `not-recorded`. Jira is not
+supported. Issue text is a stranger's: stored as a quoted block, never as instructions.
 What a tracker is, and how to add one, is in [docs/trackers.md](docs/trackers.md).
 
 **One bounded exception: typed decision services.** Agentry may call an optional outside service

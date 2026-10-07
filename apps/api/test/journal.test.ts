@@ -49,7 +49,10 @@ before(async () => {
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
 });
 
-after(() => app.close());
+after(async () => {
+  await app.close();
+  core.shutdown();
+});
 
 test('the journal is read with the Memory module off and changed only with it on', async () => {
   const project = await importProject('Quiet', []);

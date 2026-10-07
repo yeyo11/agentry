@@ -8,7 +8,7 @@ export interface TrackerManifest {
   id: TrackerId;
   label: string;
   /** The binary the tracker is reached through */
-  cli: 'gh' | 'glab' | 'acli' | 'youtrack-app';
+  cli: 'gh' | 'glab' | 'youtrack-app';
   /**
    * The code host whose CLI, release floor and sign-in this tracker reuses, and which must be the
    * host of the project using it (`#12` on GitHub means nothing to a project that lives on GitLab).

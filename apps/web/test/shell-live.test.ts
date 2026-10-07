@@ -226,9 +226,10 @@ test("a phone's detail screens head themselves: no top bar on them, and the bar 
   // A project's page and its tabs (a member, a document) live at `/` with a project in scope
   assert.equal(hidesTopBar('/', true), true, "a project's page");
   assert.equal(hidesTopBar('/', false), false, 'Home of every project keeps the scope in the bar');
-  for (const path of ['/tasks', '/tasks/', '/tasks/milestones', '/tasks/AGN-12', '/tasks/agn-12/', '/projects/p1/assistant', '/projects/p1/assistant/', '/projects/new'])
+  for (const path of ['/tasks', '/tasks/', '/tasks/milestones', '/tasks/AGN-12', '/tasks/agn-12/', '/projects/p1/assistant', '/projects/p1/assistant/', '/projects/new', '/chats/abc', '/chats/new', '/orchestration/o1', '/projects', '/settings', '/usage', '/tasks/AGN-12/changes'])
     assert.equal(hidesTopBar(path), true, path);
-  for (const path of ['/chats', '/chats/abc', '/orchestration', '/projects', '/settings', '/usage', '/tasks/AGN-12/changes'])
+  // The tab roots keep the bar: it carries the scope, the search and the bell there
+  for (const path of ['/chats', '/chats/', '/orchestration', '/orchestration/'])
     assert.equal(hidesTopBar(path, false), false, path);
   // The flag is about `/` alone: another page with a project in scope keeps its bar
   assert.equal(hidesTopBar('/chats', true), false);

@@ -65,7 +65,7 @@ test('golden: a merge whose closing issues could not be read tells the sync so, 
   ));
 
 test('a project with no tracker, or one that is not on the request’s host, reads nothing from the host', async () => {
-  for (const tracker of [undefined, { ...GH_TRACKER, id: 'jira', scope: 'PROJ' } satisfies ProjectTrackerSettings]) {
+  for (const tracker of [undefined, { ...GH_TRACKER, id: 'youtrack', scope: 'PROJ' } satisfies ProjectTrackerSettings]) {
     const told: MergedNotice[] = [];
     const s = setup({ ...(tracker ? { tracker } : {}), onMerged: async (n) => (told.push(n), { closedUnlinked: [] }) });
     try {

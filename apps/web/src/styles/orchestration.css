@@ -2005,6 +2005,13 @@ a.chain-chip:hover {
   gap: 8px;
 }
 
+/* An orchestration's own phone head names it at the size of a chat's (MobileOrquestacion), smaller
+   than the other screens' titles: the name is an id someone typed, often long */
+.orch-phone-head h1 {
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
 /* The longest chain of a graph being written: a quiet hint under the task list, never a block. */
 .graph-shape-line {
   font-variant-numeric: tabular-nums;

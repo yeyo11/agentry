@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-10-07T12:00:00Z
+updated_at: 2026-10-07T18:00:00Z
 tags:
     - plan
     - git
@@ -62,10 +62,9 @@ that runs by itself.
    Gitea/Forgejo are not supported.
 3. **Every feature below:** CI checks and fixing them, reviews, merging from Agentry, and issues as
    work items.
-4. **Issue trackers: GitHub Issues, GitLab Issues, Jira and YouTrack, each through a CLI.**
-   - Jira through Atlassian's official CLI, `acli` (`acli jira workitem search --jql … --json`;
-     [reference](https://developer.atlassian.com/cloud/acli/reference/commands/jira-workitem-search/)).
-     `acli` targets Jira Cloud; Server and Data Center are out unless the CLI covers them.
+4. **Issue trackers: GitHub Issues, GitLab Issues and YouTrack, each through a CLI.** (Jira was
+   planned too, through Atlassian's `acli`; the owner dropped it on 2026-10-07, before anything was
+   built on it, and Agentry does not support it.)
    - YouTrack through JetBrains' official `youtrack-app` CLI (`@jetbrains/youtrack-apps-tools`): its
      `project` and `user` commands and `rest request --path /api/...`, which calls YouTrack's
      documented REST API and prints JSON. It authenticates with `YOUTRACK_HOST` and `YOUTRACK_TOKEN`
@@ -93,7 +92,7 @@ reason codes, one cache, and a `…changed` event.
   (`glab`); the **minimum** release and the list of releases the facts were **recorded on**; how to
   read auth; the hosts it knows by default (`github.com`, `gitlab.com`).
 - **Tracker manifests** (`packages/core/src/trackers/<id>/manifest.ts`): `github-issues` and
-  `gitlab-issues` (the host's CLI), `jira` (`acli`), `youtrack` (`youtrack-app`).
+  `gitlab-issues` (the host's CLI), `youtrack` (`youtrack-app`).
 - **A project's host is detected from its remote.** Parse `origin` (HTTPS and scp-style SSH),
   resolve SSH host aliases with `ssh -G`, and match the host **locally** against the list of hosts
   the CLI itself reports. A host the person's CLI does not know is never sent to that CLI, so no
@@ -132,7 +131,7 @@ Capabilities are declared per host (`draft`, `autoMerge`, `mergeMethods`, `check
 - The `work_item_pull_requests` table gains the host, and keeps working for existing rows.
 - The body names the linked issue with the tracker's own words (phase 5): `Closes #N` on GitHub and
   GitLab **when the change request targets the default branch** (neither host closes an issue from
-  a merge into another branch), the Jira key or the YouTrack issue id in the title and the body.
+  a merge into another branch), the YouTrack issue id in the title and the body.
 
 ### 4. CI checks, and fixing them
 
@@ -176,7 +175,7 @@ Capabilities are declared per host (`draft`, `autoMerge`, `mergeMethods`, `check
   project can have one tracker.
 - **Work:** the item's branch stays `task/<item key>`, because Agentry's worktree ownership
   (`work-links.ts`) keys on it. The issue key travels in the change request's **title and body**
-  instead, which is what GitHub, GitLab, Jira's and YouTrack's own integrations link by. The item's
+  instead, which is what GitHub's, GitLab's and YouTrack's own integrations link by. The item's
   prompt carries the issue's text as a quoted source.
 - **Sync:** when the change request merges, the issue moves to the tracker's done state (a mapping
   per project: which Agentry column maps to which tracker status or transition). Sync is one way,
@@ -212,13 +211,13 @@ kept).
 
 ## The execution layer
 
-Every call to `gh`, `glab`, `acli`, `youtrack-app` and `ssh -G`, in every phase, goes through one
+Every call to `gh`, `glab`, `youtrack-app` and `ssh -G`, in every phase, goes through one
 wrapper, `packages/core/src/hosts/exec.ts` (built in phase 1, task `c13`). No other file spawns
 them. An adapter never runs anything: it returns a `HostCall` and parses what came back.
 
 ```ts
 export interface HostCall {
-  cli: 'gh' | 'glab' | 'acli' | 'youtrack-app';
+  cli: 'gh' | 'glab' | 'youtrack-app';
   args: string[];                 // argv, never a shell string
   input?: string;                 // stdin; bodies always travel here or in a 0600 temp file
   kind: 'read' | 'write';         // declared by the adapter, checked by the classifier
@@ -253,7 +252,7 @@ export interface HostResult {
 
 **Environment.** The process environment, then:
 
-| | gh | glab | acli, youtrack-app |
+| | gh | glab | youtrack-app |
 |---|---|---|---|
 | Set | `GH_PROMPT_DISABLED=1`, `GH_NO_UPDATE_NOTIFIER=1`, `GH_NO_EXTENSION_UPDATE_NOTIFIER=1`, `GH_SPINNER_DISABLED=1`, `GH_PAGER=cat`, `GH_TELEMETRY=0`, `DO_NOT_TRACK=1` | `GLAB_NO_PROMPT=1`, `GLAB_CHECK_UPDATE=false`, `GLAB_SEND_TELEMETRY=false` | `YOUTRACK_HOST` and `YOUTRACK_TOKEN` for `youtrack-app` only, from Agentry's store |
 | Both | `NO_COLOR=1`, `LC_ALL=C` (git's messages are localised otherwise, recorded), `GIT_TERMINAL_PROMPT=0` | same | same |
@@ -686,7 +685,7 @@ Failures are listed as `exit → Agentry reason`; every failure also follows the
 documented extension marked beside the recorded part, each with the task that records it), **11
 doc-only** (D, each with the phase task that records it) and **17 not through the CLI** (X, each
 saying what Agentry does instead). The tracker
-matrix below adds **24 doc-only cells** for Jira and YouTrack, recorded by `t0` before phase 5
+matrix below adds **12 cells** for YouTrack, recorded by `t0` before phase 5
 is built.
 
 ## Phases
@@ -709,7 +708,7 @@ worker: they touch real accounts.
 3. **Reviews.** Threads on the item page and in `DiffView`, **Address with an agent**, posting a
    review, answering and resolving, and `review.triage`.
 4. **Merging.** Merge methods, auto-merge, why a merge is blocked, and the pipeline guard.
-5. **Trackers.** GitHub and GitLab issues, Jira through `acli`, YouTrack through `youtrack-app`;
+5. **Trackers.** GitHub and GitLab issues, YouTrack through `youtrack-app`;
    import, links, closing words, status sync, and `issue.triage`.
 6. **Webhooks and paced polling.** The two endpoints, signature checks, registration through the
    CLIs, and the pacer.
@@ -721,7 +720,7 @@ when it is not); phase 6 needs phase 1. The recommended order is the list's.
 ### Fakes and tests, for every phase
 
 - **Replay fakes.** `packages/core/test/fixtures/fake-cli.mjs` (phase 1, `c12`) answers as `gh`,
-  `glab`, `acli` or `youtrack-app` from the committed recordings: each recorded call is
+  `glab` or `youtrack-app` from the committed recordings: each recorded call is
   `{ cli, version, argv, stdinSha256, stdout, stderr, exitCode }`, matched on the exact argv (with
   the host, repository and ids templated). A call the recordings do not have exits `97` with
   `unrecorded call` and fails the test, so a changed argv shows up as a failure, never as a guess.
@@ -2145,7 +2144,7 @@ who wants the `403` for chats turns on token or OIDC mode.
 ## Phase 5: trackers
 
 Branch **`feat/code-hosts-trackers`**, cut from `main` after phase 1 merged. **`t0` (recording)
-must be done before any other task starts**: the Jira and YouTrack facts below are doc-only.
+must be done before any other task starts**: the YouTrack facts below are doc-only.
 
 **Delivers:** Settings → Integrations → Trackers (four trackers with readiness); a project's tracker
 (which one, its scope, the status mapping); import by query into work items; `WorkItem.issues`;
@@ -2155,22 +2154,20 @@ issue keys and closing words in change requests; status sync on merge; `issue.tr
 
 - **Trackers are manifests** like hosts (`trackers/<id>/manifest.ts`), with readiness `ready`,
   `signed-out`, `incompatible`, `not-installed`, `unknown`. `github-issues` and `gitlab-issues`
-  reuse their host's CLI and readiness (and need the project's host to be that host); `jira` needs
-  `acli` signed in (the person signs in in a terminal with `acli jira auth login`; Agentry never
-  sees an Atlassian token); `youtrack` needs `youtrack-app` and the host and token Agentry keeps.
+  reuse their host's CLI and readiness (and need the project's host to be that host); `youtrack` needs `youtrack-app` and the host and token Agentry keeps.
 - **A project's tracker** lives in its settings document (`tracker: { id, scope, query,
-  statusMap }`): `scope` is the repository for GitHub/GitLab, a Jira project key, a YouTrack project
-  short name; `statusMap` maps `in_progress`, `in_review` and `done` to a tracker status (Jira
-  status name, YouTrack `State` value; GitHub/GitLab only `done` → close with reason `completed`).
+  statusMap }`): `scope` is the repository for GitHub/GitLab, a YouTrack project
+  short name; `statusMap` maps `in_progress`, `in_review` and `done` to a tracker status (YouTrack
+  `State` value; GitHub/GitLab only `done` → close with reason `completed`).
 - **Import**: the person runs the tracker's own query (prefilled with the scope, open issues), picks
   issues, and Agentry creates one work item per issue: title as is, description = the issue body as
   a quoted source block (untrusted, English label "From <tracker> <key>"), type from labels or issue
   type when it maps (`bug`), and a `work_item_issues` row. An issue already imported in the project
   is marked and not imported twice (unique index).
-- **In change requests**: the title keeps Agentry's form and gains the issue key for Jira and
+- **In change requests**: the title keeps Agentry's form and gains the issue key for
   YouTrack (`feat: … (CW-22, PROJ-12)`); the body gains a "Linked issue" line: `Closes #12` /
   `Closes group/project#12` when the tracker is the host's own and the base is the default branch,
-  the bare reference otherwise; the Jira key or YouTrack id always.
+  the bare reference otherwise; the YouTrack id always.
 - **Status sync** runs from Agentry's events: item moved to In progress / In review (when mapped),
   change request merged (`done`). Each sync is one write, never retried; a failure shows on the item
   with the reason (`transition-unknown`, `tracker-signed-out`, …) and a **Sync again** click. For
@@ -2185,8 +2182,7 @@ issue keys and closing words in change requests; status sync on merge; `issue.tr
   with Electron's `safeStorage` in the desktop app, plain on a server; passed only in
   the child's environment (`YOUTRACK_TOKEN`), never in argv (`--token` is visible to other local
   users), never returned by the API.
-- **Bodies for acli** go in a 0600 tmpfile (`--description-file`, `--body-file`); for
-  `youtrack-app` in `--body` (argv; issue text is not secret, cut at 60 000 characters, and the
+- **Bodies for `youtrack-app`** go in `--body` (argv; issue text is not secret, cut at 60 000 characters, and the
   documented CLI has no stdin form).
 
 **Persistence.** `work_item_issues (id, project_id, item_id, tracker, key, external_id, title,
@@ -2209,13 +2205,12 @@ there yet.
 - **`t0a`, done**: the two GitLab issue calls the matrix still marked D (F4 `-u`, F8 the labels
   list), recorded on the private probe project: [Recorded by `t0a`](#recorded-by-t0a-2026-10-02).
   The GitHub rows were already recorded (R).
-- **`t0b`, the owner's**: Jira (`acli`, a Jira Cloud site and a scratch project) and YouTrack
-  (`youtrack-app`, an instance and a token), as in "Recording before phase 5". Until it is done,
-  `jira` and `youtrack` are in the registry as trackers whose readiness is `unknown` with the reason
+- **`t0b`**: YouTrack (`youtrack-app`, an instance and a token), as in "Recording before phase 5". Until it is done,
+  `youtrack` is in the registry as trackers whose readiness is `unknown` with the reason
   `not-recorded`, have no adapter and offer no action, so nothing is built on a CLI fact nobody has
   seen. Phase 5 therefore ships **GitHub Issues and GitLab Issues** first, with the manifests, the
-  settings, the import, the links, the sync and `issue.triage` complete for them; the Jira and
-  YouTrack adapters, fakes and screens follow `t0b` in a smaller step.
+  settings, the import, the links, the sync and `issue.triage` complete for them; the YouTrack
+  adapter, fake and screens follow `t0b` in a smaller step.
 
 ### Recorded by `t0a` (2026-10-02)
 
@@ -2254,7 +2249,7 @@ for each, in this order: wire it where the plan uses it, or remove it.
 - **Recorded behaviours** that only the removed code enforced are now enforced by the removal: the
   re-read after `glab issue update -u`, passing only labels that exist on create, and `gh issue
   create --body-file -` on stdin. They are recorded facts for the next builder, not code.
-- **Kept**: `titleIssueKeys`, called by the change request's title for Jira and YouTrack keys. It
+- **Kept**: `titleIssueKeys`, called by the change request's title for YouTrack keys. It
   has no effect until those trackers have an adapter (`t0b`), which is the seam the plan asks for.
 - **The "two imports at once" test** is concurrent now: two services on one database file, reads
   held until both have passed the existence check, then the 409 handling and the unique index.
@@ -2265,7 +2260,7 @@ Generator `trackers.py`.
 
 - `t-p1` **Integrations → Trackers** (`DesktopIntegracionesTrackers.html`, phone): four rows with
   state and one action each; the YouTrack host and token form (the token field never shows a stored
-  value); acli signed-out with its sign-in docs link.
+  value).
 - `t-p2` **the project's tracker** in project settings (`DesktopProyectoTracker.html`, phone): the
   tracker choice, scope, the status mapping (select per column from `components/controls`).
 - `t-p3` **import** (`DesktopImportarIssues.html`, `MobileImportarIssues.html`): query field,
@@ -2277,15 +2272,15 @@ Generator `trackers.py`.
 P0 was built by `trackers-prototypes` (3 tasks, 18.78 USD; `lint.py` and `check.mjs` clean) and
 validated on 2026-10-02 by delegation, from the screenshots: the import dialog has one gradient
 action (Import), and Integrations has the gradient border of the trackers section (what the screen is
-about) beside the top bar's New chat, so no screen has more than two. Jira and YouTrack are drawn as
-"not available yet" with their reason and no action, as "Phase 5 in two steps" says.
+about) beside the top bar's New chat, so no screen has more than two. YouTrack is drawn as
+"not available yet" with its reason and no action, as "Phase 5 in two steps" says.
 
 ### P1 · `trackers-core`
 
 - `t0` (recording before phase 5, the owner and the owner's assistant) — see
   [the section below](#recording-before-phase-5). Its result replaces every D cell of the tracker
-  matrix with R or X, sets `acli`'s and `youtrack-app`'s minimum to the recorded releases, and
-  commits the captures to `recordings/acli/` and `recordings/youtrack-app/`.
+  matrix with R or X, sets `youtrack-app`'s minimum to the recorded releases, and
+  commits the captures to `recordings/youtrack-app/`.
 - `t1` (contract), dependsOn none: `TrackerId`, `TrackerStatus`, `TrackersSettings`,
   `ProjectTrackerSettings`, `IssueRef`, `TrackerIssue`, `TrackerImportRequest/Result`,
   `WorkItem.issues`, the reasons, `issue.triage`. `openapi:schemas`.
@@ -2293,8 +2288,8 @@ about) beside the top bar's New chat, so no screen has more than two. Jira and Y
   `detector.ts`, the four manifests, reusing `providers/path.ts`.
 - `t3` (adapters), dependsOn t1, t0: `trackers/tracker.ts` (the `TrackerAdapter` interface: `list`,
   `get`, `create`, `update`, `comment`, `setStatus`, `close`, `reopen`, `labels`), the GitHub and
-  GitLab ones on matrix F, `trackers/jira/adapter.ts` and `trackers/youtrack/adapter.ts` on the
-  recorded facts; a conformance suite for trackers. Replay fakes for `acli` and `youtrack-app` from
+  GitLab ones on matrix F, `trackers/youtrack/adapter.ts` on the
+  recorded facts; a conformance suite for trackers. A replay fake for `youtrack-app` from
   `t0`'s captures.
 - `t4` (store and settings), dependsOn t1: the migration, `trackers/settings.ts`, the credentials
   store, `project-settings.ts` (the `tracker` key and its validation).
@@ -2308,20 +2303,19 @@ about) beside the top bar's New chat, so no screen has more than two. Jira and Y
 - `t8` (routes), dependsOn t5, t6: `routes/trackers.ts`, `routes/projects.ts`,
   `routes/work-items.ts`, `security.ts`, `openapi/routes.ts`, `README.md`, API tests.
 - `t9` (docs): `docs/trackers.md` (new reference), `docs/work-items.md` (issues on items),
-  `docs/decision-engine.md`, `CONTRIBUTING.md` (acli and youtrack-app under the rule).
+  `docs/decision-engine.md`, `CONTRIBUTING.md` (youtrack-app under the rule).
 
 ### P2 · `trackers-web`, dependsOn P0 (validated) and P1
 
 - `tu0` model; `tu1` `pages/config/IntegrationsTab.tsx` trackers section and
   `i18n/locales/{en,es}/integrations.json`; `tu2` project tracker settings; `tu3` import dialog
   (`pages/tasks/ImportIssues.tsx`) and item chips (`pages/tasks/item/Issues.tsx`); `tu4` e2e
-  (`e2e/fake-trackers/acli`, `e2e/fake-trackers/youtrack-app`, `e2e/specs/trackers.spec.mjs`),
+  (`e2e/fake-trackers/youtrack-app`, `e2e/specs/trackers.spec.mjs`),
   written, not run.
 
 ## Outcome of phase 5, step 1 (2026-10-02)
 
-Phase 5 is built for **GitHub Issues and GitLab Issues** on `feat/code-hosts-trackers`; Jira and
-YouTrack wait for `t0b` ("Phase 5 in two steps"):
+Phase 5 is built for **GitHub Issues and GitLab Issues** on `feat/code-hosts-trackers`; YouTrack waits for `t0b` ("Phase 5 in two steps"):
 
 - **`t0a`**, the two GitLab calls the matrix had as documented only, recorded and cleaned up.
 - **P0 `trackers-prototypes`** (3 tasks, 18.78 USD), **P1 `trackers-core`** (9 tasks, 29.49 USD),
@@ -2345,8 +2339,8 @@ What the audit and the e2e spec nobody had run found, all fixed:
   saved from the screen; the issue chips are a real list (axe refused a link with the listitem role);
   and "Check again" in Integrations now also reads the trackers, so its actions appear when both are in.
 
-**Open:** `t0b`'s Jira half (a Jira Cloud site) and the Jira adapter, fake and screens that follow
-it. YouTrack's half is done: see the next section.
+**Open:** nothing. YouTrack followed in a second step (next section); Jira was dropped by the owner
+on 2026-10-07.
 
 ## Outcome of phase 5, step 2: YouTrack (2026-10-07)
 
@@ -2629,28 +2623,14 @@ second driver behind an interface the first one already had.
   GitHub row. The fake glab of the e2e suite holds hooks as files, and `webhooks.spec.mjs` registers,
   tests (failing and recovering) and removes a GitLab hook through the UI.
 
-**Open:** nothing for GitLab hooks. Jira and YouTrack have no webhooks in this plan.
+**Open:** nothing for GitLab hooks. YouTrack has no webhooks in this plan.
 
-## Jira and YouTrack: documented facts
+## YouTrack: documented facts
 
-The Jira cells are **doc-only** until `t0b` records `acli`. The YouTrack cells were recorded on
-2026-10-07 (R; T9 is X: Agentry sets the `State` field instead of running a command, see
-[the outcome](#outcome-of-phase-5-step-2-youtrack-2026-10-07)); the Ev column reads Jira · YouTrack.
+The cells were recorded on 2026-10-07 (R; T9 is X: Agentry sets the `State` field instead of
+running a command, see [the outcome](#outcome-of-phase-5-step-2-youtrack-2026-10-07)).
 
-Sources: Atlassian CLI command reference, fetched 2026-09-30
-([jira workitem](https://developer.atlassian.com/cloud/acli/reference/commands/jira-workitem/),
-[search](https://developer.atlassian.com/cloud/acli/reference/commands/jira-workitem-search/),
-[view](https://developer.atlassian.com/cloud/acli/reference/commands/jira-workitem-view/),
-[create](https://developer.atlassian.com/cloud/acli/reference/commands/jira-workitem-create/),
-[edit](https://developer.atlassian.com/cloud/acli/reference/commands/jira-workitem-edit/),
-[transition](https://developer.atlassian.com/cloud/acli/reference/commands/jira-workitem-transition/),
-[comment create](https://developer.atlassian.com/cloud/acli/reference/commands/jira-workitem-comment-create/),
-[comment list](https://developer.atlassian.com/cloud/acli/reference/commands/jira-workitem-comment-list/),
-[link](https://developer.atlassian.com/cloud/acli/reference/commands/jira-workitem-link/),
-[project list](https://developer.atlassian.com/cloud/acli/reference/commands/jira-project-list/),
-[auth login](https://developer.atlassian.com/cloud/acli/reference/commands/jira-auth-login/),
-[auth status](https://developer.atlassian.com/cloud/acli/reference/commands/jira-auth-status/));
-the README of `@jetbrains/youtrack-apps-tools` 1.0.3 (npm, published 2026-08-20; read from the
+Sources: the README of `@jetbrains/youtrack-apps-tools` 1.0.3 (npm, published 2026-08-20; read from the
 package tarball) and YouTrack's REST reference
 ([issues](https://www.jetbrains.com/help/youtrack/devportal/resource-api-issues.html),
 [comments](https://www.jetbrains.com/help/youtrack/devportal/resource-api-issues-issueID-comments.html),
@@ -2658,19 +2638,6 @@ package tarball) and YouTrack's REST reference
 
 What the docs say, and what they leave open:
 
-- **acli.** Every `workitem` command documented here takes `--json` (search, view, create, edit,
-  transition, comment create, comment list). Search: `--jql`, `--fields` (default
-  `issuetype,key,assignee,priority,status,summary`), `--limit`, `--paginate`, `--count`, `--filter`.
-  Transition takes a **status name** (`--status "Done"`), not a transition id, and `--yes` to skip
-  its prompt; edit also takes `--yes`. Create and edit take `--description-file`; comment create
-  takes `--body-file`; both accept plain text or Atlassian Document Format. `auth login` takes the
-  token on stdin (`--token`) or opens a browser (`--web`); `auth status` documents no flags, no
-  output format and no exit codes. **Open:** the JSON shapes, exit codes, where acli keeps its
-  config (and so how to isolate a signed-out test), whether it prompts without a terminal, the
-  version command, and a discrepancy in the docs themselves (the page is `workitem comment create`,
-  its examples say `workitem comment --key`). `link create` links work items to each other; there is
-  no documented command for a remote (web) link, so a change request is linked by a comment and the
-  key in its title.
 - **youtrack-app.** Reads `YOUTRACK_HOST` and `YOUTRACK_TOKEN` (`YOUTRACK_API_TOKEN` is a legacy
   alias; `--host`/`--token` win over both). `rest request --path <path> [--method M] [--body JSON]
   [--header name:value]` calls a relative path on the configured host; JSON responses are printed
@@ -2681,62 +2648,26 @@ What the docs say, and what they leave open:
   **Open:** whether `rest request` exits non-zero on every HTTP error, which stream the error goes
   to, and the shape of `--json` on `project info`.
 
-| # | Action | Jira (`acli`) | YouTrack (`youtrack-app`) | Ev |
-|---|---|---|---|---|
-| T1 | Version | `acli --version` (not in the reference pages read) | `youtrack-app --version` | D · R |
-| T2 | Signed in | `acli jira auth status` → exit code (undocumented) | `youtrack-app rest request --path '/api/users/me?fields=login,name'` → exit 0, or 3 = `tracker-signed-out` | D · R |
-| T3 | Projects | `acli jira project list --json --paginate` | `youtrack-app project list --json --limit 50 --skip <n>`; `project info --project <short> --json` (the project's `id` for create) | D · R |
-| T4 | Search | `acli jira workitem search --jql '<scope and query>' --json --fields key,summary,status,issuetype,labels,updated --limit 100` (and `--paginate` up to Agentry's ceiling) | `youtrack-app rest request --path '/api/issues?query=<url-encoded>&fields=idReadable,summary,resolved,updated,project(shortName),tags(name),customFields(name,value(name))&$top=100&$skip=<n>'` | D · R |
-| T5 | Get | `acli jira workitem view <KEY> --json --fields key,summary,description,status,labels,issuetype` | `… rest request --path '/api/issues/<ID>?fields=idReadable,summary,description,resolved,tags(name),customFields(name,value(name))'` | D · R |
-| T6 | Create | `acli jira workitem create --project <KEY> --type Task --summary <s> --description-file <tmpfile> --json` | `… rest request --method POST --path '/api/issues?fields=idReadable' --body '{"project":{"id":"<id>"},"summary":…,"description":…}'` | D · R |
-| T7 | Update | `acli jira workitem edit --key <KEY> --summary <s> --description-file <tmpfile> --yes --json` | `… --method POST --path '/api/issues/<ID>?fields=idReadable' --body '{"summary":…,"description":…}'` | D · R |
-| T8 | Comment | `acli jira workitem comment create --key <KEY> --body-file <tmpfile> --json` | `… --method POST --path '/api/issues/<ID>/comments?fields=id' --body '{"text":…}'` | D · R |
-| T9 | Move to a status (sync, close) | `acli jira workitem transition --key <KEY> --status "<name>" --yes --json` | `… --method POST --path /api/commands --body '{"query":"State <value>","issues":[{"idReadable":"<ID>"}]}'` | D · X |
-| T10 | Reopen | T9 with the mapped open status | T9 with the mapped open state | D · R |
-| T11 | Labels | `edit --key <KEY> --labels <l>` / `--remove-labels <l> --yes` | commands `tag <name>` / `untag <name>` through `/api/commands` | D · R |
-| T12 | Link to a change request | a comment with the URL (T8) and the key in the change request's title; no remote-link command | a comment with the URL (T8) and the id in the title | D · R |
+| # | Action | YouTrack (`youtrack-app`) | Ev |
+|---|---|---|---|
+| T1 | Version | `youtrack-app --version` | R |
+| T2 | Signed in | `youtrack-app rest request --path '/api/users/me?fields=login,name'` → exit 0, or 3 = `tracker-signed-out` | R |
+| T3 | Projects | `youtrack-app project list --json --limit 50 --skip <n>`; `project info --project <short> --json` (the project's `id` for create) | R |
+| T4 | Search | `youtrack-app rest request --path '/api/issues?query=<url-encoded>&fields=idReadable,summary,resolved,updated,project(shortName),tags(name),customFields(name,value(name))&$top=100&$skip=<n>'` | R |
+| T5 | Get | `… rest request --path '/api/issues/<ID>?fields=idReadable,summary,description,resolved,tags(name),customFields(name,value(name))'` | R |
+| T6 | Create | `… rest request --method POST --path '/api/issues?fields=idReadable' --body '{"project":{"id":"<id>"},"summary":…,"description":…}'` | R |
+| T7 | Update | `… --method POST --path '/api/issues/<ID>?fields=idReadable' --body '{"summary":…,"description":…}'` | R |
+| T8 | Comment | `… --method POST --path '/api/issues/<ID>/comments?fields=id' --body '{"text":…}'` | R |
+| T9 | Move to a status (sync, close) | `… --method POST --path /api/commands --body '{"query":"State <value>","issues":[{"idReadable":"<ID>"}]}'` | X |
+| T10 | Reopen | T9 with the mapped open state | R |
+| T11 | Labels | commands `tag <name>` / `untag <name>` through `/api/commands` | R |
+| T12 | Link to a change request | a comment with the URL (T8) and the id in the title | R |
 
 ### Recording before phase 5
 
-Task `t0`, run by the owner's assistant with the owner, before any other phase 5 task. **The owner
-provides:**
-
-- **Jira:** a Jira Cloud site (`<site>.atlassian.net`) where the owner can create a scratch project
-  (a key such as `AGP`), and `acli` installed and signed in **by the owner, in a terminal** (`acli
-  jira auth login --web`, or `--site --email --token` with the token on stdin). Agentry and the
-  assistant never see the Atlassian token.
-- **YouTrack:** a YouTrack instance URL (for YouTrack Cloud, with the trailing `/youtrack`), a
-  permanent token from the owner's profile (Account Security) with YouTrack scope, and a scratch
-  project. The token is given to the recorder through the child's environment only and is redacted
-  from every capture.
-
-**What is recorded**, each call with stdout, stderr and the exit code captured separately, stdin
-closed, non-TTY, with the recorder of the gh and glab recordings, and everything redacted:
-
-1. Versions: `acli --version` (or what prints it), `youtrack-app --version`.
-2. Auth: `acli jira auth status` signed in, and signed out (find acli's config location first and
-   point it at an empty one, or record after `auth logout` and log in again); `youtrack-app rest
-   request --path '/api/users/me?fields=login,name'` with a good token, a bad token (expect exit 3)
-   and no token.
-3. Reads: `acli jira project list --json --limit 5`; `acli jira workitem search --jql "project = AGP
-   ORDER BY updated DESC" --json --limit 3`, the same with `--paginate` over more than one page,
-   with `--fields`, with `--count`, and a malformed JQL; `acli jira workitem view AGP-1 --json
-   --fields '*all'` (field names, the description's ADF shape) and a key that does not exist.
-   YouTrack: `project list --json`, `project info --project AGP --json`, `project fields --project
-   AGP --json`, T4 and T5 on real issues, T5 on an id that does not exist (expect 4).
-4. Writes, on the scratch projects only: T6 with a plain-text description (then read it back: ADF or
-   text?), T7, T8 (both the `comment create` form and the `comment --key` form of the docs'
-   example), T9 to a reachable status, to an unreachable one and to an unknown name, T11; each
-   without `--yes` too, to see whether a prompt blocks or fails without a terminal. YouTrack: T6, T7,
-   T8, T9 with a valid and an invalid `State`, T11; a body of 60 000 characters in argv.
-5. Limits: whatever rate-limit signal each prints (Jira answers 429 with `Retry-After` per its REST
-   docs; record whether acli surfaces it), and `youtrack-app`'s behaviour on an HTTP 500 if one can
-   be produced safely (otherwise left doc-only).
-6. Cleanup: every scratch issue deleted or archived; the list of what could not be removed.
-
-Its result sets each manifest's minimum to the recorded release, turns the tracker matrix's cells
-into R (or X, with what Agentry does instead), and corrects the design notes above where the
-recordings disagree, in a "Corrections from the tracker recordings" subsection like phase 1's.
+Done for YouTrack on 2026-10-07, against a YouTrack instance of our own rather than the owner's: see
+[the outcome](#outcome-of-phase-5-step-2-youtrack-2026-10-07) and
+`packages/core/test/fixtures/recordings/youtrack-app/NOTES.md`.
 
 ## What is still not recorded
 
@@ -2762,7 +2693,7 @@ Each item has the phase task that records it and the safe default Agentry ships 
 | GitHub non-Actions check runs (re-request) | not recordable without a third-party app | Shown with `check-not-rerunnable` and a link |
 | GitLab hook creation through `--input`, the signing token, PATCH/PUT of a hook's URL, resend | `w0` | Hooks are registered with the legacy token only; a URL change marks the hook stale and asks until `w0` records G7; after it, Agentry re-points by itself ([decision 2](#decisions-for-the-owner)) |
 | gh `--search` on `issue list`, glab `issue update -u`, glab labels endpoint | `t0` | Import queries use the list filters that are recorded (state, labels) and the tracker's page; label removal on GitLab goes through a full label set |
-| Everything about `acli` and `youtrack-app` | `t0` | Phase 5 does not start before `t0` |
+| Everything about `youtrack-app` | `t0` | Phase 5 does not start before `t0` |
 | gh releases between 2.92.0 and 2.102.0 other than those two | not planned | `ready` (the owner's floor): the two recorded ends agree on everything used, and the one known change (2.97.0) is branched on |
 | glab releases after 1.120.0 | the first phase task that meets one | `degraded: version-untested`, still usable |
 
@@ -2782,8 +2713,8 @@ The owner settled these four on 2026-09-30.
    Integrations page says when it did; polling stays the source of truth. Rejected: (b) marking the
    hooks stale and asking for a click per project; (c) webhooks only with a stable public URL.
 3. **Trackers: accounts for `t0`, and how the YouTrack token is kept: decided (owner, 2026-09-30),
-   (a).** The owner provides a Jira Cloud site and a YouTrack instance for `t0` (free tiers exist for
-   both). The token is kept in a 0600 file like the decision engine's key, encrypted with the
+   (a).** The owner provides a YouTrack instance for `t0` (a free tier exists; in the end it was
+   recorded on an instance of our own). The token is kept in a 0600 file like the decision engine's key, encrypted with the
    operating system's keyring through Electron's `safeStorage` when Agentry runs as the desktop app,
    and plain 0600 on a server; the Integrations page says which. Rejected: (b) always a plain 0600
    file; (c) GitHub and GitLab issues only until accounts exist (still the fallback if `t0` cannot
@@ -2811,8 +2742,6 @@ The owner settled these four on 2026-09-30.
   on it (see [Corrections from the recordings](#corrections-from-the-recordings)).
 - Whether the multi-provider first-run step and this one's integrations line ship together, or
   this one waits for its own delivery.
-- Jira Server and Data Center, if `acli` does not reach them (`t0` checks what `auth login --site`
-  accepts).
 
 ## Related
 

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 // Direct imports: this page is in the shell bundle, and the barrel would pull the lazy form controls into it
 import { Menu, type MenuEntry } from '@agentry/ui/components/controls/Menu';
+import { MoreActions } from '@agentry/ui/components/controls/MoreActions';
 import { Tooltip } from '@agentry/ui/components/controls/Tooltip';
 import { HealthBadge } from '../../components/observe/Health';
 import { ProgressBar } from '@agentry/ui/components/ProgressBar';
@@ -256,7 +257,8 @@ export const ChatHeader = memo(function ChatHeader({
             </button>
           </Tooltip>
         )}
-        <Menu entries={entries} label={t('view.moreActions')} />
+        {/* A dropdown on a desktop, a sheet of big buttons on a phone (MobileChat's ⋯) */}
+        <MoreActions entries={entries} label={t('view.moreActions')} className="chat-more" />
       </div>
     </header>
   );

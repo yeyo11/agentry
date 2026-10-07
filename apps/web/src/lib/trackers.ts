@@ -7,7 +7,7 @@
 import type { IssueRef, IssueSyncState, IssueTriageMark, TrackerId, TrackerIssue, TrackerMappedStatus, TrackerSettingsEntry, TrackerStatus, TrackersSettings } from '@agentry/shared';
 
 /** The order every list draws the trackers in: the host trackers, then the ones with a CLI of their own. */
-export const TRACKER_IDS: readonly TrackerId[] = ['github-issues', 'gitlab-issues', 'jira', 'youtrack'];
+export const TRACKER_IDS: readonly TrackerId[] = ['github-issues', 'gitlab-issues', 'youtrack'];
 
 export interface TrackerWords {
   /** The tracker's own name, a proper noun that is never translated */
@@ -19,19 +19,18 @@ export interface TrackerWords {
 const WORDS: Readonly<Record<TrackerId, TrackerWords>> = {
   'github-issues': { label: 'GitHub Issues', scopeKey: 'scope.repository' },
   'gitlab-issues': { label: 'GitLab Issues', scopeKey: 'scope.repository' },
-  jira: { label: 'Jira', scopeKey: 'scope.project' },
   youtrack: { label: 'YouTrack', scopeKey: 'scope.project' },
 };
 
 export const trackerWords = (id: TrackerId): TrackerWords => WORDS[id];
 
-/** GitHub and GitLab number their issues; Jira and YouTrack already write the key. */
+/** GitHub and GitLab number their issues; YouTrack already writes the key. */
 export function issueRef(tracker: TrackerId, key: string): string {
   return tracker === 'github-issues' || tracker === 'gitlab-issues' ? `#${key}` : key;
 }
 
-/** The trackers with an adapter; Jira is shown with its reason and no action until acli is recorded. */
-export const isTrackerBuilt = (id: TrackerId): boolean => id !== 'jira';
+/** The trackers with an adapter: all of them today. One listed before its CLI is recorded would be shown with its reason and no action. */
+export const isTrackerBuilt = (id: TrackerId): boolean => TRACKER_IDS.includes(id);
 
 /**
  * Whether the tracker has statuses of its own that a column is mapped to by name (YouTrack's

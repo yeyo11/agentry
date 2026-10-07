@@ -3198,6 +3198,8 @@ export interface LimitWait {
 
 export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   status: OrchestrationTaskStatus;
+  /** A task Agentry added to the graph itself, not one the person or the planner wrote; a relaunch adds it again */
+  builtIn?: 'e2e-specs';
   /** Git worktree this task works in, when the orchestration isolates its workers */
   worktree?: string | null;
   /** Branch created for that worktree */
@@ -3361,6 +3363,12 @@ export interface VerificationSpec {
   install?: string | null;
   /** A failed verification ends the orchestration as `failed` and no pull request is offered (default false) */
   failGraph?: boolean;
+  /**
+   * Before integration, a task of the graph (`e2e-specs`) runs only the browser specs the graph's
+   * changes touch, each alone on a port of its own, so a spec the work broke or left stale is caught
+   * before the merge (CW-15). On by default; `false` leaves the task out.
+   */
+  e2eSpecs?: boolean;
 }
 
 /** Runs the checks on a finished graph's integration branch, or runs them again. */
@@ -4958,12 +4966,8 @@ export interface HostsChangedEvent extends AgentryEventBase {
 
 // ---------- Issue trackers (code hosts, phase 5) ----------
 
-/**
- * The issue trackers Agentry knows. Closed: adding one is a code change. `github-issues`,
- * `gitlab-issues` and `youtrack` have an adapter; `jira` is in the registry with the readiness
- * `unknown` and the reason `not-recorded` until `acli` is recorded.
- */
-export type TrackerId = 'github-issues' | 'gitlab-issues' | 'jira' | 'youtrack';
+/** The issue trackers Agentry knows. Closed: adding one is a code change. */
+export type TrackerId = 'github-issues' | 'gitlab-issues' | 'youtrack';
 
 /** Readiness of a tracker; `unknown` is a tracker nobody recorded the CLI of, or one not probed yet. */
 export type TrackerState = 'ready' | 'signed-out' | 'incompatible' | 'not-installed' | 'unknown';
@@ -4981,7 +4985,7 @@ export interface TrackerStatus {
   id: TrackerId;
   label: string;
   cli: string;
-  /** The code host a tracker reuses the CLI and the sign-in of; null for `jira` and `youtrack`, which have CLIs of their own */
+  /** The code host a tracker reuses the CLI and the sign-in of; null for `youtrack`, which has a CLI of its own */
   host: CodeHostId | null;
   binaryPath: string | null;
   version: string | null;
@@ -5031,7 +5035,7 @@ export type TrackerMappedStatus = Extract<WorkItemStatus, 'in_progress' | 'in_re
 /** A project's tracker, in its settings document (`ProjectSettings.tracker`). */
 export interface ProjectTrackerSettings {
   id: TrackerId;
-  /** The repository for GitHub and GitLab, a Jira project key, a YouTrack project short name */
+  /** The repository for GitHub and GitLab, a YouTrack project short name */
   scope: string;
   /** The tracker's own query the import starts from; empty reads as the open issues of the scope */
   query: string;
@@ -5048,7 +5052,7 @@ export type IssueSyncState = 'none' | 'synced' | 'failed';
 /** An issue linked to a work item (a `work_item_issues` row). */
 export interface IssueRef {
   tracker: TrackerId;
-  /** What the person reads: `12` on GitHub and GitLab, `PROJ-12` on Jira and YouTrack */
+  /** What the person reads: `12` on GitHub and GitLab, `PROJ-12` on YouTrack */
   key: string;
   /**
    * The tracker scope (the repository, for GitHub and GitLab) the issue was imported from. Every
