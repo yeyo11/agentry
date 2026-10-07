@@ -78,9 +78,17 @@
     "authRequired": "The tunnel needs authentication: turn on a token or OIDC in Security first.",
     "disabled": "This Agentry does not offer the tunnel. Whoever runs it can turn it on with AGENTRY_TUNNEL=on.",
     "noPort": "Agentry is not listening yet, so there is nothing to open a tunnel to.",
-    "sshMissing": "No ssh was found to run. Install the OpenSSH client (openssh-client) and try again.",
-    "hostKey": "localhost.run answered with a host key that is not the one Agentry pins, so the tunnel was not opened.",
-    "unverified": "localhost.run handed out {{host}}, but Agentry could not reach itself through it.",
-    "exited": "ssh ended before localhost.run handed out an address: {{detail}}"
+    "tailscaleMissing": "The Tailscale CLI (tailscale) was not found. Install Tailscale on this machine and sign in, then try again.",
+    "tailscaleUnsupported": "Tailscale {{version}} is too old: the tunnel needs 1.52 or later. Update Tailscale, then try again.",
+    "tailscaleDaemonDown": "The tailscale CLI could not reach the Tailscale service (tailscaled). Start it, then try again.",
+    "tailscaleLoggedOut": "This machine is not signed in to a tailnet. Run tailscale up in a terminal, then try again.",
+    "tailscaleNotConnected": "Tailscale is not connected on this machine ({{state}}). Run tailscale up in a terminal, then try again.",
+    "magicDnsOff": "MagicDNS is off for this tailnet. Turn it on in the DNS page of the Tailscale admin console, then try again.",
+    "httpsOff": "HTTPS certificates are off for this tailnet. Turn them on in the DNS page of the Tailscale admin console, then try again.",
+    "servePermission": "Tailscale refused to change this machine's Serve settings for this user. Run sudo tailscale set --operator=$USER once, then try again.",
+    "portTaken": "Port {{port}} of this machine's tailnet name is already served by something else, and Agentry leaves it alone. Free it, or set AGENTRY_TUNNEL_PORT to another port.",
+    "serveFailed": "tailscale serve did not accept the rule: {{detail}}",
+    "unverified": "The Serve rule was sent, but this machine's Serve config does not show it pointing at Agentry.",
+    "ruleRemoved": "Agentry's Serve rule was removed or changed outside Agentry, so the tunnel is closed."
   }
 }

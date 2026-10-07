@@ -4,12 +4,12 @@
 // Reference screens: DesktopIntegracionesWebhooks*, MobileIntegracionesWebhooks* and DSWebhooks. With E2E_SHOTS
 // set the screens are saved for comparing them with the reference screenshots.
 //
-// 1. The sandbox has no public address (the tunnel refuses to open with authentication off), so the card says so,
-//    links to Remote access and offers no action, GitLab's row included.
+// 1. Agentry has no public address (the tunnel is tailnet-only, so it never is one), so the card says so and
+//    offers no action, GitLab's row included.
 // 2. With an address (the page's answer to `GET /projects/:id/webhooks` carries one; everything else is the real
 //    server and the real fake gh): the row offers Register, its dialog shows the address and the nine events and
 //    never a secret, and its one primary button is the screen's only new gradient. The server refuses to register
-//    without a tunnel, and says so before it runs anything on the host.
+//    without a public address, and says so before it runs anything on the host.
 // 3. A registration written into the database, with its hook in the fake gh: Test pings through the CLI and the
 //    row shows the host's answer; a ping the host cannot deliver makes the row failing with the response; Remove
 //    asks first, calls DELETE and the row goes off. gh's argv and every answer and screen carry no secret.
@@ -240,7 +240,7 @@ export default async ({ page, api, check, dirs }) => {
     await config({});
     await openIntegrations(ghId, 'unavailable', 'no address, dark');
     await page.waitFor(kindIs(glId, 'unavailable'), { label: 'the GitLab row' });
-    check(await page.eval(`return !!document.querySelector('.wh-card .wh-notice a[href="/settings?tab=remote"]')`), 'with no address the card links to Remote access');
+    check(/tailnet/.test(await text('.wh-card .wh-notice')), 'with no address the card says the tunnel only reaches the tailnet');
     check(!(await page.eval(`return !!document.querySelector('.wh-card .wh-bar')`)), 'and shows no address line');
     check((await actionsOf(ghId)).length === 0, 'a project with no address to register on offers no action');
     check((await actionsOf(glId)).length === 0, 'a GitLab row with no address offers no action either');

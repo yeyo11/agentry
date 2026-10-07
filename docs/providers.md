@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:00:00Z
-updated_at: 2026-10-03T12:00:00Z
+updated_at: 2026-10-06T12:00:00Z
 tags:
     - providers
     - detection
@@ -40,6 +40,13 @@ exception for typed decision services is unchanged ([decision-engine.md](decisio
 
 A consequence: an agent that only has an interactive terminal interface is **not a provider**. It
 cannot run an orchestration stage with nobody watching.
+
+The same rule covers the other programs Agentry drives that are not agents: the code hosts' `gh`
+and `glab` ([code-hosts.md](code-hosts.md)), and the remote-access tunnel's `tailscale`
+([tunnel.md](tunnel.md)), which Agentry reaches only through its CLI flags and `--json` output, with
+the person's own Tailscale session: no LocalAPI socket, no tsnet, no sign-in of its own. They are
+not providers: they run no chat, and nothing here (detection, the handshake, the policy judge)
+applies to them.
 
 ## What a provider is
 
@@ -325,4 +332,4 @@ calls `POST /providers/refresh`, and an install or sign-in made in a terminal ar
 
 ## Related
 
-[[plans/multi-provider.md]] · [[status.md]] · [[decision-engine.md]] · [[desktop.md]] · [[deploy.md]] · [[knowledge-base.md]]
+[[plans/multi-provider.md]] · [[status.md]] · [[decision-engine.md]] · [[desktop.md]] · [[deploy.md]] · [[knowledge-base.md]] · [[tunnel.md]] · [[code-hosts.md]]

@@ -3,8 +3,8 @@ import type { TunnelStatus } from '@agentry/shared';
 import type { Core } from '@agentry/core';
 
 /**
- * How long a reply gets to cross ssh before the stop kills it. `finish` only says Node handed the
- * bytes to the socket; ssh still has to read them and localhost.run to deliver them.
+ * How long a reply gets to leave before the stop takes the Serve rule away. `finish` only says
+ * Node handed the bytes to the socket; tailscaled still has to relay them to the phone.
  */
 const REPLY_GRACE_MS = 1_000;
 
@@ -18,9 +18,10 @@ function throughTunnel(status: TunnelStatus, host: string | undefined): boolean 
   }
 }
 
-/** The tunnel through localhost.run. A refusal (auth off, no port yet) is a `409` from the manager. */
+/** The tunnel through `tailscale serve`. A refusal (auth off, no port yet) is a `409` from the manager. */
 export const tunnelRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
-  app.get('/tunnel', () => core.tunnel.status());
+  // Asks the CLI again, briefly cached, so a `tailscale up` run in a terminal shows without a restart
+  app.get('/tunnel', () => core.tunnel.refresh());
 
   app.put<{ Body: unknown }>('/tunnel/settings', (req) => core.tunnel.updateSettings(req.body));
 
@@ -29,7 +30,7 @@ export const tunnelRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { co
   app.post('/tunnel/stop', (req, reply) => {
     const status = core.tunnel.status();
     if (!throughTunnel(status, req.headers.host)) return core.tunnel.stop();
-    // Stopping kills the ssh this very reply has to travel back through, so a page that came
+    // Stopping removes the Serve rule this very reply travels back through, so a page that came
     // through the tunnel would only ever see its connection drop. It gets its answer first.
     reply.raw.once('finish', () => {
       setTimeout(() => {

@@ -152,10 +152,22 @@ test('the tunnel is offered by default, except in the Docker image, where the op
   for (const on of ['on', 'ON', '1', 'true']) assert.equal(loadConfig({ ...docker, AGENTRY_TUNNEL: on }).tunnelEnabled, true, on);
   for (const off of ['off', '0', 'false']) assert.equal(loadConfig({ ...base, AGENTRY_TUNNEL: off }).tunnelEnabled, false, off);
 
-  // The switch that opens a public address is not guessed at
+  // The switch that opens a way in is not guessed at
   for (const value of ['yes', 'enabled', 'of']) {
     assert.throws(() => loadConfig({ ...base, AGENTRY_TUNNEL: value }), /AGENTRY_TUNNEL/, value);
   }
+});
+
+test("the tunnel's Serve port is 8443 unless set, and a value that is not a port stops the start", () => {
+  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-switch', 'claude'), AGENTRY_DATA_DIR: join(tmpdir(), 'agentry-switch', 'data'), AGENTRY_WORKSPACE_DIR: join(tmpdir(), 'agentry-switch', 'workspace') };
+  assert.equal(loadConfig(base).tunnelPort, 8443);
+  assert.equal(loadConfig({ ...base, AGENTRY_TUNNEL_PORT: '' }).tunnelPort, 8443);
+  assert.equal(loadConfig({ ...base, AGENTRY_TUNNEL_PORT: '10443' }).tunnelPort, 10443);
+  for (const value of ['0', '65536', '84.43', 'https']) {
+    assert.throws(() => loadConfig({ ...base, AGENTRY_TUNNEL_PORT: value }), /AGENTRY_TUNNEL_PORT/, value);
+  }
+  assert.equal(loadConfig(base).tailscaleBin, 'tailscale');
+  assert.equal(loadConfig({ ...base, TAILSCALE_BIN: '/opt/tailscale/bin/tailscale' }).tailscaleBin, '/opt/tailscale/bin/tailscale');
 });
 
 test('two panels asking for MCP health at once share one connection check', async () => {

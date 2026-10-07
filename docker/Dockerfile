@@ -4,8 +4,9 @@
 # self-contained ESM file (apps/api/scripts/bundle.mjs), so the image that runs it carries no
 # source tree, no node_modules and no transpiler: the container used to start `tsx src/index.ts`
 # and parse the whole of TypeScript on every boot.
-FROM node:22-bookworm-slim AS build
-RUN corepack enable && corepack prepare pnpm@10.17.1 --activate
+FROM node:26-bookworm-slim AS build
+# Node 25 stopped shipping corepack, so pnpm comes from npm, pinned to the root packageManager.
+RUN npm install -g pnpm@10.17.1
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/
@@ -22,17 +23,18 @@ COPY apps apps
 RUN pnpm --filter @agentry/web build \
  && pnpm --filter @agentry/api bundle
 
-FROM node:22-bookworm-slim
+FROM node:26-bookworm-slim
 
-# Tools Claude Code relies on when working inside projects. openssh-client is also the tunnel's
-# ssh, which this image only runs once the operator sets AGENTRY_TUNNEL=on.
+# Tools Claude Code relies on when working inside projects (openssh-client is git's, over ssh).
+# The tunnel's `tailscale` CLI is not here: the host's Tailscale is not visible from a container, so
+# the tunnel stays off in this image unless the operator sets AGENTRY_TUNNEL=on and provides one.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl git openssh-client procps ripgrep jq python3 \
  && rm -rf /var/lib/apt/lists/*
 
 # Nothing here needs pnpm any more: it is left for the projects Claude works on under /workspace,
 # which is also why node and python3 stay.
-RUN corepack enable && corepack prepare pnpm@10.17.1 --activate
+RUN npm install -g pnpm@10.17.1
 
 # Volumes are owned by the non-root user (bypassPermissions refuses to run as root)
 RUN mkdir -p /app /workspace /data /home/node/.claude \

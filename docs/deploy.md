@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-10-06T10:00:00Z
+updated_at: 2026-10-06T12:00:00Z
 tags:
     - deploy
     - docker
@@ -114,14 +114,15 @@ starts. Do not scale it.
 The `auth.*` values seed a volume that has no `auth.json` yet. After that the settings saved in the UI
 win, so changing the value and upgrading does not change a running install.
 
-`tunnel.enabled` (default `false`) decides whether Settings → Remote access may open a public address
-from the pod; see the next section. The deployment always writes `AGENTRY_TUNNEL` as `on` or `off`,
+`tunnel.enabled` (default `false`) decides whether Settings → Remote access may serve the pod on a
+tailnet; see the next section. The deployment always writes `AGENTRY_TUNNEL` as `on` or `off`,
 and `NOTES.txt` warns when it is on.
 
 ## The tunnel in Docker
 
-Settings → Remote access can open a public HTTPS address through localhost.run over ssh
-([tunnel.md](tunnel.md)). **In the image it is off unless the operator turns it on**:
+Settings → Remote access serves Agentry on the person's tailnet through the Tailscale CLI
+(`tailscale serve`, [tunnel.md](tunnel.md)). **In the image it is off unless the operator turns it
+on**:
 
 ```dotenv
 # .env, for Compose: env_file already hands it to the container
@@ -133,28 +134,24 @@ and `AGENTRY_TUNNEL=off` turns it off there too. `AGENTRY_TUNNEL` accepts `on`/`
 `off`/`0`/`false`, with empty or unset meaning the default. Any other value stops the server at
 startup.
 
-Why off here, measured on 2026-09-27 from a throwaway container on Docker's default bridge network
-that published no port at all:
+Why off here:
 
-- **The container can reach localhost.run on TCP 22 by default**, and its ssh opened the tunnel with
-  the options Agentry passes.
-- **The tunnel goes around everything in front of the server.** It reaches `127.0.0.1:8787` from
-  inside the container, so whoever has the address comes in around the port Compose publishes only on
-  `127.0.0.1`, the `tls` profile's Caddy and its certificate, and in Kubernetes the Service, the
-  Ingress and any ingress NetworkPolicy. localhost.run's TLS replaces yours. A `GET` from the internet
-  reached the container that published nothing.
-- **Operators decide ingress in their manifests**, and a pod that dials out and opens its own public
-  way in looks like a backdoor to a security review. Nothing on the network stops it, so Agentry's
-  own switch is the only thing in the way, and it is off.
+- **The container cannot see the host's Tailscale.** The image ships no `tailscale` CLI, and the
+  host's `tailscaled` socket is not mounted, so turned on with nothing else the tab only says that
+  Tailscale is not installed. It takes a CLI in the image (`TAILSCALE_BIN`) and a daemon it can reach,
+  such as a Tailscale sidecar sharing its socket, and that is a deployment decision of its own.
+- **The tunnel goes around everything in front of the server.** Once it opens, the Serve rule reaches
+  `127.0.0.1:8787` inside the container, so tailnet members come in around the port Compose publishes
+  only on `127.0.0.1`, the `tls` profile's Caddy, and in Kubernetes the Service, the Ingress and any
+  ingress NetworkPolicy. (The localhost.run tunnel this replaced was measured doing exactly that, from a
+  container that published no port; the evidence is in [the plan](plans/tunnel.md#answer-the-tunnel-in-docker).)
+- **Operators decide ingress in their manifests**, and a pod that opens its own way in looks like a
+  backdoor to a security review, so Agentry's own switch stays off.
 
 Turned on, the tunnel is the same as everywhere else. It refuses to open while the auth mode is
 `none`, even if `auth.mode` in the chart only seeded a volume and the UI changed it later: it checks
-the live mode. Only its exact host joins the allowlist, and it opens only when someone presses the
-button or turns on "start with Agentry". Where it is off, the tab says so and names the switch.
-
-It needs **outbound TCP 22** to `localhost.run`. An egress NetworkPolicy or a firewall that blocks it
-makes every attempt fail, however the switch is set. `openssh-client` is already in the image.
-The full evidence is in [the plan](plans/tunnel.md#answer-the-tunnel-in-docker).
+the live mode. Only the node's exact name joins the allowlist, and it opens only when someone presses
+the button or turns on "start with Agentry". Where it is off, the tab says so and names the switch.
 
 ## Webhooks and the public address
 
@@ -162,14 +159,15 @@ GitHub can tell Agentry that a pull request, a check or a review changed
 ([code-hosts.md](code-hosts.md#events-and-paced-polling)). A host delivers only to an address it can
 reach, so a hook needs a public one:
 
-- **Today the only public address Agentry knows is the tunnel's** ([tunnel.md](tunnel.md#webhooks)).
-  Without it, registering is refused with `no-public-url`, and polling carries on alone, which is
-  correct, only slower. There is no "configured public origin" setting yet. A deployment behind its
-  own domain (the `tls` profile, an Ingress) has no way to register a hook until one exists.
+- **Today Agentry knows no public address.** The tunnel is tailnet-only (`tailscale serve`), so a
+  code host on the internet cannot deliver to it ([tunnel.md](tunnel.md#webhooks)). Registering is
+  refused with `no-public-url`, and polling carries on alone, which is correct, only slower. There is
+  no "configured public origin" setting yet. A deployment behind its own domain (the `tls` profile, an
+  Ingress) has no way to register a hook until one exists.
 - **Expose one path.** A delivery is `POST /api/webhooks/github/<registration id>` (and `gitlab`).
   It carries no bearer token: the signature is the credential. If a proxy or an Ingress filters by
   path, let `/api/webhooks/` through to Agentry and keep the rest as it is. The public name must be
-  on `AGENTRY_ALLOWED_HOSTS` like any other (the tunnel adds its own).
+  on `AGENTRY_ALLOWED_HOSTS` like any other.
 - **Keep the body as it comes.** The signature is over the raw bytes, so a proxy must not rewrite,
   recompress or re-encode a body. Bodies over 5 MiB are answered `413`, and at most 60 deliveries a
   minute per registration are accepted (`429`).
@@ -227,9 +225,9 @@ Firebase project, no key of anyone else's.
   `*.push.services.mozilla.com`, `web.push.apple.com`, `fcm.googleapis.com`. A wrapper behind NAT
   needs nothing opened; an egress-filtered one needs those hosts allowed, and without them a push is
   a log line and nothing else.
-- **No domain or proxy at hand?** The [tunnel](tunnel.md) gives an HTTPS origin with nothing to
-  configure, if the operator turned it on (above). Its address changes, and each new address is a new
-  origin for the phone.
+- **No domain or proxy at hand?** On a machine with Tailscale, the [tunnel](tunnel.md) gives an HTTPS
+  origin with a real certificate on the tailnet, and its address stays the same while the machine keeps
+  its name. In a container it needs a Tailscale the container can reach (above).
 - **In Kubernetes**, `push.json` sits on the same PersistentVolumeClaim as the rest of the data
   directory, which the chart keeps through `helm uninstall`. Bring your own Ingress, and terminate
   TLS there.

@@ -607,13 +607,13 @@ test('the worker and the page name the same cache for the state they share', () 
 
 // ---------- After the tunnel's address changed ----------
 //
-// localhost.run's free address changes, and a phone that installed Agentry on one keeps its worker
+// The tunnel's tailnet address can move (a renamed node, another port), and a phone that installed Agentry on one keeps its worker
 // and its push subscription: both belong to the registration of the old origin, and the push service
 // delivers by endpoint, whatever that origin now answers. The server puts its current address in
 // every push; these are the rules the old worker follows with it.
 
-const OLD = 'https://0a1b2c3d4e5f60.lhr.life';
-const NEW = 'https://9f8e7d6c5b4a30.lhr.life';
+const OLD = 'https://old-node.tail0000.ts.net:8443';
+const NEW = 'https://agentry-test.tail0000.ts.net:8443';
 const MOVED = { ...WAITING, url: `${NEW}/chats/run1?prompt=p1` };
 
 test('a notification sent after the domain changed opens the new address', async () => {
@@ -663,10 +663,10 @@ test('an install at the desk or on the LAN is never sent through the tunnel', as
 
 test('an address that is not another tunnel over https is not followed', async () => {
   for (const url of [
-    'http://9f8e7d6c5b4a30.lhr.life/chats/run1',
+    'http://agentry-test.tail0000.ts.net:8443/chats/run1',
     'https://evil.example/chats/run1',
-    'https://lhr.life.evil.example/chats/run1',
-    'https://.lhr.life/chats/run1',
+    'https://ts.net.evil.example/chats/run1',
+    'https://.ts.net/chats/run1',
     'not a url',
   ]) {
     const worker = await ready(SHELL, { origin: OLD });

@@ -1,9 +1,8 @@
 import type { CodeHostId, CodeHostStatus, Project, ProjectWebhooks, WebhookRegistration } from '@agentry/shared';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Activity, ExternalLink, Link2, TriangleAlert } from 'lucide-react';
+import { Activity, Link2, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
 import { api, ApiRequestError, keys } from '../../api';
 import { Dialog, useConfirm } from '@agentry/ui/components/Dialog';
 import { ICON_SM } from '@agentry/ui/components/icons';
@@ -77,10 +76,6 @@ export function WebhooksSection({ projects }: { projects: Project[] }) {
       <p>
         <strong>{t('noAddress.title')}</strong> {t('noAddress.body')}
       </p>
-      <Link className="btn" to="/settings?tab=remote">
-        {t('noAddress.link')}
-        <ExternalLink {...ICON_SM} />
-      </Link>
     </div>
   ) : null;
 

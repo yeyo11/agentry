@@ -185,6 +185,10 @@ const env = {
   // ...which turns the tunnel off by default; the Remote access specs need it offered. No spec can
   // open a real one: the suite runs with authentication off, and the tunnel refuses to start then
   AGENTRY_TUNNEL: 'on',
+  // The tunnel's CLI is the core tests' fake, on a node file of the sandbox's own: the suite never
+  // asks, let alone changes, the real Tailscale of the machine it runs on
+  TAILSCALE_BIN: join(root, 'packages/core/test/fixtures/fake-tailscale.mjs'),
+  FAKE_TAILSCALE_STATE: join(sandbox, 'tailscale-node.json'),
   // Live specs need the real login; everything else runs against an empty config dir
   ...(live ? {} : { CLAUDE_CONFIG_DIR: join(sandbox, 'claude') }),
 };

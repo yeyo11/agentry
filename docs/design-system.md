@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-10-02T16:00:00Z
+updated_at: 2026-10-06T12:00:00Z
 tags:
     - design-system
     - web
@@ -915,9 +915,10 @@ that has a host. The rows are the providers' (`.prov-row.compact`, `.prov-cell`)
 new, in `agentry-ds.css`: `.hook-origin` (the strip under the card's head), `.hook-facts` (mono
 `label · value` lines under a reason) and `.hook-events` (the list of events in the register dialog).
 
-- **The strip (`.hook-origin`)** says where the hosts deliver: the tunnel's address in mono with an
-  `ok` "Abierta" badge. With no public address it turns into a warn strip with the one way out, "Abrir
-  Acceso remoto" (the tunnel's page); no row offers Register while it is there.
+- **The strip (`.hook-origin`)** says where the hosts deliver: the public address in mono with an
+  `ok` "Abierta" badge. With no public address it turns into a warn strip that says why (the tunnel
+  only reaches the tailnet), with no button, since there is nothing to open; no row offers Register
+  while it is there.
 - **A row** is a project: the host's `.monogram`, the project's name with `PR #12` or `MR !12` in
   mono, the repository, the state with its word, a reason in plain words and the facts: the last
   delivery, the host's last response, where a stale hook points, and the pacer's cadence ("lectura ·
@@ -1630,6 +1631,11 @@ the file being edited is its only moving part.
   surface, so it takes no gradient and no energy; the segments carry the only live colour. The
   name is the link and its box covers the row, so the whole line is the touch target. The
   synthesis chat reads "· synthesis" instead of a stage.
+- Settings → Remote access offers nothing about the tunnel until Tailscale is ready. Not installed is
+  `Empty` with the `cli-missing` illustration and the install link as the one primary action; every
+  other way it is not ready (too old, service down, signed out, not connected, no HTTPS) is an
+  `alert-warn` with the server's reason, the command to run or the admin page to open, and "Check
+  again", with no illustration.
 - Settings → Remote access draws a tunnel's open address as `.tunnel-address` (`.tunnel-address` and
   `.qr` in `agentry-ds.css`): the URL in mono with copy, beside a QR code drawn in-house
   (`components/QrCode.tsx`). The block takes `.grad-border` while the tunnel is open, because it is

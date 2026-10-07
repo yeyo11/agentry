@@ -8986,14 +8986,14 @@
           "string",
           "null"
         ],
-        "description": "The public HTTPS address; null unless `state` is `active`, so nobody is sent to one that does not answer yet"
+        "description": "The tailnet HTTPS address (`https://<node>.<tailnet>.ts.net:<port>`), reachable only from the person's own tailnet; null unless `state` is `active`, so nobody is sent to one that does not answer yet"
       },
       "since": {
         "type": [
           "string",
           "null"
         ],
-        "description": "When the current address started working. The free domain changes regularly, and an installed PWA belongs to the origin it was installed from, so a client can tell how old the address is. Null unless `state` is `active`"
+        "description": "When the tunnel last became active; null unless `state` is `active`"
       },
       "reason": {
         "anyOf": [
@@ -9008,11 +9008,15 @@
       },
       "enabled": {
         "type": "boolean",
-        "description": "Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`). Off by default in the Docker image and the Helm chart: the tunnel reaches the server from inside the container, around the published port, the operator's proxy and its TLS, so opening that path is the operator's call. While false, `start` is refused and the UI says who can turn it on instead of offering a button"
+        "description": "Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`). Off by default in the Docker image and the Helm chart: the container sees neither the host's `tailscale` CLI nor its daemon, and a way in that goes around the operator's published port and proxy is the operator's call. While false, `start` is refused and the UI says who can turn it on instead of offering a button"
       },
-      "sshAvailable": {
-        "type": "boolean",
-        "description": "An `ssh` was found to run; without one the tunnel cannot start, and the UI says how to install it"
+      "tailscale": {
+        "$ref": "#/components/schemas/TailscaleReadiness",
+        "description": "Whether Tailscale can carry the tunnel, and if not, why; the UI shows nothing else until it is `ready`"
+      },
+      "port": {
+        "type": "number",
+        "description": "The HTTPS port on the tailnet name that Agentry's Serve rule uses (`AGENTRY_TUNNEL_PORT`, 8443 by default)"
       },
       "settings": {
         "$ref": "#/components/schemas/TunnelSettings"
@@ -9024,7 +9028,8 @@
       "since",
       "reason",
       "enabled",
-      "sshAvailable",
+      "tailscale",
+      "port",
       "settings"
     ],
     "description": "`GET /tunnel`, and what `tunnel.changed` carries."
@@ -9039,7 +9044,7 @@
       "stopping",
       "failed"
     ],
-    "description": "`verifying`: the provider handed out an address, and Agentry is checking that `GET /api/health` answers through it before showing it. A resolver asked too early caches the missing name, so an address shown before it works can look broken for a minute."
+    "description": "`starting`: Agentry is adding its Serve rule. `verifying`: the rule was sent, and Agentry reads the node's Serve config back to make sure it holds and points at this server before showing the address."
   },
   "Localized": {
     "type": "object",
@@ -9061,6 +9066,58 @@
       "text"
     ],
     "description": "A sentence the server writes, with a stable key beside it. The API answers in English and reads as it is; a client that knows the code says the same thing in its own language, and one that does not shows `text`."
+  },
+  "TailscaleReadiness": {
+    "type": "object",
+    "properties": {
+      "state": {
+        "$ref": "#/components/schemas/TailscaleReadinessState"
+      },
+      "version": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The CLI's version (`tailscale version`, first line); null when there is no CLI to ask"
+      },
+      "host": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "This node's MagicDNS name, without the trailing dot; null until the daemon reports one"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Localized"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What is missing, with a code a client translates; null while `ready`"
+      }
+    },
+    "required": [
+      "state",
+      "version",
+      "host",
+      "reason"
+    ]
+  },
+  "TailscaleReadinessState": {
+    "type": "string",
+    "enum": [
+      "missing",
+      "unsupported",
+      "daemonDown",
+      "loggedOut",
+      "stopped",
+      "httpsDisabled",
+      "ready"
+    ],
+    "description": "Whether this machine's Tailscale can carry the tunnel. The whole Remote access section depends on it, so each way it is not ready is its own state, with a reason the UI explains:\n\n- `missing`: no `tailscale` CLI to run;\n- `unsupported`: a CLI older than 1.52, whose `serve` takes other arguments;\n- `daemonDown`: the CLI is there but `tailscaled` does not answer it;\n- `loggedOut`: the node is not signed in to a tailnet (`NeedsLogin`, `NeedsMachineAuth`);\n- `stopped`: signed in but not connected (`Stopped`, or any state other than `Running`);\n- `httpsDisabled`: MagicDNS or HTTPS certificates are off for the tailnet, so Serve has no   `https://<node>.<tailnet>.ts.net` to answer on;\n- `ready`: Serve can be used.\n\nAgentry never signs in, starts or configures Tailscale itself: it says what to run."
   },
   "TunnelSettings": {
     "type": "object",
@@ -12439,7 +12496,7 @@
           "string",
           "null"
         ],
-        "description": "The same place as `href`, as an absolute URL on the tunnel's public address at the moment the push was sent; null while no tunnel is active. The free address changes, and an install made on an old one still receives its pushes, so its worker opens this instead of its own dead origin (docs/plans/tunnel.md, \"Answer: notifications after a domain change\")"
+        "description": "The same place as `href`, as an absolute URL on the tunnel's tailnet address at the moment the push was sent; null while no tunnel is active. An install made on a tunnel address that has since moved (another node name or port) still receives its pushes, so its worker opens this instead of its own dead origin (docs/plans/tunnel.md, \"Answer: notifications after a domain change\")"
       },
       "at": {
         "type": "string"
@@ -20288,7 +20345,7 @@
           "string",
           "null"
         ],
-        "description": "The public origin a hook would deliver to; null without a tunnel or a configured origin"
+        "description": "The public origin a hook would deliver to; null without one (the tailnet-only tunnel is not public)"
       },
       "events": {
         "type": "array",
@@ -20324,7 +20381,7 @@
       "no-public-url",
       "no-remote"
     ],
-    "description": "Why a project's repository has no webhooks to manage: `no-public-url` has neither a running tunnel nor a configured public origin; `no-remote` is a project without a code host remote."
+    "description": "Why a project's repository has no webhooks to manage: `no-public-url` has no public origin a code host could deliver to (the tunnel is tailnet-only, so it is not one); `no-remote` is a project without a code host remote."
   },
   "MergeState": {
     "type": "object",

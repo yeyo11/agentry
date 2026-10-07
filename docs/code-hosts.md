@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-01T09:00:00Z
-updated_at: 2026-10-02T18:00:00Z
+updated_at: 2026-10-06T12:00:00Z
 tags:
     - code-hosts
     - pull-request
@@ -740,8 +740,10 @@ for the disarm before a push), `outcome` (`requested`, `merged`, `armed`, `disar
 
 Phase 6 (step 1) replaces the fixed 60 s watch with a pacer and lets GitHub and GitLab tell Agentry
 that something changed. The reasons are in [plans/code-hosts.md](plans/code-hosts.md#phase-6-webhooks-and-paced-polling);
-the public address a hook delivers to is the tunnel's ([tunnel.md](tunnel.md#webhooks)), and
-[deploy.md](deploy.md#webhooks-and-the-public-address) says what a deployment must expose.
+a hook delivers to a public origin, which Agentry does not have today: the tunnel is tailnet-only
+since it moved to Tailscale ([tunnel.md](tunnel.md#webhooks)), so registering answers
+`no-public-url` and polling carries the rows. [deploy.md](deploy.md#webhooks-and-the-public-address)
+says what a deployment must expose.
 
 **A delivery never changes state by itself.** It only moves the next read of the change requests it
 names to now; the read through the CLI is what updates a row. A forged or replayed delivery can
@@ -774,8 +776,7 @@ the row is looked at again after a minute. The four-per-CLI cap and the per-row 
 registered on a host is `<public origin>/api/webhooks/<host>/<registrationId>`.
 
 - **No bearer token, no audit row, and they work in read-only mode:** `security.ts` exempts exactly
-  these two paths for `POST`. The host allowlist still applies, so the public name must be on it
-  (the tunnel puts its own there).
+  these two paths for `POST`. The host allowlist still applies, so the public name must be on it.
 - **Raw body.** A content-type parser scoped to these routes keeps every body as bytes, up to 5 MiB.
   Larger is `413`, and polling covers it. The route looks the registration up from the path in an
   `onRequest` hook, before the body is read: an unknown, removed or other-host registration, or one
@@ -797,7 +798,7 @@ registered on a host is `<public origin>/api/webhooks/<host>/<registrationId>`.
   and does nothing.
   - The id: `X-GitHub-Delivery` for GitHub, `Idempotency-Key` or `webhook-id` for GitLab.
   - The signed raw body: its SHA-256, per registration, for one hour. GitHub does not sign the id and
-    the tunnel ends TLS, so it can see a signed body and send it again under a new id or none; the same
+    whatever ends TLS in front of Agentry can see a signed body and send it again under a new id or none; the same
     bytes inside the window are a duplicate whatever id they carry. After the window they count again.
   - **A delivery with no id is not enough to mark a hook healthy.** It may still move the next read
     of the rows it names, but it does not stamp `lastDeliveryAt` or `lastPingAt`, clear `failing` or
@@ -855,9 +856,11 @@ is encrypted when the server starts; a value sealed under another key, or opened
 as absent and its hook is registered again. The decision engine's key and the account credentials
 are still plain files: they can move to the same box.
 
-**A new tunnel address** (decision 2): the service listens for `tunnel.changed` and re-points the
-registered hooks by id. A hook that cannot be moved becomes `stale` and is tried again on the next
-address. The service emits `webhook.changed` for each change.
+**A new public address** (decision 2): the service re-points the registered hooks by id
+(`WebhooksService.follow`, and `observe` for `tunnel.changed`). A hook that cannot be moved becomes
+`stale` and is tried again on the next address. The service emits `webhook.changed` for each change.
+Since the tunnel moved to Tailscale (2026-10-06) it is tailnet-only and no public origin, so `Core`
+does not wire `observe`, and a hook is never moved to a tailnet address.
 
 Failures are a `WebhooksError` with a status and a code: `403 hook-no-permission` (the account
 cannot manage hooks), `404 registration-not-found`, `409` for `no-public-url`,

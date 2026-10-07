@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-10-02T15:00:00Z
+updated_at: 2026-10-06T12:00:00Z
 tags:
     - status
     - project-state
@@ -44,8 +44,8 @@ orchestration with a task DAG, parallel workers and a verification phase on the 
 observability that reconstructs what an agent did from git and the transcript; several accounts
 rotated before they run out; schedules; configuration and MCP servers per scope; tool presets per
 chat; authentication as none, bearer token or OIDC; a progressive web app with push for phones; a
-Linux desktop app; a Docker image with a Kubernetes manifest; and remote access through a
-localhost.run tunnel over settings that change at runtime ([tunnel.md](tunnel.md),
+Linux desktop app; a Docker image with a Kubernetes manifest; and remote access through
+`tailscale serve` on the person's tailnet over settings that change at runtime ([tunnel.md](tunnel.md),
 [layered-settings.md](layered-settings.md)).
 
 Changes are reviewed inside Agentry: one screen for a chat, a task and the integration branch,
@@ -122,7 +122,7 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 | [`plans/spanish-copy.md`](plans/spanish-copy.md) | Landed (#94) — see [Outcome](plans/spanish-copy.md#outcome) |
 | [`plans/app-updates.md`](plans/app-updates.md) | Landed (#95) — see [Outcome](plans/app-updates.md#outcome) |
 | [`plans/redesign-night-shift.md`](plans/redesign-night-shift.md) | Landed (#101) — see [Outcome](plans/redesign-night-shift.md#outcome) |
-| [`plans/tunnel.md`](plans/tunnel.md) | Landed (#110) — see [Outcome](plans/tunnel.md#outcome) and [tunnel.md](tunnel.md) |
+| [`plans/tunnel.md`](plans/tunnel.md) | Landed (#110) through localhost.run; moved to Tailscale (`tailscale serve`, tailnet-only) on 2026-10-06 — see [The move to Tailscale](plans/tunnel.md#the-move-to-tailscale-2026-10-06) and [tunnel.md](tunnel.md) |
 | [`plans/changes-review.md`](plans/changes-review.md) | Landed (#115) — see [Outcome](plans/changes-review.md#outcome) |
 | [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | Landed (#118) — see [Outcome](plans/project-ecosystem.md#outcome) |
 | [`plans/decision-engine.md`](plans/decision-engine.md) | Landed (#141): the engine, both providers, 22 points (all ship off) and the Decisions tab. See [Outcome](plans/decision-engine.md#outcome) and [decision-engine.md](decision-engine.md). The owner's 18 decisions are in [`decisions/decision-engine.md`](decisions/decision-engine.md) |

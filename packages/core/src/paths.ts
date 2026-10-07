@@ -24,15 +24,17 @@ export type AuthEnv = Partial<Record<(typeof AUTH_ENV_KEYS)[number], string>>;
 
 export interface CoreConfig {
   claudeBin: string;
-  /** The `ssh` the tunnel runs, from `SSH_BIN`: the system's own unless someone points at another */
-  sshBin: string;
+  /** The `tailscale` CLI the tunnel runs, from `TAILSCALE_BIN`: the one on the `PATH` unless someone points at another */
+  tailscaleBin: string;
   /**
    * Whether this deploy offers the tunnel, from `AGENTRY_TUNNEL`. On by default, and off by default
-   * in the Docker image (`AGENTRY_DISTRIBUTION=docker`): there the tunnel reaches the server from
-   * inside the container, around the port the operator published, their proxy and their TLS
-   * (docs/plans/tunnel.md, "Answer: the tunnel in Docker").
+   * in the Docker image (`AGENTRY_DISTRIBUTION=docker`): the container sees neither the host's
+   * `tailscale` CLI nor its daemon, and a way in around the port the operator published and their
+   * proxy is theirs to open (docs/plans/tunnel.md, "Answer: the tunnel in Docker").
    */
   tunnelEnabled: boolean;
+  /** The HTTPS port of Agentry's `tailscale serve` rule, from `AGENTRY_TUNNEL_PORT`; 8443 by default */
+  tunnelPort: number;
   configDir: string;
   /** Global CLI config file holding user-scope mcpServers */
   globalConfigFile: string;
@@ -117,6 +119,14 @@ function parseTunnelSwitch(value: string | undefined, fallback: boolean): boolea
   throw new Error(`AGENTRY_TUNNEL: '${value}' is neither on nor off`);
 }
 
+/** A port that is not a port is refused at startup rather than guessed: it decides where a rule lands in the node's shared Serve config. */
+function parseTunnelPort(value: string | undefined): number {
+  if (!isSet(value)) return 8443;
+  const port = Number(value.trim());
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`AGENTRY_TUNNEL_PORT: '${value}' is not a port between 1 and 65535`);
+  return port;
+}
+
 function parseSeenSwitch(value: string): boolean {
   const word = value.trim().toLowerCase();
   if (['on', '1', 'true'].includes(word)) return true;
@@ -168,8 +178,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
   }
   return {
     claudeBin: env.CLAUDE_BIN ?? 'claude',
-    sshBin: env.SSH_BIN?.trim() || 'ssh',
+    tailscaleBin: env.TAILSCALE_BIN?.trim() || 'tailscale',
     tunnelEnabled: parseTunnelSwitch(env.AGENTRY_TUNNEL, env.AGENTRY_DISTRIBUTION?.trim().toLowerCase() !== 'docker'),
+    tunnelPort: parseTunnelPort(env.AGENTRY_TUNNEL_PORT),
     configDir,
     globalConfigFile,
     projectsDir: join(configDir, 'projects'),

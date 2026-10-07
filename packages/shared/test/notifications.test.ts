@@ -288,11 +288,12 @@ test('a setting or the tunnel changing refreshes the page but never wakes anyone
     type: 'tunnel.changed',
     tunnel: {
       state: 'active',
-      url: 'https://abc123.lhr.life',
+      url: 'https://agentry-test.tail0000.ts.net:8443',
       since: AT,
       reason: null,
       enabled: true,
-      sshAvailable: true,
+      tailscale: { state: 'ready', version: '1.102.4', host: 'agentry-test.tail0000.ts.net', reason: null },
+      port: 8443,
       settings: { startWithAgentry: false },
     },
   };
