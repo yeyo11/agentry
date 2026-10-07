@@ -45,6 +45,7 @@ import type {
   OrchestrateWorkItemsRequest,
   Orchestration,
   OrchestrationSpec,
+  OrchestrationTimings,
   RelaunchOrchestrationRequest,
   WorkflowDefinition,
   WorkItem,
@@ -130,6 +131,7 @@ import { MemoryStore } from './memory.ts';
 import { JournalService } from './journal.ts';
 import { MemoryProposalService } from './memory-proposals.ts';
 import { Orchestrator } from './orchestrator.ts';
+import { orchestrationTimings } from './orchestration-timings.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
 import { byStart, EXPORTED_ORIGINS, type ProjectExportSource } from './project-export.ts';
 import { parseKeyPrefix, parseModules, parseProjectSettings, parseProjectSetup, ProjectSettingsStore, settingsChanges } from './project-settings.ts';
@@ -223,6 +225,8 @@ export {
 } from './chat-model.ts';
 export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnapshot } from './usage.ts';
 export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
+export { orchestrationTimings, type TimingsChat } from './orchestration-timings.ts';
+export { chatRole } from './chat-service.ts';
 export { usageBreakdown, usageSeries } from './usage-series.ts';
 export { parseChangeScope, parseDiffContext, type ChangeScope, type DiffOptions } from './changes.ts';
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
@@ -802,7 +806,7 @@ export class Core {
     // Agentry's own secrets are masked in everything that may leave the machine (a decision's state,
     // a handoff), whatever text surrounds them
     this.forgetSecrets = recognizeSecrets({
-      values: () => [this.decisionCredentials.getKey() ?? '', ...this.webhookSecrets.values()],
+      values: () => [this.decisionCredentials.getKey() ?? '', this.youtrackCredentials.get()?.token ?? '', ...this.webhookSecrets.values()],
       isSecret: (word) => this.security.isOwnSecret(word),
     });
     this.webhookReceiver = new WebhookReceiver({
@@ -2507,6 +2511,16 @@ export class Core {
     );
     this.workItems.link(item.id, { kind: 'chat', role: 'origin', chatId }, { cause });
     return this.workItems.find(item.id) ?? item;
+  }
+
+  /**
+   * Where an orchestration's time went, computed now from the graph and the executions of the chats
+   * Agentry started for it. Null for an unknown id.
+   */
+  orchestrationTimings(id: string): OrchestrationTimings | null {
+    const orch = this.orchestrator.get(id);
+    if (!orch) return null;
+    return orchestrationTimings(orch, this.runtime.list().filter((c) => c.orchestrationId === id));
   }
 
   /** The items a chat worked on or created, for its header. Those of projects no longer imported are left out. */

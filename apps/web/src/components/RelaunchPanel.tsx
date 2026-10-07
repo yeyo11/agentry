@@ -8,6 +8,7 @@ import { api, keys } from '../api';
 import { cleanTask, specOfTask } from '../lib/orchestration-v2';
 import { NumberInput } from '@agentry/ui/components/controls';
 import { ICON_SM } from '@agentry/ui/components/icons';
+import { GraphShape } from './GraphExtras';
 import { removeTaskAt, renameTask, TaskEditor, validateGraph } from './TaskEditor';
 import { Card, ErrorBox, Field } from '@agentry/ui/components/ui';
 import { ModelCombobox } from './ui';
@@ -99,6 +100,7 @@ export function RelaunchPanel({ orch, onCancel }: { orch: Orchestration; onCance
             />
           ))}
         </div>
+        <GraphShape tasks={tasks} />
         {problem && (
           <div className="alert alert-warn" role="alert">
             {problem}

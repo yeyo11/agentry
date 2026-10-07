@@ -130,6 +130,7 @@ import type {
   OrchestrationPullRequest,
   OrchestrationSpec,
   OrchestrationSummary,
+  OrchestrationTimings,
   OrchestrationTemplate,
   Overview,
   PermissionDecision,
@@ -549,6 +550,7 @@ export const api = {
   runWorkflow: (req: RunWorkflowRequest) => request<ChatSummary>('/workflows/saved/run', { method: 'POST', body: req }),
   orchestrations: (o: ReadOptions = {}) => request<OrchestrationSummary[]>('/orchestrations', o),
   orchestration: (id: string, o?: ReadOptions) => request<Orchestration>(`/orchestrations/${enc(id)}`, o),
+  orchestrationTimings: (id: string, o?: ReadOptions) => request<OrchestrationTimings>(`/orchestrations/${enc(id)}/timings`, o),
   createOrchestration: (spec: OrchestrationSpec) =>
     request<Orchestration>('/orchestrations', { method: 'POST', body: spec }),
   planOrchestration: (req: PlanRequest) =>
@@ -1080,6 +1082,8 @@ export const keys = {
    */
   checkLog: (id: string, checkId: string, state?: CheckState) =>
     ['change-request', id, 'checks', checkId, 'log', ...(state ? [state] : [])] as const,
+  // Keyed by what moves the graph from one phase to the next, so it is read again then and never polled
+  orchestrationTimings: (id: string, phase: string) => ['orchestration', id, 'timings', phase] as const,
   // A task's and the integration branch's changes sit under the graph, which `changes.updated` refreshes
   taskChanges: (id: string, taskId: string, scope: ChangeScope = {}) =>
     ['orchestration', id, 'changes', 'task', taskId, scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,
@@ -1297,6 +1301,18 @@ export const useConnectors = (enabled = true) =>
 
 export const useOrchestrations = () =>
   useQuery({ queryKey: keys.orchestrations, queryFn: api.orchestrations, refetchInterval: useFallbackInterval() });
+
+/**
+ * Where a graph's time went. Read when the page opens and again when the graph moves to another
+ * phase (`phase` is what changes then), not every second: it is history, and a running graph's
+ * figures up to now are enough.
+ */
+export const useOrchestrationTimings = (id: string, phase: string) =>
+  useQuery({
+    queryKey: keys.orchestrationTimings(id, phase),
+    queryFn: ({ signal }) => api.orchestrationTimings(id, { signal }),
+    staleTime: Infinity,
+  });
 
 export const useOrchestration = (id: string) => {
   const fallback = useFallbackInterval();

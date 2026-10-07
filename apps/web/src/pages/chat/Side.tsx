@@ -15,7 +15,7 @@ import { ProgressRing } from '@agentry/ui/components/motion';
 import { CopyButton, Tag } from '@agentry/ui/components/ui';
 import { WorkflowCard } from '../../components/WorkflowCard';
 import { api } from '../../api';
-import { contextLevel, contextShare, formatPercent, formatTokens } from '@agentry/chat-ui/lib/chat-model';
+import { contextLevel, contextShare, formatPercent, formatTokens, roleOf } from '@agentry/chat-ui/lib/chat-model';
 import { useDetailPanel } from '../../lib/detail';
 import { durationBetween, formatCost, formatDateTime, formatHour, formatNumber, timeAgo, toMs } from '@agentry/ui/lib/format';
 import { useLimitWindowName } from '../../lib/limit-words';
@@ -344,7 +344,7 @@ export function FactsCard({ chat }: { chat: Chat }) {
   const { t } = useTranslation(['chat', 'chats', 'work', 'common']);
   const agent = useAgentName();
   const live = chat.execution;
-  const origin = chat.orchestration ? `${chat.orchestration.name} · ${chat.orchestration.taskName ?? t('view.synthesis')}` : t(`badges.origin.${chat.origin}`);
+  const origin = chat.orchestration ? `${chat.orchestration.name} · ${chat.orchestration.taskName ?? t(`view.role.${roleOf(chat.orchestration)}`)}` : t(`badges.origin.${chat.origin}`);
   return (
     <Section title={t('side.facts.title')}>
       {/* What the header's pill merges, said one by one, with the outcome of the last execution */}
@@ -412,7 +412,7 @@ export function FactsCard({ chat }: { chat: Chat }) {
             <dt>{t('chat:runView.orchestration')}</dt>
             <dd>
               <Link to={`/orchestration/${chat.orchestration.id}`}>{chat.orchestration.name}</Link>
-              <div className="small muted">{chat.orchestration.taskName ?? t('view.synthesis')}</div>
+              <div className="small muted">{chat.orchestration.taskName ?? t(`view.role.${roleOf(chat.orchestration)}`)}</div>
             </dd>
           </>
         )}

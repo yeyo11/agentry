@@ -14,6 +14,7 @@ import {
   type ChatDetail,
   type ChatMessageRequest,
   type ChatOrchestration,
+  type OrchestrationChatRole,
   type ChatOrigin,
   type ChatProject,
   type ChatRef,
@@ -150,6 +151,22 @@ export class AccountsRetired extends Error {
   readonly statusCode = 400;
   constructor() {
     super('accounts were retired; see Settings → Providers');
+  }
+}
+
+/** What a chat does for its graph, from the task id its record carries. */
+export function chatRole(orchestrationTaskId: string): OrchestrationChatRole {
+  switch (orchestrationTaskId) {
+    case '__integration__':
+      return 'integration';
+    case '__verification__':
+      return 'verification';
+    case '__synthesis__':
+      return 'synthesis';
+    case '__workflow__':
+      return 'workflow';
+    default:
+      return 'task';
   }
 }
 
@@ -337,14 +354,37 @@ export class ChatService {
     return promise;
   }
 
-  /** The orchestration each of its chats works for, keyed by session id. */
+  /**
+   * The orchestration each of its chats works for, keyed by session id, with what the chat does for
+   * it. The chat records say it: every chat Agentry starts for a graph carries its `orchestrationId`
+   * and `orchestrationTaskId` (a task's id, or a pseudo-id for the integrator, the fixer, the
+   * synthesis and the workflow session), so a task's earlier chat that `retry-clean` replaced is
+   * still linked. The graph's own session ids are the fallback for chats without a record.
+   */
   private chatOrchestrations(): Map<string, ChatOrchestration & { taskRunning: boolean }> {
     const orchestrations = new Map<string, ChatOrchestration & { taskRunning: boolean }>();
-    for (const orch of this.deps.orchestrator.list()) {
+    const graphs = new Map(this.deps.orchestrator.list().map((o) => [o.id, o]));
+    for (const orch of graphs.values()) {
       for (const task of orch.tasks) {
-        if (task.sessionId) orchestrations.set(task.sessionId, { id: orch.id, name: orch.name, taskId: task.id, taskName: task.name, taskRunning: task.status === 'running' });
+        if (task.sessionId) orchestrations.set(task.sessionId, { id: orch.id, name: orch.name, role: 'task', taskId: task.id, taskName: task.name, taskRunning: task.status === 'running' });
       }
-      if (orch.synthesisRunId) orchestrations.set(orch.synthesisRunId, { id: orch.id, name: orch.name, taskId: null, taskName: null, taskRunning: false });
+      if (orch.synthesisRunId) orchestrations.set(orch.synthesisRunId, { id: orch.id, name: orch.name, role: 'synthesis', taskId: null, taskName: null, taskRunning: false });
+    }
+    for (const chat of this.deps.runtime.list()) {
+      const orch = chat.orchestrationId ? graphs.get(chat.orchestrationId) : undefined;
+      if (!orch || !chat.orchestrationTaskId) continue;
+      const role = chatRole(chat.orchestrationTaskId);
+      const task = role === 'task' ? orch.tasks.find((t) => t.id === chat.orchestrationTaskId) : undefined;
+      if (role === 'task' && !task) continue;
+      orchestrations.set(chat.id, {
+        id: orch.id,
+        name: orch.name,
+        role,
+        taskId: task?.id ?? null,
+        taskName: task?.name ?? null,
+        // Only the task's current chat is the one its status speaks for
+        taskRunning: task !== undefined && task.status === 'running' && task.sessionId === chat.id,
+      });
     }
     return orchestrations;
   }
@@ -381,7 +421,7 @@ export class ChatService {
     if (!summary && !runtime) return null;
     const { own, foreignProcess, orchestration, origin, state } = known ?? this.standing(id, facts, runtime);
     const holder: SessionHolder = sessionHolder({ ownProcess: own, foreignProcess });
-    const control: ChatControl = chatControl({ holder, origin, taskRunning: orchestration?.taskRunning === true, deliverable: orchestration !== null && orchestration.taskId === null });
+    const control: ChatControl = chatControl({ holder, origin, taskRunning: orchestration?.taskRunning === true, deliverable: orchestration !== null && orchestration.role === 'synthesis' });
 
     const dir = summary?.worktree?.path ?? summary?.projectPath ?? runtime?.workingDir ?? runtime?.cwd ?? '';
     const placement = this.deps.place(dir, summary?.worktree ?? null);
@@ -406,7 +446,7 @@ export class ChatService {
       cwd: dir,
       worktree: placement.worktree,
       origin,
-      orchestration: orchestration ? { id: orchestration.id, name: orchestration.name, taskId: orchestration.taskId, taskName: orchestration.taskName } : null,
+      orchestration: orchestration ? { id: orchestration.id, name: orchestration.name, role: orchestration.role, taskId: orchestration.taskId, taskName: orchestration.taskName } : null,
       derivedFrom: runtime?.derivedFrom ?? null,
       continuedFrom: runtime?.continuedFrom ?? null,
       continuedIn: runtime?.continuedIn ?? null,
@@ -440,7 +480,7 @@ export class ChatService {
       const chat = this.assemble(id, facts, runtime, facts.transcripts.get(id) ?? null, standing);
       if (!chat) continue;
       // Every chat of an orchestration but its synthesis is a worker, one whose graph is gone included
-      if (filter.workers === false && chat.origin === 'orchestration' && chat.orchestration?.taskId !== null) continue;
+      if (filter.workers === false && chat.origin === 'orchestration' && chat.orchestration?.role !== 'synthesis') continue;
       if (filter.project !== undefined && (chat.project?.id ?? null) !== filter.project) continue;
       out.push(chat);
     }

@@ -210,5 +210,41 @@
       "cancelled": "cancelled",
       "manual": "manual"
     }
+  },
+  "timings": {
+    "title": "Where the time went",
+    "label": "Where the time went: figures of this orchestration",
+    "total": "Total",
+    "afterTasks": "After the tasks",
+    "parallelism": "Parallelism",
+    "phases": "Time by phase",
+    "phasesLabel": "Time by phase: {{parts}}",
+    "phase": {
+      "tasks": "Tasks",
+      "integration": "Integration",
+      "verification": "Verification",
+      "synthesis": "Synthesis"
+    },
+    "running": "Still running: the figures count up to now.",
+    "criticalPath": "Critical path",
+    "criticalPathLength": "{{duration}} from its first start to its last end",
+    "work": "work {{duration}}",
+    "waitBefore": "{{duration}} before it started",
+    "waits": "Waits",
+    "wait": {
+      "slot": "waiting for a slot",
+      "limit": "waiting on a limit",
+      "retry": "waiting for a retry"
+    },
+    "noWaits": "No task waited for a slot, a limit or a retry.",
+    "checks": "Checks",
+    "checksTotal": "checks {{duration}}",
+    "fixer_one": "fixer {{duration}}, {{count}} attempt",
+    "fixer_other": "fixer {{duration}}, {{count}} attempts",
+    "pass": "pass {{n}}",
+    "failed": "failed",
+    "noRuns": "Its runs were not recorded.",
+    "missing": "Older graph: some phases were not recorded.",
+    "error": "The figures could not be read."
   }
 }

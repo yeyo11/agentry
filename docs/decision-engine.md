@@ -198,7 +198,7 @@ a point that is off costs nothing.
   cut to the point's byte limit, with anything that looks like a secret masked
   (`decisions/redact.ts`). Agentry's own secrets are masked too, whatever text surrounds them,
   since no pattern tells `T="<token>"` from any long word (the owner's token reached Jev that way
-  on 2026-10-02): the Jev key and the webhook secrets as they are, and the owner's, the desktop
+  on 2026-10-02): the Jev key, YouTrack's token and the webhook secrets as they are, and the owner's, the desktop
   app's and every live chat's API token by hashing each word long enough to be one, since those
   are kept only as hashes. A chat token (`agc_…`) is masked by its prefix as well. The builder is
   the single source of what leaves.

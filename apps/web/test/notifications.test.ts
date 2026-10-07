@@ -319,7 +319,7 @@ test('a prompt a chat was already holding when the page loaded becomes the same 
 });
 
 test('seeded questions and plans read as such, and carry the orchestration they work for', () => {
-  const chat = { id: 'run1', title: 'plan the work', firstPrompt: null, orchestration: { id: 'o1', name: 'graph', taskId: 't1', taskName: 'plan' } };
+  const chat = { id: 'run1', title: 'plan the work', firstPrompt: null, orchestration: { id: 'o1', name: 'graph', role: 'task' as const, taskId: 't1', taskName: 'plan' } };
   const [question, plan] = waitingDrafts(chat, [
     { id: 'q', runId: 'run1', toolName: 'AskUserQuestion', toolUseId: 'a', input: {}, requestedAt: at() },
     { id: 'pl', runId: 'run1', toolName: 'ExitPlanMode', toolUseId: 'b', input: {}, requestedAt: at() },

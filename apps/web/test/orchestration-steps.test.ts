@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ChatWorkflow, ChatWorkflowAgent, Orchestration, OrchestrationTaskState, VerificationState } from '@agentry/shared';
-import { followedStep, layerTasks, liveTask, orchestrationProgress, orchestrationSteps, stageState, taskStage, workflowPhaseSteps } from '../src/lib/orchestration-steps.ts';
+import { followedStep, graphShape, layerTasks, liveTask, orchestrationProgress, orchestrationSteps, stageState, taskStage, workflowPhaseSteps } from '../src/lib/orchestration-steps.ts';
 
 const task = (id: string, extra: Partial<OrchestrationTaskState> = {}): OrchestrationTaskState => ({
   id,
@@ -299,4 +299,44 @@ test('the live line speaks for a running task that says what it is doing, with i
   assert.deepEqual(liveTask(o) && { id: liveTask(o)?.task.id, stage: liveTask(o)?.stage }, { id: 'c', stage: 2 });
   assert.equal(liveTask(orch([task('a', { status: 'running' })]))?.task.id, 'a');
   assert.equal(liveTask(orch([task('a', { status: 'completed' })])), null);
+});
+
+// ---------- graphShape: the longest chain of a graph being written ----------
+
+const dep = (id: string, dependsOn: string[] = []) => ({ id, dependsOn });
+
+test('an empty graph has no shape', () => {
+  assert.equal(graphShape([]), null);
+  assert.equal(graphShape([dep('')]), null);
+});
+
+test('independent tasks run in one stage', () => {
+  assert.deepEqual(graphShape([dep('a'), dep('b'), dep('c')]), { stages: 1, chain: ['a'] });
+});
+
+test('the usual five-stage graph reads as five stages, in order', () => {
+  const tasks = [dep('types'), dep('core', ['types']), dep('web', ['core']), dep('web-review', ['web']), dep('docs', ['web-review'])];
+  assert.deepEqual(graphShape(tasks), { stages: 5, chain: ['types', 'core', 'web', 'web-review', 'docs'] });
+});
+
+test('a diamond runs in three stages, as its layers do', () => {
+  const tasks = [dep('a'), dep('b', ['a']), dep('c', ['a']), dep('d', ['b', 'c'])];
+  assert.deepEqual(graphShape(tasks), { stages: 3, chain: ['a', 'b', 'd'] });
+  assert.equal(layerTasks(tasks.map((t) => task(t.id, { dependsOn: t.dependsOn }))).length, 3);
+});
+
+test('a tie ends at the task listed first and follows the first dependency, every time', () => {
+  const tasks = [dep('x'), dep('y'), dep('left', ['y', 'x']), dep('right', ['x'])];
+  const first = graphShape(tasks);
+  assert.deepEqual(first, { stages: 2, chain: ['y', 'left'] });
+  for (let i = 0; i < 5; i++) assert.deepEqual(graphShape(tasks), first);
+});
+
+test('a dependency on a task not in the graph is ignored, as is a task with no id', () => {
+  assert.deepEqual(graphShape([dep('a', ['ghost']), dep('b', ['a', '']), dep('', ['b'])]), { stages: 2, chain: ['a', 'b'] });
+});
+
+test('a cycle has no shape, and the function returns instead of looping', () => {
+  assert.equal(graphShape([dep('a', ['b']), dep('b', ['a'])]), null);
+  assert.equal(graphShape([dep('ok'), dep('self', ['self'])]), null);
 });

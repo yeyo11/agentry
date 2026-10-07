@@ -17,7 +17,8 @@ export function PartOf({ link }: { link: ChatOrchestration }) {
   const { t } = useTranslation(['chat', 'orchestration']);
   const { data: orch } = useOrchestration(link.id);
   const stage = orch && link.taskId !== null ? taskStage(orch.tasks, link.taskId) : null;
-  const where = link.taskId === null ? t('view.synthesis') : stage ? t('view.partOf.stage', { n: stage.at, total: stage.of }) : null;
+  // A task's chat says its stage; the integrator, the fixer and the synthesis say what they do for the graph
+  const where = link.role !== 'task' ? t(`view.role.${link.role}`) : stage ? t('view.partOf.stage', { n: stage.at, total: stage.of }) : null;
   return (
     <div className="chat-part-of">
       <Workflow {...ICON_SM} className="chat-part-of-icon" aria-hidden />

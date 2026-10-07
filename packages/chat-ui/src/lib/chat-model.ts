@@ -1,4 +1,4 @@
-import { CONTEXT_FULL, CONTEXT_WARN, isModelName, type ChatOrigin, type ChatState, type ChatSummary, type Execution } from '@agentry/shared';
+import { CONTEXT_FULL, CONTEXT_WARN, isModelName, type ChatOrchestration, type ChatOrigin, type ChatState, type ChatSummary, type Execution, type OrchestrationChatRole } from '@agentry/shared';
 import i18n from 'i18next';
 import { formatCost } from '@agentry/ui/lib/format';
 
@@ -69,9 +69,26 @@ export function lastEnded(chat: Pick<ChatSummary, 'executions'>): Execution | nu
   return null;
 }
 
+/**
+ * The word for what a chat does for its orchestration, where it has no task name to show. A task's
+ * chat always has one, so `task` never gets here; an older server that sent no role linked only the
+ * synthesis without a task.
+ */
+export const roleOf = (link: Pick<ChatOrchestration, 'role'>): Exclude<OrchestrationChatRole, 'task'> =>
+  !link.role || link.role === 'task' ? 'synthesis' : link.role;
+
 /** An orchestration's synthesis is its deliverable; every other chat of an orchestration is a worker. */
 export const isWorker = (chat: Pick<ChatSummary, 'origin' | 'orchestration'>): boolean =>
-  chat.origin === 'orchestration' && chat.orchestration?.taskId !== null;
+  chat.origin === 'orchestration' && !isSynthesis(chat.orchestration);
+
+/**
+ * The synthesis: its role says so, and an older server that sent no role linked only the synthesis
+ * without a task, which is how `roleOf` reads it too.
+ */
+function isSynthesis(link: Pick<ChatOrchestration, 'role' | 'taskId'> | null | undefined): boolean {
+  if (!link) return false;
+  return link.role ? link.role === 'synthesis' : link.taskId === null;
+}
 
 export type ChatOriginFilter = 'agentry' | 'external' | 'orchestration';
 

@@ -23,7 +23,12 @@
     "nothingWritten": "Todavía no hay nada escrito",
     "forkIntro": "Un chat nuevo con todo el historial de este. Este chat se queda como está y la copia registra de dónde viene.",
     "details": "Detalles del chat",
-    "synthesis": "síntesis",
+    "role": {
+      "integration": "integración",
+      "verification": "verificación",
+      "synthesis": "síntesis",
+      "workflow": "workflow"
+    },
     "partOf": {
       "label": "Parte de la orquestación",
       "stage": "etapa {{n}} de {{total}}"

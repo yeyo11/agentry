@@ -8,12 +8,12 @@ tags:
     - planner
     - web
     - performance
-    - proposed
+    - built
 ---
 # Spec: shorter orchestration chains (CW-16)
 
 Workstream E (`graph-shape`) of [plans/orchestration-speed.md](orchestration-speed.md), story CW-16
-of the epic CW-11 "Faster orchestrations". Status: **refined, not built**.
+of the epic CW-11 "Faster orchestrations". Status: **built** (the guide is [orchestrations.md](../orchestrations.md)).
 
 ## Why
 

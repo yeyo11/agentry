@@ -1077,6 +1077,7 @@ every 3 s and only while a client listens.
 | GET | `/orchestrations/plans/:runId` | The draft `OrchestrationSpec` a planner chat produced (`:runId` is the planner chat's id) |
 | POST | `/orchestrations/plan` | Same as `plan/start` but waits for the draft — holds the request open for minutes |
 | GET | `/orchestrations/:id` | State of every task, results, cost |
+| GET | `/orchestrations/:id/timings` | Where the graph's time went, computed on read: phases, time after the last task, parallelism, the critical path with its waits, slot/limit/retry waits, every verification run and fixer attempt; `missing` names what an older graph did not record. `node scripts/orchestration-timings.mjs` prints it as Markdown tables against `AGENTRY_API_URL` |
 | POST | `/orchestrations/:id/stop` | Stop all workers |
 | POST | `/orchestrations/:id/resume` | Run again every task that did not complete (each in its own chat, as a new execution), keeping the results of those that did. Optional body `{ worktree?, permissionPrompts?, allowedTools?, permissionMode?, limits?, maxAttempts? }` corrects the settings the graph failed with. `limits` as an object replaces the graph's default and leaves the ceilings individual tasks were given; as `null` it lifts every ceiling, those included, which is what a graph stopped by its own budget needs |
 | POST | `/orchestrations/:id/tasks/:taskId/retry` | Run a task that failed for good again, in its own chat and worktree, told what went wrong; the tasks blocked behind it go back to waiting for their turn |
