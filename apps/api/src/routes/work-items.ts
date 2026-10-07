@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { parseChangeScope, WorkItemError, type Core } from '@agentry/core';
+import { parseChangeScope, WorkItemError, type Core, type WorkItemCommentContext } from '@agentry/core';
 import { agentryLanguage, WORK_ITEM_PRIORITIES, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@agentry/shared';
 import type {
   CheckAcceptanceCriterionRequest,
@@ -45,6 +45,19 @@ interface PageQuery extends FilterQuery {
 
 interface BoardQueryString extends FilterQuery {
   doneLimit?: Param;
+}
+
+/**
+ * Who a write is recorded as. A request made with a chat's token (`chat:<id>`) is an agent acting
+ * through that chat, and says so in the item's history; the person's own request is recorded as the
+ * person, with no cause, as it always was. The role is the assistant's only for an Agentry assistant chat.
+ */
+export async function chatWriteContext(core: Core, actor: string | null): Promise<WorkItemCommentContext | undefined> {
+  if (!actor?.startsWith('chat:')) return undefined;
+  const chatId = actor.slice('chat:'.length);
+  const chat = await core.chats.get(chatId);
+  const source = { kind: 'chat' as const, chatId, orchestrationId: null, taskId: null };
+  return { actor: { kind: 'agent', role: chat?.agentryAssistant ? 'assistant' : null }, cause: { ...source, event: 'chat.api-write' }, source };
 }
 
 const csv = (value: Param): string[] | undefined => {
@@ -151,7 +164,7 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
 
   app.post<{ Params: { id: string }; Body: CreateWorkItemRequest }>('/projects/:id/work-items', async (req, reply) => {
     await core.workItemProject(req.params.id, 'write');
-    return reply.status(201).send(core.workItems.create(req.params.id, bodyOf(req.body)));
+    return reply.status(201).send(core.workItems.create(req.params.id, bodyOf(req.body), await chatWriteContext(core, req.actor)));
   });
 
   // `board.triage` for a draft being typed: a prefill for the form and a duplicate warning, or null
@@ -206,7 +219,7 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     for (const field of ['status', 'afterId'] as const) {
       if (body && typeof body === 'object' && field in body) throw new WorkItemError(`${field} is changed with POST /work-items/{itemId}/move, not PATCH`, 400);
     }
-    return core.workItems.update(req.params.itemId, body);
+    return core.workItems.update(req.params.itemId, body, await chatWriteContext(core, req.actor));
   });
 
   app.delete<{ Params: { itemId: string } }>('/work-items/:itemId', async (req) => {
@@ -217,7 +230,7 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
 
   app.post<{ Params: { itemId: string }; Body: MoveWorkItemRequest }>('/work-items/:itemId/move', async (req) => {
     await core.workItemAccess(req.params.itemId, 'write');
-    return core.workItems.move(req.params.itemId, bodyOf(req.body));
+    return core.workItems.move(req.params.itemId, bodyOf(req.body), await chatWriteContext(core, req.actor));
   });
 
   app.patch<{ Params: { itemId: string; criterionId: string }; Body: CheckAcceptanceCriterionRequest }>(
@@ -235,7 +248,7 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
 
   app.post<{ Params: { itemId: string }; Body: CreateWorkItemCommentRequest }>('/work-items/:itemId/comments', async (req, reply) => {
     await core.workItemAccess(req.params.itemId, 'write');
-    return reply.status(201).send(core.workItems.comment(req.params.itemId, bodyOf(req.body)));
+    return reply.status(201).send(core.workItems.comment(req.params.itemId, bodyOf(req.body), await chatWriteContext(core, req.actor)));
   });
 
   app.post<{ Params: { itemId: string }; Body: CreateWorkItemRelationRequest }>('/work-items/:itemId/relations', async (req, reply) => {

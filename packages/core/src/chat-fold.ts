@@ -1,4 +1,5 @@
 import { entryText, isModelName, type PolicyPart, type RunOutcome, type ToolPolicy } from '@agentry/shared';
+import { isAgentryMcpWriteTool } from '@agentry/mcp';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { commandKind } from './commands.ts';
 import { judge, type NeutralRequest } from './policy-judge.ts';
@@ -294,6 +295,7 @@ function askPermission(host: ChatHost, chat: LiveChat, question: Extract<DriverE
     session?.answerPermission(question.id, { behavior: 'deny', message: 'Nobody is answering permission prompts for this chat' });
     return;
   }
+  const isWrite = isAgentryMcpWriteTool(question.toolName);
   chat.pendingPrompts++;
   chat.activity.setPendingPrompts(chat.pendingPrompts, now());
   void broker
@@ -305,7 +307,8 @@ function askPermission(host: ChatHost, chat: LiveChat, question: Extract<DriverE
       input: question.input,
       requestedAt: now(),
       ...(question.description !== undefined ? { description: question.description } : {}),
-      ...(question.suggestions ? { suggestions: question.suggestions } : {}),
+      // No "always allow" for a write of Agentry's own: each one is confirmed on its own, every time
+      ...(question.suggestions && !isWrite ? { suggestions: question.suggestions } : {}),
       ...(question.requiresUserInteraction ? { requiresUserInteraction: true } : {}),
     })
     .then((decision) => {
@@ -314,6 +317,12 @@ function askPermission(host: ChatHost, chat: LiveChat, question: Extract<DriverE
       host.noteActivity(chat);
       // Withdrawn by the agent, or the process is gone: nobody is waiting for an answer
       if (!decision) return;
+      // An allow cannot carry rules either, so a later write is never allowed without asking
+      if (isWrite && decision.behavior === 'allow') {
+        const { updatedPermissions: _rules, ...once } = decision;
+        session?.answerPermission(question.id, once);
+        return;
+      }
       session?.answerPermission(question.id, decision);
     });
 }

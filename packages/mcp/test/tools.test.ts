@@ -3,10 +3,11 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
-import { AGENTRY_MCP_READ_TOOLS, AGENTRY_MCP_READ_TOOL_NAMES } from '../src/names.ts';
+import { AGENTRY_MCP_READ_TOOLS, AGENTRY_MCP_READ_TOOL_NAMES, AGENTRY_MCP_WRITE_TOOL_NAMES } from '../src/names.ts';
 import { ApiError, createClient } from '../src/client.ts';
 import { RESULT_MAX_CHARS, createServer, render } from '../src/server.ts';
 import { TOOLS } from '../src/tools.ts';
+import { WRITE_TOOLS } from '../src/write-tools.ts';
 import { injectFetch, seed, type Seeded } from './fixture.ts';
 
 let s: Seeded;
@@ -23,10 +24,11 @@ test('the catalogue is the list of names, and every tool has a description and a
     TOOLS.map((t) => t.name),
     [...AGENTRY_MCP_READ_TOOL_NAMES],
   );
+  assert.deepEqual(WRITE_TOOLS.map((t) => t.name), [...AGENTRY_MCP_WRITE_TOOL_NAMES]);
   assert.deepEqual(AGENTRY_MCP_READ_TOOLS, AGENTRY_MCP_READ_TOOL_NAMES.map((n) => `mcp__agentry__${n}`));
   const server = createServer({ api: createClient({ baseUrl: 'http://x/api', fetch: injectFetch(s.app) }), version: '1.2.3' });
   const listed = (await rpc(server, 'tools/list')).result.tools as Array<{ name: string; description: string; inputSchema: { additionalProperties: unknown } }>;
-  assert.deepEqual(listed.map((t) => t.name), [...AGENTRY_MCP_READ_TOOL_NAMES]);
+  assert.deepEqual(listed.map((t) => t.name), [...AGENTRY_MCP_READ_TOOL_NAMES, ...AGENTRY_MCP_WRITE_TOOL_NAMES]);
   for (const tool of listed) {
     assert.ok(tool.description.length > 10, tool.name);
     assert.equal(tool.inputSchema.additionalProperties, false, tool.name);

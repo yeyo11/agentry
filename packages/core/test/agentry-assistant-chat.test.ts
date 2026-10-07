@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { AGENTRY_MCP_READ_TOOLS } from '@agentry/mcp';
+import { AGENTRY_MCP_READ_TOOLS, AGENTRY_MCP_WRITE_TOOL_NAMES } from '@agentry/mcp';
 import { Core } from '../src/index.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -71,8 +71,10 @@ function assertConfined(argv: string, language: 'English' | 'Spanish' = 'English
   assert.ok(args.includes(`--allowedTools=${AGENTRY_MCP_READ_TOOLS.join(',')}`), 'the read tools and nothing else');
   assert.ok(!args.includes('--add-dir'), 'no uploads directory');
   assert.ok(!args.includes('--allow-dangerously-skip-permissions'), 'never to be switched to bypass');
-  assert.match(argv, /--permission-mode dontAsk/);
-  assert.ok(!/bypassPermissions|acceptEdits/.test(argv));
+  assert.match(argv, /--permission-mode manual/);
+  assert.match(argv, /--permission-prompt-tool stdio/);
+  assert.ok(!/bypassPermissions|acceptEdits|dontAsk/.test(argv));
+  assert.ok(!args.some((a) => a.startsWith('--allowedTools=') && AGENTRY_MCP_WRITE_TOOL_NAMES.some((n) => a.includes(n))), 'no write tool is allowed ahead of time');
   assert.match(argv, /--append-system-prompt You are the Agentry assistant/);
   assert.match(argv, new RegExp(`Answer in ${language}`));
   assert.ok(!argv.includes('ignore everything above'));

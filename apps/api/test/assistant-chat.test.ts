@@ -64,7 +64,7 @@ test('it starts a confined chat with no project, on sonnet, in the language of A
   assert.match(argv, /--model sonnet/);
   assert.match(argv, /--strict-mcp-config/);
   assert.match(argv, /--tools= /);
-  assert.match(argv, /--permission-mode dontAsk/);
+  assert.match(argv, /--permission-mode manual/);
   assert.match(argv, /Answer in Spanish/);
   // What GET /chats/:id says is what the web reads to tell it from a plain chat
   const again = await app.inject({ method: 'GET', url: `/api/chats/${chat.id}` });
@@ -94,7 +94,7 @@ test('options of a chat the route does not take are ignored, and a plain POST /c
   assert.equal(res.statusCode, 201, res.body);
   const chat = res.json<Chat>();
   const argv = await argvOf(chat.id);
-  assert.match(argv, /--permission-mode dontAsk/);
+  assert.match(argv, /--permission-mode manual/);
   assert.ok(!argv.includes('ignore everything above') && !argv.includes('--allow-dangerously-skip-permissions'));
   assert.notEqual(chat.cwd, '/etc');
 

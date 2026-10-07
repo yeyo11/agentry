@@ -261,3 +261,50 @@ test('a run resumed right after a stop keeps its new process', async () => {
   runs.stopAll();
   db.close();
 });
+
+// ---------- Agentry's own write tools: each one confirmed on its own, every time ----------
+
+const WRITE_TOOL = 'mcp__agentry__create_work_item';
+const decisionOf = (runs: ChatManager, id: string) => JSON.parse(resultText(runs, id).replace('decision=', '')) as Record<string, unknown>;
+
+test('a write tool of Agentry reaches the broker without suggestions, and an allow carries no rules', async () => {
+  const { runs, broker, db } = setup();
+  const run = runs.start({ prompt: `ASK ${WRITE_TOOL}`, permissionPrompts: 'host' });
+  const asked = await until(() => broker.list(run.id)[0], 'the prompt');
+  assert.equal(asked.toolName, WRITE_TOOL);
+  assert.equal(asked.suggestions, undefined, 'no "always allow" is offered');
+  // A decision that tries to add a rule anyway is answered as allowing this one call
+  broker.answer(asked.id, { behavior: 'allow', updatedPermissions: [{ type: 'setMode', mode: 'acceptEdits', destination: 'session' }] });
+  await idle(runs, run.id);
+  assert.deepEqual(decisionOf(runs, run.id), { behavior: 'allow', updatedInput: { command: 'ls' } });
+
+  // Any other tool keeps its suggestions, as before
+  runs.send(run.id, 'ASK Bash');
+  const other = await until(() => broker.list(run.id)[0], 'the second prompt');
+  assert.ok(other.suggestions?.length);
+  broker.answer(other.id, { behavior: 'deny', message: 'no' });
+  await until(() => resultText(runs, run.id).includes('deny') && runs.get(run.id)?.status === 'idle', 'the denial');
+  runs.stopAll();
+  db.close();
+});
+
+test('a denied write tool, and one nobody answers in time, reach the CLI as a denial', async () => {
+  const { runs, broker, db } = setup();
+  const run = runs.start({ prompt: `ASK ${WRITE_TOOL}`, permissionPrompts: 'host' });
+  const asked = await until(() => broker.list(run.id)[0], 'the prompt');
+  broker.answer(asked.id, { behavior: 'deny', message: 'not now' });
+  await until(() => resultText(runs, run.id).includes('deny') && runs.get(run.id)?.status === 'idle', 'the denial');
+  assert.deepEqual(decisionOf(runs, run.id), { behavior: 'deny', message: 'not now' });
+  runs.stopAll();
+  db.close();
+
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db2 = new Db(config);
+  const slow = new ChatManager(config, db2);
+  slow.permissions = new PermissionBroker(50);
+  const waiting = slow.start({ prompt: `ASK ${WRITE_TOOL}`, permissionPrompts: 'host' });
+  await until(() => resultText(slow, waiting.id).includes('deny') && slow.get(waiting.id)?.status === 'idle', 'the timeout to deny');
+  assert.equal(decisionOf(slow, waiting.id).behavior, 'deny');
+  slow.stopAll();
+  db2.close();
+});
