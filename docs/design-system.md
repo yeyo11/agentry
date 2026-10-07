@@ -1811,6 +1811,9 @@ Variants the app drew where the reference had no class, mirrored in §19 of
   title centred at 17 px between "Cancelar" or "Cerrar" and what the flow creates.
 - `.model-pick-sheet` / `.model-pick-option`: `ModelPicker` on a phone opens a sheet of 48 px
   options, the current model checked (`.model-pick-check`), instead of a popover.
+- `.chat-back`, `.chat-more` (CW-8): the chat's own header on a phone, which keeps its rows instead
+  of `PhoneHeader`: the way back to Chats and the "⋯" that opens the chat's actions as a `Sheet`
+  (`MoreActions`), both 44 px.
 - `.flow-limit-cost`: the cost limit of a flow run in the Límites card, a field with its currency
   inside; full width, 44 px and a 16 px input on a phone.
 - `.board-flow-row`: the phone board's flow state under the views, the whole row a link to the
