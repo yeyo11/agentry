@@ -222,7 +222,7 @@ export default async ({ page, api, check, dirs }) => {
     const orchestration = await api.post('/orchestrations', { name: 'e2e-shell-phone-head', objective: 'a phone header', cwd: dirs.workspaceDir, maxAttempts: 1, tasks: [{ id: 'one', name: 'One', prompt: 'Say hi' }] });
     check(orchestration.status === 201, `an orchestration to head (${orchestration.status})`);
     orchestrationId = orchestration.body?.id ?? null;
-    const headed = [`/chats/${chatId}`, `/chats/${chatId}/changes`, `/tasks/${key}/changes`, `/orchestration/${orchestrationId}`, `/orchestration/${orchestrationId}/changes`, `/orchestration/${orchestrationId}/tasks/one/changes`, '/accounts', '/projects', '/schedules', '/usage', '/connectors', '/settings', '/settings?tab=appearance'];
+    const headed = [`/chats/${chatId}`, `/chats/${chatId}/changes`, `/tasks/${key}/changes`, `/orchestration/${orchestrationId}`, `/orchestration/${orchestrationId}/changes`, `/orchestration/${orchestrationId}/tasks/one/changes`, '/projects', '/schedules', '/usage', '/connectors', '/settings', '/settings?tab=appearance'];
     for (const path of headed) {
       await page.goto(path, 1200);
       await page.waitFor(`return !!document.querySelector('main h1')`, { label: `[390px ${path}] the page` });
@@ -232,7 +232,7 @@ export default async ({ page, api, check, dirs }) => {
       check((await page.eval(`return document.querySelector('.shell')?.dataset.phoneHeader`)) === 'page', `[390px ${path}] the shell marks the route phoneHeader: 'page'`);
     }
     // PhoneHeader's h1 is the screen's title on the screens it heads
-    for (const [path, title] of [['/accounts', 'Accounts'], ['/projects', 'Projects'], ['/schedules', 'Schedules'], ['/usage', 'Usage'], ['/connectors', 'Connectors'], ['/settings', 'Settings']]) {
+    for (const [path, title] of [['/projects', 'Projects'], ['/schedules', 'Schedules'], ['/usage', 'Usage'], ['/connectors', 'Connectors'], ['/settings', 'Settings']]) {
       await page.goto(path, 1200);
       await until(`return document.querySelector('main .phone-head h1')?.textContent.trim() === ${JSON.stringify(title)}`);
       const h1 = await page.eval(`return document.querySelector('main .phone-head h1')?.textContent.trim() ?? null`);
@@ -275,9 +275,9 @@ export default async ({ page, api, check, dirs }) => {
     check((await page.eval(`return document.querySelector('.shell')?.dataset.phoneHeader`)) === 'page', "[390px a schedule's editor] the shell marks the route phoneHeader: 'page'");
     check(!(await page.eval(`return !!document.querySelector('main .phone-head svg.lucide-chevron-left')`)), "[390px a schedule's editor] \"Cancel\" and no back arrow");
     // The desktop app keeps its top bar, the window's title bar, at any width
-    await page.goto('/accounts', 1200);
+    await page.goto('/projects', 1200);
     await page.eval(`document.documentElement.classList.add('is-desktop'); return true`);
-    check(await page.eval(topBarShown), '[390px /accounts, desktop app] the top bar stays');
+    check(await page.eval(topBarShown), '[390px /projects, desktop app] the top bar stays');
     await page.eval(`document.documentElement.classList.remove('is-desktop'); return true`);
     // The new project wizard is a modal flow: no top bar either, and a ✕ in place of the arrow
     await page.goto('/projects/new', 1200);
@@ -309,7 +309,7 @@ export default async ({ page, api, check, dirs }) => {
     check(await until(`return document.querySelector('.tabbar a[href="/orchestration"]')?.classList.contains('is-active') === true`), 'the current tab is marked');
     // A wide window keeps the app's top bar over the same screens: only a phone heads them itself
     await page.viewport(1440, 900);
-    for (const path of [`/chats/${chatId}`, `/orchestration/${orchestrationId}`, '/accounts', '/settings', '/schedules/new']) {
+    for (const path of [`/chats/${chatId}`, `/orchestration/${orchestrationId}`, '/projects', '/settings', '/schedules/new']) {
       await page.goto(path, 1200);
       check(await until(topBarShown), `[1440px ${path}] the top bar stays`);
       check(!(await page.eval(`return !!document.querySelector('main .phone-head')`)), `[1440px ${path}] no phone header`);

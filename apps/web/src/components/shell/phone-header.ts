@@ -48,7 +48,6 @@ export const PHONE_HEADER_ROUTES: readonly PhoneHeaderRoute[] = [
   { path: /^\/orchestration\/[^/]+\/?$/, phoneHeader: 'page' },
   // The screens reached from Más (MobileCuentas, MobileProyectos, MobileProgramaciones, MobileUso,
   // MobileConectores, MobileAjustes)
-  { path: /^\/accounts\/?$/, phoneHeader: 'page' },
   { path: /^\/projects\/?$/, phoneHeader: 'page' },
   { path: /^\/schedules\/?$/, phoneHeader: 'page' },
   // The schedule editor, a modal flow headed by "Cancelar" (the MobileNuevaTarea pattern)
