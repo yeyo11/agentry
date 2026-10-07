@@ -3166,6 +3166,8 @@ export interface LimitWait {
 
 export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   status: OrchestrationTaskStatus;
+  /** A task Agentry added to the graph itself, not one the person or the planner wrote; a relaunch adds it again */
+  builtIn?: 'e2e-specs';
   /** Git worktree this task works in, when the orchestration isolates its workers */
   worktree?: string | null;
   /** Branch created for that worktree */
@@ -3325,6 +3327,12 @@ export interface VerificationSpec {
   install?: string | null;
   /** A failed verification ends the orchestration as `failed` and no pull request is offered (default false) */
   failGraph?: boolean;
+  /**
+   * Before integration, a task of the graph (`e2e-specs`) runs only the browser specs the graph's
+   * changes touch, each alone on a port of its own, so a spec the work broke or left stale is caught
+   * before the merge (CW-15). On by default; `false` leaves the task out.
+   */
+  e2eSpecs?: boolean;
 }
 
 /** Runs the checks on a finished graph's integration branch, or runs them again. */

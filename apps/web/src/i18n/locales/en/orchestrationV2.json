@@ -64,7 +64,9 @@
     "costOf": "The fixer spent {{cost}} of its {{limit}} limit.",
     "failedGraphTitle": "The checks failed this graph",
     "failedGraphBody": "Every task finished, but the checks on the merged branch failed and the graph was launched to fail when they do. The verification card below says what failed; checks that pass on a later run bring the graph back.",
-    "pullRequestHeld": "No pull request is offered: the checks failed and this graph was launched to fail when they do."
+    "pullRequestHeld": "No pull request is offered: the checks failed and this graph was launched to fail when they do.",
+    "e2eSpecs": "Run the browser specs the changes touch before the merge",
+    "e2eSpecsHint": "A task added to the end of the graph runs only the browser specs that the other tasks' work touches, each alone on a port of its own, and fixes a spec the work left stale. Workers themselves run none."
   },
   "templates": {
     "none": "No templates yet",

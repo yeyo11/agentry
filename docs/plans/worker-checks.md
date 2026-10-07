@@ -13,7 +13,8 @@ tags:
 # Spec: cheaper checks inside workers (CW-15)
 
 Workstream D (`worker-checks`) of [plans/orchestration-speed.md](orchestration-speed.md), story
-CW-15 of the epic CW-11 "Faster orchestrations". Status: **refined, not built**.
+CW-15 of the epic CW-11 "Faster orchestrations". Status: **built on 2026-10-07** (see
+[Outcome](#outcome-2026-10-07)).
 
 ## Why
 
@@ -107,6 +108,30 @@ Taken from the plan: whole-monorepo test and type check runs by workers drop fro
 handful per graph, `sleep` polling falls below 1 % of worker time, and, if point 3 is approved,
 verification stops failing on specs that went stale. `scripts/orchestration-timings.mjs` (workstream
 A) reports it.
+
+## Outcome (2026-10-07)
+
+The owner answered open question 1 on 2026-09-30 with option C: **a dedicated `e2e-specs` task**,
+not a browser spec per worker. So point 3 is built as that task, and the workers' own wording keeps
+"Do not run the end-to-end or browser suite".
+
+- **`workerChecks`** (`packages/core/src/verification.ts`), both variants: the type check and tests
+  of the package or test files changed, not the whole repository's, with the whole suite once and
+  later (point 1); long commands in the foreground under `timeout`, never backgrounded with `&`,
+  `run_in_background` or `nohup` and polled with `sleep`, and no process left running (point 2);
+  several files per read (point 4). A tool of this repository appears only after "for example".
+- **The `e2e-specs` task.** When a graph has a verification phase, `Orchestrator.create` adds a task
+  with the id `e2e-specs` (`builtIn: 'e2e-specs'` on its state) that depends on every other task, so
+  its worktree holds their combined work. Its prompt (`e2eSpecsPrompt`) has it read what changed
+  since the graph's base, pick the browser specs that cover it from how the project runs them (a
+  handful, never the whole suite), run each alone on a free port of its own under `timeout`, update
+  a spec the change made stale without loosening an assertion, fix small clear code faults, and
+  report. Its checks line (`e2eSpecsChecks`) replaces the workers' "do not run". It is left out
+  with `VerificationSpec.e2eSpecs: false` (a switch under the verification fields of the launch
+  form), without a verification phase, and when the graph already names a task `e2e-specs`; a
+  relaunch or a template drops it from the spec and the launch adds it again.
+- **Tests:** `verification.test.ts` pins the wording of both variants, the task, its prompt and
+  the three ways it is left out; the web draft round-trips `e2eSpecs`.
 
 ## Related
 
