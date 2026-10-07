@@ -19,7 +19,7 @@ import { writeAtomic } from './config/files.ts';
 import { withoutWorkItems } from '@agentry/shared';
 import { assertZone, describeCron, nextFire, nextFires, parseCron, serverZone } from './cron.ts';
 import type { EventBus } from './events.ts';
-import { validateModel, validatePermissionMode, validateSpecSettings, validateTasks } from './orchestrator.ts';
+import { validateEffort, validateModel, validatePermissionMode, validateSpecSettings, validateTasks } from './orchestrator.ts';
 import type { CoreConfig } from './paths.ts';
 import { normalizeVerification } from './verification.ts';
 
@@ -225,6 +225,7 @@ function checkedTarget(target: unknown): ScheduleTarget {
   if (t.kind === 'chat') {
     if (!t.chat || typeof t.chat.prompt !== 'string' || !t.chat.prompt.trim()) throw new Error('a chat target needs a prompt');
     validateModel(t.chat.model);
+    validateEffort(t.chat.effort);
     validatePermissionMode(t.chat.permissionMode);
     return { kind: 'chat', chat: t.chat };
   }

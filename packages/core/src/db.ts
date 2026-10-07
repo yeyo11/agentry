@@ -804,6 +804,8 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
  * The schema version the work item tables arrive in. Found rather than counted, so the test that
  * upgrades into it keeps upgrading from the version before it when later migrations are added.
  */
+/** The migration that priced Jev's rows from their tokens: a test starts a database from just before it */
+export const JEV_COST_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes("provider = 'jev' AND cost_usd IS NULL")) + 1;
 export const WORK_ITEMS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE work_item_counters')) + 1;
 
 /** The version that added the flow's runs, for the test that upgrades a database from the one before */

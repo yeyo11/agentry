@@ -131,7 +131,7 @@ import { UploadStore } from './uploads.ts';
 import { MemoryStore } from './memory.ts';
 import { JournalService } from './journal.ts';
 import { MemoryProposalService } from './memory-proposals.ts';
-import { Orchestrator } from './orchestrator.ts';
+import { Orchestrator, validateEffort } from './orchestrator.ts';
 import { orchestrationTimings } from './orchestration-timings.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
 import { byStart, EXPORTED_ORIGINS, type ProjectExportSource } from './project-export.ts';
@@ -1301,6 +1301,7 @@ export class Core {
   async runWorkflow(request: RunWorkflowRequest): Promise<ChatSummary> {
     const name = request.name?.trim();
     if (!name) throw new Error('name is required');
+    validateEffort(request.effort);
     const known = await this.workflowDefinitions(request.cwd);
     if (!known.some((w) => w.name === name)) throw new Error(`workflow "${name}" not found in .claude/workflows/`);
     const args = request.args?.trim();
@@ -1315,6 +1316,7 @@ export class Core {
       permissionPrompts: 'host',
       ...(request.cwd ? { cwd: request.cwd } : {}),
       ...(request.model ? { model: request.model } : {}),
+      ...effortOption(resolveEffort('chat', request.model, request.effort)),
     });
     const chat = await this.chats.summaryOf(started.id);
     if (!chat) throw new Error('chat not found');

@@ -292,6 +292,8 @@ export interface RunWorkflowRequest {
   /** Handed to the script as its `args` */
   args?: string;
   model?: string;
+  /** Absent takes the recommendation for the model (`chat`) */
+  effort?: Effort;
 }
 
 /**
@@ -408,7 +410,7 @@ export interface Execution {
   error: string | null;
   permissionMode: PermissionMode;
   model: string | null;
-  /** The effort its process was started with; null when none was passed (the CLI's default, or a provider without effort), absent on an execution recorded before it was kept */
+  /** The effort its process was started with; absent when none was passed (the CLI's default, or a provider without effort) and on an execution recorded before it was kept */
   effort?: Effort | null;
   /** Ceiling on what it could spend */
   maxBudgetUsd: number | null;

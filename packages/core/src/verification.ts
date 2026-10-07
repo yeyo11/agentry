@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
-import type { Commit, VerificationSpec } from '@agentry/shared';
+import { EFFORT_LEVELS, isEffort, type Commit, type VerificationSpec } from '@agentry/shared';
 import { git } from './git.ts';
 import { processTable, terminateTree } from './processes.ts';
 import { pasted, PASTED_NOTE, REAL_VERIFICATION, UNATTENDED } from './prompt-rules.ts';
@@ -53,6 +53,7 @@ export function normalizeVerification(spec: VerificationSpec | null | undefined,
     throw new Error(`${label}.timeoutMinutes must be a number of minutes from more than 0 to ${String(MAX_VERIFY_MINUTES)}`);
   }
   const model = typeof spec.model === 'string' && spec.model.trim() ? spec.model.trim() : undefined;
+  if (spec.effort !== undefined && spec.effort !== null && !isEffort(spec.effort)) throw new Error(`${label}.effort must be one of ${EFFORT_LEVELS.join(', ')}`);
   const cost = spec.maxCostUsd ?? undefined;
   if (cost !== undefined && (typeof cost !== 'number' || !Number.isFinite(cost) || cost <= 0)) {
     throw new Error(`${label}.maxCostUsd must be a number of dollars greater than zero`);
@@ -73,6 +74,7 @@ export function normalizeVerification(spec: VerificationSpec | null | undefined,
     maxAttempts: attempts,
     timeoutMinutes: minutes,
     ...(model ? { model } : {}),
+    ...(spec.effort ? { effort: spec.effort } : {}),
     ...(cost !== undefined ? { maxCostUsd: cost } : {}),
     ...(install !== undefined ? { install } : {}),
     ...(spec.failGraph === true ? { failGraph: true } : {}),

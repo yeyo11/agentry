@@ -191,7 +191,7 @@ function parseBoard(value: unknown): BoardSettings {
   return { types, columnLimits };
 }
 
-function parseTeam(value: unknown): ProjectTeamSettings {
+export function parseTeam(value: unknown): ProjectTeamSettings {
   if (!isObject(value) || !Array.isArray(value.members)) throw new Error('team.members must be an array');
   if (value.members.length > MAX_TEAM) throw new Error(`team has more than ${MAX_TEAM} members`);
   const members = value.members.map((raw: unknown, i): ProjectTeamMember => {

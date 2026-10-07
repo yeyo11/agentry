@@ -474,7 +474,8 @@ export class LiveChat {
       error: null,
       permissionMode: this.permissionMode,
       model: this.model,
-      effort: this.effort,
+      // Left out when none was passed, as the executions written before it was kept
+      ...(this.effort ? { effort: this.effort } : {}),
       maxBudgetUsd: typeof this.opts.maxBudgetUsd === 'number' && this.opts.maxBudgetUsd > 0 ? this.opts.maxBudgetUsd : null,
       costUsd: null,
       tokens: emptyTokenUsage(),
