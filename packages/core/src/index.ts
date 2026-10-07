@@ -133,6 +133,7 @@ import { parseKeyPrefix, parseModules, parseProjectSettings, parseProjectSetup, 
 import { PROJECT_TEMPLATES } from './project-templates.ts';
 import { attachProject, projectCandidates, ProjectStore, type ChatPlace, type ProjectRecord } from './projects.ts';
 import { AuthStore } from './security/auth.ts';
+import { recognizeSecrets } from './decisions/redact.ts';
 import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
@@ -173,7 +174,7 @@ export {
 } from './decisions/engine.ts';
 export { CliDecisionProvider, decisionPrompt, decisionSchema, parseAnswers as parseDecisionAnswers } from './decisions/providers/cli.ts';
 export { DECISION_POINTS, decisionPoint, type DecisionPointDefinition, type DecisionSubject } from './decisions/points.ts';
-export { cutToBytes, maskSecrets, redactState, SECRET_MASK, stateBytes } from './decisions/redact.ts';
+export { cutToBytes, maskSecrets, recognizeSecrets, redactState, SECRET_MASK, stateBytes, type SecretRecognizer } from './decisions/redact.ts';
 export {
   DecisionCredentialStore,
   DecisionSettingsStore,
@@ -448,6 +449,8 @@ export class Core {
   readonly webhooks: WebhookStore;
   /** The 0600 files that hold each registration's signing secret; never returned by the API */
   readonly webhookSecrets: WebhookSecrets;
+  /** Takes Agentry's own secrets back out of the redaction, at shutdown */
+  private readonly forgetSecrets: () => void;
   /** What `POST /webhooks/:host/:registrationId` calls: verify, dedupe, then move the named rows' next read to now */
   readonly webhookReceiver: WebhookReceiver;
   /** Registers, tests, removes and re-points the hooks Agentry keeps on a repository; the receiver reads their secrets from `webhookSecrets` itself */
@@ -785,6 +788,12 @@ export class Core {
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.webhooks = new WebhookStore(this.db.connection);
     this.webhookSecrets = new WebhookSecrets(config);
+    // Agentry's own secrets are masked in everything that may leave the machine (a decision's state,
+    // a handoff), whatever text surrounds them
+    this.forgetSecrets = recognizeSecrets({
+      values: () => [this.decisionCredentials.getKey() ?? '', ...this.webhookSecrets.values()],
+      isSecret: (word) => this.security.isOwnSecret(word),
+    });
     this.webhookReceiver = new WebhookReceiver({
       store: this.webhooks,
       secrets: this.webhookSecrets,
@@ -2537,6 +2546,7 @@ export class Core {
   }
 
   shutdown(): void {
+    this.forgetSecrets();
     this.pullRequestWatcher.stop();
     // First, while the database is still open for the row that says its host left
     this.tunnel.shutdown();
