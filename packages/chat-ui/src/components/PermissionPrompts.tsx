@@ -1,10 +1,11 @@
 import type { PermissionDecision, PermissionRequest, PermissionUpdate } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, CheckCheck, ChevronLeft, ChevronRight, ClipboardList, MessageCircleQuestion, ShieldQuestion, X } from 'lucide-react';
+import { Check, CheckCheck, ChevronLeft, ChevronRight, ClipboardList, MessageCircleQuestion, Plug, ShieldQuestion, X } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { upperFirst, useAgentName } from '../lib/agent';
+import { describeWrite } from '../lib/write-prompts';
 import { modeLabel, toolKindLabel } from '../lib/wire-words';
 import i18n from 'i18next';
 import { chatKeys, useChatUi } from '../lib/context';
@@ -62,22 +63,26 @@ function ToolPrompt({ request }: { request: PermissionRequest }) {
   const { t } = useTranslation('chat');
   const answer = useAnswer(request);
   const [reason, setReason] = useState('');
-  const suggestions = request.suggestions ?? [];
+  // A write tool of the assistant is said in the person's words, and never offers to be remembered
+  const write = describeWrite(request.toolName, request.input);
+  const suggestions = write ? [] : (request.suggestions ?? []);
   const described = request.description ?? request.input.description;
-  const description = typeof described === 'string' ? described : '';
+  const description = !write && typeof described === 'string' ? described : '';
   const deny = () => answer.mutate({ behavior: 'deny', ...(reason.trim() ? { message: reason.trim() } : {}) });
 
   return (
     <li className="permission" id={promptDomId(request.id)} tabIndex={-1} aria-live="polite">
       <div className="permission-head">
-        <ShieldQuestion {...ICON_SM} aria-hidden />
-        <strong>{toolKindLabel(request.toolName)}</strong>
-        <span className="muted small">{t('permissions.wantsToRun')}</span>
+        {write ? <Plug {...ICON_SM} aria-hidden /> : <ShieldQuestion {...ICON_SM} aria-hidden />}
+        <strong>{write ? write.title : toolKindLabel(request.toolName)}</strong>
+        {!write && <span className="muted small">{t('permissions.wantsToRun')}</span>}
       </div>
       {/* Focusable so a long command can be scrolled sideways from the keyboard */}
-      <pre className="permission-input" role="group" aria-label={t('permissions.whatItWantsToRun')} tabIndex={0}>
-        {summarize(request)}
-      </pre>
+      {(!write || write.detail) && (
+        <pre className="permission-input" role="group" aria-label={t('permissions.whatItWantsToRun')} tabIndex={0}>
+          {write ? write.detail : summarize(request)}
+        </pre>
+      )}
       {description && <p className="muted small">{description}</p>}
       <div className="permission-actions">
         <button type="button" className="btn btn-primary btn-small" disabled={answer.isPending} onClick={() => answer.mutate({ behavior: 'allow' })}>
