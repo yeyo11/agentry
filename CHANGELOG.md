@@ -3,6 +3,18 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.35.0](https://github.com/yeyo11/agentry/compare/v0.34.0...v0.35.0) (2026-10-07)
+
+
+### Features
+
+* the Agentry assistant: a global entry, a confined chat and write tools the person confirms (CW-30, CW-18, CW-17) ([#216](https://github.com/yeyo11/agentry/issues/216)) ([e873846](https://github.com/yeyo11/agentry/commit/e87384663b4d76e30eaa2d2093fcec2af82b4f6e))
+
+
+### Documentation
+
+* final verification of the two roadmap plans (CW-7), CW-4 superseded, status brought up to date ([#217](https://github.com/yeyo11/agentry/issues/217)) ([161382c](https://github.com/yeyo11/agentry/commit/161382c11141607a292bd6960f2f3f8c4aa29013))
+
 ## [0.34.0](https://github.com/yeyo11/agentry/compare/v0.33.1...v0.34.0) (2026-10-07)
 
 
