@@ -9,7 +9,7 @@ import { StatusBadge } from '@agentry/ui/components/ui';
 import { displayTitle, lastEnded } from '@agentry/chat-ui/lib/chat-model';
 import { formatCost } from '@agentry/ui/lib/format';
 import { columnMeta } from '../../../lib/work-items';
-import { chatlessRuns, linkEffect, linkRun, shortId, sortLinks } from './model';
+import { linkEffect, linkEntries, shortId } from './model';
 import { latestOfStep, RunLinkRow } from './RunLink';
 
 const LINK_ICON = { chat: MessageSquare, orchestration: Workflow, document: FileText } as const;
@@ -84,13 +84,13 @@ export function Links({ item }: { item: WorkItemDetail }) {
   // A flow run's outcome is its own to tell (a failed one leaves its chat "completed"): every run of
   // the item, so an older failure stays on its link. Read for every item, since a run that failed
   // before its chat started left no link to say the flow worked on it
-  const runs = useWorkItemRuns(item.id).data ?? [];
+  const runsQuery = useWorkItemRuns(item.id);
+  const runs = runsQuery.data ?? [];
   // Documents have their own section (Documents.tsx): this one is what acted on the item
-  const links = sortLinks(item.links.filter((link) => link.kind !== 'document'));
-  const entries = [
-    ...links.map((link) => ({ at: link.createdAt, link, run: null })),
-    ...chatlessRuns(item.links, runs).map((run) => ({ at: run.queuedAt, link: null, run })),
-  ].sort((a, b) => b.at.localeCompare(a.at));
+  const entries = linkEntries(
+    item.links.filter((link) => link.kind !== 'document'),
+    runsQuery.isPending ? null : runs,
+  );
   return (
     <section className="workitem-section" aria-labelledby={`links-${item.id}`}>
       <div className="workitem-section-head">
@@ -103,15 +103,10 @@ export function Links({ item }: { item: WorkItemDetail }) {
         <p className="muted small workitem-none">{t('links.none')}</p>
       ) : (
         <div className="work-links">
-          {entries.map(({ link, run: chatless }) => {
-            if (!link) return chatless && <RunLinkRow key={chatless.id} link={null} run={chatless} item={item} chat={undefined} latest={latestOfStep(chatless, runs)} />;
-            const chat = link.chatId ? byId.get(link.chatId) : undefined;
-            const run = link.teamRole ? linkRun(link, runs) : null;
-            return run ? (
-              <RunLinkRow key={link.id} link={link} run={run} item={item} chat={chat} latest={latestOfStep(run, runs)} />
-            ) : (
-              <LinkRow key={link.id} link={link} item={item} chat={chat} />
-            );
+          {entries.map(({ link, run }) => {
+            const chat = link?.chatId ? byId.get(link.chatId) : undefined;
+            if (run) return <RunLinkRow key={run.id} link={link} run={run} item={item} chat={chat} latest={latestOfStep(run, runs)} />;
+            return link && <LinkRow key={link.id} link={link} item={item} chat={chat} />;
           })}
         </div>
       )}

@@ -230,6 +230,7 @@ imperative forms wholesale (see "Terms that changed" for the full old → new li
 | Result | Resultado |
 | Tool result / Tool error | Resultado de la herramienta / Error de la herramienta |
 | Turn | Turno |
+| Slot (a free place under an orchestration's concurrency) | Plaza libre: "esperando plaza libre" — not "turno", which is a model turn, nor "franja", which is a schedule's slot |
 | Decline (a question) | Rechazar |
 | Previous | Anterior |
 | Clear (a list) | Vaciar |

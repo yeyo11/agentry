@@ -2022,3 +2022,125 @@ a.chain-chip:hover {
 .graph-shape-note {
   animation: none;
 }
+
+/* "Where the time went": history, not a live surface. Neutral phase cells, status colours only on
+   waits and failed runs (always with their word), no gradient and no motion. */
+.orch-timings {
+  padding: 0;
+}
+
+.orch-timings > .fold > .orch-timings-trigger {
+  min-height: 44px;
+  padding: 0 16px;
+  gap: 8px;
+}
+
+.orch-timings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 4px 16px 16px;
+}
+
+.orch-timings-body h3 {
+  margin: 0 0 8px;
+}
+
+.orch-timings-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  margin: 0;
+}
+
+.orch-timings-figures dd {
+  margin: 4px 0 0;
+  font-size: 15px;
+}
+
+.orch-timings-bar {
+  width: 100%;
+}
+
+.orch-timings-legend,
+.orch-timings-links,
+.orch-timings-commands {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.orch-timings-links {
+  margin-top: 8px;
+}
+
+.orch-timings-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+/* Two neutral tones, alternating by phase. The bar's own empty tone is too faint to read as time
+   spent, so the second phase tone is the muted text colour, visible in both themes. */
+.orch-timings-bar .progress-segbar-cell.is-pending,
+.orch-timings-swatch.is-pending {
+  background: var(--text-muted);
+}
+
+/* The swatch reuses a bar cell's look, so a legend row is the colour of its cells */
+.orch-timings-swatch {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 8px;
+}
+
+.orch-timings-link,
+.orch-timings-command {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 13px;
+}
+
+.orch-timings-link-name {
+  font-weight: 500;
+}
+
+.orch-timings-tags,
+.orch-timings-runs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.orch-timings-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.orch-timings-run.is-failed {
+  border-color: var(--bad);
+}
+
+@media (max-width: 768px) {
+  .orch-timings-figures {
+    flex-direction: column;
+  }
+
+  .orch-timings-link,
+  .orch-timings-command {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

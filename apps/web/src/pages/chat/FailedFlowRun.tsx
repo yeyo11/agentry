@@ -1,15 +1,12 @@
 import type { FlowRun, WorkItemDetail } from '@agentry/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, RotateCcw, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { api, keys } from '../../api';
 import { ICON_SM } from '@agentry/ui/components/icons';
-import { useToast } from '@agentry/ui/components/Toast';
 import { formatDateTime, timeAgo } from '@agentry/ui/lib/format';
 import { taskPath } from '../../lib/work-items';
 import { shortId } from '../tasks/item/model';
-import { RawError, useFailureReason } from '../tasks/item/RunParts';
+import { RawError, useFailureReason, useRetryRun } from '../tasks/item/RunParts';
 import { rawError, retryOutcome, runStep } from '../tasks/item/runs';
 import { useRoleName } from '../team/RoleAvatar';
 
@@ -20,23 +17,17 @@ import { useRoleName } from '../team/RoleAvatar';
  * text under it; then what the retry did and its chat, or "Retry" while the run can still be queued
  * again. The item never moved, so the banner says that too.
  */
-export function FailedFlowRunNote({ item, run }: { item: Pick<WorkItemDetail, 'id' | 'key'>; run: FlowRun | null }) {
+export function FailedFlowRunNote({ item, run, chatId = null }: { item: Pick<WorkItemDetail, 'id' | 'key'>; run: FlowRun | null; chatId?: string | null }) {
   const { t } = useTranslation(['chat', 'workItem']);
   const roleName = useRoleName();
   const reasonOf = useFailureReason();
-  const toast = useToast();
-  const qc = useQueryClient();
-  const retry = useMutation({
-    mutationFn: (runId: string) => api.retryFlowRun(runId),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: keys.workItem(item.id) });
-      void qc.invalidateQueries({ queryKey: keys.workItemRuns(item.id) });
-    },
-    onError: (error) => toast.error(t('workItem:run.retryFailed'), error),
-  });
+  const retry = useRetryRun(item.id);
   const reason = run ? reasonOf(run) : null;
   if (!run || reason === null) return null;
   const next = retryOutcome(run);
+  // The Developer continues its own chat, so a retry often ran in the chat being read: say when, and
+  // offer no way back into the chat already open
+  const elsewhere = next?.chatId && next.chatId !== chatId ? next.chatId : null;
   const role = roleName(run.role);
   return (
     <div className="chat-run-failed" role="status">
@@ -61,16 +52,16 @@ export function FailedFlowRunNote({ item, run }: { item: Pick<WorkItemDetail, 'i
             {next.status === 'passed' && <Check size={13} strokeWidth={2.25} aria-hidden className="chat-run-failed-ok" />}
             <span>
               {t('workItem:run.retriedLead')} <b className={next.status === 'passed' ? 'text-ok' : next.status === 'failed' ? 'text-bad' : ''}>{t(`workItem:run.status.${next.status}`)}</b>{' '}
-              {next.chatId
-                ? t('workItem:run.retriedWhen', { when: next.at ? timeAgo(next.at) : '', chat: shortId(next.chatId) }).trimStart()
+              {elsewhere
+                ? t('workItem:run.retriedWhen', { when: next.at ? timeAgo(next.at) : '', chat: shortId(elsewhere) }).trimStart()
                 : t('workItem:run.retriedNoChat', { when: next.at ? timeAgo(next.at) : '' }).trimStart()}
             </span>
           </span>
         )}
         <div className="chat-run-failed-acts">
-          {next?.chatId && (
-            <Link to={`/chats/${next.chatId}`} className="btn btn-small">
-              {t('view.workItem.openChat', { chat: shortId(next.chatId) })}
+          {elsewhere && (
+            <Link to={`/chats/${elsewhere}`} className="btn btn-small">
+              {t('view.workItem.openChat', { chat: shortId(elsewhere) })}
             </Link>
           )}
           {run.retryable && (

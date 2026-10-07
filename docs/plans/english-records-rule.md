@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T16:00:00Z
-updated_at: 2026-09-28T16:00:00Z
+updated_at: 2026-10-07T12:00:00Z
 tags:
     - plan
     - spec
@@ -66,6 +66,51 @@ Optional, same PR: the `description` of `summary`, `criteria[].note` and `memory
 - `assistant.test.ts`: for each kind (`project`, `work-items`, `resources` with a description), `assistantPrompt(brief)` contains the sentence; with `language: 'es'` the first line is the Spanish `assistantTitle` (e.g. `Asistente de <name>`) and the rest stays English.
 
 Checks: `pnpm typecheck`, `pnpm test`. No UI, route or e2e change.
+
+## Implementation (CW-2)
+
+- `RECORDS_IN_ENGLISH` is exported from `packages/core/src/team.ts` (and the `@agentry/core` barrel), because both `flow.ts` and `assistant-answer.ts` already import `team.ts`.
+- `flowPrompt` puts it on its own line right before the closing "End with the structured result…" line, for every stage; `flowTitle` stays line 1.
+- `agentFileContent` puts it in "## How a flow run ends", after the list of result fields.
+- `assistantPrompt` puts it at the end of "## What to propose" for every kind, followed by one sentence that names what the assistant proposes (team members' responsibilities, agent, skill and command files, work items with their title, description and acceptance criteria, and each reason); `assistantTitle` stays line 1.
+- The flow's result schema says "in English" on `summary`, `criteria[].note`, `memoryProposals[].text` and `.reason`. `packages/shared/src/types.ts` is unchanged, so no OpenAPI regeneration.
+- Tests: `flow.test.ts`, `team.test.ts` and `assistant.test.ts` each assert the shared constant, and that a Spanish run keeps only its first line in Spanish.
+
+### The root documents
+
+The Developer's write scope is `packages/`, `apps/`, `e2e/`, `scripts/` and `docs/`, so it could not edit `CONTRIBUTING.md` or `CLAUDE.md`. The text to add follows, word for word. The CLAUDE.md bullet was also proposed through the run's `memoryProposals` (target `instructions`, section Conventions).
+
+**CONTRIBUTING.md**, a new bullet at the end of "House style":
+
+```markdown
+- **Language.** Everything technical is English: code, comments, docs, commit messages, the
+  prompts Agentry sends to Claude, schemas, agent files, and the records agents write (the project
+  journal, memory entries, acceptance criteria and QA comments), even when the person chats in
+  Spanish. The person's language is kept for UI copy, through i18n with en/es parity, for whatever
+  a person writes (work items, comments, chat messages), and for a chat's title. Prompts carry this
+  through `RECORDS_IN_ENGLISH` (`packages/core/src/team.ts`); the reasoning is in
+  [docs/decisions/english-technical-language.md](docs/decisions/english-technical-language.md).
+```
+
+**CLAUDE.md** › Conventions, a new bullet:
+
+```markdown
+- Everything technical is English (code, comments, docs, commits, prompts, agent files, and what
+  agents record: journal, memory entries, acceptance criteria, QA comments), even when the person
+  writes in Spanish. The exception is UI copy, through i18n with en/es parity, and what a person
+  writes; a chat's title is in the person's language
+  ([decision](docs/decisions/english-technical-language.md)).
+```
+
+## Outcome (2026-10-07)
+
+Built on 2026-09-29 on `task/cw-2` and rebased onto `main` on 2026-10-07, where the prompts had
+gained the pasted-content note, the unattended text and the think-first lines: the shared sentence
+stays the last thing before each closing line, after them. Part 1 landed with it: the rule is in
+CONTRIBUTING.md (House style) and CLAUDE.md (Conventions). The prompts added since were checked:
+the decision engine's answers carry no free text (its schema has no reason field), and the change
+request bodies and the verification's fix prompts are Agentry's own English, so none needed the
+sentence.
 
 ## Related
 

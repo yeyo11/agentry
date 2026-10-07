@@ -93,6 +93,12 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
     return core.orchestrator.view(orch);
   });
 
+  app.get<{ Params: { id: string } }>('/orchestrations/:id/timings', (req) => {
+    const timings = core.orchestrationTimings(req.params.id);
+    if (!timings) throw new Error('orchestration not found');
+    return timings;
+  });
+
   app.post<{ Params: { id: string } }>('/orchestrations/:id/stop', (req) => core.orchestrator.stop(req.params.id));
 
   // Workers die with the process, so a restart leaves the graph stopped. This picks it up from

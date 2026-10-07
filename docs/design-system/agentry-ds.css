@@ -283,6 +283,13 @@ a.part-of { color: inherit; text-decoration: none; }
 .segbar > i.ok { background: var(--ok); } .segbar > i.bad { background: var(--bad); }
 .segbar > i.live { background: var(--live-soft); }
 .segbar > i.live::after { content: ''; position: absolute; inset: 0; width: var(--p, 40%); background: var(--live); border-radius: inherit; box-shadow: 0 0 10px var(--live); }
+/* "Where the time went" (an orchestration's page): history, not something live. The phase bar alternates two neutral tones from phase to phase; status colour goes only on waits and failed runs, always with its word. No gradient, no energy border, no motion. */
+.segbar > i.phase { background: var(--fg-3); } .segbar > i.phase.alt { background: var(--bg-4); }
+.timings { display: flex; flex-direction: column; gap: 18px; }
+.timings .legend { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.timings .legend .sw { width: 14px; height: 8px; border-radius: var(--r-full); }
+.timings-run { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border: 1px solid var(--line); border-radius: var(--r-xs); color: var(--fg-2); font-size: 12px; font-variant-numeric: tabular-nums; }
+.timings-run.bad { border-color: var(--bad); }
 .ring { --p: 40; --c: var(--accent); width: 36px; height: 36px; border-radius: 50%; display: inline-grid; place-items: center; flex-shrink: 0;
   background: radial-gradient(closest-side, var(--bg-2) 76%, transparent 78% 100%), conic-gradient(var(--c) calc(var(--p) * 1%), var(--bg-4) 0); font-family: var(--mono); font-size: 10px; font-weight: 500; color: var(--fg-2); }
 .ring-grad { background: radial-gradient(closest-side, var(--bg-2) 76%, transparent 78% 100%), conic-gradient(from 0deg, var(--accent), var(--accent-2) calc(var(--p) * 1%), var(--bg-4) 0); }
@@ -2028,3 +2035,10 @@ a.cont-from:hover { color: var(--fg); }
 .graph-shape-chain { font-family: var(--mono); }
 .graph-shape-id { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
 .graph-shape-note { animation: none; }
+
+/* ---------- 21. A failed run's link and a sent-back card (CW-20) ---------- */
+.work-link-retried { font-size: 12px; line-height: 1.5; color: var(--fg-2); }
+.work-link-acts { position: relative; z-index: 1; display: flex; }
+.m-screen .work-link-retry { min-height: var(--touch); }
+.workitem-strip-verb.is-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
+

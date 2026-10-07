@@ -782,3 +782,93 @@ test('a verification recorded before the fixer had a cost reads as zero', () => 
   assert.equal(orchestrator.get('graph-old')?.verification?.costUsd, 0);
   db.close();
 });
+
+// ---------- timings ----------
+
+const inOrder = (start: string | null | undefined, end: string | null | undefined): boolean => !!start && !!end && start <= end;
+
+test('integration, verification and synthesis record when they started and ended', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const started = launch(orchestrator, repo, { commands: ['true'], fixer: false, maxAttempts: 1 }, { synthesize: true });
+  const orch = await settle(orchestrator, started.id);
+
+  assert.equal(orch.verification?.status, 'passed');
+  assert.ok(inOrder(orch.integration?.startedAt, orch.integration?.endedAt), 'integration');
+  assert.ok(inOrder(orch.verification?.startedAt, orch.verification?.endedAt), 'verification');
+  assert.ok(inOrder(orch.synthesisStartedAt, orch.synthesisEndedAt), 'synthesis');
+  // In the order they ran
+  assert.ok((orch.integration?.endedAt ?? '') <= (orch.verification?.startedAt ?? ''));
+  assert.ok((orch.verification?.endedAt ?? '') <= (orch.synthesisStartedAt ?? ''));
+  assert.deepEqual(orch.verification?.fixes, []);
+  assert.equal(orch.verification?.commands[0]?.runs?.length, 1);
+  db.close();
+});
+
+test('a check that fails, is fixed and passes keeps both runs, and the fixer attempt is recorded with its chat', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const command = "echo 'FAKE-WRITE marker.txt repaired'; test -f marker.txt";
+  const started = launch(orchestrator, repo, { commands: ['true', command], fixer: true, maxAttempts: 2 });
+  const orch = await settle(orchestrator, started.id);
+
+  const v = orch.verification;
+  assert.equal(v?.status, 'fixed', v?.report ?? '');
+  const fixed = v?.commands[1];
+  assert.deepEqual(fixed?.runs?.map((r) => [r.pass, r.status]), [
+    [1, 'failed'],
+    [2, 'passed'],
+  ]);
+  for (const run of fixed?.runs ?? []) {
+    assert.ok(!Number.isNaN(Date.parse(run.startedAt)));
+    assert.ok(run.durationMs >= 0);
+  }
+  // The last run is still what `durationMs` says, for clients that read only that
+  assert.equal(fixed?.durationMs, fixed?.runs?.at(-1)?.durationMs);
+  // The first check ran on both passes
+  assert.deepEqual(v?.commands[0]?.runs?.map((r) => r.pass), [1, 2]);
+
+  assert.equal(v?.fixes?.length, 1);
+  const fix = v?.fixes?.[0];
+  assert.equal(fix?.command, command);
+  assert.equal(fix?.attempt, 1);
+  assert.ok(fix?.runId, 'the fixer chat is findable from the graph');
+  assert.ok(inOrder(fix?.startedAt, fix?.endedAt));
+  assert.ok((fix?.costUsd ?? 0) > 0);
+  assert.equal(fix?.costUsd, v?.costUsd);
+  db.close();
+});
+
+test('a graph stored before the timings were recorded still loads, with none of them made up', () => {
+  const config = { ...tempConfig(), claudeBin: '/nonexistent/claude' };
+  const db = new Db(config);
+  const graph: Orchestration = {
+    id: 'old-graph',
+    name: 'old',
+    objective: null,
+    status: 'completed',
+    cwd: repoWithCommit(),
+    model: null,
+    permissionMode: 'acceptEdits',
+    concurrency: 1,
+    synthesize: true,
+    worktree: true,
+    maxAttempts: 2,
+    allowedTools: [],
+    permissionPrompts: 'none',
+    createdAt: '2026-01-01T10:00:00Z',
+    endedAt: '2026-01-01T10:30:00Z',
+    finalResult: 'done',
+    costUsd: 0,
+    tasks: [],
+    synthesisRunId: 'synth-1',
+    integration: { branch: 'agentry/old', worktree: null, status: 'merged', merged: [], conflicts: [], commit: 'abc', error: null, integratorRunId: null },
+    verification: { status: 'passed', attempts: 0, commands: [{ command: 'true', status: 'passed', output: '', durationMs: 5 }], commits: [], report: '', costUsd: 0 },
+  };
+  db.saveOrchestrations([graph]);
+  const orch = new Orchestrator(config, new ChatManager(config, db), db).get('old-graph');
+  assert.equal(orch?.integration?.status, 'merged');
+  assert.equal(orch?.integration?.startedAt, undefined);
+  assert.equal(orch?.verification?.startedAt, undefined);
+  assert.equal(orch?.verification?.commands[0]?.runs, undefined);
+  assert.equal(orch?.synthesisStartedAt, undefined);
+  db.close();
+});

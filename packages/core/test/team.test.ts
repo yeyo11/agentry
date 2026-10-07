@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import type { AgentryEvent, FlowRun, Project, ProjectModule, ProjectSettings, ProjectTemplateId } from '@agentry/shared';
 import { Core } from '../src/index.ts';
-import { agentFileContent, readFrontmatter, readFrontmatterList, templateTeam, TeamError } from '../src/team.ts';
+import { agentFileContent, RECORDS_IN_ENGLISH, readFrontmatter, readFrontmatterList, templateTeam, TeamError } from '../src/team.ts';
 import { SCOPE_AND_COMPLETION } from '../src/prompt-rules.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -344,6 +344,18 @@ test('the starting file quotes what YAML would misread, and reads back the same'
   assert.match(content, /Agentry sets no limit of its own/);
   assert.deepEqual(readFrontmatter("---\ndescription: 'it''s mine'\n---\n"), { description: "it's mine" });
   assert.deepEqual(readFrontmatter('no frontmatter'), {});
+});
+
+test("a starting agent file tells its member to record in English, for a template role and one of the person's own", () => {
+  for (const member of [
+    { agent: 'qa', role: 'qa', model: 'sonnet', responsibility: 'Verifies' },
+    { agent: 'steward', role: 'data-steward', model: 'sonnet', responsibility: 'Keeps the data model tidy' },
+  ]) {
+    const content = agentFileContent(member);
+    const ending = content.slice(content.indexOf('## How a flow run ends'));
+    assert.ok(content.includes('## How a flow run ends'), member.role);
+    assert.ok(ending.includes(RECORDS_IN_ENGLISH), `${member.role} is told under "How a flow run ends"`);
+  }
 });
 
 test('a member that writes nothing is told so, not told it has no limit; one with no writes has none', () => {

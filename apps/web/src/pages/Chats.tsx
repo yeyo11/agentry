@@ -31,6 +31,7 @@ import {
   matchesFilters,
   listRequest,
   ORIGIN_LABEL,
+  roleOf,
   rowTags,
   SORT_LABEL,
   SORTERS,
@@ -79,7 +80,7 @@ const listParam = (value: string | null): Set<string> => new Set(value ? value.s
 /** Where the chat came from, with the orchestration named when it works for one. */
 function originLabel(chat: ChatSummary): string {
   if (chat.origin !== 'orchestration' || !chat.orchestration) return ORIGIN_LABEL[chat.origin];
-  return `${chat.orchestration.name} · ${chat.orchestration.taskName ?? i18n.t('chats:list.synthesis')}`;
+  return `${chat.orchestration.name} · ${chat.orchestration.taskName ?? i18n.t(`chats:list.role.${roleOf(chat.orchestration)}`)}`;
 }
 
 /** How the last execution ended, when an idle chat's last run went wrong. */

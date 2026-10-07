@@ -154,3 +154,16 @@ test('a card a Product Owner refines or QA verifies is live, and says which with
   assert.match(words('work', 'in_progress'), /Implementing/);
 });
 
+
+test("a sent-back card clamps QA's words and keeps the whole of them in its title", () => {
+  const summary = `CW-4 fails review for the fifth time: nothing has been built. ${'It has no code, tests, web or i18n changes. '.repeat(20)}`;
+  const item = { id: 'i', key: 'SHOP-4', status: 'in_progress' as const, bounces: 1 };
+  const strip = { kind: 'rejected' as const, role: 'qa', quote: summary };
+  const html = wrap(<WorkItemStrip item={item} strip={strip} sources={{ chats: [], orchestrations: [] }} />);
+  assert.match(html, /class="workitem-strip-verb is-quiet is-quote"/);
+  assert.ok(html.includes(`title="${summary}"`), 'the whole summary is one hover away');
+  // Without a quote the strip names who sent it back, unclamped
+  const bare = wrap(<WorkItemStrip item={item} strip={{ ...strip, quote: null }} sources={{ chats: [], orchestrations: [] }} />);
+  assert.doesNotMatch(bare, /is-quote/);
+  assert.match(text(bare), /QA sent it back/);
+});

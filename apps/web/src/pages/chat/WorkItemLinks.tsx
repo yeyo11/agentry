@@ -7,7 +7,7 @@ import { WorkItemKey, WorkItemStatusIcon } from '../../components/work-item-icon
 import { ProgressBar } from '@agentry/ui/components/ProgressBar';
 import { byChatRole, chatItemRole, criteriaProgress, movesToReviewOnEnd, type ChatItemRole } from '../../lib/work-item-links';
 import { columnMeta, taskPath } from '../../lib/work-items';
-import { linkRun } from '../tasks/item/model';
+import { failedRunOfChat, linkRun } from '../tasks/item/model';
 import { runStep } from '../tasks/item/runs';
 import { RoleAvatar } from '../team/RoleAvatar';
 import { FailedFlowRunNote } from './FailedFlowRun';
@@ -53,7 +53,7 @@ function useFlowPart(item: WorkItemDetail, chatId: string) {
   if (!link?.teamRole) return null;
   const run = linkRun({ kind: 'chat', chatId }, runs);
   const step: FlowStep = run ? runStep(run) : link.role === 'refine' ? 'refine' : link.role === 'verify' ? 'verify' : 'work';
-  return { role: run?.role ?? link.teamRole, step, run };
+  return { role: run?.role ?? link.teamRole, step, run, failed: failedRunOfChat(chatId, runs) };
 }
 
 /**
@@ -87,7 +87,7 @@ export function WorkItemPartOf({ link, chatId }: { link: ChatItemLink; chatId: s
         </span>
         {criteria.total > 0 && <span className="chat-part-of-where mono chat-part-of-criteria">{t('view.workItem.criteria', criteria)}</span>}
       </div>
-      {flow && <FailedFlowRunNote item={item} run={flow.run} />}
+      {flow && <FailedFlowRunNote item={item} run={flow.failed} chatId={chatId} />}
     </>
   );
 }

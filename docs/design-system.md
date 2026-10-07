@@ -1646,13 +1646,26 @@ the file being edited is its only moving part.
   in `agentry-ds.css`): "Part of orchestration *name* · stage N of M", with the graph's
   `ProgressBar variant="segments"` at its end. The row is neutral: it is context, not the live
   surface, so it takes no gradient and no energy; the segments carry the only live colour. The
-  name is the link and its box covers the row, so the whole line is the touch target. The
-  synthesis chat reads "· synthesis" instead of a stage.
+  name is the link and its box covers the row, so the whole line is the touch target. A chat that
+  works for the graph without a task reads its role instead of a stage: "· integration",
+  "· verification" or "· synthesis" (`ChatOrchestration.role`).
 - Settings → Remote access offers nothing about the tunnel until Tailscale is ready. Not installed is
   `Empty` with the `cli-missing` illustration and the install link as the one primary action; every
   other way it is not ready (too old, service down, signed out, not connected, no HTTPS) is an
   `alert-warn` with the server's reason, the command to run or the admin page to open, and "Check
   again", with no illustration.
+- The orchestration page ends with **"Where the time went"** (`.orch-timings`, `.timings` in
+  `agentry-ds.css`), a card with a `Collapsible` whose trigger is the Geist Mono 11 label and at
+  least 44 px tall. It is closed while the graph runs and open once it has ended. It is history, not
+  a live surface: no gradient, no energy border, no motion. Its phase bar is the one segmented bar,
+  `ProgressBar variant="segments"` with `cells`, cut by each phase's share (at least one cell each)
+  in two **neutral** tones that alternate from phase to phase (`is-skipped`, and `is-pending`
+  restyled to `--text-muted` inside `.orch-timings-bar`, since the bar's empty tone is too faint to
+  read as time spent); the legend's swatches (`.orch-timings-swatch`) are the same cells. Durations are mono tabular
+  figures. Status colours appear only on waits and failed checks, always as a `Tag` with its word:
+  a slot or a limit wait is warn ("waiting for a slot", "waiting on a limit"), a retry wait is idle,
+  and a failed run of a check (`.orch-timings-run.is-failed`) carries a bad "failed". On a phone the
+  figures, the critical path links and the checks stack at full width, and the bar keeps it.
 - Settings → Remote access draws a tunnel's open address as `.tunnel-address` (`.tunnel-address` and
   `.qr` in `agentry-ds.css`): the URL in mono with copy, beside a QR code drawn in-house
   (`components/QrCode.tsx`). The block takes `.grad-border` while the tunnel is open, because it is
@@ -1835,6 +1848,12 @@ Variants the app drew where the reference had no class, mirrored in §19 of
   title centred at 17 px between "Cancelar" or "Cerrar" and what the flow creates.
 - `.model-pick-sheet` / `.model-pick-option`: `ModelPicker` on a phone opens a sheet of 48 px
   options, the current model checked (`.model-pick-check`), instead of a popover.
+- `.work-link-retried`, `.work-link-acts` / `.work-link-retry` (CW-20): under a failed run's reason
+  on the item's link, what its retry did ("Reintentada: pasó hace 10 min", the outcome in its own
+  status word and colour) or, while the run can still be queued again, a small neutral "Reintentar"
+  raised above the row's open-the-chat overlay; 44 px on a phone.
+- `.workitem-strip-verb.is-quote` (CW-20): QA's words on a sent-back card, clamped to three lines;
+  the whole text is on the item.
 - `.flow-limit-cost`: the cost limit of a flow run in the Límites card, a field with its currency
   inside; full width, 44 px and a 16 px input on a phone.
 - `.board-flow-row`: the phone board's flow state under the views, the whole row a link to the

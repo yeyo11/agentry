@@ -101,6 +101,14 @@ searches are documents nobody wrote.
 
 - **TypeScript, strict, no `any`.** `noUncheckedIndexedAccess` is on; respect it rather than
   casting around it.
+- **English for everything technical; the person's language for what a person reads.** Code,
+  comments, docs, commit messages, the prompts Agentry sends to an agent, schemas, agent files, and
+  what agents record (the journal, memory entries, acceptance criteria, criteria notes, QA comments)
+  are English, even when the work item or the chat is in Spanish: the flow, the agent files and the
+  assistant say so in one shared sentence, `RECORDS_IN_ENGLISH` (`packages/core/src/team.ts`). UI
+  copy goes through i18n with en/es parity, and a person's own words (a work item, a comment, a chat
+  title) stay as they wrote them. See
+  [the decision](docs/decisions/english-technical-language.md).
 - **Comments explain why, not what.** If a line needs a comment to say what it does, rewrite the
   line. The ones worth writing are the ones that record a constraint you discovered the hard way.
 - **Shared types live in `packages/shared`** and are the single source of truth: the API schemas

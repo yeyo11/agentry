@@ -1,7 +1,12 @@
 {
   "list": {
     "title": "Chats",
-    "synthesis": "síntesis",
+    "role": {
+      "integration": "integración",
+      "verification": "verificación",
+      "synthesis": "síntesis",
+      "workflow": "workflow"
+    },
     "fork": "fork",
     "noProject": "sin proyecto",
     "messages": "{{n}} mensajes",

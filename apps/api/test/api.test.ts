@@ -126,6 +126,23 @@ test('re-running and relaunching what does not exist are 404s', async () => {
   assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/nope/relaunch', ...json({}) })).statusCode, 404);
 });
 
+test('where an orchestration\'s time went is computed for any graph, and is a 404 for one that does not exist', async () => {
+  assert.equal((await app.inject('/api/orchestrations/nope/timings')).statusCode, 404);
+  // The CLI is missing here, so the graph's one task cannot start: its timings still answer
+  const created = await app.inject({ method: 'POST', url: '/api/orchestrations', ...json({ name: 'timed', cwd: tmpdir(), tasks: [{ id: 'a', name: 'a', prompt: 'do it' }] }) });
+  assert.equal(created.statusCode, 201);
+  const res = await app.inject(`/api/orchestrations/${created.json().id}/timings`);
+  assert.equal(res.statusCode, 200);
+  const timings = res.json();
+  assert.equal(timings.orchestrationId, created.json().id);
+  for (const key of ['at', 'createdAt', 'endedAt', 'wallMs', 'phases', 'afterTasksMs', 'parallelism', 'criticalPath', 'waits', 'verification', 'missing']) assert.ok(key in timings, key);
+  assert.deepEqual(Object.keys(timings.waits).sort(), ['items', 'limitMs', 'retryMs', 'slotMs']);
+  const spec = (await app.inject('/openapi.json')).json();
+  const op = spec.paths['/api/orchestrations/{id}/timings'].get;
+  assert.deepEqual(op.tags, ['Orchestration']);
+  assert.equal(op.responses['200'].content['application/json'].schema.$ref, '#/components/schemas/OrchestrationTimings');
+});
+
 test('verification is refused where it could not run, and checking what does not exist is a 404', async () => {
   const graph = { name: 'checked', cwd: tmpdir(), tasks: [{ id: 'a', name: 'a', prompt: 'do it' }] };
   const shared = await app.inject({ method: 'POST', url: '/api/orchestrations', ...json({ ...graph, verification: { commands: ['true'], fixer: false, maxAttempts: 1 } }) });
