@@ -18,7 +18,8 @@ const FLOORS: Record<(typeof PARITY_LANGS)[number], number> = {
   javascript: 0.996,
   jsx: 0.991,
   json: 0.999,
-  css: 0.981,
+  // shiki 4.5's CSS grammar reads more words as deprecated system colours and leaves `env()` plain: it moved, not us
+  css: 0.979,
   yaml: 0.987,
   markdown: 0.989,
   // Both take shiki's own path for the fixtures that TanStack misreads, so their floor is its answer
