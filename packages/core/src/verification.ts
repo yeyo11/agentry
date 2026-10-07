@@ -76,6 +76,8 @@ export function normalizeVerification(spec: VerificationSpec | null | undefined,
     ...(cost !== undefined ? { maxCostUsd: cost } : {}),
     ...(install !== undefined ? { install } : {}),
     ...(spec.failGraph === true ? { failGraph: true } : {}),
+    // Stored only when it is off: on is the default, and older graphs read as on
+    ...(spec.e2eSpecs === false ? { e2eSpecs: false } : {}),
   };
 }
 
@@ -379,10 +381,49 @@ export function fixerPrompt(ctx: FixerContext): string {
  */
 export function workerChecks(verification: boolean): string {
   return [
-    'Checks: run the type check and the unit tests of what you changed (the project’s own commands for them), and do not go on until they pass.',
+    // Measured on 144 worker chats (CW-15): 85 whole-repository test runs and 112 whole-repository
+    // type checks by workers that had changed one package, two hours of each
+    'Checks: run the type check and the tests of the package or the test files you changed (the project’s own commands for them, for example `pnpm --filter <package> test`, or the test runner pointed at one file), not the whole repository’s, and do not go on until they pass. The whole suite runs once, later.',
     verification
       ? 'Do not run the end-to-end or browser suite: it runs once, on the merged branch, in a verification phase after every task is done. You may write or update its specs, and if you do, say which in your report.'
       : 'Do not run the end-to-end or browser suite: it is slow, and it hangs when several workers run it at once. You may write or update its specs, and if you do, say in your report that they have not been run.',
-    'Run every command that may take more than a minute under `timeout` (for example `timeout 300 pnpm test`), and leave no process of yours running when you finish.',
+    COMMANDS_IN_FOREGROUND,
+    BATCHED_READS,
+  ].join('\n');
+}
+
+/** Two hours of `sleep` polling by workers on commands they had sent to the background (CW-15) */
+const COMMANDS_IN_FOREGROUND =
+  'Run every command that may take more than a minute in the foreground under `timeout` (for example `timeout 300 pnpm test`). Never send one to the background (`&`, `run_in_background`, `nohup`) to poll it with `sleep`, and leave no process of yours running when you finish.';
+
+/** 6,281 single reads by workers, each a model turn (CW-15) */
+const BATCHED_READS = 'Read several files in one call where you can (one read or search over several paths): every call costs a turn.';
+
+/** The id of the task Agentry adds to a graph to run the browser specs its changes touch. */
+export const E2E_SPECS_TASK_ID = 'e2e-specs';
+
+/**
+ * What the `e2e-specs` task is asked: the owner's answer to the plan's open question 1 (option C,
+ * 2026-09-30). Workers run no browser spec; this one task, which depends on every other one and so
+ * starts from their combined work, runs only the specs the changes touch, before the merge.
+ */
+export function e2eSpecsPrompt(baseCommit: string | null): string {
+  const base = baseCommit ? `\`${baseCommit}\`` : 'the commit the graph started from';
+  return [
+    'Run the browser and end-to-end specs that this graph’s changes touch, before the work is merged. Your worktree already holds the combined work of every other task of the graph.',
+    `1. See what changed since ${base} (\`git diff --stat\` against it, and \`git log\`).`,
+    '2. Find how this project runs its browser or end-to-end specs (its package scripts, README or CONTRIBUTING) and choose the specs that cover the screens, routes or files that changed: a handful at most, never the whole suite. If the project has no such specs, or none covers what changed, say so and finish.',
+    '3. Build what they need and run each chosen spec alone, on a free port of your own, under `timeout` (for example `timeout 600 env E2E_PORT=<free port> pnpm e2e <spec>`).',
+    '4. A spec that fails because the change made it stale on purpose: update the spec to the new behaviour, never loosen or skip an assertion just to make it pass, and commit. A spec that fails because the code is wrong: fix the code when the fix is small and clear, commit, and run the spec again; otherwise leave it and report it.',
+    '5. Report which specs ran, how each ended, and what you changed.',
+  ].join('\n');
+}
+
+/** The checks line of the `e2e-specs` task: it runs browser specs, which every other worker is told not to */
+export function e2eSpecsChecks(): string {
+  return [
+    'Checks: run the browser specs you chose one at a time, as above, and the type check and tests of any package you change while fixing one. Do not run the whole end-to-end suite: the verification phase runs it on the merged branch.',
+    COMMANDS_IN_FOREGROUND,
+    BATCHED_READS,
   ].join('\n');
 }

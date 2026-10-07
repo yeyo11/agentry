@@ -8,10 +8,10 @@
 // saved for comparing them with the reference screenshots.
 //
 // 1. Settings → Integrations: four tracker rows. GitHub Issues and GitLab Issues are ready and offer
-//    only "Choose binary"; Jira says "Not available yet" with its reason and no action; YouTrack has
-//    no access saved yet and offers "Connect" (youtrack.spec.mjs walks it).
+//    only "Choose binary"; YouTrack has no access saved yet and offers "Connect" (youtrack.spec.mjs
+//    walks it). Jira is not a tracker.
 // 2. A project whose origin is a GitHub repository: its tracker form refuses the trackers that cannot
-//    work (GitLab's, Jira, YouTrack), takes GitHub Issues with the repository filled in, saves, and
+//    work (GitLab's, YouTrack without its access), takes GitHub Issues with the repository filled in, saves, and
 //    reads back after a reload. On a phone the form is a sheet.
 // 3. The Tasks page: "Import issues" opens the dialog with the project's query. One issue is already
 //    an item and is marked, not pickable; `issue.triage` (the fake claude) marks the rest; two are
@@ -159,17 +159,15 @@ export default async ({ page, api, check, dirs }) => {
     for (const theme of ['dark', 'light']) {
       await setTheme(theme);
       await page.goto('/settings?tab=integrations', 300);
-      await page.waitFor(`return document.querySelectorAll('.prov-row[data-tracker]').length === 4`, { label: `[${theme}] one row per tracker` });
+      await page.waitFor(`return document.querySelectorAll('.prov-row[data-tracker]').length === 3`, { label: `[${theme}] one row per tracker` });
       const rows = await page.eval(
         `return [...document.querySelectorAll('.prov-row[data-tracker]')].map((r) => ({ id: r.dataset.tracker, state: r.dataset.state, actions: [...r.querySelectorAll('[data-action]')].map((a) => a.dataset.action), text: r.textContent }))`,
       );
-      check(rows.map((r) => r.id).join() === 'github-issues,gitlab-issues,jira,youtrack', `[${theme}] the trackers come in the order GitHub, GitLab, Jira, YouTrack (${rows.map((r) => r.id)})`);
-      const [github, gitlab, jira, youtrack] = rows;
+      check(rows.map((r) => r.id).join() === 'github-issues,gitlab-issues,youtrack', `[${theme}] the trackers come in the order GitHub, GitLab, YouTrack (${rows.map((r) => r.id)})`);
+      const [github, gitlab, youtrack] = rows;
       check(github.state === 'ready' && gitlab.state === 'ready', `[${theme}] GitHub Issues and GitLab Issues are ready (${github.state}, ${gitlab.state})`);
       check(github.actions.join() === 'choose-binary' && gitlab.actions.join() === 'choose-binary', `[${theme}] a ready tracker offers only Choose binary (${github.actions}; ${gitlab.actions})`);
       check(github.text.includes('#12') && gitlab.text.includes('#12'), `[${theme}] each row says how its issues are numbered`);
-      check(jira.actions.length === 0, `[${theme}] jira offers no action (${jira.actions})`);
-      check(jira.text.includes('Not available yet') && jira.text.includes('not-recorded'), `[${theme}] jira says it is not available yet, with its reason (${jira.text.replace(/\s+/g, ' ')})`);
       check(youtrack.state === 'signed-out' && youtrack.actions.join() === 'connect,choose-binary', `[${theme}] YouTrack has no access yet and offers Connect first (${youtrack.state}; ${youtrack.actions})`);
       check(youtrack.text.includes('PROJ-12'), `[${theme}] YouTrack says how its issues are numbered`);
       await atMostTwo(`[${theme}] Integrations`);
@@ -179,8 +177,7 @@ export default async ({ page, api, check, dirs }) => {
     await setTheme('dark');
     await page.viewport(390, 844);
     await page.goto('/settings?tab=integrations', 300);
-    await page.waitFor(`return document.querySelectorAll('.prov-cell[data-tracker]').length === 4`, { label: 'a cell per tracker on a phone' });
-    check((await page.eval(`return document.querySelectorAll('.prov-cell[data-tracker="jira"] [data-action]').length`)) === 0, 'the phone shows Jira with no action');
+    await page.waitFor(`return document.querySelectorAll('.prov-cell[data-tracker]').length === 3`, { label: 'a cell per tracker on a phone' });
     check((await page.eval(overflow)) <= 1, `[390px Integrations] nothing scrolls sideways (${await page.eval(overflow)}px)`);
     await atMostTwo('[390px] Integrations');
     await page.shot('trackers-integrations-phone');
@@ -197,12 +194,12 @@ export default async ({ page, api, check, dirs }) => {
     const option = (label) => `[...document.querySelectorAll('.project-tracker-card .trk-opt')].find((o) => o.textContent.includes(${JSON.stringify(label)}))`;
 
     await page.goto(settingsUrl, 300);
-    await page.waitFor(`return document.querySelectorAll('.project-tracker-card .trk-opt').length === 5`, { timeout: 40_000, label: 'four trackers and None to choose from' });
-    const disabled = await page.eval(`return { gitlab: ${option('GitLab Issues')}?.getAttribute('aria-disabled'), jira: ${option('Jira')}?.getAttribute('aria-disabled'), youtrack: ${option('YouTrack')}?.getAttribute('aria-disabled'), github: ${option('GitHub Issues')}?.getAttribute('aria-disabled') }`);
+    await page.waitFor(`return document.querySelectorAll('.project-tracker-card .trk-opt').length === 4`, { timeout: 40_000, label: 'three trackers and None to choose from' });
+    const disabled = await page.eval(`return { gitlab: ${option('GitLab Issues')}?.getAttribute('aria-disabled'), youtrack: ${option('YouTrack')}?.getAttribute('aria-disabled'), github: ${option('GitHub Issues')}?.getAttribute('aria-disabled') }`);
     check(disabled.github === 'false', `GitHub Issues can be chosen on a GitHub project (${JSON.stringify(disabled)})`);
-    check(disabled.gitlab === 'true' && disabled.jira === 'true' && disabled.youtrack === 'true', `GitLab Issues (another host), Jira and YouTrack cannot (${JSON.stringify(disabled)})`);
+    check(disabled.gitlab === 'true' && disabled.youtrack === 'true', `GitLab Issues (another host) and YouTrack without its access cannot (${JSON.stringify(disabled)})`);
     check((await page.eval(`return ${option('GitLab Issues')}.textContent`)).includes('github.com'), "GitLab Issues says why: this project's host");
-    check((await page.eval(`return ${option('Jira')}.textContent`)).includes('cannot offer Jira yet'), 'Jira says Agentry cannot offer it yet');
+    check(!(await page.eval(`return document.querySelector('.project-tracker-card').textContent`)).includes('Jira'), 'Jira is not offered');
     await page.eval(`${option('GitHub Issues')}.click(); return true`);
     await page.waitFor(`return document.querySelector('#project-tracker-scope')?.value === 'acme/shop'`, { label: 'choosing GitHub Issues fills in the origin repository' });
     await page.fill('#project-tracker-query', 'is:open');
@@ -231,7 +228,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.goto(settingsUrl, 300);
     await page.waitFor(`return [...document.querySelectorAll('.settings-cell')].some((c) => c.textContent.includes('Issues'))`, { timeout: 40_000, label: 'the tracker is a cell on a phone' });
     await page.click('.settings-cell', 'Issues', 500);
-    await page.waitFor(`return document.querySelectorAll('[role=dialog] .trk-opt').length === 5`, { label: 'the phone sheet lists the trackers and None' });
+    await page.waitFor(`return document.querySelectorAll('[role=dialog] .trk-opt').length === 4`, { label: 'the phone sheet lists the trackers and None' });
     check((await page.eval(`return [...document.querySelectorAll('[role=dialog] .trk-opt')].every((o) => o.getBoundingClientRect().height >= 44)`)) === true, 'each tracker choice is a 44 px target');
     check((await page.eval(overflow)) <= 1, `[390px project tracker] nothing scrolls sideways (${await page.eval(overflow)}px)`);
     await trackerCardGradients('[390px] the project tracker sheet');

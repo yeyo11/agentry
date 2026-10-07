@@ -210,6 +210,16 @@ test('the fixer ceiling, the install step and failGraph round-trip through the d
   assert.equal(draftOfVerification(own).install, 'command');
 });
 
+test('the browser specs task is on unless turned off, and only off is written', () => {
+  const on = { commands: ['pnpm test'], fixer: true, maxAttempts: 2 };
+  assert.equal(draftOfVerification(on).e2eSpecs, true);
+  assert.deepEqual(verificationOf(draftOfVerification(on)), on);
+  const off = { ...on, e2eSpecs: false };
+  assert.equal(draftOfVerification(off).e2eSpecs, false);
+  assert.deepEqual(verificationOf(draftOfVerification(off)), off);
+  assert.equal(EMPTY_VERIFICATION.e2eSpecs, true);
+});
+
 test('an empty install command is detection, and a cost ceiling needs a fixer', () => {
   const base = { ...EMPTY_VERIFICATION, enabled: true, commands: 'pnpm e2e' };
   assert.equal('install' in (verificationOf({ ...base, install: 'command', installCommand: '  ' }) ?? {}), false);

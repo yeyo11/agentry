@@ -67,10 +67,12 @@ jobs:
 
   checks:
     runs-on: ubuntu-latest
-    # Install, audit, typecheck, the unit tests, a build and the harness's own test take about 4
-    # minutes. About 2.5x that, rounded up to 5 minutes, so a slow runner does not fail a run that
-    # was going to pass
-    timeout-minutes: 10
+    # Install, audit, typecheck, the unit tests, a build and the harness's own test take 5 to 7.5
+    # minutes, of which `pnpm test` is 2.6 to 3.9 (main runs 37197153734 and 37459090109, 2026-10-06).
+    # About 2.5x the slowest, rounded up to 5 minutes, so a slow runner does not fail a run that was
+    # going to pass. A test that hangs fails on its own long before: every package's runner has a
+    # per-test timeout and forces its exit (CW-27)
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 

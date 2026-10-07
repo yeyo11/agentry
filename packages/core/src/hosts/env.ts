@@ -32,7 +32,6 @@ export const HOST_ENV: Readonly<Record<HostCall['cli'], Readonly<HostEnv>>> = {
     set: { ...COMMON_SET, GLAB_NO_PROMPT: '1', GLAB_CHECK_UPDATE: 'false', GLAB_SEND_TELEMETRY: 'false' },
     unset: ['NO_PROMPT', 'GITLAB_HOST', 'GL_HOST', 'GITLAB_URI', 'DEBUG', 'GLAB_DEBUG'],
   },
-  acli: { set: { ...COMMON_SET }, unset: [] },
   'youtrack-app': { set: { ...COMMON_SET }, unset: ['YOUTRACK_API_TOKEN'] },
 };
 

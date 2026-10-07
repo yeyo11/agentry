@@ -7,11 +7,13 @@ import { Link } from 'react-router-dom';
 import { api, keys, useScheduleRuns, useSchedules } from '../api';
 import { Collapsible, Sheet, Switch, Tooltip } from '@agentry/ui/components/controls';
 import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON_SM } from '@agentry/ui/components/icons';
+import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { StatusDot } from '@agentry/ui/components/motion';
 import { useToast } from '@agentry/ui/components/Toast';
 import { ListToolbar, type ListToolbarTab } from '@agentry/ui/components/ListToolbar';
-import { Empty, ErrorBox, PageHeader, Skeleton, StatusBadge, Tag } from '@agentry/ui/components/ui';
+import { Empty, ErrorBox, Skeleton, StatusBadge, Tag } from '@agentry/ui/components/ui';
+import { PageHeader } from '../components/PageHeader';
+import { ProjectSelector } from '../components/ProjectSelector';
 import { describeCron } from '../lib/cron-words';
 import { formatDateTime, formatDuration, timeAgo, toMs } from '@agentry/ui/lib/format';
 import { useListParams } from '../lib/list-params';
@@ -65,6 +67,17 @@ export function Schedules() {
       <PageHeader
         title={t('page.title')}
         subtitle={t('page.subtitle')}
+        // MobileProgramaciones; the list follows the project scope, so its selector comes along with no top bar
+        phone={{
+          actions: (
+            <>
+              <ProjectSelector />
+              <Link to="/schedules/new" className="icon-btn" aria-label={t('page.new')}>
+                <Plus {...ICON} />
+              </Link>
+            </>
+          ),
+        }}
         actions={
           <Link to="/schedules/new" className="btn btn-primary">
             <Plus {...ICON_SM} /> {t('page.new')}

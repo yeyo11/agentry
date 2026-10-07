@@ -121,6 +121,10 @@ export function VerificationFields({ value, onChange }: { value: VerificationDra
             {t('verification.failGraph')}
           </Switch>
           <p className="muted small">{t('verification.failGraphHint')}</p>
+          <Switch checked={value.e2eSpecs} onChange={(e2eSpecs) => onChange({ ...value, e2eSpecs })}>
+            {t('verification.e2eSpecs')}
+          </Switch>
+          <p className="muted small">{t('verification.e2eSpecsHint')}</p>
         </>
       )}
     </div>

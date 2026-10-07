@@ -273,8 +273,8 @@ function parseDocuments(value: unknown): ProjectDocumentsSettings {
 
 /**
  * A project's tracker. What the scope looks like is checked only where the tracker's own CLI is
- * already known: a repository for GitHub and GitLab. Jira and YouTrack scopes are one token, since
- * nothing here is recorded about them yet. GitHub and GitLab sync only `done`, as a close.
+ * already known: a repository for GitHub and GitLab. A YouTrack scope is one token, the project's
+ * short name, which its adapter checks. GitHub and GitLab sync only `done`, as a close.
  */
 function parseTracker(value: unknown): ProjectTrackerSettings {
   if (!isObject(value)) throw new Error('tracker must be an object');

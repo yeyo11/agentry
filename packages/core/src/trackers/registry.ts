@@ -1,14 +1,13 @@
 import type { CodeHostId, TrackerId } from '@agentry/shared';
 import { githubIssuesManifest } from './github-issues/manifest.ts';
 import { gitlabIssuesManifest } from './gitlab-issues/manifest.ts';
-import { jiraManifest } from './jira/manifest.ts';
 import type { TrackerManifest } from './manifest.ts';
 import { youtrackManifest } from './youtrack/manifest.ts';
 
 export type { TrackerManifest } from './manifest.ts';
 
 /** Adding a tracker is adding its folder and one line here; nothing else in core names it. */
-export const TRACKER_MANIFESTS: readonly TrackerManifest[] = [githubIssuesManifest, gitlabIssuesManifest, jiraManifest, youtrackManifest];
+export const TRACKER_MANIFESTS: readonly TrackerManifest[] = [githubIssuesManifest, gitlabIssuesManifest, youtrackManifest];
 
 /**
  * Manifests keyed by id. Two manifests sharing an id, or two reusing the same code host (one host's

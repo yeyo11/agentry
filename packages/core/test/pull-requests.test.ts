@@ -65,9 +65,9 @@ test("a PR's body carries the description, each criterion with QA's note and a l
   assert.match(body, /## Work item\n\n\[CW-9\]\(http:\/\/localhost:8787\/tasks\/CW-9\)/);
 });
 
-test('the issues of an item go into the title (Jira, YouTrack) and a Linked issue section of the body', () => {
+test('the issues of an item go into the title (YouTrack) and a Linked issue section of the body', () => {
   const issues = [
-    { tracker: 'jira' as const, scope: 'PROJ', key: 'PROJ-12', externalId: null, title: 't', state: 'open', url: null, importedAt: '', syncedAt: null, syncState: 'none' as const, syncReason: null },
+    { tracker: 'youtrack' as const, scope: 'PROJ', key: 'PROJ-12', externalId: null, title: 't', state: 'open', url: null, importedAt: '', syncedAt: null, syncState: 'none' as const, syncReason: null },
     { tracker: 'youtrack' as const, scope: 'AB', key: 'AB-3', externalId: null, title: 't', state: 'open', url: null, importedAt: '', syncedAt: null, syncState: 'none' as const, syncReason: null },
   ];
   assert.equal(pullRequestTitle({ key: 'CW-3', title: 'Fix the cart', type: 'bug', labels: [], issues }), 'fix: Fix the cart (CW-3, PROJ-12, AB-3)');

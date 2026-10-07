@@ -333,7 +333,8 @@ Filled in as the workstreams land and the graphs after them are measured.
 
    **Answered on 2026-09-30: a dedicated `e2e-specs` task (option C).** Workers keep running no e2e;
    before integration a task runs the browser specs that the graph's changes touch, on its own
-   port. This is what CW-15 builds.
+   port. This is what CW-15 builds; built on 2026-10-07, see
+   [worker-checks.md](worker-checks.md#outcome-2026-10-07).
 2. **No account left.** Should the graph wait for the reset and resume by itself, stop for a
    decision, or wait only up to a limit (for example 30 min) and then stop?
 

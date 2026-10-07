@@ -1,6 +1,6 @@
 # Issue trackers (plans/code-hosts.md, phase 5, P0 t-p3): importing issues into work items, the issue chips of the
-# item page with their sync state, and the issue key on the board card. GitHub Issues and GitLab Issues only: Jira and
-# YouTrack wait for the recordings of t0b and have no screen here. The other P0 tasks of the phase (t-p1, the
+# item page with their sync state, and the issue key on the board card. GitHub Issues and GitLab Issues only: YouTrack
+# waited for the recordings of t0b and uses the same screens. The other P0 tasks of the phase (t-p1, the
 # Integrations → Trackers screen; t-p2, the project's tracker) have their own functions in trackers.py; this file
 # runs on its own and imports common.py, data.py, board.py, tasks.py, reviews.py and hosts.py.
 #   python3 trackers_import.py

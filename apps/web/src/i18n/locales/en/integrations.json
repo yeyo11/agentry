@@ -71,7 +71,7 @@
     "title": "Issue trackers",
     "total_one": "{{count}} tracker",
     "total_other": "{{count}} trackers",
-    "note": "Agentry imports issues from GitHub Issues (#12) and GitLab Issues (#12) with the same programs it already uses for pull requests and merge requests, and from YouTrack (PROJ-12) with JetBrains' youtrack-app and the address and token you give it below. Jira will come once Agentry has checked how its program answers.",
+    "note": "Agentry imports issues from GitHub Issues (#12) and GitLab Issues (#12) with the same programs it already uses for pull requests and merge requests, and from YouTrack (PROJ-12) with JetBrains' youtrack-app and the address and token you give it below.",
     "notAvailable": "Not available yet",
     "reason": {
       "ready": "Reads and writes issues with {{cli}}, with the session it already has. It works in projects whose code is on {{host}}.",

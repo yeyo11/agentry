@@ -823,7 +823,7 @@ The hosts Agentry opens pull and merge requests on, GitHub through `gh` and GitL
 | POST | `/hosts/refresh` | Detect again now. Not open to a chat's token |
 | GET | `/hosts/settings` | The document from `hosts.json`: enabled and binary override per host |
 | PUT | `/hosts/settings` | Replace it, validated; hosts are detected again in the background and every project's readiness is read again. Not open to a chat's token |
-| GET | `/trackers` | Every issue tracker's status: GitHub and GitLab Issues follow their code host; YouTrack runs `youtrack-app` with the address and token Agentry keeps; Jira is `unknown` with `not-recorded` until `acli` is recorded |
+| GET | `/trackers` | Every issue tracker's status: GitHub and GitLab Issues follow their code host; YouTrack runs `youtrack-app` with the address and token Agentry keeps |
 | GET | `/trackers/:id` | One status; `404` for another id |
 | POST | `/trackers/refresh` | Detect again now. Not open to a chat's token |
 | GET | `/trackers/settings` | The document from `trackers.json`: enabled and binary override per tracker |

@@ -10,14 +10,14 @@ import {
 const status = (id: TrackerStatus['id'], state: TrackerStatus['state']) => ({ id, state }) as TrackerStatus;
 const issue = (key: string, importedItemId: string | null = null) => ({ tracker: 'github-issues', key, importedItemId }) as TrackerIssue;
 
-test('GitHub and GitLab number their issues, Jira and YouTrack write the key', () => {
+test('GitHub and GitLab number their issues, YouTrack writes the key', () => {
   assert.equal(issueRef('github-issues', '12'), '#12');
   assert.equal(issueRef('gitlab-issues', '7'), '#7');
-  assert.equal(issueRef('jira', 'PROJ-12'), 'PROJ-12');
+  assert.equal(issueRef('youtrack', 'PROJ-12'), 'PROJ-12');
 });
 
-test('a tracker that is not built offers no action, whatever its state; YouTrack is connected on its row', () => {
-  assert.equal(trackerAction(status('jira', 'unknown')), null);
+test('a tracker turned off offers no action, whatever its state; YouTrack is connected on its row', () => {
+  assert.equal(trackerAction(status('youtrack', 'signed-out'), false), null);
   assert.equal(trackerAction(status('youtrack', 'not-installed')), 'install');
   assert.equal(trackerAction(status('youtrack', 'signed-out')), 'connect');
   assert.equal(trackerAction(status('youtrack', 'ready')), null);
@@ -37,12 +37,11 @@ test('status colours: ready ok, signed out warn, incompatible bad, off muted', (
 test('only a ready, built tracker can be chosen for a project', () => {
   assert.equal(canChooseTracker(status('github-issues', 'ready')), true);
   assert.equal(canChooseTracker(status('github-issues', 'signed-out')), false);
-  assert.equal(canChooseTracker(status('jira', 'ready')), false);
   assert.equal(canChooseTracker(undefined), false);
 });
 
 test('settings entries default to on and are replaced one at a time', () => {
-  assert.deepEqual(trackerEntry(undefined, 'jira'), { enabled: true, binaryPath: null });
+  assert.deepEqual(trackerEntry(undefined, 'youtrack'), { enabled: true, binaryPath: null });
   const base = { trackers: { 'github-issues': { enabled: true, binaryPath: null } } } as never;
   const next = withTrackerEntry(base, 'github-issues', { enabled: false, binaryPath: '/bin/gh' });
   assert.equal(trackerEntry(next, 'github-issues').enabled, false);
@@ -51,7 +50,7 @@ test('settings entries default to on and are replaced one at a time', () => {
 test('only the done column writes to GitHub and GitLab', () => {
   assert.deepEqual(statusChoices('github-issues', 'done'), ['completed']);
   assert.equal(columnSyncs('gitlab-issues', 'in_review'), false);
-  assert.equal(columnSyncs('jira', 'done'), false);
+  assert.equal(columnSyncs('youtrack', 'in_review'), true);
   assert.deepEqual(setMapped({ done: 'completed' }, 'done', ''), {});
   assert.deepEqual(setMapped({}, 'done', 'completed'), { done: 'completed' });
 });

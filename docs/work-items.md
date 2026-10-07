@@ -439,7 +439,7 @@ The issues travel with the item: its change request's body gets a `## Linked iss
 mapped a column to a tracker status the item's moves and its merge are written to the tracker, one
 write each and never retried. The outcome is on the issue (`syncState`, `syncReason`), and
 `POST /work-items/:itemId/issues/:key/sync` is the person's **Sync again**. Details, reasons and
-what is not built (Jira and YouTrack) are in [trackers.md](trackers.md).
+YouTrack's own path are in [trackers.md](trackers.md).
 
 ### Links
 

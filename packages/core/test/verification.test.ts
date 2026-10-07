@@ -9,7 +9,8 @@ import type { Orchestration, VerificationSpec } from '@agentry/shared';
 import { ChatManager } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { Orchestrator, verificationSteps } from '../src/orchestrator.ts';
-import { failedSpecs, fixerPrompt, installStep, normalizeVerification, runCommand, tail, workerChecks } from '../src/verification.ts';
+import { e2eSpecsChecks, e2eSpecsPrompt, E2E_SPECS_TASK_ID, failedSpecs, fixerPrompt, installStep, normalizeVerification, runCommand, tail, workerChecks } from '../src/verification.ts';
+import { specOfOrchestration } from '@agentry/shared';
 import { tempConfig } from './helpers.ts';
 
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.meta.url));
@@ -215,13 +216,76 @@ test('the fixer is told the failed spec files only when there are some, in words
 
 test('workers are told the split of checks, whether or not a verification phase exists', () => {
   const withPhase = workerChecks(true);
-  assert.match(withPhase, /type check and the unit tests/);
   assert.match(withPhase, /Do not run the end-to-end or browser suite/);
   assert.match(withPhase, /verification phase/);
   assert.match(withPhase, /under `timeout`/);
   const without = workerChecks(false);
   assert.match(without, /Do not run the end-to-end or browser suite/);
   assert.doesNotMatch(without, /verification phase/);
+  for (const text of [withPhase, without]) {
+    // Scoped checks: the package or files changed, the whole suite once and later
+    assert.match(text, /type check and the tests of the package or the test files you changed/);
+    assert.match(text, /not the whole repository/);
+    assert.match(text, /whole suite runs once, later/);
+    // Long commands in the foreground, never backgrounded and polled
+    assert.match(text, /in the foreground under `timeout`/);
+    assert.match(text, /Never send one to the background \(`&`, `run_in_background`, `nohup`\) to poll it with `sleep`/);
+    assert.match(text, /leave no process of yours running/);
+    // Batched reads
+    assert.match(text, /Read several files in one call/);
+    // A tool of this repository only as an example
+    for (const name of ['pnpm', 'E2E_PORT', 'e2e/']) {
+      for (const at of [...text.matchAll(new RegExp(name.replace('/', '\\/'), 'g'))].map((m) => m.index)) {
+        assert.match(text.slice(Math.max(0, at - 60), at), /for example/, `${name} outside an example`);
+      }
+    }
+  }
+});
+
+test('a graph with a verification phase gets one task that runs the browser specs its changes touch, last before the merge', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const spec: VerificationSpec = { commands: ['true'], fixer: false, maxAttempts: 1, timeoutMinutes: 5 };
+  const orch = orchestrator.create({
+    name: 'touched', cwd: repo, worktree: true, verification: spec,
+    tasks: [{ id: 'api', name: 'API', prompt: 'FAKE-WRITE api.txt server' }, { id: 'web', name: 'Web', prompt: 'FAKE-WRITE web.txt page', dependsOn: ['api'] }],
+  });
+  const specs = orch.tasks.find((t) => t.id === E2E_SPECS_TASK_ID);
+  assert.equal(specs?.builtIn, 'e2e-specs');
+  assert.deepEqual(specs?.dependsOn, ['api', 'web'], 'it starts from the combined work of every other task');
+  assert.equal(specs?.prompt, e2eSpecsPrompt(orch.baseCommit ?? null));
+  assert.match(specs?.prompt ?? '', /run each chosen spec alone, on a free port of your own, under `timeout`/);
+  assert.match(specs?.prompt ?? '', /never the whole suite/);
+  assert.match(specs?.prompt ?? '', /never loosen or skip an assertion/);
+  // A relaunch or a template carries the person's tasks; the launch adds this one again
+  assert.deepEqual(specOfOrchestration(orch).tasks.map((t) => t.id), ['api', 'web']);
+  const done = await settle(orchestrator, orch.id);
+  assert.equal(done.tasks.find((t) => t.id === E2E_SPECS_TASK_ID)?.status, 'completed');
+  await until(() => orchestrator.get(orch.id)?.verification?.status !== 'running', 'the checks to end');
+  db.close();
+});
+
+test('the specs task is left out with e2eSpecs false, without a verification phase, and when the graph names one already', () => {
+  const { db, repo, orchestrator } = fixture();
+  const spec: VerificationSpec = { commands: ['true'], fixer: false, maxAttempts: 1, timeoutMinutes: 5 };
+  const ids = (o: Orchestration) => o.tasks.map((t) => t.id);
+  const off = orchestrator.create({ name: 'off', cwd: repo, worktree: true, verification: { ...spec, e2eSpecs: false }, tasks: [{ id: 'a', name: 'a', prompt: 'x' }] });
+  assert.deepEqual(ids(off), ['a']);
+  assert.equal(off.verificationSpec?.e2eSpecs, false, 'kept, so a relaunch leaves it out too');
+  const none = orchestrator.create({ name: 'none', cwd: repo, worktree: true, tasks: [{ id: 'a', name: 'a', prompt: 'x' }] });
+  assert.deepEqual(ids(none), ['a']);
+  const own = orchestrator.create({ name: 'own', cwd: repo, worktree: true, verification: spec, tasks: [{ id: 'a', name: 'a', prompt: 'x' }, { id: E2E_SPECS_TASK_ID, name: 'mine', prompt: 'y', dependsOn: ['a'] }] });
+  assert.deepEqual(ids(own), ['a', E2E_SPECS_TASK_ID]);
+  assert.equal(own.tasks[1]?.builtIn, undefined);
+  for (const o of [off, none, own]) orchestrator.stop(o.id);
+  db.close();
+});
+
+test('the specs task is told to run browser specs, which every other worker is told not to', () => {
+  const text = e2eSpecsChecks();
+  assert.doesNotMatch(text, /Do not run the end-to-end or browser suite:/);
+  assert.match(text, /Do not run the whole end-to-end suite/);
+  assert.match(text, /in the foreground under `timeout`/);
+  assert.match(text, /Read several files in one call/);
 });
 
 test('output is cut to its end, at a line, without colour codes', () => {
@@ -701,8 +765,8 @@ test('the fixer gets what is left of its cost limit on each attempt, and stops w
     assert.equal(v?.attempts, 2);
     assert.ok(Math.abs((v?.costUsd ?? 0) - 0.02) < 1e-9, String(v?.costUsd));
     assert.match(v?.report ?? '', /cost limit of \$0\.02 is spent \(\$0\.02 over 2 attempts\)/);
-    // The worker and the fixer, both in the graph's cost
-    assert.ok(Math.abs(orch.costUsd - 0.03) < 1e-9, String(orch.costUsd));
+    // The worker, the browser specs task and the fixer, all in the graph's cost
+    assert.ok(Math.abs(orch.costUsd - 0.04) < 1e-9, String(orch.costUsd));
     const budgets = readFileSync(spawns, 'utf8')
       .split('\n')
       .map((line) => / --max-budget-usd (\S+)/.exec(line)?.[1])

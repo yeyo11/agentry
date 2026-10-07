@@ -114,12 +114,13 @@ export default async ({ page, api, check }) => {
     check(past === 0, `nothing in the header leaves a 320px screen (${past} elements do)`);
     const titleWidth = await page.eval(`return document.querySelector('.chat-head h1').getBoundingClientRect().width`);
     check(titleWidth >= 60, `the title keeps room to be read at 320px (${titleWidth}px)`);
-    await page.focus('.chat-head button[aria-label="More chat actions"]');
-    await page.key('Enter');
-    await page.waitFor(`return !!document.querySelector('[role=menu]')`, { label: 'the chat menu on a phone' });
-    check((await page.text('[role=menu]')).includes('Search'), 'on a phone search is in the menu');
+    // On a phone "⋯" is a plain button that opens the chat's actions as a sheet of big buttons, as every
+    // phone head does (the driver's synthetic Enter does not press a plain button, so it is clicked)
+    await page.click('.chat-head button[aria-label="More chat actions"]', undefined, 300);
+    await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: 'the chat actions sheet on a phone' });
+    check((await page.text('[role=dialog]')).includes('Search'), 'on a phone search is in the sheet');
     await page.key('Escape');
-    await page.waitFor(`return !document.querySelector('[role=menu]')`, { label: 'the menu closes' });
+    await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: 'the sheet closes' });
     await page.viewport(390, 844);
     await page.click('.chat-head button[aria-label="Chat details"]');
     await page.waitFor(`return !!document.querySelector('[role=dialog] .chat-inspector-body')`, { label: 'the inspector as a sheet' });

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Redaction rules for everything recorded from `gh`, `glab`, `acli` and `youtrack-app`: the
+// Redaction rules for everything recorded from `gh`, `glab` and `youtrack-app`: the
 // committed fixtures (this CLI) and, from task c13 on, `hosts/redact.ts`, which imports these rules
 // so that a stored error detail and a committed recording are cleaned by the same code.
 //

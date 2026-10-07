@@ -94,7 +94,10 @@ before(async () => {
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
 });
 
-after(() => app.close());
+after(async () => {
+  await app.close();
+  core.shutdown();
+});
 
 test('approving an item in review answers 202, opens one PR, and a second call answers 200 with the same PR', async () => {
   const { project, path, remote } = await gitProject('Shop');

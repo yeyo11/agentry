@@ -18,7 +18,7 @@ import type {
  * and `hosts/exec.ts` is the only place that spawns it (docs/plans/code-hosts.md, execution layer).
  */
 export interface HostCall {
-  cli: 'gh' | 'glab' | 'acli' | 'youtrack-app';
+  cli: 'gh' | 'glab' | 'youtrack-app';
   /** argv, never a shell string */
   args: string[];
   /** stdin; bodies always travel here or in a 0600 temp file */
