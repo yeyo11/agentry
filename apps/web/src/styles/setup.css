@@ -305,6 +305,12 @@
   gap: 10px;
 }
 
+/* A sign-in with no code (Tailscale) shows its link here, which may be longer than the box */
+.signin-code-box .signin-url {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .signin-code {
   font-family: var(--mono);
   font-size: 34px;

@@ -1124,7 +1124,13 @@
       "openDns": "Open DNS settings",
       "update": "Update Tailscale",
       "recheck": "Check again",
-      "version": "Tailscale {{version}}"
+      "version": "Tailscale {{version}}",
+      "managed": {
+        "title": "Connect this Agentry to your tailnet",
+        "body": "This container runs a Tailscale of its own for Agentry. Sign it in to your tailnet, with a link you open on any device or with an auth key; it stays signed in when the container is replaced.",
+        "signIn": "Sign in to Tailscale",
+        "daemonDown": "Restart the container: Agentry starts this Tailscale with it."
+      }
     },
     "disabled": {
       "tag": "turned off",

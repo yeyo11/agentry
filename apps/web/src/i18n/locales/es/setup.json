@@ -34,6 +34,20 @@
     "generateAnother": "Generar otro",
     "readOnly": "Agentry está en modo solo lectura: el acceso no se puede cambiar desde aquí."
   },
+  "remote": {
+    "aria": "Acceso remoto",
+    "name": "Tailscale",
+    "meta": "Llega a Agentry desde el móvil, en tu tailnet",
+    "node": "En la tailnet como {{host}}",
+    "reason": {
+      "signedIn": "Con sesión iniciada. El túnel se abre en Ajustes → Acceso remoto, cuando el acceso de arriba pida un token.",
+      "loggedOut": "Todavía sin sesión en ninguna tailnet. Inicia sesión con un enlace o con una clave de autenticación.",
+      "stopped": "Con sesión, pero sin conexión. Vuelve a iniciar sesión para conectarlo.",
+      "daemonDown": "El servicio de Tailscale de este contenedor no responde. Reinicia el contenedor.",
+      "machine": "El Tailscale de esta máquina es tuyo: inicia sesión con su app o con tailscale up. Agentry lo usa tal como esté.",
+      "missing": "Tailscale no está instalado en esta máquina."
+    }
+  },
   "agents": {
     "title": "Inicia sesión en tus agentes",
     "intro": "Cada agente usa su propia cuenta. Inicia sesión aquí, con un código o con una clave: no hace falta abrir una terminal en el servidor.",
@@ -60,7 +74,8 @@
     "where": {
       "security": "Ajustes → Seguridad",
       "providers": "Ajustes → Proveedores",
-      "integrations": "Ajustes → Integraciones"
+      "integrations": "Ajustes → Integraciones",
+      "remote": "Ajustes → Acceso remoto"
     }
   },
   "panel": {
@@ -68,7 +83,8 @@
     "method": "Cómo iniciar sesión",
     "methods": {
       "device": "Código",
-      "key": "Clave"
+      "key": "Clave",
+      "link": "Enlace"
     },
     "variable": "Qué vas a pegar",
     "variableProvider": "Proveedor de la clave",
@@ -85,7 +101,8 @@
       "gemini": "Clave de API de Gemini",
       "copilot": "Token de GitHub",
       "gh": "Token de acceso personal",
-      "glab": "Token de acceso personal"
+      "glab": "Token de acceso personal",
+      "tailscale": "Clave de autenticación de Tailscale"
     },
     "link": {
       "claude-code": "Cómo se crea el token",
@@ -93,7 +110,8 @@
       "gemini": "Crear una clave en aistudio.google.com",
       "copilot": "Crear un token en github.com",
       "gh": "Crear un token en {{host}}",
-      "glab": "Crear un token en {{host}}"
+      "glab": "Crear un token en {{host}}",
+      "tailscale": "Crear una clave de autenticación en la consola de Tailscale"
     },
     "hint": {
       "envSealed": "Se guarda cifrada y solo la reciben los procesos de {{label}}. No se vuelve a mostrar.",
@@ -102,7 +120,8 @@
       "codex": "Codex la guarda en su propia configuración; Agentry no se queda con una copia.",
       "copilot": "Un token de grano fino con el permiso Copilot Requests. Copilot lo guarda en su configuración; Agentry no se queda con una copia.",
       "gh": "Con los permisos repo, read:org y workflow. gh lo guarda en su propia configuración; Agentry no se queda con una copia.",
-      "glab": "Con los permisos api y write_repository. glab lo guarda en su propia configuración; Agentry no se queda con una copia."
+      "glab": "Con los permisos api y write_repository. glab lo guarda en su propia configuración; Agentry no se queda con una copia.",
+      "tailscale": "Basta con usarla una vez: Tailscale mantiene la sesión de esta máquina con una clave propia y Agentry no se queda con una copia. Llega a Tailscale por un archivo que solo él puede leer y que se borra justo después."
     },
     "claude": "Claude Code no tiene un inicio de sesión que Agentry pueda hacer por ti. En <b>tu propio ordenador</b>, donde ya usas Claude, ejecuta <code>claude setup-token</code> en una terminal: abre el navegador, entras con tu suscripción y te muestra un token que dura un año. Pégalo aquí.",
     "claudeApiKey": "Una clave de API de Anthropic se cobra a la cuenta de la API a la que pertenece, no a tu suscripción.",
@@ -113,10 +132,15 @@
     "codexNote": "Si ChatGPT no deja entrar con un código, activa antes el inicio de sesión con código de dispositivo en los ajustes de seguridad de tu cuenta de ChatGPT.",
     "codexLink": "Abrir los ajustes de ChatGPT",
     "starting": "Pidiendo un código a {{label}}…",
+    "startingLink": "Pidiendo a {{label}} un enlace para iniciar sesión…",
     "open": "Abre esta página en cualquier dispositivo:",
     "type": "Escribe este código y aprueba el acceso.",
     "codeAria": "Código de {{label}}",
     "copyCode": "Copiar el código",
+    "linkAria": "Enlace de inicio de sesión de {{label}}",
+    "openLink": "Abre este enlace en cualquier dispositivo donde puedas iniciar sesión en Tailscale:",
+    "approveLink": "Inicia sesión y conecta esta máquina a tu tailnet. No hay ningún código que escribir.",
+    "copyLink": "Copiar el enlace",
     "waiting": "Esperando a que lo apruebes",
     "expiresIn": "caduca en {{left}}",
     "opensNewTab": "se abre en una pestaña nueva",

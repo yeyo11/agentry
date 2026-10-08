@@ -1124,7 +1124,13 @@
       "openDns": "Abrir los ajustes de DNS",
       "update": "Actualizar Tailscale",
       "recheck": "Volver a comprobar",
-      "version": "Tailscale {{version}}"
+      "version": "Tailscale {{version}}",
+      "managed": {
+        "title": "Conecta este Agentry a tu tailnet",
+        "body": "Este contenedor ejecuta un Tailscale propio para Agentry. Inicia sesión en tu tailnet con un enlace que abres en cualquier dispositivo o con una clave de autenticación; la sesión se conserva aunque se sustituya el contenedor.",
+        "signIn": "Iniciar sesión en Tailscale",
+        "daemonDown": "Reinicia el contenedor: Agentry arranca este Tailscale con él."
+      }
     },
     "disabled": {
       "tag": "desactivado",

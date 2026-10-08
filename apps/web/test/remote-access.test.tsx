@@ -11,6 +11,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { keys } from '../src/api';
 import { TooltipProvider } from '@agentry/ui/components/controls/Tooltip';
 import { ToastProvider } from '@agentry/ui/components/Toast';
+import { ConfirmProvider } from '@agentry/ui/components/Dialog';
 import i18n from '../src/i18n';
 import { patchSettings, targetsFor } from '../src/lib/events';
 import { encodeQr, formatBits, reedSolomon } from '../src/lib/qr';
@@ -31,6 +32,7 @@ const status = (state: TunnelState, extra: Partial<TunnelStatus> = {}): TunnelSt
   since: state === 'active' ? new Date(Date.now() - 60_000).toISOString() : null,
   reason: null,
   enabled: true,
+  managed: false,
   tailscale: READY,
   port: 8443,
   settings: { startWithAgentry: false },
@@ -42,7 +44,9 @@ function wrap(children: ReactNode, client = new QueryClient()) {
     <QueryClientProvider client={client}>
       <MemoryRouter>
         <TooltipProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider>
+            <ConfirmProvider>{children}</ConfirmProvider>
+          </ToastProvider>
         </TooltipProvider>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -216,6 +220,25 @@ test('each way Tailscale is not ready says what is missing and what to do, befor
     if (link) assert.match(html, new RegExp(`href="${link}"`), state);
     assert.equal(/<code class="mono">tailscale up<\/code>/.test(html), state === 'loggedOut' || state === 'stopped', state);
   }
+});
+
+test('the Tailscale Agentry runs is signed in from the tab, never with a command to run, and signed out beside its name', () => {
+  const managed = (state: TailscaleReadiness['state'], code: string, host: string | null = null) =>
+    panel(status('stopped', { managed: true, tailscale: { state, version: '1.102.4', host, reason: state === 'ready' ? null : { code, params: { state: 'Stopped' }, text: 'x' } } }));
+  for (const state of ['loggedOut', 'stopped'] as const) {
+    const html = managed(state, state === 'loggedOut' ? 'tunnel.managedLoggedOut' : 'tunnel.managedNotConnected');
+    assert.match(html, new RegExp(`data-testid="tunnel-tailscale-${state}"`), state);
+    assert.match(html, /data-testid="tunnel-sign-in"/, state);
+    assert.ok(text(html).includes('Sign in to Tailscale'), state);
+    assert.doesNotMatch(html, /tailscale up|signin-device/, `${state}: no command, and no link is asked for before the person presses Sign in`);
+  }
+  const down = managed('daemonDown', 'tunnel.managedDaemonDown');
+  assert.doesNotMatch(down, /tailscale up|tunnel-sign-in/);
+  const ready = panel(status('stopped', { managed: true, tailscale: { ...READY } }));
+  assert.match(ready, /data-action="sign-out"/);
+  assert.match(ready, /tunnel-start/);
+  // A machine's own Tailscale has no Sign out here
+  assert.doesNotMatch(panel(status('stopped')), /data-action="sign-out"/);
 });
 
 test('a deploy that turned the tunnel off says who can turn it on, and offers no button', () => {

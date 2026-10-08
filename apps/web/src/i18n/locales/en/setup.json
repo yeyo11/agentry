@@ -34,6 +34,20 @@
     "generateAnother": "Generate another",
     "readOnly": "Agentry is in read-only mode: the access cannot be changed from here."
   },
+  "remote": {
+    "aria": "Remote access",
+    "name": "Tailscale",
+    "meta": "Reach Agentry from your phone, on your tailnet",
+    "node": "On the tailnet as {{host}}",
+    "reason": {
+      "signedIn": "Signed in. You open the tunnel in Settings → Remote access, once the access above asks for a token.",
+      "loggedOut": "Not signed in to a tailnet yet. Sign in with a link or an auth key.",
+      "stopped": "Signed in, but not connected. Sign in again to connect it.",
+      "daemonDown": "The Tailscale service of this container is not answering. Restart the container.",
+      "machine": "Tailscale on this machine is yours to sign in, with its app or tailscale up. Agentry uses it as it is.",
+      "missing": "Tailscale is not installed on this machine."
+    }
+  },
   "agents": {
     "title": "Sign in to your agents",
     "intro": "Each agent uses its own account. Sign in here, with a code or a key: there is no need to open a terminal on the server.",
@@ -60,7 +74,8 @@
     "where": {
       "security": "Settings → Security",
       "providers": "Settings → Providers",
-      "integrations": "Settings → Integrations"
+      "integrations": "Settings → Integrations",
+      "remote": "Settings → Remote access"
     }
   },
   "panel": {
@@ -68,7 +83,8 @@
     "method": "How to sign in",
     "methods": {
       "device": "Code",
-      "key": "Key"
+      "key": "Key",
+      "link": "Link"
     },
     "variable": "What you will paste",
     "variableProvider": "Provider of the key",
@@ -85,7 +101,8 @@
       "gemini": "Gemini API key",
       "copilot": "GitHub token",
       "gh": "Personal access token",
-      "glab": "Personal access token"
+      "glab": "Personal access token",
+      "tailscale": "Tailscale auth key"
     },
     "link": {
       "claude-code": "How the token is made",
@@ -93,7 +110,8 @@
       "gemini": "Create a key at aistudio.google.com",
       "copilot": "Create a token at github.com",
       "gh": "Create a token at {{host}}",
-      "glab": "Create a token at {{host}}"
+      "glab": "Create a token at {{host}}",
+      "tailscale": "Create an auth key in the Tailscale admin console"
     },
     "hint": {
       "envSealed": "Kept encrypted, and only {{label}}'s processes receive it. It is not shown again.",
@@ -102,7 +120,8 @@
       "codex": "Codex keeps it in its own configuration; Agentry keeps no copy.",
       "copilot": "A fine-grained token with the Copilot Requests permission. Copilot keeps it in its configuration; Agentry keeps no copy.",
       "gh": "With the repo, read:org and workflow scopes. gh keeps it in its own configuration; Agentry keeps no copy.",
-      "glab": "With the api and write_repository scopes. glab keeps it in its own configuration; Agentry keeps no copy."
+      "glab": "With the api and write_repository scopes. glab keeps it in its own configuration; Agentry keeps no copy.",
+      "tailscale": "One use is enough: Tailscale keeps this machine signed in with a key of its own, and Agentry keeps no copy. It reaches Tailscale through a file only it can read, removed right after."
     },
     "claude": "Claude Code has no sign-in Agentry can do for you. On <b>your own computer</b>, where you already use Claude, run <code>claude setup-token</code> in a terminal: it opens the browser, you sign in with your subscription, and it shows you a token that lasts a year. Paste it here.",
     "claudeApiKey": "An Anthropic API key bills the API account it belongs to, not your subscription.",
@@ -113,10 +132,15 @@
     "codexNote": "If ChatGPT does not let you in with a code, first turn on device code sign-in in your ChatGPT account's security settings.",
     "codexLink": "Open ChatGPT's settings",
     "starting": "Asking {{label}} for a code…",
+    "startingLink": "Asking {{label}} for a sign-in link…",
     "open": "Open this page on any device:",
     "type": "Type this code and approve the access.",
     "codeAria": "{{label}} code",
     "copyCode": "Copy the code",
+    "linkAria": "{{label}} sign-in link",
+    "openLink": "Open this link on any device where you can sign in to Tailscale:",
+    "approveLink": "Sign in and connect this machine to your tailnet. There is no code to type.",
+    "copyLink": "Copy the link",
     "waiting": "Waiting for you to approve",
     "expiresIn": "expires in {{left}}",
     "opensNewTab": "opens in a new tab",

@@ -9,8 +9,10 @@ import {
   type ProviderReasonCode,
   type ProviderStatus,
   type SetupState,
+  type SetupTailscaleSummary,
   type SetupTool,
   type SetupToolMethods,
+  type TailscaleReadinessState,
 } from '@agentry/shared';
 import { providerLink } from './provider-state';
 
@@ -86,14 +88,20 @@ export function keyLink(tool: SetupTool, host: string | null): string | null {
       return `https://${at || 'github.com'}/settings/tokens`;
     case 'glab':
       return `https://${at || 'gitlab.com'}/-/user_settings/personal_access_tokens`;
+    case 'tailscale':
+      return TAILSCALE_KEYS_URL;
     case 'opencode':
     case 'youtrack':
       return null;
   }
 }
 
+/** Where a tailnet's admin makes an auth key */
+export const TAILSCALE_KEYS_URL = 'https://login.tailscale.com/admin/settings/keys';
+
 /** Where a tool's program is installed from, for a sign-in that found none: the vendor's page. */
 export function installLink(tool: SetupTool): string | null {
+  if (tool === 'tailscale') return 'https://tailscale.com/download';
   if (tool === 'gh') return 'https://cli.github.com';
   if (tool === 'glab') return 'https://gitlab.com/gitlab-org/cli#installation';
   if (tool === 'youtrack') return 'https://www.npmjs.com/package/@jetbrains/youtrack-apps-tools';
@@ -154,6 +162,29 @@ export function offersSignOut(methods: SetupToolMethods | null, state: ProviderR
   return state === 'ready' || state === 'degraded' || (state === 'unknown' && reason === 'no-probe');
 }
 
+// ---------------------------------------------------------------- Tailscale
+
+/** Signed in to a tailnet: any state past `loggedOut` (HTTPS or MagicDNS off are the tailnet's settings, not the sign-in's). */
+export const tailscaleSignedIn = (state: TailscaleReadinessState): boolean => state === 'ready' || state === 'httpsDisabled' || state === 'stopped';
+
+/**
+ * What the Tailscale row offers. Sign in and sign out only where Agentry runs the daemon (the Docker
+ * image): a machine's own Tailscale is the person's, and the row shows its state and where to look.
+ * `stopped` offers Sign in too: `tailscale up` is also what connects a node again.
+ */
+export function tailscaleActions(summary: Pick<SetupTailscaleSummary, 'enabled' | 'managed' | 'state'>): { signIn: boolean; signOut: boolean } {
+  const ours = summary.enabled && summary.managed;
+  return {
+    signIn: ours && (summary.state === 'loggedOut' || summary.state === 'stopped'),
+    signOut: ours && (summary.state === 'ready' || summary.state === 'httpsDisabled'),
+  };
+}
+
+/** The colour of the Tailscale row's state, always beside its word */
+export function tailscaleTone(state: TailscaleReadinessState): 'ok' | 'warn' {
+  return state === 'ready' ? 'ok' : 'warn';
+}
+
 // ---------------------------------------------------------------- the assistant
 
 export const SETUP_STEPS = ['access', 'agents', 'code', 'done'] as const;
@@ -210,7 +241,7 @@ export function codeReady(hosts: Pick<CodeHostStatus, 'state'>[], youtrackReady:
 /** A line of the Done step: a tool, its badge, and the Settings tab where it is changed. */
 export interface SummaryRow {
   id: string;
-  kind: 'access' | 'provider' | 'host' | 'youtrack';
+  kind: 'access' | 'provider' | 'host' | 'youtrack' | 'tailscale';
   label: string;
   /** The account, the access mode or the address; null when there is none to name */
   detail: string | null;
@@ -218,7 +249,7 @@ export interface SummaryRow {
   host?: string;
   /** ready: Ready (ok). signed-out: Signed out (warn). skipped: plain "Skipped". open: plain, access with no guard */
   badge: 'ready' | 'signed-out' | 'skipped' | 'open';
-  where: 'security' | 'providers' | 'integrations';
+  where: 'security' | 'providers' | 'integrations' | 'remote';
 }
 
 const usable = (state: string) => state === 'ready' || state === 'degraded';
@@ -232,6 +263,8 @@ export function summaryRows(input: {
   providers: ProviderStatus[];
   hosts: CodeHostStatus[];
   youtrack: { state: string | null; host: string | null; user: string | null } | null;
+  /** Left out where the deploy offers no tunnel, or where a machine's Tailscale is not even installed */
+  tailscale?: SetupTailscaleSummary | null;
   skipped: SetupStep[];
 }): SummaryRow[] {
   const missed = (step: SetupStep) => (input.skipped.includes(step) ? 'skipped' : 'signed-out');
@@ -266,8 +299,14 @@ export function summaryRows(input: {
     const ready = input.youtrack.state === 'ready';
     rows.push({ id: 'youtrack', kind: 'youtrack', label: 'YouTrack', detail: ready ? input.youtrack.host : null, badge: ready ? 'ready' : missed('code'), where: 'integrations' });
   }
+  const tailscale = input.tailscale;
+  if (tailscale?.enabled && (tailscale.managed || tailscale.state !== 'missing')) {
+    const signed = tailscaleSignedIn(tailscale.state);
+    // It is set up in the Access step, so skipping that step is what leaves it out
+    rows.push({ id: 'tailscale', kind: 'tailscale', label: 'Tailscale', detail: signed ? tailscale.host : null, badge: signed ? 'ready' : missed('access'), where: 'remote' });
+  }
   return rows;
 }
 
 /** The query keys a sign-in or a sign-out changes: the readiness of every list that shows the tool. */
-export const READINESS_KEYS = [['setup'], ['providers'], ['hosts'], ['trackers'], ['auth'], ['overview']] as const;
+export const READINESS_KEYS = [['setup'], ['providers'], ['hosts'], ['trackers'], ['auth'], ['overview'], ['tunnel']] as const;

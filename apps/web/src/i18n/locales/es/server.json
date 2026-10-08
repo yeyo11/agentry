@@ -89,6 +89,9 @@
     "portTaken": "El puerto {{port}} del nombre de esta máquina en la tailnet ya sirve otra cosa, y Agentry no lo toca. Libéralo o elige otro puerto con AGENTRY_TUNNEL_PORT.",
     "serveFailed": "tailscale serve no ha aceptado la regla: {{detail}}",
     "unverified": "La regla de Serve se ha enviado, pero la configuración de Serve de esta máquina no muestra que apunte a Agentry.",
-    "ruleRemoved": "La regla de Serve de Agentry se ha quitado o cambiado fuera de Agentry, así que el túnel está cerrado."
+    "ruleRemoved": "La regla de Serve de Agentry se ha quitado o cambiado fuera de Agentry, así que el túnel está cerrado.",
+    "managedDaemonDown": "El servicio de Tailscale que este contenedor arranca para Agentry no responde. Reinicia el contenedor; su registro es tailscaled.log, en la carpeta tailscale del volumen de datos.",
+    "managedLoggedOut": "El Tailscale de este Agentry no tiene la sesión iniciada en ninguna tailnet. Inicia sesión desde Ajustes → Acceso remoto.",
+    "managedNotConnected": "El Tailscale de este Agentry no está conectado ({{state}}). Vuelve a iniciar sesión desde Ajustes → Acceso remoto."
   }
 }

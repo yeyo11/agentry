@@ -1147,6 +1147,19 @@ button.master-item-on:hover {
   margin: 0;
 }
 
+/* The node's name, with Sign out beside it where Agentry runs the Tailscale (the Docker image) */
+.tunnel-node {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.tunnel-node > p {
+  margin: 0;
+}
+
 /* The open address: the text beside its QR code, the code under it on a phone */
 .tunnel-address {
   display: flex;

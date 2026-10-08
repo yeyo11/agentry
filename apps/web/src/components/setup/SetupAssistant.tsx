@@ -39,12 +39,14 @@ import { YoutrackAccess } from '../../pages/config/YoutrackAccess';
 import { useProviderSignIn } from './provider-sign-in';
 import { SecretsCallout } from './SecretsCard';
 import { SignInPanel, SignInSheet } from './SignInPanel';
+import { TailscaleRow } from './TailscaleRow';
 
 /** Where each Settings tab of the summary is */
 const WHERE: Record<SummaryRow['where'], string> = {
   security: '/settings?tab=security',
   providers: '/settings?tab=providers',
   integrations: '/settings?tab=integrations',
+  remote: '/settings?tab=remote',
 };
 
 /**
@@ -219,18 +221,29 @@ function Intro({ title, text }: { title: string; text: string }) {
 const SETUP_MODES: AuthMode[] = ['none', 'token'];
 
 /**
- * Step 1: who may open Agentry. The mode (None or Token) and the token shown once, from the same
- * pieces as Settings → Security; OIDC and the read-only mode stay there. Turning Token on makes a
- * token first when this browser holds none, so the step can never lock the person out.
+ * Step 1: who may open Agentry, and from where. The mode (None or Token) and the token shown once,
+ * from the same pieces as Settings → Security; OIDC and the read-only mode stay there. Turning Token
+ * on makes a token first when this browser holds none, so the step can never lock the person out.
+ * Below it, Tailscale, which Remote access goes through: signed in here where Agentry runs it (the
+ * Docker image), shown as it stands where it is the machine's own, and left out where the deploy
+ * offers no tunnel or the machine has no Tailscale.
  */
 function AccessStep({ setup, phone }: { setup: SetupState; phone: boolean }) {
   const { t } = useTranslation(['setup', 'config']);
   const auth = useQuery({ queryKey: keys.securityAuth, queryFn: ({ signal }) => api.securityAuth({ signal }) });
+  const [tailscaleOpen, setTailscaleOpen] = useState(false);
   const mode = auth.data?.mode ?? setup.access.mode;
+  const tailscale = setup.tailscale;
+  const showTailscale = tailscale.enabled && (tailscale.managed || tailscale.state !== 'missing');
   return (
     <>
       <Intro title={t('setup:access.title')} text={phone ? t('setup:access.introPhone') : t(`setup:access.intro.${mode}`)} />
       {auth.data ? <AccessCard auth={auth.data} /> : auth.error ? <ErrorBox error={auth.error} /> : <Skeleton rows={3} />}
+      {showTailscale && (
+        <section className="card prov-list" aria-label={t('setup:remote.aria')}>
+          <TailscaleRow summary={tailscale} phone={phone} open={tailscaleOpen} onToggle={setTailscaleOpen} />
+        </section>
+      )}
       {!phone && <SecretsCallout secrets={setup.secrets} />}
     </>
   );
@@ -486,13 +499,14 @@ function DoneStep({ setup, skipped, phone, onLeave }: { setup: SetupState; skipp
     providers: (providers.data ?? []).filter((status) => status.reason !== 'disabled'),
     hosts: hosts.data ?? [],
     youtrack: youtrack ? { state: youtrack.state, host: access.data?.host ?? null, user: youtrack.user ?? null } : null,
+    tailscale: setup.tailscale,
     skipped,
   });
 
   const detail = (row: SummaryRow): string => {
     if (row.kind === 'access') return t(`config:security.access.modes.${row.detail as AuthMode}.label`);
     if (row.badge === 'ready') return row.host && row.detail ? t('setup:done.onHost', { user: row.detail, host: row.host }) : (row.detail ?? '');
-    return row.kind === 'youtrack' ? t('setup:done.notConnected') : t('setup:done.noAccount');
+    return row.kind === 'youtrack' || row.kind === 'tailscale' ? t('setup:done.notConnected') : t('setup:done.noAccount');
   };
   const badge = (row: SummaryRow): ReactNode => {
     switch (row.badge) {

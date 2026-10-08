@@ -27,6 +27,7 @@ import {
   START,
   stepMarks,
   summaryRows,
+  tailscaleActions,
   timeLeft,
   variableChoices,
   variableLabel,
@@ -53,6 +54,7 @@ const METHODS: SetupToolMethods[] = [
   row('gh', { key: 'stdin', device: true, needsHost: true, defaultHost: 'github.com' }),
   row('glab', { key: 'stdin', device: true, needsHost: true, defaultHost: 'gitlab.com' }),
   row('youtrack', { variables: ['YOUTRACK_TOKEN'], needsHost: true }),
+  row('tailscale', { key: 'file', device: true }),
 ];
 const methods = (tool: SetupToolMethods['tool']) => METHODS.find((m) => m.tool === tool) as SetupToolMethods;
 
@@ -62,6 +64,7 @@ const SETUP: SetupState = {
   providers: [],
   hosts: [],
   youtrack: { configured: false, state: null, reason: null },
+  tailscale: { enabled: true, managed: true, state: 'loggedOut', host: null },
   methods: METHODS,
   secrets: { sealed: true, keyBeside: true },
 };
@@ -273,4 +276,44 @@ test('a code that waits is the one live surface: the link, the code with Copy, t
   assert.match(words(html), /Copy/);
   assert.match(words(html), /Waiting for you to approve/);
   assert.match(words(html), /expires in 14:/);
+});
+
+// ---------- Tailscale ----------
+
+test('Tailscale is signed in and out only where Agentry runs it, and Sign in also reconnects a stopped node', () => {
+  assert.deepEqual(tailscaleActions({ enabled: true, managed: true, state: 'loggedOut' }), { signIn: true, signOut: false });
+  assert.deepEqual(tailscaleActions({ enabled: true, managed: true, state: 'stopped' }), { signIn: true, signOut: false });
+  assert.deepEqual(tailscaleActions({ enabled: true, managed: true, state: 'ready' }), { signIn: false, signOut: true });
+  assert.deepEqual(tailscaleActions({ enabled: true, managed: true, state: 'daemonDown' }), { signIn: false, signOut: false });
+  // A machine's own Tailscale is the person's
+  assert.deepEqual(tailscaleActions({ enabled: true, managed: false, state: 'loggedOut' }), { signIn: false, signOut: false });
+  assert.deepEqual(tailscaleActions({ enabled: false, managed: true, state: 'loggedOut' }), { signIn: false, signOut: false });
+  assert.match(keyLink('tailscale', null) ?? '', /^https:\/\/login\.tailscale\.com\/admin\/settings\/keys$/);
+});
+
+test('the summary lists Tailscale where the tunnel is offered and there is a Tailscale, under the Access step', () => {
+  const base = { access: { mode: 'token' as const, tokenSet: true, readOnly: false }, providers: [], hosts: [], youtrack: null };
+  const signed = summaryRows({ ...base, tailscale: { enabled: true, managed: true, state: 'ready', host: 'agentry.tail0000.ts.net' }, skipped: [] });
+  assert.deepEqual(signed.find((r) => r.id === 'tailscale'), { id: 'tailscale', kind: 'tailscale', label: 'Tailscale', detail: 'agentry.tail0000.ts.net', badge: 'ready', where: 'remote' });
+  const skipped = summaryRows({ ...base, tailscale: { enabled: true, managed: true, state: 'loggedOut', host: null }, skipped: ['access'] });
+  assert.equal(skipped.find((r) => r.id === 'tailscale')?.badge, 'skipped');
+  assert.equal(summaryRows({ ...base, tailscale: { enabled: false, managed: true, state: 'loggedOut', host: null }, skipped: [] }).length, 1, 'no tunnel, no row');
+  assert.equal(summaryRows({ ...base, tailscale: { enabled: true, managed: false, state: 'missing', host: null }, skipped: [] }).length, 1, 'no Tailscale on the machine, no row');
+});
+
+test('Tailscale\'s panel offers Link / Key and asks for a sign-in link at once', async () => {
+  const html = await render(<SignInPanel tool="tailscale" label="Tailscale" onClose={() => undefined} />);
+  assert.match(words(html), /Link Key/);
+  assert.match(words(html), /Asking Tailscale for a sign-in link/);
+  assert.doesNotMatch(words(html), /\bCode\b/);
+});
+
+test('a Tailscale login URL that waits shows the link with Copy and no code, as the one live surface', async () => {
+  const url = 'https://login.tailscale.com/a/12c7b6a0132b3';
+  const html = await render(<DeviceCode session={session({ tool: 'tailscale', url, code: null, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString() })} label="Tailscale" />);
+  assert.match(html, /signin-device live-energy/);
+  assert.match(html, new RegExp(`href="${url.replace(/[./]/g, '\\$&')}"`));
+  assert.doesNotMatch(html, /data-testid="signin-code"/, 'there is no code to type');
+  assert.match(html, /aria-label="Copy the link"/);
+  assert.match(words(html), /Waiting for you to approve/);
 });

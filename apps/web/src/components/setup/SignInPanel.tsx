@@ -38,6 +38,11 @@ export interface SignInPanelProps {
    * stays open on Settings → Account, where it is the form itself and has nothing to close.
    */
   layout?: PanelLayout;
+  /**
+   * A `card` that was opened by a button and can be put away again (Settings → Remote access) offers
+   * Cancel like the other layouts; Settings → Account's card is the form itself and has none
+   */
+  closable?: boolean;
   onClose: () => void;
 }
 
@@ -61,7 +66,7 @@ export function SignInPanel(props: SignInPanelProps) {
   return <Panel {...props} methods={methods} sealed={setup.data?.secrets.sealed ?? false} />;
 }
 
-function Panel({ tool, label, host = null, layout = 'inline', onClose, methods, sealed }: SignInPanelProps & { methods: SetupToolMethods; sealed: boolean }) {
+function Panel({ tool, label, host = null, layout = 'inline', closable = false, onClose, methods, sealed }: SignInPanelProps & { methods: SetupToolMethods; sealed: boolean }) {
   const { t } = useTranslation('setup');
   const toast = useToast();
   const choices = loginMethods(methods);
@@ -71,7 +76,8 @@ function Panel({ tool, label, host = null, layout = 'inline', onClose, methods, 
     if (layout === 'card') toast.success(t('panel.signedIn', { label }));
     else onClose();
   }, [layout, label, onClose, t, toast]);
-  const login = useLogin({ onSucceeded, onCancelled: layout === 'card' ? () => undefined : onClose });
+  const closes = layout !== 'card' || closable;
+  const login = useLogin({ onSucceeded, onCancelled: closes ? onClose : () => undefined });
   const { session } = login;
   const failure = failureOf(session);
   const hostName = hostDraft.trim();
@@ -113,11 +119,12 @@ function Panel({ tool, label, host = null, layout = 'inline', onClose, methods, 
       value={method}
       onChange={choose}
       className={layout === 'sheet' ? 'signin-choice wide' : 'signin-choice'}
-      options={choices.map((value) => ({ value, label: t(`panel.methods.${value}`) }))}
+      // Tailscale's sign-in is a link with no code, so it is named for what the person gets
+      options={choices.map((value) => ({ value, label: tool === 'tailscale' && value === 'device' ? t('panel.methods.link') : t(`panel.methods.${value}`) }))}
     />
   ) : null;
 
-  const cancelButton = layout !== 'card' && (
+  const cancelButton = closes && (
     <button type="button" className={layout === 'sheet' ? 'btn' : 'btn prov-quiet'} onClick={() => (login.live ? login.cancel() : onClose())}>
       {t('panel.cancel')}
     </button>
@@ -145,14 +152,15 @@ function Panel({ tool, label, host = null, layout = 'inline', onClose, methods, 
     body = (
       <>
         {tool === 'codex' && <CodexNote />}
-        {session?.state === 'waiting-for-person' && session.url && session.code ? (
+        {session?.state === 'waiting-for-person' && session.url ? (
           <DeviceCode session={session} label={label} />
         ) : askingHost ? (
           <HostField label={label} value={hostDraft} example={methods.defaultHost} onChange={setHostDraft} />
         ) : (
           <div className="signin-wait signin-starting" role="status">
             <Spinner />
-            {t('panel.starting', { label })}
+            {/* Tailscale's sign-in is a link to open, with no code */}
+            {tool === 'tailscale' ? t('panel.startingLink', { label }) : t('panel.starting', { label })}
           </div>
         )}
         <ErrorBox error={login.startError} title={t('panel.startFailed')} />
@@ -300,13 +308,41 @@ function useNow(running: boolean): number {
 /**
  * A code waiting for the person: where to go, the code large in mono with Copy, and the braille
  * spinner beside "Waiting for you to approve". Its box carries the energy border: it is the screen's
- * one live surface while it waits.
+ * one live surface while it waits. A sign-in with no code (Tailscale's login URL) shows the link
+ * with Copy in the code's place, since opening it on another device is the whole of it.
  */
 export function DeviceCode({ session, label }: { session: LoginSession; label: string }) {
   const { t } = useTranslation('setup');
   const now = useNow(true);
   const url = session.url ?? '';
   const code = session.code ?? '';
+  if (!code) {
+    return (
+      <div className="signin-device live-energy" role="group" aria-label={t('panel.linkAria', { label })}>
+        <ol className="signin-steps">
+          <li>
+            <span className="n">1</span>
+            <span>{t('panel.openLink')}</span>
+          </li>
+          <li>
+            <span className="n">2</span>
+            <span>{t('panel.approveLink')}</span>
+          </li>
+        </ol>
+        <div className="signin-code-box">
+          <ExternalText href={url} className="signin-url">
+            {url.replace(/^https:\/\//, '')}
+          </ExternalText>
+          <CopyButton text={url} label={t('panel.copyLink')} shown />
+        </div>
+        <div className="signin-wait">
+          <Spinner />
+          <span role="status">{t('panel.waiting')}</span>
+          <span className="left">{t('panel.expiresIn', { left: timeLeft(session.expiresAt, now) })}</span>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="signin-device live-energy" role="group" aria-label={t('panel.codeAria', { label })}>
       <ol className="signin-steps">
@@ -440,13 +476,21 @@ function KeyForm({
         ? variable
         : t(`panel.field.${tool}`);
   const placeholder =
-    tool === 'claude-code' ? (claudeApiKey ? 'sk-ant-api03-…' : 'sk-ant-oat01-…') : methods.key === 'stdin' ? t('panel.pasteToken') : t('panel.pasteKey');
+    tool === 'claude-code'
+      ? claudeApiKey
+        ? 'sk-ant-api03-…'
+        : 'sk-ant-oat01-…'
+      : tool === 'tailscale'
+        ? 'tskey-auth-…'
+        : methods.key === 'stdin'
+          ? t('panel.pasteToken')
+          : t('panel.pasteKey');
   const hint =
     tool === 'opencode'
       ? t('panel.hint.opencode')
       : methods.key === 'env'
         ? t(sealed ? 'panel.hint.envSealed' : 'panel.hint.envPlain', { label })
-        : t(`panel.hint.${tool as 'codex' | 'copilot' | 'gh' | 'glab'}`);
+        : t(`panel.hint.${tool as 'codex' | 'copilot' | 'gh' | 'glab' | 'tailscale'}`);
 
   const submit = () => {
     if (!canSave) return;
@@ -495,7 +539,7 @@ function KeyForm({
         />
       </label>
       {tool !== 'claude-code' && link && (
-        <ExternalText href={link}>{t(`panel.link.${tool as 'codex' | 'gemini' | 'copilot' | 'gh' | 'glab'}`, { host: host.trim() || methods.defaultHost || '' })}</ExternalText>
+        <ExternalText href={link}>{t(`panel.link.${tool as 'codex' | 'gemini' | 'copilot' | 'gh' | 'glab' | 'tailscale'}`, { host: host.trim() || methods.defaultHost || '' })}</ExternalText>
       )}
       <span className="form-hint">{hint}</span>
       <ErrorBox error={error} title={t('panel.startFailed')} />
