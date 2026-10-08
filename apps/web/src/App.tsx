@@ -34,9 +34,8 @@ import { ProviderCard, StatusBar, useConnection } from './components/shell/Statu
 import { useRailCollapsed } from './components/shell/rail';
 import { TopBar } from './components/shell/TopBar';
 import { isActive, NavDot, navTarget, TabBar, type NavItem } from './components/shell/TabBar';
-import { ProvidersStep } from './components/ProvidersStep';
 import { SignIn } from './components/SignIn';
-import { useFirstRun } from './lib/first-run';
+import { useSetupGate } from './lib/first-run';
 import { Empty, Skeleton } from '@agentry/ui/components/ui';
 import { useUsageNow } from './lib/usage-now';
 import { useAuthChallenge, useAuthSettled } from './lib/auth';
@@ -80,6 +79,8 @@ const Schedules = lazyPage(() => import('./pages/Schedules').then((m) => m.Sched
 const ScheduleEditor = lazyPage(() => import('./pages/ScheduleEditor').then((m) => m.ScheduleEditor));
 const Usage = lazyPage(() => import('./pages/Usage').then((m) => m.Usage));
 const Settings = lazyPage(() => import('./pages/Settings').then((m) => m.Settings));
+// Shown once, on a first start: no reason to ship it in the main bundle
+const SetupAssistant = lazyPage(() => import('./components/setup/SetupAssistant').then((m) => m.SetupAssistant));
 
 /** A list prefetched on hover is used as it is if the click comes within this long. */
 const PREFETCH_FRESH_MS = 10_000;
@@ -95,12 +96,18 @@ export function App() {
   return <FirstRunGate />;
 }
 
-/** The first-run Providers step in place of the app, until it is answered or skipped */
+/** The setup assistant in place of the app, until it is finished or skipped */
 function FirstRunGate() {
-  const firstRun = useFirstRun();
-  // Held back for the two reads, as the sign-in is, so the shell does not flash and then vanish
-  if (firstRun.state === 'pending') return null;
-  if (firstRun.state === 'shown') return <ProvidersStep statuses={firstRun.statuses} onFinish={firstRun.finish} />;
+  const gate = useSetupGate();
+  // Held back for the read, as the sign-in is, so the shell does not flash and then vanish
+  if (gate.state === 'pending') return null;
+  if (gate.state === 'shown') {
+    return (
+      <Suspense fallback={null}>
+        <SetupAssistant onFinish={gate.finish} />
+      </Suspense>
+    );
+  }
   // The project selector scopes pages far from the top bar, so it lives above all of them
   return (
     <ProjectScopeProvider>
