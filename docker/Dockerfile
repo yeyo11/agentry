@@ -62,6 +62,26 @@ RUN curl -fsSL -o /tmp/claude-install.sh https://claude.ai/install.sh \
 # Read by the update check, which compares it with the newest published version
 ENV AGENTRY_CLAUDE_CODE_PINNED=${CLAUDE_CODE_VERSION}
 
+# The other agents Agentry can drive, pinned like Claude Code and for the same reason, each to a
+# version inside the range its manifest declares (packages/core/src/providers/*/manifest.ts): a
+# newer one is a driver change, so a rebuild must not move to it by accident. They go to a prefix of
+# their own in the image, which is on the PATH and where the provider detector looks anyway; what a
+# person installs later with `npm -g` goes to the same place and lives as long as the container.
+# Override with --build-arg <NAME>_VERSION=<version>.
+ARG CODEX_VERSION=0.159.3
+ARG GEMINI_CLI_VERSION=0.62.0
+ARG COPILOT_VERSION=1.0.93
+ARG OPENCODE_VERSION=1.18.35
+ENV NPM_CONFIG_PREFIX=/home/node/.npm-global
+ENV PATH=/home/node/.npm-global/bin:$PATH
+RUN npm install -g \
+      @openai/codex@${CODEX_VERSION} \
+      @google/gemini-cli@${GEMINI_CLI_VERSION} \
+      @github/copilot@${COPILOT_VERSION} \
+      opencode-ai@${OPENCODE_VERSION} \
+ && npm cache clean --force \
+ && codex --version && gemini --version && copilot --version && opencode --version
+
 WORKDIR /app
 # The whole of the wrapper: one JavaScript file, the assistant's MCP server beside it, and the built UI
 COPY --from=build --chown=node:node /app/apps/api/dist/api.mjs /app/api.mjs
@@ -82,7 +102,18 @@ ENV NODE_ENV=production \
     AGENTRY_DEFAULT_PERMISSION_MODE=bypassPermissions \
     DISABLE_AUTOUPDATER=1 \
     AGENTRY_WEB_DIST=/app/web \
-    AGENTRY_DISTRIBUTION=docker
+    AGENTRY_DISTRIBUTION=docker \
+    # Where each agent keeps its sign-in, settings and sessions, moved under /data so the one volume
+    # that holds the wrapper's state holds them too: in their default homes (~/.codex, ~/.gemini,
+    # ~/.copilot, ~/.config/opencode...) they would be gone with the container, and so would every
+    # login. The server creates these folders on start (Codex refuses a home that does not exist).
+    CODEX_HOME=/data/provider-homes/codex \
+    GEMINI_CLI_HOME=/data/provider-homes/gemini \
+    COPILOT_HOME=/data/provider-homes/copilot \
+    XDG_CONFIG_HOME=/data/provider-homes/xdg/config \
+    XDG_DATA_HOME=/data/provider-homes/xdg/data \
+    # pnpm would put its store under XDG_DATA_HOME, which is now the volume: it stays in the image
+    npm_config_store_dir=/home/node/.local/share/pnpm-store
 
 EXPOSE 8787
 VOLUME ["/home/node/.claude", "/workspace", "/data"]

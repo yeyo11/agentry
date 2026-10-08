@@ -8,7 +8,7 @@ import { McpConfig } from '../src/config/mcp.ts';
 import { parseVariant, projectScope, userScope } from '../src/config/scope.ts';
 import { ConfigResources } from '../src/config/resources.ts';
 import { CredentialStore } from '../src/credentials.ts';
-import { loadConfig } from '../src/paths.ts';
+import { ensureProviderHomes, loadConfig } from '../src/paths.ts';
 import { encodeProjectId, Workspace } from '../src/workspace.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -208,4 +208,32 @@ test('workspace projects', async () => {
   await assert.rejects(workspace.create('../escape'), /invalid project name/);
   await assert.rejects(workspace.create('repo', 'file:///etc'), /invalid git url/);
   assert.equal(encodeProjectId('/home/me/My App (1)'), '-home-me-My-App--1-');
+});
+
+test('the provider homes inside the data directory are created, and no other', () => {
+  const root = mkdtempSync(join(tmpdir(), 'agentry-homes-'));
+  const data = join(root, 'data');
+  const elsewhere = join(root, 'elsewhere', 'codex');
+  const homes = ensureProviderHomes(
+    {
+      CODEX_HOME: join(data, 'provider-homes', 'codex'),
+      GEMINI_CLI_HOME: join(data, 'provider-homes', 'gemini'),
+      COPILOT_HOME: elsewhere, // the operator's own: left to them
+      XDG_DATA_HOME: 'relative/path', // not absolute: ignored
+      XDG_CONFIG_HOME: '  ', // empty: ignored
+    },
+    data,
+  );
+  assert.deepEqual(homes, [join(data, 'provider-homes', 'codex'), join(data, 'provider-homes', 'gemini')]);
+  assert.ok(statSync(join(data, 'provider-homes', 'codex')).isDirectory());
+  assert.equal(existsSync(elsewhere), false);
+  // The data directory itself is not a provider home to make
+  assert.deepEqual(ensureProviderHomes({ CODEX_HOME: data }, data), []);
+});
+
+test('loadConfig makes the provider homes the image points under the data directory', () => {
+  const root = mkdtempSync(join(tmpdir(), 'agentry-homes-'));
+  const data = join(root, 'data');
+  loadConfig({ AGENTRY_DATA_DIR: data, AGENTRY_WORKSPACE_DIR: join(root, 'ws'), CODEX_HOME: join(data, 'provider-homes', 'codex') });
+  assert.ok(statSync(join(data, 'provider-homes', 'codex')).isDirectory());
 });

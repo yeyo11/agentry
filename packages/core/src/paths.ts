@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve, isAbsolute } from 'node:path';
 import type { AppSettingValues, PermissionMode } from '@agentry/shared';
 
 /**
@@ -165,6 +165,32 @@ export const APP_SETTING_ENV = {
   providersStepSeen: 'AGENTRY_PROVIDERS_STEP_SEEN',
 } as const satisfies Record<keyof AppSettingValues, string>;
 
+/**
+ * The variables that say where each agent keeps its sign-in, settings and sessions. The Docker image
+ * points them inside the data directory so the one volume holds them (docs/deploy.md); the agents
+ * would otherwise write to their default homes, which are gone with the container.
+ */
+export const PROVIDER_HOME_ENV = ['CODEX_HOME', 'GEMINI_CLI_HOME', 'COPILOT_HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME'] as const;
+
+/**
+ * Creates the provider homes that live inside the data directory. A fresh volume has none of them,
+ * and Codex refuses to start with a `CODEX_HOME` that does not exist. A home somewhere else is the
+ * operator's own and is left to them. Returns what it created or found, for the log.
+ */
+export function ensureProviderHomes(env: NodeJS.ProcessEnv, dataDir: string): string[] {
+  const homes: string[] = [];
+  for (const name of PROVIDER_HOME_ENV) {
+    const value = env[name];
+    if (!isSet(value) || !isAbsolute(value)) continue;
+    const home = resolve(value);
+    const inside = relative(dataDir, home);
+    if (inside === '' || inside.startsWith('..') || isAbsolute(inside)) continue;
+    mkdirSync(home, { recursive: true });
+    homes.push(home);
+  }
+  return homes;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
   const configDir = resolve(env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'));
   // With CLAUDE_CONFIG_DIR the CLI keeps .claude.json inside that directory; otherwise in $HOME.
@@ -176,6 +202,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
   for (const dir of [workspaceDir, dataDir]) {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   }
+  ensureProviderHomes(env, dataDir);
   return {
     claudeBin: env.CLAUDE_BIN ?? 'claude',
     tailscaleBin: env.TAILSCALE_BIN?.trim() || 'tailscale',
