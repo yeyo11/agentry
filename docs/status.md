@@ -92,9 +92,10 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
   types, but the layout is not editable or persisted per project, and the Documents and Flows
   widgets do not exist. Left out of the redesign deliberately — see
   [the UI redesign plan](plans/ui-redesign.md#not-in-this-orchestration). It is listed under [Next](../ROADMAP.md#next).
-- **What Night Shift left for later**: cron descriptions built in English in core (translating them
-  needs an API change), four look-alike segmented bar classes to merge, and one unused meter
-  style. See the plan's [Outcome](plans/redesign-night-shift.md#outcome).
+- **What Night Shift left for later** is closed: cron descriptions are said in the UI language, the
+  look-alike bars are one `ProgressBar` (each remaining bar class is mapped in the
+  [design system](design-system.md)), and the unused meter style is gone. See the plan's
+  [Outcome](plans/redesign-night-shift.md#outcome).
 - **Known limitations** are catalogued in the README ([Known limitations](../README.md#known-limitations)),
   and what was considered and refused is under [Decided against, for now](../ROADMAP.md#decided-against-for-now).
   Neither is a backlog: they are decisions, with the reasons attached.

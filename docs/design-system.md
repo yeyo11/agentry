@@ -1685,6 +1685,19 @@ the file being edited is its only moving part.
   agent, or Home's done-first order), `size="sm"` is the 4 px bar, `maxCells` lowers the point
   where it draws by share (12 in the sidebar), and `decorative` hides it from a screen reader where
   its numbers are already written beside it.
+- Every bar that counts items by status is one `ProgressBar`; what each variant draws, and why the
+  rest stay apart:
+  - `.progress` / `.progress-seg` (`variant="bar"`): the share bar, one run per status. It also
+    draws a workflow card's agents (`size="sm"`; it was a separate `.wf-progress` fill).
+  - `.progress-segbar` / `.progress-segbar-cell` (`variant="segments"`): a cell per item.
+    `.orch-timings-swatch` borrows the cell only as a legend swatch.
+  - `.progress-blocks` / `.progress-cell` (`variant="blocks"`): the same thing in mono glyphs, for
+    a row where no bar fits.
+  - `.board-col-progress` and `.chat-part-of-progress` are not bars of their own: they are the
+    layout (flex basis, hidden on a phone) that a screen hands to `ProgressBar` as `className`.
+  - `.meter-track` / `.meter-fill` stay separate on purpose: they draw one quantity against a
+    limit (usage, context, a probability) in a single fill whose tone is ok, warn or bad by
+    threshold, not a count split by status.
 - A chat that is a task of an orchestration opens with a context row, `.chat-part-of` (`.part-of`
   in `agentry-ds.css`): "Part of orchestration *name* · stage N of M", with the graph's
   `ProgressBar variant="segments"` at its end. The row is neutral: it is context, not the live
