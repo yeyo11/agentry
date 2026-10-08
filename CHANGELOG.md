@@ -3,6 +3,19 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.36.0](https://github.com/yeyo11/agentry/compare/v0.35.0...v0.36.0) (2026-10-08)
+
+
+### Features
+
+* **mcp:** tools answer only the fields a model needs, compact; TOON measured and not adopted (CW-33) ([#221](https://github.com/yeyo11/agentry/issues/221)) ([89719d9](https://github.com/yeyo11/agentry/commit/89719d9871194f617413e5868d2fdfabde7b16fc))
+* **web:** an editable Home kept per project, with Documents and Flow widgets (CW-34) ([#224](https://github.com/yeyo11/agentry/issues/224)) ([dde0292](https://github.com/yeyo11/agentry/commit/dde02921591d271cb9ccdf13747f01f56a1c8a91))
+
+
+### Documentation
+
+* **status:** three plans marked built, and what Night Shift still leaves ([#220](https://github.com/yeyo11/agentry/issues/220)) ([60342f7](https://github.com/yeyo11/agentry/commit/60342f7c718f701e3e23b0550fe20fe5838c119c))
+
 ## [0.35.0](https://github.com/yeyo11/agentry/compare/v0.34.0...v0.35.0) (2026-10-07)
 
 
