@@ -42,7 +42,7 @@ export interface CoreConfig {
   workspaceDir: string;
   dataDir: string;
   defaultPermissionMode: PermissionMode;
-  providersStepSeen: boolean;
+  setupSeen: boolean;
   maxConcurrentRuns: number;
   /**
    * VAPID `sub` claim of every push the server signs: a `mailto:` or `https:` the push service can
@@ -132,11 +132,24 @@ function parseTunnelPort(value: string | undefined): number {
   return port;
 }
 
-function parseSeenSwitch(value: string): boolean {
+function parseSeenSwitch(name: string, value: string): boolean {
   const word = value.trim().toLowerCase();
   if (['on', '1', 'true'].includes(word)) return true;
   if (['off', '0', 'false'].includes(word)) return false;
-  throw new Error(`AGENTRY_PROVIDERS_STEP_SEEN: '${value}' is neither on nor off`);
+  throw new Error(`${name}: '${value}' is neither on nor off`);
+}
+
+/**
+ * The variable an install set before the setup assistant replaced the first-run Providers step. It
+ * still counts, so an install that saw the old step is not walked through the assistant again.
+ */
+export const OLD_SETUP_SEEN_ENV = 'AGENTRY_PROVIDERS_STEP_SEEN';
+
+/** `AGENTRY_SETUP_SEEN`, else the old variable, else nothing */
+function setupSeenFromEnv(env: NodeJS.ProcessEnv): boolean | null {
+  if (isSet(env.AGENTRY_SETUP_SEEN)) return parseSeenSwitch('AGENTRY_SETUP_SEEN', env.AGENTRY_SETUP_SEEN);
+  if (isSet(env[OLD_SETUP_SEEN_ENV])) return parseSeenSwitch(OLD_SETUP_SEEN_ENV, env[OLD_SETUP_SEEN_ENV]);
+  return null;
 }
 
 /** What a layered setting is when neither the environment nor `app-settings.json` says otherwise. */
@@ -144,7 +157,7 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettingValues> = Object.freeze({
   allowedHosts: [],
   maxConcurrentRuns: 8,
   defaultPermissionMode: 'acceptEdits',
-  providersStepSeen: false,
+  setupSeen: false,
 });
 
 /** pnpm runs scripts from the package dir; default state dirs belong at the monorepo root instead. */
@@ -167,7 +180,7 @@ export const APP_SETTING_ENV = {
   allowedHosts: 'AGENTRY_ALLOWED_HOSTS',
   maxConcurrentRuns: 'AGENTRY_MAX_CONCURRENT_RUNS',
   defaultPermissionMode: 'AGENTRY_DEFAULT_PERMISSION_MODE',
-  providersStepSeen: 'AGENTRY_PROVIDERS_STEP_SEEN',
+  setupSeen: 'AGENTRY_SETUP_SEEN',
 } as const satisfies Record<keyof AppSettingValues, string>;
 
 /**
@@ -219,11 +232,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     workspaceDir,
     dataDir,
     defaultPermissionMode: isSet(env.AGENTRY_DEFAULT_PERMISSION_MODE) ? (env.AGENTRY_DEFAULT_PERMISSION_MODE.trim() as PermissionMode) : DEFAULT_APP_SETTINGS.defaultPermissionMode,
-    providersStepSeen: isSet(env.AGENTRY_PROVIDERS_STEP_SEEN) ? parseSeenSwitch(env.AGENTRY_PROVIDERS_STEP_SEEN) : DEFAULT_APP_SETTINGS.providersStepSeen,
+    setupSeen: setupSeenFromEnv(env) ?? DEFAULT_APP_SETTINGS.setupSeen,
     maxConcurrentRuns: isSet(env.AGENTRY_MAX_CONCURRENT_RUNS) ? Number(env.AGENTRY_MAX_CONCURRENT_RUNS) : DEFAULT_APP_SETTINGS.maxConcurrentRuns,
     pushSubject: env.AGENTRY_PUSH_SUBJECT?.trim() || 'https://github.com/yeyo11/agentry',
     allowedHosts: parseAllowedHosts(env.AGENTRY_ALLOWED_HOSTS),
-    settingsFromEnv: new Set((Object.keys(APP_SETTING_ENV) as (keyof AppSettingValues)[]).filter((key) => isSet(env[APP_SETTING_ENV[key]]))),
+    settingsFromEnv: new Set((Object.keys(APP_SETTING_ENV) as (keyof AppSettingValues)[]).filter((key) => isSet(env[APP_SETTING_ENV[key]]) || (key === 'setupSeen' && isSet(env[OLD_SETUP_SEEN_ENV])))),
     authEnv: Object.fromEntries(AUTH_ENV_KEYS.flatMap((key) => (env[key] === undefined ? [] : [[key, env[key]]]))) as AuthEnv,
     ...(isSet(env.AGENTRY_SECRET_KEY) ? { secretKey: env.AGENTRY_SECRET_KEY.trim() } : {}),
     ...(isSet(env.AGENTRY_DISTRIBUTION) ? { distribution: env.AGENTRY_DISTRIBUTION.trim().toLowerCase() } : {}),

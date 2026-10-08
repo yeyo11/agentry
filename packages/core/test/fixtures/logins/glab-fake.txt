@@ -1,0 +1,3 @@
+Your device code is: K3M9-PL2Q
+Open https://gitlab.com/oauth/device in your browser to verify.
+Waiting for authorization...

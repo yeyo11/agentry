@@ -49,7 +49,7 @@ export default async ({ page, api, check, dirs }) => {
   const settled = (id, wanted) => page.waitFor(`return fetch('/api/providers/${id}').then((r) => r.json()).then((s) => s.state === ${JSON.stringify(wanted)})`, { label: `${id} is ${wanted}` });
   const savedSettings = (await api.get('/providers/settings')).body;
   const savedApp = (await api.get('/settings/app')).body;
-  check(savedApp.sources.providersStepSeen !== 'env', 'the sandbox leaves providersStepSeen to the settings file, so the step can be shown again');
+  check(savedApp.sources.setupSeen !== 'env', 'the sandbox leaves setupSeen to the settings file, so the step can be shown again');
 
   try {
     // ---- The sandbox: Codex signed out, Gemini and Copilot used before ----
@@ -64,7 +64,7 @@ export default async ({ page, api, check, dirs }) => {
     check((await statusOf('copilot')).state === 'used-before', 'copilot is used before');
 
     // ---- First run: the step stands in for the app until Continue or Skip ----
-    await api.put('/settings/app', { providersStepSeen: false });
+    await api.put('/settings/app', { setupSeen: false });
     state('codex', { version: '0.159.3', signedIn: true });
     await api.post('/providers/refresh');
     // The theme lives in the app's localStorage, which a blank page does not have: open the app first
@@ -97,7 +97,7 @@ export default async ({ page, api, check, dirs }) => {
     // Continue saves the step as seen and lets the app in
     await page.click('[data-action="continue"]', undefined, 600);
     await page.waitFor(`return !document.querySelector('[data-step]') && !!document.querySelector('.statusbar')`, { label: 'the app after Continue' });
-    check((await api.get('/settings/app')).body.providersStepSeen === true, 'Continue records the step as seen');
+    check((await api.get('/settings/app')).body.setupSeen === true, 'Continue records the step as seen');
     await page.goto('/', 300);
     await page.waitFor(`return !!document.querySelector('.statusbar')`, { label: 'the app on the next start' });
     check(!(await page.eval(`return !!document.querySelector('[data-step]')`)), 'the step does not come back once seen, with a provider ready');
@@ -106,14 +106,14 @@ export default async ({ page, api, check, dirs }) => {
     check(dots.some((d) => d?.startsWith('Codex')) && dots.some((d) => d?.startsWith('Gemini CLI')), `the status bar has a dot for each provider that is there (${dots.join('; ')})`);
 
     // Skip: the same, without naming a provider
-    await api.put('/settings/app', { providersStepSeen: false });
+    await api.put('/settings/app', { setupSeen: false });
     await page.goto('/', 300);
     await page.click('[data-action="skip"]', undefined, 600);
     await page.waitFor(`return !document.querySelector('[data-step]') && !!document.querySelector('.statusbar')`, { label: 'the app after Skip' });
-    check((await api.get('/settings/app')).body.providersStepSeen === true, 'Skip records the step as seen');
+    check((await api.get('/settings/app')).body.setupSeen === true, 'Skip records the step as seen');
 
     // The first-run step on a phone: stacked, 44 px buttons, and nothing scrolls sideways
-    await api.put('/settings/app', { providersStepSeen: false });
+    await api.put('/settings/app', { setupSeen: false });
     await page.viewport(390, 844);
     await theme(page, 'dark');
     await page.goto('/', 300);
@@ -127,7 +127,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.goto('/', 300);
     await page.waitFor(`return !!document.querySelector('.prov-first-foot')`, { label: 'the phone step, light' });
     await scan(page, check, 'the phone first-run step, light');
-    await api.put('/settings/app', { providersStepSeen: true });
+    await api.put('/settings/app', { setupSeen: true });
 
     // ---- Settings → Providers on a desktop ----
     await page.viewport(1440, 900);
@@ -274,7 +274,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.viewport(1440, 900).catch(() => {});
     await page.eval(`localStorage.removeItem('agentry-theme'); return true`).catch(() => {});
     await api.put('/providers/settings', savedSettings).catch(() => {});
-    await api.put('/settings/app', { providersStepSeen: true }).catch(() => {});
+    await api.put('/settings/app', { setupSeen: true }).catch(() => {});
     rmSync(stateDir, { recursive: true, force: true });
     rmSync(join(sandbox, 'gemini-home'), { recursive: true, force: true });
     rmSync(homes.codex, { recursive: true, force: true });

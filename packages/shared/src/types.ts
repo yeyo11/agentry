@@ -4018,11 +4018,11 @@ export interface AppSettingValues {
   /** The `--permission-mode` of a run that does not ask for one; applies to the next run */
   defaultPermissionMode: PermissionMode;
   /**
-   * The first-run Providers step was shown and answered (continued or skipped). Kept here rather than
-   * in the browser so a second browser, a phone or the desktop app does not ask again; the step still
-   * returns whenever no provider is ready.
+   * The setup assistant was finished or skipped. Kept here rather than in the browser so a second
+   * browser, a phone or the desktop app does not ask again. It replaces `providersStepSeen`: that
+   * stored value and its variable, `AGENTRY_PROVIDERS_STEP_SEEN`, still count.
    */
-  providersStepSeen: boolean;
+  setupSeen: boolean;
 }
 
 /**
@@ -6456,10 +6456,10 @@ export type LoginState = 'starting' | 'waiting-for-person' | 'succeeded' | 'fail
  * Why a sign-in failed, as a code and never as what the CLI printed. `cli-missing`: the tool's
  * binary was not found. `spawn-failed`: it could not be started. `cli-refused`: the CLI exited with
  * an error. `no-code`: a device sign-in ended before it showed a URL and a code. `not-signed-in`:
- * the command finished but the tool's readiness still says signed out. `invalid-secret`: the key was
- * empty, too long or held spaces. `invalid-host`: the host is not a host name.
+ * the command finished but the tool's readiness still says signed out. `timeout`: a key login did not
+ * finish in time and was stopped.
  */
-export type LoginErrorCode = 'cli-missing' | 'spawn-failed' | 'cli-refused' | 'no-code' | 'not-signed-in' | 'invalid-secret' | 'invalid-host';
+export type LoginErrorCode = 'cli-missing' | 'spawn-failed' | 'cli-refused' | 'no-code' | 'not-signed-in' | 'timeout';
 
 /** One sign-in, as `POST /setup/logins` started it. Never carries the key or anything else the CLI printed. */
 export interface LoginSession {

@@ -37,6 +37,8 @@ import type {
   ProjectTemplate,
   ProjectWorktree,
   RunWorkflowRequest,
+  SetupState,
+  SetupTool,
   SystemInfo,
   UpdateProjectRequest,
   Board,
@@ -99,6 +101,8 @@ import { Changes, type ChangeScope, type DiffOptions } from './changes.ts';
 import { CredentialStore, type StoredCredentials } from './credentials.ts';
 import { useVaultForChildren } from './child-env.ts';
 import { SecretVault } from './secret-vault.ts';
+import { LoginService } from './setup/logins.ts';
+import { setupMethods } from './setup/methods.ts';
 import { Db } from './db.ts';
 import { HealthMonitor, HealthService } from './health-service.ts';
 import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
@@ -203,6 +207,8 @@ export { MCP_ENTRY_ENV, type AgentryMcpLaunch } from './agentry-mcp.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
+export { LoginInputError, LoginService } from './setup/logins.ts';
+export { SecretVault } from './secret-vault.ts';
 export { DashboardLayoutStore } from './dashboard-layouts.ts';
 export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
 export { DEFAULT_TUNNEL_PORT, MIN_TAILSCALE_VERSION, TunnelManager, TunnelRefusedError, parseTailscaleVersion, readinessFromStatus, servePortUse, type ServePortUse, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
@@ -409,6 +415,8 @@ export class Core {
   readonly connectors: Connectors;
   readonly resources: ConfigResources;
   readonly credentials: CredentialStore;
+  /** The first setup's sign-ins: a key or a device code per tool, one live session per tool and host */
+  readonly logins: LoginService;
   /** `secrets.json`: what a CLI reads from its environment, sealed, handed to that CLI's processes only */
   readonly vault: SecretVault;
   private readonly releaseVault: () => void;
@@ -823,6 +831,13 @@ export class Core {
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.webhooks = new WebhookStore(this.db.connection);
     this.webhookSecrets = new WebhookSecrets(config);
+    this.logins = new LoginService({
+      vault: this.vault,
+      youtrack: this.youtrackCredentials,
+      emit: (event) => this.events.emit(event),
+      binary: (tool) => this.setupBinary(tool),
+      readiness: (tool, host) => this.setupReadiness(tool, host),
+    });
     // Agentry's own secrets are masked in everything that may leave the machine (a decision's state,
     // a handoff), whatever text surrounds them
     this.forgetSecrets = recognizeSecrets({
@@ -1492,6 +1507,64 @@ export class Core {
   }
 
   /** `claude auth status` only reports what is configured; this proves it with a minimal real request. */
+  /**
+   * What the first setup has done and what it has not, for the setup assistant and a "finish
+   * setting up" card. Reads the detectors' caches (the first call waits for a detection).
+   */
+  async setupState(): Promise<SetupState> {
+    const [providers, hosts, youtrack] = await Promise.all([this.providers.statuses(), this.hosts.statuses(), this.trackers.status('youtrack')]);
+    const auth = this.security.config;
+    const credentials = this.youtrackCredentials.status();
+    return {
+      seen: this.appSettings.get().setupSeen,
+      access: { mode: auth.mode, tokenSet: auth.tokenSet, readOnly: auth.readOnly },
+      providers: providers
+        .filter((status) => status.reason !== 'disabled')
+        .map((status) => ({ id: status.id, label: status.label, state: status.state, reason: status.reason, account: status.account, keyStored: this.vault.has(status.id) })),
+      hosts: hosts.map((status) => ({ id: status.id, cli: status.id === 'github' ? 'gh' : 'glab', state: status.state, reason: status.reason, hosts: status.hosts.map((entry) => ({ ...entry })) })),
+      youtrack: { configured: credentials.host !== null && credentials.tokenSet, state: youtrack?.state ?? null, reason: youtrack?.reason ?? null },
+      methods: setupMethods(),
+      secrets: { sealed: this.vault.sealed, keyBeside: this.vault.keyBeside },
+    };
+  }
+
+  /** The setup assistant was finished or skipped; refused like any app setting the environment owns */
+  async markSetupSeen(): Promise<SetupState> {
+    const settings = this.appSettings.get();
+    if (!settings.setupSeen && settings.sources.setupSeen === 'env') {
+      throw Object.assign(new Error('setupSeen is set by the environment (AGENTRY_SETUP_SEEN) and cannot be changed here'), { statusCode: 409 });
+    }
+    if (!settings.setupSeen) await this.appSettings.update({ setupSeen: true });
+    return this.setupState();
+  }
+
+  /** The binary a sign-in runs: the one the tool's detector resolved, the person's override included */
+  private async setupBinary(tool: SetupTool): Promise<string | null> {
+    if (tool === 'gh' || tool === 'glab') return (await this.hosts.status(tool === 'gh' ? 'github' : 'gitlab'))?.binaryPath ?? null;
+    if (tool === 'youtrack') return (await this.trackers.status('youtrack'))?.binaryPath ?? null;
+    return (await this.providers.status(tool))?.binaryPath ?? null;
+  }
+
+  /** A tool's readiness read again after a sign-in or a sign-out: what decides whether it worked */
+  private async setupReadiness(tool: SetupTool, host: string | null): Promise<boolean | null> {
+    if (tool === 'gh' || tool === 'glab') {
+      const status = (await this.hosts.refresh()).find((s) => s.id === (tool === 'gh' ? 'github' : 'gitlab'));
+      return status?.hosts.find((entry) => entry.hostname === host)?.signedIn ?? false;
+    }
+    if (tool === 'youtrack') {
+      const status = (await this.trackers.credentialsChanged('youtrack')).find((s) => s.id === 'youtrack');
+      return status ? status.state === 'ready' : null;
+    }
+    if (tool === 'claude-code') {
+      // The credential changed, so Core's shared read of the CLI is stale too
+      const { cli, auth } = await this.system(true);
+      await this.providers.refresh({ only: ['claude-code'], claude: { cli, auth } });
+    } else {
+      await this.providers.refresh({ only: [tool] });
+    }
+    return this.providers.knownSignedIn(tool);
+  }
+
   async verifyAuth(): Promise<AuthVerification> {
     const run = this.runtime.start({
       prompt: 'Reply with exactly: ok',
@@ -2671,6 +2744,7 @@ export class Core {
     this.pullRequestWatcher.stop();
     // First, while the database is still open for the row that says its host left
     this.tunnel.shutdown();
+    this.logins.close();
     this.cliVersion.stop();
     this.release.stop();
     this.healthMonitor.stop();

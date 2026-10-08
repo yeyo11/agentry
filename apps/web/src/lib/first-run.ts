@@ -59,20 +59,20 @@ export function useFirstRun(): FirstRun {
   const [dismissed, setDismissed] = useState(false);
   const { pathname } = useLocation();
   const save = useMutation({
-    mutationFn: () => api.updateAppSettings({ providersStepSeen: true }),
+    mutationFn: () => api.updateAppSettings({ setupSeen: true }),
     onSuccess: (next: AppSettings) => queryClient.setQueryData(keys.appSettings, next),
   });
 
   if (dismissed || settings.isError || providers.isError) return { state: 'hidden' };
   if (!settings.data || !providers.data) return { state: 'pending' };
-  const seen = settings.data.providersStepSeen;
+  const seen = settings.data.setupSeen;
   if (!shouldShowFirstRun(seen, providers.data, pathname)) return { state: 'hidden' };
   return {
     state: 'shown',
     statuses: providers.data,
     finish: () => {
       setDismissed(true);
-      if (!seen && settings.data.sources.providersStepSeen !== 'env') save.mutate();
+      if (!seen && settings.data.sources.setupSeen !== 'env') save.mutate();
     },
   };
 }

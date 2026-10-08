@@ -274,8 +274,8 @@ test('the tunnel and the settings are written whole from their events, and a new
     allowedHosts: [],
     maxConcurrentRuns: 4,
     defaultPermissionMode: 'plan',
-    providersStepSeen: false,
-    sources: { allowedHosts: 'default', maxConcurrentRuns: 'file', defaultPermissionMode: 'file', providersStepSeen: 'default' },
+    setupSeen: false,
+    sources: { allowedHosts: 'default', maxConcurrentRuns: 'file', defaultPermissionMode: 'file', setupSeen: 'default' },
     allowedHostLayers: { env: [], file: [], runtime: [] },
   };
   const event = { id: 2, at: '', type: 'settings.changed', settings } as Parameters<typeof patchSettings>[1];
@@ -292,8 +292,8 @@ const layered = (sources: Partial<AppSettings['sources']> = {}, hosts: Partial<A
     allowedHosts: [...allowedHostLayers.env, ...allowedHostLayers.file],
     maxConcurrentRuns: 8,
     defaultPermissionMode: 'acceptEdits',
-    providersStepSeen: false,
-    sources: { allowedHosts: 'file', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', providersStepSeen: 'default', ...sources },
+    setupSeen: false,
+    sources: { allowedHosts: 'file', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', setupSeen: 'default', ...sources },
     allowedHostLayers,
   };
 };
