@@ -207,7 +207,8 @@
     "remote": "This page is connected to the Agentry at {{host}}, which runs on another machine. Whoever runs it can update it:",
     "docker": {
       "intro": "The container cannot replace its own image. The command depends on how it was started:",
-      "run": "With docker run: pull the image, then remove the container and run the same docker run command again. The volumes keep every chat, setting and credential.",
+      "run": "With docker run: pull the image, then replace the container. The volumes keep every chat, setting and credential, but only the ones the command named: a container started without naming all three folders loses what is in the others when it is removed.",
+      "replace": "Then replace the container, naming all three volumes (settings and chats, data, projects):",
       "compose": "With a compose file that uses the published image (ghcr.io/yeyo11/agentry), from its folder:",
       "checkout": "With the repository's own docker-compose.yml, which builds the image, from the checkout:",
       "helm": "With the Helm chart: raise image.tag and run helm upgrade."
@@ -237,7 +238,21 @@
       "running_other": "{{count}} orchestrations are running"
     },
     "availableTag": "Update available",
-    "upToDateTag": "Up to date"
+    "upToDateTag": "Up to date",
+    "storage": {
+      "title": "This container would lose its data when it is updated",
+      "body": "Updating replaces the container, and what is not on a volume with a name goes with it: the sign-in, every transcript, the projects. These folders are not on one:",
+      "config": "Settings and chats",
+      "data": "Agentry's data",
+      "workspace": "Projects",
+      "kind": {
+        "anonymous": "on a volume Docker made on its own",
+        "container": "inside the container",
+        "temporary": "on temporary storage"
+      },
+      "fix": "Start it with all three volumes named, as in this command:",
+      "move": "Do not remove the current container before copying what is in it: docs/deploy.md, Moving to named volumes, has the commands."
+    }
   },
   "account": {
     "tokenSource": {

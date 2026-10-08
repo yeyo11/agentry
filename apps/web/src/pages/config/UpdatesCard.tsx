@@ -1,6 +1,6 @@
-import type { AgentryReleaseInfo } from '@agentry/shared';
+import type { AgentryReleaseInfo, StorageKind, StorageLocation } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, ExternalLink, Info, RotateCw } from 'lucide-react';
+import { AlertTriangle, Download, ExternalLink, Info, RotateCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
@@ -10,6 +10,8 @@ import { Card, CopyButton, ErrorBox, Skeleton, Tag } from '@agentry/ui/component
 import type { DesktopUpdatesBridge } from '../../lib/desktop';
 import { formatDate, timeAgo } from '@agentry/ui/lib/format';
 import {
+  DOCKER_REPLACE_COMMAND,
+  DOCKER_RUN_COMMAND,
   DOCKER_UPDATE_WAYS,
   parseInstallAnswer,
   parseUpdateState,
@@ -66,6 +68,7 @@ export function UpdatesCard() {
           </dl>
         )}
 
+        {info?.distribution === 'docker' && <StorageWarning />}
         {info && route?.kind === 'desktop' && bridge && <DesktopUpdate bridge={bridge} info={info} />}
         {info?.updateAvailable && route?.kind === 'steps' && <UpdateSteps how={route.how} remote={route.remote} />}
 
@@ -96,6 +99,36 @@ function Command({ command }: { command: string }) {
   );
 }
 
+/**
+ * A container whose folders are not on a volume with a name loses them when it is replaced, which is
+ * what an update is. Said as soon as it is known, before anyone presses a command: after is too late.
+ */
+function StorageWarning() {
+  const { t } = useTranslation('config');
+  const { data } = useQuery({ queryKey: keys.storage, queryFn: () => api.storage() });
+  if (!data?.atRisk) return null;
+  const lost = data.locations.filter((location): location is StorageLocation & { kind: Exclude<StorageKind, 'persistent' | 'unknown'> } => location.kind !== 'persistent' && location.kind !== 'unknown');
+  return (
+    <div className="alert alert-warn" role="alert" data-testid="storage-warning">
+      <AlertTriangle className="alert-icon" {...ICON_SM} />
+      <div className="alert-body stack">
+        <strong>{t('updates.storage.title')}</strong>
+        <span className="small">{t('updates.storage.body')}</span>
+        <ul className="small">
+          {lost.map((location) => (
+            <li key={location.id}>
+              {t(`updates.storage.${location.id}`)} <code className="mono">{location.path}</code> · {t(`updates.storage.kind.${location.kind}`)}
+            </li>
+          ))}
+        </ul>
+        <span className="small">{t('updates.storage.fix')}</span>
+        <Command command={DOCKER_RUN_COMMAND} />
+        <span className="small">{t('updates.storage.move')}</span>
+      </div>
+    </div>
+  );
+}
+
 /** Everywhere but the desktop window: what to run, and who runs it */
 function UpdateSteps({ how, remote }: { how: UpdateHow; remote: boolean }) {
   const { t } = useTranslation('config');
@@ -114,6 +147,12 @@ function UpdateSteps({ how, remote }: { how: UpdateHow; remote: boolean }) {
             <div key={way} className="stack" data-testid={`update-docker-${way}`}>
               <p className="small">{t(`updates.docker.${way}`)}</p>
               <Command command={command} />
+              {way === 'run' && (
+                <>
+                  <p className="small">{t('updates.docker.replace')}</p>
+                  <Command command={DOCKER_REPLACE_COMMAND} />
+                </>
+              )}
             </div>
           ))}
           <p className="small">{t('updates.docker.helm')}</p>

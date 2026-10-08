@@ -207,7 +207,8 @@
     "remote": "Esta página está conectada al Agentry de {{host}}, que funciona en otra máquina. Quien lo gestione puede actualizarlo:",
     "docker": {
       "intro": "El contenedor no puede reemplazar su propia imagen. El comando depende de cómo se arrancó:",
-      "run": "Con docker run: descarga la imagen, elimina el contenedor y vuelve a ejecutar el mismo docker run. Los volúmenes conservan los chats, los ajustes y las credenciales.",
+      "run": "Con docker run: descarga la imagen y sustituye el contenedor. Los volúmenes conservan los chats, los ajustes y las credenciales, pero solo los que el comando nombró: un contenedor que se arrancó sin nombrar las tres carpetas pierde lo que hay en las demás al eliminarlo.",
+      "replace": "Después sustituye el contenedor nombrando los tres volúmenes (ajustes y chats, datos, proyectos):",
       "compose": "Con un archivo compose que usa la imagen publicada (ghcr.io/yeyo11/agentry), desde su carpeta:",
       "checkout": "Con el docker-compose.yml del propio repositorio, que construye la imagen, desde tu copia del repositorio:",
       "helm": "Con el chart de Helm: sube image.tag y ejecuta helm upgrade."
@@ -237,7 +238,21 @@
       "running_other": "{{count}} orquestaciones están en marcha"
     },
     "availableTag": "Actualización disponible",
-    "upToDateTag": "Al día"
+    "upToDateTag": "Al día",
+    "storage": {
+      "title": "Este contenedor perdería sus datos al actualizarlo",
+      "body": "Actualizar sustituye el contenedor, y lo que no está en un volumen con nombre se va con él: el inicio de sesión, todas las transcripciones y los proyectos. Estas carpetas no están en uno:",
+      "config": "Ajustes y chats",
+      "data": "Datos de Agentry",
+      "workspace": "Proyectos",
+      "kind": {
+        "anonymous": "en un volumen que Docker creó por su cuenta",
+        "container": "dentro del contenedor",
+        "temporary": "en almacenamiento temporal"
+      },
+      "fix": "Arráncalo con los tres volúmenes con nombre, como en este comando:",
+      "move": "No elimines el contenedor actual antes de copiar lo que tiene dentro: docs/deploy.md, «Moving to named volumes», trae los comandos."
+    }
   },
   "account": {
     "tokenSource": {
