@@ -133,8 +133,7 @@
     "workflow": "workflow",
     "agentsDone": "{{done}}/{{total}} agentes terminados",
     "result": "Resultado",
-    "script": "Script",
-    "agentsDoneLabel": "Agentes completados"
+    "script": "Script"
   },
   "detail": {
     "status": "Estado",

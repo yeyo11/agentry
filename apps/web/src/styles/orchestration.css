@@ -231,21 +231,6 @@
   flex: none;
 }
 
-.wf-progress {
-  height: 4px;
-  overflow: hidden;
-  border-radius: var(--radius-pill);
-  background: var(--bg-sunken);
-}
-
-.wf-progress > span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--gradient-accent);
-  transition: width var(--dur-base) var(--ease-out);
-}
-
 .wf-phase-title {
   margin-bottom: 4px;
   color: var(--text-muted);
