@@ -13,6 +13,9 @@
 //   FAKE_QUEUE_LOG=<file>   appends one JSON line per thing it did: { op: 'turn', prompt },
 //                           { op: 'enqueue', text }, { op: 'control', subtype }, { op: 'eof' }
 //   FAKE_LINGER_MS=<ms>     stays up that long after stdin closes, as the CLI does while it finishes
+//   FAKE_QUEUE_LOG_IDS=1    also logs { op: 'stdin', uuid } for every user line, with the `uuid` the
+//                           line carried (null when it had none): how a test sees whether the wrapper
+//                           gave the CLI an id it could match the message by
 import { appendFileSync, existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
@@ -88,6 +91,7 @@ lines.on('line', (line) => {
   if (msg.type === 'user') {
     const content = msg.message?.content;
     const text = typeof content === 'string' ? content : content.map((b) => b.text ?? '').join('\n');
+    if (process.env.FAKE_QUEUE_LOG_IDS === '1') log({ op: 'stdin', text, uuid: typeof msg.uuid === 'string' ? msg.uuid : null });
     if (running) {
       log({ op: 'enqueue', text });
       queue.push(text);
