@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T21:00:00Z
-updated_at: 2026-10-08T23:30:00Z
+updated_at: 2026-10-08T23:59:00Z
 tags:
     - setup
     - security
@@ -8,6 +8,7 @@ tags:
     - code-hosts
     - trackers
     - docker
+    - tailscale
 ---
 # The first setup, from the app
 
@@ -93,6 +94,7 @@ instead of signed out.
 | `gh` | `gh auth login --with-token --hostname H`, stdin | `gh auth login --web --hostname H` | `gh auth logout --hostname H` |
 | `glab` | `glab auth login --hostname H --stdin` | `glab auth login --device --hostname H` | `glab auth logout --hostname H` |
 | `youtrack` | vault, `YOUTRACK_HOST` (the `host` field) and `YOUTRACK_TOKEN` | none | vault cleared |
+| `tailscale` | `tailscale up --reset --hostname=N --auth-key=file:P` (`key: 'file'`) | `tailscale up --reset --hostname=N`: a login URL, no code | tunnel closed, then `tailscale logout` |
 
 OpenCode's four variables are the ones models.dev lists for those providers, which OpenCode loads
 its providers from (https://opencode.ai/docs/providers/); any other variable is refused.
@@ -126,6 +128,48 @@ row is flagged `deviceNeedsRecording` until its recording shows `--web` works wi
 
 A secret never goes into argv, a log, an event or an answer: the tests assert the spawned argv and
 what the fake CLI read on stdin, and that no event or answer carries the key.
+
+## Tailscale
+
+Added 2026-10-08 (the plan's decision 6). Remote access goes through Tailscale, and in the Docker
+image Agentry runs the daemon itself ([deploy.md](deploy.md#the-tunnel-in-docker)), so a person with
+no shell on the machine signs it in here. Recorded on 1.102.4 against a throwaway userspace daemon
+(`packages/core/test/fixtures/logins/README.md`, `tailscale-up.*`).
+
+- **Only where Agentry runs the daemon.** `CoreConfig.tailscaleManaged` comes from
+  `AGENTRY_TAILSCALE_MANAGED`, which the image's entrypoint sets once it started `tailscaled`.
+  Anywhere else, and with `AGENTRY_TUNNEL=off`, `POST /setup/logins` and `DELETE
+  /setup/credentials/tailscale` answer `409` (`LoginRefusedError`): a machine's own Tailscale is the
+  person's, and the UI shows its state and what to run.
+- **Login URL** (the `device` method, offered as **Link**). `tailscale up --reset --hostname=agentry`
+  with no TTY prints, on stderr, `To authenticate, visit:` and the URL alone on a line
+  (`https://login.tailscale.com/a/<id>`), then waits until the node is `Running`. There is no code: a
+  device pattern's `code` may be null, the session is `waiting-for-person` once the URL is read, and
+  `LoginSession.code` stays null. `--reset` because `up` refuses flags that differ from what the
+  daemon kept unless every one is named again, and Agentry is the daemon's only user. Nothing else
+  is passed: no routes, no exit node, no DNS change beyond Tailscale's defaults.
+- **Auth key.** `tailscale up` takes a key only in argv or as `--auth-key=file:<path>` (1.102 `up
+  --help`; a bad key answers `backend error: invalid key: API key does not exist`). The key goes into
+  a file of mode 0600 inside a fresh 0700 folder under the system temp directory, the command gets
+  the path, and the folder is removed when the command ended, whatever happened. tailscaled keeps
+  the node key it gets, so the auth key is used once and kept nowhere (decision 4).
+- **Success** is `tailscale status --json` read again through the tunnel (`TunnelManager.refresh`):
+  any state past `NeedsLogin` counts as signed in; MagicDNS or HTTPS being off is the tailnet's
+  setting, said by the tunnel's own reasons.
+- **Sign-out** closes the tunnel first (its Serve rule is taken away while the daemon can still do it),
+  then runs `tailscale logout`, which expires the node key and takes the node off the tailnet.
+- **The node's name** is `AGENTRY_TAILSCALE_HOSTNAME`, `agentry` by default, checked as a DNS label at
+  startup.
+- **`GET /setup`** carries `tailscale: { enabled, managed, state, host }`, read through the tunnel
+  (so a source install's state is the machine's own).
+- **Web.** The assistant's Access step lists Tailscale under the access card (`TailscaleRow`, a
+  `.prov-row` like the other tools; a Sheet on a phone), when the tunnel is offered and there is a
+  Tailscale: Sign in or Sign out where it is managed, the state and a sentence otherwise. The Done
+  step lists it, pointing at Settings → Remote access. In Settings → Remote access a managed node
+  that is signed out shows **Sign in to Tailscale**, which opens the shared panel inside the card
+  (`layout="card" closable`; it never asks for a link before the person presses it), and a signed-in
+  one shows Sign out beside its name. The panel offers **Link / Key**; a waiting link is drawn by
+  `DeviceCode` with the URL and Copy in the code's place, still the screen's one live surface.
 
 ## Events
 
@@ -209,4 +253,4 @@ namespace; the pure logic (methods per tool, failures, steps, summary) is `lib/s
 ## Related
 
 [[plans/in-app-setup.md]] · [[providers.md]] · [[code-hosts.md]] · [[trackers.md]] ·
-[[layered-settings.md]] · [[container-state.md]] · [[deploy.md]]
+[[layered-settings.md]] · [[container-state.md]] · [[deploy.md]] · [[tunnel.md]]

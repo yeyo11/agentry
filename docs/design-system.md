@@ -1621,6 +1621,23 @@ Integrations, so nothing is assistant-only.
   only ran out, and the action is "Pedir otro código". `cancelled` says nothing: the panel closes and the row keeps its
   state. The copy of each is in `DSConfiguracion` and `FAIL` in `setup.py`.
 
+**Tailscale** (added 2026-10-08, [setup.md](setup.md#tailscale)) reuses these pieces, with no new class but
+`.tunnel-node` (the node's name with Cerrar sesión beside it, in Settings → Acceso remoto):
+
+- **In the assistant** it is one `.prov-row.compact` (a `.prov-cell` on a phone) in its own `.card.prov-list` under the
+  Access card, with the monogram "TA" (no brand art is added), the state as the tunnel tab's word in a `Tag`, and a
+  sentence. Iniciar sesión and Cerrar sesión only where Agentry runs the daemon (the Docker image); elsewhere the row
+  only says how the machine's Tailscale stands. Listo lists it, pointing at "Ajustes → Acceso remoto".
+- **The panel** heads with "Enlace / Clave": Tailscale's sign-in is a link with no code, so it is named for what the
+  person gets. A waiting link is the same `.signin-device` box with `.energy`, its two lines (open the link; sign in and
+  connect this machine, with no code to type), the `.signin-url` link and **Copiar** in the code's place, and the same
+  waiting line. The key is a write-only field with the `tskey-auth-…` placeholder and the admin console's link.
+- **In Settings → Acceso remoto** a signed-out managed node shows the tunnel tab's warn alert with **Iniciar sesión en
+  Tailscale** (the card's one primary) and Volver a comprobar; pressing it opens the panel inside the card (`.signin-card-body`,
+  with Cancelar). It never asks for a link before the person presses it. No command is ever shown for the managed daemon.
+- Not drawn in `reference/`: these screens reuse the drawn Access step, panel and tunnel card; a reference for them is
+  left for the next pass of `setup.py`.
+
 **Settings → Security** gains a **Secretos** card first, from `SecretStorageStatus`: a `b-ok` "cifrados" badge and one
 sentence on where secrets go and who receives them. With `keyBeside`, a `.callout-warn` "La clave está junto a los
 datos" names the key's path, says it protects a copy of the files and not the volume, and recommends passing

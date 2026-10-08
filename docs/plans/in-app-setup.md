@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T19:00:00Z
-updated_at: 2026-10-08T23:30:00Z
+updated_at: 2026-10-08T23:59:00Z
 tags:
     - plan
     - setup
@@ -75,6 +75,16 @@ sign-ins, or any OAuth client of our own. Those stay links, with the reason said
    in the image). Agentry keeps only what a CLI reads from its environment: Claude Code, Gemini,
    OpenCode's upstream keys, YouTrack. Those are sealed and given to the child process only.
 5. **A secret never goes in argv, a log, an event or an answer.** Write-only fields, stdin or env only.
+6. **Tailscale runs inside the image, and is signed in from the app** (owner, 2026-10-08). Remote
+   access could not be set up in a container: the image had no `tailscale` and the tunnel was off
+   there. The image now carries Tailscale's static build, and its entrypoint starts `tailscaled
+   --tun=userspace-networking` (no root, no `NET_ADMIN`, no `/dev/net/tun`) with its state in
+   `/data/tailscale/`; the tunnel is on by default in the image, and `AGENTRY_TUNNEL=off` starts no
+   daemon. Tailscale joins the setup's tools with two methods, a login URL (`tailscale up` with no
+   TTY, no code) and an auth key passed as `--auth-key=file:<0600 file>` (the only way its CLI takes a
+   key outside argv, so decision 5 holds), and signs out with `tailscale logout`. Only that daemon is
+   Agentry's to sign in (`AGENTRY_TAILSCALE_MANAGED`); a machine's own Tailscale stays the person's.
+   Tailnet only, never Funnel.
 
 ## Design
 
@@ -162,6 +172,11 @@ and use the vault.
    `e2e/specs/setup.spec.mjs` with a device-code sign-in through the fake `codex`.
 6. **Docs**: `docs/setup.md` (the feature), updates to providers.md, code-hosts.md, trackers.md,
    deploy.md, security notes, and this plan's Outcome.
+7. **Tailscale in the image** (done 2026-10-08, decision 6): the static build and
+   `docker/entrypoint.sh`, the `tailscale` tool in `LoginService` (login URL and auth key, recorded in
+   `fixtures/logins/tailscale-up.*`), `GET /setup`'s `tailscale` and the tunnel's `managed`, the row
+   in the assistant's Access step and the sign-in in Settings → Remote access
+   ([setup.md](../setup.md#tailscale), [deploy.md](../deploy.md#the-tunnel-in-docker)).
 
 ## What "done" means
 
@@ -177,4 +192,4 @@ and use the vault.
 ## Related
 
 [[container-state.md]] · [[providers.md]] · [[code-hosts.md]] · [[trackers.md]] · [[deploy.md]] ·
-[[design-system.md]] · [[plans/multi-provider.md]]
+[[design-system.md]] · [[plans/multi-provider.md]] · [[tunnel.md]] · [[setup.md]]

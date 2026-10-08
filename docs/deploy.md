@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-10-08T20:00:00Z
+updated_at: 2026-10-08T23:59:00Z
 tags:
     - deploy
     - docker
@@ -114,39 +114,63 @@ starts. Do not scale it.
 The `auth.*` values seed a volume that has no `auth.json` yet. After that the settings saved in the UI
 win, so changing the value and upgrading does not change a running install.
 
-`tunnel.enabled` (default `false`) decides whether Settings → Remote access may serve the pod on a
-tailnet; see the next section. The deployment always writes `AGENTRY_TUNNEL` as `on` or `off`,
+`tunnel.enabled` (default `true`, as in the image) decides whether the pod runs its own
+`tailscaled` and Settings → Remote access may serve it on a tailnet; see the next section. The deployment always writes `AGENTRY_TUNNEL` as `on` or `off`,
 and `NOTES.txt` warns when it is on.
 
 ## The tunnel in Docker
 
 Settings → Remote access serves Agentry on the person's tailnet through the Tailscale CLI
-(`tailscale serve`, [tunnel.md](tunnel.md)). **In the image it is off unless the operator turns it
-on**:
+(`tailscale serve`, never Funnel; [tunnel.md](tunnel.md)). A container sees neither the host's
+`tailscale` CLI nor its daemon, so **the image runs a Tailscale of its own** (owner decision,
+2026-10-08), and the person signs it in from the app: the setup assistant's Access step or Settings
+→ Remote access, with a login link or an auth key ([setup.md](setup.md#tailscale)). Nobody needs a
+shell on the machine.
 
-```dotenv
-# .env, for Compose: env_file already hands it to the container
-AGENTRY_TUNNEL=on
-```
+- **What is in the image.** Tailscale's static linux amd64 build (`tailscale` and `tailscaled`,
+  `TAILSCALE_VERSION`, 1.102.4), from pkgs.tailscale.com, checked against the digest published beside
+  it like gh and glab.
+- **How it runs.** `docker/entrypoint.sh` starts `tailscaled --tun=userspace-networking` as the
+  image's user before the server, then `exec`s the server, which still receives `docker stop`.
+  Userspace networking needs no root, no `NET_ADMIN` and no `/dev/net/tun`, so the container needs
+  nothing added to its `docker run`, Compose service or pod spec. tailscaled ends with the container.
+- **Where its state is.** `/data/tailscale/` on the data volume: the node's state
+  (`tailscaled.state`, mode 0700 folder), its certificates, and `tailscaled.log`, written anew on
+  each start. A replaced container keeps its node, its name and its sign-in. The socket is the CLI's
+  default, `/run/tailscale/tailscaled.sock`, so `docker exec <container> tailscale status` works.
+- **The node's name** is `agentry` (`AGENTRY_TAILSCALE_HOSTNAME`); Tailscale adds a number when the
+  tailnet already has one.
+- **Serve in userspace networking.** The tailnet connection ends inside tailscaled's own network
+  stack, and Serve's proxy dials `http://127.0.0.1:8787` from the tailscaled process, which shares the
+  container's network, so the rule reaches the server as it does on a host. It is how Tailscale's own
+  container image runs Serve (`TS_USERSPACE` on by default, with `TS_SERVE_CONFIG`). Measured here:
+  the daemon starts in userspace mode as `node` and reports `NeedsLogin` with `TUN: false`; Serve end
+  to end needs a signed-in node and was not measured.
+- **Direct connections.** Without UDP 41641 published, tailnet peers reach the container through
+  Tailscale's relays (DERP): it works, a little slower. Publishing `41641/udp` lets them connect
+  directly.
+- **Logs Tailscale uploads.** tailscaled sends its own logs to Tailscale, as it does everywhere;
+  `TS_NO_LOGS_NO_SUPPORT=true` in the container's environment turns that off (and Tailscale's support
+  with it).
 
-With Helm, set `tunnel.enabled: true`. A source install and the desktop app have it on by default,
-and `AGENTRY_TUNNEL=off` turns it off there too. `AGENTRY_TUNNEL` accepts `on`/`1`/`true` and
-`off`/`0`/`false`, with empty or unset meaning the default. Any other value stops the server at
-startup.
+**Turning it off.** `AGENTRY_TUNNEL=off` in `.env` (or `tunnel.enabled: false` in the chart) starts no
+tailscaled and offers no tunnel; the tab says so and names the switch. A source install and the
+desktop app use the machine's own Tailscale, on by default, and `AGENTRY_TUNNEL=off` turns it off
+there too. `AGENTRY_TUNNEL` accepts `on`/`1`/`true` and `off`/`0`/`false`, with empty or unset meaning
+the default. Any other value stops the server at startup. In the image, the default follows the
+daemon: the server offers the tunnel because the entrypoint said it started one
+(`AGENTRY_TAILSCALE_MANAGED=1`); an image started with another entrypoint offers none.
 
-Why off here:
+What to know before you open it:
 
-- **The container cannot see the host's Tailscale.** The image ships no `tailscale` CLI, and the
-  host's `tailscaled` socket is not mounted, so turned on with nothing else the tab only says that
-  Tailscale is not installed. It takes a CLI in the image (`TAILSCALE_BIN`) and a daemon it can reach,
-  such as a Tailscale sidecar sharing its socket, and that is a deployment decision of its own.
 - **The tunnel goes around everything in front of the server.** Once it opens, the Serve rule reaches
   `127.0.0.1:8787` inside the container, so tailnet members come in around the port Compose publishes
   only on `127.0.0.1`, the `tls` profile's Caddy, and in Kubernetes the Service, the Ingress and any
   ingress NetworkPolicy. (The localhost.run tunnel this replaced was measured doing exactly that, from a
   container that published no port; the evidence is in [the plan](plans/tunnel.md#answer-the-tunnel-in-docker).)
-- **Operators decide ingress in their manifests**, and a pod that opens its own way in looks like a
-  backdoor to a security review, so Agentry's own switch stays off.
+- **Operators decide ingress in their manifests**, and a pod that opens its own way in can look like a
+  backdoor to a security review. Nothing opens by itself: a node has to be signed in, authentication
+  turned on, and the tunnel opened by someone. Where that is not wanted, turn it off as above.
 
 Turned on, the tunnel is the same as everywhere else. It refuses to open while the auth mode is
 `none`, even if `auth.mode` in the chart only seeded a volume and the UI changed it later: it checks
@@ -254,7 +278,7 @@ Firebase project, no key of anyone else's.
   a log line and nothing else.
 - **No domain or proxy at hand?** On a machine with Tailscale, the [tunnel](tunnel.md) gives an HTTPS
   origin with a real certificate on the tailnet, and its address stays the same while the machine keeps
-  its name. In a container it needs a Tailscale the container can reach (above).
+  its name. In the image it is the container's own Tailscale, signed in from the app (above).
 - **In Kubernetes**, `push.json` sits on the same PersistentVolumeClaim as the rest of the data
   directory, which the chart keeps through `helm uninstall`. Bring your own Ingress, and terminate
   TLS there.
