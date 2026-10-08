@@ -389,7 +389,7 @@
   "queued [QueuedMessage, useQueuedMessages]",
   "quota [Quota]",
   "rail [useRailCollapsed]",
-  "registry [WIDGETS, WIDGET_AREAS, WidgetArea, WidgetDefinition, WidgetProps, defaultLayout, resolveLayout, widgetDefinition]",
+  "registry [WIDGETS, WIDGET_AREAS, WidgetArea, WidgetDefinition, WidgetProps, defaultLayout, missingModules, resolveLayout, widgetDefinition]",
   "reload [BUILD_VERSION, ReloadOffer, ReloadOffers, WORKER_HANDOVER_MS, WorkerContainer, dismissReloadOffer, isChunkLoadError, noticeServerVersion, noticeStaleChunk, reloadApp, serverVersionChange, useReloadOffer, watchChunkErrors]",
   "reset-when [resetWhen]",
   "resources [Namespace, SpanishHasNoExtraKeys, defaultNS, en, es, resources, withManyPlurals]",
@@ -496,13 +496,13 @@
   "highlight [Highlighted, PALETTE, Role, RoleLine, SYNTAX_CLASS, Segment, highlight, highlightRoles, languageOfPath] -> python [paintPython]",
   "highlight [Highlighted, PALETTE, Role, RoleLine, SYNTAX_CLASS, Segment, highlight, highlightRoles, languageOfPath] -> script [paintScript]",
   "highlight [Highlighted, PALETTE, Role, RoleLine, SYNTAX_CLASS, Segment, highlight, highlightRoles, languageOfPath] -> shell [paintShell]",
-  "registry [WIDGETS, WIDGET_AREAS, WidgetArea, WidgetDefinition, WidgetProps, defaultLayout, resolveLayout, widgetDefinition] -> QuickStart [default]",
-  "registry [WIDGETS, WIDGET_AREAS, WidgetArea, WidgetDefinition, WidgetProps, defaultLayout, resolveLayout, widgetDefinition] -> documents [DocumentsWidget]",
-  "registry [WIDGETS, WIDGET_AREAS, WidgetArea, WidgetDefinition, WidgetProps, defaultLayout, resolveLayout, widgetDefinition] -> flows [FlowsWidget]",
-  "registry [WIDGETS, WIDGET_AREAS, WidgetArea, WidgetDefinition, WidgetProps, defaultLayout, resolveLayout, widgetDefinition] -> live [InitialsBadge, NowWidget, OrchestrationsWidget, PickUpWidget, ProjectsWidget, SchedulesWidget]",
-  "registry [WIDGETS, WIDGET_AREAS, WidgetArea, WidgetDefinition, WidgetProps, defaultLayout, resolveLayout, widgetDefinition] -> project [ExportWidget, MemoryWidget, ResourcesWidget, WorktreesWidget]",
-  "registry [WIDGETS, WIDGET_AREAS, WidgetArea, WidgetDefinition, WidgetProps, defaultLayout, resolveLayout, widgetDefinition] -> pulse [KpisWidget, LimitsWidget]",
-  "registry [WIDGETS, WIDGET_AREAS, WidgetArea, WidgetDefinition, WidgetProps, defaultLayout, resolveLayout, widgetDefinition] -> usage [TodayWidget]"
+  "registry [WIDGETS, WIDGET_AREAS, WidgetArea, WidgetDefinition, WidgetProps, defaultLayout, missingModules, resolveLayout, widgetDefinition] -> QuickStart [default]",
+  "registry [WIDGETS, WIDGET_AREAS, WidgetArea, WidgetDefinition, WidgetProps, defaultLayout, missingModules, resolveLayout, widgetDefinition] -> documents [DocumentsWidget]",
+  "registry [WIDGETS, WIDGET_AREAS, WidgetArea, WidgetDefinition, WidgetProps, defaultLayout, missingModules, resolveLayout, widgetDefinition] -> flows [FlowsWidget]",
+  "registry [WIDGETS, WIDGET_AREAS, WidgetArea, WidgetDefinition, WidgetProps, defaultLayout, missingModules, resolveLayout, widgetDefinition] -> live [InitialsBadge, NowWidget, OrchestrationsWidget, PickUpWidget, ProjectsWidget, SchedulesWidget]",
+  "registry [WIDGETS, WIDGET_AREAS, WidgetArea, WidgetDefinition, WidgetProps, defaultLayout, missingModules, resolveLayout, widgetDefinition] -> project [ExportWidget, MemoryWidget, ResourcesWidget, WorktreesWidget]",
+  "registry [WIDGETS, WIDGET_AREAS, WidgetArea, WidgetDefinition, WidgetProps, defaultLayout, missingModules, resolveLayout, widgetDefinition] -> pulse [KpisWidget, LimitsWidget]",
+  "registry [WIDGETS, WIDGET_AREAS, WidgetArea, WidgetDefinition, WidgetProps, defaultLayout, missingModules, resolveLayout, widgetDefinition] -> usage [TodayWidget]"
  ],
  "duplicates": []
 }

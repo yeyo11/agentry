@@ -407,6 +407,13 @@
       "added": "{{title}} añadido",
       "removed": "{{title}} quitado",
       "resized": "{{title}}, tamaño {{size}}"
+    },
+    "needsModules": "Se muestra cuando el proyecto tiene activado: {{modules}}",
+    "module": {
+      "team": "Equipo",
+      "board": "Tablero",
+      "documents": "Documentos",
+      "memory": "Memoria"
     }
   }
 }

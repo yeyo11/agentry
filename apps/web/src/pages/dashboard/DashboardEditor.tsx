@@ -31,7 +31,7 @@ import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { Dashboard, type WidgetFrame } from './Dashboard';
 import { addableWidgets, addWidget, moveWidgetTo, positionOf, presentWidgets, removeWidget, resizeWidget, sameLayout, shiftWidget, widgetsInArea } from './edit';
 import type { DashboardLayout, DashboardScope, LayoutWidget, WidgetSize } from './layout';
-import { widgetDefinition, WIDGET_AREAS, type WidgetArea, type WidgetDefinition } from './registry';
+import { missingModules, widgetDefinition, WIDGET_AREAS, type WidgetArea, type WidgetDefinition } from './registry';
 
 /** The symbol of each widget type, in the picker and on the phone's list. */
 const ICONS: Record<string, LucideIcon> = {
@@ -148,12 +148,13 @@ function useLayoutEditor(saved: DashboardLayout, save: (layout: DashboardLayout)
 type LayoutEditor = ReturnType<typeof useLayoutEditor>;
 
 /** A widget in edit mode: a dashed frame whose head holds the handle, the sizes and Quitar, over the widget itself, inert. */
-function EditFrame({ widget, editor, children }: { widget: LayoutWidget; editor: LayoutEditor; children: ReactNode }) {
+function EditFrame({ widget, editor, project, children }: { widget: LayoutWidget; editor: LayoutEditor; project: Project | null; children: ReactNode }) {
   const { t } = useTranslation('home');
   const definition = widgetDefinition(widget.type);
   if (!definition) return null;
   const title = t(definition.titleKey);
   const lifted = editor.carried === widget.id;
+  const missing = missingModules(definition, project);
   const sizes = SIZED_AREAS.has(definition.area) ? SIZE_ORDER.filter((size) => definition.sizes.includes(size)) : [];
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
@@ -220,7 +221,12 @@ function EditFrame({ widget, editor, children }: { widget: LayoutWidget; editor:
       </div>
       {/* The widget stays drawn so the page still reads as itself, but nothing in it can be pressed while editing */}
       <div className="widget-edit-body" inert>
-        {children}
+        {missing.length > 0 ? (
+          // Off its modules the widget draws nothing; the frame says why rather than standing empty
+          <p className="widget-edit-note muted small">{t('edit.needsModules', { modules: missing.map((module) => t(`edit.module.${module}`)).join(', ') })}</p>
+        ) : (
+          children
+        )}
       </div>
     </div>
   );
@@ -367,7 +373,7 @@ export function EditableDashboard({
   const [message, setMessage] = useState('');
   const editor = useLayoutEditor(saved, save, setMessage);
   const frame: WidgetFrame = (widget, content) => (
-    <EditFrame widget={widget} editor={editor}>
+    <EditFrame widget={widget} editor={editor} project={project}>
       {content}
     </EditFrame>
   );

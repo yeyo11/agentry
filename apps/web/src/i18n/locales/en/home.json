@@ -407,6 +407,13 @@
       "added": "{{title}} added",
       "removed": "{{title}} removed",
       "resized": "{{title}}, size {{size}}"
+    },
+    "needsModules": "Shows once this project has these on: {{modules}}",
+    "module": {
+      "team": "Team",
+      "board": "Board",
+      "documents": "Documents",
+      "memory": "Memory"
     }
   }
 }

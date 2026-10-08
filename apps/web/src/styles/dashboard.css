@@ -1089,6 +1089,12 @@
   display: none;
 }
 
+/* A widget whose project modules are off draws nothing: its frame names what it needs instead */
+.widget-edit-note {
+  margin: 0;
+  padding: 14px 16px;
+}
+
 .widget-edit-body .live-energy::before {
   display: none;
 }

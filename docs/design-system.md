@@ -1511,6 +1511,7 @@ Drawn for CW-34 (a Home kept per project, with Documents and Flow widgets) by `r
 | `.home-grid` (`.w-s`, `.w-m`, `.w-l`, `.w-full`) | the dashboard's 12-column grid | s = 4, m = 6, l = 8 and full = 12 columns, as `SIZE_SPANS`; a phone stacks them |
 | `.widget`, `.widget-body`, `.widget-foot` | `WidgetCard` | the card of every widget: head, rows, an optional foot line in mono |
 | `.widget-edit`, `.widget-editbar` | new, edit mode of `WidgetCard` | the dashed frame and the head that holds the handle, sizes and Quitar |
+| `.widget-edit-note` | new | in edit mode, the line a widget shows when its project has the modules it reads off (Documents, Team, Board) instead of an empty frame |
 | `.widget-handle`, `.widget-sizes`, `.widget-remove` | `IconButton`, `Segmented`, `IconButton` | the sizes use the app's `Segmented`; every control has an `aria-label` that names the widget |
 | `.widget-lifted`, `.widget-slot` | new | the widget in hand and its landing place; no motion |
 | `.widget-add` | new, the end of the grid | a dashed tile that opens the picker |

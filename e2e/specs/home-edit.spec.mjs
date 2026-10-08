@@ -72,9 +72,13 @@ export default async ({ page, api, check, dirs }) => {
     const offered = await page.text('.dialog .pick-list');
     check(offered.includes('Export') && !offered.includes('Projects'), 'the picker offers Export and no widget of the other Home');
     check(offered.includes('Orchestrations') && offered.includes('Quick start'), 'the picker offers the types that fit the project');
-    await page.click('.dialog .pick-row', 'Export', 600);
+    // The row is text; its Add button is what adds the type
+    check(await page.eval(`const row = [...document.querySelectorAll('.dialog .pick-row')].find((r) => r.querySelector('.pick-name')?.textContent.includes('Export')); const add = row?.querySelector('.pick-add'); if (!add) return false; add.click(); return true;`), 'Export has its Add button in the picker');
+    await new Promise((r) => setTimeout(r, 600));
     await page.click('.dialog button', 'Close', 600);
-    check((await page.eval(widgetTypes)).includes('export'), 'a widget added from the picker is on the page');
+    // The picker closes and the page redraws from the saved layout: wait for it rather than read once
+    const added = await page.waitFor(`${widgetTypes.replace('return ', 'return (')}).split(',').includes('export')`, { timeout: 10000 }).then(() => true, () => false);
+    check(added, `a widget added from the picker is on the page (${await page.eval(widgetTypes)})`);
     await page.click('main [data-edit-widget=export] .widget-remove', undefined, 700);
 
     // Leaving edit mode keeps everything
