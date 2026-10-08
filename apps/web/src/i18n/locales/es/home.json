@@ -92,7 +92,8 @@
   },
   "widgets": {
     "kpis": {
-      "title": "Cifras"
+      "title": "Cifras",
+      "about": "El día en cifras: agentes trabajando, respuestas pendientes y lo que ha costado hoy."
     },
     "now": {
       "title": "En marcha",
@@ -103,7 +104,8 @@
       "all": "Ver todo",
       "offline": "Agentry no responde",
       "offlineHint": "La página no llega al wrapper. Comprueba que está en marcha y vuelve a intentarlo.",
-      "retry": "Reintentar"
+      "retry": "Reintentar",
+      "about": "Lo que está en marcha y lo que te espera primero."
     },
     "orchestrations": {
       "title": "Orquestaciones",
@@ -124,34 +126,40 @@
       "failed_other": "{{n}} fallidas",
       "pending_one": "{{n}} pendiente",
       "pending_other": "{{n}} pendientes",
-      "stageOf": "etapa {{n}} de {{total}}"
+      "stageOf": "etapa {{n}} de {{total}}",
+      "about": "Las orquestaciones en marcha, o la última, con su progreso."
     },
     "limits": {
       "title": "Límites",
-      "none": "Aún no se ha informado de límites de uso."
+      "none": "Aún no se ha informado de límites de uso.",
+      "about": "Cuánto llevas de los límites de 5 h y semanal."
     },
     "pickUp": {
       "title": "Retomar",
       "none": "No hay chats que retomar.",
       "failed": "fallido",
-      "interrupted": "interrumpido"
+      "interrupted": "interrumpido",
+      "about": "Los chats para retomar."
     },
     "today": {
       "title": "Uso de hoy",
-      "usage": "Detalle"
+      "usage": "Detalle",
+      "about": "Lo que ha costado el día por modelo."
     },
     "schedules": {
       "title": "Programaciones",
       "all": "Todas las programaciones",
       "none": "Nada programado. Lanza un chat cada mañana o una orquestación cada lunes.",
-      "create": "Crear programación"
+      "create": "Crear programación",
+      "about": "Las próximas ejecuciones programadas."
     },
     "projects": {
       "title": "Proyectos",
       "all": "Todos los proyectos",
       "waiting": "{{n}} esperando",
       "never": "sin actividad",
-      "now": "ahora"
+      "now": "ahora",
+      "about": "Cada proyecto con lo que tiene en directo."
     },
     "quickStart": {
       "title": "Inicio rápido",
@@ -163,26 +171,61 @@
       "mcpDefault": "MCP: el del CLI",
       "mcpChosen_one": "MCP: {{count}} servidor",
       "mcpChosen_other": "MCP: {{count}} servidores",
-      "allOptions": "Todas las opciones"
+      "allOptions": "Todas las opciones",
+      "about": "Empieza un chat con un prompt desde aquí."
     },
     "memory": {
       "title": "Memoria",
       "edit": "Editar instrucciones",
       "excerpt": "El CLAUDE.md del proyecto",
       "noInstructions": "Este proyecto aún no tiene CLAUDE.md.",
-      "files": "Archivos de memoria"
+      "files": "Archivos de memoria",
+      "about": "Un extracto de las instrucciones del proyecto y sus archivos de memoria."
     },
     "worktrees": {
       "title": "Worktrees",
       "all": "Todos los worktrees",
       "none": "No hay worktrees.",
-      "more": "y {{n}} más"
+      "more": "y {{n}} más",
+      "about": "Los worktrees del proyecto por rama."
     },
     "resources": {
-      "title": "Recursos"
+      "title": "Recursos",
+      "about": "Agentes, skills y comandos del proyecto, contados."
     },
     "export": {
-      "title": "Exportar"
+      "title": "Exportar",
+      "about": "Exporta los chats del proyecto en Markdown o JSON."
+    },
+    "documents": {
+      "title": "Documentos",
+      "all": "Ver todos",
+      "empty": "Este proyecto aún no tiene documentos.",
+      "you": "Tú",
+      "count_one": "{{n}} documento",
+      "count_other": "{{n}} documentos",
+      "tied_one": "{{n}} ligado a una tarea",
+      "tied_other": "{{n}} ligados a tareas",
+      "about": "Los documentos modificados más recientemente."
+    },
+    "flows": {
+      "title": "Flujo",
+      "on": "activado",
+      "off": "desactivado",
+      "open": "Ver el flujo",
+      "quiet": "El flujo no tiene nada en marcha ni esperando.",
+      "emptyOff": "El flujo está desactivado. Actívalo en el equipo para ver aquí sus ejecuciones.",
+      "gone": "Una tarea eliminada",
+      "returned": "devuelta",
+      "failed": "fallida",
+      "waitingIn_one": "{{n}} tarjeta esperando en {{column}}",
+      "waitingIn_other": "{{n}} tarjetas esperando en {{column}}",
+      "waitsForYou": "te espera",
+      "atOnce_one": "{{n}} ejecución a la vez",
+      "atOnce_other": "{{n}} ejecuciones a la vez",
+      "queued_one": "{{n}} en cola",
+      "queued_other": "{{n}} en cola",
+      "about": "Lo que el flujo ejecuta ahora, lo que te espera y lo que ha vuelto."
     }
   },
   "hero": {
@@ -314,6 +357,56 @@
       "journal_one": "Diario, última entrada",
       "journal_other": "Diario, últimas {{n}} entradas",
       "note": "Se le entrega al empezar cada chat del equipo, junto con el archivo de su rol."
+    }
+  },
+  "edit": {
+    "enter": "Editar inicio",
+    "barLabel": "Editar inicio",
+    "title": "Editando el inicio de {{name}}",
+    "titleAll": "Editando el inicio de Todos los proyectos",
+    "add": "Añadir widget",
+    "addShort": "Añadir",
+    "addNamed": "Añadir {{title}}",
+    "reset": "Restablecer",
+    "done": "Listo",
+    "saveFailed": "No se ha podido guardar el inicio",
+    "resetDone": "Inicio restablecido",
+    "undo": "Deshacer",
+    "handle": "Mover {{title}}",
+    "remove": "Quitar {{title}}",
+    "sizes": "Tamaño de {{title}}",
+    "size": {
+      "s": "S",
+      "m": "M",
+      "l": "L",
+      "full": "Todo"
+    },
+    "sizeName": {
+      "s": "Pequeño",
+      "m": "Mediano",
+      "l": "Grande",
+      "full": "Ancho completo"
+    },
+    "up": "Subir {{title}}",
+    "down": "Bajar {{title}}",
+    "isFirst": "{{title}} ya es el primero de su grupo",
+    "isLast": "{{title}} ya es el último de su grupo",
+    "listLabel": "Widgets del inicio",
+    "phoneNote": "En el móvil todos los widgets se apilan en una columna, así que no hay tamaño que elegir.",
+    "pickerTitle": "Añadir un widget",
+    "pickerHint": "Cada widget aparece una sola vez. Se añade al final de su sitio en la página.",
+    "new": "nuevo",
+    "have": "Ya están en tu inicio",
+    "allAdded": "Todos los widgets ya están en tu inicio.",
+    "close": "Cerrar",
+    "announce": {
+      "lifted": "{{title}} levantado, posición {{n}} de {{count}}. Usa las flechas para moverlo, Espacio para soltarlo y Escape para cancelar.",
+      "moved": "{{title}}, posición {{n}} de {{count}}",
+      "dropped": "{{title}} soltado en la posición {{n}} de {{count}}",
+      "cancelled": "Movimiento de {{title}} cancelado",
+      "added": "{{title}} añadido",
+      "removed": "{{title}} quitado",
+      "resized": "{{title}}, tamaño {{size}}"
     }
   }
 }

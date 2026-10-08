@@ -910,3 +910,374 @@
     display: none;
   }
 }
+
+/* ---------- Sizes in the wide column ---------- */
+
+/* The wide column honours a widget's size on a 12-column grid (6 when the dashboard is narrow); the
+   strip of figures and the narrow column have a width of their own. On a phone the areas melt. */
+@container dashboard (min-width: 600px) {
+  .area-main {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+  .area-main > .widget-slot {
+    grid-column: span 6;
+  }
+  .area-main > .widget-slot.size-s {
+    grid-column: span 3;
+  }
+  .area-main > .widget-slot.size-m {
+    grid-column: span 3;
+  }
+}
+
+@container dashboard (min-width: 1000px) {
+  .area-main {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+  .area-main > .widget-slot {
+    grid-column: span 12;
+  }
+  .area-main > .widget-slot.size-s {
+    grid-column: span 4;
+  }
+  .area-main > .widget-slot.size-m {
+    grid-column: span 6;
+  }
+  .area-main > .widget-slot.size-l {
+    grid-column: span 8;
+  }
+}
+
+/* ---------- The Documents and Flows widgets ---------- */
+
+.widget-icon {
+  flex: none;
+  color: var(--text-faint);
+}
+
+.widget-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 -18px -16px;
+  padding: 10px 18px;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.doc-row,
+.flow-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+}
+
+.doc-row:hover,
+.flow-row:hover {
+  background: var(--bg-hover);
+  text-decoration: none;
+}
+
+.doc-row-icon {
+  flex: none;
+  color: var(--text-faint);
+}
+
+.doc-row-text,
+.flow-what {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.doc-name {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.doc-row-age {
+  flex: none;
+  min-width: 56px;
+  text-align: right;
+}
+
+.flow-title {
+  font-weight: 500;
+}
+
+.flow-row.live-rail {
+  padding-left: 16px;
+}
+
+/* ---------- Edit mode ---------- */
+
+.home-editbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-bottom: 16px;
+}
+
+.home-editbar-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.home-editbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Listo is the zone's primary action but not the gradient: the logo and New chat are the screen's two */
+.btn.edit-done {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: transparent;
+  font-weight: 600;
+}
+
+.btn.edit-done:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.widget-edit {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-xl);
+}
+
+.widget-edit-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+/* The frame is the editing one: the widget keeps its content, drops its own card and its heading
+   (the bar names it) and its energy border, since editing is not a live thing */
+.widget-edit-body > .card,
+.widget-edit-body > .alert {
+  flex: 1;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  animation: none;
+}
+
+.widget-edit-body .widget-head {
+  display: none;
+}
+
+.widget-edit-body .live-energy::before {
+  display: none;
+}
+
+.widget-editbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px 7px 8px;
+  border-bottom: 1px dashed var(--border);
+  background: var(--bg-1);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+.widget-handle {
+  cursor: grab;
+}
+
+.widget-name {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.widget-sizes {
+  margin-left: auto;
+}
+
+.widget-remove-end {
+  margin-left: auto;
+}
+
+.widget-remove:hover:not(:disabled) {
+  color: var(--bad);
+  background: var(--bad-soft);
+}
+
+/* The widget in hand: a position mark, so the accent here is not the brand */
+.widget-lifted {
+  border-style: solid;
+  border-color: var(--accent);
+  box-shadow: var(--shadow-pop);
+}
+
+.widget-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 52px;
+  margin-top: 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-xl);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.widget-add:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--bg-1);
+}
+
+/* ---------- The add-widget picker ---------- */
+
+.pick-list,
+.move-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pick-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-1);
+}
+
+.pick-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pick-row:last-child {
+  border-bottom: 0;
+}
+
+.pick-ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius);
+  background: var(--bg-3);
+  color: var(--text-muted);
+}
+
+.pick-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.pick-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pick-desc {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.pick-sizes {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.pick-have-section {
+  margin-top: 16px;
+}
+
+.pick-have {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ---------- Phone: one row per widget, buttons of 44 px ---------- */
+
+.move-list {
+  gap: 8px;
+}
+
+.move-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 64px;
+  padding: 4px 4px 4px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elev);
+}
+
+.move-row .pick-ico {
+  margin-right: 8px;
+}
+
+.move-row .icon-btn {
+  width: var(--touch);
+  height: var(--touch);
+}
+
+.edit-note {
+  margin: 0 0 12px;
+}
+
+@media (pointer: coarse) {
+  .pick-row {
+    min-height: 64px;
+  }
+  .pick-add {
+    min-height: var(--touch);
+  }
+  .widget-handle,
+  .widget-remove {
+    width: var(--touch);
+    height: var(--touch);
+  }
+}

@@ -237,6 +237,8 @@ import type {
   WriteConfigFileRequest,
   WriteDocumentRequest,
   YoutrackCredentialsStatus,
+  SaveDashboardLayoutRequest,
+  StoredDashboardLayout,
 } from '@agentry/shared';
 import i18n from './i18n';
 import { authHeaders, setChallenge, withToken } from './lib/auth';
@@ -711,6 +713,11 @@ export const api = {
   /** The settings that change at runtime; a key the environment set is refused, so send only what changed */
   appSettings: (o: ReadOptions = {}) => request<AppSettings>('/settings/app', o),
   updateAppSettings: (body: UpdateAppSettingsRequest) => request<AppSettings>('/settings/app', { method: 'PUT', body }),
+  /** `project` is a project id, or `all` for All projects' Home; `layout` is null while the default applies */
+  dashboardLayout: (project: string, o: ReadOptions = {}) => request<StoredDashboardLayout>(`/dashboard/layout${qs({ project })}`, o),
+  saveDashboardLayout: (project: string, body: SaveDashboardLayoutRequest) =>
+    request<StoredDashboardLayout>(`/dashboard/layout${qs({ project })}`, { method: 'PUT', body }),
+  resetDashboardLayout: (project: string) => request<StoredDashboardLayout>(`/dashboard/layout${qs({ project })}`, { method: 'DELETE' }),
   tunnel: (o: ReadOptions = {}) => request<TunnelStatus>('/tunnel', o),
   updateTunnelSettings: (body: UpdateTunnelSettingsRequest) => request<TunnelStatus>('/tunnel/settings', { method: 'PUT', body }),
   startTunnel: () => request<TunnelStatus>('/tunnel/start', { method: 'POST' }),
@@ -1175,6 +1182,8 @@ export const keys = {
   // event of that project reaches every page and filter of it
   team: (projectId: string) => ['team', projectId] as const,
   flow: (projectId: string) => ['flow', projectId] as const,
+  // Under `flow`, so every event that refreshes the flow refreshes the cards waiting for it
+  flowWaiting: (projectId: string) => ['flow', projectId, 'waiting'] as const,
   /**
    * Every page of a project's team activity. Not under `flow`: that prefix holds the live snapshot,
    * which `chat.activity` patches in place and would find pages there instead
@@ -1212,6 +1221,8 @@ export const keys = {
   // Both are written whole from their events (lib/events.ts), never refetched for them
   appSettings: ['settings', 'app'] as const,
   tunnel: ['tunnel'] as const,
+  // Written whole from `dashboard.layout` (lib/events.ts), never refetched for it
+  dashboardLayout: (project: string) => ['dashboard-layout', project] as const,
   availablePlugins: (q: string) => ['plugins', 'available', q] as const,
   pluginDetails: (plugin: string) => ['plugins', 'details', plugin] as const,
 };
@@ -1480,6 +1491,15 @@ export const useFlow = (projectId: string | null) =>
     refetchInterval: useFallbackInterval(),
   });
 
+/** The cards a flow would start by itself if it were switched on; 0 while the flow, Team or Board is off. */
+export const useFlowWaiting = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.flowWaiting(projectId ?? ''),
+    queryFn: ({ signal }) => api.flowWaiting(projectId ?? '', { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
 /**
  * The team's activity ("See all"): every flow run of the project, newest first, filtered by member
  * and status, a page at a time (`fetchNextPage` while `hasNextPage`).
@@ -1510,6 +1530,14 @@ export const useMemoryProposals = (projectId: string | null, status?: MemoryProp
     queryKey: keys.memoryProposals(projectId ?? '', status),
     queryFn: ({ signal }) => api.memoryProposals(projectId ?? '', status, { signal }),
     enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+/** The stored layout of a project's Home, or of All projects' with `all`; null `layout` means the default. */
+export const useDashboardLayout = (project: string) =>
+  useQuery({
+    queryKey: keys.dashboardLayout(project),
+    queryFn: ({ signal }) => api.dashboardLayout(project, { signal }),
     refetchInterval: useFallbackInterval(),
   });
 

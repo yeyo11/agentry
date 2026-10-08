@@ -1,6 +1,7 @@
 import type { Project } from '@agentry/shared';
-import { BookText, ChevronRight, FileText, FolderX, GitFork, LayoutDashboard, Package, SlidersHorizontal, SquareKanban, Users, type LucideIcon } from 'lucide-react';
-import { lazy, Suspense, useMemo, type ReactNode } from 'react';
+import { BookText, ChevronRight, FileText, FolderX, GitFork, LayoutDashboard, Package, Pencil, SlidersHorizontal, SquareKanban, Users, type LucideIcon } from 'lucide-react';
+import { ALL_PROJECTS_LAYOUT } from '@agentry/shared';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { useDocuments, useOpenTaskCount, useTeam } from '../api';
@@ -12,7 +13,8 @@ import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { useProjectScope } from '../lib/project-scope';
 import { Dashboard } from './dashboard/Dashboard';
 import { HomeHero } from './dashboard/Hero';
-import { defaultLayout } from './dashboard/registry';
+import { EditableDashboard } from './dashboard/DashboardEditor';
+import { useHomeLayout } from './dashboard/useHomeLayout';
 import { usePendingProposalCount } from './home/memory/Proposals';
 import { PhoneAssistantRow, PhoneHead, PhoneViewHead, ProjectHead } from './home/ProjectHead';
 import { useProjectResourceCount } from './home/resources/data';
@@ -131,10 +133,22 @@ function PhoneTabCells({ views, counts }: { views: ProjectViewId[]; counts: Part
   );
 }
 
-function ProjectDashboard({ project }: { project: Project }) {
+/**
+ * A Home's dashboard: its stored layout (or the default), and in edit mode the same widgets in
+ * their frames. A project's layout is its own; All projects has one of its own too.
+ */
+function HomeDashboard({ project, editing, onDone }: { project: Project | null; editing: boolean; onDone: () => void }) {
   const { t } = useTranslation('home');
-  const layout = useMemo(() => defaultLayout('project'), []);
-  return <Dashboard layout={layout} project={project} label={t('dashboard.label', { name: project.name })} />;
+  const scope = project ? 'project' : 'global';
+  const home = useHomeLayout(project ? project.id : ALL_PROJECTS_LAYOUT, scope);
+  const label = project ? t('dashboard.label', { name: project.name }) : t('dashboard.labelAll');
+  // Drawing the default while the stored layout is on its way would show one Home and then another
+  if (home.loading) return <Skeleton rows={5} height={18} />;
+  return editing ? (
+    <EditableDashboard layout={home.layout} project={project} scope={scope} label={label} stored={home.stored} save={home.save} reset={home.reset} onDone={onDone} />
+  ) : (
+    <Dashboard layout={home.layout} project={project} label={label} />
+  );
 }
 
 function TabBody({ project, tab }: { project: Project; tab: ProjectViewId }) {
@@ -165,10 +179,15 @@ function ProjectPage({ project }: { project: Project }) {
   const guard = useLeaveGuard();
   const group = useTabGroup();
   const counts = useTabCounts(project);
+  const [editing, setEditing] = useState(false);
   const views = projectViews(project.modules);
   const asked = asProjectView(params.get('view'));
   const view = asked && views.includes(asked) ? asked : null;
   const tab: TabId = view ?? 'summary';
+  // Edit mode belongs to Resumen: leaving it for another tab ends it (each change is already saved)
+  useEffect(() => {
+    if (tab !== 'summary') setEditing(false);
+  }, [tab]);
 
   if (asked && !view) {
     const next = new URLSearchParams(params);
@@ -203,13 +222,13 @@ function ProjectPage({ project }: { project: Project }) {
       </>
     ) : (
       <>
-        <PhoneHead project={project} />
+        <PhoneHead project={project} onEditHome={editing ? undefined : () => setEditing(true)} />
         <MissingAlert project={project} />
         {/* The cells are how a phone reaches the board and the settings: under the whole dashboard
             they sat a dozen widgets down, where the reference has them near the top */}
         <PhoneAssistantRow project={project} />
         <PhoneTabCells views={views} counts={counts} />
-        <ProjectDashboard project={project} />
+        <HomeDashboard project={project} editing={editing} onDone={() => setEditing(false)} />
       </>
     );
   }
@@ -230,7 +249,12 @@ function ProjectPage({ project }: { project: Project }) {
   const tabs: TabId[] = ['summary', ...views];
   return (
     <>
-      <ProjectHead project={project} primaryTask={tab === 'summary'} actions={!FORM_TABS.has(tab)} />
+      <ProjectHead
+        project={project}
+        primaryTask={tab === 'summary'}
+        actions={!FORM_TABS.has(tab)}
+        onEditHome={tab === 'summary' && !editing ? () => setEditing(true) : undefined}
+      />
       <MissingAlert project={project} />
       <div className="project-tabs">
         <Tabs
@@ -253,7 +277,7 @@ function ProjectPage({ project }: { project: Project }) {
         />
       </div>
       <TabPanel group={group} tab={tab} className="tab-panel" key={`${project.id}:${tab}`}>
-        {view ? <TabBody project={project} tab={view} /> : <ProjectDashboard project={project} />}
+        {view ? <TabBody project={project} tab={view} /> : <HomeDashboard project={project} editing={editing} onDone={() => setEditing(false)} />}
       </TabPanel>
     </>
   );
@@ -264,22 +288,34 @@ function ProjectPage({ project }: { project: Project }) {
  * page: its tabs, Resumen (its dashboard) first. The tabs mean nothing without a project, so All
  * projects has only the dashboard.
  */
-export function Home() {
+function AllProjectsHome() {
   const { t } = useTranslation('home');
+  const [editing, setEditing] = useState(false);
+  return (
+    <>
+      <HomeHero
+        project={null}
+        actions={
+          editing ? undefined : (
+            <button type="button" className="btn btn-quiet" onClick={() => setEditing(true)}>
+              <Pencil {...ICON_SM} />
+              {t('edit.enter')}
+            </button>
+          )
+        }
+      />
+      <HomeDashboard project={null} editing={editing} onDone={() => setEditing(false)} />
+    </>
+  );
+}
+
+export function Home() {
   const [params] = useSearchParams();
   const { project, ready } = useProjectScope();
-  const globalLayout = useMemo(() => defaultLayout('global'), []);
   const redirect = legacyTabRedirect(params);
   if (redirect !== null) return <Navigate to={{ pathname: '/', search: redirect }} replace />;
   if (!ready) return <Skeleton rows={5} height={18} />;
-  if (!project) {
-    return (
-      <>
-        <HomeHero project={null} />
-        <Dashboard layout={globalLayout} project={null} label={t('dashboard.labelAll')} />
-      </>
-    );
-  }
+  if (!project) return <AllProjectsHome />;
   return (
     <DirtyProvider>
       <ProjectPage key={project.id} project={project} />

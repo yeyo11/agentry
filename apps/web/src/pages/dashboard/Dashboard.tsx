@@ -19,15 +19,18 @@ class WidgetBoundary extends Component<{ fallback: (error: unknown) => ReactNode
   }
 }
 
-function Slot({ widget, project }: { widget: LayoutWidget; project: Project | null }) {
+/** How edit mode dresses a widget: its frame around the content, which stays drawn but inert. */
+export type WidgetFrame = (widget: LayoutWidget, content: ReactNode) => ReactNode;
+
+function Slot({ widget, project, frame }: { widget: LayoutWidget; project: Project | null; frame?: WidgetFrame }) {
   const { t } = useTranslation('home');
   const definition = widgetDefinition(widget.type);
   // A layout reaches here validated, but a type can still vanish between validation and render
   if (!definition) return null;
   const Widget = definition.component;
   const title = t(definition.titleKey);
-  return (
-    <div className={`widget-slot size-${widget.size}`} data-widget={widget.type}>
+  const content = (
+    <>
       <WidgetBoundary fallback={(error) => <ErrorBox error={error} title={t('dashboard.widgetFailed', { title })} />}>
         <Suspense
           fallback={
@@ -45,6 +48,11 @@ function Slot({ widget, project }: { widget: LayoutWidget; project: Project | nu
           <Widget project={project} size={widget.size} config={widget.config} title={title} id={`widget-${widget.id}`} />
         </Suspense>
       </WidgetBoundary>
+    </>
+  );
+  return (
+    <div className={`widget-slot size-${widget.size} ${frame ? 'is-editing' : ''}`.trim()} data-widget={widget.type}>
+      {frame ? frame(widget, content) : content}
     </div>
   );
 }
@@ -55,14 +63,28 @@ function Slot({ widget, project }: { widget: LayoutWidget; project: Project | nu
  * holds. Measured on the dashboard's own width, so a folded sidebar is room gained; on a phone the
  * areas melt into one column.
  */
-export function Dashboard({ layout, project, label }: { layout: DashboardLayout; project: Project | null; label: string }) {
+export function Dashboard({
+  layout,
+  project,
+  label,
+  frame,
+  after,
+}: {
+  layout: DashboardLayout;
+  project: Project | null;
+  label: string;
+  /** Edit mode: wraps each widget in its frame */
+  frame?: WidgetFrame;
+  /** Edit mode: what closes the grid (the dashed "add a widget" tile) */
+  after?: ReactNode;
+}) {
   const byArea = new Map<WidgetArea, LayoutWidget[]>(WIDGET_AREAS.map((area) => [area, []]));
   for (const widget of layout.widgets) {
     const area = widgetDefinition(widget.type)?.area;
     if (area) byArea.get(area)?.push(widget);
   }
   return (
-    <div className="dashboard">
+    <div className={`dashboard ${frame ? 'is-editing' : ''}`.trim()}>
       <RetirementCard />
       <div className="dashboard-grid" role="region" aria-label={label}>
         {WIDGET_AREAS.map((area) => {
@@ -70,12 +92,13 @@ export function Dashboard({ layout, project, label }: { layout: DashboardLayout;
           return widgets.length === 0 ? null : (
             <div key={area} className={`dashboard-area area-${area}`}>
               {widgets.map((widget) => (
-                <Slot key={widget.id} widget={widget} project={project} />
+                <Slot key={widget.id} widget={widget} project={project} frame={frame} />
               ))}
             </div>
           );
         })}
       </div>
+      {after}
     </div>
   );
 }

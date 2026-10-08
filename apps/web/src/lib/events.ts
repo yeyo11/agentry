@@ -22,6 +22,7 @@ import type {
   RunStatus,
   RunUpdatedEvent,
   SettingsChangedEvent,
+  StoredDashboardLayout,
   StreamHelloEvent,
   StreamResyncEvent,
   Team,
@@ -128,6 +129,7 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'assistant.proposal': true,
   'settings.changed': true,
   'tunnel.changed': true,
+  'dashboard.layout': true,
   'webhook.changed': true,
 };
 
@@ -410,6 +412,9 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'tunnel.changed':
       // The event carries the whole status, which `patchSettings` writes
       return [];
+    case 'dashboard.layout':
+      // The event carries the whole layout, which `patchLayout` writes
+      return [];
     case 'webhook.changed':
       // The project's registrations; a delivery also moves its change requests' freshness, which their own events refresh
       return [[keys.projectWebhooks(event.projectId), NOW]];
@@ -585,6 +590,7 @@ function startEventFeed(client: QueryClient): () => void {
     if (event.type === 'chat.activity') patchActivity(client, event);
     if (event.type === 'orchestration.task') patchOrchestrationTask(client, event);
     if (event.type === 'settings.changed' || event.type === 'tunnel.changed') patchSettings(client, event);
+    if (event.type === 'dashboard.layout') client.setQueryData<StoredDashboardLayout>(keys.dashboardLayout(event.project), { project: event.project, layout: event.layout });
     if (event.type === 'run.updated' && event.previousStatus === null && patchRun(client, event)) {
       invalidations.schedule([[keys.chats, LISTS], [keys.overview, OVERVIEW]]);
     }
