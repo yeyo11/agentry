@@ -1,0 +1,30 @@
+/* The chat page while its conversation loads: message-shaped rows in the skeleton's shimmer */
+.chat-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 18px 0;
+}
+
+.chat-loading-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.chat-loading-turn .skeleton {
+  height: 12px;
+}
+
+/* A person's message sits on the right, as it does in the transcript */
+.chat-loading-turn.is-user {
+  align-items: flex-end;
+}
+
+.chat-loading-turn.is-user .skeleton {
+  height: 34px;
+  border-radius: var(--radius-xl) var(--radius-xl) var(--radius-xs) var(--radius-xl);
+}

@@ -16,7 +16,7 @@ import { endsWithAssistant, StreamingEntry, Transcript, WorkingLine, type Messag
 import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind, type FindTarget } from '@agentry/chat-ui/components/TranscriptSearch';
 import { entryParam } from '../components/changes/steps/steps-model';
 import '../components/changes/steps/at-jump.css';
-import { Empty, ErrorBox, Loading, PageHeader, Skeleton, usePageTitle } from '@agentry/ui/components/ui';
+import { Empty, ErrorBox, PageHeader, Skeleton, usePageTitle } from '@agentry/ui/components/ui';
 import { api, ApiRequestError, keys, useProjects } from '../api';
 import { tickerActivity } from '@agentry/chat-ui/lib/chat-live';
 import { displayTitle } from '@agentry/chat-ui/lib/chat-model';
@@ -29,6 +29,7 @@ import { AgentScope } from '@agentry/chat-ui/lib/agent';
 import { useChatUi } from '@agentry/chat-ui/lib/context';
 import { Composer, type ComposerKind } from '@agentry/chat-ui/composer/Composer';
 import { AssistantGreeting } from './agentry-assistant/Greeting';
+import { ChatLoading } from './chat/ChatLoading';
 import { FlowMovedNote } from './chat/FlowMoved';
 import { ChatHeader, type HeaderActions } from './chat/Header';
 import { ContinuedDivider, ContinuedFrom, HandoffCard, LimitStopped } from './chat/HandoffCard';
@@ -262,7 +263,7 @@ export function ChatView() {
     [findOpen, findShow, findClose, sidechains, forking, stopChat, stopping, interruptChat, interrupting, remove.isPending, inspector],
   );
 
-  if (transcript.query.isLoading) return <Loading label={t('view.loading')} />;
+  if (transcript.query.isLoading) return <ChatLoading label={t('view.loading')} />;
   if (!chat) {
     return (
       <>

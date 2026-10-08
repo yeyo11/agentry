@@ -28,6 +28,7 @@
   "ChangesReview [ChatChangesReview, IntegrationChangesReview, TaskChangesReview, WorkItemChangesReview]",
   "ChatBadges [BranchStatus, ContextBar, ContextMeter, ControlBadge, LastOutcome, OriginBadge, OutcomeBadge, ProviderBadge, StateBadge]",
   "ChatDelete [useDeleteChat]",
+  "ChatLoading [ChatLoading]",
   "ChatToolsPicker [ChatToolsPicker, ToolChoices]",
   "ChatView [ChatView]",
   "Chats [Chats]",
