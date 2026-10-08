@@ -4,7 +4,7 @@
  * definition here plus its component; editing and storing a layout per project will read the same
  * list to offer what can be added.
  */
-import type { Project } from '@agentry/shared';
+import type { Project, ProjectModule, WidgetType } from '@agentry/shared';
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 import { layoutOf, validateLayout, type DashboardLayout, type DashboardScope, type WidgetRule, type WidgetScope, type WidgetSize } from './layout';
 
@@ -21,9 +21,6 @@ export interface WidgetProps {
 
 export type WidgetArea = 'top' | 'main' | 'side';
 
-/** The widget types this version knows; a stored layout may name others, which validation drops. */
-export type WidgetType = 'kpis' | 'now' | 'orchestrations' | 'limits' | 'pickUp' | 'today' | 'schedules' | 'projects' | 'quickStart' | 'memory' | 'worktrees' | 'resources' | 'export';
-
 export interface WidgetDefinition extends WidgetRule {
   type: WidgetType;
   /** Under the `home` namespace */
@@ -37,6 +34,8 @@ export interface WidgetDefinition extends WidgetRule {
    * put a table where only a tile fits.
    */
   area: WidgetArea;
+  /** The project modules it reads; without them it draws nothing, and edit mode says why */
+  needs?: readonly ProjectModule[];
   /**
    * Draws the widget, frame included, or nothing at all when it has nothing to say (the grid drops
    * an empty cell). Lazy: the widgets that share a module load together, the heavy ones on their own.
@@ -66,6 +65,8 @@ export const WIDGETS: readonly WidgetDefinition[] = [
   { type: 'memory', titleKey: 'widgets.memory.title', sizes: ['s', 'm', 'l'], defaultSize: 's', scope: 'project', area: 'side', component: project('MemoryWidget') },
   { type: 'worktrees', titleKey: 'widgets.worktrees.title', sizes: ['s', 'm', 'l'], defaultSize: 's', scope: 'project', area: 'side', component: project('WorktreesWidget') },
   { type: 'resources', titleKey: 'widgets.resources.title', sizes: ['s', 'm'], defaultSize: 's', scope: 'project', area: 'side', component: project('ResourcesWidget') },
+  { type: 'flows', titleKey: 'widgets.flows.title', sizes: ['m', 'l', 'full'], defaultSize: 'm', scope: 'project', area: 'main', needs: ['team', 'board'], component: lazy(() => import('./widgets/flows').then((m) => ({ default: m.FlowsWidget }))) },
+  { type: 'documents', titleKey: 'widgets.documents.title', sizes: ['m', 'l', 'full'], defaultSize: 'm', scope: 'project', area: 'main', needs: ['documents'], component: lazy(() => import('./widgets/documents').then((m) => ({ default: m.DocumentsWidget }))) },
   { type: 'export', titleKey: 'widgets.export.title', sizes: ['m', 'l', 'full'], defaultSize: 'full', scope: 'project', area: 'main', component: project('ExportWidget') },
 ];
 
@@ -73,22 +74,29 @@ const BY_TYPE = new Map<string, WidgetDefinition>(WIDGETS.map((widget) => [widge
 
 export const widgetDefinition = (type: string): WidgetDefinition | undefined => BY_TYPE.get(type);
 
+/** The modules a widget needs that this project has off: what edit mode names instead of an empty frame. */
+export const missingModules = (definition: WidgetDefinition, project: Project | null): ProjectModule[] =>
+  project ? (definition.needs ?? []).filter((module) => !project.modules.includes(module)) : [];
+
 /*
  * The order a person reads in: what is live, then what to pick up, then the project's own things.
  * Orchestrations are part of "In progress" now, so their own widget is only for a stored layout;
  * so is Quick start, since the header's New chat and the phone's FAB already start a chat here.
  */
 const DEFAULT_TYPES: Record<DashboardScope, readonly WidgetType[]> = {
-  project: ['now', 'pickUp', 'export', 'kpis', 'limits', 'today', 'schedules', 'memory', 'worktrees', 'resources'],
+  project: ['now', 'pickUp', 'flows', 'documents', 'export', 'kpis', 'limits', 'today', 'schedules', 'memory', 'worktrees', 'resources'],
   global: ['now', 'pickUp', 'kpis', 'limits', 'today', 'projects', 'schedules'],
 };
 
 /** The areas in the order the page draws them: the figures on top, then the two columns. */
 export const WIDGET_AREAS: readonly WidgetArea[] = ['top', 'main', 'side'];
 
-/** The layout this version ships: every dashboard shows it until layouts can be edited and stored. */
+/** The layout this version ships: a Home shows it until its person stores one of their own. */
 export function defaultLayout(scope: DashboardScope): DashboardLayout {
-  return layoutOf(DEFAULT_TYPES[scope], WIDGETS, scope);
+  const layout = layoutOf(DEFAULT_TYPES[scope], WIDGETS, scope);
+  // Pick up again keeps the width it always had in the wide column, where a half-width one would
+  // leave a gap beside it; the person can still narrow it
+  return { ...layout, widgets: layout.widgets.map((widget) => (widget.type === 'pickUp' ? { ...widget, size: 'full' } : widget)) };
 }
 
 /** A stored (or any) layout, reduced to what this version can draw; the default when it is not a layout. */

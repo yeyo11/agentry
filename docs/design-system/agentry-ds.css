@@ -2095,3 +2095,56 @@ a.cont-from:hover { color: var(--fg); }
 .m-screen .permission-actions .btn { flex: 1 1 0; justify-content: center; }
 .m-screen .permission-reason { flex-basis: 100%; }
 /* ---------- end of The Agentry assistant ---------- */
+
+/* ---------- Editable Home (CW-34): edit mode, the add-widget picker and the Documents and Flow widgets ---------- */
+.home-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.home-grid > .w-s { grid-column: span 4; }
+.home-grid > .w-m { grid-column: span 6; }
+.home-grid > .w-l { grid-column: span 8; }
+.home-grid > .w-full { grid-column: span 12; }
+.widget { display: flex; flex-direction: column; min-width: 0; }
+.widget-body { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px 10px; }
+.widget-foot { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 11.5px; color: var(--fg-3); }
+/* Edit mode: the frame turns dashed and its head becomes the bar with the handle, the sizes and Quitar. The content
+   stays as it is (readable, same contrast) and the live energy frame is off: editing is not a live thing. */
+.widget-edit { border-style: dashed; border-color: var(--line-3); }
+.widget-editbar { display: flex; align-items: center; gap: 8px; padding: 7px 10px 7px 8px; border-bottom: 1px dashed var(--line-2); background: var(--bg-1); border-radius: var(--r-xl) var(--r-xl) 0 0; }
+.widget-handle { cursor: grab; color: var(--fg-3); }
+.widget-handle:hover, .widget-handle:focus-visible { color: var(--fg); }
+.widget-name { font-size: 13px; font-weight: 600; min-width: 0; }
+.widget-sizes { margin-left: auto; padding: 2px; }
+.widget-sizes > * { height: 24px; min-width: 28px; justify-content: center; padding: 0 7px; font-family: var(--mono); font-size: 11px; }
+.widget-remove:hover { color: var(--bad); background: var(--bad-soft); }
+/* A widget being carried, and the slot it will land in. The accent here is a position mark, not the brand gradient. */
+.widget-lifted { border-style: solid; border-color: var(--accent); box-shadow: var(--shadow-pop); }
+.widget-slot { display: grid; place-items: center; min-height: 88px; border: 1.5px dashed var(--accent); border-radius: var(--r-xl); background: var(--accent-soft); color: var(--accent); font-size: 12.5px; font-weight: 500; }
+.widget-add { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; width: 100%; border: 1px dashed var(--line-3); border-radius: var(--r-xl); background: transparent; color: var(--fg-2); font-size: 13px; cursor: pointer; }
+.widget-add:hover { border-color: var(--accent); color: var(--fg); background: var(--bg-1); }
+.edit-done { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 600; }
+.edit-done:hover { background: var(--accent-soft); border-color: var(--accent); }
+.edit-note { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11.5px; color: var(--fg-3); }
+/* The add-widget picker (a dialog on desktop, a Sheet on a phone): one row per type that is not on the page yet */
+.pick-list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; background: var(--bg-1); }
+.pick-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.pick-row:last-child { border-bottom: 0; }
+.pick-ico { width: 36px; height: 36px; border-radius: var(--r); display: grid; place-items: center; flex-shrink: 0; background: var(--bg-3); color: var(--fg-2); }
+.pick-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.pick-name { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+.pick-desc { font-size: 12.5px; color: var(--fg-2); line-height: 1.45; }
+.pick-sizes { font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+.pick-have { display: flex; flex-wrap: wrap; gap: 6px; }
+.m-screen .pick-row { min-height: 64px; }
+.m-screen .pick-desc { font-size: 13px; }
+/* Phone edit mode: one compact card per widget with 44 px up, down and Quitar buttons; no size control (phones stack) */
+.move-row { display: flex; align-items: center; gap: 4px; min-height: 64px; padding: 4px 4px 4px 12px; border: 1px dashed var(--line-3); border-radius: var(--r-lg); background: var(--bg-2); }
+.move-row .pick-ico { margin-right: 8px; }
+.move-row .btn-icon { width: var(--touch); height: var(--touch); flex-shrink: 0; }
+.move-row .btn[disabled] { opacity: 0.35; cursor: not-allowed; }
+/* The Documents and Flow widgets */
+.doc-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r); }
+.doc-row:hover { background: var(--bg-3); }
+.doc-name { font-family: var(--mono); font-size: 12.5px; font-weight: 500; }
+.flow-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r); }
+.flow-row:hover { background: var(--bg-3); }
+.flow-row .flow-what { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
+/* ---------- end of Editable Home ---------- */

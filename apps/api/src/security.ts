@@ -180,6 +180,9 @@ const CHAT_FORBIDDEN = new Set([
   `DELETE ${API_PREFIX}/trackers/youtrack/credentials`,
 ]);
 
+/** How Home is laid out is the person's own setting; a chat may read it. */
+const CHAT_FORBIDDEN_LAYOUT = new Set([`PUT ${API_PREFIX}/dashboard/layout`, `DELETE ${API_PREFIX}/dashboard/layout`]);
+
 /**
  * What a limit does with the person's work is theirs to choose: moving a chat spends on another
  * vendor, so a prompt injection in a transcript must not be able to start one, to stop a wait or to
@@ -511,6 +514,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       }
       if (chat !== null && CHAT_FORBIDDEN_WEBHOOKS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot register, test or remove a repository's webhook: that is the person's click" });
+        return reply;
+      }
+      if (chat !== null && CHAT_FORBIDDEN_LAYOUT.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot change how Home is laid out: that is the person's setting" });
         return reply;
       }
       if (chat !== null && CHAT_FORBIDDEN_TRACKERS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {

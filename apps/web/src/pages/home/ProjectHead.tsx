@@ -1,5 +1,5 @@
 import type { Project } from '@agentry/shared';
-import { ChevronRight, MessageCircle, Plus, Sparkle } from 'lucide-react';
+import { ChevronRight, MessageCircle, Pencil, Plus, Sparkle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import type { TFunction } from 'i18next';
@@ -23,7 +23,18 @@ const newChatPath = (project: Project) => `/chats/new?cwd=${encodeURIComponent(p
  * leads to it. A tab that is a form of its own (Ajustes, Recursos) has no actions here, as their
  * references draw it: its own Save or Create is the thing to press there.
  */
-export function ProjectHead({ project, primaryTask, actions = true }: { project: Project; primaryTask: boolean; actions?: boolean }) {
+export function ProjectHead({
+  project,
+  primaryTask,
+  actions = true,
+  onEditHome,
+}: {
+  project: Project;
+  primaryTask: boolean;
+  actions?: boolean;
+  /** On Resumen: turns the dashboard into its edit mode */
+  onEditHome?: () => void;
+}) {
   const { t } = useTranslation(['home', 'projects', 'common']);
   const template = useProjectSettings(project.id).data?.template ?? null;
   const board = project.modules.includes('board');
@@ -48,6 +59,12 @@ export function ProjectHead({ project, primaryTask, actions = true }: { project:
       </div>
       {actions && (
         <div className="page-actions">
+          {onEditHome && (
+            <button type="button" className="btn btn-quiet" onClick={onEditHome}>
+              <Pencil {...ICON_SM} />
+              {t('home:edit.enter')}
+            </button>
+          )}
           <Link
             to={assistantPath(project.id)}
             className="btn btn-quiet project-head-assistant"
@@ -78,10 +95,11 @@ export function ProjectHead({ project, primaryTask, actions = true }: { project:
  * and path under it, and "⋯" with the ways to start work in it. The assistant has a row of its own
  * under the header (`PhoneAssistantRow`), so it is not in the sheet twice.
  */
-export function PhoneHead({ project }: { project: Project }) {
-  const { t } = useTranslation('projects');
+export function PhoneHead({ project, onEditHome }: { project: Project; onEditHome?: () => void }) {
+  const { t } = useTranslation(['projects', 'home']);
   const navigate = useNavigate();
   const more: MenuEntry[] = [
+    ...(onEditHome ? [{ id: 'edit-home', label: t('home:edit.enter'), icon: Pencil, onSelect: onEditHome }] : []),
     { id: 'chat', label: t('worktrees.newChatHere'), icon: MessageCircle, disabled: !project.exists, onSelect: () => navigate(newChatPath(project)) },
     ...(project.modules.includes('board') ? [{ id: 'task', label: t('head.newTask'), icon: Plus, onSelect: () => navigate(NEW_TASK_PATH) }] : []),
   ];

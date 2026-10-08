@@ -104,7 +104,7 @@ test('the registry: unique types, a default size each type offers, a title key',
     assert.equal(widgetDefinition(widget.type), widget);
     assert.ok(WIDGET_AREAS.includes(widget.area), `${widget.type} has an area the page draws`);
   }
-  assert.equal(widgetDefinition('documents'), undefined);
+  assert.equal(widgetDefinition('nothing'), undefined);
 });
 
 test('the default layouts: what the plan asks for, each widget in its scope, and a valid layout', () => {
@@ -112,7 +112,7 @@ test('the default layouts: what the plan asks for, each widget in its scope, and
   const global = defaultLayout('global');
   assert.deepEqual(
     project.widgets.map((w) => w.type).sort(),
-    ['export', 'kpis', 'limits', 'memory', 'now', 'pickUp', 'resources', 'schedules', 'today', 'worktrees'].sort(),
+    ['documents', 'export', 'flows', 'kpis', 'limits', 'memory', 'now', 'pickUp', 'resources', 'schedules', 'today', 'worktrees'].sort(),
   );
   // Orchestrations are part of "In progress": their own widget would show them twice
   assert.deepEqual(global.widgets.map((w) => w.type).sort(), ['kpis', 'limits', 'now', 'pickUp', 'projects', 'schedules', 'today'].sort());

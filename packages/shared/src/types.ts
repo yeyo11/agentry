@@ -1,5 +1,6 @@
 // Contract shared between core, API and UI.
 
+import type { DashboardLayout } from './dashboard-layout.ts';
 import type { Effort, EffortReason } from './effort.ts';
 import type { NotificationKind, NotificationLevel, NotificationPriority } from './notifications.ts';
 
@@ -3965,6 +3966,9 @@ export interface AppSettings extends AppSettingValues {
  */
 export type UpdateAppSettingsRequest = Partial<AppSettingValues>;
 
+/** `PUT /dashboard/layout`: the whole layout of one Home; widget order is the array's order. */
+export type SaveDashboardLayoutRequest = DashboardLayout;
+
 // ---------- Tunnel ----------
 
 // Reaching Agentry from a phone or another computer on the person's tailnet, through the Tailscale
@@ -6204,6 +6208,20 @@ export interface SettingsChangedEvent extends AgentryEventBase {
   settings: AppSettings;
 }
 
+/** The layout of one Home as stored: `layout` is `null` when none is stored and the default applies. */
+export interface StoredDashboardLayout {
+  /** The project id, or `all` for All projects */
+  project: string;
+  layout: DashboardLayout | null;
+}
+
+/** A Home's layout was saved or reset, from any tab: every other tab redraws from it. */
+export interface DashboardLayoutChangedEvent extends AgentryEventBase {
+  type: 'dashboard.layout';
+  project: string;
+  layout: DashboardLayout | null;
+}
+
 /**
  * The tunnel moved to another state, got a new address, or had its settings changed. Carries the
  * whole status, so a client that follows the feed never has to refetch it.
@@ -6353,6 +6371,7 @@ export type AgentryEvent =
   | AssistantRunEvent
   | AssistantProposalEvent
   | SettingsChangedEvent
+  | DashboardLayoutChangedEvent
   | TunnelChangedEvent
   | WebhookChangedEvent;
 

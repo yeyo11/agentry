@@ -316,8 +316,11 @@ test('two Cores on one data directory replay a wait once', async () => {
     one.rotation.recover();
     second.rotation.recover();
     await waitFor(() => one.db.providerMove(row.id)?.state === 'resumed');
-    await Promise.all([one.runtime.exited(chat.id), second.runtime.exited(chat.id)]);
-    await new Promise((r) => setTimeout(r, 150));
+    // Bounded waits: `exited` on the process that did not replay the turn has nothing to wait for,
+    // and on a slow runner it hung the whole file. The replayed turn is counted where it started
+    await waitFor(() => turns(one) + turns(second) >= before + 1, 20_000);
+    await waitFor(() => !one.runtime.get(chat.id)?.pid && !second.runtime.get(chat.id)?.pid, 20_000);
+    await new Promise((r) => setTimeout(r, 300));
     assert.equal(turns(one) + turns(second), before + 1, 'one replay between the two processes');
   } finally {
     two?.shutdown();
