@@ -8,6 +8,9 @@ export function buildArgs(spec: SessionLaunch): string[] {
     '--output-format', 'stream-json',
     '--verbose',
     '--include-partial-messages',
+    // Each message read back the moment the CLI takes it, under the uuid it was sent with: the only
+    // sign that a message written during a turn reached the agent (docs/chat-delivery.md)
+    '--replay-user-messages',
     '--permission-mode', spec.permissionMode,
   ];
   // Makes bypassPermissions a mode the chat can be switched to later, without starting in it: the

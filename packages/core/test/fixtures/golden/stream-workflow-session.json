@@ -98,7 +98,8 @@
         "totalTokens": 20493,
         "script": "export const meta = {\n  name: 'two-words',\n  description: 'Run two agents in parallel that each reply with one word',\n  phases: [{title: 'Say'}],\n}\n\nconst results = await parallel([\n  () => agent('Reply with only the word: red', {label: 'one', phase: 'Say'}),\n  () => agent('Reply with only the word: blue', {label: 'two', phase: 'Say'}),\n])\n\nreturn { results }\n"
       }
-    ]
+    ],
+    "pending": []
   },
   "events": [
     {

@@ -135,6 +135,8 @@ export interface SessionIO {
 
 /** A user turn: text and the files that go with it. */
 export interface UserTurn {
+  /** Agentry's id for the message, which the driver hands the agent where its protocol takes one */
+  id?: string;
   text: string;
   attachments: Attachment[];
   /** The bytes of an attachment, for a provider that sends images and documents inline */
@@ -153,6 +155,11 @@ export interface DriverSession {
   readError(line: string): void;
   /** Closes stdin: `keepAlive: false`, or the idle timeout */
   endInput(): void;
+  /**
+   * Turns sent and not started yet, held by the driver itself: input is not ended while it holds
+   * any, or they would be written after it. A driver whose agent keeps its own queue holds none.
+   */
+  holdsTurns?(): boolean;
   /** Rejects pending control requests */
   dispose(reason: string): void;
 }
@@ -258,6 +265,8 @@ export type DriverEvent =
   | { kind: 'rate-limited' }
   | { kind: 'permission-request'; question: PermissionQuestion }
   | { kind: 'permission-withdrawn'; id: string }
+  /** The agent took these messages, by the id each was sent with: into the running turn or as a turn of its own */
+  | { kind: 'delivered'; ids: string[] }
   | {
       kind: 'result';
       isError: boolean;

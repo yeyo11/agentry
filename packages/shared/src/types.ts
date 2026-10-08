@@ -302,7 +302,7 @@ export interface RunWorkflowRequest {
  * streamed, reuse the seq of the last stored event, are never buffered or replayed, and are
  * superseded by the next `message` event.
  */
-export type RunEventKind = 'message' | 'init' | 'result' | 'task' | 'status' | 'stderr' | 'notice' | 'other' | 'partial';
+export type RunEventKind = 'message' | 'init' | 'result' | 'task' | 'status' | 'stderr' | 'notice' | 'other' | 'partial' | 'delivery';
 
 export interface RunEvent {
   seq: number;
@@ -324,6 +324,38 @@ export interface RunEvent {
   task?: RunTaskChange;
   /** For `notice` events only: Agentry's own words, never a provider's */
   data?: Record<string, unknown>;
+  /** For `delivery` events: what became of one message the person sent */
+  delivery?: MessageDelivery;
+}
+
+/**
+ * What became of one message sent to a chat, by its id (docs/chat-delivery.md). `delivered`: the
+ * agent took it, into the running turn or as a turn of its own. `undelivered`: its process went away
+ * first, or the one that should have read it could not start; `message` carries it, so the page can
+ * hand it back. `carried`: a move or a limit replay sent it on, to `chatId` (this chat on a replay).
+ */
+export interface MessageDelivery {
+  id: string;
+  state: 'delivered' | 'undelivered' | 'carried';
+  message?: ChatPendingMessage;
+  chatId?: string;
+}
+
+/** A file sent with a message, as the page shows it: no path on the server's disk. */
+export type ChatPendingAttachment = Pick<Attachment, 'id' | 'name' | 'mediaType' | 'kind' | 'sizeBytes'>;
+
+/**
+ * A message the agent has not taken yet, or one it never will. `written`: in the agent's own queue,
+ * read at its next tool boundary or as its next turn. `held`: waiting for the process that replaces
+ * one on its way out. `undelivered`: lost on the way, with `reason`.
+ */
+export interface ChatPendingMessage {
+  id: string;
+  text: string;
+  attachments: ChatPendingAttachment[];
+  state: 'written' | 'held' | 'undelivered';
+  sentAt: string;
+  reason?: string;
 }
 
 /** What a session reports about itself when it starts. */
@@ -830,6 +862,11 @@ export interface Chat {
   health: ChatHealth;
   /** What it was started with, when Agentry started it: absent for a chat born in a terminal */
   tools?: ChatToolConfig | null;
+  /**
+   * Messages sent to it that the agent has not taken yet, oldest first, and those lost on the way
+   * since; only while Agentry has a record of the chat (docs/chat-delivery.md)
+   */
+  pending?: ChatPendingMessage[];
   /** Set on a chat of the Agentry assistant: it keeps its confinement whenever it is continued, resumed or forked */
   agentryAssistant?: AgentryAssistantMarker | null;
 }
@@ -1055,6 +1092,33 @@ export interface ForkChatRequest extends ChatStartOptions {
 export interface ChatMessageRequest {
   text: string;
   attachments?: string[];
+  /**
+   * The message's id, a UUID the client chooses so a retry is written once: a second request with
+   * an id already taken writes nothing and answers as the first did. The server picks one when absent.
+   */
+  id?: string;
+}
+
+/**
+ * How a message was taken. `written`: into the running turn, where the agent reads it at its next
+ * tool boundary or as its next turn. `started`: it starts a turn now. `held`: the process is on its
+ * way out, and the one that replaces it reads it.
+ */
+export type ChatMessageTaken = 'written' | 'started' | 'held';
+
+export interface ChatMessageReceipt {
+  id: string;
+  taken: ChatMessageTaken;
+  /** The id was taken before: nothing was written again */
+  duplicate?: boolean;
+}
+
+/** The answer to `POST /chats/:id/messages`: the chat, and what became of the message. */
+export type ChatMessageResponse = ChatSummary & { message: ChatMessageReceipt };
+
+/** "Send now": ends the running turn so the agent reads what waits. With `messageId`, only while that message still waits. */
+export interface ChatInterruptRequest {
+  messageId?: string;
 }
 
 /** What can be changed on a live execution without restarting it. */

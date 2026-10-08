@@ -69,6 +69,7 @@ export function normalizeMessage(raw: unknown): TranscriptEntry | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
   if (o.type === 'system' && o.subtype === 'local_command') return localCommand(o);
+  if (o.type === 'attachment') return queuedCommand(o);
   if (o.type !== 'user' && o.type !== 'assistant') return null;
   if (o.isMeta === true) return null;
   const message = o.message as Record<string, unknown> | undefined;
@@ -106,6 +107,31 @@ function localCommand(o: Record<string, unknown>): TranscriptEntry | null {
     isSidechain: o.isSidechain === true,
     parentToolUseId: null,
     blocks: [{ type: 'text', text: o.content }],
+  };
+}
+
+/**
+ * A message the CLI took into the turn it was running, at a tool boundary: it records it only as an
+ * `attachment` of type `queued_command`, never as a `user` line, so without this the message the
+ * agent read and answered is missing from every read of the transcript. It is the person's entry,
+ * in place, under the id the message was sent with (`source_uuid`, the stream-json `uuid`), which
+ * is the id the page and the server know it by; a line written without one keeps its own.
+ */
+function queuedCommand(o: Record<string, unknown>): TranscriptEntry | null {
+  if (o.isMeta === true) return null;
+  const attachment = o.attachment as Record<string, unknown> | undefined;
+  if (!attachment || attachment.type !== 'queued_command' || attachment.commandMode !== 'prompt') return null;
+  const blocks = toBlocks(attachment.prompt);
+  if (blocks.length === 0) return null;
+  const source = typeof attachment.source_uuid === 'string' && attachment.source_uuid ? attachment.source_uuid : null;
+  return {
+    uuid: source ?? String(o.uuid ?? ''),
+    role: 'user',
+    timestamp: typeof o.timestamp === 'string' ? o.timestamp : null,
+    model: null,
+    isSidechain: o.isSidechain === true,
+    parentToolUseId: null,
+    blocks,
   };
 }
 

@@ -7,6 +7,7 @@ import type {
   ChatBackgroundTask,
   ChatDetail,
   ChatMessageRequest,
+  ChatMessageResponse,
   ChatSummary,
   ForkChatRequest,
   McpSelection,
@@ -33,7 +34,7 @@ export interface ChatClient {
   chatPermissions(id: string): Promise<PermissionRequest[]>;
   chatTasks(id: string): Promise<ChatBackgroundTask[]>;
   answerPermission(id: string, requestId: string, decision: PermissionDecision): Promise<unknown>;
-  sendMessage(id: string, req: ChatMessageRequest): Promise<ChatSummary>;
+  sendMessage(id: string, req: ChatMessageRequest): Promise<ChatMessageResponse>;
   resumeChat(id: string, req: ResumeChatRequest): Promise<ChatSummary>;
   forkChat(id: string, req: ForkChatRequest): Promise<ChatSummary>;
   deleteChat(id: string): Promise<{ ok: true }>;

@@ -1818,6 +1818,8 @@ a.attachment-chip:hover {
   opacity: 1;
 }
 
+/* A lost row among waiting ones says so on its own */
+.chat-queued-item.is-lost > svg,
 .chat-queued.is-lost .chat-queued-item > svg {
   color: var(--warn);
 }

@@ -26,6 +26,8 @@
 //   NOISY                     fifty small chunks, and stderr lines the agent logs
 //   AUTH                      the prompt fails with -32000, as an agent that lost its credential does
 //   HOLD                      one chunk, then nothing until session/cancel
+//   STUBBORN <ms>             one chunk, then the turn ignores session/cancel and ends `end_turn`
+//                             after <ms>: an agent slow to stop
 //   CANCEL-WAIT               a permission request held until session/cancel (the driver answers it
 //                             `cancelled`), then the prompt ends `cancelled`
 // Not scripted, because ACP has nothing to replay for them: STRUCTURED, RATE and DELEGATE.
@@ -211,6 +213,13 @@ async function runTurn(session, text, reply) {
     chunk('holding');
     while (!session.cancelled) await sleep(10);
     return end('cancelled');
+  }
+
+  if (script === 'STUBBORN') {
+    chunk('busy');
+    await sleep(Number(text.trim().split(/\s+/)[1] ?? 1000));
+    chunk('done');
+    return end('end_turn');
   }
 
   if (script === 'NOISY') {

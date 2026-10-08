@@ -197,12 +197,18 @@ test('chats, orchestrations and plugins reject bad requests', async () => {
   }
   assert.equal((await app.inject('/api/chats/ghost')).statusCode, 404);
   assert.equal((await app.inject({ method: 'POST', url: '/api/chats/ghost/messages', ...json({ text: 'hi' }) })).statusCode, 404);
+  // A message's id is what the CLI keeps as the message's own: anything but a UUID is refused before the chat is looked up
+  for (const id of ['nope', 3]) {
+    assert.equal((await app.inject({ method: 'POST', url: '/api/chats/ghost/messages', ...json({ text: 'hi', id }) })).statusCode, 400, JSON.stringify(id));
+  }
   assert.deepEqual((await app.inject('/api/workflows')).json(), []);
   assert.deepEqual((await app.inject('/api/workflows/saved')).json(), []);
   const unknownWorkflow = await app.inject({ method: 'POST', url: '/api/workflows/saved/run', ...json({ name: 'nope' }) });
   assert.equal(unknownWorkflow.statusCode, 404);
   assert.equal((await app.inject({ method: 'POST', url: '/api/workflows/saved/run', ...json({}) })).statusCode, 400);
   assert.equal((await app.inject({ method: 'POST', url: '/api/chats/ghost/interrupt' })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/chats/ghost/interrupt', ...json({ messageId: 'm1' }) })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/chats/ghost/interrupt', ...json({ messageId: 3 }) })).statusCode, 400);
   // Continuing a chat that does not exist, in place or in a copy, is a 404 and starts nothing
   assert.equal((await app.inject({ method: 'POST', url: '/api/chats/ghost/resume', ...json({ prompt: 'hi' }) })).statusCode, 404);
   assert.equal((await app.inject({ method: 'POST', url: '/api/chats/ghost/fork', ...json({ prompt: 'hi' }) })).statusCode, 404);

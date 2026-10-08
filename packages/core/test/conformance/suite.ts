@@ -60,8 +60,8 @@ export interface DriverHarness {
   stderrText: string;
 }
 
-const KINDS: readonly RunEventKind[] = ['message', 'init', 'result', 'task', 'status', 'stderr', 'notice', 'other', 'partial'];
-const EVENT_KEYS = new Set(['seq', 'ts', 'kind', 'entry', 'status', 'text', 'block', 'init', 'outcome', 'task', 'data']);
+const KINDS: readonly RunEventKind[] = ['message', 'init', 'result', 'task', 'status', 'stderr', 'notice', 'other', 'partial', 'delivery'];
+const EVENT_KEYS = new Set(['seq', 'ts', 'kind', 'entry', 'status', 'text', 'block', 'init', 'outcome', 'task', 'data', 'delivery']);
 
 // Generous: the deadline only matters when something is wrong, and CI runs five fake CLIs at once here.
 async function until<T>(read: () => T | undefined | null | false, what: string, ms = 30_000): Promise<T> {

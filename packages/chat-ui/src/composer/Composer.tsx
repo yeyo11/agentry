@@ -1,4 +1,4 @@
-import type { Chat } from '@agentry/shared';
+import type { Chat, ChatMessageReceipt, ChatPendingAttachment } from '@agentry/shared';
 import * as RadixPopover from '@radix-ui/react-popover';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowUp, GitFork, Play, Square } from 'lucide-react';
@@ -20,6 +20,27 @@ import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 // Its Select and Combobox are Radix controls kept out of the shell bundle this page lives in: the
 // app hands them over as lazy components (`lib/chat-ui.tsx`)
 export type { StartChoices };
+
+/**
+ * A new message's id, a v4 UUID. `crypto.randomUUID` exists only in a secure context, and the app is
+ * often opened over plain http on the local network; `getRandomValues` is there either way.
+ */
+function messageId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40;
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
+  const hex = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/** What a send carries: the words and files as they went, and the box as it was when they left. */
+interface Outgoing {
+  message: string;
+  /** The box's text when it was sent: only that is taken out of it once the send succeeds */
+  typed: string;
+  attachments: ChatPendingAttachment[];
+  id?: string;
+}
 
 /** What a message does: reaches a live process, resumes the chat in place, or continues a copy of it. */
 export type ComposerKind = 'send' | 'resume' | 'fork';
@@ -144,12 +165,12 @@ export function Composer({
 }: {
   chat: Chat;
   kind: ComposerKind;
-  /** The message left for the chat: the page holds it until the transcript shows it */
-  onSent: (sent: { text: string; files: number }) => void;
+  /** The message left for the chat, with how the server took it (a message to a live chat): the page holds it until the agent reads it */
+  onSent: (sent: { text: string; attachments: ChatPendingAttachment[]; receipt: ChatMessageReceipt | null }) => void;
   /** While the chat works, an empty box's button stops the turn instead of sending */
   interrupt?: { run: () => void; pending: boolean };
-  /** Words handed back to the box: a message the chat never read (see `chat/queued.ts`) */
-  restore?: { text: string; at: number } | null;
+  /** Words and files handed back to the box: a message the agent never read (see `composer/queued.ts`) */
+  restore?: { text: string; attachments: ChatPendingAttachment[]; at: number } | null;
 }) {
   const { t } = useTranslation('chat');
   const queryClient = useQueryClient();
@@ -163,33 +184,40 @@ export function Composer({
   const narrow = useMediaQuery(NARROW);
   const slash = useSlashMenu({ text, setText, commands: chat.environment?.slashCommands ?? [], skills: chat.environment?.skills, box });
 
+  // The message last sent that did not get through: sent again unchanged, it keeps its id, so a send
+  // that timed out after the server took it still reaches the agent once
+  const attempt = useRef<{ id: string; text: string; files: string } | null>(null);
   const submit = useMutation({
-    mutationFn: (message: string) => {
-      const attachments = files.ids.length ? { attachments: files.ids } : {};
-      if (kind === 'send') return client.sendMessage(chat.id, { text: message, ...attachments });
+    mutationFn: async ({ message, attachments: sent, id }: Outgoing) => {
+      const attachments = sent.length ? { attachments: sent.map((a) => a.id) } : {};
+      if (kind === 'send') return { receipt: (await client.sendMessage(chat.id, { text: message, ...attachments, ...(id ? { id } : {}) })).message, chatId: chat.id };
       // A chat resumed or forked from here is answered here: permissions would otherwise be denied unasked
       const request = { prompt: message, ...attachments, permissionPrompts: 'host' as const, ...choices };
-      return kind === 'resume' ? client.resumeChat(chat.id, request) : client.forkChat(chat.id, request);
+      const started = await (kind === 'resume' ? client.resumeChat(chat.id, request) : client.forkChat(chat.id, request));
+      return { receipt: null, chatId: started.id };
     },
-    onSuccess: (result, message) => {
-      setText('');
-      const sentFiles = files.ids.length;
-      files.clear();
-      onSent({ text: message, files: sentFiles });
+    onSuccess: ({ receipt, chatId }, sent) => {
+      attempt.current = null;
+      // Only what went: whatever was typed or attached while the request was out stays in the box
+      setText((held) => (held.startsWith(sent.typed) ? held.slice(sent.typed.length).replace(/^\s+/, '') : held));
+      files.removeSent(sent.attachments.map((a) => a.id));
+      onSent({ text: sent.message, attachments: sent.attachments, receipt });
       void queryClient.invalidateQueries({ queryKey: chatKeys.chats });
       void queryClient.invalidateQueries({ queryKey: chatKeys.chatScope(chat.id) });
-      if (kind === 'fork') navigate(paths.chat(result.id));
+      if (kind === 'fork') navigate(paths.chat(chatId));
     },
   });
 
-  // A message that was never delivered comes back here, after whatever is half-typed
+  // A message that was never delivered comes back here, after whatever is half-typed, with its files
   const restoredAt = useRef(0);
+  const restoreFiles = files.restore;
   useEffect(() => {
     if (!restore || restore.at === restoredAt.current) return;
     restoredAt.current = restore.at;
-    setText((held) => (held.trim() ? `${held.replace(/\s+$/, '')}\n\n${restore.text}` : restore.text));
+    if (restore.text) setText((held) => (held.trim() ? `${held.replace(/\s+$/, '')}\n\n${restore.text}` : restore.text));
+    if (restore.attachments.length) restoreFiles(restore.attachments);
     box.current?.focus();
-  }, [restore]);
+  }, [restore, restoreFiles]);
 
   // Auto-growing composer
   useLayoutEffect(() => {
@@ -206,7 +234,15 @@ export function Composer({
     // On a phone the keyboard covers half the screen, and what happens next is worth watching: the
     // box lets go once the message is away, and a tap on it brings the keyboard back
     if (window.matchMedia('(pointer: coarse)').matches) box.current?.blur();
-    submit.mutate(message);
+    const attachments = files.items.flatMap((p) => (p.status === 'ready' && p.attachment ? [p.attachment] : []));
+    const fileKey = attachments.map((a) => a.id).join(',');
+    let id: string | undefined;
+    if (kind === 'send') {
+      const last = attempt.current;
+      id = last && last.text === message && last.files === fileKey ? last.id : messageId();
+      attempt.current = { id, text: message, files: fileKey };
+    }
+    submit.mutate({ message, typed: text, attachments, ...(id ? { id } : {}) });
   };
   const label = {
     send: { idle: t('runView.send'), pending: t('runView.sending') },
