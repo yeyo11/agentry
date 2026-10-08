@@ -67,7 +67,7 @@ const ROOT_TYPES = [
   // The project assistant: runs and their proposals
   'AssistantRun', 'AssistantRunDetail', 'StartAssistantRunRequest', 'StartAgentryAssistantChatRequest', 'AssistantProposal', 'AcceptAssistantProposalRequest',
   // Settings that change at runtime, and the tunnel
-  'AppSettings', 'UpdateAppSettingsRequest', 'TunnelStatus', 'TunnelSettings', 'UpdateTunnelSettingsRequest',
+  'AppSettings', 'UpdateAppSettingsRequest', 'StoredDashboardLayout', 'SaveDashboardLayoutRequest', 'TunnelStatus', 'TunnelSettings', 'UpdateTunnelSettingsRequest',
   // Providers
   'ProviderStatus', 'ProvidersSettings', 'ProviderCandidates', 'ProviderMove', 'ModelMapSuggestion', 'AnswerModelMapSuggestionRequest', 'SuggestModelMapRequest', 'CswapRetirementState', 'MoveChatRequest', 'HandoffPreview',
   // Code hosts
