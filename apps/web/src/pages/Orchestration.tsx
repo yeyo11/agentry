@@ -700,12 +700,14 @@ export function Orchestration() {
     if (handed) navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: null });
     if (params.has('new')) setParam({ new: null });
   };
-  useEffect(() => {
-    if (params.has('new')) setCreating(true);
-  }, [params]);
-  useEffect(() => {
-    if (handed) setCreating(true);
-  }, [handed]);
+  // `?new` or a handed draft arriving opens the form. Taken while rendering, not in an effect: an
+  // effect run late, after Cancel had already closed the form and dropped `new`, reopened it
+  const wantsNew = params.has('new');
+  const [opened, setOpened] = useState({ wantsNew, handed });
+  if (opened.wantsNew !== wantsNew || opened.handed !== handed) {
+    setOpened({ wantsNew, handed });
+    if ((wantsNew && !opened.wantsNew) || (handed && handed !== opened.handed)) setCreating(true);
+  }
 
   const tab: PageTab = params.get('tab') === 'templates' ? 'templates' : 'orchestrations';
   // One primary per zone: while the empty state offers New orchestration, the header's copy steps back
