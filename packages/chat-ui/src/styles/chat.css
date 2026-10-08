@@ -757,8 +757,11 @@
 
 .popover.composer-options {
   width: min(440px, calc(100vw - 24px));
-  max-height: min(70dvh, 560px);
+  /* It opens upward from the composer: a fixed height outgrows the room above it on a short window
+     and is cut by its top edge, so it takes the room Radix measured, minus the collision padding */
+  max-height: min(70dvh, 560px, var(--radix-popover-content-available-height, 560px));
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* In the popover the start options stack: each one is a labelled field, not an inline control */
