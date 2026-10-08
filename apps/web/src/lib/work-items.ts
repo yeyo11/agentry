@@ -259,6 +259,17 @@ export function filtersToSearch(filters: TaskFilters, base: URLSearchParams = ne
   return next;
 }
 
+/**
+ * What the search box shows once the address's `q` changes. The box writes `q` a moment after the
+ * typing stops, so by the time that `q` comes back the person may have typed on ("fix " while `fix`
+ * was being written, or a key pressed between that render and its effect): a `q` the box sent itself,
+ * or one that reads the same as the text, keeps the text. Any other `q` came from elsewhere (a link,
+ * Back, "Clear all") and replaces it.
+ */
+export function searchBoxText(current: string, q: string, sent: string): string {
+  return q === sent || current.trim() === q ? current : q;
+}
+
 /** What the API is asked for; `projects` stays behind for {@link inProjects}. */
 export function apiFilter(filters: TaskFilters): Omit<WorkItemFilter, 'projectId'> {
   const { projects: _projects, ...rest } = filters;
