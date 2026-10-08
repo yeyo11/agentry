@@ -46,10 +46,12 @@
       "files_other": "{{count}} files",
       "hint_one": "1 message waits for the current turn",
       "hint_other": "{{count}} messages wait for the current turn",
+      "held_one": "1 message waits for {{agent}} to start again",
+      "held_other": "{{count}} messages wait for {{agent}} to start again",
       "sendNow": "Send now",
       "sending": "Ending the turn…",
       "sendNowHint": "Ends the turn {{agent}} is on, so it reads what is waiting next",
-      "undelivered": "Not delivered — the turn ended before the chat read it",
+      "undelivered": "Not delivered: {{agent}} stopped before reading it",
       "restore": "Put it back in the box"
     },
     "stopHint": "Kill the process this chat runs in. Anything sent into it and not yet read goes with it",

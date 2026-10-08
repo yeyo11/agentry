@@ -4,10 +4,11 @@
 // writes a transcript in the CLI's own shape (`"@transcript": true`), so a reload reads what the CLI
 // would have written, including the `queued_command` line of a message it read mid-turn.
 //
-// These are audit reproductions of bugs that still stand: each scenario reports REPRODUCED or NOT
-// REPRODUCED instead of failing the run, and `check` guards only the setup. They run only with
-// E2E_CHAT_AUDIT=1; E2E_CHAT_AUDIT_OUT=<file> also writes the findings as JSON, and
-// E2E_CHAT_AUDIT_ONLY=A,C runs only those scenarios (A, B1, B2, C, D, E, F).
+// They were written as reproductions of the audit's bugs, and are kept to show each one fixed
+// (docs/chat-delivery.md): every scenario reports REPRODUCED or NOT REPRODUCED instead of failing the
+// run, and `check` guards only the setup. B2 is the sound path and must keep working. They run only
+// with E2E_CHAT_AUDIT=1; E2E_CHAT_AUDIT_OUT=<file> also writes the findings as JSON, and
+// E2E_CHAT_AUDIT_ONLY=A,C runs only those scenarios (A, B1, B2, C, C2, D, E, F, G).
 import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -32,12 +33,14 @@ const SCRIPTS = {
   'AUDIT-B1': 'run: sleep 2\nrun: sleep 30\nsay: Done.',
   'AUDIT-B2': 'run: true\nhold: audit-b2.hold\nsay: Done.',
   'AUDIT-C': 'run: true\nhold: audit-c.hold\nsay: Done.',
+  'AUDIT-K': 'run: true\nhold: audit-c2.hold\nsay: Done.',
+  'AUDIT-G': 'run: true\nhold: audit-g.hold\nsay: Done.',
   'AUDIT-D1': 'run: true\nhold: audit-d1.hold\nsay: Done.',
   'AUDIT-D2': 'run: true\nhold: audit-d2.hold\nsay: Done.',
   'AUDIT-E': 'run: true\nhold: audit-e.hold\nsay: Done.',
   'AUDIT-F': 'run: true\nask: rm -rf build\nsay: Done.',
 };
-const HOLDS = ['audit-b2.hold', 'audit-c.hold', 'audit-d1.hold', 'audit-d2.hold', 'audit-e.hold'];
+const HOLDS = ['audit-b2.hold', 'audit-c.hold', 'audit-c2.hold', 'audit-d1.hold', 'audit-d2.hold', 'audit-e.hold', 'audit-g.hold'];
 
 /** What the page shows of the queued cards and the person's rows. */
 const VIEW = `
@@ -147,14 +150,17 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       await until(() => log().some((e) => e.event === 'command' && e.command === 'sleep 2' && e.pid === pidOf(id)), 'the first command');
       await working();
       await send(MSG);
-      await until(async () => (await view()).cards.some((c) => c.text === MSG), 'the queued card');
+      // Shown until the agent reads it, which can be a moment later: seen or not, what counts is after
+      const cardShown = await until(async () => (await view()).cards.some((c) => c.text === MSG), 'the queued card', 5000).catch(() => false);
       await until(() => log().some((e) => e.event === 'absorbed' && e.pid === pidOf(id) && e.texts.includes(MSG)), 'the CLI to read it mid-turn');
       await until(() => log().some((e) => e.event === 'command' && e.command === 'sleep 30' && e.pid === pidOf(id)), 'the work on it to start');
+      await sleep(800);
       const before = await view();
       const offered = before.sendNow && before.cards.some((c) => c.text === MSG);
       if (offered) await page.click('.chat-queued-foot .btn');
       const cut = await until(() => log().find((e) => e.event === 'command-ended' && e.command === 'sleep 30' && e.pid === pidOf(id)), 'the second command to end', 10_000).catch(() => null);
       report('C-2 (symptom 2, Send now)', Boolean(offered && cut?.interrupted), {
+        cardShown: Boolean(cardShown),
         agentHadReadIt: true,
         sendNowStillOffered: offered,
         turnAnsweringItInterrupted: Boolean(cut?.interrupted),
@@ -200,7 +206,31 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
         restoredText = after.box;
         restoredFiles = after.chips;
       }
-      report('C-3 (files)', Boolean(read && lost), { readByCli: Boolean(read), rowAndCardAtOnce: shownTwice, cardCalledLost: lost, restoredText, restoredFiles });
+      const cleared = !(await view()).cards.some((c) => c.text === MSG);
+      report('C-3 (files)', Boolean(read && (lost || shownTwice || !cleared)), { readByCli: Boolean(read), rowAndCardAtOnce: shownTwice, cardCalledLost: lost, cardCleared: cleared, restoredText, restoredFiles });
+    }
+
+    // ---------- C-3: Restore hands back the words and the files of a message that was lost ----------
+    if (want('C2')) {
+      const MSG = 'keep this file for later';
+      const id = await startChat('AUDIT-K file the report');
+      await open(id);
+      await until(() => log().some((e) => e.event === 'command-ended' && e.command === 'true' && e.pid === pidOf(id)), 'the turn to reach its hold');
+      await sleep(600);
+      await page.waitFor(PASTE_FILE('report.txt'), { label: 'paste a file' });
+      await page.waitFor(`return document.querySelectorAll('.attachments-pending .attachment-chip').length === 1 && !document.querySelector('.attachments-pending .spin')`, { label: 'the file uploaded' });
+      await send(MSG);
+      await until(async () => (await view()).cards.some((c) => c.text === MSG), 'the queued card');
+      // Stopped before the agent read it: the message dies with the process, and the page is told
+      await api.post(`/chats/${id}/stop`);
+      const lost = await waitLost(MSG);
+      let after = null;
+      if (lost) {
+        await page.click('.chat-queued-item .icon-btn');
+        await sleep(300);
+        after = await view();
+      }
+      report('C-3 (Restore keeps the files)', !(lost && after?.box?.includes(MSG) && after?.chips === 1), { cardCalledLost: lost, restoredText: after?.box ?? null, restoredFiles: after?.chips ?? null });
     }
 
     // ---------- C-4: a queued card follows the person into another chat, and Send now stops that one ----------
@@ -244,7 +274,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       await until(() => log().some((e) => e.event === 'stdin' && e.pid === pidOf(id) && e.text === 'first message'), 'the first message to reach the CLI');
       await sleep(1500);
       const after = await view();
-      report('C-5 (typing while sending)', !after.box?.includes('second thought'), { boxWhileSending: during.box, chipsWhileSending: during.chips, boxAfter: after.box, chipsAfter: after.chips });
+      report('C-5 (typing while sending)', !(after.box?.includes('second thought') && after.chips === 1), { boxWhileSending: during.box, chipsWhileSending: during.chips, boxAfter: after.box, chipsAfter: after.chips });
       hold('audit-e.hold');
     }
 
@@ -267,6 +297,23 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       await sleep(800);
       const afterReload = (await view()).rows.some((r) => r.includes(MSG));
       report('C-8 (sent during a permission prompt)', !card, { chatState: waitingState, cardShown: card, rowShown: v.rows.some((r) => r.includes(MSG)), readByCli: Boolean(absorbed), onPageAfterReload: afterReload });
+    }
+
+    // ---------- C-13: after a reload, a message still waiting is a queued card ----------
+    if (want('G')) {
+      const MSG = 'and update the readme';
+      const id = await startChat('AUDIT-G write the release notes');
+      await open(id);
+      await until(() => log().some((e) => e.event === 'command-ended' && e.command === 'true' && e.pid === pidOf(id)), 'the turn to reach its hold');
+      await sleep(600);
+      await send(MSG);
+      await until(async () => (await view()).cards.some((c) => c.text === MSG), 'the queued card');
+      await open(id);
+      const afterReload = await until(async () => (await view()).cards.some((c) => c.text === MSG), 'the card after a reload', 8000).catch(() => false);
+      const listed = ((await api.get(`/chats/${id}`)).body?.chat?.pending ?? []).some((m) => m.text === MSG);
+      hold('audit-g.hold');
+      const cleared = await until(async () => !(await view()).cards.some((c) => c.text === MSG), 'the card to clear once read', 10_000).catch(() => false);
+      report('C-13 (a reload loses the waiting card)', !afterReload, { cardAfterReload: Boolean(afterReload), listedByGetChat: listed, clearedOnceRead: Boolean(cleared) });
     }
   } finally {
     for (const name of HOLDS) hold(name);

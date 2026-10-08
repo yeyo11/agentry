@@ -1,4 +1,4 @@
-import type { Attachment } from '@agentry/shared';
+import type { ChatPendingAttachment } from '@agentry/shared';
 import { FileText, Image as ImageIcon, Loader2, Paperclip, TriangleAlert, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -132,7 +132,7 @@ interface Pending {
   name: string;
   size: number;
   status: 'uploading' | 'ready' | 'error';
-  attachment?: Attachment;
+  attachment?: ChatPendingAttachment;
   error?: string;
   preview?: string;
 }
@@ -177,13 +177,33 @@ export function useAttachments() {
     setItems((prev) => prev.filter((p) => p.key !== key));
   }, []);
 
+  /** Files already uploaded, back in the tray: a message that was never read, put back in the box */
+  const restore = useCallback((files: readonly ChatPendingAttachment[]) => {
+    const back = files.map((file): Pending => ({ key: ++seq.current, name: file.name, size: file.sizeBytes, status: 'ready', attachment: file }));
+    setItems((prev) => [...prev, ...back.filter((b) => !prev.some((p) => p.attachment?.id === b.attachment?.id))]);
+  }, []);
+
+  /** Lets go of the files that went with a message, and keeps whatever was added meanwhile */
+  const removeSent = useCallback(
+    (sent: readonly string[]) => {
+      const gone = new Set(items.filter((p) => p.attachment && sent.includes(p.attachment.id)).map((p) => p.key));
+      for (const key of gone) {
+        const preview = previews.current.get(key);
+        if (preview) URL.revokeObjectURL(preview);
+        previews.current.delete(key);
+      }
+      if (gone.size) setItems((prev) => prev.filter((p) => !gone.has(p.key)));
+    },
+    [items],
+  );
+
   const clear = useCallback(() => {
     for (const url of previews.current.values()) URL.revokeObjectURL(url);
     previews.current.clear();
     setItems([]);
   }, []);
 
-  const ids = items.filter((p) => p.status === 'ready' && p.attachment).map((p) => (p.attachment as Attachment).id);
+  const ids = items.filter((p) => p.status === 'ready' && p.attachment).map((p) => (p.attachment as ChatPendingAttachment).id);
   const uploading = items.some((p) => p.status === 'uploading');
   const failed = items.some((p) => p.status === 'error');
 
@@ -205,7 +225,7 @@ export function useAttachments() {
     add(e.clipboardData.files);
   };
 
-  return { items, ids, uploading, failed, add, remove, clear, dropProps, onPaste };
+  return { items, ids, uploading, failed, add, remove, restore, removeSent, clear, dropProps, onPaste };
 }
 
 export type AttachmentsState = ReturnType<typeof useAttachments>;

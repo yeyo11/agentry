@@ -55,7 +55,7 @@ test('C-1: the line the CLI writes for a message it read mid-turn is an entry of
   assert.equal(entryText(entry), 'please also run lint');
 });
 
-test('C-7: a sent message no read confirms keeps its place instead of sinking below the answers', { todo: 'C-7' }, () => {
+test('C-7: a sent message no read confirms keeps its place instead of sinking below the answers', () => {
   const at = Date.now();
   const { page, since, fresh } = sentMidTurn(at);
   const read = spliceTail(page, fresh, since, at + 5_000);
@@ -63,7 +63,7 @@ test('C-7: a sent message no read confirms keeps its place instead of sinking be
   assert.deepEqual(uuids(read), ['a', 'wrapper-u', 'A1', 'A2']);
 });
 
-test('C-7: a sent message no read confirms is still on the page ten minutes later', { todo: 'C-7' }, () => {
+test('C-7: a sent message no read confirms is still on the page ten minutes later', () => {
   const at = Date.now();
   const { page, since, fresh } = sentMidTurn(at);
   const read = spliceTail(page, fresh, since, at + 10 * 60_000 + 1);
@@ -71,7 +71,7 @@ test('C-7: a sent message no read confirms is still on the page ten minutes late
   assert.ok(uuids(read)?.includes('wrapper-u'), 'the message the person sent vanished from the page');
 });
 
-test('C-6: a message just sent is not taken for an earlier one with the same words', { todo: 'C-6' }, () => {
+test('C-6: a message just sent is not taken for an earlier one with the same words', () => {
   const at = Date.now();
   // The person said "ok" a few entries ago, and says it again now
   let page = detail([user('cli-1', 'ok'), assistant('A1')]);

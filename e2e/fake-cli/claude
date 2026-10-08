@@ -9,6 +9,8 @@
 // answered with `Heard: <its first line>`. Messages that arrive while a turn runs are answered the
 // same way at its next step, between two calls; messages that arrive between turns start one each.
 // A line `say: <text>` is a paragraph of the assistant's, in its place among the calls.
+// With `--replay-user-messages` each message is read back, under the `uuid` its stdin line carried,
+// the moment a turn takes it, as the CLI does (docs/chat-delivery.md); its transcript line keeps that id.
 import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
@@ -136,6 +138,11 @@ function transcriptOn() {
     return false;
   }
 }
+const replays = argv.includes('--replay-user-messages');
+/** The CLI reads a message back once it has taken it: at the start of its turn, or when a turn absorbs it */
+const replay = (text, uuid) => {
+  if (replays && uuid) emit({ type: 'user', isReplay: true, uuid, parent_tool_use_id: null, message: { role: 'user', content: text } });
+};
 const transcriptFile = transcriptOn() ? join(env.CLAUDE_CONFIG_DIR, 'projects', process.cwd().replace(/[^a-zA-Z0-9]/g, '-'), `${sessionId}.jsonl`) : null;
 let lastLine = null;
 function record(line) {
@@ -261,8 +268,9 @@ function scriptFor(text) {
   return key === undefined ? text : String(scripts[key]);
 }
 
-function startTurn(message) {
-  record({ type: 'user', uuid: randomUUID(), message: { role: 'user', content: message } });
+function startTurn(message, uuid = null) {
+  record({ type: 'user', uuid: uuid ?? randomUUID(), message: { role: 'user', content: message } });
+  replay(message, uuid);
   const text = scriptFor(message);
   const offset = /^\s*elapsed:\s*(\d+)\s*$/m.exec(text)?.[1];
   if (offset !== undefined) elapsedOffsetS = Number(offset);
@@ -286,7 +294,7 @@ function startTurn(message) {
     emit({ type: 'result', subtype: 'error_during_execution', is_error: true, api_error_status: 429, num_turns: 1, total_cost_usd: costUsd, result: "You've hit your usage limit" });
     log('result', { error: true, turns, limit: true });
     const next = inbox.shift();
-    if (next !== undefined) setImmediate(() => startTurn(next));
+    if (next !== undefined) setImmediate(() => startTurn(next.text, next.uuid));
     return;
   }
   // A line `FAKE-LIMIT-CLEAR` is the window back to normal: an allowed `rate_limit_event` at no use, so a
@@ -430,14 +438,16 @@ function afterTool(own) {
   setTimeout(() => {
     if (turn !== own) return;
     const said = waiting.splice(0);
-    for (const text of said) {
-      // As CLI 2.1 records a message it takes into the running turn: no `user` line
-      record({ type: 'attachment', uuid: randomUUID(), attachment: { type: 'queued_command', prompt: text, commandMode: 'prompt' } });
-      record({ type: 'queue-operation', operation: 'remove', content: text, reason: 'absorbed_mid_turn' });
+    for (const { text, uuid } of said) {
+      // As CLI 2.1 records a message it takes into the running turn: no `user` line, and the id it
+      // was sent with as `source_uuid`
+      record({ type: 'attachment', uuid: randomUUID(), attachment: { type: 'queued_command', prompt: text, ...(uuid ? { source_uuid: uuid } : {}), commandMode: 'prompt' } });
+      record({ type: 'queue-operation', operation: 'remove', content: text, reason: 'absorbed_mid_turn', ...(uuid ? { commandUuid: uuid } : {}) });
+      replay(text, uuid);
     }
     if (said.length) {
-      log('absorbed', { texts: said });
-      assistant(said.map(heard));
+      log('absorbed', { texts: said.map((m) => m.text) });
+      assistant(said.map((m) => heard(m.text)));
     }
     nextStep();
   }, SETTLE_MS);
@@ -488,10 +498,10 @@ function endTurn({ result = '', error = false, structured = undefined }) {
   });
   log('result', { error, turns });
   // What was said during the turn and never answered is taken up now, one turn each
-  for (const text of waiting) record({ type: 'queue-operation', operation: 'dequeue', content: text });
+  for (const { text } of waiting) record({ type: 'queue-operation', operation: 'dequeue', content: text });
   inbox.push(...waiting.splice(0));
   const next = inbox.shift();
-  if (next !== undefined) setImmediate(() => startTurn(next));
+  if (next !== undefined) setImmediate(() => startTurn(next.text, next.uuid));
 }
 
 function control(message) {
@@ -550,11 +560,12 @@ createInterface({ input: process.stdin })
     if (message.type === 'control_response') return permissionAnswer(message);
     if (message.type !== 'user') return;
     const text = textOf(message);
-    log('stdin', { text });
+    const uuid = typeof message.uuid === 'string' ? message.uuid : null;
+    log('stdin', { text, uuid });
     if (turn) {
       record({ type: 'queue-operation', operation: 'enqueue', content: text });
-      waiting.push(text);
-    } else startTurn(text);
+      waiting.push({ text, uuid });
+    } else startTurn(text, uuid);
   })
   .on('close', () => {
     // The CLI ends what it was doing when its input ends, and says so with a result

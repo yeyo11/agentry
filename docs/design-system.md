@@ -773,6 +773,23 @@ Reference screens: `DesktopProveedores` and `MobileProveedores` (the limit block
 override, with `MobileProyectoAjustesProveedores`) and `DSLimites` (every state). They are written by
 `reference/tools/providers_rotation.py`, which `providers.py` and `projects.py` import.
 
+### Queued messages over the composer
+
+A message sent while the agent works is a card over the composer (`.chat-queued`) from the moment
+the server takes it until the stream says the agent read it ([chat-delivery.md](chat-delivery.md)):
+dashed and faded, one row per message (`.chat-queued-item`, an hourglass and two lines of its text,
+or "2 archivos"), in the order they will be read. Nothing here is live: the card waits, and the
+energy border stays with the working composer under it.
+
+- **Waiting.** The foot says how many wait ("1 mensaje espera al turno en curso") and offers
+  **Enviar ahora**, a neutral `.btn-small`, for the oldest message still in the agent's queue. It goes
+  away the moment the agent reads it; the server refuses it after that, and nothing shows.
+- **Held** for the process that replaces one on its way out: the same row, and the foot says so
+  ("1 mensaje espera a que Claude Code vuelva a arrancar"), with no button.
+- **Lost** (`.chat-queued-item.is-lost`): the row's icon is the warn triangle in `--warn`, with
+  **Devolverlo al cuadro** (an `.icon-btn`), which puts the words and the files back in the box. The
+  foot says why in one sentence. When every row is lost the card itself turns warn (`.chat-queued.is-lost`).
+
 ### Rotation between providers: the chat at a limit and after a move
 
 Drawn for phase 4 of [multiple agent providers](plans/multi-provider.md) (task `p2` of

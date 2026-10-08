@@ -305,3 +305,18 @@ test('--worktree works in a worktree of the repository, on its own branch, as th
   assert.equal((await c.next((e) => e.type === 'user')).message.content[0].content, init.cwd);
   await c.done();
 });
+
+test('with --replay-user-messages each message is read back under its id when a turn takes it', async () => {
+  const c = chat({}, { args: ['--replay-user-messages'] });
+  const send = (said, uuid) => c.send({ type: 'user', uuid, message: { role: 'user', content: said } });
+  send('run: sleep 1\nrun: true', 'u-first');
+  assert.equal((await c.next((e) => e.type === 'user' && e.isReplay)).uuid, 'u-first');
+  await c.next(toolUse);
+  // Sent during the call: read back right after its result, inside the same turn
+  send('and one more', 'u-second');
+  await c.next((e) => e.type === 'user' && !e.isReplay);
+  assert.equal((await c.next((e) => e.type === 'user' && e.isReplay)).uuid, 'u-second');
+  assert.ok(c.log().some((l) => l.event === 'stdin' && l.uuid === 'u-second'));
+  await c.next((e) => e.type === 'result');
+  await c.done();
+});

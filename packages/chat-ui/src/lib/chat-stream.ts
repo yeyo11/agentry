@@ -1,5 +1,5 @@
 import { entryText } from '@agentry/shared';
-import type { ChatDetail, TranscriptEntry } from '@agentry/shared';
+import type { ChatDetail, MessageDelivery, TranscriptEntry } from '@agentry/shared';
 
 // ---------- the transcript, kept current from the stream ----------
 
@@ -18,14 +18,6 @@ let appended = 0;
  * call away.
  */
 const WRITE_GRACE_MS = 2000;
-
-/**
- * The same, for a message a person sent. The CLI writes it into the transcript when it takes the
- * turn, which — for a message sent into a turn already running — is however long that turn lasts.
- * Two seconds later a read would take it off the page, so what was just sent appeared and vanished
- * until the turn ended. It stays until a read shows it (or the page is left).
- */
-const SENT_GRACE_MS = 10 * 60_000;
 
 /** Where the stream's appends are now: a read started here cannot hold what is appended after. */
 export const streamMark = (): number => appended;
@@ -80,36 +72,105 @@ export function appendStreamed(page: ChatDetail, entry: TranscriptEntry, now = D
   return { page: { ...page, entries: [...page.entries, entry], total: page.total + 1 }, outcome: 'appended' };
 }
 
+/** What a message says, as a transcript line and the stream's copy of it both put it. */
+const said = (entry: TranscriptEntry): string => entryText(entry).trim();
+
+/**
+ * The streamed messages of the person that the read's new user entries stand for, each entry
+ * consuming at most one of them, or the run of them it was made of: the CLI reads every message
+ * waiting when a turn ends as one prompt, their texts joined by a newline, under the last one's id.
+ * Matched by id first; by words only against what the read holds that the page had not confirmed, so
+ * an earlier "ok" never stands for the one just sent.
+ */
+function readBack(fresher: TranscriptEntry[], candidates: TranscriptEntry[]): Map<TranscriptEntry, TranscriptEntry> {
+  const matched = new Map<TranscriptEntry, TranscriptEntry>();
+  for (const entry of fresher) {
+    const text = said(entry);
+    const left = candidates.filter((c) => !matched.has(c));
+    const own = left.findIndex((c) => c.uuid === entry.uuid);
+    if (own !== -1) {
+      matched.set(left[own] as TranscriptEntry, entry);
+      // The messages merged in ahead of it, when its words are theirs and its own joined
+      for (let from = own - 1; from >= 0; from--) {
+        const run = left.slice(from, own + 1);
+        if (run.map(said).join('\n') !== text) continue;
+        for (const c of run) matched.set(c, entry);
+        break;
+      }
+      continue;
+    }
+    for (let from = 0; from < left.length; from++) {
+      let joined = '';
+      let to = from;
+      for (; to < left.length; to++) {
+        const next = said(left[to] as TranscriptEntry);
+        joined = to === from ? next : `${joined}\n${next}`;
+        if (joined === text || !text.startsWith(joined)) break;
+      }
+      if (joined !== text) continue;
+      for (const c of left.slice(from, to + 1)) matched.set(c, entry);
+      break;
+    }
+  }
+  return matched;
+}
+
 /**
  * The newest entries read back (`fresh`, a short page from the end) spliced onto what is held, so
  * following a live chat costs what it said since, not the newest page again. Everything from where
- * `fresh` starts is replaced, which confirms (or corrects) the entries the stream put there; those
- * the stream appended after the read started (`since`), or too recently for the CLI to have written
- * them, are kept after it. Null when the two do not meet or disagree where they overlap (the transcript was
- * rewritten, or grew by more than `fresh` holds): then only a whole page is honest.
+ * `fresh` starts is replaced, which confirms (or corrects) the entries the stream put there. What the
+ * stream said that the read does not confirm is kept: a message the person sent stays where it was
+ * sent, until a read shows it, and anything appended after the read started goes after it. Null when
+ * the two do not meet or disagree where they overlap (the transcript was rewritten, or grew by more
+ * than `fresh` holds): then only a whole page is honest.
  */
 export function spliceTail(held: ChatDetail, fresh: ChatDetail, since = Number.POSITIVE_INFINITY, now = Date.now()): ChatDetail | null {
-  const confirmedEnd = held.from + held.entries.length - unconfirmedTail(held);
+  // Where each entry the page holds sits in the transcript: one the stream said and no read has
+  // confirmed has no place there yet
+  const confirmed: number[] = [];
+  held.entries.forEach((entry, i) => {
+    if (!streamed.has(entry)) confirmed.push(i);
+  });
+  const confirmedEnd = held.from + confirmed.length;
   if (fresh.from < held.from || fresh.total < confirmedEnd) return null;
-  const at = fresh.from - held.from;
+  const k = fresh.from - held.from;
   // They overlap by one confirmed entry at least and agree on it, or nothing held was confirmed
   // and the read starts where the page does
-  const meets = fresh.from < confirmedEnd ? held.entries[at]?.uuid === fresh.entries[0]?.uuid : confirmedEnd === held.from && at === 0;
-  if (!meets) return null;
+  let at: number;
+  if (k < confirmed.length) {
+    if (held.entries[confirmed[k] as number]?.uuid !== fresh.entries[0]?.uuid) return null;
+    at = k === 0 ? 0 : (confirmed[k - 1] as number) + 1;
+  } else if (confirmed.length === 0 && k === 0) at = 0;
+  else return null;
+
+  const region = held.entries.slice(at);
   const read = new Set(fresh.entries.map((entry) => entry.uuid));
-  // The wrapper names the user messages it writes itself, and the transcript names its copy
-  // otherwise: one sent while the read was on its way is matched by what it says instead
-  const said = new Set(fresh.entries.filter((entry) => entry.role === 'user').map(entryText));
+  const fresher = fresh.entries.slice(Math.max(0, confirmedEnd - fresh.from)).filter((entry) => entry.role === 'user');
+  const matched = readBack(fresher, region.filter((entry) => entry.role === 'user' && streamed.has(entry) && !read.has(entry.uuid)));
+
+  // Each message kept goes after the entry it followed on the page; one with nothing before it in
+  // the read goes first, and what the read cannot have known of goes last
+  const after = new Map<string | null, TranscriptEntry[]>();
   const late: TranscriptEntry[] = [];
-  for (const entry of held.entries.slice(at)) {
-    const readBack = read.has(entry.uuid) || (entry.role === 'user' && said.has(entryText(entry)));
+  let anchor: string | null = null;
+  for (const entry of region) {
     const mark = streamed.get(entry);
-    const grace = entry.role === 'user' ? SENT_GRACE_MS : WRITE_GRACE_MS;
-    if (mark && (mark.mark > since || now - mark.at < grace) && !readBack) late.push(entry);
-    // What is replaced is confirmed now, even where the read hands back the very same objects
+    const back = read.has(entry.uuid) ? entry.uuid : (matched.get(entry)?.uuid ?? null);
+    if (!mark || back !== null) {
+      // What is replaced is confirmed now, even where the read hands back the very same objects
+      streamed.delete(entry);
+      if (back !== null) anchor = back;
+      continue;
+    }
+    if (mark.mark > since) late.push(entry);
+    else if (entry.role === 'user') after.set(anchor, [...(after.get(anchor) ?? []), entry]);
+    else if (now - mark.at < WRITE_GRACE_MS) late.push(entry);
     else streamed.delete(entry);
   }
-  return { ...fresh, from: held.from, entries: [...held.entries.slice(0, at), ...fresh.entries, ...late], total: fresh.total + late.length };
+  const entries: TranscriptEntry[] = [...(after.get(null) ?? [])];
+  for (const entry of fresh.entries) entries.push(entry, ...(after.get(entry.uuid) ?? []));
+  entries.push(...late);
+  return { ...fresh, from: held.from, entries: [...held.entries.slice(0, at), ...entries], total: fresh.total + entries.length - fresh.entries.length };
 }
 
 // ---------- what is being written right now ----------
@@ -141,8 +202,31 @@ export class ChatStreamStore {
   /** The stored message that finalises the partial arrived; it goes once the transcript shows that */
   private ended = false;
   private updatedAt = 0;
+  /** What the stream said became of each message since the page opened it, by the message's id */
+  private readonly deliveries = new Map<string, MessageDelivery>();
+  private readonly deliveryListeners = new Set<() => void>();
+  private deliveryCount = 0;
 
   constructor(readonly chatId: string) {}
+
+  readonly subscribeDeliveries = (listener: () => void): (() => void) => {
+    this.deliveryListeners.add(listener);
+    return () => this.deliveryListeners.delete(listener);
+  };
+
+  /** Changes whenever a delivery is heard: what a component re-reads {@link delivery} on */
+  readonly deliveryVersion = (): number => this.deliveryCount;
+
+  /** The stream said the agent took a message, or that it was lost */
+  deliver(delivery: MessageDelivery): void {
+    this.deliveries.set(delivery.id, delivery);
+    this.deliveryCount++;
+    for (const listener of this.deliveryListeners) listener();
+  }
+
+  delivery(id: string): MessageDelivery | undefined {
+    return this.deliveries.get(id);
+  }
 
   readonly subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);

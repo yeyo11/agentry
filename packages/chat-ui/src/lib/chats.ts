@@ -292,6 +292,10 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
         return;
       }
       lastSeq = Math.max(lastSeq, event.seq);
+      if (event.kind === 'delivery' && event.delivery) {
+        store.deliver(event.delivery);
+        return;
+      }
       if (event.kind === 'message' && event.entry) {
         const outcome = show(event.entry);
         scheduleConfirm();
