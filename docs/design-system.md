@@ -1455,6 +1455,71 @@ decisions the drawing takes (criterion 1 of CW-18, candidate 1 of the spec):
 | `.cell > .ai-mark` | the Más row | the sparkle tile at the size of the other rows' `.proj` |
 | `.permission` (`-head`, `-input` with `.k`, `-note`, `-actions`, `-reason`) | `.permission`, `.permission-head`, `.permission-input`, `.permission-actions`, `.permission-reason` of `PermissionPrompts` | warn-tinted card, never gradient; the title is the readable name of the tool, the mono block is the input, Permitir is the screen's primary |
 
+### The editable Home: edit mode, the add-widget picker and the Documents and Flow widgets
+
+Drawn for CW-34 (a Home kept per project, with Documents and Flow widgets) by `reference/tools/home_edit.py`, in
+`DesktopInicioEditar`, `DesktopInicioAnadirWidget`, `DesktopInicioWidgetsNuevos` and `MobileInicioEditar`. `Main` and
+`MobileInicio` stay as the All projects Home. The decisions the drawing takes:
+
+- **Entry and exit.** The page head gains a quiet **Editar inicio** button (pencil, no gradient) beside "Nueva
+  orquestación"; the phone gets it in the "⋯" Sheet of the head. In edit mode the head says "Editando el inicio de
+  <project>" and swaps its buttons for **Añadir widget**, **Restablecer** and **Listo**. Listo is the zone's primary action
+  but wears `.edit-done` (accent on `--accent-soft`), not the gradient: the logo and the top bar's New chat already are the
+  screen's two gradient surfaces. The hero loses its `.grad-text` while editing for the same reason.
+- **Each change saves at once.** There is no Save and no Cancel; Listo only leaves the mode. **Restablecer** returns this
+  project's Home to the default layout and answers with a toast, "Inicio restablecido", with **Deshacer**; it never asks
+  first, so reset costs one tap and is reversible. The stored layout is the project's own: another project is untouched.
+- **A widget in edit mode** (`.widget-edit`) keeps its content (same text, same contrast) and changes its frame: a dashed
+  `--line-3` border, and its head becomes `.widget-editbar` with the **handle** (`.widget-handle`, a grip, 32 px on
+  desktop), the name, the **sizes** (`.widget-sizes`, a `.seg` of S, M, L and Todo, only the sizes the type allows, so
+  Cifras and Límites show one) and **Quitar** (an ×, `--bad` on hover; no confirmation, the picker brings it back). The
+  live energy border and rail of En marcha are off while editing: editing is not a live thing, and the spinners that are
+  live keep spinning. The handle is a button: a pointer drags it, and the keyboard lifts it with Space, moves it with the
+  arrow keys, drops it with Space and cancels with Escape, announcing each step in an `aria-live` region.
+- **Carrying a widget.** The lifted one is `.widget-lifted` (accent border, `--shadow-pop`) and the place it will land is
+  `.widget-slot` (dashed accent on `--accent-soft`, the words "Suéltalo aquí"). The accent marks a position, never the brand.
+  Nothing animates: the slot appears where the pointer is and the neighbours do not glide.
+- **Añadir widget** appears twice on desktop: in the head, and as a dashed `.widget-add` tile after the last widget. Both open
+  the same picker, a dialog (`.dialog`, 640 px) on desktop and a Sheet on a phone. The picker lists only the types that
+  fit the scope (a project's Home never offers Proyectos) and are **not on the page yet**: each type appears once, so the
+  rest are shown as check chips under "Ya están en tu inicio" on desktop. A row is the type's icon in `.pick-ico`, its name,
+  the `nuevo` badge on Documentos and Flujo, one sentence, the sizes it allows in mono, and **Añadir**. A widget is added
+  at the end of its area, at its default size, and the picker stays open so several can be added; Cancelar closes it.
+  On a phone a row is the icon, the name and a 44 px Añadir; the description and sizes stay on desktop.
+- **Phone edit mode** (`MobileInicioEditar`) is a list, not the page: one `.move-row` per widget with **Subir**, **Bajar**
+  and **Quitar** as 44 × 44 px buttons (the first Subir and the last Bajar are disabled, in words through their
+  `aria-label`), so no control needs a drag. There is no size control because a phone stacks every widget; the line under
+  the title says so. Listo sits in the head as a `btn-lg`; **Añadir widget** and **Restablecer** close the list. The tab
+  bar stays; the FAB goes.
+- **The Documents widget** (`w_docs`: `.doc-row`) is a card headed with the docs icon, "Documentos", the document count in
+  a `.count-pill` and "Ver todos". Each row is the file name in mono, its folder and its author in mono below
+  ("docs/specs · Arquitecto"), the kind as a plain `.badge` (SPEC, ADR, DOC) and the age; it opens the document. The foot
+  line (`.widget-foot`) says how many documents there are and how many are tied to tasks. Sizes M, L and Todo; an empty
+  project uses the card's compact empty line, never an illustration (design system §4: a widget beside content).
+- **The Flow widget** (`w_flow`: `.flow-row`) is headed with the flow icon, "Flujo", `.badge.b-ok` "activado" and "Ver el
+  flujo"; with the flow off it says "desactivado" in `.badge` and keeps its rows. It lists what the flow is doing, in this
+  order: runs in progress (`.rail-live` and the ring spinner, the key and title, the role and verb in mono, the clock), cards
+  that wait for the person (`.dot-idle`, "Hecho · espera tu aprobación", `.badge.b-idle` "te espera") and cards QA sent back
+  (`.dot-warn`, "rebote 1 de 3", `.badge.b-warn` "devuelta"). The foot line gives the concurrency and the queue. Status
+  colours keep their meaning and always come with a word.
+- **Gradient count** (the status bar's thin usage bars are the shell and are not counted): Editar 2 (logo, New chat), Añadir
+  widget 2, Widgets nuevos 2, phone 0. None of the new surfaces is a gradient and the energy border stays on the one
+  working widget of the screen that is not editing.
+
+| Reference class | App class or component | Rule |
+|---|---|---|
+| `.home-grid` (`.w-s`, `.w-m`, `.w-l`, `.w-full`) | the dashboard's 12-column grid | s = 4, m = 6, l = 8 and full = 12 columns, as `SIZE_SPANS`; a phone stacks them |
+| `.widget`, `.widget-body`, `.widget-foot` | `WidgetCard` | the card of every widget: head, rows, an optional foot line in mono |
+| `.widget-edit`, `.widget-editbar` | new, edit mode of `WidgetCard` | the dashed frame and the head that holds the handle, sizes and Quitar |
+| `.widget-handle`, `.widget-sizes`, `.widget-remove` | `IconButton`, `Segmented`, `IconButton` | the sizes use the app's `Segmented`; every control has an `aria-label` that names the widget |
+| `.widget-lifted`, `.widget-slot` | new | the widget in hand and its landing place; no motion |
+| `.widget-add` | new, the end of the grid | a dashed tile that opens the picker |
+| `.edit-done` | `Button` with a variant | Listo: accent on `--accent-soft`, not the gradient |
+| `.pick-list`, `.pick-row` (`.pick-ico`, `.pick-text`, `.pick-name`, `.pick-desc`, `.pick-sizes`, `.pick-have`) | the picker's body in `Dialog` and `Sheet` | one row per type not yet on the page; rows are 64 px at least on a phone |
+| `.move-row` | new, the phone's edit list | icon, name and three 44 px buttons |
+| `.doc-row`, `.doc-name` | the Documents widget's rows | mono name, folder and author, kind badge, age |
+| `.flow-row` (`.flow-what`) | the Flow widget's rows | live, waiting and returned, in that order |
+
 ## 3. Live states and motion
 
 | Situation | Pattern |
