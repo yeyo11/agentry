@@ -13,11 +13,11 @@ export interface DevicePattern {
   code: RegExp | null;
 }
 
-export const DEVICE_PATTERNS: Readonly<Record<'gh' | 'copilot' | 'codex' | 'glab' | 'tailscale', DevicePattern>> = {
+// No Copilot row: its own `login --device-code` cannot keep the token without a keychain, so its
+// Code signs gh in instead (methods.ts). Its recording stays under fixtures/logins/ as evidence.
+export const DEVICE_PATTERNS: Readonly<Record<'gh' | 'codex' | 'glab' | 'tailscale', DevicePattern>> = {
   // stderr: `! First copy your one-time code: 250D-975E`, then `Open this URL to continue in your web browser: https://github.com/login/device`
   gh: { url: /web browser:\s*(https:\/\/\S+)/, code: /one-time code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})\b/ },
-  // stdout: `To authenticate, visit https://github.com/login/device and enter code 0472-EEB7`
-  copilot: { url: /visit\s+(https:\/\/\S+)/, code: /enter code\s+([A-Z0-9]{4}-[A-Z0-9]{4})\b/ },
   // stdout, coloured even with no terminal: the URL alone on the line after "Open this link", the
   // code alone on the line after "Enter this one-time code": `   https://auth.openai.com/codex/device`, `   LK0N-5V0Q5`
   codex: { url: /^\s*(https:\/\/\S+)\s*$/, code: /^\s*([A-Z0-9]{4}-[A-Z0-9]{5})\s*$/ },

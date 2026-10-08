@@ -39,10 +39,11 @@ function keyFor(config: VaultConfig): KeySource {
 }
 
 /**
- * `secrets.json`: every secret a CLI reads from its environment (Claude Code's token, Gemini's and
- * OpenCode's keys, YouTrack's address and token), keyed by tool and variable and sealed with the
- * `SecretBox` when there is a key. A CLI that has a login command of its own keeps its credential
- * itself (decision 4), so nothing for Codex, Copilot, gh or glab is ever stored here.
+ * `secrets.json`: every secret a CLI reads from its environment (Claude Code's token, Gemini's,
+ * Copilot's and OpenCode's keys, YouTrack's address and token), keyed by tool and variable and
+ * sealed with the `SecretBox` when there is a key. A CLI that has a login command of its own keeps
+ * its credential itself (decision 4), so nothing for Codex, gh or glab is ever stored here. Copilot
+ * has one, but it cannot keep what it gets without a keychain, so its token is kept here instead.
  *
  * The file is read again before every write, so two stores built on the same data directory (a
  * test, or a store a route builds) never undo each other's change. Values are never logged, and

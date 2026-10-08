@@ -110,11 +110,17 @@ export class LoginService {
   /**
    * Starts a sign-in. A key sign-in answers once it ended; a device sign-in answers at once, in
    * `starting`, and `login.updated` follows it. A live sign-in of the same tool and host is
-   * cancelled first: the person pressed Sign in again.
+   * cancelled first: the person pressed Sign in again. A tool whose device sign-in is another's
+   * (Copilot's is gh's on github.com) starts that one, so the session names the tool really signing in.
    */
   async start(input: unknown): Promise<LoginSession> {
-    const request = this.parse(input);
+    let request = this.parse(input);
     this.refuse(request.tool);
+    const via = request.method === 'device' ? TOOL_LOGINS[request.tool].methods.deviceVia : null;
+    if (via) {
+      request = { tool: via.tool, method: 'device', ...(via.host ? { host: via.host } : {}) };
+      this.refuse(request.tool);
+    }
     const login = TOOL_LOGINS[request.tool];
     const host = this.hostOf(request);
     // What a command takes in place of a host: Tailscale's node name, which is the deploy's and not the request's
@@ -128,6 +134,8 @@ export class LoginService {
       return this.device(request.tool, host, login.deviceCommand(target));
     }
     const secret = this.secretOf(request.secret);
+    const refused = login.refuseKey?.(secret) ?? null;
+    if (refused) throw new LoginInputError(refused);
     if (login.methods.key === 'env') {
       const variable = request.variable ?? login.methods.variables[0];
       if (!variable || !login.methods.variables.includes(variable)) throw new LoginInputError(`variable must be one of ${login.methods.variables.join(', ')}`);
@@ -148,7 +156,7 @@ export class LoginService {
 
   /**
    * Signs a tool out with the vendor's documented command, or by forgetting what the vault keeps.
-   * Copilot documents none, and says so rather than guessing at its files.
+   * Copilot's is the second: only the key Agentry keeps is forgotten, never its own state or gh's.
    */
   async signOut(toolInput: string, hostInput?: string): Promise<SignOutResult> {
     if (!isSetupTool(toolInput)) throw new LoginInputError(`unknown tool ${toolInput}`);
@@ -265,7 +273,7 @@ export class LoginService {
     }
   }
 
-  /** Claude Code, Gemini, OpenCode, YouTrack: the key is theirs to read from the environment, so the vault keeps it */
+  /** Claude Code, Gemini, Copilot, OpenCode, YouTrack: the key is theirs to read from the environment, so the vault keeps it */
   private async envKey(tool: SetupTool, host: string | null, variable: string, secret: string): Promise<LoginSession> {
     if (tool === 'youtrack') {
       // Checked before a session exists: an address that is not one is the request's fault
@@ -284,7 +292,7 @@ export class LoginService {
     return { ...live.session };
   }
 
-  /** Codex, Copilot, gh, glab: the key goes once to the CLI's own login on stdin, and the CLI stores it */
+  /** Codex, gh, glab: the key goes once to the CLI's own login on stdin, and the CLI stores it */
   private async stdinKey(tool: SetupTool, host: string | null, args: string[], secret: string): Promise<LoginSession> {
     const live = this.open(tool, 'key', host);
     const outcome = await this.command(tool, host, args, `${secret}\n`);

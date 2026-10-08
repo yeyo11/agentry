@@ -20701,6 +20701,32 @@
         "type": "boolean",
         "description": "Whether the vendor documents a device-code sign-in Agentry runs"
       },
+      "deviceVia": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "tool": {
+                "$ref": "#/components/schemas/SetupTool"
+              },
+              "host": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "tool",
+              "host"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The device sign-in is another tool's: Copilot's Code signs the GitHub CLI in to github.com, whose token Copilot falls back to (GitHub's documented order). `POST /setup/logins` with the tool's `device` starts that tool's session, and the session names it. Null for every other tool."
+      },
       "needsHost": {
         "type": "boolean",
         "description": "Whether a host name is part of the sign-in: `gh` and `glab` name one, YouTrack an address"
@@ -20714,7 +20740,11 @@
       },
       "signOut": {
         "type": "boolean",
-        "description": "False where the vendor documents no way to sign out from a program (Copilot)"
+        "description": "False where there is no way to sign out from a program"
+      },
+      "signOutKeyOnly": {
+        "type": "boolean",
+        "description": "Signing out only forgets the key Agentry keeps (Gemini, OpenCode, Copilot), so it is offered only while one is kept: Copilot's own sign-in, or the GitHub CLI's it falls back to, is not Agentry's to undo."
       }
     },
     "required": [
@@ -20723,9 +20753,11 @@
       "variables",
       "exclusive",
       "device",
+      "deviceVia",
       "needsHost",
       "defaultHost",
-      "signOut"
+      "signOut",
+      "signOutKeyOnly"
     ],
     "description": "What one tool offers, from a static table written from each vendor's documentation (docs/setup.md)."
   },

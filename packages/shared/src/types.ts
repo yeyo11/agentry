@@ -6446,12 +6446,23 @@ export interface SetupToolMethods {
   exclusive: boolean;
   /** Whether the vendor documents a device-code sign-in Agentry runs */
   device: boolean;
+  /**
+   * The device sign-in is another tool's: Copilot's Code signs the GitHub CLI in to github.com,
+   * whose token Copilot falls back to (GitHub's documented order). `POST /setup/logins` with the
+   * tool's `device` starts that tool's session, and the session names it. Null for every other tool.
+   */
+  deviceVia: { tool: SetupTool; host: string | null } | null;
   /** Whether a host name is part of the sign-in: `gh` and `glab` name one, YouTrack an address */
   needsHost: boolean;
   /** The host used when none is given (`github.com`, `gitlab.com`); null where there is none */
   defaultHost: string | null;
-  /** False where the vendor documents no way to sign out from a program (Copilot) */
+  /** False where there is no way to sign out from a program */
   signOut: boolean;
+  /**
+   * Signing out only forgets the key Agentry keeps (Gemini, OpenCode, Copilot), so it is offered
+   * only while one is kept: Copilot's own sign-in, or the GitHub CLI's it falls back to, is not Agentry's to undo.
+   */
+  signOutKeyOnly: boolean;
 }
 
 export type LoginState = 'starting' | 'waiting-for-person' | 'succeeded' | 'failed' | 'expired' | 'cancelled';

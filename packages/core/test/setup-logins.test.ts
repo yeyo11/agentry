@@ -90,7 +90,6 @@ test('the URL and the code are read from each tool\'s recorded device-code outpu
   // Recorded on the pinned versions with no terminal (fixtures/logins/README.md)
   const expected = {
     gh: ['gh-web.stderr', 'https://github.com/login/device', '250D-975E'],
-    copilot: ['copilot-device-code.stdout', 'https://github.com/login/device', '0472-EEB7'],
     codex: ['codex-device-auth.stdout', 'https://auth.openai.com/codex/device', 'LK0N-5V0Q5'],
     glab: ['glab-device.stderr', 'https://gitlab.com/oauth/device', 'WZS9BFLC'],
   } as const;
@@ -105,8 +104,9 @@ test('the URL and the code are read from each tool\'s recorded device-code outpu
 });
 
 test('colour codes and a sentence\'s closing punctuation never end up in the URL or the code', () => {
-  const read = readDeviceLine(DEVICE_PATTERNS.copilot, '\u001b[1mTo authenticate, visit https://github.com/login/device. and enter code \u001b[32mAAAA-BBBB\u001b[0m');
-  assert.deepEqual(read, { url: 'https://github.com/login/device', code: 'AAAA-BBBB' });
+  const url = readDeviceLine(DEVICE_PATTERNS.gh, '\u001b[1mOpen this URL to continue in your web browser: https://github.com/login/device.\u001b[0m');
+  assert.equal(url.url, 'https://github.com/login/device');
+  assert.equal(readDeviceLine(DEVICE_PATTERNS.gh, '! First copy your one-time code: \u001b[32mAAAA-BBBB\u001b[0m').code, 'AAAA-BBBB');
   // Only an https address is a link worth showing
   assert.equal(readDeviceLine(DEVICE_PATTERNS.glab, 'Then open this URL on any device to authorize: http://gitlab.com/oauth/device').url, null);
 });
@@ -117,8 +117,16 @@ test('the methods table offers a device sign-in where the vendor documents one',
     Object.entries(methods).filter(([, m]) => m.device).map(([tool]) => tool).sort(),
     ['codex', 'copilot', 'gh', 'glab', 'tailscale'],
   );
-  assert.equal(methods.copilot?.signOut, false);
   assert.deepEqual(methods['claude-code']?.variables, ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']);
+});
+
+test('Copilot\'s key is kept for its environment and its Code is gh\'s sign-in to github.com, since its own login cannot store a token without a keychain', () => {
+  const copilot = setupMethods().find((m) => m.tool === 'copilot');
+  assert.ok(copilot);
+  assert.deepEqual([copilot.key, copilot.variables, copilot.device, copilot.deviceVia], ['env', ['COPILOT_GITHUB_TOKEN'], true, { tool: 'gh', host: 'github.com' }]);
+  // Sign out forgets the kept key only: Copilot's own state and gh's are not Agentry's to undo
+  assert.deepEqual([copilot.signOut, copilot.signOutKeyOnly], [true, true]);
+  assert.equal(setupMethods().filter((m) => m.deviceVia !== null).length, 1, 'no other tool lends its sign-in');
 });
 
 // ---------- device sign-in ----------
@@ -139,11 +147,23 @@ test('a device sign-in shows the URL and the code, and succeeds when the readine
   assert.deepEqual(readRecord(r).argv, ['login', '--device-auth']);
 });
 
-test('a code printed on stderr counts too (glab), and gh and glab name their host', async () => {
-  const copilot = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('copilot-device-code.stdout') } });
-  const one = await copilot.logins.start({ tool: 'copilot', method: 'device' });
-  assert.equal((await until(() => ended(copilot, one.id), 'copilot')).code, '0472-EEB7');
+test('Copilot\'s Code starts gh\'s device sign-in to github.com, the session gh\'s row shows', async () => {
+  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('gh-web.stderr'), FAKE_LOGIN_STDERR: '1' } });
+  const started = await r.logins.start({ tool: 'copilot', method: 'device' });
+  assert.deepEqual([started.tool, started.host], ['gh', 'github.com']);
+  const done = await until(() => ended(r, started.id), 'gh');
+  assert.deepEqual([done.state, done.code], ['succeeded', '250D-975E']);
+  assert.deepEqual(readRecord(r).argv, ['auth', 'login', '--web', '--hostname', 'github.com']);
+  assert.deepEqual(r.readinessCalls, [{ tool: 'gh', host: 'github.com' }]);
+  // One live gh sign-in to github.com at a time, whichever row asked for it
+  const hang = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('gh-web.stderr'), FAKE_LOGIN_STDERR: '1', FAKE_LOGIN_EXIT: 'hang' } });
+  const fromGh = await hang.logins.start({ tool: 'gh', method: 'device' });
+  const fromCopilot = await hang.logins.start({ tool: 'copilot', method: 'device' });
+  assert.equal(hang.logins.get(fromGh.id)?.state, 'cancelled');
+  hang.logins.cancel(fromCopilot.id);
+});
 
+test('a code printed on stderr counts too (glab), and gh and glab name their host', async () => {
   const glab = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('glab-device.stderr'), FAKE_LOGIN_STDERR: '1' } });
   const two = await glab.logins.start({ tool: 'glab', method: 'device', host: 'GitLab.example.com' });
   const done = await until(() => ended(glab, two.id), 'glab');
@@ -226,7 +246,7 @@ test('a key for a CLI with a login command goes on stdin, never in argv, and the
 
 test('a key the CLI takes but the readiness probe does not is a failure; one the CLI refuses is too', async () => {
   const out = rig({ ready: false });
-  assert.deepEqual(await out.logins.start({ tool: 'copilot', method: 'key', secret: 'ghp_x' }).then((s) => [s.state, s.error]), ['failed', 'not-signed-in']);
+  assert.deepEqual(await out.logins.start({ tool: 'codex', method: 'key', secret: 'sk-x' }).then((s) => [s.state, s.error]), ['failed', 'not-signed-in']);
   const refused = rig({ fake: { FAKE_LOGIN_EXIT: '1' } });
   assert.deepEqual(await refused.logins.start({ tool: 'glab', method: 'key', secret: 'glpat-x' }).then((s) => [s.state, s.error]), ['failed', 'cli-refused']);
 });
@@ -247,6 +267,13 @@ test('a key for a tool that reads its environment is sealed in the vault and han
   await r.logins.start({ tool: 'opencode', method: 'key', secret: 'sk-or', variable: 'OPENROUTER_API_KEY' });
   assert.deepEqual(r.vault.get('opencode'), { OPENAI_API_KEY: 'sk-oa', OPENROUTER_API_KEY: 'sk-or' });
 
+  const pat = 'github_pat_11AAAA_copilot_never_in_argv';
+  const copilot = await r.logins.start({ tool: 'copilot', method: 'key', secret: pat });
+  assert.equal(copilot.state, 'succeeded');
+  assert.deepEqual(r.vault.get('copilot'), { COPILOT_GITHUB_TOKEN: pat });
+  assert.equal(existsSync(r.record), false, 'no `copilot login` runs: it could not store the token without a keychain');
+  assert.ok(!JSON.stringify(r.events).includes(pat));
+
   const yt = await r.logins.start({ tool: 'youtrack', method: 'key', secret: 'perm-yt', host: 'https://x.youtrack.cloud/' });
   assert.equal(yt.state, 'succeeded');
   assert.deepEqual(r.vault.get('youtrack'), { YOUTRACK_HOST: 'https://x.youtrack.cloud', YOUTRACK_TOKEN: 'perm-yt' });
@@ -263,19 +290,23 @@ test('a bad request is refused before anything runs, and the message never echoe
     { tool: 'opencode', method: 'key', secret: 'k', variable: 'PATH' },
     { tool: 'gh', method: 'key', secret: 'k', host: '--hostname=evil' },
     { tool: 'youtrack', method: 'key', secret: 'k' },
+    { tool: 'copilot', method: 'key', secret: 'ghp_classicTokenCopilotRefuses' },
   ];
   for (const body of refusals) {
-    await assert.rejects(r.logins.start(body), (err: Error) => err instanceof LoginInputError && !err.message.includes('two words'), JSON.stringify(body));
+    await assert.rejects(r.logins.start(body), (err: Error) => err instanceof LoginInputError && !err.message.includes('two words') && !err.message.includes('classicToken'), JSON.stringify(body));
   }
   assert.equal(existsSync(r.record), false);
+  assert.equal(r.vault.has('copilot'), false, 'a classic token is never kept');
 });
 
 // ---------- sign-out ----------
 
 test('signing out runs the documented command, forgets what the vault keeps, and says so where there is none', async () => {
   const r = rig();
-  assert.deepEqual(await r.logins.signOut('copilot'), { tool: 'copilot', host: null, signedOut: false, reason: 'unsupported' });
-  assert.equal(existsSync(r.record), false);
+  await r.vault.set('copilot', { COPILOT_GITHUB_TOKEN: 'github_pat_x' });
+  assert.deepEqual(await r.logins.signOut('copilot'), { tool: 'copilot', host: null, signedOut: true, reason: null });
+  assert.equal(r.vault.has('copilot'), false, 'Copilot\'s sign-out forgets the key Agentry kept');
+  assert.equal(existsSync(r.record), false, 'and runs nothing: not copilot, not gh');
 
   assert.deepEqual(await r.logins.signOut('codex'), { tool: 'codex', host: null, signedOut: true, reason: null });
   assert.deepEqual(readRecord(r).argv, ['logout']);

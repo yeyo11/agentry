@@ -170,9 +170,11 @@ describe('ProviderDetector', () => {
     // Other state and no account: never signed in
     await copilotSignedIn(own, '// This file is managed automatically.\n{ "firstLaunchAt": "2026-03-11T00:00:00.000Z", "loggedInUsers": [] }');
     assert.equal((await statusOf(detector(), 'copilot')).state, 'signed-out');
-    // A token in the environment signs in without a file, and cannot be checked for free
-    const withToken = await statusOf(detector({ env: { GH_TOKEN: 'set' } }), 'copilot');
-    assert.deepEqual([withToken.state, withToken.reason], ['unknown', 'no-probe']);
+    // A token in the environment is the sign-in GitHub documents for programs and containers
+    for (const name of ['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN']) {
+      const withToken = await statusOf(detector({ env: { [name]: 'github_pat_set' } }), 'copilot');
+      assert.deepEqual([withToken.state, withToken.reason, withToken.account], ['ready', null, null], name);
+    }
 
     await copilotSignedIn(own, COPILOT_CONFIG);
     const ready = await statusOf(detector(), 'copilot');
@@ -187,6 +189,39 @@ describe('ProviderDetector', () => {
     await rm(own, { recursive: true });
     assert.equal((await statusOf(detector(), 'copilot')).state, 'signed-out');
     assert.equal((await statusOf(detector({ env: { COPILOT_HOME: moved } }), 'copilot')).state, 'ready', 'COPILOT_HOME moves the file');
+  });
+
+  it('reads Copilot as signed in when the gh on its PATH holds a github.com token, and asks gh nothing else', async () => {
+    await fake('copilot', 'echo "GitHub Copilot CLI 1.0.93."');
+    const calls = join(root, `gh-calls${n}`);
+    // The token goes to stdout as gh prints it; only the exit code and a non-empty answer may count
+    const gh = (exit: number) => fake('gh', `echo "$*" >> "${calls}"\n[ "${String(exit)}" = 0 ] && echo gho_secretTokenNeverKept\nexit ${String(exit)}`);
+
+    await gh(1);
+    const out = await statusOf(detector(), 'copilot');
+    assert.deepEqual([out.state, out.reason], ['signed-out', 'missing-credentials'], 'a signed-out gh is no fallback');
+
+    await gh(0);
+    const events: AgentryEventInput[] = [];
+    const ready = await statusOf(detector({ events }), 'copilot');
+    assert.deepEqual([ready.state, ready.reason], ['ready', null]);
+    assert.ok(!JSON.stringify(ready).includes('gho_secretTokenNeverKept'));
+    assert.ok(!JSON.stringify(events).includes('gho_secretTokenNeverKept'));
+    assert.deepEqual([...new Set(readFileSync(calls, 'utf8').trim().split('\n'))], ['auth token --hostname github.com']);
+
+    // A gh that hangs is stopped by the probe's clock and counts as no sign-in
+    await fake('gh', 'while :; do :; done');
+    const slow = await statusOf(detector({ probeTimeoutMs: 300 }), 'copilot');
+    assert.equal(slow.state, 'signed-out');
+  });
+
+  it('asks gh only for a provider whose vendor documents it as a credential source', async () => {
+    const calls = join(root, `gh-calls${n}`);
+    await fake('gh', `echo "$*" >> "${calls}"\necho gho_x`);
+    await fake('codex', CODEX(1));
+    const codex = await statusOf(detector(), 'codex');
+    assert.equal(codex.state, 'signed-out');
+    assert.equal(existsSync(calls), false, 'no Copilot installed, no other provider with the fallback: gh never ran');
   });
 
   it('keeps the models a Copilot chat was offered, and hands them back after a restart', async () => {

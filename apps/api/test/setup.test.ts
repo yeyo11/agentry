@@ -119,9 +119,22 @@ test('a bad sign-in request is a 400 whose message never carries the key', async
   assert.equal((await app.inject({ method: 'DELETE', url: '/api/setup/credentials/jira' })).statusCode, 400);
 });
 
-test('Copilot documents no sign-out, and the answer says so', async () => {
-  const res = await app.inject({ method: 'DELETE', url: '/api/setup/credentials/copilot' });
-  assert.deepEqual(res.json<SignOutResult>(), { tool: 'copilot', host: null, signedOut: false, reason: 'unsupported' });
+test('a Copilot token is kept for Copilot\'s environment, a classic one is refused, and signing out forgets it', async () => {
+  const classic = await app.inject({ method: 'POST', url: '/api/setup/logins', ...json({ tool: 'copilot', method: 'key', secret: 'ghp_classicNeverEchoed' }) });
+  assert.equal(classic.statusCode, 400);
+  assert.ok(!classic.body.includes('ghp_classicNeverEchoed'));
+  assert.equal(core.vault.has('copilot'), false);
+
+  const secret = 'github_pat_11AAAA_api_never_echoed';
+  const res = await app.inject({ method: 'POST', url: '/api/setup/logins', ...json({ tool: 'copilot', method: 'key', secret }) });
+  assert.equal(res.statusCode, 201, res.body);
+  assert.ok(!res.body.includes(secret));
+  assert.deepEqual(core.vault.get('copilot'), { COPILOT_GITHUB_TOKEN: secret });
+  assert.equal((await app.inject('/api/setup')).json<SetupState>().methods.find((m) => m.tool === 'copilot')?.deviceVia?.tool, 'gh');
+
+  const out = await app.inject({ method: 'DELETE', url: '/api/setup/credentials/copilot' });
+  assert.deepEqual(out.json<SignOutResult>(), { tool: 'copilot', host: null, signedOut: true, reason: null });
+  assert.equal(core.vault.has('copilot'), false);
 });
 
 test('read-only mode refuses every setup write, and the state stays readable', async () => {

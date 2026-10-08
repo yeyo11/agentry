@@ -4,7 +4,8 @@ import type { SetupTool, SetupToolMethods } from '@agentry/shared';
  * How each tool signs in, and only through what its vendor ships for programs (the one rule). The
  * table is docs/plans/in-app-setup.md's, "What each vendor allows"; docs/setup.md keeps it with its
  * sources. A device-code row runs the vendor's documented command with no terminal: the recordings
- * under packages/core/test/fixtures/logins/ show all four (Codex, Copilot, gh, glab) run that way.
+ * under packages/core/test/fixtures/logins/ show Codex, gh and glab run that way. Copilot's own
+ * prints its code that way too but cannot keep the token it gets, so its Code is gh's (`deviceVia`).
  */
 export interface ToolLogin {
   methods: SetupToolMethods;
@@ -17,6 +18,8 @@ export interface ToolLogin {
   deviceCommand: ((host: string) => string[]) | null;
   /** The documented sign-out command; null where the vault alone holds the credential or there is none */
   signOutCommand: ((host: string) => string[]) | null;
+  /** Why a key is refused before it is kept, in words that never echo it; null when it may be tried */
+  refuseKey?: (secret: string) => string | null;
 }
 
 const row = (tool: SetupTool, methods: Partial<Omit<SetupToolMethods, 'tool'>>): SetupToolMethods => ({
@@ -25,9 +28,11 @@ const row = (tool: SetupTool, methods: Partial<Omit<SetupToolMethods, 'tool'>>):
   variables: [],
   exclusive: false,
   device: false,
+  deviceVia: null,
   needsHost: false,
   defaultHost: null,
   signOut: true,
+  signOutKeyOnly: false,
   ...methods,
 });
 
@@ -59,21 +64,29 @@ export const TOOL_LOGINS: Readonly<Record<SetupTool, ToolLogin>> = {
   },
   // The README's "API Key" option; Google sign-in lives in the TUI
   gemini: {
-    methods: row('gemini', { key: 'env', variables: ['GEMINI_API_KEY'] }),
+    methods: row('gemini', { key: 'env', variables: ['GEMINI_API_KEY'], signOutKeyOnly: true }),
     keyCommand: null,
     deviceCommand: null,
     signOutCommand: null,
   },
-  // `copilot login --with-token` reads a fine-grained PAT on stdin, `--device-code` is the device
-  // sign-in; `copilot --help` documents no sign-out
+  // Copilot's own `login` (`--with-token` or `--device-code`) cannot keep what it gets without a
+  // system keychain unless a terminal answers its plain-text question, so in a container both exit 1
+  // after the approval (recorded on 1.0.93, fixtures/logins/README.md). GitHub's docs name the way
+  // for containers and programs instead: a token in COPILOT_GITHUB_TOKEN, GH_TOKEN or GITHUB_TOKEN,
+  // and last the GitHub CLI's sign-in (`gh auth token`). So the key is kept in the vault and handed
+  // over as COPILOT_GITHUB_TOKEN, and the Code option signs gh in to github.com (decision of
+  // 2026-10-08, docs/plans/in-app-setup.md). Sign-out forgets the key; gh's is gh's row's to undo.
   copilot: {
-    methods: row('copilot', { key: 'stdin', device: true, signOut: false }),
-    keyCommand: () => ['login', '--with-token'],
-    deviceCommand: () => ['login', '--device-code'],
+    methods: row('copilot', { key: 'env', variables: ['COPILOT_GITHUB_TOKEN'], device: true, deviceVia: { tool: 'gh', host: 'github.com' }, signOutKeyOnly: true }),
+    keyCommand: null,
+    deviceCommand: null,
     signOutCommand: null,
+    // GitHub's docs: classic personal access tokens are not supported, fine-grained ones (v2) are
+    refuseKey: (secret) =>
+      secret.startsWith('ghp_') ? 'Copilot does not take a classic personal access token (ghp_): make a fine-grained one with the Copilot Requests permission' : null,
   },
   opencode: {
-    methods: row('opencode', { key: 'env', variables: [...OPENCODE_KEY_VARIABLES] }),
+    methods: row('opencode', { key: 'env', variables: [...OPENCODE_KEY_VARIABLES], signOutKeyOnly: true }),
     keyCommand: null,
     deviceCommand: null,
     signOutCommand: null,
@@ -114,7 +127,11 @@ export const TOOL_LOGINS: Readonly<Record<SetupTool, ToolLogin>> = {
 };
 
 export function setupMethods(): SetupToolMethods[] {
-  return Object.values(TOOL_LOGINS).map((login) => ({ ...login.methods, variables: [...login.methods.variables] }));
+  return Object.values(TOOL_LOGINS).map((login) => ({
+    ...login.methods,
+    variables: [...login.methods.variables],
+    deviceVia: login.methods.deviceVia ? { ...login.methods.deviceVia } : null,
+  }));
 }
 
 /** The variables of a tool that may not be set together; empty for every tool but Claude Code */

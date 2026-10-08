@@ -1573,6 +1573,9 @@ export class Core {
     }
     if (tool === 'gh' || tool === 'glab') {
       const status = (await this.hosts.refresh()).find((s) => s.id === (tool === 'gh' ? 'github' : 'gitlab'));
+      // Copilot falls back to gh's sign-in to github.com, and Copilot's Code is that sign-in: its
+      // row has to move with gh's, not one detection TTL later
+      if (tool === 'gh' && host === 'github.com') await this.providers.refresh({ only: ['copilot'] }).catch(() => undefined);
       return status?.hosts.find((entry) => entry.hostname === host)?.signedIn ?? false;
     }
     if (tool === 'youtrack') {

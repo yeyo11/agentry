@@ -37,6 +37,12 @@ export const copilotManifest: ProviderManifest = {
     },
     // Source: `copilot login --help`, in order of precedence.
     credentialEnv: ['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'],
+    // GitHub's "Authenticating GitHub Copilot CLI" names a token in one of those variables as the way
+    // for containers and non-interactive use, and the GitHub CLI's sign-in as the last source after
+    // the keychain: https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/authenticate-copilot-cli
+    // Verified 2026-10-08 in the image: gh signed in by device code, Copilot never, and a prompt ran.
+    credentialEnvSignsIn: true,
+    ghFallback: { hostname: 'github.com' },
     signInUrl: 'https://docs.github.com/copilot/how-tos/copilot-cli',
   },
   // Source: `copilot --help` lists `--acp` ("Start as Agent Client Protocol server").
