@@ -1,4 +1,4 @@
-// Providers: the first-run step and Settings → Providers, on a desktop and on a phone, in both themes.
+// Providers: the setup assistant's Agents step and Settings → Providers, on a desktop and on a phone, in both themes.
 //
 // The sandbox is a machine with Claude Code (the fake `claude`, first on PATH) and a Codex that is a
 // fake too (e2e/fake-providers): `run.mjs` seeds `providers.json` so Codex is reached through its
@@ -10,7 +10,7 @@
 // Gemini and Copilot are given an override that points nowhere, so a real install on the host's PATH
 // cannot turn them into something else: the override is the first thing the detector looks at.
 //
-// What is not covered: the "nothing found" page (every provider not installed), because the fake
+// What is not covered: the Agents step's "nothing found" state (every provider not installed), because the fake
 // `claude` is on PATH for every spec that asks for it and Claude Code cannot be made missing.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -49,7 +49,7 @@ export default async ({ page, api, check, dirs }) => {
   const settled = (id, wanted) => page.waitFor(`return fetch('/api/providers/${id}').then((r) => r.json()).then((s) => s.state === ${JSON.stringify(wanted)})`, { label: `${id} is ${wanted}` });
   const savedSettings = (await api.get('/providers/settings')).body;
   const savedApp = (await api.get('/settings/app')).body;
-  check(savedApp.sources.setupSeen !== 'env', 'the sandbox leaves setupSeen to the settings file, so the step can be shown again');
+  check(savedApp.sources.setupSeen !== 'env', 'the sandbox leaves setupSeen to the settings file, so the assistant can be shown again');
 
   try {
     // ---- The sandbox: Codex signed out, Gemini and Copilot used before ----
@@ -63,7 +63,7 @@ export default async ({ page, api, check, dirs }) => {
     check((await statusOf('gemini')).state === 'used-before', `gemini is used before (${(await statusOf('gemini')).state})`);
     check((await statusOf('copilot')).state === 'used-before', 'copilot is used before');
 
-    // ---- First run: the step stands in for the app until Continue or Skip ----
+    // ---- First start: the setup assistant stands in for the app; its Agents step lists the providers ----
     await api.put('/settings/app', { setupSeen: false });
     state('codex', { version: '0.159.3', signedIn: true });
     await api.post('/providers/refresh');
@@ -71,63 +71,51 @@ export default async ({ page, api, check, dirs }) => {
     await page.goto('/', 300);
     await theme(page, 'dark');
     await page.goto('/', 300);
-    await page.waitFor(`return !!document.querySelector('[data-step="list"]')`, { label: 'the first-run step' });
-    check((await page.eval(`return !!document.querySelector('.sidebar, #sidebar, .statusbar')`)) === false, 'the step has no shell around it');
-    check((await page.text('.prov-first h1')).includes('These are the agents on your machine'), 'the step says what it found');
-    const groups = await page.eval(`return [...document.querySelectorAll('.prov-group-head h2')].map((h) => h.textContent.trim())`);
-    check(groups[0] === 'Ready' && groups.includes('Used before'), `the groups run from ready to used before (${groups.join(', ')}; api: ${(await api.get('/providers')).body.map((p) => `${p.id}=${p.state}/${p.reason}`).join(' ')})`);
+    await page.waitFor(`return !!document.querySelector('.setup-page[data-setup-step="access"]')`, { label: 'the assistant, on Access' });
+    check((await page.eval(`return !!document.querySelector('.sidebar, #sidebar, .statusbar')`)) === false, 'the assistant has no shell around it');
+    await page.click('[data-action="continue"]', undefined, 600);
+    await page.waitFor(`return !!document.querySelector('.setup-page[data-setup-step="agents"] .prov-row[data-provider]')`, { label: 'the Agents step' });
+    check((await page.text('.prov-first h1')).includes('Sign in to your agents'), 'the step says what it is for');
     check((await page.eval(rowState('codex'))) === 'ready', 'codex is listed as ready');
     check((await page.eval(rowState('gemini'))) === 'used-before', 'gemini is listed as used before');
-    const primary = await page.text('[data-action="continue"]');
-    check(/^Continue with (Claude Code|Codex)$/.test(primary.trim()), `the primary action names the first ready provider (${primary})`);
-    check((await page.eval(`return document.querySelectorAll('.grad, .btn-primary').length`)) >= 1, 'the primary action is drawn');
-
+    check((await page.eval(`return document.querySelectorAll('.btn-primary').length`)) === 1, 'Continue is the one primary');
     await page.shot('providers-first-run-dark');
-    await scan(page, check, 'the first-run step, dark');
+    await scan(page, check, 'the Agents step, dark');
     await theme(page, 'light');
     await page.goto('/', 300);
-    await page.waitFor(`return !!document.querySelector('[data-step="list"]')`, { label: 'the step again, light' });
-    await scan(page, check, 'the first-run step, light');
+    await page.click('[data-action="continue"]', undefined, 600);
+    await page.waitFor(`return !!document.querySelector('.setup-page[data-setup-step="agents"] .prov-row[data-provider]')`, { label: 'the Agents step, light' });
+    await scan(page, check, 'the Agents step, light');
     await page.shot('providers-first-run-light');
 
-    // Check again reads them all again and comes back
-    await page.click('[data-action="recheck"]', undefined, 100);
-    await page.waitFor(`return !document.querySelector('[data-step="list"]')?.hasAttribute('data-checking') && !!document.querySelector('[data-action="continue"]')`, { label: 'the re-check ends' });
-
-    // Continue saves the step as seen and lets the app in
-    await page.click('[data-action="continue"]', undefined, 600);
-    await page.waitFor(`return !document.querySelector('[data-step]') && !!document.querySelector('.statusbar')`, { label: 'the app after Continue' });
-    check((await api.get('/settings/app')).body.setupSeen === true, 'Continue records the step as seen');
+    // Skip setup records it as seen and lets the app in; it does not come back
+    await page.click('[data-action="skip-all"]', undefined, 600);
+    await page.waitFor(`return !document.querySelector('.setup-page') && !!document.querySelector('.statusbar')`, { label: 'the app after Skip setup' });
+    check((await api.get('/setup')).body.seen === true, 'Skip setup records the assistant as seen');
     await page.goto('/', 300);
     await page.waitFor(`return !!document.querySelector('.statusbar')`, { label: 'the app on the next start' });
-    check(!(await page.eval(`return !!document.querySelector('[data-step]')`)), 'the step does not come back once seen, with a provider ready');
+    check(!(await page.eval(`return !!document.querySelector('.setup-page')`)), 'the assistant does not come back once seen');
     // The status bar has a dot per provider, each a link to Settings → Providers
     const dots = await page.eval(`return [...document.querySelectorAll('.statusbar a[href="/settings?tab=providers"]')].map((a) => a.getAttribute('aria-label'))`);
     check(dots.some((d) => d?.startsWith('Codex')) && dots.some((d) => d?.startsWith('Gemini CLI')), `the status bar has a dot for each provider that is there (${dots.join('; ')})`);
 
-    // Skip: the same, without naming a provider
-    await api.put('/settings/app', { setupSeen: false });
-    await page.goto('/', 300);
-    await page.click('[data-action="skip"]', undefined, 600);
-    await page.waitFor(`return !document.querySelector('[data-step]') && !!document.querySelector('.statusbar')`, { label: 'the app after Skip' });
-    check((await api.get('/settings/app')).body.setupSeen === true, 'Skip records the step as seen');
-
-    // The first-run step on a phone: stacked, 44 px buttons, and nothing scrolls sideways
+    // The assistant on a phone: stacked, 44 px buttons, and nothing scrolls sideways
     await api.put('/settings/app', { setupSeen: false });
     await page.viewport(390, 844);
     await theme(page, 'dark');
     await page.goto('/', 300);
-    await page.waitFor(`return !!document.querySelector('.prov-first-foot')`, { label: 'the phone step' });
-    const short = await page.eval(`return [...document.querySelectorAll('.prov-first-foot .btn')].filter((b) => b.getBoundingClientRect().height < 44).map((b) => b.textContent.trim())`);
+    await page.click('[data-action="continue"]', undefined, 600);
+    await page.waitFor(`return !!document.querySelector('.setup-m-foot') && document.querySelectorAll('.prov-cell').length >= 2`, { label: 'the phone Agents step' });
+    const short = await page.eval(`return [...document.querySelectorAll('.setup-m-foot .btn, .prov-cell .btn')].filter((b) => b.getBoundingClientRect().height < 44).map((b) => b.textContent.trim())`);
     check(short.length === 0, `the buttons of the phone step are at least 44 px tall (${short.join(', ')})`);
-    check((await page.eval(`return document.querySelectorAll('.prov-cell').length`)) >= 2, 'the phone step lists the providers as cells');
     check((await page.eval(overflow)) <= 0, 'the phone step does not scroll sideways');
-    await scan(page, check, 'the phone first-run step, dark');
+    await scan(page, check, 'the phone Agents step, dark');
     await theme(page, 'light');
     await page.goto('/', 300);
-    await page.waitFor(`return !!document.querySelector('.prov-first-foot')`, { label: 'the phone step, light' });
-    await scan(page, check, 'the phone first-run step, light');
-    await api.put('/settings/app', { setupSeen: true });
+    await page.click('[data-action="continue"]', undefined, 600);
+    await page.waitFor(`return !!document.querySelector('.setup-m-foot')`, { label: 'the phone step, light' });
+    await scan(page, check, 'the phone Agents step, light');
+    await api.post('/setup/seen');
 
     // ---- Settings → Providers on a desktop ----
     await page.viewport(1440, 900);

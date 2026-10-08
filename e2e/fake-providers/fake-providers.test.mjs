@@ -125,3 +125,20 @@ test('codex RATE is the usage limit: the rate limits at 100 %, then a usageLimit
     child.kill('SIGTERM');
   }
 });
+
+test('codex shows the recorded device code, signs in once the spec approves, and signs out', async () => {
+  rmSync(stateFile('codex'), { force: true });
+  state('codex', { signedIn: false });
+  const child = spawn(join(here, 'codex'), ['login', '--device-auth'], { env: env(), stdio: ['ignore', 'pipe', 'ignore'] });
+  let out = '';
+  child.stdout.on('data', (chunk) => (out += chunk));
+  const ended = new Promise((resolve) => child.on('exit', resolve));
+  for (let i = 0; i < 50 && !out.includes('LK0N-5V0Q5'); i++) await new Promise((r) => setTimeout(r, 100));
+  assert.match(out, /https:\/\/auth\.openai\.com\/codex\/device/);
+  writeFileSync(join(data, 'fake-providers', 'codex.approve'), '');
+  assert.equal(await ended, 0);
+  assert.equal(run('codex', ['login', 'status']).status, 0, 'signed in after the approval');
+  assert.equal(run('codex', ['logout']).status, 0);
+  assert.equal(run('codex', ['login', 'status']).status, 1, 'signed out again');
+  rmSync(stateFile('codex'), { force: true });
+});

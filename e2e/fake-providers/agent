@@ -47,12 +47,31 @@ case "$1" in
     echo "$name $version"
     ;;
   login)
+    # Codex's device sign-in, as recorded with no terminal: the same output, then it waits until the
+    # spec approves (the file `<name>.approve` beside the state file) and signs in, or gives up
+    if [ "$name:$2" = codex:--device-auth ]; then
+      cat "$fixtures/logins/codex-device-auth.stdout"
+      approve="${AGENTRY_DATA_DIR:-.}/fake-providers/$name.approve"
+      waited=0
+      while [ ! -f "$approve" ] && [ "$waited" -lt 600 ]; do
+        sleep 0.1
+        waited=$((waited + 1))
+      done
+      [ -f "$approve" ] || exit 1
+      rm -f "$approve"
+      printf '{"version":"%s","signedIn":true}\n' "$version" > "$file"
+      exit 0
+    fi
     if [ "$2" = status ] && [ "$signed_in" != false ]; then
       echo "Logged in (fake)"
       exit 0
     fi
     echo "Not logged in" >&2
     exit 1
+    ;;
+  logout)
+    printf '{"version":"%s","signedIn":false}\n' "$version" > "$file"
+    echo "Successfully logged out"
     ;;
   *)
     echo "fake $name: $* is not part of the fake" >&2
