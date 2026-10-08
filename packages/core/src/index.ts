@@ -206,7 +206,7 @@ export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
 export { MCP_ENTRY_ENV, type AgentryMcpLaunch } from './agentry-mcp.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
-export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
+export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, PROVIDER_HOME_ENV, type AuthEnv, type CoreConfig } from './paths.ts';
 export { LoginInputError, LoginService } from './setup/logins.ts';
 export { SecretVault } from './secret-vault.ts';
 export { DashboardLayoutStore } from './dashboard-layouts.ts';

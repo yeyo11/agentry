@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-10-08T18:30:00Z
+updated_at: 2026-10-08T20:00:00Z
 tags:
     - deploy
     - docker
@@ -195,8 +195,21 @@ are under `/data/provider-homes`, through `CODEX_HOME`, `GEMINI_CLI_HOME`, `COPI
 `XDG_CONFIG_HOME` and `XDG_DATA_HOME`, so the data volume keeps them; the server creates the folders
 on start, because Codex refuses a home that does not exist. `XDG_*` also moves what other tools keep
 there (git's global config under `~/.config/git`), and pnpm's store is held in the image through
-`npm_config_store_dir` so it does not grow the volume. The image is about 2 GB: the four CLIs ship
-native binaries.
+`npm_config_store_dir` so it does not grow the volume. The image is about 2.2 GB: the four agents ship
+native binaries, and gh and glab add about 90 MB.
+
+**The code hosts' and YouTrack's CLIs.** `gh` and `glab`, the only way Agentry reaches GitHub and
+GitLab ([[code-hosts.md]]), are in `/usr/local/bin`, taken from the vendors' linux amd64 release
+tarballs: `GH_VERSION` (2.102.0) and `GLAB_VERSION` (1.120.0), the versions the host recordings were
+made with. Each tarball is checked against a pinned SHA-256 (`GH_SHA256`, `GLAB_SHA256`), and that
+digest must also be the one in the vendor's published checksums file, so a bump is the version and
+the digest together; `docker/Dockerfile` carries the two commands that print it. JetBrains'
+`youtrack-app` ([[trackers.md]]) comes with the agents through npm, pinned as `YOUTRACK_APP_VERSION`
+(1.0.3). Their sign-ins live in `/data/provider-homes/gh` and `/data/provider-homes/glab` through
+`GH_CONFIG_DIR` and `GLAB_CONFIG_DIR`, which the server creates on start like the agents' homes. A
+container has no keyring, so both keep the token in plain text there (glab says so as it signs in,
+and its `config.yml` is mode 0600); the YouTrack token
+is Agentry's own, kept with the wrapper's credentials.
 
 The installer the build downloads, Claude Code's, is fetched to a file, checked against a SHA-256
 and only then run, so a compromised install script fails the build instead of running as root. The
@@ -317,7 +330,7 @@ next update**:
 | Folder | Holds | Lost when it is not named |
 | --- | --- | --- |
 | `/home/node/.claude` | transcripts of every chat, MCP servers, agents, skills, `CLAUDE.md`, settings | the history and the account setup |
-| `/data` | the wrapper's database and settings, uploads, and the other agents' sign-ins (`provider-homes/`) | chats' records, schedules, the auth mode, every provider sign-in |
+| `/data` | the wrapper's database and settings, uploads, and the other agents', gh's and glab's sign-ins (`provider-homes/`) | chats' records, schedules, the auth mode, every provider, GitHub and GitLab sign-in |
 | `/workspace` | the projects the agents work on | the projects, if they live there |
 
 Start it with all three named, and a name for the container to replace:

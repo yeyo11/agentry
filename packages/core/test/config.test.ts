@@ -222,10 +222,19 @@ test('the provider homes inside the data directory are created, and no other', (
       COPILOT_HOME: elsewhere, // the operator's own: left to them
       XDG_DATA_HOME: 'relative/path', // not absolute: ignored
       XDG_CONFIG_HOME: '  ', // empty: ignored
+      GH_CONFIG_DIR: join(data, 'provider-homes', 'gh'),
+      GLAB_CONFIG_DIR: join(data, 'provider-homes', 'glab'),
     },
     data,
   );
-  assert.deepEqual(homes, [join(data, 'provider-homes', 'codex'), join(data, 'provider-homes', 'gemini')]);
+  assert.deepEqual(homes, [
+    join(data, 'provider-homes', 'codex'),
+    join(data, 'provider-homes', 'gemini'),
+    join(data, 'provider-homes', 'gh'),
+    join(data, 'provider-homes', 'glab'),
+  ]);
+  // gh and glab keep their host sign-ins there, so a fresh volume must have both folders too
+  assert.ok(statSync(join(data, 'provider-homes', 'glab')).isDirectory());
   assert.ok(statSync(join(data, 'provider-homes', 'codex')).isDirectory());
   assert.equal(existsSync(elsewhere), false);
   // The data directory itself is not a provider home to make

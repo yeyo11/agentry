@@ -36,6 +36,36 @@ RUN apt-get update \
 # which is also why node and python3 stay.
 RUN npm install -g pnpm@10.17.1
 
+# The code hosts' own CLIs, which are the only way Agentry reaches GitHub and GitLab
+# (docs/code-hosts.md), from the vendors' linux amd64 release tarballs (the image is built for amd64
+# only, .github/workflows/image.yml). Pinned to the versions the recordings under
+# packages/core/test/fixtures/recordings were made with, for the same reason as the agents below.
+# Each tarball is checked twice: the pinned digest must be the vendor's published one for that file,
+# and the file must hash to it, so neither a moved release nor a tampered download gets through.
+# To bump one, set the version, then take the new digest from the vendor's checksums file:
+#   curl -fsSL https://github.com/cli/cli/releases/download/v<v>/gh_<v>_checksums.txt | grep linux_amd64.tar.gz
+#   curl -fsSL https://gitlab.com/gitlab-org/cli/-/releases/v<v>/downloads/checksums.txt | grep linux_amd64.tar.gz
+# and re-record what the adapters read if the release notes touch it.
+ARG GH_VERSION=2.102.0
+ARG GH_SHA256=bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386
+ARG GLAB_VERSION=1.120.0
+ARG GLAB_SHA256=4e6c59de9f7ed2f304bf93aad01ea8f8a69584f0450ce90ad696ef81f69c69aa
+RUN set -eu; cd /tmp \
+ && gh_tar="gh_${GH_VERSION}_linux_amd64.tar.gz" \
+ && curl -fsSL -o "$gh_tar" "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${gh_tar}" \
+ && curl -fsSL -o gh-checksums.txt "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_checksums.txt" \
+ && grep -qx "${GH_SHA256}  ${gh_tar}" gh-checksums.txt \
+ && echo "${GH_SHA256}  ${gh_tar}" | sha256sum -c - \
+ && tar -xzf "$gh_tar" -C /usr/local/bin --strip-components=2 "gh_${GH_VERSION}_linux_amd64/bin/gh" \
+ && glab_tar="glab_${GLAB_VERSION}_linux_amd64.tar.gz" \
+ && curl -fsSL -o "$glab_tar" "https://gitlab.com/gitlab-org/cli/-/releases/v${GLAB_VERSION}/downloads/${glab_tar}" \
+ && curl -fsSL -o glab-checksums.txt "https://gitlab.com/gitlab-org/cli/-/releases/v${GLAB_VERSION}/downloads/checksums.txt" \
+ && grep -qx "${GLAB_SHA256}  ${glab_tar}" glab-checksums.txt \
+ && echo "${GLAB_SHA256}  ${glab_tar}" | sha256sum -c - \
+ && tar -xzf "$glab_tar" -C /usr/local/bin --strip-components=1 bin/glab \
+ && rm -f /tmp/gh* /tmp/glab* \
+ && gh --version && glab --version
+
 # Volumes are owned by the non-root user (bypassPermissions refuses to run as root)
 RUN mkdir -p /app /workspace /data /home/node/.claude \
  && chown -R node:node /app /workspace /data /home/node
@@ -67,11 +97,14 @@ ENV AGENTRY_CLAUDE_CODE_PINNED=${CLAUDE_CODE_VERSION}
 # newer one is a driver change, so a rebuild must not move to it by accident. They go to a prefix of
 # their own in the image, which is on the PATH and where the provider detector looks anyway; what a
 # person installs later with `npm -g` goes to the same place and lives as long as the container.
-# Override with --build-arg <NAME>_VERSION=<version>.
+# Override with --build-arg <NAME>_VERSION=<version>. JetBrains' `youtrack-app`, the only way
+# Agentry reaches YouTrack (docs/trackers.md), comes the same way, pinned to the version its
+# recordings were made with.
 ARG CODEX_VERSION=0.159.3
 ARG GEMINI_CLI_VERSION=0.62.0
 ARG COPILOT_VERSION=1.0.93
 ARG OPENCODE_VERSION=1.18.35
+ARG YOUTRACK_APP_VERSION=1.0.3
 ENV NPM_CONFIG_PREFIX=/home/node/.npm-global
 ENV PATH=/home/node/.npm-global/bin:$PATH
 RUN npm install -g \
@@ -79,8 +112,10 @@ RUN npm install -g \
       @google/gemini-cli@${GEMINI_CLI_VERSION} \
       @github/copilot@${COPILOT_VERSION} \
       opencode-ai@${OPENCODE_VERSION} \
+      @jetbrains/youtrack-apps-tools@${YOUTRACK_APP_VERSION} \
  && npm cache clean --force \
- && codex --version && gemini --version && copilot --version && opencode --version
+ && codex --version && gemini --version && copilot --version && opencode --version \
+ && youtrack-app --version
 
 WORKDIR /app
 # The whole of the wrapper: one JavaScript file, the assistant's MCP server beside it, and the built UI
@@ -112,6 +147,10 @@ ENV NODE_ENV=production \
     COPILOT_HOME=/data/provider-homes/copilot \
     XDG_CONFIG_HOME=/data/provider-homes/xdg/config \
     XDG_DATA_HOME=/data/provider-homes/xdg/data \
+    # gh and glab keep their sign-ins in their config folders, in plain text where there is no
+    # keyring (no container has one): on the volume, and nowhere else
+    GH_CONFIG_DIR=/data/provider-homes/gh \
+    GLAB_CONFIG_DIR=/data/provider-homes/glab \
     # pnpm would put its store under XDG_DATA_HOME, which is now the volume: it stays in the image
     npm_config_store_dir=/home/node/.local/share/pnpm-store
 

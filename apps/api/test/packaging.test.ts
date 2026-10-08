@@ -67,6 +67,33 @@ test('the image installs the other agents pinned inside their manifests\' ranges
   }
 });
 
+test('the image carries gh, glab and youtrack-app pinned, the two downloads checked against the vendors\' digests, and their sign-ins in /data', async () => {
+  const { PROVIDER_HOME_ENV } = await import('@agentry/core');
+  for (const arg of ['GH_VERSION', 'GLAB_VERSION', 'YOUTRACK_APP_VERSION']) {
+    assert.match(dockerfile, new RegExp(`^ARG ${arg}=\\d+\\.\\d+\\.\\d+$`, 'm'), `${arg} is pinned`);
+  }
+  // The versions the host and tracker recordings were made with, or newer: an older CLI lacks flags
+  // the adapters pass (docs/code-hosts.md)
+  const version = (arg: string) => (dockerfile.match(new RegExp(`^ARG ${arg}=(\\d+)\\.(\\d+)\\.(\\d+)$`, 'm')) ?? []).slice(1).map(Number);
+  const atLeast = (v: number[], min: number[]) => v.length === 3 && (v[0]! - min[0]! || v[1]! - min[1]! || v[2]! - min[2]!) >= 0;
+  assert.ok(atLeast(version('GH_VERSION'), [2, 92, 0]), 'gh is 2.92.0 or newer');
+  assert.ok(atLeast(version('GLAB_VERSION'), [1, 120, 0]), 'glab is 1.120.0 or newer');
+  for (const [tool, arg] of [['gh', 'GH_SHA256'], ['glab', 'GLAB_SHA256']] as const) {
+    assert.match(dockerfile, new RegExp(`^ARG ${arg}=[0-9a-f]{64}$`, 'm'), `${arg} is a pinned SHA-256`);
+    assert.match(dockerfile, new RegExp(`echo "\\$\\{${arg}\\}  \\$\\{${tool}_tar\\}" \\| sha256sum -c -`), `${tool}'s tarball is checked`);
+  }
+  assert.match(dockerfile, /^\s+@jetbrains\/youtrack-apps-tools@\$\{YOUTRACK_APP_VERSION\} \\$/m);
+  assert.match(dockerfile, /gh --version && glab --version/);
+  for (const name of ['GH_CONFIG_DIR', 'GLAB_CONFIG_DIR']) {
+    assert.match(dockerfile, new RegExp(`^\\s+${name}=/data/provider-homes/`, 'm'), name);
+    assert.ok((PROVIDER_HOME_ENV as readonly string[]).includes(name), `the server creates ${name} on a fresh volume`);
+  }
+  const compose = readFileSync(resolve(here, '../../../docker-compose.yml'), 'utf8');
+  for (const arg of ['GH_VERSION', 'GH_SHA256', 'GLAB_VERSION', 'GLAB_SHA256', 'YOUTRACK_APP_VERSION']) {
+    assert.match(compose, new RegExp(`^\\s+- ${arg}$`, 'm'), `compose passes ${arg}`);
+  }
+});
+
 test('the storage report names the three folders, and says nothing is checked outside Docker', async () => {
   const { app } = await wrapper();
   const report = (await app.inject('/api/system/storage')).json();
