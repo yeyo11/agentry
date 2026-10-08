@@ -131,6 +131,7 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'tunnel.changed': true,
   'dashboard.layout': true,
   'webhook.changed': true,
+  'login.updated': true,
 };
 
 /**
@@ -418,6 +419,9 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'webhook.changed':
       // The project's registrations; a delivery also moves its change requests' freshness, which their own events refresh
       return [[keys.projectWebhooks(event.projectId), NOW]];
+    case 'login.updated':
+      // The setup state: a sign-in that ended may have made a tool ready
+      return event.login.endedAt ? [[keys.setup, NOW]] : [];
   }
 }
 

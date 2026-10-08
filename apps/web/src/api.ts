@@ -1046,6 +1046,8 @@ export const keys = {
   trackers: ['trackers'] as const,
   trackerSettings: ['trackers', 'settings'] as const,
   youtrackCredentials: ['trackers', 'youtrack', 'credentials'] as const,
+  setup: ['setup'] as const,
+  setupLogin: (id: string) => ['setup', 'logins', id] as const,
   projectTracker: (id: string) => ['project-tracker', id] as const,
   /** One page of a project's tracker query, under the project's prefix so an import or a readiness change makes every page stale */
   trackerIssues: (id: string, query: string, page: number) => ['project-tracker', id, 'issues', query, page] as const,

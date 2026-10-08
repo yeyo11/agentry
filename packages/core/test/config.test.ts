@@ -7,7 +7,9 @@ import { SettingsFiles } from '../src/config/files.ts';
 import { McpConfig } from '../src/config/mcp.ts';
 import { parseVariant, projectScope, userScope } from '../src/config/scope.ts';
 import { ConfigResources } from '../src/config/resources.ts';
+import { childEnv, useVaultForChildren } from '../src/child-env.ts';
 import { CredentialStore } from '../src/credentials.ts';
+import { SecretVault } from '../src/secret-vault.ts';
 import { ensureProviderHomes, loadConfig } from '../src/paths.ts';
 import { encodeProjectId, Workspace } from '../src/workspace.ts';
 import { tempConfig } from './helpers.ts';
@@ -95,36 +97,35 @@ test('a saved workflow is a script resource: found by its meta name, kept in its
   await assert.rejects(resources.remove(project, 'workflows', 'audit'), /not found/);
 });
 
-test('credential store injects, swaps and restores env', async () => {
+test('the Claude credential reaches claude processes only, wins over the container\'s, and clearing it lets that one through again', async () => {
   const config = tempConfig();
-  const before = { token: process.env.CLAUDE_CODE_OAUTH_TOKEN, key: process.env.ANTHROPIC_API_KEY };
-  process.env.CLAUDE_CODE_OAUTH_TOKEN = 'boot-token';
-  delete process.env.ANTHROPIC_API_KEY;
+  const vault = new SecretVault(config);
+  const release = useVaultForChildren(vault);
+  const boot = { CLAUDE_CODE_OAUTH_TOKEN: 'boot-token', PATH: '/usr/bin' };
   try {
-    const store = new CredentialStore(config);
+    const store = new CredentialStore(config, vault);
     assert.equal(store.active, false);
 
     await store.set({ apiKey: ' sk-test ' });
-    assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-test');
-    assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN, undefined); // only one credential type at a time
-    assert.equal(statSync(join(config.dataDir, 'credentials.json')).mode & 0o777, 0o600);
+    const claude = childEnv('claude-code', boot);
+    assert.equal(claude.ANTHROPIC_API_KEY, 'sk-test');
+    assert.equal(claude.CLAUDE_CODE_OAUTH_TOKEN, undefined); // only one credential type at a time
+    // Nothing else inherits it, and the server's own environment is untouched
+    assert.equal(childEnv('gemini', boot).ANTHROPIC_API_KEY, undefined);
+    assert.equal(process.env.ANTHROPIC_API_KEY === 'sk-test', false);
+    assert.equal(statSync(join(config.dataDir, 'secrets.json')).mode & 0o777, 0o600);
 
     // A fresh instance (wrapper restart) picks the stored credential up again
-    delete process.env.ANTHROPIC_API_KEY;
-    assert.equal(new CredentialStore(config).active, true);
-    assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-test');
+    assert.equal(new CredentialStore(config, new SecretVault(config)).active, true);
 
     await assert.rejects(store.set({}), /provide oauthToken or apiKey/);
     await assert.rejects(store.set({ oauthToken: 'a', apiKey: 'b' }), /only one/);
 
-    store.clear();
-    assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN, 'boot-token');
-    assert.equal(process.env.ANTHROPIC_API_KEY, undefined);
+    await store.clear();
+    assert.equal(store.active, false);
+    assert.deepEqual([childEnv('claude-code', boot).CLAUDE_CODE_OAUTH_TOKEN, childEnv('claude-code', boot).ANTHROPIC_API_KEY], ['boot-token', undefined]);
   } finally {
-    for (const [k, v] of [['CLAUDE_CODE_OAUTH_TOKEN', before.token], ['ANTHROPIC_API_KEY', before.key]] as const) {
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
-    }
+    release();
   }
 });
 

@@ -23,6 +23,7 @@ import { confirmClaudeInit } from './handshake.ts';
 import { claudeCodeManifest } from './manifest.ts';
 import { translateClaudePolicy } from './policy.ts';
 import { ClaudeStream } from './stream.ts';
+import { childEnv } from '../../child-env.ts';
 
 /** The session a `claude -p --input-format stream-json` process drives, read from its arguments. */
 function sessionOf(argv: readonly string[]): string | null {
@@ -131,7 +132,7 @@ export class ClaudeCodeDriver implements ProviderDriver {
   }
 
   launch(spec: SessionLaunch): LaunchPlan {
-    return { bin: this.claudeBin, args: buildArgs(spec), env: { ...process.env }, unsetEnv: [] };
+    return { bin: this.claudeBin, args: buildArgs(spec), env: childEnv('claude-code'), unsetEnv: [] };
   }
 
   attach(io: SessionIO, sink: (event: DriverEvent) => void, branches: BranchTracker): DriverSession {

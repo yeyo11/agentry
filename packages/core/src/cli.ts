@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { AuthStatus, CliInfo, TokenSource } from '@agentry/shared';
 import type { CliSession } from './cli-facts.ts';
 import type { CoreConfig } from './paths.ts';
+import { childEnv } from './child-env.ts';
 
 interface ExecResult {
   stdout: string;
@@ -20,7 +21,7 @@ export function execCli(
     execFile(
       config.claudeBin,
       args,
-      { cwd: opts.cwd, timeout: opts.timeoutMs ?? 20_000, maxBuffer: 16 * 1024 * 1024, env: process.env },
+      { cwd: opts.cwd, timeout: opts.timeoutMs ?? 20_000, maxBuffer: 16 * 1024 * 1024, env: childEnv('claude-code') },
       (error, stdout, stderr) => {
         const code = error ? (typeof error.code === 'number' ? error.code : 1) : 0;
         resolvePromise({ stdout, stderr: stderr || (error && code !== 0 ? error.message : ''), code });
@@ -47,8 +48,10 @@ export async function detectCli(config: CoreConfig): Promise<CliInfo> {
 }
 
 function tokenSource(config: CoreConfig): TokenSource {
-  if (process.env.CLAUDE_CODE_OAUTH_TOKEN) return 'env-oauth-token';
-  if (process.env.ANTHROPIC_API_KEY) return 'env-api-key';
+  // What the CLI will see, the vault's credential included: that is the one it signs in with
+  const env = childEnv('claude-code');
+  if (env.CLAUDE_CODE_OAUTH_TOKEN) return 'env-oauth-token';
+  if (env.ANTHROPIC_API_KEY) return 'env-api-key';
   if (existsSync(join(config.configDir, '.credentials.json'))) return 'credentials-file';
   return 'none';
 }

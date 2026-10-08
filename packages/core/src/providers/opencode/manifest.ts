@@ -1,4 +1,5 @@
 import type { ProviderManifest } from '../manifest.ts';
+import { OPENCODE_KEY_VARIABLES } from '../../setup/methods.ts';
 
 export const opencodeManifest: ProviderManifest = {
   id: 'opencode',
@@ -30,7 +31,10 @@ export const opencodeManifest: ProviderManifest = {
     // ~/.local/share/opencode/auth.json (the data directory above). `opencode auth list` prints a
     // table for people, with no status code or JSON to read, so the file is the probe.
     probe: { kind: 'file', file: { default: '~/.local/share/opencode/auth.json', env: 'XDG_DATA_HOME', insideEnv: 'opencode/auth.json' } },
-    credentialEnv: [],
+    // An upstream provider's key in the environment signs OpenCode in for that provider's models
+    // without `auth.json` (https://opencode.ai/docs/providers/); the names are setup/methods.ts's,
+    // where their source is
+    credentialEnv: [...OPENCODE_KEY_VARIABLES],
     signInUrl: 'https://opencode.ai/docs/cli/',
   },
   // Source: https://opencode.ai/docs/cli/: `opencode acp` starts an Agent Client Protocol server over

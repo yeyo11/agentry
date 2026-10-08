@@ -25,6 +25,7 @@ import type { ProviderConfigHome, ProviderManifest, ProviderSignedInUsers } from
 import { installDirs, resolveCommand } from './path.ts';
 import { limitAt, type HandshakeLimits, type ProviderLimits } from './limits.ts';
 import { DRIVER_TRANSPORTS, ProviderRegistry } from './registry.ts';
+import { childEnv } from '../child-env.ts';
 
 /** One TTL for every provider: what a detection saw is served until it is this old */
 export const PROVIDERS_TTL_MS = 5 * 60 * 1000;
@@ -495,7 +496,8 @@ export class ProviderDetector {
       if (!(await resolveCommand(required, searchPath))) return make('unknown', 'missing-required-command', { binaryPath });
     }
 
-    const env = { ...this.env, PATH: searchPath };
+    // The probes and the handshake see what a chat of this provider will: the vault's key included
+    const env = childEnv(manifest.id, { ...this.env, PATH: searchPath });
     const [version, auth]: [VersionProbe, AuthProbe] = manifest.id === 'claude-code'
       ? await this.probeClaude(manifest, binaryPath, override, claude)
       : await Promise.all([this.probeVersion(manifest, binaryPath, env), this.probeAuth(manifest, binaryPath, env)]);

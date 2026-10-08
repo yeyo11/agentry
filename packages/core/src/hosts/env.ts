@@ -1,4 +1,5 @@
 import type { HostCall } from './exec.ts';
+import { childEnv } from '../child-env.ts';
 
 // The environment every host CLI runs in. Telemetry is on by default in gh and names the calling
 // agent; GH_FORCE_TTY sends output through the pager and renders tables; GH_HOST overrides a
@@ -42,15 +43,17 @@ export function envOf(cli: HostCall['cli']): HostEnv {
 }
 
 /**
- * The environment of one process: `base`, with the CLI's variables removed and set. `secrets` is
- * the one place a credential Agentry stores enters a child's environment (YouTrack's host and
- * token, for `youtrack-app` only); it is never put in argv, which other local users can read.
+ * The environment of one process: `base`, with the CLI's variables removed and set, and what the
+ * secret vault keeps for the CLI laid over it (`childEnv`: YouTrack's address and token, for
+ * `youtrack-app` only; gh and glab keep their own sign-in). `secrets` lays a given credential over
+ * that, for `youtrack-app` only. Neither is ever put in argv, which other local users can read.
  */
 export function buildHostEnv(cli: HostCall['cli'], base: NodeJS.ProcessEnv = process.env, secrets: Record<string, string> = {}): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...base };
   const table = HOST_ENV[cli];
   for (const name of table.unset) delete env[name];
   Object.assign(env, table.set);
-  if (cli === 'youtrack-app') Object.assign(env, secrets);
-  return env;
+  const withVault = childEnv(cli, env);
+  if (cli === 'youtrack-app') Object.assign(withVault, secrets);
+  return withVault;
 }

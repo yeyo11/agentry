@@ -257,18 +257,10 @@ test('the guard document is unreadable to anyone else from the moment it exists'
 
 test('the account credential is unreadable to anyone else from the moment it exists', async () => {
   const config = tempConfig();
-  const bootEnv = { CLAUDE_CODE_OAUTH_TOKEN: process.env.CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY };
-  try {
-    const store = new CredentialStore(config);
-    await store.set({ oauthToken: 'sk-ant-oat-not-a-real-token' });
-    assert.equal(modeOf(join(config.dataDir, 'credentials.json')), 0o600);
-    store.clear();
-  } finally {
-    for (const [key, value] of Object.entries(bootEnv)) {
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
-    }
-  }
+  const store = new CredentialStore(config);
+  await store.set({ oauthToken: 'sk-ant-oat-not-a-real-token' });
+  assert.equal(modeOf(join(config.dataDir, 'secrets.json')), 0o600);
+  await store.clear();
 });
 
 // ---------- OIDC ----------

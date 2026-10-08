@@ -62,6 +62,11 @@ export interface CoreConfig {
    */
   secretKey?: string;
   /**
+   * How this Agentry was installed, from `AGENTRY_DISTRIBUTION` (lower case): `docker` makes the
+   * secret vault keep a key of its own beside the data when the environment brings none.
+   */
+  distribution?: string;
+  /**
    * Host names this wrapper answers to besides loopback, from `AGENTRY_ALLOWED_HOSTS`, each either
    * a name or a `*.domain` pattern standing for its subdomains. Read here for the same reason as
    * `authEnv`: the guard takes its allowlist from a value, so a test can build a wrapper that
@@ -221,5 +226,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     settingsFromEnv: new Set((Object.keys(APP_SETTING_ENV) as (keyof AppSettingValues)[]).filter((key) => isSet(env[APP_SETTING_ENV[key]]))),
     authEnv: Object.fromEntries(AUTH_ENV_KEYS.flatMap((key) => (env[key] === undefined ? [] : [[key, env[key]]]))) as AuthEnv,
     ...(isSet(env.AGENTRY_SECRET_KEY) ? { secretKey: env.AGENTRY_SECRET_KEY.trim() } : {}),
+    ...(isSet(env.AGENTRY_DISTRIBUTION) ? { distribution: env.AGENTRY_DISTRIBUTION.trim().toLowerCase() } : {}),
   };
 }

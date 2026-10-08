@@ -97,6 +97,8 @@ import { SettingsFiles } from './config/files.ts';
 import { ChangeWatcher } from './change-watcher.ts';
 import { Changes, type ChangeScope, type DiffOptions } from './changes.ts';
 import { CredentialStore, type StoredCredentials } from './credentials.ts';
+import { useVaultForChildren } from './child-env.ts';
+import { SecretVault } from './secret-vault.ts';
 import { Db } from './db.ts';
 import { HealthMonitor, HealthService } from './health-service.ts';
 import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
@@ -108,7 +110,7 @@ import { CodeHostsSettingsStore } from './hosts/settings.ts';
 import { TrackersSettingsStore } from './trackers/settings.ts';
 import { TrackerError, TrackerImportService, type TrackerAccess } from './trackers/import.ts';
 import { TrackerSyncService } from './trackers/sync.ts';
-import { TrackerDetector, youtrackSecrets } from './trackers/detector.ts';
+import { TrackerDetector } from './trackers/detector.ts';
 import { YoutrackCredentialStore } from './trackers/youtrack/credentials.ts';
 import { runHostCall } from './hosts/exec.ts';
 import { youtrackIssueUrl } from './trackers/youtrack/adapter.ts';
@@ -407,6 +409,9 @@ export class Core {
   readonly connectors: Connectors;
   readonly resources: ConfigResources;
   readonly credentials: CredentialStore;
+  /** `secrets.json`: what a CLI reads from its environment, sealed, handed to that CLI's processes only */
+  readonly vault: SecretVault;
+  private readonly releaseVault: () => void;
   /** How the API is guarded: the auth mode, the token hash and read-only */
   readonly security: AuthStore;
   /**
@@ -492,6 +497,9 @@ export class Core {
 
   constructor(config: CoreConfig = loadConfig()) {
     this.config = config;
+    // Before anything spawns a CLI: every child environment reads its credentials from here
+    this.vault = new SecretVault(config);
+    this.releaseVault = useVaultForChildren(this.vault);
     this.providersSettings = new ProvidersSettingsStore(config);
     // The detector and the runtime share the drivers, so the models a handshake lists reach the
     // driver a mapping is checked against (a move needs the target's catalog to know its model)
@@ -518,7 +526,7 @@ export class Core {
         return this.events.emit(event);
       },
     });
-    this.youtrackCredentials = new YoutrackCredentialStore(config);
+    this.youtrackCredentials = new YoutrackCredentialStore(config, this.vault);
     this.trackers = new TrackerDetector({
       hosts: this.hosts,
       adapter: codeHostAdapter,
@@ -527,8 +535,7 @@ export class Core {
     });
     this.db = new Db(config);
     this.permissions = new PermissionBroker();
-    // Must run before anything spawns the CLI: it injects stored credentials into process.env
-    this.credentials = new CredentialStore(config);
+    this.credentials = new CredentialStore(config, this.vault);
     this.security = new AuthStore(config);
     if (this.security.environmentReset) {
       // A credential changed without a request, so the row is the only trace of who changed it
@@ -819,7 +826,7 @@ export class Core {
     // Agentry's own secrets are masked in everything that may leave the machine (a decision's state,
     // a handoff), whatever text surrounds them
     this.forgetSecrets = recognizeSecrets({
-      values: () => [this.decisionCredentials.getKey() ?? '', this.youtrackCredentials.get()?.token ?? '', ...this.webhookSecrets.values()],
+      values: () => [this.decisionCredentials.getKey() ?? '', ...this.vault.values(), ...this.webhookSecrets.values()],
       isSecret: (word) => this.security.isOwnSecret(word),
     });
     this.webhookReceiver = new WebhookReceiver({
@@ -1480,7 +1487,7 @@ export class Core {
   }
 
   async clearCredentials(): Promise<SystemInfo> {
-    this.credentials.clear();
+    await this.credentials.clear();
     return this.system(true);
   }
 
@@ -1699,13 +1706,13 @@ export class Core {
       throw new TrackerError(`YouTrack is not ready (${status?.reason ?? status?.state ?? 'unknown'}): see Settings, Integrations`, 409, reason);
     }
     const binaryPath = status.binaryPath;
-    const secretEnv = youtrackSecrets(credentials);
     const cwd = mainCheckout(projectPath);
     return {
       host: null,
       hostname: credentials.host,
       repo: null,
-      run: (call) => runHostCall(call, { binaryPath, cwd, baseEnv: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, secretEnv }),
+      // The address and token come from the vault, laid over by the execution layer (`buildHostEnv`)
+      run: (call) => runHostCall(call, { binaryPath, cwd, baseEnv: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }),
       issueUrl: (key) => youtrackIssueUrl(credentials.host, key),
     };
   }
@@ -2660,6 +2667,7 @@ export class Core {
 
   shutdown(): void {
     this.forgetSecrets();
+    this.releaseVault();
     this.pullRequestWatcher.stop();
     // First, while the database is still open for the row that says its host left
     this.tunnel.shutdown();

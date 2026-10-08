@@ -1,57 +1,56 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { writeAtomic } from './config/files.ts';
 import type { CoreConfig } from './paths.ts';
+import { SecretVault } from './secret-vault.ts';
 
 export interface StoredCredentials {
   oauthToken?: string;
   apiKey?: string;
 }
 
+const TOOL = 'claude-code';
 const ENV_KEYS = { oauthToken: 'CLAUDE_CODE_OAUTH_TOKEN', apiKey: 'ANTHROPIC_API_KEY' } as const;
 
 /**
- * Account credentials configured through the API. They are persisted in the data dir and
- * injected into process.env, which every spawned `claude` process inherits. Credentials set
- * here take precedence over the ones passed through the container environment.
+ * Claude Code's credential configured through the API: a token or a key, kept in the secret vault
+ * under `claude-code` and handed to every `claude` process through `childEnv`, never through
+ * `process.env` (which every other child, a project's checks included, would inherit too). It wins
+ * over the one the container's environment passes; clearing it lets that one show through again.
+ *
+ * Before the vault it was `credentials.json`, plain at 0600: that file is read once, moved into the
+ * vault and removed.
  */
 export class CredentialStore {
-  private readonly file: string;
-  private readonly bootEnv: Record<string, string | undefined>;
-  private stored: StoredCredentials = {};
+  private readonly vault: SecretVault;
 
-  constructor(config: CoreConfig) {
-    this.file = join(config.dataDir, 'credentials.json');
-    this.bootEnv = Object.fromEntries(Object.values(ENV_KEYS).map((k) => [k, process.env[k]]));
-    if (existsSync(this.file)) {
-      try {
-        this.stored = JSON.parse(readFileSync(this.file, 'utf8')) as StoredCredentials;
-      } catch {
-        this.stored = {};
-      }
-    }
-    this.apply();
+  constructor(config: Pick<CoreConfig, 'dataDir' | 'secretKey' | 'distribution'>, vault: SecretVault = new SecretVault(config)) {
+    this.vault = vault;
+    this.migrate(join(config.dataDir, 'credentials.json'));
   }
 
   /** True when the credential in use was configured through the API. */
   get active(): boolean {
-    return Boolean(this.stored.oauthToken || this.stored.apiKey);
+    return this.vault.has(TOOL);
   }
 
-  private apply(): void {
-    if (!this.active) {
-      for (const [key, value] of Object.entries(this.bootEnv)) {
-        if (value === undefined) delete process.env[key];
-        else process.env[key] = value;
-      }
+  private migrate(file: string): void {
+    if (!existsSync(file)) return;
+    let stored: StoredCredentials;
+    try {
+      stored = JSON.parse(readFileSync(file, 'utf8')) as StoredCredentials;
+    } catch {
+      // Left where it is: nothing here can tell what the person meant it to hold
       return;
     }
-    // Exactly one credential type at a time, otherwise the CLI picks for us
-    for (const [field, key] of Object.entries(ENV_KEYS) as Array<[keyof StoredCredentials, string]>) {
-      const value = this.stored[field];
-      if (value) process.env[key] = value;
-      else delete process.env[key];
+    const values: Record<string, string> = {};
+    if (typeof stored.oauthToken === 'string' && stored.oauthToken) values[ENV_KEYS.oauthToken] = stored.oauthToken;
+    else if (typeof stored.apiKey === 'string' && stored.apiKey) values[ENV_KEYS.apiKey] = stored.apiKey;
+    if (Object.keys(values).length === 0) {
+      rmSync(file, { force: true });
+      return;
     }
+    // The old file goes only once the vault holds its value: a failed write keeps it for the next start
+    if (this.vault.importSync(TOOL, values, { replace: true })) rmSync(file, { force: true });
   }
 
   async set(credentials: StoredCredentials): Promise<void> {
@@ -59,14 +58,11 @@ export class CredentialStore {
     const apiKey = credentials.apiKey?.trim();
     if (!oauthToken && !apiKey) throw new Error('provide oauthToken or apiKey');
     if (oauthToken && apiKey) throw new Error('provide only one of oauthToken or apiKey');
-    this.stored = oauthToken ? { oauthToken } : { apiKey };
-    await writeAtomic(this.file, JSON.stringify(this.stored), 0o600);
-    this.apply();
+    // Exactly one credential type at a time, otherwise the CLI picks for us
+    await this.vault.set(TOOL, oauthToken ? { [ENV_KEYS.oauthToken]: oauthToken } : { [ENV_KEYS.apiKey]: apiKey ?? '' }, { replace: true });
   }
 
-  clear(): void {
-    this.stored = {};
-    rmSync(this.file, { force: true });
-    this.apply();
+  clear(): Promise<void> {
+    return this.vault.clear(TOOL);
   }
 }

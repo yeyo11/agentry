@@ -25,6 +25,7 @@ import { AcpBranches } from './branches.ts';
 import { ACP_PROFILES, removeLaunchFile, type AcpProfile } from './profiles.ts';
 import { JsonRpc } from './rpc.ts';
 import { agentFacts, AcpSession, type AgentFacts } from './session.ts';
+import { childEnv } from '../../child-env.ts';
 
 const EMPTY_TRANSLATION: PolicyTranslation = { rules: { allowedTools: [], disallowedTools: [] }, unsupported: [] };
 const HANDSHAKE_MS = 15_000;
@@ -139,7 +140,7 @@ export class AcpDriver implements ProviderDriver {
     return {
       bin: binaryOf(this.bin),
       args: [...launch.args, ...extras.args],
-      env: { ...process.env, ...launch.env, ...extras.env },
+      env: { ...childEnv(this.manifest.id), ...launch.env, ...extras.env },
       unsetEnv: [...launch.unsetEnv],
     };
   }

@@ -6408,6 +6408,158 @@ export interface WebhookChangedEvent extends AgentryEventBase {
   registration: WebhookRegistration;
 }
 
+// ---------- Setup ----------
+
+/**
+ * What the setup signs in, by the name its CLI goes by: the five agents, the two code hosts' CLIs
+ * (`gh` for GitHub, `glab` for GitLab) and YouTrack.
+ */
+export const SETUP_TOOLS = ['claude-code', 'codex', 'gemini', 'copilot', 'opencode', 'gh', 'glab', 'youtrack'] as const;
+export type SetupTool = (typeof SETUP_TOOLS)[number];
+
+/**
+ * `key`: a key or token the person pastes. `device`: the vendor's device-code sign-in, where the
+ * person opens a URL on their own device and types the code Agentry shows.
+ */
+export type LoginMethod = 'key' | 'device';
+
+/** What one tool offers, from a static table written from each vendor's documentation (docs/setup.md). */
+export interface SetupToolMethods {
+  tool: SetupTool;
+  /**
+   * How a key reaches the tool. `env`: Agentry keeps it sealed and hands it to that CLI's processes
+   * in their environment. `stdin`: it is given once to the CLI's own login command, which stores it.
+   */
+  key: 'env' | 'stdin';
+  /** For `env`, the variables the key may go in; the first is the default. Empty for `stdin`. */
+  variables: string[];
+  /** For `env`: only one of `variables` may be set at a time (Claude Code would otherwise pick for us) */
+  exclusive: boolean;
+  /** Whether the vendor documents a device-code sign-in Agentry runs */
+  device: boolean;
+  /**
+   * The device-code sign-in still waits for a recording that shows it runs with no terminal; a
+   * client hides it until it is false.
+   */
+  deviceNeedsRecording: boolean;
+  /** Whether a host name is part of the sign-in: `gh` and `glab` name one, YouTrack an address */
+  needsHost: boolean;
+  /** The host used when none is given (`github.com`, `gitlab.com`); null where there is none */
+  defaultHost: string | null;
+  /** False where the vendor documents no way to sign out from a program (Copilot) */
+  signOut: boolean;
+}
+
+export type LoginState = 'starting' | 'waiting-for-person' | 'succeeded' | 'failed' | 'expired' | 'cancelled';
+
+/**
+ * Why a sign-in failed, as a code and never as what the CLI printed. `cli-missing`: the tool's
+ * binary was not found. `spawn-failed`: it could not be started. `cli-refused`: the CLI exited with
+ * an error. `no-code`: a device sign-in ended before it showed a URL and a code. `not-signed-in`:
+ * the command finished but the tool's readiness still says signed out. `invalid-secret`: the key was
+ * empty, too long or held spaces. `invalid-host`: the host is not a host name.
+ */
+export type LoginErrorCode = 'cli-missing' | 'spawn-failed' | 'cli-refused' | 'no-code' | 'not-signed-in' | 'invalid-secret' | 'invalid-host';
+
+/** One sign-in, as `POST /setup/logins` started it. Never carries the key or anything else the CLI printed. */
+export interface LoginSession {
+  id: string;
+  tool: SetupTool;
+  method: LoginMethod;
+  /** The host or address it signs in to; null for an agent */
+  host: string | null;
+  state: LoginState;
+  /** The page the person opens, for a device sign-in once the CLI printed it */
+  url: string | null;
+  /** The code the person types there */
+  code: string | null;
+  startedAt: string;
+  /** When a live sign-in stops waiting: 15 minutes after it started */
+  expiresAt: string;
+  /** Set once it ended */
+  endedAt: string | null;
+  error: LoginErrorCode | null;
+  /**
+   * What the tool's readiness said once the sign-in ended: true signed in, false not, null when the
+   * vendor offers no probe (Gemini) or it was not read
+   */
+  ready: boolean | null;
+}
+
+/** `POST /setup/logins` */
+export interface StartLoginRequest {
+  tool: SetupTool;
+  method: LoginMethod;
+  /** `gh` and `glab`: the host name (their default when absent). YouTrack: the instance address (required). */
+  host?: string;
+  /** The key or token, for `key`; write-only */
+  secret?: string;
+  /** For a tool that takes the key in one of several variables (Claude Code, OpenCode): which one */
+  variable?: string;
+}
+
+/** `DELETE /setup/credentials/:tool`: whether the tool was signed out, or why it cannot be from here. */
+export interface SignOutResult {
+  tool: SetupTool;
+  host: string | null;
+  signedOut: boolean;
+  /** `unsupported`: the vendor documents no sign-out command (Copilot). `cli-refused`/`cli-missing`: the command failed or is not there. */
+  reason: 'unsupported' | 'cli-refused' | 'cli-missing' | null;
+}
+
+/** How Agentry keeps the secrets it hands a CLI through its environment. */
+export interface SecretStorageStatus {
+  /** Values are encrypted on disk; false only where there is no key (a desktop app without a keyring, or a source install) */
+  sealed: boolean;
+  /**
+   * The key sits in the data directory beside what it seals (the Docker image without
+   * `AGENTRY_SECRET_KEY`): it protects a copy of the files, not the volume. Passing the key through
+   * the environment is the recommended setup.
+   */
+  keyBeside: boolean;
+}
+
+/** One enabled agent in the setup state. */
+export interface SetupProviderSummary {
+  id: ProviderId;
+  label: string;
+  state: ProviderReadinessState;
+  reason: ProviderReasonCode | null;
+  account: string | null;
+  /** A key Agentry keeps for it in the vault (Claude Code, Gemini, OpenCode) */
+  keyStored: boolean;
+}
+
+/** One code host's CLI in the setup state. */
+export interface SetupHostSummary {
+  id: CodeHostId;
+  cli: 'gh' | 'glab';
+  state: CodeHostState;
+  reason: CodeHostReason | null;
+  hosts: CodeHostHostEntry[];
+}
+
+/** `GET /setup`: what the first setup has done and what it has not. */
+export interface SetupState {
+  /** The setup assistant was finished or skipped (`setupSeen` in the app settings) */
+  seen: boolean;
+  access: { mode: AuthMode; tokenSet: boolean; readOnly: boolean };
+  providers: SetupProviderSummary[];
+  hosts: SetupHostSummary[];
+  youtrack: { configured: boolean; state: TrackerState | null; reason: TrackerReason | null };
+  methods: SetupToolMethods[];
+  secrets: SecretStorageStatus;
+}
+
+/**
+ * A sign-in moved: it started, showed its code, or ended. Carries the URL and the code and never
+ * anything else the CLI printed.
+ */
+export interface LoginUpdatedEvent extends AgentryEventBase {
+  type: 'login.updated';
+  login: LoginSession;
+}
+
 /** Everything the buffered feed carries, discriminated by `type`. */
 export type AgentryEvent =
   | RunCreatedEvent
@@ -6463,7 +6615,8 @@ export type AgentryEvent =
   | SettingsChangedEvent
   | DashboardLayoutChangedEvent
   | TunnelChangedEvent
-  | WebhookChangedEvent;
+  | WebhookChangedEvent
+  | LoginUpdatedEvent;
 
 export type AgentryEventType = AgentryEvent['type'];
 
