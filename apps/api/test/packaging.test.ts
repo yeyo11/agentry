@@ -281,6 +281,13 @@ test('the compose file, the .env example and the chart all say how to turn the t
   assert.match(read('deploy/helm/agentry/templates/deployment.yaml'), /- name: AGENTRY_TUNNEL\n\s+value: \{\{ ternary "on" "off" \.Values\.tunnel\.enabled \| quote \}\}/);
 });
 
+test('the chart\'s default image is the release this checkout is, so a plain helm install is not an old one', () => {
+  const read = (path: string) => readFileSync(resolve(here, '../../..', path), 'utf8');
+  const { version } = JSON.parse(read('package.json')) as { version: string };
+  assert.match(read('deploy/helm/agentry/values.yaml'), new RegExp(`^  tag: "${version.replace(/\./g, '\\.')}" # x-release-please-version$`, 'm'));
+  assert.ok((JSON.parse(read('release-please-config.json')) as { packages: Record<string, { 'extra-files': Array<{ path: string }> }> }).packages['.']?.['extra-files'].some((file) => file.path === 'deploy/helm/agentry/values.yaml'), 'release-please moves it');
+});
+
 test('the MCP server is bundled on its own, imports only node: built-ins, and the desktop package ships it beside server.mjs', { timeout: 120_000 }, async () => {
   const bundler = spawn(process.execPath, [join(apiRoot, 'scripts/bundle.mjs')], { cwd: apiRoot, stdio: 'ignore' });
   assert.deepEqual(await once(bundler, 'exit'), [0, null]);

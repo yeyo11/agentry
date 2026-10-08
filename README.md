@@ -29,8 +29,15 @@ agent when one runs out of quota — without giving up a single thing the CLI ca
 Agentry drives it through the CLI and nothing else.
 
 ```bash
-docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
+docker run -d --init --name agentry --restart unless-stopped -p 127.0.0.1:8787:8787 \
+  -v agentry-config:/home/node/.claude -v agentry-data:/data -v agentry-workspace:/workspace \
+  ghcr.io/yeyo11/agentry
 ```
+
+Name all three volumes: the image declares each as a volume, so a command that names fewer still
+starts, with the others on volumes Docker made on its own, and replacing the container to update
+starts again with empty ones. [Updating](docs/deploy.md#updating-a-container-without-losing-anything)
+says how, and Settings → Account warns when a container was started that way.
 
 ### What you get
 
@@ -220,13 +227,21 @@ claude setup-token
 Then run the published image, pasting that token in:
 
 ```bash
-docker run -d --init -p 127.0.0.1:8787:8787 \
+docker run -d --init --name agentry --restart unless-stopped -p 127.0.0.1:8787:8787 \
   -e CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat-... \
   -v agentry-config:/home/node/.claude \
   -v agentry-data:/data \
-  -v "$PWD/workspace:/workspace" \
+  -v agentry-workspace:/workspace \
   ghcr.io/yeyo11/agentry
 ```
+
+The workspace is a named volume too. A folder of your own (`-v "$HOME/projects:/workspace"`) works
+as well, as an absolute path: a relative one such as `$PWD/workspace` is a different folder from
+wherever you run the command next.
+
+The image carries Claude Code, Codex, Gemini CLI, GitHub Copilot CLI and OpenCode, each at the
+version Agentry's driver was written for. Their sign-ins live under `/data`, so the same three
+volumes keep them: Settings → Providers shows which ones are signed in.
 
 The UI and the API reference are on <http://localhost:8787> — the panel at `/`, the interactive
 OpenAPI docs at `/docs`. Everything else is configured from the UI.
@@ -266,11 +281,13 @@ Volumes:
 | Volume (`docker run` / compose) | Mount | Purpose |
 | --- | --- | --- |
 | `agentry-config` / `claude-config` | `/home/node/.claude` | The whole account setup: `settings.json`, `.claude.json` (MCP servers), `CLAUDE.md`, agents, skills, commands and session transcripts |
-| `./workspace` | `/workspace` | Projects Claude works on (default `cwd` for runs) |
-| `agentry-data` / `wrapper-data` | `/data` | Wrapper state. Rows in the SQLite store (`wrapper.db`): chats and their executions, orchestrations, plans, each provider's usage limit, the moves and waits between providers, command durations, schedule runs, the supervisor's proposals, the installs registered for Web Push and the audit log. Settings-shaped files: `providers.json` (the order, the limit settings and the model mapping), `auth.json` (the auth mode and the hash of the token, mode 600), `credentials.json` (the runtime credential, mode 600), `tool-presets.json` (the presets and the default), `orchestration-templates.json`, `schedules.json`, `supervisor.json`, `cli-version.json`, `release.json` (what the last Agentry release check learned) and `push.json` (the VAPID keypair, mode 600). `uploads/` holds attachments and `mcp/` the per-chat MCP config files (mode 600: they can hold a server's secrets) |
+| `./workspace` / `agentry-workspace` | `/workspace` | Projects Claude works on (default `cwd` for runs) |
+| `agentry-data` / `wrapper-data` | `/data` | Wrapper state. Rows in the SQLite store (`wrapper.db`): chats and their executions, orchestrations, plans, each provider's usage limit, the moves and waits between providers, command durations, schedule runs, the supervisor's proposals, the installs registered for Web Push and the audit log. Settings-shaped files: `providers.json` (the order, the limit settings and the model mapping), `auth.json` (the auth mode and the hash of the token, mode 600), `credentials.json` (the runtime credential, mode 600), `tool-presets.json` (the presets and the default), `orchestration-templates.json`, `schedules.json`, `supervisor.json`, `cli-version.json`, `release.json` (what the last Agentry release check learned) and `push.json` (the VAPID keypair, mode 600). `uploads/` holds attachments, `mcp/` the per-chat MCP config files (mode 600: they can hold a server's secrets) and `provider-homes/` the sign-in, settings and sessions of Codex, Gemini, Copilot and OpenCode in the Docker image (`CODEX_HOME`, `GEMINI_CLI_HOME`, `COPILOT_HOME` and `XDG_*` point there) |
 
 The compose file keeps its original volume names so an existing setup keeps its data; `docker compose`
-prefixes them with the project name (`agentry_wrapper-data`…).
+prefixes them with the project name (`agentry_wrapper-data`…), which is the folder's name unless
+`COMPOSE_PROJECT_NAME` is set. Run from another folder, it would start with three empty volumes: set
+`COMPOSE_PROJECT_NAME` in `.env` once, before the first start.
 
 ## Desktop app (Linux)
 

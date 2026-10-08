@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-10-06T12:00:00Z
+updated_at: 2026-10-08T18:30:00Z
 tags:
     - deploy
     - docker
@@ -93,7 +93,7 @@ kubectl create secret generic agentry-claude --from-literal=CLAUDE_CODE_OAUTH_TO
 kubectl create secret generic agentry-token --from-literal=token="$(openssl rand -hex 32)"
 
 helm install agentry ./deploy/helm/agentry \
-  --set image.tag=0.15.2 \
+  --set image.tag=0.36.1 \
   --set claude.existingSecret=agentry-claude \
   --set auth.mode=token --set auth.token.existingSecret=agentry-token
 ```
@@ -183,6 +183,20 @@ The image is built in two stages. The stage that runs holds one compiled JavaScr
 tree, no `node_modules` and no transpiler: `docker build -f docker/Dockerfile .` is unchanged for
 you, the image is smaller and it starts faster. pnpm is still installed, for the projects Claude
 works on under `/workspace`, not to start anything.
+
+**The other agents.** Codex, Gemini CLI, GitHub Copilot CLI and OpenCode are installed with npm,
+each pinned to a version inside the range its manifest declares
+(`packages/core/src/providers/*/manifest.ts`; a test fails when a pin leaves its range), so an image
+is the same tomorrow as today for them too. They sit in `/home/node/.npm-global/bin`, which is on the
+`PATH`. Override a pin with `--build-arg CODEX_VERSION=…`, `GEMINI_CLI_VERSION`, `COPILOT_VERSION`
+or `OPENCODE_VERSION` (compose passes them from `.env`); a version outside the range installs, and
+Settings → Providers says the driver was not written for it. Their sign-ins, settings and sessions
+are under `/data/provider-homes`, through `CODEX_HOME`, `GEMINI_CLI_HOME`, `COPILOT_HOME`,
+`XDG_CONFIG_HOME` and `XDG_DATA_HOME`, so the data volume keeps them; the server creates the folders
+on start, because Codex refuses a home that does not exist. `XDG_*` also moves what other tools keep
+there (git's global config under `~/.config/git`), and pnpm's store is held in the image through
+`npm_config_store_dir` so it does not grow the volume. The image is about 2 GB: the four CLIs ship
+native binaries.
 
 The installer the build downloads, Claude Code's, is fetched to a file, checked against a SHA-256
 and only then run, so a compromised install script fails the build instead of running as root. The
@@ -279,8 +293,9 @@ so the card lists the command for each way below, each under the setup it is for
   the folder that holds it: `docker compose pull && docker compose up -d`.
 - **The repository's own `docker-compose.yml`** builds the image locally (`image: agentry:dev`), so
   there is nothing to pull: `git pull && docker compose up -d --build`.
-- **`docker run`**: `docker pull ghcr.io/yeyo11/agentry`, then remove the container and run the same
-  command again. The volumes keep every chat, setting and credential.
+- **`docker run`**: `docker pull ghcr.io/yeyo11/agentry`, then remove the container and run the
+  command again, which has to name all three volumes (see
+  [Updating a container without losing anything](#updating-a-container-without-losing-anything)).
 - **Helm**: raise `image.tag` and `helm upgrade`.
 
 A page that stayed open across the update notices on its next reconnection to `/api/events`: the
@@ -290,6 +305,68 @@ safe. With a service worker in control, Reload first asks it to update and waits
 new one to take over, so the new build is served rather than the cached one. A lazy route whose file
 the new build no longer has shows the same banner instead of breaking. None of this needs a service
 worker, so it works on a plain `http://<lan-ip>:8787` too.
+
+## Updating a container without losing anything
+
+An update replaces the container: the image is pulled, the old container removed and a new one
+started from it. Whatever is not on a volume with a name goes with the old one. The image declares
+a volume for each of the three folders that matter, and Docker makes an anonymous one for each the
+command does not name, so a command that names fewer **still starts, and loses the rest at the
+next update**:
+
+| Folder | Holds | Lost when it is not named |
+| --- | --- | --- |
+| `/home/node/.claude` | transcripts of every chat, MCP servers, agents, skills, `CLAUDE.md`, settings | the history and the account setup |
+| `/data` | the wrapper's database and settings, uploads, and the other agents' sign-ins (`provider-homes/`) | chats' records, schedules, the auth mode, every provider sign-in |
+| `/workspace` | the projects the agents work on | the projects, if they live there |
+
+Start it with all three named, and a name for the container to replace:
+
+```bash
+docker run -d --init --name agentry --restart unless-stopped -p 127.0.0.1:8787:8787 \
+  -v agentry-config:/home/node/.claude -v agentry-data:/data -v agentry-workspace:/workspace \
+  ghcr.io/yeyo11/agentry
+```
+
+To update it: `docker pull ghcr.io/yeyo11/agentry && docker stop agentry && docker rm agentry`, then
+the same `docker run`. A named volume is reattached by name, so the new container finds everything.
+Do not add `-v` to `docker rm`: it removes the anonymous volumes too.
+
+**Checking.** `GET /api/system/storage` (and the warning at the top of Settings → Account, which
+reads it) says what each folder sits on: `persistent` for a named volume, a bind mount or a claim,
+`anonymous`, `container` (the container's own layer) or `temporary` (memory or an `emptyDir`).
+`atRisk` is true when any of them would not survive. It reads the mounts the server itself sees, so
+it works under any way of starting the container, and says nothing outside the Docker image. It
+cannot tell a named volume that is *new* from the one you meant: started from another folder,
+Compose finds three empty ones and reports them persistent.
+
+### Moving to named volumes
+
+If Settings says a folder is on an anonymous volume, the data is still there while the container
+exists, stopped or not. **Do not remove it yet.** Copy each folder into a named volume, then start
+the new container on those:
+
+```bash
+docker stop agentry
+for pair in "home/node/.claude:agentry-config" "data:agentry-data" "workspace:agentry-workspace"; do
+  docker run --rm --volumes-from agentry -v "${pair#*:}":/to alpine \
+    sh -c "cp -a /${pair%%:*}/. /to/"
+done
+docker rename agentry agentry-old
+# the docker run above, with the three named volumes
+```
+
+Check that the new one has your chats, then `docker rm -v agentry-old`. A container started with
+`-v agentry-data:/data` alone already has `/data` on a named volume: copy only the other two.
+
+**Compose.** The volumes are `<project>_claude-config` and `<project>_wrapper-data`, where the
+project is the folder's name, and `./workspace` is a folder next to the compose file. Set
+`COMPOSE_PROJECT_NAME` in `.env` before the first start so a move or a rename of the checkout does
+not leave the data behind under the old name.
+
+**Helm.** One claim holds all three through subPaths, and it is kept on `helm uninstall`: an upgrade
+needs nothing but the new `image.tag`. The tag the chart defaults to is the release it ships with
+and moves with every release.
 
 ## Health and restarts
 
@@ -326,4 +403,4 @@ Both orchestrators allow 30 s between `SIGTERM` and `SIGKILL` (`stop_grace_perio
 
 ## Related
 
-[[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]] · [[tunnel.md]] · [[plans/tunnel.md]] · [[code-hosts.md]]
+[[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]] · [[tunnel.md]] · [[plans/tunnel.md]] · [[code-hosts.md]] · [[container-state.md]]

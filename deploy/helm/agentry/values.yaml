@@ -1,11 +1,12 @@
 image:
   repository: ghcr.io/yeyo11/agentry
   # A release so that an upgrade is a decision; `latest` follows every release and `edge` every push
-  # to main. The Claude Code version is baked into the image, not chosen here.
+  # to main. The Claude Code version is baked into the image, not chosen here, and neither are the
+  # other agents' (Codex, Gemini, Copilot, OpenCode). release-please moves this tag with every release.
   # Change both together or neither: a moving tag (`latest`, `edge`) needs pullPolicy: Always, or a
   # node that already holds the image serves yesterday's build - and a security fix - forever, while
   # a node scheduled fresh pulls a different one under the same name.
-  tag: "0.15.2"
+  tag: "0.36.1" # x-release-please-version
   pullPolicy: IfNotPresent
 
 # The port the API listens on inside the pod and the one the Service exposes
