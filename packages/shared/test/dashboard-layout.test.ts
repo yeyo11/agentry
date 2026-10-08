@@ -14,14 +14,14 @@ test('the Documents and Flows widgets belong on a project Home only', () => {
 test('a save is refused with the reason, where a read repairs', () => {
   assert.match(layoutProblem({ version: 2, widgets: [] }, 'project') ?? '', /version 1/);
   assert.match(layoutProblem(layout(widget({ type: 'nope' })), 'project') ?? '', /not a widget/);
-  assert.match(layoutProblem(layout(widget({ size: 'full' })), 'project') ?? '', /size must be one of s, m, l/);
+  assert.match(layoutProblem(layout(widget({ size: 's' })), 'project') ?? '', /size must be one of m, l, full/);
   assert.match(layoutProblem(layout(widget(), widget()), 'project') ?? '', /repeated/);
   assert.match(layoutProblem(layout(widget({ id: '' })), 'project') ?? '', /id/);
   assert.match(layoutProblem(layout(widget({ config: [] })), 'project') ?? '', /config/);
   const many = Array.from({ length: MAX_LAYOUT_WIDGETS + 1 }, (_, i) => widget({ id: `w${i}` }));
   assert.match(layoutProblem(layout(...many), 'project') ?? '', /at most/);
 
-  const repaired = validateLayout(layout(widget({ size: 'full' }), widget({ id: 'b', type: 'nope' }), widget({ id: 'a' })), WIDGET_RULES, 'project');
+  const repaired = validateLayout(layout(widget({ size: 's' }), widget({ id: 'b', type: 'nope' }), widget({ id: 'a' })), WIDGET_RULES, 'project');
   assert.deepEqual(repaired, { version: 1, widgets: [{ id: 'a', type: 'documents', size: 'm' }] });
   assert.equal(validateLayout('x', WIDGET_RULES, 'project'), null);
 });

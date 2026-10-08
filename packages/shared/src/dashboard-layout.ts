@@ -73,7 +73,7 @@ export const WIDGET_RULES: readonly (WidgetRule & { type: WidgetType })[] = [
   { type: 'worktrees', sizes: ['s', 'm', 'l'], defaultSize: 's', scope: 'project' },
   { type: 'resources', sizes: ['s', 'm'], defaultSize: 's', scope: 'project' },
   { type: 'export', sizes: ['m', 'l', 'full'], defaultSize: 'full', scope: 'project' },
-  { type: 'documents', sizes: ['s', 'm', 'l'], defaultSize: 'm', scope: 'project' },
+  { type: 'documents', sizes: ['m', 'l', 'full'], defaultSize: 'm', scope: 'project' },
   { type: 'flows', sizes: ['m', 'l', 'full'], defaultSize: 'm', scope: 'project' },
 ];
 

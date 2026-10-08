@@ -78,7 +78,7 @@ Both are project widgets and both are in the project's default layout.
 
 - **Documents** (`pages/dashboard/widgets/documents.tsx`) lists the most recently modified files of
   the project's documents, from `GET /projects/:id/documents`. It renders nothing when the Documents
-  module is off. Sizes: s, m, l.
+  module is off. Sizes: m, l, full (All), as its reference draws it.
 - **Flows** (`widgets/flows.tsx`) shows the flow's runs going now and queued, a row per board column
   with waiting cards and a count, and runs recently sent back or failed, from `/flow`,
   `/flow/waiting` and `/flow/runs`. `/flow/waiting` returns counts, not cards, hence one row per

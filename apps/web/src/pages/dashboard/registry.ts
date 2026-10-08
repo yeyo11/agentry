@@ -66,7 +66,7 @@ export const WIDGETS: readonly WidgetDefinition[] = [
   { type: 'worktrees', titleKey: 'widgets.worktrees.title', sizes: ['s', 'm', 'l'], defaultSize: 's', scope: 'project', area: 'side', component: project('WorktreesWidget') },
   { type: 'resources', titleKey: 'widgets.resources.title', sizes: ['s', 'm'], defaultSize: 's', scope: 'project', area: 'side', component: project('ResourcesWidget') },
   { type: 'flows', titleKey: 'widgets.flows.title', sizes: ['m', 'l', 'full'], defaultSize: 'm', scope: 'project', area: 'main', needs: ['team', 'board'], component: lazy(() => import('./widgets/flows').then((m) => ({ default: m.FlowsWidget }))) },
-  { type: 'documents', titleKey: 'widgets.documents.title', sizes: ['s', 'm', 'l'], defaultSize: 'm', scope: 'project', area: 'main', needs: ['documents'], component: lazy(() => import('./widgets/documents').then((m) => ({ default: m.DocumentsWidget }))) },
+  { type: 'documents', titleKey: 'widgets.documents.title', sizes: ['m', 'l', 'full'], defaultSize: 'm', scope: 'project', area: 'main', needs: ['documents'], component: lazy(() => import('./widgets/documents').then((m) => ({ default: m.DocumentsWidget }))) },
   { type: 'export', titleKey: 'widgets.export.title', sizes: ['m', 'l', 'full'], defaultSize: 'full', scope: 'project', area: 'main', component: project('ExportWidget') },
 ];
 

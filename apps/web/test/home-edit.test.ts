@@ -64,7 +64,7 @@ test('removing then adding brings a widget back; removing what is not there chan
 test('resizing accepts only the sizes the type allows', () => {
   const layout = defaultLayout('project');
   assert.equal(resizeWidget(layout, 'documents', 'l').widgets.find((widget) => widget.id === 'documents')?.size, 'l');
-  assert.equal(resizeWidget(layout, 'documents', 'full'), layout);
+  assert.equal(resizeWidget(layout, 'documents', 's'), layout);
   assert.equal(resizeWidget(layout, 'kpis', 's'), layout);
   assert.equal(layoutProblem(resizeWidget(layout, 'flows', 'full'), 'project'), null);
 });
