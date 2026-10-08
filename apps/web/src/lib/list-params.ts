@@ -82,15 +82,21 @@ export function reconcile({
   return { values: url, save: !sameValues(url, stored) };
 }
 
+/** A decision taken at render time, with what storage held when it was taken */
+export interface Decision {
+  values: ListValues;
+  save: boolean;
+  stored: ListValues;
+}
+
 /**
- * Whether a decision taken at render time may still be applied to the address. One that writes the
- * values it chose always may. One that only brings stored values back was taken on what storage held
+ * Whether a decision taken at render time may still be applied. It was taken on what storage held
  * then; if storage holds something else by the time the effect runs, a reset or a change on the page
- * came in between (a slow main thread delays the effect past a click), and putting the older values
- * back would silently undo it.
+ * came in between (a slow main thread delays the effect past a click), and applying it would silently
+ * undo that: bringing older values back, or writing over a reset the values a link carried.
  */
-export function stillCurrent(decision: { values: ListValues; save: boolean }, storedNow: ListValues): boolean {
-  return decision.save || sameValues(decision.values, storedNow);
+export function stillCurrent(decision: Decision, storedNow: ListValues): boolean {
+  return sameValues(decision.stored, storedNow);
 }
 
 function read(key: string, owned: readonly string[]): ListValues {
@@ -138,20 +144,22 @@ export function useListParams(page: string, owned: readonly string[], scope: str
   // decision read storage again instead of keeping the values it brought back before
   const [revision, setRevision] = useState(0);
 
-  const decision = useMemo(() => {
+  const decision = useMemo((): Decision | null => {
     if (key === null) return null;
     const previous = seen.current;
-    return reconcile({
+    const stored = read(key, owned);
+    const decided = reconcile({
       url,
-      stored: read(key, owned),
+      stored,
       scopeChanged: previous !== null && previous.key !== key,
       urlChanged: previous !== null && previous.url !== urlText,
     });
+    return { ...decided, stored };
   }, [key, urlText, owned, revision]);
 
   useEffect(() => {
     if (key === null || decision === null) return;
-    if (!decision.save && !stillCurrent(decision, read(key, owned))) return;
+    if (!stillCurrent(decision, read(key, owned))) return;
     seen.current = { key, url: JSON.stringify(decision.values) };
     if (decision.save) write(key, decision.values);
     if (!sameValues(decision.values, url)) setParams((previous) => withValues(previous, owned, decision.values), { replace: true });

@@ -55,10 +55,20 @@ test('list params: values compare by content', () => {
 
 test('list params: a reset made before the stored values reach the address is not undone', () => {
   // The render read `q` from storage; "Show them all" cleared storage before the effect ran
-  const broughtBack = reconcile({ url: {}, stored: { q: 'no-such-graph' }, scopeChanged: false, urlChanged: false });
+  const stored = { q: 'no-such-graph' };
+  const broughtBack = { ...reconcile({ url: {}, stored, scopeChanged: false, urlChanged: false }), stored };
   assert.equal(stillCurrent(broughtBack, {}), false);
   assert.equal(stillCurrent(broughtBack, { q: 'no-such-graph' }), true);
-  // A value the address itself chose is written, whatever storage held a moment ago
-  const linked = reconcile({ url: { q: 'linked' }, stored: {}, scopeChanged: false, urlChanged: true });
-  assert.equal(stillCurrent(linked, {}), true);
+});
+
+test('list params: a link’s values are not stored over a reset or a change made before they are', () => {
+  // A link carried `q` over an older stored value; storing it is what the effect does next
+  const stored = { q: 'older' };
+  const linked = { ...reconcile({ url: { q: 'linked' }, stored, scopeChanged: false, urlChanged: true }), stored };
+  assert.equal(linked.save, true);
+  assert.equal(stillCurrent(linked, { q: 'older' }), true);
+  // Reset cleared storage first: storing `linked` now would have the next render bring it back
+  assert.equal(stillCurrent(linked, {}), false);
+  // A change on the page stored its own values first
+  assert.equal(stillCurrent(linked, { q: 'typed' }), false);
 });
