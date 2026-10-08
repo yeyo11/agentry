@@ -82,6 +82,18 @@ export function WorkItemPanelHost() {
       ),
     [setParams],
   );
+  // The item's key changed under the open panel. Reported from an effect, which can run after the
+  // panel was closed or moved on: only the item still open in the address is renamed, and the query is
+  // built from the address as it is now, since `setParams` would start from its own render's
+  const renamed = useCallback(
+    (next: string) => {
+      const now = new URLSearchParams(window.location.search);
+      if (now.get(ITEM_PANEL_PARAM) !== key) return;
+      now.set(ITEM_PANEL_PARAM, next);
+      setParams(now, { replace: true });
+    },
+    [key, setParams],
+  );
   // A description being edited in the panel is not lost to Escape, the backdrop or the close button
   const close = () => void guard().then((ok) => ok && setItem(null));
   if (!key) return null;
@@ -93,7 +105,7 @@ export function WorkItemPanelHost() {
   }
   return (
     <Dialog variant="drawer" width={760} title={<WorkItemKey value={normalizeKey(key) ?? key} boxed />} onClose={close}>
-      <ItemByKey itemKey={key} variant="panel" onRenamed={setItem} />
+      <ItemByKey itemKey={key} variant="panel" onRenamed={renamed} />
     </Dialog>
   );
 }
