@@ -35,7 +35,12 @@ export default async ({ page, api, check, dirs }) => {
     // ---- Edit mode: the bar, a frame on every widget ----
     await page.click('main button', 'Edit Home', 600);
     await page.waitFor(inEdit, { label: 'edit mode' });
-    check((await page.text('main .home-editbar')).includes('Editing the Home of e2e-home-edit-a'), 'the bar says which Home is being edited');
+    // The eyebrow is a section label, drawn in capitals: read it without the case
+    check((await page.text('main .home-editbar')).toLowerCase().includes('editing the home of e2e-home-edit-a'), 'the bar says which Home is being edited');
+    check((await page.text('main .home-editbar')).includes('Arrange your Home'), 'the edit head is titled as its reference');
+    // The figures stay one row inside their frame, and Limits keeps its own height beside them
+    const strip = await page.eval(`const cells = [...document.querySelectorAll('main [data-edit-widget=kpis] .kpi')].map((k) => Math.round(k.getBoundingClientRect().top)); const limits = document.querySelector('main [data-widget=limits]').getBoundingClientRect().height; const kpis = document.querySelector('main [data-widget=kpis]').getBoundingClientRect().height; return { rows: new Set(cells).size, cells: cells.length, limits: Math.round(limits), kpis: Math.round(kpis) }`);
+    check(strip.cells === 3 && strip.rows === 1, `the three figures share one row in edit mode (${JSON.stringify(strip)})`);
     check(await page.eval(`return document.querySelectorAll('main [data-edit-widget]').length === 12`), 'every widget wears an edit frame');
     check(await page.eval(`return !!document.querySelector('main [data-edit-widget=now] .widget-handle[aria-label="Move In progress"]')`), 'a handle names its widget');
 
@@ -75,7 +80,7 @@ export default async ({ page, api, check, dirs }) => {
     // The row is text; its Add button is what adds the type
     check(await page.eval(`const row = [...document.querySelectorAll('.dialog .pick-row')].find((r) => r.querySelector('.pick-name')?.textContent.includes('Export')); const add = row?.querySelector('.pick-add'); if (!add) return false; add.click(); return true;`), 'Export has its Add button in the picker');
     await new Promise((r) => setTimeout(r, 600));
-    await page.click('.dialog button', 'Close', 600);
+    await page.click('.dialog .dialog-foot button', 'Cancel', 600);
     // The picker closes and the page redraws from the saved layout: wait for it rather than read once
     const added = await page.waitFor(`${widgetTypes.replace('return ', 'return (')}).split(',').includes('export')`, { timeout: 10000 }).then(() => true, () => false);
     check(added, `a widget added from the picker is on the page (${await page.eval(widgetTypes)})`);
@@ -104,7 +109,7 @@ export default async ({ page, api, check, dirs }) => {
     check(allDefault === 'kpis,limits,now,pickUp,today,projects,schedules', `All projects draws its default (${allDefault})`);
     await page.click('main button', 'Edit Home', 600);
     await page.waitFor(inEdit, { label: 'edit mode of All projects' });
-    check((await page.text('main .home-editbar')).includes('All projects'), 'the bar says it is the Home of All projects');
+    check((await page.text('main .home-editbar')).toLowerCase().includes('home of all projects'), 'the bar says it is the Home of All projects');
     check(await page.eval(`return !document.querySelector('.home-editbar + * [data-edit-widget=documents]')`), 'a widget of the project Home is not on it');
     await page.click('main [data-edit-widget=schedules] .widget-remove', undefined, 700);
     await page.click('main .home-editbar button', 'Done', 600);
@@ -145,7 +150,8 @@ export default async ({ page, api, check, dirs }) => {
     await page.click('main .widget-add', undefined, 600);
     await page.waitFor(`return !!document.querySelector('[role=dialog] .pick-list')`, { label: 'the Sheet to add' });
     await page.click('[role=dialog] .pick-row button', undefined, 600);
-    await page.click('[role=dialog] button', 'Close', 600);
+    // The Sheet has no foot: its own ✕ closes it
+    await page.click('[role=dialog] .sheet-head button[aria-label]', undefined, 600);
     await page.click('main .home-editbar button', 'Done', 600);
     check(!(await page.eval(inEdit)), 'Done leaves the phone edit mode');
   } finally {

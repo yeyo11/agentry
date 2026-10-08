@@ -969,20 +969,38 @@
   font-size: 11.5px;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
+  flex-wrap: wrap;
 }
 
-.doc-row,
-.flow-row {
+/* Each figure of the foot stays on one line; a narrow card puts the second under the first instead */
+.widget-foot > span {
+  white-space: nowrap;
+}
+
+/* The spacer only pushes the second figure right; the shared 200 px basis would squeeze both */
+.widget-foot > .grow {
+  flex: 1 1 0;
+}
+
+/* The Documents and Team pages own `.doc-row` and `.flow-row` too, in sheets that load after this
+   one (a grid of fixed columns, a top rule, a tall row): inside a widget the row is scoped so theirs
+   stays out. The inline padding is the one `.widget-rows .widget-link` gives every row link */
+.widget .doc-row,
+.widget .flow-row {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: auto;
   min-width: 0;
-  padding: 8px 10px;
+  min-height: 0;
+  padding-block: 8px;
+  border: 0;
   border-radius: var(--radius);
+  font-size: inherit;
 }
 
-.doc-row:hover,
-.flow-row:hover {
+.widget .doc-row:hover,
+.widget .flow-row:hover {
   background: var(--bg-hover);
   text-decoration: none;
 }
@@ -1017,7 +1035,7 @@
   font-weight: 500;
 }
 
-.flow-row.live-rail {
+.widget .flow-row.live-rail {
   padding-left: 16px;
 }
 
@@ -1025,17 +1043,54 @@
 
 .home-editbar {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 10px 16px;
+  gap: 12px 16px;
   margin-bottom: 16px;
+}
+
+/* The eyebrow says whose Home it is, the title what the mode is for, the sentence how it saves */
+.home-editbar-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 420px;
+  min-width: 0;
 }
 
 .home-editbar-title {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+}
+
+/* Under a project's header and tabs the head is the tab's, one step below the project's name */
+h2.home-editbar-title {
+  font-size: 24px;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+.home-editbar-lede {
+  margin: 0;
+  color: var(--fg-2);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* A phone: the eyebrow and the title on the left, Listo tall on the right, the sentence under both */
+.home-editbar.is-phone {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.home-editbar.is-phone .home-editbar-text {
+  flex: 1 1 auto;
+  gap: 2px;
+}
+
+.home-editbar.is-phone .home-editbar-title {
+  font-size: 24px;
 }
 
 .home-editbar-actions {
@@ -1097,6 +1152,24 @@
 
 .widget-edit-body .live-energy::before {
   display: none;
+}
+
+/* Each widget keeps its own height while editing: Limits is not pulled down to the figures' */
+.dashboard.is-editing .area-top {
+  align-items: start;
+}
+
+/* Inside its frame the strip is one compact row of three plain cells: the frame is the card now,
+   and the spend's gradient hairline goes with the rest of the brand while editing */
+.dashboard.is-editing .widget-edit-body > .kpi-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+}
+
+.dashboard.is-editing .widget-edit-body > .kpi-strip > .kpi {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }
 
 .widget-editbar {
@@ -1232,8 +1305,29 @@
   color: var(--text-faint);
 }
 
+.pick-hint {
+  margin: 0 0 12px;
+  color: var(--fg-2);
+  font-size: 13px;
+}
+
+.pick-hint code {
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+/* The dialog's foot: why the list is short on the left, Cancelar on the right */
+.pick-once {
+  margin-right: auto;
+  align-self: center;
+}
+
 .pick-have-section {
   margin-top: 16px;
+}
+
+.pick-have-check {
+  color: var(--ok);
 }
 
 .pick-have {
@@ -1271,8 +1365,41 @@
   height: var(--touch);
 }
 
+.move-name {
+  font-size: 15px;
+}
+
+/* Añadir widget and Restablecer close the list */
+.move-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.move-foot .widget-add {
+  margin-top: 0;
+  min-height: var(--touch);
+}
+
+.move-foot .edit-reset {
+  align-self: center;
+  min-height: var(--touch);
+}
+
 .edit-note {
   margin: 0 0 12px;
+}
+
+/* On a phone the picker's row is the icon, the name and an Añadir of 44 px */
+.pick-list.is-phone .pick-row {
+  min-height: 64px;
+}
+
+.pick-list.is-phone .pick-add {
+  min-height: var(--touch);
+  padding-inline: 16px;
+  font-size: 14px;
 }
 
 @media (pointer: coarse) {

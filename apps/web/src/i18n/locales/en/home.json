@@ -392,13 +392,12 @@
     "isFirst": "{{title}} is already the first of its group",
     "isLast": "{{title}} is already the last of its group",
     "listLabel": "Widgets of the Home",
-    "phoneNote": "On a phone every widget stacks in one column, so there is no size to choose.",
-    "pickerTitle": "Add a widget",
-    "pickerHint": "Each widget appears once. It is added at the end of its place on the page.",
+    "phoneNote": "Change the order with the arrows. Each change is saved at once, only for this project. The size is chosen on wide screens.",
+    "pickerTitle": "Add widget",
+    "pickerHint": "It is added at the end of the Home of <name>{{name}}</name>. Then move it wherever you like.",
     "new": "new",
     "have": "Already on your Home",
     "allAdded": "Every widget is already on your Home.",
-    "close": "Close",
     "announce": {
       "lifted": "{{title}} lifted, position {{n}} of {{count}}. Use the arrow keys to move it, Space to drop it and Escape to cancel.",
       "moved": "{{title}}, position {{n}} of {{count}}",
@@ -414,6 +413,13 @@
       "board": "Board",
       "documents": "Documents",
       "memory": "Memory"
-    }
+    },
+    "heading": "Arrange your Home",
+    "lede": "Move, resize or remove widgets. Each change is saved at once, only for this project.",
+    "ledeAll": "Move, resize or remove widgets. Each change is saved at once, only for the Home of All projects.",
+    "phoneNoteAll": "Change the order with the arrows. Each change is saved at once, only for the Home of All projects. The size is chosen on wide screens.",
+    "pickerHintAll": "It is added at the end of the Home of All projects. Then move it wherever you like.",
+    "once": "Each widget appears once",
+    "cancel": "Cancel"
   }
 }
