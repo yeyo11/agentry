@@ -81,6 +81,11 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     started.push(res.body.id);
     return res.body.id;
   };
+  // Each scenario stands alone: the chats an earlier one left running are stopped, or nine scenarios
+  // in one sandbox reach the server's limit on concurrent runs and the last one cannot start its chat
+  const retire = async () => {
+    for (const id of started.splice(0)) await api.post(`/chats/${id}/stop`).catch(() => {});
+  };
   const pidOf = (id) => log().find((e) => e.event === 'started' && e.argv.includes(id))?.pid;
   const view = () => page.eval(VIEW);
   const open = async (id) => {
@@ -112,6 +117,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
     // ---------- Symptom 1, C-1 / S-4 / C-7: a message read mid-turn is called lost, and a reload loses it ----------
     if (want('A')) {
+      await retire();
       const MSG = 'also list the files';
       const id = await startChat('AUDIT-A tidy the scripts');
       await open(id);
@@ -144,6 +150,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
     // ---------- C-2: "Send now" cuts the turn that is already answering the message ----------
     if (want('B1')) {
+      await retire();
       const MSG = 'use the staging config';
       const id = await startChat('AUDIT-B1 deploy the preview');
       await open(id);
@@ -169,6 +176,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
     // ---------- Send now on a message the CLI still holds: the sound path ----------
     if (want('B2')) {
+      await retire();
       const MSG = 'and the changelog';
       const id = await startChat('AUDIT-B2 bump the version');
       await open(id);
@@ -184,6 +192,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
     // ---------- C-3: a message with a file never matches its card ----------
     if (want('C')) {
+      await retire();
       const MSG = 'look at this file, please';
       const id = await startChat('AUDIT-C review the notes');
       await open(id);
@@ -212,6 +221,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
     // ---------- C-3: Restore hands back the words and the files of a message that was lost ----------
     if (want('C2')) {
+      await retire();
       const MSG = 'keep this file for later';
       const id = await startChat('AUDIT-K file the report');
       await open(id);
@@ -235,6 +245,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
     // ---------- C-4: a queued card follows the person into another chat, and Send now stops that one ----------
     if (want('D')) {
+      await retire();
       const MSG = 'note for the first chat';
       const first = await startChat('AUDIT-D1 first chat');
       const second = await startChat('AUDIT-D2 second chat');
@@ -261,6 +272,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
     // ---------- C-5: what is typed while a send is on its way is erased ----------
     if (want('E')) {
+      await retire();
       const id = await startChat('AUDIT-E write the docs');
       await open(id);
       await until(() => log().some((e) => e.event === 'command-ended' && e.command === 'true' && e.pid === pidOf(id)), 'the turn to reach its hold');
@@ -280,6 +292,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
     // ---------- C-8: a message sent while a permission prompt waits gets no card ----------
     if (want('F')) {
+      await retire();
       const MSG = 'skip that, just list the build dir';
       const id = await startChat('AUDIT-F clean the build', { permissionPrompts: 'host' });
       await open(id);
@@ -301,6 +314,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
     // ---------- C-13: after a reload, a message still waiting is a queued card ----------
     if (want('G')) {
+      await retire();
       const MSG = 'and update the readme';
       const id = await startChat('AUDIT-G write the release notes');
       await open(id);
