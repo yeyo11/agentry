@@ -47,7 +47,7 @@ interface Rig {
   record: string;
 }
 
-function rig(t: TestContext, options: { mode?: AuthMode; enabled?: boolean; tailscaleBin?: string; node?: FakeNode; root?: string; timing?: TunnelDeps['timing']; attach?: boolean } = {}): Rig {
+function rig(t: TestContext, options: { mode?: AuthMode; enabled?: boolean; managed?: boolean; tailscaleBin?: string; node?: FakeNode; root?: string; timing?: TunnelDeps['timing']; attach?: boolean } = {}): Rig {
   const root = options.root ?? mkdtempSync(join(tmpdir(), 'agentry-tunnel-'));
   const log = join(root, 'tailscale.log');
   const stateFile = join(root, 'node.json');
@@ -64,6 +64,7 @@ function rig(t: TestContext, options: { mode?: AuthMode; enabled?: boolean; tail
     dataDir: join(root, 'data'),
     tailscaleBin: options.tailscaleBin ?? FAKE_TAILSCALE,
     ...(options.enabled === undefined ? {} : { enabled: options.enabled }),
+    ...(options.managed === undefined ? {} : { managed: options.managed }),
     security,
     hosts,
     emit: (event: AgentryEventInput) => {
@@ -172,6 +173,24 @@ test('each way Tailscale is not ready is a state of its own, and start fails wit
     assert.ok(!r.calls().some((call) => call.startsWith('serve')), `${c.code}: no Serve call`);
     assert.deepEqual(r.hosts.list(), []);
   }
+});
+
+test('the daemon Agentry runs sends the person to its sign-in, never to a terminal they do not have', async (t) => {
+  const cases: { node: FakeNode; state: string; code: string }[] = [
+    { node: { daemon: false }, state: 'daemonDown', code: 'tunnel.managedDaemonDown' },
+    { node: { backendState: 'NeedsLogin' }, state: 'loggedOut', code: 'tunnel.managedLoggedOut' },
+    { node: { backendState: 'Stopped' }, state: 'stopped', code: 'tunnel.managedNotConnected' },
+  ];
+  for (const c of cases) {
+    const r = rig(t, { node: c.node, managed: true });
+    const status = await r.manager.refresh();
+    assert.equal(status.managed, true);
+    assert.equal(status.tailscale.state, c.state, c.code);
+    assert.equal(status.tailscale.reason?.code, c.code);
+    assert.doesNotMatch(status.tailscale.reason?.text ?? '', /terminal|tailscale up/);
+  }
+  // A machine's own Tailscale says what to run, as before
+  assert.equal(rig(t).manager.status().managed, false);
 });
 
 test("the node's name joins the allowlist once the rule reads back, and stop leaves the Serve config as it was found", async (t) => {

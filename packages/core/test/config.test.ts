@@ -141,7 +141,7 @@ test('an allowed-hosts pattern that guards nothing stops the wrapper instead of 
   }
 });
 
-test('the tunnel is offered by default, except in the Docker image, where the operator turns it on', () => {
+test('the tunnel is offered by default, and in the Docker image only once its entrypoint started a tailscaled of its own', () => {
   const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-switch', 'claude'), AGENTRY_DATA_DIR: join(tmpdir(), 'agentry-switch', 'data'), AGENTRY_WORKSPACE_DIR: join(tmpdir(), 'agentry-switch', 'workspace') };
   const docker = { ...base, AGENTRY_DISTRIBUTION: 'docker' };
 
@@ -156,6 +156,27 @@ test('the tunnel is offered by default, except in the Docker image, where the op
   // The switch that opens a way in is not guessed at
   for (const value of ['yes', 'enabled', 'of']) {
     assert.throws(() => loadConfig({ ...base, AGENTRY_TUNNEL: value }), /AGENTRY_TUNNEL/, value);
+  }
+});
+
+test('only the tailscaled the image started is Agentry\'s to sign in, and its node name is a host name', () => {
+  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-managed', 'claude'), AGENTRY_DATA_DIR: join(tmpdir(), 'agentry-managed', 'data'), AGENTRY_WORKSPACE_DIR: join(tmpdir(), 'agentry-managed', 'workspace') };
+  const docker = { ...base, AGENTRY_DISTRIBUTION: 'docker' };
+  const managed = { ...docker, AGENTRY_TAILSCALE_MANAGED: '1' };
+
+  assert.equal(loadConfig(base).tailscaleManaged, false);
+  assert.equal(loadConfig(docker).tailscaleManaged, false);
+  assert.equal(loadConfig(managed).tailscaleManaged, true);
+  // The entrypoint started a daemon, so the tunnel is offered; AGENTRY_TUNNEL=off still wins
+  assert.equal(loadConfig(managed).tunnelEnabled, true);
+  assert.equal(loadConfig({ ...managed, AGENTRY_TUNNEL: 'off' }).tunnelEnabled, false);
+  assert.equal(loadConfig({ ...docker, AGENTRY_TAILSCALE_MANAGED: '0' }).tailscaleManaged, false);
+
+  assert.equal(loadConfig(base).tailscaleHostname, 'agentry');
+  assert.equal(loadConfig({ ...base, AGENTRY_TAILSCALE_HOSTNAME: ' Agentry-Lab ' }).tailscaleHostname, 'agentry-lab');
+  // It goes to the CLI's argv: nothing that could read as a flag or leave the label
+  for (const value of ['-x', 'a b', 'a.b', 'x-', 'a'.repeat(64)]) {
+    assert.throws(() => loadConfig({ ...base, AGENTRY_TAILSCALE_HOSTNAME: value }), /AGENTRY_TAILSCALE_HOSTNAME/, value);
   }
 });
 

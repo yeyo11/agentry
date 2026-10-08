@@ -10,8 +10,9 @@ import type { RuntimeHostOptions } from './app-settings.ts';
  * Reaching Agentry from a phone or another computer on the person's tailnet, through the Tailscale
  * CLI (docs/plans/tunnel.md). Agentry adds one `tailscale serve` rule (tailnet-only, never Funnel)
  * on a port of its own, and takes exactly that rule away again. Tailscale is reached only through
- * its CLI's flags and `--json` output, with the person's own session: no LocalAPI socket, no tsnet,
- * no sign-in of Agentry's own. What has to hold before a byte crosses: no tunnel without
+ * its CLI's flags and `--json` output: no LocalAPI socket, no tsnet. A machine's own Tailscale is
+ * used with the session the person gave it; only the `tailscaled` the Docker image starts for
+ * Agentry (`managed`) is signed in from the app, through `tailscale up` (setup/logins.ts). What has to hold before a byte crosses: no tunnel without
  * authentication, only the node's exact name joins the allowlist and only while the rule holds, and
  * nothing in the node's Serve config that Agentry did not add is ever changed.
  */
@@ -60,6 +61,11 @@ export interface TunnelDeps {
    * refuses every start, "start with Agentry" included, and the status says so.
    */
   enabled?: boolean;
+  /**
+   * Whether the daemon is Agentry's own (`CoreConfig.tailscaleManaged`): the reasons then send the
+   * person to the app's sign-in instead of a terminal they do not have
+   */
+  managed?: boolean;
   /** Read on every decision rather than copied: the mode can change while the tunnel is open */
   security: { readonly mode: AuthMode };
   /** Where the node's name is registered for the guard, and removed from again */
@@ -103,6 +109,12 @@ const REASONS = {
   serveFailed: (detail: string) => reason('tunnel.serveFailed', `tailscale serve did not accept the rule: ${detail}`, { detail }),
   unverified: () => reason('tunnel.unverified', "The Serve rule was sent, but this machine's Serve config does not show it pointing at Agentry."),
   ruleRemoved: () => reason('tunnel.ruleRemoved', "Agentry's Serve rule was removed or changed outside Agentry, so the tunnel is closed."),
+  // Where Agentry runs tailscaled itself (the Docker image) there is no terminal to send anyone to
+  managedDaemonDown: () =>
+    reason('tunnel.managedDaemonDown', "The Tailscale service this container starts for Agentry is not answering. Restart the container; its log is tailscaled.log in the data volume's tailscale folder."),
+  managedLoggedOut: () => reason('tunnel.managedLoggedOut', "This Agentry's Tailscale is not signed in to a tailnet. Sign in from Settings → Remote access."),
+  managedNotConnected: (state: string) =>
+    reason('tunnel.managedNotConnected', `This Agentry's Tailscale is not connected (${state}). Sign in again from Settings → Remote access.`, { state }),
 };
 
 interface CliResult {
@@ -148,12 +160,12 @@ interface StatusJson {
  * node is signed in and connected, `Self.DNSName` is its name with a trailing dot, and
  * `CertDomains` is only filled while HTTPS certificates are on for the tailnet.
  */
-export function readinessFromStatus(json: StatusJson, version: string): TailscaleReadiness {
+export function readinessFromStatus(json: StatusJson, version: string, managed = false): TailscaleReadiness {
   const state = typeof json.BackendState === 'string' ? json.BackendState : 'NoState';
   const dns = typeof json.Self?.DNSName === 'string' ? json.Self.DNSName.replace(/\.$/, '').toLowerCase() : '';
   const host = dns || null;
-  if (state === 'NeedsLogin' || state === 'NeedsMachineAuth') return { state: 'loggedOut', version, host, reason: REASONS.loggedOut() };
-  if (state !== 'Running') return { state: 'stopped', version, host, reason: REASONS.notConnected(state) };
+  if (state === 'NeedsLogin' || state === 'NeedsMachineAuth') return { state: 'loggedOut', version, host, reason: managed ? REASONS.managedLoggedOut() : REASONS.loggedOut() };
+  if (state !== 'Running') return { state: 'stopped', version, host, reason: managed ? REASONS.managedNotConnected(state) : REASONS.notConnected(state) };
   if (json.CurrentTailnet?.MagicDNSEnabled !== true) return { state: 'httpsDisabled', version, host, reason: REASONS.magicDnsOff() };
   const certs = Array.isArray(json.CertDomains) ? json.CertDomains.filter((name): name is string => typeof name === 'string').map((name) => name.toLowerCase()) : [];
   if (!host || !certs.includes(host)) return { state: 'httpsDisabled', version, host, reason: REASONS.httpsOff() };
@@ -260,6 +272,7 @@ export class TunnelManager {
       since: active ? this.since : null,
       reason: this.state === 'failed' ? this.reason : null,
       enabled: this.enabled,
+      managed: this.deps.managed ?? false,
       tailscale: { ...this.tailscale },
       port: this.port,
       settings: { ...this.settings },
@@ -317,8 +330,8 @@ export class TunnelManager {
     } catch {
       json = null;
     }
-    if (!json || typeof json !== 'object') return { state: 'daemonDown', version: shown, host: null, reason: REASONS.daemonDown() };
-    return readinessFromStatus(json, shown);
+    if (!json || typeof json !== 'object') return { state: 'daemonDown', version: shown, host: null, reason: this.deps.managed ? REASONS.managedDaemonDown() : REASONS.daemonDown() };
+    return readinessFromStatus(json, shown, this.deps.managed ?? false);
   }
 
   private cli(args: string[]): Promise<CliResult> {

@@ -207,7 +207,7 @@ export { MCP_ENTRY_ENV, type AgentryMcpLaunch } from './agentry-mcp.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, PROVIDER_HOME_ENV, type AuthEnv, type CoreConfig } from './paths.ts';
-export { LoginInputError, LoginService } from './setup/logins.ts';
+export { LoginInputError, LoginRefusedError, LoginService } from './setup/logins.ts';
 export { SecretVault } from './secret-vault.ts';
 export { DashboardLayoutStore } from './dashboard-layouts.ts';
 export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
@@ -572,6 +572,7 @@ export class Core {
       tailscaleBin: config.tailscaleBin,
       port: config.tunnelPort,
       enabled: config.tunnelEnabled,
+      managed: config.tailscaleManaged,
       security: this.security,
       hosts: this.appSettings.runtimeHosts,
       emit: (event) => this.events.emit(event),
@@ -837,6 +838,12 @@ export class Core {
       emit: (event) => this.events.emit(event),
       binary: (tool) => this.setupBinary(tool),
       readiness: (tool, host) => this.setupReadiness(tool, host),
+      refusal: (tool) => (tool === 'tailscale' ? this.tailscaleRefusal() : null),
+      // A rule left in the daemon's Serve config would outlive the sign-out, and only Agentry would know it
+      beforeSignOut: async (tool) => {
+        if (tool === 'tailscale') await this.tunnel.stop();
+      },
+      tailscaleName: config.tailscaleHostname,
     });
     // Agentry's own secrets are masked in everything that may leave the machine (a decision's state,
     // a handoff), whatever text surrounds them
@@ -1512,7 +1519,7 @@ export class Core {
    * setting up" card. Reads the detectors' caches (the first call waits for a detection).
    */
   async setupState(): Promise<SetupState> {
-    const [providers, hosts, youtrack] = await Promise.all([this.providers.statuses(), this.hosts.statuses(), this.trackers.status('youtrack')]);
+    const [providers, hosts, youtrack, tunnel] = await Promise.all([this.providers.statuses(), this.hosts.statuses(), this.trackers.status('youtrack'), this.tunnel.refresh()]);
     const auth = this.security.config;
     const credentials = this.youtrackCredentials.status();
     return {
@@ -1523,6 +1530,7 @@ export class Core {
         .map((status) => ({ id: status.id, label: status.label, state: status.state, reason: status.reason, account: status.account, keyStored: this.vault.has(status.id) })),
       hosts: hosts.map((status) => ({ id: status.id, cli: status.id === 'github' ? 'gh' : 'glab', state: status.state, reason: status.reason, hosts: status.hosts.map((entry) => ({ ...entry })) })),
       youtrack: { configured: credentials.host !== null && credentials.tokenSet, state: youtrack?.state ?? null, reason: youtrack?.reason ?? null },
+      tailscale: { enabled: tunnel.enabled, managed: tunnel.managed, state: tunnel.tailscale.state, host: tunnel.tailscale.host },
       methods: setupMethods(),
       secrets: { sealed: this.vault.sealed, keyBeside: this.vault.keyBeside },
     };
@@ -1538,8 +1546,19 @@ export class Core {
     return this.setupState();
   }
 
+  /**
+   * Why Tailscale is not signed in from here, or null where it is: only the daemon the image starts
+   * for Agentry is Agentry's to sign in, and only while the tunnel is offered at all.
+   */
+  private tailscaleRefusal(): string | null {
+    if (!this.config.tailscaleManaged) return "This machine's Tailscale belongs to it: sign it in with the Tailscale app or tailscale up. Agentry signs in only the Tailscale it runs itself, in its Docker image.";
+    if (!this.config.tunnelEnabled) return 'This Agentry does not offer the tunnel (AGENTRY_TUNNEL is off), so it runs no Tailscale to sign in.';
+    return null;
+  }
+
   /** The binary a sign-in runs: the one the tool's detector resolved, the person's override included */
   private async setupBinary(tool: SetupTool): Promise<string | null> {
+    if (tool === 'tailscale') return this.config.tailscaleBin;
     if (tool === 'gh' || tool === 'glab') return (await this.hosts.status(tool === 'gh' ? 'github' : 'gitlab'))?.binaryPath ?? null;
     if (tool === 'youtrack') return (await this.trackers.status('youtrack'))?.binaryPath ?? null;
     return (await this.providers.status(tool))?.binaryPath ?? null;
@@ -1547,6 +1566,11 @@ export class Core {
 
   /** A tool's readiness read again after a sign-in or a sign-out: what decides whether it worked */
   private async setupReadiness(tool: SetupTool, host: string | null): Promise<boolean | null> {
+    if (tool === 'tailscale') {
+      // Signed in is any state past NeedsLogin: MagicDNS or HTTPS being off is the tailnet's setting, not the sign-in's
+      const { tailscale } = await this.tunnel.refresh(true);
+      return tailscale.state === 'ready' || tailscale.state === 'httpsDisabled' || tailscale.state === 'stopped';
+    }
     if (tool === 'gh' || tool === 'glab') {
       const status = (await this.hosts.refresh()).find((s) => s.id === (tool === 'gh' ? 'github' : 'gitlab'));
       return status?.hosts.find((entry) => entry.hostname === host)?.signedIn ?? false;

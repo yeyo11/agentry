@@ -27,12 +27,20 @@ export interface CoreConfig {
   /** The `tailscale` CLI the tunnel runs, from `TAILSCALE_BIN`: the one on the `PATH` unless someone points at another */
   tailscaleBin: string;
   /**
-   * Whether this deploy offers the tunnel, from `AGENTRY_TUNNEL`. On by default, and off by default
-   * in the Docker image (`AGENTRY_DISTRIBUTION=docker`): the container sees neither the host's
-   * `tailscale` CLI nor its daemon, and a way in around the port the operator published and their
-   * proxy is theirs to open (docs/plans/tunnel.md, "Answer: the tunnel in Docker").
+   * Whether this deploy offers the tunnel, from `AGENTRY_TUNNEL`. On by default. In the Docker image
+   * (`AGENTRY_DISTRIBUTION=docker`) the default follows `tailscaleManaged`: a container sees neither
+   * the host's `tailscale` CLI nor its daemon, so the tunnel is offered there only when the image's
+   * entrypoint started a `tailscaled` of Agentry's own (docs/deploy.md, "The tunnel in Docker").
    */
   tunnelEnabled: boolean;
+  /**
+   * Whether the `tailscaled` the CLI talks to is Agentry's own, from `AGENTRY_TAILSCALE_MANAGED`,
+   * which the image's entrypoint sets once it started one. Only then may the app sign it in and out:
+   * a machine's own Tailscale belongs to the person, and Agentry never runs `up` or `logout` on it.
+   */
+  tailscaleManaged: boolean;
+  /** The node name a managed `tailscaled` signs in with, from `AGENTRY_TAILSCALE_HOSTNAME`; `agentry` by default */
+  tailscaleHostname: string;
   /** The HTTPS port of Agentry's `tailscale serve` rule, from `AGENTRY_TUNNEL_PORT`; 8443 by default */
   tunnelPort: number;
   configDir: string;
@@ -122,6 +130,22 @@ function parseTunnelSwitch(value: string | undefined, fallback: boolean): boolea
   if (['on', '1', 'true'].includes(word)) return true;
   if (['off', '0', 'false'].includes(word)) return false;
   throw new Error(`AGENTRY_TUNNEL: '${value}' is neither on nor off`);
+}
+
+/** A flag the image's entrypoint sets: only an explicit yes counts */
+function parseYes(value: string | undefined): boolean {
+  return isSet(value) && ['on', '1', 'true', 'yes'].includes(value.trim().toLowerCase());
+}
+
+/**
+ * A node name for `tailscale up --hostname`: a DNS label, since it becomes the node's MagicDNS name.
+ * Anything else stops the wrapper rather than reaching the CLI.
+ */
+function parseTailscaleHostname(value: string | undefined): string {
+  if (!isSet(value)) return 'agentry';
+  const name = value.trim().toLowerCase();
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name)) throw new Error(`AGENTRY_TAILSCALE_HOSTNAME: '${value}' is not a host name (letters, digits and dashes, at most 63)`);
+  return name;
 }
 
 /** A port that is not a port is refused at startup rather than guessed: it decides where a rule lands in the node's shared Serve config. */
@@ -233,7 +257,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
   return {
     claudeBin: env.CLAUDE_BIN ?? 'claude',
     tailscaleBin: env.TAILSCALE_BIN?.trim() || 'tailscale',
-    tunnelEnabled: parseTunnelSwitch(env.AGENTRY_TUNNEL, env.AGENTRY_DISTRIBUTION?.trim().toLowerCase() !== 'docker'),
+    tunnelEnabled: parseTunnelSwitch(env.AGENTRY_TUNNEL, env.AGENTRY_DISTRIBUTION?.trim().toLowerCase() !== 'docker' || parseYes(env.AGENTRY_TAILSCALE_MANAGED)),
+    tailscaleManaged: parseYes(env.AGENTRY_TAILSCALE_MANAGED),
+    tailscaleHostname: parseTailscaleHostname(env.AGENTRY_TAILSCALE_HOSTNAME),
     tunnelPort: parseTunnelPort(env.AGENTRY_TUNNEL_PORT),
     configDir,
     globalConfigFile,

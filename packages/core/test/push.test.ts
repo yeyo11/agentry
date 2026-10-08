@@ -323,7 +323,7 @@ function tunnelEvent(state: TunnelState, url: string | null): AgentryEventInput 
   return {
     type: 'tunnel.changed',
     title: `Tunnel ${state}`,
-    tunnel: { state, url, since: url ? new Date().toISOString() : null, reason: null, enabled: true, tailscale: { state: 'ready', version: '1.102.4', host: 'agentry-test.tail0000.ts.net', reason: null }, port: 8443, settings: { startWithAgentry: false } },
+    tunnel: { state, url, since: url ? new Date().toISOString() : null, reason: null, enabled: true, managed: false, tailscale: { state: 'ready', version: '1.102.4', host: 'agentry-test.tail0000.ts.net', reason: null }, port: 8443, settings: { startWithAgentry: false } },
   };
 }
 

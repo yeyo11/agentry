@@ -9,10 +9,11 @@
  */
 export interface DevicePattern {
   url: RegExp;
-  code: RegExp;
+  /** Null for a sign-in with no code to type: the URL is the whole of it (Tailscale) */
+  code: RegExp | null;
 }
 
-export const DEVICE_PATTERNS: Readonly<Record<'gh' | 'copilot' | 'codex' | 'glab', DevicePattern>> = {
+export const DEVICE_PATTERNS: Readonly<Record<'gh' | 'copilot' | 'codex' | 'glab' | 'tailscale', DevicePattern>> = {
   // stderr: `! First copy your one-time code: 250D-975E`, then `Open this URL to continue in your web browser: https://github.com/login/device`
   gh: { url: /web browser:\s*(https:\/\/\S+)/, code: /one-time code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})\b/ },
   // stdout: `To authenticate, visit https://github.com/login/device and enter code 0472-EEB7`
@@ -23,6 +24,9 @@ export const DEVICE_PATTERNS: Readonly<Record<'gh' | 'copilot' | 'codex' | 'glab
   // stderr: `First copy your one-time code: WZS9BFLC` (eight characters, no dash), then
   // `Then open this URL on any device to authorize: https://gitlab.com/oauth/device`
   glab: { url: /to authorize:\s*(https:\/\/\S+)/, code: /one-time code:\s*([A-Z0-9]{8})\b/ },
+  // stderr: `To authenticate, visit:`, an empty line, then the URL alone after a tab:
+  // `\thttps://login.tailscale.com/a/12c7b6a0132b3`. Opening it is the sign-in; there is no code
+  tailscale: { url: /^\s*(https:\/\/\S+)\s*$/, code: null },
 };
 
 /** Colour and cursor sequences a CLI may print even with NO_COLOR */
@@ -42,5 +46,5 @@ const pick = (pattern: RegExp, line: string): string | null => {
 export function readDeviceLine(pattern: DevicePattern, raw: string): { url: string | null; code: string | null } {
   const line = raw.replace(ANSI, '');
   const url = pick(pattern.url, line)?.replace(/[.,;:!?)\]}]+$/, '') ?? null;
-  return { url: url && url.startsWith('https://') ? url : null, code: pick(pattern.code, line) };
+  return { url: url && url.startsWith('https://') ? url : null, code: pattern.code ? pick(pattern.code, line) : null };
 }

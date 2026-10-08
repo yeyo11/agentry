@@ -4087,7 +4087,9 @@ export type TunnelState = 'stopped' | 'starting' | 'verifying' | 'active' | 'sto
  *   `https://<node>.<tailnet>.ts.net` to answer on;
  * - `ready`: Serve can be used.
  *
- * Agentry never signs in, starts or configures Tailscale itself: it says what to run.
+ * A Tailscale that belongs to the machine (a source checkout, the desktop app) is never signed in,
+ * started or configured by Agentry: it says what to run. Only the `tailscaled` the Docker image
+ * starts for Agentry (`TunnelStatus.managed`) is signed in and out from the app (docs/setup.md).
  */
 export type TailscaleReadinessState = 'missing' | 'unsupported' | 'daemonDown' | 'loggedOut' | 'stopped' | 'httpsDisabled' | 'ready';
 
@@ -4124,13 +4126,17 @@ export interface TunnelStatus {
   /** Why the tunnel failed, with a code a client translates; null unless `state` is `failed` */
   reason: Localized | null;
   /**
-   * Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`). Off by default in the Docker
-   * image and the Helm chart: the container sees neither the host's `tailscale` CLI nor its
-   * daemon, and a way in that goes around the operator's published port and proxy is the
-   * operator's call. While false, `start` is refused and the UI says who can turn it on instead of
-   * offering a button
+   * Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`, on by default). While false,
+   * `start` is refused and the UI says who can turn it on instead of offering a button
    */
   enabled: boolean;
+  /**
+   * Whether the `tailscaled` behind the CLI is Agentry's own: the one the Docker image starts in
+   * userspace networking, with its state on the data volume (`AGENTRY_TAILSCALE_MANAGED`). Only
+   * then does the app sign it in and out (`POST /setup/logins` with `tool: 'tailscale'`); a
+   * machine's own Tailscale is the person's, and the UI says what to run instead
+   */
+  managed: boolean;
   /** Whether Tailscale can carry the tunnel, and if not, why; the UI shows nothing else until it is `ready` */
   tailscale: TailscaleReadiness;
   /** The HTTPS port on the tailnet name that Agentry's Serve rule uses (`AGENTRY_TUNNEL_PORT`, 8443 by default) */
@@ -6412,9 +6418,10 @@ export interface WebhookChangedEvent extends AgentryEventBase {
 
 /**
  * What the setup signs in, by the name its CLI goes by: the five agents, the two code hosts' CLIs
- * (`gh` for GitHub, `glab` for GitLab) and YouTrack.
+ * (`gh` for GitHub, `glab` for GitLab), YouTrack, and the Tailscale that carries Remote access
+ * (only where Agentry runs its daemon: `TunnelStatus.managed`).
  */
-export const SETUP_TOOLS = ['claude-code', 'codex', 'gemini', 'copilot', 'opencode', 'gh', 'glab', 'youtrack'] as const;
+export const SETUP_TOOLS = ['claude-code', 'codex', 'gemini', 'copilot', 'opencode', 'gh', 'glab', 'youtrack', 'tailscale'] as const;
 export type SetupTool = (typeof SETUP_TOOLS)[number];
 
 /**
@@ -6429,8 +6436,10 @@ export interface SetupToolMethods {
   /**
    * How a key reaches the tool. `env`: Agentry keeps it sealed and hands it to that CLI's processes
    * in their environment. `stdin`: it is given once to the CLI's own login command, which stores it.
+   * `file`: the same, through a file of mode 0600 the command is pointed at and that is removed once
+   * it ended (Tailscale's `--auth-key=file:<path>`, the only way its CLI takes a key outside argv).
    */
-  key: 'env' | 'stdin';
+  key: 'env' | 'stdin' | 'file';
   /** For `env`, the variables the key may go in; the first is the default. Empty for `stdin`. */
   variables: string[];
   /** For `env`: only one of `variables` may be set at a time (Claude Code would otherwise pick for us) */
@@ -6466,7 +6475,10 @@ export interface LoginSession {
   state: LoginState;
   /** The page the person opens, for a device sign-in once the CLI printed it */
   url: string | null;
-  /** The code the person types there */
+  /**
+   * The code the person types there. Null for Tailscale, whose login URL is the whole sign-in: the
+   * person opens it and approves, with nothing to type
+   */
   code: string | null;
   startedAt: string;
   /** When a live sign-in stops waiting: 15 minutes after it started */
@@ -6534,6 +6546,20 @@ export interface SetupHostSummary {
   hosts: CodeHostHostEntry[];
 }
 
+/**
+ * The Tailscale behind Remote access, in the setup state. The setup offers its sign-in only while
+ * `managed`: elsewhere it shows the state and what to run.
+ */
+export interface SetupTailscaleSummary {
+  /** This deploy offers the tunnel (`AGENTRY_TUNNEL`) */
+  enabled: boolean;
+  /** Agentry runs this `tailscaled` (the Docker image), so it signs it in and out */
+  managed: boolean;
+  state: TailscaleReadinessState;
+  /** The node's MagicDNS name once it has one */
+  host: string | null;
+}
+
 /** `GET /setup`: what the first setup has done and what it has not. */
 export interface SetupState {
   /** The setup assistant was finished or skipped (`setupSeen` in the app settings) */
@@ -6542,6 +6568,7 @@ export interface SetupState {
   providers: SetupProviderSummary[];
   hosts: SetupHostSummary[];
   youtrack: { configured: boolean; state: TrackerState | null; reason: TrackerReason | null };
+  tailscale: SetupTailscaleSummary;
   methods: SetupToolMethods[];
   secrets: SecretStorageStatus;
 }

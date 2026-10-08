@@ -8,6 +8,15 @@
 //   tailscale serve --bg --yes --https=<port> <target>
 //   tailscale serve --yes --https=<port> off
 //
+// and the sign-in calls LoginService makes for the daemon the Docker image runs:
+//
+//   tailscale up --reset --hostname=<name>                          prints the recorded login URL
+//                                                                   (fixtures/logins/tailscale-up.stderr) and
+//                                                                   waits until the state file says `approved`
+//   tailscale up --reset --hostname=<name> --auth-key=file:<path>   reads the key from the file; `authKey`
+//                                                                   is the one that works
+//   tailscale logout
+//
 // The node's state lives in a JSON file, so a test can change it between calls and read what the
 // CLI was asked to do:
 //
@@ -17,8 +26,9 @@
 //
 // `operator: false` answers a Serve change the way tailscaled does for a user that is not the
 // node's operator. `daemon: false` answers every call that needs tailscaled the way the CLI does
-// when it cannot reach it.
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+// when it cannot reach it. Every key file `up` read is kept in `keyFiles` ({ mode, key }), so a test
+// can check the key reached the CLI that way and never in argv (which FAKE_TAILSCALE_LOG holds).
+import { appendFileSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 
 const argv = process.argv.slice(2);
 if (process.env.FAKE_TAILSCALE_LOG) appendFileSync(process.env.FAKE_TAILSCALE_LOG, `${JSON.stringify({ argv })}\n`);
@@ -46,6 +56,49 @@ const noDaemon = (path) =>
   fail(`failed to connect to local tailscaled; it doesn't appear to be running. Got error: Failed to connect to local Tailscale daemon for /localapi/v0/${path}; not running?`);
 
 const [command, ...rest] = argv;
+
+if (command === 'up') {
+  if (!state.daemon) noDaemon('status');
+  const hostname = rest.find((arg) => arg.startsWith('--hostname='))?.slice('--hostname='.length);
+  const keyArg = rest.find((arg) => arg.startsWith('--auth-key'));
+  if (keyArg) {
+    const value = keyArg.slice('--auth-key='.length);
+    if (!value.startsWith('file:')) fail('error: the fake only takes --auth-key=file:<path>');
+    const path = value.slice('file:'.length);
+    if (!existsSync(path)) fail(`open ${path}: no such file or directory`);
+    const key = readFileSync(path, 'utf8').trim();
+    state.keyFiles = [...(state.keyFiles ?? []), { mode: statSync(path).mode & 0o777, key }];
+    if (!state.authKey || key !== state.authKey) {
+      save();
+      // Recorded on 1.102.4 with a well-shaped key that does not exist (fixtures/logins/tailscale-up-auth-key-bad.*)
+      fail('backend error: invalid key: API key does not exist');
+    }
+    Object.assign(state, { backendState: 'Running', hostname });
+    save();
+    process.exit(0);
+  }
+  if (state.backendState === 'Running') process.exit(0);
+  process.stderr.write(readFileSync(new URL('./logins/tailscale-up.stderr', import.meta.url), 'utf8').replace(/\ncontext canceled\n$/, '\n'));
+  // Waits as the real one does, until someone approves the URL (the test writes `approved: true`)
+  const timer = setInterval(() => {
+    const now = file && existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
+    if (!now.approved) return;
+    clearInterval(timer);
+    Object.assign(state, now, { approved: false, backendState: 'Running', hostname });
+    save();
+    process.stdout.write('Success.\n');
+    process.exit(0);
+  }, 50);
+  process.on('SIGTERM', () => {
+    process.stderr.write('context canceled\n');
+    process.exit(1);
+  });
+} else if (command === 'logout') {
+  if (!state.daemon) noDaemon('logout');
+  state.backendState = 'NeedsLogin';
+  save();
+  process.exit(0);
+}
 
 if (command === 'version') {
   process.stdout.write(`${state.version}\n  tailscale commit: 0000000\n  go version: go1.26.6\n`);
@@ -110,4 +163,4 @@ if (command === 'serve') {
   process.exit(0);
 }
 
-fail(`fake tailscale: unknown command ${argv.join(' ')}`);
+if (command !== 'up') fail(`fake tailscale: unknown command ${argv.join(' ')}`);

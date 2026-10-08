@@ -9854,7 +9854,11 @@
       },
       "enabled": {
         "type": "boolean",
-        "description": "Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`). Off by default in the Docker image and the Helm chart: the container sees neither the host's `tailscale` CLI nor its daemon, and a way in that goes around the operator's published port and proxy is the operator's call. While false, `start` is refused and the UI says who can turn it on instead of offering a button"
+        "description": "Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`, on by default). While false, `start` is refused and the UI says who can turn it on instead of offering a button"
+      },
+      "managed": {
+        "type": "boolean",
+        "description": "Whether the `tailscaled` behind the CLI is Agentry's own: the one the Docker image starts in userspace networking, with its state on the data volume (`AGENTRY_TAILSCALE_MANAGED`). Only then does the app sign it in and out (`POST /setup/logins` with `tool: 'tailscale'`); a machine's own Tailscale is the person's, and the UI says what to run instead"
       },
       "tailscale": {
         "$ref": "#/components/schemas/TailscaleReadiness",
@@ -9874,6 +9878,7 @@
       "since",
       "reason",
       "enabled",
+      "managed",
       "tailscale",
       "port",
       "settings"
@@ -9963,7 +9968,7 @@
       "httpsDisabled",
       "ready"
     ],
-    "description": "Whether this machine's Tailscale can carry the tunnel. The whole Remote access section depends on it, so each way it is not ready is its own state, with a reason the UI explains:\n\n- `missing`: no `tailscale` CLI to run;\n- `unsupported`: a CLI older than 1.52, whose `serve` takes other arguments;\n- `daemonDown`: the CLI is there but `tailscaled` does not answer it;\n- `loggedOut`: the node is not signed in to a tailnet (`NeedsLogin`, `NeedsMachineAuth`);\n- `stopped`: signed in but not connected (`Stopped`, or any state other than `Running`);\n- `httpsDisabled`: MagicDNS or HTTPS certificates are off for the tailnet, so Serve has no   `https://<node>.<tailnet>.ts.net` to answer on;\n- `ready`: Serve can be used.\n\nAgentry never signs in, starts or configures Tailscale itself: it says what to run."
+    "description": "Whether this machine's Tailscale can carry the tunnel. The whole Remote access section depends on it, so each way it is not ready is its own state, with a reason the UI explains:\n\n- `missing`: no `tailscale` CLI to run;\n- `unsupported`: a CLI older than 1.52, whose `serve` takes other arguments;\n- `daemonDown`: the CLI is there but `tailscaled` does not answer it;\n- `loggedOut`: the node is not signed in to a tailnet (`NeedsLogin`, `NeedsMachineAuth`);\n- `stopped`: signed in but not connected (`Stopped`, or any state other than `Running`);\n- `httpsDisabled`: MagicDNS or HTTPS certificates are off for the tailnet, so Serve has no   `https://<node>.<tailnet>.ts.net` to answer on;\n- `ready`: Serve can be used.\n\nA Tailscale that belongs to the machine (a source checkout, the desktop app) is never signed in, started or configured by Agentry: it says what to run. Only the `tailscaled` the Docker image starts for Agentry (`TunnelStatus.managed`) is signed in and out from the app (docs/setup.md)."
   },
   "TunnelSettings": {
     "type": "object",
@@ -10203,7 +10208,7 @@
           "string",
           "null"
         ],
-        "description": "The code the person types there"
+        "description": "The code the person types there. Null for Tailscale, whose login URL is the whole sign-in: the person opens it and approves, with nothing to type"
       },
       "startedAt": {
         "type": "string"
@@ -10263,7 +10268,8 @@
       "opencode",
       "gh",
       "glab",
-      "youtrack"
+      "youtrack",
+      "tailscale"
     ]
   },
   "LoginMethod": {
@@ -20525,6 +20531,9 @@
           "reason"
         ]
       },
+      "tailscale": {
+        "$ref": "#/components/schemas/SetupTailscaleSummary"
+      },
       "methods": {
         "type": "array",
         "items": {
@@ -20541,6 +20550,7 @@
       "providers",
       "hosts",
       "youtrack",
+      "tailscale",
       "methods",
       "secrets"
     ],
@@ -20631,6 +20641,36 @@
     ],
     "description": "One code host's CLI in the setup state."
   },
+  "SetupTailscaleSummary": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "description": "This deploy offers the tunnel (`AGENTRY_TUNNEL`)"
+      },
+      "managed": {
+        "type": "boolean",
+        "description": "Agentry runs this `tailscaled` (the Docker image), so it signs it in and out"
+      },
+      "state": {
+        "$ref": "#/components/schemas/TailscaleReadinessState"
+      },
+      "host": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The node's MagicDNS name once it has one"
+      }
+    },
+    "required": [
+      "enabled",
+      "managed",
+      "state",
+      "host"
+    ],
+    "description": "The Tailscale behind Remote access, in the setup state. The setup offers its sign-in only while `managed`: elsewhere it shows the state and what to run."
+  },
   "SetupToolMethods": {
     "type": "object",
     "properties": {
@@ -20641,9 +20681,10 @@
         "type": "string",
         "enum": [
           "env",
-          "stdin"
+          "stdin",
+          "file"
         ],
-        "description": "How a key reaches the tool. `env`: Agentry keeps it sealed and hands it to that CLI's processes in their environment. `stdin`: it is given once to the CLI's own login command, which stores it."
+        "description": "How a key reaches the tool. `env`: Agentry keeps it sealed and hands it to that CLI's processes in their environment. `stdin`: it is given once to the CLI's own login command, which stores it. `file`: the same, through a file of mode 0600 the command is pointed at and that is removed once it ended (Tailscale's `--auth-key=file:<path>`, the only way its CLI takes a key outside argv)."
       },
       "variables": {
         "type": "array",

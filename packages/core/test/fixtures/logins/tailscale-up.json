@@ -1,0 +1,13 @@
+{
+  "command": "tailscale --socket=<tmp>/sock up --reset --hostname=agentry",
+  "stdin": "/dev/null",
+  "tty": false,
+  "exitCode": 1,
+  "stopped": "killed with SIGTERM to the process group 3 s after the URL appeared; it printed `context canceled`",
+  "secondsRunning": 7.6,
+  "secondsToUrl": 4.6,
+  "version": "tailscale 1.102.4 (CLI and tailscaled)",
+  "daemon": "tailscaled --tun=userspace-networking --state=<tmp>/state --socket=<tmp>/sock --statedir=<tmp> --port=0 --no-logs-no-support, run as an unprivileged user, fresh state",
+  "recordedAt": "2026-10-08",
+  "image": "none: the host's release binaries, pointed at a throwaway daemon"
+}

@@ -1,0 +1,13 @@
+{
+  "command": "tailscale --socket=<tmp>/sock up --reset --hostname=agentry --auth-key=file:<tmp>/key",
+  "stdin": "/dev/null",
+  "keyFile": "mode 0600, one line: a well-shaped auth key that does not exist (tskey-auth-kBADBADBAD-…)",
+  "tty": false,
+  "exitCode": 1,
+  "stopped": "exited by itself",
+  "secondsRunning": 0.3,
+  "version": "tailscale 1.102.4 (CLI and tailscaled)",
+  "daemon": "the same throwaway userspace tailscaled as tailscale-up.json",
+  "recordedAt": "2026-10-08",
+  "image": "none: the host's release binaries, pointed at a throwaway daemon"
+}

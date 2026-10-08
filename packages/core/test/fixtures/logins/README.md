@@ -74,6 +74,32 @@ glab may also read that warning line, before it says the key worked.
   and stdin was `/dev/null` or a closed pipe, so a question would end the command rather than hang it.
   To settle it, run `copilot login --device-code` once with a real account and no keyring.
 
+## Tailscale (recorded 2026-10-08, for the daemon the image runs)
+
+Not in the image run above: tailscale 1.102.4's release binaries on the recording machine, the CLI
+pointed with `--socket` at a **throwaway** `tailscaled --tun=userspace-networking
+--state=<tmp>/state --socket=<tmp>/sock --statedir=<tmp> --port=0 --no-logs-no-support`, started
+as an unprivileged user with a fresh state, the way the image starts its own. The machine's own
+signed-in daemon was never asked anything but `--help`. The throwaway was killed by its PID and its
+folder removed once the URL showed; nobody opened it, so no node joined a tailnet.
+
+| Recording | Command | Exit | What it shows |
+|---|---|---|---|
+| `tailscale-up.*` | `tailscale up --reset --hostname=agentry`, stdin `/dev/null` | 1 on SIGTERM (`context canceled`) | stderr only: an empty line, `To authenticate, visit:`, an empty line, the URL alone after a tab (`\thttps://login.tailscale.com/a/<id>`), an empty line. **No code**: opening the URL is the sign-in. It took about 4.6 s to appear (the daemon asks the control server for it), and the command then waits until the node is `Running` (`--timeout` 0 = forever) |
+| `tailscale-up-auth-key-bad.*` | the same with `--auth-key=file:<tmp>/key` (mode 0600, a well-shaped key that does not exist) | 1, at once | stderr `backend error: invalid key: API key does not exist`. The `file:` form is read: 1.102's `up --help` documents it, and a missing file answers `open <path>: no such file or directory` |
+
+Also measured on the throwaway, and why `LoginService` runs what it runs:
+
+- **`up` with flags that differ from what the daemon kept is refused** (`changing settings via 'tailscale
+  up' requires mentioning all non-default flags`) unless `--reset` is given; `tailscale login` skips
+  that check but its help calls it alpha. Hence `up --reset --hostname=<name>`, on a daemon only
+  Agentry drives.
+- **The CLI and the daemon run as the same unprivileged user** and the CLI may change everything
+  (`up`, `logout`) with no `--operator`.
+- **`tailscale logout`** on a node that is not signed in exits 0 with no output.
+- **`status --json`** on the fresh daemon answers `BackendState: NeedsLogin`, `TUN: false`, and
+  once `up` printed its URL, `AuthURL` holds it too.
+
 ## Blockers
 
 None: every device flow ran without a terminal, so the plan keeps all four device methods (gh's

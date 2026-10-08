@@ -625,12 +625,12 @@ or an answer; every write, and reading a sign-in, is refused to a chat's token. 
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/setup` | `{ seen, access, providers, hosts, youtrack, methods, secrets }`: the auth mode, each enabled agent's readiness and whether a key is kept for it, each code host's CLI and the hosts it is signed in to, YouTrack, the sign-in methods per tool, and whether the vault is sealed and its key sits beside the data |
+| GET | `/setup` | `{ seen, access, providers, hosts, youtrack, tailscale, methods, secrets }`: the auth mode, each enabled agent's readiness and whether a key is kept for it, each code host's CLI and the hosts it is signed in to, YouTrack, the Tailscale behind Remote access (offered, run by Agentry, its readiness and node name), the sign-in methods per tool, and whether the vault is sealed and its key sits beside the data |
 | POST | `/setup/seen` | Record that the setup assistant was finished or skipped (`setupSeen` in `app-settings.json`); `409` when the environment sets it off |
-| POST | `/setup/logins` | `{ tool, method: 'key' \| 'device', host?, secret?, variable? }`. A key goes on stdin to the CLI's own login (Codex, Copilot, gh, glab) or into the vault (Claude Code, Gemini, OpenCode, YouTrack), and the answer comes once it ended. A device sign-in answers at once; `login.updated` carries the URL and the code, then the end, decided by the tool's readiness probe. Expires after 15 minutes |
+| POST | `/setup/logins` | `{ tool, method: 'key' \| 'device', host?, secret?, variable? }`. A key goes on stdin to the CLI's own login (Codex, Copilot, gh, glab), into a 0600 file named in `tailscale up --auth-key=file:` and removed after (Tailscale), or into the vault (Claude Code, Gemini, OpenCode, YouTrack), and the answer comes once it ended. A device sign-in answers at once; `login.updated` carries the URL and the code (Tailscale's login URL has none), then the end, decided by the tool's readiness probe. Expires after 15 minutes. Tailscale only where Agentry runs its daemon (the image), `409` elsewhere |
 | GET | `/setup/logins/:id` | One sign-in: state, URL and code, `error` code, readiness after it ended |
 | DELETE | `/setup/logins/:id` | Cancel it; the command's process group is killed |
-| DELETE | `/setup/credentials/:tool?host=` | Sign out: `codex logout`, `gh`/`glab auth logout --hostname`, `claude auth logout` plus the vault, or the vault alone. Copilot documents none: `signedOut: false`, reason `unsupported` |
+| DELETE | `/setup/credentials/:tool?host=` | Sign out: `codex logout`, `gh`/`glab auth logout --hostname`, `claude auth logout` plus the vault, `tailscale logout` after the tunnel closes, or the vault alone. Copilot documents none: `signedOut: false`, reason `unsupported` |
 
 ### Security
 
@@ -655,7 +655,7 @@ next start, audited with actor `env` (see [Securing it](#securing-it)).
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/tunnel` | `{ state, url, since, reason, enabled, tailscale, port, settings }`: `url` and `since` only while `active`, `reason` (with a `code`) only while `failed`, `enabled` false where the deploy does not offer the tunnel (`AGENTRY_TUNNEL`, off in the image), `tailscale` whether the CLI is installed, signed in, connected and has HTTPS on (`state`, `version`, `host`, `reason`), read again from the CLI at most every two seconds |
+| GET | `/tunnel` | `{ state, url, since, reason, enabled, managed, tailscale, port, settings }`: `url` and `since` only while `active`, `reason` (with a `code`) only while `failed`, `enabled` false where the deploy does not offer the tunnel (`AGENTRY_TUNNEL`), `managed` true where Agentry runs the `tailscaled` itself (the image) and signs it in from the setup, `tailscale` whether the CLI is installed, signed in, connected and has HTTPS on (`state`, `version`, `host`, `reason`), read again from the CLI at most every two seconds |
 | PUT | `/tunnel/settings` | `{ startWithAgentry }`, off by default. Emits `tunnel.changed` |
 | POST | `/tunnel/start` | Adds Agentry's `tailscale serve` rule on `port`; `409` while the auth mode is `none` or where `enabled` is false, `failed` with the reason when Tailscale is not ready or the port serves something else. The address shows, and the node's exact name joins the allowlist, once the rule reads back from the Serve config |
 | POST | `/tunnel/stop` | Takes the name off the allowlist and removes only Agentry's Serve rule; turning the auth mode to `none` does it first |

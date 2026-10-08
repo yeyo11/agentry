@@ -8,7 +8,7 @@ import type { AgentryEvent, LoginSession, SetupTool } from '@agentry/shared';
 import type { AgentryEventInput } from '../src/events.ts';
 import { SecretVault } from '../src/secret-vault.ts';
 import { DEVICE_PATTERNS, readDeviceLine } from '../src/setup/device-patterns.ts';
-import { LoginInputError, LoginService, type LoginServiceDeps } from '../src/setup/logins.ts';
+import { LoginInputError, LoginRefusedError, LoginService, type LoginServiceDeps } from '../src/setup/logins.ts';
 import { setupMethods } from '../src/setup/methods.ts';
 import { YoutrackCredentialStore } from '../src/trackers/youtrack/credentials.ts';
 import { tempConfig } from './helpers.ts';
@@ -67,7 +67,7 @@ async function until<T>(read: () => T | null | undefined, what: string, ms = 8_0
   }
 }
 
-const ended = (r: Rig, id: string): LoginSession | null => {
+const ended = (r: Pick<Rig, 'logins'>, id: string): LoginSession | null => {
   const session = r.logins.get(id);
   return session?.endedAt ? session : null;
 };
@@ -115,7 +115,7 @@ test('the methods table offers a device sign-in where the vendor documents one',
   const methods = Object.fromEntries(setupMethods().map((m) => [m.tool, m]));
   assert.deepEqual(
     Object.entries(methods).filter(([, m]) => m.device).map(([tool]) => tool).sort(),
-    ['codex', 'copilot', 'gh', 'glab'],
+    ['codex', 'copilot', 'gh', 'glab', 'tailscale'],
   );
   assert.equal(methods.copilot?.signOut, false);
   assert.deepEqual(methods['claude-code']?.variables, ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']);
@@ -291,4 +291,124 @@ test('signing out runs the documented command, forgets what the vault keeps, and
   await r.vault.set('gemini', { GEMINI_API_KEY: 'g' });
   assert.equal((await r.logins.signOut('gemini')).signedOut, true);
   assert.equal(r.vault.has('gemini'), false);
+});
+
+// ---------- Tailscale (the daemon the Docker image runs for Agentry) ----------
+
+const FAKE_TAILSCALE = join(here, 'fixtures', 'fake-tailscale.mjs');
+
+interface TailscaleRig {
+  logins: LoginService;
+  events: AgentryEvent[];
+  /** The fake node's state file: `approved`, `authKey`, `backendState`, `keyFiles` */
+  node: () => { backendState: string; hostname?: string; keyFiles?: Array<{ mode: number; key: string }> };
+  approve: () => void;
+  /** Every argv the CLI was started with */
+  calls: () => string[][];
+  signOuts: string[];
+}
+
+function tailscaleRig(options: { authKey?: string; refusal?: string | null } = {}): TailscaleRig {
+  const config = tempConfig();
+  const vault = new SecretVault(config);
+  const stateFile = join(config.dataDir, 'node.json');
+  const log = join(config.dataDir, 'tailscale.log');
+  writeFileSync(stateFile, JSON.stringify({ backendState: 'NeedsLogin', ...(options.authKey ? { authKey: options.authKey } : {}) }));
+  const events: AgentryEvent[] = [];
+  const signOuts: string[] = [];
+  const node = () => JSON.parse(readFileSync(stateFile, 'utf8')) as ReturnType<TailscaleRig['node']>;
+  const logins = new LoginService({
+    vault,
+    youtrack: new YoutrackCredentialStore(config, vault),
+    emit: (event: AgentryEventInput) => events.push({ ...event, id: events.length + 1, at: new Date().toISOString() } as AgentryEvent),
+    binary: async () => FAKE_TAILSCALE,
+    // What Core reads: the node's state through the CLI; here, the fake's own file
+    readiness: async () => node().backendState === 'Running',
+    refusal: () => options.refusal ?? null,
+    beforeSignOut: async (tool) => {
+      signOuts.push(tool);
+    },
+    tailscaleName: 'agentry-lab',
+    baseEnv: { PATH: process.env.PATH ?? '/usr/bin:/bin', FAKE_TAILSCALE_STATE: stateFile, FAKE_TAILSCALE_LOG: log },
+    lifetimeMs: 10_000,
+    commandTimeoutMs: 10_000,
+    killGraceMs: 200,
+  });
+  return {
+    logins,
+    events,
+    node,
+    approve: () => writeFileSync(stateFile, JSON.stringify({ ...node(), approved: true })),
+    calls: () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').map((line) => (JSON.parse(line) as { argv: string[] }).argv) : []),
+    signOuts,
+  };
+}
+
+test('Tailscale\'s recorded login output gives the URL alone: there is no code to type', () => {
+  let found: { url: string | null; code: string | null } = { url: null, code: null };
+  for (const line of readFileSync(fixture('tailscale-up.stderr'), 'utf8').split('\n')) {
+    const read = readDeviceLine(DEVICE_PATTERNS.tailscale, line);
+    found = { url: found.url ?? read.url, code: found.code ?? read.code };
+  }
+  assert.deepEqual(found, { url: 'https://login.tailscale.com/a/12c7b6a0132b3', code: null });
+  // The sentence before it is not a link
+  assert.equal(readDeviceLine(DEVICE_PATTERNS.tailscale, 'To authenticate, visit:').url, null);
+});
+
+test('a Tailscale sign-in waits on its login URL with no code, and succeeds once the node runs', async () => {
+  const r = tailscaleRig();
+  const started = await r.logins.start({ tool: 'tailscale', method: 'device' });
+  assert.equal(started.state, 'starting');
+  const waiting = await until(() => {
+    const session = r.logins.get(started.id);
+    return session?.state === 'waiting-for-person' ? session : null;
+  }, 'the login URL');
+  assert.deepEqual([waiting.url, waiting.code, waiting.host], ['https://login.tailscale.com/a/12c7b6a0132b3', null, null]);
+  // The deploy's node name, and nothing that changes networking beyond what Serve needs
+  assert.deepEqual(r.calls()[0], ['up', '--reset', '--hostname=agentry-lab']);
+  r.approve();
+  const done = await until(() => ended(r, started.id), 'the sign-in to end');
+  assert.deepEqual([done.state, done.ready], ['succeeded', true]);
+  assert.equal(r.node().hostname, 'agentry-lab');
+});
+
+test('a Tailscale auth key reaches the CLI only through a 0600 file that is gone once the command ended', async () => {
+  const key = 'tskey-auth-kNeverInArgv-0123456789abcdef';
+  const r = tailscaleRig({ authKey: key });
+  const session = await r.logins.start({ tool: 'tailscale', method: 'key', secret: key });
+  assert.deepEqual([session.state, session.ready], ['succeeded', true]);
+  const argv = r.calls()[0] ?? [];
+  assert.deepEqual(argv.slice(0, 3), ['up', '--reset', '--hostname=agentry-lab']);
+  const fileArg = argv[3] ?? '';
+  assert.match(fileArg, /^--auth-key=file:\//);
+  assert.ok(!argv.join(' ').includes(key), 'the key is never in argv');
+  assert.deepEqual(r.node().keyFiles, [{ mode: 0o600, key }]);
+  assert.equal(existsSync(fileArg.slice('--auth-key=file:'.length)), false, 'the key file is removed');
+  assert.ok(!JSON.stringify(r.events).includes(key));
+  assert.ok(!JSON.stringify(session).includes(key));
+
+  // A key the control server refuses is a failure, and its file goes too
+  const bad = tailscaleRig({ authKey: 'tskey-auth-the-right-one' });
+  const refused = await bad.logins.start({ tool: 'tailscale', method: 'key', secret: 'tskey-auth-kBADBADBAD-0000' });
+  assert.deepEqual([refused.state, refused.error], ['failed', 'cli-refused']);
+  const badArg = bad.calls()[0]?.[3] ?? '';
+  assert.equal(existsSync(badArg.slice('--auth-key=file:'.length)), false);
+});
+
+test('Tailscale signs out with logout, after the tunnel had its chance to close', async () => {
+  const r = tailscaleRig({ authKey: 'tskey-auth-ok' });
+  await r.logins.start({ tool: 'tailscale', method: 'key', secret: 'tskey-auth-ok' });
+  assert.deepEqual(await r.logins.signOut('tailscale'), { tool: 'tailscale', host: null, signedOut: true, reason: null });
+  assert.deepEqual(r.calls().at(-1), ['logout']);
+  assert.deepEqual(r.signOuts, ['tailscale']);
+  assert.equal(r.node().backendState, 'NeedsLogin');
+});
+
+test('a Tailscale that belongs to the machine is neither signed in nor out from Agentry', async () => {
+  const r = tailscaleRig({ refusal: 'not managed' });
+  await assert.rejects(r.logins.start({ tool: 'tailscale', method: 'device' }), (err: Error) => err instanceof LoginRefusedError && (err as LoginRefusedError).statusCode === 409);
+  await assert.rejects(r.logins.start({ tool: 'tailscale', method: 'key', secret: 'tskey-auth-x' }), LoginRefusedError);
+  await assert.rejects(r.logins.signOut('tailscale'), LoginRefusedError);
+  assert.deepEqual(r.calls(), [], 'the CLI never ran');
+  assert.deepEqual(r.signOuts, []);
 });

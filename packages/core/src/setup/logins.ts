@@ -1,6 +1,8 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import type { LoginErrorCode, LoginMethod, LoginSession, SetupTool, SignOutResult, StartLoginRequest } from '@agentry/shared';
 import { childEnv } from '../child-env.ts';
@@ -28,6 +30,14 @@ export class LoginInputError extends Error {
   readonly statusCode = 400;
 }
 
+/** A sign-in this Agentry does not offer here: the request was understood, the deploy forbids it */
+export class LoginRefusedError extends Error {
+  readonly statusCode = 409;
+}
+
+/** The node name a managed tailscaled signs in with when the deps name none */
+const DEFAULT_TAILSCALE_NAME = 'agentry';
+
 export interface LoginServiceDeps {
   vault: Pick<SecretVault, 'set' | 'clear'>;
   youtrack: Pick<YoutrackCredentialStore, 'set' | 'clear'>;
@@ -39,6 +49,15 @@ export interface LoginServiceDeps {
    * probe. This is what decides whether a sign-in worked, never what the CLI printed.
    */
   readiness: (tool: SetupTool, host: string | null) => Promise<boolean | null>;
+  /**
+   * Why this deploy does not sign a tool in or out, or null when it does (every tool by default).
+   * Tailscale is signed in only where Agentry runs its daemon: a machine's own is the person's.
+   */
+  refusal?: (tool: SetupTool) => string | null;
+  /** Runs before a sign-out command: Tailscale's closes the tunnel first, while the daemon can still take its rule away */
+  beforeSignOut?: (tool: SetupTool) => Promise<void>;
+  /** The node name `tailscale up --hostname` signs in with */
+  tailscaleName?: string;
   /** The environment children start from; the server's own by default */
   baseEnv?: NodeJS.ProcessEnv;
   /** Runs a call of gh or glab; the execution layer by default */
@@ -95,15 +114,18 @@ export class LoginService {
    */
   async start(input: unknown): Promise<LoginSession> {
     const request = this.parse(input);
+    this.refuse(request.tool);
     const login = TOOL_LOGINS[request.tool];
     const host = this.hostOf(request);
+    // What a command takes in place of a host: Tailscale's node name, which is the deploy's and not the request's
+    const target = request.tool === 'tailscale' ? (this.deps.tailscaleName ?? DEFAULT_TAILSCALE_NAME) : (host ?? '');
     this.prune();
     for (const live of this.sessions.values()) {
       if (live.session.tool === request.tool && live.session.host === host && !ENDED.has(live.session.state)) this.cancel(live.session.id);
     }
     if (request.method === 'device') {
       if (!login.deviceCommand) throw new LoginInputError(`${request.tool} has no device-code sign-in`);
-      return this.device(request.tool, host, login.deviceCommand(host ?? ''));
+      return this.device(request.tool, host, login.deviceCommand(target));
     }
     const secret = this.secretOf(request.secret);
     if (login.methods.key === 'env') {
@@ -112,7 +134,8 @@ export class LoginService {
       return this.envKey(request.tool, host, variable, secret);
     }
     if (!login.keyCommand) throw new LoginInputError(`${request.tool} takes no key`);
-    return this.stdinKey(request.tool, host, login.keyCommand(host ?? ''), secret);
+    if (login.methods.key === 'file') return this.fileKey(request.tool, host, login.keyCommand(target), secret);
+    return this.stdinKey(request.tool, host, login.keyCommand(target), secret);
   }
 
   /** Stops a live sign-in and kills what it started; an ended one is answered as it is */
@@ -130,12 +153,14 @@ export class LoginService {
   async signOut(toolInput: string, hostInput?: string): Promise<SignOutResult> {
     if (!isSetupTool(toolInput)) throw new LoginInputError(`unknown tool ${toolInput}`);
     const tool = toolInput;
+    this.refuse(tool);
     const login = TOOL_LOGINS[tool];
     const host = isHostCli(tool) ? this.hostName(hostInput, login.methods.defaultHost) : null;
     const result = (signedOut: boolean, reason: SignOutResult['reason']): SignOutResult => ({ tool, host, signedOut, reason });
     if (!login.methods.signOut) return result(false, 'unsupported');
 
     let outcome: Outcome = { exitCode: 0, error: null };
+    await this.deps.beforeSignOut?.(tool);
     if (tool === 'youtrack') await this.deps.youtrack.clear();
     else if (login.methods.key === 'env') await this.deps.vault.clear(tool);
     if (login.signOutCommand) outcome = await this.command(tool, host, login.signOutCommand(host ?? ''), null);
@@ -147,6 +172,11 @@ export class LoginService {
   /** Kills every live sign-in; the server is stopping */
   close(): void {
     for (const live of this.sessions.values()) if (!ENDED.has(live.session.state)) this.end(live, 'cancelled', null);
+  }
+
+  private refuse(tool: SetupTool): void {
+    const why = this.deps.refusal?.(tool) ?? null;
+    if (why) throw new LoginRefusedError(why);
   }
 
   private parse(input: unknown): StartLoginRequest {
@@ -258,6 +288,33 @@ export class LoginService {
   private async stdinKey(tool: SetupTool, host: string | null, args: string[], secret: string): Promise<LoginSession> {
     const live = this.open(tool, 'key', host);
     const outcome = await this.command(tool, host, args, `${secret}\n`);
+    return this.keyEnded(live, tool, host, outcome);
+  }
+
+  /**
+   * Tailscale: its CLI takes a key in argv or from a file named there, never on stdin. The key goes
+   * into a file of mode 0600 in a folder of mode 0700 that only this sign-in uses, the command is
+   * told `--auth-key=file:<path>`, and the folder is removed once the command ended, whatever happened.
+   */
+  private async fileKey(tool: SetupTool, host: string | null, args: string[], secret: string): Promise<LoginSession> {
+    const live = this.open(tool, 'key', host);
+    let outcome: Outcome;
+    let dir: string | null = null;
+    try {
+      dir = await mkdtemp(join(tmpdir(), 'agentry-key-'));
+      const file = join(dir, 'key');
+      await writeFile(file, secret, { mode: 0o600, flag: 'wx' });
+      outcome = await this.command(tool, host, [...args, `--auth-key=file:${file}`], null);
+    } catch {
+      outcome = { exitCode: null, error: 'spawn-failed' };
+    } finally {
+      if (dir) await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+    }
+    return this.keyEnded(live, tool, host, outcome);
+  }
+
+  /** A key login ended: it worked only when the command did and the readiness probe agrees */
+  private async keyEnded(live: Live, tool: SetupTool, host: string | null, outcome: Outcome): Promise<LoginSession> {
     if (outcome.error) {
       this.end(live, 'failed', outcome.error);
     } else if (outcome.exitCode !== 0) {
@@ -342,14 +399,16 @@ export class LoginService {
     live.child = child;
     live.timer = setTimeout(() => this.end(live, 'expired', null), this.lifetimeMs);
 
+    // A sign-in with no code to type (Tailscale) is shown once its URL is
+    const shown = (): boolean => live.session.url !== null && (live.session.code !== null || pattern.code === null);
     const read = (line: string): void => {
-      if (ENDED.has(live.session.state) || (live.session.url && live.session.code)) return;
+      if (ENDED.has(live.session.state) || shown()) return;
       const found = readDeviceLine(pattern, line);
       const url = live.session.url ?? found.url;
       const code = live.session.code ?? found.code;
       if (url === live.session.url && code === live.session.code) return;
       live.session = { ...live.session, url, code };
-      if (url && code) {
+      if (shown()) {
         live.session = { ...live.session, state: 'waiting-for-person' };
         this.publish(live);
       }
@@ -361,7 +420,7 @@ export class LoginService {
     child.on('close', (code) => {
       if (live.child !== child || ENDED.has(live.session.state)) return;
       live.child = null;
-      if (!live.session.code || !live.session.url) {
+      if (!shown()) {
         if (code !== 0) return this.end(live, 'failed', 'no-code');
       } else if (code !== 0) {
         return this.end(live, 'failed', 'cli-refused');
