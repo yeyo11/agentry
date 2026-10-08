@@ -311,7 +311,8 @@
     "created": "{{key}} creada en Backlog",
     "createdDetail": "Enlazada a este chat",
     "openTask": "Abrir",
-    "createFailed": "No se ha podido crear la tarea"
+    "createFailed": "No se ha podido crear la tarea",
+    "copyFailed": "No se ha podido copiar el mensaje"
   },
   "edits": {
     "label": "Archivos que editó este paso",

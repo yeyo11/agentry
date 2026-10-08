@@ -24,6 +24,7 @@ import { checklistProgress } from '../../lib/observe';
 import type { InspectorTab } from './Inspector';
 import { LimitBadge } from './LimitBadge';
 import type { LimitPhase } from './LimitBanner';
+import { copyText } from '@agentry/ui/lib/clipboard';
 
 /** True once `on` has held for `ms`: a flag that does not flap on a blip. */
 function useHeldFor(on: boolean, ms: number): boolean {
@@ -191,10 +192,7 @@ export const ChatHeader = memo(function ChatHeader({
           label: t('view.copyId'),
           icon: Copy,
           onSelect: () =>
-            void navigator.clipboard?.writeText(chat.id).then(
-              () => toast.success(t('view.copiedId')),
-              (error: unknown) => toast.error(t('view.copyFailed'), error),
-            ),
+            void copyText(chat.id).then((copied) => (copied ? toast.success(t('view.copiedId')) : toast.error(t('view.copyFailed')))),
         },
       ],
     },

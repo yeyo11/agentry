@@ -48,6 +48,7 @@ import { openChangeRequestId } from '../lib/review-lines';
 import { AgentProviderScope, useAgentCopy } from '../lib/agent-name';
 import { useWidth } from '../lib/use-width';
 import { isLive, taskPath } from '../lib/work-items';
+import { copyText } from '@agentry/ui/lib/clipboard';
 
 // The review screen (docs/plans/changes-review.md): one page for a chat, a task and the integration
 // branch. Each route builds a ReviewSource and draws the same screen, whose Result lens is the file
@@ -647,8 +648,8 @@ function usePatchCopy(source: ReviewSource, files: ChangedFile[], scope: ReviewS
     void (async () => {
       try {
         const diffs = await Promise.all(files.map((f) => client.fetchQuery(source.diff(f.path, scopeQuery(scope)))));
-        await navigator.clipboard.writeText(diffs.map((d) => (d.diff.endsWith('\n') ? d.diff : `${d.diff}\n`)).join(''));
-        setState('copied');
+        const copied = await copyText(diffs.map((d) => (d.diff.endsWith('\n') ? d.diff : `${d.diff}\n`)).join(''));
+        setState(copied ? 'copied' : 'failed');
       } catch {
         setState('failed');
       }

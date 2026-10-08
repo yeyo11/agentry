@@ -183,7 +183,8 @@
     "cancel": "Cancel",
     "save": "Save",
     "editTitle": "Rename the task",
-    "editDescription": "Edit the description"
+    "editDescription": "Edit the description",
+    "copyFailed": "Could not copy the link"
   },
   "delete": {
     "title": "Delete {{key}}?",

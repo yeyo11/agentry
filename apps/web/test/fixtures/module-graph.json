@@ -267,6 +267,7 @@
   "chats [AgentRef, FollowedOutput, Paged, useAgentDetail, useChatPermissions, useChatStream, useChatTasks, useChatTranscript, useStreamSnapshot, useTaskOutput]",
   "chats [Chats]",
   "cli-missing [CliMissing]",
+  "clipboard [copyText]",
   "code-hosts [ChangeRequestWords, changeRequestRef, changeRequestWords]",
   "connector [Connector]",
   "context [ChatClient, ChatUiConfig, ChatUiProvider, StartChoices, chatKeys, useChatUi]",

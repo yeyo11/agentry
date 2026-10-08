@@ -19,6 +19,7 @@ import { FileThreadsFold, ThreadsChip, threadLayer, useFileThreads, useReviewThr
 import { hourMinute, reviewKey, scopeQuery, splitPath, type ReviewScope } from './review-model';
 import { LIVE_REFRESH_MS, type ReviewSource } from './source';
 import { plainIntent } from './steps/steps-model';
+import { copyText } from '@agentry/ui/lib/clipboard';
 
 // One file of the review: its header, the why line, and the diff with its block rail. It reads the
 // diff in the review's scope, and the whole file (`context=full`) once, when a gap is opened that the
@@ -29,14 +30,7 @@ export const FULL_LIMIT = 5_000;
 
 const MODE_ICON: Record<ReviewMode, typeof AlignJustify> = { reading: TextQuote, unified: AlignJustify, split: Columns2 };
 
-async function copy(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    return false;
-  }
-}
+const copy = (text: string): Promise<boolean> => copyText(text);
 
 const linesOf = (d: ParsedDiff) => d.hunks.reduce((n, h) => n + h.lines.length, 0);
 

@@ -41,7 +41,9 @@
     "mode": "Mode",
     "edited": "edited {{when}}",
     "markdown": "Markdown",
-    "preview": "Preview"
+    "preview": "Preview",
+    "pathCopied": "Path copied",
+    "copyFailed": "Could not copy the path"
   },
   "origin": {
     "wroteBy": "Written by the",
